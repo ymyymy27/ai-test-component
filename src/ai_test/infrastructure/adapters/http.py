@@ -1,0 +1,2 @@
+"""HTTP testing adapter boundary."""
+

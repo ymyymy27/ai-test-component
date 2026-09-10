@@ -1,0 +1,2 @@
+"""Source-control adapter boundary."""
+

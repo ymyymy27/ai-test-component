@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ai-test/host-event.schema.json",
+  "title": "AI Test Host Event",
+  "type": "object",
+  "required": ["type", "version", "request_id", "payload"],
+  "properties": {
+    "type": {"type": "string", "minLength": 1},
+    "version": {"const": "1.0"},
+    "request_id": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}
+

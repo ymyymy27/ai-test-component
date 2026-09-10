@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-test-component"
+version = "0.1.0"
+description = "Lightweight, embeddable AI-assisted testing component"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = { text = "Proprietary" }
+authors = [{ name = "AI Test Component Team" }]
+dependencies = [
+  "httpx>=0.28,<1",
+  "portalocker>=3.2,<4",
+  "pydantic>=2.11,<3",
+]
+
+[project.optional-dependencies]
+team = []
+mcp = ["mcp>=1.12,<3"]
+postgres-check = ["psycopg[binary]>=3.2,<4"]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.15,<2",
+  "pytest>=8.3,<10",
+  "ruff>=0.11,<1",
+]
+
+[project.scripts]
+aitest = "ai_test.interfaces.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_test"]
+
+[tool.hatch.build]
+include = [
+  "src/ai_test/**/*.py",
+  "src/ai_test/resources/**/*",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = [".uv-cache", ".uv-python", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["ai_test"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["mcp", "mcp.*"]
+ignore_missing_imports = true
