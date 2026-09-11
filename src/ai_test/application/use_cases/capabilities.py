@@ -4,7 +4,7 @@ from typing import Any
 def describe_capabilities() -> dict[str, Any]:
     return {
         "component": "ai-test-component",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "ready": [
             "workspace",
             "project-context",
