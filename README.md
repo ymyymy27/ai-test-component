@@ -30,6 +30,8 @@ uv run aitest --workspace .aitest-data init
 uv run aitest --workspace .aitest-data capabilities
 uv run aitest --workspace .aitest-data project-create demo "演示项目"
 uv run aitest --workspace .aitest-data project-get demo
+uv run aitest --workspace .aitest-data task-create demo task-1 "创建并查询工单" --scope "工单创建流程" --acceptance "AC1=创建后的工单可以查询到一致数据"
+uv run aitest --workspace .aitest-data task-get task-1
 uv run pytest
 ```
 
@@ -52,5 +54,4 @@ uv run pytest
 
 ## 状态
 
-版本 `0.1.0` 仅代表骨架可运行，不代表需求文档中的首期业务验收已经完成。
-
+版本 `0.2.0` 仅代表骨架可运行，不代表需求文档中的首期业务验收已经完成。
