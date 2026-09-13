@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from ai_test.application.use_cases.delivery import DeliveryContext
 from ai_test.application.use_cases.project_context import ProjectContext
 from ai_test.application.use_cases.task_context import TaskContext
 from ai_test.infrastructure.file_store.objects import FileObjectStore
@@ -12,6 +13,7 @@ class Component:
     workspace: Path
     projects: ProjectContext
     tasks: TaskContext
+    deliveries: DeliveryContext
     records: FileRecordRepository
     objects: FileObjectStore
 
@@ -21,10 +23,12 @@ def create_component(workspace: str | Path) -> Component:
     records = FileRecordRepository(root)
     records.initialize()
     projects = ProjectContext(records)
+    tasks = TaskContext(records, projects)
     return Component(
         workspace=root,
         projects=projects,
-        tasks=TaskContext(records, projects),
+        tasks=tasks,
+        deliveries=DeliveryContext(records, tasks),
         records=records,
         objects=FileObjectStore(root),
     )

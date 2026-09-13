@@ -4,17 +4,18 @@ from typing import Any
 def describe_capabilities() -> dict[str, Any]:
     return {
         "component": "ai-test-component",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "ready": [
             "workspace",
             "project-context",
             "task-context",
+            "delivery-intake",
+            "workspace-writability-check",
             "python-api",
             "cli",
             "asgi-health",
         ],
         "planned": [
-            "delivery-intake",
             "test-planning",
             "execution",
             "evidence-review",

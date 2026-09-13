@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from ai_test.composition import Component, create_component
+from ai_test.domain.deliveries import Delivery
 from ai_test.domain.projects import Project
 from ai_test.domain.tasks import AcceptanceItem, Task
 
@@ -43,3 +44,46 @@ class AITestAPI:
 
     def list_tasks(self, project_id: str | None = None) -> tuple[Task, ...]:
         return self.component.tasks.list(project_id)
+
+    def create_delivery(
+        self,
+        delivery_id: str,
+        task_id: str,
+        version: str,
+        run_method: str,
+        *,
+        completed: tuple[str, ...] = (),
+        incomplete: tuple[str, ...] = (),
+        changed_modules: tuple[str, ...] = (),
+        api_changes: tuple[str, ...] = (),
+        test_data: tuple[str, ...] = (),
+        dependencies: tuple[str, ...] = (),
+        mocks: tuple[str, ...] = (),
+        known_issues: tuple[str, ...] = (),
+        self_test_evidence: tuple[str, ...] = (),
+        submitted_by: str | None = None,
+    ) -> Delivery:
+        return self.component.deliveries.create(
+            Delivery(
+                delivery_id=delivery_id,
+                task_id=task_id,
+                version=version,
+                completed=completed,
+                incomplete=incomplete,
+                changed_modules=changed_modules,
+                api_changes=api_changes,
+                run_method=run_method,
+                test_data=test_data,
+                dependencies=dependencies,
+                mocks=mocks,
+                known_issues=known_issues,
+                self_test_evidence=self_test_evidence,
+                submitted_by=submitted_by,
+            )
+        )
+
+    def get_delivery(self, delivery_id: str) -> Delivery | None:
+        return self.component.deliveries.get(delivery_id)
+
+    def list_deliveries(self, task_id: str | None = None) -> tuple[Delivery, ...]:
+        return self.component.deliveries.list(task_id)

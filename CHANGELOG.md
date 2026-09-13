@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 - 2026-09-13
+
+### Added
+
+- Added chunked record indexes so writes only rewrite the affected shard.
+- Added automatic migration from the legacy full-index workspace state.
+- Added real workspace writability probes for `doctor`.
+- Added FR03 delivery declarations linked to tasks.
+- Added delivery Python API and `delivery-create`, `delivery-get`, and `delivery-list` CLI commands.
+- Added tests for chunked indexes, legacy migration, writability checks, delivery invariants, and delivery persistence.
+
+### Fixed
+
+- Updated `uv.lock` to match the package version.
+- Fixed the unbounded `state.json` record map that conflicted with the v2.4 architecture.
 ## 0.2.0 - 2026-09-11
 
 ### Added
