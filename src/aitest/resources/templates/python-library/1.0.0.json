@@ -1,0 +1,132 @@
+{
+  "schema_version": "aitest.template/1.0",
+  "template_id": "python-library",
+  "version": "1.0.0",
+  "name": "Python库/纯函数",
+  "source": "builtin",
+  "applicability": "适用于Python库；无持久化时数据库不适用，独立预期比对仍必需。",
+  "delivery_method": "registered_command",
+  "implementation_status": "scaffold",
+  "items": [
+    {
+      "item_id": "syntax",
+      "layer": "L1",
+      "objective": "适用语法与加载",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "python_checks",
+      "expected": "适用语法与加载符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "normal",
+      "layer": "L2",
+      "objective": "正常输入独立预期比对",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "command",
+      "expected": "正常输入独立预期比对符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "boundary",
+      "layer": "L2",
+      "objective": "边界输入独立预期比对",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "command",
+      "expected": "边界输入独立预期比对符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "error",
+      "layer": "L2",
+      "objective": "异常输入与异常类型核验",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "command",
+      "expected": "异常输入与异常类型核验符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    }
+  ],
+  "required_item_ids": [
+    "syntax",
+    "normal",
+    "boundary",
+    "error"
+  ],
+  "critical_paths": [],
+  "no_critical_path_reason": "纯函数样例没有跨系统链路；独立预期比对仍必测。",
+  "examples": [
+    {
+      "kind": "normal",
+      "input": "有效的用户确认输入",
+      "expected": "与独立预期一致",
+      "status": "draft"
+    },
+    {
+      "kind": "boundary",
+      "input": "空集合/极值/最后一页等实际边界",
+      "expected": "符合已确认边界条件",
+      "status": "draft"
+    },
+    {
+      "kind": "error",
+      "input": "无效输入或适用依赖失败",
+      "expected": "明确错误且无未预期副作用",
+      "status": "draft"
+    }
+  ]
+}

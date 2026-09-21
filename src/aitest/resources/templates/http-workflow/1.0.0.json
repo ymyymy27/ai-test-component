@@ -1,0 +1,146 @@
+{
+  "schema_version": "aitest.template/1.0",
+  "template_id": "http-workflow",
+  "version": "1.0.0",
+  "name": "API流程",
+  "source": "builtin",
+  "applicability": "适用于已登记API流程；会话/鉴权/持久化按业务适用。",
+  "delivery_method": "automatic",
+  "implementation_status": "scaffold",
+  "items": [
+    {
+      "item_id": "chain",
+      "layer": "L2",
+      "objective": "同一业务对象请求串联与变量提取",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "同一业务对象请求串联与变量提取符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "assertions",
+      "layer": "L2",
+      "objective": "字段与业务断言",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "字段与业务断言符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "errors",
+      "layer": "L2",
+      "objective": "错误路径和会话差异",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "错误路径和会话差异符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "persistence",
+      "layer": "L3",
+      "objective": "同对象独立持久化核验",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "verification",
+      "expected": "同对象独立持久化核验符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    }
+  ],
+  "required_item_ids": [
+    "chain",
+    "assertions",
+    "errors",
+    "persistence"
+  ],
+  "critical_paths": [
+    {
+      "path_id": "business-flow",
+      "item_ids": [
+        "chain",
+        "assertions",
+        "errors",
+        "persistence"
+      ],
+      "real_dependencies": [
+        "本项目已登记且要求真实的业务依赖"
+      ],
+      "required_verification": "独立核验同一业务对象或实际逐次结果"
+    }
+  ],
+  "no_critical_path_reason": null,
+  "examples": [
+    {
+      "kind": "normal",
+      "input": "有效的用户确认输入",
+      "expected": "与独立预期一致",
+      "status": "draft"
+    },
+    {
+      "kind": "boundary",
+      "input": "空集合/极值/最后一页等实际边界",
+      "expected": "符合已确认边界条件",
+      "status": "draft"
+    },
+    {
+      "kind": "error",
+      "input": "无效输入或适用依赖失败",
+      "expected": "明确错误且无未预期副作用",
+      "status": "draft"
+    }
+  ]
+}

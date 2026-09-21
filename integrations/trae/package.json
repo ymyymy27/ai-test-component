@@ -1,0 +1,25 @@
+{
+  "name": "aitest-trae",
+  "displayName": "AI Test — Phase One Skeleton",
+  "description": "Local AI test panel skeleton. Trae compatibility untested; no execution enabled.",
+  "version": "0.4.0",
+  "publisher": "aitest-local",
+  "private": true,
+  "engines": {"vscode": "^1.85.0"},
+  "categories": ["Testing"],
+  "main": "./dist/extension.js",
+  "activationEvents": ["onCommand:aitest.openPanel"],
+  "capabilities": {"untrustedWorkspaces": {"supported": false}},
+  "contributes": {
+    "commands": [{"command": "aitest.openPanel", "title": "AI Test: 打开一期骨架面板"}]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "npm run check && node scripts/build.mjs",
+    "package": "npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.3.0", "esbuild": "^0.25.0", "typescript": "^5.8.0"
+  }
+}

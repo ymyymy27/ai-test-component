@@ -8,17 +8,39 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  skeleton:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
           enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: uv sync --extra dev --locked
+      - run: npm --prefix src/aitest/resources/panel ci
+      - run: npm --prefix src/aitest/resources/panel run build
+      - run: npx playwright install chromium --with-deps
+        working-directory: src/aitest/resources/panel
+      - run: npm --prefix src/aitest/resources/panel test
+      - run: npm --prefix integrations/trae ci
+      - run: npm --prefix integrations/trae run package
+      - run: uv run python scripts/generate_schemas.py
+      - run: git diff --exit-code -- src/aitest/contracts/schemas
       - run: uv run ruff check .
       - run: uv run mypy
       - run: uv run pytest
       - run: uv build
-
+      - run: uv run python scripts/verify_artifacts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skeleton-${{ matrix.os }}
+          path: |
+            dist/*
+            integrations/trae/dist/*.vsix
+            docs/validation/artifacts.json

@@ -1,0 +1,146 @@
+{
+  "schema_version": "aitest.template/1.0",
+  "template_id": "python-service",
+  "version": "1.0.0",
+  "name": "Python服务",
+  "source": "builtin",
+  "applicability": "仅服务项目；构建/加载/最小启动按实际入口适用。",
+  "delivery_method": "registered_command",
+  "implementation_status": "scaffold",
+  "items": [
+    {
+      "item_id": "startup",
+      "layer": "L1",
+      "objective": "构建、加载和最小启动",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "python_checks",
+      "expected": "构建、加载和最小启动符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "health",
+      "layer": "L2",
+      "objective": "健康与关键入口",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "健康与关键入口符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "dependency-failure",
+      "layer": "L2",
+      "objective": "依赖失败行为",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "command",
+      "expected": "依赖失败行为符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "state",
+      "layer": "L3",
+      "objective": "状态变化独立核验",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "verification",
+      "expected": "状态变化独立核验符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    }
+  ],
+  "required_item_ids": [
+    "startup",
+    "health",
+    "dependency-failure",
+    "state"
+  ],
+  "critical_paths": [
+    {
+      "path_id": "business-flow",
+      "item_ids": [
+        "startup",
+        "health",
+        "dependency-failure",
+        "state"
+      ],
+      "real_dependencies": [
+        "本项目已登记且要求真实的业务依赖"
+      ],
+      "required_verification": "独立核验同一业务对象或实际逐次结果"
+    }
+  ],
+  "no_critical_path_reason": null,
+  "examples": [
+    {
+      "kind": "normal",
+      "input": "有效的用户确认输入",
+      "expected": "与独立预期一致",
+      "status": "draft"
+    },
+    {
+      "kind": "boundary",
+      "input": "空集合/极值/最后一页等实际边界",
+      "expected": "符合已确认边界条件",
+      "status": "draft"
+    },
+    {
+      "kind": "error",
+      "input": "无效输入或适用依赖失败",
+      "expected": "明确错误且无未预期副作用",
+      "status": "draft"
+    }
+  ]
+}

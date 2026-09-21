@@ -1,0 +1,180 @@
+{
+  "scope": "product_acceptance_not_scaffold_tests",
+  "cases": [
+    {
+      "id": "P1-AC01",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC02",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC03",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC04",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC05",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC06",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC07",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC08",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC09",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC10",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC11",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC12",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC13",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC14",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC15",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC16",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC17",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC18",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC19",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC20",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC21",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC22",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC23",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC24",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC25",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC26",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC27",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC28",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC29",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC30",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC31",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC32",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC33",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC34",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P1-AC35",
+      "result": "untested",
+      "evidence_path": null
+    }
+  ]
+}

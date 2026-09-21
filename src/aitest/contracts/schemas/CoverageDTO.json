@@ -1,0 +1,62 @@
+{
+  "properties": {
+    "selected_applicable_count": {
+      "minimum": 0,
+      "title": "Selected Applicable Count",
+      "type": "integer"
+    },
+    "required_applicable_count": {
+      "minimum": 0,
+      "title": "Required Applicable Count",
+      "type": "integer"
+    },
+    "executed_count": {
+      "minimum": 0,
+      "title": "Executed Count",
+      "type": "integer"
+    },
+    "reused_count": {
+      "minimum": 0,
+      "title": "Reused Count",
+      "type": "integer"
+    },
+    "verified_count": {
+      "minimum": 0,
+      "title": "Verified Count",
+      "type": "integer"
+    },
+    "passed_count": {
+      "minimum": 0,
+      "title": "Passed Count",
+      "type": "integer"
+    },
+    "failed_count": {
+      "minimum": 0,
+      "title": "Failed Count",
+      "type": "integer"
+    },
+    "unverified_count": {
+      "minimum": 0,
+      "title": "Unverified Count",
+      "type": "integer"
+    },
+    "required_verified_count": {
+      "minimum": 0,
+      "title": "Required Verified Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "selected_applicable_count",
+    "required_applicable_count",
+    "executed_count",
+    "reused_count",
+    "verified_count",
+    "passed_count",
+    "failed_count",
+    "unverified_count",
+    "required_verified_count"
+  ],
+  "title": "CoverageDTO",
+  "type": "object"
+}

@@ -1,6 +1,6 @@
 import pytest
 
-from ai_test.domain.tasks import AcceptanceItem, Task
+from aitest.domain.project.context import AcceptanceItem, Task
 
 
 def test_task_requires_observable_acceptance_items() -> None:

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 - 2026-09-22
+
+- Merge guo and ma history, adopt the rewritten phase-one documentation.
+- Replace the old ai_test package with the documented aitest module layout.
+- Reuse project/task/delivery validation and ma atomic-write primitives.
+- Remove ASGI, direct business writers, team signatures and old panel resources.
+- Add strict local contracts, six template packs, shared TypeScript panel and candidate Trae VSIX.
+- Add architecture/contract/fault tests, Windows/Linux CI and explicit untested product ACs.
+- Breaking: old imports and workspace formats are not supported by this skeleton.
+- Execution, durable transactions, IPC, recovery and real Trae acceptance remain pending.
+
+
 ## 0.3.0 - 2026-09-13
 
 ### Added

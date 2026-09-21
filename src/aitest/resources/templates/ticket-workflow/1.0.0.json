@@ -1,0 +1,196 @@
+{
+  "schema_version": "aitest.template/1.0",
+  "template_id": "ticket-workflow",
+  "version": "1.0.0",
+  "name": "工单贯通示例",
+  "source": "builtin",
+  "applicability": "工单示例；复用HTTP/人工能力，无专用引擎。",
+  "delivery_method": "automatic",
+  "implementation_status": "scaffold",
+  "items": [
+    {
+      "item_id": "create",
+      "layer": "L3",
+      "objective": "创建并保存工单ID",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "创建并保存工单ID符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "page",
+      "layer": "L3",
+      "objective": "分页找到相同ID",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "分页找到相同ID符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "detail",
+      "layer": "L3",
+      "objective": "详情字段一致",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "详情字段一致符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "update",
+      "layer": "L3",
+      "objective": "修改状态",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "修改状态符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "refresh",
+      "layer": "L3",
+      "objective": "刷新或重新进入",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "manual_evidence",
+      "expected": "刷新或重新进入符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    },
+    {
+      "item_id": "verify",
+      "layer": "L3",
+      "objective": "同ID最终状态独立持久化核验",
+      "preconditions": [
+        "用户确认实际入口、输入及预期"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "verification",
+      "expected": "同ID最终状态独立持久化核验符合用户确认的验收条件",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际结果与冻结预期",
+      "evidence_requirements": [
+        "实际输入",
+        "原始输出",
+        "核验证据"
+      ]
+    }
+  ],
+  "required_item_ids": [
+    "create",
+    "page",
+    "detail",
+    "update",
+    "refresh",
+    "verify"
+  ],
+  "critical_paths": [
+    {
+      "path_id": "business-flow",
+      "item_ids": [
+        "create",
+        "page",
+        "detail",
+        "update",
+        "refresh",
+        "verify"
+      ],
+      "real_dependencies": [
+        "本项目已登记且要求真实的业务依赖"
+      ],
+      "required_verification": "独立核验同一业务对象或实际逐次结果"
+    }
+  ],
+  "no_critical_path_reason": null,
+  "examples": [
+    {
+      "kind": "normal",
+      "input": "有效的用户确认输入",
+      "expected": "与独立预期一致",
+      "status": "draft"
+    },
+    {
+      "kind": "boundary",
+      "input": "空集合/极值/最后一页等实际边界",
+      "expected": "符合已确认边界条件",
+      "status": "draft"
+    },
+    {
+      "kind": "error",
+      "input": "无效输入或适用依赖失败",
+      "expected": "明确错误且无未预期副作用",
+      "status": "draft"
+    }
+  ]
+}

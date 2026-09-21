@@ -1,0 +1,63 @@
+{
+  "properties": {
+    "schema_version": {
+      "const": "aitest.event/2.0",
+      "default": "aitest.event/2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "instance_id": {
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "title": "Workspace Id",
+      "type": "string"
+    },
+    "writer_epoch": {
+      "minimum": 1,
+      "title": "Writer Epoch",
+      "type": "integer"
+    },
+    "commit_sequence": {
+      "minimum": 1,
+      "title": "Commit Sequence",
+      "type": "integer"
+    },
+    "event_sequence": {
+      "minimum": 1,
+      "title": "Event Sequence",
+      "type": "integer"
+    },
+    "project_id": {
+      "title": "Project Id",
+      "type": "string"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "event_type": {
+      "title": "Event Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance_id",
+    "workspace_id",
+    "writer_epoch",
+    "commit_sequence",
+    "event_sequence",
+    "project_id",
+    "record_id",
+    "revision",
+    "event_type"
+  ],
+  "title": "Event",
+  "type": "object"
+}

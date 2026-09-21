@@ -1,59 +1,53 @@
-# AI Test Component
+# AI 辅助测试插件 · 一期工程骨架
 
-一个轻量、可嵌入的 AI 辅助测试组件骨架。项目采用单个 Python 包和文件存储，提供 Python API、CLI、ASGI 子应用、可选 MCP 入口及 Web Component 面板资源。
+当前版本 **0.4.0**。以 [新版总体架构](docs/总体架构.md) 和 [一期文档](docs/一期/架构文档/00-架构总览.md) 为唯一开发基线。
+本次完成分支整合与工程骨架重建，**不代表一期35项产品验收完成**。
 
-当前版本是工程骨架，已实现项目记录的最小闭环、工作空间初始化、原子 JSON 写入、能力发现和健康检查。测试执行、完整证据链、DeepSeek 调用、GitHub 同步、迁移和团队会签仍保留明确接口，尚未标记为完成。
+## 开发环境与验证
 
-## 运行要求
+Python 3.13、uv、Node.js 22+、npm。运行目标为 Windows 11 x64 / Trae；真实编辑器接入未验证。
 
-- Python 3.13
-- 本地可写目录作为工作空间
-- 团队模式使用一个 ASGI worker 挂载一个工作空间
-
-## 安装
-
-```bash
-uv sync --extra dev
-```
-
-可选能力：
-
-```bash
-uv sync --extra mcp
-uv sync --extra postgres-check
-```
-
-## 快速开始
-
-```bash
-uv run aitest --workspace .aitest-data init
-uv run aitest --workspace .aitest-data capabilities
-uv run aitest --workspace .aitest-data project-create demo "演示项目"
-uv run aitest --workspace .aitest-data project-get demo
-uv run aitest --workspace .aitest-data task-create demo task-1 "创建并查询工单" --scope "工单创建流程" --acceptance "AC1=创建后的工单可以查询到一致数据"
-uv run aitest --workspace .aitest-data task-get task-1
-uv run aitest --workspace .aitest-data delivery-create task-1 delivery-1 v0.3.0 --run-method "uv run pytest" --completed "Task and acceptance item workflow implemented" --changed-module tasks --mock "payment gateway" --submitted-by developer-1
-uv run aitest --workspace .aitest-data delivery-get delivery-1
+```sh
+uv sync --extra dev --locked
+npm --prefix src/aitest/resources/panel ci
+npm --prefix src/aitest/resources/panel run build
+cd src/aitest/resources/panel
+npx playwright install chromium
+npm test
+cd ../../../..
+npm --prefix integrations/trae ci
+npm --prefix integrations/trae run package
+uv run python scripts/generate_schemas.py
+uv run ruff check .
+uv run mypy
 uv run pytest
+uv build
 ```
 
-## 目录边界
+```sh
+uv run aitest templates
+uv run aitest doctor
+uv run aitest mcp-relay --binding example
+```
 
-- `domain`：业务状态和不变量，不访问文件或网络。
-- `application`：用户用例和端口。
-- `infrastructure`：文件、外部服务和遥测实现。
-- `interfaces`：Python、CLI、MCP 和 ASGI 协议转换。
-- `resources`：Schema、规则、提示、导出和面板静态资源。
+`templates`列出六个已打包模板及scaffold状态。`doctor`返回NOT_READY及退出码2；relay将不可用原因写入stderr并退出2，不向stdout伪造MCP消息。
+目前没有业务写入、执行或网络入口；这些命令不会创建工作空间。
 
-依赖方向固定为 `interfaces → application → domain`。基础设施实现应用端口，通过 `composition.py` 装配。
+## 目录与边界
 
-## 文档
+- `src/aitest/domain`：按project/planning/execution/evidence/review拆分的纯领域对象和守卫。
+- `src/aitest/application`：一期用例落点，`ports.py`为唯一端口定义位置。
+- `src/aitest/infrastructure`：文件存储及适配器落点；保留经验证的原子写入和OS锁工具。
+- `src/aitest/contracts`：Pydantic边界与生成Schema；`interfaces`负责本地协议、DTO和CLI/relay。
+- `src/aitest/resources`：六模板、唯一TypeScript面板源码；`bootstrap.py`唯一组装点。
+- `integrations/trae`：仅命令/Webview的候选VSIX薄扩展，不复制面板业务。
+- `tests`：复用模型、合同、依赖边界与底层故障测试；`tests/acceptance/p1`单列未完成AC。
 
-- [接入说明](docs/integration.md)
-- [数据格式](docs/formats.md)
-- [运行维护](docs/operations.md)
-- [架构决策](docs/architecture.md)
+二、三期保留现有设计文档，不预注册空能力或安装未来依赖。无ASGI、远程MCP、平台接收、团队会签或业务删除入口。
+生成资源不手工修改：Schema由脚本生成，面板由TypeScript构建，VSIX打包使用同一面板制品。
 
-## 状态
+## 交付状态
 
-版本 `0.3.0` 仅代表骨架可运行，不代表需求文档中的首期业务验收已经完成。
+[整合与工程状态](docs/一期/工程状态.md)记录复用/清理依据、模块映射和待实现范围；[兼容清单](docs/compatibility.json)不把编译当作真实Trae兼容通过。
+旧`ai_test`导入路径已移除，不提供双实现兼容层；旧工作空间不能直接作为新版工作空间打开，未来迁移须保留原始数据并按新文档验证。
+历史设计保留在`docs旧`；新开发不据此实现。两个分支及ma源码ZIP仍可从Git合并历史追溯。

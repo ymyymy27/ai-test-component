@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "ErrorDTO": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "next_step": {
+          "title": "Next Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "next_step"
+      ],
+      "title": "ErrorDTO",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "const": "aitest.local/2.0",
+      "default": "aitest.local/2.0",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "instance_id": {
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "binding_revision": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Binding Revision"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorDTO"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "request_id",
+    "instance_id"
+  ],
+  "title": "Response",
+  "type": "object"
+}

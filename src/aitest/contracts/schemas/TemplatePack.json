@@ -1,0 +1,253 @@
+{
+  "$defs": {
+    "CriticalPath": {
+      "properties": {
+        "path_id": {
+          "title": "Path Id",
+          "type": "string"
+        },
+        "item_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Item Ids",
+          "type": "array"
+        },
+        "real_dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Real Dependencies",
+          "type": "array"
+        },
+        "required_verification": {
+          "title": "Required Verification",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path_id",
+        "item_ids",
+        "real_dependencies",
+        "required_verification"
+      ],
+      "title": "CriticalPath",
+      "type": "object"
+    },
+    "DraftExample": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "normal",
+            "boundary",
+            "error"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "input": {
+          "title": "Input",
+          "type": "string"
+        },
+        "expected": {
+          "title": "Expected",
+          "type": "string"
+        },
+        "status": {
+          "const": "draft",
+          "default": "draft",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "input",
+        "expected"
+      ],
+      "title": "DraftExample",
+      "type": "object"
+    },
+    "TemplateItem": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "minLength": 1,
+          "title": "Item Id",
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "L1",
+            "L2",
+            "L3"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "objective": {
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "input_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Input Fields",
+          "type": "array"
+        },
+        "entry_type": {
+          "title": "Entry Type",
+          "type": "string"
+        },
+        "expected": {
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        },
+        "assertion_basis": {
+          "minLength": 1,
+          "title": "Assertion Basis",
+          "type": "string"
+        },
+        "verification": {
+          "minLength": 1,
+          "title": "Verification",
+          "type": "string"
+        },
+        "evidence_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Requirements",
+          "type": "array"
+        }
+      },
+      "required": [
+        "item_id",
+        "layer",
+        "objective",
+        "preconditions",
+        "input_fields",
+        "entry_type",
+        "expected",
+        "assertion_basis",
+        "verification",
+        "evidence_requirements"
+      ],
+      "title": "TemplateItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "aitest.template/1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "template_id": {
+      "title": "Template Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "applicability": {
+      "title": "Applicability",
+      "type": "string"
+    },
+    "delivery_method": {
+      "enum": [
+        "automatic",
+        "registered_command",
+        "manual",
+        "import"
+      ],
+      "title": "Delivery Method",
+      "type": "string"
+    },
+    "implementation_status": {
+      "const": "scaffold",
+      "title": "Implementation Status",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TemplateItem"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "required_item_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Required Item Ids",
+      "type": "array"
+    },
+    "critical_paths": {
+      "items": {
+        "$ref": "#/$defs/CriticalPath"
+      },
+      "title": "Critical Paths",
+      "type": "array"
+    },
+    "no_critical_path_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "No Critical Path Reason"
+    },
+    "examples": {
+      "items": {
+        "$ref": "#/$defs/DraftExample"
+      },
+      "title": "Examples",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "template_id",
+    "version",
+    "name",
+    "source",
+    "applicability",
+    "delivery_method",
+    "implementation_status",
+    "items",
+    "required_item_ids",
+    "critical_paths",
+    "examples"
+  ],
+  "title": "TemplatePack",
+  "type": "object"
+}

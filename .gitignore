@@ -14,3 +14,7 @@ dist/
 Thumbs.db
 .env
 .aitest-data/
+node_modules/
+*.vsix
+test-results/
+playwright-report/

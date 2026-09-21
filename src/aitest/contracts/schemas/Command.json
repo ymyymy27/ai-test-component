@@ -1,0 +1,100 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "const": "aitest.local/2.0",
+      "default": "aitest.local/2.0",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "action": {
+      "minLength": 1,
+      "title": "Action",
+      "type": "string"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "binding_revision": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Binding Revision"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target"
+    },
+    "expected_revision": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Revision"
+    },
+    "intent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intent Id"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Parameters",
+      "type": "object"
+    }
+  },
+  "required": [
+    "request_id",
+    "action"
+  ],
+  "title": "Command",
+  "type": "object"
+}

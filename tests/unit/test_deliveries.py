@@ -1,6 +1,6 @@
 import pytest
 
-from ai_test.domain.deliveries import Delivery
+from aitest.domain.project.context import Delivery
 
 
 def test_delivery_rejects_overlapping_completion_lists() -> None:
