@@ -2,19 +2,32 @@ name: CI
 
 on:
   push:
+    branches: [main, devlop]
   pull_request:
+    branches: [main, devlop]
+  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   skeleton:
+    name: Test and build (${{ matrix.os }})
+    timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
@@ -23,24 +36,54 @@ jobs:
         with:
           node-version: "22"
       - run: uv sync --extra dev --locked
+      - name: Check package versions
+        run: uv run python scripts/check_versions.py
+      - run: uv run ruff check .
+      - run: uv run mypy
       - run: npm --prefix src/aitest/resources/panel ci
       - run: npm --prefix src/aitest/resources/panel run build
       - run: npx playwright install chromium --with-deps
         working-directory: src/aitest/resources/panel
       - run: npm --prefix src/aitest/resources/panel test
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: test-results/junit.xml
       - run: npm --prefix integrations/trae ci
       - run: npm --prefix integrations/trae run package
       - run: uv run python scripts/generate_schemas.py
       - run: git diff --exit-code -- src/aitest/contracts/schemas
-      - run: uv run ruff check .
-      - run: uv run mypy
-      - run: uv run pytest
+      - run: uv run pytest --junitxml=test-results/pytest.xml
       - run: uv build
       - run: uv run python scripts/verify_artifacts.py
+      - name: Install and verify built wheel in isolated environment
+        run: uv run python scripts/smoke_wheel.py
+      - name: Upload test reports even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.os }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            test-results/
+            src/aitest/resources/panel/test-results/
       - uses: actions/upload-artifact@v4
         with:
           name: skeleton-${{ matrix.os }}
+          if-no-files-found: error
+          retention-days: 14
           path: |
             dist/*
             integrations/trae/dist/*.vsix
             docs/validation/artifacts.json
+
+  ci:
+    name: CI gate
+    if: always()
+    needs: skeleton
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require both platforms to succeed
+        env:
+          RESULT: ${{ needs.skeleton.result }}
+        run: test "$RESULT" = success

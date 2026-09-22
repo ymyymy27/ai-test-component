@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -9,7 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
-    wheel = next((ROOT / "dist").glob("*.whl"))
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
+    wheel = ROOT / "dist" / f"ai_test_component-{version}-py3-none-any.whl"
     vsix = ROOT / "integrations/trae/dist/aitest-trae.vsix"
     with zipfile.ZipFile(wheel) as package, zipfile.ZipFile(vsix) as extension:
         names = package.namelist()
@@ -20,7 +24,7 @@ def main() -> None:
         assert panel == extension.read("extension/dist/panel.js")
         assert panel == (ROOT / "src/aitest/resources/panel/dist/index.js").read_bytes()
     evidence = {
-        "version": "0.4.0",
+        "version": version,
         "result": "passed",
         "scope": "artifact_contents_and_shared_panel_identity_only",
         "artifacts": [

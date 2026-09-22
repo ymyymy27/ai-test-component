@@ -1,5 +1,9 @@
 # AI 辅助测试插件 · 一期工程骨架
 
+[![CI](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml)
+
+持续集成、测试报告下载和版本交付操作见 [CI/CD 使用说明](docs/CI-CD.md)。
+
 当前版本 **0.4.0**。以 [新版总体架构](docs/总体架构.md) 和 [一期文档](docs/一期/架构文档/00-架构总览.md) 为唯一开发基线。
 本次完成分支整合与工程骨架重建，**不代表一期35项产品验收完成**。
 
