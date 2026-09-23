@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "二期架构总览：展示与兼容增量",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "host", "type": "frontend", "label": "编辑器宿主", "sublabel": "Trae · 新增编辑器", "pos": [50, 262], "size": [140, 64] },
+    { "id": "client", "type": "frontend", "label": "既有客户端", "sublabel": "面板 / CLI / stdio MCP", "pos": [50, 382], "size": [140, 64] },
+
+    { "id": "integrate", "type": "backend", "label": "入口适配", "sublabel": "integrations/<editor>/", "pos": [246, 340], "size": [152, 86] },
+    { "id": "adapt", "type": "backend", "label": "跳转与装饰器", "sublabel": "接口适配层", "pos": [426, 340], "size": [152, 86] },
+    { "id": "locate", "type": "backend", "label": "统一位置解析", "sublabel": "application/locations.py", "pos": [606, 340], "size": [152, 86] },
+    { "id": "diagram", "type": "backend", "label": "统一图投影", "sublabel": "application/diagrams.py", "pos": [786, 340], "size": [152, 86] },
+    { "id": "render", "type": "backend", "label": "自包含图件渲染", "sublabel": "adapters/diagram_render.py", "pos": [966, 340], "size": [152, 86] },
+    { "id": "panel", "type": "frontend", "label": "面板增量", "sublabel": "历史页 · 自检 · 图联动", "pos": [1146, 340], "size": [152, 86] },
+
+    { "id": "probe", "type": "backend", "label": "四项能力探测", "sublabel": "降级与替代入口", "pos": [470, 148], "size": [180, 72] },
+    { "id": "capstate", "type": "database", "label": "CapabilityState", "sublabel": "按宿主隔离 · 独立修订", "pos": [1090, 148], "size": [200, 72] },
+
+    { "id": "domain", "type": "backend", "label": "一期领域层（不变）", "sublabel": "判定 · 统计分母 · 结论上限", "pos": [420, 566], "size": [200, 72] },
+    { "id": "workunit", "type": "database", "label": "单写工作单元（共用）", "sublabel": "不可变修订 · 按项目分片", "pos": [760, 566], "size": [200, 72] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "二期增量：展示与适配（不新增业务规则）", "wraps": ["integrate", "adapt", "locate", "diagram", "render", "panel", "probe", "capstate"], "pad": 30 },
+    { "kind": "security-group", "label": "一期共用底座：领域层与唯一存储（不变）", "wraps": ["domain", "workunit"], "pad": 28 }
+  ],
+  "connections": [
+    { "id": "host-entry", "from": "host", "to": "integrate" },
+    { "id": "client-entry", "from": "client", "to": "integrate" },
+
+    { "id": "integrate-adapt", "from": "integrate", "to": "adapt" },
+    { "id": "adapt-locate", "from": "adapt", "to": "locate" },
+    { "id": "locate-diagram", "from": "locate", "to": "diagram", "label": "共用来源引用与 DTO", "labelAt": [772, 440] },
+    { "id": "diagram-render", "from": "diagram", "to": "render", "label": "图定义与修订", "labelAt": [952, 440] },
+    { "id": "render-panel", "from": "render", "to": "panel", "label": "图件与跳转", "labelAt": [1132, 440] },
+
+    { "id": "adapt-probe", "from": "adapt", "to": "probe", "label": "能力探测接入", "fromSide": "top", "toSide": "bottom" },
+    { "id": "probe-capstate", "from": "probe", "to": "capstate", "label": "宿主上报", "fromSide": "right", "toSide": "left" },
+    { "id": "locate-domain", "from": "locate", "to": "domain", "label": "复用既有规则", "fromSide": "bottom", "toSide": "top" },
+    { "id": "diagram-store", "from": "diagram", "to": "workunit", "label": "投影记录落盘", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "新增记录与兼容", "items": ["DiagramDefinition / DiagramRevision 为投影记录，由工作单元保存", "原记录无图显示缺图，可显式生成新图，不推断旧图", "CapabilityState 与 ConnectionState 独立修订，按宿主隔离"] },
+    { "dot": "emerald", "title": "一期底座不变", "items": ["三层判定、统计分母与结论上限由一期领域层唯一实现", "沿用 S/M、E/R/V 与当前 Attempt 优先规则", "存储不变：唯一工作单元、不可变修订、按项目分片"] },
+    { "dot": "amber", "title": "演进规则与交付顺序", "items": ["加适配器不加分支；定位与图各有唯一投影入口", "先交付本地历史、定位与图联动，再铺开编辑器与操作系统", "平台、自动录制、任意插桩、证据批采集与 AI 报告草稿不在本期增量"] }
+  ]
+}

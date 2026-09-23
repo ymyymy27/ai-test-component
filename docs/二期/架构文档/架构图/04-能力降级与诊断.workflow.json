@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "二期架构04：能力降级与诊断",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "probe", "label": "宿主探测与权限核验" },
+    { "id": "judge", "label": "健康合成与按动作判定" },
+    { "id": "artifacts", "label": "诊断输出与兼容清单" }
+  ],
+  "phases": [
+    { "id": "probe_facts", "label": "探测与保存", "fromCol": 0, "toCol": 3 },
+    { "id": "judge_health", "label": "合成与降级判定", "fromCol": 4, "toCol": 5, "variant": "emphasis" }
+  ],
+  "groups": [
+    { "id": "single_unit", "label": "唯一工作单元写入", "lane": "probe", "fromCol": 4, "toCol": 4, "variant": "emphasis" },
+    { "id": "action_gate", "label": "调用时仍查真实依赖", "lane": "judge", "fromCol": 5, "toCol": 5, "variant": "security" }
+  ],
+  "mainPath": ["hostProbe", "capValidate", "capRecord", "healthSyn", "actionGate"],
+  "semanticChecks": {
+    "allowedRoots": ["hostProbe"],
+    "allowedTerminals": ["actionGate", "substitute", "doctor"]
+  },
+  "nodes": [
+    { "id": "hostProbe", "lane": "probe", "col": 0, "type": "external", "label": "宿主探测", "sublabel": "只上报探测事实", "width": 176 },
+    { "id": "capValidate", "lane": "probe", "col": 2, "type": "backend", "label": "connectivity 校验", "sublabel": "核对实例 / 修订 / 权限", "width": 200 },
+    { "id": "capRecord", "lane": "probe", "col": 4, "type": "database", "label": "CapabilityState", "sublabel": "经唯一工作单元保存", "tag": "独立修订", "width": 216 },
+    { "id": "substitute", "lane": "judge", "col": 1, "type": "security", "label": "替代入口", "sublabel": "命令 / 手动配置 / 相对路径", "tag": "缺项分别给替代", "width": 200 },
+    { "id": "healthSyn", "lane": "judge", "col": 4, "type": "backend", "label": "健康合成", "sublabel": "READY / DEGRADED / NOT_READY", "width": 230 },
+    { "id": "actionGate", "lane": "judge", "col": 5, "type": "security", "label": "按动作降级判定", "sublabel": "可继续 / 必须阻塞", "tag": "不靠全局健康色", "width": 176 },
+    { "id": "doctor", "lane": "artifacts", "col": 3, "type": "frontend", "label": "诊断呈现", "sublabel": "aitest doctor / 面板诊断", "tag": "脱敏且不给正文", "width": 200 }
+  ],
+  "edges": [
+    { "id": "probe-facts", "from": "hostProbe", "to": "capValidate", "label": "上报探测事实", "variant": "emphasis" },
+    { "id": "validate-save", "from": "capValidate", "to": "capRecord", "label": "校验后仅经工作单元保存", "variant": "default" },
+    { "id": "cap-health", "from": "capRecord", "to": "healthSyn", "variant": "emphasis", "role": "main" },
+    { "id": "health-action", "from": "healthSyn", "to": "actionGate", "label": "动作依赖", "variant": "emphasis", "role": "main" },
+    { "id": "host-substitute", "from": "hostProbe", "to": "substitute", "variant": "security", "role": "branch" },
+    { "id": "health-diag", "from": "healthSyn", "to": "doctor", "variant": "dashed", "role": "branch", "fromSide": "left", "toSide": "right" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "宿主缺什么，怎么替代", "items": ["三类缺项：面板宿主、工具登记、文件跳转", "缺面板降级为命令面板或独立窗口", "缺工具登记改手动触发，缺文件跳转给相对路径与行号"] },
+    { "dot": "emerald", "title": "一份健康结果三处读取", "items": ["面板、aitest doctor 与健康检查读同一份结果", "单一可替代能力缺失为 DEGRADED，核心不可用才禁止写", "自检超时只标未知项，不抹掉已确认结果"] },
+    { "dot": "rose", "title": "按动作阻塞、记录与边界", "items": ["模型、凭据、被测运行时缺失只阻塞依赖它们的动作", "核心不可用时仅用普通文件工具读已导出文件", "记录目录不可写则不登记新运行与导出，未实测不声明通过"] }
+  ]
+}

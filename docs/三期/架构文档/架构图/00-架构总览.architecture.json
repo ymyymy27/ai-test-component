@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "三期架构总览：账号关联与结果上传",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "panel", "type": "frontend", "label": "面板", "sublabel": "账号 / 项目设置", "pos": [30, 238], "size": [140, 62] },
+    { "id": "cli", "type": "frontend", "label": "CLI", "sublabel": "本机命令", "pos": [30, 328], "size": [140, 62] },
+    { "id": "mcp", "type": "frontend", "label": "stdio MCP", "sublabel": "协议接入", "pos": [30, 418], "size": [140, 62] },
+
+    { "id": "creds", "type": "security", "label": "令牌引用命名空间", "sublabel": "按账号隔离", "pos": [250, 84], "size": [170, 64] },
+    { "id": "session", "type": "backend", "label": "会话与账号关联", "sublabel": "account_session", "tag": "P3-FR01 · AccountPort", "pos": [250, 280], "size": [170, 88] },
+    { "id": "freeze", "type": "backend", "label": "冻结投影与候选", "sublabel": "result_delivery", "tag": "P3-FR02", "pos": [555, 280], "size": [170, 88] },
+    { "id": "submit", "type": "backend", "label": "提交 / 查询 / 补交", "sublabel": "ResultSubmitterPort", "tag": "出站实现", "pos": [860, 280], "size": [170, 88] },
+
+    { "id": "platform", "type": "external", "label": "平台接收与回执", "sublabel": "账号 · 项目 · 去重", "pos": [1165, 280], "size": [180, 88] },
+
+    { "id": "store", "type": "database", "label": "单写工作单元", "sublabel": "候选游标 · 不可变提交与回执", "pos": [555, 520], "size": [196, 78] },
+    { "id": "legacy", "type": "backend", "label": "一期 / 二期本地能力", "sublabel": "P1-AC01—35 · P2-AC01—09", "pos": [215, 520], "size": [210, 78] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "插件本地范围：三期只增加上传用例，不新增宿主与远程入口", "wraps": ["panel", "cli", "mcp", "creds", "session", "freeze", "submit", "store", "legacy"], "pad": 28 },
+    { "kind": "security-group", "label": "上传模块（可选装配，失败只降上传）", "wraps": ["creds", "session", "freeze", "submit"], "pad": 22 }
+  ],
+  "connections": [
+    { "id": "panel-to-session", "from": "panel", "to": "session" },
+    { "id": "cli-to-session", "from": "cli", "to": "session" },
+    { "id": "mcp-to-session", "from": "mcp", "to": "session" },
+
+    { "id": "creds-to-session", "from": "creds", "to": "session", "label": "按账号令牌引用", "labelDy": 78 },
+    { "id": "session-to-freeze", "from": "session", "to": "freeze", "label": "账号引用" },
+    { "id": "freeze-to-submit", "from": "freeze", "to": "submit", "label": "冻结清单" },
+    { "id": "submit-to-platform", "from": "submit", "to": "platform", "label": "按协议提交", "variant": "emphasis" },
+    { "id": "platform-to-submit", "from": "platform", "to": "submit", "label": "回执 / 缺对象", "variant": "dashed", "fromSide": "top", "toSide": "top" },
+
+    { "id": "store-to-freeze", "from": "store", "to": "freeze", "label": "候选游标恢复", "fromSide": "top", "toSide": "bottom" },
+    { "id": "legacy-to-store", "from": "legacy", "to": "store", "label": "沿用工作单元" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "主路径与范围", "items": ["只做 P3-FR01 账号关联与 P3-FR02 结果上传（P3-AC01—08）", "平台提供账号 / 参与项目 / 接收与回执，插件实现会话使用、投影、候选与补交"] },
+    { "dot": "emerald", "title": "职责与四项前置", "items": ["账号、项目编号、成员关系与仓库关联由平台维护，插件只读取", "会话校验与身份认定由平台给出稳定账号，正文自填不作身份依据", "会话刷新、提交接口形态、回执语义、「账号 + 项目」口径确定后即可实现"] },
+    { "dot": "rose", "title": "降级与不越界", "items": ["平台不可用时一期 / 二期本地能力全部保持，aitest doctor 仍返回本地就绪", "本地测试与记录完全由插件负责", "不实现接收用例、共享查询、跨账号审核、ASGI 宿主、HTTP 路由与远程 MCP"] }
+  ]
+}

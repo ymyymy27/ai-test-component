@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "总体架构：AI 辅助测试插件",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1368, 686]
+  },
+  "components": [
+    { "id": "entry", "type": "frontend", "label": "入口层", "sublabel": "Trae 扩展 · 面板 · CLI · MCP relay", "pos": [34, 63], "size": [840, 80] },
+    { "id": "iface", "type": "backend", "label": "接口适配层", "sublabel": "local/api · pipe · editor_host · dto · contracts", "pos": [34, 183], "size": [840, 80] },
+    { "id": "app", "type": "backend", "label": "应用用例层", "sublabel": "project · planning · execution · evidence · review · ai_assistance · connectivity", "pos": [34, 303], "size": [840, 80] },
+    { "id": "domain", "type": "backend", "label": "领域模型层", "sublabel": "纯计算 · 无 I/O · 判定只实现一次", "pos": [34, 423], "size": [400, 80] },
+    { "id": "infra", "type": "cloud", "label": "外部能力层", "sublabel": "实现端口 · file_store · adapters · credentials", "pos": [494, 423], "size": [380, 80] },
+    { "id": "workspace", "type": "database", "label": "工作空间与唯一存储", "sublabel": "WorkspaceUnitOfWork · 单写", "pos": [34, 543], "size": [400, 80] },
+    { "id": "secrets", "type": "security", "label": "凭据与脱敏投影", "sublabel": "SecretPort · ProjectionPort", "pos": [494, 543], "size": [380, 80] },
+    { "id": "diagram", "type": "backend", "label": "二期：展示与适配", "sublabel": "定位 · 图件 · 面板增量", "pos": [994, 303], "size": [340, 80] },
+    { "id": "platform", "type": "external", "label": "三期：账号与结果上传", "sublabel": "AccountPort · ResultSubmitterPort", "pos": [994, 423], "size": [340, 80] },
+    { "id": "outbound", "type": "external", "label": "模型 API · 本地 Git/GitHub（只读）", "sublabel": "只发出站请求 · 不监听端口", "pos": [994, 543], "size": [340, 80] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "一期：本地测试闭环 · 一个核心进程 + 一个工作空间", "wraps": ["entry", "iface", "app", "domain", "infra", "workspace", "secrets"], "pad": 20 },
+    { "kind": "region", "label": "二期：展示与适配", "wraps": ["diagram"], "pad": 16 },
+    { "kind": "region", "label": "三期：账号与结果上传", "wraps": ["platform"], "pad": 16 }
+  ],
+  "connections": [
+    { "id": "c1-entry-iface", "from": "entry", "to": "iface", "label": "① 动作 DTO · 命名管道 / stdio", "labelDy": 24 },
+    { "id": "c2-iface-app", "from": "iface", "to": "app", "label": "② 校验 · 路由 · request_id", "labelDy": 24 },
+    { "id": "c3-app-domain", "from": "app", "to": "domain", "label": "③ 判定可执行与结论上限", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c4-app-infra", "from": "app", "to": "infra", "label": "④ 仅经端口 · 不 import 实现", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c5-infra-workspace", "from": "infra", "to": "workspace", "label": "⑥ 证据 · 记录 · 幂等同一提交" },
+    { "id": "c6-infra-secrets", "from": "infra", "to": "secrets", "label": "SecretPort 只解析凭据引用", "labelDy": 24 },
+    { "id": "c7-infra-outbound", "from": "infra", "to": "outbound", "label": "⑤ 事务外出站 / 隔离执行" },
+    { "id": "c8-app-diagram", "from": "app", "to": "diagram", "label": "二期：定位与图件投影" },
+    { "id": "c9-infra-platform", "from": "infra", "to": "platform", "label": "三期：AccountPort 出站" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "关键合同",
+      "items": [
+        "计划确认、动作授权、结果复核相互独立",
+        "full / quick / on_demand 档位冻结，仅 full 派生证据等级",
+        "同一 intent_id 跨入口不重复执行，重跑创建新意图",
+        "记录、证据引用与幂等结果同一提交可见"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "运行形态",
+      "items": [
+        "一个核心进程管理一个用户数据工作空间",
+        "持 OS 排他锁；第二入口报 WORKSPACE_IN_USE",
+        "一期串行调度，不新增 Worker / 消息队列 / 数据库",
+        "三期发送循环在同一核心内可选，平台不可用不阻断本地保存"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "安全与完成标准",
+      "items": [
+        "代码、文档、日志与模型输出都是数据，不改授权",
+        "凭据只存引用；脱敏底线不可关闭",
+        "GitHub 只读；plain 目录不出现仓库字段",
+        "P1-AC01—P1-AC35 需真实输入与证据，未测标 untested"
+      ]
+    }
+  ]
+}

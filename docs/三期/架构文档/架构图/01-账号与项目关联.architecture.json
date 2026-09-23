@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "三期架构01：账号与项目关联",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "platform", "type": "external", "label": "平台账号与参与", "sublabel": "由平台维护", "pos": [40, 320], "size": [145, 86] },
+
+    { "id": "account_port", "type": "backend", "label": "AccountPort", "sublabel": "登录 / 刷新 / 参与查询", "pos": [259, 320], "size": [145, 86] },
+    { "id": "session_context", "type": "security", "label": "SessionContext", "sublabel": "验证后会话", "pos": [478, 320], "size": [145, 86] },
+    { "id": "verify_points", "type": "security", "label": "使用点核对", "sublabel": "冻结与发送前", "pos": [697, 320], "size": [145, 86] },
+    { "id": "candidate", "type": "backend", "label": "交付候选", "sublabel": "候选 / 冻结材料", "pos": [916, 320], "size": [145, 86] },
+    { "id": "outbox", "type": "database", "label": "outbox", "sublabel": "按 account_key 分区", "pos": [1135, 320], "size": [145, 86] },
+
+    { "id": "membership", "type": "backend", "label": "参与与绑定记录", "sublabel": "只读登记", "pos": [697, 120], "size": [145, 76] },
+    { "id": "account_key", "type": "security", "label": "account_key", "sublabel": "SHA-256 规范编码", "pos": [1135, 120], "size": [145, 76] },
+
+    { "id": "token_lifecycle", "type": "security", "label": "退出 / 切换 / 轮换", "sublabel": "清令牌，不删材料", "pos": [259, 580], "size": [145, 76] },
+    { "id": "creds", "type": "security", "label": "OS 凭据后端", "sublabel": "令牌正文 + 逻辑引用", "pos": [478, 580], "size": [145, 76] },
+    { "id": "send_policy", "type": "backend", "label": "SendPolicy", "sublabel": "默认 manual", "pos": [916, 580], "size": [145, 76] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "插件边界：只读取并引用平台维护的账号与参与关系", "wraps": ["account_port", "session_context", "verify_points", "candidate", "outbox", "membership", "account_key", "token_lifecycle", "creds", "send_policy"], "pad": 30 },
+    { "kind": "security-group", "label": "待发送材料分区：脱敏明文按 account_key 隔离", "wraps": ["candidate", "outbox"], "pad": 24 }
+  ],
+  "connections": [
+    { "id": "platform-to-port", "from": "platform", "to": "account_port", "label": "平台合同" },
+    { "id": "port-to-session", "from": "account_port", "to": "session_context", "label": "验证构造" },
+    { "id": "session-to-verify", "from": "session_context", "to": "verify_points", "label": "会话修订" },
+    { "id": "verify-to-candidate", "from": "verify_points", "to": "candidate", "label": "冻结提交", "variant": "emphasis" },
+    { "id": "candidate-to-outbox", "from": "candidate", "to": "outbox", "label": "脱敏落盘" },
+
+    { "id": "membership-to-verify", "from": "membership", "to": "verify_points", "label": "只读引用", "fromSide": "bottom", "toSide": "top", "labelDy": 36 },
+    { "id": "key-to-outbox", "from": "account_key", "to": "outbox", "label": "分区目录", "fromSide": "bottom", "toSide": "top", "labelDy": 36 },
+    { "id": "session-to-creds", "from": "session_context", "to": "creds", "label": "SecretRef 引用", "fromSide": "bottom", "toSide": "top", "labelDy": 36 },
+    { "id": "lifecycle-to-creds", "from": "token_lifecycle", "to": "creds", "label": "清除令牌", "fromSide": "right", "toSide": "left" },
+    { "id": "policy-to-candidate", "from": "send_policy", "to": "candidate", "label": "策略修订", "fromSide": "top", "toSide": "bottom" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "记录与账号键", "items": ["AccountRef=(issuer, account_id, display_name)，前两项按平台合同保留精确值，不能整体 lower", "account_key=SHA-256(版本化规范 JSON 编码[issuer, account_id])，目录只用固定安全十六进制分量", "SessionContext 由验证后的会话构造；ProjectMembership 缓存只供展示"] },
+    { "dot": "amber", "title": "使用点核对与令牌生命周期", "items": ["取得/刷新会话、冻结提交、发请求前、核对回执分别核对，失败不伪造成功提交", "并发刷新按原会话合并，过期结果核对 expected_revision 后不得覆盖新会话", "轮换保留旧引用至在途请求收尾；令牌不进日志、导出与面板"] },
+    { "dot": "rose", "title": "凭据与材料分区", "items": ["outbox 为脱敏明文产物及引用，按 account_key 分目录，依赖 OS 用户与目录权限", "不做应用层加密：同一 OS 用户下其他进程理论可读；账号服务失败只降上传能力", "SendPolicy 默认 manual；会话刷新方式与令牌有效期等待平台确定后补充"] }
+  ]
+}

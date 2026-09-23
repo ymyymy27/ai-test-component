@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "三期架构02：结果上传",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1200, 632]
+  },
+  "lanes": [
+    { "id": "main", "label": "提交主轨" },
+    { "id": "receipt", "label": "接收事实" },
+    { "id": "control", "label": "发送控制" },
+    { "id": "terminal", "label": "终态" }
+  ],
+  "states": [
+    { "id": "candidate", "type": "start", "label": "候选登记", "lane": "main", "col": 0, "step": "01", "tag": "来源修订" },
+    { "id": "frozen", "type": "active", "label": "冻结提交", "lane": "main", "col": 1, "step": "02", "tag": "manifest_hash" },
+    { "id": "pending", "type": "waiting", "label": "PENDING", "lane": "main", "col": 2, "step": "03", "tag": "待许可" },
+    { "id": "sending", "type": "active", "label": "SENDING", "lane": "main", "col": 3, "step": "04", "tag": "IN_FLIGHT" },
+    { "id": "acknowledged", "type": "success", "label": "ACKNOWLEDGED", "lane": "main", "col": 4, "step": "05", "tag": "不可变回执" },
+    { "id": "unknown", "type": "waiting", "label": "UNKNOWN", "lane": "receipt", "col": 1, "tag": "先查原号" },
+    { "id": "incomplete", "type": "waiting", "label": "INCOMPLETE", "lane": "receipt", "col": 2, "yOffset": 90, "tag": "按缺失补交" },
+    { "id": "paused", "type": "failure", "label": "PAUSED", "lane": "control", "col": 0, "tag": "认证·冲突·耗尽" },
+    { "id": "abandoned", "type": "neutral", "label": "ABANDONED", "lane": "terminal", "col": 0, "tag": "明确放弃" }
+  ],
+  "transitions": [
+    { "id": "t-candidate-frozen", "from": "candidate", "to": "frozen", "route": "straight", "fromSide": "right", "toSide": "left" },
+    { "id": "t-frozen-pending", "from": "frozen", "to": "pending", "route": "straight", "fromSide": "right", "toSide": "left" },
+    { "id": "t-pending-sending", "from": "pending", "to": "sending", "route": "straight", "fromSide": "right", "toSide": "left" },
+    { "id": "t-sending-acknowledged", "from": "sending", "to": "acknowledged", "route": "straight", "fromSide": "right", "toSide": "left" },
+    { "id": "t-sending-unknown", "from": "sending", "to": "unknown", "label": "超时/失联", "variant": "dashed", "route": "straight", "fromSide": "bottom", "toSide": "top", "labelAt": [592, 233] },
+    { "id": "t-unknown-incomplete", "from": "unknown", "to": "incomplete", "label": "存在缺口", "fromSide": "bottom", "toSide": "left", "via": [[556, 397]], "labelAt": [601, 397] },
+    { "id": "t-unknown-paused", "from": "unknown", "to": "paused", "label": "耗尽/冲突", "fromSide": "left", "toSide": "top", "via": [[470, 307], [470, 233], [402, 233]], "labelAt": [436, 233] },
+    { "id": "t-unknown-acknowledged", "from": "unknown", "to": "acknowledged", "label": "完整且匹配", "variant": "emphasis", "fromSide": "right", "toSide": "bottom", "via": [[636, 307], [636, 233], [710, 233]], "labelAt": [672, 210] },
+    { "id": "t-incomplete-acknowledged", "from": "incomplete", "to": "acknowledged", "label": "补缺后匹配", "fromSide": "right", "toSide": "right", "via": [[1100, 397], [1100, 157]], "labelAt": [1100, 280] },
+    { "id": "t-paused-sending", "from": "paused", "to": "sending", "label": "重授许可后查原号", "variant": "emphasis", "fromSide": "left", "toSide": "top", "via": [[20, 307], [20, 80], [556, 80]], "labelAt": [180, 80] },
+    { "id": "t-paused-abandoned", "from": "paused", "to": "abandoned", "label": "明确放弃", "variant": "security", "route": "straight", "fromSide": "bottom", "toSide": "top", "labelAt": [435, 393] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "候选与冻结",
+      "items": [
+        "本地事实提交后按已提交序号与记录修订产生 DeliveryCandidate",
+        "候选键=(来源实例, 项目, 记录类型/ID, 修订)，与游标同事务登记",
+        "入队时冻结投影字节与清单，发送阶段不再二次改写"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "接收事实与控制决定分开",
+      "items": [
+        "receipt_state 记接收事实，control_state 记暂停与放弃",
+        "界面 SENDING 由 transport_state=IN_FLIGHT 投影",
+        "迟到有效回执仍登记为已送达，不解除暂停或放弃"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "有界重试与终态",
+      "items": [
+        "未知查询沿用一期有界失败/无进展周期，重启不重置次数",
+        "恢复先查原编号，不把 UNKNOWN/INCOMPLETE 重置为 PENDING 盲发",
+        "耗尽转 PAUSED；仅明确放弃才 AbandonDecision 并投影 ABANDONED"
+      ]
+    }
+  ]
+}

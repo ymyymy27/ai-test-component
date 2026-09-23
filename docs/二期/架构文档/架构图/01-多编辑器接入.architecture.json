@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "二期架构01：多编辑器接入",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "trae", "type": "frontend", "label": "Trae", "sublabel": "一期基线入口", "pos": [40, 128], "size": [150, 66] },
+    { "id": "neweditor", "type": "frontend", "label": "新编辑器入口", "sublabel": "integrations/<editor>", "pos": [40, 262], "size": [150, 80] },
+    { "id": "local", "type": "frontend", "label": "CLI / MCP", "sublabel": "本机入口", "pos": [40, 396], "size": [150, 66] },
+
+    { "id": "iface", "type": "backend", "label": "interfaces/local", "sublabel": "api · pipe · editor_host", "pos": [290, 262], "size": [168, 100] },
+    { "id": "capability", "type": "security", "label": "能力声明与上报", "sublabel": "report_capabilities", "pos": [564, 262], "size": [168, 100] },
+    { "id": "core", "type": "backend", "label": "单核心进程", "sublabel": "唯一写锁持有者", "pos": [838, 262], "size": [168, 100] },
+    { "id": "records", "type": "database", "label": "记录与状态", "sublabel": "项目编号 · 绑定修订", "pos": [1112, 262], "size": [168, 100] },
+
+    { "id": "panel", "type": "frontend", "label": "面板", "sublabel": "resources/panel", "pos": [290, 452], "size": [168, 86] },
+    { "id": "connectivity", "type": "backend", "label": "connectivity", "sublabel": "统一重试与连接", "pos": [564, 452], "size": [168, 86] },
+    { "id": "compat", "type": "database", "label": "兼容清单", "sublabel": "docs/compatibility.json", "pos": [1112, 452], "size": [168, 86] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本机工作空间：单 OS 锁与可写数据空间", "wraps": ["trae", "neweditor", "local", "iface", "capability", "core", "records", "panel", "connectivity", "compat"], "pad": 30 },
+    { "kind": "security-group", "label": "共享不变：DTO 与动作语义", "wraps": ["iface", "capability"], "pad": 24 }
+  ],
+  "connections": [
+    { "id": "trae-to-iface", "from": "trae", "to": "iface", "label": "既有动作", "toSide": "top" },
+    { "id": "neweditor-to-iface", "from": "neweditor", "to": "iface", "label": "兼容新增动作", "variant": "emphasis" },
+    { "id": "local-to-iface", "from": "local", "to": "iface", "label": "同一批动作" },
+    { "id": "panel-to-iface", "from": "panel", "to": "iface", "label": "面板动作" },
+
+    { "id": "iface-to-capability", "from": "iface", "to": "capability", "label": "能力上报" },
+    { "id": "capability-to-core", "from": "capability", "to": "core", "label": "校验后持久化" },
+    { "id": "core-to-records", "from": "core", "to": "records", "label": "单写提交" },
+
+    { "id": "connectivity-to-core", "from": "connectivity", "to": "core", "label": "统一重试" },
+    { "id": "records-to-compat", "from": "records", "to": "compat", "label": "实测证据", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "接口层不变，入口可变", "items": ["既有动作语义不变，可向后兼容新增动作与字段，由能力声明识别，未知动作明确拒绝", "判定、统计、结论上限由领域层唯一计算；命令注册、事件 API 与面板宿主容器随编辑器变化"] },
+    { "dot": "rose", "title": "单写与进程约束", "items": ["一个工作空间只由一个核心进程持有写锁；第二、第三入口核验实例后接入同一核心", "无法接入返回 WORKSPACE_IN_USE，不另建写入者；重试策略统一由 connectivity 提供"] },
+    { "dot": "amber", "title": "能力协商、降级与验收", "items": ["启动 report_capabilities 携 editor_instance_id、版本与失败信息；缺能力只开历史快照", "验收映射 P2-AC01 记录一致性、P2-AC09 目录绑定与单写、P2-AC06 缺能力降级；实测结果记入 docs/compatibility.json"] }
+  ]
+}

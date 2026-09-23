@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "一期架构06：面板与工作台",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1070, 480]
+  },
+  "stages": [
+    { "label": "只读来源" },
+    { "label": "DTO 投影" },
+    { "label": "衔接与统计" },
+    { "label": "守卫、视图与查询" },
+    { "label": "动作路由" }
+  ],
+  "nodes": [
+    { "id": "report_dto", "type": "backend", "label": "ReportDTO 快照投影", "sublabel": "固定 ReportSnapshot", "stage": 1, "row": 0, "yOffset": -20, "width": 124, "height": 64, "tag": "随报告修订冻结" },
+    { "id": "guard", "type": "security", "label": "视图守卫", "sublabel": "来源绑定与过期依赖", "stage": 3, "row": 0, "yOffset": -20, "width": 124, "height": 64, "tag": "不越权推断" },
+
+    { "id": "records", "type": "database", "label": "核心已提交记录", "sublabel": "计划 / 运行 / 判定", "stage": 0, "row": 1, "yOffset": -20, "width": 124, "height": 64, "tag": "只读唯一来源" },
+    { "id": "panel_dto", "type": "backend", "label": "应用查询与 DTO 投影", "sublabel": "PanelDTO / PlanDTO", "stage": 1, "row": 1, "yOffset": -20, "width": 124, "height": 64, "tag": "interfaces/dto.py" },
+    { "id": "boundary", "type": "backend", "label": "快照与事件衔接", "sublabel": "配对游标与事件重放", "stage": 2, "row": 1, "yOffset": -20, "width": 124, "height": 64, "tag": "同提交边界" },
+    { "id": "three_views", "type": "frontend", "label": "三段只读视图", "sublabel": "运行前 / 运行时 / 运行后", "stage": 3, "row": 1, "yOffset": -20, "width": 124, "height": 64, "tag": "按事件增量刷新" },
+    { "id": "actions", "type": "frontend", "label": "动作区路由", "sublabel": "primary_action 及原因", "stage": 4, "row": 1, "yOffset": -20, "width": 124, "height": 64, "tag": "复用已有用例" },
+
+    { "id": "decision_dto", "type": "backend", "label": "DecisionDTO", "sublabel": "领域判定投影", "stage": 1, "row": 2, "yOffset": -20, "width": 124, "height": 64, "tag": "界面不得重算" },
+    { "id": "stats", "type": "backend", "label": "统计投影", "sublabel": "RunDTO / CoverageDTO", "stage": 2, "row": 2, "yOffset": -20, "width": 124, "height": 64, "tag": "缺字段显示未知" },
+    { "id": "queries", "type": "backend", "label": "QuerySpec 查询", "sublabel": "报告 / 问题列表查询", "stage": 3, "row": 2, "yOffset": -20, "width": 124, "height": 64, "tag": "reports.* / issues.list" }
+  ],
+  "flows": [
+    { "from": "records", "to": "panel_dto", "label": "只读查询", "classification": "应用查询", "variant": "emphasis" },
+    { "from": "records", "to": "report_dto", "label": "固定报告", "fromSide": "top", "toSide": "bottom", "via": [[100, 197], [315, 197]] },
+    { "from": "records", "to": "decision_dto", "label": "等级与缺口", "fromSide": "bottom", "toSide": "top", "via": [[100, 311], [315, 311]] },
+
+    { "from": "panel_dto", "to": "boundary", "label": "取视图与游标", "classification": "同提交边界", "variant": "emphasis" },
+    { "from": "boundary", "to": "three_views", "label": "按修订重建", "classification": "事件增量", "variant": "emphasis" },
+    { "from": "three_views", "to": "actions", "label": "动作导航", "classification": "复用已有用例", "variant": "emphasis" },
+
+    { "from": "decision_dto", "to": "stats", "label": "同口径统计", "classification": "不重算" },
+    { "from": "report_dto", "to": "guard", "label": "快照口径", "classification": "旧报告不覆盖" },
+    { "from": "guard", "to": "three_views", "label": "绑定校验", "variant": "security", "fromSide": "bottom", "toSide": "top", "labelDy": 32 },
+    { "from": "three_views", "to": "queries", "label": "列表查询", "fromSide": "bottom", "toSide": "top", "labelDy": 32 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "只读边界", "items": ["信息面板只读，动作仅限发起/控制检查、导出与跳转", "面板不新增业务记录、字段与文件写路径"] },
+    { "dot": "emerald", "title": "快照与事件衔接", "items": ["SnapshotEnvelope 同提交返回 view 与 snapshot_cursor", "events(after=cursor) 先重放已提交事件，再衔接实时流"] },
+    { "dot": "rose", "title": "统计与查询口径", "items": ["selected_summary / required_summary 缺字段显示未知", "decisive_failure_count 两类失败分别显示、不相加"] }
+  ]
+}

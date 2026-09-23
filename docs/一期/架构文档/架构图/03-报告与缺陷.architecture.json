@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "一期架构03：报告与缺陷",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "panel", "type": "frontend", "label": "面板 / MCP", "sublabel": "只读 DecisionDTO", "pos": [1146, 90], "size": [168, 70] },
+    { "id": "issue", "type": "backend", "label": "IssueRecord", "sublabel": "状态机与关闭守卫", "pos": [626, 90], "size": [168, 70] },
+    { "id": "blocking", "type": "security", "label": "BlockingRule", "sublabel": "有效 P0/P1 阻塞", "pos": [826, 90], "size": [168, 70] },
+
+    { "id": "evidence", "type": "external", "label": "执行与证据", "sublabel": "Attempt 与证据索引", "pos": [50, 320], "size": [152, 86] },
+    { "id": "input", "type": "backend", "label": "DecisionInput", "sublabel": "冻结输入修订", "pos": [246, 320], "size": [152, 86] },
+    { "id": "judge", "type": "backend", "label": "纯判定器", "sublabel": "结论 / 上限 / 等级", "pos": [426, 320], "size": [152, 86] },
+    { "id": "snapshot", "type": "database", "label": "ReportSnapshot", "sublabel": "不可变内容修订", "pos": [606, 320], "size": [152, 86] },
+    { "id": "review", "type": "backend", "label": "LocalReview", "sublabel": "本地复核记录", "pos": [786, 320], "size": [152, 86] },
+    { "id": "export", "type": "backend", "label": "ReportExport", "sublabel": "摘要 / 证据包", "pos": [966, 320], "size": [152, 86] },
+
+    { "id": "coverage", "type": "database", "label": "CoverageDTO", "sublabel": "S / M 同构摘要", "pos": [426, 570], "size": [168, 70] },
+    { "id": "uow", "type": "database", "label": "单写工作单元", "sublabel": "WorkspaceUnitOfWork", "pos": [626, 570], "size": [168, 70] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本册边界：执行之后的判定、报告快照与问题闭环", "wraps": ["panel", "issue", "blocking", "evidence", "input", "judge", "snapshot", "review", "export", "coverage", "uow"], "pad": 30 }
+  ],
+  "connections": [
+    { "id": "evidence-to-input", "from": "evidence", "to": "input" },
+    { "id": "input-to-judge", "from": "input", "to": "judge" },
+    { "id": "judge-to-snapshot", "from": "judge", "to": "snapshot", "variant": "emphasis" },
+    { "id": "snapshot-to-review", "from": "snapshot", "to": "review" },
+    { "id": "review-to-export", "from": "review", "to": "export" },
+
+    { "id": "judge-to-coverage", "from": "judge", "to": "coverage", "label": "输出覆盖计数", "fromSide": "bottom", "toSide": "top" },
+    { "id": "judge-to-issue", "from": "judge", "to": "issue", "label": "登记问题" },
+    { "id": "issue-to-blocking", "from": "issue", "to": "blocking" },
+    { "id": "uow-to-snapshot", "from": "uow", "to": "snapshot", "label": "原子提交", "fromSide": "top", "toSide": "bottom" },
+    { "id": "export-to-panel", "from": "export", "to": "panel", "label": "读取判定与报告" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "判定与证据等级",
+      "items": [
+        "输入固定：档位、源码核实、计划与运行修订、当前尝试、证据完整性、依据确认与 policy_version",
+        "A 级需证据充分；P0/P1 阻止业务通过，但不把充分失败证据降为 D",
+        "无有效依据或快照不一致为 D，只有显式完整守卫满足才 A，未知不得默认 A"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "报告快照与覆盖合同",
+      "items": [
+        "报告不可变：结论变化创建新内容修订，不重写旧 Run 执行事实",
+        "相同正文修订、复核集合、格式与脱敏策略复用已有受控产物",
+        "CoverageDTO 的 S/M 摘要同构；verified_count = passed_count + failed_count，缺失返回 unknown 不补零"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "问题闭环与关闭守卫",
+      "items": [
+        "待复测 → 已关闭必须有新的实际执行证据，修复说明或 AI 判断不作凭据",
+        "BlockingRule 按一期功能 §12.2 计算有效 P0/P1，任何处置都不改原断言",
+        "decisive_failure_count 按 case_id 去重等于 H，两类失败计数不可相加"
+      ]
+    }
+  ]
+}

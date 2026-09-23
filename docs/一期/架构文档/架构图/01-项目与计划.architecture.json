@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "一期架构01：项目与计划",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "ai", "type": "backend", "label": "AI 草稿边界", "sublabel": "ai_assistance.py", "pos": [286, 148], "size": [172, 84] },
+    { "id": "confirm", "type": "frontend", "label": "用户确认发布", "sublabel": "草稿可增删改", "pos": [512, 148], "size": [172, 84] },
+
+    { "id": "project", "type": "backend", "label": "项目 / 绑定 / 环境", "sublabel": "project/context.py", "pos": [60, 340], "size": [172, 88] },
+    { "id": "planning", "type": "backend", "label": "模板 / 规则 / 用例", "sublabel": "templates / rules / plans", "pos": [286, 340], "size": [172, 88] },
+    { "id": "plan", "type": "backend", "label": "冻结计划 Plan", "sublabel": "范围 · 必测 · 档位", "pos": [512, 340], "size": [172, 88] },
+    { "id": "prepare", "type": "security", "label": "prepare_run", "sublabel": "intent_id · payload_hash", "pos": [738, 340], "size": [172, 88] },
+    { "id": "start", "type": "security", "label": "start_run", "sublabel": "意图去重 · 启动阻塞", "pos": [964, 340], "size": [172, 88] },
+
+    { "id": "ports", "type": "external", "label": "端口边界", "sublabel": "ModelProvider · Clock", "pos": [286, 556], "size": [172, 84] },
+    { "id": "uow", "type": "database", "label": "单写工作单元", "sublabel": "记录落盘即发布", "pos": [512, 556], "size": [172, 84] },
+    { "id": "snapshot", "type": "database", "label": "快照与物化", "sublabel": "workdirs/<run_id>", "pos": [738, 556], "size": [172, 84] },
+    { "id": "executor", "type": "external", "label": "执行与证据", "sublabel": "由分册接管", "pos": [964, 556], "size": [172, 84] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本册范围：测试开始之前 · P1-FR01—07", "wraps": ["ai", "confirm", "project", "planning", "plan", "prepare", "start", "ports", "uow", "snapshot"], "pad": 34 }
+  ],
+  "connections": [
+    { "id": "project-to-planning", "from": "project", "to": "planning" },
+    { "id": "planning-to-plan", "from": "planning", "to": "plan" },
+    { "id": "plan-to-prepare", "from": "plan", "to": "prepare", "label": "发布后解析", "labelDy": 68 },
+    { "id": "prepare-to-start", "from": "prepare", "to": "start", "label": "同一持久意图", "variant": "emphasis", "labelDy": 68 },
+
+    { "id": "ai-to-planning", "from": "ai", "to": "planning", "label": "草稿待确认", "variant": "dashed", "labelDy": 24 },
+    { "id": "confirm-to-plan", "from": "confirm", "to": "plan", "label": "发布不可变版本", "labelDy": 24 },
+    { "id": "ports-to-planning", "from": "ports", "to": "planning", "label": "端口 I/O", "labelDy": -24 },
+    { "id": "uow-to-plan", "from": "uow", "to": "plan", "label": "记录落盘", "labelDy": -24 },
+    { "id": "snapshot-to-prepare", "from": "snapshot", "to": "prepare", "label": "冻结摘要比对", "labelDy": -24 },
+    { "id": "start-to-executor", "from": "start", "to": "executor", "label": "启动事实先发布", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "快照与物化", "items": ["SourceSnapshot 固定形态、范围、排除规则与逐文件摘要", "物化始终在 workdirs/<run_id>，拒绝路径穿越与链接逃逸", "元数据只是变化提示，启动按实际复制流重算摘要"] },
+    { "dot": "emerald", "title": "发布与准备门禁", "items": ["模板、规则、用例缺依据不得发布；Plan 冻结用例与必测集合", "prepare 冻结 intent 与 payload_hash，start 按 (project_id, action, intent_id) 建一次 run", "同请求期间源码已变则返回原意图与「依据需重新准备」"] },
+    { "dot": "violet", "title": "档位、端口与复用", "items": ["quick / on_demand → partial；full → passable 且是唯一打分档", "planned → stepwise 只能收窄，已完成依据过期单独标 OutdatedBasis", "唯一外部端口：ModelProvider、SourceSnapshotPort、SourceControlPort、Clock"] }
+  ]
+}

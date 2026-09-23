@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "二期架构05：操作系统与运行时兼容",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "premise", "type": "external", "label": "扩展前提", "sublabel": "不引入第二套实现", "pos": [50, 76], "size": [196, 80] },
+    { "id": "runtime", "type": "backend", "label": "运行时与依赖", "sublabel": "区间 / 锁文件", "pos": [701, 76], "size": [156, 80] },
+    { "id": "order", "type": "external", "label": "扩展顺序", "sublabel": "先编辑器后系统", "pos": [918, 76], "size": [156, 80] },
+    { "id": "upgrade", "type": "backend", "label": "升级与回归", "sublabel": "不继承旧 pass", "pos": [1134, 76], "size": [156, 80] },
+
+    { "id": "upper", "type": "frontend", "label": "应用与领域层", "sublabel": "不感知平台分支", "pos": [50, 290], "size": [156, 88] },
+    { "id": "ports", "type": "backend", "label": "统一端口", "sublabel": "边界与格式一致", "pos": [267, 290], "size": [156, 88] },
+    { "id": "entry", "type": "backend", "label": "入口适配", "sublabel": "IPC / socket", "pos": [484, 290], "size": [156, 88] },
+    { "id": "infra", "type": "backend", "label": "基础设施适配", "sublabel": "锁 / 路径 / 凭据", "pos": [701, 290], "size": [156, 88] },
+    { "id": "combo", "type": "cloud", "label": "新增系统组合", "sublabel": "macOS 或 Linux", "pos": [918, 290], "size": [156, 88] },
+    { "id": "verify", "type": "security", "label": "组合实测", "sublabel": "失败注入与证据", "pos": [1134, 290], "size": [156, 88] },
+
+    { "id": "manifest", "type": "database", "label": "兼容清单", "sublabel": "os / runtime / result", "pos": [760, 494], "size": [200, 88] },
+    { "id": "verdict", "type": "security", "label": "P2-AC02 验收", "sublabel": "通过或如实标缺项", "pos": [1090, 494], "size": [200, 88] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "新增平台边界：单核心 / 单工作空间 / 单写入者", "wraps": ["premise", "runtime", "order", "upgrade", "upper", "ports", "entry", "infra", "combo", "verify", "manifest", "verdict"], "pad": 30 },
+    { "kind": "security-group", "label": "平台差异仅限适配层", "wraps": ["entry", "infra"], "pad": 24 }
+  ],
+  "connections": [
+    { "id": "upper-to-ports", "from": "upper", "to": "ports" },
+    { "id": "ports-to-entry", "from": "ports", "to": "entry" },
+    { "id": "entry-to-infra", "from": "entry", "to": "infra" },
+    { "id": "infra-to-combo", "from": "infra", "to": "combo" },
+    { "id": "combo-to-verify", "from": "combo", "to": "verify" },
+
+    { "id": "premise-to-upper", "from": "premise", "to": "upper", "label": "不改一期规则", "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "runtime-to-infra", "from": "runtime", "to": "infra", "label": "运行时与打包", "fromSide": "bottom", "toSide": "top", "labelAt": [779, 170] },
+    { "id": "order-to-combo", "from": "order", "to": "combo", "label": "先编辑器后系统", "fromSide": "bottom", "toSide": "top", "labelAt": [996, 170] },
+    { "id": "upgrade-to-verify", "from": "upgrade", "to": "verify", "label": "升级后重新实测", "fromSide": "bottom", "toSide": "top", "labelAt": [1212, 170] },
+
+    { "id": "verify-to-manifest", "from": "verify", "to": "manifest", "label": "结果与证据", "fromSide": "bottom", "toSide": "top" },
+    { "id": "manifest-to-verdict", "from": "manifest", "to": "verdict", "label": "P2-AC02 验收", "fromSide": "right", "toSide": "left" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "平台差异清单", "items": ["IPC：Windows 受限命名管道；Linux/Unix 本地 socket，按平台实现 get_peer_identity", "socket 权限、对端用户与实例握手分别验证，仅本机路径", "文件系统：锁释放、同卷原子替换、刷新与断电恢复逐系统实测", "路径按实际文件系统处理大小写 / Unicode / 符号链接，project_id 为稳定身份"] },
+    { "dot": "emerald", "title": "运行时与依赖记录", "items": ["核心包声明支持的运行时区间，超出区间明确报错；依赖版本纳入锁文件", "凭据走 Windows 凭据管理、macOS Keychain、Linux Secret Service 等受控后端，禁止明文回退", "新增第三方依赖需评审：不引入数据库、消息队列或常驻服务", "记录 os / os_version / runtime / editor 及发行版 / version / core / adapter / artifact_digest / evidence_path / verified_at / result"] },
+    { "dot": "rose", "title": "组合验证与升级", "items": ["生命周期与来源同组合验证：脱离临时入口、启动竞争、draining 重连、无工作退出", "执行来源 editable / 入口映射及编码、dirty、身份、版本语义须同组合通过", "失败注入覆盖第二入口、旧发现、损坏指针、空间不足、跨机恢复", "升级后重新探测，不继承旧 pass；验收 P2-AC02 要求新增系统真实闭环，未测如实记录"] }
+  ]
+}

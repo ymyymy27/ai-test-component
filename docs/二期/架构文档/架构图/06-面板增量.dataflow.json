@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "二期架构06：面板增量",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1085, 530]
+  },
+  "stages": [
+    { "label": "面板读取投影" },
+    { "label": "查询合同" },
+    { "label": "筛选与分页" },
+    { "label": "应用返回 DTO" },
+    { "label": "增量呈现" }
+  ],
+  "nodes": [
+    { "id": "panel", "type": "frontend", "label": "面板读取投影", "sublabel": "不遍历文件", "stage": 0, "row": 1, "width": 132, "height": 52, "tag": "只读" },
+    { "id": "selfcheck", "type": "security", "label": "环境重检", "sublabel": "recheck_environment", "stage": 0, "row": 2, "width": 132, "height": 52, "tag": "页面不自探测" },
+    { "id": "routes", "type": "backend", "label": "历史分组与查询入口", "sublabel": "组摘要 / 组内运行", "stage": 1, "row": 0, "width": 132, "height": 52, "tag": "source_identity" },
+    { "id": "queryspec", "type": "database", "label": "QuerySpec 目录", "sublabel": "有限查询索引", "stage": 1, "row": 1, "width": 132, "height": 52, "tag": "16 种筛选掩码" },
+    { "id": "history_groups", "type": "backend", "label": "源码组浏览", "sublabel": "history.groups", "stage": 2, "row": 1, "width": 132, "height": 52, "tag": "按组分页" },
+    { "id": "history_runs", "type": "backend", "label": "history.runs 筛选", "sublabel": "四项可组合", "stage": 2, "row": 0, "width": 132, "height": 52, "yOffset": -7, "tag": "按运行分页" },
+    { "id": "paging", "type": "database", "label": "游标携 commit", "sublabel": "SnapshotEnvelope 游标", "stage": 3, "row": 0, "width": 132, "height": 52, "tag": "边界后重放" },
+    { "id": "paging_gap", "type": "backend", "label": "缺口查图映射", "sublabel": "DecisionDTO gap_id", "stage": 3, "row": 1, "width": 132, "height": 52, "tag": "缺节点回证据" },    { "id": "dto_hist", "type": "backend", "label": "HistoryDTO", "sublabel": "分组 / 分页 / 修订", "stage": 4, "row": 0, "width": 132, "height": 52, "tag": "E/R/V/P/F/U" },
+    { "id": "dto_health", "type": "backend", "label": "环境健康 DTO", "sublabel": "四组事实 + 宿主能力", "stage": 4, "row": 2, "width": 132, "height": 52, "tag": "未知不显示通过" }
+  ],
+  "flows": [
+    { "id": "panel-routes", "from": "panel", "to": "routes", "label": "配对快照游标", "classification": "只读投影", "variant": "emphasis" },
+    { "id": "panel-recheck", "from": "panel", "to": "selfcheck", "label": "显式用户动作", "classification": "既有用例", "variant": "security", "labelDy": 24 },
+    { "id": "routes-runs", "from": "routes", "to": "history_runs", "label": "history.runs 筛选", "classification": "四项可组合", "variant": "emphasis", "labelDy": -100 },
+    { "id": "routes-spec", "from": "routes", "to": "queryspec", "label": "统一承接筛选", "classification": "不在面板扫描", "variant": "default", "labelDy": 24 },
+    { "id": "routes-groups", "from": "routes", "to": "history_groups", "label": "组摘要分组", "classification": "按 source_identity", "variant": "default" },
+    { "id": "runs-paging", "from": "history_runs", "to": "paging", "label": "筛选结果分页", "classification": "附源码组标题", "variant": "emphasis" },
+    { "id": "groups-paging", "from": "history_groups", "to": "paging", "label": "组内运行游标", "classification": "按组分页", "variant": "default" },
+    { "id": "groups-gap", "from": "paging", "to": "paging_gap", "label": "同来源 gap_id 查图", "classification": "缺节点回证据", "variant": "dashed", "labelDy": 24 },
+    { "id": "paging-dto", "from": "paging", "to": "dto_hist", "label": "精确运行与修订", "classification": "条件变化刷新", "variant": "emphasis" },
+    { "id": "selfcheck-health", "from": "selfcheck", "to": "dto_health", "label": "统一健康模型", "classification": "四组事实", "variant": "security" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "DTO 与查询责任", "items": ["HistoryDTO 携分组、分页游标与修订摘要", "环境健康 DTO 分列四组事实与宿主能力"] },
+    { "dot": "emerald", "title": "历史筛选合同", "items": ["history.groups 按源码组浏览，history.runs 承担四项可组合筛选", "scope_revision、environment_revision、tier、business_outcome"] },
+    { "dot": "amber", "title": "增量不变式", "items": ["历史选择属界面上下文，不写回当前结论记录", "重检走既有用例，迟到旧配置探测不替换当前结果"] }
+  ]
+}

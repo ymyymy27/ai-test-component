@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "一期架构总览：Trae 本地测试闭环",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "panel", "type": "frontend", "label": "面板", "sublabel": "视图 DTO", "pos": [50, 240], "size": [140, 60] },
+    { "id": "cli", "type": "frontend", "label": "CLI", "sublabel": "本机命令", "pos": [50, 345], "size": [140, 60] },
+    { "id": "mcp", "type": "frontend", "label": "stdio MCP", "sublabel": "协议接入", "pos": [50, 450], "size": [140, 60] },
+
+    { "id": "project", "type": "backend", "label": "项目 / 绑定 / 环境", "sublabel": "01 项目与计划", "pos": [246, 332], "size": [152, 86] },
+    { "id": "plan", "type": "backend", "label": "计划发布", "sublabel": "模板 / 规则 / 范围", "pos": [426, 332], "size": [152, 86] },
+    { "id": "prepare", "type": "security", "label": "prepare 与逐项授权", "sublabel": "执行前门禁", "pos": [606, 332], "size": [152, 86] },
+    { "id": "execute", "type": "backend", "label": "执行 / 采集", "sublabel": "三层调度与证据", "pos": [786, 332], "size": [152, 86] },
+    { "id": "judge", "type": "backend", "label": "纯判定 / 问题 / 报告", "sublabel": "不可变报告", "pos": [966, 332], "size": [152, 86] },
+    { "id": "review", "type": "backend", "label": "复核 / 导出", "sublabel": "关闭依据", "pos": [1146, 332], "size": [152, 86] },
+
+    { "id": "store", "type": "database", "label": "单写工作单元", "sublabel": "提交与恢复", "pos": [690, 540], "size": [168, 70] },
+    { "id": "creds", "type": "security", "label": "凭据设施", "sublabel": "已登记访问", "pos": [1000, 540], "size": [168, 70] },
+
+    { "id": "outbound", "type": "external", "label": "出站能力", "sublabel": "模型 / 可选 GitHub", "pos": [1150, 62], "size": [170, 72] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本地环境边界：Trae / Windows 11 x64 / Python 3.13", "wraps": ["panel", "cli", "mcp", "project", "plan", "prepare", "execute", "judge", "review", "store", "creds"], "pad": 30 },
+    { "kind": "security-group", "label": "共用底座", "wraps": ["store", "creds"], "pad": 24 }
+  ],
+  "connections": [
+    { "id": "panel-to-loop", "from": "panel", "to": "project" },
+    { "id": "cli-to-loop", "from": "cli", "to": "project" },
+    { "id": "mcp-to-loop", "from": "mcp", "to": "project" },
+
+    { "id": "project-to-plan", "from": "project", "to": "plan" },
+    { "id": "plan-to-prepare", "from": "plan", "to": "prepare" },
+    { "id": "prepare-to-execute", "from": "prepare", "to": "execute", "variant": "emphasis" },
+    { "id": "execute-to-judge", "from": "execute", "to": "judge" },
+    { "id": "judge-to-review", "from": "judge", "to": "review" },
+
+    { "id": "store-to-execute", "from": "store", "to": "execute", "label": "单写提交", "fromSide": "top", "toSide": "bottom" },
+    { "id": "creds-to-execute", "from": "creds", "to": "execute", "label": "登记访问", "fromSide": "top", "toSide": "bottom" },
+    { "id": "execute-to-outbound", "from": "execute", "to": "outbound", "label": "出站调用", "variant": "dashed", "fromSide": "top", "toSide": "bottom" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "闭环与顺序", "items": ["先完成串行本地闭环，再覆盖全部一期承诺和故障场景", "内部里程碑不等于一期交付完成"] },
+    { "dot": "emerald", "title": "共用底座与入口", "items": ["单写工作单元与凭据设施是共用底座", "面板、CLI 与 stdio MCP 只接入同一用例，不为入口另建调度器"] },
+    { "dot": "rose", "title": "一期范围与边界", "items": ["覆盖 P1-FR01—17 与 P1-AC01—35", "仅本地运行，模型与可选 GitHub 为出站能力", "当前仍为待实现设计"] }
+  ]
+}

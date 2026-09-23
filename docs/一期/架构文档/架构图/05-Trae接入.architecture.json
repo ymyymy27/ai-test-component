@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "一期架构05：Trae 接入",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "trae_ai", "type": "external", "label": "Trae AI", "sublabel": "MCP 客户端", "pos": [38, 62], "size": [150, 64] },
+    { "id": "relay", "type": "frontend", "label": "stdio MCP relay", "sublabel": "固定程序入口", "pos": [268, 62], "size": [170, 64] },
+    { "id": "panel", "type": "frontend", "label": "面板 Webview", "sublabel": "唯一面板源码", "pos": [38, 200], "size": [150, 68] },
+    { "id": "ext", "type": "frontend", "label": "Trae 扩展", "sublabel": "命令注册与面板宿主", "pos": [268, 200], "size": [170, 68] },
+    { "id": "cli", "type": "frontend", "label": "CLI", "sublabel": "aitest doctor / migrate", "pos": [38, 338], "size": [150, 64] },
+
+    { "id": "pipe", "type": "messagebus", "label": "本地命名管道", "sublabel": "会话内发现 / 拒绝远程", "pos": [538, 190], "size": [176, 84] },
+    { "id": "core", "type": "backend", "label": "editor-host 核心", "sublabel": "唯一业务写入者", "pos": [838, 176], "size": [190, 112] },
+    { "id": "store", "type": "database", "label": "文件工作空间", "sublabel": "单写工作单元 / writer_epoch", "pos": [1108, 176], "size": [190, 112] },
+
+    { "id": "perm", "type": "security", "label": "入口权限与人工确认", "sublabel": "ApprovalChallenge", "pos": [838, 388], "size": [190, 96] },
+    { "id": "health", "type": "backend", "label": "doctor 健康模型", "sublabel": "READY / DEGRADED / NOT_READY", "pos": [1108, 388], "size": [190, 96] },
+    { "id": "compat", "type": "database", "label": "compatibility.json", "sublabel": "实测制品 / untested", "pos": [1108, 532], "size": [190, 76] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本地环境边界：Windows 11 x64 · Python 3.13 · 实测确定的 Trae 发行版", "wraps": ["trae_ai", "relay", "panel", "ext", "cli", "pipe", "core", "store", "perm", "health", "compat"], "pad": 30 },
+    { "kind": "security-group", "label": "单写边界：命名管道限定当前登录会话", "wraps": ["pipe", "core", "store"], "pad": 20 }
+  ],
+  "connections": [
+    { "id": "trae_ai-to-relay", "from": "trae_ai", "to": "relay", "label": "stdio MCP" },
+    { "id": "panel-to-ext", "from": "panel", "to": "ext" },
+    { "id": "relay-to-pipe", "from": "relay", "to": "pipe", "label": "只转发" },
+    { "id": "ext-to-pipe", "from": "ext", "to": "pipe", "label": "扩展连接", "labelDy": 22 },
+    { "id": "cli-to-pipe", "from": "cli", "to": "pipe", "label": "命令转发", "toSide": "bottom" },
+    { "id": "pipe-to-core", "from": "pipe", "to": "core", "label": "命令 / 响应 / 事件", "variant": "emphasis" },
+    { "id": "core-to-store", "from": "core", "to": "store", "label": "单写提交" },
+    { "id": "core-to-perm", "from": "core", "to": "perm", "label": "ApprovalChallenge", "labelDy": 70 },
+    { "id": "core-to-health", "from": "core", "to": "health", "label": "统一健康模型" },
+    { "id": "health-to-compat", "from": "health", "to": "compat", "label": "实测登记", "labelDy": 52 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "三类接入，同一核心", "items": ["面板与 Trae 扩展、交互 CLI、stdio MCP relay 接入同一核心用例", "relay 只转发消息，不持有业务写锁、不保存业务状态", "不监听 TCP 端口；无法核实既有核心时返回 WORKSPACE_IN_USE"] },
+    { "dot": "emerald", "title": "统一动作与错误契约", "items": ["协议 aitest.local/2.0：request_id、action、binding_revision、expected_revision", "业务幂等键 (project_id, action, intent_id)；request_id 只去重传输", "错误含 code、脱敏 message、retryable、相关记录与下一步"] },
+    { "dot": "rose", "title": "确认来源与实测证据", "items": ["人工确认只来自实际用户操作；ApprovalChallenge 不经 relay 转发", "编辑器退出不等于取消测试；卸载不依赖停用回调", "doctor 统一 READY / DEGRADED / NOT_READY；未实测组合登记 untested"] }
+  ]
+}

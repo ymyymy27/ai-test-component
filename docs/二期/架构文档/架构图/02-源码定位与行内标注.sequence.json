@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "二期架构02：源码定位与行内标注",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1040, 560]
+  },
+  "participants": [
+    { "id": "user", "type": "external", "label": "用户", "sublabel": "发起定位请求" },
+    { "id": "panel", "type": "frontend", "label": "定位面板", "sublabel": "请求与展示" },
+    { "id": "locations", "type": "backend", "label": "定位用例", "sublabel": "locations.py" },
+    { "id": "snapshot", "type": "database", "label": "SourceSnapshotPort", "sublabel": "冻结快照与受限读取" },
+    { "id": "host", "type": "frontend", "label": "编辑器宿主", "sublabel": "editor_context / 二次核对" },
+    { "id": "editor", "type": "frontend", "label": "编辑器视图", "sublabel": "只读打开与装饰器" }
+  ],
+  "segments": [
+    { "from": 145, "to": 258, "label": "按来源字段定位" },
+    { "from": 258, "to": 370, "label": "显式内容校验" },
+    { "from": 370, "to": 515, "label": "跳转与行内标注" }
+  ],
+  "messages": [
+    { "id": "open-panel", "from": "user", "to": "panel", "y": 160, "label": "选择「跳转到源码」", "variant": "default" },
+    { "id": "resolve-location", "from": "panel", "to": "locations", "y": 188, "label": "resolve_location(relative_path, line_hint, target_kind)", "variant": "emphasis" },
+    { "id": "read-metadata", "from": "locations", "to": "snapshot", "y": 216, "label": "读取目标元数据与冻结内容", "variant": "default" },
+    { "id": "dto-candidate", "from": "locations", "to": "panel", "y": 244, "label": "LocationDTO：metadata_match 候选", "variant": "return" },
+    { "id": "pick-current", "from": "panel", "to": "host", "y": 272, "label": "改选「当前文件」，请求显式校验", "variant": "default" },
+    { "id": "verify-current-file", "from": "host", "to": "locations", "y": 300, "label": "verify_current_file(editor_context)", "variant": "emphasis" },
+    { "id": "read-bytes", "from": "locations", "to": "snapshot", "y": 328, "label": "读取受限文件字节 + display_digest", "variant": "default" },
+    { "id": "dto-verified", "from": "locations", "to": "host", "y": 356, "label": "DTO：current_verified / stale / unknown", "variant": "return" },
+    { "id": "open-readonly", "from": "host", "to": "editor", "y": 384, "label": "只读打开并定位到行或函数", "variant": "emphasis" },
+    { "id": "inline-annotate", "from": "host", "to": "editor", "y": 412, "label": "行内标注：问题 / Mock 声明 / 证据缺口", "variant": "default" },
+    { "id": "dirty-guard", "from": "host", "to": "panel", "y": 440, "label": "dirty → unknown / UNSAVED_BUFFER", "variant": "dashed" },
+    { "id": "late-response", "from": "locations", "to": "panel", "y": 468, "label": "迟到响应：仅更新原目录缓存", "variant": "dashed" }
+  ],
+  "activations": [
+    { "participant": "panel", "from": 158, "to": 472, "type": "frontend" },
+    { "participant": "locations", "from": 186, "to": 472, "type": "backend" },
+    { "participant": "snapshot", "from": 214, "to": 330, "type": "database" },
+    { "participant": "host", "from": 270, "to": 444, "type": "frontend" },
+    { "participant": "editor", "from": 382, "to": 444, "type": "frontend" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "主路径",
+      "items": [
+        "定位面板 → resolve_location → 快照元数据 → 显式内容校验 → 跳转与行内标注",
+        "mtime 比较快照中该文件的 mtime，不能比较快照创建时间",
+        "元数据相同只是候选一致，不证明当前文件相同",
+        "定位是记录的投影，不产生新事实；绝不直接文件 I/O"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "六态归属（第1节唯一维护）",
+      "items": [
+        "unknown / snapshot_verified / metadata_match / current_verified / stale / missing",
+        "未知与已证明变化分开，不用 stale 掩盖没有核实",
+        "unknown 必须说明原因；未知枚举降为 unknown，不当成忽略未知字段"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "干净缓冲区与只读边界",
+      "items": [
+        "文档 dirty 即返回 unknown，reason=UNSAVED_BUFFER",
+        "校验期间或之后文档变化，不得标 current_verified",
+        "迟到响应只更新原目录缓存，标「非当前视图」",
+        "行内标注只做展示，不改断言、缺陷与档位"
+      ]
+    }
+  ]
+}

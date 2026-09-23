@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "二期架构03：依赖与链路图",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "viewBox": [1072, 505]
+  },
+  "stages": [
+    { "label": "来源记录" },
+    { "label": "定义投影" },
+    { "label": "修订与守卫" },
+    { "label": "落盘发布" },
+    { "label": "渲染与导出" }
+  ],
+  "nodes": [
+    { "id": "dep-source", "type": "backend", "label": "domain/project", "sublabel": "模块与依赖边", "tag": "依赖图", "stage": 0, "row": 1 },
+    { "id": "trace-source", "type": "backend", "label": "TraceNode", "sublabel": "EvidenceRef · 已采集节点", "tag": "链路图", "stage": 0, "row": 2 },
+
+    { "id": "definition", "type": "backend", "label": "DiagramDefinition", "sublabel": "来源集合 · 策略版本", "tag": "定义投影", "stage": 1, "row": 1 },
+    { "id": "gaps", "type": "security", "label": "缺口标记", "sublabel": "已知范围 · 点击回证据", "tag": "不虚构", "stage": 1, "row": 0 },
+
+    { "id": "revision", "type": "backend", "label": "DiagramRevision", "sublabel": "坐标 · 折叠 · 注释", "tag": "仅布局", "stage": 2, "row": 1 },
+    { "id": "guard", "type": "security", "label": "保存守卫", "sublabel": "逐项校验事实与缺口", "tag": "拒绝删改", "stage": 2, "row": 2 },
+
+    { "id": "uow", "type": "database", "label": "WorkspaceUnitOfWork", "sublabel": "投影记录 · 编号独立", "tag": "不参与判定", "stage": 3, "row": 1 },
+
+    { "id": "render", "type": "backend", "label": "DiagramRenderPort", "sublabel": "只渲染 · 只读精确修订", "tag": "同一修订", "stage": 4, "row": 1 },
+    { "id": "panel", "type": "frontend", "label": "面板图 DTO", "sublabel": "缩放 · 搜索 · 聚焦", "tag": "不用 iframe", "stage": 4, "row": 0 },
+    { "id": "html", "type": "external", "label": "自包含 HTML", "sublabel": "内嵌资源 · 无 CDN", "tag": "统一脱敏", "stage": 4, "row": 2 }
+  ],
+  "flows": [
+    { "id": "dep-to-definition", "from": "dep-source", "to": "definition", "label": "模块与依赖边", "route": "straight" },
+    { "id": "trace-to-definition", "from": "trace-source", "to": "definition", "label": "已采集调用节点" },
+    { "id": "definition-to-gaps", "from": "definition", "to": "gaps", "label": "已知范围挂缺口" },
+    { "id": "definition-to-revision", "from": "definition", "to": "revision", "label": "冻结定义生成布局" },
+    { "id": "revision-to-guard", "from": "revision", "to": "guard", "label": "人工调整保存前校验", "labelDy": 24 },
+    { "id": "guard-to-uow", "from": "guard", "to": "uow", "label": "校验通过后提交" },
+    { "id": "uow-to-render", "from": "uow", "to": "render", "label": "按精确修订渲染" },
+    { "id": "render-to-panel", "from": "render", "to": "panel", "label": "DTO 同源" },
+    { "id": "render-to-html", "from": "render", "to": "html", "label": "内嵌资源脱敏", "labelDy": 24 }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "记录投影与身份",
+      "items": [
+        "application/diagrams 从已提交记录生成 DiagramDefinition 与 DiagramRevision",
+        "依赖图节点=module_id，链路图节点=(run_id, attempt_id, trace_node_id)",
+        "源码路径与符号只是导航属性，重复调用不合并"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "缺口与失效",
+      "items": [
+        "未采集节点按已知业务范围挂缺口标记，不新增虚构调用",
+        "来源变化整图标过期，重新生成仅对仍存在的业务 ID 沿用可匹配布局",
+        "已发布定义与修订永久保留，未浏览链路不预物化"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "保存合同与归属",
+      "items": [
+        "仅允许布局、折叠和独立注释，守卫不可删改事实与缺口集合",
+        "经 WorkspaceUnitOfWork 提交，编号与修订空间独立于领域记录",
+        "不参与判定、不计入统计分母，也不替代原始证据"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "展示与报告引用",
+      "items": [
+        "面板消费图 DTO，独立 HTML 只加载内嵌或包内资源",
+        "报告附件引用 definition_revision + diagram_revision，新布局不自动生成新报告",
+        "导出按统一脱敏，DTO 与 HTML 字段与缺口一致"
+      ]
+    }
+  ]
+}

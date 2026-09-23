@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "一期架构04：存储与恢复",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "entry", "type": "frontend", "label": "调用入口", "sublabel": "面板 / CLI / MCP", "pos": [40, 288], "size": [124, 84] },
+    { "id": "creds", "type": "security", "label": "SecretPort", "sublabel": "工作空间外密钥", "pos": [40, 496], "size": [124, 84] },
+
+    { "id": "lock", "type": "security", "label": "writer.lock", "sublabel": "OS 排他锁", "pos": [217, 76], "size": [120, 84] },
+    { "id": "objects", "type": "database", "label": "objects/<sha256>", "sublabel": "按项目内容寻址", "pos": [545, 76], "size": [140, 84] },
+
+    { "id": "uow", "type": "backend", "label": "单写提交单元", "sublabel": "WorkspaceUnitOfWork", "pos": [216, 288], "size": [122, 84] },
+    { "id": "txn", "type": "database", "label": "transactions", "sublabel": "不可变暂存区", "pos": [394, 288], "size": [106, 84] },
+    { "id": "manifest", "type": "database", "label": "CommitManifest", "sublabel": "清单与幂等结果", "pos": [556, 288], "size": [118, 84] },
+    { "id": "current", "type": "database", "label": "current.json", "sublabel": "同卷原子指针", "pos": [730, 288], "size": [104, 84] },
+    { "id": "generation", "type": "database", "label": "generations 世代", "sublabel": "records·indexes·events", "pos": [890, 288], "size": [136, 84] },
+    { "id": "query", "type": "backend", "label": "查询索引", "sublabel": "IndexRoot / QuerySpec", "pos": [1082, 288], "size": [138, 84] },
+
+    { "id": "spool", "type": "database", "label": "spool/<attempt_id>", "sublabel": "输出块与终态标记", "pos": [211, 496], "size": [132, 84] },
+    { "id": "backup", "type": "cloud", "label": "备份与迁移", "sublabel": "历史闭包与清单", "pos": [893, 648], "size": [130, 84] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "本地工作空间：单个 OS 用户数据目录，禁止同步 / 网络盘", "wraps": ["lock", "objects", "uow", "txn", "manifest", "current", "generation", "query", "spool"], "pad": 28 }
+  ],
+  "connections": [
+    { "id": "entry-to-uow", "from": "entry", "to": "uow", "label": "写记录" },
+    { "id": "entry-to-creds", "from": "entry", "to": "creds", "label": "只显示引用", "labelDy": 24 },
+
+    { "id": "lock-to-uow", "from": "lock", "to": "uow", "label": "epoch 核对", "labelDy": 24 },
+    { "id": "spool-to-uow", "from": "spool", "to": "uow", "label": "抢救输出候选" },
+
+    { "id": "uow-to-txn", "from": "uow", "to": "txn" },
+    { "id": "txn-to-manifest", "from": "txn", "to": "manifest", "label": "摘要校验" },
+    { "id": "manifest-to-objects", "from": "manifest", "to": "objects", "label": "摘要与引用" },
+    { "id": "manifest-to-current", "from": "manifest", "to": "current", "label": "原子发布" },
+    { "id": "current-to-generation", "from": "current", "to": "generation", "label": "定位入口" },
+    { "id": "generation-to-query", "from": "generation", "to": "query", "label": "摘要分片" },
+    { "id": "generation-to-backup", "from": "generation", "to": "backup", "label": "冻结历史根", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "提交与恢复顺序", "items": ["网络、模型与被测执行在写事务外，短事务只发布已准备材料", "写失败保留旧 current，先抢救 spool 与 transactions 输出", "恢复动作可重复且幂等，不按游标重放被测业务"] },
+    { "dot": "emerald", "title": "不可变与永久保留", "items": ["记录不可变、索引可重建、证据按项目与 sha256 寻址", "运行证据、报告修订与脱敏诊断无保留期、无自动清理", "索引可重建不代表可以删除其引用的业务材料"] },
+    { "dot": "rose", "title": "有限查询与备份", "items": ["QuerySpec 固定筛选组合、排序键与有界页大小，不接收任意表达式", "游标绑定 query_id、commit_id 与末尾完整排序键，换条件即刷新", "备份冻结一个已提交历史根的全部永久闭包，清单最后写入"] }
+  ]
+}

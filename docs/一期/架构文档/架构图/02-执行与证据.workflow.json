@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "一期架构02：执行与证据",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "intent_lane", "label": "意图与授权" },
+    { "id": "control_lane", "label": "调度与适配器" },
+    { "id": "evidence_lane", "label": "采集、安全与证据" },
+    { "id": "exception_lane", "label": "控制与恢复分支", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "phase_intent", "label": "意图与门禁", "fromCol": 0, "toCol": 1 },
+    { "id": "phase_dispatch", "label": "三层调度与适配器", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "phase_evidence", "label": "证据与真实性", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "group_evidence_flow", "label": "封口 · 校验 · 认领", "lane": "evidence_lane", "fromCol": 3, "toCol": 5, "variant": "dashed" },
+    { "id": "group_control", "label": "句柄失效与未知副作用", "lane": "exception_lane", "fromCol": 3, "toCol": 5, "variant": "security" }
+  ],
+  "mainPath": ["intent", "authz_gate", "runner", "adapter", "durable_collect", "block_manifest", "authenticity"],
+  "nodes": [
+    { "id": "intent", "lane": "intent_lane", "col": 0, "type": "frontend", "label": "意图与幂等", "sublabel": "启动前提交", "tag": "副作用类别", "width": 134 },
+    { "id": "authz_gate", "lane": "intent_lane", "col": 1, "type": "security", "label": "动作授权", "sublabel": "逐项确认", "tag": "intent_id", "width": 134 },
+    { "id": "runner", "lane": "control_lane", "col": 2, "type": "backend", "label": "runner 三层调度", "sublabel": "依赖图 · 边界", "tag": "L1 / L2 / L3", "width": 165 },
+    { "id": "adapter", "lane": "control_lane", "col": 3, "type": "backend", "label": "ExecutionPort", "sublabel": "7 类适配器", "tag": "登记入口", "width": 165 },
+    { "id": "redaction", "lane": "control_lane", "col": 4, "type": "security", "label": "凭据过滤", "sublabel": "落盘前流式", "tag": "Redaction", "width": 150 },
+    { "id": "durable_collect", "lane": "evidence_lane", "col": 3, "type": "database", "label": "耐久采集", "sublabel": "spool 分块", "tag": "检查点", "width": 150 },
+    { "id": "block_manifest", "lane": "evidence_lane", "col": 4, "type": "database", "label": "分块与摘要", "sublabel": "封口块清单", "tag": "digest", "width": 150 },
+    { "id": "authenticity", "lane": "evidence_lane", "col": 5, "type": "backend", "label": "真实性核验", "sublabel": "证据等级 · 缺口", "tag": "evidence_review", "width": 158 },
+    { "id": "exit_fact", "lane": "exception_lane", "col": 3, "type": "messagebus", "label": "终态 ExitFact", "sublabel": "真实 exit_code", "width": 150 },
+    { "id": "pending", "lane": "exception_lane", "col": 4, "type": "security", "label": "待核实", "sublabel": "未知副作用", "tag": "pending_verification", "width": 165 }
+  ],
+  "edges": [
+    { "id": "intent_authz", "from": "intent", "to": "authz_gate", "label": "逐项确认", "variant": "security" },
+    { "id": "authz_runner", "from": "authz_gate", "to": "runner", "label": "调用前核对", "variant": "emphasis" },
+    { "id": "runner_adapter", "from": "runner", "to": "adapter", "label": "依赖图调度", "variant": "emphasis" },
+    { "id": "adapter_redaction", "from": "adapter", "to": "redaction", "label": "stdout/stderr", "variant": "emphasis" },
+    { "id": "adapter_durable", "from": "adapter", "to": "durable_collect", "variant": "emphasis" },
+    { "id": "durable_manifest", "from": "durable_collect", "to": "block_manifest", "label": "核心校验", "variant": "emphasis" },
+    { "id": "manifest_auth", "from": "block_manifest", "to": "authenticity", "label": "认领后核验", "variant": "emphasis" },
+    { "id": "durable_exit", "from": "durable_collect", "to": "exit_fact", "label": "已落盘块", "variant": "security" },
+    { "id": "exit_pending", "from": "exit_fact", "to": "pending", "label": "结果未知则待核实", "variant": "security", "role": "error" }
+  ],
+  "semanticChecks": {
+    "allowedRoots": ["intent"],
+    "allowedTerminals": ["authenticity", "pending", "redaction", "exit_fact"],
+    "requiredEdges": [
+      { "from": "intent", "to": "authz_gate" },
+      { "from": "durable_collect", "to": "block_manifest" },
+      { "from": "block_manifest", "to": "authenticity" }
+    ]
+  },
+  "cards": [
+    { "dot": "cyan", "title": "门禁与调度边界", "items": ["授权绑定 intent_id、目标、凭据范围与计划修订，实际调用前再核对", "runner 按依赖图串行调度，上游失败只阻塞依赖步骤", "暂停只阻止边界后的新步骤，正在执行的步骤先收尾"] },
+    { "dot": "emerald", "title": "耐久采集", "items": ["输出按块写入 spool/<attempt>，游标只作进度标记", "只读取已经封口的块，未过滤尾部不得落盘或展示", "句柄失效时以已落盘块与摘要重建证据，不补造 exit_code"] },
+    { "dot": "rose", "title": "采集安全与真实性", "items": ["落盘前完成不可关闭的凭据过滤，只保存过滤后字节的摘要", "执行退出事实与业务断言分别记录，互不代替", "调用关系只由请求编号、trace 父子或明确业务关联建立"] }
+  ]
+}
