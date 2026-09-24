@@ -4,8 +4,20 @@ Only consumed signatures are frozen here. Reserved ports name responsibilities,
 not a claim of implementation; expand with typed contracts when implementing a slice.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
+
+from aitest.domain.execution.runs import (
+    CapturedOutputBlock,
+    ExecutionCollectionResult,
+    ExecutionHandle,
+    ExecutionInspectionResult,
+    ExecutionRequest,
+    OutputCursor,
+    SpoolManifest,
+    StopRequestResult,
+)
 
 
 class Clock(Protocol):
@@ -35,7 +47,30 @@ class SourceControlPort(Protocol):
 
 
 class ExecutionPort(Protocol):
-    """start/inspect/collect/request_stop; typed signatures pending execution slice."""
+    """Start, inspect, collect, and stop one actual execution handle."""
+
+    def start(self, request: ExecutionRequest) -> ExecutionHandle: ...
+
+    def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult: ...
+
+    def collect(
+        self,
+        handle: ExecutionHandle,
+        cursor: OutputCursor | None = None,
+    ) -> ExecutionCollectionResult: ...
+
+    def request_stop(self, handle: ExecutionHandle) -> StopRequestResult: ...
+
+
+class SpoolStore(Protocol):
+    """Persist sealed capture blocks and read their verified metadata."""
+
+    def persist_blocks(
+        self,
+        blocks: Sequence[CapturedOutputBlock],
+    ) -> SpoolManifest: ...
+
+    def read_manifest(self, attempt_id: str) -> SpoolManifest: ...
 
 
 class VerificationPort(Protocol):

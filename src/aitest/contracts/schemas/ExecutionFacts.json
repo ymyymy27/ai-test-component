@@ -1,0 +1,2195 @@
+{
+  "$defs": {
+    "AdapterKindFact": {
+      "enum": [
+        "python_checks",
+        "command",
+        "http",
+        "verification",
+        "manual_evidence",
+        "agent",
+        "external_result"
+      ],
+      "title": "AdapterKindFact",
+      "type": "string"
+    },
+    "AttemptFact": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "attempt_revision": {
+          "minimum": 0,
+          "title": "Attempt Revision",
+          "type": "integer"
+        },
+        "attempt_index": {
+          "minimum": 1,
+          "title": "Attempt Index",
+          "type": "integer"
+        },
+        "retry_count": {
+          "minimum": 0,
+          "title": "Retry Count",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/AttemptStateFact"
+        },
+        "is_current": {
+          "title": "Is Current",
+          "type": "boolean"
+        },
+        "intent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intent Id"
+        },
+        "intent_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intent Digest"
+        },
+        "resolved_input_digest": {
+          "title": "Resolved Input Digest",
+          "type": "string"
+        },
+        "step_revision_ref": {
+          "$ref": "#/$defs/StepRevisionRefFact"
+        },
+        "source_binding_digest": {
+          "title": "Source Binding Digest",
+          "type": "string"
+        },
+        "consumed_outputs": {
+          "items": {
+            "$ref": "#/$defs/ConsumedOutputFact"
+          },
+          "title": "Consumed Outputs",
+          "type": "array"
+        },
+        "consumed_conditions": {
+          "items": {
+            "$ref": "#/$defs/ConsumedConditionFact"
+          },
+          "title": "Consumed Conditions",
+          "type": "array"
+        },
+        "side_effect_class": {
+          "$ref": "#/$defs/SideEffectClassFact"
+        },
+        "business_idempotency_key_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Business Idempotency Key Ref"
+        },
+        "transport_retry_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Transport Retry Count",
+          "type": "integer"
+        },
+        "authorization_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authorization Ref"
+        },
+        "adapter_kind": {
+          "$ref": "#/$defs/AdapterKindFact"
+        },
+        "adapter_version": {
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout Ms"
+        },
+        "timed_out": {
+          "default": false,
+          "title": "Timed Out",
+          "type": "boolean"
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionHandleFact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "output_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OutputCursorFact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "output_blocks": {
+          "items": {
+            "$ref": "#/$defs/OutputBlockFact"
+          },
+          "title": "Output Blocks",
+          "type": "array"
+        },
+        "structured_result_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structured Result Ref"
+        },
+        "exit_fact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExitFactDTO"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "capture_completeness": {
+          "$ref": "#/$defs/CaptureCompletenessFact"
+        },
+        "error_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Ref"
+        },
+        "unknown_reason_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknown Reason Ids",
+          "type": "array"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        }
+      },
+      "required": [
+        "attempt_id",
+        "run_id",
+        "step_id",
+        "attempt_revision",
+        "attempt_index",
+        "retry_count",
+        "state",
+        "is_current",
+        "resolved_input_digest",
+        "step_revision_ref",
+        "source_binding_digest",
+        "side_effect_class",
+        "adapter_kind",
+        "adapter_version",
+        "capture_completeness"
+      ],
+      "title": "AttemptFact",
+      "type": "object"
+    },
+    "AttemptStateFact": {
+      "enum": [
+        "intent_recorded",
+        "starting",
+        "running",
+        "stop_requested",
+        "collecting",
+        "completed",
+        "cancelled",
+        "pending_verification",
+        "execution_error",
+        "invalidated",
+        "unknown"
+      ],
+      "title": "AttemptStateFact",
+      "type": "string"
+    },
+    "CaptureCompletenessFact": {
+      "enum": [
+        "complete",
+        "partial",
+        "gap",
+        "unknown"
+      ],
+      "title": "CaptureCompletenessFact",
+      "type": "string"
+    },
+    "CodeIdentityFact": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_kind": {
+          "$ref": "#/$defs/SourceBindingKindFact"
+        },
+        "workspace_ref": {
+          "title": "Workspace Ref",
+          "type": "string"
+        },
+        "commit_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit Id"
+        },
+        "file_manifest_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File Manifest Digest"
+        },
+        "revision_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision Ref"
+        }
+      },
+      "required": [
+        "binding_kind",
+        "workspace_ref"
+      ],
+      "title": "CodeIdentityFact",
+      "type": "object"
+    },
+    "ConsumedConditionFact": {
+      "additionalProperties": false,
+      "properties": {
+        "upstream_attempt_id": {
+          "title": "Upstream Attempt Id",
+          "type": "string"
+        },
+        "condition_fact_ref": {
+          "title": "Condition Fact Ref",
+          "type": "string"
+        },
+        "condition_digest": {
+          "title": "Condition Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "upstream_attempt_id",
+        "condition_fact_ref",
+        "condition_digest"
+      ],
+      "title": "ConsumedConditionFact",
+      "type": "object"
+    },
+    "ConsumedOutputFact": {
+      "additionalProperties": false,
+      "properties": {
+        "upstream_attempt_id": {
+          "title": "Upstream Attempt Id",
+          "type": "string"
+        },
+        "output_object_digest": {
+          "title": "Output Object Digest",
+          "type": "string"
+        },
+        "value_ref": {
+          "title": "Value Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "upstream_attempt_id",
+        "output_object_digest",
+        "value_ref"
+      ],
+      "title": "ConsumedOutputFact",
+      "type": "object"
+    },
+    "CoverageSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "mandatory_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mandatory Case Ids",
+          "type": "array"
+        },
+        "selected_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Selected Case Ids",
+          "type": "array"
+        },
+        "executed_attempt_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Executed Attempt Ids",
+          "type": "array"
+        },
+        "blocked_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocked Step Ids",
+          "type": "array"
+        },
+        "invalidated_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Invalidated Step Ids",
+          "type": "array"
+        },
+        "unknown_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknown Step Ids",
+          "type": "array"
+        },
+        "evidence_gap_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Evidence Gap Count",
+          "type": "integer"
+        },
+        "critical_gap_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Critical Gap Count",
+          "type": "integer"
+        }
+      },
+      "title": "CoverageSummary",
+      "type": "object"
+    },
+    "DependencyInvalidationFact": {
+      "additionalProperties": false,
+      "properties": {
+        "invalidation_id": {
+          "title": "Invalidation Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "affected_step_id": {
+          "title": "Affected Step Id",
+          "type": "string"
+        },
+        "affected_attempt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Affected Attempt Id"
+        },
+        "upstream_attempt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upstream Attempt Id"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "source_revision_ref": {
+          "title": "Source Revision Ref",
+          "type": "string"
+        },
+        "transitive": {
+          "title": "Transitive",
+          "type": "boolean"
+        },
+        "invalidated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invalidated At"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "invalidation_id",
+        "run_id",
+        "affected_step_id",
+        "reason",
+        "source_revision_ref",
+        "transitive"
+      ],
+      "title": "DependencyInvalidationFact",
+      "type": "object"
+    },
+    "EvidenceCaptureSourceFact": {
+      "enum": [
+        "plugin_runtime",
+        "manual",
+        "agent_runtime",
+        "external_import",
+        "system_recovery"
+      ],
+      "title": "EvidenceCaptureSourceFact",
+      "type": "string"
+    },
+    "EvidenceFact": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "minimum": 1,
+          "title": "Evidence Revision",
+          "type": "integer"
+        },
+        "project_id": {
+          "title": "Project Id",
+          "type": "string"
+        },
+        "source_instance_id": {
+          "title": "Source Instance Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "evidence_kind": {
+          "$ref": "#/$defs/EvidenceKindFact"
+        },
+        "capture_source": {
+          "$ref": "#/$defs/EvidenceCaptureSourceFact"
+        },
+        "code_identity": {
+          "$ref": "#/$defs/CodeIdentityFact"
+        },
+        "object_digest": {
+          "title": "Object Digest",
+          "type": "string"
+        },
+        "object_size": {
+          "minimum": 1,
+          "title": "Object Size",
+          "type": "integer"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Media Type"
+        },
+        "integrity": {
+          "$ref": "#/$defs/EvidenceIntegrityFact"
+        },
+        "redaction_state": {
+          "$ref": "#/$defs/RedactionStateFact"
+        },
+        "projection_state": {
+          "$ref": "#/$defs/ProjectionStateFact"
+        },
+        "redaction_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RedactionSummaryFact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_level": {
+          "$ref": "#/$defs/EvidenceLevelFact"
+        },
+        "gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gap Ids",
+          "type": "array"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "evidence_revision",
+        "project_id",
+        "source_instance_id",
+        "run_id",
+        "step_id",
+        "attempt_id",
+        "evidence_kind",
+        "capture_source",
+        "code_identity",
+        "object_digest",
+        "object_size",
+        "integrity",
+        "redaction_state",
+        "projection_state",
+        "evidence_level"
+      ],
+      "title": "EvidenceFact",
+      "type": "object"
+    },
+    "EvidenceGapFact": {
+      "additionalProperties": false,
+      "properties": {
+        "gap_id": {
+          "title": "Gap Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "subject_ref": {
+          "title": "Subject Ref",
+          "type": "string"
+        },
+        "reason_code": {
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "safe_reason": {
+          "title": "Safe Reason",
+          "type": "string"
+        },
+        "critical": {
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "requires_user_action": {
+          "default": false,
+          "title": "Requires User Action",
+          "type": "boolean"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        }
+      },
+      "required": [
+        "gap_id",
+        "kind",
+        "subject_ref",
+        "reason_code",
+        "safe_reason",
+        "critical"
+      ],
+      "title": "EvidenceGapFact",
+      "type": "object"
+    },
+    "EvidenceIntegrityFact": {
+      "enum": [
+        "complete",
+        "partial",
+        "missing_tail",
+        "conflict",
+        "unknown"
+      ],
+      "title": "EvidenceIntegrityFact",
+      "type": "string"
+    },
+    "EvidenceKindFact": {
+      "enum": [
+        "source_check",
+        "command_output",
+        "http_response",
+        "model_response",
+        "manual_step",
+        "attachment",
+        "trace_node",
+        "verification",
+        "external_import"
+      ],
+      "title": "EvidenceKindFact",
+      "type": "string"
+    },
+    "EvidenceLevelFact": {
+      "enum": [
+        "full_link",
+        "manual_associated",
+        "insufficient",
+        "unknown"
+      ],
+      "title": "EvidenceLevelFact",
+      "type": "string"
+    },
+    "ExecutionHandleFact": {
+      "additionalProperties": false,
+      "properties": {
+        "handle_id": {
+          "title": "Handle Id",
+          "type": "string"
+        },
+        "adapter_kind": {
+          "$ref": "#/$defs/AdapterKindFact"
+        },
+        "adapter_version": {
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "real_execution_id": {
+          "title": "Real Execution Id",
+          "type": "string"
+        },
+        "process_start_identity": {
+          "title": "Process Start Identity",
+          "type": "string"
+        },
+        "workdir_ref": {
+          "title": "Workdir Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "handle_id",
+        "adapter_kind",
+        "adapter_version",
+        "real_execution_id",
+        "process_start_identity",
+        "workdir_ref"
+      ],
+      "title": "ExecutionHandleFact",
+      "type": "object"
+    },
+    "ExitFactDTO": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "startup_token": {
+          "title": "Startup Token",
+          "type": "string"
+        },
+        "process_start_identity": {
+          "title": "Process Start Identity",
+          "type": "string"
+        },
+        "real_exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Real Exit Code"
+        },
+        "last_block_index_by_stream": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Last Block Index By Stream",
+          "type": "object"
+        },
+        "saved_bytes_by_stream": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Saved Bytes By Stream",
+          "type": "object"
+        },
+        "capture_completeness": {
+          "$ref": "#/$defs/CaptureCompletenessFact"
+        },
+        "termination_reason": {
+          "$ref": "#/$defs/ProcessTerminationReasonFact"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
+        }
+      },
+      "required": [
+        "attempt_id",
+        "startup_token",
+        "process_start_identity",
+        "capture_completeness",
+        "termination_reason"
+      ],
+      "title": "ExitFactDTO",
+      "type": "object"
+    },
+    "FactCompleteness": {
+      "enum": [
+        "complete",
+        "partial",
+        "unknown"
+      ],
+      "title": "FactCompleteness",
+      "type": "string"
+    },
+    "MockDeclarationFact": {
+      "additionalProperties": false,
+      "properties": {
+        "mock_declaration_id": {
+          "title": "Mock Declaration Id",
+          "type": "string"
+        },
+        "content_revision": {
+          "minimum": 1,
+          "title": "Content Revision",
+          "type": "integer"
+        },
+        "project_id": {
+          "title": "Project Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "declaration_source": {
+          "$ref": "#/$defs/MockDeclarationSourceFact"
+        },
+        "replaced_object_ref": {
+          "title": "Replaced Object Ref",
+          "type": "string"
+        },
+        "replaced_behavior_ref": {
+          "title": "Replaced Behavior Ref",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "verification_state": {
+          "$ref": "#/$defs/MockVerificationStateFact"
+        },
+        "verification_conclusion_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verification Conclusion Ref"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        }
+      },
+      "required": [
+        "mock_declaration_id",
+        "content_revision",
+        "project_id",
+        "idempotency_key",
+        "declaration_source",
+        "replaced_object_ref",
+        "replaced_behavior_ref",
+        "scope",
+        "verification_state"
+      ],
+      "title": "MockDeclarationFact",
+      "type": "object"
+    },
+    "MockDeclarationSourceFact": {
+      "enum": [
+        "development_declaration",
+        "runtime_config",
+        "static_candidate"
+      ],
+      "title": "MockDeclarationSourceFact",
+      "type": "string"
+    },
+    "MockVerificationStateFact": {
+      "enum": [
+        "unverified",
+        "verified",
+        "contradicted",
+        "partial",
+        "unknown"
+      ],
+      "title": "MockVerificationStateFact",
+      "type": "string"
+    },
+    "OutputBlockFact": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "title": "Block Id",
+          "type": "string"
+        },
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "stream_name": {
+          "title": "Stream Name",
+          "type": "string"
+        },
+        "block_index": {
+          "minimum": 0,
+          "title": "Block Index",
+          "type": "integer"
+        },
+        "offset": {
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "length": {
+          "minimum": 0,
+          "title": "Length",
+          "type": "integer"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        },
+        "complete": {
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "capture_source": {
+          "title": "Capture Source",
+          "type": "string"
+        },
+        "redaction_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RedactionSummaryFact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "block_id",
+        "attempt_id",
+        "stream_name",
+        "block_index",
+        "offset",
+        "length",
+        "digest",
+        "complete",
+        "capture_source"
+      ],
+      "title": "OutputBlockFact",
+      "type": "object"
+    },
+    "OutputCursorFact": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "stream_name": {
+          "title": "Stream Name",
+          "type": "string"
+        },
+        "offset": {
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "last_block_index": {
+          "minimum": 0,
+          "title": "Last Block Index",
+          "type": "integer"
+        },
+        "last_committed_digest": {
+          "title": "Last Committed Digest",
+          "type": "string"
+        },
+        "durable": {
+          "default": false,
+          "title": "Durable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "attempt_id",
+        "stream_name",
+        "offset",
+        "last_block_index",
+        "last_committed_digest"
+      ],
+      "title": "OutputCursorFact",
+      "type": "object"
+    },
+    "PlanRevisionRefFact": {
+      "additionalProperties": false,
+      "properties": {
+        "revision_id": {
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "revision_no": {
+          "minimum": 1,
+          "title": "Revision No",
+          "type": "integer"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id",
+        "revision_no",
+        "digest"
+      ],
+      "title": "PlanRevisionRefFact",
+      "type": "object"
+    },
+    "ProcessTerminationReasonFact": {
+      "enum": [
+        "natural_exit",
+        "confirmed_stop",
+        "executor_lost",
+        "capture_failure",
+        "unknown"
+      ],
+      "title": "ProcessTerminationReasonFact",
+      "type": "string"
+    },
+    "ProjectionStateFact": {
+      "enum": [
+        "internal",
+        "displayable",
+        "exportable",
+        "model_outbound",
+        "blocked"
+      ],
+      "title": "ProjectionStateFact",
+      "type": "string"
+    },
+    "RedactionStateFact": {
+      "enum": [
+        "redacted",
+        "not_required",
+        "blocked",
+        "unknown"
+      ],
+      "title": "RedactionStateFact",
+      "type": "string"
+    },
+    "RedactionSummaryFact": {
+      "additionalProperties": false,
+      "properties": {
+        "policy_version": {
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "applied_rule_categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Applied Rule Categories",
+          "type": "array"
+        },
+        "filtered_streams": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filtered Streams",
+          "type": "array"
+        },
+        "filtered_ranges": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filtered Ranges",
+          "type": "array"
+        },
+        "replacement_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Replacement Count",
+          "type": "integer"
+        },
+        "completeness": {
+          "default": "unknown",
+          "title": "Completeness",
+          "type": "string"
+        },
+        "gap_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gap Reasons",
+          "type": "array"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        }
+      },
+      "required": [
+        "policy_version"
+      ],
+      "title": "RedactionSummaryFact",
+      "type": "object"
+    },
+    "RunControlStateFact": {
+      "enum": [
+        "not_started",
+        "running",
+        "pause_requested",
+        "paused",
+        "cancel_requested",
+        "cancelling",
+        "recovering",
+        "pending_verification",
+        "completed",
+        "cancelled",
+        "execution_error"
+      ],
+      "title": "RunControlStateFact",
+      "type": "string"
+    },
+    "RunFact": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "run_revision": {
+          "minimum": 0,
+          "title": "Run Revision",
+          "type": "integer"
+        },
+        "origin_workspace_id": {
+          "title": "Origin Workspace Id",
+          "type": "string"
+        },
+        "tier": {
+          "$ref": "#/$defs/RunTierFact"
+        },
+        "driver": {
+          "title": "Driver",
+          "type": "string"
+        },
+        "conclusion_ceiling": {
+          "title": "Conclusion Ceiling",
+          "type": "string"
+        },
+        "plan_revision": {
+          "$ref": "#/$defs/PlanRevisionRefFact"
+        },
+        "environment_ref": {
+          "title": "Environment Ref",
+          "type": "string"
+        },
+        "environment_isolated": {
+          "title": "Environment Isolated",
+          "type": "boolean"
+        },
+        "rules_revision": {
+          "title": "Rules Revision",
+          "type": "string"
+        },
+        "control_state": {
+          "$ref": "#/$defs/RunControlStateFact"
+        },
+        "evidence_level": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceLevelFact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "primary_gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Primary Gap Ids",
+          "type": "array"
+        },
+        "coverage_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Summary"
+        },
+        "runtime_revision_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Runtime Revision Refs",
+          "type": "array"
+        },
+        "required_scope": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Scope",
+          "type": "array"
+        },
+        "selected_scope": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Selected Scope",
+          "type": "array"
+        },
+        "source_binding_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Binding Digest"
+        },
+        "result_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Ref"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        }
+      },
+      "required": [
+        "run_id",
+        "run_revision",
+        "origin_workspace_id",
+        "tier",
+        "driver",
+        "conclusion_ceiling",
+        "plan_revision",
+        "environment_ref",
+        "environment_isolated",
+        "rules_revision",
+        "control_state"
+      ],
+      "title": "RunFact",
+      "type": "object"
+    },
+    "RunTierFact": {
+      "enum": [
+        "full",
+        "quick",
+        "on_demand"
+      ],
+      "title": "RunTierFact",
+      "type": "string"
+    },
+    "SideEffectClassFact": {
+      "enum": [
+        "read_only",
+        "idempotent_write",
+        "non_idempotent_write",
+        "unknown"
+      ],
+      "title": "SideEffectClassFact",
+      "type": "string"
+    },
+    "SourceBindingKindFact": {
+      "enum": [
+        "git",
+        "plain"
+      ],
+      "title": "SourceBindingKindFact",
+      "type": "string"
+    },
+    "SourceCheckFact": {
+      "additionalProperties": false,
+      "properties": {
+        "check_result_id": {
+          "title": "Check Result Id",
+          "type": "string"
+        },
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "check_type": {
+          "title": "Check Type",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "source_snapshot_ref": {
+          "title": "Source Snapshot Ref",
+          "type": "string"
+        },
+        "environment_ref": {
+          "title": "Environment Ref",
+          "type": "string"
+        },
+        "rules_revision": {
+          "title": "Rules Revision",
+          "type": "string"
+        },
+        "adapter_version": {
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "failure_class": {
+          "title": "Failure Class",
+          "type": "string"
+        },
+        "raw_output_evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Output Evidence Ref"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "check_result_id",
+        "attempt_id",
+        "check_type",
+        "scope",
+        "source_snapshot_ref",
+        "environment_ref",
+        "rules_revision",
+        "adapter_version",
+        "failure_class"
+      ],
+      "title": "SourceCheckFact",
+      "type": "object"
+    },
+    "SourceVerificationFact": {
+      "additionalProperties": false,
+      "properties": {
+        "verification_id": {
+          "title": "Verification Id",
+          "type": "string"
+        },
+        "project_id": {
+          "title": "Project Id",
+          "type": "string"
+        },
+        "plan_revision": {
+          "$ref": "#/$defs/PlanRevisionRefFact"
+        },
+        "expected_source_binding_digest": {
+          "title": "Expected Source Binding Digest",
+          "type": "string"
+        },
+        "materialized_snapshot_ref": {
+          "title": "Materialized Snapshot Ref",
+          "type": "string"
+        },
+        "observed_source_digest": {
+          "title": "Observed Source Digest",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/SourceVerificationStateFact"
+        },
+        "observed_entry_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Entry Ref"
+        },
+        "observed_import_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Import Ref"
+        },
+        "failure_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Class"
+        },
+        "gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gap Ids",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified At"
+        }
+      },
+      "required": [
+        "verification_id",
+        "project_id",
+        "plan_revision",
+        "expected_source_binding_digest",
+        "materialized_snapshot_ref",
+        "observed_source_digest",
+        "state"
+      ],
+      "title": "SourceVerificationFact",
+      "type": "object"
+    },
+    "SourceVerificationStateFact": {
+      "enum": [
+        "verified",
+        "mismatch",
+        "unverified",
+        "blocked",
+        "unknown"
+      ],
+      "title": "SourceVerificationStateFact",
+      "type": "string"
+    },
+    "StepFact": {
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "step_revision": {
+          "minimum": 0,
+          "title": "Step Revision",
+          "type": "integer"
+        },
+        "step_revision_ref": {
+          "$ref": "#/$defs/StepRevisionRefFact"
+        },
+        "ordinal": {
+          "minimum": 1,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "required_for_case": {
+          "default": true,
+          "title": "Required For Case",
+          "type": "boolean"
+        },
+        "level": {
+          "$ref": "#/$defs/StepLevelFact"
+        },
+        "state": {
+          "$ref": "#/$defs/StepStateFact"
+        },
+        "dependency_step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependency Step Ids",
+          "type": "array"
+        },
+        "registered_entry_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Registered Entry Ref"
+        },
+        "assertion_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assertion Refs",
+          "type": "array"
+        },
+        "evidence_requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Requirement Ids",
+          "type": "array"
+        },
+        "current_attempt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Attempt Id"
+        },
+        "invalidated": {
+          "default": false,
+          "title": "Invalidated",
+          "type": "boolean"
+        },
+        "invalidated_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invalidated By"
+        },
+        "gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gap Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "step_id",
+        "run_id",
+        "step_revision",
+        "step_revision_ref",
+        "ordinal",
+        "case_id",
+        "level",
+        "state"
+      ],
+      "title": "StepFact",
+      "type": "object"
+    },
+    "StepLevelFact": {
+      "enum": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "title": "StepLevelFact",
+      "type": "string"
+    },
+    "StepRevisionRefFact": {
+      "additionalProperties": false,
+      "properties": {
+        "step_revision_id": {
+          "title": "Step Revision Id",
+          "type": "string"
+        },
+        "revision_no": {
+          "minimum": 1,
+          "title": "Revision No",
+          "type": "integer"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        },
+        "inherited": {
+          "default": false,
+          "title": "Inherited",
+          "type": "boolean"
+        },
+        "base_step_revision_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Step Revision Id"
+        }
+      },
+      "required": [
+        "step_revision_id",
+        "revision_no",
+        "digest"
+      ],
+      "title": "StepRevisionRefFact",
+      "type": "object"
+    },
+    "StepStateFact": {
+      "enum": [
+        "pending",
+        "ready",
+        "running",
+        "blocked",
+        "pending_verification",
+        "completed",
+        "cancelled",
+        "invalidated",
+        "execution_error"
+      ],
+      "title": "StepStateFact",
+      "type": "string"
+    },
+    "UnknownReasonFact": {
+      "additionalProperties": false,
+      "properties": {
+        "unknown_reason_id": {
+          "title": "Unknown Reason Id",
+          "type": "string"
+        },
+        "subject_type": {
+          "title": "Subject Type",
+          "type": "string"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "reason_code": {
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "safe_reason": {
+          "title": "Safe Reason",
+          "type": "string"
+        },
+        "requires_verification": {
+          "default": true,
+          "title": "Requires Verification",
+          "type": "boolean"
+        },
+        "suggested_next_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested Next Action"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        }
+      },
+      "required": [
+        "unknown_reason_id",
+        "subject_type",
+        "subject_id",
+        "reason_code",
+        "safe_reason"
+      ],
+      "title": "UnknownReasonFact",
+      "type": "object"
+    },
+    "VerificationFact": {
+      "additionalProperties": false,
+      "properties": {
+        "verification_id": {
+          "title": "Verification Id",
+          "type": "string"
+        },
+        "verification_of": {
+          "title": "Verification Of",
+          "type": "string"
+        },
+        "business_object_id": {
+          "title": "Business Object Id",
+          "type": "string"
+        },
+        "query_method": {
+          "title": "Query Method",
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/VerificationObservationFact"
+        },
+        "query_interval": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Query Interval"
+        },
+        "deadline_condition": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadline Condition"
+        },
+        "target_deployment_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Deployment Ref"
+        },
+        "actual_result_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Result Ref"
+        },
+        "key_trace_link_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Trace Link Refs",
+          "type": "array"
+        },
+        "covers_critical_chain_item_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Covers Critical Chain Item Ids",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gap Ids",
+          "type": "array"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified At"
+        }
+      },
+      "required": [
+        "verification_id",
+        "verification_of",
+        "business_object_id",
+        "query_method",
+        "observation"
+      ],
+      "title": "VerificationFact",
+      "type": "object"
+    },
+    "VerificationObservationFact": {
+      "enum": [
+        "matched",
+        "mismatched",
+        "no_result",
+        "query_error",
+        "deadline_reached",
+        "unknown"
+      ],
+      "title": "VerificationObservationFact",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "aitest.execution-facts/1.0",
+      "default": "aitest.execution-facts/1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "facts_id": {
+      "title": "Facts Id",
+      "type": "string"
+    },
+    "project_id": {
+      "title": "Project Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "snapshot_commit_id": {
+      "title": "Snapshot Commit Id",
+      "type": "string"
+    },
+    "snapshot_cursor": {
+      "minimum": 0,
+      "title": "Snapshot Cursor",
+      "type": "integer"
+    },
+    "snapshot_revision": {
+      "minimum": 1,
+      "title": "Snapshot Revision",
+      "type": "integer"
+    },
+    "committed_at": {
+      "format": "date-time",
+      "title": "Committed At",
+      "type": "string"
+    },
+    "run_revision": {
+      "minimum": 0,
+      "title": "Run Revision",
+      "type": "integer"
+    },
+    "plan_revision": {
+      "$ref": "#/$defs/PlanRevisionRefFact"
+    },
+    "runtime_revision_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Runtime Revision Refs",
+      "type": "array"
+    },
+    "run": {
+      "$ref": "#/$defs/RunFact"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/StepFact"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "attempts": {
+      "items": {
+        "$ref": "#/$defs/AttemptFact"
+      },
+      "title": "Attempts",
+      "type": "array"
+    },
+    "current_attempt_by_step": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Current Attempt By Step",
+      "type": "object"
+    },
+    "evidence_refs": {
+      "items": {
+        "$ref": "#/$defs/EvidenceFact"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "source_check_results": {
+      "items": {
+        "$ref": "#/$defs/SourceCheckFact"
+      },
+      "title": "Source Check Results",
+      "type": "array"
+    },
+    "source_verifications": {
+      "items": {
+        "$ref": "#/$defs/SourceVerificationFact"
+      },
+      "title": "Source Verifications",
+      "type": "array"
+    },
+    "verifications": {
+      "items": {
+        "$ref": "#/$defs/VerificationFact"
+      },
+      "title": "Verifications",
+      "type": "array"
+    },
+    "mock_declarations": {
+      "items": {
+        "$ref": "#/$defs/MockDeclarationFact"
+      },
+      "title": "Mock Declarations",
+      "type": "array"
+    },
+    "dependency_invalidations": {
+      "items": {
+        "$ref": "#/$defs/DependencyInvalidationFact"
+      },
+      "title": "Dependency Invalidations",
+      "type": "array"
+    },
+    "unknowns": {
+      "items": {
+        "$ref": "#/$defs/UnknownReasonFact"
+      },
+      "title": "Unknowns",
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "$ref": "#/$defs/EvidenceGapFact"
+      },
+      "title": "Gaps",
+      "type": "array"
+    },
+    "coverage": {
+      "$ref": "#/$defs/CoverageSummary"
+    },
+    "completeness": {
+      "$ref": "#/$defs/FactCompleteness",
+      "default": "complete"
+    }
+  },
+  "required": [
+    "facts_id",
+    "project_id",
+    "run_id",
+    "snapshot_commit_id",
+    "snapshot_cursor",
+    "snapshot_revision",
+    "committed_at",
+    "run_revision",
+    "plan_revision",
+    "run",
+    "steps",
+    "attempts"
+  ],
+  "title": "ExecutionFacts",
+  "type": "object"
+}
