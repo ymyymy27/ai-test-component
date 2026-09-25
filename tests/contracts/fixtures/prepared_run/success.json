@@ -1,0 +1,236 @@
+{
+  "schema_version": "aitest.prepared-run/1.0",
+  "prepared_run_id": "prep-1",
+  "project_id": "project-1",
+  "workspace_id": "ws-1",
+  "binding_id": "binding-1",
+  "binding_revision": 3,
+  "binding_form": "git",
+  "client_id": "client-1",
+  "prepare_request_id": "prep-req-1",
+  "intent_id": "intent-1",
+  "payload_hash": "sha256:payload-1",
+  "status": "prepared",
+  "created_at": "2026-09-25T10:10:00+08:00",
+  "created_at_commit": "commit-42",
+  "snapshot": {
+    "source_snapshot_id": "snap-1",
+    "purpose": "prepare",
+    "content_identity": "sha256:content-1"
+  },
+  "git_base_commit": "9c44344bcd612df1a7d033efa1e7a47c810c49cf",
+  "git_diff_digest": "sha256:diff-1",
+  "selected_paths": [
+    "src/ticket",
+    "tests"
+  ],
+  "exclusion_rules": [
+    "**/__pycache__/**",
+    "**/*.pyc"
+  ],
+  "refetch_dependencies": [],
+  "environment": {
+    "environment_id": "env-1",
+    "revision": 2,
+    "isolation_mode": "venv",
+    "interpreter_identity": "cpython-3.13.3-windows-amd64",
+    "dependency_set_digest": "sha256:deps-1"
+  },
+  "execution_source": {
+    "registered_entry": "python -m pytest",
+    "entry_arguments": [
+      "tests/acceptance"
+    ],
+    "cwd_mapping": "<project-root> -> workdirs/run-1",
+    "allowed_env_keys": [
+      "PYTHONPATH"
+    ],
+    "secret_refs": [],
+    "test_config_ref": "pyproject.toml#tool.pytest",
+    "adapter_versions": {
+      "command": "1.0.0"
+    },
+    "resolved_input_digest": "sha256:resolved-1"
+  },
+  "plan_revision": {
+    "revision_id": "plan-1",
+    "revision_no": 1,
+    "digest": "sha256:plan-1"
+  },
+  "acceptance_scope_revision": 1,
+  "rule_versions": [
+    {
+      "rule_id": "rule-1",
+      "revision": 1,
+      "digest": "sha256:rule-1"
+    }
+  ],
+  "template_versions": [
+    {
+      "template_id": "ticket-workflow",
+      "version": "1.0.0",
+      "digest": "sha256:tpl-1"
+    }
+  ],
+  "case_revisions": [
+    {
+      "case_id": "case-1",
+      "revision": 1,
+      "digest": "sha256:case-1"
+    },
+    {
+      "case_id": "case-2",
+      "revision": 1,
+      "digest": "sha256:case-2"
+    }
+  ],
+  "run_tier": "full",
+  "initial_driver": "planned",
+  "conclusion_ceiling": "passable",
+  "template_required_case_ids": [
+    "case-1",
+    "case-2"
+  ],
+  "frozen_required_case_ids": [
+    "case-1",
+    "case-2"
+  ],
+  "selected_case_ids": [
+    "case-1",
+    "case-2"
+  ],
+  "skipped_scope": [],
+  "applicability_exclusions": [],
+  "assertion_bases": [
+    {
+      "case_id": "case-1",
+      "basis_revision": 1,
+      "basis_text_digest": "sha256:basis-1",
+      "assertion_basis_state": "confirmed",
+      "confirmation_refs": [
+        {
+          "confirmation_id": "conf-1",
+          "case_id": "case-1",
+          "basis_revision": 1,
+          "confirmed_at_commit": "commit-40"
+        }
+      ]
+    },
+    {
+      "case_id": "case-2",
+      "basis_revision": 1,
+      "basis_text_digest": "sha256:basis-2",
+      "assertion_basis_state": "confirmed",
+      "confirmation_refs": [
+        {
+          "confirmation_id": "conf-2",
+          "case_id": "case-2",
+          "basis_revision": 1,
+          "confirmed_at_commit": "commit-40"
+        }
+      ]
+    }
+  ],
+  "frozen_cases": [
+    {
+      "case_id": "case-1",
+      "revision": 1,
+      "layer": "L2",
+      "required": true,
+      "independent_verification": "read-only query against the same ticket ID",
+      "mock_scope": [],
+      "importance": "P0",
+      "steps": [
+        {
+          "step_id": "step-1",
+          "layer": "L2",
+          "objective": "create a ticket through the registered entry",
+          "expected": "the ticket is persisted with the submitted fields"
+        },
+        {
+          "step_id": "step-2",
+          "layer": "L2",
+          "objective": "read the ticket back independently",
+          "expected": "the persisted fields match the submission"
+        }
+      ],
+      "links": {
+        "acceptance_item_ids": [
+          "ai-1"
+        ],
+        "module_ids": [
+          "module-1"
+        ],
+        "environment_ids": [
+          "env-1"
+        ],
+        "critical_path_ids": [
+          "path-1"
+        ]
+      }
+    },
+    {
+      "case_id": "case-2",
+      "revision": 1,
+      "layer": "L2",
+      "required": true,
+      "independent_verification": "read-only query after changing ticket status",
+      "mock_scope": [],
+      "importance": "P1",
+      "steps": [
+        {
+          "step_id": "step-1",
+          "layer": "L2",
+          "objective": "change the ticket status",
+          "expected": "the new status is accepted"
+        },
+        {
+          "step_id": "step-2",
+          "layer": "L2",
+          "objective": "re-read the ticket independently",
+          "expected": "the new status is persisted"
+        }
+      ],
+      "links": {
+        "acceptance_item_ids": [
+          "ai-2"
+        ],
+        "module_ids": [
+          "module-1"
+        ],
+        "environment_ids": [
+          "env-1"
+        ],
+        "critical_path_ids": [
+          "path-1"
+        ]
+      }
+    }
+  ],
+  "authorization_requirements": [
+    {
+      "action_id": "run-registered-command",
+      "requires_side_effect": true,
+      "credential_scope": "http-write",
+      "resolved_input_digest": "sha256:input-1"
+    }
+  ],
+  "model_outbound_policy_revision": 1,
+  "source_snippets_enabled": false,
+  "invalidation_rules": [
+    {
+      "source_kind": "source_identity",
+      "description": "source bytes changed"
+    },
+    {
+      "source_kind": "plan_revision",
+      "description": "plan republished"
+    },
+    {
+      "source_kind": "environment_revision",
+      "description": "environment changed"
+    }
+  ],
+  "blocking_reasons": [],
+  "gaps": []
+}
