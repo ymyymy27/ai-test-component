@@ -1,10 +1,10 @@
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.2
+版本：0.3
 日期：2026-09-25
 提出方：B 包（feix-a，项目与计划）
 接收方：C 包（执行与证据）
-状态：**待 C 确认**（第 4.1 节已由 B 完成，见第 10 节）
+状态：**待 C 确认**（B 侧 4.1 节与第 10、13 节已完成）
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`
 
@@ -229,20 +229,11 @@ C 的 `RunFact.source_binding_digest: str | None` 归属正确。
 
 | 影响面 | 说明 |
 | --- | --- |
-| 现有三份夹具 | 各改 1 处（`conclusion_ceiling`） |
+| C 侧现有三份夹具 | 各改 1 处（`conclusion_ceiling`） |
 | `tests/contracts/test_execution_facts.py` | 若断言了具体取值需同步；当前测试只做加载验证，预计无需改动 |
 | 已生成 Schema `contracts/schemas/ExecutionFacts.json` | 需重新生成（`python scripts/generate_schemas.py`），并确认 CI 的 `git diff --exit-code` 通过 |
 | D 包 | **受益方**：`ConclusionCeiling` 成为闭合枚举后，报告聚合不再需要猜测取值 |
-| B 包 | 需将 `RunMode`/`Driver` 改名并在 `PreparedRun` 中携带 `plan_revision`/`rules_revision`/`environment_ref`/M/S |
-
----
-
-## 9 确认记录
-
-| 日期 | 版本 | 变更 | 确认方 |
-| --- | --- | --- | --- |
-| 2026-09-24 | 0.1 | 初稿，提出 C-01—C-08 | B 包 feix-a（待 C 回复） |
-| 2026-09-25 | 0.2 | 4.1 节词汇表改名与 `ConclusionCeiling` 已完成；新增第 10 节 B 侧环境与交付对象的边界 | B 包 feix-a |
+| B 包 | 词汇表改名与 `ConclusionCeiling` 已完成（提交 `df0f557`）；`PreparedRun` 其余字段见第 13 节缺口表 |
 
 ---
 
@@ -325,8 +316,73 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 
 ---
 
-## 12 确认记录（续）
+## 12 确认记录
 
-| 日期 | 版本 | 变更 | 确认方 |
-| --- | --- | --- | --- |
-| 2026-09-25 | 0.2 | 新增 C-09 与第 11 节：`RunTierFact` 声明重复的归属依据与两种收敛方案 | B 包 feix-a |
+> 本目录的处理规则：只追加，不覆盖（见 `索引.md`）。
+
+| 日期 | 版本 | 变更 | B 包 | C 包 |
+| --- | --- | --- | --- | --- |
+| 2026-09-24 | 0.1 | 初稿，提出 C-01—C-08 | 已提出 | 待确认 |
+| 2026-09-25 | 0.2 | 4.1 节词汇表改名与 `ConclusionCeiling` 已完成；新增第 10 节 B 侧对象边界 | 已完成 | 待确认 |
+| 2026-09-25 | 0.3 | 新增 C-09 与第 11 节；新增第 13 节 B→C 交接定义与待办状态 | 已完成 | 待确认 |
+
+---
+
+## 13 B→C 交接定义（2026-09-25 新增）
+
+### 13.1 B 侧交付物
+
+B 对外的唯一业务交付是 `PreparedRun`。C 只读取它，不做二次推导（架构文档《01-项目与计划》第 4 节）：
+
+> 档位与结论上限的对应**由领域判定器计算，界面与报告只读取结果**。
+
+| 交付物 | 位置 | 状态 |
+| --- | --- | --- |
+| `PreparedRun` 合同 | `src/aitest/contracts/prepared_run.py` | **已冻结**（Sprint 0） |
+| 生成 Schema | `src/aitest/contracts/schemas/PreparedRun.json` | **已生成** |
+| 成功夹具 | `tests/contracts/fixtures/prepared_run/success.json` | **已提交** |
+| 失败夹具 | `tests/contracts/fixtures/prepared_run/failure.json` | **已提交** |
+| 未知夹具 | `tests/contracts/fixtures/prepared_run/unknown.json` | **已提交** |
+| 领域词汇表 | `src/aitest/domain/planning/plans.py` | **已冻结** |
+| 项目上下文领域对象 | `src/aitest/domain/project/context.py` | **已提交**（见第 10 节） |
+
+**C 无需自行定义以下内容**，可直接引用 B 侧的声明：
+
+- 档位、驱动、结论上限的枚举与取值（C-09）
+- `PreparedRun` 的字段名与结构
+- 三份夹具所固定的准备态样例
+
+### 13.2 B 侧已在 Sprint 1 落地的对象边界
+
+C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐项说明，此处只作索引：
+
+| 对象 | 要点 |
+| --- | --- |
+| `EnvironmentRef` / `ResolvedEnvironment` | 声明与解析事实分离；`PreparedRun` 携带的是**解析结果**；`isolation_mode` 为三态（`venv` / `none` / `unmanaged`），不是布尔 |
+| `LocalProject` | 取代原 `Project`；`project_id` 是 `local_project_id` 的权威别名 |
+| `Delivery` | `completed` / `incomplete` 移入 `self_report`；`verified_in_scope` 只能来自执行事实 |
+
+### 13.3 B 侧尚未交付、C 需知悉的缺口
+
+| 缺口 | 原因 | 对 C 的影响 |
+| --- | --- | --- |
+| 产生 `PreparedRun` 的应用用例 | 属 Sprint 2，依赖 A 的 `WorkspaceUnitOfWork` / `RecordRepository` 端口；A 的 `application/ports.py` 目前仍为文档字符串占位 | 暂时只能读合同与夹具，无法取得真实准备结果 |
+| `PreparedRun` 的功能夹具 | 三份夹具为 Sprint 0 的合同级样例，未覆盖 Sprint 1 新增的项目上下文对象 | 与 C 的用例可能不完全对应 |
+| `SourceSnapshot` 归属 | 架构文档第 7 节归 `domain/execution/sources.py`，第 1、2 节与 P1-FR01 把职责归 B；待裁定 | 涉及源码内容身份的字段以哪一侧为准尚未定 |
+
+以上三项均**不要求 C 现在动手**，登记在此以便交接时核对。
+
+### 13.4 确认
+
+依据接口对接目录的处理规则，本文件确认后即为 B 与 C 之间的合同依据。
+
+```text
+对接：B 包（项目与计划） ↔ C 包（执行与证据）
+文件：docs/接口对接/B-C-PreparedRun与词汇表合同.md
+版本：0.3
+
+确认：[ ] B 包 feix-a    日期：
+确认：[ ] C 包           日期：
+
+未决项：C-01、C-02/C-03、C-06、C-08、C-09，以及第 7 节的接收形式一项
+```
