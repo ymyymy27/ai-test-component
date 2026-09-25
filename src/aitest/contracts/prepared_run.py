@@ -375,7 +375,8 @@ class PreparedRun(ContractModel):
         cases_without_basis = required - {entry.case_id for entry in self.assertion_bases}
         if cases_without_basis:
             raise ValueError(
-                f"frozen required cases need an assertion basis entry: {sorted(cases_without_basis)}"
+                "frozen required cases need an assertion basis entry: "
+                f"{sorted(cases_without_basis)}"
             )
 
 

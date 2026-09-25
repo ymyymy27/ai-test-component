@@ -85,9 +85,18 @@ def test_git_binding_rejects_a_plain_manifest_digest() -> None:
         PreparedRun.model_validate(payload)
 
 
-def test_conclusion_ceiling_must_be_derived_from_tier() -> None:
+def test_conclusion_ceiling_rejects_a_value_outside_the_enum() -> None:
+    """C-01 的取值不属于结论上限：枚举本身即拒绝。"""
     payload = load("success")
     payload["conclusion_ceiling"] = "full"
+    with pytest.raises(ValidationError, match="partial.*passable"):
+        PreparedRun.model_validate(payload)
+
+
+def test_conclusion_ceiling_must_be_derived_from_tier() -> None:
+    """取值合法但与档位不符时，由派生校验拒绝。"""
+    payload = load("success")
+    payload["conclusion_ceiling"] = "partial"
     with pytest.raises(ValidationError, match="derived from run_tier"):
         PreparedRun.model_validate(payload)
 
