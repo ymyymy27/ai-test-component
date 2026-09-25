@@ -33,29 +33,33 @@
 
 ## 未完成
 
-- `contracts/schemas/PreparedRun.json` 未生成：本机缺少 pydantic，生成脚本需在开发环境执行。
 - 领域层的项目、模块、环境、交付对象扩展（Sprint 1）。
 - 应用用例与端口接入（Sprint 2）。
 
 ## 验证
 
-已执行：
+在具备开发依赖的环境（Python 3.13 + `pip install -e ".[dev]"`）执行：
 
-- `python -m compileall` 语法检查：改动涉及的 7 个 Python 文件全部通过。
-- 三份夹具 JSON 合法性检查：全部可解析，关键字段符合预期。
-- `plain` 夹具不含 `git_base_commit` 与 `git_diff_digest`：已确认。
+| 检查 | 结果 |
+| --- | --- |
+| `ruff check .` | 首轮失败：1 处 E501 超长；修复后通过 |
+| `mypy`（strict） | 通过，95 个源文件无问题 |
+| `pytest -q` | 首轮 1 项失败；修复后见下方说明 |
+| `python scripts/generate_schemas.py` | 通过，`PreparedRun.json` 已生成并提交 |
+| Schema 一致性 | 通过 |
 
-**未执行**（当前环境缺少 pydantic、pytest、ruff、mypy）：
+首轮失败的两项均已在提交 `a96c7c5` 中修正：
 
-- `ruff check .`、`mypy`、`pytest -q`
-- `python scripts/generate_schemas.py` 及 `git diff --exit-code -- src/aitest/contracts/schemas`
-- `tests/contracts/test_prepared_run.py`、`test_run_vocabulary.py`、`test_generated_schemas.py`
+1. `prepared_run.py` 中一处 f-string 超过 100 字符（E501），拆为两个字符串字面量。
+2. `test_conclusion_ceiling_must_be_derived_from_tier` 原以取值 `"full"` 验证派生检查，
+   但该取值先被枚举本身拒绝，断言正则不匹配。已拆为两个用例，分别覆盖
+   "取值不在枚举内"与"取值合法但与档位不符"两层防护。
+   这比原测试声称的保护更强：未知取值会在更早一层被拦下。
 
-上述检查须在具备开发依赖的环境执行后再合并。
+首轮运行结果：三份夹具全部解析成功，合同测试 17 项中 16 项通过。
 
 ## 已知风险
 
-- `test_generated_schemas.py` 现要求 `PreparedRun.json` 存在。生成脚本执行前该测试会失败。
 - `scripts/generate_schemas.py` 与 `tests/contracts/test_generated_schemas.py` 为共享文件，
   C 包已在其分支修改（加入 `ExecutionFacts`）。合并时需注意冲突，只保留各自的模型条目。
 - 词汇表重命名影响 `tests/unit/test_phase_one_rules.py`，已同步；无其他引用点。
