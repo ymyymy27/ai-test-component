@@ -1,10 +1,10 @@
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.1
-日期：2026-09-24
+版本：0.2
+日期：2026-09-25
 提出方：B 包（feix-a，项目与计划）
 接收方：C 包（执行与证据）
-状态：**待 C 确认**
+状态：**待 C 确认**（第 4.1 节已由 B 完成，见第 10 节）
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`
 
@@ -80,6 +80,7 @@ class RunFact(ContractModel):
 | **C-06** | `intent_id` 位置 | 仅存在于 `AttemptFact`，且 `str \| None = None` | 架构 01 第 11 节：`intent_id` 是 prepare→start→run 的业务身份 | Run 级无 `intent_id`，**无法从一次运行追溯到产生它的准备意图**，违反实施方案第 3 节"B→C 来源与计划修订匹配"的交接门槛 | 建议 `RunFact` 增加 `intent_id: str`（非空） | C 决定，B 确认 |
 | **C-07** | `plan_revision` 重复 | 顶层 `ExecutionFacts` 与 `RunFact` 各有一份 | 同一快照内应一致 | 两份可能不一致且无守卫 | 增加一致性校验，或明确注释"必须逐字节相同" | C 改 |
 | **C-08** | 档位覆盖 | 三份夹具 `tier` 全为 `"full"` | 需求 P1-FR07：quick/on_demand **不打分** | "非完整验证不派生证据等级"这条合同行为**没有被任何夹具覆盖** | 建议增加第 4 份夹具 `quick.json`（`tier: "quick"`、`conclusion_ceiling: "partial"`、`evidence_level: null`） | C 决定，B 供快速检查的期望值 |
+| **C-09** | `RunTierFact` 声明重复 | `execution_facts.py` 第 21 行声明 `RunTierFact`（`FULL`/`QUICK`/`ON_DEMAND`） | 实施方案第 2 节：档位属 B 包"项目/源码/环境上下文、模板规则、计划、**档位**和准备门禁"；实施方案第 3 节：跨包字段变化"只由合同所有者修改 Schema/夹具并做兼容检查" | 值集合当前一致，**无功能影响**；但两处独立定义会长期漂移。注意：`driver` 与 `conclusion_ceiling` 在 C 侧为裸 `str`，B 侧已有对应枚举（`RunDriverFact`/`ConclusionCeilingFact`），**不存在重复** | 运行时词汇表三枚举收敛为单一声明点，C 侧删除本地 `RunTierFact` 并改为 import（见第 11 节） | C 决定，B 提供声明点 |
 
 > **C-01 为本文档唯一的语义缺陷**，其余为类型闭合与一致性建议。
 
@@ -89,7 +90,9 @@ class RunFact(ContractModel):
 
 ### 4.1 词汇表的规范定义（B 侧，`domain/planning/plans.py`）
 
-B 包将把现有 `RunMode` / `Driver` 改名为架构文档使用的名称，并补齐 `ConclusionCeiling`：
+> **状态：已完成**（提交 `df0f557`）。以下为现行代码，C 可直接按值对齐。
+
+B 包已将原 `RunMode` / `Driver` 改名为架构文档使用的名称，并补齐 `ConclusionCeiling`：
 
 ```python
 class RunTier(StrEnum):            # 原 RunMode
@@ -182,7 +185,7 @@ C 的 `RunFact` 中凡是"应由 B 冻结"的字段，都是按文档推导的�
 | `conclusion_ceiling` | `PreparedRun.conclusion_ceiling` | B 计算，**C 不得自行由覆盖度推导** |
 | `plan_revision` | `PreparedRun.plan_revision` | 结构须与 `PlanRevisionRefFact` 一致：`revision_id` / `revision_no ≥ 1` / `digest` |
 | `rules_revision` | `PreparedRun` 冻结的规则修订标识 | B 发布 `RuleVersion` 时产出 |
-| `environment_ref`、`environment_isolated` | `PreparedRun.environment_id/revision`、`isolation_mode` | 默认 venv；**显式不隔离是合法值，不等于缺配置**（需求 P1-FR07） |
+| `environment_ref`、`environment_isolated` | `ResolvedEnvironment.environment_id/revision`、`isolation_mode` | 默认 venv；**显式不隔离是合法值，不等于缺配置**（需求 P1-FR07） |
 | `required_scope` | `PreparedRun.frozen_required_case_ids`（= M） | 冻结必测 |
 | `selected_scope` | `PreparedRun.selected_case_ids`（= S） | 本轮所选，含补充用例 |
 | `source_binding_digest` | **C 在 start 时计算** | 见第 6 节 |
@@ -218,6 +221,7 @@ C 的 `RunFact.source_binding_digest: str | None` 归属正确。
 5. **C-07**：顶层与 `RunFact` 内的 `plan_revision` 是否增加一致性校验？
 6. **C-08**：是否愿意增加第 4 份夹具覆盖"quick 档不打分"？
 7. **接收形式**：`PreparedRun` 定稿后，C 希望以何种形式接收——Python `Protocol`、Pydantic 合同，还是 JSON 夹具？
+8. **C-09**：运行时词汇表三枚举（`RunTierFact` / `RunDriverFact` / `ConclusionCeilingFact`）是否同意收敛为单一声明点？若同意，选第 11.2 节的方案甲还是方案乙？若不同意，请说明理由。
 
 ---
 
@@ -238,3 +242,91 @@ C 的 `RunFact.source_binding_digest: str | None` 归属正确。
 | 日期 | 版本 | 变更 | 确认方 |
 | --- | --- | --- | --- |
 | 2026-09-24 | 0.1 | 初稿，提出 C-01—C-08 | B 包 feix-a（待 C 回复） |
+| 2026-09-25 | 0.2 | 4.1 节词汇表改名与 `ConclusionCeiling` 已完成；新增第 10 节 B 侧环境与交付对象的边界 | B 包 feix-a |
+
+---
+
+## 10 B 侧对象边界（2026-09-25 新增，C 读取时须知）
+
+以下三项来自 B 包 Sprint 1 的领域层实现，影响 C 读取 `PreparedRun` 时的字段理解。**B 侧已完成，无需 C 改动代码**，但 C 若按对象名直连 B 的领域层，需按本节对齐。
+
+### 10.1 环境：声明与解析事实分离
+
+B 侧把环境拆成两个对象，**C 只应接触后者**：
+
+| 对象 | 层 | 内容 | 何时产生 |
+| --- | --- | --- | --- |
+| `EnvironmentRef` | `domain/project/context.py` | 声明与策略：隔离方式、解释器**要求**、依赖声明来源、数据来源/隔离/复位、超时、网络目标、按用途 `SecretRef` | 用户登记环境时 |
+| `ResolvedEnvironment` | 同上 | 已解析**事实**：`interpreter_identity`、`dependency_set_digest`、`isolation_mode` | prepare 时刻由应用用例解析 |
+
+`ResolvedEnvironment` 与 C 侧 `RunFact.environment_ref` / `environment_isolated` 的取值来源对应；
+`contracts.EnvironmentRefFact` 的三个必填字段（`interpreter_identity`、`dependency_set_digest`、`isolation_mode`）来自 `ResolvedEnvironment`，**不来自 `EnvironmentRef`**。
+
+`isolation_mode` 为三态：`venv`（默认）/ `none`（显式不隔离）/ `unmanaged`。**`none` 是合法事实，不得当作缺配置或据此自动降级证据等级。**
+
+### 10.2 交付说明：自述与验证事实分离
+
+`Delivery` 的构造参数已调整：`completed` / `incomplete` 由顶层字段移入 `self_report`（`SelfReport` 对象）。
+原名称保留为只读属性，**读取方无需改动**；构造方需改为 `self_report=SelfReport(completed=..., incomplete=...)`。
+
+原因：需求 P1-FR02 要求"开发自述完成与测试验证完成分别展示"，原结构无法区分两者。
+`verified_in_scope` 只能来自执行事实，自述非空不会使其非空。
+
+### 10.3 项目对象改名
+
+`domain/project/context.py` 中的 `Project` 已由 `LocalProject` 取代（`Project` 无生产代码引用，同时保留会形成两套项目身份）。
+`LocalProject.project_id` 是 `local_project_id` 的权威别名，取值相同。
+
+### 10.4 依赖关系记录
+
+依赖边由 `Dependency` 记录承载（使用者 → 提供者），是依赖关系的**唯一权威来源**；
+`Module` 上不再保留可写的依赖字段。允许循环，拒绝自环；推导得出的边必须带 `source`，并须在报告中标注"推导结果，可能不完整"。
+
+---
+
+## 11 关于 `RunTierFact` 声明重复的处理建议（2026-09-25 新增）
+
+### 11.1 依据
+
+实施方案第 3 节「只冻结四类跨包合同」：
+
+> 每包改自己的内部字段无需会签；**跨包字段变化只由合同所有者修改 Schema/夹具并做兼容检查**。
+
+`PreparedRun` 属于四类跨包合同之一，所有者是 B；运行档位是其字段。同时实施方案第 2 节把"**档位**"列入 B 包的独占责任。
+
+因此 C-09 的归属是明确的：**运行时词汇表的声明点在 B 侧，不在 C 侧。**
+
+### 11.2 声明点建议
+
+`aitest.contracts` 是同一个包，`prepared_run.py` 与 `execution_facts.py` 位于同一目录。为避免跨包字段出现两个定义，列出两种方案，C 可择一或提出第三种：
+
+| 方案 | 做法 | 代价 | 对 C 的改动 |
+| --- | --- | --- | --- |
+| **甲（最小）** | `execution_facts.py` 删除本地 `RunTierFact`，改为 `from aitest.contracts.prepared_run import RunTierFact` | 合同层内多一条 import | 删 4 行、加 1 行 |
+| **乙（独立声明点）** | 新建 `contracts/run_vocabulary.py` 作为三个枚举的唯一声明点，`prepared_run.py` 与 `execution_facts.py` 均从该模块 import | 需同步调整 B 侧已冻结的 `prepared_run.py` 与 `tests/contracts/test_run_vocabulary.py` | 删 4 行、加 1 行；B 侧同步 |
+
+**B 侧当前状态**：`RunTierFact` / `RunDriverFact` / `ConclusionCeilingFact` 已声明于
+`src/aitest/contracts/prepared_run.py`，并由 `tests/contracts/test_run_vocabulary.py` 锁定与
+`domain/planning/plans.py` 的值集合一致。**B 侧不修改 C 的文件**；若选方案乙，由 B 与 C 各自改本包文件。
+
+### 11.3 与 `domain/planning/` 那份声明的区别
+
+`domain/planning/plans.py` 中的 `RunTier` / `RunDriver` / `ConclusionCeiling` 是**另一层**的声明，不是重复：
+
+- `tests/architecture/test_boundaries.py` 禁止 `domain/` import `contracts/`，故两层必须各自声明；
+- 两层由 `tests/contracts/test_run_vocabulary.py` 锁定值集合一致。
+
+**这一层结构保持不变**，本节的收敛建议只针对 `contracts/` 层的两份重复。
+
+### 11.4 风险等级
+
+**不阻断合并。** 两份声明位于不同文件，git 三方合并不会产生冲突，两处都会保留。
+风险是长期维护隐患：任一侧新增取值而另一侧未跟进时，不会立即失败，只会静默分歧。
+
+---
+
+## 12 确认记录（续）
+
+| 日期 | 版本 | 变更 | 确认方 |
+| --- | --- | --- | --- |
+| 2026-09-25 | 0.2 | 新增 C-09 与第 11 节：`RunTierFact` 声明重复的归属依据与两种收敛方案 | B 包 feix-a |

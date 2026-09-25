@@ -1,10 +1,10 @@
 # B-D 跨包需求：计划、范围与断言依据的展示口径
 
-版本：0.1
-日期：2026-09-24
+版本：0.2
+日期：2026-09-25
 提出方：B 包（feix-a，项目与计划）
 接收方：D 包（判定、报告与用户入口）
-状态：**待 D 确认**
+状态：**待 D 确认**（2.2 节的枚举已由 B 实现，见第 6 节确认记录）
 依据：一期架构文档《01-项目与计划》第 3、4 节；《03-报告与缺陷》；功能文档第 2、3 节；需求 P1-FR06/07/14/17、P1-AC17/AC20/AC31/AC32
 
 ---
@@ -41,9 +41,9 @@ D 只读取、不重算。本文档明确：哪些值 B 提供、哪些值 D 可
 
 | 值 | 取值 | 唯一来源 |
 | --- | --- | --- |
-| `RunTier` | `quick` / `on_demand` / `full` | B 冻结在运行上 |
-| `RunDriver` | `planned` / `stepwise` | B 冻结；运行中只允许 `planned → stepwise` |
-| `ConclusionCeiling` | `partial` / `passable` | **由档位派生，B 计算** |
+| `RunTier` | `quick` / `on_demand` / `full` | B 冻结在运行上（**已实现**，`domain/planning/plans.py`） |
+| `RunDriver` | `planned` / `stepwise` | B 冻结；运行中只允许 `planned → stepwise`（**已实现**） |
+| `ConclusionCeiling` | `partial` / `passable` | **由档位派生，B 计算**（**已实现**：`conclusion_ceiling_for()`，并由合同在解析时校验档位一致） |
 
 **硬性口径：**
 
@@ -145,3 +145,39 @@ B 牵头的这四个 AC 需要 D 的界面配合，列在这里便于对齐：
 | 日期 | 版本 | 变更 | 确认方 |
 | --- | --- | --- | --- |
 | 2026-09-24 | 0.1 | 初稿 | B 包 feix-a（待 D 回复） |
+| 2026-09-25 | 0.2 | 2.2 节标注三个枚举已实现；新增第 7 节 B 侧环境与交付对象的展示口径 | B 包 feix-a |
+
+---
+
+## 7 B 侧对象边界（2026-09-25 新增，D 展示时须知）
+
+以下三项来自 B 包 Sprint 1 的领域层实现。**B 侧已完成**，供 D 明确"什么可展示、什么不可由界面推断"。
+
+### 7.1 环境：面板只能展示声明，不得把声明当已核实事实
+
+B 侧把环境拆成两个对象：
+
+| 对象 | 内容 | 何时产生 | D 的展示要求 |
+| --- | --- | --- | --- |
+| `EnvironmentRef` | 声明与策略：隔离方式、解释器**要求**、依赖声明来源、数据隔离/复位、超时、网络目标、按用途 `SecretRef` | 用户登记环境时 | 可展示为"配置" |
+| `ResolvedEnvironment` | 已解析**事实**：`interpreter_identity`、`dependency_set_digest` | prepare 时刻 | 可展示为"已核实来源" |
+
+**`EnvironmentRef` 不含解释器实际身份与依赖集合摘要**，因此面板不得在只有声明时显示"环境已核实"。
+`isolation_mode` 三态（`venv` / `none` / `unmanaged`）：**`none` 是用户显式选择的合法状态，不得渲染为"未配置"或"异常"。**
+
+### 7.2 交付说明：自述与验证必须分列
+
+`Delivery` 已拆出 `self_report`（`SelfReport`：`completed` / `incomplete`）与 `verified_in_scope` / `unverified_scope`。
+
+**展示要求（需求 P1-FR02）：**
+
+1. 开发自述完成与测试验证完成**分列两处**，不得合并为一个"完成"字段；
+2. `verified_in_scope` 为空而 `self_report.completed` 非空时，必须显示为**待验证**，不得显示为已完成；
+3. AI 草稿不作为完成证据。
+
+### 7.3 项目身份与依赖
+
+- `LocalProject.project_id` 是 `local_project_id` 的权威别名，取值相同；DTO 中只有一个项目编号。
+- 依赖边由 `Dependency` 记录承载（使用者 → 提供者），唯一权威来源；允许循环，拒绝自环。
+- 推导得出的依赖边（`DependencyOrigin.INFERRED`）带 `source`，展示时必须标注**"推导结果，可能不完整"**（需求 P1-FR03）。
+- `BindingForm`（`git` / `plain`）：**`plain` 项目不显示任何仓库字段**，且不因不是 Git 仓库而降低检查范围。
