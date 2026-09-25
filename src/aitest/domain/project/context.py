@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from pathlib import Path
+from pathlib import PureWindowsPath
 
 SCHEMA_VERSION_PROJECT = "aitest.project/2.0"
 SCHEMA_VERSION_TASK = "aitest.task/2.0"
@@ -39,11 +39,14 @@ def _require_unique(values: tuple[str, ...], name: str) -> None:
 def _canonical_portable_path(raw: str) -> str:
     """校验规范绝对路径文本；不访问文件系统。
 
-    Windows 上 `Path` 即 `WindowsPath`，同时接受 ``\\`` 与 ``/`` 作为分隔符。
+    一期目标环境为 Windows 11 x64，绑定路径一律按 Windows 路径语义判定，
+    因此使用 `PureWindowsPath` 而不是 `Path`：后者在 Linux 上是 `PosixPath`，
+    会把 ``C:\\work`` 当成相对路径，使同一份代码在不同平台上判定不一致。
+    同时接受 ``\\`` 与 ``/`` 作为分隔符。
     相对路径与含 ``.``／``..`` 段的路径不是规范路径。
     """
     _require_text(raw, "canonical_path")
-    path = Path(raw)
+    path = PureWindowsPath(raw)
     if not path.is_absolute():
         raise ValueError("canonical_path must be absolute")
     if any(part in {".", ".."} for part in path.parts):
@@ -476,7 +479,9 @@ class SourceFileDigest:
 
     def __post_init__(self) -> None:
         _require_text(self.relative_path, "relative_path")
-        path = Path(self.relative_path)
+        # 与 `_canonical_portable_path` 同理：按 Windows 路径语义判定，
+        # 避免同一份代码在 Windows 与 Linux 上得到不同结论。
+        path = PureWindowsPath(self.relative_path)
         if path.is_absolute() or any(part == ".." for part in path.parts):
             raise ValueError("relative_path must stay inside the source scope")
         if self.size < 0:

@@ -37,3 +37,17 @@ def test_unknown_drive_kind_is_not_rejected_by_the_domain_layer() -> None:
 def test_rejection_still_demands_a_canonical_path() -> None:
     with pytest.raises(ValueError, match="absolute"):
         reject_workspace_location("relative", DriveKind.FIXED)
+
+
+def test_path_semantics_do_not_depend_on_the_running_platform() -> None:
+    """绑定路径按 Windows 路径语义判定，与执行平台的 `Path` 实现无关。
+
+    曾出现的问题：使用 `pathlib.Path` 时，Linux 上是 `PosixPath`，
+    会把 ``C:\\work`` 判为相对路径，同一份代码在 CI 的 ubuntu 任务上失败。
+    """
+    forward_slashes = "C:/work/workspace"
+    assert reject_workspace_location(forward_slashes, DriveKind.NETWORK) is (
+        WorkspaceLocationRejection.NETWORK_DRIVE
+    )
+    with pytest.raises(ValueError, match="absolute"):
+        reject_workspace_location("/home/user/workspace", DriveKind.NETWORK)
