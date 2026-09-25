@@ -56,8 +56,8 @@ D 只读取、不重算。本文档明确：哪些值 B 提供、哪些值 D 可
 判定入口只接受 `ConclusionCeiling`，不接受"覆盖了多少"作为放宽依据（架构文档第 4 节）。
 
 > ⚠️ **已知上游问题**：C 包三份 `ExecutionFacts` 夹具中 `conclusion_ceiling` 均写作 `"full"`，
-> 该值不属于 `partial`/`passable`。B 已在 `docs/接口对接/B-C-PreparedRun与词汇表合同.md` 的 **C-01** 提出修正。
-> 在修正前，D 不要按 `"full"` 实现任何分支逻辑。
+> 该值不属于 `partial` 或 `passable`。B 已在 `docs/接口对接/B-C-PreparedRun与词汇表合同.md`
+> 的 C-01 提出修正。修正前，D 不得按 `"full"` 实现任何分支逻辑。
 
 ### 2.3 断言依据三态（FR06）
 
@@ -79,7 +79,7 @@ D 只读取、不重算。本文档明确：哪些值 B 提供、哪些值 D 可
 > 后补依据确认按准确 Case/依据修订及 `ConfirmationRecord` 派生 `effective_assertion_basis_state`，
 > **不修改冻结 Case/Plan 或旧报告**。依据变化后旧确认失效。
 
-**给 D 的三条实现约束：**
+**D 侧实现约束：**
 
 1. D **不得**自行由"文本是否为空"推断依据状态；
 2. 依据文本变化后，旧确认**失效**，`effective_assertion_basis_state` 必须回落；
@@ -112,7 +112,7 @@ D 展示"未验证"时，应能区分"缺独立核验方式"与"核验未完成"
 | 源码身份固定（预期） | **B** | prepare 冻结 |
 | 源码实际执行来源核对 | C | start 解析 |
 
-**给 D 的提醒**：`ConclusionCeiling` 与"证据等级"是**两个独立维度**，不可互相推导。
+**口径说明**：`ConclusionCeiling` 与证据等级是两个独立维度，不可互相推导。
 `quick`/`on_demand` 的等级为 `null`（不打分），但仍有结论上限 `partial`。
 
 ---
