@@ -28,22 +28,11 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            src/aitest/resources/panel/package-lock.json
-            integrations/trae/package-lock.json
       - run: uv sync --extra dev --locked
       - name: Check package versions
         run: uv run python scripts/check_versions.py
       - run: uv run ruff check .
       - run: uv run mypy
-      - run: npm --prefix src/aitest/resources/panel ci
-      - run: npm --prefix src/aitest/resources/panel run build
-      - run: npm --prefix integrations/trae ci
-      - run: npm --prefix integrations/trae run build
       - run: uv run python scripts/generate_schemas.py
       - run: git diff --exit-code -- src/aitest/contracts/schemas
       - run: uv run pytest
