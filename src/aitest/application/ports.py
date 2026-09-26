@@ -14,7 +14,9 @@ from aitest.domain.execution.runs import (
     ExecutionHandle,
     ExecutionInspectionResult,
     ExecutionRequest,
+    OutputBlockRef,
     OutputCursor,
+    OutputStreamName,
     SpoolManifest,
     StopRequestResult,
 )
@@ -56,14 +58,34 @@ class ExecutionPort(Protocol):
     def collect(
         self,
         handle: ExecutionHandle,
-        cursor: OutputCursor | None = None,
+        cursors: tuple[OutputCursor, ...] | None = None,
     ) -> ExecutionCollectionResult: ...
 
     def request_stop(self, handle: ExecutionHandle) -> StopRequestResult: ...
 
 
+class SpoolStreamWriter(Protocol):
+    """Append filtered bytes to one output stream and seal blocks."""
+
+    def append(self, content: bytes) -> tuple[OutputBlockRef, ...]: ...
+
+    def close(self, *, complete: bool = True) -> tuple[OutputBlockRef, ...]: ...
+
+
 class SpoolStore(Protocol):
     """Persist sealed capture blocks and read their verified metadata."""
+
+    def open_stream(
+        self,
+        *,
+        run_id: str,
+        step_id: str,
+        attempt_id: str,
+        stream_name: OutputStreamName,
+        capture_source: str = "command",
+        block_size: int = 64 * 1024,
+        redaction_summary_id: str | None = None,
+    ) -> SpoolStreamWriter: ...
 
     def persist_blocks(
         self,

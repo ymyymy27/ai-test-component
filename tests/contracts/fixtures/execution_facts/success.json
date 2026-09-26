@@ -90,14 +90,6 @@
         "process_start_identity": "start-1",
         "workdir_ref": "ws-1"
       },
-      "output_cursor": {
-        "attempt_id": "attempt-1",
-        "stream_name": "stdout",
-        "offset": 12,
-        "last_block_index": 0,
-        "last_committed_digest": "sha256:block-1",
-        "durable": true
-      },
       "output_blocks": [
         {
           "block_id": "block-1",
@@ -109,6 +101,17 @@
           "digest": "sha256:block-1",
           "complete": true,
           "capture_source": "wrapper"
+        },
+        {
+          "block_id": "block-2",
+          "attempt_id": "attempt-1",
+          "stream_name": "stderr",
+          "block_index": 0,
+          "offset": 0,
+          "length": 8,
+          "digest": "sha256:block-2",
+          "complete": true,
+          "capture_source": "wrapper"
         }
       ],
       "exit_fact": {
@@ -117,14 +120,35 @@
         "process_start_identity": "start-1",
         "real_exit_code": 0,
         "last_block_index_by_stream": {
-          "stdout": 0
+          "stdout": 0,
+          "stderr": 0
         },
         "saved_bytes_by_stream": {
-          "stdout": 12
+          "stdout": 12,
+          "stderr": 8
         },
         "capture_completeness": "complete",
-        "termination_reason": "natural_exit"
-      }
+        "termination_reason": "natural_exit",
+        "timed_out": false
+      },
+      "output_cursors": [
+        {
+          "attempt_id": "attempt-1",
+          "stream_name": "stdout",
+          "offset": 12,
+          "last_block_index": 0,
+          "last_committed_digest": "sha256:block-1",
+          "durable": true
+        },
+        {
+          "attempt_id": "attempt-1",
+          "stream_name": "stderr",
+          "offset": 8,
+          "last_block_index": 0,
+          "last_committed_digest": "sha256:block-2",
+          "durable": true
+        }
+      ]
     }
   ],
   "current_attempt_by_step": {

@@ -98,7 +98,8 @@
       "adapter_kind": "command",
       "adapter_version": "1.0",
       "capture_completeness": "gap",
-      "error_ref": "error-1"
+      "error_ref": "error-1",
+      "output_cursors": []
     }
   ],
   "current_attempt_by_step": {

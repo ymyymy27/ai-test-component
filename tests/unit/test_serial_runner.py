@@ -57,7 +57,7 @@ class FakeExecutionPort:
     ) -> ExecutionCollectionResult:
         return ExecutionCollectionResult(
             attempt_id="attempt-1",
-            output_cursor_ref=cursor,
+            output_cursors=(cursor,) if cursor else (),
             capture_completeness=CaptureCompleteness.PARTIAL,
         )
 

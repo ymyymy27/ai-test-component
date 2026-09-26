@@ -109,35 +109,43 @@ class FakeExecutionPort:
     def collect(
         self,
         handle: ExecutionHandle,
-        cursor: OutputCursor | None = None,
+        cursors: tuple[OutputCursor, ...] | None = None,
     ) -> ExecutionCollectionResult:
         runtime = self._runtime_for_handle(handle)
         state = self._observation_state(runtime)
         if state is ExecutionInspectionState.RUNNING:
             return ExecutionCollectionResult(
                 attempt_id=runtime.spec.attempt_id,
-                output_cursor_ref=cursor,
+                output_cursors=cursors or (),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
             )
         stopped = state is ExecutionInspectionState.STOPPED
         captures = runtime.spec.captures
-        last_capture = captures[-1] if captures else None
-        output_cursor = None
-        if last_capture is not None:
-            output_cursor = OutputCursor(
+        last_by_stream: dict[OutputStreamName, CapturedOutputBlock] = {}
+        for capture in captures:
+            last_by_stream[capture.stream_name] = capture
+        output_cursors = tuple(
+            OutputCursor(
                 attempt_id=runtime.spec.attempt_id,
-                stream_name=last_capture.stream_name,
-                offset=last_capture.offset + last_capture.length,
-                last_block_index=last_capture.block_index,
-                last_committed_digest=last_capture.digest,
+                stream_name=stream_name,
+                offset=last.offset + last.length,
+                last_block_index=last.block_index,
+                last_committed_digest=last.digest,
                 durable=True,
             )
+            for stream_name, last in sorted(last_by_stream.items(), key=lambda item: item[0].value)
+        )
         last_block_index_by_stream: tuple[tuple[OutputStreamName, int], ...] = ()
         saved_bytes_by_stream: tuple[tuple[OutputStreamName, int], ...] = ()
-        if last_capture is not None:
-            last_block_index_by_stream = ((last_capture.stream_name, last_capture.block_index),)
-            saved_bytes_by_stream = ((last_capture.stream_name, last_capture.length),)
+        last_block_index_by_stream = tuple(
+            (stream_name, last.block_index)
+            for stream_name, last in sorted(last_by_stream.items(), key=lambda item: item[0].value)
+        )
+        saved_bytes_by_stream = tuple(
+            (stream_name, last.length)
+            for stream_name, last in sorted(last_by_stream.items(), key=lambda item: item[0].value)
+        )
         exit_fact = ExitFact(
             attempt_id=runtime.spec.attempt_id,
             startup_token=runtime.handle.process_start_identity,
@@ -155,7 +163,7 @@ class FakeExecutionPort:
         return ExecutionCollectionResult(
             attempt_id=runtime.spec.attempt_id,
             captured_blocks=captures,
-            output_cursor_ref=output_cursor or cursor,
+            output_cursors=output_cursors or (cursors or ()),
             exit_fact_ref=exit_fact,
             structured_result_ref=f"fake-result:{runtime.spec.attempt_id}",
             capture_completeness=runtime.spec.capture_completeness,

@@ -96,6 +96,7 @@ class CaptureCompletenessFact(StrEnum):
 
 class ProcessTerminationReasonFact(StrEnum):
     NATURAL_EXIT = "natural_exit"
+    TIMEOUT = "timeout"
     CONFIRMED_STOP = "confirmed_stop"
     EXECUTOR_LOST = "executor_lost"
     CAPTURE_FAILURE = "capture_failure"
@@ -271,6 +272,7 @@ class ExitFactDTO(ContractModel):
     saved_bytes_by_stream: dict[str, int] = Field(default_factory=dict)
     capture_completeness: CaptureCompletenessFact
     termination_reason: ProcessTerminationReasonFact
+    timed_out: bool = False
     published_at: datetime | None = None
 
 
@@ -356,7 +358,7 @@ class AttemptFact(ContractModel):
     timeout_ms: int | None = Field(default=None, ge=1)
     timed_out: bool = False
     handle: ExecutionHandleFact | None = None
-    output_cursor: OutputCursorFact | None = None
+    output_cursors: tuple[OutputCursorFact, ...] = Field(default_factory=tuple)
     output_blocks: tuple[OutputBlockFact, ...] = Field(default_factory=tuple)
     structured_result_ref: str | None = None
     exit_fact: ExitFactDTO | None = None

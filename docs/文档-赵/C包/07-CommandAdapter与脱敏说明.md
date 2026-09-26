@@ -18,9 +18,9 @@
 - 停止请求和退出事实采集。
 - CommandAdapter接入SerialRunner和FileSpoolStore的端到端测试。
 
-尚未实现：
+后续阶段已实现：
 
-- 每个流独立的OutputCursor集合；当前仍保留单游标模型。
+- stdout/stderr独立游标已迁移到Attempt.output_cursors和SpoolManifest.cursors。
 - 命令超时监督和子进程组完整回收。
 - 包装器级别的spool流式写块。
 - 崩溃恢复和检查点重关联。
@@ -84,9 +84,7 @@ start约束：
 
 ## 5 多流现状
 
-当前stdout和stderr分别生成CapturedOutputBlock，Spool按流保存，不会混写。
-
-但Attempt仍只有单个output_cursor_ref，CommandAdapter当前选择最后一个有内容流的游标。这是已知缺口，下一阶段改为按流维护独立游标或游标集合。
+stdout和stderr分别生成输出块并按流保存。后续阶段已将Attempt和SpoolManifest改为独立游标集合，详见08-多流游标超时与流式Spool.md。
 
 ## 6 验证
 

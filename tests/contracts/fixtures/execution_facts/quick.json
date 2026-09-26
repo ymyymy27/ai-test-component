@@ -91,14 +91,6 @@
         "process_start_identity": "start-1",
         "workdir_ref": "ws-1"
       },
-      "output_cursor": {
-        "attempt_id": "attempt-1",
-        "stream_name": "stdout",
-        "offset": 12,
-        "last_block_index": 0,
-        "last_committed_digest": "sha256:block-1",
-        "durable": true
-      },
       "output_blocks": [
         {
           "block_id": "block-1",
@@ -124,8 +116,19 @@
           "stdout": 12
         },
         "capture_completeness": "complete",
-        "termination_reason": "natural_exit"
-      }
+        "termination_reason": "natural_exit",
+        "timed_out": false
+      },
+      "output_cursors": [
+        {
+          "attempt_id": "attempt-1",
+          "stream_name": "stdout",
+          "offset": 12,
+          "last_block_index": 0,
+          "last_committed_digest": "sha256:block-1",
+          "durable": true
+        }
+      ]
     }
   ],
   "current_attempt_by_step": {

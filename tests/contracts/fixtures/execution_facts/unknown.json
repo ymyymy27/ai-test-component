@@ -89,7 +89,8 @@
       "capture_completeness": "partial",
       "unknown_reason_ids": [
         "unknown-1"
-      ]
+      ],
+      "output_cursors": []
     }
   ],
   "current_attempt_by_step": {

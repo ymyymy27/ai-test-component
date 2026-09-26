@@ -118,6 +118,7 @@ class OutputStreamName(StrEnum):
 
 class ProcessTerminationReason(StrEnum):
     NATURAL_EXIT = "natural_exit"
+    TIMEOUT = "timeout"
     CONFIRMED_STOP = "confirmed_stop"
     EXECUTOR_LOST = "executor_lost"
     CAPTURE_FAILURE = "capture_failure"
@@ -386,6 +387,7 @@ class SpoolManifest:
     run_id: str
     step_id: str
     blocks: tuple[OutputBlockRef, ...] = ()
+    cursors: tuple[OutputCursor, ...] = ()
     schema_version: str = "aitest.spool/1.0"
 
     def __post_init__(self) -> None:
@@ -396,6 +398,11 @@ class SpoolManifest:
             raise ValueError("spool blocks must be unique by stream and block_index")
         if any(block.attempt_id != self.attempt_id for block in self.blocks):
             raise ValueError("spool block attempt_id must match manifest")
+        stream_names = [cursor.stream_name for cursor in self.cursors]
+        if len(stream_names) != len(set(stream_names)):
+            raise ValueError("spool cursors must be unique by stream")
+        if any(cursor.attempt_id != self.attempt_id for cursor in self.cursors):
+            raise ValueError("spool cursor attempt_id must match manifest")
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,6 +415,7 @@ class ExitFact:
     saved_bytes_by_stream: tuple[tuple[OutputStreamName, int], ...] = ()
     capture_completeness: CaptureCompleteness = CaptureCompleteness.UNKNOWN
     termination_reason: ProcessTerminationReason = ProcessTerminationReason.UNKNOWN
+    timed_out: bool = False
     published_at: datetime | None = None
 
     def __post_init__(self) -> None:
@@ -422,7 +430,7 @@ class RecoveryCheckpoint:
     step_id: str
     attempt_id: str
     last_committed_stage: str
-    output_cursor_ref: OutputCursor | None = None
+    output_cursors: tuple[OutputCursor, ...] = ()
     output_block_refs: tuple[OutputBlockRef, ...] = ()
     resolved_input_digest: str = ""
     side_effect_class: SideEffectClass = SideEffectClass.UNKNOWN
@@ -543,7 +551,7 @@ class Attempt:
     timeout_ms: int | None = None
     timed_out: bool = False
     execution_handle_ref: ExecutionHandle | None = None
-    output_cursor_ref: OutputCursor | None = None
+    output_cursors: tuple[OutputCursor, ...] = ()
     output_block_refs: tuple[OutputBlockRef, ...] = ()
     structured_result_ref: str | None = None
     exit_fact_ref: ExitFact | None = None
@@ -569,6 +577,10 @@ class Attempt:
         _require_non_negative(self.revision, "revision")
         if self.timeout_ms is not None:
             _require_positive(self.timeout_ms, "timeout_ms")
+
+    @property
+    def output_cursor_ref(self) -> OutputCursor | None:
+        return self.output_cursors[0] if self.output_cursors else None
 
     @property
     def retry_count(self) -> int:
@@ -602,7 +614,7 @@ class ExecutionCollectionResult:
     attempt_id: str
     output_blocks: tuple[OutputBlockRef, ...] = ()
     captured_blocks: tuple[CapturedOutputBlock, ...] = ()
-    output_cursor_ref: OutputCursor | None = None
+    output_cursors: tuple[OutputCursor, ...] = ()
     exit_fact_ref: ExitFact | None = None
     structured_result_ref: str | None = None
     capture_completeness: CaptureCompleteness = CaptureCompleteness.UNKNOWN
@@ -611,6 +623,10 @@ class ExecutionCollectionResult:
 
     def __post_init__(self) -> None:
         _require_text(self.attempt_id, "attempt_id")
+
+    @property
+    def output_cursor_ref(self) -> OutputCursor | None:
+        return self.output_cursors[0] if self.output_cursors else None
 
 
 @dataclass(frozen=True, slots=True)

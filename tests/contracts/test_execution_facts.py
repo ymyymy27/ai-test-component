@@ -60,3 +60,12 @@ def test_plan_revision_must_match_run_plan_revision() -> None:
     payload["plan_revision"]["digest"] = "sha256:different"
     with pytest.raises(ValidationError, match="plan_revision"):
         ExecutionFacts.model_validate(payload)
+
+
+def test_success_fixture_has_independent_stream_cursors() -> None:
+    payload = json.loads((FIXTURES / "success.json").read_text(encoding="utf-8"))
+    facts = ExecutionFacts.model_validate(payload)
+    cursors = {cursor.stream_name: cursor for cursor in facts.attempts[0].output_cursors}
+    assert set(cursors) == {"stdout", "stderr"}
+    assert cursors["stdout"].offset == 12
+    assert cursors["stderr"].offset == 8

@@ -250,3 +250,43 @@ def test_real_command_adapter_runs_serially_and_spools_redacted_output(tmp_path:
     content = b"".join(FileSpoolStore(tmp_path).read_block(block) for block in manifest.blocks)
     assert b"secret-value" not in content
     assert b"[REDACTED]" in content
+
+
+def test_command_timeout_becomes_pending_verification(tmp_path: Path) -> None:
+    adapter = CommandAdapter()
+    adapter.register(
+        CommandRegistration(
+            entry_id="python",
+            executable=sys.executable,
+            cwd=Path.cwd(),
+        )
+    )
+    request = replace(
+        _request("step-1", "attempt-1"),
+        timeout_ms=50,
+        registered_entry=RegisteredEntryRef(
+            entry_id="python",
+            adapter_kind=AdapterKind.COMMAND,
+            entrypoint=str(Path(sys.executable).resolve()),
+            arguments=("-c", "import time; time.sleep(30)"),
+        ),
+    )
+    runner = SerialRunner(
+        adapter,
+        FileSpoolStore(tmp_path),
+        poll_interval_seconds=0.01,
+    )
+    result = runner.run_serial(
+        (
+            SerialExecutionItem(
+                step=_step("step-1", 1),
+                attempt=_attempt("step-1", "attempt-1"),
+                request=request,
+            ),
+        )
+    )
+
+    assert result.attempts[0].state is AttemptState.PENDING_VERIFICATION
+    assert result.attempts[0].timed_out is True
+    assert result.attempts[0].unknown_reason_ref == "command_timeout"
+    assert result.steps[0].state is StepState.PENDING_VERIFICATION

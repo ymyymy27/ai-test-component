@@ -162,7 +162,7 @@ class SerialRunner:
                 if self._poll_interval_seconds:
                     time.sleep(self._poll_interval_seconds)
                 continue
-            collection = self.collect_attempt(current, current.output_cursor_ref)
+            collection = self.collect_attempt(current, current.output_cursors or None)
             return self._apply_collection(current, inspection, collection)
         return replace(
             current,
@@ -185,9 +185,9 @@ class SerialRunner:
     def collect_attempt(
         self,
         attempt: Attempt,
-        cursor: OutputCursor | None = None,
+        cursors: tuple[OutputCursor, ...] | None = None,
     ) -> ExecutionCollectionResult:
-        return self._execution_port.collect(self._require_handle(attempt), cursor)
+        return self._execution_port.collect(self._require_handle(attempt), cursors)
 
     def request_stop(self, attempt: Attempt) -> StopRequestResult:
         return self._execution_port.request_stop(self._require_handle(attempt))
@@ -218,10 +218,14 @@ class SerialRunner:
             attempt,
             state=state,
             output_block_refs=output_blocks,
-            output_cursor_ref=collection.output_cursor_ref or attempt.output_cursor_ref,
+            output_cursors=self._merge_output_cursors(
+                attempt.output_cursors,
+                collection.output_cursors,
+            ),
             structured_result_ref=collection.structured_result_ref,
             exit_fact_ref=collection.exit_fact_ref,
             capture_completeness=capture_completeness,
+            timed_out=bool(collection.exit_fact_ref and collection.exit_fact_ref.timed_out),
             error_ref=collection.error_ref,
             unknown_reason_ref=self._unknown_reason_for(inspection, collection, state),
         )
@@ -248,6 +252,8 @@ class SerialRunner:
         if inspection.state is ExecutionInspectionState.EXITED:
             if collection.exit_fact_ref is None or not collection.complete:
                 return AttemptState.PENDING_VERIFICATION
+            if collection.exit_fact_ref.timed_out:
+                return AttemptState.PENDING_VERIFICATION
             return AttemptState.COMPLETED
         return attempt.state
 
@@ -268,9 +274,21 @@ class SerialRunner:
             return "execution_state_unknown"
         if inspection.state is ExecutionInspectionState.STOPPED and not inspection.stop_confirmed:
             return "stop_confirmation_unavailable"
+        if collection.exit_fact_ref is not None and collection.exit_fact_ref.timed_out:
+            return "command_timeout"
         if collection.exit_fact_ref is None:
             return "exit_fact_unavailable"
         return "verification_inconclusive"
+
+    @staticmethod
+    def _merge_output_cursors(
+        existing: tuple[OutputCursor, ...],
+        incoming: tuple[OutputCursor, ...],
+    ) -> tuple[OutputCursor, ...]:
+        merged = {cursor.stream_name: cursor for cursor in existing}
+        for cursor in incoming:
+            merged[cursor.stream_name] = cursor
+        return tuple(merged[stream] for stream in sorted(merged, key=lambda item: item.value))
 
     @staticmethod
     def _merge_output_blocks(

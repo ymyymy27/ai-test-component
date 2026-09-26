@@ -113,3 +113,13 @@ run_serial执行顺序：
 - ruff check：通过。
 - ruff format --check：152个文件全部符合格式。
 - mypy strict：97个源文件无问题。
+
+
+## 8 后续实现更新（2026-09-27）
+
+- 真实CommandAdapter已实现。
+- 敏感信息已在Spool前按行过滤。
+- stdout/stderr已改为独立游标集合。
+- 命令超时监督和子进程组回收已实现。
+- Spool已改为流式append写盘。
+- 最新实现和验证见07、08文档。

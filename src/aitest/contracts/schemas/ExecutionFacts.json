@@ -168,16 +168,12 @@
           ],
           "default": null
         },
-        "output_cursor": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OutputCursorFact"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        "output_cursors": {
+          "items": {
+            "$ref": "#/$defs/OutputCursorFact"
+          },
+          "title": "Output Cursors",
+          "type": "array"
         },
         "output_blocks": {
           "items": {
@@ -875,6 +871,11 @@
         "termination_reason": {
           "$ref": "#/$defs/ProcessTerminationReasonFact"
         },
+        "timed_out": {
+          "default": false,
+          "title": "Timed Out",
+          "type": "boolean"
+        },
         "published_at": {
           "anyOf": [
             {
@@ -1150,6 +1151,7 @@
     "ProcessTerminationReasonFact": {
       "enum": [
         "natural_exit",
+        "timeout",
         "confirmed_stop",
         "executor_lost",
         "capture_failure",

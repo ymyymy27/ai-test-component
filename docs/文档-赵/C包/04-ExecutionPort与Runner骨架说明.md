@@ -35,7 +35,7 @@ ExecutionPort只负责一个实际执行句柄，不写业务记录，不计算�
 
 - attempt_id
 - output_blocks
-- output_cursor_ref
+- output_cursors
 - exit_fact_ref
 - structured_result_ref
 - capture_completeness
