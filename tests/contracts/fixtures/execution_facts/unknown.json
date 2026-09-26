@@ -1,0 +1,132 @@
+{
+  "facts_id": "facts-unknown",
+  "project_id": "project-1",
+  "run_id": "run-1",
+  "snapshot_commit_id": "commit-3",
+  "snapshot_cursor": 12,
+  "snapshot_revision": 1,
+  "committed_at": "2026-09-24T10:03:00+08:00",
+  "run_revision": 1,
+  "plan_revision": {
+    "revision_id": "plan-1",
+    "revision_no": 1,
+    "digest": "sha256:plan-1"
+  },
+  "run": {
+    "run_id": "run-1",
+    "run_revision": 1,
+    "origin_workspace_id": "ws-1",
+    "tier": "full",
+    "driver": "planned",
+    "conclusion_ceiling": "passable",
+    "plan_revision": {
+      "revision_id": "plan-1",
+      "revision_no": 1,
+      "digest": "sha256:plan-1"
+    },
+    "environment_ref": "env-1",
+    "environment_isolated": true,
+    "rules_revision": "rules-1",
+    "control_state": "pending_verification",
+    "required_scope": [
+      "case-1"
+    ],
+    "selected_scope": [
+      "case-1"
+    ],
+    "source_binding_digest": "sha256:source-1",
+    "started_at": "2026-09-24T10:00:00+08:00",
+    "primary_gap_ids": [
+      "gap-1"
+    ],
+    "intent_id": "intent-1"
+  },
+  "steps": [
+    {
+      "step_id": "step-1",
+      "run_id": "run-1",
+      "step_revision": 1,
+      "step_revision_ref": {
+        "step_revision_id": "step-rev-1",
+        "revision_no": 1,
+        "digest": "sha256:step-1",
+        "inherited": false
+      },
+      "ordinal": 1,
+      "case_id": "case-1",
+      "required_for_case": true,
+      "level": "L2",
+      "state": "pending_verification",
+      "current_attempt_id": "attempt-1",
+      "gap_ids": [
+        "gap-1"
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "attempt_id": "attempt-1",
+      "run_id": "run-1",
+      "step_id": "step-1",
+      "attempt_revision": 1,
+      "attempt_index": 1,
+      "retry_count": 0,
+      "state": "pending_verification",
+      "is_current": true,
+      "intent_id": "intent-1",
+      "intent_digest": "sha256:intent-1",
+      "resolved_input_digest": "sha256:input-1",
+      "step_revision_ref": {
+        "step_revision_id": "step-rev-1",
+        "revision_no": 1,
+        "digest": "sha256:step-1",
+        "inherited": false
+      },
+      "source_binding_digest": "sha256:source-1",
+      "side_effect_class": "read_only",
+      "adapter_kind": "command",
+      "adapter_version": "1.0",
+      "capture_completeness": "partial",
+      "unknown_reason_ids": [
+        "unknown-1"
+      ]
+    }
+  ],
+  "current_attempt_by_step": {
+    "step-1": "attempt-1"
+  },
+  "unknowns": [
+    {
+      "unknown_reason_id": "unknown-1",
+      "subject_type": "attempt",
+      "subject_id": "attempt-1",
+      "reason_code": "handle_unavailable",
+      "safe_reason": "The execution may have started but no verified handle was persisted.",
+      "requires_verification": true
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "gap-1",
+      "kind": "output_gap",
+      "subject_ref": "attempt-1",
+      "reason_code": "capture_incomplete",
+      "safe_reason": "Only verified spool blocks were retained.",
+      "critical": true
+    }
+  ],
+  "coverage": {
+    "mandatory_case_ids": [
+      "case-1"
+    ],
+    "selected_case_ids": [
+      "case-1"
+    ],
+    "unknown_step_ids": [
+      "step-1"
+    ],
+    "evidence_gap_count": 1,
+    "critical_gap_count": 1
+  },
+  "completeness": "unknown"
+}

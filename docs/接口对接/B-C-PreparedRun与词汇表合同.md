@@ -1,10 +1,10 @@
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.3
+版本：0.4
 日期：2026-09-25
 提出方：B 包（feix-a，项目与计划）
 接收方：C 包（执行与证据）
-状态：**待 C 确认**（B 侧 4.1 节与第 10、13 节已完成）
+状态：**C 已确认 C-01—C-10**（C-10 等待 B 合同所有者补充三态枚举；待 B 侧签署并合并）
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`
 
@@ -223,6 +223,32 @@ C 的 `RunFact.source_binding_digest: str | None` 归属正确。
 7. **接收形式**：`PreparedRun` 定稿后，C 希望以何种形式接收——Python `Protocol`、Pydantic 合同，还是 JSON 夹具？
 8. **C-09**：运行时词汇表三枚举（`RunTierFact` / `RunDriverFact` / `ConclusionCeilingFact`）是否同意收敛为单一声明点？若同意，选第 11.2 节的方案甲还是方案乙？若不同意，请说明理由。
 
+### 7.1 C 确认结论（2026-09-26）
+
+1. **C-01**：确认夹具中的 full 为笔误，同意改为 passable。
+2. **C-02 / C-03**：同意 driver 和 conclusion_ceiling 使用 B 合同枚举。
+3. **C-04 / C-09**：不采用 contracts 层各自声明，选择第 11.2 节方案甲；删除 C 的 RunTierFact，RunTierFact、RunDriverFact、ConclusionCeilingFact 统一从 PreparedRun 合同导入。
+4. **C-05**：required_scope 对应 PreparedRun.frozen_required_case_ids，即 M；selected_scope 对应 PreparedRun.selected_case_ids，即 S。
+5. **C-06**：同意 RunFact 增加非空 intent_id，来源为 PreparedRun.intent_id。
+6. **C-07**：顶层 plan_revision 与 RunFact.plan_revision 均保留，并增加模型一致性校验。
+7. **C-08**：同意增加 quick.json，tier 为 quick、conclusion_ceiling 为 partial、evidence_level 为 null。
+8. **接收形式**：使用 Pydantic 合同、生成 JSON Schema，以及 success、failure、unknown、quick 四类夹具。
+9. **补充映射**：RunFact.driver 来源为 PreparedRun.initial_driver；运行中的驱动切换不得覆盖冻结初始值。
+
+### 7.2 C 对 C-10 的结论（2026-09-26）
+
+C-10：同意 environment_isolated 从 bool 改为三态，不允许用 bool 折叠 venv、none 和 unmanaged。
+
+要求：
+
+- B 合同所有者增加隔离方式合同枚举，建议名称为 EnvironmentIsolationModeFact，取值固定为 venv、none、unmanaged。
+- B 的 EnvironmentRefFact.isolation_mode 使用该枚举，不再使用裸 str。
+- B 完成合同变更并合入 develop 后，C 将 RunFact.environment_isolated: bool 改为 environment_isolation_mode: EnvironmentIsolationModeFact。
+- C 同步更新 success、failure、unknown、quick 四份夹具、ExecutionFacts JSON Schema 和合同测试。
+- none 表示用户显式选择不隔离，是合法事实，不得当作缺配置或自动降级证据等级。
+
+当前状态：C 已确认三态语义；B 合同枚举尚未提供，因此本契约 PR 暂不修改 C-10 字段实现。
+
 ---
 
 ## 8 兼容性影响
@@ -325,6 +351,8 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 | 2026-09-24 | 0.1 | 初稿，提出 C-01—C-08 | 已提出 | 待确认 |
 | 2026-09-25 | 0.2 | 4.1 节词汇表改名与 `ConclusionCeiling` 已完成；新增第 10 节 B 侧对象边界 | 已完成 | 待确认 |
 | 2026-09-25 | 0.3 | 新增 C-09 与第 11 节；新增第 13 节 B→C 交接定义与待办状态 | 已完成 | 待确认 |
+| 2026-09-26 | 0.4 | C 确认 C-01—C-09，选择方案甲；确认 RunFact.intent_id、quick 夹具、scope 说明和 plan_revision 校验 | 已同意方案甲 | 已确认 |
+| 2026-09-26 | 0.5 | C 确认 C-10 使用三态隔离方式；等待 B 补充 EnvironmentIsolationModeFact 后由 C 修改 RunFact 与夹具 | 待补充枚举 | C 已确认语义 |
 
 ---
 
@@ -379,10 +407,10 @@ C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐�
 ```text
 对接：B 包（项目与计划） ↔ C 包（执行与证据）
 文件：docs/接口对接/B-C-PreparedRun与词汇表合同.md
-版本：0.3
+版本：0.5
 
 确认：[ ] B 包 feix-a    日期：
-确认：[ ] C 包           日期：
+确认：[x] C 包 赵        日期：2026-09-26
 
-未决项：C-01、C-02/C-03、C-06、C-08、C-09，以及第 7 节的接收形式一项
+未决项：C-10 的 EnvironmentIsolationModeFact 需由 B 合同所有者补充并合入 develop。
 ```
