@@ -25,7 +25,6 @@
       "digest": "sha256:plan-1"
     },
     "environment_ref": "env-1",
-    "environment_isolated": true,
     "rules_revision": "rules-1",
     "control_state": "pending_verification",
     "required_scope": [
@@ -39,7 +38,8 @@
     "primary_gap_ids": [
       "gap-1"
     ],
-    "intent_id": "intent-1"
+    "intent_id": "intent-1",
+    "environment_isolation_mode": "none"
   },
   "steps": [
     {

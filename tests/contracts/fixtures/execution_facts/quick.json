@@ -25,7 +25,6 @@
       "digest": "sha256:plan-1"
     },
     "environment_ref": "env-1",
-    "environment_isolated": true,
     "rules_revision": "rules-1",
     "control_state": "completed",
     "required_scope": [
@@ -38,7 +37,8 @@
     "started_at": "2026-09-24T10:00:00+08:00",
     "evidence_level": null,
     "intent_id": "intent-1",
-    "coverage_summary": "quick run does not derive evidence level"
+    "coverage_summary": "quick run does not derive evidence level",
+    "environment_isolation_mode": "unmanaged"
   },
   "steps": [
     {
