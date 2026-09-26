@@ -94,6 +94,8 @@ class SpoolStore(Protocol):
 
     def read_manifest(self, attempt_id: str) -> SpoolManifest: ...
 
+    def salvage_streams(self, attempt_id: str) -> SpoolManifest: ...
+
 
 class VerificationPort(Protocol):
     """Independent read-only verification of the same business object."""

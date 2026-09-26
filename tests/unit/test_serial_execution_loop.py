@@ -28,8 +28,8 @@ from aitest.infrastructure.adapters.execution.command import (
     CommandAdapter,
     CommandRegistration,
 )
-from aitest.infrastructure.adapters.execution.fake import FakeExecutionPort, FakeExecutionSpec
 from aitest.infrastructure.file_store.spool import FileSpoolStore
+from tests.support.fake_execution import FakeExecutionPort, FakeExecutionSpec
 
 
 def _plan_revision() -> PlanRevisionRef:

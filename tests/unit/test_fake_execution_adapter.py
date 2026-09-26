@@ -9,7 +9,7 @@ from aitest.domain.execution.runs import (
     RegisteredEntryRef,
     SideEffectClass,
 )
-from aitest.infrastructure.adapters.execution.fake import (
+from tests.support.fake_execution import (
     FakeExecutionPort,
     FakeExecutionSpec,
 )

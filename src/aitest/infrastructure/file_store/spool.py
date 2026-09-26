@@ -118,6 +118,19 @@ class _FileSpoolStreamWriter:
                 self._store._unregister_writer(self._attempt_id, self._stream_name)
             return refs
 
+    def abort(self) -> None:
+        """Close stream bytes without sealing metadata to simulate a crash."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            try:
+                self._handle.flush()
+                os.fsync(self._handle.fileno())
+            finally:
+                self._handle.close()
+                self._store._unregister_writer(self._attempt_id, self._stream_name)
+
     def _seal(self, *, complete: bool) -> OutputBlockRef:
         digest = "sha256:" + self._hasher.hexdigest()
         ref = OutputBlockRef(
@@ -261,6 +274,62 @@ class FileSpoolStore:
         if len(content) != ref.length or digest != ref.digest:
             raise ValueError("spool block content failed verification")
         return content
+
+    def salvage_streams(self, attempt_id: str) -> SpoolManifest:
+        safe_attempt = _safe_component(attempt_id, "attempt_id")
+        manifest = self.read_manifest(safe_attempt)
+        recovered: list[OutputBlockRef] = []
+        for stream_name in (OutputStreamName.STDOUT, OutputStreamName.STDERR):
+            path = self._stream_path(safe_attempt, stream_name)
+            if not path.exists():
+                continue
+            size = path.stat().st_size
+            stream_blocks = [block for block in manifest.blocks if block.stream_name is stream_name]
+            covered_end = max(
+                (block.offset + block.length for block in stream_blocks),
+                default=0,
+            )
+            cursor = next(
+                (current for current in manifest.cursors if current.stream_name is stream_name),
+                None,
+            )
+            start = max(covered_end, cursor.offset if cursor is not None else 0)
+            if size <= start:
+                continue
+            with path.open("rb") as handle:
+                handle.seek(start)
+                content = handle.read(size - start)
+            if not content:
+                continue
+            block_index = (
+                max(
+                    (block.block_index for block in stream_blocks),
+                    default=-1,
+                )
+                + 1
+            )
+            recovered.append(
+                OutputBlockRef(
+                    block_id=f"{safe_attempt}:{stream_name.value}:{block_index}",
+                    attempt_id=safe_attempt,
+                    stream_name=stream_name,
+                    block_index=block_index,
+                    offset=start,
+                    length=len(content),
+                    digest="sha256:" + hashlib.sha256(content).hexdigest(),
+                    complete=False,
+                    capture_source="recovery",
+                )
+            )
+        if recovered:
+            self._merge_manifest(
+                attempt_id=safe_attempt,
+                run_id=manifest.run_id,
+                step_id=manifest.step_id,
+                new_blocks=tuple(recovered),
+                new_cursors=(),
+            )
+        return self.read_manifest(safe_attempt)
 
     def _write_block(self, ref: OutputBlockRef, content: bytes) -> None:
         path = self._stream_path(ref.attempt_id, ref.stream_name)

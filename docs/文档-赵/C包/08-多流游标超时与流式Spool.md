@@ -81,7 +81,7 @@ CommandAdapter读取线程在Redactor过滤后直接调用SpoolStreamWriter.appe
 
 ## 6 尚未完成
 
-- 崩溃后从append文件恢复未封口尾部。
+- 崩溃后未封口尾部已在09阶段实现抢救。
 - Spool块发布到内容寻址对象库并生成正式EvidenceRef。
 - 检查点持久化和启动恢复扫描。
 - 更大规模输出的背压、磁盘空间预检查与暂停策略。

@@ -65,11 +65,15 @@ def _request(
     )
 
 
-def _adapter(spool_store: FileSpoolStore | None = None) -> CommandAdapter:
+def _adapter(
+    spool_store: FileSpoolStore | None = None,
+    *,
+    block_size: int = 4,
+) -> CommandAdapter:
     adapter = CommandAdapter(
         lambda _scope: {"token": "secret-value"},
         spool_store=spool_store,
-        stream_block_size=4,
+        stream_block_size=block_size,
         graceful_stop_timeout_seconds=0.5,
         force_kill_timeout_seconds=2,
     )
@@ -213,3 +217,55 @@ def _process_is_alive(pid: int) -> bool:
     except ProcessLookupError:
         return False
     return True
+
+
+def test_command_adapter_handles_empty_output(tmp_path: Path) -> None:
+    store = FileSpoolStore(tmp_path)
+    adapter = _adapter(store)
+    handle = adapter.start(_request("python", ("-c", "pass")))
+    inspection = _wait_for_terminal(adapter, handle)
+    assert inspection.state is ExecutionInspectionState.EXITED
+
+    collected = adapter.collect(handle)
+    manifest = store.read_manifest("attempt-1")
+    assert collected.output_blocks == ()
+    assert collected.output_cursors == ()
+    assert manifest.blocks == ()
+    assert manifest.cursors == ()
+
+
+def test_command_adapter_preserves_non_utf8_output(tmp_path: Path) -> None:
+    store = FileSpoolStore(tmp_path)
+    adapter = _adapter(store)
+    script = (
+        "import sys; "
+        "sys.stdout.buffer.write(bytes([255, 254, 0, 65])); "
+        "sys.stderr.buffer.write(bytes([128, 129, 130]))"
+    )
+    handle = adapter.start(_request("python", ("-c", script)))
+    inspection = _wait_for_terminal(adapter, handle)
+    assert inspection.state is ExecutionInspectionState.EXITED
+
+    collected = adapter.collect(handle)
+    by_stream = {block.stream_name: store.read_block(block) for block in collected.output_blocks}
+    assert by_stream[OutputStreamName.STDOUT] == bytes([255, 254, 0, 65])
+    assert by_stream[OutputStreamName.STDERR] == bytes([128, 129, 130])
+
+
+def test_command_adapter_streams_large_output_in_multiple_blocks(tmp_path: Path) -> None:
+    store = FileSpoolStore(tmp_path)
+    adapter = _adapter(store, block_size=8192)
+    size = 200_000
+    script = "import sys; sys.stdout.buffer.write((b'x' * 999 + b'\\n') * 200)"
+    handle = adapter.start(_request("python", ("-c", script)))
+    inspection = _wait_for_terminal(adapter, handle)
+    assert inspection.state is ExecutionInspectionState.EXITED
+
+    collected = adapter.collect(handle)
+    stdout_blocks = [
+        block for block in collected.output_blocks if block.stream_name is OutputStreamName.STDOUT
+    ]
+    content = b"".join(store.read_block(block) for block in stdout_blocks)
+    assert len(content) == size
+    assert content == (b"x" * 999 + b"\n") * 200
+    assert len(stdout_blocks) > 1
