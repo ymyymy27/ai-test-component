@@ -1,0 +1,186 @@
+{
+  "facts_id": "facts-success",
+  "project_id": "project-1",
+  "run_id": "run-1",
+  "snapshot_commit_id": "commit-1",
+  "snapshot_cursor": 10,
+  "snapshot_revision": 1,
+  "committed_at": "2026-09-24T10:01:00+08:00",
+  "run_revision": 1,
+  "plan_revision": {
+    "revision_id": "plan-1",
+    "revision_no": 1,
+    "digest": "sha256:plan-1"
+  },
+  "run": {
+    "run_id": "run-1",
+    "run_revision": 1,
+    "origin_workspace_id": "ws-1",
+    "tier": "full",
+    "driver": "planned",
+    "conclusion_ceiling": "passable",
+    "plan_revision": {
+      "revision_id": "plan-1",
+      "revision_no": 1,
+      "digest": "sha256:plan-1"
+    },
+    "environment_ref": "env-1",
+    "environment_isolated": true,
+    "rules_revision": "rules-1",
+    "control_state": "completed",
+    "required_scope": [
+      "case-1"
+    ],
+    "selected_scope": [
+      "case-1"
+    ],
+    "source_binding_digest": "sha256:source-1",
+    "started_at": "2026-09-24T10:00:00+08:00",
+    "evidence_level": "full_link",
+    "intent_id": "intent-1"
+  },
+  "steps": [
+    {
+      "step_id": "step-1",
+      "run_id": "run-1",
+      "step_revision": 1,
+      "step_revision_ref": {
+        "step_revision_id": "step-rev-1",
+        "revision_no": 1,
+        "digest": "sha256:step-1",
+        "inherited": false
+      },
+      "ordinal": 1,
+      "case_id": "case-1",
+      "required_for_case": true,
+      "level": "L2",
+      "state": "completed",
+      "current_attempt_id": "attempt-1"
+    }
+  ],
+  "attempts": [
+    {
+      "attempt_id": "attempt-1",
+      "run_id": "run-1",
+      "step_id": "step-1",
+      "attempt_revision": 1,
+      "attempt_index": 1,
+      "retry_count": 0,
+      "state": "completed",
+      "is_current": true,
+      "intent_id": "intent-1",
+      "intent_digest": "sha256:intent-1",
+      "resolved_input_digest": "sha256:input-1",
+      "step_revision_ref": {
+        "step_revision_id": "step-rev-1",
+        "revision_no": 1,
+        "digest": "sha256:step-1",
+        "inherited": false
+      },
+      "source_binding_digest": "sha256:source-1",
+      "side_effect_class": "read_only",
+      "adapter_kind": "command",
+      "adapter_version": "1.0",
+      "capture_completeness": "complete",
+      "handle": {
+        "handle_id": "handle-1",
+        "adapter_kind": "command",
+        "adapter_version": "1.0",
+        "real_execution_id": "proc-1",
+        "process_start_identity": "start-1",
+        "workdir_ref": "ws-1"
+      },
+      "output_cursor": {
+        "attempt_id": "attempt-1",
+        "stream_name": "stdout",
+        "offset": 12,
+        "last_block_index": 0,
+        "last_committed_digest": "sha256:block-1",
+        "durable": true
+      },
+      "output_blocks": [
+        {
+          "block_id": "block-1",
+          "attempt_id": "attempt-1",
+          "stream_name": "stdout",
+          "block_index": 0,
+          "offset": 0,
+          "length": 12,
+          "digest": "sha256:block-1",
+          "complete": true,
+          "capture_source": "wrapper"
+        }
+      ],
+      "exit_fact": {
+        "attempt_id": "attempt-1",
+        "startup_token": "token-1",
+        "process_start_identity": "start-1",
+        "real_exit_code": 0,
+        "last_block_index_by_stream": {
+          "stdout": 0
+        },
+        "saved_bytes_by_stream": {
+          "stdout": 12
+        },
+        "capture_completeness": "complete",
+        "termination_reason": "natural_exit"
+      }
+    }
+  ],
+  "current_attempt_by_step": {
+    "step-1": "attempt-1"
+  },
+  "evidence_refs": [
+    {
+      "evidence_id": "evidence-1",
+      "evidence_revision": 1,
+      "project_id": "project-1",
+      "source_instance_id": "run-1",
+      "run_id": "run-1",
+      "step_id": "step-1",
+      "attempt_id": "attempt-1",
+      "evidence_kind": "command_output",
+      "capture_source": "plugin_runtime",
+      "code_identity": {
+        "binding_kind": "git",
+        "workspace_ref": "ws-1",
+        "commit_id": "abc123"
+      },
+      "object_digest": "sha256:block-1",
+      "object_size": 12,
+      "media_type": "text/plain",
+      "integrity": "complete",
+      "redaction_state": "redacted",
+      "projection_state": "displayable",
+      "evidence_level": "full_link"
+    }
+  ],
+  "source_verifications": [
+    {
+      "verification_id": "source-verify-1",
+      "project_id": "project-1",
+      "plan_revision": {
+        "revision_id": "plan-1",
+        "revision_no": 1,
+        "digest": "sha256:plan-1"
+      },
+      "expected_source_binding_digest": "sha256:source-1",
+      "materialized_snapshot_ref": "snapshot-1",
+      "observed_source_digest": "sha256:source-1",
+      "state": "verified",
+      "observed_entry_ref": "entry-1"
+    }
+  ],
+  "coverage": {
+    "mandatory_case_ids": [
+      "case-1"
+    ],
+    "selected_case_ids": [
+      "case-1"
+    ],
+    "executed_attempt_ids": [
+      "attempt-1"
+    ]
+  },
+  "completeness": "complete"
+}
