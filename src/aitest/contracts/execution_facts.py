@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aitest.contracts.prepared_run import (
     ConclusionCeilingFact,
+    EnvironmentIsolationModeFact,
     RunDriverFact,
     RunTierFact,
 )
@@ -284,7 +285,7 @@ class RunFact(ContractModel):
     conclusion_ceiling: ConclusionCeilingFact
     plan_revision: PlanRevisionRefFact
     environment_ref: str
-    environment_isolated: bool
+    environment_isolation_mode: EnvironmentIsolationModeFact
     rules_revision: str
     control_state: RunControlStateFact
     evidence_level: EvidenceLevelFact | None = None

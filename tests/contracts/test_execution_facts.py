@@ -10,18 +10,24 @@ FIXTURES = Path(__file__).parent / "fixtures/execution_facts"
 
 
 @pytest.mark.parametrize(
-    ("fixture_name", "expected"),
+    ("fixture_name", "expected", "isolation_mode"),
     [
-        ("success.json", "complete"),
-        ("failure.json", "partial"),
-        ("unknown.json", "unknown"),
+        ("success.json", "complete", "venv"),
+        ("failure.json", "partial", "venv"),
+        ("unknown.json", "unknown", "none"),
+        ("quick.json", "complete", "unmanaged"),
     ],
 )
-def test_execution_facts_fixtures_validate(fixture_name: str, expected: str) -> None:
+def test_execution_facts_fixtures_validate(
+    fixture_name: str,
+    expected: str,
+    isolation_mode: str,
+) -> None:
     payload = json.loads((FIXTURES / fixture_name).read_text(encoding="utf-8"))
     facts = ExecutionFacts.model_validate(payload)
     assert facts.completeness == expected
     assert facts.schema_version == "aitest.execution-facts/1.0"
+    assert facts.run.environment_isolation_mode == isolation_mode
 
 
 def test_unknown_fixture_does_not_fabricate_cancelled_or_terminal_result() -> None:

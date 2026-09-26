@@ -1,10 +1,10 @@
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.6
+版本：0.7
 日期：2026-09-26
 提出方：B 包（feix-a，项目与计划）
 接收方：C 包（执行与证据）
-状态：**C 已确认 C-01—C-10；B 已补充三态枚举并签署，待合并**
+状态：**C-01—C-10 已实现；B 与 C 已签署；待 C 侧契约 PR 通过 CI 并合并**
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`；B 侧本轮分支 `feature/contract-b-c-isolation-mode`
 
@@ -268,6 +268,20 @@ B 同意 C 的三态结论，并已完成合同侧改动，与 C 的要求逐条
 C 收到本节后即可按第 7.2 节执行：把 `RunFact.environment_isolated: bool` 改为
 `environment_isolation_mode: EnvironmentIsolationModeFact`，并同步四份夹具、Schema 与合同测试。
 
+### 7.4 C 对 C-10 的实施记录（2026-09-26）
+
+C 已按第 7.2、7.3 节完成本地实现：
+
+- RunFact.environment_isolated: bool 已替换为 environment_isolation_mode: EnvironmentIsolationModeFact。
+- environment_isolation_mode 直接从 prepared_run.py 导入，不在 C 侧重复声明枚举。
+- success.json 使用 venv。
+- failure.json 使用 venv。
+- unknown.json 使用 none，保留"显式不隔离是合法事实"的合同行为。
+- quick.json 使用 unmanaged，覆盖第三个合法取值。
+- ExecutionFacts JSON Schema 已重新生成。
+- 合同测试已覆盖三态值，并继续覆盖 quick 的 conclusion_ceiling=partial、evidence_level=null。
+- 本地验证通过后，进入 C 侧契约 PR Review。
+
 ---
 
 ## 8 兼容性影响
@@ -373,6 +387,7 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 | 2026-09-26 | 0.4 | C 确认 C-01—C-09，选择方案甲；确认 RunFact.intent_id、quick 夹具、scope 说明和 plan_revision 校验 | 已同意方案甲 | 已确认 |
 | 2026-09-26 | 0.5 | C 确认 C-10 使用三态隔离方式；等待 B 补充 EnvironmentIsolationModeFact 后由 C 修改 RunFact 与夹具 | 待补充枚举 | C 已确认语义 |
 | 2026-09-26 | 0.6 | B 补充 `EnvironmentIsolationModeFact`、改用枚举、加漂移锁定测试并重生成 Schema；见第 7.3 节 | 已完成 | 待 C 同步 RunFact |
+| 2026-09-26 | 0.7 | C 将 RunFact 改为三态隔离方式，四份夹具覆盖 venv/none/unmanaged，重生成 Schema 并补合同测试 | 已完成 | 已完成 |
 
 ---
 
@@ -427,11 +442,10 @@ C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐�
 ```text
 对接：B 包（项目与计划） ↔ C 包（执行与证据）
 文件：docs/接口对接/B-C-PreparedRun与词汇表合同.md
-版本：0.6
+版本：0.7
 
 确认：[x] B 包 feix-a    日期：2026-09-26
 确认：[x] C 包 赵        日期：2026-09-26
 
-未决项：无。C-10 的 EnvironmentIsolationModeFact 已由 B 补充（第 7.3 节）；
-C 侧 RunFact 字段与四份夹具的同步由 C 在后续 PR 完成。
+未决项：无。C-10 的 EnvironmentIsolationModeFact 已由 B 补充并由 C 同步到 RunFact 和四份夹具；等待 C 侧契约 PR 的 CI 与合并。
 ```
