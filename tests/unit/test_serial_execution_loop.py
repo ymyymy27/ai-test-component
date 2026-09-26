@@ -1,3 +1,5 @@
+import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -21,6 +23,10 @@ from aitest.domain.execution.runs import (
     StepState,
     StructuredExecutionError,
     TransportErrorClass,
+)
+from aitest.infrastructure.adapters.execution.command import (
+    CommandAdapter,
+    CommandRegistration,
 )
 from aitest.infrastructure.adapters.execution.fake import FakeExecutionPort, FakeExecutionSpec
 from aitest.infrastructure.file_store.spool import FileSpoolStore
@@ -209,3 +215,38 @@ def test_serial_item_rejects_mismatched_identity(tmp_path: Path) -> None:
                 ),
             )
         )
+
+
+def test_real_command_adapter_runs_serially_and_spools_redacted_output(tmp_path: Path) -> None:
+    adapter = CommandAdapter(lambda _scope: {"token": "secret-value"})
+    adapter.register(
+        CommandRegistration(
+            entry_id="python",
+            executable=sys.executable,
+            cwd=Path.cwd(),
+        )
+    )
+    step = _step("step-1", 1)
+    attempt = replace(
+        _attempt("step-1", "attempt-1"),
+        adapter_version=adapter.adapter_version,
+    )
+    request = _request("step-1", "attempt-1")
+    request = replace(
+        request,
+        registered_entry=RegisteredEntryRef(
+            entry_id="python",
+            adapter_kind=AdapterKind.COMMAND,
+            entrypoint=str(Path(sys.executable).resolve()),
+            arguments=("-c", "print('token=' + 'secret-' + 'value')"),
+        ),
+    )
+    runner = SerialRunner(adapter, FileSpoolStore(tmp_path), poll_interval_seconds=0.01)
+    result = runner.run_serial((SerialExecutionItem(step=step, attempt=attempt, request=request),))
+
+    assert result.steps[0].state is StepState.COMPLETED
+    assert result.attempts[0].state is AttemptState.COMPLETED
+    manifest = FileSpoolStore(tmp_path).read_manifest("attempt-1")
+    content = b"".join(FileSpoolStore(tmp_path).read_block(block) for block in manifest.blocks)
+    assert b"secret-value" not in content
+    assert b"[REDACTED]" in content

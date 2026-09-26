@@ -1,5 +1,6 @@
 """Serial execution loop and dependency dispatch skeleton."""
 
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
@@ -66,9 +67,14 @@ class SerialRunner:
         self,
         execution_port: ExecutionPort,
         spool_store: SpoolStore | None = None,
+        *,
+        poll_interval_seconds: float = 0.01,
     ) -> None:
+        if poll_interval_seconds < 0:
+            raise ValueError("poll_interval_seconds must be non-negative")
         self._execution_port = execution_port
         self._spool_store = spool_store
+        self._poll_interval_seconds = poll_interval_seconds
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
         states = self._state_by_step_id(steps)
@@ -145,7 +151,7 @@ class SerialRunner:
         attempt: Attempt,
         request: ExecutionRequest,
         *,
-        max_polls: int = 8,
+        max_polls: int = 100,
     ) -> Attempt:
         if max_polls < 1:
             raise ValueError("max_polls must be positive")
@@ -153,6 +159,8 @@ class SerialRunner:
         for _ in range(max_polls):
             inspection = self.inspect_attempt(current)
             if inspection.state is ExecutionInspectionState.RUNNING:
+                if self._poll_interval_seconds:
+                    time.sleep(self._poll_interval_seconds)
                 continue
             collection = self.collect_attempt(current, current.output_cursor_ref)
             return self._apply_collection(current, inspection, collection)
