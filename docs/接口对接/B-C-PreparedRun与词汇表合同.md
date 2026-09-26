@@ -4,7 +4,7 @@
 日期：2026-09-25
 提出方：B 包（feix-a，项目与计划）
 接收方：C 包（执行与证据）
-状态：**C 已确认**（B 已同意方案甲；待契约 PR 完成 B 侧签署并合并）
+状态：**C 已确认 C-01—C-10**（C-10 等待 B 合同所有者补充三态枚举；待 B 侧签署并合并）
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`
 
@@ -235,6 +235,20 @@ C 的 `RunFact.source_binding_digest: str | None` 归属正确。
 8. **接收形式**：使用 Pydantic 合同、生成 JSON Schema，以及 success、failure、unknown、quick 四类夹具。
 9. **补充映射**：RunFact.driver 来源为 PreparedRun.initial_driver；运行中的驱动切换不得覆盖冻结初始值。
 
+### 7.2 C 对 C-10 的结论（2026-09-26）
+
+C-10：同意 environment_isolated 从 bool 改为三态，不允许用 bool 折叠 venv、none 和 unmanaged。
+
+要求：
+
+- B 合同所有者增加隔离方式合同枚举，建议名称为 EnvironmentIsolationModeFact，取值固定为 venv、none、unmanaged。
+- B 的 EnvironmentRefFact.isolation_mode 使用该枚举，不再使用裸 str。
+- B 完成合同变更并合入 develop 后，C 将 RunFact.environment_isolated: bool 改为 environment_isolation_mode: EnvironmentIsolationModeFact。
+- C 同步更新 success、failure、unknown、quick 四份夹具、ExecutionFacts JSON Schema 和合同测试。
+- none 表示用户显式选择不隔离，是合法事实，不得当作缺配置或自动降级证据等级。
+
+当前状态：C 已确认三态语义；B 合同枚举尚未提供，因此本契约 PR 暂不修改 C-10 字段实现。
+
 ---
 
 ## 8 兼容性影响
@@ -338,6 +352,7 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 | 2026-09-25 | 0.2 | 4.1 节词汇表改名与 `ConclusionCeiling` 已完成；新增第 10 节 B 侧对象边界 | 已完成 | 待确认 |
 | 2026-09-25 | 0.3 | 新增 C-09 与第 11 节；新增第 13 节 B→C 交接定义与待办状态 | 已完成 | 待确认 |
 | 2026-09-26 | 0.4 | C 确认 C-01—C-09，选择方案甲；确认 RunFact.intent_id、quick 夹具、scope 说明和 plan_revision 校验 | 已同意方案甲 | 已确认 |
+| 2026-09-26 | 0.5 | C 确认 C-10 使用三态隔离方式；等待 B 补充 EnvironmentIsolationModeFact 后由 C 修改 RunFact 与夹具 | 待补充枚举 | C 已确认语义 |
 
 ---
 
@@ -392,10 +407,10 @@ C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐�
 ```text
 对接：B 包（项目与计划） ↔ C 包（执行与证据）
 文件：docs/接口对接/B-C-PreparedRun与词汇表合同.md
-版本：0.4
+版本：0.5
 
 确认：[ ] B 包 feix-a    日期：
 确认：[x] C 包 赵        日期：2026-09-26
 
-未决项：无。等待 B 包在契约 PR Review 中确认签署并合并。
+未决项：C-10 的 EnvironmentIsolationModeFact 需由 B 合同所有者补充并合入 develop。
 ```
