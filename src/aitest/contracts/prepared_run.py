@@ -49,6 +49,22 @@ class BindingFormFact(StrEnum):
     PLAIN = "plain"
 
 
+class EnvironmentIsolationModeFact(StrEnum):
+    """依赖环境隔离方式。
+
+    `NONE` 表示用户**显式选择不隔离**，是合法事实，不等同于缺配置；
+    需求 P1-FR07 要求它冻结于运行且不自动降低证据等级。
+    三态不能用 `bool` 折叠：布尔无法区分"未配置"与"显式不隔离"。
+
+    值集合与 `aitest.domain.project.context.IsolationMode` 一致，
+    由 `tests/contracts/test_project_vocabulary.py` 锁定。
+    """
+
+    VENV = "venv"
+    NONE = "none"
+    UNMANAGED = "unmanaged"
+
+
 class PreparedRunStatusFact(StrEnum):
     """快照自身状态。
 
@@ -79,7 +95,7 @@ class SnapshotRef(ContractModel):
 class EnvironmentRefFact(ContractModel):
     environment_id: str = Field(min_length=1)
     revision: int = Field(ge=1)
-    isolation_mode: str = Field(min_length=1)
+    isolation_mode: EnvironmentIsolationModeFact
     interpreter_identity: str = Field(min_length=1)
     dependency_set_digest: str = Field(min_length=1)
 
@@ -391,6 +407,7 @@ __all__ = [
     "ConclusionCeilingFact",
     "ConfirmationRef",
     "ContractModel",
+    "EnvironmentIsolationModeFact",
     "EnvironmentRefFact",
     "ExclusionEntry",
     "ExecutionSourceBinding",

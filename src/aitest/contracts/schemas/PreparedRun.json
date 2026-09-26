@@ -230,6 +230,16 @@
       "title": "ConfirmationRef",
       "type": "object"
     },
+    "EnvironmentIsolationModeFact": {
+      "description": "依赖环境隔离方式。\n\n`NONE` 表示用户**显式选择不隔离**，是合法事实，不等同于缺配置；\n需求 P1-FR07 要求它冻结于运行且不自动降低证据等级。\n三态不能用 `bool` 折叠：布尔无法区分\"未配置\"与\"显式不隔离\"。\n\n值集合与 `aitest.domain.project.context.IsolationMode` 一致，\n由 `tests/contracts/test_project_vocabulary.py` 锁定。",
+      "enum": [
+        "venv",
+        "none",
+        "unmanaged"
+      ],
+      "title": "EnvironmentIsolationModeFact",
+      "type": "string"
+    },
     "EnvironmentRefFact": {
       "additionalProperties": false,
       "properties": {
@@ -244,9 +254,7 @@
           "type": "integer"
         },
         "isolation_mode": {
-          "minLength": 1,
-          "title": "Isolation Mode",
-          "type": "string"
+          "$ref": "#/$defs/EnvironmentIsolationModeFact"
         },
         "interpreter_identity": {
           "minLength": 1,

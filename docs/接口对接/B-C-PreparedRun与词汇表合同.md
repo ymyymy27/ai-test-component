@@ -1,12 +1,12 @@
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.4
-日期：2026-09-25
+版本：0.6
+日期：2026-09-26
 提出方：B 包（feix-a，项目与计划）
 接收方：C 包（执行与证据）
-状态：**C 已确认 C-01—C-10**（C-10 等待 B 合同所有者补充三态枚举；待 B 侧签署并合并）
+状态：**C 已确认 C-01—C-10；B 已补充三态枚举并签署，待合并**
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
-对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`
+对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`；B 侧本轮分支 `feature/contract-b-c-isolation-mode`
 
 ---
 
@@ -249,6 +249,25 @@ C-10：同意 environment_isolated 从 bool 改为三态，不允许用 bool 折
 
 当前状态：C 已确认三态语义；B 合同枚举尚未提供，因此本契约 PR 暂不修改 C-10 字段实现。
 
+### 7.3 B 对 C-10 的响应（2026-09-26）
+
+B 同意 C 的三态结论，并已完成合同侧改动，与 C 的要求逐条对应：
+
+| C 的要求 | B 的改动 | 位置 |
+| --- | --- | --- |
+| 增加隔离方式合同枚举，取值 `venv` / `none` / `unmanaged` | 新增 `EnvironmentIsolationModeFact` | `src/aitest/contracts/prepared_run.py` |
+| `EnvironmentRefFact.isolation_mode` 改用该枚举，不再用裸 `str` | 字段类型由 `str` 改为 `EnvironmentIsolationModeFact` | 同上 |
+| 值集合不得与领域层漂移 | `tests/contracts/test_project_vocabulary.py` 锁定合同枚举与 `aitest.domain.project.context.IsolationMode` 一致 | `tests/contracts/` |
+| 生成的 Schema 需同步 | 已重新生成 `contracts/schemas/PreparedRun.json`，`isolation_mode` 现为枚举，非法取值在校验层被拒绝 | `src/aitest/contracts/schemas/` |
+
+**验收证据**：合法值 `venv`、`none`、`unmanaged` 均通过；非法值 `bogus`、`True`、空串、`VENV`（大小写不符）均被 `ValidationError` 拒绝。
+改动前该字段为裸 `str`，非法取值不会报错，与 C-01 的静默传播属同一类风险。
+
+**B 侧遗留说明**：`PreparedRun` 的三份既有夹具取值为 `venv` / `venv` / `none`，改动后在枚举范围内，无需修改。
+
+C 收到本节后即可按第 7.2 节执行：把 `RunFact.environment_isolated: bool` 改为
+`environment_isolation_mode: EnvironmentIsolationModeFact`，并同步四份夹具、Schema 与合同测试。
+
 ---
 
 ## 8 兼容性影响
@@ -353,6 +372,7 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 | 2026-09-25 | 0.3 | 新增 C-09 与第 11 节；新增第 13 节 B→C 交接定义与待办状态 | 已完成 | 待确认 |
 | 2026-09-26 | 0.4 | C 确认 C-01—C-09，选择方案甲；确认 RunFact.intent_id、quick 夹具、scope 说明和 plan_revision 校验 | 已同意方案甲 | 已确认 |
 | 2026-09-26 | 0.5 | C 确认 C-10 使用三态隔离方式；等待 B 补充 EnvironmentIsolationModeFact 后由 C 修改 RunFact 与夹具 | 待补充枚举 | C 已确认语义 |
+| 2026-09-26 | 0.6 | B 补充 `EnvironmentIsolationModeFact`、改用枚举、加漂移锁定测试并重生成 Schema；见第 7.3 节 | 已完成 | 待 C 同步 RunFact |
 
 ---
 
@@ -407,10 +427,11 @@ C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐�
 ```text
 对接：B 包（项目与计划） ↔ C 包（执行与证据）
 文件：docs/接口对接/B-C-PreparedRun与词汇表合同.md
-版本：0.5
+版本：0.6
 
-确认：[ ] B 包 feix-a    日期：
+确认：[x] B 包 feix-a    日期：2026-09-26
 确认：[x] C 包 赵        日期：2026-09-26
 
-未决项：C-10 的 EnvironmentIsolationModeFact 需由 B 合同所有者补充并合入 develop。
+未决项：无。C-10 的 EnvironmentIsolationModeFact 已由 B 补充（第 7.3 节）；
+C 侧 RunFact 字段与四份夹具的同步由 C 在后续 PR 完成。
 ```
