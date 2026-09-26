@@ -18,7 +18,7 @@
     "origin_workspace_id": "ws-1",
     "tier": "full",
     "driver": "planned",
-    "conclusion_ceiling": "full",
+    "conclusion_ceiling": "passable",
     "plan_revision": {
       "revision_id": "plan-1",
       "revision_no": 1,
@@ -35,7 +35,8 @@
       "case-1"
     ],
     "source_binding_digest": "sha256:source-1",
-    "started_at": "2026-09-24T10:00:00+08:00"
+    "started_at": "2026-09-24T10:00:00+08:00",
+    "intent_id": "intent-1"
   },
   "steps": [
     {

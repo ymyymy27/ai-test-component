@@ -18,7 +18,7 @@
     "origin_workspace_id": "ws-1",
     "tier": "full",
     "driver": "planned",
-    "conclusion_ceiling": "full",
+    "conclusion_ceiling": "passable",
     "plan_revision": {
       "revision_id": "plan-1",
       "revision_no": 1,
@@ -38,7 +38,8 @@
     "started_at": "2026-09-24T10:00:00+08:00",
     "primary_gap_ids": [
       "gap-1"
-    ]
+    ],
+    "intent_id": "intent-1"
   },
   "steps": [
     {

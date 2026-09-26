@@ -1,0 +1,177 @@
+{
+  "schema_version": "aitest.prepared-run/1.0",
+  "prepared_run_id": "prep-3",
+  "project_id": "project-2",
+  "workspace_id": "ws-1",
+  "binding_id": "binding-2",
+  "binding_revision": 1,
+  "binding_form": "plain",
+  "client_id": "client-1",
+  "prepare_request_id": "prep-req-3",
+  "intent_id": "intent-3",
+  "payload_hash": "sha256:payload-3",
+  "status": "prepared",
+  "created_at": "2026-09-25T10:30:00+08:00",
+  "created_at_commit": "commit-44",
+  "snapshot": {
+    "source_snapshot_id": "snap-3",
+    "purpose": "prepare",
+    "content_identity": "sha256:content-3"
+  },
+  "plain_manifest_digest": "sha256:manifest-3",
+  "selected_paths": [
+    "."
+  ],
+  "exclusion_rules": [
+    "**/__pycache__/**",
+    "**/*.pyc",
+    ".venv/**"
+  ],
+  "refetch_dependencies": [
+    "external wheel index is not reusable offline"
+  ],
+  "environment": {
+    "environment_id": "env-2",
+    "revision": 1,
+    "isolation_mode": "none",
+    "interpreter_identity": "system-python-3.13.3",
+    "dependency_set_digest": "sha256:deps-2"
+  },
+  "execution_source": {
+    "registered_entry": "python -m unittest",
+    "entry_arguments": [
+      "discover"
+    ],
+    "cwd_mapping": "<project-root> -> workdirs/run-3",
+    "allowed_env_keys": [],
+    "secret_refs": [],
+    "test_config_ref": "registered-by-user",
+    "adapter_versions": {
+      "command": "1.0.0"
+    },
+    "resolved_input_digest": "sha256:resolved-3"
+  },
+  "plan_revision": {
+    "revision_id": "plan-2",
+    "revision_no": 1,
+    "digest": "sha256:plan-2"
+  },
+  "acceptance_scope_revision": 1,
+  "rule_versions": [],
+  "template_versions": [
+    {
+      "template_id": "python-library",
+      "version": "1.0.0",
+      "digest": "sha256:tpl-2"
+    }
+  ],
+  "case_revisions": [
+    {
+      "case_id": "case-1",
+      "revision": 1,
+      "digest": "sha256:case-3"
+    }
+  ],
+  "run_tier": "on_demand",
+  "initial_driver": "stepwise",
+  "conclusion_ceiling": "partial",
+  "template_required_case_ids": [
+    "case-1"
+  ],
+  "frozen_required_case_ids": [
+    "case-1"
+  ],
+  "selected_case_ids": [
+    "case-1"
+  ],
+  "skipped_scope": [],
+  "applicability_exclusions": [
+    {
+      "case_id": "case-db",
+      "reason": "the project has no persistence layer, so the database verification item does not apply"
+    }
+  ],
+  "assertion_bases": [
+    {
+      "case_id": "case-1",
+      "basis_revision": 1,
+      "basis_text_digest": "sha256:basis-3",
+      "assertion_basis_state": "present_unconfirmed",
+      "confirmation_refs": []
+    }
+  ],
+  "frozen_cases": [
+    {
+      "case_id": "case-1",
+      "revision": 1,
+      "layer": "L2",
+      "required": true,
+      "independent_verification": "compare against an independently computed expectation",
+      "mock_scope": [],
+      "importance": "P1",
+      "steps": [
+        {
+          "step_id": "step-1",
+          "layer": "L1",
+          "objective": "import the selected module",
+          "expected": "the module imports without error"
+        },
+        {
+          "step_id": "step-2",
+          "layer": "L2",
+          "objective": "call the function with the recorded input",
+          "expected": "the returned value matches the frozen expectation"
+        }
+      ],
+      "links": {
+        "acceptance_item_ids": [
+          "ai-3"
+        ],
+        "module_ids": [
+          "module-2"
+        ],
+        "environment_ids": [
+          "env-2"
+        ],
+        "critical_path_ids": []
+      }
+    }
+  ],
+  "authorization_requirements": [
+    {
+      "action_id": "run-registered-command",
+      "requires_side_effect": false,
+      "credential_scope": "none",
+      "resolved_input_digest": "sha256:input-3"
+    }
+  ],
+  "model_outbound_policy_revision": null,
+  "source_snippets_enabled": false,
+  "invalidation_rules": [
+    {
+      "source_kind": "source_identity",
+      "description": "the plain manifest digest changed"
+    },
+    {
+      "source_kind": "assertion_basis",
+      "description": "a confirmation record changes the effective basis state"
+    }
+  ],
+  "blocking_reasons": [],
+  "gaps": [
+    {
+      "gap_id": "gap-3",
+      "kind": "source_unverified",
+      "subject": "snap-3",
+      "blocking": false,
+      "detail": "the directory is not a git repository, so the content identity can only be proven by the manifest digest and cannot be matched against a remote"
+    },
+    {
+      "gap_id": "gap-4",
+      "kind": "assertion_basis_unconfirmed",
+      "subject": "case-1",
+      "blocking": false,
+      "detail": "the assertion basis is recorded but not yet confirmed, so the case may run and stays in the denominator without counting as verified"
+    }
+  ]
+}

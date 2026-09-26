@@ -1,8 +1,8 @@
 {
-  "facts_id": "facts-success",
+  "facts_id": "facts-quick",
   "project_id": "project-1",
   "run_id": "run-1",
-  "snapshot_commit_id": "commit-1",
+  "snapshot_commit_id": "commit-quick",
   "snapshot_cursor": 10,
   "snapshot_revision": 1,
   "committed_at": "2026-09-24T10:01:00+08:00",
@@ -16,9 +16,9 @@
     "run_id": "run-1",
     "run_revision": 1,
     "origin_workspace_id": "ws-1",
-    "tier": "full",
+    "tier": "quick",
     "driver": "planned",
-    "conclusion_ceiling": "passable",
+    "conclusion_ceiling": "partial",
     "plan_revision": {
       "revision_id": "plan-1",
       "revision_no": 1,
@@ -36,8 +36,9 @@
     ],
     "source_binding_digest": "sha256:source-1",
     "started_at": "2026-09-24T10:00:00+08:00",
-    "evidence_level": "full_link",
-    "intent_id": "intent-1"
+    "evidence_level": null,
+    "intent_id": "intent-1",
+    "coverage_summary": "quick run does not derive evidence level"
   },
   "steps": [
     {

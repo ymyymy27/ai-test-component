@@ -1,0 +1,978 @@
+{
+  "$defs": {
+    "AssertionBasisEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "basis_revision": {
+          "minimum": 1,
+          "title": "Basis Revision",
+          "type": "integer"
+        },
+        "basis_text_digest": {
+          "minLength": 1,
+          "title": "Basis Text Digest",
+          "type": "string"
+        },
+        "assertion_basis_state": {
+          "$ref": "#/$defs/AssertionBasisStateFact"
+        },
+        "confirmation_refs": {
+          "items": {
+            "$ref": "#/$defs/ConfirmationRef"
+          },
+          "title": "Confirmation Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "case_id",
+        "basis_revision",
+        "basis_text_digest",
+        "assertion_basis_state"
+      ],
+      "title": "AssertionBasisEntry",
+      "type": "object"
+    },
+    "AssertionBasisStateFact": {
+      "enum": [
+        "missing",
+        "present_unconfirmed",
+        "confirmed"
+      ],
+      "title": "AssertionBasisStateFact",
+      "type": "string"
+    },
+    "AuthorizationRequirement": {
+      "additionalProperties": false,
+      "description": "声明需要授权的动作；授权记录本身由 C 执行并持久化。",
+      "properties": {
+        "action_id": {
+          "minLength": 1,
+          "title": "Action Id",
+          "type": "string"
+        },
+        "requires_side_effect": {
+          "title": "Requires Side Effect",
+          "type": "boolean"
+        },
+        "credential_scope": {
+          "minLength": 1,
+          "title": "Credential Scope",
+          "type": "string"
+        },
+        "resolved_input_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Input Digest"
+        },
+        "pending_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending Reason"
+        }
+      },
+      "required": [
+        "action_id",
+        "requires_side_effect",
+        "credential_scope"
+      ],
+      "title": "AuthorizationRequirement",
+      "type": "object"
+    },
+    "BindingFormFact": {
+      "enum": [
+        "git",
+        "plain"
+      ],
+      "title": "BindingFormFact",
+      "type": "string"
+    },
+    "BlockingReason": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "BlockingReason",
+      "type": "object"
+    },
+    "CaseLinks": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_item_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Acceptance Item Ids",
+          "type": "array"
+        },
+        "module_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Module Ids",
+          "type": "array"
+        },
+        "environment_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Environment Ids",
+          "type": "array"
+        },
+        "critical_path_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Critical Path Ids",
+          "type": "array"
+        }
+      },
+      "title": "CaseLinks",
+      "type": "object"
+    },
+    "CaseRevisionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "digest": {
+          "minLength": 1,
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "revision",
+        "digest"
+      ],
+      "title": "CaseRevisionRef",
+      "type": "object"
+    },
+    "ConclusionCeilingFact": {
+      "enum": [
+        "partial",
+        "passable"
+      ],
+      "title": "ConclusionCeilingFact",
+      "type": "string"
+    },
+    "ConfirmationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation_id": {
+          "minLength": 1,
+          "title": "Confirmation Id",
+          "type": "string"
+        },
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "basis_revision": {
+          "minimum": 1,
+          "title": "Basis Revision",
+          "type": "integer"
+        },
+        "confirmed_at_commit": {
+          "minLength": 1,
+          "title": "Confirmed At Commit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmation_id",
+        "case_id",
+        "basis_revision",
+        "confirmed_at_commit"
+      ],
+      "title": "ConfirmationRef",
+      "type": "object"
+    },
+    "EnvironmentIsolationModeFact": {
+      "description": "依赖环境隔离方式。\n\n`NONE` 表示用户**显式选择不隔离**，是合法事实，不等同于缺配置；\n需求 P1-FR07 要求它冻结于运行且不自动降低证据等级。\n三态不能用 `bool` 折叠：布尔无法区分\"未配置\"与\"显式不隔离\"。\n\n值集合与 `aitest.domain.project.context.IsolationMode` 一致，\n由 `tests/contracts/test_project_vocabulary.py` 锁定。",
+      "enum": [
+        "venv",
+        "none",
+        "unmanaged"
+      ],
+      "title": "EnvironmentIsolationModeFact",
+      "type": "string"
+    },
+    "EnvironmentRefFact": {
+      "additionalProperties": false,
+      "properties": {
+        "environment_id": {
+          "minLength": 1,
+          "title": "Environment Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "isolation_mode": {
+          "$ref": "#/$defs/EnvironmentIsolationModeFact"
+        },
+        "interpreter_identity": {
+          "minLength": 1,
+          "title": "Interpreter Identity",
+          "type": "string"
+        },
+        "dependency_set_digest": {
+          "minLength": 1,
+          "title": "Dependency Set Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "environment_id",
+        "revision",
+        "isolation_mode",
+        "interpreter_identity",
+        "dependency_set_digest"
+      ],
+      "title": "EnvironmentRefFact",
+      "type": "object"
+    },
+    "ExclusionEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "reason"
+      ],
+      "title": "ExclusionEntry",
+      "type": "object"
+    },
+    "ExecutionSourceBinding": {
+      "additionalProperties": false,
+      "description": "prepare 冻结的预期执行来源；实际来源由 C 在 start 时核对。",
+      "properties": {
+        "registered_entry": {
+          "minLength": 1,
+          "title": "Registered Entry",
+          "type": "string"
+        },
+        "entry_arguments": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entry Arguments",
+          "type": "array"
+        },
+        "cwd_mapping": {
+          "minLength": 1,
+          "title": "Cwd Mapping",
+          "type": "string"
+        },
+        "allowed_env_keys": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Env Keys",
+          "type": "array"
+        },
+        "secret_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Secret Refs",
+          "type": "array"
+        },
+        "test_config_ref": {
+          "minLength": 1,
+          "title": "Test Config Ref",
+          "type": "string"
+        },
+        "adapter_versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Adapter Versions",
+          "type": "object"
+        },
+        "resolved_input_digest": {
+          "minLength": 1,
+          "title": "Resolved Input Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "registered_entry",
+        "cwd_mapping",
+        "test_config_ref",
+        "resolved_input_digest"
+      ],
+      "title": "ExecutionSourceBinding",
+      "type": "object"
+    },
+    "FrozenCase": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "layer": {
+          "enum": [
+            "L1",
+            "L2",
+            "L3"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "independent_verification": {
+          "minLength": 1,
+          "title": "Independent Verification",
+          "type": "string"
+        },
+        "mock_scope": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mock Scope",
+          "type": "array"
+        },
+        "importance": {
+          "minLength": 1,
+          "title": "Importance",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/FrozenCaseStep"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "links": {
+          "$ref": "#/$defs/CaseLinks"
+        }
+      },
+      "required": [
+        "case_id",
+        "revision",
+        "layer",
+        "required",
+        "independent_verification",
+        "importance",
+        "steps",
+        "links"
+      ],
+      "title": "FrozenCase",
+      "type": "object"
+    },
+    "FrozenCaseStep": {
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "minLength": 1,
+          "title": "Step Id",
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "L1",
+            "L2",
+            "L3"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "objective": {
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "expected": {
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step_id",
+        "layer",
+        "objective",
+        "expected"
+      ],
+      "title": "FrozenCaseStep",
+      "type": "object"
+    },
+    "GapEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "gap_id": {
+          "minLength": 1,
+          "title": "Gap Id",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "subject": {
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "detail": {
+          "minLength": 1,
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gap_id",
+        "kind",
+        "subject",
+        "blocking",
+        "detail"
+      ],
+      "title": "GapEntry",
+      "type": "object"
+    },
+    "InvalidationRule": {
+      "additionalProperties": false,
+      "properties": {
+        "source_kind": {
+          "minLength": 1,
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_kind",
+        "description"
+      ],
+      "title": "InvalidationRule",
+      "type": "object"
+    },
+    "PlanRevisionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "revision_id": {
+          "minLength": 1,
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "revision_no": {
+          "minimum": 1,
+          "title": "Revision No",
+          "type": "integer"
+        },
+        "digest": {
+          "minLength": 1,
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id",
+        "revision_no",
+        "digest"
+      ],
+      "title": "PlanRevisionRef",
+      "type": "object"
+    },
+    "PreparedRunStatusFact": {
+      "description": "快照自身状态。\n\n\"依据需重新准备\" 不是快照状态：快照不可变，该结论由应用用例按\n`invalidation_rules` 比较当前来源修订后派生（架构文档第 11 节）。",
+      "enum": [
+        "prepared",
+        "blocked"
+      ],
+      "title": "PreparedRunStatusFact",
+      "type": "string"
+    },
+    "RuleVersionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "minLength": 1,
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "digest": {
+          "minLength": 1,
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "revision",
+        "digest"
+      ],
+      "title": "RuleVersionRef",
+      "type": "object"
+    },
+    "RunDriverFact": {
+      "enum": [
+        "planned",
+        "stepwise"
+      ],
+      "title": "RunDriverFact",
+      "type": "string"
+    },
+    "RunTierFact": {
+      "enum": [
+        "quick",
+        "on_demand",
+        "full"
+      ],
+      "title": "RunTierFact",
+      "type": "string"
+    },
+    "SkippedScopeEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "reason"
+      ],
+      "title": "SkippedScopeEntry",
+      "type": "object"
+    },
+    "SnapshotRef": {
+      "additionalProperties": false,
+      "properties": {
+        "source_snapshot_id": {
+          "minLength": 1,
+          "title": "Source Snapshot Id",
+          "type": "string"
+        },
+        "purpose": {
+          "minLength": 1,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "content_identity": {
+          "minLength": 1,
+          "title": "Content Identity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_snapshot_id",
+        "purpose",
+        "content_identity"
+      ],
+      "title": "SnapshotRef",
+      "type": "object"
+    },
+    "TemplateVersionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "template_id": {
+          "minLength": 1,
+          "title": "Template Id",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "minLength": 1,
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "template_id",
+        "version",
+        "digest"
+      ],
+      "title": "TemplateVersionRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "aitest.prepared-run/1.0",
+      "default": "aitest.prepared-run/1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "prepared_run_id": {
+      "minLength": 1,
+      "title": "Prepared Run Id",
+      "type": "string"
+    },
+    "project_id": {
+      "minLength": 1,
+      "title": "Project Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
+    },
+    "binding_id": {
+      "minLength": 1,
+      "title": "Binding Id",
+      "type": "string"
+    },
+    "binding_revision": {
+      "minimum": 1,
+      "title": "Binding Revision",
+      "type": "integer"
+    },
+    "binding_form": {
+      "$ref": "#/$defs/BindingFormFact"
+    },
+    "client_id": {
+      "minLength": 1,
+      "title": "Client Id",
+      "type": "string"
+    },
+    "prepare_request_id": {
+      "minLength": 1,
+      "title": "Prepare Request Id",
+      "type": "string"
+    },
+    "intent_id": {
+      "minLength": 1,
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "payload_hash": {
+      "minLength": 1,
+      "title": "Payload Hash",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/PreparedRunStatusFact"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_at_commit": {
+      "minLength": 1,
+      "title": "Created At Commit",
+      "type": "string"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/SnapshotRef"
+    },
+    "git_base_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Base Commit"
+    },
+    "git_diff_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Diff Digest"
+    },
+    "plain_manifest_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Plain Manifest Digest"
+    },
+    "selected_paths": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Selected Paths",
+      "type": "array"
+    },
+    "exclusion_rules": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclusion Rules",
+      "type": "array"
+    },
+    "refetch_dependencies": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Refetch Dependencies",
+      "type": "array"
+    },
+    "environment": {
+      "$ref": "#/$defs/EnvironmentRefFact"
+    },
+    "execution_source": {
+      "$ref": "#/$defs/ExecutionSourceBinding"
+    },
+    "plan_revision": {
+      "$ref": "#/$defs/PlanRevisionRef"
+    },
+    "acceptance_scope_revision": {
+      "minimum": 1,
+      "title": "Acceptance Scope Revision",
+      "type": "integer"
+    },
+    "rule_versions": {
+      "items": {
+        "$ref": "#/$defs/RuleVersionRef"
+      },
+      "title": "Rule Versions",
+      "type": "array"
+    },
+    "template_versions": {
+      "items": {
+        "$ref": "#/$defs/TemplateVersionRef"
+      },
+      "title": "Template Versions",
+      "type": "array"
+    },
+    "case_revisions": {
+      "items": {
+        "$ref": "#/$defs/CaseRevisionRef"
+      },
+      "title": "Case Revisions",
+      "type": "array"
+    },
+    "run_tier": {
+      "$ref": "#/$defs/RunTierFact"
+    },
+    "initial_driver": {
+      "$ref": "#/$defs/RunDriverFact"
+    },
+    "conclusion_ceiling": {
+      "$ref": "#/$defs/ConclusionCeilingFact"
+    },
+    "template_required_case_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Template Required Case Ids",
+      "type": "array"
+    },
+    "frozen_required_case_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Frozen Required Case Ids",
+      "type": "array"
+    },
+    "selected_case_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Selected Case Ids",
+      "type": "array"
+    },
+    "skipped_scope": {
+      "items": {
+        "$ref": "#/$defs/SkippedScopeEntry"
+      },
+      "title": "Skipped Scope",
+      "type": "array"
+    },
+    "applicability_exclusions": {
+      "items": {
+        "$ref": "#/$defs/ExclusionEntry"
+      },
+      "title": "Applicability Exclusions",
+      "type": "array"
+    },
+    "assertion_bases": {
+      "items": {
+        "$ref": "#/$defs/AssertionBasisEntry"
+      },
+      "title": "Assertion Bases",
+      "type": "array"
+    },
+    "frozen_cases": {
+      "items": {
+        "$ref": "#/$defs/FrozenCase"
+      },
+      "title": "Frozen Cases",
+      "type": "array"
+    },
+    "authorization_requirements": {
+      "items": {
+        "$ref": "#/$defs/AuthorizationRequirement"
+      },
+      "title": "Authorization Requirements",
+      "type": "array"
+    },
+    "model_outbound_policy_revision": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Outbound Policy Revision"
+    },
+    "source_snippets_enabled": {
+      "default": false,
+      "title": "Source Snippets Enabled",
+      "type": "boolean"
+    },
+    "invalidation_rules": {
+      "items": {
+        "$ref": "#/$defs/InvalidationRule"
+      },
+      "title": "Invalidation Rules",
+      "type": "array"
+    },
+    "blocking_reasons": {
+      "items": {
+        "$ref": "#/$defs/BlockingReason"
+      },
+      "title": "Blocking Reasons",
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "$ref": "#/$defs/GapEntry"
+      },
+      "title": "Gaps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "prepared_run_id",
+    "project_id",
+    "workspace_id",
+    "binding_id",
+    "binding_revision",
+    "binding_form",
+    "client_id",
+    "prepare_request_id",
+    "intent_id",
+    "payload_hash",
+    "status",
+    "created_at",
+    "created_at_commit",
+    "snapshot",
+    "selected_paths",
+    "environment",
+    "execution_source",
+    "plan_revision",
+    "acceptance_scope_revision",
+    "run_tier",
+    "initial_driver",
+    "conclusion_ceiling"
+  ],
+  "title": "PreparedRun",
+  "type": "object"
+}

@@ -2,7 +2,14 @@ import pytest
 
 from aitest.application.connectivity import retry_delay
 from aitest.application.planning.regression import affected_modules
-from aitest.domain.planning.plans import AcceptanceScope, Driver, RunMode, narrow_driver
+from aitest.domain.planning.plans import (
+    AcceptanceScope,
+    ConclusionCeiling,
+    RunDriver,
+    RunTier,
+    conclusion_ceiling_for,
+    narrow_driver,
+)
 from aitest.domain.review.reports import Coverage
 from aitest.interfaces.dto import coverage_dto
 
@@ -52,12 +59,18 @@ def test_reuse_cannot_overlap_new_attempt() -> None:
 def test_full_and_driver_guards() -> None:
     scope = AcceptanceScope("scope", 1, "library", frozenset({"a", "b"}), frozenset({"a"}))
     with pytest.raises(ValueError, match="all required"):
-        scope.validate_selection(RunMode.FULL, frozenset({"a"}))
+        scope.validate_selection(RunTier.FULL, frozenset({"a"}))
     with pytest.raises(ValueError, match="empty"):
-        scope.validate_selection(RunMode.ON_DEMAND, frozenset())
-    scope.validate_selection(RunMode.QUICK, frozenset({"a"}))
+        scope.validate_selection(RunTier.ON_DEMAND, frozenset())
+    scope.validate_selection(RunTier.QUICK, frozenset({"a"}))
     with pytest.raises(ValueError, match="expand"):
-        narrow_driver(Driver.STEPWISE, Driver.PLANNED)
+        narrow_driver(RunDriver.STEPWISE, RunDriver.PLANNED)
+
+
+def test_conclusion_ceiling_is_derived_only_from_tier() -> None:
+    assert conclusion_ceiling_for(RunTier.QUICK) is ConclusionCeiling.PARTIAL
+    assert conclusion_ceiling_for(RunTier.ON_DEMAND) is ConclusionCeiling.PARTIAL
+    assert conclusion_ceiling_for(RunTier.FULL) is ConclusionCeiling.PASSABLE
 
 
 def test_dependency_cycle_terminates_and_keeps_changed_module() -> None:

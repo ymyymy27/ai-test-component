@@ -359,6 +359,14 @@
       "title": "CodeIdentityFact",
       "type": "object"
     },
+    "ConclusionCeilingFact": {
+      "enum": [
+        "partial",
+        "passable"
+      ],
+      "title": "ConclusionCeilingFact",
+      "type": "string"
+    },
     "ConsumedConditionFact": {
       "additionalProperties": false,
       "properties": {
@@ -1254,6 +1262,14 @@
       "title": "RunControlStateFact",
       "type": "string"
     },
+    "RunDriverFact": {
+      "enum": [
+        "planned",
+        "stepwise"
+      ],
+      "title": "RunDriverFact",
+      "type": "string"
+    },
     "RunFact": {
       "additionalProperties": false,
       "properties": {
@@ -1270,16 +1286,19 @@
           "title": "Origin Workspace Id",
           "type": "string"
         },
+        "intent_id": {
+          "minLength": 1,
+          "title": "Intent Id",
+          "type": "string"
+        },
         "tier": {
           "$ref": "#/$defs/RunTierFact"
         },
         "driver": {
-          "title": "Driver",
-          "type": "string"
+          "$ref": "#/$defs/RunDriverFact"
         },
         "conclusion_ceiling": {
-          "title": "Conclusion Ceiling",
-          "type": "string"
+          "$ref": "#/$defs/ConclusionCeilingFact"
         },
         "plan_revision": {
           "$ref": "#/$defs/PlanRevisionRefFact"
@@ -1337,6 +1356,7 @@
           "type": "array"
         },
         "required_scope": {
+          "description": "PreparedRun.frozen_required_case_ids, the frozen mandatory scope M",
           "items": {
             "type": "string"
           },
@@ -1344,6 +1364,7 @@
           "type": "array"
         },
         "selected_scope": {
+          "description": "PreparedRun.selected_case_ids, the selected scope S for this run",
           "items": {
             "type": "string"
           },
@@ -1405,6 +1426,7 @@
         "run_id",
         "run_revision",
         "origin_workspace_id",
+        "intent_id",
         "tier",
         "driver",
         "conclusion_ceiling",
@@ -1419,9 +1441,9 @@
     },
     "RunTierFact": {
       "enum": [
-        "full",
         "quick",
-        "on_demand"
+        "on_demand",
+        "full"
       ],
       "title": "RunTierFact",
       "type": "string"

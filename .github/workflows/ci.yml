@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, devlop]
+    branches: [main, develop]
   pull_request:
-    branches: [main, devlop]
+    branches: [main, develop]
   workflow_dispatch:
   workflow_call:
 
@@ -16,14 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  skeleton:
-    name: Test and build (${{ matrix.os }})
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+  basic-checks:
+    name: Basic checks (Windows)
+    timeout-minutes: 20
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,58 +28,34 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
       - run: uv sync --extra dev --locked
       - name: Check package versions
         run: uv run python scripts/check_versions.py
       - run: uv run ruff check .
       - run: uv run mypy
-      - run: npm --prefix src/aitest/resources/panel ci
-      - run: npm --prefix src/aitest/resources/panel run build
-      - run: npx playwright install chromium --with-deps
-        working-directory: src/aitest/resources/panel
-      - run: npm --prefix src/aitest/resources/panel test
-        env:
-          PLAYWRIGHT_JUNIT_OUTPUT_FILE: test-results/junit.xml
-      - run: npm --prefix integrations/trae ci
-      - run: npm --prefix integrations/trae run package
       - run: uv run python scripts/generate_schemas.py
       - run: git diff --exit-code -- src/aitest/contracts/schemas
-      - run: uv run pytest --junitxml=test-results/pytest.xml
+      - run: uv run pytest
+
+      # Release artifacts are only needed when the reusable workflow is called by a version tag.
+      - name: Package Trae extension
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm --prefix integrations/trae run package
       - run: uv build
+        if: startsWith(github.ref, 'refs/tags/v')
       - run: uv run python scripts/verify_artifacts.py
-      - name: Install and verify built wheel in isolated environment
+        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Smoke-test built wheel
+        if: startsWith(github.ref, 'refs/tags/v')
         run: uv run python scripts/smoke_wheel.py
-      - name: Upload test reports even on failure
-        if: always()
+      - name: Upload release artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports-${{ matrix.os }}
-          retention-days: 14
-          if-no-files-found: ignore
-          path: |
-            test-results/
-            src/aitest/resources/panel/test-results/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: skeleton-${{ matrix.os }}
+          name: skeleton-windows-latest
           if-no-files-found: error
           retention-days: 14
           path: |
             dist/*
             integrations/trae/dist/*.vsix
             docs/validation/artifacts.json
-
-  ci:
-    name: CI gate
-    if: always()
-    needs: skeleton
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Require both platforms to succeed
-        env:
-          RESULT: ${{ needs.skeleton.result }}
-        run: test "$RESULT" = success

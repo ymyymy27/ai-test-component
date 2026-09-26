@@ -9,19 +9,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from aitest.contracts.prepared_run import (
+    ConclusionCeilingFact,
+    RunDriverFact,
+    RunTierFact,
+)
 
 
 class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class RunTierFact(StrEnum):
-    FULL = "full"
-    QUICK = "quick"
-    ON_DEMAND = "on_demand"
 
 
 class RunControlStateFact(StrEnum):
@@ -278,9 +278,10 @@ class RunFact(ContractModel):
     run_id: str
     run_revision: int = Field(ge=0)
     origin_workspace_id: str
+    intent_id: str = Field(min_length=1)
     tier: RunTierFact
-    driver: str
-    conclusion_ceiling: str
+    driver: RunDriverFact
+    conclusion_ceiling: ConclusionCeilingFact
     plan_revision: PlanRevisionRefFact
     environment_ref: str
     environment_isolated: bool
@@ -290,8 +291,14 @@ class RunFact(ContractModel):
     primary_gap_ids: tuple[str, ...] = Field(default_factory=tuple)
     coverage_summary: str | None = None
     runtime_revision_refs: tuple[str, ...] = Field(default_factory=tuple)
-    required_scope: tuple[str, ...] = Field(default_factory=tuple)
-    selected_scope: tuple[str, ...] = Field(default_factory=tuple)
+    required_scope: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="PreparedRun.frozen_required_case_ids, the frozen mandatory scope M",
+    )
+    selected_scope: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="PreparedRun.selected_case_ids, the selected scope S for this run",
+    )
     source_binding_digest: str | None = None
     result_ref: str | None = None
     started_at: datetime | None = None
@@ -532,6 +539,12 @@ class ExecutionFacts(ContractModel):
     gaps: tuple[EvidenceGapFact, ...] = Field(default_factory=tuple)
     coverage: CoverageSummary = Field(default_factory=CoverageSummary)
     completeness: FactCompleteness = FactCompleteness.COMPLETE
+
+    @model_validator(mode="after")
+    def validate_plan_revision(self) -> Self:
+        if self.plan_revision != self.run.plan_revision:
+            raise ValueError("top-level plan_revision must match run.plan_revision")
+        return self
 
 
 __all__ = [

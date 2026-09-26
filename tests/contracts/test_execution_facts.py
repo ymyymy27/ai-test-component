@@ -45,3 +45,18 @@ def test_attempt_retry_count_is_not_authoritative() -> None:
     payload["attempts"][0]["retry_count"] = 2
     with pytest.raises(ValidationError, match="retry_count"):
         ExecutionFacts.model_validate(payload)
+
+
+def test_quick_fixture_does_not_derive_evidence_level() -> None:
+    payload = json.loads((FIXTURES / "quick.json").read_text(encoding="utf-8"))
+    facts = ExecutionFacts.model_validate(payload)
+    assert facts.run.tier == "quick"
+    assert facts.run.conclusion_ceiling == "partial"
+    assert facts.run.evidence_level is None
+
+
+def test_plan_revision_must_match_run_plan_revision() -> None:
+    payload = json.loads((FIXTURES / "success.json").read_text(encoding="utf-8"))
+    payload["plan_revision"]["digest"] = "sha256:different"
+    with pytest.raises(ValidationError, match="plan_revision"):
+        ExecutionFacts.model_validate(payload)
