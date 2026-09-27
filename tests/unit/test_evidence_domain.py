@@ -15,6 +15,7 @@ def test_evidence_provenance_is_separate_from_truth_and_projection() -> None:
     evidence = EvidenceRef(
         evidence_id="evidence-1",
         project_id="project-1",
+        source_instance_id="instance-1",
         run_id="run-1",
         step_id="step-1",
         attempt_id="attempt-1",

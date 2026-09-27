@@ -9,6 +9,7 @@ import threading
 from collections.abc import Sequence
 from pathlib import Path
 
+from aitest.domain.evidence.evidence import RedactionSummary
 from aitest.domain.execution.runs import (
     CapturedOutputBlock,
     OutputBlockRef,
@@ -45,6 +46,12 @@ def _require_int(value: object, name: str) -> int:
 def _require_bool(value: object, name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{name} must be a boolean")
+    return value
+
+
+def _require_list(value: object, name: str) -> list[object]:
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be a list")
     return value
 
 
@@ -274,6 +281,72 @@ class FileSpoolStore:
         if len(content) != ref.length or digest != ref.digest:
             raise ValueError("spool block content failed verification")
         return content
+
+    def persist_redaction_summary(
+        self,
+        attempt_id: str,
+        stream_name: OutputStreamName,
+        summary: RedactionSummary,
+    ) -> str:
+        safe_attempt = _safe_component(attempt_id, "attempt_id")
+        summary_id = f"redaction:{safe_attempt}:{stream_name.value}"
+        payload = {
+            "schema_version": "aitest.redaction-summary/1.0",
+            "summary_id": summary_id,
+            "stream_name": stream_name.value,
+            "policy_version": summary.policy_version,
+            "applied_rule_categories": list(summary.applied_rule_categories),
+            "filtered_streams": list(summary.filtered_streams),
+            "filtered_ranges": list(summary.filtered_ranges),
+            "replacement_count": summary.replacement_count,
+            "completeness": summary.completeness,
+            "gap_reasons": list(summary.gap_reasons),
+        }
+        atomic.write_json(
+            self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json",
+            payload,
+        )
+        return summary_id
+
+    def read_redaction_summary(
+        self,
+        attempt_id: str,
+        stream_name: OutputStreamName,
+    ) -> RedactionSummary:
+        safe_attempt = _safe_component(attempt_id, "attempt_id")
+        raw: object = json.loads(
+            (self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        if not isinstance(raw, dict):
+            raise ValueError("redaction summary must be an object")
+        if raw.get("schema_version") != "aitest.redaction-summary/1.0":
+            raise ValueError("unsupported redaction summary schema")
+        return RedactionSummary(
+            policy_version=_require_str(raw.get("policy_version"), "policy_version"),
+            applied_rule_categories=tuple(
+                _require_str(value, "applied_rule_category")
+                for value in _require_list(
+                    raw.get("applied_rule_categories"),
+                    "applied_rule_categories",
+                )
+            ),
+            filtered_streams=tuple(
+                _require_str(value, "filtered_stream")
+                for value in _require_list(raw.get("filtered_streams"), "filtered_streams")
+            ),
+            filtered_ranges=tuple(
+                _require_str(value, "filtered_range")
+                for value in _require_list(raw.get("filtered_ranges"), "filtered_ranges")
+            ),
+            replacement_count=_require_int(raw.get("replacement_count"), "replacement_count"),
+            completeness=_require_str(raw.get("completeness"), "completeness"),
+            gap_reasons=tuple(
+                _require_str(value, "gap_reason")
+                for value in _require_list(raw.get("gap_reasons"), "gap_reasons")
+            ),
+        )
 
     def salvage_streams(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")

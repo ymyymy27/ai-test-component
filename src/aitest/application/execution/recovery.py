@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from pathlib import Path
+from typing import Protocol
 
 from aitest.application.ports import SpoolStore
 from aitest.domain.execution.runs import (
@@ -17,6 +19,7 @@ from aitest.domain.execution.runs import (
     OutputCursor,
     PlanRevisionRef,
     RecoveryCheckpoint,
+    RecoveryRecord,
 )
 
 
@@ -25,6 +28,12 @@ class RecoveryAction(StrEnum):
     RECOVER_FROM_SPOOL = "recover_from_spool"
     SAFE_RETRY = "safe_retry"
     PENDING_VERIFICATION = "pending_verification"
+
+
+class CheckpointStore(Protocol):
+    def persist(self, record: RecoveryRecord) -> Path: ...
+
+    def scan(self) -> tuple[RecoveryRecord, ...]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,7 +220,9 @@ def _result(
 
 __all__ = [
     "AttemptInvalidation",
+    "CheckpointStore",
     "RecoveryAction",
+    "RecoveryRecord",
     "RecoveryResult",
     "invalidate_downstream_attempts",
     "recover_attempt",

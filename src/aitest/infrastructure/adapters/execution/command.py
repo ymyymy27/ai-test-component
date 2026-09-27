@@ -15,6 +15,7 @@ from typing import IO, Any
 from uuid import uuid4
 
 from aitest.application.ports import SpoolStore, SpoolStreamWriter
+from aitest.domain.evidence.evidence import RedactionSummary
 from aitest.domain.execution.runs import (
     AdapterKind,
     CaptureCompleteness,
@@ -74,6 +75,7 @@ class _CommandRuntime:
     process: subprocess.Popen[bytes]
     startup_token: str
     writers: dict[OutputStreamName, SpoolStreamWriter] = field(default_factory=dict)
+    redaction_summary_ids: dict[OutputStreamName, str] = field(default_factory=dict)
     output_blocks: list[OutputBlockRef] = field(default_factory=list)
     output_cursors: dict[OutputStreamName, OutputCursor] = field(default_factory=dict)
     captured_buffers: dict[OutputStreamName, bytearray] = field(default_factory=dict)
@@ -356,6 +358,8 @@ class CommandAdapter:
         if self._spool_store is None:
             return
         for stream_name in (OutputStreamName.STDOUT, OutputStreamName.STDERR):
+            summary_id = f"redaction:{runtime.request.attempt_id}:{stream_name.value}"
+            runtime.redaction_summary_ids[stream_name] = summary_id
             writer = self._spool_store.open_stream(
                 run_id=runtime.request.run_id,
                 step_id=runtime.request.step_id,
@@ -363,6 +367,7 @@ class CommandAdapter:
                 stream_name=stream_name,
                 capture_source="command",
                 block_size=self._stream_block_size,
+                redaction_summary_id=summary_id,
             )
             runtime.writers[stream_name] = writer
 
@@ -398,10 +403,29 @@ class CommandAdapter:
                 with runtime.lock:
                     runtime.read_errors.append(str(error))
             finally:
+                stats = redactor.stats
                 if writer is not None:
                     refs = writer.close(complete=not reader_error)
                     with runtime.lock:
                         runtime.output_blocks.extend(refs)
+                if self._spool_store is not None:
+                    self._spool_store.persist_redaction_summary(
+                        runtime.request.attempt_id,
+                        stream_name,
+                        RedactionSummary(
+                            policy_version="aitest.redaction/1.0",
+                            applied_rule_categories=tuple(
+                                category
+                                for category, count in stats.replacement_categories
+                                if count
+                            ),
+                            filtered_streams=(stream_name.value,),
+                            filtered_ranges=(f"{stream_name.value}:0-{stats.output_bytes}",),
+                            replacement_count=stats.replacement_count,
+                            completeness="gap" if reader_error else "complete",
+                            gap_reasons=("reader_error",) if reader_error else (),
+                        ),
+                    )
                 stream.close()
 
         thread = threading.Thread(target=consume, name=f"command-{stream_name.value}", daemon=True)

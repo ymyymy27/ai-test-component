@@ -587,6 +587,12 @@ class Attempt:
         return self.attempt_index - 1
 
 
+@dataclass(frozen=True, slots=True)
+class RecoveryRecord:
+    checkpoint: RecoveryCheckpoint
+    attempt: Attempt
+
+
 class ExecutionInspectionState(StrEnum):
     RUNNING = "running"
     EXITED = "exited"
@@ -670,6 +676,7 @@ __all__ = [
     "PlanRevisionRef",
     "ProcessTerminationReason",
     "RecoveryCheckpoint",
+    "RecoveryRecord",
     "RegisteredEntryRef",
     "Run",
     "RunControlState",

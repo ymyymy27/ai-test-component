@@ -135,6 +135,21 @@ class EvidenceLevel(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class StoredObjectRef:
+    project_id: str
+    digest: str
+    size: int
+    media_type: str
+    relative_path: str
+
+    def __post_init__(self) -> None:
+        for name in ("project_id", "digest", "media_type", "relative_path"):
+            _require_text(getattr(self, name), name)
+        if self.size < 0:
+            raise ValueError("size must be non-negative")
+
+
+@dataclass(frozen=True, slots=True)
 class CodeIdentity:
     binding_kind: SourceBindingKind
     workspace_ref: str
@@ -171,6 +186,7 @@ class RedactionSummary:
 class EvidenceRef:
     evidence_id: str
     project_id: str
+    source_instance_id: str
     run_id: str
     step_id: str
     attempt_id: str
@@ -193,6 +209,7 @@ class EvidenceRef:
         for name in (
             "evidence_id",
             "project_id",
+            "source_instance_id",
             "run_id",
             "step_id",
             "attempt_id",
@@ -346,6 +363,7 @@ __all__ = [
     "TraceNode",
     "TraceNodeState",
     "TraceNodeType",
+    "StoredObjectRef",
     "TruthClass",
     "Verification",
     "VerificationObservation",

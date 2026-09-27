@@ -2,9 +2,11 @@ from pathlib import Path
 
 from aitest.application.execution.recovery import (
     RecoveryAction,
+    RecoveryRecord,
     invalidate_downstream_attempts,
     recover_attempt,
 )
+from aitest.application.execution.runner import SerialRunner
 from aitest.domain.execution.runs import (
     AdapterKind,
     Attempt,
@@ -19,6 +21,7 @@ from aitest.domain.execution.runs import (
     SideEffectClass,
     StepRevisionRef,
 )
+from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 
 
@@ -203,3 +206,60 @@ def test_same_plan_revision_has_no_false_invalidation() -> None:
     )
     assert invalidations == ()
     assert attempt.state is AttemptState.RUNNING
+
+
+class _LostPort:
+    def start(self, request: object) -> object:
+        raise AssertionError("start must not be called during recovery")
+
+    def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
+        return ExecutionInspectionResult(
+            handle_id=handle.handle_id,
+            state=ExecutionInspectionState.LOST,
+            process_reachable=False,
+            identity_matches=False,
+            unknown_reason="process_lost",
+        )
+
+    def collect(self, handle: object, cursors: object = None) -> object:
+        raise AssertionError("collect must not be called for a lost process")
+
+    def request_stop(self, handle: object) -> object:
+        raise AssertionError("stop must not be called for a lost process")
+
+
+def test_runner_startup_scan_persists_recovery_decision(tmp_path: Path) -> None:
+    spool = FileSpoolStore(tmp_path)
+    writer = spool.open_stream(
+        run_id="run-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        stream_name=OutputStreamName.STDOUT,
+        block_size=1,
+    )
+    writer.append(b"survived\n")
+    writer.close()
+    manifest = spool.read_manifest("attempt-1")
+    attempt = _attempt()
+    checkpoint = RecoveryCheckpoint(
+        run_id="run-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        last_committed_stage="started",
+        output_cursors=manifest.cursors,
+        output_block_refs=manifest.blocks,
+        resolved_input_digest="sha256:input-1",
+        side_effect_class=SideEffectClass.UNKNOWN,
+        execution_handle_ref=_handle(),
+    )
+    checkpoint_store = FileCheckpointStore(tmp_path)
+    checkpoint_store.persist(RecoveryRecord(checkpoint=checkpoint, attempt=attempt))
+    runner = SerialRunner(_LostPort(), spool, checkpoint_store=checkpoint_store)
+
+    results = runner.recover_pending()
+
+    assert len(results) == 1
+    assert results[0].action is RecoveryAction.PENDING_VERIFICATION
+    assert results[0].attempt.state is AttemptState.PENDING_VERIFICATION
+    stored = checkpoint_store.load("attempt-1")
+    assert stored.checkpoint.last_committed_stage == "pending_verification"

@@ -18,12 +18,12 @@ _GH_TOKEN_PATTERN = re.compile(rb"\bgh[pousr]_[A-Za-z0-9]{20,}\b")
 _OPENAI_KEY_PATTERN = re.compile(rb"\bsk-[A-Za-z0-9_-]{16,}\b")
 _JWT_PATTERN = re.compile(rb"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
 _DEFAULT_PATTERNS = (
-    (_KV_PATTERN, lambda match: match.group(1) + _REDACTED),
-    (_BEARER_PATTERN, lambda match: match.group(1) + _REDACTED),
-    (_BASIC_PATTERN, lambda match: match.group(1) + _REDACTED),
-    (_GH_TOKEN_PATTERN, lambda match: _REDACTED),
-    (_OPENAI_KEY_PATTERN, lambda match: _REDACTED),
-    (_JWT_PATTERN, lambda match: _REDACTED),
+    ("key_value", _KV_PATTERN, lambda match: match.group(1) + _REDACTED),
+    ("bearer", _BEARER_PATTERN, lambda match: match.group(1) + _REDACTED),
+    ("basic", _BASIC_PATTERN, lambda match: match.group(1) + _REDACTED),
+    ("github_token", _GH_TOKEN_PATTERN, lambda match: _REDACTED),
+    ("openai_key", _OPENAI_KEY_PATTERN, lambda match: _REDACTED),
+    ("jwt", _JWT_PATTERN, lambda match: _REDACTED),
 )
 
 
@@ -32,6 +32,7 @@ class RedactionStats:
     input_bytes: int
     output_bytes: int
     replacement_count: int
+    replacement_categories: tuple[tuple[str, int], ...] = ()
 
 
 class StreamingRedactor:
@@ -44,6 +45,7 @@ class StreamingRedactor:
         self._input_bytes = 0
         self._output_bytes = 0
         self._replacement_count = 0
+        self._replacement_categories: dict[str, int] = {}
         self._closed = False
 
     def feed(self, data: bytes) -> bytes:
@@ -77,17 +79,26 @@ class StreamingRedactor:
             input_bytes=self._input_bytes,
             output_bytes=self._output_bytes,
             replacement_count=self._replacement_count,
+            replacement_categories=tuple(sorted(self._replacement_categories.items())),
         )
 
     def _redact(self, data: bytes) -> bytes:
         redacted = data
         for secret in self._secrets:
             redacted, count = re.subn(re.escape(secret), _REDACTED, redacted)
-            self._replacement_count += count
-        for pattern, replacement in _DEFAULT_PATTERNS:
+            self._record_replacements("resolved_secret", count)
+        for category, pattern, replacement in _DEFAULT_PATTERNS:
             redacted, count = pattern.subn(replacement, redacted)
-            self._replacement_count += count
+            self._record_replacements(category, count)
         return redacted
+
+    def _record_replacements(self, category: str, count: int) -> None:
+        if not count:
+            return
+        self._replacement_count += count
+        self._replacement_categories[category] = (
+            self._replacement_categories.get(category, 0) + count
+        )
 
 
 def redact_bytes(data: bytes, secrets: Iterable[str] = ()) -> bytes:

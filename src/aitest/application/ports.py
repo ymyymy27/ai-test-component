@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
+from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
+from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.execution.runs import (
     CapturedOutputBlock,
     ExecutionCollectionResult,
@@ -38,6 +40,16 @@ class RecordRepository(Protocol):
 
 class EvidenceObjectStore(Protocol):
     """Project-owned immutable bytes, reference and digest validation."""
+
+    def publish_bytes(
+        self,
+        project_id: str,
+        content: bytes,
+        *,
+        media_type: str = "application/octet-stream",
+    ) -> StoredObjectRef: ...
+
+    def read_bytes(self, ref: StoredObjectRef) -> bytes: ...
 
 
 class SourceSnapshotPort(Protocol):
@@ -94,7 +106,16 @@ class SpoolStore(Protocol):
 
     def read_manifest(self, attempt_id: str) -> SpoolManifest: ...
 
+    def read_block(self, ref: OutputBlockRef) -> bytes: ...
+
     def salvage_streams(self, attempt_id: str) -> SpoolManifest: ...
+
+    def persist_redaction_summary(
+        self,
+        attempt_id: str,
+        stream_name: OutputStreamName,
+        summary: DomainRedactionSummary,
+    ) -> str: ...
 
 
 class VerificationPort(Protocol):

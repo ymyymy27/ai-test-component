@@ -4,6 +4,13 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
+from aitest.application.execution.recovery import (
+    CheckpointStore,
+    RecoveryRecord,
+    RecoveryResult,
+    invalidate_downstream_attempts,
+    recover_attempt,
+)
 from aitest.application.ports import ExecutionPort, SpoolStore
 from aitest.domain.execution.runs import (
     Attempt,
@@ -16,6 +23,8 @@ from aitest.domain.execution.runs import (
     ExecutionRequest,
     OutputBlockRef,
     OutputCursor,
+    PlanRevisionRef,
+    RecoveryCheckpoint,
     Step,
     StepState,
     StopRequestResult,
@@ -68,12 +77,14 @@ class SerialRunner:
         execution_port: ExecutionPort,
         spool_store: SpoolStore | None = None,
         *,
+        checkpoint_store: CheckpointStore | None = None,
         poll_interval_seconds: float = 0.01,
     ) -> None:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be non-negative")
         self._execution_port = execution_port
         self._spool_store = spool_store
+        self._checkpoint_store = checkpoint_store
         self._poll_interval_seconds = poll_interval_seconds
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
@@ -156,6 +167,7 @@ class SerialRunner:
         if max_polls < 1:
             raise ValueError("max_polls must be positive")
         current = self.start_attempt(attempt, request)
+        self._persist_checkpoint(current, stage="started")
         for _ in range(max_polls):
             inspection = self.inspect_attempt(current)
             if inspection.state is ExecutionInspectionState.RUNNING:
@@ -163,12 +175,16 @@ class SerialRunner:
                     time.sleep(self._poll_interval_seconds)
                 continue
             collection = self.collect_attempt(current, current.output_cursors or None)
-            return self._apply_collection(current, inspection, collection)
-        return replace(
+            completed = self._apply_collection(current, inspection, collection)
+            self._persist_checkpoint(completed, stage=completed.state.value)
+            return completed
+        pending = replace(
             current,
             state=AttemptState.PENDING_VERIFICATION,
             unknown_reason_ref="poll_limit_reached",
         )
+        self._persist_checkpoint(pending, stage="poll_limit_reached")
+        return pending
 
     def start_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
         self._require_attempt_identity(attempt, request)
@@ -191,6 +207,61 @@ class SerialRunner:
 
     def request_stop(self, attempt: Attempt) -> StopRequestResult:
         return self._execution_port.request_stop(self._require_handle(attempt))
+
+    def recover_pending(self) -> tuple[RecoveryResult, ...]:
+        if self._checkpoint_store is None or self._spool_store is None:
+            return ()
+        results: list[RecoveryResult] = []
+        for record in self._checkpoint_store.scan():
+            inspection = (
+                self.inspect_attempt(record.attempt)
+                if record.attempt.execution_handle_ref is not None
+                else None
+            )
+            result = recover_attempt(
+                record.checkpoint,
+                record.attempt,
+                self._spool_store,
+                inspection=inspection,
+            )
+            results.append(result)
+            self._persist_checkpoint(result.attempt, stage=result.action.value)
+        return tuple(results)
+
+    def invalidate_dependencies(
+        self,
+        attempts: Sequence[Attempt],
+        *,
+        previous_plan_revision: PlanRevisionRef,
+        current_plan_revision: PlanRevisionRef,
+        affected_upstream_attempt_ids: Sequence[str],
+    ) -> tuple[Attempt, ...]:
+        invalidations = invalidate_downstream_attempts(
+            attempts,
+            previous_plan_revision=previous_plan_revision,
+            current_plan_revision=current_plan_revision,
+            affected_upstream_attempt_ids=affected_upstream_attempt_ids,
+        )
+        by_id = {item.attempt.attempt_id: item.attempt for item in invalidations}
+        for attempt in by_id.values():
+            self._persist_checkpoint(attempt, stage=attempt.state.value)
+        return tuple(by_id.get(attempt.attempt_id, attempt) for attempt in attempts)
+
+    def _persist_checkpoint(self, attempt: Attempt, *, stage: str) -> None:
+        if self._checkpoint_store is None:
+            return
+        checkpoint = RecoveryCheckpoint(
+            run_id=attempt.run_id,
+            step_id=attempt.step_id,
+            attempt_id=attempt.attempt_id,
+            last_committed_stage=stage,
+            output_cursors=attempt.output_cursors,
+            output_block_refs=attempt.output_block_refs,
+            resolved_input_digest=attempt.resolved_input_digest,
+            side_effect_class=attempt.side_effect_class,
+            execution_handle_ref=attempt.execution_handle_ref,
+        )
+        self._checkpoint_store.persist(RecoveryRecord(checkpoint=checkpoint, attempt=attempt))
 
     def _apply_collection(
         self,

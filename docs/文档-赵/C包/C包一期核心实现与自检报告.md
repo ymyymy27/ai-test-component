@@ -26,6 +26,12 @@ C包一期核心已经形成从计划输入、执行、采集、过滤、流式S
 - 未封口Spool尾部抢救。
 - 精确上游依赖失效。
 - FakeExecutionPort测试替身隔离。
+- ExecutionFacts生产组装器。
+- 内容寻址对象库和EvidenceRef发布。
+- RecoveryCheckpoint文件持久化和启动扫描。
+- Runner恢复与依赖失效接入。
+- RedactionSummary持久化。
+- Fake UnitOfWork完整闭环。
 
 ## 2 核心文件
 
@@ -45,10 +51,10 @@ C包一期核心已经形成从计划输入、执行、采集、过滤、流式S
 
 当前自动测试：
 
-- pytest：175 passed。
+- pytest：177 passed。
 - ruff check：通过。
 - 本次修改文件ruff format检查：通过。
-- mypy strict：98个源文件无问题。
+- mypy strict：101个源文件无问题。
 
 覆盖范围：
 
