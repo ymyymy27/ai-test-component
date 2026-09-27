@@ -1,4 +1,13 @@
-from aitest.contracts.prepared_run import BindingFormFact, EnvironmentIsolationModeFact
+from typing import get_args
+
+from aitest.contracts.prepared_run import (
+    BindingFormFact,
+    EnvironmentIsolationModeFact,
+    FrozenCase,
+    FrozenCaseStep,
+)
+from aitest.contracts.templates import TemplateItem
+from aitest.domain.planning.plans import CaseLayer
 from aitest.domain.project.context import BindingForm, IsolationMode
 
 
@@ -29,3 +38,34 @@ def test_isolation_mode_has_no_extra_or_missing_members() -> None:
 
 def test_isolation_mode_keeps_all_three_states_distinct() -> None:
     assert {mode.value for mode in IsolationMode} == {"venv", "none", "unmanaged"}
+
+
+def _literal_values(annotation: object) -> set[str]:
+    return {str(value) for value in get_args(annotation)}
+
+
+def test_case_layer_matches_the_contract_literals() -> None:
+    """层级在合同层以 `Literal["L1","L2","L3"]` 声明，不是枚举。
+
+    因此锁定方式是"领域枚举取值集合 == 合同 Literal 参数集合"。
+    见 `07-规则版本与计划用例领域层设计说明.md` 第 2.2 节。
+    """
+    domain_values = {layer.value for layer in CaseLayer}
+    assert domain_values == {"L1", "L2", "L3"}
+    assert domain_values == _literal_values(FrozenCase.model_fields["layer"].annotation)
+    assert domain_values == _literal_values(
+        FrozenCaseStep.model_fields["layer"].annotation
+    )
+    assert domain_values == _literal_values(
+        TemplateItem.model_fields["layer"].annotation
+    )
+
+
+def test_case_layer_literals_agree_across_the_contract() -> None:
+    """合同三处各自声明层级，必须彼此一致，防止各自漂移。"""
+    declarations = [
+        _literal_values(FrozenCase.model_fields["layer"].annotation),
+        _literal_values(FrozenCaseStep.model_fields["layer"].annotation),
+        _literal_values(TemplateItem.model_fields["layer"].annotation),
+    ]
+    assert declarations[0] == declarations[1] == declarations[2]
