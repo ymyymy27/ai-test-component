@@ -181,3 +181,16 @@ B 侧把环境拆成两个对象：
 - 依赖边由 `Dependency` 记录承载（使用者 → 提供者），唯一权威来源；允许循环，拒绝自环。
 - 推导得出的依赖边（`DependencyOrigin.INFERRED`）带 `source`，展示时必须标注**"推导结果，可能不完整"**（需求 P1-FR03）。
 - `BindingForm`（`git` / `plain`）：**`plain` 项目不显示任何仓库字段**，且不因不是 Git 仓库而降低检查范围。
+
+### 7.4 模板状态与必测清单（2026-09-27 新增）
+
+六个内置模板已在 Sprint 3 升级定稿。面板展示模板时须知：
+
+| 项 | 值 | 展示要求 |
+| --- | --- | --- |
+| `implementation_status` | `draft` / `released` / `deprecated` | 取值由原先固定的 `scaffold` 改为三态。**`released` 只表示模板内容定稿**，不表示项目草稿已确认，也不表示可以执行 |
+| `required_item_ids` | 模板适用必测下限（`T`） | 与计划冻结的 `M` 分列展示；`T ⊄ M` 时显示**必测覆盖率警告** |
+| `critical_paths` | 关键链路：`real_dependencies`、`required_verification` | 展示"哪些依赖必须真实、哪次核验不可省"；为空时必须同时展示 `no_critical_path_reason` |
+| `assertion_basis` | 固定写法"待用户补齐并确认，模板不是断言依据" | **不得展示为已填写的断言依据**；它是待用户补齐项，不是模板提供的结论 |
+
+**已知的取值变化**：升级前六份模板为 `scaffold`；升级后为 `released`。若面板此前按 `scaffold` 判断"模板未定稿"，需同步调整。

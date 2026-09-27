@@ -4,16 +4,18 @@
   "version": "1.0.0",
   "name": "人工页面验收",
   "source": "builtin",
-  "applicability": "仅存在页面时适用；能力未实现不是不适用。",
+  "applicability": "适用条件：L3 人工页面验收。仅当项目存在可操作页面时适用。不适用条件：无页面时不适用本模板全部条目。尚不支持某项页面能力（如某控件类型）不等于该条目不适用，须按适用条件逐项判定并给出理由；两者不得混用。人工步骤不显示进度条，按步骤清单由用户实际操作。无法判断时列待确认。",
   "delivery_method": "manual",
-  "implementation_status": "scaffold",
+  "implementation_status": "released",
   "items": [
     {
       "item_id": "navigation",
       "layer": "L3",
-      "objective": "适用按钮/分页/跳转/滚动/鼠标",
+      "objective": "适用按钮、分页、跳转、滚动与鼠标交互：按业务实际覆盖本次改动涉及的可交互元素",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认页面入口地址与前置登录状态",
+        "用户已列出本次改动涉及的可交互元素清单",
+        "每个元素已填写可观察的独立预期"
       ],
       "input_fields": [
         "registered_entry",
@@ -22,59 +24,66 @@
         "environment_ref"
       ],
       "entry_type": "manual_evidence",
-      "expected": "适用按钮/分页/跳转/滚动/鼠标符合用户确认的验收条件",
+      "expected": "清单内每个可交互元素的实际表现与冻结预期一致；未覆盖的元素须显式列出而非默认为通过",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "由用户按步骤清单实际操作并留存材料；不包含浏览器录制回放",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "步骤清单与实际操作记录",
+        "各元素的观察结果",
+        "页面材料（截图或附件）",
+        "未覆盖项清单"
       ]
     },
     {
       "item_id": "form",
       "layer": "L3",
-      "objective": "表单正常/边界/异常提示",
+      "objective": "表单正常、边界与异常提示：覆盖有效提交、边界取值与无效输入的提示信息",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认表单字段、校验规则与预期提示文案",
+        "已确认边界取值与无效输入样例",
+        "已确认是否允许以 Mock 声明后端依赖"
       ],
       "input_fields": [
         "registered_entry",
         "input",
         "expected",
-        "environment_ref"
+        "environment_ref",
+        "mock_scope"
       ],
       "entry_type": "manual_evidence",
-      "expected": "表单正常/边界/异常提示符合用户确认的验收条件",
+      "expected": "正常提交与边界取值被正确接受或拒绝；无效输入得到已确认的提示信息，且不产生未预期的数据写入",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "由用户逐项操作并留存实际提示；提示文案与冻结预期逐字比对",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "各输入样例与提交结果",
+        "实际提示文案",
+        "无效提交后的数据状态",
+        "页面材料"
       ]
     },
     {
       "item_id": "refresh",
       "layer": "L3",
-      "objective": "刷新和重新进入后最终核验",
+      "objective": "刷新与重新进入后的最终核验：确认操作结果在页面重载后仍然成立",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认被核验的业务对象标识",
+        "已确认刷新与重新进入的具体操作方式",
+        "已登记独立只读核验方式（若可用）"
       ],
       "input_fields": [
         "registered_entry",
-        "input",
         "expected",
-        "environment_ref"
+        "environment_ref",
+        "verification_method"
       ],
       "entry_type": "manual_evidence",
-      "expected": "刷新和重新进入后最终核验符合用户确认的验收条件",
+      "expected": "刷新与重新进入后，同一业务对象的状态与操作前的预期一致；仅当次页面显示不作为最终结论",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "由用户执行刷新与重新进入并留存材料；可用独立只读查询时一并留存",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "刷新前后的页面材料",
+        "业务对象标识",
+        "独立只读查询结果（若适用）"
       ]
     }
   ],
@@ -85,36 +94,37 @@
   ],
   "critical_paths": [
     {
-      "path_id": "business-flow",
+      "path_id": "user-action-to-reload",
       "item_ids": [
         "navigation",
         "form",
         "refresh"
       ],
       "real_dependencies": [
-        "本项目已登记且要求真实的业务依赖"
+        "真实可访问的页面与后端服务",
+        "被操作对象所在的真实持久化位置"
       ],
-      "required_verification": "独立核验同一业务对象或实际逐次结果"
+      "required_verification": "页面必须真实可操作（不得以接口调用代替页面操作）；操作结果须在刷新或重新进入后复核；可用独立只读查询时须一并留存"
     }
   ],
   "no_critical_path_reason": null,
   "examples": [
     {
       "kind": "normal",
-      "input": "有效的用户确认输入",
-      "expected": "与独立预期一致",
+      "input": "按步骤清单完成一次正常业务流程操作",
+      "expected": "各元素表现与独立预期一致，刷新后结果仍然成立",
       "status": "draft"
     },
     {
       "kind": "boundary",
-      "input": "空集合/极值/最后一页等实际边界",
-      "expected": "符合已确认边界条件",
+      "input": "分页第一页与最后一页、表单字段取极值或超长输入",
+      "expected": "符合已确认的边界条件与提示规则",
       "status": "draft"
     },
     {
       "kind": "error",
-      "input": "无效输入或适用依赖失败",
-      "expected": "明确错误且无未预期副作用",
+      "input": "必填项留空、非法格式或后端请求失败",
+      "expected": "已确认的异常提示，且无未预期的数据写入",
       "status": "draft"
     }
   ]

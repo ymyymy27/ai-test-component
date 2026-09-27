@@ -69,6 +69,16 @@
       "title": "DraftExample",
       "type": "object"
     },
+    "TemplateImplementationStatus": {
+      "description": "模板自身的定稿状态。\n\n与\"草稿只生成草稿\"这条边界不冲突：`RELEASED` 只表示模板内容已定稿、\n可用于生成项目草稿；**不表示**项目草稿已确认，也**不表示**可以执行。\n模板不设删除路径，`DEPRECATED` 只表示新计划不再选用。\n\n三态不能用 `bool` 折叠：与隔离方式同理，\"模板没写完\"与\"模板已废弃\"是两件事。",
+      "enum": [
+        "draft",
+        "released",
+        "deprecated"
+      ],
+      "title": "TemplateImplementationStatus",
+      "type": "string"
+    },
     "TemplateItem": {
       "additionalProperties": false,
       "properties": {
@@ -187,9 +197,7 @@
       "type": "string"
     },
     "implementation_status": {
-      "const": "scaffold",
-      "title": "Implementation Status",
-      "type": "string"
+      "$ref": "#/$defs/TemplateImplementationStatus"
     },
     "items": {
       "items": {
