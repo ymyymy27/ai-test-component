@@ -44,5 +44,6 @@ def test_forbidden_legacy_and_later_phase_modules_absent() -> None:
         "domain/delivery",
         "application/diagrams.py",
         "application/locations.py",
+        "infrastructure/adapters/execution/fake.py",
     ]:
         assert not (ROOT / name).exists()

@@ -4,8 +4,24 @@ Only consumed signatures are frozen here. Reserved ports name responsibilities,
 not a claim of implementation; expand with typed contracts when implementing a slice.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
+
+from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
+from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.execution.runs import (
+    CapturedOutputBlock,
+    ExecutionCollectionResult,
+    ExecutionHandle,
+    ExecutionInspectionResult,
+    ExecutionRequest,
+    OutputBlockRef,
+    OutputCursor,
+    OutputStreamName,
+    SpoolManifest,
+    StopRequestResult,
+)
 
 
 class Clock(Protocol):
@@ -25,6 +41,16 @@ class RecordRepository(Protocol):
 class EvidenceObjectStore(Protocol):
     """Project-owned immutable bytes, reference and digest validation."""
 
+    def publish_bytes(
+        self,
+        project_id: str,
+        content: bytes,
+        *,
+        media_type: str = "application/octet-stream",
+    ) -> StoredObjectRef: ...
+
+    def read_bytes(self, ref: StoredObjectRef) -> bytes: ...
+
 
 class SourceSnapshotPort(Protocol):
     """Pin, retrieve and materialize source with actual byte identity."""
@@ -35,7 +61,61 @@ class SourceControlPort(Protocol):
 
 
 class ExecutionPort(Protocol):
-    """start/inspect/collect/request_stop; typed signatures pending execution slice."""
+    """Start, inspect, collect, and stop one actual execution handle."""
+
+    def start(self, request: ExecutionRequest) -> ExecutionHandle: ...
+
+    def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult: ...
+
+    def collect(
+        self,
+        handle: ExecutionHandle,
+        cursors: tuple[OutputCursor, ...] | None = None,
+    ) -> ExecutionCollectionResult: ...
+
+    def request_stop(self, handle: ExecutionHandle) -> StopRequestResult: ...
+
+
+class SpoolStreamWriter(Protocol):
+    """Append filtered bytes to one output stream and seal blocks."""
+
+    def append(self, content: bytes) -> tuple[OutputBlockRef, ...]: ...
+
+    def close(self, *, complete: bool = True) -> tuple[OutputBlockRef, ...]: ...
+
+
+class SpoolStore(Protocol):
+    """Persist sealed capture blocks and read their verified metadata."""
+
+    def open_stream(
+        self,
+        *,
+        run_id: str,
+        step_id: str,
+        attempt_id: str,
+        stream_name: OutputStreamName,
+        capture_source: str = "command",
+        block_size: int = 64 * 1024,
+        redaction_summary_id: str | None = None,
+    ) -> SpoolStreamWriter: ...
+
+    def persist_blocks(
+        self,
+        blocks: Sequence[CapturedOutputBlock],
+    ) -> SpoolManifest: ...
+
+    def read_manifest(self, attempt_id: str) -> SpoolManifest: ...
+
+    def read_block(self, ref: OutputBlockRef) -> bytes: ...
+
+    def salvage_streams(self, attempt_id: str) -> SpoolManifest: ...
+
+    def persist_redaction_summary(
+        self,
+        attempt_id: str,
+        stream_name: OutputStreamName,
+        summary: DomainRedactionSummary,
+    ) -> str: ...
 
 
 class VerificationPort(Protocol):

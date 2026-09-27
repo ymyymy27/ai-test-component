@@ -1,8 +1,8 @@
 {
-  "facts_id": "facts-success",
+  "facts_id": "facts-timeout",
   "project_id": "project-1",
   "run_id": "run-1",
-  "snapshot_commit_id": "commit-1",
+  "snapshot_commit_id": "commit-timeout",
   "snapshot_cursor": 10,
   "snapshot_revision": 1,
   "committed_at": "2026-09-24T10:01:00+08:00",
@@ -26,7 +26,7 @@
     },
     "environment_ref": "env-1",
     "rules_revision": "rules-1",
-    "control_state": "completed",
+    "control_state": "pending_verification",
     "required_scope": [
       "case-1"
     ],
@@ -35,8 +35,11 @@
     ],
     "source_binding_digest": "sha256:source-1",
     "started_at": "2026-09-24T10:00:00+08:00",
-    "evidence_level": "full_link",
+    "evidence_level": null,
     "intent_id": "intent-1",
+    "primary_gap_ids": [
+      "gap-timeout"
+    ],
     "environment_isolation_mode": "venv"
   },
   "steps": [
@@ -54,8 +57,11 @@
       "case_id": "case-1",
       "required_for_case": true,
       "level": "L2",
-      "state": "completed",
-      "current_attempt_id": "attempt-1"
+      "state": "pending_verification",
+      "current_attempt_id": "attempt-1",
+      "gap_ids": [
+        "gap-timeout"
+      ]
     }
   ],
   "attempts": [
@@ -66,7 +72,7 @@
       "attempt_revision": 1,
       "attempt_index": 1,
       "retry_count": 0,
-      "state": "completed",
+      "state": "pending_verification",
       "is_current": true,
       "intent_id": "intent-1",
       "intent_digest": "sha256:intent-1",
@@ -81,7 +87,7 @@
       "side_effect_class": "read_only",
       "adapter_kind": "command",
       "adapter_version": "1.0",
-      "capture_completeness": "complete",
+      "capture_completeness": "partial",
       "handle": {
         "handle_id": "handle-1",
         "adapter_kind": "command",
@@ -101,35 +107,22 @@
           "digest": "sha256:block-1",
           "complete": true,
           "capture_source": "wrapper"
-        },
-        {
-          "block_id": "block-2",
-          "attempt_id": "attempt-1",
-          "stream_name": "stderr",
-          "block_index": 0,
-          "offset": 0,
-          "length": 8,
-          "digest": "sha256:block-2",
-          "complete": true,
-          "capture_source": "wrapper"
         }
       ],
       "exit_fact": {
         "attempt_id": "attempt-1",
         "startup_token": "token-1",
         "process_start_identity": "start-1",
-        "real_exit_code": 0,
+        "real_exit_code": -9,
         "last_block_index_by_stream": {
-          "stdout": 0,
-          "stderr": 0
+          "stdout": 0
         },
         "saved_bytes_by_stream": {
-          "stdout": 12,
-          "stderr": 8
+          "stdout": 12
         },
-        "capture_completeness": "complete",
-        "termination_reason": "natural_exit",
-        "timed_out": false
+        "capture_completeness": "partial",
+        "termination_reason": "timeout",
+        "timed_out": true
       },
       "output_cursors": [
         {
@@ -139,15 +132,10 @@
           "last_block_index": 0,
           "last_committed_digest": "sha256:block-1",
           "durable": true
-        },
-        {
-          "attempt_id": "attempt-1",
-          "stream_name": "stderr",
-          "offset": 8,
-          "last_block_index": 0,
-          "last_committed_digest": "sha256:block-2",
-          "durable": true
         }
+      ],
+      "unknown_reason_ids": [
+        "unknown-timeout"
       ]
     }
   ],
@@ -204,7 +192,34 @@
     ],
     "executed_attempt_ids": [
       "attempt-1"
-    ]
+    ],
+    "unknown_step_ids": [
+      "step-1"
+    ],
+    "evidence_gap_count": 1,
+    "critical_gap_count": 1
   },
-  "completeness": "complete"
+  "completeness": "partial",
+  "unknowns": [
+    {
+      "unknown_reason_id": "unknown-timeout",
+      "subject_type": "attempt",
+      "subject_id": "attempt-1",
+      "reason_code": "command_timeout",
+      "safe_reason": "The command exceeded its timeout and was forcibly terminated.",
+      "requires_verification": true,
+      "suggested_next_action": "Verify external side effects before deciding whether a new Attempt is required."
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "gap-timeout",
+      "kind": "capture_completeness",
+      "subject_ref": "attempt-1",
+      "reason_code": "partial_capture_after_timeout",
+      "safe_reason": "Only bytes captured before forced termination are available.",
+      "critical": true,
+      "requires_user_action": false
+    }
+  ]
 }
