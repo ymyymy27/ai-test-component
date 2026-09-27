@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from aitest.domain.project.context import IsolationMode
+
 
 def _require_text(value: str, name: str) -> None:
     if not value.strip():
@@ -472,7 +474,7 @@ class Run:
     conclusion_ceiling: str
     plan_revision_ref: PlanRevisionRef
     environment_ref: str
-    environment_isolated: bool
+    environment_isolation_mode: IsolationMode
     rules_revision: str
     control_state: RunControlState = RunControlState.NOT_STARTED
     evidence_level: str | None = None

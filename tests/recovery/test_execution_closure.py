@@ -31,6 +31,7 @@ from aitest.domain.execution.runs import (
     StepState,
 )
 from aitest.domain.execution.sources import SourceBindingKind
+from aitest.domain.project.context import IsolationMode
 from aitest.infrastructure.adapters.execution.command import (
     CommandAdapter,
     CommandRegistration,
@@ -64,7 +65,7 @@ def _run() -> Run:
         conclusion_ceiling="passable",
         plan_revision_ref=_plan_revision(),
         environment_ref="environment-1",
-        environment_isolated=True,
+        environment_isolation_mode=IsolationMode.VENV,
         rules_revision="rules-1",
         control_state=RunControlState.RUNNING,
         required_scope=frozenset({"case-1"}),

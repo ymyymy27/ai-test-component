@@ -54,6 +54,7 @@ from aitest.contracts.execution_facts import (
 )
 from aitest.contracts.prepared_run import (
     ConclusionCeilingFact,
+    EnvironmentIsolationModeFact,
     RunDriverFact,
     RunTierFact,
 )
@@ -188,7 +189,10 @@ def _run_fact(run: Run) -> RunFact:
         conclusion_ceiling=_enum(ConclusionCeilingFact, run.conclusion_ceiling),
         plan_revision=_plan_revision(run.plan_revision_ref),
         environment_ref=run.environment_ref,
-        environment_isolated=run.environment_isolated,
+        environment_isolation_mode=_enum(
+            EnvironmentIsolationModeFact,
+            run.environment_isolation_mode.value,
+        ),
         rules_revision=run.rules_revision,
         control_state=_enum(RunControlStateFact, run.control_state.value),
         evidence_level=(
