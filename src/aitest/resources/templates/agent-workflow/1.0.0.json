@@ -4,16 +4,18 @@
   "version": "1.0.0",
   "name": "智能体业务评价",
   "source": "builtin",
-  "applicability": "需要真实输入、工具调用与业务结果；缺采集保留缺口。",
+  "applicability": "适用条件：L2 智能体入口调用与工具事件采集，L3 业务结果评价。需要真实输入、实际工具调用与业务结果。不适用条件：缺少工具事件采集能力时不适用工具调用条目，须保留证据缺口并登记原因，不得以采集缺失推定不适用。随机输出的评价规则必须在执行前发布。不采信 AI 自述作为结果证据。无法判断时列待确认。",
   "delivery_method": "registered_command",
-  "implementation_status": "scaffold",
+  "implementation_status": "released",
   "items": [
     {
       "item_id": "input",
       "layer": "L2",
-      "objective": "实际输入及发布评价规则",
+      "objective": "实际输入与发布评价规则：以用户确认的真实输入调用智能体，且评价规则在执行前已发布",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认智能体入口、调用方式与实际输入",
+        "评价规则已在执行前发布并冻结版本",
+        "已确认本次评价对应的业务验收项"
       ],
       "input_fields": [
         "registered_entry",
@@ -22,21 +24,24 @@
         "environment_ref"
       ],
       "entry_type": "agent",
-      "expected": "实际输入及发布评价规则符合用户确认的验收条件",
+      "expected": "使用已确认的真实输入调用入口；评价所依据的规则版本必须是执行前已发布的那一版，不得事后调整规则",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "独立比对实际输入与冻结记录；评价规则版本与执行时间先后关系须可核对",
       "evidence_requirements": [
         "实际输入",
-        "原始输出",
-        "核验证据"
+        "入口调用记录",
+        "评价规则版本与发布时间",
+        "原始响应"
       ]
     },
     {
       "item_id": "calls",
       "layer": "L2",
-      "objective": "真实工具调用和逐次结果",
+      "objective": "真实工具调用与逐次结果：采集实际发生的工具事件，逐次记录其输入与结果",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认可用的工具事件采集方式",
+        "已确认本次预期涉及的工具与调用范围",
+        "已确认采集缺失时的缺口登记方式"
       ],
       "input_fields": [
         "registered_entry",
@@ -45,21 +50,23 @@
         "environment_ref"
       ],
       "entry_type": "agent",
-      "expected": "真实工具调用和逐次结果符合用户确认的验收条件",
+      "expected": "每次工具调用的实际事件与其结果被逐次采集并留存；未采集到的部分登记为证据缺口，不得以文字自述补造",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "比对实际工具事件与冻结预期；采集缺失须显式列缺口，不得默认通过",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "逐次工具事件（名称、参数、结果）",
+        "事件采集来源",
+        "证据缺口清单及原因"
       ]
     },
     {
       "item_id": "repeat",
       "layer": "L3",
-      "objective": "随机输出默认三次分别保存并独立评价",
+      "objective": "随机输出默认三次分别保存并独立评价：对随机性输出按计划执行三次，各自留存并分别评价",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认本次输出是否具有随机性",
+        "已确认三次执行的输入是否相同",
+        "已确认三次结果的评价方式与汇总口径"
       ],
       "input_fields": [
         "registered_entry",
@@ -68,13 +75,14 @@
         "environment_ref"
       ],
       "entry_type": "agent",
-      "expected": "随机输出默认三次分别保存并独立评价符合用户确认的验收条件",
+      "expected": "随机输出按默认三次分别执行、分别留证、分别评价；三次结果不得合并成一次结论，也不得择优保留",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "三次执行的证据相互独立且可追溯；评价按已发布规则分别进行",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "三次执行的输入与输出",
+        "三次各自的评价结果",
+        "评价规则版本",
+        "汇总口径说明"
       ]
     }
   ],
@@ -85,36 +93,38 @@
   ],
   "critical_paths": [
     {
-      "path_id": "business-flow",
+      "path_id": "agent-call-to-evaluation",
       "item_ids": [
         "input",
         "calls",
         "repeat"
       ],
       "real_dependencies": [
-        "本项目已登记且要求真实的业务依赖"
+        "真实可调用的智能体入口",
+        "实际的工具事件采集通道",
+        "随机性输出所需的真实执行环境"
       ],
-      "required_verification": "独立核验同一业务对象或实际逐次结果"
+      "required_verification": "工具事件必须来自实际采集，不得以 AI 文字自述替代；随机输出须三次独立留存；缺采集时登记缺口而非推定通过"
     }
   ],
   "no_critical_path_reason": null,
   "examples": [
     {
       "kind": "normal",
-      "input": "有效的用户确认输入",
-      "expected": "与独立预期一致",
+      "input": "以已确认的真实输入调用智能体，触发预期的工具调用",
+      "expected": "工具事件可采集，结果与已发布评价规则一致",
       "status": "draft"
     },
     {
       "kind": "boundary",
-      "input": "空集合/极值/最后一页等实际边界",
-      "expected": "符合已确认边界条件",
+      "input": "输入长度上限、工具调用次数上限或空工具结果",
+      "expected": "符合已确认的边界条件，且边界情况单独留证",
       "status": "draft"
     },
     {
       "kind": "error",
-      "input": "无效输入或适用依赖失败",
-      "expected": "明确错误且无未预期副作用",
+      "input": "工具调用失败、超时或采集通道不可用",
+      "expected": "已确认的失败行为，并登记为证据缺口而非默认通过",
       "status": "draft"
     }
   ]

@@ -4,39 +4,43 @@
   "version": "1.0.0",
   "name": "Python库/纯函数",
   "source": "builtin",
-  "applicability": "适用于Python库；无持久化时数据库不适用，独立预期比对仍必需。",
+  "applicability": "适用条件：L1 语法与加载检查、L2 函数与模块级检查。适用于 Python 库或纯函数模块（被导入使用，不常驻运行）。不适用条件：常驻服务与最小启动检查不适用（改用 python-service）；无页面不适用人工页面条目。无持久化时数据库核验不适用，但独立预期比对仍为必测。无法判断时列待确认，不得代为判定不适用。",
   "delivery_method": "registered_command",
-  "implementation_status": "scaffold",
+  "implementation_status": "released",
   "items": [
     {
       "item_id": "syntax",
       "layer": "L1",
-      "objective": "适用语法与加载",
+      "objective": "适用语法与加载：按已登记解释器实际导入目标模块，确认无语法错误、无导入失败",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认解释器身份与版本",
+        "用户已确认实际导入入口（模块名或文件路径）",
+        "用户已确认项目模块的实际加载来源"
       ],
       "input_fields": [
         "registered_entry",
-        "input",
-        "expected",
-        "environment_ref"
+        "environment_ref",
+        "source_identity"
       ],
       "entry_type": "python_checks",
-      "expected": "适用语法与加载符合用户确认的验收条件",
+      "expected": "目标模块可被已登记解释器导入，且实际加载来源为项目内模块；语法错误与导入失败必须区分",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "独立比对实际导入结果与冻结的表单要求；缺依赖不得当语法错误",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "解释器身份与版本",
+        "实际加载来源",
+        "原始导入输出",
+        "退出事实"
       ]
     },
     {
       "item_id": "normal",
       "layer": "L2",
-      "objective": "正常输入独立预期比对",
+      "objective": "正常输入独立预期比对：以用户确认的正常输入调用被测函数，与冻结的独立预期逐项比对",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认函数签名、调用方式与输入",
+        "用户已填写独立预期结果",
+        "预期来源与被测实现相互独立"
       ],
       "input_fields": [
         "registered_entry",
@@ -44,22 +48,24 @@
         "expected",
         "environment_ref"
       ],
-      "entry_type": "command",
-      "expected": "正常输入独立预期比对符合用户确认的验收条件",
+      "entry_type": "registered_command",
+      "expected": "实际返回值与冻结的独立预期逐项一致；返回值类型、结构与数值同等核对",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "独立比对实际结果与冻结预期，不以被测实现自身的输出作为预期来源",
       "evidence_requirements": [
         "实际输入",
-        "原始输出",
-        "核验证据"
+        "原始返回值",
+        "冻结的独立预期",
+        "比对结果"
       ]
     },
     {
       "item_id": "boundary",
       "layer": "L2",
-      "objective": "边界输入独立预期比对",
+      "objective": "边界输入独立预期比对：覆盖空集合、极值、临界值与最后一项等实际边界",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认本模块适用的边界条件",
+        "每个边界条件已填写独立预期"
       ],
       "input_fields": [
         "registered_entry",
@@ -67,22 +73,24 @@
         "expected",
         "environment_ref"
       ],
-      "entry_type": "command",
-      "expected": "边界输入独立预期比对符合用户确认的验收条件",
+      "entry_type": "registered_command",
+      "expected": "每个边界输入的结果与冻结的独立预期一致；边界判定依据须记录，不得只测一个代表值",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "逐边界独立比对；边界集合的选取理由与实际值一并留存",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "边界取值与选取理由",
+        "原始返回值",
+        "冻结的独立预期",
+        "比对结果"
       ]
     },
     {
       "item_id": "error",
       "layer": "L2",
-      "objective": "异常输入与异常类型核验",
+      "objective": "异常输入与异常类型核验：确认无效输入产生明确异常，且无未预期副作用",
       "preconditions": [
-        "用户确认实际入口、输入及预期"
+        "用户已确认适用的异常类型或错误返回约定",
+        "用户已确认可接受副作用范围"
       ],
       "input_fields": [
         "registered_entry",
@@ -90,14 +98,14 @@
         "expected",
         "environment_ref"
       ],
-      "entry_type": "command",
-      "expected": "异常输入与异常类型核验符合用户确认的验收条件",
+      "entry_type": "registered_command",
+      "expected": "无效输入得到已确认的异常类型或错误返回；不得静默吞掉或返回含糊结果；无未预期副作用",
       "assertion_basis": "待用户补齐并确认，模板不是断言依据",
-      "verification": "独立比对实际结果与冻结预期",
+      "verification": "独立比对实际异常类型与冻结预期；纯函数须确认无外部状态变化",
       "evidence_requirements": [
-        "实际输入",
-        "原始输出",
-        "核验证据"
+        "无效输入",
+        "实际异常类型与消息",
+        "副作用检查结论"
       ]
     }
   ],
@@ -108,24 +116,24 @@
     "error"
   ],
   "critical_paths": [],
-  "no_critical_path_reason": "纯函数样例没有跨系统链路；独立预期比对仍必测。",
+  "no_critical_path_reason": "纯函数样例没有跨系统链路，因此不适用关键链路的真实依赖要求；但独立预期比对仍为必测，且不得用运行成功代替。",
   "examples": [
     {
       "kind": "normal",
-      "input": "有效的用户确认输入",
-      "expected": "与独立预期一致",
+      "input": "用户确认的正常输入，例如一组有效参数",
+      "expected": "与独立预期逐项一致",
       "status": "draft"
     },
     {
       "kind": "boundary",
-      "input": "空集合/极值/最后一页等实际边界",
-      "expected": "符合已确认边界条件",
+      "input": "空集合、极值、临界值或最后一项",
+      "expected": "符合已确认的边界条件",
       "status": "draft"
     },
     {
       "kind": "error",
-      "input": "无效输入或适用依赖失败",
-      "expected": "明确错误且无未预期副作用",
+      "input": "无效输入类型或越界取值",
+      "expected": "已确认的异常类型，且无未预期副作用",
       "status": "draft"
     }
   ]
