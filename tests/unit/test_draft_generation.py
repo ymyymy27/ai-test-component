@@ -7,11 +7,15 @@
 import pytest
 
 from aitest.application.planning.draft import (
+    ApplicabilityAssessment,
     DraftKind,
     GeneratedContent,
+    ProjectCapabilities,
     RevisionContext,
     TemplateNotFoundError,
+    TemplateRequirements,
     apply_template,
+    assess_template,
     draft_expiry,
     list_templates,
     load_template,
@@ -256,3 +260,61 @@ def test_revision_context_requires_positive_revisions() -> None:
         _context(template_revision=" ")
     with pytest.raises(ValueError, match="rules_revision"):
         _context(rules_revision=0)
+
+
+# ------------------------------------------------------------------ 模板适用条件
+
+
+def test_template_applies_when_every_requirement_is_met() -> None:
+    assessment = assess_template(
+        TemplateRequirements(requires_entry_point=True),
+        ProjectCapabilities(has_entry_point=True),
+    )
+    assert assessment.applicable is True
+    assert assessment.missing == ()
+
+
+def test_missing_entry_point_names_the_reason() -> None:
+    """施工清单要求"不适用项给出原因"，因此要**具体缺哪一项**，不是只回布尔。"""
+    assessment = assess_template(
+        TemplateRequirements(requires_entry_point=True),
+        ProjectCapabilities(has_entry_point=False),
+    )
+    assert assessment.applicable is False
+    assert assessment.missing == ("entry_point",)
+
+
+def test_every_missing_requirement_is_listed() -> None:
+    assessment = assess_template(
+        TemplateRequirements(
+            requires_entry_point=True,
+            requires_http_target=True,
+            requires_agent_model=True,
+            requires_frontend=True,
+            requires_database_verification=True,
+        ),
+        ProjectCapabilities(),
+    )
+    assert assessment.missing == (
+        "entry_point",
+        "http_target",
+        "agent_model",
+        "frontend",
+        "database_verification",
+    )
+
+
+def test_requirements_not_declared_are_not_checked() -> None:
+    """模板没要求的能力，项目没有也不构成不适用。"""
+    assessment = assess_template(
+        TemplateRequirements(requires_entry_point=True, requires_http_target=False),
+        ProjectCapabilities(has_entry_point=True, has_http_target=False),
+    )
+    assert assessment.applicable is True
+
+
+def test_assessment_cannot_be_both_applicable_and_missing() -> None:
+    with pytest.raises(ValueError, match="must not report missing requirements"):
+        ApplicabilityAssessment(applicable=True, missing=("http_target",))
+    with pytest.raises(ValueError, match="must name what is missing"):
+        ApplicabilityAssessment(applicable=False)
