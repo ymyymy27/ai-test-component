@@ -1,0 +1,221 @@
+{
+  "acceptance_scope_revision": 1,
+  "applicability_exclusions": [],
+  "assertion_bases": [
+    {
+      "assertion_basis_state": "present_unconfirmed",
+      "basis_revision": 1,
+      "basis_text_digest": "sha256:basis-create-ticket",
+      "case_id": "case-create-ticket",
+      "confirmation_refs": []
+    },
+    {
+      "assertion_basis_state": "confirmed",
+      "basis_revision": 1,
+      "basis_text_digest": "sha256:basis-change-status",
+      "case_id": "case-change-status",
+      "confirmation_refs": [
+        {
+          "basis_revision": 1,
+          "case_id": "case-change-status",
+          "confirmation_id": "confirmation-case-change-status",
+          "confirmed_at_commit": "commit-2"
+        }
+      ]
+    }
+  ],
+  "authorization_requirements": [],
+  "binding_form": "git",
+  "binding_id": "binding-ticket",
+  "binding_revision": 2,
+  "blocking_reasons": [
+    {
+      "code": "missing_environment_carrier",
+      "message": "the environment declares no dependency carrier"
+    }
+  ],
+  "case_revisions": [
+    {
+      "case_id": "case-create-ticket",
+      "digest": "sha256:case-case-create-ticket",
+      "revision": 1
+    },
+    {
+      "case_id": "case-change-status",
+      "digest": "sha256:case-case-change-status",
+      "revision": 1
+    }
+  ],
+  "client_id": "client-trae",
+  "conclusion_ceiling": "passable",
+  "created_at": "2026-09-28T12:00:00Z",
+  "created_at_commit": "commit-3",
+  "environment": {
+    "dependency_set_digest": "sha256:dependency-set-1",
+    "environment_id": "env-local",
+    "interpreter_identity": "cpython-3.13.3-windows-amd64",
+    "isolation_mode": "venv",
+    "revision": 1
+  },
+  "exclusion_rules": [
+    "**/__pycache__/**",
+    "**/*.pyc"
+  ],
+  "execution_source": {
+    "adapter_versions": {
+      "command": "1.0.0"
+    },
+    "allowed_env_keys": [
+      "PYTHONPATH"
+    ],
+    "cwd_mapping": "<project-root> -> workdirs/run-1",
+    "entry_arguments": [
+      "tests/acceptance"
+    ],
+    "registered_entry": "python -m pytest",
+    "resolved_input_digest": "sha256:resolved-input-1",
+    "secret_refs": [
+      "MODEL_API_KEY"
+    ],
+    "test_config_ref": "pyproject.toml#tool.pytest"
+  },
+  "frozen_cases": [
+    {
+      "case_id": "case-create-ticket",
+      "importance": "P0",
+      "independent_verification": "read-only query against the same ticket id",
+      "layer": "L2",
+      "links": {
+        "acceptance_item_ids": [
+          "acceptance-create-ticket"
+        ],
+        "critical_path_ids": [
+          "path-ticket-write-read"
+        ],
+        "environment_ids": [
+          "env-local"
+        ],
+        "module_ids": [
+          "module-store",
+          "module-ticket"
+        ]
+      },
+      "mock_scope": [],
+      "required": true,
+      "revision": 1,
+      "steps": [
+        {
+          "expected": "the persisted ticket matches the submitted fields",
+          "layer": "L2",
+          "objective": "create a ticket through the registered entry",
+          "step_id": "step-1"
+        },
+        {
+          "expected": "the persisted ticket matches the submitted fields",
+          "layer": "L2",
+          "objective": "read the ticket back through an independent read-only query",
+          "step_id": "step-2"
+        }
+      ]
+    },
+    {
+      "case_id": "case-change-status",
+      "importance": "P1",
+      "independent_verification": "read-only query after changing the status",
+      "layer": "L2",
+      "links": {
+        "acceptance_item_ids": [
+          "acceptance-change-status"
+        ],
+        "critical_path_ids": [
+          "path-ticket-write-read"
+        ],
+        "environment_ids": [
+          "env-local"
+        ],
+        "module_ids": [
+          "module-store",
+          "module-ticket"
+        ]
+      },
+      "mock_scope": [],
+      "required": true,
+      "revision": 1,
+      "steps": [
+        {
+          "expected": "the new status is persisted",
+          "layer": "L2",
+          "objective": "change the ticket status",
+          "step_id": "step-1"
+        },
+        {
+          "expected": "the new status is persisted",
+          "layer": "L2",
+          "objective": "re-read the ticket independently",
+          "step_id": "step-2"
+        }
+      ]
+    }
+  ],
+  "frozen_required_case_ids": [
+    "case-create-ticket",
+    "case-change-status"
+  ],
+  "gaps": [],
+  "git_base_commit": "9c44344bcd612df1a7d033efa1e7a47c810c49cf",
+  "git_diff_digest": "sha256:git-diff-1",
+  "initial_driver": "planned",
+  "intent_id": "intent:prepare-request-1",
+  "invalidation_rules": [],
+  "model_outbound_policy_revision": null,
+  "payload_hash": "sha256:ed2fd51308330a35f059232769f0ccca444a7c26b9ab1914b71bd007daf8c3ea",
+  "plain_manifest_digest": null,
+  "plan_revision": {
+    "digest": "sha256:plan-ticket",
+    "revision_id": "plan-ticket",
+    "revision_no": 1
+  },
+  "prepare_request_id": "prepare-request-1",
+  "prepared_run_id": "prepared:prepare-request-1",
+  "project_id": "project-ticket",
+  "refetch_dependencies": [
+    "git-lfs:assets/*"
+  ],
+  "rule_versions": [
+    {
+      "digest": "sha256:rule-ticket",
+      "revision": 1,
+      "rule_id": "rule-ticket"
+    }
+  ],
+  "run_tier": "full",
+  "schema_version": "aitest.prepared-run/1.0",
+  "selected_case_ids": [
+    "case-create-ticket",
+    "case-change-status"
+  ],
+  "selected_paths": [
+    "src/ticket",
+    "tests"
+  ],
+  "skipped_scope": [],
+  "snapshot": {
+    "content_identity": "git:9c44344bcd612df1a7d033efa1e7a47c810c49cf",
+    "purpose": "prepare",
+    "source_snapshot_id": "snapshot-ticket-1"
+  },
+  "source_snippets_enabled": false,
+  "status": "blocked",
+  "template_required_case_ids": [
+    "case-create-ticket",
+    "case-change-status"
+  ],
+  "template_versions": [
+    {
+      "digest": "sha256:tpl-ticket",
+      "template_id": "ticket-workflow",
+      "version": "1.0.0"
+    }
+  ],
+  "workspace_id": "ws-ticket"
+}
