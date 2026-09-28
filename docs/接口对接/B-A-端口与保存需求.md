@@ -1,10 +1,10 @@
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：0.1
-日期：2026-09-24
+版本：0.2
+日期：2026-09-28
 提出方：B 包（feix-a，项目与计划）
 接收方：A 包（本地核心底座）
-状态：**待 A 确认**
+状态：**待 A 确认；第 8 节已提供可直接照抄的签名草案**
 依据：一期架构文档《01-项目与计划》第 7、8、11 节；《04-存储与恢复》第 2、13 节；组长实施方案第 3 节
 
 ---
@@ -207,3 +207,236 @@ B 包是这些端口的主要使用者之一：
 | 日期 | 版本 | 变更 | 确认方 |
 | --- | --- | --- | --- |
 | 2026-09-24 | 0.1 | 初稿 | B 包 feix-a（待 A 回复） |
+
+---
+
+## 8 端口签名草案（B 包提供，待 A 采用或修正）
+
+> **本节性质**：B 在等 `WorkspaceUnitOfWork` / `RecordRepository` / `SourceSnapshotPort` 的签名期间，
+> 按第 3 节的语义需求写了一版**可直接照抄的草案**，供 A 采用或据以反驳。
+> **B 不修改 `application/ports.py`**（该文件所有者是 A）。
+> A 若采用别的形态，B 按 A 的形态改自己的应用用例，不改本节以外的既有代码。
+>
+> 草案遵守 A 已建立的既有约定：`application/ports.py` **保持单文件**、
+> 各包只在自己的段落追加（第 4 节）。
+
+### 8.1 建议同时放在 `application/ports.py` 的公共类型
+
+```python
+from dataclasses import dataclass
+from typing import Literal
+
+AggregateKind = Literal[
+    "project", "binding", "module", "dependency_set", "task", "delivery",
+    "acceptance_item", "environment", "source_snapshot", "template_ref",
+    "generated_content", "rule_draft", "rule_version", "case", "case_link",
+    "plan", "acceptance_scope", "preparation_record", "model_outbound_policy",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class RevisionRef:
+    """一次写入产生的不可变修订引用。"""
+
+    aggregate_kind: AggregateKind
+    record_id: str
+    revision: int
+    digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class CommitResult:
+    """一次提交的结果。
+
+    `commit_seq` 是**提交序号**：B 的业务顺序一律按它判断，不使用系统时间
+    （功能文档第 5 节）。`created` 按 `(aggregate_kind, record_id)` 索引本次提交
+    产生的修订，调用方据此拿到新修订号，不必再读一次。
+    """
+
+    commit_seq: str
+    created: Mapping[tuple[AggregateKind, str], RevisionRef]
+
+
+@dataclass(frozen=True, slots=True)
+class Page[T]:
+    """项目范围内的稳定分页；列表读摘要，详情按引用读取。"""
+
+    items: tuple[T, ...]
+    next_cursor: str | None
+```
+
+### 8.2 `WorkspaceUnitOfWork`（草案）
+
+```python
+class WorkspaceUnitOfWork(Protocol):
+    """短事务边界；同一提交内保存记录、引用、索引与幂等结果。"""
+
+    def commit_seq(self) -> str:
+        """当前提交序号；已提交状态下的业务顺序依据。"""
+        ...
+
+    def stage_record(
+        self,
+        *,
+        aggregate_kind: AggregateKind,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
+    ) -> RevisionRef:
+        """在**同一事务内**暂存一条不可变修订。
+
+        `expected_revision` 为 `None` 表示"新建"。与当前修订不一致时抛
+        `StaleRevisionError`，并带上**当前修订与差异提示**，**不自动覆盖用户编辑**。
+        """
+        ...
+
+    def stage_preparation(
+        self,
+        record: PreparationRecord,
+        *,
+        payload: Mapping[str, object],
+    ) -> RevisionRef:
+        """登记准备记录与 `intent_id`——**必须在同一提交内**（架构文档第 11 节）。
+
+        同一 `(project_id, client_id, prepare_request_id)`：
+        摘要相同返回原记录的修订；摘要不同抛 `PreparationConflictError`
+        （**不覆盖**）。
+        """
+        ...
+
+    def commit(self) -> CommitResult:
+        """提交并发布索引；提交成功后对后续读取可见。"""
+        ...
+
+    def rollback(self) -> None:
+        """放弃本次暂存；不产生任何可见修订。"""
+        ...
+```
+
+**待 A 定的三处**：
+
+1. **谁提供实例**：`bootstrap.py` 注入，还是另有工厂？B 的应用用例需要一个入口拿到它。
+2. **暂存顺序**：B 希望"先 `stage_*` 再 `commit`"，以便在提交前知道修订号（`payload_hash`
+   要引用各来源修订）。若 A 采用"提交时才分配修订号"，B 需要改为两阶段写法。
+3. **提交后可见性**：第 6 节第 5 问——工作单元是否提供提交后的读入口，还是 B 走
+   `RecordRepository`？B 的用例倾向后者（读写分开，便于测试）。
+
+### 8.3 `RecordRepository`（草案）
+
+```python
+class RecordRepository(Protocol):
+    """不可变修订的读取与项目范围分页；**所有 read 必须接受显式修订**。"""
+
+    # --- 项目与绑定 -------------------------------------------------
+    def read_project(self, project_id: str, revision: int) -> Mapping[str, object]: ...
+    def list_projects(self, *, cursor: str | None = None, limit: int = 50) -> Page[Mapping[str, object]]: ...
+    def read_binding(self, binding_id: str, revision: int) -> Mapping[str, object]: ...
+
+    # --- 环境 -------------------------------------------------------
+    def read_environment(self, environment_id: str, revision: int) -> Mapping[str, object]: ...
+
+    # --- 计划与用例 -------------------------------------------------
+    def read_plan(self, plan_id: str, revision: int) -> Mapping[str, object]: ...
+    def read_acceptance_scope(self, scope_id: str, revision: int) -> Mapping[str, object]: ...
+    def read_case(self, case_id: str, revision: int) -> Mapping[str, object]: ...
+    def read_case_links(self, case_id: str, revision: int) -> Mapping[str, object]: ...
+
+    # --- 规则与模板 -------------------------------------------------
+    def read_rule_version(self, rule_id: str, revision: int) -> Mapping[str, object]: ...
+
+    # --- 幂等查询（按业务身份，不返回"最新"）------------------------
+    def find_preparation(
+        self, project_id: str, client_id: str, prepare_request_id: str
+    ) -> Mapping[str, object] | None: ...
+    def find_preparation_by_intent(self, intent_id: str) -> Mapping[str, object] | None: ...
+```
+
+**关键要求（对应第 3.1 节）**：
+
+1. **按准确修订读取**：所有 `read_*` 必须接受显式修订参数，**不得默默回退到最新值**。
+   "B 不向 C 传当前最新计划"这条约束就落在签名上。
+2. **返回原始 payload**：B 用自己的 `application/project/serialization.py` 还原领域对象，
+   因此端口不必了解 B 的领域类型（**避免端口依赖 domain 具体类**）。
+   若 A 更愿意直接回领域对象，B 也接受，但需要在 `ports.py` 里 import B 的类型，请 A 判断。
+3. **列表读摘要**：`list_*` 只返回摘要，详情按引用读取（第 3.1 节第 3 条）。
+
+### 8.4 `SourceSnapshotPort`（草案，**依赖归属裁定**）
+
+```python
+class SourceSnapshotPort(Protocol):
+    """建立与复取真实被测内容，读取源码变化；内容身份来自实际字节摘要。"""
+
+    def pin(
+        self,
+        *,
+        canonical_path: str,
+        purpose: Literal["analysis", "prepare"],
+        selected_paths: Sequence[str] = (),
+        exclusion_rules: Sequence[str] = (),
+    ) -> Mapping[str, object]:
+        """按实际字节固定一份快照；`mtime` 只作变化提示，不证明内容相同。"""
+        ...
+
+    def materialize(self, snapshot_id: str, destination: str) -> Mapping[str, object]:
+        """把已固定内容物化到指定目录；返回实际路径映射与内容摘要。"""
+        ...
+
+    def read_pinned(self, snapshot_id: str) -> Mapping[str, object]:
+        """按稳定标识读取已固定快照的元数据（不重新扫描目录）。"""
+        ...
+
+    def detect_changes(self, snapshot_id: str) -> Mapping[str, object]:
+        """与已固定快照比较，返回变化清单；无法证明未变时不得报"未变"。"""
+        ...
+```
+
+**需要 A 或组长先裁定的一点**（第 5 节 + `09-待解决问题清单.md` B-Q01）：
+`SourceSnapshot` 的**领域对象**在 C 的 `domain/execution/sources.py`，而**建立时机、`purpose`
+取值、排除规则与内容身份计算规则**归 B。B 的 `InputRevisions.snapshot_revision` 需要把它
+规约成一个整数修订号。上图草案用 `Mapping[str, object]` 回避了类型归属问题，
+但**归属不定就无法确定字段名**，所以本端口是三个里面唯一**不能先接线**的。
+
+### 8.5 方法 → 产品要求对照
+
+| 方法 | 对应要求 | 依据 |
+| --- | --- | --- |
+| `WorkspaceUnitOfWork.commit` | "记录、引用、索引与幂等结果**同一事务**提交" | 架构文档第 8 节；根 `AGENTS.md` 第 3 节 |
+| `WorkspaceUnitOfWork.stage_record(expected_revision)` | "比对 `expected_revision`；冲突返回当前修订和差异提示，**不自动覆盖用户编辑**" | 架构文档第 8 节末 |
+| `WorkspaceUnitOfWork.stage_preparation` | "在工作单元内按 `(project_id, client_id, prepare_request_id)` 登记 `PreparationRecord` 及 `intent_id`；**输入摘要不同返回冲突**；**与准备记录同一次提交**" | 架构文档第 11 节 |
+| `RecordRepository.read_*(revision)` | "所有 `read_*` 必须接受显式修订参数，不得默默回退到最新值" | 实施方案第 3 节；本文件第 3.1 节 |
+| `RecordRepository.find_preparation*` | "prepare/start 响应丢失通过同键查询返回原结果"；"跨入口恢复通过 `intent_id` 或准备查询" | 架构文档第 11 节 |
+| `RecordRepository.list_projects` | "列表读摘要，详情按引用读取"；有限 `QuerySpec` | 存储与恢复第 13 节 |
+| `SourceSnapshotPort.pin` | "内容身份必须来自实际字节摘要；元数据（mtime）仅作为变化提示" | B 包 AI 规则第 3.6 节；架构文档第 2 节 |
+
+### 8.6 并发语义（第 6 节第 2 问的 B 方建议）
+
+**建议在端口层（事务内）实现**，理由是"并发完成同一准备请求只能发布一条
+`PreparationRecord`，其余取得已发布结果"（架构文档第 11 节）——这句话描述的是
+**并发下的写入结果**，应用用例在事务外无法证明它。因此：
+
+- `stage_preparation` 在同一事务内按三个身份键检查已有记录；
+- 摘要相同 → 返回原记录修订，**不新建**；
+- 摘要不同 → 抛 `PreparationConflictError`，携带原记录的 `intent_id`、`payload_hash`
+  与 `created_at_commit`，供调用方给出明确提示；
+- B 的 `decide_preparation()` 只负责**单线程下的判定与提示内容**，不承担并发保证。
+
+### 8.7 B 已按本草案实现的规则（可独立验证，不含 I/O）
+
+| 产物 | 位置 |
+| --- | --- |
+| `InputRevisions`、`PreparationRequest`、`PreparationRecord` | `src/aitest/application/planning/preparation.py` |
+| `payload_hash()`（业务输入摘要；不含传输层参数） | 同上 |
+| `decide_preparation()` 四态判定（`new`/`reused`/`conflicted`/`needs_reprepare`） | 同上 |
+| 绑定序列化：不适用键真正省略、可往返 | `src/aitest/application/project/serialization.py` |
+
+设计依据见 `docs/文档-feix-a/B包/10-准备意图与幂等规则设计说明.md`。
+**A 的签名一旦落地，B 只需在这些规则外面加编排，规则本身不再改动。**
+
+---
+
+## 9 变更记录
+
+| 日期 | 版本 | 变更 | 确认方 |
+| --- | --- | --- | --- |
+| 2026-09-24 | 0.1 | 初稿：记录清单、端口语义需求、协作约定、`SourceSnapshot` 归属冲突 | B 包 feix-a（待 A 回复） |
+| 2026-09-28 | 0.2 | 补第 8 节：**可直接照抄的端口签名草案**（公共类型、三个 Protocol、方法→要求对照、并发语义建议）；补第 8.7 节 B 已实现的纯规则部分 | B 包 feix-a（待 A 采用或修正） |
