@@ -1,9 +1,989 @@
 {
+  "version": "0.1",
+  "updated_at": "2026-09-28",
+  "baseline_commit": "eaa315fdc32d606f931c76bc5d71db4f09ee7e91",
   "scope": "product_acceptance_not_scaffold_tests",
+  "update_rules": {
+    "owner_field": "owner 由《一期工程四部分拆分与低对接实施方案》第 5 节确定",
+    "scenario_expected": "scenario／expected／related_frs 逐字取自需求文档第 5 节，只在需求文档改动后同步，任何一方不得改写",
+    "b_scope": "B 只更新自己牵头的 P1-AC01／03／12／17／20／30／31／32 的分析与结论字段，不代其他包填结论",
+    "verified_rule": "result=verified 必须同时满足 evidence.path 非空且 real_environment_verified=true",
+    "no_inference": "文档一致、单元与合同测试通过、夹具通过，均不得写成真实环境验收通过"
+  },
+  "results": [
+    {
+      "id": "P1-AC01",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "开发提交缺少运行说明和版本的交付",
+      "expected": "提示必填信息，不将任务推进为可验收",
+      "related_frs": [
+        "P1-FR02",
+        "P1-FR06"
+      ],
+      "prerequisites": [
+        "1 个真实项目：开发提交缺少运行说明与版本信息（Git 与 plain 各一）",
+        "交付说明用例可写入口：application/project 的交付用例 + A 的 WorkspaceUnitOfWork 落盘",
+        "入口侧提示与阻止推进的效果（D 的 LocalReview／面板）"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "交付说明与任务领域模型的修订号（domain/project、domain/planning）"
+      ],
+      "actual": "未执行。已具备纯规则与用例层校验：交付说明必填字段缺失时拒绝登记（tests/unit/test_deliveries.py）；缺少上下文时 detect_context_gaps() 返回阻塞缺口且不生成草稿（tests/unit/test_project_context_usecases.py、tests/unit/test_draft_generation.py）。真实落盘与入口提示未接通，未产生任何验收证据。",
+      "evidence": {
+        "path": null,
+        "description": "待补：真实项目输入、阻塞原因截图或日志、落盘记录与修订号",
+        "method": "real_entry_then_domain_assertion"
+      },
+      "unverified_reason": "缺真实存储落盘与入口提示：交付说明校验目前只在用例层生效，未落盘、未经入口触发，无法证明『不将任务推进为可验收』在真实产品路径上成立。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "入口提示与任务状态的呈现由 D 负责",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC02",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "GitHub 检查通过但业务断言失败",
+      "expected": "保留业务失败结果，展示两类检查的区别",
+      "related_frs": [
+        "P1-FR11",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC03",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "被测代码只有一个模块",
+      "expected": "可完成该模块的适用检查；本模块变更与回归检查可用，仅跨模块传播显示不适用并说明原因",
+      "related_frs": [
+        "P1-FR01",
+        "P1-FR03"
+      ],
+      "prerequisites": [
+        "1 个只含单一模块的真实被测项目（Git 与 plain 各一）",
+        "建立项目、模块、绑定的真实落盘路径",
+        "该模块适用检查的实际执行（C 的 L1／L2）与跨模块传播的不适用判定"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "模块与依赖图的修订号（domain/project/context.py）"
+      ],
+      "actual": "未执行。单模块项目、依赖边方向与循环／自环规则已有单元测试（tests/unit/test_modules_and_dependencies.py）；跨模块传播的『不适用并说明原因』纯规则在应用层具备。未接真实存储与真实执行，无验收证据。",
+      "evidence": {
+        "path": null,
+        "description": "待补：单模块项目输入、适用检查结果、跨模块不适用原因",
+        "method": "real_project_then_scope_assertion"
+      },
+      "unverified_reason": "缺真实落盘与真实执行事实：无法证明单模块项目能完成适用检查，也无法证明跨模块项在真实报告中显示为『不适用』而非空白或失败。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "execution_facts",
+          "detail": "C 的真实 ExecutionFacts（Sprint 7 之后的运行事实）",
+          "resolved_by": "C"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC04",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "没有前端，只有两个后端模块",
+      "expected": "可通过模块入口和接口完成适用测试，网页项注明不适用",
+      "related_frs": [
+        "P1-FR08",
+        "P1-FR10",
+        "P1-FR11"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC05",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "模块测试按计划使用 Mock 并通过",
+      "expected": "保留通过结论并显示 Mock 范围，真实集成仍待验证",
+      "related_frs": [
+        "P1-FR10",
+        "P1-FR12"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC06",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "关键函数使用未声明的模拟实现；另注入\"静态候选命中但运行证据不足\"与\"声明为真实但只拿到 Mock 证据\"两种情形",
+      "expected": "提示疑点；**静态候选只作为风险提示**，证据不足时保持未知、不判为真实；声明与证据冲突时以证据为准并标为\"混合／未知\"，不给该范围真实链路通过",
+      "related_frs": [
+        "P1-FR12",
+        "P1-FR10"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC07",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "接口返回成功，实际未写入数据库；虚构凭据跨输出块、响应回显与采集异常",
+      "expected": "独立数据断言失败，报告不显示真实业务通过；落盘前过滤适用凭据/认证字段，spool及永久对象不保存过滤前字节；无法安全处理形成缺口，不假报核验通过",
+      "related_frs": [
+        "P1-FR11",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC08",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "页面分页或滚动后功能失效；另注入\"按钮、分页、跳转、表单、滚动、适用鼠标操作、异常提示\"七类操作各一条",
+      "expected": "记录操作、版本、现象与证据，生成可编辑缺陷草稿；**七类操作都有对应记录与证据**，未覆盖的类型在报告中列为覆盖缺口（人工步骤按\"待操作第 N 步\"呈现）",
+      "related_frs": [
+        "P1-FR13",
+        "P1-FR15"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC09",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "一次操作有请求标识和后端日志",
+      "expected": "能查看同次执行的证据关联，缺口明确标出",
+      "related_frs": [
+        "P1-FR09",
+        "P1-FR11"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC10",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "AI 在缺少日志时提出具体根因",
+      "expected": "以待验证假设呈现并要求证据，人工可驳回并留痕",
+      "related_frs": [
+        "P1-FR09",
+        "P1-FR15"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC11",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "缺陷修复后复测仍失败",
+      "expected": "保留修复版本与复测记录，缺陷重新进入处理流程",
+      "related_frs": [
+        "P1-FR15"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC12",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "规则或代码在测试后发生变化",
+      "expected": "旧记录保留原版本，新执行绑定新版本，关联用例可待回归",
+      "related_frs": [
+        "P1-FR03",
+        "P1-FR05"
+      ],
+      "prerequisites": [
+        "一次已发布的规则与计划修订，以及其后的真实规则／代码变化",
+        "旧记录与新执行的修订绑定关系可读",
+        "『关联用例可待回归』的运行状态（C 的运行与依赖失效事实）"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "规则修订（domain/planning/rules.py）、计划修订（domain/planning/plans.py）、模板修订"
+      ],
+      "actual": "未执行。规则发布门禁与『发布修订不可变、新版本另存』已有测试（tests/unit/test_rules.py、tests/unit/test_publish_orchestration.py：第二次修订落为新的记录修订）；草稿定向失效已实现（tests/unit/test_draft_generation.py）。真实存储的历史保留与新执行绑定未验证。",
+      "evidence": {
+        "path": null,
+        "description": "待补：变化前后的修订号、旧记录读取结果、新执行绑定的修订",
+        "method": "revision_binding_assertion"
+      },
+      "unverified_reason": "缺真实存储的历史保留与真实执行：无法证明变化后旧记录仍读得到原版本、新执行绑定新版本。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "real_storage",
+          "detail": "不可变历史与修订读回由 A 的 file_store 提供",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "execution_facts",
+          "detail": "C 的真实 ExecutionFacts（Sprint 7 之后的运行事实）",
+          "resolved_by": "C"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC13",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "某测试因环境不可达而未运行；复用venv中的本项目editable/PYTHONPATH或绝对入口指向原仓库",
+      "expected": "显示阻塞原因，报告中不计为通过；启动前核对实际来源，不符则阻塞；执行后发现来源不明保留事实并标证据缺口，不能以workdir复制成功判对应源码通过",
+      "related_frs": [
+        "P1-FR08",
+        "P1-FR09",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC14",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "当前范围仍有未关闭 P1 缺陷；核实非缺陷、重复归并、主问题重开及暂缓",
+      "expected": "阻止该范围判定通过并显示关联问题；核实非缺陷须有人工确认与依据，不改变原失败断言；重复无环且沿主问题只计一次阻塞，不能借归并隐式降级；主问题重开重新阻塞；暂缓不能放行",
+      "related_frs": [
+        "P1-FR15",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC15",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "模型服务调用失败",
+      "expected": "可查看原始证据、人工填写结论并提交缺陷",
+      "related_frs": [
+        "P1-FR09",
+        "P1-FR15"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC16",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "导出包含请求和日志的报告",
+      "expected": "使用统一字段与编号，密钥等敏感信息不出现在导出内容",
+      "related_frs": [
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC17",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "用同一内置模板处理两个项目，其中一个上下文缺失",
+      "expected": "生成结构一致的草稿并标注来源；上下文缺失时列缺口并阻塞，未确认草稿不进入执行",
+      "related_frs": [
+        "P1-FR04",
+        "P1-FR05",
+        "P1-FR06"
+      ],
+      "prerequisites": [
+        "两个真实项目：一个上下文完整、一个上下文缺失（缺环境载体或缺依赖登记）",
+        "同一个内置模板在两个项目上的草稿生成",
+        "草稿来源标注与『未确认草稿不进入执行』的入口（D）"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "六个内置模板修订（resources/templates/*/1.0.0.json）"
+      ],
+      "actual": "未执行。六模板结构与草稿生成、来源标注、上下文缺口阻塞均有测试（tests/contracts/test_template_content.py、tests/unit/test_draft_generation.py：缺口存在时不生成草稿、只列缺口）；『生成内容为草稿且无自动发布路径』有反例测试。真实存储落盘与入口执行未接通。",
+      "evidence": {
+        "path": null,
+        "description": "待补：两个项目的草稿结构对比、缺口清单、草稿未进入执行的记录",
+        "method": "two_project_draft_comparison"
+      },
+      "unverified_reason": "缺真实落盘与入口：草稿目前不落盘，『未确认草稿不进入执行』无法在真实入口上被证伪或证实；git 形态的源码身份因 SourceSnapshot 归属未裁定尚未实现。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "decision",
+          "detail": "B-Q01／C-Q08：SourceSnapshot 归属待 A 或组长裁定",
+          "resolved_by": "A/组长"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "草稿确认与执行的入口由 D 负责",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC18",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "同一批检查分别以按需自测（只选 L2 且跳过 3 项）与完整验证执行；另注入按需自测把冻结范围全部勾满并全部通过的情形",
+      "expected": "按需自测不判完整通过，勾满范围也一样；按需自测逐条列出未执行与跳过项及原因；只有完整验证在跳过项为 0 且条件满足时判通过；**快速检查与按需自测不派生证据等级，报告标注\"未打分\"并给覆盖摘要**；换逐步驱动重跑同一范围，判定口径一致",
+      "related_frs": [
+        "P1-FR07",
+        "P1-FR08",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC19",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "暂停、取消、重试、退回与同意图双入口触发；执行器未确认停止；同号传输恢复与新副作用Attempt；上游重试改变/未改变输出、控制依赖、传递依赖及宿主退出",
+      "expected": "暂停在边界生效；取消未确认保持取消中/待核实；新尝试立即成为当前且不回退旧通过；退回保留旧事实并标下游需重跑；断开编辑器不伪造终态；同 intent 只执行一次，明确重跑产生新运行；prepare与start间源码变更时拒绝旧意图启动并要求重新准备；仅合同保证不产生第二次业务执行的同号同输入恢复可沿原Attempt；命令重启/新业务执行建新Attempt，副作用重新授权；传输次数与尝试次数分别记录；下游旧依据立即过期且不自动复活，无依赖分支保留；依赖输入变更重新授权；有活动或可推进执行时核心脱离宿主保活；增加前步有效失败后下游阻塞、独立失败分支与取消、旧失败依赖过期反例；分别核对H、整用例计数和业务结论，不能以F=0隐藏有效失败",
+      "related_frs": [
+        "P1-FR09",
+        "P1-FR07",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC20",
+      "owner": "B",
+      "result": "blocked",
+      "scenario": "运行执行到一半时修改尚未执行的用例、尝试修改正在执行的用例、尝试从逐步驱动切回计划驱动，并注入\"修改使已完成步骤依据失效\"",
+      "expected": "修改形成运行中修订只影响尚未执行的步骤，已完成步骤绑定原修订、不回改不重跑；正在执行的步骤拒绝修改；反向切换被拒绝并提示新建运行；依据失效时暂停并列出需重跑的用例，报告中标注依据已过期且保留历史原始结论，当前完整通过不得使用失效依据；删除必测项或弱化断言的修改被拒绝；**基础计划修订与运行中修订序列都可查**",
+      "related_frs": [
+        "P1-FR06",
+        "P1-FR07",
+        "P1-FR03",
+        "P1-FR14"
+      ],
+      "prerequisites": [
+        "一次真实运行，执行到一半后修改尚未执行的用例",
+        "正在执行步骤的拒绝修改路径（C 的步骤执行事实）",
+        "运行中修订序列与基础计划修订序列都可查（A 的记录修订 + C 的运行修订）",
+        "『依据失效时暂停并列出需重跑用例』的编排"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "计划修订、用例修订、步骤修订（domain/planning/plans.py、domain/execution/runs.py）"
+      ],
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": "待补：运行中修订记录、正在执行步骤的拒绝结果、依据失效后的暂停与重跑清单",
+        "method": "running_revision_sequence_assertion"
+      },
+      "unverified_reason": "该项必须在一半已执行的运行上判定，需要步骤级执行事实与运行中修订序列；两者均未交付，故当前无法构造输入，不属『已具备但未跑』。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "C 的真实 ExecutionFacts（Sprint 7 之后的运行事实）",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "package_port",
+          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "real_storage",
+          "detail": "运行中修订序列的保存与查读由 A 的记录仓储提供",
+          "resolved_by": "A"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC21",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "完整报告字段；非虚拟依赖环境与虚拟环境数据污染；断言依据已填写但未确认；12项执行完成但2项依据未确认；用例草稿未发布、已发布依据待确认、已发布依据确认三种输入",
+      "expected": "业务结论与证据等级分离；证据完整的非虚拟环境运行可得 A；使用虚拟环境但业务数据污染仍按实际缺口处理，依据未确认不从分母移除且不计已验证，不给完整通过；补充确认仍须核对实际证据，不能只点确认就通过；快查和按需不派生等级；报告保留修订与证据引用；显示执行完成12/12、有效验证10/12、未验证2；其余10项有效通过也不得完整通过，补确认后须核对实际证据；发布和依据确认分别判定，草稿不执行；确认记录绑定准确依据修订，补确认不产生新执行；后补确认后原Case/Plan和旧报告字节不变，新判定引用准确确认集合；依据变化使旧确认失效；统计和界面读取effective_assertion_basis_state",
+      "related_frs": [
+        "P1-FR07",
+        "P1-FR14",
+        "P1-FR06"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC22",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "分别注入完整真实证据、仅非关键局部缺口、关键依赖未知、快照与执行不一致、证据充分但业务失败",
+      "expected": "分别按决策表得 A/B/C/D/A；失败且证据充分可得 A但业务失败、禁止放行；等级不平均，主要缺口与全部缺口可追溯",
+      "related_frs": [
+        "P1-FR07",
+        "P1-FR14",
+        "P1-FR12"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC23",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "同一改动用三个档位分别运行；全量选择按需；首次与单模块快速检查",
+      "expected": "快查/按需不打分且不判完整通过，只有完整验证派生证据等级；快速范围无需勾选，首次/映射不明保守确定或阻塞确认，单模块不漏本模块变化",
+      "related_frs": [
+        "P1-FR07",
+        "P1-FR08",
+        "P1-FR10",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC24",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "模板必测/关键链路漏项、无清单、缺独立核验、缺请求标识与日志；多步骤用例含跨运行继承和本轮新Attempt",
+      "expected": "完整验证开始前门禁拒绝漏项/清单缺失；运行中缺口保持原档位并不得通过；补无关项不能抵消漏项；缺核验不计已验证，人工关联如实标证据级别；按用例必需步骤聚合，本轮部分执行与历史继承不得计整用例E/R/V；界面保留步骤事实和待补执行，不伪造全用例执行",
+      "related_frs": [
+        "P1-FR04",
+        "P1-FR06",
+        "P1-FR11",
+        "P1-FR13",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC25",
+      "owner": "C",
+      "result": "untested",
+      "scenario": "被测目录不是 Git 仓库（无版本库）",
+      "expected": "可正常建立项目并完成适用的 L1／L2／L3 检查、证据与导出；源码变化以文件清单摘要与差异快照判定，结论口径与 Git 仓库一致；界面与报告中**不出现仓库、分支、提交、远端任何内容**，也不显示为空值或\"未知\"；不因无版本库而拒绝建立项目或降低检查范围",
+      "related_frs": [
+        "P1-FR01",
+        "P1-FR08",
+        "P1-FR10",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC26",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "三段面板、未隔离、暂停恢复、计划未确认、按需选择",
+      "expected": "信息区只读，动作区提供开始/控制/导出/跳转；计划发布和按需范围有入口；一期缺口跳证据详情，不依赖二期图；逐步执行在工作台，依赖环境与证据等级分别显示",
+      "related_frs": [
+        "P1-FR17",
+        "P1-FR07"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC27",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "比对面板、报告与示例 DTO；快照生成与订阅之间提交、同提交多事件和重复投递",
+      "expected": "同来源修订下口径一致；实时值与快照值明确区分；12适用项完成9、跳过2、未执行1显示9/12；关键链路3/4未覆盖为C而非B；快照与snapshot_cursor来自同一提交边界，从其后重放且无遗漏；重复按事件/修订去重；旧epoch失效重取成对快照与游标；执行完成和有效验证分别读取核心计数",
+      "related_frs": [
+        "P1-FR17",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC28",
+      "owner": "A",
+      "result": "untested",
+      "scenario": "永久保留：连续完成多轮运行（含失败、阻塞、取消与重跑）并生成多份报告修订，随后注入\"尝试从界面删除报告／证据\"\"长时间后再查看最早期运行的证据\"\"修改本机系统时间\"三种情形；完整历史备份恢复及活动spool未发布",
+      "expected": "**全部记录与证据永久保存**：最早期运行的原始证据、被取代的历史报告修订与已关闭缺陷的记录仍可查看；**界面不提供任何删除入口、也没有一键清理**；插件不因时间推移自动删除任何材料（修改系统时间不影响可用性）；材料缺失只可能来自外部破坏或未完成提交，此时报告如实显示缺口、不宣称完整，历史报告正文不回改，但当前有效性必须显示缺口，不能继续宣称证据完整；备份闭包保留最早报告、被替代修订、所有尝试、复核和诊断；在线备份明确未纳入活动材料；迁移前先收尾抢救再做完整备份，有未核实执行器不得切换；永久材料缺口阻止完整迁移，仅可按第9节及存储架构第11节显式确认A/G、验证无新增损失后进行保留已知缺口迁移",
+      "related_frs": [
+        "P1-FR16",
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 A 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC29",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "对同一份报告先后记录两次本地复核（复核人、结论、说明、所依据的报告内容修订、时间），复核后再注入\"证据或问题变化影响结论\"的情形",
+      "expected": "复核是**独立记录**：不写入报告正文、**不改变报告内容修订**，也不改变执行与断言事实，复核人不能把失败、阻塞或缺证据改成通过；证据或问题变化时按报告规则**生成新的内容修订**，旧修订与其复核记录可追溯；导出含复核结论且不含密钥",
+      "related_frs": [
+        "P1-FR14"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC30",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "新建纯函数/HTTP项目、无模型凭据、无模板、尚无计划时分析源码",
+      "expected": "最小输入按所选检查确定，纯函数不索要数据库/平台账号；无模型仍可人工建计划；显式分析可在发布前固定选定内容，草稿不自动执行；不支持不冒充不适用；分析后源码变化提示依据变化",
+      "related_frs": [
+        "P1-FR01",
+        "P1-FR04",
+        "P1-FR06",
+        "P1-FR08",
+        "P1-FR17"
+      ],
+      "prerequisites": [
+        "新建两个真实项目：纯函数项目与 HTTP 项目，均无模型凭据",
+        "无模板、尚无计划时的源码分析入口",
+        "『显式分析可在发布前固定选定内容』的入口与固定结果（D 的动作 + B 的输出）",
+        "分析后源码变化的依据变化提示"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "模板修订、源码清单摘要（domain/project/context.py 的 SourceManifest）"
+      ],
+      "actual": "未执行。最小输入与适用检查的选择规则、无模型时人工建计划的路径已在纯规则与用例层具备（tests/unit/test_model_outbound_policy.py、tests/unit/test_prepare_run_flow.py）；plain 形态的 SourceManifest 内容身份有测试（tests/unit/test_source_manifest.py）。尚无真实源码读取与固定。",
+      "evidence": {
+        "path": null,
+        "description": "待补：两个项目的分析输出、固定内容摘要、分析后源码变化的提示",
+        "method": "analysis_then_source_change_assertion"
+      },
+      "unverified_reason": "缺 SourceSnapshotPort 的真实读取与 SourceSnapshot 归属裁定：源码读取与摘要计算目前无真实实现，『分析后源码变化提示依据变化』无法在真实字节上验证。",
+      "blockers": [
+        {
+          "kind": "decision",
+          "detail": "B-Q01／C-Q08：SourceSnapshot 归属待裁定",
+          "resolved_by": "A/组长"
+        },
+        {
+          "kind": "package_port",
+          "detail": "SourceSnapshotPort 无方法签名（B-Q02 同组）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "分析入口与固定动作由 D 负责",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC31",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "两个独立验收范围、模板漏项、启动前集中逐项授权、授权后输入变化；MCP伪造用户确认、挑战错配与重复确认",
+      "expected": "完整通过只对应已发布验收范围，不显示全项目通过；不允许删必测/缩范围规避门禁；每个副作用动作单独有确认记录，输入/目标/凭据范围变化原授权失效；计划确认不替代授权；agent_relay不能提交人工确认；仅受控用户交互且动作摘要/来源会话/修订匹配才能生效；重复确认返回原记录，输入变化须新挑战，不接受参数自报角色",
+      "related_frs": [
+        "P1-FR04",
+        "P1-FR06",
+        "P1-FR07",
+        "P1-FR14"
+      ],
+      "prerequisites": [
+        "两个独立验收范围与一次模板漏项注入",
+        "启动前集中逐项授权，以及授权后输入／目标／凭据范围变化的失效注入",
+        "MCP 伪造确认、挑战错配、重复确认三条反例的入口（D 的 agent_relay）",
+        "每个副作用动作的独立确认记录（C 的动作 + A 的记录落盘）"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "档位／驱动／结论上限（contracts/prepared_run.py）、授权命令（contracts/commands.py）"
+      ],
+      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。确认记录、MCP 反例与真实副作用动作均未接通。",
+      "evidence": {
+        "path": null,
+        "description": "待补：每个动作的确认记录、变更后原授权失效的记录、MCP 三条反例的拒绝结果",
+        "method": "per_action_authorization_assertion"
+      },
+      "unverified_reason": "缺真实副作用动作、确认记录落盘与 MCP relay 入口：B 只拥有档位／范围与授权边界规则，『每个副作用动作单独有确认记录』的载体（D 的入口 + A 的保存）尚未交付。",
+      "blockers": [
+        {
+          "kind": "user_entry",
+          "detail": "确认与 relay 由 D 负责",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "package_port",
+          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "execution_facts",
+          "detail": "被授权的副作用动作由 C 执行",
+          "resolved_by": "C"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC32",
+      "owner": "B",
+      "result": "not_verified",
+      "scenario": "模型首次调用、关闭AI、改接收地址/材料类别/源码片段开关",
+      "expected": "首次确认项目出站策略；仅发送选定脱敏材料，源码片段默认关闭；接收目标或授权数据范围变化重新确认；关闭AI阻止新模型请求，已有人工/规则/报告继续；平台上传策略不替代模型策略",
+      "related_frs": [
+        "P1-FR04",
+        "P1-FR06",
+        "P1-FR17"
+      ],
+      "prerequisites": [
+        "一次真实模型首次调用（或确认无法调用时的降级路径）",
+        "关闭 AI、改接收地址、改材料类别、改源码片段开关四类动作入口",
+        "脱敏投影与凭据解析的真实实现（A 的 ProjectionPort／SecretPort／ModelProvider）"
+      ],
+      "artifact_versions": [
+        "baseline_commit：见顶层字段",
+        "模型出站策略修订（domain/planning/model_outbound.py）、请求编排（application/planning/model_orchestration.py）"
+      ],
+      "actual": "未执行。出站准入九条门禁、`source_snippets` 默认关闭、接收地址或材料类别变化后重新确认、关闭 AI 阻止新请求而人工路径继续，均有纯规则测试（tests/unit/test_model_outbound_policy.py）与编排测试（tests/unit/test_model_orchestration.py，走内存替身）。真实脱敏字节、真实凭据解析与真实调用未做。",
+      "evidence": {
+        "path": null,
+        "description": "待补：首次调用前的确认记录、实际出站材料与脱敏结果、关闭 AI 后的阻断结果",
+        "method": "real_outbound_material_assertion"
+      },
+      "unverified_reason": "缺真实出站端口：出站编排目前全部经内存替身（tests/support/memory_model.py），『仅发送选定脱敏材料』无法在真实字节上验证；B-Q06（模型请求是否需逐项授权）口径也未裁定。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "ProjectionPort／SecretPort／ModelProvider 无方法签名（B-Q03）",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "decision",
+          "detail": "B-Q06：模型出站请求本身是否需逐项授权待裁定",
+          "resolved_by": "A/D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "出站确认与关闭 AI 的入口由 D 负责",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC33",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "断言失败、环境阻塞、依据未确认、副作用结果未知、复制修复说明",
+      "expected": "主动作分别到证据/问题、具体配置、依据核对、状态核实；未知副作用不给直接重跑；复制内容脱敏并标事实/假设，回归仍须新实际执行才能关闭",
+      "related_frs": [
+        "P1-FR09",
+        "P1-FR15",
+        "P1-FR17"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC34",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "筛选旧报告、折叠修订、隐藏/恢复项目、运行中关闭后重开编辑器；最后客户端退出、暂停人工待办、draining时重连及索引暂不可用",
+      "expected": "可按项目/业务结果/完整编号精确定位；折叠隐藏仅改展示不删除引用或停止运行；重开回到原运行并显示状态，退出不伪造取消；宿主无法拦退出则预先常驻显示运行提示；键盘可完成主要操作；安全收尾后无可推进工作可退出，重开恢复同一运行且不自动解除暂停；索引恢复与无记录分开显示；报告状态标签固定业务结果，编号完整精确匹配；每个入口对应QuerySpec，新报告迁移旧/新状态索引，同commit翻页不漏不重",
+      "related_frs": [
+        "P1-FR14",
+        "P1-FR16",
+        "P1-FR17"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P1-AC35",
+      "owner": "D",
+      "result": "untested",
+      "scenario": "导出摘要及证据包，移到新目录/另一台机器，注入附件缺失、敏感信息和路径穿越",
+      "expected": "摘要说明不含附件；包内相对路径可读，清单摘要匹配、缺失/排除清楚，不依赖原机器绝对路径；无密钥；拒绝越界路径；可安全排除的附件明确列缺口，整体投影或校验失败不发布成功产物，已有报告不改",
+      "related_frs": [
+        "P1-FR14",
+        "P1-FR16"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    }
+  ],
   "cases": [
     {
       "id": "P1-AC01",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
@@ -13,7 +993,7 @@
     },
     {
       "id": "P1-AC03",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
@@ -58,7 +1038,7 @@
     },
     {
       "id": "P1-AC12",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
@@ -83,7 +1063,7 @@
     },
     {
       "id": "P1-AC17",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
@@ -98,7 +1078,7 @@
     },
     {
       "id": "P1-AC20",
-      "result": "untested",
+      "result": "blocked",
       "evidence_path": null
     },
     {
@@ -148,17 +1128,17 @@
     },
     {
       "id": "P1-AC30",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
       "id": "P1-AC31",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
       "id": "P1-AC32",
-      "result": "untested",
+      "result": "not_verified",
       "evidence_path": null
     },
     {
