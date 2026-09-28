@@ -250,16 +250,96 @@ def draft_expiry(
     return tuple(changed)
 
 
+# ------------------------------------------------------------------ 模板适用条件
+
+
+@dataclass(frozen=True, slots=True)
+class TemplateRequirements:
+    """模板**要求**哪些前置能力。
+
+    取自模板正文的 `applicability` 与必测条目：全是"要求"，
+    因此字段命名统一为 `requires_*`，避免与项目实际能力混淆。
+    """
+
+    requires_entry_point: bool = True
+    requires_http_target: bool = False
+    requires_agent_model: bool = False
+    requires_frontend: bool = False
+    requires_database_verification: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectCapabilities:
+    """项目**实际具备**哪些能力（由调用方从项目上下文与环境中判定）。"""
+
+    has_entry_point: bool = False
+    has_http_target: bool = False
+    has_agent_model: bool = False
+    has_frontend: bool = False
+    has_database_verification: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicabilityAssessment:
+    """适用性判定结果。
+
+    `missing` 里每一项都是**模板要求而项目没有**的能力。三项语义严格区分：
+
+    - **适用**：`applicable=True`、`missing` 为空；
+    - **不适用**：有 `missing` 项 —— 该模板**不能**用于这个项目；
+    - **尚不支持**：不在此判定范围内（指能力清单里未实现的技术栈），
+      由调用方另行声明，**不得与"不适用"混用**。
+    """
+
+    applicable: bool
+    missing: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.applicable and self.missing:
+            raise ValueError("an applicable template must not report missing requirements")
+        if not self.applicable and not self.missing:
+            raise ValueError("a non-applicable template must name what is missing")
+
+
+def assess_template(
+    requirements: TemplateRequirements, capabilities: ProjectCapabilities
+) -> ApplicabilityAssessment:
+    """判定模板是否适用于该项目。
+
+    架构文档与施工清单要求"不适用项给出原因"，
+    因此这里返回**具体缺哪一项**，而不是只回一个布尔。
+    """
+    missing: list[str] = []
+    if requirements.requires_entry_point and not capabilities.has_entry_point:
+        missing.append("entry_point")
+    if requirements.requires_http_target and not capabilities.has_http_target:
+        missing.append("http_target")
+    if requirements.requires_agent_model and not capabilities.has_agent_model:
+        missing.append("agent_model")
+    if requirements.requires_frontend and not capabilities.has_frontend:
+        missing.append("frontend")
+    if (
+        requirements.requires_database_verification
+        and not capabilities.has_database_verification
+    ):
+        missing.append("database_verification")
+    return ApplicabilityAssessment(applicable=not missing, missing=tuple(missing))
+
+
 __all__ = [
     "TEMPLATE_RESOURCE_DIR",
     "TEMPLATE_RESOURCE_PACKAGE",
+    "ApplicabilityAssessment",
     "DraftKind",
     "DraftResult",
     "GeneratedContent",
+    "ProjectCapabilities",
     "RevisionContext",
     "TemplateNotFoundError",
+    "TemplateRequirements",
     "TemplateSummary",
     "apply_template",
+    "assess_template",
     "draft_expiry",
     "list_templates",
     "load_template",
