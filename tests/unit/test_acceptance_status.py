@@ -33,6 +33,7 @@ _EXPECTED_OWNER = {
 }
 
 _RESULTS = frozenset({"untested", "verified", "not_verified", "blocked"})
+_OWNERS = frozenset({"A", "B", "C", "D"})
 _BLOCKER_KINDS = frozenset({
     "package_port",
     "real_storage",
@@ -103,6 +104,19 @@ def test_owner_matches_the_split_plan() -> None:
 def test_result_values_are_within_the_allowed_enumeration() -> None:
     for row in _results():
         assert row["result"] in _RESULTS, f"{row['id']} result 取值非法：{row['result']}"
+
+
+def test_owner_is_one_of_the_four_packages() -> None:
+    for row in _results():
+        assert row["owner"] in _OWNERS, f"{row['id']} owner 取值非法：{row['owner']}"
+
+
+def test_each_package_owns_exactly_the_scenarios_from_the_split_plan() -> None:
+    """牵头包归属逐项锁定：改归属必须同时改实施方案与本映射。"""
+
+    for package, ac_ids in _EXPECTED_OWNER.items():
+        owned = tuple(row["id"] for row in _results() if row["owner"] == package)
+        assert owned == ac_ids, f"{package} 包的牵头 AC 与实施方案第 5 节不一致"
 
 
 def test_verified_requires_evidence_and_real_environment() -> None:
