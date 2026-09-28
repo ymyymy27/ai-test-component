@@ -46,6 +46,8 @@ AggregateKind = Literal[
     "acceptance_scope",
     "preparation_record",
     "model_outbound_policy",
+    "model_outbound_request",
+    "prepared_run",
 ]
 
 
