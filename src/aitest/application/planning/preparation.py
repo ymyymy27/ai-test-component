@@ -71,8 +71,14 @@ _REVISION_FIELDS: tuple[str, ...] = tuple(
     field.name for field in fields(InputRevisions)
 )
 
-#: 参与摘要的业务输入字段；**不含**项目/客户端/请求号与任何传输层参数。
-PAYLOAD_FIELDS: tuple[str, ...] = _REVISION_FIELDS + (
+#: 参与摘要的**请求侧**业务输入字段。
+#:
+#: **不含"实际观察到的来源修订"**（`InputRevisions` 的八项）：来源变了要报
+#: "依据需重新准备"，而不是"同键异输入冲突"（架构文档第 11 节）——两者语义不同，
+#: 把来源修订混进摘要会把前一种情况误报成后一种。来源修订由
+#: `decide_preparation()` 单独比对。
+#: **也不含任何传输层参数**（`request_id`、重试次数、接收时间）。
+PAYLOAD_FIELDS: tuple[str, ...] = (
     "binding_form",
     "selected_paths",
     "exclusion_rules",

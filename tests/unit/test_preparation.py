@@ -152,7 +152,25 @@ def test_transport_parameters_are_not_payload_fields() -> None:
         assert name not in PAYLOAD_FIELDS
 
 
-def test_payload_fields_cover_the_recorded_business_inputs() -> None:
+def test_payload_fields_carry_the_request_side_inputs() -> None:
+    for name in (
+        "binding_form",
+        "selected_paths",
+        "exclusion_rules",
+        "run_tier",
+        "driver",
+        "case_revision_ids",
+        "rule_version_ids",
+        "template_version_ids",
+    ):
+        assert name in PAYLOAD_FIELDS
+
+
+def test_observed_source_revisions_are_not_payload_fields() -> None:
+    """来源修订是**观察结果**，不是请求内容。
+
+    混进摘要会把"依据需重新准备"误报成"同键异输入冲突"（架构文档第 11 节）。
+    """
     for name in (
         "project_revision",
         "binding_revision",
@@ -162,10 +180,8 @@ def test_payload_fields_cover_the_recorded_business_inputs() -> None:
         "rules_revision",
         "template_revision",
         "scope_revision",
-        "run_tier",
-        "driver",
     ):
-        assert name in PAYLOAD_FIELDS
+        assert name not in PAYLOAD_FIELDS
 
 
 # ------------------------------------------------------------------ 四态判定
