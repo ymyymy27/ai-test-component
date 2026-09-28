@@ -66,6 +66,10 @@ class RunFact(ContractModel):
 "conclusion_ceiling": "full",
 ```
 
+> **本节记录的是评审当时的现象（修订前）。** 该冲突已由 C-01 处理：现在这三份夹具的
+> `conclusion_ceiling` 均为 `passable`（`quick.json` 为 `partial`），字段类型也已由裸 `str` 改为
+> `ConclusionCeilingFact`。逐字记录保留在此，供追溯改动原因，**不代表现状**。
+
 ---
 
 ## 3 冲突与缺口清单
