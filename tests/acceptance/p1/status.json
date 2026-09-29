@@ -448,7 +448,7 @@
         "description": "待补：两个项目的草稿结构对比、缺口清单、草稿未进入执行的记录",
         "method": "two_project_draft_comparison"
       },
-      "unverified_reason": "缺真实落盘与入口：草稿目前不落盘，『未确认草稿不进入执行』无法在真实入口上被证伪或证实；git 形态的源码身份因 SourceSnapshot 归属未裁定尚未实现。",
+      "unverified_reason": "缺真实落盘与入口：草稿目前不落盘，『未确认草稿不进入执行』无法在真实入口上被证伪或证实；git 形态的源码身份分工已裁定但尚未实现。",
       "blockers": [
         {
           "kind": "package_port",
@@ -797,11 +797,11 @@
         "description": "待补：两个项目的分析输出、固定内容摘要、分析后源码变化的提示",
         "method": "analysis_then_source_change_assertion"
       },
-      "unverified_reason": "缺 SourceSnapshotPort 的真实读取与 SourceSnapshot 归属裁定：源码读取与摘要计算目前无真实实现，『分析后源码变化提示依据变化』无法在真实字节上验证。",
+      "unverified_reason": "缺 SourceSnapshotPort 的真实读取与按已裁定分工实现的完整 SourceSnapshot：源码读取与摘要计算目前无真实实现，『分析后源码变化提示依据变化』无法在真实字节上验证。",
       "blockers": [
         {
           "kind": "decision",
-          "detail": "B-Q01／C-Q08：SourceSnapshot 归属待裁定",
+          "detail": "B-Q01／C-Q08：SourceSnapshot 分工已裁定，字段与适配待实现",
           "resolved_by": "A/组长"
         },
         {

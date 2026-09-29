@@ -1,11 +1,27 @@
+---
+contract_id: CORE-001
+title: A 包公共事务、存储与查询接口
+provider: A
+consumer: B/C/D
+contract_version: "1.1"
+contract_status: reviewing
+provider_implementation: partial
+consumer_implementation: partial
+verification_status: not_run
+last_verified_commit: null
+blockers: []
+next_owner: A/B/C/D
+next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
+---
+
 # A包对外接口文档 LU
 A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空间装配能力。
 记录：请求协议aitest.local/2.0，request_id、intent_id处理，B/C/D注册用例的接口规范，存储读写接口。
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.0  
-日期：2026-09-28  
+版本：1.1
+日期：2026-09-30
 状态：草案，待B/C/D确认  
 提供方：A包（本地核心底座）  
 调用方：B/C/D包（上层业务模块）  
@@ -38,6 +54,12 @@ B/C/D包负责：
 - 通过A包提供的端口和有限 `QuerySpec` 读取记录摘要与详情引用。
 
 A包不负责生成测试计划、执行业务被测代码、判定业务结论或编写Trae页面；不实现分布式事务，不提供事务嵌套，也不提供永久业务材料删除接口。
+
+### 2.1 端口文件维护与业务语义确认
+
+`application/ports.py` 是唯一协议来源，由 A 包维护文件和合并冲突。B/C/D 对各自调用场景、输入输出、错误、幂等和兼容语义负责，并评审最终签名；A 对基础设施可实现性和适配器负责。属于一期的端口不得因维护归属推迟到后续期次。准备意图的同键同摘要复用、同键异摘要冲突及与 `intent_id` 同次提交属于一期合同；可由通用工作单元原语实现，不要求复制第二套专用协议。
+
+`Clock` 与 `ProjectionPort` 按总体架构第 12 节作为横切合同维护，不因某个业务分册列出使用而产生第二个定义。该规则依据项目负责人 2026-09-30 裁定生效。
 
 ## 3 协议与身份
 

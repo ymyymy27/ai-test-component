@@ -6,7 +6,7 @@ its own declaration. This test is the guard that keeps the two in step.
 
 Without it, a value can be changed on one side and silently disagree on the other
 — which is exactly the failure mode recorded as C-01 in
-`docs/接口对接/B-C-PreparedRun与词汇表合同.md`.
+`docs/接口对接/已完成/BC-001-PreparedRun/contract.md`.
 """
 
 from aitest.contracts.prepared_run import (

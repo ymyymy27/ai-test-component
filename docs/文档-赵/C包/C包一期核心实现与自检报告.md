@@ -71,8 +71,8 @@ C包一期核心已经形成从计划输入、执行、采集、过滤、流式S
 
 公共对接包：
 
-- docs/接口对接/C包-赵-D包/C包-D包 ExecutionFacts 对接说明.md
-- docs/接口对接/C包-赵-D包/fixtures/
+- docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md
+- docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/
 
 已知问题：
 

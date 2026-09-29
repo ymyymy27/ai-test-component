@@ -1,3 +1,19 @@
+---
+contract_id: CD-001
+title: ExecutionFacts
+provider: C
+consumer: D
+contract_version: "1.0"
+contract_status: reviewing
+provider_implementation: done
+consumer_implementation: not_started
+verification_status: fixture_passed
+last_verified_commit: 8d9883c
+blockers: []
+next_owner: D
+next_action: 确认 Schema、多流游标、超时和非 UTF-8 处理并完成消费方接入
+---
+
 # C包-D包 ExecutionFacts 对接说明
 
 版本：1.0  
@@ -131,7 +147,7 @@ ProcessTerminationReason：
 
 ## 5 夹具清单
 
-目录：docs/接口对接/C包-赵-D包/fixtures/
+目录：docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/
 
 - success.json：正常完成、单stdout流。
 - failure.json：上游execution_error、下游blocked。

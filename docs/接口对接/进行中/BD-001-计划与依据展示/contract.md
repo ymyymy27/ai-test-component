@@ -1,3 +1,19 @@
+---
+contract_id: BD-001
+title: 计划、范围与断言依据展示
+provider: B
+consumer: D
+contract_version: "0.2"
+contract_status: reviewing
+provider_implementation: partial
+consumer_implementation: not_started
+verification_status: not_run
+last_verified_commit: null
+blockers: []
+next_owner: D
+next_action: 回复展示、查询和运行中修订五项问题
+---
+
 # B-D 跨包需求：计划、范围与断言依据的展示口径
 
 版本：0.2
@@ -56,7 +72,7 @@ D 只读取、不重算。本文档明确：哪些值 B 提供、哪些值 D 可
 判定入口只接受 `ConclusionCeiling`，不接受"覆盖了多少"作为放宽依据（架构文档第 4 节）。
 
 > ⚠️ **已知上游问题**：C 包三份 `ExecutionFacts` 夹具中 `conclusion_ceiling` 均写作 `"full"`，
-> 该值不属于 `partial` 或 `passable`。B 已在 `docs/接口对接/B-C-PreparedRun与词汇表合同.md`
+> 该值不属于 `partial` 或 `passable`。B 已在 `docs/接口对接/已完成/BC-001-PreparedRun/contract.md`
 > 的 C-01 提出修正。修正前，D 不得按 `"full"` 实现任何分支逻辑。
 
 ### 2.3 断言依据三态（FR06）
