@@ -3,13 +3,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
-
-
-class ErrorDTO(BaseModel):
-    code: str
-    message: str
-    retryable: bool = False
-    next_step: str
+from .errors import ErrorDTO
 
 
 class Response(BaseModel):
