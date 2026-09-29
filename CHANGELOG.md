@@ -1,47 +1,42 @@
-# Changelog
+# 更新记录
+
+本文件只记录影响工程能力、合同或使用方式的阶段性变化；详细过程见 `docs/修改日志/` 和 Git 历史。
+
+## 未发布 - 2026-09-30
+
+### 新增
+
+- 完成项目上下文、规则/用例/计划、草稿发布、`prepare_run`、模型出站策略与请求编排等 B 包能力。
+- 完成命令执行、串行调度、超时/停止、流式 spool、采集前脱敏、恢复、证据发布与 ExecutionFacts 组装等 C 包能力。
+- 增加 A 包工作空间身份、写锁、不可变记录、内容寻址对象、有限查询、事务协议和统一装配入口。
+- 建立一期验收状态登记，记录 35 项 AC 的负责人、前置条件和未验证原因。
+
+### 合同与文档
+
+- 固化 PreparedRun、ExecutionFacts、SourceSnapshot 归属及 A/B/C/D 跨包接口合同。
+- 将接口对接资料整理为“进行中 / 已完成 / 待裁定 / 归档”结构。
+- 按实际实现和本地检查结果更新代码对比报告，并重写项目 README。
+
+### 当前限制
+
+- 一期 35 项 AC 尚无真实环境验收通过项。
+- 面板、Trae、本地管道、MCP relay、报告和缺陷闭环尚未完成。
+- 当前基线仍存在 pytest、ruff、mypy 和生成 Schema 一致性失败，不能视为可发布版本。
 
 ## 0.4.0 - 2026-09-22
 
-- Merge guo and ma history, adopt the rewritten phase-one documentation.
-- Replace the old ai_test package with the documented aitest module layout.
-- Reuse project/task/delivery validation and ma atomic-write primitives.
-- Remove ASGI, direct business writers, team signatures and old panel resources.
-- Add strict local contracts, six template packs, shared TypeScript panel and candidate Trae VSIX.
-- Add architecture/contract/fault tests, Windows/Linux CI and explicit untested product ACs.
-- Breaking: old imports and workspace formats are not supported by this skeleton.
-- Execution, durable transactions, IPC, recovery and real Trae acceptance remain pending.
-
+- 合并既有开发历史，采用重写后的一期文档和 `src/aitest` 分层结构。
+- 建立严格本地合同、六个模板、共享 TypeScript 面板和候选 Trae VSIX。
+- 增加架构、合同、故障测试及 Windows/Linux CI；明确产品 AC 尚未验收。
+- 不兼容旧 `ai_test` 导入路径和旧工作空间格式。
 
 ## 0.3.0 - 2026-09-13
 
-### Added
+- 增加分片记录索引、旧索引迁移、工作空间可写性检查及交付说明 API/CLI。
+- 修复无界 `state.json` 索引和版本锁文件不一致。
 
-- Added chunked record indexes so writes only rewrite the affected shard.
-- Added automatic migration from the legacy full-index workspace state.
-- Added real workspace writability probes for `doctor`.
-- Added FR03 delivery declarations linked to tasks.
-- Added delivery Python API and `delivery-create`, `delivery-get`, and `delivery-list` CLI commands.
-- Added tests for chunked indexes, legacy migration, writability checks, delivery invariants, and delivery persistence.
-
-### Fixed
-
-- Updated `uv.lock` to match the package version.
-- Fixed the unbounded `state.json` record map that conflicted with the v2.4 architecture.
 ## 0.2.0 - 2026-09-11
 
-### Added
-
-- Added task and acceptance-item domain models.
-- Added task creation, lookup, and project filtering.
-- Added referential validation so tasks cannot reference missing projects.
-- Added Python API methods for task and acceptance-item workflows.
-- Added `task-create`, `task-get`, and `task-list` CLI commands.
-- Added unit tests for task invariants and task context persistence.
-
-### Fixed
-
-- Fixed Windows CLI output encoding for JSON containing Chinese text.
-
-### Scope
-
-This release is the FR02 task and acceptance-item slice. It does not complete delivery, test planning, execution, evidence, defect, report, AI, or host-protocol workflows.
+- 增加任务、验收项和交付领域模型，以及对应 Python API、CLI 与持久化测试。
+- 修复 Windows CLI 中文 JSON 输出编码。
+- 本版本未包含计划、执行、证据、报告、缺陷、AI 或宿主协议闭环。
