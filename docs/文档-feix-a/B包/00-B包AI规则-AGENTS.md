@@ -32,7 +32,7 @@
 
 | 路径 | 所有者 | 原因 |
 | --- | --- | --- |
-| `src/aitest/application/ports.py` | A | 架构文档第 7 节规定其为唯一端口归属位置。新增端口需求提交至 `docs/接口对接/B-A-端口与保存需求.md` |
+| `src/aitest/application/ports.py` | A | 唯一协议文件由 A 维护；B 提交完整业务语义与签名草案并评审最终签名。当期端口必须当期冻结，A 阻塞时由项目负责人指定代维护人；裁定见 `docs/接口对接/归档/裁定/DEC-002-端口定义与提交方式.md` |
 | `src/aitest/infrastructure/file_store/` | A | B 仅经端口保存材料，不直接读写业务文件 |
 | `src/aitest/domain/execution/`、`domain/evidence/` | C | C 已在上述目录有实现（commit `d60781d`） |
 | `src/aitest/application/execution/`、`application/evidence/` | C | 同上 |

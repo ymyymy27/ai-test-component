@@ -2,7 +2,7 @@
 
 **这不是 A 的 `application/ports.py`。** 架构文档第 9 节把
 `ModelProvider` / `ProjectionPort` / `SecretPort` 归 A，且 A 至今只留了文档字符串。
-B 不擅改该文件，所需签名写在 `docs/接口对接/B-A-端口与保存需求.md`。
+B 不擅改该文件，所需签名写在 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`。
 
 本模块定义的三个协议是**编排的依赖面**：
 

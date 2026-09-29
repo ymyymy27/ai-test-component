@@ -13,7 +13,7 @@
 所需的三个端口（`MaterialProjector` / `ModelCaller` / `CredentialResolver`）
 是 B 侧窄接口，定义在 `aitest.application.planning.model_ports`；
 A 的 `ProjectionPort` / `ModelProvider` / `SecretPort` 签名落地后由转接头对接
-（见 `docs/接口对接/B-A-端口与保存需求.md`）。
+（见 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`）。
 """
 
 from __future__ import annotations

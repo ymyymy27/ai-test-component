@@ -73,8 +73,8 @@
 | 未确认草稿不进入执行 | 缺入口（D） |
 | 已有可复用检查 | `tests/contracts/test_template_content.py`、`tests/unit/test_draft_generation.py` |
 
-**缺什么**：A 端口 + `SourceSnapshot` 归属裁定（B-Q01／C-Q08）+ D 的入口。
-**注意**：`git` 形态的源码身份因归属未裁定尚未实现，`plain` 形态只有最小内容身份。
+**缺什么**：A 端口 + 按已裁定分工补齐 `SourceSnapshot` 字段与真实适配（B-Q01／C-Q08）+ D 的入口。
+**注意**：`git` 形态的源码身份分工已裁定但尚未实现，`plain` 形态只有最小内容身份。
 
 ### P1-AC20 运行中修改用例、反向切驱动、依据失效 → 修订只影响未执行步骤
 
@@ -98,7 +98,7 @@
 | 分析后源码变化提示依据变化 | 只有清单摘要规则，无真实字节 |
 | 已有可复用检查 | `tests/unit/test_source_manifest.py`、`tests/unit/test_model_outbound_policy.py` |
 
-**缺什么**：`SourceSnapshot` 归属裁定 + `SourceSnapshotPort` + D 的分析入口。
+**缺什么**：按已裁定分工实现完整 `SourceSnapshot` + `SourceSnapshotPort` + D 的分析入口。
 
 ### P1-AC31 两个验收范围、集中逐项授权、MCP 伪造确认 → 每动作独立确认、原授权可失效
 
