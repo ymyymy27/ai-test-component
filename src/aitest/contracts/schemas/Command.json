@@ -13,6 +13,7 @@
     "request_id": {
       "maxLength": 128,
       "minLength": 1,
+      "pattern": "^\\S+$",
       "title": "Request Id",
       "type": "string"
     },
@@ -74,6 +75,9 @@
     "intent_id": {
       "anyOf": [
         {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^\\S+$",
           "type": "string"
         },
         {

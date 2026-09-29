@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+from .identity import IntentId, RequestId
+
 PROTOCOL_VERSION: Literal["aitest.local/2.0"] = "aitest.local/2.0"
 HUMAN_ACTIONS = frozenset(
     {
@@ -65,13 +67,13 @@ READ_ACTIONS = frozenset({"query", "events", "doctor", "storage_usage", "copy_re
 class Command(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     protocol_version: Literal["aitest.local/2.0"] = PROTOCOL_VERSION
-    request_id: str = Field(min_length=1, max_length=128)
+    request_id: RequestId
     action: str = Field(min_length=1)
     project_id: str | None = None
     binding_revision: int | None = Field(default=None, ge=1)
     target: str | None = None
     expected_revision: int | None = Field(default=None, ge=0)
-    intent_id: str | None = None
+    intent_id: IntentId | None = None
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -80,4 +82,6 @@ class Command(BaseModel):
             not self.project_id or not self.intent_id or self.expected_revision is None
         ):
             raise ValueError("write actions require project, intent and expected revision")
+        if self.action in PHASE_ONE_ACTIONS - READ_ACTIONS and self.request_id == self.intent_id:
+            raise ValueError("request_id must not be used as intent_id")
         return self
