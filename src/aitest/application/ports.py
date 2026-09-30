@@ -1,8 +1,34 @@
 """A-package abstract ports; implementations live in infrastructure."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Protocol
+
+from aitest.application.planning.model_ports import (
+    ModelCall as ModelCall,
+)
+from aitest.application.planning.model_ports import (
+    ModelCallResult as ModelCallResult,
+)
+from aitest.application.planning.model_ports import (
+    ModelCallStatus as ModelCallStatus,
+)
+from aitest.application.planning.model_ports import (
+    ProjectedMaterial as ProjectedMaterial,
+)
+from aitest.application.planning.model_ports import (
+    Projection as Projection,
+)
+from aitest.application.planning.model_ports import (
+    ProjectionStatus as ProjectionStatus,
+)
+from aitest.application.planning.substrate import (
+    CommittedRecord as CommittedRecord,
+)
+from aitest.application.planning.substrate import (
+    RecordQuery as RecordQuery,
+)
 from aitest.contracts.capabilities import CapabilitySet
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
@@ -10,7 +36,8 @@ from aitest.contracts.events import Event
 from aitest.contracts.identity import IntentId, RequestId
 from aitest.contracts.queries import Query, QuerySpec
 from aitest.contracts.responses import Response
-
+from aitest.contracts.secrets import ResolvedSecret
+from aitest.contracts.verification import VerificationFact
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
 from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.execution.runs import (
@@ -25,34 +52,125 @@ from aitest.domain.execution.runs import (
     SpoolManifest,
     StopRequestResult,
 )
+from aitest.domain.planning.model_outbound import MaterialKind
+
 
 class TransactionPort(Protocol):
-    def begin(self, *, request_id: RequestId, workspace_id: str, project_id: str, intent_id: IntentId | None = None) -> Response: ...
-    def commit(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
-    def rollback(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
+    def begin(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        project_id: str,
+        intent_id: IntentId | None = None,
+    ) -> Response: ...
+    def commit(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> Response: ...
+    def rollback(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> Response: ...
     def recover(self, *, workspace_id: str) -> Response: ...
 
 class StoragePort(Protocol):
-    def append_record(self, *, request_id: RequestId, workspace_id: str, project_id: str, aggregate_kind: str, record_id: str, expected_revision: int | None, payload: dict[str, object], intent_id: IntentId) -> Response: ...
-    def read_record(self, *, request_id: RequestId, workspace_id: str, project_id: str, aggregate_kind: str, record_id: str, revision: int) -> Response: ...
-    def publish_object(self, *, request_id: RequestId, workspace_id: str, project_id: str, content: bytes, media_type: str, intent_id: IntentId) -> Response: ...
-    def read_object(self, *, request_id: RequestId, workspace_id: str, project_id: str, digest: str) -> bytes: ...
+    def append_record(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        project_id: str,
+        aggregate_kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: dict[str, object],
+        intent_id: IntentId,
+    ) -> Response: ...
+    def read_record(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        project_id: str,
+        aggregate_kind: str,
+        record_id: str,
+        revision: int,
+    ) -> Response: ...
+    def publish_object(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        project_id: str,
+        content: bytes,
+        media_type: str,
+        intent_id: IntentId,
+    ) -> Response: ...
+    def read_object(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        project_id: str,
+        digest: str,
+    ) -> bytes: ...
 
 class BackupPort(Protocol):
-    def inspect(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
-    def create(self, *, request_id: RequestId, workspace_id: str, destination: str) -> Response: ...
-    def verify(self, *, request_id: RequestId, workspace_id: str, backup_id: str) -> Response: ...
-    def restore(self, *, request_id: RequestId, workspace_id: str, backup_id: str) -> Response: ...
+    def inspect(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> Response: ...
+    def create(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        destination: str,
+    ) -> Response: ...
+    def verify(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        backup_id: str,
+    ) -> Response: ...
+    def restore(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        backup_id: str,
+    ) -> Response: ...
+
 
 class IndexPort(Protocol):
-    def query(self, *, request_id: RequestId, workspace_id: str, spec: QuerySpec) -> Response: ...
-    def rebuild(self, *, request_id: RequestId, workspace_id: str, index_name: str) -> Response: ...
-    def status(self, *, request_id: RequestId, workspace_id: str, index_name: str) -> Response: ...
+    def query(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        spec: QuerySpec,
+    ) -> Response: ...
+    def rebuild(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        index_name: str,
+    ) -> Response: ...
+    def status(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        index_name: str,
+    ) -> Response: ...
+
 
 class QueryPort(Protocol):
     def dispatch(self, query: Query) -> Response: ...
     def list_events(self, query: Query) -> Response: ...
-    def capabilities(self, *, request_id: RequestId, workspace_id: str) -> CapabilitySet: ...
+    def capabilities(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> CapabilitySet: ...
 
 class LocalProtocolPort(Protocol):
     def dispatch(self, command: Command) -> Response: ...
@@ -69,7 +187,14 @@ class Clock(Protocol):
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
     def open(self, project_id: str) -> None: ...
-    def stage_record(self, *, aggregate_kind: str, record_id: str, expected_revision: int|None, payload: dict[str, object]) -> object: ...
+    def stage_record(
+        self,
+        *,
+        aggregate_kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: dict[str, object],
+    ) -> object: ...
     def commit(self) -> object: ...
     def rollback(self) -> None: ...
 
@@ -97,9 +222,34 @@ class EvidenceObjectStore(Protocol):
 class SourceSnapshotPort(Protocol):
     """Pin, retrieve and materialize source with actual byte identity."""
 
+    def pin(
+        self,
+        *,
+        canonical_path: str,
+        purpose: str,
+        selected_paths: Sequence[str] = (),
+        exclusion_rules: Sequence[str] = (),
+    ) -> Mapping[str, object]: ...
+
+    def materialize(self, snapshot_id: str, destination: str) -> Mapping[str, object]: ...
+
+    def read_pinned(self, snapshot_id: str) -> Mapping[str, object]: ...
+
+    def detect_changes(self, snapshot_id: str) -> Mapping[str, object]: ...
+
 
 class SourceControlPort(Protocol):
     """Local Git and optional read-only GitHub; absent for plain projects."""
+
+    def is_available(self) -> bool: ...
+
+    def is_repository(self, path: Path) -> bool: ...
+
+    def describe(self, path: Path) -> Mapping[str, object]: ...
+
+    def changes(self, path: Path) -> Mapping[str, object]: ...
+
+    def upstream_counts(self, path: Path) -> Mapping[str, object]: ...
 
 
 class ExecutionPort(Protocol):
@@ -163,13 +313,24 @@ class SpoolStore(Protocol):
 class VerificationPort(Protocol):
     """Independent read-only verification of the same business object."""
 
+    def verify(self, path: Path, expected_sha256: str) -> VerificationFact: ...
+
 
 class ModelProvider(Protocol):
     """Normalized response/errors for policy-approved projected input."""
 
+    def call(self, request: ModelCall) -> ModelCallResult: ...
+
 
 class ProjectionPort(Protocol):
     """Safe projected byte references with actual digests and exclusions."""
+
+    def project(
+        self,
+        *,
+        material: Mapping[MaterialKind, str],
+        source_snippets_enabled: bool,
+    ) -> Projection: ...
 
 
 class ReportArtifactPort(Protocol):
@@ -178,6 +339,10 @@ class ReportArtifactPort(Protocol):
 
 class SecretPort(Protocol):
     """Resolve references for a particular purpose; never return to a view."""
+
+    def resolve(self, reference: str, *, purpose: str) -> ResolvedSecret: ...
+
+    def has_secret(self, reference: str, *, purpose: str) -> bool: ...
 
 
 class MaintenancePort(Protocol):

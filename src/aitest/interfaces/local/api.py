@@ -2,14 +2,18 @@
 
 import json
 from collections import OrderedDict
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
-from collections.abc import Callable, Mapping
+from typing import cast
 
-from aitest.contracts.commands import HUMAN_ACTIONS, Command
-from aitest.contracts.views import ErrorDTO, Response
+from pydantic import JsonValue
+
 from aitest.application.connectivity import retry_delay
+from aitest.contracts.commands import HUMAN_ACTIONS, Command
+from aitest.contracts.errors import ErrorDTO
+from aitest.contracts.views import Response
 
 Handler = Callable[[Command], Mapping[str, object] | dict[str, object]]
 
@@ -29,7 +33,19 @@ class Session:
 
 
 class LocalAPI:
-    def __init__(self, instance_id: str, workspace_id: str | None = None, handlers: dict[str, Handler] | None = None, *, transaction_port: object | None = None, connector: Callable[[], object] | None = None, projector: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None, credential_projector: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None) -> None:
+    def __init__(
+        self,
+        instance_id: str,
+        workspace_id: str | None = None,
+        handlers: dict[str, Handler] | None = None,
+        *,
+        transaction_port: object | None = None,
+        connector: Callable[[], object] | None = None,
+        projector: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
+        credential_projector: (
+            Callable[[Mapping[str, object]], Mapping[str, object]] | None
+        ) = None,
+    ) -> None:
         """本地协议适配器。
 
         .. note::
@@ -45,23 +61,37 @@ class LocalAPI:
         self.connector = connector
         self.projector = projector
         self.credential_projector = credential_projector
-        self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = OrderedDict()
+        self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = (
+            OrderedDict()
+        )
 
     def dispatch(self, command: Command, session: Session) -> Response:
-        fingerprint = sha256(json.dumps(command.model_dump(), sort_keys=True).encode()).hexdigest()
+        fingerprint = sha256(
+            json.dumps(command.model_dump(), sort_keys=True).encode()
+        ).hexdigest()
         key = (session.session_id, command.request_id)
         cached = self._requests.get(key)
         if cached:
             if cached[0] != fingerprint:
-                return self._error(command, "REQUEST_CONFLICT", "request_id has different inputs")
+                return self._error(
+                    command,
+                    "REQUEST_CONFLICT",
+                    "request_id has different inputs",
+                )
             return cached[1].model_copy(deep=True)
-        if session.entry_kind == EntryKind.AGENT_RELAY and command.action in HUMAN_ACTIONS:
+        if (
+            session.entry_kind == EntryKind.AGENT_RELAY
+            and command.action in HUMAN_ACTIONS
+        ):
             response = self._error(
                 command,
                 "AWAITING_USER_CONFIRMATION",
                 "human confirmation requires a controlled user entry",
             )
-        elif command.action in {"begin", "commit", "rollback", "recover"} and self.transaction_port is not None:
+        elif (
+            command.action in {"begin", "commit", "rollback", "recover"}
+            and self.transaction_port is not None
+        ):
             response = self._transaction(command)
         elif command.action == "test_connection" and self.connector is not None:
             response = self._connect(command)
@@ -71,20 +101,43 @@ class LocalAPI:
                 projector = self.credential_projector or self.projector
                 if projector is not None:
                     result = projector(result)
-                response = Response(request_id=command.request_id, instance_id=self.instance_id, workspace_id=self.workspace_id, project_id=command.project_id, binding_revision=command.binding_revision, result=result)
+                response = Response(
+                    request_id=command.request_id,
+                    instance_id=self.instance_id,
+                    workspace_id=self.workspace_id,
+                    project_id=command.project_id,
+                    binding_revision=command.binding_revision,
+                    result=cast(dict[str, JsonValue], result),
+                )
             except Exception as exc:
-                response = self._error(command, getattr(exc, "code", "INTERNAL_ERROR"), str(exc))
+                response = self._error(
+                    command,
+                    getattr(exc, "code", "INTERNAL_ERROR"),
+                    str(exc),
+                )
         elif command.action == "doctor":
+            ready = "READY" if self.workspace_id else "NOT_READY"
+            doctor_result: dict[str, JsonValue] = {
+                "status": ready,
+                "protocol": "aitest.local/2.0",
+                "supported_actions": cast(
+                    list[JsonValue], sorted(set(self.handlers) | {"doctor"})
+                ),
+                "phase": 1,
+            }
             response = Response(
                 request_id=command.request_id,
                 instance_id=self.instance_id,
                 project_id=command.project_id,
                 binding_revision=command.binding_revision,
-                workspace_id=self.workspace_id, result={"status": "READY" if self.workspace_id else "NOT_READY", "protocol": "aitest.local/2.0", "supported_actions": sorted(set(self.handlers)|{"doctor"}), "phase": 1},
+                workspace_id=self.workspace_id,
+                result=doctor_result,
             )
         else:
             response = self._error(
-                command, "CAPABILITY_UNAVAILABLE", "action is not implemented in this skeleton"
+                command,
+                "CAPABILITY_UNAVAILABLE",
+                "action is not implemented in this skeleton",
             )
         self._requests[key] = (fingerprint, response.model_copy(deep=True))
         if len(self._requests) > 256:
@@ -97,35 +150,86 @@ class LocalAPI:
             instance_id=self.instance_id,
             project_id=command.project_id,
             binding_revision=command.binding_revision,
-            error=ErrorDTO(code=code, message=message, next_step="See docs/一期/工程状态.md"),
+            error=ErrorDTO(
+                code=code,
+                message=message,
+                next_step="See docs/一期/工程状态.md",
+            ),
         )
 
     def _transaction(self, command: Command) -> Response:
         try:
             method = getattr(self.transaction_port, command.action)
-            kwargs = {"request_id": command.request_id, "workspace_id": self.workspace_id}
+            kwargs: dict[str, object] = {
+                "request_id": command.request_id,
+                "workspace_id": self.workspace_id,
+            }
             if command.action == "begin":
-                kwargs.update(project_id=command.project_id, intent_id=command.intent_id)
+                kwargs.update(
+                    project_id=command.project_id,
+                    intent_id=command.intent_id,
+                )
             result = method(**kwargs)
-            return result if isinstance(result, Response) else Response(request_id=command.request_id, instance_id=self.instance_id, workspace_id=self.workspace_id, result=dict(result))
+            if isinstance(result, Response):
+                return result
+            return Response(
+                request_id=command.request_id,
+                instance_id=self.instance_id,
+                workspace_id=self.workspace_id,
+                result=dict(result),
+            )
         except Exception as exc:
-            return self._error(command, getattr(exc, "code", "INTERNAL_ERROR"), self._safe_message(exc))
+            return self._error(
+                command,
+                getattr(exc, "code", "INTERNAL_ERROR"),
+                self._safe_message(exc),
+            )
 
-    def safe_projection(self, value: Mapping[str, object]) -> Mapping[str, object]:
-        """Return a redacted projection; credentials are never returned by this adapter."""
+    def safe_projection(
+        self, value: Mapping[str, object]
+    ) -> Mapping[str, object]:
+        """Return a redacted projection; credentials never leave this adapter."""
         projector = self.credential_projector or self.projector
-        return projector(value) if projector is not None else {key: value[key] for key in value if key.lower() not in {"password", "token", "secret", "api_key", "access_token"}}
+        if projector is not None:
+            return projector(value)
+        forbidden = {
+            "password",
+            "token",
+            "secret",
+            "api_key",
+            "access_token",
+        }
+        return {
+            key: value[key]
+            for key in value
+            if key.lower() not in forbidden
+        }
 
     def _connect(self, command: Command) -> Response:
+        assert self.connector is not None
         attempts = 0
         while True:
             try:
                 result = self.connector()
-                return Response(request_id=command.request_id, instance_id=self.instance_id, workspace_id=self.workspace_id, result={"connected": bool(result), "attempts": attempts + 1})
+                return Response(
+                    request_id=command.request_id,
+                    instance_id=self.instance_id,
+                    workspace_id=self.workspace_id,
+                    result={
+                        "connected": bool(result),
+                        "attempts": attempts + 1,
+                    },
+                )
             except Exception as exc:
-                delay = retry_delay(attempts, read_only=True, idempotency_proven=True)
+                delay = retry_delay(
+                    attempts, read_only=True, idempotency_proven=True
+                )
                 if delay is None:
-                    return self._error(command, "CONNECTIVITY_FAILED", self._safe_message(exc))
+                    return self._error(
+                        command,
+                        "CONNECTIVITY_FAILED",
+                        self._safe_message(exc),
+                    )
                 attempts += 1
 
     @staticmethod

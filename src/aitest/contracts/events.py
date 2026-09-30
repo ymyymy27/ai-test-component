@@ -3,6 +3,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
 from .identity import IntentId, RequestId
 from .versions import EVENT_SCHEMA_VERSION
 

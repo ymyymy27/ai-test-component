@@ -1,10 +1,18 @@
 """Finite query contracts; callers cannot request an implicit full scan."""
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from .identity import RequestId
 from .versions import PROTOCOL_VERSION, ProtocolVersion
 
-QueryName = Literal["record.get", "records.list", "events.list", "workspace.status", "integrity.check"]
+QueryName = Literal[
+    "record.get",
+    "records.list",
+    "events.list",
+    "workspace.status",
+    "integrity.check",
+]
 SortKey = Literal["aggregate_kind", "record_id", "revision", "commit_sequence"]
 
 class QuerySpec(BaseModel):
