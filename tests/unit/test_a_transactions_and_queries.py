@@ -17,11 +17,7 @@ from aitest.interfaces.local.api import EntryKind, Session
 def test_workspace_allows_only_one_active_write_transaction(tmp_path: Path) -> None:
     unit = FileUnitOfWork(tmp_path)
     started = unit.begin("request-1", "project-1")
-    assert started == {
-        "request_id": "request-1",
-        "state": "active",
-        "intent_id": None,
-    }
+    assert started == {"request_id": "request-1", "state": "active"}
 
     with pytest.raises(RuntimeError, match="transaction already open"):
         unit.begin("request-2", "project-1")

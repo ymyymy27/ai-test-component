@@ -1,8 +1,7 @@
 """B 侧薄底座协议：提交、按修订读、幂等查询。
 
-**这不是架构文档中 A 的 `application/ports.py`。** 该文件是 A 唯一所有，B
-至今未修改，所需签名以 AB-001 端口与保存合同第 8 节提出，A 的评审意见见
-同目录 `review-A.md`。
+**这不是架构文档中 A 的 `application/ports.py`。** 该文件是 A 唯一所有，B 至今未修改，
+所需签名以 `docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8 节提出，A 的评审意见见同目录 `review-A.md`。
 
 本模块是 B 侧的**临时窄底座**：在 A 的端口签名落地前，让 `prepare_run` 等编排能够
 真实执行并验证。A 的签名一旦可用，由 `substrate_adapter.py` 写一层薄转接头对接，

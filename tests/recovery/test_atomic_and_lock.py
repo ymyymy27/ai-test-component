@@ -1,16 +1,13 @@
+import errno
+import json
+import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import pytest
 
-import errno  # noqa: E402
-import json  # noqa: E402
-import subprocess  # noqa: E402
-
-import pytest  # noqa: E402
-
-from aitest.infrastructure.file_store import atomic  # noqa: E402
-from aitest.infrastructure.file_store.locking import writer_lock  # noqa: E402
+from aitest.infrastructure.file_store import atomic
+from aitest.infrastructure.file_store.locking import writer_lock
 
 
 def test_failed_publish_preserves_old_pointer(
@@ -53,20 +50,7 @@ def test_real_second_process_cannot_acquire_writer_lock(tmp_path: Path) -> None:
     )
     with writer_lock(path):
         blocked = subprocess.run([sys.executable, "-c", code, str(path)], capture_output=True)
-        # 调试：观察 WorkspaceInUse 异常类名实际输出位置（stderr traceback 或 stdout）
-        print(f"[debug-blocked] returncode={blocked.returncode}")
-        print(f"[debug-blocked] stdout={blocked.stdout!r}")
-        print(f"[debug-blocked] stderr={blocked.stderr!r}")
         assert blocked.returncode != 0
-        # 子进程未捕获的异常默认走 stderr traceback；部分环境/重定向场景可能落到 stdout，
-        # 因此同时检查两个流以提升跨环境稳定性。
-        assert (
-            b"WorkspaceInUse" in blocked.stderr
-            or b"WorkspaceInUse" in blocked.stdout
-        )
+        assert b"WorkspaceInUse" in blocked.stderr
     recovered = subprocess.run([sys.executable, "-c", code, str(path)], capture_output=True)
-    # 调试：恢复后子进程输出，便于核对锁释放路径
-    print(f"[debug-recovered] returncode={recovered.returncode}")
-    print(f"[debug-recovered] stdout={recovered.stdout!r}")
-    print(f"[debug-recovered] stderr={recovered.stderr!r}")
     assert recovered.returncode == 0

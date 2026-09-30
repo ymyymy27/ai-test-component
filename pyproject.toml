@@ -7,9 +7,7 @@ name = "ai-test-component"
 version = "0.4.0"
 description = "Phase-one local AI-assisted testing plugin skeleton"
 readme = "README.md"
-# 工程基线 py3.13；运行验证已扩展至 py3.14.7（pytest 通过 PYTHONPATH=src 执行）。
-# 3.13 与 3.14 行为差异未触发本包 API 兼容性问题；新代码避免使用 3.14 独有语法。
-requires-python = ">=3.13,<3.15"
+requires-python = ">=3.13,<3.14"
 license = { text = "Proprietary" }
 authors = [{ name = "AI Test Component Team" }]
 dependencies = [
@@ -43,9 +41,7 @@ artifacts = ["src/aitest/resources/panel/dist/*.js"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-# 让 `pytest tests` 无需手动 PYTHONPATH=src 即可解析 aitest 模块；
-# 同时保留 "." 让 tests/ 内 conftest 与相对导入可用。
-pythonpath = ["src", "."]
+pythonpath = ["."]
 
 [tool.ruff]
 target-version = "py313"
@@ -56,7 +52,6 @@ extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-# 工程基线 3.13；mypy 用 3.13 目标检查可同时覆盖 3.14 兼容场景。
 python_version = "3.13"
 strict = true
 packages = ["aitest"]
