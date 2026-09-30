@@ -1,0 +1,10 @@
+{
+  "checked_documents": 6,
+  "checked_local_links": 54,
+  "fr_rows": 17,
+  "ac_rows": 35,
+  "probes": 20,
+  "scope_hashes_unchanged": true,
+  "problems": [],
+  "does_not_claim": "runtime correctness, real acceptance, or external link availability"
+}
