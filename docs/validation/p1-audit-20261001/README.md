@@ -6,11 +6,10 @@
 
 | 文件 | 用途与限制 |
 | --- | --- |
-| [source-inventory.json](source-inventory.json) | 111 产品 Python/2 产品 TS/75 Python 测试文件及现行文档的 hash、符号、行数、占位；范围清点，不是覆盖率/完成率 |
 | [test-summary.json](test-summary.json) | 两次 JUnit 提取的失败名称、原因、环境/质量摘要；全量收集失败，诊断运行排除 1 个收集错误文件 |
 | [probes.py](probes.py) / [probe-results.json](probe-results.json) | 虚构输入/临时目录的故障反例观察；20 个观察中 19 个具体问题，D-COVERAGE-01 额外约束待核对；执行成功不代表产品通过 |
-| [inventory.py](inventory.py) | 清点/摘要生成方法；读取本次本机 `.audit-p1-*.xml`，不改产品源码/验收登记 |
-| [check_documents.py](check_documents.py) / [document-check.json](document-check.json) | 检查本地链接、表格列数、17 FR/35 AC、20 复现引证及源码/测试/规范 hash 未变化；不验证远端链接或产品业务 |
+
+保留上述失败摘要、隔离复现和观察结果。一遍式 `inventory.py`/`check_documents.py` 及生成的全量 AST/校验 JSON 已清理；清点范围、54 个本地链接与 17 FR/35 AC 校验结果仍保留在[原检查日志](../../修改日志/袁/2026-10-01-一期工程分包与整体源码检查.md)，被移除文件可从 PR #40 的 Git 历史恢复。后续中间产物和 CI 改动见[清理日志](../../修改日志/袁/2026-10-01-中间产物清理与CI复核.md)。
 
 路径穿越复现的源/目标/越界文件均在新建 TemporaryDirectory 内，结束自动移除；凭据为 `AUDIT_FAKE_SECRET`，无真实凭据、外部模型、真实宿主或业务系统调用。复现依赖仓库内确定性测试工厂/内存替身，应在上述源码基线上重放；未来修复后需重新审核结果。
 
@@ -28,8 +27,6 @@ git diff --exit-code -- src/aitest/contracts/schemas
 uv run pytest --junitxml=.audit-p1-pytest.xml
 uv run pytest --ignore=tests/unit/test_a_pipe_peer_rejection.py --junitxml=.audit-p1-partial.xml
 uv run python -m docs.validation.p1-audit-20261001.probes
-uv run python -m docs.validation.p1-audit-20261001.inventory
-uv run python -m docs.validation.p1-audit-20261001.check_documents
 npm.cmd --prefix src/aitest/resources/panel ci
 npm.cmd --prefix src/aitest/resources/panel run build
 npm.cmd --prefix src/aitest/resources/panel test

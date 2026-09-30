@@ -182,6 +182,8 @@ uv run aitest mcp-relay --binding example
 
 截至 2026年10月1日（develop `0c890ed`）的复核：版本、ruff、mypy、Schema 通过；**全量 pytest 因缺 `check_peer_identity` 收集失败**。诊断排除该文件后 **737 通过、16 失败**，不代表全量通过。面板构建/静态导航及 VSIX 打包通过，真实一期验收仍为 0/35。详见[整体分析](docs/当前代码分析与一期工程对比.md)和[分包检查](docs/一期工程分包检查.md)。
 
+后续 CI 复核保留 Windows/Python 日常范围，测试改为保留收集错误并继续执行可收集项，失败也上传 JUnit；tag 发布补齐 Node/npm 和共享面板构建。一次性清点文件已清理，问题复现与失败摘要保留；详见[清理与 CI 复核日志](docs/修改日志/袁/2026-10-01-中间产物清理与CI复核.md)。
+
 ## 文档导航
 
 | 文档 | 用途 |
