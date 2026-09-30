@@ -1,10 +1,26 @@
+---
+contract_id: BC-001
+title: PreparedRun 与运行词汇表
+provider: B
+consumer: C
+contract_version: "0.8"
+contract_status: frozen
+provider_implementation: done
+consumer_implementation: done
+verification_status: fixture_passed
+last_verified_commit: 8d9883c
+blockers: []
+next_owner: null
+next_action: null
+---
+
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.7
+版本：0.9
 日期：2026-09-26
-提出方：B 包（feix-a，项目与计划）
+提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
-状态：**C-01—C-10 已实现；B 与 C 已签署；待 C 侧契约 PR 通过 CI 并合并**
+状态：**已完成；B 与 C 已签署，相关契约 PR 已合并，功能夹具已由 C 确认**
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`；B 侧本轮分支 `feature/contract-b-c-isolation-mode`
 
@@ -65,6 +81,10 @@ class RunFact(ContractModel):
 "driver": "planned",
 "conclusion_ceiling": "full",
 ```
+
+> **本节记录的是评审当时的现象（修订前）。** 该冲突已由 C-01 处理：现在这三份夹具的
+> `conclusion_ceiling` 均为 `passable`（`quick.json` 为 `partial`），字段类型也已由裸 `str` 改为
+> `ConclusionCeilingFact`。逐字记录保留在此，供追溯改动原因，**不代表现状**。
 
 ---
 
@@ -377,7 +397,7 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 
 ## 12 确认记录
 
-> 本目录的处理规则：只追加，不覆盖（见 `索引.md`）。
+> 本目录的处理规则见 `docs/接口对接/README.md`；已确认内容不得静默覆盖，变更必须记录版本、影响和迁移方式。
 
 | 日期 | 版本 | 变更 | B 包 | C 包 |
 | --- | --- | --- | --- | --- |
@@ -388,6 +408,8 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 | 2026-09-26 | 0.5 | C 确认 C-10 使用三态隔离方式；等待 B 补充 EnvironmentIsolationModeFact 后由 C 修改 RunFact 与夹具 | 待补充枚举 | C 已确认语义 |
 | 2026-09-26 | 0.6 | B 补充 `EnvironmentIsolationModeFact`、改用枚举、加漂移锁定测试并重生成 Schema；见第 7.3 节 | 已完成 | 待 C 同步 RunFact |
 | 2026-09-26 | 0.7 | C 将 RunFact 改为三态隔离方式，四份夹具覆盖 venv/none/unmanaged，重生成 Schema 并补合同测试 | 已完成 | 已完成 |
+| 2026-09-29 | 0.8 | C 确认 SourceSnapshot 分工与 PreparedRun 功能夹具四条场景、plain Git 键省略和 snapshot_revision 取值 | 待组长确认字段口径 | 已确认 |
+| 2026-09-30 | 0.9 | 项目负责人确认 SourceSnapshot 采用“规则归 B、类位置留 C、端口适配归 A”；实现缺口转入 AB-001，不改变 PreparedRun 冻结合同 | 已裁定 | 已确认兼容边界 |
 
 ---
 
@@ -431,7 +453,7 @@ C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐�
 | --- | --- | --- |
 | 产生 `PreparedRun` 的应用用例 | 属 Sprint 2，依赖 A 的 `WorkspaceUnitOfWork` / `RecordRepository` 端口；A 的 `application/ports.py` 目前仍为文档字符串占位 | 暂时只能读合同与夹具，无法取得真实准备结果 |
 | `PreparedRun` 的功能夹具 | 三份夹具为 Sprint 0 的合同级样例，未覆盖 Sprint 1 新增的项目上下文对象 | 与 C 的用例可能不完全对应 |
-| `SourceSnapshot` 归属 | 架构文档第 7 节归 `domain/execution/sources.py`，第 1、2 节与 P1-FR01 把职责归 B；待裁定 | 涉及源码内容身份的字段以哪一侧为准尚未定 |
+| `SourceSnapshot` 字段实现 | 项目负责人已裁定规则归 B、唯一类位置保留在 `domain/execution/sources.py`、A 实现端口；现有模型仍缺完整字段 | C 等 B 冻结字段并评审执行兼容，不另建模型 |
 
 以上三项均**不要求 C 现在动手**，登记在此以便交接时核对。
 
@@ -441,11 +463,36 @@ C 读取 `PreparedRun` 时会遇到下列对象，其边界在第 10 节已逐�
 
 ```text
 对接：B 包（项目与计划） ↔ C 包（执行与证据）
-文件：docs/接口对接/B-C-PreparedRun与词汇表合同.md
-版本：0.7
+文件：docs/接口对接/已完成/BC-001-PreparedRun/contract.md
+版本：0.8
 
-确认：[x] B 包 feix-a    日期：2026-09-26
+确认：[x] B 包（项目与计划）    日期：2026-09-26
 确认：[x] C 包 赵        日期：2026-09-26
 
 未决项：无。C-10 的 EnvironmentIsolationModeFact 已由 B 补充并由 C 同步到 RunFact 和四份夹具；等待 C 侧契约 PR 的 CI 与合并。
 ```
+
+---
+
+## 14 C 对 SourceSnapshot 与 PreparedRun 功能夹具的确认（2026-09-29）
+
+### 14.1 SourceSnapshot 归属
+
+C 同意 C-Q08 / B-Q01 按以下边界处理：
+
+- SourceSnapshot 类定义暂留在 domain/execution/sources.py，不拆文件、不复制第二套模型。
+- 快照建立时机、purpose（analysis / prepare）、排除规则、内容身份算法、Git/plain 身份统一、有效性及是否需重新准备由 B 唯一决定。
+- C 只消费 B 冻结的快照事实，并核对实际物化执行来源；不自行定义快照规则。
+- 缺失字段由 B 提供最终字段名、类型和口径，C 评审执行兼容后在唯一模型中补齐，包括 git 基准提交、plain 文件清单摘要、工作目录范围、排除规则、差异摘要、内容引用、创建时间、复取依赖与可复取范围；A 同步端口、存储和物化适配。
+- Git/plain 形态保持互斥；plain 省略 Git 键，不写 null、空串或未知。
+- ExecutionSourceVerification 继续只记录实际执行来源核对事实。
+
+### 14.2 PreparedRun 功能夹具第 7 节确认
+
+1. 四个场景对当前 C start 路径足够：git/plain 覆盖可执行路径，blocked 覆盖禁止启动，needs_reprepare 覆盖旧意图不得复用。quick/on_demand 已由 B-C 合同和 C 侧合同测试覆盖；不需要阻断当前交接。
+2. plain.json 省略 Git 键符合 C 的解析预期。C 按键不存在处理，不补造仓库、分支、提交或未知值。
+3. needs_reprepare 使用 source_kind=snapshot_revision 对来源快照变化够用。C 对任何非空 invalidation_rules 都 fail-closed，未知新取值也不会静默放行。
+
+### 14.3 C 确认
+
+C 对 SourceSnapshot 分工无异议；该分工已由袁（项目负责人）于 2026-09-30 裁定。对四项功能夹具无阻塞意见；plain 省略 Git 键和 snapshot_revision 取值可按现状关闭。字段补齐后续走新的契约变更，不改变本合同已冻结的 PreparedRun 词汇和夹具结论。

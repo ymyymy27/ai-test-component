@@ -1,11 +1,11 @@
 # B→C 交接一：真实 `PreparedRun` 功能夹具
 
-版本：1.0
-日期：2026-09-28
-提出方：B 包（feix-a）
+版本：1.2
+日期：2026-09-29
+提出方：B 包（项目与计划）
 接收方：C 包（赵）
-状态：**夹具已生成，待 C 确认可直接用于对拍**
-依据：组长实施方案第 4 节「只做两次业务交接」第 3 条；`docs/接口对接/B-C-PreparedRun与词汇表合同.md` 第 13.3 节
+状态：**已完成；四个场景、Plain 键省略和失效规则均已由 C 确认**
+依据：组长实施方案第 4 节「只做两次业务交接」第 3 条；`docs/接口对接/已完成/BC-001-PreparedRun/contract.md` 第 13.3、14 节
 
 ---
 
@@ -134,8 +134,8 @@ prepared = PreparedRun.model_validate_json(
 | --- | --- |
 | `start_run` 之后的事实 | 本文档只覆盖 **prepare** 一侧；运行/尝试/证据属 C 的 `ExecutionFacts` |
 | 真实文件存储 | 本次夹具经**内存底座**产出；真实存储的崩溃恢复与写锁验收仍未做 |
-| `SourceSnapshot` 的实际建立 | 归属未裁定（B-Q01 / C-Q08），夹具中的 `snapshot.content_identity` 是构造值 |
-| Git 形态来源身份 | 同上，待归属裁定 |
+| `SourceSnapshot` 的实际建立 | 分工已裁定但字段、端口和适配未实现（B-Q01 / C-Q08），夹具中的 `snapshot.content_identity` 是构造值 |
+| Git 形态来源身份 | 同上，待按裁定实现 |
 
 ---
 
@@ -146,8 +146,20 @@ prepared = PreparedRun.model_validate_json(
 3. `needs_reprepare` 场景的 `invalidation_rules.source_kind` 取值（如 `snapshot_revision`）
    对你侧够不够用？需要哪些取值请列出来。
 
-**回应方式**：直接在本文件下方追加"确认记录"，或改动 `docs/接口对接/B-C-PreparedRun与词汇表合同.md`。
+**回应方式**：直接在本文件下方追加"确认记录"，或改动 `docs/接口对接/已完成/BC-001-PreparedRun/contract.md`。
 按对接流程，改动走 PR。
+
+### 7.1 三条问题的当前状态（2026-09-28 复核）
+
+| # | 问题 | 状态 |
+| --- | --- | --- |
+| 1 | 四个场景够不够覆盖 C 侧用例 | **已确认**——Git/Plain 覆盖可执行路径，Blocked 覆盖禁止启动，Needs Reprepare 覆盖旧意图不得复用 |
+| 2 | `plain.json` 省略 Git 键是否符合 C 侧解析预期 | **已由合同覆盖，按现状关闭**——同目录 `contract.md` 的 C-01—C-10 已双方确认并合并；`plain` 形态省略 Git 键是合同约定行为，实测 `plain.json` 不含任何 Git 键 |
+| 3 | `invalidation_rules.source_kind` 取值是否够用 | **已由合同覆盖，按现状关闭**——合同已确认，且该字段在 `contracts/prepared_run.py` 中为无约束字符串（`Field(min_length=1)`），取值不匹配不会造成静默错误；实测 `needs_reprepare.json` 使用 `snapshot_revision` |
+
+**复核依据**：同目录 `contract.md` 第 7.1—7.4 节的 C 逐条确认结论，以及
+`tests/contracts/fixtures/prepared_run_functional/` 下四份夹具的实际取值。
+三条问题均已关闭，确认原文见主合同第 14.2—14.3 节。
 
 ---
 
@@ -155,4 +167,6 @@ prepared = PreparedRun.model_validate_json(
 
 | 日期 | 版本 | 变更 | 确认方 |
 | --- | --- | --- | --- |
-| 2026-09-28 | 1.0 | 初稿：四个场景的功能夹具、产生方式、对拍建议、待 C 回应的三项 | B 包 feix-a（待 C 回复） |
+| 2026-09-28 | 1.0 | 初稿：四个场景的功能夹具、产生方式、对拍建议、待 C 回应的三项 | B 包（待 C 回复） |
+| 2026-09-28 | 1.1 | 复核第 7 节三条问题的状态：第 2、3 条已由 C-01—C-10 合同覆盖并关闭，只剩第 1 条待 C 确认（新增 7.1 节） | B 包 |
+| 2026-09-29 | 1.2 | C 确认四个场景足够覆盖当前 start 路径，Plain 省略 Git 键和 `snapshot_revision` 取值均可按现状关闭 | B、C 包 |

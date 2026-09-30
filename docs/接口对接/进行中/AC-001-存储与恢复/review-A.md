@@ -1,16 +1,18 @@
 # A-C 存储恢复接口约定评审意见
 
+> **评审历史说明（2026-09-30）**：本文件中“未冻结端口签名放到一期之后”的建议已被项目负责人裁定覆盖。现行一期范围以同目录 `contract.md` v1.1、AB-001 第 10 节和总体架构为准；本文件仅保留当时评审过程。
+
 版本：1.0  
 日期：2026-09-29  
 评审方：LU（A 包负责人）  
-评审对象：`docs/接口对接/A包-LU/A-C-存储恢复接口约定.md`（v1.0）  
+评审对象：`docs/接口对接/进行中/AC-001-存储与恢复/contract.md`（v1.0）
 依据：`src/aitest/application/ports.py`、`src/aitest/infrastructure/file_store/`、`docs/文档-LU/A包对外接口与装配约定.md`
 
 ---
 
 ## 1 评审背景与目标
 
-C 包已有本地验证实现（`FileSpoolStore`、`FileObjectStore`、`FileCheckpointStore` 等），存在与 A 包底座重复实现文件布局的风险。本次评审目标为检查 `A-C-存储恢复接口约定.md` 是否完整覆盖 C 包提出的全部对齐需求，确保 C 包后续只依赖 A 包对外端口，不直接操作底层文件布局，避免两套文件实现。
+C 包已有本地验证实现（`FileSpoolStore`、`FileObjectStore`、`FileCheckpointStore` 等），存在与 A 包底座重复实现文件布局的风险。本次评审目标为检查同目录 `contract.md` 是否完整覆盖 C 包提出的全部对齐需求，确保 C 包后续只依赖 A 包对外端口，不直接操作底层文件布局，避免两套文件实现。
 
 ---
 

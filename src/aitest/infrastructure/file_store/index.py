@@ -37,7 +37,8 @@ class FileQueryIndex:
         try: offset = int(spec.cursor or "0")
         except ValueError: return IndexQueryResult(status="invalid_cursor", index_version=self.VERSION)
         if offset < 0: return IndexQueryResult(status="invalid_cursor", index_version=self.VERSION)
-        page = tuple(rows[offset:offset + spec.limit]); end = offset + len(page)
+        page = tuple(rows[offset:offset + spec.limit])
+        end = offset + len(page)
         return IndexQueryResult(status="ok", items=page, next_cursor=str(end) if end < len(rows) else None, index_version=self.VERSION)
     def query(self, *, project_id: str, kind: str | None = None, limit: int = 50, cursor: int = 0) -> IndexQueryResult:
         spec = QuerySpec(project_id=project_id, aggregate_kind=kind, limit=limit, cursor=str(cursor) if cursor else None)

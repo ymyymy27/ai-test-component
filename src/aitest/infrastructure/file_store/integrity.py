@@ -2,7 +2,9 @@
 from pathlib import Path
 import hashlib, json
 def check_workspace(root: Path) -> dict[str, object]:
-    root=root.resolve(); errors=[]; objects=0
+    root = root.resolve()
+    errors = []
+    objects = 0
     for path in root.rglob("*.json"):
         try: json.loads(path.read_text(encoding="utf-8"))
         except Exception as exc: errors.append(f"{path.name}: {exc}")

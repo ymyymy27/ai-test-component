@@ -14,7 +14,7 @@
    在适配层包成异常，**用例依赖异常语义**。
 3. **payload 形状**：本地 `Mapping[str, object]` ↔ A 的记录 payload。
    若 A 直接回领域对象而非 payload，在适配层做转换
-   （这正是 `docs/接口对接/B-A-端口与保存需求.md` 第 8.3 节第 2 问的两种选择）。
+   （这正是 `docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.3 节第 2 问的两种选择）。
 
 **不得**把本模块的方法体做成"猜测 A 的实现"：A 的签名未定之前，宁可保持未实现，
 也不要按推测写一套（B 包 AI 规则第 3.9 节：未完成的动作不注册为可用能力）。
@@ -36,7 +36,7 @@ from aitest.application.planning.substrate import (
 
 _UNIMPLEMENTED = (
     "A has not published WorkspaceUnitOfWork/RecordRepository signatures yet; "
-    "see docs/接口对接/B-A-端口与保存需求.md section 8"
+    "see docs/接口对接/进行中/AB-001-端口与保存/contract.md section 8"
 )
 
 

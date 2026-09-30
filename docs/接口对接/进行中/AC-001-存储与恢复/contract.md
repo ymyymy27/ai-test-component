@@ -1,7 +1,23 @@
+---
+contract_id: AC-001
+title: ExecutionFacts 存储与恢复
+provider: A
+consumer: C
+contract_version: "1.1"
+contract_status: reviewing
+provider_implementation: partial
+consumer_implementation: partial
+verification_status: not_run
+last_verified_commit: null
+blockers: []
+next_owner: C
+next_action: 回复 A 评审列出的五项确认事项并安排真实适配对拍
+---
+
 # A包C包存储恢复公共接口约定
 
-版本：1.0  
-日期：2026-09-29  
+版本：1.1
+日期：2026-09-30
 状态：A/C 跨包存储与恢复接口对齐（草案）  
 提供方：A包（本地核心底座）  
 调用方：C包（执行编排）  
@@ -10,9 +26,9 @@
 
 ## 范围声明
 
-本文档为**接口契约设计**。相关代码实现（`CheckpointPort` 端口定义、`SourceSnapshotPort` / `SourceControlPort` / `ModelProvider` / `ProjectionPort` 方法签名、`stage_preparation` 等）放在 **A 包一期交付之后迭代**，不属于 A 包一期底座开发范围。
+本文档为**接口契约设计**。根据项目负责人 2026-09-30 裁定，`SourceSnapshotPort` / `SourceControlPort` / `ModelProvider` / `ProjectionPort` 的一期所需方法签名，以及准备意图的同键幂等、冲突与同次提交语义，均属于**一期范围**，不得再统一推迟到一期之后。`CheckpointPort` 是否需要独立 Protocol 仍按 A/C 的实际调用面确认，不以空接口制造承诺。
 
-A 包一期底座已交付的能力（事务、记录、索引、对象存储、Spool、检查点、恢复）可直接使用；本文档中待定义的端口签名在后续迭代中由 A 包统一写入 `application/ports.py`。
+A 包一期底座已交付的能力（事务、记录、索引、对象存储、Spool、检查点、恢复）可直接使用；待定义的当期端口签名由 A 包写入唯一 `application/ports.py`，业务包确认语义并完成合同测试。
 
 ## 1 模块概述
 

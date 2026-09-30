@@ -18,7 +18,8 @@ class RecordQueryResult:
 
 class FileRecordRepository:
     def __init__(self, root: Path):
-        self.root = root.resolve(); self.path = self.root / "records.json"
+        self.root = root.resolve()
+        self.path = self.root / "records.json"
     def _load(self) -> dict:
         if not self.path.exists(): return {"records": {}, "commit": 0}
         return json.loads(self.path.read_text(encoding="utf-8"))
@@ -30,28 +31,43 @@ class FileRecordRepository:
         if revision < 1 or revision > len(rows): raise ValueError("unknown revision")
         return CommittedRecord(aggregate_kind=aggregate_kind, record_id=record_id, revision=revision, payload=rows[revision-1])
     def append(self, kind: str, record_id: str, expected_revision: int|None, payload: Mapping[str, object]) -> int:
-        data=self._load(); rows=data["records"].setdefault(kind, {}).setdefault(record_id, []); current=len(rows)
+        data = self._load()
+        rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
+        current = len(rows)
         if expected_revision != current: raise ValueError(f"revision conflict: expected {expected_revision}, current {current}")
-        rows.append(dict(payload)); data["commit"] += 1; self._save(data); return current+1
+        rows.append(dict(payload))
+        data["commit"] += 1
+        self._save(data)
+        return current + 1
     def append_batch(self, pending: list[tuple[str, str, int | None, Mapping[str, object]]]) -> list[tuple[str, str, int]]:
-        data = self._load(); created=[]
+        data = self._load()
+        created = []
         for kind, record_id, expected_revision, payload in pending:
-            rows=data["records"].setdefault(kind, {}).setdefault(record_id, []); current=len(rows)
+            rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
+            current = len(rows)
             if expected_revision != current: raise ValueError(f"revision conflict: expected {expected_revision}, current {current}")
-            rows.append(dict(payload)); data["commit"] += 1; created.append((kind, record_id, current + 1))
-        self._save(data); return created
+            rows.append(dict(payload))
+            data["commit"] += 1
+            created.append((kind, record_id, current + 1))
+        self._save(data)
+        return created
     def append_intent(self, *, intent_id: str, kind: str, record_id: str, expected_revision: int|None, payload: Mapping[str, object]) -> int:
-        data = self._load(); intents = data.setdefault("intents", {})
+        data = self._load()
+        intents = data.setdefault("intents", {})
         fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
         if intent_id in intents:
             previous = intents[intent_id]
             if previous["fingerprint"] != fingerprint: raise ValueError("intent conflict")
             return int(previous["revision"])
-        rows = data["records"].setdefault(kind, {}).setdefault(record_id, []); current = len(rows)
+        rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
+        current = len(rows)
         if expected_revision != current: raise ValueError(f"revision conflict: expected {expected_revision}, current {current}")
-        rows.append(dict(payload)); revision = current + 1; data["commit"] += 1
+        rows.append(dict(payload))
+        revision = current + 1
+        data["commit"] += 1
         data.setdefault("intents", {})[intent_id] = {"fingerprint": fingerprint, "revision": revision}
-        self._save(data); return revision
+        self._save(data)
+        return revision
     def query(self, query: RecordQuery) -> RecordQueryResult:
         index = FileQueryIndex(self.root)
         result = index.query_spec(QuerySpec(project_id=query.project_id, aggregate_kind=query.aggregate_kind, record_id=query.record_id, limit=query.limit))

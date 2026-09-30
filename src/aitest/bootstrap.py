@@ -20,7 +20,9 @@ class CoreInstance:
 
 class UseCaseRegistry:
     def __init__(self) -> None:
-        self._lock=RLock(); self._handlers: dict[str, Handler]={}; self._owners: dict[str,str]={}
+        self._lock = RLock()
+        self._handlers: dict[str, Handler] = {}
+        self._owners: dict[str, str] = {}
     def register(self, package: str, handlers: Mapping[str, Handler], *, closed: bool = False) -> None:
         if package not in {"B", "C", "D"}: raise ValueError("package must be B, C or D")
         if closed: raise RuntimeError("use case registration is closed after workspace assembly")
@@ -28,7 +30,8 @@ class UseCaseRegistry:
             for action, handler in handlers.items():
                 if not action or not callable(handler): raise ValueError("use case action must map to a callable")
                 if action in self._handlers: raise ValueError(f"use case already registered: {action}")
-            self._handlers.update(handlers); self._owners.update({action: package for action in handlers})
+            self._handlers.update(handlers)
+            self._owners.update({action: package for action in handlers})
     def snapshot(self) -> Mapping[str, Handler]:
         with self._lock: return MappingProxyType(dict(self._handlers))
     def owners(self) -> Mapping[str, str]:
@@ -36,7 +39,10 @@ class UseCaseRegistry:
 
 class CoreBootstrap:
     def __init__(self) -> None:
-        self._lock=RLock(); self._registry=UseCaseRegistry(); self._instances: dict[Path,CoreInstance]={}; self._registration_closed=False
+        self._lock = RLock()
+        self._registry = UseCaseRegistry()
+        self._instances: dict[Path, CoreInstance] = {}
+        self._registration_closed = False
     @property
     def registry(self) -> UseCaseRegistry: return self._registry
     def register_use_cases(self, package: str, handlers: Mapping[str, Handler]) -> None: self._registry.register(package, handlers, closed=self._registration_closed)
@@ -45,9 +51,12 @@ class CoreBootstrap:
         with self._lock:
             if root in self._instances: return self._instances[root]
             self._registration_closed=True
-            workspace=Workspace(root); uow=FileUnitOfWork(root)
+            workspace = Workspace(root)
+            uow = FileUnitOfWork(root)
             api=LocalAPI(instance_id=str(uuid4()), workspace_id=workspace.workspace_id, handlers=dict(self._registry.snapshot()), transaction_port=uow)
-            instance=CoreInstance(api.instance_id, workspace.workspace_id, api); self._instances[root]=instance; return instance
+            instance = CoreInstance(api.instance_id, workspace.workspace_id, api)
+            self._instances[root] = instance
+            return instance
 
 _GLOBAL_BOOTSTRAP=CoreBootstrap()
 def register_use_cases(package: str, handlers: Mapping[str, Handler]) -> None: _GLOBAL_BOOTSTRAP.register_use_cases(package, handlers)

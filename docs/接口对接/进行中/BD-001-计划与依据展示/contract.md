@@ -1,8 +1,24 @@
+---
+contract_id: BD-001
+title: 计划、范围与断言依据展示
+provider: B
+consumer: D
+contract_version: "0.2"
+contract_status: reviewing
+provider_implementation: partial
+consumer_implementation: not_started
+verification_status: not_run
+last_verified_commit: null
+blockers: []
+next_owner: D
+next_action: 回复展示、查询和运行中修订五项问题
+---
+
 # B-D 跨包需求：计划、范围与断言依据的展示口径
 
 版本：0.2
 日期：2026-09-25
-提出方：B 包（feix-a，项目与计划）
+提出方：B 包（项目与计划）
 接收方：D 包（判定、报告与用户入口）
 状态：**待 D 确认**（2.2 节的枚举已由 B 实现，见第 6 节确认记录）
 依据：一期架构文档《01-项目与计划》第 3、4 节；《03-报告与缺陷》；功能文档第 2、3 节；需求 P1-FR06/07/14/17、P1-AC17/AC20/AC31/AC32
@@ -56,7 +72,7 @@ D 只读取、不重算。本文档明确：哪些值 B 提供、哪些值 D 可
 判定入口只接受 `ConclusionCeiling`，不接受"覆盖了多少"作为放宽依据（架构文档第 4 节）。
 
 > ⚠️ **已知上游问题**：C 包三份 `ExecutionFacts` 夹具中 `conclusion_ceiling` 均写作 `"full"`，
-> 该值不属于 `partial` 或 `passable`。B 已在 `docs/接口对接/B-C-PreparedRun与词汇表合同.md`
+> 该值不属于 `partial` 或 `passable`。B 已在 `docs/接口对接/已完成/BC-001-PreparedRun/contract.md`
 > 的 C-01 提出修正。修正前，D 不得按 `"full"` 实现任何分支逻辑。
 
 ### 2.3 断言依据三态（FR06）
@@ -144,8 +160,8 @@ B 牵头的这四个 AC 需要 D 的界面配合，列在这里便于对齐：
 
 | 日期 | 版本 | 变更 | 确认方 |
 | --- | --- | --- | --- |
-| 2026-09-24 | 0.1 | 初稿 | B 包 feix-a（待 D 回复） |
-| 2026-09-25 | 0.2 | 2.2 节标注三个枚举已实现；新增第 7 节 B 侧环境与交付对象的展示口径 | B 包 feix-a |
+| 2026-09-24 | 0.1 | 初稿 | B 包（待 D 回复） |
+| 2026-09-25 | 0.2 | 2.2 节标注三个枚举已实现；新增第 7 节 B 侧环境与交付对象的展示口径 | B 包 |
 
 ---
 

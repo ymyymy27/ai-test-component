@@ -6,7 +6,10 @@ import pytest
 
 from aitest.contracts.execution_facts import ExecutionFacts
 
-FIXTURES = Path(__file__).resolve().parents[2] / "docs/接口对接/C包-赵-D包/fixtures"
+FIXTURES = (
+    Path(__file__).resolve().parents[2]
+    / "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures"
+)
 
 
 @pytest.mark.parametrize(
