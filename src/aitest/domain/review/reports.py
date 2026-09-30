@@ -8,6 +8,7 @@ coverage sets; it does not persist records or render UI.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 from aitest.domain.planning.plans import RunTier
@@ -441,6 +442,251 @@ def evaluate_review(facts: DecisionFacts) -> DecisionResult:
     )
 
 
+class ReportExportKind(StrEnum):
+    MARKDOWN_SUMMARY = "markdown_summary"
+    EVIDENCE_BUNDLE = "evidence_bundle"
+
+
+@dataclass(frozen=True, slots=True)
+class ReportContext:
+    """Inputs frozen into a report revision."""
+
+    project_id: str
+    run_id: str
+    run_revision: int
+    plan_revision_refs: tuple[str, ...]
+    scope_revision: str
+    scope_name: str
+    source_identity: str
+    environment_ref: str
+    rules_revision: str
+    acceptance_revision: str
+    template_revision: str
+    policy_version: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "project_id",
+            "run_id",
+            "scope_revision",
+            "scope_name",
+            "source_identity",
+            "environment_ref",
+            "rules_revision",
+            "acceptance_revision",
+            "template_revision",
+            "policy_version",
+        ):
+            _require_text(getattr(self, name), name)
+        _require_positive(self.run_revision, "run_revision")
+        if not self.plan_revision_refs:
+            raise ValueError("plan_revision_refs must not be empty")
+        if any(not ref.strip() for ref in self.plan_revision_refs):
+            raise ValueError("plan_revision_refs must not contain empty values")
+
+
+@dataclass(frozen=True, slots=True)
+class ReportSnapshot:
+    """Immutable report revision.
+
+    A changed decision, evidence set, or issue revision creates another
+    ReportSnapshot revision; it never mutates an earlier snapshot.
+    """
+
+    report_id: str
+    content_revision: int
+    context: ReportContext
+    decision: DecisionResult
+    evidence_refs: tuple[str, ...] = ()
+    issue_revisions: tuple[tuple[str, int], ...] = ()
+    created_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        _require_text(self.report_id, "report_id")
+        _require_positive(self.content_revision, "content_revision")
+        if self.decision.policy_version != self.context.policy_version:
+            raise ValueError("report and decision policy versions must match")
+        if any(not ref.strip() for ref in self.evidence_refs):
+            raise ValueError("evidence_refs must not contain empty values")
+        issue_ids = [issue_id for issue_id, _ in self.issue_revisions]
+        if len(issue_ids) != len(set(issue_ids)):
+            raise ValueError("issue revisions must be unique per report")
+        for issue_id, revision in self.issue_revisions:
+            _require_text(issue_id, "issue_id")
+            _require_positive(revision, "issue_revision")
+
+    @property
+    def business_outcome(self) -> BusinessOutcome:
+        return self.decision.business_outcome
+
+    @property
+    def evidence_grade(self) -> EvidenceGrade | None:
+        return self.decision.evidence_grade
+
+    @property
+    def primary_gap(self) -> ReviewGap | None:
+        return self.decision.primary_gap
+
+
+@dataclass(frozen=True, slots=True)
+class ReportDraft:
+    report_id: str
+    context: ReportContext
+    decision: DecisionResult
+    evidence_refs: tuple[str, ...] = ()
+    issue_revisions: tuple[tuple[str, int], ...] = ()
+
+
+def create_report_revision(
+    previous: ReportSnapshot | None,
+    draft: ReportDraft,
+    *,
+    created_at: datetime | None = None,
+) -> ReportSnapshot:
+    """Create the next immutable report revision."""
+
+    if previous is not None:
+        if previous.report_id != draft.report_id:
+            raise ValueError("report revision cannot change report_id")
+        if previous.context.project_id != draft.context.project_id:
+            raise ValueError("report revision cannot change project")
+        content_revision = previous.content_revision + 1
+    else:
+        content_revision = 1
+    return ReportSnapshot(
+        report_id=draft.report_id,
+        content_revision=content_revision,
+        context=draft.context,
+        decision=draft.decision,
+        evidence_refs=draft.evidence_refs,
+        issue_revisions=draft.issue_revisions,
+        created_at=created_at,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LocalReview:
+    review_id: str
+    project_id: str
+    report_id: str
+    report_revision: int
+    reviewer: str
+    conclusion: str
+    explanation: str
+    recorded_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        for name in (
+            "review_id",
+            "project_id",
+            "report_id",
+            "reviewer",
+            "conclusion",
+            "explanation",
+        ):
+            _require_text(getattr(self, name), name)
+        _require_positive(self.report_revision, "report_revision")
+
+
+@dataclass(frozen=True, slots=True)
+class ReportExportKey:
+    report_id: str
+    report_revision: int
+    review_ids: tuple[str, ...]
+    kind: ReportExportKind
+    redaction_policy_version: str
+    attachment_refs: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_text(self.report_id, "report_id")
+        _require_positive(self.report_revision, "report_revision")
+        _require_text(self.redaction_policy_version, "redaction_policy_version")
+        if len(self.review_ids) != len(set(self.review_ids)):
+            raise ValueError("review_ids must be unique")
+        if any(not review_id.strip() for review_id in self.review_ids):
+            raise ValueError("review_ids must not contain empty values")
+        if len(self.attachment_refs) != len(set(self.attachment_refs)):
+            raise ValueError("attachment_refs must be unique")
+        if any(not ref.strip() for ref in self.attachment_refs):
+            raise ValueError("attachment_refs must not contain empty values")
+        object.__setattr__(self, "review_ids", tuple(sorted(self.review_ids)))
+        object.__setattr__(self, "attachment_refs", tuple(sorted(self.attachment_refs)))
+
+
+@dataclass(frozen=True, slots=True)
+class ReportExport:
+    export_id: str
+    key: ReportExportKey
+    artifact_ref: str
+    artifact_digest: str
+    created_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("export_id", "artifact_ref", "artifact_digest"):
+            _require_text(getattr(self, name), name)
+
+
+def validate_reviews_for_report(
+    report: ReportSnapshot,
+    reviews: tuple[LocalReview, ...],
+) -> None:
+    review_ids = [review.review_id for review in reviews]
+    if len(review_ids) != len(set(review_ids)):
+        raise ValueError("reviews must be unique")
+    for review in reviews:
+        if review.project_id != report.context.project_id:
+            raise ValueError("review belongs to a different project")
+        if review.report_id != report.report_id:
+            raise ValueError("review belongs to a different report")
+        if review.report_revision != report.content_revision:
+            raise ValueError("review must bind the exact report revision")
+
+
+def create_report_export(
+    report: ReportSnapshot,
+    reviews: tuple[LocalReview, ...],
+    existing_exports: tuple[ReportExport, ...],
+    *,
+    export_id: str,
+    report_revision: int,
+    review_ids: tuple[str, ...],
+    kind: ReportExportKind,
+    redaction_policy_version: str,
+    artifact_ref: str,
+    artifact_digest: str,
+    attachment_refs: tuple[str, ...] = (),
+    created_at: datetime | None = None,
+) -> ReportExport:
+    """Create or idempotently reuse an export for one frozen report input."""
+
+    if report_revision != report.content_revision:
+        raise ValueError("export must freeze the exact report revision")
+    validate_reviews_for_report(report, reviews)
+    if {review.review_id for review in reviews} != set(review_ids):
+        raise ValueError("export review_ids must match the supplied reviews")
+    key = ReportExportKey(
+        report_id=report.report_id,
+        report_revision=report_revision,
+        review_ids=review_ids,
+        kind=kind,
+        redaction_policy_version=redaction_policy_version,
+        attachment_refs=attachment_refs,
+    )
+    for existing in existing_exports:
+        if existing.key != key:
+            continue
+        if existing.artifact_ref != artifact_ref or existing.artifact_digest != artifact_digest:
+            raise ValueError("same export key produced a different artifact")
+        return existing
+    return ReportExport(
+        export_id=export_id,
+        key=key,
+        artifact_ref=artifact_ref,
+        artifact_digest=artifact_digest,
+        created_at=created_at,
+    )
+
+
 __all__ = [
     "BusinessOutcome",
     "Coverage",
@@ -448,8 +694,18 @@ __all__ = [
     "DecisionResult",
     "DecisiveFailure",
     "EvidenceGrade",
+    "LocalReview",
+    "ReportContext",
+    "ReportDraft",
+    "ReportExport",
+    "ReportExportKey",
+    "ReportExportKind",
+    "ReportSnapshot",
     "ReviewGap",
     "ReviewGapCode",
     "SourceIdentityState",
+    "create_report_export",
+    "create_report_revision",
     "evaluate_review",
+    "validate_reviews_for_report",
 ]
