@@ -53,10 +53,10 @@ class FileObjectStore:
         if not path.is_relative_to(self._root):
             raise ValueError("object path escapes workspace root")
         content = path.read_bytes()
-        if len(content) != ref.size:
-            raise ValueError("object size mismatch")
         if "sha256:" + hashlib.sha256(content).hexdigest() != ref.digest:
             raise ValueError("object digest mismatch")
+        if len(content) != ref.size:
+            raise ValueError("object size mismatch")
         return content
 
     @staticmethod

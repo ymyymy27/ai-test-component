@@ -1,7 +1,10 @@
 """Structured, transport-safe A-package errors."""
 from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from .versions import ERROR_SCHEMA_VERSION
+
 
 class ErrorCode(StrEnum):
     OK = "OK"
