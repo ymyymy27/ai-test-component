@@ -180,7 +180,7 @@ uv run aitest mcp-relay --binding example
 
 自动化测试覆盖部分领域规则、合同、依赖边界、存储故障和恢复行为，但不能替代产品验收。P1-AC01—35 的状态统一记录在 [`tests/acceptance/p1/status.json`](tests/acceptance/p1/status.json)。
 
-截至 2026年10月1日（develop `0c890ed`）的复核：版本、ruff、mypy、Schema 通过；**全量 pytest 因缺 `check_peer_identity` 收集失败**。诊断排除该文件后 **737 通过、16 失败**，不代表全量通过。面板构建/静态导航及 VSIX 打包通过，真实一期验收仍为 0/35。详见[整体分析](docs/当前代码分析与一期工程对比.md)和[分包检查](docs/一期工程分包检查.md)。
+截至 2026年10月1日（develop `0c890ed`）的复核：版本、ruff、mypy、Schema 通过；**全量 pytest 因缺 `check_peer_identity` 收集失败**。诊断排除该文件后 **737 通过、16 失败**，不代表全量通过。面板构建/静态导航及 VSIX 打包通过，真实一期验收仍为 0/35。详见[整体分析](docs/当前代码分析与一期工程对比.md)；一期工程检查按包拆为 [A 包](docs/一期工程检查-A包.md)、[B 包](docs/一期工程检查-B包.md)、[C 包](docs/一期工程检查-C包.md)、[D 包](docs/一期工程检查-D包.md)。
 
 后续 CI 复核保留 Windows/Python 日常范围，测试改为保留收集错误并继续执行可收集项，失败也上传 JUnit；tag 发布补齐 Node/npm 和共享面板构建。一次性清点文件已清理，问题复现与失败摘要保留；详见[清理与 CI 复核日志](docs/修改日志/袁/2026-10-01-中间产物清理与CI复核.md)。
 
