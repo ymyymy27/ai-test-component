@@ -15,7 +15,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -309,12 +308,6 @@ def create_api(
         本入口仅作进程内装配；跨进程唯一核心请用 :func:`acquire_endpoint`。
     """
     if handlers is not None:
-        warnings.warn(
-            "create_api(handlers=...) 是过时兼容接口：B/C/D 上层包禁止使用 handlers 参数，"
-            "必须走 register_use_cases 注册。该参数仅用于旧兼容，不用于 B/C/D 正常接入。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         return LocalAPI(instance_id=str(uuid4()), handlers=dict(handlers))
     if workspace_root is None:
         return LocalAPI(
