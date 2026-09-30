@@ -1,0 +1,52 @@
+# 2026-10-01 一期源码检查证据
+
+产品基线：`0c890eded76fe6c31ad84c211445025de67f599e`（拉取的 develop）。检查结论见[整体对比](../../当前代码分析与一期工程对比.md)和[分包检查](../../一期工程分包检查.md)。
+
+## 材料
+
+| 文件 | 用途与限制 |
+| --- | --- |
+| [source-inventory.json](source-inventory.json) | 111 产品 Python/2 产品 TS/75 Python 测试文件及现行文档的 hash、符号、行数、占位；范围清点，不是覆盖率/完成率 |
+| [test-summary.json](test-summary.json) | 两次 JUnit 提取的失败名称、原因、环境/质量摘要；全量收集失败，诊断运行排除 1 个收集错误文件 |
+| [probes.py](probes.py) / [probe-results.json](probe-results.json) | 虚构输入/临时目录的故障反例观察；20 个观察中 19 个具体问题，D-COVERAGE-01 额外约束待核对；执行成功不代表产品通过 |
+| [inventory.py](inventory.py) | 清点/摘要生成方法；读取本次本机 `.audit-p1-*.xml`，不改产品源码/验收登记 |
+| [check_documents.py](check_documents.py) / [document-check.json](document-check.json) | 检查本地链接、表格列数、17 FR/35 AC、20 复现引证及源码/测试/规范 hash 未变化；不验证远端链接或产品业务 |
+
+路径穿越复现的源/目标/越界文件均在新建 TemporaryDirectory 内，结束自动移除；凭据为 `AUDIT_FAKE_SECRET`，无真实凭据、外部模型、真实宿主或业务系统调用。复现依赖仓库内确定性测试工厂/内存替身，应在上述源码基线上重放；未来修复后需重新审核结果。
+
+## 本机命令与结果
+
+工作目录为仓库根目录。Windows 11 x64/build 22631、Python 3.13.13、Node 24.14.1、npm 11.13.0，版本 0.4.0。本地过程日志/JUnit 长期只保存提取摘要，避免提交无关路径/线程输出。
+
+```powershell
+uv sync --extra dev --locked
+uv run python scripts/check_versions.py
+uv run ruff check .
+uv run mypy
+uv run python scripts/generate_schemas.py
+git diff --exit-code -- src/aitest/contracts/schemas
+uv run pytest --junitxml=.audit-p1-pytest.xml
+uv run pytest --ignore=tests/unit/test_a_pipe_peer_rejection.py --junitxml=.audit-p1-partial.xml
+uv run python -m docs.validation.p1-audit-20261001.probes
+uv run python -m docs.validation.p1-audit-20261001.inventory
+uv run python -m docs.validation.p1-audit-20261001.check_documents
+npm.cmd --prefix src/aitest/resources/panel ci
+npm.cmd --prefix src/aitest/resources/panel run build
+npm.cmd --prefix src/aitest/resources/panel test
+node src/aitest/resources/panel/node_modules/playwright/cli.js install chromium
+npm.cmd --prefix src/aitest/resources/panel test
+npm.cmd --prefix integrations/trae ci
+npm.cmd --prefix integrations/trae run package
+```
+
+- 版本/ruff/mypy/Schema 通过；mypy 基线 123、文档复核 125 个分析文件包含跟随导入，不是产品文件数。
+- 全量 pytest：1 collection error，缺 `check_peer_identity`。诊断排除该文件：737 passed / 16 failed / 4 warnings，19.47 s；完整失败名称见摘要。15 管道/宿主/装配失败，另 1 个 `begin()` 返回 dict 多 `intent_id: None`，该失败本身不证明锁失效。
+- 面板/Trae 构建通过；首次面板测试缺浏览器，安装 Chromium 后静态导航 1 passed（2.5 s）。VSIX 6 文件，仅证明可构建，未作真实 Trae 接入。
+- [基线远端 CI](https://github.com/ymyymy27/ai-test-component/actions/runs/36729829040)同样因 pytest 收集失败；静态步骤通过。CI runner Python 3.13.15，分别记录本机/远端版本。
+- 真实 AC 保持 verified=0 / not_verified=7 / blocked=1 / untested=27，缺真实宿主、业务核验/人工导入、掉电/跨核心恢复与完整留存/导出证据。
+
+## 复现与问题编号
+
+结果键对应分包引证：A-SOURCE-01/02/03（字节/范围/元数据），A-PATH-01/02（物化/恢复目标），A-INTENT-01，A-COMMIT-01，A-QUERY-01/02，A-BACKUP-01，A-MIGRATION-01，A-SECRET-01/02，B-PREPARE-01/02，C-INVALIDATION-01，D-DECISION-01，D-ISSUE-01/02。D-COVERAGE-01 只证明实现额外要求 R⊆V，不作为已确认错误。
+
+PR SHA/CI/合并状态以[袁的修改日志](../../修改日志/袁/2026-10-01-一期工程分包与整体源码检查.md)及 GitHub 为准。
