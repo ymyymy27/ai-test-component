@@ -1,8 +1,11 @@
 """Protocol responses containing facts and storage references only."""
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from .errors import ErrorDTO
 from .versions import PROTOCOL_VERSION, ProtocolVersion
+
 
 class PageInfo(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)

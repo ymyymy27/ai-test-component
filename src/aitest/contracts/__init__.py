@@ -9,4 +9,16 @@ from .queries import Query, QuerySpec
 from .responses import PageInfo, Response
 from .versions import PROTOCOL_VERSION
 
-__all__ = ["Capability", "CapabilitySet", "Command", "ErrorCode", "ErrorDTO", "Event", "PageInfo", "PROTOCOL_VERSION", "Query", "QuerySpec", "Response"]
+__all__ = [
+    "Capability",
+    "CapabilitySet",
+    "Command",
+    "ErrorCode",
+    "ErrorDTO",
+    "Event",
+    "PageInfo",
+    "PROTOCOL_VERSION",
+    "Query",
+    "QuerySpec",
+    "Response",
+]

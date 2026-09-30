@@ -1,12 +1,62 @@
 {
   "$defs": {
+    "ErrorCode": {
+      "enum": [
+        "OK",
+        "INVALID_PROTOCOL",
+        "INVALID_REQUEST",
+        "REQUEST_CONFLICT",
+        "AWAITING_USER_CONFIRMATION",
+        "WORKSPACE_NOT_FOUND",
+        "WORKSPACE_IDENTITY_MISMATCH",
+        "WORKSPACE_IN_USE",
+        "TRANSACTION_NOT_FOUND",
+        "TRANSACTION_CONFLICT",
+        "INVALID_TRANSACTION_STATE",
+        "INTENT_CONFLICT",
+        "RECORD_NOT_FOUND",
+        "RECORD_REVISION_CONFLICT",
+        "IMMUTABLE_RECORD_CONFLICT",
+        "OBJECT_NOT_FOUND",
+        "OBJECT_DIGEST_MISMATCH",
+        "INDEX_REBUILD_REQUIRED",
+        "INTEGRITY_CHECK_FAILED",
+        "STORAGE_NOT_WRITABLE",
+        "ATOMIC_PUBLISH_FAILED",
+        "BACKUP_FAILED",
+        "MIGRATION_FAILED",
+        "RECOVERY_REQUIRED",
+        "CAPABILITY_UNAVAILABLE",
+        "CONNECTIVITY_FAILED",
+        "INTERNAL_ERROR",
+        "invalid_cursor",
+        "maintenance_required"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
     "ErrorDTO": {
+      "additionalProperties": false,
       "properties": {
-        "code": {
-          "title": "Code",
+        "schema_version": {
+          "default": "aitest.error/2.0",
+          "title": "Schema Version",
           "type": "string"
         },
+        "code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Code"
+        },
         "message": {
+          "maxLength": 1000,
+          "minLength": 1,
           "title": "Message",
           "type": "string"
         },
@@ -16,8 +66,34 @@
           "type": "boolean"
         },
         "next_step": {
+          "maxLength": 500,
+          "minLength": 1,
           "title": "Next Step",
           "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "intent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intent Id"
         }
       },
       "required": [

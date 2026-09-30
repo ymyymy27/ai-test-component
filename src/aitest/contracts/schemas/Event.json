@@ -1,10 +1,47 @@
 {
+  "additionalProperties": false,
   "properties": {
     "schema_version": {
       "const": "aitest.event/2.0",
       "default": "aitest.event/2.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "intent_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intent Id"
     },
     "instance_id": {
       "title": "Instance Id",
@@ -48,6 +85,7 @@
     }
   },
   "required": [
+    "event_id",
     "instance_id",
     "workspace_id",
     "writer_epoch",

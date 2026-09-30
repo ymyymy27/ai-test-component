@@ -112,7 +112,7 @@ commit(request_id: str, workspace_id: str) -> Response
 
 ### 5.3 出参与状态
 
-成功返回 `state=committed`、提交序号（`commit_sequence`）或创建记录引用。提交在一次原子发布边界内同时写入：intent 记录、业务记录、提交清单（`commit.json`）、查询索引（`indexes.json`）和事件（`events.json`），五者要么全部成功可见，要么全部回滚到上一提交边界。业务记录（`records.json`）作为事实来源最后写入；投影写入失败时旧边界保持有效，活动事务标记（`transactions/active.json`）供恢复流程清理陈旧投影。IO、刷新或替换失败返回 `STORAGE_NOT_WRITABLE`/`INTEGRITY_CHECK_FAILED`，旧提交边界保持有效。
+成功返回 `state=committed`、提交序号或创建记录引用。提交只在记录、对象、清单和索引达到声明的持久化边界后可见。IO、刷新或替换失败返回 `STORAGE_NOT_WRITABLE`/`INTEGRITY_CHECK_FAILED`，旧提交边界保持有效。
 
 ## 6 `rollback`
 
@@ -165,7 +165,7 @@ create_api(
 
 带 `workspace_root` 时，A包校验或创建工作空间身份，装配文件事务端口和已注册用例快照，并在首个事务开始时取得工作空间单写锁。同一工作空间在同一进程内返回同一核心实例的 API。未提供工作空间时只创建未就绪的协议 API，不宣称具备持久化能力。
 
-> **⚠️ 过时兼容警告（后门风险）**：`handlers` 参数为**过时兼容接口**，仅用于旧代码一次性本地 API 创建。B/C/D 上层包**禁止使用 `handlers` 参数**，必须通过 `register_use_cases` 注册用例，再由 `create_api(workspace_root)` 装配唯一核心实例。直接传入 `handlers` 会绕过统一注册窗口与所有者校验，属于后门风险。调用时会触发 `DeprecationWarning`。
+`handlers` 仅用于兼容单次本地 API 创建；正式B/C/D接入应使用 `register_use_cases`，以保持统一装配边界。
 
 ## 9 `register_use_cases`
 
