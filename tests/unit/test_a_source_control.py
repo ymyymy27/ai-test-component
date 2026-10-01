@@ -7,10 +7,13 @@ from pathlib import Path
 
 import pytest
 
+from aitest.infrastructure.adapters import source_control as source_control_module
 from aitest.infrastructure.adapters.source_control import (
+    GitCommandFailed,
     GitHubRef,
     GitSourceControl,
     GitUnavailable,
+    _is_not_a_repository,
 )
 
 
@@ -105,3 +108,56 @@ def test_github_ref_parse() -> None:
     ssh = GitHubRef.parse("git@github.com:owner/repo")
     assert ssh is not None and ssh.repo == "repo"
     assert GitHubRef.parse("https://gitlab.com/owner/repo") is None
+
+
+def test_changes_parses_rename_nul_double_path(
+    control: GitSourceControl, repo: Path
+) -> None:
+    """git status -z 的 rename 记录是 old\\0new\\0 双路径，必须成对消费。"""
+    (repo / "old_name.txt").write_text("content", encoding="utf-8")
+    subprocess.run(["git", "add", "old_name.txt"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "add"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(["git", "mv", "old_name.txt", "new_name.txt"], cwd=repo, check=True)
+
+    changes = control.changes(repo)
+
+    assert changes["deleted"] == ["old_name.txt"]
+    assert changes["added"] == ["new_name.txt"]
+
+
+def test_not_a_repository_marker_classification() -> None:
+    assert _is_not_a_repository(
+        GitCommandFailed(
+            "fatal: not a git repository (or any of the parent directories): .git",
+            returncode=128,
+        )
+    )
+    assert not _is_not_a_repository(
+        GitCommandFailed("fatal: detected dubious ownership in repository", returncode=128)
+    )
+    assert not _is_not_a_repository(GitUnavailable("git: command not found"))
+
+
+def test_is_repository_propagates_non_repo_failures(
+    control: GitSourceControl, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """非“不是仓库”类 git 故障不得退化成 is_repository=False。"""
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    def fake_run_git(*args: str, cwd: Path, executable: str, timeout: float = 10.0) -> str:
+        if args[:2] == ("rev-parse", "--is-inside-work-tree"):
+            raise GitCommandFailed(
+                "fatal: detected dubious ownership in repository", returncode=128
+            )
+        return "git version 2.0\n"
+
+    monkeypatch.setattr(source_control_module, "_run_git", fake_run_git)
+
+    with pytest.raises(GitCommandFailed):
+        control.is_repository(plain)

@@ -56,21 +56,39 @@ def test_project_rejects_module_from_another_project() -> None:
 
 
 def test_project_requires_identity_and_commit_number() -> None:
-    base = {
-        "local_project_id": "p1",
-        "workspace_id": "ws-1",
-        "name": "Project",
-        "goal": "目标",
-        "created_at_commit": "0001",
-    }
     with pytest.raises(ValueError, match="local_project_id"):
-        LocalProject(**(base | {"local_project_id": "  "}))
+        LocalProject(
+            local_project_id="  ",
+            workspace_id="ws-1",
+            name="Project",
+            goal="目标",
+            created_at_commit="0001",
+        )
     with pytest.raises(ValueError, match="workspace_id"):
-        LocalProject(**(base | {"workspace_id": ""}))
+        LocalProject(
+            local_project_id="p1",
+            workspace_id="",
+            name="Project",
+            goal="目标",
+            created_at_commit="0001",
+        )
     with pytest.raises(ValueError, match="commit"):
-        LocalProject(**(base | {"created_at_commit": ""}))
+        LocalProject(
+            local_project_id="p1",
+            workspace_id="ws-1",
+            name="Project",
+            goal="目标",
+            created_at_commit="",
+        )
     with pytest.raises(ValueError, match="revision"):
-        LocalProject(**(base | {"revision": 0}))
+        LocalProject(
+            local_project_id="p1",
+            workspace_id="ws-1",
+            name="Project",
+            goal="目标",
+            created_at_commit="0001",
+            revision=0,
+        )
 
 
 def test_project_module_lookup_reports_unknown_id() -> None:

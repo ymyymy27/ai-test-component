@@ -166,6 +166,9 @@ class GeneratedContent:
     revision: int
     revision_context: RevisionContext
     status: str = "draft"
+    #: 草稿正文的摘要；正文另按引用落盘（`generated_content` 记录）。
+    #: 只存元数据会让"模型确实产出了什么"没有可核对的字节。
+    content_digest: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("generated_content_id", "project_id", "draft_kind", "status"):
@@ -175,6 +178,8 @@ class GeneratedContent:
             raise ValueError("generated content revision must be >= 1")
         if self.status != "draft":
             raise ValueError("generated content is always a draft and must not be published")
+        if self.content_digest is not None and not self.content_digest.strip():
+            raise ValueError("content_digest must be a real digest when present")
 
 
 @dataclass(frozen=True, slots=True)

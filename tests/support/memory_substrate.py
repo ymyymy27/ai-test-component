@@ -12,10 +12,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from datetime import UTC, datetime
 
-from aitest.application.planning.preparation import PreparationRecord
+from aitest.application.planning.preparation import (
+    PREPARATION_AGGREGATE_KIND,
+    PreparationRecord,
+    preparation_record_from_payload,
+    preparation_record_id,
+    preparation_record_payload,
+    record_id_for_intent_id,
+)
 from aitest.application.planning.substrate import (
     AggregateKind,
     CommitResult,
@@ -51,12 +58,9 @@ class MemoryStore:
     def __init__(self) -> None:
         self._records: dict[str, dict[str, list[Mapping[str, object]]]] = {}
         self._commit_index: list[str] = []
-        self._preparations: dict[tuple[str, str, str], PreparationRecord] = {}
-        self._preparations_by_intent: dict[str, PreparationRecord] = {}
         self._project_id: str | None = None
         self._pending: list[tuple[AggregateKind, str, Mapping[str, object]]] = []
         self._staged_keys: set[tuple[str, str]] = set()
-        self._side_effects: list[Callable[[], None]] = []
 
     # ---------------------------------------------------------------- 只读
 
@@ -114,10 +118,31 @@ class MemoryStore:
         client_id: str,
         prepare_request_id: str,
     ) -> PreparationRecord | None:
-        return self._preparations.get((project_id, client_id, prepare_request_id))
+        """**从落盘 payload 重建**，不查进程内字典。
+
+        这一条是"重启后仍能查回原意图"的可测代理：只要 payload 少了任何身份字段，
+        重建就会在这里失败，而不是等到真的重启才暴露。
+        """
+        record_id = preparation_record_id(
+            project_id=project_id,
+            client_id=client_id,
+            prepare_request_id=prepare_request_id,
+        )
+        return self._rebuild_preparation(record_id)
 
     def _find_preparation_by_intent(self, *, intent_id: str) -> PreparationRecord | None:
-        return self._preparations_by_intent.get(intent_id)
+        return self._rebuild_preparation(record_id_for_intent_id(intent_id))
+
+    def _rebuild_preparation(self, record_id: str) -> PreparationRecord | None:
+        revision = self.current_revision(PREPARATION_AGGREGATE_KIND, record_id)
+        if revision < 1:
+            return None
+        committed = self._read(
+            aggregate_kind=PREPARATION_AGGREGATE_KIND,
+            record_id=record_id,
+            revision=revision,
+        )
+        return preparation_record_from_payload(committed.payload)
 
     # ---------------------------------------------------------------- 事务
 
@@ -147,39 +172,38 @@ class MemoryStore:
             payload=payload,
         )
 
-    def _stage_preparation(
-        self,
-        *,
-        record: PreparationRecord,
-        payload: Mapping[str, object],
-    ) -> StagedRevision:
-        """不变量 5：同键同摘要复用原修订；同键异摘要抛冲突（**不覆盖**）。"""
-        key = record.request.identity_key
-        existing = self._preparations.get(key)
+    def _stage_preparation(self, *, record: PreparationRecord) -> StagedRevision:
+        """不变量 5：同键同摘要复用原修订；同键异摘要抛冲突（**不覆盖**）。
+
+        记录标识与落盘形状都由身份合同决定，与真实转接头
+        （`application/planning/substrate_adapter.py`）**逐字一致**。
+        """
+        record_id = preparation_record_id(
+            project_id=record.request.project_id,
+            client_id=record.request.client_id,
+            prepare_request_id=record.request.prepare_request_id,
+        )
+        existing = self._rebuild_preparation(record_id)
         if existing is not None:
             if existing.request.payload_hash != record.request.payload_hash:
                 raise PreparationConflictError(
-                    project_id=key[0],
-                    client_id=key[1],
-                    prepare_request_id=key[2],
+                    project_id=record.request.project_id,
+                    client_id=record.request.client_id,
+                    prepare_request_id=record.request.prepare_request_id,
                     existing_intent_id=existing.intent_id,
                     existing_payload_hash=existing.request.payload_hash,
                     existing_created_at_commit=existing.created_at_commit,
                 )
             return StagedRevision(
-                aggregate_kind="preparation_record",
-                record_id=key[2],
-                revision=self.current_revision("preparation_record", key[2]),
+                aggregate_kind=PREPARATION_AGGREGATE_KIND,
+                record_id=record_id,
+                revision=self.current_revision(PREPARATION_AGGREGATE_KIND, record_id),
             )
         return self._stage(
-            aggregate_kind="preparation_record",
-            record_id=key[2],
+            aggregate_kind=PREPARATION_AGGREGATE_KIND,
+            record_id=record_id,
             expected_revision=None,
-            payload=payload,
-            side_effects=(
-                lambda: self._preparations.__setitem__(key, record),
-                lambda: self._preparations_by_intent.__setitem__(record.intent_id, record),
-            ),
+            payload=preparation_record_payload(record),
         )
 
     def _commit(self) -> CommitResult:
@@ -188,10 +212,8 @@ class MemoryStore:
         if not self._pending:
             raise ValueError("nothing staged in this transaction")
         staged = tuple(self._pending)
-        side_effects = tuple(self._side_effects)
         self._pending = []
         self._staged_keys = set()
-        self._side_effects = []
         self._project_id = None
 
         created: list[StagedRevision] = []
@@ -205,8 +227,6 @@ class MemoryStore:
                     revision=len(by_id[record_id]),
                 )
             )
-        for apply_side_effect in side_effects:
-            apply_side_effect()
         self._commit_index.append(f"commit-{len(self._commit_index) + 1}")
         return CommitResult(commit_seq=self._commit_seq(), created=tuple(created))
 
@@ -215,7 +235,6 @@ class MemoryStore:
         self._require_open()
         self._pending = []
         self._staged_keys = set()
-        self._side_effects = []
         self._project_id = None
 
     # ---------------------------------------------------------------- 内部
@@ -231,7 +250,6 @@ class MemoryStore:
         record_id: str,
         expected_revision: int | None,
         payload: Mapping[str, object],
-        side_effects: tuple[Callable[[], None], ...] = (),
     ) -> StagedRevision:
         """不变量 1—4：事务必须已开、修订必须匹配、同事务内不得重复暂存。"""
         self._require_open()
@@ -262,7 +280,6 @@ class MemoryStore:
 
         self._staged_keys.add(key)
         self._pending.append((aggregate_kind, record_id, dict(payload)))
-        self._side_effects.extend(side_effects)
         return StagedRevision(
             aggregate_kind=aggregate_kind,
             record_id=record_id,
@@ -303,13 +320,8 @@ class MemoryUnitOfWork:
             payload=payload,
         )
 
-    def stage_preparation(
-        self,
-        *,
-        record: PreparationRecord,
-        payload: Mapping[str, object],
-    ) -> StagedRevision:
-        return self.store._stage_preparation(record=record, payload=payload)
+    def stage_preparation(self, *, record: PreparationRecord) -> StagedRevision:
+        return self.store._stage_preparation(record=record)
 
     def commit(self) -> CommitResult:
         return self.store._commit()

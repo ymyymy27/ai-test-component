@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess as subprocess
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -22,6 +22,7 @@ from threading import RLock
 from types import MappingProxyType
 from uuid import uuid4
 
+from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.interfaces.local.api import Handler, LocalAPI
@@ -104,7 +105,8 @@ class CoreBootstrap:
                 return self._instances[root]
             self._registration_closed = True
             workspace = Workspace(root)
-            uow = FileUnitOfWork(root)
+            journal = FileEventJournal(root, instance_id=workspace.workspace_id)
+            uow = FileUnitOfWork(root, journal=journal)
             api = LocalAPI(
                 instance_id=str(uuid4()),
                 workspace_id=workspace.workspace_id,

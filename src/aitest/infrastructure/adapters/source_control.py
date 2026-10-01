@@ -25,6 +25,21 @@ class GitUnavailable(RuntimeError):
     """git CLI 不存在或无法执行。"""
 
 
+class GitCommandFailed(GitUnavailable):
+    """git 可执行但以非零状态退出；保留 stderr 供调用方区分具体原因。"""
+
+    def __init__(self, message: str, *, returncode: int) -> None:
+        super().__init__(message)
+        self.returncode = returncode
+
+
+#: git rev-parse 在“不是仓库”时的稳定英文输出特征。
+_NOT_A_REPOSITORY_MARKERS = (
+    "not a git repository",
+    "not inside a work tree",
+)
+
+
 def _run_git(*args: str, cwd: Path, executable: str, timeout: float = 10.0) -> str:
     try:
         completed = subprocess.run(  # noqa: S603 - 参数列表，无 shell
@@ -40,8 +55,15 @@ def _run_git(*args: str, cwd: Path, executable: str, timeout: float = 10.0) -> s
     except (OSError, subprocess.TimeoutExpired) as error:
         raise GitUnavailable(str(error)) from error
     if completed.returncode != 0:
-        raise GitUnavailable(completed.stderr.strip() or completed.stdout.strip())
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise GitCommandFailed(detail, returncode=completed.returncode)
     return completed.stdout
+
+
+def _is_not_a_repository(error: GitUnavailable) -> bool:
+    """只把明确的“非仓库”失败判为 False；其他故障继续上抛。"""
+    lowered = str(error).lower()
+    return any(marker in lowered for marker in _NOT_A_REPOSITORY_MARKERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,8 +113,12 @@ class GitSourceControl:
                 "rev-parse", "--is-inside-work-tree",
                 cwd=path, executable=self._executable,
             )
-        except GitUnavailable:
-            return False
+        except GitUnavailable as error:
+            # 只有 git 明确报告“不是仓库”才返回 False；权限、IO 等其他
+            # 故障不得退化为“不是仓库”。
+            if _is_not_a_repository(error):
+                return False
+            raise
         return result.strip() == "true"
 
     def describe(self, path: Path) -> dict[str, object]:
@@ -133,20 +159,40 @@ class GitSourceControl:
         }
 
     def changes(self, path: Path) -> dict[str, object]:
-        """工作区相对 HEAD 的变更清单（porcelain -z）。"""
+        """工作区相对 HEAD 的变更清单（porcelain -z）。
+
+        rename/copy 在 ``-z`` 模式下输出 ``XY <new>NUL<old>NUL``（首路径为
+        目标、随后为来源），必须按 token 流成对消费，不能把双路径拼成一条。
+        """
         if not self.is_repository(path):
             return {"is_repository": False}
         raw = _run_git(
             "status", "--porcelain=v1", "-z", cwd=path, executable=self._executable
         )
-        entries = [item for item in raw.split("\x00") if item]
+        tokens = raw.split("\x00")
         added: list[str] = []
         modified: list[str] = []
         deleted: list[str] = []
         untracked: list[str] = []
-        for entry in entries:
+        index = 0
+        while index < len(tokens):
+            entry = tokens[index]
+            index += 1
+            if not entry or len(entry) < 3:
+                continue
             status = entry[:2]
             name = entry[3:]
+            if status[0] in {"R", "C"} or status[1] in {"R", "C"}:
+                # -z 模式 rename/copy 首路径是新路径（目标），紧随其后的 token
+                # 才是旧路径（来源）；缺失时不猜测，记为结构损坏。
+                if index >= len(tokens):
+                    raise GitUnavailable("git status -z 重命名记录缺少旧路径")
+                old_name = tokens[index]
+                index += 1
+                if old_name:
+                    deleted.append(old_name)
+                added.append(name)
+                continue
             if status == "??":
                 untracked.append(name)
             elif "D" in status:
@@ -174,7 +220,13 @@ class GitSourceControl:
             ).strip()
         except GitUnavailable:
             return {"is_repository": True, "upstream": None}
-        ahead, behind = (int(part) for part in raw.split())
+        parts = raw.split()
+        if len(parts) != 2:
+            return {"is_repository": True, "upstream": None}
+        try:
+            ahead, behind = int(parts[0]), int(parts[1])
+        except ValueError:
+            return {"is_repository": True, "upstream": None}
         return {"is_repository": True, "upstream": {"ahead": ahead, "behind": behind}}
 
 
@@ -196,15 +248,24 @@ class GitHubReadOnlyClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
-                payload = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+                status = getattr(response, "status", 0)
+                raw_body = response.read().decode("utf-8")
+            payload = json.loads(raw_body)
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
             return {"state": "unavailable", "detail": str(error)}
-        return {"state": "ok", "head_commit": payload["commit"]["sha"]}
+        if not isinstance(payload, dict):
+            return {"state": "unavailable", "detail": "响应正文不是 JSON 对象"}
+        commit = payload.get("commit")
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if not isinstance(sha, str) or not sha.strip():
+            return {"state": "unavailable", "detail": f"响应结构缺少 commit.sha (HTTP {status})"}
+        return {"state": "ok", "head_commit": sha}
 
 
 __all__ = [
     "GitHubReadOnlyClient",
     "GitHubRef",
+    "GitCommandFailed",
     "GitSourceControl",
     "GitUnavailable",
 ]

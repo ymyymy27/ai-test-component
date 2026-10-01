@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from aitest.bootstrap import create_api
 from aitest.contracts.commands import Command
 from aitest.contracts.queries import QuerySpec
-from aitest.infrastructure.file_store.index import FileQueryIndex
+from aitest.infrastructure.file_store.index import FileQueryIndex, decode_cursor
 from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import EntryKind, Session
@@ -181,9 +181,34 @@ def test_query_spec_fixed_sort_and_bounded_cursor_page(tmp_path: Path) -> None:
     )
 
     assert [item["commit_sequence"] for item in first.items] == [1, 2]
-    assert first.next_cursor == "2"
+    # 游标为绑定末行排序键的不透明 token（A-05：不再是脆弱 offset）。
+    assert first.next_cursor is not None
+    assert decode_cursor(first.next_cursor)[0] == 2
     assert [item["commit_sequence"] for item in second.items] == [3]
     assert second.next_cursor is None
+
+    # 分页间隙索引重建并插入新行，续读仍不重复上一页已见 ID。
+    index.rebuild(
+        [
+            {
+                "project_id": "project-1",
+                "aggregate_kind": "case",
+                "record_id": f"case-{number}",
+                "revision": 1,
+                "commit_sequence": number,
+            }
+            for number in (1, 2, 4)
+        ]
+    )
+    continued = index.query_spec(
+        QuerySpec(
+            project_id="project-1",
+            sort="commit_sequence",
+            limit=2,
+            cursor=first.next_cursor,
+        )
+    )
+    assert [item["record_id"] for item in continued.items] == ["case-4"]
 
 
 def test_permanent_records_are_append_only_and_have_no_delete_api(tmp_path: Path) -> None:

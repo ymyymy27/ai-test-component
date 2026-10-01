@@ -14,11 +14,17 @@ from __future__ import annotations
 
 import ctypes
 import os
+import re
 import sys
 from ctypes import wintypes
 from typing import Protocol, runtime_checkable
 
 from aitest.contracts.secrets import KNOWN_PURPOSES, ResolvedSecret
+
+#: 凭据目标名允许的片段：字母数字、._-/；不允许反斜杠、空白与控制字符，
+#: 避免凭据管理器目标注入与 str.format 风格的模板注入。
+_TARGET_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._\-/]+$")
+_MAX_TARGET_LENGTH = 512
 
 
 class SecretUnavailable(RuntimeError):
@@ -83,7 +89,8 @@ class WindowsCredentialProvider:
     name = "windows_credential_manager"
 
     _CRED_TYPE_GENERIC = 1
-    _TARGET_TEMPLATE = "aitest/{purpose}/{reference}"
+    _ERROR_NOT_FOUND = 1168
+    _TARGET_PREFIX = "aitest/"
 
     def __init__(self) -> None:
         self._supported = sys.platform.startswith("win")
@@ -92,11 +99,35 @@ class WindowsCredentialProvider:
     def available(self) -> bool:
         return self._supported
 
+    @classmethod
+    def _build_target(cls, purpose: str, reference: str) -> str:
+        """显式拼接目标名并校验片段，禁止模板注入/控制字符/超长目标。"""
+        for component in (purpose, reference):
+            if not component or not _TARGET_COMPONENT_RE.fullmatch(component):
+                raise SecretUnavailable(
+                    "凭据用途或引用含非法字符（仅允许字母数字、._、-、/）"
+                )
+        target = f"{cls._TARGET_PREFIX}{purpose}/{reference}"
+        if len(target) > _MAX_TARGET_LENGTH:
+            raise SecretUnavailable("凭据目标名超长")
+        return target
+
     def resolve(self, *, purpose: str, reference: str) -> str:
         if not self._supported:
             raise SecretUnavailable("Windows 凭据管理器在当前平台不可用")
-        target = self._TARGET_TEMPLATE.format(purpose=purpose, reference=reference)
+        target = self._build_target(purpose, reference)
         advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+        # 显式声明原型：BOOL 为 32 位，指针参数不能依赖 ctypes 的默认推导，
+        # 否则在 64 位解释器上存在高位截断的静态风险。
+        advapi32.CredReadW.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.POINTER(ctypes.POINTER(_CredentialW)),
+        ]
+        advapi32.CredReadW.restype = wintypes.BOOL
+        advapi32.CredFree.argtypes = [ctypes.c_void_p]
+        advapi32.CredFree.restype = None
         credential_pointer = ctypes.POINTER(_CredentialW)()
         read = advapi32.CredReadW(
             ctypes.c_wchar_p(target),
@@ -105,7 +136,12 @@ class WindowsCredentialProvider:
             ctypes.byref(credential_pointer),
         )
         if not read:
-            raise SecretUnavailable(f"凭据管理器中不存在: {target}")
+            error_code = ctypes.get_last_error()
+            if error_code == self._ERROR_NOT_FOUND:
+                raise SecretUnavailable(f"凭据管理器中不存在: {target}")
+            raise SecretUnavailable(
+                f"凭据管理器读取失败: {target} (winerror={error_code})"
+            )
         try:
             credential = credential_pointer.contents
             if not credential.CredentialBlobSize or not credential.CredentialBlob:
@@ -113,9 +149,14 @@ class WindowsCredentialProvider:
             raw = ctypes.string_at(
                 credential.CredentialBlob, credential.CredentialBlobSize
             )
-            return raw.decode("utf-8")
+            try:
+                return raw.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise SecretUnavailable(
+                    f"凭据字节不是合法 UTF-8 文本: {target}"
+                ) from error
         finally:
-            advapi32.CredFree(credential_pointer)
+            advapi32.CredFree(ctypes.cast(credential_pointer, ctypes.c_void_p))
 
 
 class SecretManager:

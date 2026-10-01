@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import threading
 import urllib.error
+from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 
@@ -31,7 +32,7 @@ from aitest.infrastructure.adapters.model import (
 class _Handler(BaseHTTPRequestHandler):
     response_status: ClassVar[int] = 200
     response_body: ClassVar[bytes] = b""
-    last_request: ClassVar[dict[str, object]] = {}
+    last_request: ClassVar[dict[str, Any]] = {}
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("Content-Length", "0"))
@@ -50,7 +51,7 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def server():
+def server() -> Iterator[ThreadingHTTPServer]:
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -69,7 +70,7 @@ def secret() -> ResolvedSecret:
     )
 
 
-def _call(model_id: str = "test-model") -> ModelCall:
+def _call(model_id: str = "test-model", endpoint: str = "http://endpoint") -> ModelCall:
     material = ProjectedMaterial(
         material_kind=MaterialKind.PROJECT_CONTEXT,
         field_path="material.project_context",
@@ -80,16 +81,19 @@ def _call(model_id: str = "test-model") -> ModelCall:
         task_type="draft_checks",
         projected=(material,),
         projection_digest="sha256:proj",
-        endpoint_address="http://endpoint",
+        endpoint_address=endpoint,
         model_id=model_id,
         timeout_seconds=10,
         policy_revision=1,
     )
 
 
+def _endpoint(server: ThreadingHTTPServer) -> str:
+    return f"http://127.0.0.1:{server.server_address[1]}"
+
+
 def _provider(server: ThreadingHTTPServer, secret: ResolvedSecret) -> HttpModelProvider:
-    endpoint = f"http://127.0.0.1:{server.server_address[1]}"
-    return HttpModelProvider(endpoint, secret=secret)
+    return HttpModelProvider(_endpoint(server), secret=secret)
 
 
 def test_success_returns_draft_and_request_id(
@@ -99,7 +103,7 @@ def test_success_returns_draft_and_request_id(
         {"id": "provider-9", "choices": [{"message": {"content": "proposed draft"}}]}
     ).encode("utf-8")
 
-    result = _provider(server, secret).call(_call())
+    result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
 
     assert result.status is ModelCallStatus.OK
     assert result.draft_text == "proposed draft"
@@ -115,20 +119,20 @@ def test_success_returns_draft_and_request_id(
 def test_auth_failure(server: ThreadingHTTPServer, secret: ResolvedSecret) -> None:
     _Handler.response_status = 401
     _Handler.response_body = b'{"error":"bad key"}'
-    result = _provider(server, secret).call(_call())
+    result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
     assert result.status is ModelCallStatus.FAILED
     assert result.error_kind == "auth"
 
 
 def test_rate_limit(server: ThreadingHTTPServer, secret: ResolvedSecret) -> None:
     _Handler.response_status = 429
-    result = _provider(server, secret).call(_call())
+    result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
     assert result.error_kind == "rate_limit"
 
 
 def test_input_limit(server: ThreadingHTTPServer, secret: ResolvedSecret) -> None:
     _Handler.response_status = 413
-    result = _provider(server, secret).call(_call())
+    result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
     assert result.error_kind == "input_limit"
 
 
@@ -136,7 +140,7 @@ def test_structure_error_on_bad_json(
     server: ThreadingHTTPServer, secret: ResolvedSecret
 ) -> None:
     _Handler.response_body = b"not json"
-    result = _provider(server, secret).call(_call())
+    result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
     assert result.error_kind == "structure"
 
 
@@ -146,9 +150,9 @@ def test_connectivity_error(secret: ResolvedSecret) -> None:
             raise urllib.error.URLError("dns failure")
 
     provider = HttpModelProvider(
-        "https://unreachable.invalid", transport=BrokenTransport(), secret=secret  # type: ignore[arg-type]
+        "https://unreachable.invalid", transport=BrokenTransport(), secret=secret
     )
-    result = provider.call(_call())
+    result = provider.call(_call(endpoint="https://unreachable.invalid"))
     assert result.error_kind == "connectivity"
 
 
@@ -174,10 +178,61 @@ def test_deepseek_provider_profile_and_delegation(
     assert profile.model_id == "deepseek-chat"
     assert profile.provider == "deepseek"
 
-    result = provider.call(_call("deepseek-chat"))
+    result = provider.call(_call("deepseek-chat", endpoint=endpoint))
     assert result.status is ModelCallStatus.OK
 
 
 def test_deepseek_requires_model_id(secret: ResolvedSecret) -> None:
     with pytest.raises(ValueError):
         DeepSeekModelProvider("   ", secret=secret)
+
+
+def test_endpoint_mismatch_refuses_to_send(secret: ResolvedSecret) -> None:
+    """策略确认端点与提供方锁定端点不一致时绝不发出请求。"""
+
+    class RecordingTransport:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def post(self, *args: object, **kwargs: object) -> HttpResponse:
+            self.calls += 1
+            return HttpResponse(status=200, body=b"{}")
+
+    transport = RecordingTransport()
+    provider = HttpModelProvider(
+        "https://locked.example", transport=transport, secret=secret
+    )
+
+    result = provider.call(_call(endpoint="https://other.example"))
+
+    assert result.status is ModelCallStatus.FAILED
+    assert result.error_kind == "endpoint_mismatch"
+    assert transport.calls == 0
+
+
+def test_failure_detail_is_redacted(server: ThreadingHTTPServer, secret: ResolvedSecret) -> None:
+    """供应方失败正文若回显凭据，归一 detail 必须脱敏。"""
+    _Handler.response_status = 401
+    _Handler.response_body = b'{"error":"bad token api_key=AUDIT_FAKE_KEY_123"}'
+
+    result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
+
+    assert result.error_kind == "auth"
+    assert "AUDIT_FAKE_KEY_123" not in result.error_detail
+
+
+def test_malformed_success_body_is_structure_error(
+    server: ThreadingHTTPServer, secret: ResolvedSecret
+) -> None:
+    for bad_body in (
+        b"[]",
+        b'{"choices": []}',
+        b'{"choices": [{}]}',
+        b'{"choices": [{"message": {}}]}',
+        b'{"choices": [{"message": {"content": 123}}]}',
+        b'{"choices": "x"}',
+    ):
+        _Handler.response_body = bad_body
+        result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
+        assert result.status is ModelCallStatus.FAILED
+        assert result.error_kind == "structure", bad_body

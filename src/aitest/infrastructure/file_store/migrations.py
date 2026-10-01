@@ -58,7 +58,7 @@ class PlanResult:
 @dataclass(frozen=True, slots=True)
 class ApplyReport:
     plan_id: str
-    state: str  # applied | resumed | nothing_to_apply
+    state: str  # applied | resumed | nothing_to_apply | blocked
     executed: tuple[str, ...]
     skipped: tuple[str, ...]
     backup_path: Path | None
@@ -240,6 +240,16 @@ class FileMigrationManager:
                 skipped=tuple(steps),
                 backup_path=None,
             )
+        # 活动执行门禁：存在未核实活动标记时绝不迁移；先核实/抢救活动执行
+        # （恢复编排），再重新 apply。
+        if self._active_marker_unresolved():
+            return ApplyReport(
+                plan_id=plan_id,
+                state="blocked",
+                executed=(),
+                skipped=tuple(steps),
+                backup_path=None,
+            )
         backup_path = self._ensure_backup(plan_id)
         executed: list[str] = []
         for migration_id in pending:
@@ -318,9 +328,17 @@ class FileMigrationManager:
         destination = self._backups_dir / plan_id
         manifest = destination / "backup.json"
         if manifest.exists():
+            # 复用既有备份前必须重新核对，绝不信任未校验副本。
+            verification = FileBackupStore(self._root).verify(destination)
+            if not verification["ok"]:
+                raise MigrationError(f"复用备份校验失败: {verification['errors']}")
             return destination
         FileBackupStore(self._root).create(destination)
         return destination
+
+    def _active_marker_unresolved(self) -> bool:
+        """活动标记存在即视为未核实活动执行，迁移必须阻塞。"""
+        return (self._root / "transactions" / "active.json").exists()
 
     def _load_registry(self) -> dict[str, dict[str, str]]:
         raw = json.loads(self._registry_path.read_text(encoding="utf-8"))

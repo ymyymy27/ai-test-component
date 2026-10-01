@@ -9,6 +9,8 @@ import pytest
 from aitest.domain.execution.runs import (
     AdapterKind,
     AuthorizationRef,
+    ExecutionHandle,
+    ExecutionInspectionResult,
     ExecutionInspectionState,
     ExecutionRequest,
     OutputStreamName,
@@ -87,13 +89,15 @@ def _adapter(
     return adapter
 
 
-def _wait_for_terminal(adapter: CommandAdapter, handle: object) -> object:
-    inspection = adapter.inspect(handle)  # type: ignore[arg-type]
+def _wait_for_terminal(
+    adapter: CommandAdapter, handle: ExecutionHandle
+) -> ExecutionInspectionResult:
+    inspection = adapter.inspect(handle)
     for _ in range(200):
         if inspection.state is not ExecutionInspectionState.RUNNING:
             return inspection
         time.sleep(0.01)
-        inspection = adapter.inspect(handle)  # type: ignore[arg-type]
+        inspection = adapter.inspect(handle)
     return inspection
 
 

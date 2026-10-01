@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from aitest.contracts.events import Event
 from aitest.infrastructure.file_store.events import (
     EventReadResult,
     FileEventJournal,
@@ -28,7 +29,7 @@ def _record(
     request_id: str | None = "req-1",
     intent_id: str | None = "intent-1",
     writer_epoch: int = 1,
-):
+) -> Event:
     return journal.record_event(
         commit_sequence=commit_sequence,
         event_type=event_type,

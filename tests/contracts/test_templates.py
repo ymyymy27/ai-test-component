@@ -1,5 +1,6 @@
 import json
 from importlib.resources import files
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -16,9 +17,9 @@ TEMPLATE_IDS = [
 ]
 
 
-def load_pack(template_id: str) -> dict:
+def load_pack(template_id: str) -> dict[str, Any]:
     path = files("aitest.resources").joinpath(f"templates/{template_id}/1.0.0.json")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def shipped_packs() -> list[TemplatePack]:

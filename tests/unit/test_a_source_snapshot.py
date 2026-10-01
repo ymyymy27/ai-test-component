@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -32,7 +33,9 @@ def store(tmp_path: Path) -> FileSourceSnapshotStore:
 
 
 def test_pin_has_real_hashes(store: FileSourceSnapshotStore, source: Path) -> None:
-    record = store.pin(canonical_path=str(source), purpose="analysis")
+    record: dict[str, Any] = store.pin(
+        canonical_path=str(source), purpose="analysis"
+    )
     files = {item["relative_path"]: item for item in record["files"]}
     expected = hashlib.sha256(b"print('hello')").hexdigest()
     assert files["main.py"]["sha256"] == expected
@@ -51,13 +54,15 @@ def test_pin_default_excludes_git(store: FileSourceSnapshotStore, source: Path) 
     git_dir = source / ".git"
     git_dir.mkdir()
     (git_dir / "HEAD").write_text("ref", encoding="utf-8")
-    record = store.pin(canonical_path=str(source), purpose="analysis")
+    record: dict[str, Any] = store.pin(
+        canonical_path=str(source), purpose="analysis"
+    )
     paths = {item["relative_path"] for item in record["files"]}
     assert ".git/HEAD" not in paths
 
 
 def test_pin_with_selected_paths(store: FileSourceSnapshotStore, source: Path) -> None:
-    record = store.pin(
+    record: dict[str, Any] = store.pin(
         canonical_path=str(source), purpose="analysis", selected_paths=("pkg",)
     )
     paths = {item["relative_path"] for item in record["files"]}

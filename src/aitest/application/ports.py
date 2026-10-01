@@ -334,7 +334,32 @@ class ProjectionPort(Protocol):
 
 
 class ReportArtifactPort(Protocol):
-    """Generate and verify summary/bundle before application registration."""
+    """Generate and verify summary/evidence bundles; never self-register success.
+
+    The port only writes and verifies temporary artifacts. Application use cases
+    register successful products through the unit of work; an unfinished bundle
+    is never registered as a completed product.
+    """
+
+    def write_artifact(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        report_id: str,
+        kind: str,
+        content: bytes,
+        media_type: str = "application/octet-stream",
+    ) -> Response: ...
+
+    def verify_artifact(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        report_id: str,
+        expected_sha256: str,
+    ) -> Response: ...
 
 
 class SecretPort(Protocol):
@@ -346,4 +371,37 @@ class SecretPort(Protocol):
 
 
 class MaintenancePort(Protocol):
-    """Integrity, space, backup and guarded migration; no business deletion."""
+    """Integrity, space, guarded reclaim and migration; no business deletion.
+
+    Backup operations are covered by :class:`BackupPort`. Reclaim only removes
+    materials proven safe (atomic leftovers, empty staging); an unresolved
+    active execution blocks migration.
+    """
+
+    def check_integrity(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> Response: ...
+
+    def diagnose_space(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> Response: ...
+
+    def preview_reclaim(
+        self, *, request_id: RequestId, workspace_id: str
+    ) -> Response: ...
+
+    def reclaim(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        relative_paths: Sequence[str] = (),
+    ) -> Response: ...
+
+    def apply_migrations(
+        self,
+        *,
+        request_id: RequestId,
+        workspace_id: str,
+        revisions: Sequence[str] = (),
+    ) -> Response: ...

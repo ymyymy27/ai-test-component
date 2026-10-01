@@ -1,13 +1,31 @@
 import errno
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+import aitest
 from aitest.infrastructure.file_store import atomic
 from aitest.infrastructure.file_store.locking import writer_lock
+
+
+def _child_env() -> dict[str, str]:
+    """构造子进程环境，显式把 aitest 所在的 src 目录注入 ``PYTHONPATH``。
+
+    pytest 的 ``pythonpath`` 配置只对当前解释器生效；subprocess 派生的
+    独立解释器只继承环境变量，未 pip 安装本包时必须显式传入 src 路径，
+    子进程才能 ``import aitest``。
+    """
+    src_dir = str(Path(aitest.__file__).resolve().parent.parent)
+    env = dict(os.environ)
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        os.pathsep.join([src_dir, existing]) if existing else src_dir
+    )
+    return env
 
 
 def test_failed_publish_preserves_old_pointer(
@@ -49,8 +67,16 @@ def test_real_second_process_cannot_acquire_writer_lock(tmp_path: Path) -> None:
         "with writer_lock(Path(sys.argv[1])): pass\n"
     )
     with writer_lock(path):
-        blocked = subprocess.run([sys.executable, "-c", code, str(path)], capture_output=True)
+        blocked = subprocess.run(
+            [sys.executable, "-c", code, str(path)],
+            capture_output=True,
+            env=_child_env(),
+        )
         assert blocked.returncode != 0
         assert b"WorkspaceInUse" in blocked.stderr
-    recovered = subprocess.run([sys.executable, "-c", code, str(path)], capture_output=True)
+    recovered = subprocess.run(
+        [sys.executable, "-c", code, str(path)],
+        capture_output=True,
+        env=_child_env(),
+    )
     assert recovered.returncode == 0

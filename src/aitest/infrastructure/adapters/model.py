@@ -22,6 +22,7 @@ from aitest.application.ports import (
     ModelCallResult,
     ModelCallStatus,
 )
+from aitest.contracts.redaction import scrub_secret_text
 from aitest.contracts.secrets import ResolvedSecret
 
 
@@ -80,7 +81,18 @@ class HttpModelProvider:
     def call(self, request: ModelCall) -> ModelCallResult:
         if self._secret is None:
             raise ModelAdapterError("模型请求缺少已解析凭据")
-        url = self._endpoint + self._CHAT_PATH
+        # 逐次证明：实际请求目标必须与本次调用策略确认的 endpoint_address 相同，
+        # 且必须等于构造时锁定的提供方端点；不一致绝不发出请求。
+        confirmed_endpoint = request.endpoint_address.rstrip("/")
+        if confirmed_endpoint != self._endpoint:
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED,
+                error_kind="endpoint_mismatch",
+                error_detail=(
+                    "策略确认端点与已配置提供方端点不一致，已拒绝发送请求"
+                ),
+            )
+        url = confirmed_endpoint + self._CHAT_PATH
         body = json.dumps(
             {
                 "model": request.model_id,
@@ -103,7 +115,7 @@ class HttpModelProvider:
             return ModelCallResult(
                 status=ModelCallStatus.FAILED,
                 error_kind="connectivity",
-                error_detail=str(error),
+                error_detail=self._safe_detail(str(error)),
             )
 
         if response.status in {401, 403}:
@@ -117,33 +129,61 @@ class HttpModelProvider:
 
         try:
             payload = json.loads(response.body.decode("utf-8"))
-            draft = payload["choices"][0]["message"]["content"]
-        except (json.JSONDecodeError, KeyError, IndexError, UnicodeDecodeError) as error:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return ModelCallResult(
                 status=ModelCallStatus.FAILED,
                 error_kind="structure",
-                error_detail=str(error),
+                error_detail="成功状态码但正文不是合法 JSON",
             )
-        if not str(draft).strip():
+        draft = self._extract_draft(payload)
+        if draft is None:
             return ModelCallResult(
                 status=ModelCallStatus.FAILED,
                 error_kind="structure",
-                error_detail="empty draft",
+                error_detail="成功正文缺少 choices[0].message.content 字符串",
             )
+        provider_id = payload.get("id") if isinstance(payload, dict) else None
         return ModelCallResult(
             status=ModelCallStatus.OK,
-            draft_text=str(draft),
-            provider_request_id=str(payload["id"]) if payload.get("id") else None,
+            draft_text=draft,
+            provider_request_id=str(provider_id) if provider_id else None,
         )
 
     @staticmethod
-    def _failed(kind: str, response: HttpResponse) -> ModelCallResult:
-        detail = response.body[:512].decode("utf-8", errors="replace")
+    def _extract_draft(payload: object) -> str | None:
+        """严格校验成功正文结构；任何层级类型不符都视为结构错误。"""
+        if not isinstance(payload, dict):
+            return None
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return None
+        first = choices[0]
+        if not isinstance(first, dict):
+            return None
+        message = first.get("message")
+        if not isinstance(message, dict):
+            return None
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            return None
+        return content
+
+    @classmethod
+    def _failed(cls, kind: str, response: HttpResponse) -> ModelCallResult:
+        detail = cls._safe_detail(
+            response.body[:512].decode("utf-8", errors="replace")
+        )
         return ModelCallResult(
             status=ModelCallStatus.FAILED,
             error_kind=kind,
             error_detail=detail,
         )
+
+    @staticmethod
+    def _safe_detail(detail: str) -> str:
+        """失败详情同样过凭据脱敏，防止供应方回显凭据正文。"""
+        redacted, _changed = scrub_secret_text(detail)
+        return redacted[:512]
 
 
 __all__ = [

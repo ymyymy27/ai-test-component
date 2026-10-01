@@ -3,15 +3,15 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "0.5"
+contract_version: "0.6"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers: []
-next_owner: A/B/C
-next_action: A 按一期范围冻结端口签名与本地 Git 适配；B/C 按裁定补齐快照语义、模型兼容与合同测试
+next_owner: A
+next_action: A 冻结 current_revision / commit_seq / next_commit_seq 三个只读方法并补一期签名；B 已按现实现接线并留待替换的临时序号来源
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -559,6 +559,63 @@ class SourceSnapshotPort(Protocol):
 设计依据见 `docs/文档-feix-a/B包/10-准备意图与幂等规则设计说明.md`。
 **A 的签名一旦落地，B 只需在这些规则外面加编排，规则本身不再改动。**
 
+### 8.8 B 接线后确认需要的三个底层方法（2026-10-01）
+
+B 已按第 8.2／8.3 节把 `application/planning/substrate_adapter.py` 从骨架实现为可用转接头，
+并在 `tests/unit/test_substrate_adapter.py` 里用 A 的 `FileUnitOfWork` /
+`FileRecordRepository` **真落盘**跑通 `prepare_run`（含"重启后按业务身份读回"）。
+
+A 的现有实现已经具备其中大部分能力，但下面三项**只存在于具体实现里、没有进
+`application/ports.py` 的协议**，因此 B 现在只能靠"注入什么用什么"接线，
+无法在类型与合同层面确认它们会一直存在：
+
+| 需求 | A 现状 | 为什么 B 需要它 |
+| --- | --- | --- |
+| `RecordRepository.current_revision(aggregate_kind, record_id) -> int` | `FileRecordRepository` 已有同名方法 | ① 修订冲突时 B 必须返回**当前修订与差异提示**（架构 01 第 8 节末），A 的 `ValueError("revision conflict")` 不带这个值；② 按业务身份查回准备记录要读"当前修订" |
+| `WorkspaceUnitOfWork.commit_seq() -> str` | 无 | 准备登记的 `created_at_commit` 与"依据需重新准备"提示都要在**未提交**时读当前提交序号；`prepare_run` 的阻塞与复用分支**不暂存任何记录** |
+| `WorkspaceUnitOfWork.next_commit_seq() -> str` | 无 | `PreparationRecord.created_at_commit` 必须在 `commit()` **之前**写进不可变 payload。A 的提交序号**按记录递增**，B 侧语义是"本次提交完成后会得到的序号" |
+
+**建议签名（A 可采用或改形态）**：
+
+```python
+class RecordRepository(Protocol):
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int: ...
+
+class WorkspaceUnitOfWork(Protocol):
+    def commit_seq(self) -> str: ...
+    def next_commit_seq(self) -> str: ...
+```
+
+**兼容性**：三者都是**只读新增**，不改变任何已发布字段、记录形状或错误语义。
+`FileUnitOfWork` / `FileRecordRepository` 已经持有对应事实
+（`records.json` 的提交计数、按 `(kind, record_id)` 的修订条数），
+补齐属于**暴露**，不是新增能力。
+
+**B 侧的临时接法（A 冻结后移除）**：`PortsUnitOfWork` 接受可选的 `CommitSequenceSource`；
+集成测试用 A 的 `RecoveryOrchestrator.inspect()["committed_sequences"]` 提供提交序号，
+不访问 A 的存储内部文件。A 冻结签名后由装配点换成正式访问器，
+B 的用例与测试不改。这三个方法缺失时，转接头抛 `SubstrateContractError` 并在消息里指到本节，
+不用默认值顶替。
+
+**另需一并确认的一处口径**：`commit_sequence` 是**工作空间全局**计数（`records.json` 的 `commit`），
+B 目前只依赖它在**同一项目内单调**。一期若允许多项目共用一个工作空间，
+`created_at_commit` 的跨项目可比性需要明确；B 不自行假定。
+
+### 8.9 B 侧已完成的接线（2026-10-01）
+
+| 项 | 位置 | 状态 |
+| --- | --- | --- |
+| 薄转接头 | `src/aitest/application/planning/substrate_adapter.py` | 已实现；`application` 层不 import `infrastructure`，底层由装配点注入 |
+| 真实存储集成测试 | `tests/unit/test_substrate_adapter.py` | 14 项通过（真落盘 + 重启读回 + 修订冲突 + 索引缺失显式报维护） |
+| 准备记录身份与落盘形状 | `src/aitest/application/planning/preparation.py` | 记录标识/意图标识由三元组派生摘要，**带项目与客户端命名空间** |
+| 摘要口径 | `src/aitest/application/planning/prepare_run.py` | 摘要键集合与 `PAYLOAD_FIELDS` 逐字一致，有对照测试 |
+
+**仍未接通**：B 的用例**进入产品统一入口**还缺装配点改造——`bootstrap.CoreBootstrap.create()`
+目前只把 `FileUnitOfWork` 交给 `LocalAPI(transaction_port=...)`，
+`register_use_cases` 注册的 handler 拿不到工作单元与只读仓储
+（`Handler = Callable[[Command], Mapping]`，没有依赖注入）。
+装配点归 A；本包不修改该文件。所需的端口面见第 3 节。
+
 ---
 
 ## 9 变更记录
@@ -570,6 +627,7 @@ class SourceSnapshotPort(Protocol):
 | 2026-09-28 | 0.3 | 第 5 节拆为 5.1 `SourceSnapshot` 归属（补 B 主张与**字段差集实测证据**）、5.2 端口定义归属与 `Clock`／`ProjectionPort` 口径重复、5.3 **GitHub 只读 B 侧需求（B-Q04）**；修正第 3.5 节端口归属记述 | B 包（待裁定） |
 | 2026-09-28 | 0.4 | 正文的提出方／接收方／确认方统一改用**包名**（不使用成员名），与本目录其余文档一致 | B 包 |
 | 2026-09-30 | 0.5 | 项目负责人裁定 `SourceSnapshot` 分工、端口维护方式、横切端口归属及 Git/GitHub 一期边界；三项由待裁定转为待实现 | 袁（项目负责人） |
+| 2026-10-01 | 0.6 | 补第 8.8 节：B 接线后确认需要 A 冻结的**三个只读方法**（`current_revision` / `commit_seq` / `next_commit_seq`）及缺少时的行为；补第 8.9 节记录 B 侧已完成的接线与**仍未接通的产品入口**。本节只提需求，不改 B 侧协议 | B 包（待 A 确认并冻结） |
 
 ---
 
