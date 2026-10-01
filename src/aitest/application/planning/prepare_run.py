@@ -1,4 +1,4 @@
-﻿"""`prepare_run` 用例：把业务输入编排成不可变的 `PreparedRun`。
+"""`prepare_run` 用例：把业务输入编排成不可变的 `PreparedRun`。
 
 严格对应一期架构文档《01-项目与计划》第 8 节「发布、准备与启动的调用次序」与
 第 11 节「准备请求与业务身份合同」。
@@ -35,6 +35,7 @@ from aitest.application.planning.substrate import (
     PreparationConflictError,
     RecordReader,
     UnitOfWork,
+    transaction,
 )
 from aitest.application.ports import Clock
 from aitest.contracts.prepared_run import (
@@ -357,25 +358,27 @@ def prepare_run(
         )
 
     # 步骤 4d—5：新建。登记准备意图并与记录同一次提交。
-    unit_of_work.open(inputs.project_id)
-    unit_of_work.stage_preparation(
-        record=PreparationRecord(
-            request=PreparationRequest(
-                project_id=inputs.project_id,
-                client_id=inputs.client_id,
-                prepare_request_id=inputs.prepare_request_id,
-                payload_hash=digest,
-                input_revisions=inputs.input_revisions,
-                observed_case_revisions=tuple(
-                    (ref.case_id, ref.revision) for ref in inputs.case_revisions
+    # 用事务上下文而不是裸 `open()`：真实底座的 `open()` 会取工作空间级排他写锁，
+    # 这里若抛异常或提前返回，锁必须还回去（`substrate.Transaction` 负责收尾）。
+    with transaction(unit_of_work, inputs.project_id) as tx:
+        tx.stage_preparation(
+            record=PreparationRecord(
+                request=PreparationRequest(
+                    project_id=inputs.project_id,
+                    client_id=inputs.client_id,
+                    prepare_request_id=inputs.prepare_request_id,
+                    payload_hash=digest,
+                    input_revisions=inputs.input_revisions,
+                    observed_case_revisions=tuple(
+                        (ref.case_id, ref.revision) for ref in inputs.case_revisions
+                    ),
                 ),
+                intent_id=intent_id,
+                # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。
+                created_at_commit=tx.next_commit_seq(),
             ),
-            intent_id=intent_id,
-            # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。
-            created_at_commit=unit_of_work.next_commit_seq(),
-        ),
-    )
-    result = unit_of_work.commit()
+        )
+        result = tx.commit()
 
     return _build(
         inputs,

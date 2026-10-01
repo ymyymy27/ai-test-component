@@ -616,6 +616,56 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 （`Handler = Callable[[Command], Mapping]`，没有依赖注入）。
 装配点归 A；本包不修改该文件。所需的端口面见第 3 节。
 
+### 8.10 B 的用例已可经统一入口运行（2026-10-01，B 侧自证）
+
+上一节的"仍未接通"**在本轮被绕过一步，但没有被取消**：B 改成
+**在注册时把依赖闭包进 handler**，因此不需要 A 先改 `Handler` 签名也能跑通。实测如下。
+
+| 项 | 位置 | 状态 |
+| --- | --- | --- |
+| 动作表与依赖包 | `src/aitest/application/usecase_registry.py`（新增） | `BUseCaseDependencies` + `build_b_use_case_registry()`；**不 import** `bootstrap` / `interfaces` / `infrastructure` |
+| 注册到入口 | `src/aitest/interfaces/local/b_registration.py`（新增） | `register_b_use_cases(api, deps)`：把 B 的动作并进 `LocalAPI.handlers`，同名动作**拒绝覆盖** |
+| 合同测试 | `tests/contracts/test_b_use_case_registration.py`（新增，10 项通过） | 用**真实 `Command` + 真实 `FileUnitOfWork`** 经 `LocalAPI.dispatch()` 写入并读回；含重启读回、只读动作免写身份、修订冲突、索引待重建、参数非法五类反例 |
+
+本轮暴露并已固定的动作（**仅项目上下文类**）：
+
+| 动作 | 语义 | 记录类别 |
+| --- | --- | --- |
+| `save_context` | 保存项目（模块随项目一起） | `project` |
+| `save_binding` | 保存 Git/plain 绑定 | `binding` |
+| `save_environment` | 保存环境引用 | `environment` |
+| `save_dependency_graph` | 保存模块依赖图 | `dependency_set` |
+| `query` | 有界查询（读动作） | — |
+
+错误码（由 `BUseCaseError.code` 透到 `Response.error.code`）：
+`B_INVALID_PARAMETER`、`B_REVISION_CONFLICT`、`B_PREPARATION_CONFLICT`、
+`B_INDEX_MAINTENANCE_REQUIRED`、`B_INVALID_QUERY_CURSOR`。
+
+两处细节值得 A/C/D 知悉：
+
+1. **写动作的成功结果只报 `aggregate_kind` / `record_id` / `revision`，不报提交序号**。
+   原因：`application/project/persistence.py` 的 `save_*` 自带 `open`/`commit` 并只返回
+   `StagedRevision`，返回时提交序号已经前进，事后补读会拿到**下一次**的序号。
+   B 选择少报一个字段，而不是报一个会误导"业务顺序"的值。若将来需要随写返回提交序号，
+   接口形态需要改（由拥有 `save_*` 语义的一方决定），B 不在本轮自行发明。
+2. **`query` 在索引缺失时返回 `B_INDEX_MAINTENANCE_REQUIRED`，不返回空列表**。
+   实测依据：`PortsRecordReader.query()` 把 A 的 `status=maintenance_required` 翻成
+   `IndexMaintenanceRequired`；若直接透传会变成 `INTERNAL_ERROR`，
+   调用方无法把"索引待重建"与"真的没有数据"分开。
+
+**两项仍然只归 A，本包不动**：
+
+1. **装配点接线**：产品路径目前是 `CoreBootstrap.create()` 一次性装配；
+   要让 B 的动作在**跨进程唯一核心**里也生效，仍需装配点把
+   `BUseCaseDependencies` 交给 `register_b_use_cases()`。本包不修改 `bootstrap.py`。
+2. **`Handler` 依赖注入（可选）**：若 A 愿意把 `Handler` 扩成可收依赖，
+   B 的改动只是把"注册时闭包"换成"装配时注入"，动作表与测试不变。
+   本包不主张必须改签名——现有形态已经可用。
+
+**尚未包括**：`prepare_run`、`publish_rules`、`publish_plan`、`generate_draft`、
+模型出站类动作。它们各自需要参数字段的适配（`PreparationInputs` 有二十余个字段），
+另行分批，不在此节声称已接通。
+
 ---
 
 ## 9 变更记录
@@ -629,6 +679,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-09-30 | 0.5 | 项目负责人裁定 `SourceSnapshot` 分工、端口维护方式、横切端口归属及 Git/GitHub 一期边界；三项由待裁定转为待实现 | 袁（项目负责人） |
 | 2026-10-01 | 0.6 | 补第 8.8 节：B 接线后确认需要 A 冻结的**三个只读方法**（`current_revision` / `commit_seq` / `next_commit_seq`）及缺少时的行为；补第 8.9 节记录 B 侧已完成的接线与**仍未接通的产品入口**。本节只提需求，不改 B 侧协议 | B 包（待 A 确认并冻结） |
 | 2026-10-01 | 0.7 | 补第 11 节：**`SourceSnapshot` 字段口径**（B 主责，按第 10.1 节裁定给出字段、形式互斥、内容身份与失效判据），供 C 评审执行兼容后在其唯一模型里落地。**只冻结字段语义，不改变任何现行 Schema 字节**。本节内容于 2026-09-30 写成于 `feat/b-sourcesnapshot-fields`，该分支未及时提交评审；现基于当前 `develop` 重新施加 | B 包（待 C 评审） |
+| 2026-10-01 | 0.8 | 补第 8.10 节：B 把依赖**闭包进 handler**，因此不必先等装配点改造即可经统一入口运行项目上下文类动作；登记 5 个动作、5 个错误码、合同测试 10 项，并说明"写动作不报提交序号"与"索引缺失不返回空列表"两处细节。装配点接线与 `Handler` 依赖注入仍归 A | B 包（知悉性登记，待 A 确认装配点接法） |
 
 ---
 

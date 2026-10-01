@@ -113,7 +113,7 @@ class LocalAPI:
                 response = self._error(
                     command,
                     getattr(exc, "code", "INTERNAL_ERROR"),
-                    str(exc),
+                    self._safe_message(exc),
                 )
         elif command.action == "doctor":
             ready = "READY" if self.workspace_id else "NOT_READY"

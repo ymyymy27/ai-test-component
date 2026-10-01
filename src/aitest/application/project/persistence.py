@@ -18,8 +18,9 @@
 1. **不自动覆盖**：`expected_revision` 是调用方**看到过**的修订。传 `None` 表示
    "我认定这是新建"，此时当前已有记录就抛 `ConcurrentEditError` 并带上当前修订；
    要追加新修订就把看到的修订号传进来。与架构文档《01-项目与计划》第 8 节末一致。
-2. **一次短事务**：每个 `save_*` 自带 `open` / `commit`，调用时**不得已有打开的事务**。
-   这样做是为了让"建对象"与"落盘"的边界在调用点可见。
+2. **一次短事务**：每个 `save_*` 经 `substrate.transaction()` 自带 `open` / `commit`，
+   调用时**不得已有打开的事务**。这样做是为了让"建对象"与"落盘"的边界在调用点可见；
+   事务上下文的生命周期就是排他写锁的生命周期，调用方不需要自己写收尾。
 3. **只经端口**：本模块只用 `UnitOfWork` / `RecordReader` 两个窄协议，
    不直接读写任何业务文件（端口实现归 A）。
 """
@@ -31,6 +32,7 @@ from aitest.application.planning.substrate import (
     RecordReader,
     StagedRevision,
     UnitOfWork,
+    transaction,
 )
 from aitest.application.project.serialization import (
     binding_from_payload,
@@ -69,14 +71,20 @@ def _stage_and_commit(
     payload: dict[str, object],
     unit_of_work: UnitOfWork,
 ) -> StagedRevision:
-    unit_of_work.open(project_id)
-    staged = unit_of_work.stage_record(
-        aggregate_kind=aggregate_kind,
-        record_id=record_id,
-        expected_revision=expected_revision,
-        payload=payload,
-    )
-    unit_of_work.commit()
+    """一次短事务：在**事务上下文**里暂存并提交。
+
+    用 `transaction()` 而不是 `open()` / `try`…`finally`：真实底座的 `open()`
+    会取工作空间级排他写锁，收尾一旦靠调用方的记性，抛异常或提前返回就会把锁
+    留在这个进程里。上下文对象负责收尾（见 `substrate.Transaction`）。
+    """
+    with transaction(unit_of_work, project_id) as tx:
+        staged = tx.stage_record(
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            expected_revision=expected_revision,
+            payload=payload,
+        )
+        tx.commit()
     return staged
 
 

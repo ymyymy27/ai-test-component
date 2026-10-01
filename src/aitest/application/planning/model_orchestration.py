@@ -58,7 +58,12 @@ from aitest.application.planning.model_ports import (
     Projection,
     ProjectionStatus,
 )
-from aitest.application.planning.substrate import RecordQuery, RecordReader, UnitOfWork
+from aitest.application.planning.substrate import (
+    RecordQuery,
+    RecordReader,
+    UnitOfWork,
+    transaction,
+)
 from aitest.application.ports import Clock
 from aitest.domain.planning.model_outbound import (
     TASK_MATERIAL_KINDS,
@@ -351,16 +356,16 @@ def request_model_draft(
     # 步骤 6：**先把出站意图落盘**，再发起外部调用。
     # 反序（先调用后登记）在"调用已发生、进程随后崩溃"时会丢掉整条出站事实，
     # 而模型调用是**不可撤销的副作用**，事后无法补记。
-    unit_of_work.open(project_id)
-    unit_of_work.stage_record(
-        aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
-        record_id=request.request_id,
-        expected_revision=_current_revision(
-            reader, project_id=project_id, record_id=request.request_id
-        ),
-        payload=_intent_payload(request),
-    )
-    intent = unit_of_work.commit()
+    with transaction(unit_of_work, project_id) as tx:
+        tx.stage_record(
+            aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
+            record_id=request.request_id,
+            expected_revision=_current_revision(
+                reader, project_id=project_id, record_id=request.request_id
+            ),
+            payload=_intent_payload(request),
+        )
+        intent = tx.commit()
     intent_revision = intent.revision_of(
         OUTBOUND_AGGREGATE, request.request_id  # type: ignore[arg-type]
     ).revision
@@ -377,40 +382,40 @@ def request_model_draft(
     )
 
     # 步骤 8：提交安全响应；成功时把草稿正文与其引用放在**同一次提交**里。
-    unit_of_work.open(project_id)
-    unit_of_work.stage_record(
-        aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
-        record_id=request.request_id,
-        expected_revision=intent_revision,
-        payload=_outcome_payload(request, result),
-    )
     content: GeneratedContent | None = None
-    if result.status is ModelCallStatus.OK:
-        # 草稿引用按**这次出站的修订号**唯一：重发同一条请求会产生新的草稿记录，
-        # 不会以"新建"语义覆盖上一次的草稿。
-        content = GeneratedContent(
-            generated_content_id=(
-                f"draft:{project_id}:{draft_kind}:{request.request_id}:{intent_revision}"
-            ),
-            project_id=project_id,
-            draft_kind=draft_kind,
-            template_ref=template_ref if template_ref is not None else _PLACEHOLDER_TEMPLATE,
-            revision=intent_revision,
-            revision_context=RevisionContext(
-                project_revision=project_revision,
-                binding_revision=binding_revision,
-                template_revision=_template_version(template_ref),
-                source_revision=source_revision,
-            ),
-            content_digest=_text_digest(result.draft_text),
+    with transaction(unit_of_work, project_id) as tx:
+        tx.stage_record(
+            aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
+            record_id=request.request_id,
+            expected_revision=intent_revision,
+            payload=_outcome_payload(request, result),
         )
-        unit_of_work.stage_record(
-            aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
-            record_id=content.generated_content_id,
-            expected_revision=None,
-            payload=_content_payload(content, result.draft_text),
-        )
-    unit_of_work.commit()
+        if result.status is ModelCallStatus.OK:
+            # 草稿引用按**这次出站的修订号**唯一：重发同一条请求会产生新的草稿记录，
+            # 不会以"新建"语义覆盖上一次的草稿。
+            content = GeneratedContent(
+                generated_content_id=(
+                    f"draft:{project_id}:{draft_kind}:{request.request_id}:{intent_revision}"
+                ),
+                project_id=project_id,
+                draft_kind=draft_kind,
+                template_ref=template_ref if template_ref is not None else _PLACEHOLDER_TEMPLATE,
+                revision=intent_revision,
+                revision_context=RevisionContext(
+                    project_revision=project_revision,
+                    binding_revision=binding_revision,
+                    template_revision=_template_version(template_ref),
+                    source_revision=source_revision,
+                ),
+                content_digest=_text_digest(result.draft_text),
+            )
+            tx.stage_record(
+                aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
+                record_id=content.generated_content_id,
+                expected_revision=None,
+                payload=_content_payload(content, result.draft_text),
+            )
+        tx.commit()
 
     if result.status is not ModelCallStatus.OK:
         # 模型不可用：**人工路径仍可用**，因此返回态而非异常；
