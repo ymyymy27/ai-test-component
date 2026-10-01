@@ -191,7 +191,7 @@ next_action: 补齐字段映射并请求 C 评审
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing` | A `partial`；B/C/D `partial` | 未登记统一对拍 | A 冻结一期端口；B/C/D 确认语义 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A 基础能力 `partial`；B 规则 `partial` | 单元/合同证据分散 | 按已裁定分工补端口、快照与 Git 适配 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A 基础能力 `partial`；B 规则与接线 `partial` | B 侧真实文件存储集成测试已通过（`tests/unit/test_substrate_adapter.py`），双方对拍未做 | A 冻结 `current_revision` / `commit_seq` / `next_commit_seq` 三个只读方法；B 已接线，序号来源待替换为正式访问器 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复展示与查询问题 |
 | [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing` | C `done`；D `not_started` | `fixture_passed` | D 确认并完成消费方接入 |
@@ -202,7 +202,7 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 验证依据 |
 | --- | --- | --- | --- | --- |
-| [BC-001](已完成/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | `frozen` | 双方确认；功能夹具与词汇表契约测试 |
+| [BC-001](已完成/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | `frozen` | 双方确认；功能夹具与词汇表契约测试。**2026-10-01 四项功能夹具的三个取值已变**（`intent_id` / `prepared_run_id` / `payload_hash`），字段语义未变，**C 需重新取用**，见该合同第 15 节 |
 
 ### 10.3 最近裁定
 

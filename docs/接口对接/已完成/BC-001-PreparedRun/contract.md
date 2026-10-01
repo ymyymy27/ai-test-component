@@ -6,12 +6,12 @@ consumer: C
 contract_version: "0.8"
 contract_status: frozen
 provider_implementation: done
-consumer_implementation: done
+consumer_implementation: partial
 verification_status: fixture_passed
 last_verified_commit: 8d9883c
 blockers: []
-next_owner: null
-next_action: null
+next_owner: C
+next_action: 重新取用四项功能夹具的新 intent_id / prepared_run_id / payload_hash 取值并回写第 15 节
 ---
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
@@ -496,3 +496,47 @@ C 同意 C-Q08 / B-Q01 按以下边界处理：
 ### 14.3 C 确认
 
 C 对 SourceSnapshot 分工无异议；该分工已由袁（项目负责人）于 2026-09-30 裁定。对四项功能夹具无阻塞意见；plain 省略 Git 键和 snapshot_revision 取值可按现状关闭。字段补齐后续走新的契约变更，不改变本合同已冻结的 PreparedRun 词汇和夹具结论。
+
+---
+
+## 15 B 侧功能夹具的**取值**变更（2026-10-01，待 C 重新取用）
+
+### 15.1 变的是什么
+
+四项功能夹具（`tests/contracts/fixtures/prepared_run_functional/{git,plain,blocked,needs_reprepare}.json`）
+经 `tests/support/prepared_run_factory.py` **重新生成**（不是手改），逐字节差异只有 3 个键 × 4 份文件：
+
+| 键 | 变更前 | 变更后 | 原因 |
+| --- | --- | --- | --- |
+| `intent_id` | `intent:prepare-request-1` | `intent-<40 位摘要>` | 意图标识改为由 `(project_id, client_id, prepare_request_id)` 派生，**带项目与客户端命名空间** |
+| `prepared_run_id` | `prepared:prepare-request-1` | `prepared-<40 位摘要>` | 同上 |
+| `payload_hash` | 旧摘要 | 新摘要 | 摘要口径修正：改为只装**请求意图与人工选择**，不再纳入观察到的来源/依据修订（见 15.2） |
+
+重新生成脚本与逐字节守卫测试：`tests/contracts/test_prepared_run_functional_fixtures.py::test_fixtures_can_be_regenerated_byte_for_byte`。
+
+### 15.2 为什么必须变
+
+1. **命名空间**：存储层的修订计数按 `record_id` **全局**计，不含项目维度。原标识只由
+   `prepare_request_id` 构成，两个项目用同一个请求号会互相覆盖。
+2. **摘要语义**：原摘要纳入了 `snapshot.content_identity`（**观察结果**）却漏掉了
+   `selected_case_ids` 等**人工选择**。后果有两个方向：改了本轮选定用例却得到同一个摘要
+   （被误判成幂等复用）；源码一变却先撞"同键异输入冲突"，而正确结论是"依据需重新准备"。
+
+### 15.3 兼容性判断（**B 侧结论，待 C 确认**）
+
+- **字段名、类型、语义均未变**：`intent_id` / `prepared_run_id` / `payload_hash` 仍是
+  `min_length=1` 的字符串，仍是不透明标识与摘要；`PreparedRun` 的 `schema_version` 保持
+  `aitest.prepared-run/1.0`。
+- **C 侧预期影响**：只影响"取到什么值"，不影响"怎么解析"。
+  **但 C 若把旧夹具的字节或旧 `payload_hash` 落进了自己的测试与持久记录，需要重新取用。**
+  旧的 `intent_id` 在 B 侧不再产生，按旧值做恢复查询会查不到——这是**有意的**：旧标识没有命名空间。
+- **不提升主版本**：按 `docs/接口对接/README.md` 第 8 节，只有"删除、改名、改变枚举或错误语义"
+  才提升主版本；本次是取值变化。
+
+### 15.4 C 需要做的
+
+1. 重新取用四项功能夹具，核对 `intent_id` / `prepared_run_id` / `payload_hash` 三处新取值；
+2. 若 C 侧存有旧 `intent_id` 的持久记录或断言，一并更新；
+3. 确认后回写本节；B 侧按确认结果决定是否关闭。
+
+**未完成前，本合同的"双方接入已完成"结论对这四个取值不再成立**——字段契约仍然有效。
