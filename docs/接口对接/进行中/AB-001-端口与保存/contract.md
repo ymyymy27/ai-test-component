@@ -3,15 +3,15 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "0.6"
+contract_version: "0.7"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers: []
-next_owner: A
-next_action: A 冻结 current_revision / commit_seq / next_commit_seq 三个只读方法并补一期签名；B 已按现实现接线并留待替换的临时序号来源
+next_owner: A/C
+next_action: A 冻结 current_revision / commit_seq / next_commit_seq 三个只读方法；C 评审第 11 节的 SourceSnapshot 字段口径并回写兼容性结论
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -628,6 +628,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-09-28 | 0.4 | 正文的提出方／接收方／确认方统一改用**包名**（不使用成员名），与本目录其余文档一致 | B 包 |
 | 2026-09-30 | 0.5 | 项目负责人裁定 `SourceSnapshot` 分工、端口维护方式、横切端口归属及 Git/GitHub 一期边界；三项由待裁定转为待实现 | 袁（项目负责人） |
 | 2026-10-01 | 0.6 | 补第 8.8 节：B 接线后确认需要 A 冻结的**三个只读方法**（`current_revision` / `commit_seq` / `next_commit_seq`）及缺少时的行为；补第 8.9 节记录 B 侧已完成的接线与**仍未接通的产品入口**。本节只提需求，不改 B 侧协议 | B 包（待 A 确认并冻结） |
+| 2026-10-01 | 0.7 | 补第 11 节：**`SourceSnapshot` 字段口径**（B 主责，按第 10.1 节裁定给出字段、形式互斥、内容身份与失效判据），供 C 评审执行兼容后在其唯一模型里落地。**只冻结字段语义，不改变任何现行 Schema 字节**。本节内容于 2026-09-30 写成于 `feat/b-sourcesnapshot-fields`，该分支未及时提交评审；现基于当前 `develop` 重新施加 | B 包（待 C 评审） |
 
 ---
 
@@ -654,3 +655,96 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 - 远端领先/落后和远端检查状态是一期可选 GitHub 能力，不作为一期本地闭环的完成阻塞；统一通过 HTTPS API 获取，不依赖 `gh` CLI，凭据只经 GitHub 用途的 `SecretRef` / `SecretPort`。
 - 本地 Git 不可用会阻塞依赖 Git 身份的固定/准备且不得静默转成 `plain`；远端未配置、未认证、限流、网络失败或服务不可用只降级远端状态，不阻塞本地固定、准备和运行。
 - 远端状态只分开展示，永不直接产生 L1 或业务通过；`plain` 不注册、不调用 Git 能力，也不出现仓库字段。
+
+---
+
+## 11 `SourceSnapshot` 字段口径（B 主责，待 C 评审）
+
+依据第 10.1 节裁定，`SourceSnapshot` 的**建立时机、`purpose`、范围、排除规则、内容身份算法、Git/plain 身份、
+复取范围与失效判据**由 B 主责。本节给出**冻结字段口径**，供 C 评审执行兼容性后由 C 在
+`domain/execution/sources.py` 落地（类位置不变）。
+
+**本节只冻结字段语义，不改变任何现行 Schema 字节。** 落地前 `SourceSnapshot` 仍按现状运行。
+
+### 11.1 形式互斥（与 `LocalProjectBinding.bind_form` 同一模式）
+
+`SourceSnapshot` 采用与项目绑定**完全相同**的形态互斥规则，不引入第二种表达方式：
+
+| `source_form` | 必须存在 | 必须省略（**不是 `null`、不是空串**） |
+| --- | --- | --- |
+| `git` | `git_base_commit`、`git_diff_digest` | `plain_manifest_digest` |
+| `plain` | `plain_manifest_digest` | `git_base_commit`、`git_diff_digest` |
+
+依据：B 包 AI 规则第 3.6 节"`plain` 形态完全省略 Git 字段，不使用 `None`、空值或'未知'占位"；
+序列化时**真正省略该键**（`application/project/serialization.py` 已实现该行为，并有 `key not in payload` 断言）。
+
+### 11.2 冻结字段表
+
+| 字段 | 类型 | 必填 | 含义与判据 |
+| --- | --- | --- | --- |
+| `snapshot_id` | `str` | 是 | 稳定标识；同一逻辑快照的重新固定产生**新** `snapshot_id`，不复用 |
+| `project_id` | `str` | 是 | 归属项目 |
+| `purpose` | `Literal["analysis", "prepare"]` | 是 | **取值只有这两个**；`analysis` 用于显式分析，`prepare` 用于准备运行 |
+| `binding_revision` | `int` (≥1) | 是 | 固定时的绑定修订，用于判"绑定已变" |
+| `source_form` | `Literal["git", "plain"]` | 是 | 决定下列形态字段的**存在性** |
+| `selected_paths` | `tuple[str, ...]` | 是 | 工作目录范围（选定路径）；相对路径，POSIX 分隔符，不得为空 |
+| `exclusion_rules` | `tuple[str, ...]` | 是 | 排除规则；无排除时为空元组（**合法**，不写 `null`） |
+| `files` | `tuple[SourceFile, ...]` | 是 | 逐文件 `relative_path`／`size`／`sha256`；路径唯一、无盘符、无 `..` |
+| `content_identity` | `str` | 是 | 见 11.3 的计算口径 |
+| `plain_manifest_digest` | `str \| None` | `plain` 必填 | 文件清单摘要；**取值来自 B 的 `SourceManifest.manifest_digest`**，不另起算法 |
+| `git_base_commit` | `str \| None` | `git` 必填 | 基准提交 |
+| `git_diff_digest` | `str \| None` | `git` 必填 | 工作区相对基准的未提交新增/修改/删除内容摘要 |
+| `content_ref` | `str \| None` | 否 | 内容引用（对象摘要）；内容未留存时为 `None` 并同时登记缺口 |
+| `created_at` | `datetime \| None` | 否 | 创建时间；经 `Clock` 取得，不使用系统时间 |
+| `refetch_dependencies` | `tuple[str, ...]` | 是 | 复取依赖（仓库对象、LFS、子模块）；无则为空元组 |
+| `refetch_scope` | `str \| None` | 否 | 可复取范围；**缺失即为缺口**，不留空冒充完整 |
+
+**与 B 既有实现的关系**：`plain` 形态的身份值以 `domain/project/context.py` 的 `SourceManifest`
+（`source_scope`／`manifest_digest`／`files`／`exclusion_rules`／`refetch_dependencies`／`refetch_scope`）为准，
+本节**不新定义第二套**；`SourceSnapshot` 是其上游的不可变固定事实。
+
+### 11.3 `content_identity` 计算口径
+
+1. **输入**：`source_form`、`files`（按 `relative_path` 升序规范化后）与形态身份
+   （`git`：`git_base_commit` ＋ `git_diff_digest`；`plain`：`plain_manifest_digest`）。
+2. **规范字节**：对每个文件按 `relative_path`、`size`、`sha256` 生成规范记录行，按路径升序拼接；
+   再拼入形态身份；最后取摘要。
+3. **不使用**：文件系统时间戳、绝对路径、盘符、目录遍历顺序、`purpose`、`snapshot_id`。
+   `mtime` **只作变化提示，永不参与身份计算**。
+4. **跨平台**：路径判定必须使用 `PureWindowsPath`；**入记录的路径统一为 POSIX 相对路径**，
+   避免同一内容在 Windows／Linux 上算出不同身份。
+5. **可复现**：同一输入必须得到同一 `content_identity`；夹具与测试据此做逐字节断言。
+
+### 11.4 `SourceSnapshotPort`（B 提供语义，A 实现）
+
+端口方法的**语义**如下（具体签名形式由 A 按第 10.2 节冻结；B 不自行改 `application/ports.py`）：
+
+```text
+pin(canonical_path, purpose, selected_paths, exclusion_rules) -> SourceSnapshot 的 payload
+    按实际字节固定；mtime 只作变化提示，不证明内容相同
+read_pinned(snapshot_id) -> payload
+    按稳定标识读取已固定快照的元数据（不重新扫描目录）
+materialize(snapshot_id, destination) -> 实际路径映射与内容摘要
+    物化到指定目录；物化副本不进入永久对象库
+detect_changes(snapshot_id) -> 变化清单
+    无法证明"未变"时不得报"未变"
+```
+
+### 11.5 待 C 确认（执行兼容性，不是归属问题）
+
+| # | 待确认项 | 责任方 | 下一动作 | 阻塞影响 |
+| --- | --- | --- | --- | --- |
+| Q1 | §11.1 形式互斥是否符合 C 侧对 `plain` 的解析预期 | C | 在本文档追加确认 | 不阻塞现状（现行 `SourceSnapshot` 不含这些字段） |
+| Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 现有 `SourceFile`／`SourceSnapshot` 兼容 | C | 同上 | 决定 C 的补字段改动是否为纯新增 |
+| Q3 | §11.3 `content_identity` 改由 B 口径计算后，C 现有 `content_identity` 构造值如何迁移 | B＋C | B 给迁移说明 | 决定是否需提升 Schema 主版本 |
+| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | B | B 在 BD/BC 合同中引用本节 | 影响 `PreparedRun` 快照修订语义 |
+
+**B 侧下一步**：本节经 C 确认后，B 提交项目负责人确认字段口径，再按新的契约 PR 实施
+（C 的原话："等你把字段名和口径整理好，再提交组长确认；确认后我们按新的契约 PR 实施，不直接散改"）。
+
+### 11.6 本节不改变的事项
+
+- **不改动 `docs/项目文档/**`**：架构第 7 节的表述歧义由裁定记录引用，不在本项目改动。
+- **不新建第二套 `SourceSnapshot`**：类位置仍唯一在 `domain/execution/sources.py`。
+- **不手工改生成 Schema 与夹具**：字段落地后由声明所有者重新生成。
+- **不把本节的"冻结字段"写成"已实现"**：`provider_implementation` 仍为 `partial`。
