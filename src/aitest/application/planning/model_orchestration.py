@@ -1,4 +1,4 @@
-"""模型请求编排：策略 → 准入 → 投影 → 调用 → 迟到响应。
+"""模型请求编排：策略 → 准入 → 投影 → 登记意图 → 调用 → 登记结果。
 
 把 Sprint 5 已实现的三块**纯规则**串起来（`domain/planning/model_outbound.py`）：
 
@@ -9,6 +9,18 @@
 | `response_currency()` | 迟到响应核对来源修订，**人工版本优先** |
 
 **编排层不重复实现任何判定**，只调用上述函数（与 `publish.py` 同一原则）。
+
+## 出站次序（硬性）
+
+外部调用是**不可撤销的副作用**，因此顺序固定为：
+
+1. 准入与投影（步 1—5，全部在事务外，不产生副作用）；
+2. **意图落盘并提交**——在调用之前，把"要发什么、发给谁、凭什么"变成已提交事实；
+3. **事务外调用**——不持有写事务发起外部请求；
+4. **结果落盘并提交**——成功时把草稿正文与其引用放在**同一次提交**里。
+
+反序（先调用后登记）在"调用已发生、进程随后崩溃"时会丢掉整条出站事实，
+且事后无法补记。
 
 四条硬约束的落点：
 
@@ -21,13 +33,15 @@
 
 **失败不抛栈**：模型不可用、凭据缺失、投影不全都是**返回态**，因为产品要求
 "模型不可用时人工路径仍可用"；抛异常会把失败扩散成调用方崩溃。
+失败只回**错误分类**，不回供应商的错误正文（可能回显请求内容）。
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from hashlib import sha256
 
 from aitest.application.planning.draft import (
     DraftKind,
@@ -65,6 +79,13 @@ OUTBOUND_BLOCKED = "blocked"
 
 #: 出站记录的聚合类别（与 `substrate.AggregateKind` 中的取值一致）。
 OUTBOUND_AGGREGATE = "model_outbound_request"
+
+#: 草稿的聚合类别（与 `substrate.AggregateKind` 中的取值一致）。
+GENERATED_CONTENT_AGGREGATE = "generated_content"
+
+#: 同一出站记录的两个修订各自代表什么；调用方据此区分"意图"与"结果"。
+OUTBOUND_STATE_INTENT = "intent"
+OUTBOUND_STATE_OUTCOME = "outcome"
 
 _PLACEHOLDER_TEMPLATE = TemplateRef(template_id="manual", version="1.0.0")
 
@@ -310,7 +331,6 @@ def request_model_draft(
         timeout_seconds=timeout_seconds,
         policy_revision=policy.revision,
     )
-    result: ModelCallResult = caller.call(call)
 
     request = OutboundRequest(
         request_id=outbound_request_id(project_id, policy.revision, task_type),
@@ -326,13 +346,11 @@ def request_model_draft(
         model_id=policy.endpoint.model_id,
         credential_purpose=resolution.purpose,
         requested_at=clock.now(),
-        provider_request_id=result.provider_request_id,
-        call_status=result.status.value,
-        error_kind=result.error_kind,
     )
 
-    # 无论成败都留下出站记录：需求要求"保留请求关联编号、模型配置、原始输出及分析结果"，
-    # 失败也是一次真实发生的出站事实。
+    # 步骤 6：**先把出站意图落盘**，再发起外部调用。
+    # 反序（先调用后登记）在"调用已发生、进程随后崩溃"时会丢掉整条出站事实，
+    # 而模型调用是**不可撤销的副作用**，事后无法补记。
     unit_of_work.open(project_id)
     unit_of_work.stage_record(
         aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
@@ -340,33 +358,73 @@ def request_model_draft(
         expected_revision=_current_revision(
             reader, project_id=project_id, record_id=request.request_id
         ),
-        payload=_request_payload(request),
+        payload=_intent_payload(request),
     )
-    commit = unit_of_work.commit()
+    intent = unit_of_work.commit()
+    intent_revision = intent.revision_of(
+        OUTBOUND_AGGREGATE, request.request_id  # type: ignore[arg-type]
+    ).revision
+
+    # 步骤 7：事务外调用。**不持有写事务**发起外部请求。
+    result: ModelCallResult = caller.call(call)
+
+    # 调用结果并入同一条出站事实：修订 1 是意图，修订 2 是结果。
+    request = replace(
+        request,
+        provider_request_id=result.provider_request_id,
+        call_status=result.status.value,
+        error_kind=result.error_kind,
+    )
+
+    # 步骤 8：提交安全响应；成功时把草稿正文与其引用放在**同一次提交**里。
+    unit_of_work.open(project_id)
+    unit_of_work.stage_record(
+        aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
+        record_id=request.request_id,
+        expected_revision=intent_revision,
+        payload=_outcome_payload(request, result),
+    )
+    content: GeneratedContent | None = None
+    if result.status is ModelCallStatus.OK:
+        # 草稿引用按**这次出站的修订号**唯一：重发同一条请求会产生新的草稿记录，
+        # 不会以"新建"语义覆盖上一次的草稿。
+        content = GeneratedContent(
+            generated_content_id=(
+                f"draft:{project_id}:{draft_kind}:{request.request_id}:{intent_revision}"
+            ),
+            project_id=project_id,
+            draft_kind=draft_kind,
+            template_ref=template_ref if template_ref is not None else _PLACEHOLDER_TEMPLATE,
+            revision=intent_revision,
+            revision_context=RevisionContext(
+                project_revision=project_revision,
+                binding_revision=binding_revision,
+                template_revision=_template_version(template_ref),
+                source_revision=source_revision,
+            ),
+            content_digest=_text_digest(result.draft_text),
+        )
+        unit_of_work.stage_record(
+            aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
+            record_id=content.generated_content_id,
+            expected_revision=None,
+            payload=_content_payload(content, result.draft_text),
+        )
+    unit_of_work.commit()
 
     if result.status is not ModelCallStatus.OK:
         # 模型不可用：**人工路径仍可用**，因此返回态而非异常；
         # 也**不在失败重试中暗换供应方**（需求 §7）。
-        detail = f" ({result.error_detail})" if result.error_detail else ""
+        #
+        # 只回**错误分类**，不回 `error_detail`：供应商的错误文本可能回显请求内容，
+        # 而请求内容来自被测项目。细节的摘要已随出站记录落盘，供与供应商日志对账。
         return OutboundOutcome(
             status=OUTBOUND_BLOCKED,
             request=request,
-            blocked_by=(f"model call failed: {result.error_kind}{detail}",),
+            blocked_by=(f"model call failed: {result.error_kind}",),
         )
 
-    content = GeneratedContent(
-        generated_content_id=f"draft:{project_id}:{draft_kind}:{commit.commit_seq}",
-        project_id=project_id,
-        draft_kind=draft_kind,
-        template_ref=template_ref if template_ref is not None else _PLACEHOLDER_TEMPLATE,
-        revision=1,
-        revision_context=RevisionContext(
-            project_revision=project_revision,
-            binding_revision=binding_revision,
-            template_revision=_template_version(template_ref),
-            source_revision=source_revision,
-        ),
-    )
+    assert content is not None
     return OutboundOutcome(
         status=OUTBOUND_DRAFT_READY, request=request, content=content
     )
@@ -378,8 +436,40 @@ def _template_version(template_ref: TemplateRef | None) -> str:
     return template_ref.version
 
 
-def _request_payload(request: OutboundRequest) -> dict[str, object]:
-    """出站记录的落盘 payload。**不含任何凭据正文。**"""
+def _intent_payload(request: OutboundRequest) -> dict[str, object]:
+    """出站**意图**的落盘 payload：在外部调用之前写入，不含任何调用结果。
+
+    字段与结果 payload 保持同一套键，只多一个 `state` 标记，
+    使"同一记录的第 1 修订是意图、第 2 修订是结果"可被程序化区分。
+    """
+    return {
+        **_identity_fields(request),
+        "requested_at": request.requested_at.isoformat(),
+        "state": OUTBOUND_STATE_INTENT,
+    }
+
+
+def _outcome_payload(
+    request: OutboundRequest, result: ModelCallResult
+) -> dict[str, object]:
+    """出站**结果**的落盘 payload：调用之后的真实事实。
+
+    `error_detail` 只落**摘要**，不落正文：供应商的错误文本可能回显请求内容，
+    而请求内容取自被测项目。摘要足以与供应商日志对账，正文不留在本地工作空间。
+    """
+    return {
+        **_identity_fields(request),
+        "provider_request_id": request.provider_request_id,
+        "call_status": request.call_status,
+        "error_kind": request.error_kind,
+        "error_detail_digest": _text_digest(result.error_detail),
+        "error_detail_chars": len(result.error_detail),
+        "state": OUTBOUND_STATE_OUTCOME,
+    }
+
+
+def _identity_fields(request: OutboundRequest) -> dict[str, object]:
+    """两次提交共用的请求身份字段。**不含任何凭据正文。**"""
     return {
         "project_id": request.project_id,
         "request_id": request.request_id,
@@ -393,10 +483,41 @@ def _request_payload(request: OutboundRequest) -> dict[str, object]:
         "endpoint_address": request.endpoint_address,
         "model_id": request.model_id,
         "credential_purpose": request.credential_purpose,
-        "provider_request_id": request.provider_request_id,
-        "call_status": request.call_status,
-        "error_kind": request.error_kind,
     }
+
+
+def _content_payload(content: GeneratedContent, draft_text: str) -> dict[str, object]:
+    """草稿的落盘 payload：**正文与摘要一起落**。
+
+    只存元数据会让"模型确实产出了什么"没有可核对的字节，
+    报告与导出也就无法引用真实内容。
+    """
+    return {
+        "project_id": content.project_id,
+        "generated_content_id": content.generated_content_id,
+        "draft_kind": content.draft_kind,
+        "template_id": content.template_ref.template_id,
+        "template_version": content.template_ref.version,
+        "revision": content.revision,
+        "status": content.status,
+        "content_digest": content.content_digest,
+        "draft_text": draft_text,
+        "revision_context": {
+            "project_revision": content.revision_context.project_revision,
+            "binding_revision": content.revision_context.binding_revision,
+            "template_revision": content.revision_context.template_revision,
+            "environment_revision": content.revision_context.environment_revision,
+            "source_revision": content.revision_context.source_revision,
+            "rules_revision": content.revision_context.rules_revision,
+        },
+    }
+
+
+def _text_digest(text: str) -> str | None:
+    """文本摘要；空文本返回 `None`（**不是**空串占位）。"""
+    if not text.strip():
+        return None
+    return "sha256:" + sha256(text.encode("utf-8")).hexdigest()
 
 
 # ------------------------------------------------------------------ 迟到响应
@@ -472,9 +593,12 @@ def settle_response(
 
 
 __all__ = [
+    "GENERATED_CONTENT_AGGREGATE",
     "OUTBOUND_AGGREGATE",
     "OUTBOUND_BLOCKED",
     "OUTBOUND_DRAFT_READY",
+    "OUTBOUND_STATE_INTENT",
+    "OUTBOUND_STATE_OUTCOME",
     "OutboundOutcome",
     "OutboundRequest",
     "ResponseSettlement",
