@@ -25,6 +25,7 @@ from aitest.application.planning.substrate import (
     RecordQuery,
     RecordReader,
     UnitOfWork,
+    transaction,
 )
 from aitest.application.project.context import ContextGap, blocking_gaps
 from aitest.domain.planning.plans import (
@@ -148,20 +149,21 @@ def publish_rules(
         "steps": list(draft.steps),
         "evidence_requirements": list(draft.evidence_requirements),
         "unknown_extension_fields": list(draft.unknown_extension_fields),
+        "status": "published",
     }
-    unit_of_work.open(project_id)
-    unit_of_work.stage_record(
-        aggregate_kind="rule_draft",
-        record_id=draft.rule_id,
-        expected_revision=_current_revision(
-            reader,
-            project_id=project_id,
-            aggregate_kind="rule_draft",
+    with transaction(unit_of_work, project_id) as tx:
+        tx.stage_record(
+            aggregate_kind="rule_version",
             record_id=draft.rule_id,
-        ),
-        payload=payload,
-    )
-    result = unit_of_work.commit()
+            expected_revision=_current_revision(
+                reader,
+                project_id=project_id,
+                aggregate_kind="rule_version",
+                record_id=draft.rule_id,
+            ),
+            payload=payload,
+        )
+        result = tx.commit()
 
     version = RuleVersion(
         rule_id=draft.rule_id,
@@ -220,19 +222,19 @@ def publish_plan(
         return _blocked((), gate=str(error))
 
     payload = _plan_payload(plan, cases, project_id=project_id)
-    unit_of_work.open(project_id)
-    unit_of_work.stage_record(
-        aggregate_kind="plan",
-        record_id=plan.plan_id,
-        expected_revision=_current_revision(
-            reader,
-            project_id=project_id,
+    with transaction(unit_of_work, project_id) as tx:
+        tx.stage_record(
             aggregate_kind="plan",
             record_id=plan.plan_id,
-        ),
-        payload=payload,
-    )
-    result = unit_of_work.commit()
+            expected_revision=_current_revision(
+                reader,
+                project_id=project_id,
+                aggregate_kind="plan",
+                record_id=plan.plan_id,
+            ),
+            payload=payload,
+        )
+        result = tx.commit()
 
     published = Plan(
         plan_id=plan.plan_id,

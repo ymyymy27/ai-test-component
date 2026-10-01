@@ -3,15 +3,15 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "0.5"
+contract_version: "0.7"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers: []
-next_owner: A/B/C
-next_action: A 按一期范围冻结端口签名与本地 Git 适配；B/C 按裁定补齐快照语义、模型兼容与合同测试
+next_owner: A/C
+next_action: A 冻结 current_revision / commit_seq / next_commit_seq 三个只读方法（准备链路已依赖）并确认装配点接法；C 回写第 11 节 SourceSnapshot 字段口径的执行兼容性结论（Q1/Q2），按新的契约 PR 补齐字段
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -559,6 +559,126 @@ class SourceSnapshotPort(Protocol):
 设计依据见 `docs/文档-feix-a/B包/10-准备意图与幂等规则设计说明.md`。
 **A 的签名一旦落地，B 只需在这些规则外面加编排，规则本身不再改动。**
 
+### 8.8 B 接线后确认需要的三个底层方法（2026-10-01）
+
+B 已按第 8.2／8.3 节把 `application/planning/substrate_adapter.py` 从骨架实现为可用转接头，
+并在 `tests/unit/test_substrate_adapter.py` 里用 A 的 `FileUnitOfWork` /
+`FileRecordRepository` **真落盘**跑通 `prepare_run`（含"重启后按业务身份读回"）。
+
+A 的现有实现已经具备其中大部分能力，但下面三项**只存在于具体实现里、没有进
+`application/ports.py` 的协议**，因此 B 现在只能靠"注入什么用什么"接线，
+无法在类型与合同层面确认它们会一直存在：
+
+| 需求 | A 现状 | 为什么 B 需要它 |
+| --- | --- | --- |
+| `RecordRepository.current_revision(aggregate_kind, record_id) -> int` | `FileRecordRepository` 已有同名方法 | ① 修订冲突时 B 必须返回**当前修订与差异提示**（架构 01 第 8 节末），A 的 `ValueError("revision conflict")` 不带这个值；② 按业务身份查回准备记录要读"当前修订" |
+| `WorkspaceUnitOfWork.commit_seq() -> str` | 无 | 准备登记的 `created_at_commit` 与"依据需重新准备"提示都要在**未提交**时读当前提交序号；`prepare_run` 的阻塞与复用分支**不暂存任何记录** |
+| `WorkspaceUnitOfWork.next_commit_seq() -> str` | 无 | `PreparationRecord.created_at_commit` 必须在 `commit()` **之前**写进不可变 payload。A 的提交序号**按记录递增**，B 侧语义是"本次提交完成后会得到的序号" |
+
+**建议签名（A 可采用或改形态）**：
+
+```python
+class RecordRepository(Protocol):
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int: ...
+
+class WorkspaceUnitOfWork(Protocol):
+    def commit_seq(self) -> str: ...
+    def next_commit_seq(self) -> str: ...
+```
+
+**兼容性**：三者都是**只读新增**，不改变任何已发布字段、记录形状或错误语义。
+`FileUnitOfWork` / `FileRecordRepository` 已经持有对应事实
+（`records.json` 的提交计数、按 `(kind, record_id)` 的修订条数），
+补齐属于**暴露**，不是新增能力。
+
+**B 侧的临时接法（A 冻结后移除）**：`PortsUnitOfWork` 接受可选的 `CommitSequenceSource`；
+集成测试用 A 的 `RecoveryOrchestrator.inspect()["committed_sequences"]` 提供提交序号，
+不访问 A 的存储内部文件。A 冻结签名后由装配点换成正式访问器，
+B 的用例与测试不改。这三个方法缺失时，转接头抛 `SubstrateContractError` 并在消息里指到本节，
+不用默认值顶替。
+
+**另需一并确认的一处口径**：`commit_sequence` 是**工作空间全局**计数（`records.json` 的 `commit`），
+B 目前只依赖它在**同一项目内单调**。一期若允许多项目共用一个工作空间，
+`created_at_commit` 的跨项目可比性需要明确；B 不自行假定。
+
+### 8.9 B 侧已完成的接线（2026-10-01）
+
+| 项 | 位置 | 状态 |
+| --- | --- | --- |
+| 薄转接头 | `src/aitest/application/planning/substrate_adapter.py` | 已实现；`application` 层不 import `infrastructure`，底层由装配点注入 |
+| 真实存储集成测试 | `tests/unit/test_substrate_adapter.py` | 14 项通过（真落盘 + 重启读回 + 修订冲突 + 索引缺失显式报维护） |
+| 准备记录身份与落盘形状 | `src/aitest/application/planning/preparation.py` | 记录标识/意图标识由三元组派生摘要，**带项目与客户端命名空间** |
+| 摘要口径 | `src/aitest/application/planning/prepare_run.py` | 摘要键集合与 `PAYLOAD_FIELDS` 逐字一致，有对照测试 |
+
+**仍未接通**：B 的用例**进入产品统一入口**还缺装配点改造——`bootstrap.CoreBootstrap.create()`
+目前只把 `FileUnitOfWork` 交给 `LocalAPI(transaction_port=...)`，
+`register_use_cases` 注册的 handler 拿不到工作单元与只读仓储
+（`Handler = Callable[[Command], Mapping]`，没有依赖注入）。
+装配点归 A；本包不修改该文件。所需的端口面见第 3 节。
+
+### 8.10 B 的用例已可经统一入口运行（2026-10-01，B 侧自证）
+
+上一节的"仍未接通"**在本轮被绕过一步，但没有被取消**：B 改成
+**在注册时把依赖闭包进 handler**，因此不需要 A 先改 `Handler` 签名也能跑通。实测如下。
+
+| 项 | 位置 | 状态 |
+| --- | --- | --- |
+| 动作表与依赖包 | `src/aitest/application/usecase_registry.py`（新增） | `BUseCaseDependencies` + `build_b_use_case_registry()`；**不 import** `bootstrap` / `interfaces` / `infrastructure` |
+| 注册到入口 | `src/aitest/interfaces/local/b_registration.py`（新增） | `register_b_use_cases(api, deps)`：把 B 的动作并进 `LocalAPI.handlers`，同名动作**拒绝覆盖** |
+| 合同测试 | `tests/contracts/test_b_use_case_registration.py`（新增，10 项通过） | 用**真实 `Command` + 真实 `FileUnitOfWork`** 经 `LocalAPI.dispatch()` 写入并读回；含重启读回、只读动作免写身份、修订冲突、索引待重建、参数非法五类反例 |
+
+本轮暴露并已固定的动作（**仅项目上下文类**）：
+
+| 动作 | 语义 | 记录类别 |
+| --- | --- | --- |
+| `save_context` | 保存项目（模块随项目一起） | `project` |
+| `save_binding` | 保存 Git/plain 绑定 | `binding` |
+| `save_environment` | 保存环境引用 | `environment` |
+| `save_dependency_graph` | 保存模块依赖图 | `dependency_set` |
+| `query` | 有界查询（读动作） | — |
+
+错误码（由 `BUseCaseError.code` 透到 `Response.error.code`）：
+`B_INVALID_PARAMETER`、`B_REVISION_CONFLICT`、`B_PREPARATION_CONFLICT`、
+`B_INDEX_MAINTENANCE_REQUIRED`、`B_INVALID_QUERY_CURSOR`。
+
+两处细节值得 A/C/D 知悉：
+
+1. **写动作的成功结果只报 `aggregate_kind` / `record_id` / `revision`，不报提交序号**。
+   原因：`application/project/persistence.py` 的 `save_*` 自带 `open`/`commit` 并只返回
+   `StagedRevision`，返回时提交序号已经前进，事后补读会拿到**下一次**的序号。
+   B 选择少报一个字段，而不是报一个会误导"业务顺序"的值。若将来需要随写返回提交序号，
+   接口形态需要改（由拥有 `save_*` 语义的一方决定），B 不在本轮自行发明。
+2. **`query` 在索引缺失时返回 `B_INDEX_MAINTENANCE_REQUIRED`，不返回空列表**。
+   实测依据：`PortsRecordReader.query()` 把 A 的 `status=maintenance_required` 翻成
+   `IndexMaintenanceRequired`；若直接透传会变成 `INTERNAL_ERROR`，
+   调用方无法把"索引待重建"与"真的没有数据"分开。
+
+**两项仍然只归 A，本包不动**：
+
+1. **装配点接线**：产品路径目前是 `CoreBootstrap.create()` 一次性装配；
+   要让 B 的动作在**跨进程唯一核心**里也生效，仍需装配点把
+   `BUseCaseDependencies` 交给 `register_b_use_cases()`。本包不修改 `bootstrap.py`。
+2. **`Handler` 依赖注入（可选）**：若 A 愿意把 `Handler` 扩成可收依赖，
+   B 的改动只是把"注册时闭包"换成"装配时注入"，动作表与测试不变。
+   本包不主张必须改签名——现有形态已经可用。
+
+**尚未包括**：`publish_rules`、`publish_plan`、`generate_draft`、
+模型出站类动作。它们各自需要参数字段的适配（`PreparationInputs` 有二十余个字段），
+另行分批，不在此节声称已接通。
+
+### 8.11 `prepare_run` 已进统一入口；B 侧交付说明另立文件（2026-10-02）
+
+- `prepare_run` 的**参数适配层已实现并注册**（`usecase_registry.py` 的
+  `_preparation_inputs()` / `handle_prepare_run()`）：键名与 `PreparationInputs` 逐字一致，
+  成功返回 `PreparedRun.model_dump(mode="json")`，与 `BC-001` 同一套字段。
+  合同测试 `tests/contracts/test_prepare_run_entrypoint.py`（**10 项**）。
+- **一条需要 A 注意的实测事实**：`prepare_run` **已经依赖提交序号**——
+  其阻塞分支与 `created_at_commit` 都要在未提交时读 `commit_seq` / `next_commit_seq`；
+  缺少注入时转接头抛 `SubstrateContractError`。也就是说第 8.8 节那三个方法
+  **不再是"将来才需要"，而是准备链路的现行前置**。
+- B 侧的实现／验证／缺口按 `接口对接/AGENTS.md` 第 4 节单独登记在
+  [`delivery-B.md`](delivery-B.md)，本文件不再重复。
+
 ---
 
 ## 9 变更记录
@@ -570,6 +690,11 @@ class SourceSnapshotPort(Protocol):
 | 2026-09-28 | 0.3 | 第 5 节拆为 5.1 `SourceSnapshot` 归属（补 B 主张与**字段差集实测证据**）、5.2 端口定义归属与 `Clock`／`ProjectionPort` 口径重复、5.3 **GitHub 只读 B 侧需求（B-Q04）**；修正第 3.5 节端口归属记述 | B 包（待裁定） |
 | 2026-09-28 | 0.4 | 正文的提出方／接收方／确认方统一改用**包名**（不使用成员名），与本目录其余文档一致 | B 包 |
 | 2026-09-30 | 0.5 | 项目负责人裁定 `SourceSnapshot` 分工、端口维护方式、横切端口归属及 Git/GitHub 一期边界；三项由待裁定转为待实现 | 袁（项目负责人） |
+| 2026-10-01 | 0.6 | 补第 8.8 节：B 接线后确认需要 A 冻结的**三个只读方法**（`current_revision` / `commit_seq` / `next_commit_seq`）及缺少时的行为；补第 8.9 节记录 B 侧已完成的接线与**仍未接通的产品入口**。本节只提需求，不改 B 侧协议 | B 包（待 A 确认并冻结） |
+| 2026-10-01 | 0.7 | 补第 11 节：**`SourceSnapshot` 字段口径**（B 主责，按第 10.1 节裁定给出字段、形式互斥、内容身份与失效判据），供 C 评审执行兼容后在其唯一模型里落地。**只冻结字段语义，不改变任何现行 Schema 字节**。本节内容于 2026-09-30 写成于 `feat/b-sourcesnapshot-fields`，该分支未及时提交评审；现基于当前 `develop` 重新施加 | B 包（待 C 评审） |
+| 2026-10-01 | 0.8 | 补第 8.10 节：B 把依赖**闭包进 handler**，因此不必先等装配点改造即可经统一入口运行项目上下文类动作；登记 5 个动作、5 个错误码、合同测试 10 项，并说明"写动作不报提交序号"与"索引缺失不返回空列表"两处细节。装配点接线与 `Handler` 依赖注入仍归 A | B 包（知悉性登记，待 A 确认装配点接法） |
+| 2026-10-02 | 0.9 | 补第 8.11 节：`prepare_run` 参数适配层已实现并注册（合同测试 10 项）；**登记"准备链路已依赖提交序号"这一实测事实**——第 8.8 节三个方法由"将来需要"变为现行前置。B 侧交付说明另立 `delivery-B.md`，本节不重复 | B 包（知悉性登记，待 A 确认接法与冻结签名） |
+| 2026-10-02 | 1.0 | 第 11 节标题明确为**最终口径**：该口径按第 10.1 节裁定写成，属 B 主责范围内的字段定义，可据以实施 | B 包（字段口径已定；待 C 回写 Q1／Q2 兼容性并按新契约 PR 实施） |
 
 ---
 
@@ -596,3 +721,97 @@ class SourceSnapshotPort(Protocol):
 - 远端领先/落后和远端检查状态是一期可选 GitHub 能力，不作为一期本地闭环的完成阻塞；统一通过 HTTPS API 获取，不依赖 `gh` CLI，凭据只经 GitHub 用途的 `SecretRef` / `SecretPort`。
 - 本地 Git 不可用会阻塞依赖 Git 身份的固定/准备且不得静默转成 `plain`；远端未配置、未认证、限流、网络失败或服务不可用只降级远端状态，不阻塞本地固定、准备和运行。
 - 远端状态只分开展示，永不直接产生 L1 或业务通过；`plain` 不注册、不调用 Git 能力，也不出现仓库字段。
+
+---
+
+## 11 `SourceSnapshot` 字段口径（B 主责，本节为最终口径）
+
+依据第 10.1 节裁定，`SourceSnapshot` 的**建立时机、`purpose`、范围、排除规则、内容身份算法、Git/plain 身份、
+复取范围与失效判据**由 B 主责。本节给出**冻结字段口径**，由 C 在 `domain/execution/sources.py` 落地
+（类位置不变）。
+
+**本节只冻结字段语义，不改变任何现行 Schema 字节。** 落地前 `SourceSnapshot` 仍按现状运行。
+本口径按第 10.1 节裁定写成，属 B 主责范围内的字段定义，**无需另行确认即可据以实施**。
+
+### 11.1 形式互斥（与 `LocalProjectBinding.bind_form` 同一模式）
+
+`SourceSnapshot` 采用与项目绑定**完全相同**的形态互斥规则，不引入第二种表达方式：
+
+| `source_form` | 必须存在 | 必须省略（**不是 `null`、不是空串**） |
+| --- | --- | --- |
+| `git` | `git_base_commit`、`git_diff_digest` | `plain_manifest_digest` |
+| `plain` | `plain_manifest_digest` | `git_base_commit`、`git_diff_digest` |
+
+依据：B 包 AI 规则第 3.6 节"`plain` 形态完全省略 Git 字段，不使用 `None`、空值或'未知'占位"；
+序列化时**真正省略该键**（`application/project/serialization.py` 已实现该行为，并有 `key not in payload` 断言）。
+
+### 11.2 冻结字段表
+
+| 字段 | 类型 | 必填 | 含义与判据 |
+| --- | --- | --- | --- |
+| `snapshot_id` | `str` | 是 | 稳定标识；同一逻辑快照的重新固定产生**新** `snapshot_id`，不复用 |
+| `project_id` | `str` | 是 | 归属项目 |
+| `purpose` | `Literal["analysis", "prepare"]` | 是 | **取值只有这两个**；`analysis` 用于显式分析，`prepare` 用于准备运行 |
+| `binding_revision` | `int` (≥1) | 是 | 固定时的绑定修订，用于判"绑定已变" |
+| `source_form` | `Literal["git", "plain"]` | 是 | 决定下列形态字段的**存在性** |
+| `selected_paths` | `tuple[str, ...]` | 是 | 工作目录范围（选定路径）；相对路径，POSIX 分隔符，不得为空 |
+| `exclusion_rules` | `tuple[str, ...]` | 是 | 排除规则；无排除时为空元组（**合法**，不写 `null`） |
+| `files` | `tuple[SourceFile, ...]` | 是 | 逐文件 `relative_path`／`size`／`sha256`；路径唯一、无盘符、无 `..` |
+| `content_identity` | `str` | 是 | 见 11.3 的计算口径 |
+| `plain_manifest_digest` | `str \| None` | `plain` 必填 | 文件清单摘要；**取值来自 B 的 `SourceManifest.manifest_digest`**，不另起算法 |
+| `git_base_commit` | `str \| None` | `git` 必填 | 基准提交 |
+| `git_diff_digest` | `str \| None` | `git` 必填 | 工作区相对基准的未提交新增/修改/删除内容摘要 |
+| `content_ref` | `str \| None` | 否 | 内容引用（对象摘要）；内容未留存时为 `None` 并同时登记缺口 |
+| `created_at` | `datetime \| None` | 否 | 创建时间；经 `Clock` 取得，不使用系统时间 |
+| `refetch_dependencies` | `tuple[str, ...]` | 是 | 复取依赖（仓库对象、LFS、子模块）；无则为空元组 |
+| `refetch_scope` | `str \| None` | 否 | 可复取范围；**缺失即为缺口**，不留空冒充完整 |
+
+**与 B 既有实现的关系**：`plain` 形态的身份值以 `domain/project/context.py` 的 `SourceManifest`
+（`source_scope`／`manifest_digest`／`files`／`exclusion_rules`／`refetch_dependencies`／`refetch_scope`）为准，
+本节**不新定义第二套**；`SourceSnapshot` 是其上游的不可变固定事实。
+
+### 11.3 `content_identity` 计算口径
+
+1. **输入**：`source_form`、`files`（按 `relative_path` 升序规范化后）与形态身份
+   （`git`：`git_base_commit` ＋ `git_diff_digest`；`plain`：`plain_manifest_digest`）。
+2. **规范字节**：对每个文件按 `relative_path`、`size`、`sha256` 生成规范记录行，按路径升序拼接；
+   再拼入形态身份；最后取摘要。
+3. **不使用**：文件系统时间戳、绝对路径、盘符、目录遍历顺序、`purpose`、`snapshot_id`。
+   `mtime` **只作变化提示，永不参与身份计算**。
+4. **跨平台**：路径判定必须使用 `PureWindowsPath`；**入记录的路径统一为 POSIX 相对路径**，
+   避免同一内容在 Windows／Linux 上算出不同身份。
+5. **可复现**：同一输入必须得到同一 `content_identity`；夹具与测试据此做逐字节断言。
+
+### 11.4 `SourceSnapshotPort`（B 提供语义，A 实现）
+
+端口方法的**语义**如下（具体签名形式由 A 按第 10.2 节冻结；B 不自行改 `application/ports.py`）：
+
+```text
+pin(canonical_path, purpose, selected_paths, exclusion_rules) -> SourceSnapshot 的 payload
+    按实际字节固定；mtime 只作变化提示，不证明内容相同
+read_pinned(snapshot_id) -> payload
+    按稳定标识读取已固定快照的元数据（不重新扫描目录）
+materialize(snapshot_id, destination) -> 实际路径映射与内容摘要
+    物化到指定目录；物化副本不进入永久对象库
+detect_changes(snapshot_id) -> 变化清单
+    无法证明"未变"时不得报"未变"
+```
+
+### 11.5 待 C 确认（执行兼容性，不是归属问题）
+
+| # | 待确认项 | 责任方 | 下一动作 | 阻塞影响 |
+| --- | --- | --- | --- | --- |
+| Q1 | §11.1 形式互斥是否符合 C 侧对 `plain` 的解析预期 | C | 在本文档追加确认 | 不阻塞现状（现行 `SourceSnapshot` 不含这些字段） |
+| Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 现有 `SourceFile`／`SourceSnapshot` 兼容 | C | 同上 | 决定 C 的补字段改动是否为纯新增 |
+| Q3 | §11.3 `content_identity` 改由 B 口径计算后，C 现有 `content_identity` 构造值如何迁移 | B＋C | B 给迁移说明 | 决定是否需提升 Schema 主版本 |
+| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | B | B 在 BD/BC 合同中引用本节 | 影响 `PreparedRun` 快照修订语义 |
+
+**B 侧下一步**：本节字段口径已定（见本节开头说明）。C 回写 Q1／Q2 的执行兼容性结论后，
+按**新的契约 PR** 在 `domain/execution/sources.py` 补齐字段；字段实现不在本合同内散改。
+
+### 11.6 本节不改变的事项
+
+- **不改动 `docs/项目文档/**`**：架构第 7 节的表述歧义由裁定记录引用，不在本项目改动。
+- **不新建第二套 `SourceSnapshot`**：类位置仍唯一在 `domain/execution/sources.py`。
+- **不手工改生成 Schema 与夹具**：字段落地后由声明所有者重新生成。
+- **不把本节的"冻结字段"写成"已实现"**：`provider_implementation` 仍为 `partial`。

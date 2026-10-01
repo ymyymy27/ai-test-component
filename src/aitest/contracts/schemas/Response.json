@@ -104,9 +104,43 @@
       "title": "ErrorDTO",
       "type": "object"
     },
-    "JsonValue": {}
+    "JsonValue": {},
+    "PageInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Cursor"
+        },
+        "index_state": {
+          "default": "maintained",
+          "title": "Index State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "title": "PageInfo",
+      "type": "object"
+    }
   },
   "additionalProperties": false,
+  "description": "Unique protocol response shared by LocalAPI, ports and generated schemas.",
   "properties": {
     "protocol_version": {
       "const": "aitest.local/2.0",
@@ -115,16 +149,21 @@
       "type": "string"
     },
     "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
       "title": "Request Id",
       "type": "string"
     },
     "instance_id": {
+      "maxLength": 128,
+      "minLength": 1,
       "title": "Instance Id",
       "type": "string"
     },
     "workspace_id": {
       "anyOf": [
         {
+          "maxLength": 128,
           "type": "string"
         },
         {
@@ -145,6 +184,18 @@
       ],
       "default": null,
       "title": "Project Id"
+    },
+    "intent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intent Id"
     },
     "binding_revision": {
       "anyOf": [
@@ -172,6 +223,17 @@
       ],
       "default": null,
       "title": "Result"
+    },
+    "page": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PageInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "error": {
       "anyOf": [

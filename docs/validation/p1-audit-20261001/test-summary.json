@@ -1,0 +1,141 @@
+{
+  "audit_date": "2026-10-01",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "python": "3.13.13 (main, Apr 14 2026, 14:30:19) [MSC v.1944 64 bit (AMD64)]",
+  "full_pytest": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0,
+    "problems": [
+      {
+        "class": "",
+        "name": "tests.unit.test_a_pipe_peer_rejection",
+        "kind": "error",
+        "message": "collection failure"
+      }
+    ]
+  },
+  "diagnostic_pytest": {
+    "excluded": [
+      "tests/unit/test_a_pipe_peer_rejection.py"
+    ],
+    "is_full_suite_pass": false,
+    "tests": 753,
+    "failures": 16,
+    "errors": 0,
+    "skipped": 0,
+    "problems": [
+      {
+        "class": "tests.unit.test_a_bootstrap_acquire",
+        "name": "test_connector_returns_none_when_pipe_unavailable",
+        "kind": "failure",
+        "message": "NotImplementedError: validate_workspace_id 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_bootstrap_acquire",
+        "name": "test_connector_returns_client_when_connect_succeeds",
+        "kind": "failure",
+        "message": "NotImplementedError: validate_workspace_id 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_bootstrap_acquire",
+        "name": "test_make_editor_host_injects_launcher_and_connector",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_bootstrap_acquire",
+        "name": "test_make_editor_host_uses_default_launcher_when_none",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_bootstrap_acquire",
+        "name": "test_acquire_endpoint_with_real_subprocess",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_bootstrap_acquire",
+        "name": "test_acquire_endpoint_starts_new_core_after_close",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_pipe_round_trip",
+        "kind": "failure",
+        "message": "assert False\n +  where False = wait(timeout=2)\n +    where wait = <threading.Event at 0x288dc706150: unset>.wait"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_second_server_is_rejected",
+        "kind": "failure",
+        "message": "assert False\n +  where False = wait(timeout=2)\n +    where wait = <threading.Event at 0x288dc7a1070: unset>.wait"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_large_message_framing",
+        "kind": "failure",
+        "message": "assert False\n +  where False = wait(timeout=2)\n +    where wait = <threading.Event at 0x288dd83ae70: unset>.wait"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_client_to_nonexistent_pipe",
+        "kind": "failure",
+        "message": "NotImplementedError: NamedPipeClient 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_invalid_workspace_id",
+        "kind": "failure",
+        "message": "NotImplementedError: validate_workspace_id 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_host_joins_existing_core",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_host_launches_and_connects",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_host_times_out_when_core_never_appears",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_pipe_host",
+        "name": "test_host_rejects_instance_mismatch",
+        "kind": "failure",
+        "message": "NotImplementedError: EditorHost 一期预留，尚未实现"
+      },
+      {
+        "class": "tests.unit.test_a_transactions_and_queries",
+        "name": "test_workspace_allows_only_one_active_write_transaction",
+        "kind": "failure",
+        "message": "AssertionError: assert {'request_id'...ent_id': None} == {'request_id'...te': 'active'}\n  \n  Omitting 2 identical items, use -vv to show\n  Left contains 1 more item:\n  {'intent_id': None}\n  Use -v to get more diff"
+      }
+    ]
+  },
+  "ruff": "passed",
+  "mypy": "passed; baseline 123, final document review 125 analyzed files; followed imports",
+  "generated_schemas": "passed; regeneration produced no diff",
+  "version_check": "passed; 0.4.0",
+  "panel_build": "passed",
+  "panel_test": "initial browser unavailable; installed Chromium; 1 passed (2.5 s)",
+  "trae_package": "passed; six-file VSIX; not real Trae acceptance",
+  "real_acceptance": "verified=0; not_verified=7; blocked=1; untested=27",
+  "baseline_ci": {
+    "run_id": 36729829040,
+    "conclusion": "failure",
+    "reason": "pytest collection: missing check_peer_identity",
+    "url": "https://github.com/ymyymy27/ai-test-component/actions/runs/36729829040"
+  }
+}

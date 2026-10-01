@@ -102,7 +102,7 @@ def test_refused_rule_publication_writes_nothing() -> None:
     )
     assert unit_of_work.commit_seq() == "commit-0"
     with pytest.raises(ValueError, match="unknown revision"):
-        reader.read(aggregate_kind="rule_draft", record_id="rule-1", revision=1)
+        reader.read(aggregate_kind="rule_version", record_id="rule-1", revision=1)
 
 
 def test_blocking_context_gap_refuses_rule_publication() -> None:
@@ -145,9 +145,10 @@ def test_a_second_rule_draft_revision_lands_as_a_new_record_revision() -> None:
         unit_of_work=unit_of_work,
     reader=reader,
     )
-    first = reader.read(aggregate_kind="rule_draft", record_id="rule-1", revision=1)
-    second = reader.read(aggregate_kind="rule_draft", record_id="rule-1", revision=2)
+    first = reader.read(aggregate_kind="rule_version", record_id="rule-1", revision=1)
+    second = reader.read(aggregate_kind="rule_version", record_id="rule-1", revision=2)
     assert "status code" in str(first.payload["text"])
+    assert first.payload["status"] == "published"
     assert second.payload["text"] == "tighten the assertion"
 
 

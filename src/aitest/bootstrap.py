@@ -13,9 +13,8 @@
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess as subprocess
 import sys
-import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +22,7 @@ from threading import RLock
 from types import MappingProxyType
 from uuid import uuid4
 
+from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.interfaces.local.api import Handler, LocalAPI
@@ -105,7 +105,8 @@ class CoreBootstrap:
                 return self._instances[root]
             self._registration_closed = True
             workspace = Workspace(root)
-            uow = FileUnitOfWork(root)
+            journal = FileEventJournal(root, instance_id=workspace.workspace_id)
+            uow = FileUnitOfWork(root, journal=journal)
             api = LocalAPI(
                 instance_id=str(uuid4()),
                 workspace_id=workspace.workspace_id,
@@ -309,12 +310,6 @@ def create_api(
         本入口仅作进程内装配；跨进程唯一核心请用 :func:`acquire_endpoint`。
     """
     if handlers is not None:
-        warnings.warn(
-            "create_api(handlers=...) 是过时兼容接口：B/C/D 上层包禁止使用 handlers 参数，"
-            "必须走 register_use_cases 注册。该参数仅用于旧兼容，不用于 B/C/D 正常接入。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         return LocalAPI(instance_id=str(uuid4()), handlers=dict(handlers))
     if workspace_root is None:
         return LocalAPI(

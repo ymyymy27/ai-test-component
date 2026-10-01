@@ -1,0 +1,81 @@
+﻿{
+  "A-SOURCE-01": {
+    "old_bytes_available": false,
+    "changed_copy_written": true
+  },
+  "A-SOURCE-02": {
+    "state": "changed",
+    "added": [
+      "two.py"
+    ],
+    "removed": [],
+    "modified": []
+  },
+  "A-SOURCE-03": {
+    "stored_purpose_after_repin": "analysis"
+  },
+  "A-PATH-01": {
+    "outside_destination_written": true,
+    "verified": true
+  },
+  "A-INTENT-01": {
+    "revision_after_same_intent": 2
+  },
+  "A-COMMIT-01": {
+    "record_revision": 0,
+    "visible_index_rows": 1,
+    "visible_events": 1,
+    "active_marker_exists": false,
+    "recovery_state": "repaired"
+  },
+  "A-QUERY-01": {
+    "first_id": "2",
+    "next_id": "2"
+  },
+  "A-QUERY-02": {
+    "corrupt_index_status": "ok"
+  },
+  "A-BACKUP-01": {
+    "verified": true,
+    "omitted_directories": [
+      "snapshots",
+      "diagnostics",
+      "exports",
+      "migrations"
+    ]
+  },
+  "A-PATH-02": {
+    "outside_target_written": true,
+    "verified": true
+  },
+  "A-MIGRATION-01": {
+    "state_with_unresolved_active_marker": "applied"
+  },
+  "A-SECRET-01": {
+    "projection_status": "complete",
+    "synthetic_secret_retained": true
+  },
+  "A-SECRET-02": {
+    "synthetic_secret_in_response": true
+  },
+  "B-PREPARE-01": {
+    "changed_scope_and_input_have_same_payload": false
+  },
+  "C-INVALIDATION-01": {
+    "completed_downstream_invalidated": false
+  },
+  "D-DECISION-01": {
+    "outcome_with_all_required_passed": "incomplete",
+    "grade": "B"
+  },
+  "D-COVERAGE-01": {
+    "unverified_reuse_rejected": true
+  },
+  "D-ISSUE-01": {
+    "cycle_returned_by_mutation": true
+  },
+  "D-ISSUE-02": {
+    "reopened_severity": null,
+    "blocking_ids": []
+  }
+}
