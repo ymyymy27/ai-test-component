@@ -29,11 +29,15 @@
 | `save_binding` | 保存 Git/plain 绑定 | `binding` |
 | `save_environment` | 保存环境引用 | `environment` |
 | `save_dependency_graph` | 保存模块依赖图 | `dependency_set` |
+| `generate_draft` | 应用模板生成草稿（缺口非空即阻塞，不生成） | — |
+| `publish_rules` | 发布规则草稿为 `RuleVersion` | `rule_version` |
 | `prepare_run` | 编排一次准备，产出 `PreparedRun` | `preparation_record` |
 | `query` | 有界查询（读动作，不要求写身份） | — |
 
-**尚未包括**（避免读者以为已经覆盖）：`publish_rules`、`publish_plan`、`generate_draft`、
-模型出站类动作。它们需要各自的参数适配，另行分批。
+**尚未包括**（避免读者以为已经覆盖）：`publish_plan`、模型出站类动作。
+`publish_plan` 的输入是 `Plan`（10 字段）+ `Case` 列表（每项 14 字段、含嵌套 `CaseLink`），
+需要一个**独立的领域对象参数适配层**（放在按主责合同定义的模块里，不在本动作表内临时拼 JSON）；
+模型出站类动作依赖 A 的 `ModelProvider` / `SecretPort` 与运行时凭据，属另一个批次。
 
 `prepare_run` 的参数形状
 -----------------------
@@ -60,8 +64,17 @@ from typing import TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
+from aitest.application.planning.draft import (
+    DraftResult,
+    RevisionContext,
+    apply_template,
+)
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
+from aitest.application.planning.publish import (
+    PublicationResult,
+    publish_rules,
+)
 from aitest.application.planning.substrate import (
     AggregateKind,
     ConcurrentEditError,
@@ -73,6 +86,7 @@ from aitest.application.planning.substrate import (
     UnitOfWork,
 )
 from aitest.application.ports import Clock
+from aitest.application.project.context import ContextGap
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
     save_binding,
@@ -104,6 +118,8 @@ from aitest.contracts.prepared_run import (
     SnapshotRef,
     TemplateVersionRef,
 )
+from aitest.domain.planning.rules import RuleDraft, RuleEnablement
+from aitest.domain.planning.templates import TemplateRef
 
 #: 与 `aitest.bootstrap.Handler` 形状一致（`Callable[[Command], Mapping[str, object]]`）。
 #: 这里**不 import** 它，避免 `application` 依赖入口层；结构兼容由
@@ -120,6 +136,8 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_binding",
         "save_environment",
         "save_dependency_graph",
+        "generate_draft",
+        "publish_rules",
         "prepare_run",
         "query",
     }
@@ -235,6 +253,110 @@ def _command_action(command: object) -> str:
     return _as_text(getattr(command, "action", None), "action")
 
 
+def _draft_result(result: DraftResult) -> Mapping[str, object]:
+    """草稿结果：草稿与缺口**不会同时出现**，据此分支出结果。
+
+    缺口是**正常结果**（"列缺口并阻塞"），不是错误：转成 `blocked=true` + 缺口清单。
+    """
+    if result.content is None:
+        return {
+            "blocked": True,
+            "gaps": [_plain_gap(gap) for gap in result.gaps],
+        }
+    return {
+        "blocked": False,
+        "content": _generated_content(result.content),
+    }
+
+
+def _plain_gap(gap: object) -> Mapping[str, object]:
+    return {
+        "kind": _as_text(getattr(gap, "kind", None), "gap.kind"),
+        "subject": _as_text(getattr(gap, "subject", None), "gap.subject"),
+        "detail": _as_text(getattr(gap, "detail", None), "gap.detail"),
+        "blocking": bool(getattr(gap, "blocking", True)),
+    }
+
+
+def _generated_content(content: object) -> Mapping[str, object]:
+    template_ref = getattr(content, "template_ref", None)
+    context = getattr(content, "revision_context", None)
+    return {
+        "generated_content_id": _as_text(
+            getattr(content, "generated_content_id", None), "generated_content_id"
+        ),
+        "project_id": _as_text(getattr(content, "project_id", None), "project_id"),
+        "draft_kind": _as_text(getattr(content, "draft_kind", None), "draft_kind"),
+        "revision": _int_of(getattr(content, "revision", None), "revision"),
+        "status": _as_text(getattr(content, "status", None), "status"),
+        "content_digest": getattr(content, "content_digest", None),
+        "template_ref": {
+            "template_id": _as_text(
+                getattr(template_ref, "template_id", None), "template_id"
+            ),
+            "version": _as_text(getattr(template_ref, "version", None), "version"),
+        },
+        "revision_context": {
+            "project_revision": _revision_of(
+                getattr(context, "project_revision", None),
+                "revision_context.project_revision",
+            ),
+            "binding_revision": _revision_of(
+                getattr(context, "binding_revision", None),
+                "revision_context.binding_revision",
+            ),
+            "template_revision": _as_text(
+                getattr(context, "template_revision", None),
+                "revision_context.template_revision",
+            ),
+        },
+    }
+
+
+def _publication_result(
+    result: PublicationResult, *, published_kind: str
+) -> Mapping[str, object]:
+    """发布结果：**要么得到已发布版本，要么得到阻塞原因**（`PublicationResult` 的不变量）。"""
+    if result.value is None:
+        return {"published": False, "blocked_by": list(result.blocked_by)}
+    value = result.value
+    return {
+        "published": True,
+        "kind": published_kind,
+        "rule_id": _as_text(getattr(value, "rule_id", None), "rule_id"),
+        "revision": _revision_of(getattr(value, "revision", None), "revision"),
+        "confirmation_id": _as_text(
+            getattr(value, "confirmation_id", None), "confirmation_id"
+        ),
+        "digest": _as_text(getattr(value, "digest", None), "digest"),
+    }
+
+
+def _rule_draft_of(parameters: Mapping[str, object]) -> RuleDraft:
+    """把参数翻成 `RuleDraft`；字段名与领域对象**逐字一致**。"""
+    enablement = (
+        RuleEnablement.DISABLED
+        if parameters.get("enablement") is None
+        else _enum_of(RuleEnablement, parameters["enablement"], "enablement")
+    )
+    return RuleDraft(
+        rule_id=_as_text(_required(parameters, "rule_id"), "rule_id"),
+        revision=_revision_of(_required(parameters, "revision"), "revision"),
+        scope=_as_text(_required(parameters, "scope"), "scope"),
+        text=_as_text(_required(parameters, "text"), "text"),
+        source=_as_text(_required(parameters, "source"), "source"),
+        steps=_text_list(parameters.get("steps"), "steps"),
+        evidence_requirements=_text_list(
+            parameters.get("evidence_requirements"), "evidence_requirements"
+        ),
+        enablement=enablement,
+        confirmed=_bool_of(parameters.get("confirmed"), "confirmed"),
+        unknown_extension_fields=_text_list(
+            parameters.get("unknown_extension_fields"), "unknown_extension_fields"
+        ),
+    )
+
+
 # ------------------------------------------------------------------ prepare_run 参数适配
 
 
@@ -310,6 +432,34 @@ def _revision_of(value: object, name: str) -> int:
     if number < 1:
         raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be >= 1")
     return number
+
+
+def _optional_revision(value: object, name: str) -> int | None:
+    """可选修订：`None` 表示**不适用**（不是 0、不是未知）。"""
+    if value is None:
+        return None
+    return _revision_of(value, name)
+
+
+def _gaps_of(value: object, name: str) -> tuple[ContextGap, ...]:
+    """上下文缺口列表；每一项的字段名与 `ContextGap` 逐字一致。"""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a list")
+    gaps: list[ContextGap] = []
+    for index, item in enumerate(value):
+        raw = _as_mapping(item, f"{name}[{index}]")
+        prefix = f"{name}[{index}]"
+        gaps.append(
+            ContextGap(
+                kind=_as_text(_required(raw, "kind"), f"{prefix}.kind"),
+                subject=_as_text(_required(raw, "subject"), f"{prefix}.subject"),
+                detail=_as_text(_required(raw, "detail"), f"{prefix}.detail"),
+                blocking=_bool_of(raw.get("blocking"), f"{prefix}.blocking", default=True),
+            )
+        )
+    return tuple(gaps)
 
 
 def _optional_commit(value: object, name: str) -> str | None:
@@ -659,11 +809,82 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             prepared.model_dump(mode="json"),
         )
 
+    def handle_generate_draft(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        template_ref = TemplateRef(
+            template_id=_as_text(
+                _required(
+                    _as_mapping(_required(parameters, "template_ref"), "template_ref"),
+                    "template_id",
+                ),
+                "template_ref.template_id",
+            ),
+            version=_as_text(
+                _required(
+                    _as_mapping(_required(parameters, "template_ref"), "template_ref"),
+                    "version",
+                ),
+                "template_ref.version",
+            ),
+        )
+        context = _as_mapping(
+            _required(parameters, "revision_context"), "revision_context"
+        )
+        result = apply_template(
+            template_ref=template_ref,
+            project_id=project_id,
+            revision_context=RevisionContext(
+                project_revision=_revision_of(
+                    _required(context, "project_revision"),
+                    "revision_context.project_revision",
+                ),
+                binding_revision=_revision_of(
+                    _required(context, "binding_revision"),
+                    "revision_context.binding_revision",
+                ),
+                template_revision=_as_text(
+                    _required(context, "template_revision"),
+                    "revision_context.template_revision",
+                ),
+                environment_revision=_optional_revision(
+                    context.get("environment_revision"),
+                    "revision_context.environment_revision",
+                ),
+                source_revision=_optional_revision(
+                    context.get("source_revision"), "revision_context.source_revision"
+                ),
+                rules_revision=_optional_revision(
+                    context.get("rules_revision"), "revision_context.rules_revision"
+                ),
+            ),
+            draft_kind=_as_text(_required(parameters, "draft_kind"), "draft_kind"),
+            gaps=_gaps_of(parameters.get("gaps"), "gaps"),
+            content_revision=_revision_of(
+                parameters.get("content_revision") or 1, "content_revision"
+            ),
+        )
+        return _draft_result(result)
+
+    def handle_publish_rules(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        result = publish_rules(
+            _rule_draft_of(_as_mapping(_required(parameters, "draft"), "draft")),
+            project_id=project_id,
+            unit_of_work=deps.unit_of_work,
+            reader=deps.reader,
+            context_gaps=_gaps_of(parameters.get("context_gaps"), "context_gaps"),
+        )
+        return _publication_result(result, published_kind="rule_version")
+
     actions: dict[str, Handler] = {
         "save_context": _guard(handle_save_context),
         "save_binding": _guard(handle_save_binding),
         "save_environment": _guard(handle_save_environment),
         "save_dependency_graph": _guard(handle_save_dependency_graph),
+        "generate_draft": _guard(handle_generate_draft),
+        "publish_rules": _guard(handle_publish_rules),
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
     }
