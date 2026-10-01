@@ -1,11 +1,11 @@
 # 薄底座与 prepare_run 编排设计说明（覆盖 Sprint 2／5／6）
 
-版本：0.1
-日期：2026-09-28
-分支：`feat/package-b-substrate`
+版本：0.2
+日期：2026-10-01
+分支：`feat/package-b-substrate`（第 9 节的事务作用域硬化在 `feat/b-usecase-registry` 上落地）
 状态：**设计定稿，代码同批提交**
 依据：一期架构文档《01-项目与计划》第 7 节「记录字段与模块归属」、第 8 节「发布、准备与启动的调用次序」、第 11 节「准备请求与业务身份合同」；一期功能文档第 5、9 节；一期需求 P1-FR07、P1-AC17、P1-AC19
-关联：`10-准备意图与幂等规则设计说明.md`、`09-待解决问题清单.md`（B-Q02）、`docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8 节
+关联：`10-准备意图与幂等规则设计说明.md`、`09-待解决问题清单.md`（B-Q02、B-Q10）、`docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8 节
 
 ---
 
@@ -161,6 +161,12 @@ class RecordReader(Protocol):
 
 **读写分成两个协议**（对应 `B-A` 第 8 节第 6.3 问）：用例读多写少，
 分开后测试可以只给一个只读替身；A 若坚持单端口，转接头里合成一个即可。
+
+**事务必须经作用域进入**（第 9 节的硬化）：`open()` / `commit()` / `rollback()` 本身
+**没有作用域语义**，而真实底座的 `open()` 会取工作空间级排他写锁。协议**不新增成员**，
+改在端口层提供返回对象 `transaction(unit_of_work, project_id)`，由它保证收尾——
+加一个 `transaction()` 成员会让既有实现（内存替身、A 侧实现）失去结构性兼容，
+而事务上下文只用上面**已声明**的三个能力就能构造。
 
 ### 3.4 不变量（由实现与测试共同保证）
 
@@ -364,8 +370,122 @@ git diff --exit-code -- src/aitest/contracts/schemas
 
 ---
 
-## 9 变更记录
+## 9 B-Q10 事务作用域硬化（2026-10-01，分支 `feat/b-usecase-registry`）
+
+### 9.1 问题与代价
+
+A 的 `FileUnitOfWork.begin()` 会取**工作空间级排他写锁**，只有 `commit()` / `rollback()`
+释放；`writer_lock` 是**非阻塞**排他锁（`timeout=0` + `LOCK_NB`，见
+`infrastructure/file_store/locking.py`），同进程换一个句柄再取也会抛 `WorkspaceInUse`。
+
+B 的窄底座协议 `UnitOfWork` 只有 `open()` / `commit()` / `rollback()`，**没有作用域语义**：
+`open()` 之后一旦抛异常或提前 `return`，锁就留在这个进程里，该工作空间**此后再也开不了事务**。
+第 5 节的转接头只在 `stage_*` 抛错时自动回滚，覆盖了实际会发生的失败路径；
+"拿到事务后既不提交也不回滚、也不进作用域"这条**没有兜底**，且**只在真实存储上暴露**
+（内存替身没有锁）。
+
+硬要求（本次实现要满足的）：
+
+1. `open()` 之后无论抛异常、提前 `return`，锁都必须释放；
+2. 不能让调用方**忘写收尾**就泄漏锁；
+3. `open()` / `commit()` / `rollback()` 保持可用（不破坏既有 270+ 测试）；
+4. `application/` 不得 import `infrastructure` / `interfaces` / `bootstrap`。
+
+### 9.2 选型：方案②（端口层事务上下文）
+
+`09-待解决问题清单.md` 给了两条路，本次选**②**：
+
+| 方案 | 做法 | 代价 | 结论 |
+| --- | --- | --- | --- |
+| ① 强制作用域 | 把 `UnitOfWork` 改成只能 `with`，B 的用例全部改写 | 改协议**形状**：既有实现（`tests/support/memory_substrate.py`、A 侧实现、C/D 的替身）全部要跟着改，而这些目录**不在 B 可改范围**；"未进入就暂存"的既有写法全部失效 | 不选 |
+| ② 端口层事务上下文 | 端口层返回一个**事务上下文对象**，由它保证收尾；`open` / `commit` / `rollback` 语义不变 | 需要一处集中实现，且要挡住"绕过作用域直接 `open()`"的新写法 | **选它** |
+
+**为什么②可行**：事务上下文的收尾只需要 `open()` / `commit()` / `rollback()` 三个能力，
+因此**不必给 `UnitOfWork` 加成员**——加了反而会破坏既有实现的结构性兼容
+（`tests/support/memory_substrate.py` 属共享测试支撑，B 不改）。②因此能同时满足第 3、4 条硬要求。
+
+**为什么不在用例里零散加 `try/finally`**：收尾规则一旦分散到每个用例，漏一处就是一次锁泄漏；
+放在端口层只有一处实现、一处测试。
+
+### 9.3 落点（写在哪里）
+
+| 落点 | 内容 |
+| --- | --- |
+| `application/planning/substrate.py`（端口层） | 新增 `Transaction`（事务上下文类）与 `transaction(unit_of_work, project_id)`（返回该对象的工厂）。它只依赖已声明的三个能力，**不新增协议成员** |
+| `application/project/persistence.py` | `_stage_and_commit()` 改为 `with transaction(...) as tx:`；模块头的第 2 条约束同步改写 |
+| `application/planning/prepare_run.py` | 步骤 4d—5 的"登记准备意图 + 提交"改为事务作用域 |
+| `application/planning/publish.py` | `publish_rules()` / `publish_plan()` 的落盘改为事务作用域 |
+| `application/planning/model_orchestration.py` | 出站意图落盘（步骤 6）与结果 + 草稿落盘（步骤 8）改为事务作用域 |
+| `application/planning/substrate_adapter.py`（转接头） | 保留 `open` / `commit` / `rollback` 与 `with uow:`；新增 `weakref.finalize` 回收兜底 |
+| `tests/unit/test_substrate_adapter.py` | 新增 11 项测试：10 项真实文件存储的锁探针与收尾测试 + 1 项源码守卫 |
+
+用例侧统一写法（`tx` 就是事务，`commit()` 由用例显式给出）：
+
+```python
+with transaction(unit_of_work, project_id) as tx:
+    tx.stage_record(...)
+    result = tx.commit()
+```
+
+### 9.4 怎么保证收尾
+
+| 情形 | 结果 | 机制 |
+| --- | --- | --- |
+| 只创建、不进入（忘写 `with`） | **没有取过锁**，不需要收尾 | 锁在 `Transaction.__enter__()` 里才取；创建本身不取 |
+| 进入后没暂存任何东西 | 退出即回滚并放锁 | `__exit__` → `settle()` |
+| 体内正常结束但**没提交** | 回滚并放锁（**不自动提交**） | 同上；半截提交比不写更危险，"提交时刻"必须由用例给出 |
+| 体内抛异常 / 提前 `return` | 回滚并放锁 | `__exit__` 必被调用 |
+| `commit()` 抛错 | 仍尝试回滚（不掩盖体内原始异常） | `commit()` 失败**不标记已收尾**，留给 `settle()` |
+| `open()` 自己失败（如锁被别的进程占着） | **不碰别人的事务** | `open()` 成功后才认领；未认领则 `settle()` 是空操作 |
+| 手工 `__enter__()` 后把对象丢掉 | `__del__` 兜底回滚 | CPython 引用计数回收；**不作为正确性依据** |
+| 转接头被回收而事务还开着 | `weakref.finalize` 回调补一次回滚 | 最后一道网（进程退出时也会触发） |
+| `stage_record` / `stage_preparation` / `commit` 抛错 | 转接头 `_abandon()` 自动回滚 | 第 5 节的既有机制，保持不变 |
+
+回滚本身失败时**不向上抛**：收尾路径不得掩盖体内触发的原始失败（与 `_abandon()` 同口径）。
+代价是"回滚失败"这一事实会被吞掉——真实存储上它意味着锁可能仍被握着，属第 9.6 节的残留。
+
+### 9.5 验证（实测证据）
+
+`tests/unit/test_substrate_adapter.py` 新增 11 项（含 1 项源码守卫），收尾证据全部用**真实 `FileUnitOfWork`**：
+探针不看提交序号，而是**直接再取一次排他写锁**（被占则抛 `WorkspaceInUse`），
+因此"还能取到锁"就是"上一事务真的放锁了"。
+
+| 测试 | 证明 |
+| --- | --- |
+| `test_the_lock_probe_detects_a_held_lock` | 先证明探针有效：裸 `open()` 时探针报"取不到" |
+| `test_a_raise_inside_the_scope_releases_the_lock` | 抛异常 → 放锁，且不留下可见修订 |
+| `test_an_early_return_inside_the_scope_releases_the_lock` | 提前 `return` → 放锁 |
+| `test_a_committed_scope_keeps_its_records_and_releases_the_lock` | 提交过的记录不被收尾回滚，重启后仍在 |
+| `test_the_scope_rolls_back_when_the_body_forgets_to_commit` | 忘提交 → 回滚放锁、不写 |
+| `test_staging_without_entering_the_scope_fails_without_taking_the_lock` | 忘写 `with` → 没有取锁，且是**响亮报错**而非静默写入 |
+| `test_a_dropped_scope_releases_the_lock` | 手工进入后丢掉对象 → 回收时放锁 |
+| `test_a_dropped_adapter_releases_the_lock` | 转接头（含裸 `open()` 的事务）被回收 → 放锁 |
+| `test_a_preparation_conflict_releases_the_lock` | 真实冲突路径（同键异摘要）→ 放锁、不覆盖 |
+| `test_every_prepare_run_branch_releases_the_lock` | `prepare_run` 的新建 / 复用 / 缺口阻塞 / 需重新准备四个分支都放锁 |
+| `test_application_use_cases_never_open_transactions_directly` | 源码守卫：`application/**` 除端口层外不得出现 `unit_of_work.open()` / `.rollback()`；并反向核对四个写编排确实用了 `transaction(` |
+
+实测（2026-10-01，`py -3.13 -m uv run pytest -p no:cacheprovider`）：
+
+```text
+tests/unit/test_substrate_adapter.py                         25 passed
+B 相关 13 个测试文件（薄底座/准备/发布/模型/持久化/合同）      274 passed
+```
+
+### 9.6 残留与边界（不得当成"全部锁问题都已解决"）
+
+| 残留 | 说明 |
+| --- | --- |
+| 绕过窄底座直接调 A 的 `FileUnitOfWork.open()` | 那属于 **A 的实现面**，B 只能在自己的端口与用例上闭合；B 内的裸 `open()` 已由源码守卫测试挡住 |
+| `__del__` / `weakref.finalize` 兜底依赖解释器回收时机 | CPython 引用计数下是确定的，其他实现（如 PyPy）不保证；**正确性依据是 `with`**，兜底只是最后一道网 |
+| 回滚失败被吞掉 | 收尾不掩盖原始异常是有意选择；若底层回滚本身失败，锁是否已放**未验证**（真实存储上未构造这种故障） |
+| 跨进程锁争用 | 本次只验证"同进程放没放锁"；另一进程持锁时的 `WorkspaceInUse` 提示路径未在本节验证 |
+| 内存替身 | 没有锁，这条**只在真实存储上暴露**；因此本节测试全部用真实 `FileUnitOfWork`，不使用 `MemoryUnitOfWork` |
+
+---
+
+## 10 变更记录
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
 | 2026-09-28 | 0.1 | 初稿：问题与收敛分析、薄底座协议与九条不变量、`prepare_run` 五步编排与四条硬约束落点、转接头三处翻译职责、三层验证设计 |
+| 2026-10-01 | 0.2 | 新增第 9 节 **B-Q10 事务作用域硬化**：选方案②（端口层事务上下文，不给协议加成员）、落点清单、八种情形下的收尾保证、真实文件存储上的 11 项收尾测试与 1 项源码守卫、五条残留边界；第 3.3 节补"事务必须经作用域进入" |

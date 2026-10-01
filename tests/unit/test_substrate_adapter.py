@@ -17,10 +17,20 @@
 A 的 `application/ports.py`（见 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`
 第 8.8 节）。`_Sequences` 取 A 的 `RecoveryOrchestrator.inspect()` 公开返回的
 已提交序号，不访问存储内部文件。A 冻结签名后，装配点换成正式访问器即可。
+
+## 事务作用域（B-Q10）
+
+文件末尾一组测试专门证明**排他写锁不再泄漏**。它们不看提交序号，而是直接取锁：
+`writer_lock` 是**非阻塞**排他锁（`timeout=0` + `LOCK_NB`），被占时再取会抛
+`WorkspaceInUse`（同进程换一个句柄也一样），因此"还能不能取到锁"就是最直接的证据。
+覆盖：作用域内抛异常、提前 `return`、对象被回收、转接头被回收、真实冲突路径、
+`prepare_run` 的全部返回分支，以及"应用用例不得绕过作用域直接 `open()`"的源码守卫。
 """
 
 from __future__ import annotations
 
+import ast
+import gc
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -31,6 +41,7 @@ from uuid import uuid4
 
 import pytest
 
+from aitest.application.errors import WorkspaceInUse
 from aitest.application.planning.preparation import (
     InputRevisions,
     preparation_intent_id,
@@ -42,6 +53,7 @@ from aitest.application.planning.substrate import (
     IndexMaintenanceRequired,
     PreparationConflictError,
     RecordQuery,
+    transaction,
 )
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
@@ -58,6 +70,7 @@ from aitest.contracts.prepared_run import (
     ExecutionSourceBinding,
     FrozenCase,
     FrozenCaseStep,
+    GapEntry,
     PlanRevisionRef,
     PreparedRunStatusFact,
     RuleVersionRef,
@@ -474,3 +487,262 @@ def test_the_workspace_is_released_between_transactions(workspace_root: Path) ->
         )
         stack.unit_of_work.commit()
     assert stack.raw.repo.current_revision("project", "p1") == 3
+
+
+# --------------------------------------------------- 事务作用域（B-Q10）
+
+_APPLICATION_ROOT = Path(__file__).resolve().parents[2] / "src" / "aitest" / "application"
+#: 端口层自己就是事务作用域的实现处，`Transaction` 必须调 `open` / `rollback`。
+_PORT_LAYER_MODULE = _APPLICATION_ROOT / "planning" / "substrate.py"
+
+#: 会写记录的 B 应用用例；守卫测试要求它们经 `transaction()` 而不是裸 `open()`。
+_WRITE_ORCHESTRATIONS = (
+    "planning/prepare_run.py",
+    "planning/publish.py",
+    "planning/model_orchestration.py",
+    "project/persistence.py",
+)
+
+
+def _lock_is_free(raw: FileUnitOfWork) -> bool:
+    """排他写锁现在能不能取到——能取到就证明上一个事务真的放锁了。
+
+    `writer_lock` 是**非阻塞**排他锁（`timeout=0` + `LOCK_NB`）：被占时
+    `Workspace.acquire()` 抛 `WorkspaceInUse`，同进程换一个句柄再取同样失败。
+    因此这是"锁有没有泄漏"的**直接**证据，比看提交序号更贴近问题本身。
+    """
+    acquired = raw.workspace.acquire()
+    try:
+        acquired.__enter__()
+    except WorkspaceInUse:
+        return False
+    acquired.__exit__(None, None, None)
+    return True
+
+
+def _stage_one_project(stack: _Stack) -> None:
+    with transaction(stack.unit_of_work, PROJECT_ID) as tx:
+        tx.stage_record(
+            aggregate_kind="project",
+            record_id="p1",
+            expected_revision=None,
+            payload={"project_id": PROJECT_ID},
+        )
+        tx.commit()
+
+
+def _stage_then_return_early(stack: _Stack) -> str:
+    """在作用域内暂存后**提前 return**：既不提交，也不显式回滚。"""
+    with transaction(stack.unit_of_work, PROJECT_ID) as tx:
+        tx.stage_record(
+            aggregate_kind="project",
+            record_id="p1",
+            expected_revision=None,
+            payload={"project_id": PROJECT_ID},
+        )
+        return "returned early"
+
+
+def test_the_lock_probe_detects_a_held_lock(workspace_root: Path) -> None:
+    """先证明探针本身有效：裸 `open()` 握着锁时探针必须报"取不到"。
+
+    没有这条，下面所有"锁是自由的"断言都可能只是探针失灵。
+    """
+    stack = _start(workspace_root)
+    stack.unit_of_work.open(PROJECT_ID)
+    assert not _lock_is_free(stack.raw)
+    stack.unit_of_work.rollback()
+    assert _lock_is_free(stack.raw)
+
+
+def test_a_raise_inside_the_scope_releases_the_lock(workspace_root: Path) -> None:
+    stack = _start(workspace_root)
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        transaction(stack.unit_of_work, PROJECT_ID) as tx,
+    ):
+        tx.stage_record(
+            aggregate_kind="project",
+            record_id="p1",
+            expected_revision=None,
+            payload={"project_id": PROJECT_ID},
+        )
+        raise RuntimeError("boom")
+
+    assert _lock_is_free(stack.raw)
+    # 未提交的暂存不得留下任何可见修订。
+    assert stack.raw.repo.current_revision("project", "p1") == 0
+
+
+def test_an_early_return_inside_the_scope_releases_the_lock(
+    workspace_root: Path,
+) -> None:
+    stack = _start(workspace_root)
+    assert _stage_then_return_early(stack) == "returned early"
+
+    assert _lock_is_free(stack.raw)
+    assert stack.raw.repo.current_revision("project", "p1") == 0
+
+
+def test_a_committed_scope_keeps_its_records_and_releases_the_lock(
+    workspace_root: Path,
+) -> None:
+    stack = _start(workspace_root)
+    _stage_one_project(stack)
+
+    assert _lock_is_free(stack.raw)
+    assert stack.raw.repo.current_revision("project", "p1") == 1
+
+    # 提交过的记录在退出作用域后**不得**被收尾回滚掉。
+    again = _start(workspace_root)
+    assert again.raw.repo.current_revision("project", "p1") == 1
+
+
+def test_the_scope_rolls_back_when_the_body_forgets_to_commit(
+    workspace_root: Path,
+) -> None:
+    """`with` 体内没提交就退出：宁可不写，也不留锁。"""
+    stack = _start(workspace_root)
+    with transaction(stack.unit_of_work, PROJECT_ID) as tx:
+        tx.stage_record(
+            aggregate_kind="project",
+            record_id="p1",
+            expected_revision=None,
+            payload={"project_id": PROJECT_ID},
+        )
+
+    assert _lock_is_free(stack.raw)
+    assert stack.raw.repo.current_revision("project", "p1") == 0
+
+
+def test_staging_without_entering_the_scope_fails_without_taking_the_lock(
+    workspace_root: Path,
+) -> None:
+    """只创建、不进入（忘写 `with`）：**根本没有取锁**，而且是响亮报错而不是静默写入。"""
+    stack = _start(workspace_root)
+    scope = transaction(stack.unit_of_work, PROJECT_ID)
+    with pytest.raises(RuntimeError, match="no open transaction"):
+        scope.stage_record(
+            aggregate_kind="project",
+            record_id="p1",
+            expected_revision=None,
+            payload={"project_id": PROJECT_ID},
+        )
+    assert _lock_is_free(stack.raw)
+    # 未进入即"已收尾"：显式收尾是幂等的，不得碰别人的事务。
+    scope.settle()
+    assert _lock_is_free(stack.raw)
+
+    _stage_one_project(stack)
+    assert stack.raw.repo.current_revision("project", "p1") == 1
+
+
+def test_a_dropped_scope_releases_the_lock(workspace_root: Path) -> None:
+    """兜底路径：手工进入作用域后把对象丢掉，回收时也要把锁还回去。"""
+    stack = _start(workspace_root)
+    scope = transaction(stack.unit_of_work, PROJECT_ID)
+    scope.__enter__()
+    scope.stage_record(
+        aggregate_kind="project",
+        record_id="p1",
+        expected_revision=None,
+        payload={"project_id": PROJECT_ID},
+    )
+    assert not _lock_is_free(stack.raw)
+
+    del scope
+    gc.collect()
+    assert _lock_is_free(stack.raw)
+    assert stack.raw.repo.current_revision("project", "p1") == 0
+
+
+def test_a_dropped_adapter_releases_the_lock(workspace_root: Path) -> None:
+    """最后一道网：转接头自己（含裸 `open()` 的事务）被回收时必须放锁。"""
+    stack = _start(workspace_root)
+    raw = stack.raw
+    stack.unit_of_work.open(PROJECT_ID)  # 故意既不提交也不回滚
+    assert not _lock_is_free(raw)
+
+    del stack
+    gc.collect()
+    assert _lock_is_free(raw)
+
+
+def test_a_preparation_conflict_releases_the_lock(workspace_root: Path) -> None:
+    """真实失败路径：同键异摘要的冲突也必须把锁还回去。"""
+    stack = _start(workspace_root)
+    first = _prepare(stack)
+    with pytest.raises(PreparationConflictError):
+        _prepare(stack, selected_case_ids=())
+
+    assert _lock_is_free(stack.raw)
+    assert stack.raw.repo.current_revision("preparation_record", _record_id()) == 1
+    assert first.status is PreparedRunStatusFact.PREPARED
+
+
+def test_every_prepare_run_branch_releases_the_lock(workspace_root: Path) -> None:
+    """`prepare_run` 的每个返回分支都不得把锁留着（真写、复用、阻塞、需重新准备）。"""
+    stack = _start(workspace_root)
+
+    assert _prepare(stack).status is PreparedRunStatusFact.PREPARED
+    assert _lock_is_free(stack.raw)
+
+    # 幂等复用：不写记录，也不得开事务后不关。
+    assert _prepare(stack).status is PreparedRunStatusFact.PREPARED
+    assert _lock_is_free(stack.raw)
+
+    blocked = _prepare(
+        stack,
+        context_gaps=(
+            GapEntry(
+                gap_id="gap-1",
+                kind="missing_environment",
+                subject="env-1",
+                blocking=True,
+                detail="no environment carrier",
+            ),
+        ),
+    )
+    assert blocked.status is PreparedRunStatusFact.BLOCKED
+    assert _lock_is_free(stack.raw)
+
+    drifted = _prepare(stack, input_revisions=_revisions(snapshot_revision=2))
+    assert drifted.status is PreparedRunStatusFact.BLOCKED
+    assert any(
+        reason.code == "needs_reprepare" for reason in drifted.blocking_reasons
+    )
+    assert _lock_is_free(stack.raw)
+
+
+def test_application_use_cases_never_open_transactions_directly() -> None:
+    """源码守卫：`application/**` 除端口层外，不得直接 `open()` / `rollback()` 事务。
+
+    裸 `open()` 之后的收尾靠调用方的记性，而真实底座的 `begin()` 会取工作空间级
+    排他写锁（B-Q10）。用例统一走 `substrate.transaction()`；这条测试是为了防止
+    后来者在某个新用例里又写回裸 `open()`——那样锁的保证会重新出现缺口。
+    """
+    offenders: list[str] = []
+    for path in sorted(_APPLICATION_ROOT.rglob("*.py")):
+        if path == _PORT_LAYER_MODULE:
+            continue
+        # `utf-8-sig`：仓库里有带 BOM 的源文件，带 BOM 的文本 `ast.parse` 会直接报错。
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr not in {"open", "rollback"}:
+                continue
+            receiver = node.func.value
+            if isinstance(receiver, ast.Name) and (
+                receiver.id == "uow" or "unit_of_work" in receiver.id
+            ):
+                offenders.append(
+                    f"{path.relative_to(_APPLICATION_ROOT)}:{node.lineno} "
+                    f"{receiver.id}.{node.func.attr}()"
+                )
+    assert offenders == []
+
+    # 反向核对：真正写记录的用例确实用了事务上下文（防止守卫变成空转）。
+    for relative in _WRITE_ORCHESTRATIONS:
+        source = (_APPLICATION_ROOT / relative).read_text(encoding="utf-8")
+        assert "transaction(" in source, relative

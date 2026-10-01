@@ -191,7 +191,7 @@ next_action: 补齐字段映射并请求 C 评审
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing` | A `partial`；B/C/D `partial` | 未登记统一对拍 | A 冻结一期端口；B/C/D 确认语义 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A 基础能力 `partial`；B 规则与接线 `partial` | B 侧真实文件存储集成测试已通过（`tests/unit/test_substrate_adapter.py`），双方对拍未做 | A 冻结 `current_revision` / `commit_seq` / `next_commit_seq` 三个只读方法；**C 评审第 11 节的 `SourceSnapshot` 字段口径**并回写兼容性结论 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A 基础能力 `partial`；B 规则与接线 `partial`（用例已可经统一入口运行，见第 8.10、8.11 节；B 侧交付说明见 [`delivery-B.md`](进行中/AB-001-端口与保存/delivery-B.md)） | B 侧真实文件存储集成测试已通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试 20 项通过（`tests/contracts/test_b_use_case_registration.py`、`tests/contracts/test_prepare_run_entrypoint.py`）；双方对拍未做 | A 冻结 `current_revision` / `commit_seq` / `next_commit_seq` 三个只读方法（**准备链路已依赖，属现行前置**），并确认装配点把 B 的依赖包交给 `register_b_use_cases()`；**C 回写第 11 节 `SourceSnapshot` 字段口径的执行兼容性结论（Q1/Q2）**并按新的契约 PR 补齐字段（字段口径已定，不再等组长确认） |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复展示与查询问题 |
 | [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing` | C `done`；D `not_started` | `fixture_passed` | D 确认并完成消费方接入 |
@@ -211,20 +211,18 @@ next_action: 补齐字段映射并请求 C 评审
 | [DEC-001](归档/裁定/DEC-001-SourceSnapshot归属.md) | `SourceSnapshot` 规则、模型与实现归属 | 规则归 B、类位置留 C、端口适配归 A | A/B/C 按 AB-001 补实现与测试 |
 | [DEC-002](归档/裁定/DEC-002-端口定义与提交方式.md) | `application/ports.py` 定义权与提交方式 | A 维护唯一文件，业务包负责语义；当期端口当期冻结 | A 先补一期签名，各包完成接线 |
 | [DEC-003](归档/裁定/DEC-003-GitHub只读范围.md) | GitHub 只读能力的一期范围与降级 | 本地 Git 必需；GitHub 远端为可选 HTTPS 能力 | A 实现并补独立降级测试 |
+| [DEC-004](归档/裁定/DEC-004-规则发布落盘类别.md) | `publish_rules()` 发布结果落到哪个记录类别 | **甲**：发布产生 `rule_version`，`rule_draft` 只承载草稿 | **已实现**（PR #49）：`publish.py` 落 `rule_version`；其他包无需改动 |
+| [DEC-005](归档/裁定/DEC-005-准备摘要的用例修订配对.md) | 准备摘要是否保留「用例 ID ↔ 修订」的配对 | **乙**：摘要仍只放标识；配对作观察事实比对，变化即 `needs_reprepare` | **已实现**（PR #49）：`PreparationRequest.observed_case_revisions` 落盘可重建；`PreparedRun` 外部字段不变，C 无需改代码 |
+| [DEC-006](归档/裁定/DEC-006-模块源码路径字段.md) | `Module` 是否增加「模块 ↔ 源码路径」字段 | **甲**：`Module` 增可选 `source_paths`，空值表示"未登记"而非"影响全部" | **已实现**（PR #49 加字段、PR #50 落地映射）：`regression_graph.py` 按登记路径匹配；D 展示口径见 `BD-001` |
 
 ### 10.4 待裁定
 
-当前 3 项**已裁定、待实现**（裁定方式：项目负责人 2026-10-01 指示由 B 侧按现有文档证据自行裁定并回写）。
-结论已写入各档，**待合同与实现同步后移入 `归档/裁定/`**：
+**当前没有待裁定事项。**
 
-| ID | 事项 | 冲突双方 | 裁定结论 | 实现状态 |
-| --- | --- | --- | --- | --- |
-| [DEC-004](待裁定/DEC-004-规则发布落盘类别.md) | `publish_rules()` 发布结果落到哪个记录类别 | 架构《01-项目与计划》第 57／77 行 ↔ 同册第 154 行 ↔ `AB-001` 第 3.1／8.3 节 ↔ 现行实现 | **甲**：发布产生 `rule_version`，`rule_draft` 只承载草稿 | 待实现 |
-| [DEC-005](待裁定/DEC-005-准备摘要的用例修订配对.md) | 准备输入摘要是否保留「用例 ID ↔ 修订」的配对 | 一期检查-B 包 B-09 ↔ 架构《01-项目与计划》第 11 节（经 B-02 复述） | **乙**：摘要仍只放标识；配对作观察事实比对，变化即 `needs_reprepare` | 待实现 |
-| [DEC-006](待裁定/DEC-006-模块源码路径字段.md) | `Module` 是否增加「模块 ↔ 源码路径」字段 | 一期检查-B 包 B-04 完成条件 ↔ 架构《01-项目与计划》第 154 行记录字段表 | **甲**：`Module` 增可选 `source_paths`，空值表示"未登记"而非"影响全部" | 待实现 |
-
-三项均为 B 包在实现中遇到的分册口径冲突，已按第 7 节裁定流程一事一档建档；
-B 包自己的待解决问题清单只保留指向本表的索引。
+DEC-004／005／006 已于 2026-10-01 由项目负责人指示 B 侧按现有文档证据裁定，
+结论已回写本节与各合同，实现已随 PR #49／#50 合并进 `develop`，
+裁定记录**已移入** [`归档/裁定/`](归档/裁定/)（追溯入口见 [`归档/README.md`](归档/README.md)）。
+新增跨合同冲突时按第 7 节流程一事一档建档，仍放 `待裁定/`。
 
 ## 11. 本次整理说明
 

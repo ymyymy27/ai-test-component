@@ -40,16 +40,27 @@ B 的用例（`prepare_run` / `publish_*` / `model_orchestration`）只依赖
    `preparation_record_payload`）。A 的修订计数按 `record_id` 全局计，**不含项目维度**，
    所以记录标识必须自带项目与客户端命名空间。
 
-## 一处已知残留风险
+## 事务收尾（B-Q10）
 
-`open()` 之后若调用方既不 `commit()` 也不 `rollback()`，A 的排他写锁会一直握着。
-本模块在 `stage_*` 抛错时**自动回滚**，并支持 `with` 作用域收尾，覆盖了实际会发生的
-失败路径；"拿到事务对象后既不提交也不回滚、也不进作用域"这条仍无兜底，
-已登记在 `docs/文档-feix-a/B包/09-待解决问题清单.md`。
+A 的 `FileUnitOfWork.begin()` 会取**工作空间级排他写锁**，只有 `commit()` / `rollback()`
+释放；`portalocker` 是非阻塞排他锁，同进程再取也会失败。本模块的收尾分三层：
+
+1. **端口层事务上下文**（`substrate.transaction`）：B 的用例统一
+   `with transaction(uow, project_id) as tx:` 写入。锁只有在**进入作用域**时才取，
+   `with` 体抛异常 / 提前 `return` / 没提交都由上下文对象回滚并放锁。
+   B 的用例**不得**直接调 `open()`（`tests/unit/test_substrate_adapter.py` 有守卫测试）。
+2. **失败路径自动回滚**：本转接头在 `stage_record` / `stage_preparation` / `commit`
+   抛错时调用 `_abandon()`，先重置事务再回滚，放弃路径不掩盖原始失败。
+3. **回收兜底**：转接头对象被回收（`weakref.finalize`，进程退出时也会触发）而事务仍开着时，
+   由 `_release_on_collection()` 补一次回滚放锁。这是**最后一道网**，不是正确性依据。
+
+    还有一条**不在 B 可修范围**内的路径：绕过窄底座、直接调 A 的 `FileUnitOfWork.open()`
+    而后既不提交也不回滚。那属于 A 的实现面，B 只能在自己的端口与用例上闭合。
 """
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from typing import Protocol, cast
@@ -128,6 +139,20 @@ class CommitSequenceSource(Protocol):
 def _require(ports: object, capability: str) -> None:
     if not callable(getattr(ports, capability, None)):
         raise SubstrateContractError(capability, owner=_PORT_OWNER, request=_PORT_REQUEST)
+
+
+def _release_on_collection(ports: WorkspacePorts, live: dict[str, str]) -> None:
+    """转接头对象被回收时的兜底：事务还开着就补一次回滚，把排他写锁还回去。
+
+    参数里**不能出现被回收的对象本身**（`weakref.finalize` 强引用回调参数，
+    引用 `self` 会让对象永远不被回收），因此这里只拿底层端口与一个可变字典。
+    回调在 GC 或进程退出时执行，**不抛异常**。
+    """
+    request_id = live.pop("request_id", None)
+    if request_id is None:
+        return
+    with suppress(Exception):
+        ports.rollback(request_id=request_id)
 
 
 # ------------------------------------------------------------------ 身份查询
@@ -243,6 +268,11 @@ class PortsUnitOfWork:
 
     与只读侧**共用同一份身份规则**：准备记录的记录标识与 payload 形状都取自
     `preparation.py`，因此转接头不会引入第二套口径。
+
+    **用例侧请用 `substrate.transaction(uow, project_id)`**（事务上下文），
+    不要直接调 `open()`：`open()` 只开启事务，收尾要靠调用方，而底层 `begin()`
+    握着工作空间级排他写锁。`open()` / `commit()` / `rollback()` 与 `with uow:`
+    为兼容保留，语义不变。
     """
 
     def __init__(
@@ -258,6 +288,12 @@ class PortsUnitOfWork:
         self._request_id: str | None = None
         self._project_id: str | None = None
         self._pending = 0
+        #: 当前事务的请求号，供 GC 兜底回调读取。**回调不能引用 `self`**
+        #: （见 `_release_on_collection`），所以请求号另放一份在可变字典里。
+        self._live: dict[str, str] = {}
+        self._finalizer = weakref.finalize(
+            self, _release_on_collection, ports, self._live
+        )
 
     # ---------------------------------------------------------- 内部
 
@@ -279,6 +315,7 @@ class PortsUnitOfWork:
         self._request_id = None
         self._project_id = None
         self._pending = 0
+        self._live.pop("request_id", None)
 
     def _abandon(self) -> None:
         """放弃事务并**释放排他写锁**；只用于失败路径。"""
@@ -303,6 +340,7 @@ class PortsUnitOfWork:
         self._request_id = request_id
         self._project_id = project_id
         self._pending = 0
+        self._live["request_id"] = request_id
 
     def commit_seq(self) -> str:
         """当前提交序号；**未开事务也可读**（阻塞与复用分支要用它）。"""
@@ -460,7 +498,11 @@ class PortsUnitOfWork:
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
-        """离开作用域时收尾：没提交就回滚，避免一直握着排他写锁。"""
+        """离开作用域时收尾：没提交就回滚，避免一直握着排他写锁。
+
+        **兼容保留**：`with uow:` 要求调用方先自己 `open()`，锁在 `__enter__` 之前
+        就已经取到了，因此它不能替代 `substrate.transaction()`。用例请用后者。
+        """
         self._abandon()
 
 

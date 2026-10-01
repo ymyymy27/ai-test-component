@@ -1,4 +1,4 @@
-﻿"""项目与绑定的 payload 序列化：不适用键真正省略。
+"""项目与绑定的 payload 序列化：不适用键真正省略。
 
 `LocalProjectBinding` 的领域不变量（`aitest.domain.project.context`）规定：
 
