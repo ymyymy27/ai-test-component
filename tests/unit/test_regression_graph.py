@@ -8,11 +8,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from aitest.application.planning.regression import affected_modules
 from aitest.application.planning.regression_graph import (
     affected_modules_from_graph,
     affected_modules_from_store,
+    changed_modules,
     graph_dependency_map,
+    regression_scope,
 )
 from aitest.application.project.context import create_project, register_graph
 from aitest.application.project.persistence import save_dependency_graph
@@ -171,9 +175,128 @@ def test_a_missing_graph_revision_is_explicit() -> None:
     reader = MemoryReader(store)
     save_dependency_graph(_graph(), unit_of_work=unit_of_work)  # type: ignore[arg-type]
 
-    import pytest
-
     with pytest.raises(ValueError, match="unknown revision"):
         affected_modules_from_store(
             ["module-store"], project_id=PROJECT_ID, reader=reader, graph_revision=2
+        )
+
+
+# --------------------------------------------- 变化文件 → 模块（DEC-006）
+
+
+def _scoped_graph() -> ModuleDependencyGraph:
+    """带源码范围的依赖图：api → core → store。"""
+    return register_graph(
+        project_id=PROJECT_ID,
+        modules=(
+            Module(
+                module_id="module-api",
+                project_id=PROJECT_ID,
+                name="api",
+                responsibility="expose handlers",
+                interface_note="http",
+                source_paths=("src/api",),
+            ),
+            Module(
+                module_id="module-core",
+                project_id=PROJECT_ID,
+                name="core",
+                responsibility="business rules",
+                interface_note="python api",
+                source_paths=("src/core",),
+            ),
+            Module(
+                module_id="module-store",
+                project_id=PROJECT_ID,
+                name="store",
+                responsibility="persist",
+                interface_note="sql",
+                source_paths=("src/store",),
+            ),
+        ),
+        dependencies=(
+            Dependency(
+                consumer_module_id="module-core", provider_module_id="module-store"
+            ),
+            Dependency(
+                consumer_module_id="module-api", provider_module_id="module-core"
+            ),
+        ),
+    )
+
+
+def test_changed_files_map_to_their_modules() -> None:
+    graph = _scoped_graph()
+    assert changed_modules(["src/store/db.py"], graph) == frozenset({"module-store"})
+    assert changed_modules(
+        ["src/api/routes.py", "src/core/rules.py"], graph
+    ) == frozenset({"module-api", "module-core"})
+
+
+def test_a_file_outside_every_scope_maps_to_no_module() -> None:
+    assert changed_modules(["docs/readme.md"], _scoped_graph()) == frozenset()
+
+
+def test_scope_matching_is_by_path_segment_not_string_prefix() -> None:
+    """`src/store-old` 不得被当成落在 `src/store` 之内。"""
+    assert changed_modules(["src/store-old/legacy.py"], _scoped_graph()) == frozenset()
+
+
+def test_path_separators_and_dot_prefixes_are_normalised() -> None:
+    """Windows 与 POSIX 写法、`./` 前缀归一到同一结果。"""
+    graph = _scoped_graph()
+    expected = frozenset({"module-store"})
+    for spelling in ("src/store/db.py", "src\\store\\db.py", "./src/store/db.py"):
+        assert changed_modules([spelling], graph) == expected
+
+
+def test_regression_scope_propagates_to_consumers() -> None:
+    """改底层 → 直接模块是 store，影响面一路传到 api。"""
+    scope = regression_scope(["src/store/db.py"], _scoped_graph())
+    assert scope.directly_changed == frozenset({"module-store"})
+    assert scope.affected_modules == frozenset(
+        {"module-store", "module-core", "module-api"}
+    )
+
+
+def test_unregistered_modules_are_reported_not_silently_skipped() -> None:
+    """未登记源码范围的模块必须显式列出。
+
+    否则调用方要么漏掉它的回归、要么把它当成"影响全部"——两种都会伪造完整的影响面。
+    """
+    graph = register_graph(
+        project_id=PROJECT_ID,
+        modules=(
+            Module(
+                module_id="module-api",
+                project_id=PROJECT_ID,
+                name="api",
+                responsibility="expose handlers",
+                interface_note="http",
+                source_paths=("src/api",),
+            ),
+            Module(
+                module_id="module-unknown",
+                project_id=PROJECT_ID,
+                name="unknown",
+                responsibility="not yet scoped",
+                interface_note="tbd",
+            ),
+        ),
+        dependencies=(
+            Dependency(
+                consumer_module_id="module-api", provider_module_id="module-unknown"
+            ),
+        ),
+    )
+    scope = regression_scope(["src/api/routes.py"], graph)
+    assert scope.unregistered_modules == ("module-unknown",)
+    # 未登记模块不参与匹配，也不被当成"影响全部"。
+    assert scope.directly_changed == frozenset({"module-api"})
+
+
+def test_a_graph_without_modules_cannot_scope_a_regression() -> None:
+    with pytest.raises(ValueError, match="without modules"):
+        regression_scope(
+            ["src/api/routes.py"], ModuleDependencyGraph(project_id=PROJECT_ID)
         )
