@@ -1,0 +1,48 @@
+{
+  "C-DURABILITY-01": {
+    "stream_fsync_calls_before_ack": 0,
+    "other_file_fsync_calls_before_ack": 1,
+    "acknowledged_durable": true,
+    "acknowledged_offset": 17
+  },
+  "B-CONFIRMATION-01": {
+    "case_id": "case-1",
+    "confirmation_case_id": "other-case",
+    "state_without_confirmation": "present_unconfirmed",
+    "state_with_own_confirmation": "confirmed",
+    "effective_basis_state": "confirmed"
+  },
+  "B-PUBLICATION-01": {
+    "missing_required_case_id": "missing-case",
+    "missing_required_case_published": true,
+    "frozen_revision": 1,
+    "provided_revision": 2,
+    "wrong_case_revision_published": true
+  },
+  "B-HASH-01": {
+    "mapping_before": [
+      {
+        "case_id": "case-1",
+        "revision": 1
+      },
+      {
+        "case_id": "case-2",
+        "revision": 2
+      }
+    ],
+    "mapping_after": [
+      {
+        "case_id": "case-1",
+        "revision": 2
+      },
+      {
+        "case_id": "case-2",
+        "revision": 1
+      }
+    ],
+    "case_revision_mapping_changed": true,
+    "hash_before": "sha256:381c06a421459f70c56979306b7a0d251958d6c3e25add46655ae568992a9123",
+    "hash_after": "sha256:381c06a421459f70c56979306b7a0d251958d6c3e25add46655ae568992a9123",
+    "same_hash": true
+  }
+}
