@@ -477,6 +477,84 @@ def test_quick_tier_yields_a_partial_ceiling() -> None:
 # ------------------------------------------------------------- 输入校验
 
 
+# --------------------------------------------------- 裁定 DEC-005（B-HASH-01）
+
+
+def test_swapping_the_case_revision_mapping_needs_reprepare() -> None:
+    """B-HASH-01 反例：换掉「用例 ↔ 修订」的配对必须被识别成不同输入。
+
+    配对来自已发布的计划，属**观察结果**，按架构第 11 节不进摘要（`DEC-005` 裁定为乙）；
+    因此它由 `decide_preparation()` 的观察比对识别，结论是 `needs_reprepare`——
+    既不是"同键异输入冲突"，也不是静默复用。
+    """
+    unit_of_work, reader, clock = _world()
+    first = prepare_run(_inputs(), unit_of_work=unit_of_work, reader=reader, clock=clock)
+    assert first.status is PreparedRunStatusFact.PREPARED
+
+    swapped = prepare_run(
+        _inputs(
+            case_revisions=(
+                CaseRevisionRef(case_id="case-1", revision=2, digest="sha256:case-1"),
+            )
+        ),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert swapped.status is PreparedRunStatusFact.BLOCKED
+    assert any(reason.code == "needs_reprepare" for reason in swapped.blocking_reasons)
+    assert any(
+        rule.source_kind == "case_revisions" for rule in swapped.invalidation_rules
+    )
+
+
+def test_the_case_revision_pairing_survives_a_rebuild_from_the_payload() -> None:
+    """配对必须随准备记录落盘：不落盘则重启后比对失真，反例会漏掉。"""
+    from aitest.application.planning.preparation import (
+        preparation_record_from_payload,
+        preparation_record_payload,
+    )
+
+    unit_of_work, reader, clock = _world()
+    prepare_run(_inputs(), unit_of_work=unit_of_work, reader=reader, clock=clock)
+
+    stored = reader.find_preparation(
+        project_id="p1", client_id="c1", prepare_request_id="req-1"
+    )
+    assert stored is not None
+    assert stored.request.observed_case_revisions == (("case-1", 1),)
+    rebuilt = preparation_record_from_payload(preparation_record_payload(stored))
+    assert (
+        rebuilt.request.observed_case_revisions
+        == stored.request.observed_case_revisions
+    )
+
+
+def test_observed_case_revisions_are_canonicalised() -> None:
+    """同一批配对的不同书写顺序必须归一，避免"无意义重排"被当成变化。"""
+    from aitest.application.planning.preparation import PreparationRequest
+
+    def _request(pairs: tuple[tuple[str, int], ...]) -> PreparationRequest:
+        return PreparationRequest(
+            project_id="p1",
+            client_id="c1",
+            prepare_request_id="req-1",
+            payload_hash="sha256:x",
+            input_revisions=_revisions(),
+            observed_case_revisions=pairs,
+        )
+
+    assert _request((("case-2", 2), ("case-1", 1))).observed_case_revisions == (
+        ("case-1", 1),
+        ("case-2", 2),
+    )
+    assert _request((("case-2", 2), ("case-1", 1))) == _request(
+        (("case-1", 1), ("case-2", 2))
+    )
+    with pytest.raises(ValueError, match="must not repeat"):
+        _request((("case-1", 1), ("case-1", 2)))
+
+
 def test_prepare_requires_identity_fields() -> None:
     unit_of_work, reader, clock = _world()
     for field_name in (

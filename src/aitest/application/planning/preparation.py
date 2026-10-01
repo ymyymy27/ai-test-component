@@ -205,12 +205,31 @@ class PreparationRequest:
     prepare_request_id: str
     payload_hash: str
     input_revisions: InputRevisions
+    #: **观察到的**「用例 ID ↔ 修订」配对，按 `case_id` 排序。
+    #:
+    #: 它来自已发布的计划，属**观察结果**，因此按架构《01-项目与计划》第 11 节
+    #: **不进 `payload_hash`**；改在 `decide_preparation()` 里与 `InputRevisions` 一起比对，
+    #: 变化判为 `needs_reprepare`（`DEC-005` 裁定为乙）。
+    observed_case_revisions: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
         _require_text(self.client_id, "client_id")
         _require_text(self.prepare_request_id, "prepare_request_id")
         _require_text(self.payload_hash, "payload_hash")
+        seen: set[str] = set()
+        for case_id, revision in self.observed_case_revisions:
+            _require_text(case_id, "observed case_id")
+            _require_revision(revision, "observed case revision")
+            if case_id in seen:
+                raise ValueError("observed case revisions must not repeat a case_id")
+            seen.add(case_id)
+        # 规范形式：按 `case_id` 排序，使"同一批配对的不同书写顺序"得到同一结论。
+        object.__setattr__(
+            self,
+            "observed_case_revisions",
+            tuple(sorted(self.observed_case_revisions)),
+        )
 
     @property
     def identity_key(self) -> tuple[str, str, str]:
@@ -269,6 +288,11 @@ def preparation_record_payload(record: PreparationRecord) -> dict[str, object]:
             name: getattr(record.request.input_revisions, name)
             for name in _REVISION_FIELDS
         },
+        # 观察事实也随记录落盘：不落盘则进程重启后无法比对，"换配对要识别为异输入"就失效。
+        "observed_case_revisions": [
+            [case_id, revision]
+            for case_id, revision in record.request.observed_case_revisions
+        ],
     }
 
 
@@ -299,6 +323,24 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
     if not isinstance(cancelled, bool):
         raise ValueError("preparation payload has a non-boolean cancelled flag")
 
+    raw_observed = payload.get("observed_case_revisions", [])
+    if not isinstance(raw_observed, (list, tuple)):
+        raise ValueError("observed_case_revisions must be a list")
+    observed: list[tuple[str, int]] = []
+    for entry in raw_observed:
+        if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+            raise ValueError("each observed case revision must be a [case_id, revision] pair")
+        case_id, revision = entry
+        if (
+            not isinstance(case_id, str)
+            or not isinstance(revision, int)
+            or isinstance(revision, bool)
+        ):
+            raise ValueError(
+                "observed case revision needs a string case_id and an integer revision"
+            )
+        observed.append((case_id, revision))
+
     return PreparationRecord(
         request=PreparationRequest(
             project_id=_payload_text(payload, "project_id"),
@@ -306,6 +348,7 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             prepare_request_id=_payload_text(payload, "prepare_request_id"),
             payload_hash=_payload_text(payload, "payload_hash"),
             input_revisions=InputRevisions(**revisions),
+            observed_case_revisions=tuple(observed),
         ),
         intent_id=_payload_text(payload, "intent_id"),
         created_at_commit=_payload_text(payload, "created_at_commit"),
@@ -356,12 +399,18 @@ def decide_preparation(
     if existing.request.payload_hash != request.payload_hash:
         return PreparationLookup(decision=PreparationDecision.CONFLICTED)
 
-    changed = changed_inputs(existing.request.input_revisions, request.input_revisions)
+    changed = list(
+        changed_inputs(existing.request.input_revisions, request.input_revisions)
+    )
+    if existing.request.observed_case_revisions != request.observed_case_revisions:
+        # 「哪个用例配哪个修订」变了也是**依据变化**，不是"换了请求"：
+        # 配对不进摘要（见 PreparationRequest 的说明），因此在这里单独识别。
+        changed.append("case_revisions")
     if changed:
         return PreparationLookup(
             decision=PreparationDecision.NEEDS_REPREPARE,
             intent_id=existing.intent_id,
-            changed_inputs=changed,
+            changed_inputs=tuple(changed),
         )
 
     return PreparationLookup(
