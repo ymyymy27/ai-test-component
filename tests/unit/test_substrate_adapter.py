@@ -6,19 +6,17 @@
 "重启后仍能按业务身份查回原意图"这条要求只有在这一层才测得出来——
 内存替身无论 payload 少多少字段都能查到。
 
-## 为什么不用 `tmp_path` / `tempfile.mkdtemp()`
+## 两处非默认写法及其原因
 
-受限执行环境会拒绝 pytest 临时目录工厂在 basetemp 上的目录枚举，也会拒绝写入
-`tempfile.mkdtemp()` 建出来的目录（同一目录改用 `Path.mkdir()` 就能写）。
-本模块用 `Path.mkdir()` 在系统临时目录下建一个等价目录并在结束时清理：
-被测语义完全相同，CI 与本机都能跑。
+**一、不用 `tmp_path` / `tempfile.mkdtemp()`。** 受限执行环境拒绝 pytest 临时目录工厂
+在 basetemp 上的目录枚举，也拒绝写入 `tempfile.mkdtemp()` 建出来的目录
+（同一目录改用 `Path.mkdir()` 就能写）。本模块用 `Path.mkdir()` 在系统临时目录下建
+等价目录并在结束时清理，被测语义不变，CI 与受限环境都能跑。
 
-## 提交序号为什么由一个测试替身提供
-
-`commit_seq()` / `next_commit_seq()` 还没冻结进 A 的 `ports.py`
-（见 `docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.8 节）。
-本模块用 A **自己**的 `RecoveryOrchestrator.inspect()` 读出已提交序号——
-不读 A 的私有文件、不猜它的实现。正式签名落地后，装配点换成 A 的访问器即可。
+**二、提交序号由 `_Sequences` 提供。** `commit_seq()` / `next_commit_seq()` 尚未冻结进
+A 的 `application/ports.py`（见 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`
+第 8.8 节）。`_Sequences` 取 A 的 `RecoveryOrchestrator.inspect()` 公开返回的
+已提交序号，不访问存储内部文件。A 冻结签名后，装配点换成正式访问器即可。
 """
 
 from __future__ import annotations
@@ -91,7 +89,7 @@ def workspace_root() -> Iterator[Path]:
 
 
 class _Sequences:
-    """当前提交序号的只读来源；用 A 自己的恢复巡检读出已提交序号。"""
+    """当前提交序号的只读来源；取 A 的恢复巡检公开返回的已提交序号。"""
 
     def __init__(self, root: Path) -> None:
         self._orchestrator = RecoveryOrchestrator(root, instance_id="adapter-test")

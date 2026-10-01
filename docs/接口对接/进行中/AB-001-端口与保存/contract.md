@@ -592,10 +592,10 @@ class WorkspaceUnitOfWork(Protocol):
 补齐属于**暴露**，不是新增能力。
 
 **B 侧的临时接法（A 冻结后移除）**：`PortsUnitOfWork` 接受可选的 `CommitSequenceSource`；
-集成测试用 A 自己的 `RecoveryOrchestrator.inspect()["committed_sequences"]` 提供它——
-**不读 A 的私有文件、不按推测实现**。A 冻结签名后由装配点换成正式访问器，
+集成测试用 A 的 `RecoveryOrchestrator.inspect()["committed_sequences"]` 提供提交序号，
+不访问 A 的存储内部文件。A 冻结签名后由装配点换成正式访问器，
 B 的用例与测试不改。这三个方法缺失时，转接头抛 `SubstrateContractError` 并在消息里指到本节，
-**不用默认值顶替**。
+不用默认值顶替。
 
 **另需一并确认的一处口径**：`commit_sequence` 是**工作空间全局**计数（`records.json` 的 `commit`），
 B 目前只依赖它在**同一项目内单调**。一期若允许多项目共用一个工作空间，
@@ -614,7 +614,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 目前只把 `FileUnitOfWork` 交给 `LocalAPI(transaction_port=...)`，
 `register_use_cases` 注册的 handler 拿不到工作单元与只读仓储
 （`Handler = Callable[[Command], Mapping]`，没有依赖注入）。
-这属于"谁拥有组装点"的问题，本 PR 不擅自修改，另见第 3 节的端口面要求。
+装配点归 A；本包不修改该文件。所需的端口面见第 3 节。
 
 ---
 
