@@ -191,7 +191,7 @@ next_action: 补齐字段映射并请求 C 评审
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing` | A `partial`；B/C/D `partial` | 未登记统一对拍 | A 冻结一期端口；B/C/D 确认语义 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A 基础能力 `partial`；B 规则与接线 `partial`（用例已可经统一入口运行，见第 8.10 节） | B 侧真实文件存储集成测试已通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试 10 项通过（`tests/contracts/test_b_use_case_registration.py`）；双方对拍未做 | A 冻结 `current_revision` / `commit_seq` / `next_commit_seq` 三个只读方法，并确认装配点把 B 的依赖包交给 `register_b_use_cases()`；**C 评审第 11 节的 `SourceSnapshot` 字段口径**并回写兼容性结论 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A 基础能力 `partial`；B 规则与接线 `partial`（用例已可经统一入口运行，见第 8.10、8.11 节；B 侧交付说明见 [`delivery-B.md`](进行中/AB-001-端口与保存/delivery-B.md)） | B 侧真实文件存储集成测试已通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试 20 项通过（`tests/contracts/test_b_use_case_registration.py`、`tests/contracts/test_prepare_run_entrypoint.py`）；双方对拍未做 | A 冻结 `current_revision` / `commit_seq` / `next_commit_seq` 三个只读方法（**准备链路已依赖，属现行前置**），并确认装配点把 B 的依赖包交给 `register_b_use_cases()`；**C 评审第 11 节的 `SourceSnapshot` 字段口径**并回写兼容性结论 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复展示与查询问题 |
 | [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing` | C `done`；D `not_started` | `fixture_passed` | D 确认并完成消费方接入 |

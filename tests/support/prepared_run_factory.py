@@ -126,6 +126,8 @@ class Scenario:
     cases: tuple[Case, ...]
     unit_of_work: MemoryUnitOfWork
     reader: MemoryReader
+    #: 该场景使用的准备输入；供"参数适配"类测试把同一份输入改走统一入口。
+    inputs: PreparationInputs | None = None
 
 
 # ------------------------------------------------------------------ 领域对象
@@ -609,6 +611,7 @@ def build_scenario(name: str) -> Scenario:
         cases=cases,
         unit_of_work=unit_of_work,
         reader=reader,
+        inputs=inputs,
     )
 
 

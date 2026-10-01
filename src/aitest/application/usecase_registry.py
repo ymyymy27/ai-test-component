@@ -29,18 +29,39 @@
 | `save_binding` | 保存 Git/plain 绑定 | `binding` |
 | `save_environment` | 保存环境引用 | `environment` |
 | `save_dependency_graph` | 保存模块依赖图 | `dependency_set` |
+| `prepare_run` | 编排一次准备，产出 `PreparedRun` | `preparation_record` |
 | `query` | 有界查询（读动作，不要求写身份） | — |
 
-**尚未包括**（本文件末尾登记，避免读者以为已经覆盖）：`prepare_run`、`publish_rules`、
-`publish_plan`、`generate_draft`、模型出站类动作。它们需要各自的参数适配，另行分批。
+**尚未包括**（避免读者以为已经覆盖）：`publish_rules`、`publish_plan`、`generate_draft`、
+模型出站类动作。它们需要各自的参数适配，另行分批。
+
+`prepare_run` 的参数形状
+-----------------------
+
+`PreparationInputs` 有二十余个字段，这里**逐字**接收同名字段（`parameters` 下的键名与
+`prepare_run.PreparationInputs` 一致），不做别名、不做默认值填充：
+
+- 嵌套的 `contracts.prepared_run` 模型用 `model_validate` 解析后**原样**交给
+  `PreparationInputs`，因此字段名与 `BC-001` 冻结的 `PreparedRun` 合同**只有一套**；
+- 缺失或非法的字段一律 `B_INVALID_PARAMETER` 并指名**是哪个字段**（不猜、不补默认值）；
+- 成功时返回 `PreparedRun` 的 DTO（`model_dump(mode="json")`），字段与 `BC-001` 一致；
+- **幂等由 `prepare_run()` 自己判定**（`REUSED` / `CONFLICTED` / `NEEDS_REPREPARE`），
+  本适配层不重复实现，也不吞掉 `CONFLICTED` 的异常——它经 `_guard` 变成
+  `B_PREPARATION_CONFLICT`。
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import wraps
+from typing import TypeVar, cast
 
+from pydantic import BaseModel, ValidationError
+
+from aitest.application.planning.preparation import InputRevisions
+from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
 from aitest.application.planning.substrate import (
     AggregateKind,
     ConcurrentEditError,
@@ -65,11 +86,32 @@ from aitest.application.project.serialization import (
     environment_from_payload,
     project_from_payload,
 )
+from aitest.contracts.prepared_run import (
+    AssertionBasisEntry,
+    AuthorizationRequirement,
+    BindingFormFact,
+    CaseRevisionRef,
+    EnvironmentRefFact,
+    ExclusionEntry,
+    ExecutionSourceBinding,
+    FrozenCase,
+    GapEntry,
+    PlanRevisionRef,
+    RuleVersionRef,
+    RunDriverFact,
+    RunTierFact,
+    SkippedScopeEntry,
+    SnapshotRef,
+    TemplateVersionRef,
+)
 
 #: 与 `aitest.bootstrap.Handler` 形状一致（`Callable[[Command], Mapping[str, object]]`）。
 #: 这里**不 import** 它，避免 `application` 依赖入口层；结构兼容由
 #: `interfaces/local/b_registration.py` 的显式 cast 与 mypy 共同保证。
 Handler = Callable[[object], Mapping[str, object]]
+
+_ModelT = TypeVar("_ModelT", bound=BaseModel)
+_StrEnumT = TypeVar("_StrEnumT", bound=StrEnum)
 
 #: 本注册表拥有的动作名；`doctor` 与合同测试用它核对暴露面。
 OWNED_ACTIONS: frozenset[str] = frozenset(
@@ -78,6 +120,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_binding",
         "save_environment",
         "save_dependency_graph",
+        "prepare_run",
         "query",
     }
 )
@@ -190,6 +233,234 @@ def _command_parameters(command: object) -> Mapping[str, object]:
 
 def _command_action(command: object) -> str:
     return _as_text(getattr(command, "action", None), "action")
+
+
+# ------------------------------------------------------------------ prepare_run 参数适配
+
+
+def _required(parameters: Mapping[str, object], name: str) -> object:
+    if name not in parameters:
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER", f"missing required parameter: {name}"
+        )
+    return parameters[name]
+
+
+def _model_of[M: BaseModel](model: type[M], value: object, name: str) -> M:
+    """按 `contracts` 的模型解析一个参数；失败时报**字段名**而不是堆栈。"""
+    try:
+        return model.model_validate(value)
+    except ValidationError as error:
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER", f"invalid {name}: {error.error_count()} field error(s)"
+        ) from error
+
+
+def _models_of[M: BaseModel](
+    model: type[M], value: object, name: str
+) -> tuple[M, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a list")
+    return tuple(
+        _model_of(model, item, f"{name}[{index}]") for index, item in enumerate(value)
+    )
+
+
+def _text_list(value: object, name: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a list of strings")
+    out: list[str] = []
+    for index, item in enumerate(value):
+        out.append(_as_text(item, f"{name}[{index}]"))
+    return tuple(out)
+
+
+def _enum_of[E: StrEnum](enum: type[E], value: object, name: str) -> E:
+    text = _as_text(value, name)
+    try:
+        return enum(text)
+    except ValueError as error:
+        allowed = ", ".join(member.value for member in enum)
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER", f"invalid {name}: {text!r}; allowed: {allowed}"
+        ) from error
+
+
+def _bool_of(value: object, name: str, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a boolean")
+    return value
+
+
+def _int_of(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be an integer")
+    return value
+
+
+def _revision_of(value: object, name: str) -> int:
+    """修订号：整数且 `>= 1`（`InputRevisions` 的既有约定是"修订从 1 起"）。"""
+    number = _int_of(value, name)
+    if number < 1:
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be >= 1")
+    return number
+
+
+def _optional_commit(value: object, name: str) -> str | None:
+    if value is None:
+        return None
+    return _as_text(value, name)
+
+
+def _preparation_inputs(command: object) -> PreparationInputs:
+    """把 `Command.parameters` 逐字翻成 `PreparationInputs`。
+
+    规则：**键名与 `PreparationInputs` 一致，不做别名、不补默认值**。
+    缺失或非法一律 `B_INVALID_PARAMETER` 并指名是哪一项。
+    """
+    project_id = _command_project_id(command)
+    parameters = _command_parameters(command)
+    revisions = _as_mapping(
+        _required(parameters, "input_revisions"), "input_revisions"
+    )
+    return PreparationInputs(
+        project_id=project_id,
+        workspace_id=_as_text(_required(parameters, "workspace_id"), "workspace_id"),
+        binding_id=_as_text(_required(parameters, "binding_id"), "binding_id"),
+        binding_revision=_int_of(
+            _required(parameters, "binding_revision"), "binding_revision"
+        ),
+        binding_form=_enum_of(
+            BindingFormFact, _required(parameters, "binding_form"), "binding_form"
+        ),
+        client_id=_as_text(_required(parameters, "client_id"), "client_id"),
+        prepare_request_id=_as_text(
+            _required(parameters, "prepare_request_id"), "prepare_request_id"
+        ),
+        input_revisions=InputRevisions(
+            project_revision=_revision_of(
+                _required(revisions, "project_revision"), "input_revisions.project_revision"
+            ),
+            binding_revision=_revision_of(
+                _required(revisions, "binding_revision"), "input_revisions.binding_revision"
+            ),
+            snapshot_revision=_revision_of(
+                _required(revisions, "snapshot_revision"), "input_revisions.snapshot_revision"
+            ),
+            environment_revision=_revision_of(
+                _required(revisions, "environment_revision"),
+                "input_revisions.environment_revision",
+            ),
+            plan_revision=_revision_of(
+                _required(revisions, "plan_revision"), "input_revisions.plan_revision"
+            ),
+            rules_revision=_revision_of(
+                _required(revisions, "rules_revision"), "input_revisions.rules_revision"
+            ),
+            template_revision=_revision_of(
+                _required(revisions, "template_revision"),
+                "input_revisions.template_revision",
+            ),
+            scope_revision=_revision_of(
+                _required(revisions, "scope_revision"), "input_revisions.scope_revision"
+            ),
+        ),
+        snapshot=_model_of(SnapshotRef, _required(parameters, "snapshot"), "snapshot"),
+        selected_paths=_text_list(
+            _required(parameters, "selected_paths"), "selected_paths"
+        ),
+        environment=_model_of(
+            EnvironmentRefFact, _required(parameters, "environment"), "environment"
+        ),
+        execution_source=_model_of(
+            ExecutionSourceBinding,
+            _required(parameters, "execution_source"),
+            "execution_source",
+        ),
+        plan_revision=_model_of(
+            PlanRevisionRef, _required(parameters, "plan_revision"), "plan_revision"
+        ),
+        acceptance_scope_revision=_int_of(
+            _required(parameters, "acceptance_scope_revision"),
+            "acceptance_scope_revision",
+        ),
+        rule_versions=_models_of(
+            RuleVersionRef, parameters.get("rule_versions"), "rule_versions"
+        ),
+        template_versions=_models_of(
+            TemplateVersionRef, parameters.get("template_versions"), "template_versions"
+        ),
+        case_revisions=_models_of(
+            CaseRevisionRef, parameters.get("case_revisions"), "case_revisions"
+        ),
+        frozen_cases=_models_of(FrozenCase, parameters.get("frozen_cases"), "frozen_cases"),
+        assertion_bases=_models_of(
+            AssertionBasisEntry, parameters.get("assertion_bases"), "assertion_bases"
+        ),
+        context_gaps=_models_of(GapEntry, parameters.get("context_gaps"), "context_gaps"),
+        authorization_requirements=_models_of(
+            AuthorizationRequirement,
+            parameters.get("authorization_requirements"),
+            "authorization_requirements",
+        ),
+        model_outbound_policy_revision=(
+            None
+            if parameters.get("model_outbound_policy_revision") is None
+            else _int_of(
+                parameters["model_outbound_policy_revision"],
+                "model_outbound_policy_revision",
+            )
+        ),
+        source_snippets_enabled=_bool_of(
+            parameters.get("source_snippets_enabled"), "source_snippets_enabled"
+        ),
+        exclusion_rules=_text_list(parameters.get("exclusion_rules"), "exclusion_rules"),
+        refetch_dependencies=_text_list(
+            parameters.get("refetch_dependencies"), "refetch_dependencies"
+        ),
+        git_base_commit=_optional_commit(
+            parameters.get("git_base_commit"), "git_base_commit"
+        ),
+        git_diff_digest=_optional_commit(
+            parameters.get("git_diff_digest"), "git_diff_digest"
+        ),
+        plain_manifest_digest=_optional_commit(
+            parameters.get("plain_manifest_digest"), "plain_manifest_digest"
+        ),
+        run_tier=(
+            RunTierFact.QUICK
+            if parameters.get("run_tier") is None
+            else _enum_of(RunTierFact, parameters["run_tier"], "run_tier")
+        ),
+        initial_driver=(
+            RunDriverFact.PLANNED
+            if parameters.get("initial_driver") is None
+            else _enum_of(RunDriverFact, parameters["initial_driver"], "initial_driver")
+        ),
+        template_required_case_ids=_text_list(
+            parameters.get("template_required_case_ids"), "template_required_case_ids"
+        ),
+        frozen_required_case_ids=_text_list(
+            parameters.get("frozen_required_case_ids"), "frozen_required_case_ids"
+        ),
+        selected_case_ids=_text_list(
+            parameters.get("selected_case_ids"), "selected_case_ids"
+        ),
+        skipped_scope=_models_of(
+            SkippedScopeEntry, parameters.get("skipped_scope"), "skipped_scope"
+        ),
+        applicability_exclusions=_models_of(
+            ExclusionEntry,
+            parameters.get("applicability_exclusions"),
+            "applicability_exclusions",
+        ),
+    )
 
 
 def _guard(handler: Handler) -> Handler:
@@ -373,11 +644,27 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             "next_cursor": page.next_cursor,
         }
 
+    def handle_prepare_run(command: object) -> Mapping[str, object]:
+        inputs = _preparation_inputs(command)
+        prepared = prepare_run(
+            inputs,
+            unit_of_work=deps.unit_of_work,
+            reader=deps.reader,
+            clock=deps.clock,
+        )
+        # DTO 与 `BC-001` 冻结的 `PreparedRun` 合同**同一套字段**：直接取模型的 JSON 形态，
+        # 不在这里另写一份投影（两份形状一旦分叉，正是"每包自造 API"那类问题）。
+        return cast(
+            "Mapping[str, object]",
+            prepared.model_dump(mode="json"),
+        )
+
     actions: dict[str, Handler] = {
         "save_context": _guard(handle_save_context),
         "save_binding": _guard(handle_save_binding),
         "save_environment": _guard(handle_save_environment),
         "save_dependency_graph": _guard(handle_save_dependency_graph),
+        "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
     }
     return BUseCaseRegistry(actions=actions, owned_actions=OWNED_ACTIONS)

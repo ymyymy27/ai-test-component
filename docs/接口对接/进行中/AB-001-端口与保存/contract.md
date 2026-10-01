@@ -662,9 +662,22 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
    B 的改动只是把"注册时闭包"换成"装配时注入"，动作表与测试不变。
    本包不主张必须改签名——现有形态已经可用。
 
-**尚未包括**：`prepare_run`、`publish_rules`、`publish_plan`、`generate_draft`、
+**尚未包括**：`publish_rules`、`publish_plan`、`generate_draft`、
 模型出站类动作。它们各自需要参数字段的适配（`PreparationInputs` 有二十余个字段），
 另行分批，不在此节声称已接通。
+
+### 8.11 `prepare_run` 已进统一入口；B 侧交付说明另立文件（2026-10-02）
+
+- `prepare_run` 的**参数适配层已实现并注册**（`usecase_registry.py` 的
+  `_preparation_inputs()` / `handle_prepare_run()`）：键名与 `PreparationInputs` 逐字一致，
+  成功返回 `PreparedRun.model_dump(mode="json")`，与 `BC-001` 同一套字段。
+  合同测试 `tests/contracts/test_prepare_run_entrypoint.py`（**10 项**）。
+- **一条需要 A 注意的实测事实**：`prepare_run` **已经依赖提交序号**——
+  其阻塞分支与 `created_at_commit` 都要在未提交时读 `commit_seq` / `next_commit_seq`；
+  缺少注入时转接头抛 `SubstrateContractError`。也就是说第 8.8 节那三个方法
+  **不再是"将来才需要"，而是准备链路的现行前置**。
+- B 侧的实现／验证／缺口按 `接口对接/AGENTS.md` 第 4 节单独登记在
+  [`delivery-B.md`](delivery-B.md)，本文件不再重复。
 
 ---
 
@@ -680,6 +693,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-01 | 0.6 | 补第 8.8 节：B 接线后确认需要 A 冻结的**三个只读方法**（`current_revision` / `commit_seq` / `next_commit_seq`）及缺少时的行为；补第 8.9 节记录 B 侧已完成的接线与**仍未接通的产品入口**。本节只提需求，不改 B 侧协议 | B 包（待 A 确认并冻结） |
 | 2026-10-01 | 0.7 | 补第 11 节：**`SourceSnapshot` 字段口径**（B 主责，按第 10.1 节裁定给出字段、形式互斥、内容身份与失效判据），供 C 评审执行兼容后在其唯一模型里落地。**只冻结字段语义，不改变任何现行 Schema 字节**。本节内容于 2026-09-30 写成于 `feat/b-sourcesnapshot-fields`，该分支未及时提交评审；现基于当前 `develop` 重新施加 | B 包（待 C 评审） |
 | 2026-10-01 | 0.8 | 补第 8.10 节：B 把依赖**闭包进 handler**，因此不必先等装配点改造即可经统一入口运行项目上下文类动作；登记 5 个动作、5 个错误码、合同测试 10 项，并说明"写动作不报提交序号"与"索引缺失不返回空列表"两处细节。装配点接线与 `Handler` 依赖注入仍归 A | B 包（知悉性登记，待 A 确认装配点接法） |
+| 2026-10-02 | 0.9 | 补第 8.11 节：`prepare_run` 参数适配层已实现并注册（合同测试 10 项）；**登记"准备链路已依赖提交序号"这一实测事实**——第 8.8 节三个方法由"将来需要"变为现行前置。B 侧交付说明另立 `delivery-B.md`，本节不重复 | B 包（知悉性登记，待 A 确认接法与冻结签名） |
 
 ---
 
