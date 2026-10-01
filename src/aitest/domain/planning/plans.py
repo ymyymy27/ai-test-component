@@ -167,8 +167,15 @@ class ConfirmationRecord:
         if self.basis_revision < 1:
             raise ValueError("basis_revision must be >= 1")
 
-    def matches(self, basis: AssertionBasis) -> bool:
-        """确认必须同时绑定修订与摘要；文本已改变的旧确认不适用。"""
+    def matches(self, basis: AssertionBasis, *, case_id: str) -> bool:
+        """确认必须**同时绑定用例、修订与摘要**；文本已改变的旧确认不适用。
+
+        `case_id` 是**必填**的：确认记录自带 `case_id`，只比修订与摘要会让
+        另一个用例的同修订同摘要确认把本用例判成已确认（B-CONFIRMATION-01）。
+        强制调用方说出"这是哪个用例的确认"，这条路径才不可能被漏掉。
+        """
+        if self.case_id != case_id:
+            return False
         return (
             self.basis_revision == basis.revision
             and self.basis_text_digest == basis.text_digest
@@ -178,6 +185,8 @@ class ConfirmationRecord:
 def effective_assertion_basis_state(
     basis: AssertionBasis,
     confirmations: Sequence[ConfirmationRecord],
+    *,
+    case_id: str,
 ) -> AssertionBasisState:
     """派生当前有效状态；**不修改** `basis`，也不返回任何计数。
 
@@ -186,15 +195,17 @@ def effective_assertion_basis_state(
     | 条件 | 结果 |
     | --- | --- |
     | 依据缺失 | `missing`（缺失无法被确认补齐） |
-    | 有确认，且修订与摘要都匹配 | `confirmed` |
-    | 有确认但修订或摘要不匹配（文本已变） | `present_unconfirmed` |
-    | 无匹配确认 | `present_unconfirmed` |
+    | 有**本用例**的确认，且修订与摘要都匹配 | `confirmed` |
+    | 有本用例的确认但修订或摘要不匹配（文本已变） | `present_unconfirmed` |
+    | 无本用例的匹配确认 | `present_unconfirmed` |
 
+    `case_id` **必填**：确认按用例分别绑定，"另一个用例的确认"不是本用例的依据有效性证据。
     **不返回"已验证数"**：补充确认不能直接把计数加一，聚合由判定侧按实际证据计算。
     """
+    _require_text(case_id, "case_id")
     if basis.state is AssertionBasisState.MISSING:
         return AssertionBasisState.MISSING
-    if any(record.matches(basis) for record in confirmations):
+    if any(record.matches(basis, case_id=case_id) for record in confirmations):
         return AssertionBasisState.CONFIRMED
     return AssertionBasisState.PRESENT_UNCONFIRMED
 
@@ -284,7 +295,10 @@ class Case:
     def effective_basis_state(
         self, confirmations: Sequence[ConfirmationRecord]
     ) -> AssertionBasisState:
-        return effective_assertion_basis_state(self.assertion_basis, confirmations)
+        """本用例的当前依据状态；**只认本用例自己的确认**。"""
+        return effective_assertion_basis_state(
+            self.assertion_basis, confirmations, case_id=self.case_id
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -449,25 +463,42 @@ def validate_plan_publication(plan: Plan, cases: Sequence[Case]) -> None:
     门禁逐条：
 
     1. `T ⊄ M` 拒绝；
-    2. 冻结必测集合中包含依据缺失的用例 → 拒绝（"缺依据禁止 full 必测"）；
-    3. 冻结用例缺独立核验方式 → 拒绝；
-    4. 排除项或适用性排除缺理由 → 拒绝（构造 `AcceptanceScope` 时已强制）。
+    2. 冻结的每个用例都必须提供实际用例（缺一即拒绝）；
+    3. 提供的用例必须与冻结的**修订号**一致（B-PUBLICATION-01：不能拿 `@2` 顶 `@1`）；
+    4. **必测项必须全部有冻结引用**——不得用集合交集把没有冻结引用的必测项静默滤掉；
+    5. 冻结必测集合中包含依据缺失的用例 → 拒绝（"缺依据禁止 full 必测"）；
+    6. 冻结用例缺独立核验方式 → 拒绝；
+    7. 排除项或适用性排除缺理由 → 拒绝（构造 `AcceptanceScope` 时已强制）。
     """
     scope = plan.scope
     if not scope.template_case_ids <= scope.required_case_ids:
         raise ValueError("template requirements must be included in required cases")
 
-    by_id = {case.case_id: case for case in cases}
-    frozen_ids = {ref.case_id for ref in plan.case_revisions}
-    missing_revisions = frozen_ids - set(by_id)
-    if missing_revisions:
+    frozen_by_id = {ref.case_id: ref for ref in plan.case_revisions}
+    provided_by_id = {case.case_id: case for case in cases}
+
+    missing_provided = sorted(set(frozen_by_id) - set(provided_by_id))
+    if missing_provided:
         raise ValueError(
-            f"frozen case revisions are not provided: {sorted(missing_revisions)}"
+            f"frozen case revisions are not provided: {missing_provided}"
         )
 
-    required = scope.required_case_ids & frozen_ids
-    for case_id in sorted(required):
-        case = by_id[case_id]
+    for case_id, ref in sorted(frozen_by_id.items()):
+        provided = provided_by_id[case_id]
+        if provided.revision != ref.revision:
+            raise ValueError(
+                "a provided case does not match the frozen revision: "
+                f"{case_id} (frozen {ref.revision}, provided {provided.revision})"
+            )
+
+    missing_frozen = sorted(scope.required_case_ids - set(frozen_by_id))
+    if missing_frozen:
+        raise ValueError(
+            f"required cases have no frozen case revision: {missing_frozen}"
+        )
+
+    for case_id in sorted(scope.required_case_ids):
+        case = provided_by_id[case_id]
         if case.assertion_basis.state is AssertionBasisState.MISSING:
             raise ValueError(
                 f"a case with a missing assertion basis must not be required: {case_id}"
