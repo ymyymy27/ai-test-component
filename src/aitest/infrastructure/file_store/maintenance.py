@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -18,6 +19,8 @@ from .integrity import check_workspace
 _AUDIT_NAME: Final = "audit.jsonl"
 _MAINTENANCE_DIR: Final = "maintenance"
 _AUDIT_SCHEMA: Final = "aitest.maintenance-audit/1.0"
+_ACTIVE_MARKER: Final = Path("transactions") / "active.json"
+_MKSTEMP_TAIL: Final = re.compile(r"[A-Za-z0-9_-]{8}")
 
 # 业务与永久材料目录/文件名前缀，诊断分类用
 _BUSINESS_MARKERS: Final = frozenset(
@@ -69,15 +72,33 @@ class SpaceReport:
 class ReclaimReport:
     """回收执行结果。"""
 
-    state: str  # preview | reclaimed
+    state: str  # preview | reclaimed | blocked
     removed: tuple[str, ...]
     bytes_freed: int
     refused: tuple[str, ...]
 
 
 def _is_atomic_leftover(path: Path) -> bool:
+    """识别两种真实原子发布遗留格式。
+
+    - events 边界/位置发布使用 ``.<name>.tmp``；
+    - atomic.write_json 经 mkstemp 使用 ``.<target>.<8 位随机字符>``，
+      且同目录必须仍存在对应已发布目标，避免误删其他隐藏文件。
+    """
     name = path.name
-    return name.startswith(".") and name.endswith(".tmp")
+    if not name.startswith("."):
+        return False
+    if name.endswith(".tmp"):
+        return True
+    body = name[1:]
+    target_name, separator, tail = body.rpartition(".")
+    if not separator:
+        return False
+    return bool(
+        _MKSTEMP_TAIL.fullmatch(tail)
+        and target_name
+        and (path.parent / target_name).is_file()
+    )
 
 
 def _is_empty_staging(path: Path, workspace_root: Path) -> bool:
@@ -175,15 +196,30 @@ class FileMaintenanceService:
         relative_paths: tuple[str, ...] | list[str] | None = None,
         dry_run: bool = True,
     ) -> ReclaimReport:
-        """回收候选；默认仅预览。删除前再次白名单校验。"""
+        """回收候选；默认仅预览。删除前再次白名单校验。
+
+        存在活动事务标记时整体阻塞：候选可能正被活动执行引用，资格未被
+        证实，不得按位置/名字猜测回收。
+        """
         allowed = {candidate.relative_path: candidate for candidate in self.reclaimable()}
         requested = list(allowed) if relative_paths is None else list(relative_paths)
+        if (self._root / _ACTIVE_MARKER).exists():
+            return ReclaimReport(
+                state="blocked",
+                removed=(),
+                bytes_freed=0,
+                refused=tuple(requested),
+            )
         removed: list[str] = []
         refused: list[str] = []
         bytes_freed = 0
         for relative in requested:
             candidate = allowed.get(relative)
-            if candidate is None or not self._still_safe(relative):
+            if (
+                candidate is None
+                or (self._root / _ACTIVE_MARKER).exists()
+                or not self._still_safe(relative)
+            ):
                 refused.append(relative)
                 continue
             if dry_run:

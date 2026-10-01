@@ -73,6 +73,7 @@ def test_rules_are_published_with_the_commit_sequence() -> None:
     result = publish_rules(_draft(), project_id="p1", unit_of_work=unit_of_work, reader=reader)
     assert result.blocked_by == ()
     assert result.value is not None
+    assert isinstance(result.value, RuleVersion)
     assert result.value.confirmation_id == "commit-1"
     assert result.value.digest.startswith("sha256:")
     assert result.value.rule_id == "rule-1"
@@ -289,6 +290,74 @@ def test_plan_missing_a_frozen_case_revision_is_refused() -> None:
     assert any("not provided" in reason for reason in result.blocked_by)
 
 
+# ------------------------------------------------- B-PUBLICATION-01 反例
+
+
+def test_a_required_case_without_a_frozen_revision_is_refused() -> None:
+    """反例：必测集合含有**没有冻结引用**的用例。
+
+    修前门禁取 `M ∩ frozen_ids`，缺项被静默滤掉，计划照常发布——
+    等于把"必测"缩水后当作完整范围发布。
+    """
+    unit_of_work, reader = _world()
+    case = _case()
+    scope = AcceptanceScope(
+        scope_id="scope-1",
+        revision=1,
+        name="ticket scope",
+        required_case_ids=frozenset({"case-1", "case-missing"}),
+        template_case_ids=frozenset({"case-1"}),
+        objective="prove ticket creation",
+    )
+    result = publish_plan(
+        _draft_plan(case, scope=scope),
+        project_id="p1",
+        cases=[case],
+        unit_of_work=unit_of_work,
+        reader=reader,
+    )
+    assert result.value is None
+    assert any("no frozen case revision" in reason for reason in result.blocked_by)
+
+
+def test_a_provided_case_must_match_the_frozen_revision() -> None:
+    """反例：冻结 `case-1@1` 却提供 `case-1@2`。
+
+    修前只核 ID 不核修订，发布门禁会对着**另一个修订**的依据与核验方式做判断。
+    """
+    unit_of_work, reader = _world()
+    frozen = _case()
+    provided = _case(revision=2)
+    result = publish_plan(
+        _draft_plan(frozen),
+        project_id="p1",
+        cases=[provided],
+        unit_of_work=unit_of_work,
+        reader=reader,
+    )
+    assert result.value is None
+    assert any("does not match the frozen revision" in reason for reason in result.blocked_by)
+
+
+def test_the_required_gate_reads_the_frozen_revision_only() -> None:
+    """必测门禁按**冻结修订**的用例判定：拿修订不符的用例顶替不能绕过门禁。"""
+    unit_of_work, reader = _world()
+    frozen = _case()  # 依据齐全
+    broken_v2 = _case(
+        revision=2,
+        assertion_basis=AssertionBasis(revision=1, state=AssertionBasisState.MISSING),
+    )
+    result = publish_plan(
+        _draft_plan(frozen),
+        project_id="p1",
+        cases=[broken_v2],
+        unit_of_work=unit_of_work,
+        reader=reader,
+    )
+    assert result.value is None
+    assert any("does not match the frozen revision" in reason for reason in result.blocked_by)
+
+
 def test_publishing_an_already_published_plan_is_refused() -> None:
     """计划不可变：已发布的计划不能原地再发布，历史运行仍引用原修订。"""
     unit_of_work, reader = _world()
@@ -301,6 +370,7 @@ def test_publishing_an_already_published_plan_is_refused() -> None:
         reader=reader,
     ).value
     assert published is not None
+    assert isinstance(published, Plan)
     again = publish_plan(
         published,
         project_id="p1",

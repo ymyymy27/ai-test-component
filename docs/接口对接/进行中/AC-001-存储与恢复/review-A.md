@@ -80,8 +80,8 @@ C 包已有本地验证实现（`FileSpoolStore`、`FileObjectStore`、`FileChec
 
 | 风险 | 说明 | 建议 |
 | --- | --- | --- |
-| 端口签名未冻结 | `CheckpointPort`、`SourceSnapshotPort`、`SourceControlPort`、`ModelProvider`、`ProjectionPort` 方法签名放在 A 包一期交付之后迭代，当前以 `FileCheckpointStore` 接口为参考 | C 包一期仅使用 A 已交付能力，待端口签名冻结后再对接 |
-| RedactionSummary 持久化方法 | 文档提 `SpoolStore.persist_redaction_summary()`，需确认 A 包 SpoolStore 是否已提供 | C 包确认 A 包 SpoolStore 方法清单 |
+| 端口签名未冻结 | `CheckpointPort` Protocol 尚未写入 `ports.py`，但 `FileCheckpointStore` 接口已稳定（persist/load/scan）；`SourceSnapshotPort`、`SourceControlPort`、`ModelProvider`、`ProjectionPort` 方法签名已在 `ports.py` 定义 | `CheckpointPort` 可在一期内写入 `ports.py`（待 C 包确认签名后执行）；其余端口已定义，C 包一期可直接使用 |
+| RedactionSummary 持久化方法 | `SpoolStore.persist_redaction_summary()` 已存在（`ports.py:305` Protocol、`spool.py:285` 实现），风险已消除 | C 包可直接通过 `SpoolStore` 端口调用，无需额外确认 |
 | `recover_workspace(root)` 调用方 | §8.2 引用该函数，未明确由 A 核心启动调用还是 C 显式调用 | 双方确认调用边界 |
 | aggregate_kind 取值 | ExecutionFacts 的 `aggregate_kind` 文档写"由 C 包约定"，未固化 | C 包确认实际取值后回写文档 |
 
@@ -89,11 +89,11 @@ C 包已有本地验证实现（`FileSpoolStore`、`FileObjectStore`、`FileChec
 
 ## 4 待双方确认事项
 
-1. **ExecutionFacts `aggregate_kind` 实际取值**：文档写"由 C 包约定（如 `execution_facts`）"，需 C 包确认实际使用的聚合类型名与记录 ID 规则。
-2. **`SpoolStore.persist_redaction_summary()` 方法是否存在**：若 A 包 SpoolStore 未提供，需确认是扩展 SpoolStore 还是新增专用端口。
-3. **`recover_workspace(root)` 调用方**：由 A 包核心启动时调用，还是 C 包显式调用。
-4. **`CheckpointPort` 正式定义时机**：当前以 `FileCheckpointStore` 接口为参考，需确认 A 包何时在 `ports.py` 中正式定义 Protocol。
-5. **C 包本地 `FileSpoolStore`/`FileObjectStore`/`FileCheckpointStore` 迁移计划**：确认替换为 A 包实现的时间节点与数据迁移方式。
+1. **ExecutionFacts `aggregate_kind` 实际取值**：文档写"由 C 包约定（如 `execution_facts`）"，需 C 包确认实际使用的聚合类型名与记录 ID 规则。【责任方：C 包确认】
+2. **`SpoolStore.persist_redaction_summary()` 方法是否存在**：若 A 包 SpoolStore 未提供，需确认是扩展 SpoolStore 还是新增专用端口。【责任方：A 包确认】【A 包核查结论：方法已存在，无需扩展或新增端口。`SpoolStore.persist_redaction_summary(attempt_id, stream_name, summary) -> str` 已在 `application/ports.py:305` 定义为 Protocol 方法，在 `infrastructure/file_store/spool.py:285`（`FileSpoolStore`）实现，返回 `summary_id`，并已在 `infrastructure/adapters/execution/command.py:412` 实际调用。C 包可直接通过 `SpoolStore` 端口调用。】
+3. **`recover_workspace(root)` 调用方**：由 A 包核心启动时调用，还是 C 包显式调用。【责任方：A+C 共同确认】
+4. **`CheckpointPort` 正式定义时机**：当前以 `FileCheckpointStore` 接口为参考，需确认 A 包何时在 `ports.py` 中正式定义 Protocol。【责任方：A 包确认】【A 包核查结论：`CheckpointPort` Protocol 尚未写入 `ports.py`，但 `FileCheckpointStore`（`infrastructure/file_store/checkpoints.py`）接口已稳定，方法为 `persist(record) -> Path`、`load(attempt_id) -> RecoveryRecord`、`scan() -> tuple[RecoveryRecord, ...]`。鉴于实现接口已稳定且 contract.md §7.2 已引用该接口，A 包可在一期内将 `CheckpointPort` Protocol 写入 `ports.py`；落地时间取决于 C 包确认签名后即可执行，不阻塞一期交付。】
+5. **C 包本地 `FileSpoolStore`/`FileObjectStore`/`FileCheckpointStore` 迁移计划**：确认替换为 A 包实现的时间节点与数据迁移方式。【责任方：C 包确认】
 
 ---
 

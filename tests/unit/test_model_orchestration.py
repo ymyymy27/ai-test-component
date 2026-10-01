@@ -20,11 +20,14 @@ from aitest.application.planning.model_orchestration import (
 from aitest.application.planning.model_ports import (
     CredentialResolution,
     CredentialStatus,
+    ModelCall,
+    ModelCaller,
     ModelCallResult,
     ModelCallStatus,
     Projection,
     ProjectionStatus,
 )
+from aitest.application.planning.substrate import RecordQuery
 from aitest.domain.planning.model_outbound import (
     MaterialKind,
     ModelEndpoint,
@@ -98,6 +101,29 @@ def _world() -> tuple[MemoryUnitOfWork, MemoryReader]:
     return MemoryUnitOfWork(store), MemoryReader(store)
 
 
+class _IntentProbeCaller:
+    """调用发生时检查出站意图是否已经提交可见。"""
+
+    def __init__(self, reader: MemoryReader) -> None:
+        self._reader = reader
+        self.call_count = 0
+        self.intent_visible_at_call = False
+
+    def call(self, request: ModelCall) -> ModelCallResult:
+        self.call_count += 1
+        page = self._reader.query(
+            RecordQuery(project_id=PROJECT_ID, aggregate_kind="model_outbound_request")
+        )
+        self.intent_visible_at_call = any(
+            item.payload.get("state") == "intent" for item in page.items
+        )
+        return ModelCallResult(
+            status=ModelCallStatus.OK,
+            draft_text="draft: proposed checks",
+            provider_request_id="provider-request-1",
+        )
+
+
 def _request(
     *,
     policy: ModelOutboundPolicy | None = None,
@@ -107,7 +133,7 @@ def _request(
     reader: MemoryReader | None = None,
     projector: MemoryProjector | None = None,
     credentials: MemoryCredentialResolver | None = None,
-    caller: MemoryModelCaller | None = None,
+    caller: ModelCaller | None = None,
     source_revision: int = 1,
     template_ref: TemplateRef | None = None,
 ) -> OutboundOutcome:
@@ -157,11 +183,23 @@ def test_successful_request_records_what_was_actually_sent() -> None:
     assert outcome.request.item_count == 1
     assert outcome.request.projection_digest.startswith("sha256:projection-")
 
-    record = reader.read(
+    # 修订 1 是**调用之前**落盘的意图，修订 2 才是调用结果。
+    intent = reader.read(
         aggregate_kind="model_outbound_request",
         record_id=outcome.request.request_id,
         revision=1,
     )
+    assert intent.payload["state"] == "intent"
+    assert intent.payload["item_count"] == 1
+    assert intent.payload["material_kinds"] == ["project_context"]
+    assert "call_status" not in intent.payload
+
+    record = reader.read(
+        aggregate_kind="model_outbound_request",
+        record_id=outcome.request.request_id,
+        revision=2,
+    )
+    assert record.payload["state"] == "outcome"
     assert record.payload["item_count"] == 1
     assert record.payload["material_kinds"] == ["project_context"]
     assert record.payload["call_status"] == "ok"
@@ -194,7 +232,7 @@ def test_credentials_never_reach_the_record() -> None:
     record = reader.read(
         aggregate_kind="model_outbound_request",
         record_id=outcome.request.request_id,
-        revision=1,
+        revision=2,
     )
     dumped = repr(record.payload)
     for marker in ("api_key", "authorization", "bearer", "sk-"):
@@ -427,10 +465,82 @@ def test_model_failure_still_records_the_outbound_fact() -> None:
     record = reader.read(
         aggregate_kind="model_outbound_request",
         record_id=outcome.request.request_id,
-        revision=1,
+        revision=2,
     )
     assert record.payload["call_status"] == "failed"
     assert record.payload["error_kind"] == "rate_limited"
+
+
+def test_a_failed_call_does_not_echo_the_provider_detail() -> None:
+    """失败只回错误分类；供应商的错误正文可能回显请求内容，不落盘也不回显。"""
+    unit_of_work, reader = _world()
+    marker = "echoed material: module list ticket, store"
+    outcome = _request(
+        caller=MemoryModelCaller(error_kind="timeout", error_detail=marker),
+        unit_of_work=unit_of_work,
+        reader=reader,
+    )
+    assert outcome.status == OUTBOUND_BLOCKED
+    assert all(marker not in reason for reason in outcome.blocked_by)
+    assert outcome.request is not None
+    record = reader.read(
+        aggregate_kind="model_outbound_request",
+        record_id=outcome.request.request_id,
+        revision=2,
+    )
+    assert marker not in repr(record.payload)
+    # 细节只留摘要与长度，供与供应商日志对账
+    detail_digest = record.payload["error_detail_digest"]
+    assert isinstance(detail_digest, str)
+    assert detail_digest.startswith("sha256:")
+    assert record.payload["error_detail_chars"] == len(marker)
+
+
+def test_the_intent_is_committed_before_the_model_is_called() -> None:
+    """外部调用是**不可撤销的副作用**：调用发生时必须已经能读到出站意图。"""
+    unit_of_work, reader = _world()
+    caller = _IntentProbeCaller(reader)
+    _request(unit_of_work=unit_of_work, reader=reader, caller=caller)
+    assert caller.call_count == 1
+    assert caller.intent_visible_at_call is True
+
+
+def test_the_successful_call_commits_the_intent_before_the_outcome() -> None:
+    """意图与结果分属两次提交，序号说明调用发生在两次提交之间。"""
+    unit_of_work, reader = _world()
+    outcome = _request(unit_of_work=unit_of_work, reader=reader)
+    assert outcome.request is not None
+    assert unit_of_work.commit_seq() == "commit-2"
+    assert (
+        reader.read(
+            aggregate_kind="model_outbound_request",
+            record_id=outcome.request.request_id,
+            revision=1,
+        ).payload["state"]
+        == "intent"
+    )
+
+
+def test_the_draft_text_is_stored_with_its_digest() -> None:
+    """草稿正文与摘要一起落盘：只存元数据会让"模型产出了什么"没有可核对的字节。"""
+    from hashlib import sha256
+
+    unit_of_work, reader = _world()
+    outcome = _request(unit_of_work=unit_of_work, reader=reader)
+    assert outcome.content is not None
+    expected = "sha256:" + sha256(b"draft: proposed checks").hexdigest()
+    assert outcome.content.content_digest == expected
+
+    page = reader.query(
+        RecordQuery(
+            project_id=PROJECT_ID, aggregate_kind="generated_content"
+        )
+    )
+    assert len(page.items) == 1
+    stored = page.items[0].payload
+    assert stored["draft_text"] == "draft: proposed checks"
+    assert stored["content_digest"] == expected
+    assert stored["generated_content_id"] == outcome.content.generated_content_id
 
 
 def test_failure_does_not_retry_or_switch_provider() -> None:
@@ -459,7 +569,8 @@ def test_repeating_the_same_request_lands_a_new_record_revision() -> None:
     second = _request(unit_of_work=unit_of_work, reader=reader)
     assert first.request is not None and second.request is not None
     assert first.request.request_id == second.request.request_id
-    assert unit_of_work.commit_seq() == "commit-2"
+    # 每条请求两次提交：意图一次、结果一次。
+    assert unit_of_work.commit_seq() == "commit-4"
     assert (
         reader.read(
             aggregate_kind="model_outbound_request",
@@ -468,6 +579,16 @@ def test_repeating_the_same_request_lands_a_new_record_revision() -> None:
         ).payload["policy_revision"]
         == 1
     )
+    assert (
+        reader.read(
+            aggregate_kind="model_outbound_request",
+            record_id=first.request.request_id,
+            revision=3,
+        ).payload["state"]
+        == "intent"
+    )
+    assert first.content is not None and second.content is not None
+    assert first.content.generated_content_id != second.content.generated_content_id
 
 
 # ------------------------------------------------------------------ 迟到响应

@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import socket
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 from urllib.parse import urlparse
 
 
@@ -69,6 +71,24 @@ class TransportFact:
     detail: str
 
 
+@dataclass(frozen=True, slots=True)
+class ConnectionState:
+    """同一端点跨多次探测的统一连接状态。
+
+    每次探测都追加到 ``attempts`` 并更新最后的事实；调用方（doctor/能力
+    诊断）只能读到这一份状态，不会在不同代码路径各自维护一份“最新结论”。
+    """
+
+    endpoint_address: str
+    reachable: bool
+    attempts: tuple[TransportFact, ...]
+    updated_at_monotonic: float
+
+    @property
+    def last_fact(self) -> TransportFact:
+        return self.attempts[-1]
+
+
 def classify_os_error(error: OSError) -> TransportErrorKind:
     """把 socket 层异常归一到传输错误类别。"""
     if isinstance(error, socket.gaierror):
@@ -110,8 +130,63 @@ class ConnectionProbe:
         )
 
 
+class ConnectionProbePort(Protocol):
+    """连接探测端口；允许测试替身与其他探测实现结构替换。"""
+
+    def probe(
+        self, endpoint: EndpointConfig, *, timeout_seconds: float = 2.0
+    ) -> TransportFact: ...
+
+
+class ConnectionMonitor:
+    """对同一端点持久持有统一连接状态。
+
+    只负责“探测 + 累积状态”，不决定重试节奏（重试口径唯一属于
+    ``application/connectivity.py``），也不睡眠；应用层按策略决定下一次
+    :meth:`probe_once` 的时机。同一端点的所有入口共享同一个 monitor 实例，
+    从而读到同一份 :class:`ConnectionState`。
+    """
+
+    def __init__(
+        self,
+        endpoint: EndpointConfig,
+        *,
+        probe: ConnectionProbePort | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
+        self._endpoint = endpoint
+        self._probe = probe or ConnectionProbe()
+        self._clock = clock or time.monotonic
+        self._state: ConnectionState | None = None
+
+    @property
+    def endpoint(self) -> EndpointConfig:
+        return self._endpoint
+
+    @property
+    def state(self) -> ConnectionState | None:
+        return self._state
+
+    def probe_once(self, *, timeout_seconds: float = 2.0) -> ConnectionState:
+        fact = self._probe.probe(self._endpoint, timeout_seconds=timeout_seconds)
+        previous = self._state.attempts if self._state is not None else ()
+        self._state = ConnectionState(
+            endpoint_address=self._endpoint.base_address,
+            reachable=fact.reachable,
+            attempts=(*previous, fact),
+            updated_at_monotonic=self._clock(),
+        )
+        return self._state
+
+    def reset(self) -> None:
+        self._state = None
+
+
 __all__ = [
+    "ConnectionMonitor",
     "ConnectionProbe",
+    "ConnectionProbePort",
+    "ConnectionState",
     "EndpointConfig",
     "EndpointError",
     "TransportErrorKind",

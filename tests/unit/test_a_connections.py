@@ -7,10 +7,12 @@ import socket
 import pytest
 
 from aitest.infrastructure.connections import (
+    ConnectionMonitor,
     ConnectionProbe,
     EndpointConfig,
     EndpointError,
     TransportErrorKind,
+    TransportFact,
     classify_os_error,
 )
 
@@ -92,3 +94,45 @@ def test_classify_os_error() -> None:
         TransportErrorKind.CONNECTION_REFUSED
     )
     assert classify_os_error(OSError()) is TransportErrorKind.UNREACHABLE
+
+
+class _ScriptedProbe:
+    def __init__(self, facts: list[TransportFact]) -> None:
+        self._facts = facts
+        self.timeouts: list[float] = []
+
+    def probe(
+        self, endpoint: EndpointConfig, *, timeout_seconds: float = 2.0
+    ) -> TransportFact:
+        self.timeouts.append(timeout_seconds)
+        return self._facts.pop(0)
+
+
+def _endpoint() -> EndpointConfig:
+    return EndpointConfig("https", "api.example.com", 443, "https://api.example.com:443")
+
+
+def test_connection_monitor_persists_unified_state_across_probes() -> None:
+    unreachable = TransportFact(False, 5, "timeout", "boom")
+    reachable = TransportFact(True, 3, None, "")
+    monitor = ConnectionMonitor(_endpoint(), probe=_ScriptedProbe([unreachable, reachable]))
+
+    assert monitor.state is None
+    first = monitor.probe_once(timeout_seconds=1.0)
+    assert first.reachable is False
+    assert first.attempts == (unreachable,)
+    # 第二次探测累积到同一份状态，而不是另起一份结论
+    second = monitor.probe_once(timeout_seconds=1.0)
+    assert second.reachable is True
+    assert second.attempts == (unreachable, reachable)
+    assert second.last_fact is reachable
+    assert monitor.state is second
+    assert second.endpoint_address == "https://api.example.com:443"
+
+
+def test_connection_monitor_reset_clears_state() -> None:
+    reachable = TransportFact(True, 1, None, "")
+    monitor = ConnectionMonitor(_endpoint(), probe=_ScriptedProbe([reachable]))
+    monitor.probe_once()
+    monitor.reset()
+    assert monitor.state is None

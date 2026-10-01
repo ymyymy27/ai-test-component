@@ -6,7 +6,12 @@
 
 import pytest
 
-from aitest.application.planning.preparation import InputRevisions
+from aitest.application.planning.preparation import (
+    PAYLOAD_FIELDS,
+    InputRevisions,
+    preparation_identity_digest,
+    preparation_intent_id,
+)
 from aitest.application.planning.prepare_run import (
     PreparationInputs,
     preparation_payload,
@@ -31,6 +36,7 @@ from aitest.contracts.prepared_run import (
     RuleVersionRef,
     RunDriverFact,
     RunTierFact,
+    SkippedScopeEntry,
     SnapshotRef,
     TemplateVersionRef,
 )
@@ -158,7 +164,7 @@ def _store_existing(
     """把一份 `PreparedRun` 当作已存记录写入底座，供幂等分支复读。"""
     unit_of_work.open(prepared.project_id)
     unit_of_work.stage_record(
-        aggregate_kind="prepared_run",  # type: ignore[arg-type]
+        aggregate_kind="prepared_run",
         record_id=prepared.prepared_run_id,
         expected_revision=None,
         payload=prepared.model_dump(mode="json"),
@@ -176,7 +182,10 @@ def test_first_prepare_creates_a_prepared_run() -> None:
     )
 
     assert result.status is PreparedRunStatusFact.PREPARED
-    assert result.intent_id == "intent:req-1"
+    assert result.intent_id == preparation_intent_id(
+        project_id="p1", client_id="c1", prepare_request_id="req-1"
+    )
+    assert result.intent_id != result.prepare_request_id
     assert result.created_at_commit == "commit-1"
     assert result.blocking_reasons == ()
     assert result.conclusion_ceiling.value == "passable"
@@ -276,7 +285,9 @@ def test_same_request_with_different_input_conflicts() -> None:
             reader=reader,
             clock=clock,
         )
-    assert error.value.existing_intent_id == "intent:req-1"
+    assert error.value.existing_intent_id == preparation_intent_id(
+        project_id="p1", client_id="c1", prepare_request_id="req-1"
+    )
 
 
 def test_conflict_writes_nothing() -> None:
@@ -482,3 +493,134 @@ def test_prepare_requires_identity_fields() -> None:
                 reader=reader,
                 clock=clock,
             )
+
+
+# ------------------------------------------------- 摘要口径（B-PREPARE-01/02）
+
+
+def test_payload_carries_exactly_the_declared_fields() -> None:
+    """摘要键集合与 `PAYLOAD_FIELDS` **逐字一致**，防止两处再次分叉。"""
+    assert set(preparation_payload(_inputs())) == set(PAYLOAD_FIELDS)
+
+
+def test_changing_the_selection_changes_the_digest() -> None:
+    """B-PREPARE-01：改了本轮选定用例，摘要必须变。
+
+    修前 `selected_case_ids` 不在摘要里，换选择会得到同一个 digest，
+    于是同键重传被误判成"幂等复用"，拿回上一次的准备结果。
+    """
+    base = preparation_payload(_inputs())
+    narrowed = preparation_payload(_inputs(selected_case_ids=()))
+    assert base != narrowed
+
+
+def test_skipping_a_case_changes_the_digest() -> None:
+    base = preparation_payload(_inputs())
+    skipped = preparation_payload(
+        _inputs(skipped_scope=(SkippedScopeEntry(case_id="case-1", reason="not ready"),))
+    )
+    assert base != skipped
+
+
+def test_observed_source_identity_is_not_in_the_digest() -> None:
+    """B-PREPARE-02：来源字节身份是**观察结果**，不进摘要。
+
+    进了摘要的话，源码一变会先撞 `PreparationConflictError`（同键异输入冲突），
+    而正确结论是"依据需重新准备"。来源漂移由 `InputRevisions` 单独比对。
+    """
+    payload = preparation_payload(_inputs())
+    assert "snapshot_content_identity" not in payload
+    other = _inputs(
+        snapshot=SnapshotRef(
+            source_snapshot_id="snap-2",
+            purpose="prepare",
+            content_identity="sha256:content-CHANGED",
+        )
+    )
+    assert preparation_payload(other) == payload
+
+
+def test_published_plan_revision_is_not_in_the_digest() -> None:
+    """计划重发布属于"依据变化"，同理不得进摘要。"""
+    payload = preparation_payload(_inputs())
+    republished = _inputs(
+        plan_revision=PlanRevisionRef(
+            revision_id="plan-2", revision_no=2, digest="sha256:plan-2"
+        )
+    )
+    assert preparation_payload(republished) == payload
+
+
+def test_source_drift_needs_reprepare_not_a_conflict() -> None:
+    """端到端：来源修订变了 → `needs_reprepare`，不是冲突。"""
+    unit_of_work, reader, clock = _world()
+    first = prepare_run(_inputs(), unit_of_work=unit_of_work, reader=reader, clock=clock)
+    assert first.status is PreparedRunStatusFact.PREPARED
+
+    drifted = prepare_run(
+        _inputs(
+            input_revisions=_revisions(snapshot_revision=2),
+            snapshot=SnapshotRef(
+                source_snapshot_id="snap-2",
+                purpose="prepare",
+                content_identity="sha256:content-2",
+            ),
+        ),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert drifted.status is PreparedRunStatusFact.BLOCKED
+    assert any(
+        reason.code == "needs_reprepare" for reason in drifted.blocking_reasons
+    )
+
+
+# ------------------------------------------------- 身份命名空间（B-02）
+
+
+def test_intent_and_prepared_ids_are_namespaced() -> None:
+    """同一 `prepare_request_id` 在不同项目/客户端下必须是**不同对象**。"""
+    intents: set[str] = set()
+    prepared_runs: set[str] = set()
+    for project_id, client_id in (("p1", "c1"), ("p2", "c1"), ("p1", "c2")):
+        store = MemoryStore()
+        result = prepare_run(
+            _inputs(project_id=project_id, client_id=client_id),
+            unit_of_work=MemoryUnitOfWork(store),
+            reader=MemoryReader(store),
+            clock=FixedClock(),
+        )
+        digest = preparation_identity_digest(
+            project_id=project_id,
+            client_id=client_id,
+            prepare_request_id="req-1",
+        )
+        assert digest in result.intent_id
+        assert digest in result.prepared_run_id
+        intents.add(result.intent_id)
+        prepared_runs.add(result.prepared_run_id)
+    assert len(intents) == 3
+    assert len(prepared_runs) == 3
+
+
+def test_identical_requests_in_different_projects_do_not_collide() -> None:
+    """存储层的修订计数按 `record_id` 全局计，身份不带命名空间就会互相覆盖。"""
+    store = MemoryStore()
+    reader = MemoryReader(store)
+    unit_of_work = MemoryUnitOfWork(store)
+    for project_id in ("p1", "p2"):
+        result = prepare_run(
+            _inputs(project_id=project_id),
+            unit_of_work=unit_of_work,
+            reader=reader,
+            clock=FixedClock(),
+        )
+        assert result.status is PreparedRunStatusFact.PREPARED
+    for project_id in ("p1", "p2"):
+        assert (
+            reader.find_preparation(
+                project_id=project_id, client_id="c1", prepare_request_id="req-1"
+            )
+            is not None
+        )

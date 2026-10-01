@@ -19,11 +19,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+from aitest.application.errors import WorkspaceInUse
 
-class WorkspaceInUse(RuntimeError):
-    """存在身份不明的核心或无法建立可信连接。"""
+#: 连接器：返回已连接对象及其实例 id；不可连接返回 None。
+Connector = Callable[[str], tuple[object, str] | None]
 
-    code = "WORKSPACE_IN_USE"
+
+class CoreLauncher(Protocol):
+    """核心启动器协议：启动子进程并返回 instance_id。"""
+
+    def start(self, workspace_id: str) -> str: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,16 +38,6 @@ class CoreEndpoint:
     workspace_id: str
     instance_id: str
     connection: object
-
-
-class CoreLauncher(Protocol):
-    def start(self, workspace_id: str) -> str:
-        """启动新核心并返回其实例 id。"""
-        ...
-
-
-#: 连接器：返回已连接对象及其实例 id；不可连接返回 None。
-Connector = Callable[[str], tuple[object, str] | None]
 
 
 class EditorHost:
@@ -75,9 +70,7 @@ class EditorHost:
             if connected is not None:
                 connection, instance_id = connected
                 if instance_id != expected_instance:
-                    raise WorkspaceInUse(
-                        "核心实例身份与启动事实不一致"
-                    )
+                    raise WorkspaceInUse("核心实例身份与启动事实不一致")
                 return CoreEndpoint(workspace_id, instance_id, connection)
             time.sleep(self._poll)
 
@@ -85,6 +78,7 @@ class EditorHost:
 
 
 __all__ = [
+    "Connector",
     "CoreEndpoint",
     "CoreLauncher",
     "EditorHost",

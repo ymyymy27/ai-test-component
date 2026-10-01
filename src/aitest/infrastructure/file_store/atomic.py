@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import errno as errno_module
 import json
-import os
+import os as os
 import sys
 import tempfile
-import time
+import time as time
 from contextlib import suppress
 from pathlib import Path
 from typing import Any

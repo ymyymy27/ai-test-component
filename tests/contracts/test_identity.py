@@ -13,7 +13,7 @@ def test_identity_types_keep_wire_values_as_strings() -> None:
 
 @pytest.mark.parametrize("field", ["request_id", "intent_id"])
 def test_identity_rejects_blank_or_whitespace(field: str) -> None:
-    payload = {"request_id": "req-1", "action": "doctor"}
+    payload: dict[str, object] = {"request_id": "req-1", "action": "doctor"}
     if field == "request_id":
         payload[field] = "bad id"
     else:
