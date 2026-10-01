@@ -1,5 +1,7 @@
 # 2026-10-01 一期源码检查证据
 
+当前复核完成于2026-10-02，源码为`develop`的`10fc22f`；本机检查于10月1日执行，全量pytest为949 passed。本文原初查/补查文字与JSON保留历史，当前状态见文末[最新develop复核](#最新develop复核10fc22f)及[整体报告](../../当前代码分析与一期工程对比.md)。
+
 产品基线：`0c890eded76fe6c31ad84c211445025de67f599e`（拉取的 develop）。检查结论见[整体对比](../../当前代码分析与一期工程对比.md)及一期工程检查：[A 包](../../一期工程检查-A包.md)、[B 包](../../一期工程检查-B包.md)、[C 包](../../一期工程检查-C包.md)、[D 包](../../一期工程检查-D包.md)。
 
 补充复核基线：`38ce918a0e67726e107569d15e9d4e5f19506751`（2026-10-01 当前 develop）。原材料与历史结果保留；新增 4 个反例及当前测试摘要分开保存，见下表和文末补充记录。
@@ -68,3 +70,46 @@ uv run --no-sync ruff check docs/validation/p1-audit-20261001/additional_probes.
 当前仓库复核还逐个阅读 123 个跟踪源码/工程目标（Python 116、TypeScript 4、JavaScript 1、YAML 2，无跳过），并按调用链补读合同/测试。`uv run --no-sync ruff check .`、`uv run --no-sync mypy`、`uv run --no-sync python scripts/check_versions.py` 均通过；全量 `pytest --continue-on-collection-errors` 为 737 passed / 16 failed / 1 collection error / 4 warnings，19.814 s，失败仍为既有 A 包问题，Schema 一致性测试通过。面板与 Trae 的 check/build 通过，生成 dist 后面板 Playwright 1 passed；本次没有重新打包 VSIX、查询新远端 CI 或真实宿主验收。
 
 真实一期验收保持 0 verified / 7 not_verified / 1 blocked / 27 untested。原报告的初查记录不被当前结果覆盖；新增编号、源码位置、FR/AC 关联与完成条件见[补充日志](../../修改日志/袁/2026-10-01-去重补充一期检查问题.md)。
+
+## 最新develop复核（10fc22f）
+
+当前证据为[develop-refresh-10fc22f.json](develop-refresh-10fc22f.json)。源码基线`10fc22feed4e7927151a28277c93e2e96a3c70d0`，复核过程见[10月2日修改日志](../../修改日志/袁/2026-10-02-develop进展复核与文档更新.md)。原test-summary/recheck-test-summary及两个probe结果未覆盖，不将历史失败沿用为当前状态。
+
+环境：Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品版本0.4.0。沿用已安装锁文件环境，未重装依赖；当前命令如下：
+
+```powershell
+uv run --no-sync python scripts/check_versions.py
+uv run --no-sync ruff check .
+uv run --no-sync mypy
+uv run --no-sync python scripts/generate_schemas.py
+git diff --exit-code -- src/aitest/contracts/schemas
+uv run --no-sync pytest --continue-on-collection-errors --junitxml=.git/document-refresh-20261001/pytest.xml
+npm.cmd --prefix src/aitest/resources/panel run build
+npm.cmd --prefix src/aitest/resources/panel test
+npm.cmd --prefix integrations/trae run package
+```
+
+| 检查 | 当前结果与可证明范围 |
+| --- | --- |
+| 版本/ruff/mypy | 通过；mypy132个分析文件，不作产品完成率 |
+| Schema生成一致性 | 7份生成物无Git差异 |
+| 全量pytest | **949 passed，0 failed/error/skipped**；终端23.96s，JUnit套件23.719s；旧收集错误和16失败已修，仍有未覆盖合同边界 |
+| 面板/Trae | build通过、静态Playwright1passed、候选VSIX6文件打包通过；未安装或实测真实Trae业务 |
+| 真实一期登记 | 0verified/7not_verified/1blocked/27untested，35项evidence.path均空；登记未改，旧前置描述不作当前源码结论 |
+
+原probes.run()/additional_probes.run()直接返回观察值，未运行会覆盖历史JSON的main入口。当前JSON分为原反例重放、补充反例重放、当前针对性观察三个对象；后者单独核对下列原脚本不能充分证明的情况：
+
+| 结果键 | 输入与当前观察 |
+| --- | --- |
+| A-SOURCE-01-current | pin原字节后修改源文件，再物化已冻结身份；verified=true，文本仍original |
+| A-COMMIT-01-post-publication | 临时目录中让records发布之后的commit.json写入失败；记录修订1、索引maintenance_required、事件0、活动标记false，恢复repaired但committed_sequences为空 |
+| A-QUERY-01-query-binding | 将一个项目分页游标交给另一个project_id查询，状态仍ok；只证明游标没有条件绑定 |
+| B-PREPARE-01-resolved-input-only | 保持请求/来源身份不变，仅改变execution_source.resolved_input_digest；same_payload=true，仍prepared且返回改变后的输入 |
+| B-PREPARE-02-current | 同意图改变来源修订，blocked/needs_reprepare；旧脚本成功路径缺键不作为修复证明 |
+| B-HASH-01-current-decision | 交换用例ID/修订配对，摘要不变但blocked/needs_reprepare，changed_inputs包含case_revisions；按DEC-005撤回旧“配对必须进摘要”要求 |
+
+当前C-INVALIDATION-01、C-DURABILITY-01及D-DECISION-01、D-ISSUE-01/02仍复现，见JSON。D-COVERAGE-01继续待核对，不累计为已确认缺陷。所有输入为合成材料，路径/故障发生在临时目录，无真实凭据或模型/业务/宿主调用；耐久性只观察fsync顺序，未执行掉电。
+
+JSON去掉JUnit机器名，仅保留摘要和观察值；完整JUnit及一次性收集脚本保留在本机`.git/document-refresh-20261001/`。该本机源码复核未验证后续文档提交/合并的远端CI、wheel/发布制品smoke、真实模型/Trae/业务核验和完整留存恢复，不修改产品代码、项目规范、接口状态或AC登记。
+
+当前四包检查只列未闭合任务，共29项（A9/B6/C7/D7）；已关闭/撤回条目不再进入清单，原编号不重排。A原修复日志迁入[历史归档](../../修改日志/袁/2026-10-02-A包历史修复记录归档.md)，原测试/反例JSON及本说明历史部分继续追溯当时事实。
