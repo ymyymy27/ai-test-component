@@ -202,7 +202,7 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 验证依据 |
 | --- | --- | --- | --- | --- |
-| [BC-001](已完成/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | `frozen` | 双方确认；功能夹具与词汇表契约测试。**2026-10-01 四项功能夹具的三个取值已变**（`intent_id` / `prepared_run_id` / `payload_hash`），字段语义未变，**C 需重新取用**，见该合同第 15 节 |
+| [BC-001](已完成/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | `frozen` | 双方确认；功能夹具与词汇表契约测试。**2026-10-01 四项功能夹具的三个取值已变**（`intent_id` / `prepared_run_id` / `payload_hash`），字段语义未变、不提升主版本；**B 侧实测 C 无需改代码**，属知悉性登记，见该合同第 15 节 |
 
 ### 10.3 最近裁定
 

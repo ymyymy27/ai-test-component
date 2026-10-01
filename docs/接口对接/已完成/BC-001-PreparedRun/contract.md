@@ -6,12 +6,12 @@ consumer: C
 contract_version: "0.8"
 contract_status: frozen
 provider_implementation: done
-consumer_implementation: partial
+consumer_implementation: done
 verification_status: fixture_passed
-last_verified_commit: 8d9883c
+last_verified_commit: null
 blockers: []
 next_owner: C
-next_action: 重新取用四项功能夹具的新 intent_id / prepared_run_id / payload_hash 取值并回写第 15 节
+next_action: 知悉第 15 节的功能夹具取值变更（B 侧实测 C 无需改代码）；确认后回写该节即可关闭
 ---
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
@@ -522,21 +522,32 @@ C 对 SourceSnapshot 分工无异议；该分工已由袁（项目负责人）�
    `selected_case_ids` 等**人工选择**。后果有两个方向：改了本轮选定用例却得到同一个摘要
    （被误判成幂等复用）；源码一变却先撞"同键异输入冲突"，而正确结论是"依据需重新准备"。
 
-### 15.3 兼容性判断（**B 侧结论，待 C 确认**）
+### 15.3 兼容性判断与影响范围（**B 侧实测 + 结论，待 C 确认**）
 
-- **字段名、类型、语义均未变**：`intent_id` / `prepared_run_id` / `payload_hash` 仍是
-  `min_length=1` 的字符串，仍是不透明标识与摘要；`PreparedRun` 的 `schema_version` 保持
-  `aitest.prepared-run/1.0`。
-- **C 侧预期影响**：只影响"取到什么值"，不影响"怎么解析"。
-  **但 C 若把旧夹具的字节或旧 `payload_hash` 落进了自己的测试与持久记录，需要重新取用。**
-  旧的 `intent_id` 在 B 侧不再产生，按旧值做恢复查询会查不到——这是**有意的**：旧标识没有命名空间。
-- **不提升主版本**：按 `docs/接口对接/README.md` 第 8 节，只有"删除、改名、改变枚举或错误语义"
-  才提升主版本；本次是取值变化。
+**字段层面**：字段名、类型、语义均未变——`intent_id` / `prepared_run_id` / `payload_hash`
+仍是 `min_length=1` 的不透明字符串，`PreparedRun.schema_version` 仍为 `aitest.prepared-run/1.0`。
+按 `docs/接口对接/README.md` 第 8 节，只有"删除、改名、改变枚举或错误语义"才提升主版本，
+**本次不提升**。
+
+**消费方影响（B 于 2026-10-01 在 `origin/develop` 上实测）**：
+
+| 实测项 | 结果 |
+| --- | --- |
+| 谁引用这四项功能夹具 | 全仓**只有一处**：`tests/contracts/test_prepared_run_functional_fixtures.py`（B 自己的合同测试）。**C 侧没有副本** |
+| C 的实现如何使用 `intent_id` | 当**不透明字符串**透传（`application/execution/facts.py` 拷进事实；`domain/execution/runs.py` 只声明类型），**无格式假设** |
+| C 的实现如何使用 `payload_hash` | **未使用** |
+| 全仓（含 `docs/`）是否残留旧取值字面量 | **无** |
+
+**因此：C 侧实测不需要改动任何代码、测试或夹具副本。** 本节是**知悉性**变更登记，
+不是返工请求。
+
+**唯一需要 C 留意的语义点**：旧 `intent_id` 在 B 侧**不再产生**；按旧值做恢复查询会查不到。
+这是**有意的**——旧标识没有项目/客户端命名空间，继续产生它会保留跨项目串记录的风险。
 
 ### 15.4 C 需要做的
 
-1. 重新取用四项功能夹具，核对 `intent_id` / `prepared_run_id` / `payload_hash` 三处新取值；
-2. 若 C 侧存有旧 `intent_id` 的持久记录或断言，一并更新；
-3. 确认后回写本节；B 侧按确认结果决定是否关闭。
+1. 知悉本节即可；**无需改代码**（依据见 15.3 的实测），除非 C 本地有未提交的夹具副本或写死的取值断言；
+2. 确认后回写本节一行，B 侧据此关闭。
 
-**未完成前，本合同的"双方接入已完成"结论对这四个取值不再成立**——字段契约仍然有效。
+**在本节被确认前，`last_verified_commit` 置空**：先前验证所对应的提交不再生成当前夹具字节。
+字段契约本身仍然有效。
