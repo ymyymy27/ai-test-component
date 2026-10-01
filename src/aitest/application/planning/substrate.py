@@ -77,6 +77,40 @@ class ConcurrentEditError(RuntimeError):
         )
 
 
+class SubstrateContractError(RuntimeError):
+    """注入的底座缺少 B 已声明的能力。
+
+    薄底座要的是**能力面**，不是某个具体类。注入的对象若缺方法，
+    必须在调用点明确报出缺哪一个，**不得**让 AttributeError 冒到调用方，
+    也不得用猜测的实现顶替（B 包 AI 规则第 3.9 节）。
+    """
+
+    def __init__(self, capability: str, *, owner: str, request: str) -> None:
+        self.capability = capability
+        self.owner = owner
+        self.request = request
+        super().__init__(
+            f"the injected substrate does not provide {capability!r}; "
+            f"owner={owner}; see {request}"
+        )
+
+
+class IndexMaintenanceRequired(RuntimeError):
+    """查询索引缺失或损坏：**必须显式维护，不得当成空结果**。
+
+    存储与恢复合同第 13 节："索引缺失须显式维护，查询不能偷偷全扫。"
+    返回空页会让调用方把"查不到"当成"没有"，因此这里抛错而不是返回空。
+    """
+
+    code = "INDEX_REBUILD_REQUIRED"
+
+
+class InvalidQueryCursor(ValueError):
+    """查询游标非法：**不得静默退回第一页**，否则会重复或跳过记录。"""
+
+    code = "INVALID_CURSOR"
+
+
 class PreparationConflictError(ConcurrentEditError):
     """同一准备请求键、不同输入摘要。
 
@@ -135,12 +169,15 @@ class RecordQuery:
     aggregate_kind: AggregateKind | None = None
     record_id: str | None = None
     limit: int = 50
+    cursor: str | None = None
 
     def __post_init__(self) -> None:
         if not self.project_id.strip():
             raise ValueError("query requires a project_id")
         if self.limit < 1:
             raise ValueError("query limit must be >= 1")
+        if self.cursor is not None and not self.cursor.strip():
+            raise ValueError("query cursor must not be blank when given")
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,12 +242,17 @@ class UnitOfWork(Protocol):
         payload: Mapping[str, object],
     ) -> StagedRevision: ...
 
-    def stage_preparation(
-        self,
-        *,
-        record: PreparationRecord,
-        payload: Mapping[str, object],
-    ) -> StagedRevision: ...
+    def stage_preparation(self, *, record: PreparationRecord) -> StagedRevision:
+        """登记准备记录，**与 `intent_id` 同一次提交**。
+
+        准备记录的**落盘形状由身份合同唯一决定**（`preparation_record_payload()`），
+        因此这里**不接受**调用方另给一份 payload——两处形状一旦分叉，
+        "重启后按三元组查回原意图"就会在某个字段上悄悄失效。
+
+        同一 `(project_id, client_id, prepare_request_id)`：
+        摘要相同返回原记录的修订；摘要不同抛 `PreparationConflictError`（**不覆盖**）。
+        """
+        ...
 
     def commit(self) -> CommitResult: ...
 
@@ -246,10 +288,13 @@ __all__ = [
     "CommitResult",
     "CommittedRecord",
     "ConcurrentEditError",
+    "IndexMaintenanceRequired",
+    "InvalidQueryCursor",
     "PreparationConflictError",
     "RecordPage",
     "RecordQuery",
     "RecordReader",
     "StagedRevision",
+    "SubstrateContractError",
     "UnitOfWork",
 ]

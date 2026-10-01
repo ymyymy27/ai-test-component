@@ -10,6 +10,7 @@ from aitest.application.planning.preparation import (
     InputRevisions,
     PreparationRecord,
     PreparationRequest,
+    preparation_intent_id,
 )
 from aitest.application.planning.substrate import (
     ConcurrentEditError,
@@ -34,6 +35,13 @@ def _revisions(**overrides: int) -> InputRevisions:
     return InputRevisions(**base)
 
 
+def _intent(prepare_request_id: str = "req-1") -> str:
+    """意图标识由身份合同派生（不再是把请求号拼个前缀）。"""
+    return preparation_intent_id(
+        project_id="p1", client_id="c1", prepare_request_id=prepare_request_id
+    )
+
+
 def _preparation(
     *, prepare_request_id: str = "req-1", digest: str = "sha256:a"
 ) -> PreparationRecord:
@@ -45,7 +53,7 @@ def _preparation(
             payload_hash=digest,
             input_revisions=_revisions(),
         ),
-        intent_id=f"intent:{prepare_request_id}",
+        intent_id=_intent(prepare_request_id),
         created_at_commit="commit-1",
     )
 
@@ -164,7 +172,7 @@ def test_preparation_is_registered_once_and_reused_for_the_same_digest() -> None
     unit_of_work, reader, _ = _pair()
     unit_of_work.open("p1")
     unit_of_work.stage_preparation(
-        record=_preparation(), payload={"prepare_request_id": "req-1"}
+        record=_preparation()
     )
     unit_of_work.commit()
 
@@ -172,15 +180,15 @@ def test_preparation_is_registered_once_and_reused_for_the_same_digest() -> None
         project_id="p1", client_id="c1", prepare_request_id="req-1"
     )
     assert stored is not None
-    assert stored.intent_id == "intent:req-1"
+    assert stored.intent_id == _intent()
     assert (
-        reader.find_preparation_by_intent(intent_id="intent:req-1") is not None
+        reader.find_preparation_by_intent(intent_id=_intent()) is not None
     )
 
     # 同键同摘要：复用原修订，不新建。
     unit_of_work.open("p1")
     reused = unit_of_work.stage_preparation(
-        record=_preparation(), payload={"prepare_request_id": "req-1"}
+        record=_preparation()
     )
     assert reused.revision == 1
 
@@ -189,7 +197,7 @@ def test_same_key_with_a_different_digest_conflicts() -> None:
     unit_of_work, _, _ = _pair()
     unit_of_work.open("p1")
     unit_of_work.stage_preparation(
-        record=_preparation(digest="sha256:a"), payload={"prepare_request_id": "req-1"}
+        record=_preparation(digest="sha256:a")
     )
     unit_of_work.commit()
 
@@ -197,9 +205,8 @@ def test_same_key_with_a_different_digest_conflicts() -> None:
     with pytest.raises(PreparationConflictError) as error:
         unit_of_work.stage_preparation(
             record=_preparation(digest="sha256:b"),
-            payload={"prepare_request_id": "req-1"},
         )
-    assert error.value.existing_intent_id == "intent:req-1"
+    assert error.value.existing_intent_id == _intent()
     assert error.value.existing_payload_hash == "sha256:a"
 
 
@@ -207,7 +214,7 @@ def test_conflicting_preparation_does_not_overwrite() -> None:
     unit_of_work, reader, _ = _pair()
     unit_of_work.open("p1")
     unit_of_work.stage_preparation(
-        record=_preparation(digest="sha256:a"), payload={"prepare_request_id": "req-1"}
+        record=_preparation(digest="sha256:a")
     )
     unit_of_work.commit()
 
@@ -215,7 +222,6 @@ def test_conflicting_preparation_does_not_overwrite() -> None:
     with pytest.raises(PreparationConflictError):
         unit_of_work.stage_preparation(
             record=_preparation(digest="sha256:b"),
-            payload={"prepare_request_id": "req-1"},
         )
 
     stored = reader.find_preparation(
@@ -231,7 +237,6 @@ def test_identical_preparation_under_a_different_request_id_is_a_new_record() ->
         unit_of_work.open("p1")
         unit_of_work.stage_preparation(
             record=_preparation(prepare_request_id=request_id),
-            payload={"prepare_request_id": request_id},
         )
         unit_of_work.commit()
 
@@ -306,7 +311,7 @@ def test_rollback_discards_a_staged_preparation_record() -> None:
     unit_of_work, reader, _ = _pair()
     unit_of_work.open("p1")
     unit_of_work.stage_preparation(
-        record=_preparation(), payload={"prepare_request_id": "req-1"}
+        record=_preparation()
     )
     unit_of_work.rollback()
 
