@@ -254,6 +254,12 @@ class Module:
     implementation_status: ImplementationStatus = ImplementationStatus.UNIMPLEMENTED
     owner: str | None = None
     revision: int = 1
+    #: 该模块的源码范围（相对项目根的路径或路径前缀）。
+    #:
+    #: 用于把"实际变化的文件"映射到模块，进而推导回归影响面（`DEC-006` 裁定为甲）。
+    #: **空表示"未登记源码范围"**，不得解释成"该模块影响所有文件"，
+    #: 也不得因此静默跳过该模块的回归——两种都会伪造完整的影响面。
+    source_paths: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         _require_text(self.module_id, "module_id")
@@ -267,6 +273,9 @@ class Module:
         _require_items(self.outputs, "outputs")
         if self.owner is not None:
             _require_text(self.owner, "owner")
+        _require_items(self.source_paths, "source_paths")
+        if len(set(self.source_paths)) != len(self.source_paths):
+            raise ValueError("module source_paths must not repeat an entry")
 
 
 @dataclass(frozen=True, slots=True)

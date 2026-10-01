@@ -1,4 +1,4 @@
-"""项目与绑定的 payload 序列化：不适用键真正省略。
+﻿"""项目与绑定的 payload 序列化：不适用键真正省略。
 
 `LocalProjectBinding` 的领域不变量（`aitest.domain.project.context`）规定：
 
@@ -160,6 +160,9 @@ def _module_to_payload(module: Module) -> dict[str, Any]:
     }
     if module.owner is not None:
         payload["owner"] = module.owner
+    if module.source_paths:
+        # 未登记源码范围时**省略该键**，不写空列表——留空会被下游读成"影响所有文件"。
+        payload["source_paths"] = list(module.source_paths)
     return payload
 
 
@@ -209,6 +212,7 @@ def _module_from_payload(raw: object) -> Module:
         implementation_status=status,
         owner=owner,
         revision=revision,
+        source_paths=_text_list("source_paths"),
     )
 
 
