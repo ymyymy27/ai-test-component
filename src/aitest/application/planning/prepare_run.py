@@ -1,4 +1,4 @@
-"""`prepare_run` 用例：把业务输入编排成不可变的 `PreparedRun`。
+﻿"""`prepare_run` 用例：把业务输入编排成不可变的 `PreparedRun`。
 
 严格对应一期架构文档《01-项目与计划》第 8 节「发布、准备与启动的调用次序」与
 第 11 节「准备请求与业务身份合同」。
@@ -71,6 +71,7 @@ _INVALIDATION_DESCRIPTIONS: Mapping[str, str] = {
     "rules_revision": "rules republished",
     "template_revision": "template version changed",
     "scope_revision": "acceptance scope changed",
+    "case_revisions": "frozen case revisions changed",
 }
 
 _STATUS_BLOCKED = PreparedRunStatusFact.BLOCKED
@@ -304,6 +305,9 @@ def prepare_run(
             prepare_request_id=inputs.prepare_request_id,
             payload_hash=digest,
             input_revisions=inputs.input_revisions,
+                observed_case_revisions=tuple(
+                    (ref.case_id, ref.revision) for ref in inputs.case_revisions
+                ),
         ),
         record,
     )
@@ -362,6 +366,9 @@ def prepare_run(
                 prepare_request_id=inputs.prepare_request_id,
                 payload_hash=digest,
                 input_revisions=inputs.input_revisions,
+                observed_case_revisions=tuple(
+                    (ref.case_id, ref.revision) for ref in inputs.case_revisions
+                ),
             ),
             intent_id=intent_id,
             # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。
