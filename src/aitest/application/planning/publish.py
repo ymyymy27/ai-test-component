@@ -148,15 +148,16 @@ def publish_rules(
         "steps": list(draft.steps),
         "evidence_requirements": list(draft.evidence_requirements),
         "unknown_extension_fields": list(draft.unknown_extension_fields),
+        "status": "published",
     }
     unit_of_work.open(project_id)
     unit_of_work.stage_record(
-        aggregate_kind="rule_draft",
+        aggregate_kind="rule_version",
         record_id=draft.rule_id,
         expected_revision=_current_revision(
             reader,
             project_id=project_id,
-            aggregate_kind="rule_draft",
+            aggregate_kind="rule_version",
             record_id=draft.rule_id,
         ),
         payload=payload,
