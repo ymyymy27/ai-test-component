@@ -13,6 +13,7 @@ from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 from unittest.mock import patch
 
 from aitest.application.execution.recovery import invalidate_downstream_attempts
@@ -126,7 +127,9 @@ def run() -> dict[str, object]:
         )
         original_write = atomic.write_json
 
-        def fail_records(path: Path, value: dict, **kwargs: object) -> None:
+        def fail_records(
+            path: Path, value: dict[str, Any], **kwargs: Any
+        ) -> None:
             if path.name == "records.json":
                 raise OSError("synthetic publication failure")
             original_write(path, value, **kwargs)
@@ -220,6 +223,7 @@ def run() -> dict[str, object]:
         response = api.dispatch(
             Command(request_id="audit-api", action="query"), Session("audit", EntryKind.HUMAN_UI)
         )
+        assert response.result is not None
         results["A-SECRET-02"] = {
             "synthetic_secret_in_response": response.result["token"] == "AUDIT_FAKE_SECRET"
         }
@@ -291,6 +295,7 @@ def run() -> dict[str, object]:
             noncritical_gaps=(ReviewGap(ReviewGapCode.NONCRITICAL_UNKNOWN, "synthetic local gap"),),
         )
         decision = evaluate_review(facts)
+        assert decision.evidence_grade is not None
         results["D-DECISION-01"] = {
             "outcome_with_all_required_passed": decision.business_outcome.value,
             "grade": decision.evidence_grade.value,

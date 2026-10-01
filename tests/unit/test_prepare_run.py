@@ -164,7 +164,7 @@ def _store_existing(
     """把一份 `PreparedRun` 当作已存记录写入底座，供幂等分支复读。"""
     unit_of_work.open(prepared.project_id)
     unit_of_work.stage_record(
-        aggregate_kind="prepared_run",  # type: ignore[arg-type]
+        aggregate_kind="prepared_run",
         record_id=prepared.prepared_run_id,
         expected_revision=None,
         payload=prepared.model_dump(mode="json"),

@@ -161,7 +161,7 @@ def test_affected_modules_come_from_the_stored_graph_revision() -> None:
         created_at_commit="commit-0",
         modules=_modules(),
     )
-    save_dependency_graph(_graph(), unit_of_work=unit_of_work)  # type: ignore[arg-type]
+    save_dependency_graph(_graph(), unit_of_work=unit_of_work)
 
     assert affected_modules_from_store(
         ["module-store"], project_id=PROJECT_ID, reader=reader, graph_revision=1
@@ -173,7 +173,7 @@ def test_a_missing_graph_revision_is_explicit() -> None:
     store = MemoryStore()
     unit_of_work = MemoryUnitOfWork(store)
     reader = MemoryReader(store)
-    save_dependency_graph(_graph(), unit_of_work=unit_of_work)  # type: ignore[arg-type]
+    save_dependency_graph(_graph(), unit_of_work=unit_of_work)
 
     with pytest.raises(ValueError, match="unknown revision"):
         affected_modules_from_store(

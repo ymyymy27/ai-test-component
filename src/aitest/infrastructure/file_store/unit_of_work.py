@@ -53,11 +53,13 @@ class FileUnitOfWork:
             self.request_id = request_id
             self.intent_id = intent_id
             self.open(project_id)
-            return {
+            result: dict[str, object] = {
                 "request_id": request_id,
                 "state": "active",
-                "intent_id": intent_id,
             }
+            if intent_id is not None:
+                result["intent_id"] = intent_id
+            return result
         except BaseException:
             self._lock_context.__exit__(None, None, None)
             self._lock_context = None
@@ -135,7 +137,13 @@ class FileUnitOfWork:
         self.request_id = None
         self.intent_id = None
         self._release()
-        return {"request_id": rid, "state": "rolled_back", "intent_id": iid}
+        rollback_result: dict[str, object] = {
+            "request_id": rid,
+            "state": "rolled_back",
+        }
+        if iid is not None:
+            rollback_result["intent_id"] = iid
+        return rollback_result
 
     def recover(self, workspace_id: str) -> dict[str, str]:
         self.workspace.validate(workspace_id)

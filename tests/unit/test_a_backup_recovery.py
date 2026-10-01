@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -82,7 +83,7 @@ def test_recover_workspace_function(workspace: Path) -> None:
 
 def test_orchestrator_inspect(workspace: Path) -> None:
     orchestrator = RecoveryOrchestrator(workspace, instance_id="instance-1")
-    state = orchestrator.inspect()
+    state: dict[str, Any] = orchestrator.inspect()
     assert state["integrity_ok"] is True
     assert state["active_marker"] is None
     assert tuple(state["committed_sequences"]) == (1, 2)

@@ -216,7 +216,7 @@ def test_environment_omits_unset_optional_keys() -> None:
     ).environment
     assert environment is not None
     save_environment(
-        environment, project_id=PROJECT_ID, unit_of_work=unit_of_work  # type: ignore[arg-type]
+        environment, project_id=PROJECT_ID, unit_of_work=unit_of_work
     )
 
     record = reader.read(

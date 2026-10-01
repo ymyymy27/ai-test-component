@@ -72,6 +72,7 @@ from aitest.contracts.prepared_run import (
     FrozenCaseStep,
     GapEntry,
     PlanRevisionRef,
+    PreparedRun,
     PreparedRunStatusFact,
     RuleVersionRef,
     RunDriverFact,
@@ -241,7 +242,7 @@ def _inputs(**overrides: object) -> PreparationInputs:
     return PreparationInputs(**base)  # type: ignore[arg-type]
 
 
-def _prepare(stack: _Stack, **overrides: object):  # noqa: ANN202 - 测试内部辅助
+def _prepare(stack: _Stack, **overrides: object) -> PreparedRun:
     return prepare_run(
         _inputs(**overrides),
         unit_of_work=stack.unit_of_work,

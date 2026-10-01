@@ -7,6 +7,7 @@ constructed silently.
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -23,8 +24,11 @@ from aitest.contracts.prepared_run import (
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "prepared_run"
 
 
-def load(name: str) -> dict:
-    return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+def load(name: str) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8")),
+    )
 
 
 @pytest.mark.parametrize("name", ["success", "failure", "unknown"])

@@ -73,6 +73,7 @@ def test_rules_are_published_with_the_commit_sequence() -> None:
     result = publish_rules(_draft(), project_id="p1", unit_of_work=unit_of_work, reader=reader)
     assert result.blocked_by == ()
     assert result.value is not None
+    assert isinstance(result.value, RuleVersion)
     assert result.value.confirmation_id == "commit-1"
     assert result.value.digest.startswith("sha256:")
     assert result.value.rule_id == "rule-1"
@@ -370,6 +371,7 @@ def test_publishing_an_already_published_plan_is_refused() -> None:
         reader=reader,
     ).value
     assert published is not None
+    assert isinstance(published, Plan)
     again = publish_plan(
         published,
         project_id="p1",

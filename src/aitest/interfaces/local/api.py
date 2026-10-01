@@ -1,6 +1,7 @@
 """Local protocol adapter: routing, lifecycle guards and safe projections."""
 
 import json
+import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from pydantic import JsonValue
 from aitest.application.connectivity import retry_delay
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.errors import ErrorDTO
+from aitest.contracts.redaction import redact_structure, scrub_secret_text
 from aitest.contracts.views import Response
 
 Handler = Callable[[Command], Mapping[str, object] | dict[str, object]]
@@ -45,6 +47,7 @@ class LocalAPI:
         credential_projector: (
             Callable[[Mapping[str, object]], Mapping[str, object]] | None
         ) = None,
+        sleeper: Callable[[float], None] | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -61,6 +64,13 @@ class LocalAPI:
         self.connector = connector
         self.projector = projector
         self.credential_projector = credential_projector
+        self._sleeper = sleeper or time.sleep
+        #: 持久统一连接状态：多次 test_connection 共享同一份结论。
+        self.connection_state: dict[str, object] = {
+            "connected": False,
+            "attempts": 0,
+            "last_error": None,
+        }
         self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = (
             OrderedDict()
         )
@@ -98,9 +108,9 @@ class LocalAPI:
         elif command.action in self.handlers:
             try:
                 result = self.handlers[command.action](command)
-                projector = self.credential_projector or self.projector
-                if projector is not None:
-                    result = projector(result)
+                # 统一出口：无论是否注入投影器，handler 正常结果都必须经过
+                # 凭据脱敏，不能依赖上层逐个 handler 自觉过滤。
+                result = self.safe_projection(result)
                 response = Response(
                     request_id=command.request_id,
                     instance_id=self.instance_id,
@@ -192,47 +202,52 @@ class LocalAPI:
         projector = self.credential_projector or self.projector
         if projector is not None:
             return projector(value)
-        forbidden = {
-            "password",
-            "token",
-            "secret",
-            "api_key",
-            "access_token",
-        }
-        return {
-            key: value[key]
-            for key in value
-            if key.lower() not in forbidden
-        }
+        redacted, _changed = redact_structure(value)
+        return cast(Mapping[str, object], redacted)
 
     def _connect(self, command: Command) -> Response:
         assert self.connector is not None
-        attempts = 0
+        retries_completed = 0
         while True:
+            error_message: str | None = None
+            result: object = None
             try:
                 result = self.connector()
+            except Exception as exc:  # 连接探测允许归一失败，不允许抛出协议外
+                error_message = self._safe_message(exc)
+            # 管道/端点未就绪时连接器返回 None/falsy，同样属于未连接，
+            # 必须按重试策略继续，而不是直接报告 connected=False 成功返回。
+            connected = bool(result)
+            self.connection_state = {
+                "connected": connected,
+                "attempts": retries_completed + 1,
+                "last_error": None if connected else (error_message or "目标未就绪"),
+            }
+            if connected:
                 return Response(
                     request_id=command.request_id,
                     instance_id=self.instance_id,
                     workspace_id=self.workspace_id,
                     result={
-                        "connected": bool(result),
-                        "attempts": attempts + 1,
+                        "connected": True,
+                        "attempts": retries_completed + 1,
                     },
                 )
-            except Exception as exc:
-                delay = retry_delay(
-                    attempts, read_only=True, idempotency_proven=True
+            delay = retry_delay(
+                retries_completed, read_only=True, idempotency_proven=True
+            )
+            if delay is None:
+                return self._error(
+                    command,
+                    "CONNECTIVITY_FAILED",
+                    error_message or "连接目标持续未就绪",
                 )
-                if delay is None:
-                    return self._error(
-                        command,
-                        "CONNECTIVITY_FAILED",
-                        self._safe_message(exc),
-                    )
-                attempts += 1
+            # 按应用层统一重试节奏退避；原实现拿到 delay 却空转，是忙等缺陷。
+            self._sleeper(delay)
+            retries_completed += 1
 
     @staticmethod
     def _safe_message(exc: Exception) -> str:
         text = str(exc).replace("\r", " ").replace("\n", " ")
+        text, _changed = scrub_secret_text(text)
         return text[:500] or exc.__class__.__name__

@@ -7,6 +7,7 @@ already covered by `test_templates.py`.
 
 import json
 from importlib.resources import files
+from typing import Any, cast
 
 import pytest
 
@@ -31,16 +32,16 @@ BASELINE_ITEM_IDS = {
 }
 
 
-def pack(template_id: str) -> dict:
+def pack(template_id: str) -> dict[str, Any]:
     path = files("aitest.resources").joinpath(f"templates/{template_id}/1.0.0.json")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def all_text(template_id: str) -> str:
     return json.dumps(pack(template_id), ensure_ascii=False)
 
 
-def item(pack_data: dict, item_id: str) -> dict:
+def item(pack_data: dict[str, Any], item_id: str) -> dict[str, Any]:
     return next(i for i in pack_data["items"] if i["item_id"] == item_id)
 
 
@@ -167,7 +168,7 @@ def test_released_status_does_not_authorize_execution(template_id: str) -> None:
     from aitest.contracts.templates import TemplateImplementationStatus
 
     assert pack(template_id)["implementation_status"] == "released"
-    assert TemplateImplementationStatus.RELEASED == "released"
+    assert TemplateImplementationStatus.RELEASED.value == "released"
     assert {s.value for s in TemplateImplementationStatus} == {
         "draft",
         "released",

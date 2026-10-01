@@ -53,11 +53,11 @@ class FakeExecutionPort:
     def collect(
         self,
         handle: ExecutionHandle,
-        cursor: OutputCursor | None = None,
+        cursors: tuple[OutputCursor, ...] | None = None,
     ) -> ExecutionCollectionResult:
         return ExecutionCollectionResult(
             attempt_id="attempt-1",
-            output_cursors=(cursor,) if cursor else (),
+            output_cursors=cursors or (),
             capture_completeness=CaptureCompleteness.PARTIAL,
         )
 

@@ -41,7 +41,7 @@ artifacts = ["src/aitest/resources/panel/dist/*.js"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "src"]
 
 [tool.ruff]
 target-version = "py313"

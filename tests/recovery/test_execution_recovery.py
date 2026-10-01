@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import NoReturn
 
 from aitest.application.execution.recovery import (
     RecoveryAction,
@@ -15,6 +16,8 @@ from aitest.domain.execution.runs import (
     ExecutionHandle,
     ExecutionInspectionResult,
     ExecutionInspectionState,
+    ExecutionRequest,
+    OutputCursor,
     OutputStreamName,
     PlanRevisionRef,
     RecoveryCheckpoint,
@@ -209,7 +212,7 @@ def test_same_plan_revision_has_no_false_invalidation() -> None:
 
 
 class _LostPort:
-    def start(self, request: object) -> object:
+    def start(self, request: ExecutionRequest) -> NoReturn:
         raise AssertionError("start must not be called during recovery")
 
     def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
@@ -221,10 +224,14 @@ class _LostPort:
             unknown_reason="process_lost",
         )
 
-    def collect(self, handle: object, cursors: object = None) -> object:
+    def collect(
+        self,
+        handle: ExecutionHandle,
+        cursors: tuple[OutputCursor, ...] | None = None,
+    ) -> NoReturn:
         raise AssertionError("collect must not be called for a lost process")
 
-    def request_stop(self, handle: object) -> object:
+    def request_stop(self, handle: ExecutionHandle) -> NoReturn:
         raise AssertionError("stop must not be called for a lost process")
 
 

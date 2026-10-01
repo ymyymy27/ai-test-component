@@ -48,6 +48,12 @@ from aitest.domain.planning.plans import (
     validate_plan_publication,
 )
 from aitest.domain.planning.plans import (
+    CaseLink as DomainCaseLink,
+)
+from aitest.domain.planning.plans import (
+    CaseRevisionRef as DomainCaseRevisionRef,
+)
+from aitest.domain.planning.plans import (
     RuleRevisionRef as DomainRuleRevisionRef,
 )
 from aitest.domain.planning.plans import (
@@ -112,7 +118,7 @@ def _build_case() -> Case:
         steps=("create a ticket", "read the ticket back independently"),
         expected="the persisted ticket matches the submission",
         verification_method="registered pytest entry",
-        links=CaseLinks(
+        links=DomainCaseLink(
             acceptance_item_ids=frozenset({"ai-1"}),
             module_ids=frozenset({"module-1"}),
             environment_ids=frozenset({"env-1"}),
@@ -143,7 +149,9 @@ def _build_plan(case: Case) -> Plan:
         revision=1,
         scope=scope,
         case_revisions=(
-            CaseRevisionRef(case_id=case.case_id, revision=case.revision, digest="sha256:case-1"),
+            DomainCaseRevisionRef(
+                case_id=case.case_id, revision=case.revision, digest="sha256:case-1"
+            ),
         ),
         rule_revisions=(
             DomainRuleRevisionRef(rule_id="rule-1", revision=1, digest="sha256:rule-1"),

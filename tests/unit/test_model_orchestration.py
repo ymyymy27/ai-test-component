@@ -21,6 +21,7 @@ from aitest.application.planning.model_ports import (
     CredentialResolution,
     CredentialStatus,
     ModelCall,
+    ModelCaller,
     ModelCallResult,
     ModelCallStatus,
     Projection,
@@ -132,7 +133,7 @@ def _request(
     reader: MemoryReader | None = None,
     projector: MemoryProjector | None = None,
     credentials: MemoryCredentialResolver | None = None,
-    caller: MemoryModelCaller | None = None,
+    caller: ModelCaller | None = None,
     source_revision: int = 1,
     template_ref: TemplateRef | None = None,
 ) -> OutboundOutcome:
@@ -489,7 +490,9 @@ def test_a_failed_call_does_not_echo_the_provider_detail() -> None:
     )
     assert marker not in repr(record.payload)
     # 细节只留摘要与长度，供与供应商日志对账
-    assert record.payload["error_detail_digest"].startswith("sha256:")
+    detail_digest = record.payload["error_detail_digest"]
+    assert isinstance(detail_digest, str)
+    assert detail_digest.startswith("sha256:")
     assert record.payload["error_detail_chars"] == len(marker)
 
 

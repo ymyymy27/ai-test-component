@@ -179,9 +179,27 @@ def test_validate_peer_uses_check_peer_identity(
     calls: list[dict[str, object]] = []
     original = pipe_mod.check_peer_identity
 
-    def spy(**kwargs: object) -> None:
-        calls.append(kwargs)
-        original(**kwargs)
+    def spy(
+        *,
+        client_session_id: int,
+        expected_session_id: int,
+        client_user_sid: str,
+        expected_user_sid: str,
+    ) -> None:
+        calls.append(
+            {
+                "client_session_id": client_session_id,
+                "expected_session_id": expected_session_id,
+                "client_user_sid": client_user_sid,
+                "expected_user_sid": expected_user_sid,
+            }
+        )
+        original(
+            client_session_id=client_session_id,
+            expected_session_id=expected_session_id,
+            client_user_sid=client_user_sid,
+            expected_user_sid=expected_user_sid,
+        )
 
     monkeypatch.setattr(pipe_mod, "check_peer_identity", spy)
     # 不实际开服务端；只验证函数被正确调用路径不可达，这里改为

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 
 from aitest.application.planning.model_ports import (
+    Projection,
     ProjectionStatus,
 )
 from aitest.domain.planning.model_outbound import MaterialKind
@@ -15,7 +16,9 @@ from aitest.infrastructure.projections import (
 )
 
 
-def _project(material: dict[MaterialKind, str], *, snippets: bool = False):
+def _project(
+    material: dict[MaterialKind, str], *, snippets: bool = False
+) -> Projection:
     return SafeMaterialProjector().project(
         material=material, source_snippets_enabled=snippets
     )

@@ -48,8 +48,12 @@ from aitest.domain.project.context import (
     BindingForm,
     Dependency,
     DriveKind,
+    EnvironmentRef,
     IsolationMode,
+    LocalProject,
+    LocalProjectBinding,
     Module,
+    ModuleDependencyGraph,
     SecretRef,
 )
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
@@ -105,7 +109,7 @@ def _modules() -> tuple[Module, ...]:
     )
 
 
-def _project():  # noqa: ANN202 - 测试内部构造
+def _project() -> LocalProject:
     return create_project(
         project_id=PROJECT_ID,
         workspace_id=WORKSPACE_ID,
@@ -116,7 +120,7 @@ def _project():  # noqa: ANN202 - 测试内部构造
     )
 
 
-def _binding():  # noqa: ANN202 - 测试内部构造
+def _binding() -> LocalProjectBinding:
     result = create_binding(
         BindingInputs(
             binding_id="binding-1",
@@ -136,7 +140,7 @@ def _binding():  # noqa: ANN202 - 测试内部构造
     return result.binding
 
 
-def _environment():  # noqa: ANN202 - 测试内部构造
+def _environment() -> EnvironmentRef:
     result = create_environment(
         EnvironmentInputs(
             environment_id="env-local",
@@ -150,7 +154,7 @@ def _environment():  # noqa: ANN202 - 测试内部构造
     return result.environment
 
 
-def _graph():  # noqa: ANN202 - 测试内部构造
+def _graph() -> ModuleDependencyGraph:
     return register_graph(
         project_id=PROJECT_ID,
         modules=_modules(),
@@ -173,12 +177,12 @@ def test_context_objects_survive_a_restart_on_real_storage(
     environment = _environment()
     graph = _graph()
 
-    save_project(project, unit_of_work=first.unit_of_work)  # type: ignore[arg-type]
-    save_binding(binding, unit_of_work=first.unit_of_work)  # type: ignore[arg-type]
+    save_project(project, unit_of_work=first.unit_of_work)
+    save_binding(binding, unit_of_work=first.unit_of_work)
     save_environment(
-        environment, project_id=PROJECT_ID, unit_of_work=first.unit_of_work  # type: ignore[arg-type]
+        environment, project_id=PROJECT_ID, unit_of_work=first.unit_of_work
     )
-    save_dependency_graph(graph, unit_of_work=first.unit_of_work)  # type: ignore[arg-type]
+    save_dependency_graph(graph, unit_of_work=first.unit_of_work)
 
     restarted = _start(workspace_root)
     assert load_project(restarted.reader, project_id=PROJECT_ID, revision=1) == project
@@ -204,7 +208,7 @@ def test_a_new_revision_survives_a_restart(workspace_root: Path) -> None:
     """追加修订后重启：新旧两个修订都在，历史不被覆盖。"""
     first = _start(workspace_root)
     project = _project()
-    save_project(project, unit_of_work=first.unit_of_work)  # type: ignore[arg-type]
+    save_project(project, unit_of_work=first.unit_of_work)
 
     revised = create_project(
         project_id=PROJECT_ID,
@@ -216,7 +220,7 @@ def test_a_new_revision_survives_a_restart(workspace_root: Path) -> None:
         modules=_modules(),
     )
     save_project(
-        revised, unit_of_work=first.unit_of_work, expected_revision=1  # type: ignore[arg-type]
+        revised, unit_of_work=first.unit_of_work, expected_revision=1
     )
 
     restarted = _start(workspace_root)
@@ -235,9 +239,9 @@ def test_real_storage_records_are_queryable_by_project(workspace_root: Path) -> 
     from aitest.application.planning.substrate import RecordQuery
 
     stack = _start(workspace_root)
-    save_project(_project(), unit_of_work=stack.unit_of_work)  # type: ignore[arg-type]
+    save_project(_project(), unit_of_work=stack.unit_of_work)
     save_environment(
-        _environment(), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work  # type: ignore[arg-type]
+        _environment(), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work
     )
 
     for kind, expected in (("project", 1), ("environment", 1)):
@@ -252,9 +256,9 @@ def test_real_storage_rejects_a_stale_expected_revision(workspace_root: Path) ->
     from aitest.application.planning.substrate import ConcurrentEditError
 
     stack = _start(workspace_root)
-    save_project(_project(), unit_of_work=stack.unit_of_work)  # type: ignore[arg-type]
+    save_project(_project(), unit_of_work=stack.unit_of_work)
 
     with pytest.raises(ConcurrentEditError) as error:
-        save_project(_project(), unit_of_work=stack.unit_of_work)  # type: ignore[arg-type]
+        save_project(_project(), unit_of_work=stack.unit_of_work)
     assert error.value.current_revision == 1
     assert error.value.expected_revision is None

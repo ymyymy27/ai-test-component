@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from aitest.domain.planning.rules import RuleRevisionRef
+from aitest.domain.planning.rules import RuleRevisionRef as RuleRevisionRef
 
 
 class RunTier(StrEnum):

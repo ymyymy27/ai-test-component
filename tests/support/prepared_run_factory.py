@@ -48,6 +48,7 @@ from aitest.contracts.prepared_run import (
     ExecutionSourceBinding,
     FrozenCase,
     FrozenCaseStep,
+    GapEntry,
     PlanRevisionRef,
     PreparedRun,
     PreparedRunStatusFact,
@@ -261,7 +262,7 @@ def _frozen_case(case: Case) -> FrozenCase:
     return FrozenCase(
         case_id=case.case_id,
         revision=case.revision,
-        layer=case.layer.value,  # type: ignore[arg-type]
+        layer=case.layer.value,
         required=True,
         independent_verification=case.independent_verification or "",
         mock_scope=case.mock_scope,
@@ -269,7 +270,7 @@ def _frozen_case(case: Case) -> FrozenCase:
         steps=tuple(
             FrozenCaseStep(
                 step_id=f"step-{index}",
-                layer=case.layer.value,  # type: ignore[arg-type]
+                layer=case.layer.value,
                 objective=step,
                 expected=case.expected,
             )
@@ -407,7 +408,16 @@ def _prepare_inputs(
         ),
         frozen_cases=tuple(_frozen_case(case) for case in cases),
         assertion_bases=tuple(_assertion_basis_entry(case) for case in cases),
-        context_gaps=context_gaps,
+        context_gaps=tuple(
+            GapEntry(
+                gap_id=f"gap-{index}",
+                kind=gap.kind,
+                subject=gap.subject,
+                blocking=gap.blocking,
+                detail=gap.detail,
+            )
+            for index, gap in enumerate(context_gaps, start=1)
+        ),
         git_base_commit=BASE_COMMIT if is_git else None,
         git_diff_digest="sha256:git-diff-1" if is_git else None,
         plain_manifest_digest=plain_manifest_digest,

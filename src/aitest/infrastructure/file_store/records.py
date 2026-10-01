@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -14,6 +15,11 @@ from aitest.contracts.queries import QuerySpec
 from . import atomic
 from .events import FileEventJournal
 from .index import FileQueryIndex
+
+#: 待提交业务记录：(聚合类型, 记录 ID, 期望修订（None 表示新建）, 业务载荷)。
+#: 使用 Sequence + Mapping 而非 list/dict，保证 list 不变性与 dict→Mapping
+#: 的协变：调用方传 ``list[tuple[..., dict[str, object]]]`` 同样合法。
+PendingRecordEntry = tuple[str, str, int | None, Mapping[str, object]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +97,7 @@ class FileRecordRepository:
 
     def append_batch(
         self,
-        pending: list[tuple[str, str, int | None, Mapping[str, object]]],
+        pending: Sequence[PendingRecordEntry],
     ) -> list[tuple[str, str, int]]:
         data = self._load()
         created: list[tuple[str, str, int]] = []
@@ -236,9 +242,33 @@ class FileRecordRepository:
         if path.exists():
             path.unlink()
 
+    @staticmethod
+    def _intent_fingerprint(
+        pending: Sequence[PendingRecordEntry],
+        project_id: str,
+    ) -> str:
+        """Business-input fingerprint for an intent; resulting revisions excluded.
+
+        Same intent retries carry the same business inputs (kind/record/payload)
+        and must return the original result even though expected revisions differ.
+        """
+        body = [
+            {
+                "aggregate_kind": kind,
+                "record_id": record_id,
+                "payload": dict(payload),
+            }
+            for kind, record_id, _expected_revision, payload in pending
+        ]
+        return json.dumps(
+            {"project_id": project_id, "records": body},
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+
     def commit_transaction(
         self,
-        pending: list[tuple[str, str, int | None, Mapping[str, object]]],
+        pending: Sequence[PendingRecordEntry],
         *,
         request_id: str,
         intent_id: str | None,
@@ -262,6 +292,22 @@ class FileRecordRepository:
         - 未注入时保持旧路径写 ``events.json``（迁移过渡期使用）。
         """
         data = self._load()
+
+        # 持久意图幂等：同意图 + 同业务输入（跨入口/重启）直接返回原提交结果，
+        # 不生成第二个修订；业务输入不同则意图冲突。重跑须建立新意图。
+        if intent_id is not None:
+            stored_intent = data.get("intents", {}).get(intent_id)
+            if isinstance(stored_intent, dict):
+                fingerprint = self._intent_fingerprint(pending, project_id)
+                if stored_intent.get("fingerprint") != fingerprint:
+                    raise ValueError("intent conflict")
+                original_created = [
+                    (str(item[0]), str(item[1]), int(item[2]))
+                    for item in stored_intent.get("created", [])
+                    if isinstance(item, (list, tuple)) and len(item) == 3
+                ]
+                return original_created, int(stored_intent["commit_sequence"])
+
         current_index_rows = self._load_index_rows()
         commits = self._load_commits()
         events = self._load_events()
@@ -305,14 +351,10 @@ class FileRecordRepository:
                 }
             )
         if intent_id is not None:
-            fingerprint = json.dumps(
-                {"created": created, "project_id": project_id},
-                sort_keys=True,
-                ensure_ascii=False,
-            )
             data.setdefault("intents", {})[intent_id] = {
-                "fingerprint": fingerprint,
+                "fingerprint": self._intent_fingerprint(pending, project_id),
                 "commit_sequence": commit_sequence,
+                "created": [list(item) for item in created],
             }
         data["commit"] = commit_sequence
         commit_entry = {
@@ -334,9 +376,12 @@ class FileRecordRepository:
             project_id=project_id,
             commit_sequence=commit_sequence,
         )
+        records_published = False
+        boundary_started = False
         try:
             if self._journal is not None:
-                # 正式事件日志：一个事务一个 boundary，事务内多条 record_event
+                # 正式事件日志：事件先进入边界暂存（journal 尚不可见），
+                # 一个事务一个 boundary，事务内多条 record_event。
                 self._journal.begin_boundary(
                     commit_sequence=commit_sequence,
                     request_id=request_id,
@@ -345,6 +390,7 @@ class FileRecordRepository:
                     project_id=project_id,
                     writer_epoch=writer_epoch,
                 )
+                boundary_started = True
                 for (_kind, record_id, revision), event_payload in zip(
                     created, new_events, strict=True
                 ):
@@ -359,12 +405,24 @@ class FileRecordRepository:
                         workspace_id=workspace_id or "",
                         writer_epoch=writer_epoch,
                     )
+            # 唯一权威提交边界：records.json 先发布。此前事件仅在暂存区、
+            # 索引/提交清单未写，任何投影都读不到本次事务。
+            self._save(data)
+            records_published = True
+            # records 之后再发布派生投影；投影可由权威边界重建。
+            self._save_commits(commits + [commit_entry], commit_sequence)
+            if self._journal is not None:
                 self._journal.commit_boundary(commit_sequence=commit_sequence)
             else:
                 self._save_events(events + new_events)
-            self._save_commits(commits + [commit_entry], commit_sequence)
             FileQueryIndex(self.root).rebuild(new_index_rows)
-            self._save(data)
+        except BaseException:
+            # records 未发布：没有已确认边界，把暂存事件隔离留证（不写入
+            # journal），保证未提交投影不可读；活动标记由 finally 清除。
+            if boundary_started and not records_published and self._journal is not None:
+                with suppress(Exception):
+                    self._journal.rollback_boundary(commit_sequence=commit_sequence)
+            raise
         finally:
             self._clear_active_marker()
         return created, commit_sequence

@@ -20,10 +20,15 @@ from aitest.application.ports import (
     Projection,
     ProjectionStatus,
 )
+from aitest.contracts.redaction import (
+    redact_json_text,
+    redact_structure,
+    scrub_secret_text,
+)
 from aitest.domain.planning.model_outbound import MaterialKind
 
 #: 投影策略版本；策略变化必须递增。
-POLICY_REVISION = 1
+POLICY_REVISION = 2
 #: 单项投影字节上限，防止误投超大材料（超出即排除并显示缺口）。
 ITEM_LIMIT_BYTES = 256 * 1024
 
@@ -83,7 +88,15 @@ class SafeMaterialProjector:
             if len(text.encode("utf-8")) > ITEM_LIMIT_BYTES or not _is_printable_text(text):
                 excluded.append((kind, field_path))
                 continue
-            safe = _safe_text(text)
+            structured = redact_json_text(text)
+            if structured is not None:
+                # 嵌套结构在原值位置脱敏：保留安全投影，但命中即登记缺口，
+                # 不允许以 complete 名义夹带被排除材料。
+                safe, redacted = structured
+                if redacted:
+                    excluded.append((kind, field_path))
+            else:
+                safe = _safe_text(text)
             if not safe.strip():
                 excluded.append((kind, field_path))
                 continue
@@ -130,5 +143,7 @@ __all__ = [
     "ITEM_LIMIT_BYTES",
     "POLICY_REVISION",
     "SafeMaterialProjector",
+    "redact_structure",
+    "scrub_secret_text",
     "sha256_text",
 ]

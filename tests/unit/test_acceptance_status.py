@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -49,7 +49,7 @@ _B_OWNED = _EXPECTED_OWNER["B"]
 
 
 def _load_status() -> dict[str, Any]:
-    return json.loads(_STATUS.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(_STATUS.read_text(encoding="utf-8")))
 
 
 def _load_requirements_scenarios() -> dict[str, tuple[str, str, list[str]]]:
@@ -74,7 +74,7 @@ def _load_requirements_scenarios() -> dict[str, tuple[str, str, list[str]]]:
 
 
 def _results() -> list[dict[str, Any]]:
-    return _load_status()["results"]
+    return cast(list[dict[str, Any]], _load_status()["results"])
 
 
 def test_status_json_lists_all_thirty_five_scenarios_in_order() -> None:

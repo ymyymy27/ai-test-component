@@ -24,6 +24,7 @@ from aitest.interfaces.local.editor_host import (
     EditorHost,
     WorkspaceInUse,
 )
+from aitest.interfaces.local.pipe import NamedPipeClient
 
 win_only = pytest.mark.skipif(
     not sys.platform.startswith("win"), reason="命名管道仅 Windows"
@@ -174,6 +175,7 @@ def test_acquire_endpoint_starts_new_core_after_close(tmp_path: Path) -> None:
         workspace_id="wsNewCore",
         wait_timeout_seconds=8.0,
     )
+    assert isinstance(first.connection, NamedPipeClient)
     first.connection.close()
     # 等子进程退出（read_message 收到 EOF 后 return）
     time.sleep(0.2)
@@ -184,5 +186,6 @@ def test_acquire_endpoint_starts_new_core_after_close(tmp_path: Path) -> None:
         wait_timeout_seconds=8.0,
     )
     assert first.instance_id != second.instance_id
+    assert isinstance(second.connection, NamedPipeClient)
     second.connection.close()
     time.sleep(0.1)

@@ -11,6 +11,7 @@ from aitest.domain.planning.plans import RunTier
 from aitest.domain.review.reports import (
     Coverage,
     DecisionFacts,
+    DecisionResult,
     ReportContext,
     ReportExportKind,
     SourceIdentityState,
@@ -19,7 +20,7 @@ from aitest.domain.review.reports import (
 from aitest.interfaces.dto import decision_dto, report_summary_dto
 
 
-def _decision(policy_version: str = "policy-1"):
+def _decision(policy_version: str = "policy-1") -> DecisionResult:
     coverage = Coverage(
         selected=frozenset({"case-1"}),
         required=frozenset({"case-1"}),

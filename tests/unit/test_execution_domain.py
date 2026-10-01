@@ -19,7 +19,9 @@ from aitest.domain.execution.sources import (
 def test_execution_state_enums_keep_unknown_separate_from_failure() -> None:
     assert RunControlState.PENDING_VERIFICATION.value == "pending_verification"
     assert StepState.BLOCKED.value == "blocked"
-    assert AttemptState.PENDING_VERIFICATION.value != AttemptState.EXECUTION_ERROR.value
+    assert str(AttemptState.PENDING_VERIFICATION.value) != str(
+        AttemptState.EXECUTION_ERROR.value
+    )
     assert AttemptState.UNKNOWN.value == "unknown"
 
 

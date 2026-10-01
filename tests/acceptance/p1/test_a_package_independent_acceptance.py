@@ -5,17 +5,35 @@
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+import aitest
 from aitest.application.planning.substrate import RecordQuery
 from aitest.infrastructure.file_store import atomic
 from aitest.infrastructure.file_store.locking import writer_lock
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from tests.support.memory_substrate import MemoryReader, MemoryStore, MemoryUnitOfWork
+
+
+def _child_env() -> dict[str, str]:
+    """构造子进程环境，显式把 aitest 所在的 src 目录注入 ``PYTHONPATH``。
+
+    pytest 的 ``pythonpath`` 配置只对当前解释器生效；subprocess 派生的
+    独立解释器只继承环境变量，未 pip 安装本包时必须显式传入 src 路径，
+    子进程才能 ``import aitest``。
+    """
+    src_dir = str(Path(aitest.__file__).resolve().parent.parent)
+    env = dict(os.environ)
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        os.pathsep.join([src_dir, existing]) if existing else src_dir
+    )
+    return env
 
 
 def test_single_writer_lock_is_exclusive_and_recoverable(tmp_path: Path) -> None:
@@ -32,6 +50,7 @@ def test_single_writer_lock_is_exclusive_and_recoverable(tmp_path: Path) -> None
             [sys.executable, "-c", child, str(lock_path)],
             capture_output=True,
             text=True,
+            env=_child_env(),
         )
         assert blocked.returncode != 0
         assert "WorkspaceInUse" in blocked.stderr
@@ -40,6 +59,7 @@ def test_single_writer_lock_is_exclusive_and_recoverable(tmp_path: Path) -> None
         [sys.executable, "-c", child, str(lock_path)],
         capture_output=True,
         text=True,
+        env=_child_env(),
     )
     assert recovered.returncode == 0
 

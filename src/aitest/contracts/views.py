@@ -1,22 +1,10 @@
 """DTOs serialize core facts; views must not calculate business outcomes."""
 
-from typing import Literal
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from .responses import Response as Response
 
-from .errors import ErrorDTO
-
-
-class Response(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    protocol_version: Literal["aitest.local/2.0"] = "aitest.local/2.0"
-    request_id: str
-    instance_id: str
-    workspace_id: str | None = None
-    project_id: str | None = None
-    binding_revision: int | None = None
-    result: dict[str, JsonValue] | None = None
-    error: ErrorDTO | None = None
+__all__ = ["CoverageDTO", "Response"]
 
 
 class CoverageDTO(BaseModel):

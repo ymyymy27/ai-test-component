@@ -104,7 +104,7 @@ def test_endpoint_requires_all_fields() -> None:
         values = {"provider": "p", "address": "a", "model_id": "m", "purpose": "model"}
         values[field_name] = "  "
         with pytest.raises(ValueError, match=field_name):
-            ModelEndpoint(**values)  # type: ignore[arg-type]
+            ModelEndpoint(**values)
 
 
 def test_endpoint_cannot_carry_credential_body() -> None:

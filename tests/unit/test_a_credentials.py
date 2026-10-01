@@ -98,3 +98,34 @@ def test_windows_provider_available_and_missing_raises() -> None:
     assert provider.available is True
     with pytest.raises(SecretUnavailable):
         provider.resolve(purpose="model", reference="definitely-not-present")
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "evil{0}",
+        "evil{}",
+        "back\\slash",
+        "space name",
+        "nul\x00char",
+        "",
+        "a" * 600,
+    ],
+)
+def test_windows_target_rejects_unsafe_components(reference: str) -> None:
+    """模板注入、反斜杠、控制字符、空段、超长目标一律拒绝。"""
+    with pytest.raises(SecretUnavailable):
+        WindowsCredentialProvider._build_target("model", reference)
+
+
+def test_windows_target_accepts_registered_shape() -> None:
+    target = WindowsCredentialProvider._build_target("model", "deepseek/v1")
+    assert target == "aitest/model/deepseek/v1"
+
+
+def test_windows_provider_unavailable_off_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "platform", "linux", raising=False)
+    provider = WindowsCredentialProvider()
+    assert provider.available is False
+    with pytest.raises(SecretUnavailable):
+        provider.resolve(purpose="model", reference="deepseek/v1")
