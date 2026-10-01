@@ -28,6 +28,8 @@ from aitest.application.planning.preparation import (
     PreparationRequest,
     decide_preparation,
     payload_hash,
+    preparation_identity_digest,
+    preparation_intent_id,
 )
 from aitest.application.planning.substrate import (
     PreparationConflictError,
@@ -127,15 +129,20 @@ def _require_text(value: str, name: str) -> None:
 def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
     """参与业务输入摘要的字段：**请求要什么**。
 
-    摘要只覆盖**业务意图**，因此：
+    摘要只覆盖**业务意图**与**人工选择**，键集合与 `PAYLOAD_FIELDS` 严格一致
+    （`tests/unit/test_prepare_run.py` 有对照测试，防止两处再次分叉）：
 
     - **不放传输层参数**（`request_id`、重试次数、接收时间）：放进来会让"同号重传"
       被误判为"输入不同"，与"重传不变"直接矛盾；
-    - **不放"实际观察到的来源修订"**（`InputRevisions` 的八项）：它是**观察结果**，
-      不是请求内容。来源变了要报"依据需重新准备"（架构文档第 11 节），
-      而不是报"同键异输入冲突"。两者语义不同，混进摘要会把需要重新准备的情况误报成冲突。
+    - **不放"实际观察到的来源事实"**：来源修订、计划修订标识、快照内容身份、
+      用例/规则/模板的**修订号**都是**观察结果**，不是请求内容。来源或依据变了要报
+      "依据需重新准备"（架构文档第 11 节），而不是"同键异输入冲突"。
+      判定次序是"冲突 > 需重新准备"，所以把观察结果混进摘要会把前者盖住后者；
+    - **只放标识、不放修订号**：`case_revision_ids` / `rule_version_ids` /
+      `template_version_ids` 记的是"这一轮涉及哪些对象"，对象的修订变化由
+      `InputRevisions` 单独比对。
 
-    来源修订的比对由 `decide_preparation()` 单独完成。
+    来源修订与依据修订的比对由 `decide_preparation()` 单独完成。
     """
     return {
         "binding_form": inputs.binding_form.value,
@@ -144,26 +151,34 @@ def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
         "refetch_dependencies": list(inputs.refetch_dependencies),
         "run_tier": inputs.run_tier.value,
         "driver": inputs.initial_driver.value,
-        "plan_revision_id": inputs.plan_revision.revision_id,
-        "acceptance_scope_revision": inputs.acceptance_scope_revision,
-        "case_revision_ids": [ref.case_id for ref in inputs.case_revisions],
-        "case_revisions": [ref.revision for ref in inputs.case_revisions],
-        "rule_version_ids": [ref.rule_id for ref in inputs.rule_versions],
-        "rule_versions": [ref.revision for ref in inputs.rule_versions],
-        "template_version_ids": [ref.template_id for ref in inputs.template_versions],
-        "template_versions": [ref.version for ref in inputs.template_versions],
-        "snapshot_content_identity": inputs.snapshot.content_identity,
+        "case_revision_ids": sorted({ref.case_id for ref in inputs.case_revisions}),
+        "rule_version_ids": sorted({ref.rule_id for ref in inputs.rule_versions}),
+        "template_version_ids": sorted(
+            {ref.template_id for ref in inputs.template_versions}
+        ),
+        "selected_case_ids": sorted(inputs.selected_case_ids),
+        "skipped_scope": [
+            [entry.case_id, entry.reason] for entry in inputs.skipped_scope
+        ],
+        "applicability_exclusions": [
+            [entry.case_id, entry.reason] for entry in inputs.applicability_exclusions
+        ],
+        "source_snippets_enabled": inputs.source_snippets_enabled,
     }
 
 
-def _intent_id_for(prepare_request_id: str) -> str:
-    """应用侧派生的业务意图身份。
+def _prepared_run_id(inputs: PreparationInputs) -> str:
+    """`PreparedRun` 的业务标识。
 
-    架构文档第 11 节把 `intent_id` 归为"应用创建"，`prepare_request_id` 归为"客户端持久身份"。
-    这里用可复现的派生规则，避免同一请求重传时生成两个意图；
-    **不是把请求号当意图号**——`PreparationRecord` 仍拒绝两者相等。
+    带 `project`/`client` 命名空间：同一个 `prepare_request_id` 在不同项目或不同客户端下
+    是**不同的业务对象**，不带命名空间会让两者的准备结果互相覆盖。
     """
-    return f"intent:{prepare_request_id}"
+    digest = preparation_identity_digest(
+        project_id=inputs.project_id,
+        client_id=inputs.client_id,
+        prepare_request_id=inputs.prepare_request_id,
+    )
+    return f"prepared-{digest}"
 
 
 def _invalidation_rules_for(changed: tuple[str, ...]) -> tuple[InvalidationRule, ...]:
@@ -189,7 +204,7 @@ def _build(
 ) -> PreparedRun:
     """构造一份 `PreparedRun`；缺口与阻塞原因由调用分支给出。"""
     return PreparedRun(
-        prepared_run_id=f"prepared:{inputs.prepare_request_id}",
+        prepared_run_id=_prepared_run_id(inputs),
         project_id=inputs.project_id,
         workspace_id=inputs.workspace_id,
         binding_id=inputs.binding_id,
@@ -253,7 +268,11 @@ def prepare_run(
     _require_text(inputs.client_id, "client_id")
     _require_text(inputs.prepare_request_id, "prepare_request_id")
 
-    intent_id = _intent_id_for(inputs.prepare_request_id)
+    intent_id = preparation_intent_id(
+        project_id=inputs.project_id,
+        client_id=inputs.client_id,
+        prepare_request_id=inputs.prepare_request_id,
+    )
     digest = payload_hash(preparation_payload(inputs))
     now = clock.now()
 
@@ -348,7 +367,6 @@ def prepare_run(
             # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。
             created_at_commit=unit_of_work.next_commit_seq(),
         ),
-        payload={"project_id": inputs.project_id, "intent_id": intent_id},
     )
     result = unit_of_work.commit()
 
