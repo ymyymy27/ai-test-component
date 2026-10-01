@@ -1,88 +1,73 @@
 # 一期工程检查-B包
 
-检查日期：2026年10月1日；源码基线：拉取后的 `origin/develop`，`0c890eded76fe6c31ad84c211445025de67f599e`（`A包 lu (#38)`）。
+复核完成日期：2026年10月2日；本机检查于10月1日执行。源码基线：`develop 10fc22feed4e7927151a28277c93e2e96a3c70d0`，文档分支`文档更新-袁`。
 
-拆分日期：2026年10月1日。本文从《一期工程分包检查》拆出，覆盖 B 包**已实现代码的正确性、未实现能力、跨包接入和验收缺口**。原合并文档可从拆分前的 develop `d62ebf0` 恢复；本次保留原源码基线、问题编号、证据和验收结论。拆分记录见[袁的修改日志](修改日志/袁/2026-10-01-一期工程检查按ABCD拆分.md)，原审计过程见[源码检查日志](修改日志/袁/2026-10-01-一期工程分包与整体源码检查.md)。
+本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-02-develop进展复核与文档更新.md)。
 
-补充复核：2026年10月1日，当前 `develop` 基线 `38ce918a0e67726e107569d15e9d4e5f19506751`。与四包及整体报告去重后，追加 B-07—09；原 B-01—06 和共享验证记录保留。新增反例见[补充脚本](validation/p1-audit-20261001/additional_probes.py)及[结果](validation/p1-audit-20261001/additional-probe-results.json)，变更过程见[补充日志](修改日志/袁/2026-10-01-去重补充一期检查问题.md)。
+其他包：[A包](一期工程检查-A包.md) · [C包](一期工程检查-C包.md) · [D包](一期工程检查-D包.md)。
 
-其他包：[A 包](一期工程检查-A包.md) · [C 包](一期工程检查-C包.md) · [D 包](一期工程检查-D包.md)。整体 FR/AC 检查见[当前代码分析与一期工程对比](当前代码分析与一期工程对比.md)。
+## 1. 依据与检查边界
 
-## 1. 依据、范围与证据边界
+- 主责来源：[文档总览](项目文档/README.md)、[总体架构](项目文档/总体架构.md)、[阅读索引](项目文档/阅读索引.md)、[一期需求](项目文档/一期/需求文档/01-需求文档.md)、[一期功能](项目文档/一期/功能文档/01-功能文档.md)、架构00—06及[面板与工作台](项目文档/一期/设计文档/01-面板与工作台.md)。一期仍为17 FR/35 AC，不增删或重编号。
+- 四部分分工沿用原拆分方案；字段、状态、时序按现行分册及[接口总台账](接口对接/README.md)、DEC-001—006实施，不因文档更新改接口冻结状态。
+- 阅读当前控制流/测试并重放反例；当前依据为[结果JSON](validation/p1-audit-20261001/develop-refresh-10fc22f.json)，方法和历史材料在[证据说明](validation/p1-audit-20261001/README.md)。合成输入/临时目录和静态检查不替代真实宿主、业务核验或掉电证据。
+- “高风险”有源码或当前反例依据；“接入缺口”需补默认装配/真实持久链；“待验收”需真实输入、版本、预期/实际和证据。“待核对”不计为已确认缺陷。未以文件数、通过数估算完成率。
 
-- 先读[文档总览](项目文档/README.md)、[总体架构](项目文档/总体架构.md)、[阅读索引](项目文档/阅读索引.md)，再对照[一期需求](项目文档/一期/需求文档/01-需求文档.md)、[功能](项目文档/一期/功能文档/01-功能文档.md)、架构 00—06 及[面板与工作台设计](项目文档/一期/设计文档/01-面板与工作台.md)。一期仍为 **17 FR / 35 AC**，未增删或重编号。
-- 用户提供的《一期工程四部分拆分与低对接实施方案(1).md》（2026-09-24）用作 ABCD 职责与验收牵头划分参考；现行字段、状态、时序以项目分册及后续接口裁定为准。附件中的协作指令不作为本次额外操作授权。
-- 对照[接口总台账](接口对接/README.md)和[裁定归档](接口对接/归档)。不修改 `docs/项目文档/`，不把源码进展自动登记为接口冻结或真实验收完成。
-- 全量清点 `src/aitest/` **111 个 Python 文件**、面板与 Trae **2 个产品 TypeScript 文件**以及 **75 个 Python 测试文件**；阅读实现与调用链，重点检查身份、集合规则、事务、恢复、授权、投影和装配。清点包含空包文件和占位，文件数不是实现率，也不是覆盖率。mypy 的 123 个分析文件包含跟随导入，不能替代产品文件数。
-- [测试摘要](validation/p1-audit-20261001/test-summary.json)记录失败名称与环境；[隔离复现](validation/p1-audit-20261001/probes.py)及[结果](validation/p1-audit-20261001/probe-results.json)使用临时目录和虚构材料，不调用真实模型、宿主或业务系统。一次性全量 AST 清点和校验中间文件已清理，原始版本可从 PR #40 的 Git 历史恢复；保留可复查的问题证据。
+## 2. 主责与尚缺验收
 
-本文用“已实现”表示有实际控制流，用“占位”表示空类/说明或显式 `NotImplementedError`，用“未接通”表示已有实现尚未接入正式端口、统一核心或产品入口。风险标为“阻断交付”“高风险”“接入缺口”“待核对”；不以源码行数估算完成百分比。
-
-## 2. 本包职责与当前结论
-
-| 包 | 责任与现有进展 | 主要未闭合点 | 牵头 AC |
-| --- | --- | --- | --- |
-| B：项目与计划 | 项目上下文、规则/计划发布、六模板、准备四态、模型出站策略已有纯规则及内存编排 | 正式 A 端口转接占位；准备摘要与来源漂移分类错误；真实来源/模型/运行修订未接产品 | 01、03、12、17、20、30、31、32（8 项） |
-
-四个交接面仍是**本地协议、工作单元与存储端口、PreparedRun、ExecutionFacts**。文件所在目录不自动决定语义归属：`SourceSnapshot` 按 DEC-001 由 B 负责来源规则，模型保留在执行领域，A 实现快照/来源端口，C 核对实际加载，D 读取投影。纯文件摘要核验由 A 提供技术能力；同一业务对象的独立核验仍须 C 实现并由 D 消费。
-
-验收登记取自 `tests/acceptance/p1/status.json`。B 包牵头 P1-AC01、03、12、17、20、30、31、32（8 项），当前 7 项 not_verified、P1-AC20 blocked，真实验收 verified=0。所有 `evidence_path` 为空，本次未改变登记。四包合计仍为 `verified=0`、`not_verified=7`、`blocked=1`、`untested=27`（35 项）；牵头数量不表示该包独立完成全部依赖。
-
-## 3. 已有实现复核与缺口
-
-### 3.1 已有能力逐域检查
-
-| 源码范围 | 已实现及检查 | 仍未闭合 |
+| 包/FR主责 | 当前需完成的范围 | 牵头AC |
 | --- | --- | --- |
-| `domain/project/context.py`、`application/project/context.py`、`serialization.py` | 项目/模块/依赖/任务/验收/交付/环境/绑定、缺口规则、修订；plain 省略 Git 字段；对应 project/module/delivery/source 测试 | 应用函数主要返回新对象，未通过 A 工作单元永久保存；实际来源需 A 快照/SC 转接 |
-| `domain/planning/rules.py`、`plans.py`、`templates.py` | 草稿/发布/依据确认、三档/两驱动、范围门禁、适用性、6 个版本化模板 | 模板存在不等于六类执行均可用；规则导入导出与用户编辑入口未接 |
-| `draft.py`、`publish.py`、`regression.py` | 上下文草稿、发布用例/计划、依赖反向影响/环检查、运行中待执行修改纯规则 | 无基于真实运行/Step 当前事实的持久修订编排；`plan_builder.py`/`run_mode.py` 占位不代表相关纯规则全部缺失 |
-| `preparation.py`、`prepare_run.py`、`substrate.py` | 准备四态、规范摘要、InputRevisions、准备结果编排；PreparedRun 合同/字节夹具通过已有诊断测试 | `substrate_adapter.py` 方法显式未实现，产品依赖内存替身；实际摘要与身份有 B-02 缺陷 |
-| `model_outbound.py`、`model_orchestration.py`、`model_ports.py` | AI 开关、材料类别、源码片段默认关闭、策略再确认、迟到响应与草稿规则；内存模型测试 | 出站登记发生在调用之后，真实凭据/目标/投影适配尚未统一，正文保存不完整，见 B-03 |
+| B：项目与计划 / FR01—07 | 实际输入冻结、默认业务装配、完整依据存储、真实模型/来源及运行修订 | 01、03、12、17、20、30、31、32（8项） |
 
-### 3.2 逐项问题与完成条件
+四个交接面为本地协议、工作单元/存储端口、PreparedRun、ExecutionFacts。B负责来源规则、冻结依据与准备身份，A负责端口与装配；C负责实际start、运行中修订保存/应用和加载来源，D负责编辑/确认/展示。SourceSnapshot、准备观察配对与模块路径语义按DEC-001—006及主责分册实施。
 
-| 编号 / 风险 | 问题及证据 | 影响 / 主责下一步 |
+`tests/acceptance/p1/status.json`：本包7项not_verified，P1-AC20为blocked，全部evidence.path为空。全一期仍0verified/7not_verified/1blocked/27untested（35项）。需补齐本包真实证据和当前前置说明；本轮没有代填验收或改变AC预期。
+
+## 3. 当前待修复与待补全问题
+
+### 3.1 问题、证据与完成条件
+
+| 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
-| B-01 阻断交付 | 正式 `PortsUnitOfWork`/`PortsRecordReader` 转接均未实现；项目/发布/准备/模型动作尚无完整核心注册 | FR01—07、B 全部 8 项 AC；B 接 A 正式工作单元/仓储/索引，保存稳定身份、修订、确认与幂等结果；重启后可读取，不依赖 MemoryStore |
-| B-02 高风险 | `preparation_payload` 漏选定用例/已解析执行输入等，改变选择和 digest 得到相同 payload：**B-PREPARE-01**；反而纳入观察到的源码 content_identity，来源变化抛 `PreparationConflictError`：**B-PREPARE-02**。intent/prepared ID 只基于 prepare_request_id，未含 project/client 命名空间 | AC19/20/31（B 准备、C 启动、A 持久去重）；按主责合同区分请求意图与来源事实；同键异请求冲突，来源漂移 `needs_reprepare`；多项目/多客户端、作用域与副作用输入均验证 |
-| B-03 高风险 | `model_orchestration.py` 先 external call 后登记 OutboundRequest；GeneratedContent 主要保存元数据，实际 draft_text 没有完整落盘引用；失败 detail 可能直入阻塞说明，凭据协议与 A 不一致 | AC15/17/30/32；事务先登记准入/意图，事务外调用，再提交安全响应和草稿引用；失败/中断不丢出站事实，AI 关闭不阻断已保存人工材料 |
-| B-04 接入缺口 | 回归建议目前由调用方提供变更与模块映射；源码适配器 dict 尚未转成正式 SourceSnapshot，准备与启动之间无完整漂移核对链 | AC03/12/13/25/30；B 用真实冻结来源/版本/环境/选定清单做映射和缺口，C 启动前重新核对；plain 的 DTO、报告、导出也必须省略仓库字段 |
-| B-05 接入缺口 | 运行中改计划和 planned→stepwise 有纯门禁，但活动/已完成 Step、当前依据、修订序列仍依赖调用者输入；未发布/依据确认/执行授权尚无受控交互闭环 | AC20/21/31；B 保存基础计划与运行中修订，消费 C 当前步骤事实，拒绝改正在执行项/删必测/弱化断言；依据变化交给 C 失效、D 新判定，补确认不回写冻结 Case/Plan |
-| B-06 未验证 | 六模板与功能夹具可用，B 的 8 项 AC 已登记前置条件；没有真实入参、制品版本、执行证据和证据路径 | AC01/03/12/17/20/30/31/32；保持 7 not_verified、1 blocked；正式转接后逐项按需求第 5 节补证，不能把内存通过改成 verified |
-| B-07 高风险 | `Case.effective_basis_state` 未按当前 case_id 筛选确认记录，`ConfirmationRecord.matches` 只比依据修订和摘要（[plans.py](../src/aitest/domain/planning/plans.py)，169—175、284—287 行）。**B-CONFIRMATION-01**：case-1 无确认时为 present_unconfirmed，仅传入 other-case 的同修订/摘要确认后却为 confirmed | FR06、AC21；按[项目与计划第 3 节](项目文档/一期/架构文档/01-项目与计划.md#3-模板规则与用例)绑定准确 Case、依据修订与摘要；排除其他用例确认，补同文本跨用例及旧修订反例。当前确认有效状态仍须与实际执行/核验分开 |
-| B-08 高风险 | `validate_plan_publication` 对必测集合取 `M ∩ frozen_ids`，未纳入冻结用例集合的必测项被静默跳过；提供的 Case 也只核对 ID、不核对冻结修订（[plans.py](../src/aitest/domain/planning/plans.py)，460—468 行）。**B-PUBLICATION-01**：在实际 publish_plan 内存编排中，M 额外含 missing-case 仍发布成功；冻结 case-1@1 却提供 @2 也发布成功 | FR06/07、AC20/24/31；发布前核对全部必测都有冻结引用，逐项读取准确用例修订并校验内容身份，再执行依据/独立核验门禁；不能用集合交集隐藏缺项。此反例证明领域/内存编排缺陷，尚未接真实存储或宿主 |
-| B-09 高风险 | `_canonical_item` 分别排序各字段的列表，而 `preparation_payload` 把用例 ID 与修订拆成两列（[preparation.py](../src/aitest/application/planning/preparation.py)，93—95 行；[prepare_run.py](../src/aitest/application/planning/prepare_run.py)，149—150 行）。**B-HASH-01**：case-1@1/case-2@2 改成 case-1@2/case-2@1 后摘要相同。B-02 已记录漏字段/漂移误分类，本项另记“字段存在但配对关系丢失” | FR06、AC19/20/31；规范载荷保留 ID/修订/摘要的完整关联，区分有序序列与集合，仅按字段语义规范化；同请求换修订映射必须识别异输入，单纯无意义重排应保持一致。反例只检查摘要函数，不证明真实启动已被绕过 |
+| B-01 接入缺口 | 默认CoreBootstrap/core_worker未构造BUseCaseDependencies或注册B业务；publish_plan、模型、运行修订动作未注册，交付/任务/验收/独立Case/确认等完整记录保存链未闭合 | FR01—07、B牵头8项AC；与A冻结current_revision/commit_seq/next_commit_seq并装配唯一核心，补计划发布、模板草稿正文与其余记录保存，供C/D按准确修订恢复和查询 |
+| B-02 高风险 | 独立改变`execution_source.resolved_input_digest`时same_payload=true，旧意图仍prepared且返回改变后的输入，证据键`B-PREPARE-01-resolved-input-only` | AC19/20/31；按计划架构第11/12节闭合实际动作/目标/参数/凭据引用与来源事实的摘要及观察职责，同意图不得换实际输入；补只改单项输入的回归与真实prepare/start对拍 |
+| B-03 接入缺口/待验证 | 真实投影、凭据、模型未进默认核心；模型返回正文的已知凭据过滤、调用中断/迟到/重复请求与原出站事实恢复未完整验证 | AC15/17/30/32；接真实端口，证明响应落盘前安全、出站结果可恢复、重复请求不重复出站及AI关闭仍可人工操作；记录真实输入/版本/失败证据 |
+| B-04 接入缺口 | 实际变更文件来源和正式SourceSnapshot转换未装配；drift只检查binding/environment/plan可读性，project_revision/case/rule/template/scope/snapshot仍uncovered；规则Markdown导入导出与完整冻结依据未接 | AC03/12/13/25/30；接SourceControl/快照链、保存独立Case/依据/范围/模板修订与规则导入导出，交C在start前核对来源；旧修订可读不能替代当前来源一致 |
+| B-05 接入缺口/待验收 | RuntimeRevision未持久写入实际运行序列，C runner未消费接受/失效清单；缺运行中/正在执行快照夹具和真实半程运行证据 | AC20/21/31；C保存RunPlanRevision/StepRevisionRef、应用暂停与依赖失效，D呈现双序列及准确依据；验证半程修订/驱动收窄/必测不弱化的真实流程 |
+| B-06 待补全/待验收 | 牵头8项AC仍7not_verified、1blocked，证据路径均空；登记内部分前置说明与当前源码不一致，真实用户输入、软件/制品版本、预期/实际和证据未补齐 | AC01/03/12/17/20/30/31/32；根据当前实测更新前置与阻塞说明，逐项补真实证据后再登记verified；P1-AC20须包含运行中修订和C/D实际消费 |
 
-新增三项均由虚构输入复现，与原准备身份、运行中修订接入缺口分别记录；受影响 AC 为跨包关联，不改变本包的 8 项牵头范围。完整补充复核范围与当前检查结果见[整体报告](当前代码分析与一期工程对比.md#51-当前仓库去重后的新增代码问题)。
+### 3.2 源码实施入口与剩余缺口
 
-## 4. 共享验证结果与失败归属
+| 源码范围 | 尚需修复、补全或验证的边界 |
+| --- | --- |
+| `domain/project/context.py`、`project/persistence.py`、`serialization.py` | 交付/任务/验收/独立 Case/确认等完整保存与用户流程未接；空 source_paths 只表示未登记，不得推断影响全部 |
+| `domain/planning/rules.py`、`plans.py`、`resources/templates/` | 六模板资源不等于六类执行已实现；规则 Markdown 导入导出、计划编辑/发布入口尚未闭合 |
+| `publish.py`、`preparation.py`、`prepare_run.py` | `execution_source.resolved_input_digest` 单独改变仍不影响请求载荷/观察判定，见 B-02；PreparedRun 复用不等于启动动作已去重 |
+| `substrate.py`、`substrate_adapter.py` | 仍通过构造注入依赖，A ports.py 的三个只读能力尚未冻结；跨进程装配、并发准备及旧意图恢复需共同验证 |
+| `model_orchestration.py`、`model_ports.py` | 真实投影/凭据/模型未进默认核心；模型返回正文的已知凭据过滤、异常中断与重传不能重复出站尚需完整链路验证 |
+| `regression_graph.py`、`drift.py` | 变更文件来源仍待真实 SourceControl/快照链装配；drift 明列 project_revision/case/rule/template/scope/snapshot 为 uncovered，intact 只代表已核三类可读，不能宣称完整来源一致 |
+| `runtime_revision.py`、`run_mode.py` | 未将 RuntimeRevision 持久写入运行序列，也未由 C 实际 runner 消费接受清单；不代表 AC20 的真实半程修订完成 |
+| `application/usecase_registry.py`、`interfaces/local/b_registration.py` | 需要显式 BUseCaseDependencies；bootstrap/core_worker 不自动接线；publish_plan、模型类、运行修订动作尚未注册。generate_draft 目前返回模板草稿元数据，未自动保存正文 |
 
-以下保留原审计的**整体检查记录**，不是 B 包独立测试统计；各包均需结合自己的问题和跨包依赖读取。
+### 3.3 尚未完成的交接
 
-环境：Windows 11 x64（build 22631），CPython 3.13.13，Node 24.14.1，npm 11.13.0；锁文件安装 `uv sync --extra dev --locked` 通过，产品版本 0.4.0。
+| 接口 | 需要补全的对接与证据 |
+| --- | --- |
+| CORE-001 / AB-001 | reviewing/partial；A公开只读能力和默认装配未冻结/接线，B计划/模型/其余保存动作未闭合，双方统一对拍未登记 |
+| BC-001 PreparedRun | C需使用实际B产物核对prepare/start与真实来源，不能只读取夹具；补最新实际对拍及last_verified_commit |
+| BD-001 计划/依据展示 | reviewing，D接入not_started；需接完整范围、确认/过期/未验证字段和实际运行修订展示 |
+| CD-001 ExecutionFacts | 需C运行中/正在执行样例及正式持久序列，D接有效事实聚合；夹具不能替代真实运行消费 |
 
-| 检查 | 结果 | 含义 |
-| --- | --- | --- |
-| `uv run python scripts/check_versions.py` | 通过 | 版本一致 |
-| `uv run ruff check .` | 通过 | 含本次隔离复现/清点脚本；不是业务正确性证明 |
-| `uv run mypy` | 通过，基线 123、文档复核 125 个分析文件（含跟随导入） | 类型门通过；不是产品源码文件数 |
-| Schema 重新生成 + `git diff --exit-code -- src/aitest/contracts/schemas` | 通过 | 7 份生成物一致；现有 Schema 仍可能缺合同字段 |
-| 全量 `uv run pytest` | **收集失败，1 error** | `test_a_pipe_peer_rejection.py` 无法导入 `check_peer_identity`；未运行成完整测试集 |
-| 排除上述文件的诊断运行 | **737 passed / 16 failed / 4 warnings**，19.47 s | 不是全量通过；15 项管道/宿主/装配失败，1 项 UOW 返回字典不一致。完整名称见测试摘要 |
-| 20 项隔离复现观察 | 19 项具体问题及 1 项额外复用约束待核对 | 问题观测不等于修复通过；脚本执行成功不表示被测代码通过 |
-| 面板 npm ci/build、Trae npm ci/package | 通过 | TypeScript 检查、共享 JS 和 6 文件 VSIX 可构建；未验收真实 Trae |
-| 面板 Playwright | 初次缺 Chromium；安装测试浏览器后 **1 passed** | 仅静态面板窄宽度导航/信息可见性，不涉及核心业务 |
-| develop 基线远端 CI | **失败**，[run 36729829040](https://github.com/ymyymy27/ai-test-component/actions/runs/36729829040) | 版本/ruff/mypy/Schema 通过，pytest 同样收集失败；普通 PR 不执行仅 tag 触发的 release 制品步骤 |
-| P1-AC01—35 真实环境验收 | **0/35 verified** | 没有真实宿主、多类业务、掉电或完整留存证据；未验证项保留 |
+## 4. 当前验证边界
 
-命令、失败分类和复现结果见[证据说明](validation/p1-audit-20261001/README.md)。本次源码检查没有修复上述产品缺陷或删除失败测试。原检查 PR 的 CI/合并追踪在[修改日志](修改日志/袁/2026-10-01-一期工程分包与整体源码检查.md)；随后的一次性文件清理、CI 诊断和发布准备改进另见[清理与 CI 复核日志](修改日志/袁/2026-10-01-中间产物清理与CI复核.md)，不改变本文的产品基线与验收结论。
+10月1日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（132个分析文件），7份生成Schema无差异；全量pytest **949 passed，0 failed/error/skipped**。面板build、静态Playwright1项及候选VSIX6文件打包通过。
 
-后续 develop `d62ebf0` 的 [CI 36754947548](https://github.com/ymyymy27/ai-test-component/actions/runs/36754947548) 运行可收集测试后为 **737 passed / 16 failed / 1 collection error / 4 warnings**。15 项占位/装配失败、1 项 UOW 返回值差异及缺失身份校验函数均集中在 A 包；该结果不代表 B/C/D 已完成一期验收。本次只拆分文档，不登记为这些产品问题已修复。
+现有自动化没有覆盖上表全部风险，当前反例/接入任务和真实AC需逐项完成。真实模型/凭据、业务独立核验、Trae用户流程、跨核心/掉电恢复、安全导出和永久留存未验收；旧远端CI不作当前依据。命令与证据详见[复核说明](validation/p1-audit-20261001/README.md)。
 
-## 5. 交接与下一轮完成条件
+## 5. 收敛顺序与交付条件
 
-1. **B 接正式底座并修准备/出站**：准备摘要区分请求与来源，命名空间稳定；项目/计划/模型请求持久保存，完整修订、确认和内容引用可恢复；移除产品路径对内存替身的依赖。
-2. **四包共同交付 AC 证据**：按需求第 5 节逐项给输入、软件/源码/制品版本、预期/实际和原始证据路径。PreparedRun/ExecutionFacts 夹具交接、静态质量、单元通过、真实环境验收分别登记；任何单包“完成”不自动推出一期完成。
+1. 修B-02单项实际输入冻结；补完整Case/依据/范围/模板/计划保存与规则导入导出，接默认计划/模型/运行修订入口。
+2. 与A对拍正式端口和装配，与C接真实来源/start及实时修订落盘，与D接准确编辑/确认/查询；模型响应安全及中断恢复逐分支验证。
+3. 以当前实际前置补齐8项AC输入、版本、预期/实际和证据；尤其AC20需真实运行中修订，不能用纯守卫或夹具代替。
 
-本包推进须同时核对其他包的交接条件：[A 包](一期工程检查-A包.md) · [C 包](一期工程检查-C包.md) · [D 包](一期工程检查-D包.md)。整体推进顺序与逐项 FR/AC 对照仍见[当前代码分析与一期工程对比](当前代码分析与一期工程对比.md)。
+完成条目须按准确源码版本和证据复核后移出本清单；未验证项不得直接关闭。交接任务与FR/AC不因移出问题而省略，历史过程在修改日志、证据目录和Git记录中追溯。

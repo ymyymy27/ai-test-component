@@ -1,0 +1,238 @@
+{
+  "checked_at": "2026-10-01",
+  "source_commit": "10fc22feed4e7927151a28277c93e2e96a3c70d0",
+  "version": "0.4.0",
+  "environment": {
+    "python": "3.13.13",
+    "os": "Windows-11-10.0.22631-SP0",
+    "node": "24.14.1",
+    "npm": "11.13.0",
+    "uv": "0.11.8"
+  },
+  "checks": {
+    "versions": "passed",
+    "ruff": "passed",
+    "mypy": {
+      "status": "passed",
+      "analyzed_files": 132
+    },
+    "pytest": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "949",
+      "time": "23.719",
+      "timestamp": "2026-10-01T23:52:08.565622+08:00",
+      "wall_time_seconds": 23.96
+    },
+    "panel_build": "passed",
+    "panel_playwright": {
+      "passed": 1
+    },
+    "trae_vsix_package": {
+      "status": "passed",
+      "files": 6
+    },
+    "real_environment_acceptance": "not_performed",
+    "schemas": {
+      "status": "passed",
+      "files": 7,
+      "generated_diff": "none"
+    }
+  },
+  "original_probe_observations": {
+    "A-SOURCE-02": {
+      "state": "unchanged",
+      "added": [],
+      "removed": [],
+      "modified": []
+    },
+    "A-SOURCE-03": {
+      "stored_purpose_after_repin": "prepare"
+    },
+    "A-PATH-01": {
+      "outside_destination_written": false,
+      "verified": false
+    },
+    "A-INTENT-01": {
+      "revision_after_same_intent": 1
+    },
+    "A-COMMIT-01": {
+      "record_revision": 0,
+      "visible_index_rows": 0,
+      "visible_events": 0,
+      "active_marker_exists": false,
+      "recovery_state": "healthy"
+    },
+    "A-QUERY-01": {
+      "first_id": "2",
+      "next_id": "1"
+    },
+    "A-QUERY-02": {
+      "corrupt_index_status": "maintenance_required"
+    },
+    "A-BACKUP-01": {
+      "verified": true,
+      "omitted_directories": []
+    },
+    "A-PATH-02": {
+      "outside_target_written": false,
+      "verified": false
+    },
+    "A-MIGRATION-01": {
+      "state_with_unresolved_active_marker": "blocked"
+    },
+    "A-SECRET-01": {
+      "projection_status": "partial",
+      "synthetic_secret_retained": false
+    },
+    "A-SECRET-02": {
+      "synthetic_secret_in_response": false
+    },
+    "B-PREPARE-01": {
+      "changed_scope_and_input_have_same_payload": false
+    },
+    "C-INVALIDATION-01": {
+      "completed_downstream_invalidated": false
+    },
+    "D-DECISION-01": {
+      "outcome_with_all_required_passed": "incomplete",
+      "grade": "B"
+    },
+    "D-COVERAGE-01": {
+      "unverified_reuse_rejected": true
+    },
+    "D-ISSUE-01": {
+      "cycle_returned_by_mutation": true
+    },
+    "D-ISSUE-02": {
+      "reopened_severity": null,
+      "blocking_ids": []
+    }
+  },
+  "additional_probe_observations": {
+    "C-DURABILITY-01": {
+      "stream_fsync_calls_before_ack": 0,
+      "other_file_fsync_calls_before_ack": 1,
+      "acknowledged_durable": true,
+      "acknowledged_offset": 17
+    },
+    "B-CONFIRMATION-01": {
+      "case_id": "case-1",
+      "confirmation_case_id": "other-case",
+      "state_without_confirmation": "present_unconfirmed",
+      "state_with_own_confirmation": "confirmed",
+      "effective_basis_state": "present_unconfirmed"
+    },
+    "B-PUBLICATION-01": {
+      "missing_required_case_id": "missing-case",
+      "missing_required_case_published": false,
+      "frozen_revision": 1,
+      "provided_revision": 2,
+      "wrong_case_revision_published": false
+    },
+    "B-HASH-01": {
+      "mapping_before": [
+        {
+          "case_id": "case-1",
+          "revision": 1
+        },
+        {
+          "case_id": "case-2",
+          "revision": 2
+        }
+      ],
+      "mapping_after": [
+        {
+          "case_id": "case-1",
+          "revision": 2
+        },
+        {
+          "case_id": "case-2",
+          "revision": 1
+        }
+      ],
+      "case_revision_mapping_changed": true,
+      "hash_before": "sha256:5a131fbde4f4576c570e837eb1cbc17838184ef6690116726e593fd0034813c3",
+      "hash_after": "sha256:5a131fbde4f4576c570e837eb1cbc17838184ef6690116726e593fd0034813c3",
+      "same_hash": true
+    }
+  },
+  "current_focused_observations": {
+    "A-SOURCE-01-current": {
+      "verified": true,
+      "materialized_text": "original"
+    },
+    "A-COMMIT-01-post-publication": {
+      "error_kind": "OSError",
+      "record_revision": 1,
+      "index_status": "maintenance_required",
+      "visible_events": 0,
+      "active_marker_exists": false,
+      "recovery_state": "repaired",
+      "committed_sequences": []
+    },
+    "A-QUERY-01-query-binding": {
+      "cursor_reused_with_different_project_status": "ok"
+    },
+    "B-PREPARE-01-resolved-input-only": {
+      "same_payload": true,
+      "status": "prepared",
+      "changed_resolved_input_returned": true
+    },
+    "B-PREPARE-02-current": {
+      "status": "blocked",
+      "blocking_codes": [
+        "needs_reprepare"
+      ]
+    },
+    "B-HASH-01-current-decision": {
+      "same_payload": true,
+      "status": "blocked",
+      "blocking_codes": [
+        "needs_reprepare"
+      ],
+      "changed_inputs": [
+        "case_revisions"
+      ]
+    }
+  },
+  "limits": [
+    "All probe inputs are synthetic; filesystem faults are injected in temporary directories.",
+    "Historical JSON results were not overwritten; missing old probe keys are not proof of a fix.",
+    "B-HASH-01 same_hash alone no longer proves a defect; the current decision must be checked.",
+    "No real Trae, model, business system, power-loss recovery, or remote CI verification was performed."
+  ],
+  "acceptance_register": {
+    "counts": {
+      "not_verified": 7,
+      "untested": 27,
+      "blocked": 1,
+      "verified": 0
+    },
+    "total": 35,
+    "nonempty_evidence_paths": 0,
+    "changed_in_this_task": false
+  },
+  "document_validation": {
+    "checked_at": "2026-10-02",
+    "markdown_files": 10,
+    "local_links_and_anchors": 177,
+    "broken_links": 0,
+    "newly_broken_incoming_links": 0,
+    "FR_rows": 17,
+    "AC_rows": 35,
+    "table_columns": "consistent",
+    "CHANGELOG_original_byte_prefix": "preserved",
+    "A_original_fix_log": "preserved in archive",
+    "git_diff_check": "passed",
+    "outstanding_items_by_package": {
+      "A": 9,
+      "B": 6,
+      "C": 7,
+      "D": 7
+    },
+    "closed_items_in_current_checklists": 0
+  }
+}
