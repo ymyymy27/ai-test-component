@@ -19,10 +19,13 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 import pytest
+from pydantic import JsonValue
 
+from aitest.application.planning.substrate import AggregateKind
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -223,7 +226,7 @@ def _write_command(
         project_id=PROJECT_ID,
         expected_revision=expected_revision,
         intent_id=f"intent-{request_id}",
-        parameters=dict(parameters),
+        parameters=cast("dict[str, JsonValue]", dict(parameters)),
     )
 
 
@@ -299,12 +302,13 @@ def test_context_writes_land_on_real_storage_and_read_back(workspace_root: Path)
 
     # 重启：重新构造一整套底座对象，复用同一目录。
     restarted = _start(workspace_root)
-    for aggregate_kind, record_id in (
+    aggregates: tuple[tuple[AggregateKind, str], ...] = (
         ("project", PROJECT_ID),
         ("binding", "binding-1"),
         ("environment", "env-local"),
         ("dependency_set", f"graph:{PROJECT_ID}"),
-    ):
+    )
+    for aggregate_kind, record_id in aggregates:
         committed = restarted.reader.read(
             aggregate_kind=aggregate_kind, record_id=record_id, revision=1
         )
@@ -400,5 +404,5 @@ def test_write_without_project_scope_is_rejected_by_the_contract(
             action="save_context",
             expected_revision=0,
             intent_id="intent-missing",
-            parameters={"project": _project_payload()},
+            parameters={"project": cast(JsonValue, _project_payload())},
         )

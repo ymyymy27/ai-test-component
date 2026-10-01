@@ -23,9 +23,11 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 import pytest
+from pydantic import JsonValue
 
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
@@ -121,7 +123,7 @@ def _command(action: str, request_id: str, parameters: Mapping[str, object]) -> 
         project_id=PROJECT_ID,
         expected_revision=0,
         intent_id=f"intent-{request_id}",
-        parameters=dict(parameters),
+        parameters=cast("dict[str, JsonValue]", dict(parameters)),
     )
 
 
@@ -194,7 +196,9 @@ def test_generate_draft_returns_the_draft_with_its_revision_context(
         "template_id": TEMPLATE_ID,
         "version": TEMPLATE_VERSION,
     }
-    assert content["revision_context"]["project_revision"] == 1
+    revision_context = content["revision_context"]
+    assert isinstance(revision_context, dict)
+    assert revision_context["project_revision"] == 1
 
 
 def test_generate_draft_with_gaps_is_a_normal_blocked_result(
@@ -218,8 +222,10 @@ def test_generate_draft_with_gaps_is_a_normal_blocked_result(
     assert "content" not in response.result
     gaps = response.result["gaps"]
     assert isinstance(gaps, list)
-    assert gaps[0]["kind"] == "missing_environment_carrier"
-    assert gaps[0]["blocking"] is True
+    first_gap = gaps[0]
+    assert isinstance(first_gap, dict)
+    assert first_gap["kind"] == "missing_environment_carrier"
+    assert first_gap["blocking"] is True
 
 
 def test_generate_draft_unknown_template_is_reported(workspace_root: Path) -> None:
@@ -313,7 +319,9 @@ def test_publish_rules_with_blocking_context_gap_is_refused(
 def test_publish_rules_invalid_draft_is_named(workspace_root: Path) -> None:
     api = _api(_start(workspace_root))
     parameters = _rule_parameters()
-    del parameters["draft"]["text"]  # type: ignore[index]
+    draft = parameters["draft"]
+    assert isinstance(draft, dict)
+    del draft["text"]
     response = api.dispatch(_command("publish_rules", BAD_REQ, parameters), _session())
     assert response.error is not None
     assert response.error.code == "B_INVALID_PARAMETER"

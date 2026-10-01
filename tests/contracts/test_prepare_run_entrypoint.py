@@ -24,10 +24,11 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 
 from aitest.application.planning.prepare_run import PreparationInputs
 from aitest.application.planning.substrate_adapter import (
@@ -206,7 +207,7 @@ def _prepare_command(
         project_id=project_id,
         expected_revision=0,
         intent_id=f"intent-{request_id}",
-        parameters=dict(parameters),
+        parameters=cast("dict[str, JsonValue]", dict(parameters)),
     )
 
 

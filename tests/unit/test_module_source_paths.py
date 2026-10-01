@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from aitest.application.project.context import create_project
@@ -29,7 +31,7 @@ def _module(**overrides: object) -> Module:
     return Module(**(base | overrides))  # type: ignore[arg-type]
 
 
-def _payload(module: Module) -> dict[str, object]:
+def _payload(module: Module) -> dict[str, Any]:
     project = create_project(
         project_id=PROJECT_ID,
         workspace_id="ws-1",

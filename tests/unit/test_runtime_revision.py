@@ -24,7 +24,7 @@ import dataclasses
 import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -79,7 +79,10 @@ _BASIS_DIGEST = "sha256:basis-1"
 
 def _payload(name: str) -> dict[str, Any]:
     """读一份交付夹具；`json.loads` 只用在测试侧。"""
-    return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    return cast(
+        dict[str, Any],
+        json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8")),
+    )
 
 
 def _with_run_control(payload: dict[str, Any], state: str) -> dict[str, Any]:

@@ -31,11 +31,7 @@ rollback(workspace: Path, request_id: str) -> TransactionResult
 
 ## 待确认的对外合同
 
-<<<<<<< HEAD
-当前 `docs/接口对接/A包对外接口文档.md` 尚未定义以下内容，代码实现前必须补齐：
-=======
 当前 `docs/接口对接/进行中/CORE-001-A包公共接口/contract.md` 尚未定义以下内容，代码实现前必须补齐：
->>>>>>> 9e1d645bd96f7bfc30e0d34f8dba47206ac87f33
 
 1. `1001`、`1002`、`1003`、`1004` 分别对应哪一种错误（参数、事务状态、并发/嵌套、IO 或其他）。
 2. `begin` 的快照来源和 `commit` 的修改载荷结构；是完整 JSON 状态、记录集合，还是由 `WorkspaceUnitOfWork` 暂存的记录/索引变更。
