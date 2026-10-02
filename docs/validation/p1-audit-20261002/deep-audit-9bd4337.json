@@ -1,0 +1,276 @@
+{
+  "checked_at_utc": "2026-10-02T16:05:44.871431+00:00",
+  "source_commit": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+  "document_branch": "文档更新-袁",
+  "previous_evidence": "followup-9bd4337.json",
+  "environment": {
+    "python": "3.13.13",
+    "os": "Windows-11-10.0.22631-SP0"
+  },
+  "review_coverage": {
+    "total_files": 118,
+    "reviewed_files": 19,
+    "skipped_files": 99,
+    "coverage_rate": 16.1,
+    "scope": "按相关控制流定向审查；reviewed不是整文件逐字/全仓覆盖率",
+    "preview_total_changed_files": 404,
+    "preview_excluded_files": 286
+  },
+  "observations": {
+    "A-OWNERSHIP-01-cross-project-lineage": {
+      "accepted_cross_project_revision": true,
+      "lineage_projects": [
+        "project-a",
+        "project-b"
+      ],
+      "old_revision_preserved": true,
+      "boundary": "B save_case through A real file-backed ports; temporary projects"
+    },
+    "B-REVISION-01-payload-storage": {
+      "storage_revisions": [
+        1,
+        2
+      ],
+      "loaded_case_revisions": [
+        9,
+        9
+      ],
+      "boundary": "real save/load path; no invalid dataclass or edited storage"
+    },
+    "A-UOW-01-failed-commit-retry": {
+      "competing_transaction_lock_held": true,
+      "retry_without_reacquiring_lock": true,
+      "retry_state": "committed",
+      "commit_sequences": [
+        1,
+        1
+      ],
+      "successful_retry_record_lost_after_competing_publish": true,
+      "boundary": "two real UOW objects; failure injection and deterministic publish interleaving"
+    },
+    "A-PROTOCOL-01-transaction-identity": {
+      "begin_state": "active",
+      "same_request_commit_error": "REQUEST_CONFLICT",
+      "different_request_commit_error": "request_id does not own transaction",
+      "different_request_rollback_error": "request_id does not own transaction",
+      "transaction_still_active": true,
+      "boundary": "real LocalAPI dispatch; staging directly isolates identity conflict"
+    },
+    "A-RECOVERY-01-rejected-restore": {
+      "restore_state": "rejected",
+      "restore_verified": false,
+      "orchestrator_state": "repaired",
+      "orchestrator_integrity_ok": true,
+      "target_created": false,
+      "boundary": "invalid relative manifest; no restored files or external paths written"
+    },
+    "A-MODEL-01-redirect-authorization": {
+      "initial_url": "https://confirmed.invalid/chat/completions",
+      "redirect_url": "https://unconfirmed.invalid/received",
+      "redirect_method": "GET",
+      "authorization_forwarded": true,
+      "provider_result": "ok",
+      "boundary": "real urllib redirect flow, synthetic HTTPS I/O, no network or real token"
+    },
+    "C-CAPTURE-01-parent-exit-before-stream-seal": {
+      "collection_complete": true,
+      "capture_completeness": "complete",
+      "reader_threads_alive_at_return": 2,
+      "redaction_summaries_at_return": 0,
+      "saved_bytes_in_returned_collection": 0,
+      "saved_bytes_after_cleanup_and_seal": 8,
+      "windows_job_assigned": false,
+      "boundary": "real disposable Python child inherited streams on current Windows; no business action"
+    },
+    "C-PROCESS-01-windows-job-access": {
+      "original_job_assigned": false,
+      "original_win32_error": 5,
+      "with_process_terminate_job_assigned": true,
+      "boundary": "native Windows API on one disposable Python child; in-memory control only"
+    }
+  },
+  "comments": [
+    {
+      "issue_id": "A-12",
+      "probe_key": "A-UOW-01-failed-commit-retry",
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "content": "提交异常释放写锁后仍保留project/pending/request_id，下一次commit不核对/重取锁。另一UOW持锁发布期间重试仍成功；交错发布得到相同序号1且已返回成功的case-a记录被覆盖丢失。失败应进入仅可回滚/核实状态，或重新准入并校验权威边界后才可提交。",
+      "start_line": 132,
+      "end_line": 140,
+      "category": "bug",
+      "severity": "critical",
+      "contract": "项目架构04第2节唯一写入队列/原子提交；CORE-001第4节事务状态；AC28。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "A-13",
+      "probe_key": "A-MODEL-01-redirect-authorization",
+      "path": "src/aitest/infrastructure/adapters/model.py",
+      "content": "初始端点相等检查后默认urllib仍跟随302。真实redirect流程把Authorization复制到未确认的另一HTTPS域，且该域响应被作为成功草稿。应阻断未授权重定向或逐跳核对已确认目标并禁止跨目标转发凭据。合成HTTPS只替换socket I/O，没有真实外发。",
+      "start_line": 53,
+      "end_line": 58,
+      "category": "security",
+      "severity": "high",
+      "contract": "一期需求第7节/AC32接收目标变化需重新确认；A模型传输主责，B策略协作。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "A-11",
+      "probe_key": "A-OWNERSHIP-01-cross-project-lineage",
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "content": "同一记录按kind/id全局追加，但提交未核对已有记录的项目归属。B正式save_case可把project-a的case-1@1追加成project-b的@2，形成混合项目历史。读取时的项目检查不能修复已接受的跨项目写入；需在短事务内验证稳定记录归属并核对payload/project。",
+      "start_line": 552,
+      "end_line": 560,
+      "category": "bug",
+      "severity": "high",
+      "contract": "项目架构04第2节原子提交需校验项目归属；架构01稳定项目/记录身份；FR01/06/16，AC28。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "C-08",
+      "probe_key": "C-CAPTURE-01-parent-exit-before-stream-seal",
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "content": "父命令退出而后台子进程仍持输出流时，reader.join(timeout=5)后未核对线程/EOF即读取清单、发布complete和ExitFact。实测返回时reader仍2个、脱敏摘要0份、输出0字节，清理后才封口8字节。应先证实全组/流封口；未完成时保留partial/gap/待核实，并在可靠终态上冻结最终计数。",
+      "start_line": 273,
+      "end_line": 286,
+      "category": "bug",
+      "severity": "high",
+      "contract": "项目架构02第12/13节退出与完整采集分离；C采集/进程控制主责，A保存协作；AC19/24/28。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "C-09",
+      "probe_key": "C-PROCESS-01-windows-job-access",
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "content": "AssignProcessToJobObject需要PROCESS_SET_QUOTA及PROCESS_TERMINATE；当前OpenProcess权限缺0x0001。Windows原生实测原调用返回None/GetLastError=5，同子进程仅补该权限位即绑定成功。错误被静默降级，父进程已退出时cleanup无法依赖关闭Job终止子组。需正确权限/句柄声明并明确处理绑定失败，验证后台子进程真实停止。",
+      "start_line": 618,
+      "end_line": 625,
+      "category": "bug",
+      "severity": "high",
+      "contract": "项目架构02第12节已验证受控作业/进程组；FR09，AC19/28。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "B-11",
+      "probe_key": "B-REVISION-01-payload-storage",
+      "path": "src/aitest/application/planning/persistence.py",
+      "content": "save_case接受Case.revision=9，却按仓储自动追加到修订1、2，准确读回@1/@2均返回Case@9。正文修订与引用修订可发生错配，影响冻结计划与摘要。B保存用例应按真实当前修订核对/分配新正文修订，拒绝不一致输入，并验证读回记录与正文身份一致；Scope/规则同类路径需一起核查。",
+      "start_line": 124,
+      "end_line": 125,
+      "category": "bug",
+      "severity": "medium",
+      "contract": "项目架构01第3/7节固定精确用例/范围修订；B保存/冻结主责；FR06，AC20/24/31。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "A-14",
+      "probe_key": "A-PROTOCOL-01-transaction-identity",
+      "path": "src/aitest/interfaces/local/api.py",
+      "content": "LocalAPI把完整action纳入request_id指纹，同时commit/rollback只向UOW传当前传输request_id。begin后同号commit报REQUEST_CONFLICT，异号commit/rollback报不属于事务，活动事务无法经协议结束。内部B转接头直接调用UOW未受影响；公开事务路由需独立表达事务归属与传输请求身份并测试结束/重传。",
+      "start_line": 101,
+      "end_line": 110,
+      "category": "bug",
+      "severity": "medium",
+      "contract": "CORE-001第3—4节传输请求/事务身份及闭环；A本地协议主责，AC28/34。",
+      "classification": "new_issue"
+    },
+    {
+      "issue_id": "A-06",
+      "probe_key": "A-RECOVERY-01-rejected-restore",
+      "path": "src/aitest/infrastructure/file_store/recovery.py",
+      "content": "FileBackupStore拒绝越界清单并返回rejected/verified=False，RecoveryOrchestrator却无条件报repaired/integrity_ok=True和已恢复动作。临时目标根本没有创建。需传播拒绝状态并核对隔离目标事实，不能用活动源工作空间提交序列代替恢复目标核对。归入原A-06恢复真实性问题。",
+      "start_line": 128,
+      "end_line": 134,
+      "category": "bug",
+      "severity": "medium",
+      "contract": "项目架构04第3/10节保守恢复与恢复后核对；FR16，AC28/35。",
+      "classification": "existing_issue_expanded"
+    }
+  ],
+  "new_issue_count": 7,
+  "existing_issue_expansions": [
+    "A-06"
+  ],
+  "outstanding_entries_by_package": {
+    "A": 11,
+    "B": 7,
+    "C": 9,
+    "D": 6
+  },
+  "prior_evidence_hashes": {
+    "docs/validation/p1-audit-20261002/develop-refresh-9bd4337.json": "12f9838e6aaa4031cef98cd2674e25d0bca2ffde47fdda149db65f928135cd5e",
+    "docs/validation/p1-audit-20261002/followup-9bd4337.json": "b86b291c1af889881d463e4492536abc7425e29a8212e4fdd525c0afc55e2292",
+    "docs/validation/p1-audit-20261002/probes.py": "7344e65b658825861a391396d1616ff8c18f7350ab451842d7e278bd263a323d",
+    "docs/validation/p1-audit-20261002/followup_probes.py": "8a6306da6ad879a1f805cf76781a7d64ddfe0ca3d08681c525381819fa1e7339",
+    "docs/修改日志/袁/2026-10-02-develop第二轮复核.md": "ccc911f356db9785c3b53f435d2275ffeec60b122e06f3e6574fa7b5bffa79f1",
+    "docs/修改日志/袁/2026-10-02-一期检查续查与文档收敛.md": "74b45c6b07a38da941dd071c966c2f0458ffd3a710630572b913af60ed57e525"
+  },
+  "source_hashes": {
+    "src/aitest/infrastructure/file_store/unit_of_work.py": "1141d73915d6e76c41c57bd089207c18a5538939a873096e7148c842ea52ae12",
+    "src/aitest/infrastructure/file_store/records.py": "f1a7533a057d4a9f6e366fb3e4d87f97e9cc4528120335c753af1d3fe3e8c08d",
+    "src/aitest/infrastructure/file_store/workspace.py": "0aba36ae02ab5ae6801bbf8490e3a519c585603e5693285c8d485516a151a4ed",
+    "src/aitest/infrastructure/file_store/recovery.py": "3228776fb802c11aa61cadfe92ebd2fa1e422c3eddfaf290a848c99f0c1f32db",
+    "src/aitest/infrastructure/file_store/backup.py": "252b85d29a2bda25a12ed347e4f1c7831439c8e7e88ee9a1ec32f9a34c51783f",
+    "src/aitest/infrastructure/adapters/model.py": "3305f1f8368dc877464beb34413337dfd37c525397a287830664c8c5be37e8d4",
+    "src/aitest/infrastructure/adapters/execution/command.py": "851281e2203c862548c7f8ed4a571376610d48e082fd0b6bd8610add1021cef7",
+    "src/aitest/application/planning/persistence.py": "40357f0fa1cd211597f8c9a3c4cbab4a56bd400fb87832bf950a9b09eb8be698",
+    "src/aitest/application/planning/substrate_adapter.py": "6bb4b725d5d56136f942cbcc6d327179e195fcff0dd3736b176e4976d80c6373",
+    "src/aitest/application/planning/serialization.py": "d25a82ffeb3444fba35ab919ebd4c947a19f548f29582f20492e0d5299039af0",
+    "src/aitest/domain/planning/plans.py": "a46251c371f0bb85dce2b2ac59e4bf490f4b6ca66ae6da2ac2a6e6c690510c1e",
+    "src/aitest/contracts/commands.py": "5b5300dd74cdd3d320158d3224d7992236506173a4275ec152a86689f135f9fe",
+    "src/aitest/interfaces/local/api.py": "07337fa65f07b3e28f917d4e78ddfc56344bc3eceb3e379df665e7f320f2edcc",
+    "src/aitest/application/execution/runner.py": "0c3cf18ad8fbe4079f70fc0d492b38a102af3db05ec732665a54bdf0d1ce178d",
+    "src/aitest/application/execution/recovery.py": "00bd4c6c2247f64dba69f4e2cd19cb152d0ba260251e118d376219126f7d913d",
+    "src/aitest/domain/review/reports.py": "493c23f614adbe77ae500d15825be29881a2170511c11b49824c18c43a08ad35",
+    "src/aitest/domain/review/defects.py": "0c304bda7d9de8e5b89372f6b2abff0b99b1bae0dc3561ed77a131057f76adb5",
+    "src/aitest/application/review/reporting.py": "5998fc70c3e2b2375f00205bfeeb039f9445beb93044fa9b7f2464c113ff98fe",
+    "src/aitest/application/review/defect_management.py": "d83a1656990bdff9c84234ada0b47fea6e7f0cbde0045c13796eaf76a36660e8"
+  },
+  "verification": {
+    "deep_probes": "8_observations_asserted",
+    "full_suite": "not_rerun; same-source results preserved in followup JSON",
+    "actual_product_acceptance": "not_performed"
+  },
+  "primary_reference": "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject",
+  "document_validation": {
+    "status": "passed",
+    "markdown_files": 9,
+    "local_links_checked": 201,
+    "errors": [],
+    "newly_broken_incoming_links": [],
+    "FR_AC_rows": {
+      "FR": 17,
+      "AC": 35
+    },
+    "outstanding_entries_by_package": {
+      "A": 11,
+      "B": 7,
+      "C": 9,
+      "D": 6
+    },
+    "outstanding_total": 33,
+    "closed_entries_absent": true,
+    "acceptance_counts": {
+      "not_verified": 7,
+      "untested": 27,
+      "blocked": 1,
+      "verified": 0
+    },
+    "acceptance_owners": {
+      "B": 8,
+      "D": 16,
+      "C": 10,
+      "A": 1
+    },
+    "acceptance_register_unchanged": true,
+    "evidence_paths_present": 0,
+    "CHANGELOG_initial_byte_prefix_preserved": true,
+    "CHANGELOG_appended_bullets": 1,
+    "prior_evidence_and_log_preserved": true,
+    "protected_files_unchanged": true,
+    "git_diff_check": "passed",
+    "changes_scope": "documentation and audit evidence only",
+    "source_hashes_unchanged": true,
+    "OCR_inventory_complete": true
+  }
+}

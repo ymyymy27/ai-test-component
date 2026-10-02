@@ -1,0 +1,277 @@
+{
+  "checked_at_utc": "2026-10-02 15:19:27 UTC",
+  "source_commit": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+  "document_branch": "文档更新-袁",
+  "previous_evidence": "develop-refresh-9bd4337.json",
+  "preserved_existing_uncommitted_changes": true,
+  "product_version": "0.4.0",
+  "environment": {
+    "python": "3.13.13",
+    "os": "Windows-11-10.0.22631-SP0"
+  },
+  "checks": {
+    "versions": "passed",
+    "ruff": "passed",
+    "mypy": {
+      "status": "passed",
+      "analyzed_files": 136
+    },
+    "generated_schemas": {
+      "status": "passed",
+      "files": 7,
+      "diff": "unchanged"
+    },
+    "pytest": {
+      "status": "passed_with_skips",
+      "passed": 1148,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 2,
+      "terminal_seconds": 33.54,
+      "junit_suite": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "2",
+        "tests": "1150",
+        "time": "33.306",
+        "timestamp": "2026-10-02T23:02:55.050045+08:00"
+      },
+      "skipped_cases": [
+        {
+          "name": "test_symlink_anywhere_is_reported",
+          "reason": "Current session cannot create symbolic links; these scenarios were not verified locally."
+        },
+        {
+          "name": "test_restore_rejects_symlink_target",
+          "reason": "Current session cannot create symbolic links; these scenarios were not verified locally."
+        }
+      ],
+      "local_junit": ".git/docs-review-followup-20261002/pytest.xml"
+    },
+    "panel_build": "passed",
+    "panel_playwright": {
+      "status": "failed",
+      "failed": 1,
+      "expected_heading_count": 3,
+      "actual_heading_count": 4,
+      "later_assertions": "not_executed"
+    },
+    "trae_vsix_package": {
+      "status": "passed",
+      "files": 6
+    },
+    "remote_develop_ci": {
+      "status": "previously_recorded_not_requeried",
+      "run_id": 37008560076,
+      "source_commit": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+      "recorded_conclusion": "failure",
+      "recorded_pytest_passed": 1149,
+      "recorded_pytest_failed": 1,
+      "url": "https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076",
+      "failed_test": "tests/unit/test_a_a06_reference_closure.py::test_restore_rejects_symlink_target",
+      "claim_is_latest_remote_state": false
+    },
+    "wheel_build_and_smoke": "not_performed",
+    "real_product_acceptance": "not_performed"
+  },
+  "acceptance_register": {
+    "path": "tests/acceptance/p1/status.json",
+    "total": 35,
+    "counts": {
+      "verified": 0,
+      "not_verified": 7,
+      "blocked": 1,
+      "untested": 27
+    },
+    "evidence_paths_present": 0,
+    "modified_by_this_audit": false
+  },
+  "current_focused_observations": {
+    "A-COMMIT-01-post-publication": {
+      "record_revision": 1,
+      "index_status": "ok",
+      "visible_events": 1,
+      "committed_sequences": [
+        1
+      ],
+      "second_recovery_state": "healthy"
+    },
+    "A-QUERY-01-query-binding": {
+      "foreign_project_status": "invalid_cursor"
+    },
+    "A-CORE-02-lifetime-admission": {
+      "two_instances_assembled_for_same_workspace": true,
+      "same_workspace": true,
+      "default_actions": [
+        "export_rules",
+        "generate_draft",
+        "import_rules",
+        "prepare_run",
+        "publish_plan",
+        "publish_rules",
+        "query",
+        "save_acceptance",
+        "save_binding",
+        "save_case",
+        "save_context",
+        "save_delivery",
+        "save_dependency_graph",
+        "save_environment",
+        "save_task"
+      ],
+      "boundary": "in-process assembly only; no real host lifecycle"
+    },
+    "A-INTEGRITY-03-inline-digest": {
+      "draft_response_has_error": false,
+      "integrity_ok_after_generated_draft": false,
+      "integrity_errors": [
+        "unreachable object reference: sha256:79657453df53b6db85bb32341612f47983eb1bfbdfe4ab791142f02b3c260906"
+      ],
+      "core_restart_blocked": true,
+      "boundary": "default LocalAPI, synthetic template input, real temporary file store"
+    },
+    "A-BACKUP-02-snapshot-closure": {
+      "missing_blob_integrity_ok": true,
+      "missing_blob_materialization_rejected": true
+    },
+    "A-MAINTENANCE-02-jsonl-reference": {
+      "permanently_referenced_candidate_removed": true,
+      "candidate_exists_after_reclaim": false
+    },
+    "B-PREPARE-01-resolved-input-only": {
+      "same_request_payload": true,
+      "status": "blocked",
+      "blocking_codes": [
+        "needs_reprepare"
+      ],
+      "changed_inputs": [
+        "resolved_input_digest"
+      ]
+    },
+    "B-MODEL-03-response-before-save": {
+      "synthetic_secret_saved_in_draft": true,
+      "boundary": "synthetic model and memory store; no real credential"
+    },
+    "C-INVALIDATION-01": {
+      "completed_downstream_invalidated": false
+    },
+    "C-DURABILITY-01": {
+      "stream_fsync_calls_before_ack": 0,
+      "other_file_fsync_calls_before_ack": 1,
+      "acknowledged_durable": true,
+      "acknowledged_offset": 17
+    },
+    "D-DECISION-01": {
+      "outcome": "passed",
+      "grade": "B"
+    },
+    "D-COVERAGE-01": {
+      "reuse_without_verification_accepted": true
+    },
+    "D-ISSUE-01": {
+      "cycle_rejected_before_return": true
+    },
+    "D-ISSUE-02": {
+      "reopened_severity": "P1",
+      "blocking_ids": [
+        "issue"
+      ]
+    },
+    "B-MODEL-04-repeat-intent": {
+      "identical_arguments": true,
+      "same_outbound_request_id": true,
+      "external_call_count": 2,
+      "distinct_draft_ids": true,
+      "latest_outbound_revision": 4,
+      "saved_draft_count": 2,
+      "boundary": "counting synthetic model and memory store; no real outbound call"
+    },
+    "C-INVALIDATION-02-same-plan": {
+      "affected_upstream_reported": true,
+      "same_plan_revision": true,
+      "running_downstream_invalidated": false,
+      "boundary": "pure rule with an explicitly reported upstream change"
+    },
+    "C-INVALIDATION-03-dependency-chain": {
+      "invalidated_attempt_ids": [
+        "middle"
+      ],
+      "transitive_leaf_invalidated": false,
+      "unrelated_attempt_invalidated": false,
+      "direct_control_dependency_invalidated": true,
+      "boundary": "pure rule; no product runner or persistence acceptance"
+    }
+  },
+  "observation_count": 17,
+  "issue_transition": {
+    "removed_closed_entries": [
+      "A-01",
+      "A-04",
+      "B-02",
+      "D-01",
+      "D-03"
+    ],
+    "previous_total_remaining_entries": 25,
+    "added_this_followup": [
+      "B-10"
+    ],
+    "refined_existing_entries": [
+      "C-01"
+    ],
+    "remaining_counts": {
+      "A": 7,
+      "B": 6,
+      "C": 7,
+      "D": 6
+    },
+    "total_remaining_entries": 26,
+    "meaning": "Outstanding repair, integration, completion and acceptance tasks; not a confirmed bug count or a completion percentage."
+  },
+  "limits": [
+    "Synthetic model and memory store; no real provider request or billing observation.",
+    "Direct data/control invalidation exists; the new observations concern same-plan retries and transitive invalidation.",
+    "Local symbolic-link scenarios were skipped; the exact baseline CI failure is retained as prior evidence.",
+    "No real Trae lifecycle, business independent verification, power loss, or portable product acceptance was performed.",
+    "Prior evidence JSON and modification logs are preserved."
+  ],
+  "document_validation": {
+    "status": "passed",
+    "markdown_files": 9,
+    "local_links_checked": 166,
+    "errors": [],
+    "newly_broken_incoming_links": [],
+    "FR_AC_rows": {
+      "FR": 17,
+      "AC": 35
+    },
+    "outstanding_entries_by_package": {
+      "A": 7,
+      "B": 6,
+      "C": 7,
+      "D": 6
+    },
+    "outstanding_total": 26,
+    "closed_entries_absent": true,
+    "acceptance_counts": {
+      "not_verified": 7,
+      "untested": 27,
+      "blocked": 1,
+      "verified": 0
+    },
+    "acceptance_owners": {
+      "B": 8,
+      "D": 16,
+      "C": 10,
+      "A": 1
+    },
+    "acceptance_register_unchanged": true,
+    "evidence_paths_present": 0,
+    "CHANGELOG_initial_byte_prefix_preserved": true,
+    "CHANGELOG_appended_bullets": 2,
+    "prior_evidence_and_log_preserved": true,
+    "protected_files_unchanged": true,
+    "git_diff_check": "passed",
+    "changes_scope": "documentation and audit evidence only"
+  }
+}

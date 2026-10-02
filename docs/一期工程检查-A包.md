@@ -1,8 +1,8 @@
 # 一期工程检查-A包
 
-复核完成日期：2026年10月2日；本机检查于10月1日执行。源码基线：`develop 10fc22feed4e7927151a28277c93e2e96a3c70d0`，文档分支`文档更新-袁`。
+复核完成日期：2026年10月3日；本轮从10月2日开始、10月3日收敛。源码基线：`develop 9bd4337c1a0696db9cd8bd21e7b67f3a751923bb`，文档分支`文档更新-袁`。
 
-本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-02-develop进展复核与文档更新.md)。
+本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-03-一期源码深查与新增问题.md)。
 
 其他包：[B包](一期工程检查-B包.md) · [C包](一期工程检查-C包.md) · [D包](一期工程检查-D包.md)。
 
@@ -10,14 +10,14 @@
 
 - 主责来源：[文档总览](项目文档/README.md)、[总体架构](项目文档/总体架构.md)、[阅读索引](项目文档/阅读索引.md)、[一期需求](项目文档/一期/需求文档/01-需求文档.md)、[一期功能](项目文档/一期/功能文档/01-功能文档.md)、架构00—06及[面板与工作台](项目文档/一期/设计文档/01-面板与工作台.md)。一期仍为17 FR/35 AC，不增删或重编号。
 - 四部分分工沿用原拆分方案；字段、状态、时序按现行分册及[接口总台账](接口对接/README.md)、DEC-001—006实施，不因文档更新改接口冻结状态。
-- 阅读当前控制流/测试并重放反例；当前依据为[结果JSON](validation/p1-audit-20261001/develop-refresh-10fc22f.json)，方法和历史材料在[证据说明](validation/p1-audit-20261001/README.md)。合成输入/临时目录和静态检查不替代真实宿主、业务核验或掉电证据。
+- 本次19个关键文件定向深查：[JSON](validation/p1-audit-20261002/deep-audit-9bd4337.json)、[脚本](validation/p1-audit-20261002/deep_probes.py)记录8项观察；预览118目标，19定向已审/99明确跳过，[覆盖清单](validation/p1-audit-20261002/deep-review-inventory.json)列范围/原因。不是全仓逐字重审；[前次JSON](validation/p1-audit-20261002/followup-9bd4337.json)和历史材料在[证据说明](validation/p1-audit-20261002/README.md)保留。临时数据/合成请求与本机进程/API实验不替代真实供应方、Trae、业务或掉电AC。
 - “高风险”有源码或当前反例依据；“接入缺口”需补默认装配/真实持久链；“待验收”需真实输入、版本、预期/实际和证据。“待核对”不计为已确认缺陷。未以文件数、通过数估算完成率。
 
 ## 2. 主责与尚缺验收
 
 | 包/FR主责 | 当前需完成的范围 | 牵头AC |
 | --- | --- | --- |
-| A：协议与底座 / FR16 | 永久留存/恢复、正式端口与唯一核心、有限查询、来源耐久和真实适配 | 28（1项） |
+| A：协议与底座 / FR16 | 永久闭包/恢复、全生命周期唯一核心、有限查询、实际来源与安全适配 | 28（1项） |
 
 四个交接面为本地协议、工作单元/存储端口、PreparedRun、ExecutionFacts。A需冻结公开端口并提供同提交边界的保存/查询/恢复；B/C/D通过端口消费。源码来源规则归B，实际加载与业务独立核验归C，报告/问题/展示归D，A的文件hash能力不能替代业务核验。
 
@@ -29,40 +29,45 @@
 
 | 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
-| A-01 接入缺口 | `WorkspaceUnitOfWork`未声明B转接依赖的`commit_seq/next_commit_seq`，`RecordRepository`未声明`current_revision`；B窄协议与正式端口的签名、返回及Secret语义未最终冻结 | FR16、AC16/27/28/31/35；A按CORE-001/AB-001统一公开端口，B/C/D按准确签名对拍；制品/维护方法需由真实调用链验证 |
-| A-02 阻断交付 | `CoreBootstrap.create`未自动装配B/C/D依赖；`core_worker`只执行`server.read_message()`，不解析Command、不派发LocalAPI、不回写Response，默认`max_clients=1`断开即退出。短事务排他锁未覆盖工作空间整个核心生命周期 | AC19/26/27/31/34；装配默认业务依赖与统一消息派发，补长期唯一写入者、跨入口持久启动意图、旧epoch、运行保活/draining/退出/重连；与C核对同意图只启动一次，真实Trae验收 |
-| A-04 高风险 | records已发布后commit.json写失败，当前记录修订1可读，索引maintenance_required、事件0、活动标记已清；恢复报repaired但committed_sequences为空。证据键`A-COMMIT-01-post-publication` | AC19/27/28/34；统一records权威边界与恢复事实来源，逐个发布点都能恢复同边界记录/索引/事件/意图；保留必要抢救状态，补发布后故障注入和重启验证 |
-| A-05 高风险/补全缺口 | 游标仅携schema/key，未绑定查询条件、commit_id、epoch/generation；换project_id仍返回ok（`A-QUERY-01-query-binding`）。列表/记录仍整读JSON，有限摘要分片与同提交事件快照未完成 | AC27/34；按存储第13节实现query_id/版本/条件/commit和末尾完整键绑定；验证旧提交分页、状态筛选、摘要索引及无关历史增长时的有限访问 |
-| A-06 待补全/待验证 | 目录白名单与基本sha256检查尚未证明永久记录、证据、报告、导出、诊断和全部历史引用闭包；缺附件/符号链接、活动spool清单及恢复目标边界缺完整产品证据 | AC16/28/35；按存储合同核对每条永久引用可达与摘要，补完整/缺损备份、空目标恢复、活动输出抢救和portable制品联合验证 |
-| A-07 待补全 | maintenance回收主要按文件名及同名已发布目标判断，尚未从真实活动执行、可靠保存与无引用事实证明回收资格；未知副作用与未封口输出的迁移恢复协作未闭合 | AC28；C先核实活动并抢救，A再判迁移/回收资格；补永久缺口、备份完整性、generation及故障中断验证，不能把目标存在当可回收依据 |
-| A-08 高风险/接入缺口 | SourceSnapshot Blob发布没有显式fsync，耐久发布未验证；B正式领域SourceSnapshot转换与C实际解释器/入口/加载来源核对未接通 | FR01、AC12/13/19/25/30；先确认历史字节可靠保存，再冻结来源；接准确领域身份与实际加载核对，补editable/PYTHONPATH/绝对入口及重启/掉电来源验证 |
-| A-09 待补全/待验证 | 自定义projector输出仍需统一安全底线；模型正文、结构化错误和已知凭据在所有落盘/出站出口的过滤链尚未完成联合验证，真实安全报告/附件导出未贯通 | AC07/16/32/35；统一落盘前过滤和安全投影，验证默认/自定义出口、模型响应/错误、诊断/备份/导出；无法安全处理应保留缺口而非保存原字节 |
-| A-10 接入缺口/待验收 | ConnectionMonitor/LocalAPI连接状态仍是实例内字典，没有跨重启持久保存；实际模型、Windows Credential、Git来源与用户动作的端到端调用、故障恢复及动作级降级没有验收证据 | AC13/15/25/32/33；保存可恢复连接事实并核对来源会话，接真实凭据/目标与具体业务动作；验证换核心/重连/失败分支，只降级真实依赖该能力的动作 |
+| A-12 高风险/新发现 | commit异常释放锁后仍保留暂存/身份，无锁重试被接受；另一UOW持锁的交错提交均序号1，已成功返回的case-a记录丢失（A-UOW-01-failed-commit-retry；[unit_of_work.py](../src/aitest/infrastructure/file_store/unit_of_work.py)，132—140行） | 项目架构04第2节唯一写入队列/原子提交；CORE-001第4节事务状态；AC28。 异常后禁止无锁继续提交；进入仅回滚/核实状态或重新准入并校验权威边界；验证竞争写入、未知发布结果及永久历史不丢。B转接头自动回滚已有，本反例不表示所有B动作必然丢记录。 |
+| A-13 高风险/新发现 | 默认urllib跟随302，把Authorization从已确认HTTPS端点转给未确认的另一域，并接受其草稿为ok（A-MODEL-01-redirect-authorization；[model.py](../src/aitest/infrastructure/adapters/model.py)，53—58行） | 一期需求第7节/AC32接收目标变化需重新确认；A模型传输主责，B策略协作。 禁止未经确认的目标跳转，或逐跳校验授权范围，跨目标不转发凭据；与B策略联验同域/跨域/降级跳转。探针保留真实urllib流程、仅替换网络I/O，无真实外发或凭据。 |
+| A-11 高风险/新发现 | B正式save_case经A真实端口，将project-a/case-1@1以project-b、expected_revision=1追加为@2，稳定记录链混入两个项目（A-OWNERSHIP-01-cross-project-lineage；[records.py](../src/aitest/infrastructure/file_store/records.py)，552—560行） | 项目架构04第2节原子提交需校验项目归属；架构01稳定项目/记录身份；FR01/06/16，AC28。 A短事务校验稳定记录原项目及payload/project一致；B保存/导入核对命名空间和归属，拒绝跨项目改归属。验证同名不同项目及合法同项目修订；旧修订在本反例中仍保留。 |
+| A-14 接口/保存缺陷（新发现） | LocalAPI begin后同request_id的commit指纹冲突，异号commit/rollback不属于事务，仍active；内部B直接UOW路径可以收尾（A-PROTOCOL-01-transaction-identity；[api.py](../src/aitest/interfaces/local/api.py)，101—110行） | CORE-001第3—4节传输请求/事务身份及闭环；A本地协议主责，AC28/34。 公开路由分清传输请求和事务归属，完成begin→commit/rollback及各阶段重传/冲突；内部B直接UOW不受影响。接口语义须双方同步，不擅改冻结状态。 |
+| A-02 高风险/接入缺口 | 工作空间仍只在短事务内持writer.lock；`assemble_workspace_core`允许同根目录装配两个不同实例（`A-CORE-02-lifetime-admission`）。默认仅注册B的15动作，C/D依赖需extra_handlers；worker将所有连接标为AGENT_RELAY，父进程消亡看门狗直接os._exit(6)，未核对活动执行/抢救与draining | AC19/26/27/31/34；覆盖全生命周期唯一写入者与可靠宿主会话，接C/D及人工入口；退出按活动事实决定保活/排空，跨入口同意图实际start只一次，旧epoch/重连/真实Trae验收 |
+| A-05 接入缺口 | FileQueryIndex仍整读indexes.json、复制全部rows后过滤排序，records仍整读JSON；当前QuerySpec只支持记录类型/ID/修订/排序，未实现主责目录的报告/问题状态筛选、完整摘要索引与同边界事件快照。游标采用offset，完整末尾键/有限访问合同仍需补齐 | AC27/34；按存储第13节交付有限QuerySpec目录和摘要分片，验证无关历史增长不增加整库访问、旧提交分页、报告/问题筛选及快照事件对拍 |
+| A-06 高风险/闭包缺口 | `A-INTEGRITY-03-inline-digest`：默认generate_draft保存成功，完整检查却把正文content_digest当objects引用，核心重启blocked；`A-BACKUP-02-snapshot-closure`：缺历史Blob时检查仍ok而物化rejected。backup白名单遗漏generations/core；恢复先resolve目标再查symlink，远端CI的目标符号链接用例失败；新增A-RECOVERY-01-rejected-restore：越界清单被底层拒绝（rejected/verified=false），目标未创建；恢复编排却报repaired/integrity_ok=true | AC16/28/35；按实际记录类型区分内联摘要、对象引用、源码Blob与其他永久材料；核对可达/摘要/项目边界和完整备份目录，恢复先验证原目标及路径各层链接，准确传播拒绝/未核对状态并核实恢复目标；补默认业务保存→重启、缺损备份与有符号链接权限的验证 |
+| A-07 高风险/恢复协作缺口 | maintenance._referenced_digests只读.json，跳过永久.jsonl：`A-MAINTENANCE-02-jsonl-reference`中仍被永久JSONL引用的隐藏临时材料已被实际回收。活动门禁只查transactions/active.json及非空事件staging，尚未与C真实活动/未封口输出抢救协作 | AC28；JSON/JSONL及准确记录引用共同证明回收资格，未知或不可读引用应阻塞；C核实活动和抢救后A再迁移/回收，补无短事务标记但仍有执行的验证 |
+| A-08 接入缺口/待验证 | B正式SourceSnapshot领域转换与C实际解释器/入口/加载来源仍未在默认核心接线，source_checks.py仍占位；Windows目录项耐久及真实重启/掉电来源证据未完成 | FR01、AC12/13/19/25/30；将固定字节、领域身份、实际加载来源按准确修订贯通，核对editable/PYTHONPATH/绝对入口，补目标Windows存储耐久与来源不匹配阻塞验证 |
+| A-09 高风险/安全链缺口 | B模型响应在generated_content_payload落盘前未过滤：`B-MODEL-03-response-before-save`中合成password正文仍进入草稿记录；仅协议出口脱敏不能撤销已保存字节。完整已知凭据值、模型正文、诊断/备份/报告/附件的统一过滤与安全制品链未贯通 | AC07/16/32/35；A提供落盘前安全能力，B在保存响应前使用，C/D共用同底线；无法安全处理保留缺口，验证对象/spool/诊断/备份/导出均无过滤前字节 |
+| A-10 接入缺口/待验收 | 默认装配未接真实模型/SecretPort/来源业务链；连接探测需显式connection_endpoint，低层连接事实尚未与真实用户动作、来源会话和失败恢复联合验收 | AC13/15/25/32/33；把连接/凭据/来源能力接入具体业务动作，验证换核心、失败分类、人工降级与重连；只降级实际依赖故障能力的动作，补真实模型及Trae输入/版本/证据 |
 
 ### 3.2 源码实施入口与剩余缺口
 
 | 源码范围 | 尚需修复、补全或验证的边界 |
 | --- | --- |
-| `contracts/responses.py`、`views.py`、`application/ports.py` | `WorkspaceUnitOfWork` 未声明 B 转接依赖的 `commit_seq/next_commit_seq`，`RecordRepository` 未声明 `current_revision`；签名/返回语义与各实现仍需统一冻结 |
-| `bootstrap.py`、`interfaces/local/pipe.py`、`editor_host.py` | 默认注册表仍不自动装配 B/C/D 依赖；`interfaces/local/core_worker.py` 只读消息，不解析 Command、不调用 LocalAPI、不回 Response，默认一个客户端断开即退出 |
-| `workspace.py`、`atomic.py`、`unit_of_work.py`、`records.py` | 短事务排他锁不等于整个工作空间长生命周期唯一核心；records 发布之后发生投影故障仍留下恢复不完整边界，见 A-04 |
-| `objects.py`、`integrity.py`、`recovery.py` | 恢复依据仍取 commit.json，尚未统一从 records 权威边界重建全部索引/事件；不代表跨核心执行抢救和真实掉电通过 |
-| `index.py`、`events.py` | 游标只携 schema/key，未绑定条件摘要、commit_id、epoch/generation；列表/记录仍整读 JSON，有限摘要分片与同提交快照未完成 |
-| `backup.py`、`migrations.py`、`maintenance.py` | 目录扩展和基本 hash 检查仍需验证完整永久引用闭包；回收仍主要依据文件名及同名目标存在，尚未从活动/提交引用证明资格 |
-| `adapters/source_snapshot.py`、`source_control.py` | Blob 写入未显式 fsync，不能把恢复到旧字节的本机结果当掉电持久性保证；B 的正式 SourceSnapshot 转换和 C 实际加载来源尚未闭合 |
-| `contracts/redaction.py`、`projections.py`、`credentials.py`、模型与连接适配 | 自定义 projector 的返回值仍需统一底线；模型响应落盘与已知凭据的完整过滤、真实凭据/API/产品入口仍待联合核对。ConnectionMonitor/LocalAPI 的状态为实例内字典，未见跨重启持久保存 |
-| `adapters/execution/verification.py` | 只提供技术完整性，不是同一业务对象的函数/API/数据库独立核验 |
+| `bootstrap.py`、`core_worker.py`、`workspace.py` | 缺全生命周期writer.lock、C/D默认装配及可信人工会话；父进程死亡直接退出，尚未按活动执行决定保活/抢救 |
+| `unit_of_work.py`、`records.py`、`local/api.py` | 修A-12失败后无锁重试/历史丢失、A-11跨项目修订、A-14事务收尾；继续补A-05有限索引/完整查询 |
+| `integrity.py`、`backup.py` | 正文摘要被误认对象、源码Blob闭包未核、备份目录未全覆盖；符号链接目标先resolve导致拒绝失效 |
+| `maintenance.py`、`migrations.py` | 永久JSONL引用被漏读，真实执行活动和抢救事实尚未参与回收/迁移 |
+| `adapters/source_snapshot.py`、`application/execution/source_checks.py` | 固定字节→B领域身份→C实际加载来源未接，目标Windows耐久与掉电仍待验证 |
+| `projections.py`、`credentials.py`、模型/连接适配 | 模型响应落盘前与所有材料出口的安全过滤未贯通；默认模型/凭据/来源业务装配及产品失败恢复待验收；model.py需修A-13重定向转发凭据 |
+| `adapters/execution/verification.py` | 文件技术完整性不能替代同业务对象函数/API/数据库独立核验 |
+| `application/ports.py`、接口CORE-001/AB-001 | 当前签名实现需回写双方确认与统一对拍，台账仍reviewing/partial；不得以本次文档复核擅改接口冻结状态 |
 
 ## 4. 当前验证边界
 
-10月1日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（132个分析文件），7份生成Schema无差异；全量pytest **949 passed，0 failed/error/skipped**。面板build、静态Playwright1项及候选VSIX6文件打包通过。
+本次8项深查观察由内部断言核对（7新问题、1细化A-06），新探针ruff通过；产品代码/测试未改。下列全量Python/构建/CI结果沿用同基线前次续查，本次未重跑；反例复现成功不表示缺陷已修复或AC通过。
 
-现有自动化没有覆盖上表全部风险，当前反例/接入任务和真实AC需逐项完成。真实模型/凭据、业务独立核验、Trae用户流程、跨核心/掉电恢复、安全导出和永久留存未验收；旧远端CI不作当前依据。命令与证据详见[复核说明](validation/p1-audit-20261001/README.md)。
+10月2日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（本次136个分析文件），7份生成Schema无差异；全量pytest **1148 passed、2 skipped、0 failed/error**（33.54s）。两项符号链接测试因本机会话无创建权限跳过。
+
+面板build通过，但静态Playwright **1 failed**：阶段区域标题数预期3、实际4；后续断言尚未执行。候选VSIX6文件打包通过。该基线已记录的[Windows CI](https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076)为 **1149 passed、1 failed**：`test_restore_rejects_symlink_target`未抛BackupError；版本/静态/Schema步骤通过。普通CI未运行面板和发布制品检查；本次沿用原CI证据，未重新查询远端。
+
+当前自动化含真实Windows凭据原语、命名管道、本地Git及本机监听器的底层集成；它们不替代真实Trae、模型、业务独立核验、安全导出、跨核心执行/掉电与35项产品AC。合成反例和完整验证范围见[本轮证据](validation/p1-audit-20261002/README.md)。
 
 ## 5. 收敛顺序与交付条件
 
-1. 先补A-04发布后恢复与A-05游标/摘要索引，A-08耐久来源；每个发布点失败都能恢复一致边界，查询不跨条件或提交。
-2. 与B/C/D冻结端口，接默认核心业务派发及全生命周期唯一写入者；验证多入口同意图、旧epoch、执行保活和跨核心恢复。
-3. 按永久引用闭包验证备份/迁移/回收，闭合安全投影、真实外部适配及连接状态恢复，再交付AC28真实证据。
+1. 先阻断A-12无锁重试/历史丢失和A-13重定向外发，修A-11项目归属/A-14事务收尾，再修A-06正常草稿保存后重启阻塞/缺Blob误通过/符号链接目标，以及A-07永久JSONL引用遗漏；补真实底座跨包保存→恢复验证。
+2. 补A-02全生命周期唯一写入者、可信入口、C/D装配及活动保活/退出，A-05有限摘要分片/完整查询目录；对拍同意图start、旧epoch与同提交快照。
+3. 贯通实际加载来源、落盘前安全和真实模型/凭据/用户动作，验证完整永久备份、迁移、抢救/掉电，交付AC28真实证据。
 
 完成条目须按准确源码版本和证据复核后移出本清单；未验证项不得直接关闭。交接任务与FR/AC不因移出问题而省略，历史过程在修改日志、证据目录和Git记录中追溯。

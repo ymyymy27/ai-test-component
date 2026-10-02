@@ -1,8 +1,8 @@
 # 一期工程检查-C包
 
-复核完成日期：2026年10月2日；本机检查于10月1日执行。源码基线：`develop 10fc22feed4e7927151a28277c93e2e96a3c70d0`，文档分支`文档更新-袁`。
+复核完成日期：2026年10月3日；本轮从10月2日开始、10月3日收敛。源码基线：`develop 9bd4337c1a0696db9cd8bd21e7b67f3a751923bb`，文档分支`文档更新-袁`。
 
-本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-02-develop进展复核与文档更新.md)。
+本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-03-一期源码深查与新增问题.md)。
 
 其他包：[A包](一期工程检查-A包.md) · [B包](一期工程检查-B包.md) · [D包](一期工程检查-D包.md)。
 
@@ -10,7 +10,7 @@
 
 - 主责来源：[文档总览](项目文档/README.md)、[总体架构](项目文档/总体架构.md)、[阅读索引](项目文档/阅读索引.md)、[一期需求](项目文档/一期/需求文档/01-需求文档.md)、[一期功能](项目文档/一期/功能文档/01-功能文档.md)、架构00—06及[面板与工作台](项目文档/一期/设计文档/01-面板与工作台.md)。一期仍为17 FR/35 AC，不增删或重编号。
 - 四部分分工沿用原拆分方案；字段、状态、时序按现行分册及[接口总台账](接口对接/README.md)、DEC-001—006实施，不因文档更新改接口冻结状态。
-- 阅读当前控制流/测试并重放反例；当前依据为[结果JSON](validation/p1-audit-20261001/develop-refresh-10fc22f.json)，方法和历史材料在[证据说明](validation/p1-audit-20261001/README.md)。合成输入/临时目录和静态检查不替代真实宿主、业务核验或掉电证据。
+- 本次19个关键文件定向深查：[JSON](validation/p1-audit-20261002/deep-audit-9bd4337.json)、[脚本](validation/p1-audit-20261002/deep_probes.py)记录8项观察；预览118目标，19定向已审/99明确跳过，[覆盖清单](validation/p1-audit-20261002/deep-review-inventory.json)列范围/原因。不是全仓逐字重审；[前次JSON](validation/p1-audit-20261002/followup-9bd4337.json)和历史材料在[证据说明](validation/p1-audit-20261002/README.md)保留。临时数据/合成请求与本机进程/API实验不替代真实供应方、Trae、业务或掉电AC。
 - “高风险”有源码或当前反例依据；“接入缺口”需补默认装配/真实持久链；“待验收”需真实输入、版本、预期/实际和证据。“待核对”不计为已确认缺陷。未以文件数、通过数估算完成率。
 
 ## 2. 主责与尚缺验收
@@ -29,7 +29,9 @@
 
 | 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
-| C-01 高风险 | `invalidate_downstream_attempts` 只处理活动态，完成的下游消费旧上游仍不失效：**C-INVALIDATION-01**；同计划修订提前返回，未形成控制依赖/传递闭包与整用例旧复用撤销 | AC19/20/24；新 Attempt 立即撤销旧 R；所有实际消费旧结果的下游（含完成项）立即依据过期，同/异输出摘要均处理；无依赖分支保留，历史结论不改 |
+| C-08 高风险/新发现 | 父退出/后台子进程持流时collect仍报complete；返回时2个reader未结束、脱敏摘要0份、输出0字节，探针清理后才封口8字节（C-CAPTURE-01-parent-exit-before-stream-seal；[command.py](../src/aitest/infrastructure/adapters/execution/command.py)，273—286行） | 项目架构02第12/13节退出与完整采集分离；C采集/进程控制主责，A保存协作；AC19/24/28。 核实全组停止及两流EOF/封口、最终块/字节数和脱敏摘要后保存完整ExitFact；未完成保持partial/gap/待核实。补父先退出、持流子进程、reader超时/异常及最终补采，与A正式保存协作。 |
+| C-09 高风险/新发现 | Windows OpenProcess缺PROCESS_TERMINATE(0x0001)，原Job绑定None/错误5；同一临时进程仅在内存补该权限位后成功（C-PROCESS-01-windows-job-access；[command.py](../src/aitest/infrastructure/adapters/execution/command.py)，618—625行） | 项目架构02第12节已验证受控作业/进程组；FR09，AC19/28。 按原生API设置正确权限/句柄声明，明确处理绑定失败及受控降级；不能用父退出代替全组停止。验证后台子进程、取消/超时/核心退出及实际全组终止，不用单父进程用例关闭。 |
+| C-01 高风险 | `invalidate_downstream_attempts` 只处理活动态，完成的下游消费旧上游仍不失效：**C-INVALIDATION-01**；已支持活动Attempt的直接数据/控制依赖，但同计划修订提前返回；续查已明确上游变化仍不失效，链式依赖只失效直接下游、漏掉传递末端（`C-INVALIDATION-02/03`）。整用例旧复用撤销未接 | AC19/20/24；新 Attempt 立即撤销旧 R；所有实际消费旧结果的下游（含完成项）立即依据过期，同/异输出摘要均处理；无依赖分支保留，历史结论不改 |
 | C-02 高风险 | SerialRunner 在 `ExecutionPort.start` 后才保存检查点；缺 A 持久 start 意图结果与动作授权校验；Attempt/Handle 核对不能替代实际输入/来源/授权修订核对 | AC19/24/31；先短事务保存可靠意图/授权/当前 Attempt，再事务外执行；同意图双入口只启动一次，未知副作用不自动重放；新执行重新授权 |
 | C-03 阻断交付 | Python/HTTP/Agent/人工/外部导入适配器占位，业务级独立 Verification 未实现；只用命令 exit code/文件 hash 不能判必要业务断言或真实持久化 | FR08—13、AC04—09/24/25；逐类实现真实输入、独立核验、Mock/混合/未知、请求日志关联及人工证据；不支持应显式缺能力，不冒充不适用 |
 | C-04 高风险 | 快照复制未证明 editable/PYTHONPATH/绝对入口加载来源；`source_checks.py` 占位；CommandAdapter 子进程状态在实例内存，换核心实例没有完整持久进程身份再附着路径 | AC13/19/25；核对实际解释器/入口/加载来源，失联先 inspect/collect/抢救；不能按 PID 或目录复制成功宣称对应源码；真实宿主退出/强杀/掉电尚未验收 |
@@ -43,20 +45,24 @@
 | --- | --- |
 | `domain/execution/runs.py`、`sources.py`、`domain/evidence/evidence.py` | 值对象能表达事实，但当前实例/真实性由调用方填入，尚无正式持久来源证明 |
 | `application/execution/runner.py`、`recovery.py` | 必须修正执行前意图顺序及下游失效，见 C-01/C-02 |
-| `adapters/execution/command.py`、`redaction.py` | 跨核心进程恢复与业务断言仍缺 |
+| `adapters/execution/command.py`、`redaction.py` | 修C-08输出未封口却完整终态、C-09缺PROCESS_TERMINATE导致Job绑定失败；跨核心恢复/业务断言仍缺 |
 | `file_store/spool.py`、`checkpoints.py`、`application/evidence/publication.py` | 检查点直接文件保存，尚未与 A 业务记录和幂等结果共同发布 |
 | `application/execution/facts.py`、`contracts/execution_facts.py` | 组装时 source_commit/cursor/修订/完整性由调用方提供，不能证明来自同一 A 提交；覆盖计数占位不能充当 D 的有效整用例集合 |
 | `source_checks.py`、`evidence_review.py`、五类执行适配器 | 需真实动作/安全采集/失败/人工与导入路径；必要业务独立核验和多类适配需共同补齐 |
 
 ## 4. 当前验证边界
 
-10月1日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（132个分析文件），7份生成Schema无差异；全量pytest **949 passed，0 failed/error/skipped**。面板build、静态Playwright1项及候选VSIX6文件打包通过。
+本次8项深查观察由内部断言核对（7新问题、1细化A-06），新探针ruff通过；产品代码/测试未改。下列全量Python/构建/CI结果沿用同基线前次续查，本次未重跑；反例复现成功不表示缺陷已修复或AC通过。
 
-现有自动化没有覆盖上表全部风险，当前反例/接入任务和真实AC需逐项完成。真实模型/凭据、业务独立核验、Trae用户流程、跨核心/掉电恢复、安全导出和永久留存未验收；旧远端CI不作当前依据。命令与证据详见[复核说明](validation/p1-audit-20261001/README.md)。
+10月2日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（本次136个分析文件），7份生成Schema无差异；全量pytest **1148 passed、2 skipped、0 failed/error**（33.54s）。两项符号链接测试因本机会话无创建权限跳过。
+
+面板build通过，但静态Playwright **1 failed**：阶段区域标题数预期3、实际4；后续断言尚未执行。候选VSIX6文件打包通过。该基线已记录的[Windows CI](https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076)为 **1149 passed、1 failed**：`test_restore_rejects_symlink_target`未抛BackupError；版本/静态/Schema步骤通过。普通CI未运行面板和发布制品检查；本次沿用原CI证据，未重新查询远端。
+
+当前自动化含真实Windows凭据原语、命名管道、本地Git及本机监听器的底层集成；它们不替代真实Trae、模型、业务独立核验、安全导出、跨核心执行/掉电与35项产品AC。合成反例和完整验证范围见[本轮证据](validation/p1-audit-20261002/README.md)。
 
 ## 5. 收敛顺序与交付条件
 
-1. 优先修C-01完成下游失效和C-07字节先耐久后确认游标，补传递/控制依赖及写入失败验证。
+1. 优先修C-09作业绑定/后台组停止与C-08终态前流封口，同时修C-01完成下游失效和C-07字节先耐久后确认游标，保留已实现的直接数据/控制依赖，补完成项、同计划重试、传递闭包及写入失败验证。
 2. 执行前保存可靠意图/授权，与A共同提交检查点/证据/引用/幂等结果，与B真实保存并应用运行修订；核对实际入口/解释器/加载来源。
 3. 补Python/HTTP/Agent/人工/导入和业务独立核验，验证未知副作用、跨核心恢复和宿主保活，交付牵头10项真实AC证据。
 

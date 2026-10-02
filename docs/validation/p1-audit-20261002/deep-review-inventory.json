@@ -1,0 +1,844 @@
+{
+  "source_commit": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+  "mode": "range",
+  "from": "origin/main",
+  "to": "origin/develop",
+  "merge_base": "382bcf62232f588786b277ad2a0a09bd6444ea01",
+  "summary": {
+    "total_files": 118,
+    "reviewed_files": 19,
+    "skipped_files": 99,
+    "coverage_rate": 16.1,
+    "scope": "按相关控制流定向审查；reviewed不是整文件逐字/全仓覆盖率",
+    "preview_total_changed_files": 404,
+    "preview_excluded_files": 286
+  },
+  "entries": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "工程配置/生成脚本；沿用同基线既有检查，本轮没有重新审查CI/发布路径",
+      "rule_group": 1
+    },
+    {
+      "path": ".gitignore",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "工程配置/生成脚本；沿用同基线既有检查，本轮没有重新审查CI/发布路径",
+      "rule_group": 2
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/additional-probe-results.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 3
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/additional_probes.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 4
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/develop-refresh-10fc22f.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 3
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/probe-results.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 3
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/probes.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 4
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/recheck-test-summary.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 3
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/test-summary.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 3
+    },
+    {
+      "path": "probe_now.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "历史审计材料；本轮只核对保存/链接，不重新解释旧基线结果",
+      "rule_group": 3
+    },
+    {
+      "path": "pyproject.toml",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "工程配置/生成脚本；沿用同基线既有检查，本轮没有重新审查CI/发布路径",
+      "rule_group": 2
+    },
+    {
+      "path": "scripts/generate_schemas.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "工程配置/生成脚本；沿用同基线既有检查，本轮没有重新审查CI/发布路径",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/ai_assistance.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/evidence/publication.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/execution/facts.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/execution/recovery.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "上游变化、失效与恢复现有问题去重",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "启动/采集/停止/恢复及采集完整性到Attempt状态",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/draft.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/drift.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/model_orchestration.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/model_ports.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/persistence.py",
+      "status": "added",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "Case/Scope/确认的保存、准确修订读回与项目归属",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/plan_builder.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/portable.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/preparation.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/prepare_run.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/publish.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/regression_graph.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/run_mode.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/serialization.py",
+      "status": "added",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "Case/Scope正文修订保存与读回",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/substrate.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/planning/substrate_adapter.py",
+      "status": "added",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "B到A的锁/事务清理、修订及准备身份翻译",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/ports.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/project/context.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/project/persistence.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/project/serialization.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/review/defect_management.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "预期修订、问题关闭与处置应用入口",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/review/reporting.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "报告/复核/导出应用入口及持久链现有缺口去重",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/__init__.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/capabilities.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/commands.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "传输请求身份、业务意图与动作参数",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/errors.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/events.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/execution_facts.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/identity.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/redaction.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/responses.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Command.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "生成Schema；沿用同基线生成一致性证据，本轮不手改或逐字重审",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Event.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "生成Schema；沿用同基线生成一致性证据，本轮不手改或逐字重审",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/contracts/schemas/ExecutionFacts.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "生成Schema；沿用同基线生成一致性证据，本轮不手改或逐字重审",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/contracts/schemas/PreparedRun.json",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "生成Schema；沿用同基线生成一致性证据，本轮不手改或逐字重审",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Response.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "生成Schema；沿用同基线生成一致性证据，本轮不手改或逐字重审",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/contracts/schemas/TemplatePack.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "生成Schema；沿用同基线生成一致性证据，本轮不手改或逐字重审",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/contracts/secrets.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/templates.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/verification.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/versions.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/contracts/views.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/evidence/evidence.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/execution/runs.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/execution/sources.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/planning/model_outbound.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/planning/plans.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "Case/Scope及准确引用的值对象约束",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/planning/rules.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/planning/runtime_revision.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/project/context.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/review/defects.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "关闭新执行、处置/归并/P1保留和跨项目守卫",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/domain/review/reports.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "判定/完整条件、不可变报告、准确复核与导出身份",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/deepseek.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "父进程退出、流封口、停止/超时及Windows Job权限",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/redaction.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/verification.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/model.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "锁定端点、urllib重定向、响应/错误归一",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_control.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/connections.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/credentials.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/atomic.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/backup.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "备份校验、限界路径和RestoreReport",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/checkpoints.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/events.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/fake.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/integrity.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/maintenance.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/objects.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "记录修订/项目归属、权威提交及派生恢复",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/recovery.py",
+      "status": "added",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "恢复编排及拒绝备份的结果传播",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/spool.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "begin/stage/commit失败及rollback后的事务状态与锁",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/workspace.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "工作空间身份与锁获取/代次",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/projections.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/interfaces/dto.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/interfaces/local/api.py",
+      "status": "modified",
+      "review_state": "reviewed",
+      "scope_or_skip_reason": "请求缓存与begin/commit/rollback身份衔接",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/interfaces/local/b_registration.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/interfaces/local/core_worker.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/interfaces/local/editor_host.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/interfaces/local/pipe.py",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "超出本轮19个关键文件的定向边界；对应旧清单未以未复查作为关闭依据",
+      "rule_group": 4
+    },
+    {
+      "path": "src/aitest/resources/panel/src/index.ts",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态面板；既有D-08失败仍保留，本轮不重新构建或审查全部UI",
+      "rule_group": 5
+    },
+    {
+      "path": "src/aitest/resources/templates/agent-workflow/1.0.0.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态模板；本轮定向检查异常事务、记录身份和采集/模型边界",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/resources/templates/http-workflow/1.0.0.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态模板；本轮定向检查异常事务、记录身份和采集/模型边界",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/resources/templates/manual-web-workflow/1.0.0.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态模板；本轮定向检查异常事务、记录身份和采集/模型边界",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/resources/templates/python-library/1.0.0.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态模板；本轮定向检查异常事务、记录身份和采集/模型边界",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/resources/templates/python-service/1.0.0.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态模板；本轮定向检查异常事务、记录身份和采集/模型边界",
+      "rule_group": 3
+    },
+    {
+      "path": "src/aitest/resources/templates/ticket-workflow/1.0.0.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "静态模板；本轮定向检查异常事务、记录身份和采集/模型边界",
+      "rule_group": 3
+    },
+    {
+      "path": "tests/__init__.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    },
+    {
+      "path": "tests/acceptance/p1/status.json",
+      "status": "modified",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 3
+    },
+    {
+      "path": "tests/support/__init__.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    },
+    {
+      "path": "tests/support/fake_execution.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    },
+    {
+      "path": "tests/support/fake_unit_of_work.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    },
+    {
+      "path": "tests/support/memory_model.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    },
+    {
+      "path": "tests/support/memory_substrate.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    },
+    {
+      "path": "tests/support/prepared_run_factory.py",
+      "status": "added",
+      "review_state": "skipped",
+      "scope_or_skip_reason": "验收登记/支持夹具不是本轮产品控制流审查目标；调用所需夹具另行读取",
+      "rule_group": 4
+    }
+  ]
+}
