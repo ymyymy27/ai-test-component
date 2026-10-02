@@ -1,0 +1,245 @@
+{
+  "checked_at": "2026-10-02T22:43:10.327215+08:00",
+  "source_commit": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+  "previous_source_commit": "10fc22feed4e7927151a28277c93e2e96a3c70d0",
+  "previous_merged_document_commit": "f4d2bab29c3a62f8baa48de344236036bd415439",
+  "document_branch": "文档更新-袁",
+  "version": "0.4.0",
+  "environment": {
+    "python": "3.13.13",
+    "os": "Windows-11-10.0.22631-SP0",
+    "uv": "0.11.8",
+    "node": "24.14.1",
+    "npm": "11.13.0"
+  },
+  "checks": {
+    "versions": "passed",
+    "ruff": "passed",
+    "mypy": {
+      "status": "passed",
+      "analyzed_files": 135
+    },
+    "generated_schemas": {
+      "status": "passed",
+      "files": 7,
+      "diff": "unchanged"
+    },
+    "pytest": {
+      "status": "passed_with_skips",
+      "passed": 1148,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 2,
+      "terminal_seconds": 38.11,
+      "junit_suite": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "2",
+        "tests": "1150",
+        "time": "37.797",
+        "timestamp": "2026-10-02T22:08:38.487289+08:00"
+      },
+      "skipped_cases": [
+        {
+          "classname": "tests.unit.test_a_a06_reference_closure",
+          "name": "test_symlink_anywhere_is_reported",
+          "reason": "当前会话无权创建符号链接"
+        },
+        {
+          "classname": "tests.unit.test_a_a06_reference_closure",
+          "name": "test_restore_rejects_symlink_target",
+          "reason": "当前会话无权创建符号链接"
+        }
+      ]
+    },
+    "panel_build": "passed",
+    "panel_playwright": {
+      "status": "failed",
+      "failed": 1,
+      "assertion": "getByTestId('phase-summary').getByRole('heading').toHaveCount(3)",
+      "expected": 3,
+      "actual": 4,
+      "reason": "The region h2 is counted together with three phase-card h3 elements.",
+      "later_assertions": "not_executed"
+    },
+    "trae_vsix_package": {
+      "status": "passed",
+      "files": 6
+    },
+    "remote_develop_ci": {
+      "status": "failure",
+      "run_id": 37008560076,
+      "source_commit": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+      "url": "https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076",
+      "os": "Windows Server 2025",
+      "pytest_passed": 1149,
+      "pytest_failed": 1,
+      "pytest_seconds": 47.46,
+      "failed_test": "tests/unit/test_a_a06_reference_closure.py::test_restore_rejects_symlink_target",
+      "failure": "DID NOT RAISE BackupError",
+      "static_and_schema": "passed",
+      "panel_and_release_artifacts": "skipped_by_tag_condition"
+    },
+    "wheel_build_and_smoke": "not_performed",
+    "real_product_acceptance": "not_performed"
+  },
+  "acceptance_register": {
+    "path": "tests/acceptance/p1/status.json",
+    "updated_at": "2026-09-28",
+    "counts": {
+      "not_verified": 7,
+      "untested": 27,
+      "blocked": 1
+    },
+    "total": 35,
+    "evidence_paths_present": 0,
+    "modified_by_this_audit": false
+  },
+  "current_focused_observations": {
+    "A-COMMIT-01-post-publication": {
+      "record_revision": 1,
+      "index_status": "ok",
+      "visible_events": 1,
+      "committed_sequences": [
+        1
+      ],
+      "second_recovery_state": "healthy"
+    },
+    "A-QUERY-01-query-binding": {
+      "foreign_project_status": "invalid_cursor"
+    },
+    "A-CORE-02-lifetime-admission": {
+      "two_instances_assembled_for_same_workspace": true,
+      "same_workspace": true,
+      "default_actions": [
+        "export_rules",
+        "generate_draft",
+        "import_rules",
+        "prepare_run",
+        "publish_plan",
+        "publish_rules",
+        "query",
+        "save_acceptance",
+        "save_binding",
+        "save_case",
+        "save_context",
+        "save_delivery",
+        "save_dependency_graph",
+        "save_environment",
+        "save_task"
+      ],
+      "boundary": "in-process assembly only; no real host lifecycle"
+    },
+    "A-INTEGRITY-03-inline-digest": {
+      "draft_response_has_error": false,
+      "integrity_ok_after_generated_draft": false,
+      "integrity_errors": [
+        "unreachable object reference: sha256:79657453df53b6db85bb32341612f47983eb1bfbdfe4ab791142f02b3c260906"
+      ],
+      "core_restart_blocked": true,
+      "boundary": "default LocalAPI, synthetic template input, real temporary file store"
+    },
+    "A-BACKUP-02-snapshot-closure": {
+      "missing_blob_integrity_ok": true,
+      "missing_blob_materialization_rejected": true
+    },
+    "A-MAINTENANCE-02-jsonl-reference": {
+      "permanently_referenced_candidate_removed": true,
+      "candidate_exists_after_reclaim": false
+    },
+    "B-PREPARE-01-resolved-input-only": {
+      "same_request_payload": true,
+      "status": "blocked",
+      "blocking_codes": [
+        "needs_reprepare"
+      ],
+      "changed_inputs": [
+        "resolved_input_digest"
+      ]
+    },
+    "B-MODEL-03-response-before-save": {
+      "synthetic_secret_saved_in_draft": true,
+      "boundary": "synthetic model and memory store; no real credential"
+    },
+    "C-INVALIDATION-01": {
+      "completed_downstream_invalidated": false
+    },
+    "C-DURABILITY-01": {
+      "stream_fsync_calls_before_ack": 0,
+      "other_file_fsync_calls_before_ack": 1,
+      "acknowledged_durable": true,
+      "acknowledged_offset": 17
+    },
+    "D-DECISION-01": {
+      "outcome": "passed",
+      "grade": "B"
+    },
+    "D-COVERAGE-01": {
+      "reuse_without_verification_accepted": true
+    },
+    "D-ISSUE-01": {
+      "cycle_rejected_before_return": true
+    },
+    "D-ISSUE-02": {
+      "reopened_severity": "P1",
+      "blocking_ids": [
+        "issue"
+      ]
+    }
+  },
+  "issue_transition": {
+    "removed_closed_entries": [
+      "A-01",
+      "A-04",
+      "B-02",
+      "D-01",
+      "D-03"
+    ],
+    "added_entries": [
+      "D-08"
+    ],
+    "remaining_counts": {
+      "A": 7,
+      "B": 5,
+      "C": 7,
+      "D": 6
+    },
+    "total_remaining_entries": 25,
+    "meaning": "Outstanding repair, completion, integration and product acceptance tasks; not a proven bug count or completion percentage."
+  },
+  "limits": [
+    "All probes use synthetic inputs, a memory model, or disposable temporary file stores.",
+    "A-CORE-02 demonstrates two in-process assemblies, not two real worker processes.",
+    "The Python suite contains Windows credential, named-pipe, local Git and loopback-listener integration; these do not establish real product AC acceptance.",
+    "Local symbolic-link tests were skipped; the exact source commit CI ran them and one failed.",
+    "No real model, business verification, Trae product lifecycle, power-loss or portable export acceptance was performed.",
+    "Prior evidence JSON files were not overwritten."
+  ],
+  "document_validation": {
+    "local_links": 177,
+    "document_errors": [],
+    "newly_broken_incoming_links": [],
+    "FR_AC_rows": {
+      "FR": 17,
+      "AC": 35
+    },
+    "acceptance_counts": {
+      "not_verified": 7,
+      "untested": 27,
+      "blocked": 1,
+      "verified": 0
+    },
+    "markdown_files": 10,
+    "evidence_baseline_and_results": "passed",
+    "CHANGELOG_original_byte_prefix": "preserved",
+    "outstanding_entries_by_package": {
+      "A": 7,
+      "B": 5,
+      "C": 7,
+      "D": 6
+    },
+    "changes_scope": "documentation and audit evidence only",
+    "git_diff_check": "passed"
+  }
+}
