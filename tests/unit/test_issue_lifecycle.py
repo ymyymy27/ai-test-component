@@ -19,6 +19,7 @@ from aitest.domain.review.defects import (
     record_fix,
     resolve_canonical_issue_id,
     start_issue,
+    undo_disposition,
 )
 
 
@@ -54,15 +55,37 @@ def _ready(issue_id: str = "issue-1") -> IssueRecord:
     )
 
 
+def _closure(
+    *,
+    attempt_id: str,
+    evidence_refs: tuple[str, ...] = ("regression-evidence",),
+    actual_execution: bool = True,
+    current_regression_attempt: bool = True,
+    evidence_saved: bool = True,
+    satisfies_original_criteria: bool = True,
+    basis_confirmed: bool = True,
+    source_identity_matched: bool = True,
+    dependencies_valid: bool = True,
+) -> IssueClosureEvidence:
+    return IssueClosureEvidence(
+        case_id="case-checkout",
+        attempt_id=attempt_id,
+        evidence_refs=evidence_refs,
+        actual_execution=actual_execution,
+        current_regression_attempt=current_regression_attempt,
+        evidence_saved=evidence_saved,
+        satisfies_original_criteria=satisfies_original_criteria,
+        basis_confirmed=basis_confirmed,
+        source_identity_matched=source_identity_matched,
+        dependencies_valid=dependencies_valid,
+    )
+
+
 def test_fixed_issue_closes_only_with_new_actual_evidence() -> None:
     ready = _ready()
     closed = close_issue(
         ready,
-        evidence=IssueClosureEvidence(
-            case_id="case-checkout",
-            attempt_id="attempt-regression",
-            evidence_refs=("regression-evidence",),
-        ),
+        evidence=_closure(attempt_id="attempt-regression"),
     )
 
     assert closed.status is IssueStatus.CLOSED
@@ -77,11 +100,7 @@ def test_close_rejects_reused_old_attempt() -> None:
     with pytest.raises(ValueError, match="new actual regression attempt"):
         close_issue(
             ready,
-            evidence=IssueClosureEvidence(
-                case_id="case-checkout",
-                attempt_id="attempt-old",
-                evidence_refs=("regression-evidence",),
-            ),
+            evidence=_closure(attempt_id="attempt-old"),
         )
 
 
@@ -89,8 +108,7 @@ def test_close_rejects_non_actual_or_unconfirmed_evidence() -> None:
     with pytest.raises(ValueError, match="actual execution"):
         close_issue(
             _ready(),
-            evidence=IssueClosureEvidence(
-                case_id="case-checkout",
+            evidence=_closure(
                 attempt_id="attempt-1",
                 evidence_refs=("evidence-1",),
                 actual_execution=False,
@@ -100,13 +118,50 @@ def test_close_rejects_non_actual_or_unconfirmed_evidence() -> None:
     with pytest.raises(ValueError, match="confirmed assertion basis"):
         close_issue(
             _ready(),
-            evidence=IssueClosureEvidence(
-                case_id="case-checkout",
+            evidence=_closure(
                 attempt_id="attempt-1",
                 evidence_refs=("evidence-1",),
                 basis_confirmed=False,
             ),
         )
+
+
+def test_duplicate_change_rejects_cycle_before_returning_updated_record() -> None:
+    root = _confirmed("root")
+    leaf = mark_duplicate(
+        _confirmed("leaf"),
+        canonical_issue=root,
+        reason="Leaf follows root.",
+        evidence_refs=("duplicate-proof",),
+        confirmed_by="reviewer-1",
+    )
+
+    with pytest.raises(ValueError, match="cycle"):
+        mark_duplicate(
+            root,
+            canonical_issue=leaf,
+            reason="This would close the loop.",
+            evidence_refs=("duplicate-proof",),
+            confirmed_by="reviewer-1",
+            issues={"root": root, "leaf": leaf},
+        )
+
+
+def test_undo_disposition_preserves_confirmed_severity_and_blocking() -> None:
+    issue = _confirmed(severity=IssueSeverity.P1)
+    non_defect = mark_non_defect(
+        issue,
+        reason="Initially closed as non-defect.",
+        evidence_refs=("evidence-1",),
+        confirmed_by="reviewer-1",
+    )
+
+    restored = undo_disposition(non_defect)
+
+    assert restored.status is IssueStatus.AWAITING_CONFIRMATION
+    assert restored.severity is IssueSeverity.P1
+    assert restored.disposition is IssueDisposition.ACTIVE
+    assert effective_blocking_issue_ids({restored.issue_id: restored}) == {restored.issue_id}
 
 
 def test_failed_regression_returns_to_in_progress_and_keeps_attempts() -> None:

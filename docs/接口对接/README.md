@@ -194,7 +194,7 @@ next_action: 补齐字段映射并请求 C 评审
 | [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A `partial`；B `partial`（用例已可经统一入口运行，见第 8.10、8.11 节；B 侧交付说明见 [`delivery-B.md`](进行中/AB-001-端口与保存/delivery-B.md)） | B 侧真实文件存储集成测试通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试 20 项通过（`tests/contracts/test_b_use_case_registration.py`、`tests/contracts/test_prepare_run_entrypoint.py`）；双方对拍**未做** | A 冻结 `current_revision` / `commit_seq` / `next_commit_seq`（准备链路已依赖）并确认装配点接法；C 回写第 11 节 Q1／Q2 兼容性结论并按新契约 PR 补齐字段 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复展示与查询问题 |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing` | C `done`；D `not_started` | `fixture_passed` | D 确认并完成消费方接入 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `agreed` | C `done`；D `partial` | `fixture_passed` | D 完成 ExecutionFacts→DecisionFacts 适配、Run 级证据等级派生和夹具对拍；见 [`review-D.md`](进行中/CD-001-ExecutionFacts/review-D.md) |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 

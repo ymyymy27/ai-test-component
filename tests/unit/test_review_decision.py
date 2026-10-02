@@ -9,11 +9,14 @@ from aitest.domain.review.reports import (
     DecisionFacts,
     DecisiveFailure,
     EvidenceGrade,
+    FailureCandidate,
     ReviewGap,
     ReviewGapCode,
     SourceIdentityState,
+    derive_decisive_failures,
     evaluate_review,
 )
+from aitest.interfaces.dto import decision_dto
 
 
 def _coverage(
@@ -80,14 +83,125 @@ def test_valid_decisive_failure_wins_over_incomplete_scope() -> None:
         basis_revision=1,
         evidence_refs=("evidence-1",),
     )
-
-    result = evaluate_review(
-        replace(_complete_facts(coverage=coverage), decisive_failures=(failure,))
+    facts = replace(
+        _complete_facts(coverage=_coverage(frozenset({"case-1"}), frozenset({"case-1"}))),
+        coverage=coverage,
+        decisive_failures=(failure,),
+        assertion_basis_confirmed=coverage.selected,
     )
+
+    result = evaluate_review(facts)
 
     assert result.business_outcome is BusinessOutcome.FAILED
     assert result.evidence_grade is EvidenceGrade.A
     assert result.decisive_failure_case_ids == {"case-1"}
+
+
+def test_noncritical_grade_b_gap_does_not_change_business_pass() -> None:
+    gap = ReviewGap(ReviewGapCode.NONCRITICAL_UNKNOWN, "A local noncritical fact is unknown.")
+    result = evaluate_review(replace(_complete_facts(), noncritical_gaps=(gap,)))
+
+    assert result.business_outcome is BusinessOutcome.PASSED
+    assert result.evidence_grade is EvidenceGrade.B
+    assert result.primary_gap is gap
+
+
+def test_execution_reuse_may_exist_without_verified_case() -> None:
+    coverage = Coverage(
+        selected=frozenset({"case-1"}),
+        required=frozenset({"case-1"}),
+        executed=frozenset(),
+        reused=frozenset({"case-1"}),
+        verified=frozenset(),
+        passed=frozenset(),
+    )
+
+    assert coverage.reused == {"case-1"}
+    assert coverage.verified == frozenset()
+
+
+def test_verified_failure_without_effective_h_is_rejected() -> None:
+    coverage = _coverage(
+        frozenset({"case-1"}),
+        frozenset({"case-1"}),
+        verified=frozenset({"case-1"}),
+        passed=frozenset(),
+    )
+
+    with pytest.raises(ValueError, match="decisive failures H"):
+        DecisionFacts(
+            tier=RunTier.FULL,
+            coverage=coverage,
+            template_required=frozenset({"case-1"}),
+            assertion_basis_confirmed=frozenset({"case-1"}),
+            source_identity_state=SourceIdentityState.MATCHED,
+            critical_paths_satisfied=True,
+            required_evidence_valid=True,
+            environment_evidence_complete=True,
+        )
+
+
+def test_failure_candidate_derives_h_only_when_all_guards_hold() -> None:
+    effective = FailureCandidate(
+        case_id="case-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        assertion_ref="assertion-1",
+        basis_revision=1,
+        evidence_refs=("evidence-1",),
+        current_effective_attempt=True,
+        necessary_assertion_failed=True,
+        basis_confirmed=True,
+        failure_verification_valid=True,
+        source_identity_matched=True,
+        dependencies_valid=True,
+    )
+    stale = replace(effective, case_id="case-2", current_effective_attempt=False)
+
+    assert derive_decisive_failures((effective, stale)) == (
+        DecisiveFailure(
+            case_id="case-1",
+            step_id="step-1",
+            attempt_id="attempt-1",
+            assertion_ref="assertion-1",
+            basis_revision=1,
+            evidence_refs=("evidence-1",),
+        ),
+    )
+
+
+def test_dto_has_two_scope_summaries_and_exact_h_references() -> None:
+    failing = DecisiveFailure(
+        case_id="case-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        assertion_ref="assertion-1",
+        basis_revision=1,
+        evidence_refs=("evidence-1",),
+    )
+    coverage = _coverage(
+        frozenset({"case-1"}),
+        frozenset({"case-1"}),
+        verified=frozenset({"case-1"}),
+        passed=frozenset(),
+    )
+    facts = replace(
+        _complete_facts(coverage=_coverage(frozenset({"case-1"}), frozenset({"case-1"}))),
+        coverage=coverage,
+        decisive_failures=(failing,),
+        case_ids_revision="cases-7",
+        source_commit="commit-7",
+        snapshot_commit_id="snapshot-7",
+        snapshot_cursor=42,
+    )
+    view = decision_dto(evaluate_review(facts))
+
+    assert view.selected_summary.scope_kind == "selected"
+    assert view.required_summary.scope_kind == "required"
+    assert view.selected_summary.decisive_failure_count == 1
+    assert view.selected_summary.decisive_failures[0].attempt_id == "attempt-1"
+    assert view.selected_summary.case_ids_revision == "cases-7"
+    assert view.snapshot_cursor == 42
 
 
 def test_unconfirmed_assertion_basis_is_incomplete_and_grade_b() -> None:

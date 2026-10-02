@@ -6,6 +6,8 @@ Persistence remains A's responsibility and is intentionally not simulated here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from aitest.domain.review.defects import (
     IssueClosureEvidence,
     IssueDisposition,
@@ -136,6 +138,7 @@ def update_issue_disposition(
     evidence_refs: tuple[str, ...],
     confirmed_by: str,
     canonical_issue: IssueRecord | None = None,
+    issues: Mapping[str, IssueRecord] | None = None,
 ) -> IssueRecord:
     """Apply a non-fix disposition; fixed closure must use ``close_issue``."""
 
@@ -158,6 +161,7 @@ def update_issue_disposition(
             reason=reason,
             evidence_refs=evidence_refs,
             confirmed_by=confirmed_by,
+            issues=issues,
         )
     if disposition is IssueDisposition.DEFERRED:
         return domain_defer_issue(

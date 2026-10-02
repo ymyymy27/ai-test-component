@@ -43,8 +43,10 @@ class Coverage:
     def __post_init__(self) -> None:
         if self.executed & self.reused:
             raise ValueError("new execution and reuse must be disjoint")
-        if not self.reused <= self.verified <= (self.executed | self.reused) <= self.selected:
-            raise ValueError("invalid evidence coverage sets")
+        if not (self.executed | self.reused) <= self.selected:
+            raise ValueError("executed and reused cases must belong to selected scope")
+        if not self.verified <= (self.executed | self.reused):
+            raise ValueError("verified cases must have effective execution or reuse")
         if not self.passed <= self.verified:
             raise ValueError("unverified cases cannot pass")
 
@@ -160,6 +162,67 @@ class DecisiveFailure:
 
 
 @dataclass(frozen=True, slots=True)
+class FailureCandidate:
+    """Current case failure facts used to derive effective decisive failures H."""
+
+    case_id: str
+    step_id: str
+    attempt_id: str
+    assertion_ref: str
+    basis_revision: int
+    evidence_refs: tuple[str, ...]
+    current_effective_attempt: bool
+    necessary_assertion_failed: bool
+    basis_confirmed: bool
+    failure_verification_valid: bool
+    source_identity_matched: bool
+    dependencies_valid: bool
+
+    def __post_init__(self) -> None:
+        _require_text(self.case_id, "case_id")
+        _require_text(self.step_id, "step_id")
+        _require_text(self.attempt_id, "attempt_id")
+        _require_text(self.assertion_ref, "assertion_ref")
+        _require_positive(self.basis_revision, "basis_revision")
+        if not self.evidence_refs:
+            raise ValueError("failure candidate requires evidence references")
+        if any(not ref.strip() for ref in self.evidence_refs):
+            raise ValueError("evidence_refs must not contain empty values")
+
+    @property
+    def is_effective(self) -> bool:
+        return all(
+            (
+                self.current_effective_attempt,
+                self.necessary_assertion_failed,
+                self.basis_confirmed,
+                self.failure_verification_valid,
+                self.source_identity_matched,
+                self.dependencies_valid,
+            )
+        )
+
+
+def derive_decisive_failures(
+    candidates: tuple[FailureCandidate, ...],
+) -> tuple[DecisiveFailure, ...]:
+    """Derive H from current fact guards; ineffective candidates stay historical."""
+
+    return tuple(
+        DecisiveFailure(
+            case_id=candidate.case_id,
+            step_id=candidate.step_id,
+            attempt_id=candidate.attempt_id,
+            assertion_ref=candidate.assertion_ref,
+            basis_revision=candidate.basis_revision,
+            evidence_refs=candidate.evidence_refs,
+        )
+        for candidate in candidates
+        if candidate.is_effective
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ReviewGap:
     code: ReviewGapCode
     safe_reason: str
@@ -203,16 +266,40 @@ class DecisionFacts:
     critical_mock: bool = False
     blocking_issue_ids: frozenset[str] = frozenset()
     noncritical_gaps: tuple[ReviewGap, ...] = ()
+    failure_candidates: tuple[FailureCandidate, ...] = ()
+    case_ids_revision: str | None = None
+    source_commit: str | None = None
+    snapshot_commit_id: str | None = None
+    snapshot_cursor: int | None = None
     has_applicable_checks: bool = True
     policy_version: str = "1.0"
 
     def __post_init__(self) -> None:
         _require_text(self.policy_version, "policy_version")
+        for value, name in (
+            (self.case_ids_revision, "case_ids_revision"),
+            (self.source_commit, "source_commit"),
+            (self.snapshot_commit_id, "snapshot_commit_id"),
+        ):
+            if value is not None:
+                _require_text(value, name)
+        if self.snapshot_cursor is not None and self.snapshot_cursor < 0:
+            raise ValueError("snapshot_cursor must be non-negative")
+        derived_failures = derive_decisive_failures(self.failure_candidates)
+        combined_failures = tuple(
+            sorted(
+                self.decisive_failures + derived_failures,
+                key=lambda failure: (failure.case_id, failure.step_id, failure.attempt_id),
+            )
+        )
+        object.__setattr__(self, "decisive_failures", combined_failures)
         if not self.has_applicable_checks and (self.coverage.selected or self.coverage.required):
             raise ValueError("no-applicable-check facts cannot carry selected or required cases")
         decisive_case_ids = {failure.case_id for failure in self.decisive_failures}
         if not decisive_case_ids <= self.coverage.selected:
             raise ValueError("decisive failures must belong to the selected scope")
+        if not self.coverage.failed <= decisive_case_ids:
+            raise ValueError("verified whole-case failures must be decisive failures H")
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +311,10 @@ class DecisionResult:
     decisive_failures: tuple[DecisiveFailure, ...]
     coverage: Coverage
     policy_version: str
+    case_ids_revision: str | None = None
+    source_commit: str | None = None
+    snapshot_commit_id: str | None = None
+    snapshot_cursor: int | None = None
 
     @property
     def decisive_failure_case_ids(self) -> frozenset[str]:
@@ -368,13 +459,11 @@ def _derive_evidence_grade(
 def _full_pass_conditions_met(
     facts: DecisionFacts,
     decisive_failures: tuple[DecisiveFailure, ...],
-    grade: EvidenceGrade | None,
 ) -> bool:
     coverage = facts.coverage
     return (
         facts.tier is RunTier.FULL
         and not decisive_failures
-        and grade is EvidenceGrade.A
         and facts.source_identity_state is SourceIdentityState.MATCHED
         and facts.critical_paths_satisfied
         and facts.required_evidence_valid
@@ -397,12 +486,7 @@ def _full_pass_conditions_met(
 def evaluate_review(facts: DecisionFacts) -> DecisionResult:
     """Derive the only business outcome and, for full runs, evidence grade."""
 
-    decisive_failures = tuple(
-        sorted(
-            facts.decisive_failures,
-            key=lambda failure: (failure.case_id, failure.step_id, failure.attempt_id),
-        )
-    )
+    decisive_failures = facts.decisive_failures
     gaps = _derive_gaps(facts)
     primary_gap = (
         min(
@@ -426,7 +510,7 @@ def evaluate_review(facts: DecisionFacts) -> DecisionResult:
         business_outcome = BusinessOutcome.NOT_APPLICABLE
     elif decisive_failures:
         business_outcome = BusinessOutcome.FAILED
-    elif _full_pass_conditions_met(facts, decisive_failures, evidence_grade):
+    elif _full_pass_conditions_met(facts, decisive_failures):
         business_outcome = BusinessOutcome.PASSED
     else:
         business_outcome = BusinessOutcome.INCOMPLETE
@@ -439,6 +523,10 @@ def evaluate_review(facts: DecisionFacts) -> DecisionResult:
         decisive_failures=decisive_failures,
         coverage=facts.coverage,
         policy_version=facts.policy_version,
+        case_ids_revision=facts.case_ids_revision,
+        source_commit=facts.source_commit,
+        snapshot_commit_id=facts.snapshot_commit_id,
+        snapshot_cursor=facts.snapshot_cursor,
     )
 
 
@@ -694,6 +782,7 @@ __all__ = [
     "DecisionResult",
     "DecisiveFailure",
     "EvidenceGrade",
+    "FailureCandidate",
     "LocalReview",
     "ReportContext",
     "ReportDraft",
@@ -706,6 +795,7 @@ __all__ = [
     "SourceIdentityState",
     "create_report_export",
     "create_report_revision",
+    "derive_decisive_failures",
     "evaluate_review",
     "validate_reviews_for_report",
 ]
