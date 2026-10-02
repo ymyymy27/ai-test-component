@@ -70,6 +70,28 @@ class FileUnitOfWork:
             raise RuntimeError("transaction already open")
         self.project = project_id
 
+    def current_commit_sequence(self) -> int:
+        """工作空间当前全局提交计数；**未开事务也可读**。
+
+        除满足 AB-001 §8.8 冻结的 ``commit_seq`` 外，也作为 B 转接头
+        ``CommitSequenceSource.current_commit_sequence`` 的正式装配实现
+        （A-02 由 bootstrap 注入本对象），替代 B 侧的恢复巡检临时接法。
+        """
+        return self.repo.current_commit_sequence()
+
+    def commit_seq(self) -> str:
+        """当前提交序号（字符串）；未开事务也可读，冻结于 AB-001 §8.8。"""
+        return str(self.current_commit_sequence())
+
+    def next_commit_seq(self) -> str:
+        """下一条暂存记录提交后将得到的序号（字符串）。
+
+        A 的提交序号按**记录**递增：已暂存 N 条未提交记录时为
+        「当前序号 + N + 1」；调用方据此在 ``commit()`` 之前把
+        ``created_at_commit`` 写进不可变 payload。
+        """
+        return str(self.current_commit_sequence() + len(self.pending) + 1)
+
     def stage_record(
         self,
         *,

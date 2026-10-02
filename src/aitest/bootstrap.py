@@ -12,20 +12,37 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess as subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
+from typing import cast
 from uuid import uuid4
 
+from aitest.application.planning.substrate_adapter import (
+    PortsRecordReader,
+    PortsUnitOfWork,
+)
+from aitest.application.usecase_registry import BUseCaseDependencies
+from aitest.infrastructure.clock import SystemClock
+from aitest.infrastructure.connections import (
+    ConnectionFactStore,
+    EndpointConfig,
+    LocalAPIConnectionBridge,
+)
 from aitest.infrastructure.file_store.events import FileEventJournal
+from aitest.infrastructure.file_store.recovery import RecoveryOrchestrator, RecoveryState
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.interfaces.local.api import Handler, LocalAPI
+from aitest.interfaces.local.b_registration import b_registration_for
 from aitest.interfaces.local.editor_host import (
     Connector,
     CoreEndpoint,
@@ -34,10 +51,13 @@ from aitest.interfaces.local.editor_host import (
 )
 
 _INSTANCE_ID_FILE = ".core-instance-id"
+_CORE_DIR = "core"
+_CONNECTION_LEDGER_FILE = "connection-ledger.jsonl"
 _DEFAULT_WORKER_MODULE = "aitest.interfaces.local.core_worker"
 _DEFAULT_CONNECT_TIMEOUT_MS = 200
 _DEFAULT_WAIT_TIMEOUT_SECONDS = 5.0
 _DEFAULT_POLL_INTERVAL_SECONDS = 0.05
+_CONNECTION_FACT_SCHEMA = "aitest.core-connection/1.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +65,223 @@ class CoreInstance:
     instance_id: str
     workspace_id: str
     api: LocalAPI
+
+
+class CoreAssemblyBlocked(RuntimeError):
+    """工作空间完整性无法通过启动恢复，核心不得对外服务。"""
+
+
+class CoreConnectionLedger:
+    """核心连接事实的跨重启追加台账（A-10）。
+
+    连接事实此前只活在 ``EditorHost`` / ``LocalAPI`` 的实例内存里，核心
+    换实例或宿主重启后无法核对“谁在什么时候经哪条会话连到了哪个核心”。
+    台账位于工作空间 ``core/connection-ledger.jsonl``，每行一条不可变事实，
+    追加后显式 ``fsync``，目录首次创建时同样 fsync；读取只解析完整行，
+    末尾半行（掉电撕裂）会在 :meth:`facts` 处显式抛错，不静默删除。
+
+    台账**只记连接事实，不记任何业务载荷与凭据**；来源会话/用户 SID
+    与管道对端身份核对使用同一份本机取证结果。
+    """
+
+    def __init__(
+        self,
+        workspace_root: Path,
+        *,
+        session_probe: Callable[[], int | None] | None = None,
+        user_probe: Callable[[], str | None] | None = None,
+    ) -> None:
+        self._root = workspace_root.resolve()
+        self._dir = self._root / _CORE_DIR
+        self._path = self._dir / _CONNECTION_LEDGER_FILE
+        self._session_probe = session_probe
+        self._user_probe = user_probe
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def record(
+        self,
+        kind: str,
+        *,
+        pipe_workspace_id: str,
+        instance_id: str,
+    ) -> dict[str, object]:
+        """追加一条连接事实并返回落盘内容。"""
+        fact: dict[str, object] = {
+            "schema": _CONNECTION_FACT_SCHEMA,
+            "seq": self._next_seq(),
+            "kind": kind,
+            "at": datetime.now(UTC).isoformat(),
+            "pipe_workspace_id": pipe_workspace_id,
+            "instance_id": instance_id,
+            "source_session_id": self._source_session(),
+            "source_user_sid": self._source_user(),
+        }
+        line = (
+            json.dumps(fact, ensure_ascii=False, sort_keys=True) + "\n"
+        ).encode("utf-8")
+        self._dir.mkdir(parents=True, exist_ok=True)
+        with self._path.open("ab") as handle:
+            handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+        # 目录项首次落盘需要 fsync，掉电后目录里才保证看得到台账文件。
+        _fsync_directory(self._dir)
+        return fact
+
+    def facts(self) -> tuple[dict[str, object], ...]:
+        """读回全部完整事实行；撕裂尾行抛错，绝不静默截断历史。"""
+        if not self._path.exists():
+            return ()
+        facts: list[dict[str, object]] = []
+        for raw in self._path.read_bytes().splitlines():
+            if not raw.strip():
+                continue
+            obj = json.loads(raw.decode("utf-8"))
+            if isinstance(obj, dict):
+                facts.append(obj)
+        return tuple(facts)
+
+    def last(self, kind: str) -> dict[str, object] | None:
+        for fact in reversed(self.facts()):
+            if fact.get("kind") == kind:
+                return fact
+        return None
+
+    def _next_seq(self) -> int:
+        existing = self.facts()
+        if not existing:
+            return 1
+        last_seq = existing[-1].get("seq")
+        return int(last_seq) + 1 if isinstance(last_seq, int) else 1
+
+    def _source_session(self) -> int | None:
+        if self._session_probe is not None:
+            return self._session_probe()
+        from aitest.interfaces.local.pipe import current_session_id
+
+        return current_session_id()
+
+    def _source_user(self) -> str | None:
+        if self._user_probe is not None:
+            return self._user_probe()
+        from aitest.interfaces.local.pipe import current_user_sid
+
+        return current_user_sid()
+
+
+def _fsync_directory(path: Path) -> None:
+    """尽力 fsync 目录；不支持的平台静默（持久化尽力点，非业务正确性）。"""
+    if not sys.platform.startswith("win"):
+        return
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(str(path), os.O_RDONLY)
+        os.fsync(descriptor)
+    except OSError:
+        pass
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+@dataclass(frozen=True, slots=True)
+class CoreAssembly:
+    """一次核心装配的产物；进程内与跨进程核心共用同一条装配路径。"""
+
+    api: LocalAPI
+    workspace: Workspace
+    unit_of_work: FileUnitOfWork
+    recovery: RecoveryState
+
+
+def assemble_workspace_core(
+    workspace_root: Path,
+    *,
+    instance_id: str,
+    workspace_id: str | None = None,
+    extra_handlers: Mapping[str, Handler] | None = None,
+    connection_endpoint: str | None = None,
+) -> CoreAssembly:
+    """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
+
+    A-02：此前 ``CoreBootstrap.create`` 只把 :class:`FileUnitOfWork` 交给
+    ``LocalAPI(transaction_port=...)``，注册的 handler 拿不到工作单元与只读
+    仓储；跨进程的 ``core_worker`` 子进程更是全新进程，注册表为空且不派发
+    Command。本函数是 A 所有的**唯一装配路径**：
+
+    - 服务前先跑 :class:`RecoveryOrchestrator`，闭合上一核心崩溃残留的活动
+      标记与落后投影；``blocked`` 时抛 :class:`CoreAssemblyBlocked`，不带病服务；
+    - B 的用例经 ``substrate_adapter`` 窄转接头闭包**本工作空间**的
+      ``FileUnitOfWork`` / ``FileRecordRepository``（提交序号取 A-01 冻结的
+      正式访问器），无需调用方手工注入；
+    - C/D 用例继续走 :class:`UseCaseRegistry`，经 ``extra_handlers`` 叠加，
+      与默认动作同名时拒绝（动作归属唯一）。
+    """
+    root = workspace_root.resolve()
+    workspace = Workspace(root)
+    if workspace_id is not None:
+        workspace.validate(workspace_id)
+    journal = FileEventJournal(root, instance_id=workspace.workspace_id)
+    recovery = RecoveryOrchestrator(
+        root, instance_id=workspace.workspace_id
+    ).run()
+    if recovery.state == "blocked":
+        raise CoreAssemblyBlocked(
+            f"工作空间恢复 blocked，核心拒绝启动: {recovery.actions}"
+        )
+
+    unit_of_work = FileUnitOfWork(root, journal=journal)
+    ports_unit_of_work = PortsUnitOfWork(
+        unit_of_work,
+        repository=unit_of_work.repo,
+        sequence=unit_of_work,
+    )
+    reader = PortsRecordReader(unit_of_work.repo)
+    dependencies = BUseCaseDependencies(
+        unit_of_work=ports_unit_of_work,
+        reader=reader,
+        clock=SystemClock(),
+    )
+    handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
+    if extra_handlers:
+        conflicts = sorted(handlers.keys() & extra_handlers.keys())
+        if conflicts:
+            raise ValueError(
+                f"registered use case conflicts with built-in actions: {conflicts}"
+            )
+        handlers.update(extra_handlers)
+
+    connector: LocalAPIConnectionBridge | None = None
+    if connection_endpoint is not None:
+        # 真实目标接线（A-10）：探测事实持久化到工作空间，核心换实例后
+        # test_connection 的历史结论仍可恢复；未配置目标时不挂连接器，
+        # doctor/业务用例等不依赖外网的动作不受影响（动作级降级）。
+        from aitest.interfaces.local.pipe import current_user_sid
+
+        endpoint_config = EndpointConfig.from_address(connection_endpoint)
+        bridge = LocalAPIConnectionBridge(
+            endpoint_config,
+            ConnectionFactStore(root),
+            source_session=current_user_sid() or "",
+        )
+        connector = bridge
+    api = LocalAPI(
+        instance_id=instance_id,
+        workspace_id=workspace.workspace_id,
+        handlers=handlers,
+        transaction_port=unit_of_work,
+        connector=connector,
+        connection_persistence=connector,
+    )
+    return CoreAssembly(
+        api=api,
+        workspace=workspace,
+        unit_of_work=unit_of_work,
+        recovery=recovery,
+    )
 
 
 class UseCaseRegistry:
@@ -104,16 +341,16 @@ class CoreBootstrap:
             if root in self._instances:
                 return self._instances[root]
             self._registration_closed = True
-            workspace = Workspace(root)
-            journal = FileEventJournal(root, instance_id=workspace.workspace_id)
-            uow = FileUnitOfWork(root, journal=journal)
-            api = LocalAPI(
+            assembly = assemble_workspace_core(
+                root,
                 instance_id=str(uuid4()),
-                workspace_id=workspace.workspace_id,
-                handlers=dict(self._registry.snapshot()),
-                transaction_port=uow,
+                extra_handlers=dict(self._registry.snapshot()),
             )
-            instance = CoreInstance(api.instance_id, workspace.workspace_id, api)
+            instance = CoreInstance(
+                assembly.api.instance_id,
+                assembly.workspace.workspace_id,
+                assembly.api,
+            )
             self._instances[root] = instance
             return instance
 
@@ -169,6 +406,9 @@ class SystemProcessLauncher:
             workspace_id,
             "--instance-id",
             instance_id,
+            # 父进程消亡后子核心在连接边界自行退出，避免孤儿核心长期占管。
+            "--parent-pid",
+            str(os.getpid()),
         ]
         creationflags = 0
         if sys.platform == "win32":
@@ -204,6 +444,7 @@ def make_pipe_connector(
     workspace_root: Path,
     *,
     connect_timeout_ms: int = _DEFAULT_CONNECT_TIMEOUT_MS,
+    ledger: CoreConnectionLedger | None = None,
 ) -> Connector:
     """构造基于 :class:`NamedPipeClient` 的连接器，供 :class:`EditorHost` 使用。
 
@@ -211,7 +452,9 @@ def make_pipe_connector(
 
     - 文件缺失 → 返回 ``None``（无活动核心）；
     - 管道尚未就绪或对端身份不可信 → 返回 ``None``（让 host 轮询/启动）；
-    - 连接成功 → 返回 ``(NamedPipeClient, instance_id)``，由调用方持有。
+    - 连接成功 → 返回 ``(NamedPipeClient, instance_id)``，由调用方持有；
+      若提供 ``ledger``，连接事实（含来源会话/用户 SID）在返回前已落盘，
+      使连接可跨重启核对（A-10）。
     """
     from aitest.interfaces.local.pipe import (
         NamedPipeClient,
@@ -241,6 +484,15 @@ def make_pipe_connector(
             client.connect(timeout_ms=connect_timeout_ms)
         except PipeUnavailable:
             return None
+        if ledger is not None:
+            # 只在对端身份核对通过（管道连接成功即服务端同会话同用户
+            # 校验已接受）后落事实，失败不阻断连接本身。
+            with suppress(OSError):
+                ledger.record(
+                    "connected",
+                    pipe_workspace_id=workspace_id,
+                    instance_id=instance_id,
+                )
         return (client, instance_id)
 
     return connect
@@ -252,10 +504,11 @@ def make_editor_host(
     launcher: CoreLauncher | None = None,
     wait_timeout_seconds: float = _DEFAULT_WAIT_TIMEOUT_SECONDS,
     poll_interval_seconds: float = _DEFAULT_POLL_INTERVAL_SECONDS,
+    ledger: CoreConnectionLedger | None = None,
 ) -> EditorHost:
     """装配 :class:`EditorHost`：注入管道连接器与系统进程启动器。"""
     return EditorHost(
-        connector=make_pipe_connector(workspace_root),
+        connector=make_pipe_connector(workspace_root, ledger=ledger),
         launcher=launcher or SystemProcessLauncher(workspace_root),
         wait_timeout_seconds=wait_timeout_seconds,
         poll_interval_seconds=poll_interval_seconds,
@@ -274,7 +527,8 @@ def acquire_endpoint(
     - ``workspace_id`` 缺省时从工作空间 identity 读取；
     - ``launcher`` 缺省时使用 :class:`SystemProcessLauncher`；
     - 启动后核心在限定时间内不可连接，或探测到的实例身份与启动事实不一致，
-      抛 :class:`aitest.interfaces.local.editor_host.WorkspaceInUse`。
+      抛 :class:`aitest.interfaces.local.editor_host.WorkspaceInUse`；
+    - 每次核对成功的连接都写入工作空间连接台账（A-10），跨重启可核对。
     """
     root = workspace_root.resolve()
     if workspace_id is None:
@@ -283,8 +537,64 @@ def acquire_endpoint(
         root,
         launcher=launcher,
         wait_timeout_seconds=wait_timeout_seconds,
+        ledger=CoreConnectionLedger(root),
     )
     return host.acquire(workspace_id)
+
+
+def shutdown_endpoint(
+    workspace_root: Path,
+    *,
+    workspace_id: str | None = None,
+    connect_timeout_ms: int = _DEFAULT_CONNECT_TIMEOUT_MS,
+    wait_timeout_seconds: float = 2.0,
+) -> bool:
+    """请求活动核心优雅退出（工作空间完整生命周期的关闭端）。
+
+    通过**同一条已核对管道**发送一帧停机控制消息（不是业务 Command，
+    不进 ``contracts.commands``）；无活动核心返回 ``False``。核心在当前
+    命令边界排空后退出，随后 :func:`acquire_endpoint` 会启动新实例。
+
+    客户端刚断开时核心可能正在关闭旧管道、用同一实例名重建监听管道，
+    因此在 ``wait_timeout_seconds`` 窗口内重试连接，避免把重建间隙误判为
+    无活动核心。
+    """
+    # 延迟导入：core_worker 在函数内反向导入本模块，避免循环导入。
+    import time
+
+    from aitest.interfaces.local.core_worker import shutdown_frame
+    from aitest.interfaces.local.pipe import NamedPipeClient, PipeUnavailable
+
+    root = workspace_root.resolve()
+    if workspace_id is None:
+        workspace_id = Workspace(root).workspace_id
+    ledger = CoreConnectionLedger(root)
+    connector = make_pipe_connector(
+        root, connect_timeout_ms=connect_timeout_ms, ledger=ledger
+    )
+    deadline = time.monotonic() + max(0.0, wait_timeout_seconds)
+    while True:
+        connected = connector(workspace_id)
+        if connected is not None:
+            break
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(_DEFAULT_POLL_INTERVAL_SECONDS)
+    client = cast(NamedPipeClient, connected[0])
+    instance_id = connected[1]
+    try:
+        client.write_message(shutdown_frame())
+    except PipeUnavailable:
+        return False
+    finally:
+        client.close()
+    with suppress(OSError):
+        ledger.record(
+            "shutdown_requested",
+            pipe_workspace_id=workspace_id,
+            instance_id=instance_id,
+        )
+    return True
 
 
 _GLOBAL_BOOTSTRAP = CoreBootstrap()
@@ -320,14 +630,19 @@ def create_api(
 
 
 __all__ = [
+    "CoreAssembly",
+    "CoreAssemblyBlocked",
+    "CoreConnectionLedger",
     "CoreBootstrap",
     "CoreInstance",
     "EditorHost",
     "SystemProcessLauncher",
     "UseCaseRegistry",
     "acquire_endpoint",
+    "assemble_workspace_core",
     "create_api",
     "make_editor_host",
     "make_pipe_connector",
     "register_use_cases",
+    "shutdown_endpoint",
 ]

@@ -60,8 +60,24 @@ class FileRecordRepository:
     def _save(self, data: dict[str, Any]) -> None:
         atomic.write_json(self.path, data)
 
-    def current_revision(self, kind: str, record_id: str) -> int:
-        return len(self._load()["records"].get(kind, {}).get(record_id, []))
+    def current_revision(self, aggregate_kind: str, record_id: str) -> int:
+        """当前修订（该业务身份的不可变修订条数）；只读，不经索引。
+
+        位置/关键字两种调用都支持：AB-001 §8.8 冻结的端口签名是
+        关键字形态，B 转接头按位置形态调用，具体实现同时满足两者。
+        """
+        return len(
+            self._load()["records"].get(aggregate_kind, {}).get(record_id, [])
+        )
+
+    def current_commit_sequence(self) -> int:
+        """工作空间全局提交计数（``records.json`` 的 ``commit``）；只读。
+
+        对应 AB-001 §8.8：``commit_seq`` / ``next_commit_seq`` 的事实
+        来源，未开事务也可读。计数按**记录**递增，一次多条记录的提交
+        会跨多个序号，提交结果取其中最后一个序号。
+        """
+        return int(self._load().get("commit", 0))
 
     def read(
         self, *, aggregate_kind: str, record_id: str, revision: int
@@ -155,20 +171,33 @@ class FileRecordRepository:
                 aggregate_kind=query.aggregate_kind,
                 record_id=query.record_id,
                 limit=query.limit,
+                cursor=query.cursor,
             )
         )
         if result.status in ("maintenance_required", "invalid_cursor"):
             return RecordQueryResult(status=result.status)
-        items = tuple(
-            self.read(
-                aggregate_kind=row["aggregate_kind"],
-                record_id=row["record_id"],
-                revision=int(row["revision"]),
+        # 列表只读取摘要索引；整页载荷一次性从权威边界水合，避免每条记录
+        # 都整读一次 records.json。
+        data = self._load()["records"]
+        items: list[CommittedRecord] = []
+        for row in result.items:
+            kind = str(row["aggregate_kind"])
+            record_id = str(row["record_id"])
+            revision = int(row["revision"])
+            payload = data.get(kind, {}).get(record_id, [])
+            if revision < 1 or revision > len(payload):
+                # 索引指向了权威边界中不存在的修订：索引已损坏，显式维护。
+                return RecordQueryResult(status="maintenance_required")
+            items.append(
+                CommittedRecord(
+                    aggregate_kind=cast(Any, kind),
+                    record_id=record_id,
+                    revision=revision,
+                    payload=payload[revision - 1],
+                )
             )
-            for row in result.items
-        )
         return RecordQueryResult(
-            status="ok", items=items, next_cursor=result.next_cursor
+            status="ok", items=tuple(items), next_cursor=result.next_cursor
         )
 
     def _load_index_rows(self) -> list[dict[str, Any]]:
@@ -216,6 +245,210 @@ class FileRecordRepository:
         atomic.write_json(
             self.root / "events.json",
             {"schema": "aitest.events/1.0", "events": events},
+        )
+
+    # ----- 权威边界与投影重建（A-04）----------------------------------
+
+    def authoritative_commits(self) -> list[dict[str, Any]]:
+        """读取 records.json 内的权威提交台账。
+
+        台账与业务记录在同一次原子写中发布，是“哪些提交已确认”的唯一
+        事实来源；commit.json/indexes/events 都是可从它重建的投影。
+        """
+        data = self._load()
+        commits = data.get("commits")
+        if not isinstance(commits, list):
+            return []
+        return [entry for entry in commits if isinstance(entry, dict)]
+
+    def committed_sequences(self) -> tuple[int, ...]:
+        return tuple(
+            sorted(
+                int(entry["commit_sequence"])
+                for entry in self.authoritative_commits()
+                if isinstance(entry.get("commit_sequence"), int)
+            )
+        )
+
+    @staticmethod
+    def _index_rows_from_commits(
+        commits: Sequence[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for entry in commits:
+            project_id = entry.get("project_id")
+            commit_sequence = entry.get("commit_sequence")
+            created = entry.get("created")
+            if not isinstance(created, list):
+                continue
+            for item in created:
+                if not isinstance(item, dict):
+                    continue
+                rows.append(
+                    {
+                        "project_id": project_id,
+                        "aggregate_kind": item.get("aggregate_kind"),
+                        "record_id": item.get("record_id"),
+                        "revision": item.get("revision"),
+                        "commit_sequence": commit_sequence,
+                    }
+                )
+        return rows
+
+    @staticmethod
+    def _events_from_commits(
+        commits: Sequence[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """从权威台账重放旧版 events.json 事件（迁移期双轨）。"""
+        events: list[dict[str, Any]] = []
+        for entry in commits:
+            created = entry.get("created")
+            if not isinstance(created, list):
+                continue
+            for item in created:
+                if not isinstance(item, dict):
+                    continue
+                events.append(
+                    {
+                        "event_type": "record_created",
+                        "project_id": entry.get("project_id"),
+                        "aggregate_kind": item.get("aggregate_kind"),
+                        "record_id": item.get("record_id"),
+                        "revision": item.get("revision"),
+                        "commit_sequence": entry.get("commit_sequence"),
+                        "request_id": entry.get("request_id"),
+                        "intent_id": entry.get("intent_id"),
+                        "workspace_id": entry.get("workspace_id"),
+                        "writer_epoch": entry.get("writer_epoch"),
+                    }
+                )
+        return events
+
+    def _journal_world(self) -> bool:
+        """工作空间是否使用正式事件日志（含崩溃后残留暂存/边界）。"""
+        log_dir = self.root / "event-log"
+        journal = log_dir / "journal.jsonl"
+        try:
+            if journal.exists() and journal.stat().st_size > 0:
+                return True
+            for sub in ("boundaries", "staging"):
+                directory = log_dir / sub
+                if directory.exists() and any(directory.iterdir()):
+                    return True
+        except OSError:
+            return True
+        return False
+
+    def rebuild_projections(self) -> list[str]:
+        """从 records 权威边界重建落后/缺失的提交清单、索引和旧版事件。
+
+        只修复投影，绝不改写业务记录；已与权威边界一致的投影不重写
+        （健康工作空间不产生“修复”动作）。返回执行的修复动作描述。
+        """
+        actions: list[str] = []
+        data = self._load()
+        ledger = data.get("commits")
+        if not isinstance(ledger, list):
+            return actions
+        ledger = [entry for entry in ledger if isinstance(entry, dict)]
+        if not ledger:
+            # 没有任何权威提交事实时不得伪造投影变更（健康/旧版工作空间
+            # 不产生“修复”动作）。
+            return actions
+        ledger_sequences = {
+            int(entry["commit_sequence"])
+            for entry in ledger
+            if isinstance(entry.get("commit_sequence"), int)
+        }
+
+        # 1) 提交清单 commit.json：合并既有可读条目与权威台账。
+        committed = self._load_commits()
+        merged_commits: dict[int, dict[str, Any]] = {
+            int(entry["commit_sequence"]): entry
+            for entry in committed
+            if isinstance(entry, dict)
+            and isinstance(entry.get("commit_sequence"), int)
+        }
+        for entry in ledger:
+            merged_commits[int(entry["commit_sequence"])] = entry
+        ordered_commits = [
+            merged_commits[seq] for seq in sorted(merged_commits)
+        ]
+        current_commits = self._load_commits()
+        current_sequences = {
+            int(entry["commit_sequence"])
+            for entry in current_commits
+            if isinstance(entry, dict)
+            and isinstance(entry.get("commit_sequence"), int)
+        }
+        if current_sequences < ledger_sequences or not (self.root / "commit.json").exists():
+            sequence = max(merged_commits, default=0)
+            self._save_commits(ordered_commits, sequence)
+            actions.append("从 records 权威边界重建提交清单 commit.json")
+
+        # 2) 查询索引 indexes.json：合并既有可读行与台账派生行后整投影重发。
+        index = FileQueryIndex(self.root)
+        raw_index = index._read_raw()  # noqa: SLF001 - 同底座投影协作
+        need_rebuild = True
+        if raw_index is not None and raw_index.get("version") == FileQueryIndex.VERSION:
+            existing_rows = raw_index.get("rows")
+            if isinstance(existing_rows, list):
+                derived = self._index_rows_from_commits(ledger)
+                merged_rows = self._merge_index_rows(
+                    [row for row in existing_rows if isinstance(row, dict)],
+                    derived,
+                )
+                index_root = raw_index.get("last_commit_sequence")
+                covers_commit_root = (
+                    isinstance(index_root, int) and index_root >= max(ledger_sequences)
+                )
+                if (
+                    covers_commit_root
+                    and len(merged_rows) == len(existing_rows)
+                    and all(
+                        row.get("commit_sequence") is not None for row in merged_rows
+                    )
+                ):
+                    need_rebuild = False
+        if need_rebuild:
+            merged_rows = self._merge_index_rows(
+                self._load_index_rows(), self._index_rows_from_commits(ledger)
+            )
+            index.rebuild(merged_rows)
+            actions.append("从 records 权威边界重建查询索引 indexes.json")
+
+        # 3) 旧版 events.json（仅非 journal 世界的迁移期工作空间）。
+        if not self._journal_world():
+            expected_events = self._events_from_commits(ledger)
+            if len(self._load_events()) < len(expected_events):
+                self._save_events(expected_events)
+                actions.append("从 records 权威边界重建旧版事件 events.json")
+        return actions
+
+    @staticmethod
+    def _merge_index_rows(
+        existing: Sequence[dict[str, Any]],
+        derived: Sequence[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        merged: dict[tuple[object, ...], dict[str, Any]] = {}
+        for row in (*existing, *derived):
+            key = (
+                row.get("project_id"),
+                row.get("aggregate_kind"),
+                row.get("record_id"),
+                row.get("revision"),
+            )
+            # 台账派生行为准；台账缺失的历史投影行保留，不丢历史。
+            if key not in merged or row.get("commit_sequence") is not None:
+                merged[key] = dict(row)
+        return sorted(
+            merged.values(),
+            key=lambda row: (
+                int(row.get("commit_sequence") or 0),
+                str(row.get("aggregate_kind") or ""),
+                str(row.get("record_id") or ""),
+                int(row.get("revision") or 0),
+            ),
         )
 
     def _write_active_marker(
@@ -370,6 +603,9 @@ class FileRecordRepository:
             ],
             "state": "committed",
         }
+        # 权威提交台账与业务记录在同一次原子写中发布；投影全部可从它重建。
+        ledger = data.setdefault("commits", [])
+        ledger.append(commit_entry)
         self._write_active_marker(
             request_id=request_id,
             intent_id=intent_id,
@@ -417,9 +653,15 @@ class FileRecordRepository:
                 self._save_events(events + new_events)
             FileQueryIndex(self.root).rebuild(new_index_rows)
         except BaseException:
-            # records 未发布：没有已确认边界，把暂存事件隔离留证（不写入
-            # journal），保证未提交投影不可读；活动标记由 finally 清除。
-            if boundary_started and not records_published and self._journal is not None:
+            if records_published:
+                # records 权威边界已发布：提交事实存在。尽力从权威边界
+                # 重建投影，使同一进程内也能恢复一致；仍失败则交由启动
+                # 恢复编排。业务事实不回滚、不重放。
+                with suppress(Exception):
+                    self.rebuild_projections()
+            elif boundary_started and self._journal is not None:
+                # records 未发布：没有已确认边界，把暂存事件隔离留证（不写入
+                # journal），保证未提交投影不可读；活动标记由 finally 清除。
                 with suppress(Exception):
                     self._journal.rollback_boundary(commit_sequence=commit_sequence)
             raise

@@ -24,6 +24,7 @@ from typing import Final
 
 from . import atomic
 from .backup import FileBackupStore
+from .maintenance import detect_activity_blocker
 
 _REGISTRY_NAME: Final = "registry.json"
 _JOURNAL_NAME: Final = "journal.jsonl"
@@ -240,9 +241,10 @@ class FileMigrationManager:
                 skipped=tuple(steps),
                 backup_path=None,
             )
-        # 活动执行门禁：存在未核实活动标记时绝不迁移；先核实/抢救活动执行
-        # （恢复编排），再重新 apply。
-        if self._active_marker_unresolved():
+        # 活动执行门禁：存在未核实活动（活动标记或非空事件暂存）时绝不
+        # 迁移；先由恢复编排核实/抢救活动执行（C 先核实活动并抢救，A 再判
+        # 迁移/回收资格，A-07），再重新 apply。
+        if detect_activity_blocker(self._root) is not None:
             return ApplyReport(
                 plan_id=plan_id,
                 state="blocked",
@@ -335,10 +337,6 @@ class FileMigrationManager:
             return destination
         FileBackupStore(self._root).create(destination)
         return destination
-
-    def _active_marker_unresolved(self) -> bool:
-        """活动标记存在即视为未核实活动执行，迁移必须阻塞。"""
-        return (self._root / "transactions" / "active.json").exists()
 
     def _load_registry(self) -> dict[str, dict[str, str]]:
         raw = json.loads(self._registry_path.read_text(encoding="utf-8"))

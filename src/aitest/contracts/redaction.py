@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 _REDACTED = "[REDACTED]"
@@ -124,9 +124,38 @@ def redact_json_text(text: str) -> tuple[str, bool] | None:
     return json.dumps(redacted, ensure_ascii=False), True
 
 
+def safeguard_projector(
+    projector: Callable[[Mapping[str, object]], Mapping[str, object]],
+) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
+    """给任意自定义投影器套上不可绕过的统一安全底线（A-09）。
+
+    自定义投影器只允许做**再组织/裁剪**，无权决定凭据是否出站：其输出
+    （或异常时的原始输入）必须再经 :func:`redact_structure` 递归脱敏。
+    投影器返回非 Mapping（无法承载结构化结果）或直接抛错时，回退为对
+    原始值脱敏，绝不把异常或非结构对象透传给协议出口。
+    """
+
+    def _safeguarded(value: Mapping[str, object]) -> Mapping[str, object]:
+        try:
+            projected: Any = projector(value)
+        except Exception:
+            projected = value
+        if not isinstance(projected, Mapping):
+            projected = value
+        redacted, _changed = redact_structure(projected)
+        if isinstance(redacted, Mapping):
+            return redacted
+        # 极端情况下脱敏结果退化为标量（自定义投影器返回了奇怪的 Mapping
+        # 子类），包一层固定键，保证协议出口结构仍为对象且无原文泄漏。
+        return {"value": redacted}
+
+    return _safeguarded
+
+
 __all__ = [
     "SENSITIVE_KEYS",
     "redact_json_text",
     "redact_structure",
+    "safeguard_projector",
     "scrub_secret_text",
 ]

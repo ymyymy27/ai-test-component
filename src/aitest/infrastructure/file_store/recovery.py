@@ -9,6 +9,7 @@
 """
 
 import json
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -16,6 +17,7 @@ from typing import Final
 from .backup import BackupError, FileBackupStore, RestoreReport
 from .events import FileEventJournal, ReconcileReport
 from .integrity import check_workspace
+from .records import FileRecordRepository
 
 _REPORT_SCHEMA: Final = "aitest.recovery-report/1.0"
 
@@ -82,7 +84,13 @@ class RecoveryOrchestrator:
                 restore=None,
             )
 
-        # Phase B：活动标记与提交清单对账。
+        # Phase B：先以 records.json 权威提交台账自愈落后/缺失的投影
+        # （commit.json/indexes.json/events.json）。台账与业务记录在同一次
+        # 原子写中发布；投影全部可重建，健康工作空间不产生修复动作。
+        repository = FileRecordRepository(self._root)
+        actions.extend(repository.rebuild_projections())
+
+        # 活动标记与权威提交对账。
         marker = self._read_active_marker()
         committed = set(self._committed_sequences())
         if marker is not None:
@@ -143,22 +151,35 @@ class RecoveryOrchestrator:
             path.unlink()
 
     def _committed_sequences(self) -> tuple[int, ...]:
+        """已确认提交序列。
+
+        records.json 的提交台账是唯一权威事实来源（与业务记录同一次原子
+        写发布）；commit.json 仅作迁移期并集兜底，保证旧版工作空间与
+        投影落后场景都不丢已确认序列。任一来源不可读时不伪造结论。
+        """
+        sequences: set[int] = set()
+        with suppress(json.JSONDecodeError, OSError, TypeError, KeyError):
+            sequences.update(FileRecordRepository(self._root).committed_sequences())
+        sequences.update(self._commit_file_sequences())
+        return tuple(sorted(sequences))
+
+    def _commit_file_sequences(self) -> set[int]:
+        """读取旧版提交清单 commit.json 中的序列（投影，可能落后）。"""
         path = self._root / "commit.json"
         if not path.exists():
-            return ()
+            return set()
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return ()
+        except (json.JSONDecodeError, OSError):
+            return set()
         commits = raw.get("commits")
         if not isinstance(commits, list):
-            return ()
-        sequences = [
+            return set()
+        return {
             int(entry["commit_sequence"])
             for entry in commits
             if isinstance(entry, dict) and isinstance(entry.get("commit_sequence"), int)
-        ]
-        return tuple(sorted(sequences))
+        }
 
 
 __all__ = [

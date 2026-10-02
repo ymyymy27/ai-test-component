@@ -18,6 +18,7 @@ from aitest.bootstrap import (
     acquire_endpoint,
     make_editor_host,
     make_pipe_connector,
+    shutdown_endpoint,
 )
 from aitest.interfaces.local.editor_host import (
     CoreEndpoint,
@@ -59,7 +60,12 @@ def test_launcher_writes_instance_id_file(tmp_path: Path) -> None:
     id_file = launcher.instance_id_path
     assert id_file.exists()
     assert id_file.read_text(encoding="utf-8") == instance_id
-    assert any("--instance-id" in arg for arg in captured[0])
+    cmd = captured[0]
+    assert any("--instance-id" in arg for arg in cmd)
+    # A-02：launcher 必须把宿主 PID 透传给核心做父进程保活。
+    assert "--parent-pid" in cmd
+    parent_index = cmd.index("--parent-pid")
+    assert cmd[parent_index + 1].isdigit()
 
 
 def test_connector_returns_none_when_no_id_file(tmp_path: Path) -> None:
@@ -142,50 +148,83 @@ def test_make_editor_host_uses_default_launcher_when_none(tmp_path: Path) -> Non
 # ----- 集成：真实子进程 + 命名管道（Windows） -----------------------------
 
 
+def _wait_core_gone(root: Path, workspace_id: str, timeout: float = 8.0) -> bool:
+    connector = make_pipe_connector(root)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if connector(workspace_id) is None:
+            return True
+        time.sleep(0.1)
+    return False
+
+
 @win_only
 def test_acquire_endpoint_with_real_subprocess(tmp_path: Path) -> None:
     """端到端：SystemProcessLauncher 启动 core_worker 子进程，
     acquire_endpoint 通过管道完成连接，返回已核对身份的 CoreEndpoint。
+
+    A-02 后核心是长期唯一核心：客户端断开不退出，必须用停机控制帧
+    显式结束工作空间生命周期，结束后管道消失、可重新拉起。
     """
+    workspace_id = "wsRealSubprocess"
     endpoint = acquire_endpoint(
         tmp_path,
-        workspace_id="wsRealSubprocess",
+        workspace_id=workspace_id,
         wait_timeout_seconds=8.0,
     )
     assert isinstance(endpoint, CoreEndpoint)
-    assert endpoint.workspace_id == "wsRealSubprocess"
+    assert endpoint.workspace_id == workspace_id
     assert endpoint.instance_id.startswith("core-")
     # connector 返回的 connection 是 NamedPipeClient 实例
     from aitest.interfaces.local.pipe import NamedPipeClient
 
     assert isinstance(endpoint.connection, NamedPipeClient)
-    # 主动关闭，让子进程 read_message 收到 EOF 后退出
+    # 客户端断开不杀核心；显式停机后核心退出、管道释放。
     endpoint.connection.close()
-    # 给子进程一点时间退出
-    time.sleep(0.1)
+    assert shutdown_endpoint(tmp_path, workspace_id=workspace_id)
+    assert _wait_core_gone(tmp_path, workspace_id)
 
 
 @win_only
-def test_acquire_endpoint_starts_new_core_after_close(tmp_path: Path) -> None:
-    """首次 acquire 启动子进程；连接关闭后子进程退出，再次 acquire 应
-    启动新核心（instance_id 不同）。connector 无状态，不复用既有连接。
+def test_acquire_endpoint_reconnects_same_core_then_starts_new_after_shutdown(
+    tmp_path: Path,
+) -> None:
+    """首次 acquire 启动长期核心；连接关闭后核心继续存活，再次
+    acquire 必须连回**同一实例**（保活重连）；显式停机后再 acquire
+    才启动新核心（instance_id 不同）。
     """
+    workspace_id = "wsNewCore"
     first = acquire_endpoint(
         tmp_path,
-        workspace_id="wsNewCore",
+        workspace_id=workspace_id,
         wait_timeout_seconds=8.0,
     )
     assert isinstance(first.connection, NamedPipeClient)
     first.connection.close()
-    # 等子进程退出（read_message 收到 EOF 后 return）
-    time.sleep(0.2)
+    # 等待核心完成旧管道关闭与重建。
+    time.sleep(0.3)
 
     second = acquire_endpoint(
         tmp_path,
-        workspace_id="wsNewCore",
+        workspace_id=workspace_id,
         wait_timeout_seconds=8.0,
     )
-    assert first.instance_id != second.instance_id
+    assert first.instance_id == second.instance_id
     assert isinstance(second.connection, NamedPipeClient)
     second.connection.close()
-    time.sleep(0.1)
+
+    # 停机后再获取：新核心新实例。
+    assert shutdown_endpoint(tmp_path, workspace_id=workspace_id)
+    assert _wait_core_gone(tmp_path, workspace_id)
+    third = acquire_endpoint(
+        tmp_path,
+        workspace_id=workspace_id,
+        wait_timeout_seconds=8.0,
+    )
+    assert third.instance_id != first.instance_id
+    try:
+        assert isinstance(third.connection, NamedPipeClient)
+    finally:
+        third.connection.close()
+        assert shutdown_endpoint(tmp_path, workspace_id=workspace_id)
+        assert _wait_core_gone(tmp_path, workspace_id)

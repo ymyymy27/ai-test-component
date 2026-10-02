@@ -496,6 +496,14 @@ class FileEventJournal:
         if not events:
             return
         last = events[-1]
+        current = self._load_position()
+        # 幂等：位置已与 journal 末尾一致时不重写、不登记修复动作，
+        # 否则健康工作空间每次恢复都会被误报为 repaired。
+        if (
+            current["last_sequence"] == last.event_sequence
+            and current["last_commit_sequence"] == last.commit_sequence
+        ):
+            return
         self._save_position(
             last_sequence=last.event_sequence,
             last_commit_sequence=last.commit_sequence,

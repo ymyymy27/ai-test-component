@@ -187,6 +187,21 @@ class Clock(Protocol):
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
     def open(self, project_id: str) -> None: ...
+    def commit_seq(self) -> str:
+        """当前工作空间全局提交序号（``records.json`` 的 ``commit``）。
+
+        冻结于 AB-001 §8.8：**未开事务也可读**。``prepare_run`` 的阻塞与
+        复用分支不暂存任何记录，但仍要按它判断业务顺序（不使用系统时间）。
+        """
+        ...
+    def next_commit_seq(self) -> str:
+        """本次提交后下一条暂存记录将得到的序号。
+
+        冻结于 AB-001 §8.8：A 的提交序号**按记录递增**，已暂存 N 条时
+        取值为「当前序号 + N + 1」，供调用方在 ``commit()`` **之前**把
+        ``created_at_commit`` 写进不可变 payload。
+        """
+        ...
     def stage_record(
         self,
         *,
@@ -203,6 +218,13 @@ class RecordRepository(Protocol):
     """Immutable revisions and project-scoped pagination."""
     def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> object: ...
     def query(self, query: object) -> object: ...
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int:
+        """按业务身份读取**当前修订**（修订条数）；只读，不经索引。
+
+        冻结于 AB-001 §8.8：修订冲突提示与按业务身份查回准备记录都依赖
+        该值；新工作空间尚无索引文件，此读取不得经过索引分页。
+        """
+        ...
 
 
 class EvidenceObjectStore(Protocol):
@@ -363,7 +385,19 @@ class ReportArtifactPort(Protocol):
 
 
 class SecretPort(Protocol):
-    """Resolve references for a particular purpose; never return to a view."""
+    """Resolve references for a particular purpose; never return to a view.
+
+    冻结语义（AB-001 §3.5）：
+
+    - 解析与能力探测都必须显式携带 ``purpose``；不同用途**分别授权**，
+      一个用途下可用的凭据不得顶替另一用途。一期登记用途以
+      ``contracts.secrets.KNOWN_PURPOSES`` 为准，未知用途必须显式失败，
+      不静默回退、不遍历未登记来源。
+    - :meth:`resolve` 只返回 :class:`ResolvedSecret`，明文仅存在于受控
+      内存，由调用方显式 reveal/clear；协议层面**没有**向视图返回正文
+      的方法。凭据正文不进配置、日志、面板、导出或上传。
+    - :meth:`has_secret` 只做能力探测，不得返回或缓存正文。
+    """
 
     def resolve(self, reference: str, *, purpose: str) -> ResolvedSecret: ...
 

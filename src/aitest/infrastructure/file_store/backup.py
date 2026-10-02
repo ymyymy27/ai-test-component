@@ -131,8 +131,10 @@ class FileBackupStore:
         excluded_active: list[str] = []
         if (self.root / _ACTIVE_MARKER).exists():
             excluded_active.append(_SPOOL_DIR)
+        # 清单键统一 POSIX 相对路径：备份是 portable 制品，不能把 Windows
+        # 反斜杠写进冻结清单（A-06）。
         manifest = {
-            str(p.relative_to(destination)): self._digest(p)
+            p.relative_to(destination).as_posix(): self._digest(p)
             for p in destination.rglob("*")
             if p.is_file() and p.name != "backup.json"
         }
@@ -166,7 +168,19 @@ class FileBackupStore:
                 or self._digest(path) != digest
             ):
                 errors.append(name)
-        return {"ok": not errors, "errors": errors}
+        # 闭包双向核对：备份内任何未登记文件（事后塞入/残留）都使备份不再
+        # 是冻结闭包，不得作为迁移前可校验备份验收（A-06）。
+        manifested = set(manifest)
+        for present in backup.rglob("*"):
+            if not present.is_file() or present.name == "backup.json":
+                continue
+            try:
+                relative = present.relative_to(backup).as_posix()
+            except ValueError:
+                continue
+            if present.is_symlink() or relative not in manifested:
+                errors.append(relative)
+        return {"ok": not errors, "errors": sorted(set(errors))}
 
     def restore(self, *, backup: Path, target: Path) -> RestoreReport:
         """把已校验备份恢复到空目标，恢复后按清单重新核对。
@@ -200,6 +214,7 @@ class FileBackupStore:
                 source is None
                 or destination is None
                 or source.is_symlink()
+                or destination.is_symlink()
                 or not source.is_file()
             ):
                 return RestoreReport(
@@ -212,6 +227,10 @@ class FileBackupStore:
                 )
             destinations[name] = destination
 
+        if target.is_symlink():
+            # 恢复目标本身是符号链接时，iterdir/写入都会落到链接对端，
+            # 等于在工作空间边界外写文件——整体拒绝（A-06 恢复目标边界）。
+            raise BackupError("恢复目标是符号链接，拒绝恢复")
         if target.exists() and any(target.iterdir()):
             raise BackupError("恢复目标非空，拒绝覆盖")
         post_errors: list[str] = []

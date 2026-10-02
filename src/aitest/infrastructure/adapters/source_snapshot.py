@@ -23,7 +23,7 @@ import re
 import shutil
 from contextlib import suppress
 from pathlib import Path
-from typing import Final
+from typing import IO, Final
 
 from aitest.infrastructure.file_store.atomic import write_json
 
@@ -45,6 +45,39 @@ def _hash_file(path: Path) -> tuple[str, int]:
             digest.update(block)
             size += len(block)
     return digest.hexdigest(), size
+
+
+def _fsync_file(handle: IO[bytes]) -> None:
+    """显式落盘文件数据；失败必须上抛，禁止在无耐久保证时声称发布成功。"""
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def _fsync_directory(directory: Path) -> None:
+    """尽力持久化目录项（rename 结果）。
+
+    POSIX 上 fsync 目录 fd 才能保证 rename 掉电不丢；Windows 不支持对
+    目录 fd fsync，目录项持久化由文件数据 fsync + 原子替换 + NTFS
+    journaling 兜底，故该平台直接跳过且不报错。
+    """
+    if os.name != "posix":
+        return
+    _try_fsync_directory(directory)
+
+
+def _try_fsync_directory(directory: Path) -> None:
+    """实际打开目录并 fsync；任何 OSError 都吞掉（尽力而为）。"""
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(directory, os.O_RDONLY)
+        os.fsync(descriptor)
+    except OSError:
+        # 某些文件系统/平台不允许打开或 fsync 目录：尽力而为，不影响发布。
+        pass
+    finally:
+        if descriptor is not None:
+            with suppress(OSError):
+                os.close(descriptor)
 
 
 def _is_excluded(relative: str, rules: tuple[str, ...]) -> bool:
@@ -150,6 +183,8 @@ class FileSourceSnapshotStore:
             "files": files,
         }
         write_json(record_path, record)
+        # 清单原子发布后持久化目录项，掉电后快照身份与 blob 引用同时可达。
+        _fsync_directory(record_path.parent)
         return dict(record)
 
     def read_pinned(self, snapshot_id: str) -> dict[str, object]:
@@ -204,10 +239,19 @@ class FileSourceSnapshotStore:
         target.mkdir(parents=True, exist_ok=True)
 
         copied: list[str] = []
+        durable_directories: set[Path] = set()
         for item, blob_path, destination_path in planned:
             destination_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(blob_path, destination_path)
+            # 物化是给执行使用的来源投影，同样显式 fsync，掉电后不出现
+            # 目录项存在但内容为零/残缺的文件（A-08）。
+            with blob_path.open("rb") as src, destination_path.open("wb") as dst:
+                shutil.copyfileobj(src, dst, _HASH_BLOCK)
+                _fsync_file(dst)
+            shutil.copystat(blob_path, destination_path, follow_symlinks=True)
+            durable_directories.add(destination_path.parent)
             copied.append(str(item["relative_path"]))
+        for directory in durable_directories:
+            _fsync_directory(directory)
 
         mismatches: list[str] = []
         for item, _blob_path, destination_path in planned:
@@ -276,10 +320,15 @@ class FileSourceSnapshotStore:
         try:
             with source.open("rb") as src, temporary.open("wb") as dst:
                 shutil.copyfileobj(src, dst, _HASH_BLOCK)
+                # 耐久发布合同（A-08）：字节必须显式 fsync 后才允许进入
+                # 内容寻址区；fsync 失败直接上抛，绝不静默发布未落盘字节。
+                _fsync_file(dst)
             actual = hashlib.sha256(temporary.read_bytes()).hexdigest()
             if actual != digest:
                 raise SnapshotError(f"固定字节摘要不符: {source}")
             os.replace(temporary, blob)
+            # 持久化 rename 目录项（POSIX）；不支持的平台尽力而为。
+            _fsync_directory(blob.parent)
         except BaseException:
             with suppress(FileNotFoundError):
                 temporary.unlink()
