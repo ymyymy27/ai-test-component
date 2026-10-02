@@ -74,6 +74,13 @@ def test_application_runs_fix_and_retest_flow() -> None:
             case_id="case-checkout",
             attempt_id="attempt-regression",
             evidence_refs=("regression-evidence",),
+            actual_execution=True,
+            current_regression_attempt=True,
+            evidence_saved=True,
+            satisfies_original_criteria=True,
+            basis_confirmed=True,
+            source_identity_matched=True,
+            dependencies_valid=True,
         ),
     )
 

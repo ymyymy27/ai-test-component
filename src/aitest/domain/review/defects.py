@@ -135,11 +135,13 @@ class IssueClosureEvidence:
     case_id: str
     attempt_id: str
     evidence_refs: tuple[str, ...]
-    actual_execution: bool = True
-    satisfies_original_criteria: bool = True
-    basis_confirmed: bool = True
-    source_identity_matched: bool = True
-    dependencies_valid: bool = True
+    actual_execution: bool
+    current_regression_attempt: bool
+    evidence_saved: bool
+    satisfies_original_criteria: bool
+    basis_confirmed: bool
+    source_identity_matched: bool
+    dependencies_valid: bool
 
     def __post_init__(self) -> None:
         _require_text(self.case_id, "case_id")
@@ -223,6 +225,10 @@ def close_issue(issue: IssueRecord, *, evidence: IssueClosureEvidence) -> IssueR
         raise ValueError("closure requires a new actual regression attempt")
     if not evidence.actual_execution:
         raise ValueError("closure evidence must come from actual execution")
+    if not evidence.current_regression_attempt:
+        raise ValueError("closure evidence must reference the current regression attempt")
+    if not evidence.evidence_saved:
+        raise ValueError("closure evidence must already be saved")
     if not evidence.satisfies_original_criteria:
         raise ValueError("closure evidence does not satisfy the original criteria")
     if not evidence.basis_confirmed:
@@ -290,15 +296,18 @@ def mark_duplicate(
     reason: str,
     evidence_refs: tuple[str, ...],
     confirmed_by: str,
+    issues: Mapping[str, IssueRecord] | None = None,
 ) -> IssueRecord:
     if issue.project_id != canonical_issue.project_id:
         raise ValueError("duplicate and canonical issue must belong to the same project")
     if issue.issue_id == canonical_issue.issue_id:
         raise ValueError("an issue cannot be a duplicate of itself")
+    if canonical_issue.disposition is IssueDisposition.DUPLICATE and issues is None:
+        raise ValueError("duplicate chain validation requires the complete issue graph")
     _require_text(reason, "reason")
     _require_evidence(evidence_refs)
     _require_text(confirmed_by, "confirmed_by")
-    return _new_revision(
+    updated = _new_revision(
         issue,
         status=IssueStatus.CLOSED,
         disposition=IssueDisposition.DUPLICATE,
@@ -307,6 +316,11 @@ def mark_duplicate(
         canonical_issue_id=canonical_issue.issue_id,
         evidence_refs=issue.evidence_refs + evidence_refs,
     )
+    if issues is not None:
+        graph = dict(issues)
+        graph[updated.issue_id] = updated
+        resolve_canonical_issue_id(updated.issue_id, graph)
+    return updated
 
 
 def defer_issue(
@@ -332,8 +346,6 @@ def undo_disposition(issue: IssueRecord) -> IssueRecord:
     return _new_revision(
         issue,
         status=IssueStatus.AWAITING_CONFIRMATION,
-        severity=None,
-        owner=None,
         disposition=IssueDisposition.ACTIVE,
         confirmed_by=None,
         disposition_reason=None,

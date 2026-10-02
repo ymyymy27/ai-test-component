@@ -4,21 +4,21 @@ title: ExecutionFacts
 provider: C
 consumer: D
 contract_version: "1.0"
-contract_status: reviewing
+contract_status: agreed
 provider_implementation: done
-consumer_implementation: not_started
+consumer_implementation: partial
 verification_status: fixture_passed
 last_verified_commit: 8d9883c
 blockers: []
 next_owner: D
-next_action: 确认 Schema、多流游标、超时和非 UTF-8 处理并完成消费方接入
+next_action: D 完成 ExecutionFacts 消费适配、Run 级证据等级派生和真实夹具对拍
 ---
 
 # C包-D包 ExecutionFacts 对接说明
 
 版本：1.0  
 日期：2026-09-27  
-状态：草案，待D包确认  
+状态：双方已确认；待消费方接入和真实夹具对拍  
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -180,18 +180,30 @@ AttemptFact.output_cursors为数组，每个元素对应一个OutputStreamName�
 - A保存快照时必须保留未知原因、缺口和引用摘要。
 - 非UTF-8内容按字节保存，media_type可为application/octet-stream。
 
-## 8 待D确认
+## 8 D侧确认项
 
-1. 确认采用aitest.execution-facts/1.0。
-2. 确认多流游标以output_cursors数组消费。
-3. 确认timeout表现为pending_verification + ExitFact.timed_out + termination_reason=timeout。
-4. 确认非UTF-8证据只按object_digest和字节读取，不强制UTF-8解码。
-5. 确认D不读取C内部spool路径，只读取已提交的ExecutionFacts和对象引用。
-6. 确认后续合同变更重新走契约PR。
+1. [x] 确认采用 `aitest.execution-facts/1.0`。
+2. [x] 确认 stdout／stderr 使用独立的 `output_cursors` 数组消费。
+3. [x] 确认 timeout 表现为 `pending_verification + ExitFact.timed_out=true + termination_reason=timeout`。
+4. [x] 确认非 UTF-8 证据只按 `object_digest` 和字节读取，不强制 UTF-8 解码。
+5. [x] 确认 D 不读取 C 内部 spool 路径，只读取已提交的 `ExecutionFacts` 和对象引用。
+6. [x] 确认后续合同变更重新走契约 PR。
 
-## 9 确认
+## 9 D侧 evidence_level 使用确认
 
-确认：[ ] C包 赵    日期：  
-确认：[ ] D包       日期：  
+`EvidenceFact.evidence_level` 继续作为 C 发布的**逐条证据事实**保留：
 
-合并到develop并双方勾选后，本文件作为C-D ExecutionFacts唯一对接依据。
+- D 可以显示该值并按对象引用核对对应证据；
+- D 不修改 C 写入的 `evidence_level`；
+- D 不把该字段直接当作最终 Run 级 A／B／C／D 证据等级；
+- Run 级证据等级仍由 D 根据同一提交中的 S／M、E／R／V／P／F／U／H、源码身份、关键链路、必需证据、必要核验、过期依据、未知与缺口等事实唯一派生；
+- 遇到未知枚举值或无法核对的引用时按 unknown 处理，不默认为充分证据。
+
+因此，C 的“透传事实”和 D 的“报告级派生等级”是不同层次，不构成重复所有权。
+
+## 10 确认
+
+确认：[x] C包 赵    日期：2026-09-27  
+确认：[x] D包 郭    日期：2026-10-02  
+
+双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；消费方接入和真实夹具对拍由 `review-D.md` 跟踪。
