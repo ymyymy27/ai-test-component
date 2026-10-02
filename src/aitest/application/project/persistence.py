@@ -37,18 +37,24 @@ from aitest.application.planning.substrate import (
 from aitest.application.project.serialization import (
     binding_from_payload,
     binding_to_payload,
+    delivery_from_payload,
+    delivery_to_payload,
     dependency_graph_from_payload,
     dependency_graph_to_payload,
     environment_from_payload,
     environment_to_payload,
     project_from_payload,
     project_to_payload,
+    task_from_payload,
+    task_to_payload,
 )
 from aitest.domain.project.context import (
+    Delivery,
     EnvironmentRef,
     LocalProject,
     LocalProjectBinding,
     ModuleDependencyGraph,
+    Task,
 )
 
 #: 依赖图的记录标识前缀；一个项目一份当前依赖图。
@@ -246,14 +252,90 @@ def load_dependency_graph(
     return dependency_graph_from_payload(payload)
 
 
+# ------------------------------------------------------------------ 任务与交付
+
+
+def save_task(
+    task: Task,
+    *,
+    unit_of_work: UnitOfWork,
+    expected_revision: int | None = None,
+) -> StagedRevision:
+    """保存一个任务的某个修订。
+
+    验收项（`AcceptanceItem`）随任务一起落盘，不单独建记录：它在领域里没有独立身份、
+    始终属于某个任务（与 `module` 随项目一起落盘同一处理方式）。
+    """
+    return _stage_and_commit(
+        project_id=task.project_id,
+        aggregate_kind="task",
+        record_id=task.task_id,
+        expected_revision=expected_revision,
+        payload=task_to_payload(task),
+        unit_of_work=unit_of_work,
+    )
+
+
+def save_delivery(
+    delivery: Delivery,
+    *,
+    project_id: str,
+    unit_of_work: UnitOfWork,
+    expected_revision: int | None = None,
+) -> StagedRevision:
+    """保存一份交付说明的某个修订。
+
+    交付说明自身不带项目字段，项目由调用方显式给出——记录需要项目范围才可查询。
+    落盘形状把**自述与验证事实分列**，不给"把自述当验证事实"留通道。
+    """
+    if not project_id.strip():
+        raise ValueError("project_id must not be empty")
+    return _stage_and_commit(
+        project_id=project_id,
+        aggregate_kind="delivery",
+        record_id=delivery.delivery_id,
+        expected_revision=expected_revision,
+        payload=delivery_to_payload(delivery),
+        unit_of_work=unit_of_work,
+    )
+
+
+def load_task(reader: RecordReader, *, project_id: str, task_id: str, revision: int) -> Task:
+    payload = _load_payload(
+        reader,
+        project_id=project_id,
+        aggregate_kind="task",
+        record_id=task_id,
+        revision=revision,
+    )
+    return task_from_payload(payload)
+
+
+def load_delivery(
+    reader: RecordReader, *, project_id: str, delivery_id: str, revision: int
+) -> Delivery:
+    payload = _load_payload(
+        reader,
+        project_id=project_id,
+        aggregate_kind="delivery",
+        record_id=delivery_id,
+        revision=revision,
+    )
+    return delivery_from_payload(payload)
+
+
 __all__ = [
     "dependency_graph_record_id",
     "load_binding",
+    "load_delivery",
     "load_dependency_graph",
     "load_environment",
     "load_project",
+    "load_task",
     "save_binding",
+    "save_delivery",
     "save_dependency_graph",
     "save_environment",
     "save_project",
+    "save_task",
 ]

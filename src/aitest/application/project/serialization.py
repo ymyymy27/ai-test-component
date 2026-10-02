@@ -22,7 +22,9 @@ from typing import Any
 
 from aitest.domain.project.context import (
     SCHEMA_VERSION_PROJECT,
+    AcceptanceItem,
     BindingForm,
+    Delivery,
     Dependency,
     DependencyOrigin,
     EnvironmentRef,
@@ -33,6 +35,8 @@ from aitest.domain.project.context import (
     Module,
     ModuleDependencyGraph,
     SecretRef,
+    SelfReport,
+    Task,
     _canonical_portable_path,
 )
 
@@ -463,15 +467,192 @@ def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependenc
     )
 
 
+# ------------------------------------------------------------------ 任务与交付
+
+
+def _require_payload_mapping(value: object, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be an object")
+    return value
+
+
+def _payload_text(payload: Mapping[str, Any], name: str) -> str:
+    value = payload.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def _payload_optional_text(payload: Mapping[str, Any], name: str) -> str | None:
+    value = payload.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string or null")
+    return value
+
+
+def _payload_revision(payload: Mapping[str, Any], name: str) -> int:
+    value = payload.get(name)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an integer")
+    if value < 1:
+        raise ValueError(f"{name} must be >= 1")
+    return value
+
+
+def _payload_text_tuple(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
+    value = payload.get(name, [])
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be a list")
+    entries: list[str] = []
+    for index, entry in enumerate(value):
+        if not isinstance(entry, str) or not entry.strip():
+            raise ValueError(f"{name}[{index}] must be a non-empty string")
+        entries.append(entry)
+    return tuple(entries)
+
+
+def acceptance_item_to_payload(item: AcceptanceItem) -> dict[str, Any]:
+    return {
+        "acceptance_item_id": item.acceptance_item_id,
+        "observable_result": item.observable_result,
+        "required": item.required,
+    }
+
+
+def acceptance_item_from_payload(raw: object) -> AcceptanceItem:
+    payload = _require_payload_mapping(raw, "acceptance item")
+    required = payload.get("required", True)
+    if not isinstance(required, bool):
+        raise ValueError("acceptance item required must be a boolean")
+    return AcceptanceItem(
+        acceptance_item_id=_payload_text(payload, "acceptance_item_id"),
+        observable_result=_payload_text(payload, "observable_result"),
+        required=required,
+    )
+
+
+def task_to_payload(task: Task) -> dict[str, Any]:
+    """任务落盘形状。
+
+    `acceptance_items` **按声明顺序保留、不排序**：顺序是任务语义的一部分
+    （验收项按重要性排列），与"集合"类字段（关联项集合）的处理不同。
+    `acceptance_item` **不做成独立记录**：它在领域里没有独立身份、始终属于某个任务，
+    单独建记录会出现"同一事实两处保存"（与 `module` 随项目一起落盘同一处理方式）。
+    """
+    return {
+        "project_id": task.project_id,
+        "task_id": task.task_id,
+        "goal": task.goal,
+        "scope": task.scope,
+        "acceptance_items": [
+            acceptance_item_to_payload(item) for item in task.acceptance_items
+        ],
+        "inputs": list(task.inputs),
+        "outputs": list(task.outputs),
+        "preconditions": list(task.preconditions),
+        "owner": task.owner,
+        "acceptor": task.acceptor,
+        "schema_version": task.schema_version,
+        "revision": task.revision,
+    }
+
+
+def task_from_payload(payload: Mapping[str, Any]) -> Task:
+    raw_items = payload.get("acceptance_items")
+    if not isinstance(raw_items, (list, tuple)) or not raw_items:
+        raise ValueError("task payload must carry at least one acceptance item")
+    return Task(
+        task_id=_payload_text(payload, "task_id"),
+        project_id=_payload_text(payload, "project_id"),
+        goal=_payload_text(payload, "goal"),
+        scope=_payload_text(payload, "scope"),
+        acceptance_items=tuple(
+            acceptance_item_from_payload(item) for item in raw_items
+        ),
+        inputs=_payload_text_tuple(payload, "inputs"),
+        outputs=_payload_text_tuple(payload, "outputs"),
+        preconditions=_payload_text_tuple(payload, "preconditions"),
+        owner=_payload_optional_text(payload, "owner"),
+        acceptor=_payload_optional_text(payload, "acceptor"),
+        schema_version=_payload_text(payload, "schema_version"),
+        revision=_payload_revision(payload, "revision"),
+    )
+
+
+def delivery_to_payload(delivery: Delivery) -> dict[str, Any]:
+    """交付说明落盘形状：**自述与验证事实结构分离**（需求 P1-FR02）。
+
+    两者字段各自独立成块，读回时也各自重建——不给"把自述当验证事实"留通道。
+    """
+    return {
+        "delivery_id": delivery.delivery_id,
+        "task_id": delivery.task_id,
+        "version": delivery.version,
+        "run_method": delivery.run_method,
+        "self_report": {
+            "completed": list(delivery.self_report.completed),
+            "incomplete": list(delivery.self_report.incomplete),
+        },
+        "verified_in_scope": list(delivery.verified_in_scope),
+        "unverified_scope": list(delivery.unverified_scope),
+        "changed_modules": list(delivery.changed_modules),
+        "api_changes": list(delivery.api_changes),
+        "test_data": list(delivery.test_data),
+        "dependencies": list(delivery.dependencies),
+        "mock_declarations": list(delivery.mock_declarations),
+        "known_issues": list(delivery.known_issues),
+        "self_test_evidence": list(delivery.self_test_evidence),
+        "submitted_by": delivery.submitted_by,
+        "schema_version": delivery.schema_version,
+        "revision": delivery.revision,
+    }
+
+
+def delivery_from_payload(payload: Mapping[str, Any]) -> Delivery:
+    raw_report = _require_payload_mapping(
+        payload.get("self_report"), "self_report"
+    )
+    return Delivery(
+        delivery_id=_payload_text(payload, "delivery_id"),
+        task_id=_payload_text(payload, "task_id"),
+        version=_payload_text(payload, "version"),
+        run_method=_payload_text(payload, "run_method"),
+        self_report=SelfReport(
+            completed=_payload_text_tuple(raw_report, "completed"),
+            incomplete=_payload_text_tuple(raw_report, "incomplete"),
+        ),
+        verified_in_scope=_payload_text_tuple(payload, "verified_in_scope"),
+        unverified_scope=_payload_text_tuple(payload, "unverified_scope"),
+        changed_modules=_payload_text_tuple(payload, "changed_modules"),
+        api_changes=_payload_text_tuple(payload, "api_changes"),
+        test_data=_payload_text_tuple(payload, "test_data"),
+        dependencies=_payload_text_tuple(payload, "dependencies"),
+        mock_declarations=_payload_text_tuple(payload, "mock_declarations"),
+        known_issues=_payload_text_tuple(payload, "known_issues"),
+        self_test_evidence=_payload_text_tuple(payload, "self_test_evidence"),
+        submitted_by=_payload_optional_text(payload, "submitted_by"),
+        schema_version=_payload_text(payload, "schema_version"),
+        revision=_payload_revision(payload, "revision"),
+    )
+
+
 __all__ = [
     "GIT_ONLY_KEYS",
     "PLAIN_ONLY_KEYS",
+    "acceptance_item_from_payload",
+    "acceptance_item_to_payload",
     "binding_from_payload",
     "binding_to_payload",
+    "delivery_from_payload",
+    "delivery_to_payload",
     "dependency_graph_from_payload",
     "dependency_graph_to_payload",
     "environment_from_payload",
     "environment_to_payload",
     "project_from_payload",
     "project_to_payload",
+    "task_from_payload",
+    "task_to_payload",
 ]

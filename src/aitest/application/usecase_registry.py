@@ -106,15 +106,19 @@ from aitest.application.project.context import ContextGap
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
     save_binding,
+    save_delivery,
     save_dependency_graph,
     save_environment,
     save_project,
+    save_task,
 )
 from aitest.application.project.serialization import (
     binding_from_payload,
+    delivery_from_payload,
     dependency_graph_from_payload,
     environment_from_payload,
     project_from_payload,
+    task_from_payload,
 )
 from aitest.contracts.prepared_run import (
     AssertionBasisEntry,
@@ -154,6 +158,8 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_dependency_graph",
         "save_acceptance",
         "save_case",
+        "save_task",
+        "save_delivery",
         "generate_draft",
         "publish_rules",
         "publish_plan",
@@ -579,6 +585,28 @@ def _revision_of(value: object, name: str) -> int:
     return number
 
 
+def _payload_revision_or_none(
+    command: object, *, default: int, name: str
+) -> int | None:
+    """取"我看到的修订"，并允许调用方用 `0` 表示**新建**。
+
+    命令层只允许 `expected_revision >= 0`（`0` 是既有的"我认定这是新建"写法），
+    而带 `revision` 的领域对象默认从 `1` 起。这里的规则是：
+
+    - `0` / 缺省 → `None`，即按"新建"处理，由底座在已有记录时抛修订冲突；
+    - 其余正数 → 原样用于并发校验。
+
+    这样既保住"不自动覆盖"，又不必让调用方把 `1` 写成 `0`。
+    """
+    value = getattr(command, "expected_revision", None)
+    if value is None:
+        return None
+    number = _int_of(value, name)
+    if number == 0:
+        return None
+    return number
+
+
 def _optional_revision(value: object, name: str) -> int | None:
     """可选修订：`None` 表示**不适用**（不是 0、不是未知）。"""
     if value is None:
@@ -949,6 +977,55 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             revision=staged.revision,
         )
 
+    def handle_save_task(command: object) -> Mapping[str, object]:
+        _command_project_id(command)  # 写动作必须带项目范围
+        parameters = _command_parameters(command)
+        payload = _as_mapping(_required(parameters, "task"), "task")
+        try:
+            task = task_from_payload(payload)
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", f"invalid task: {error}") from error
+        staged = save_task(
+            task,
+            unit_of_work=deps.unit_of_work,
+            expected_revision=_payload_revision_or_none(
+                command,
+                default=task.revision,
+                name="expected_revision",
+            ),
+        )
+        return _stage_result(
+            aggregate_kind=staged.aggregate_kind,
+            record_id=staged.record_id,
+            revision=staged.revision,
+        )
+
+    def handle_save_delivery(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        payload = _as_mapping(_required(parameters, "delivery"), "delivery")
+        try:
+            delivery = delivery_from_payload(payload)
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid delivery: {error}"
+            ) from error
+        staged = save_delivery(
+            delivery,
+            project_id=project_id,
+            unit_of_work=deps.unit_of_work,
+            expected_revision=_payload_revision_or_none(
+                command,
+                default=delivery.revision,
+                name="expected_revision",
+            ),
+        )
+        return _stage_result(
+            aggregate_kind=staged.aggregate_kind,
+            record_id=staged.record_id,
+            revision=staged.revision,
+        )
+
     def handle_query(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
@@ -1144,6 +1221,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_dependency_graph": _guard(handle_save_dependency_graph),
         "save_acceptance": _guard(handle_save_acceptance),
         "save_case": _guard(handle_save_case),
+        "save_task": _guard(handle_save_task),
+        "save_delivery": _guard(handle_save_delivery),
         "generate_draft": _guard(handle_generate_draft),
         "publish_rules": _guard(handle_publish_rules),
         "publish_plan": _guard(handle_publish_plan),
