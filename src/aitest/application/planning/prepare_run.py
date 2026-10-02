@@ -145,6 +145,17 @@ def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
       `InputRevisions` 单独比对。
 
     来源修订与依据修订的比对由 `decide_preparation()` 单独完成。
+
+    **`execution_source` 分成两半**（B-02）：
+
+    - **请求侧的实际输入**（`registered_entry`、`entry_arguments`、`cwd_mapping`、
+      `allowed_env_keys`、`secret_refs`、`test_config_ref`、`adapter_versions`）
+      是"这一轮要按什么执行"的人工给定内容，**进摘要**；漏了它们就会出现
+      "同意图换实际输入却摘要不变"，旧意图被当成可复用；
+    - **`resolved_input_digest` 是解析结果**（观察事实），**不进摘要**——
+      它变了要报"依据需重新准备"，而不是"同键异输入冲突"
+      （判定次序"冲突 > 需重新准备"，把观察结果混进摘要会盖住后者）。
+      该值由 `PreparationRequest.observed_resolved_input_digest` 单独比对。
     """
     return {
         "binding_form": inputs.binding_form.value,
@@ -166,6 +177,16 @@ def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
             [entry.case_id, entry.reason] for entry in inputs.applicability_exclusions
         ],
         "source_snippets_enabled": inputs.source_snippets_enabled,
+        # 执行来源的**请求侧**字段：任一变化都必须改变摘要（B-02）。
+        "execution_source": {
+            "registered_entry": inputs.execution_source.registered_entry,
+            "entry_arguments": list(inputs.execution_source.entry_arguments),
+            "cwd_mapping": inputs.execution_source.cwd_mapping,
+            "allowed_env_keys": list(inputs.execution_source.allowed_env_keys),
+            "secret_refs": list(inputs.execution_source.secret_refs),
+            "test_config_ref": inputs.execution_source.test_config_ref,
+            "adapter_versions": dict(inputs.execution_source.adapter_versions),
+        },
     }
 
 
@@ -306,9 +327,12 @@ def prepare_run(
             prepare_request_id=inputs.prepare_request_id,
             payload_hash=digest,
             input_revisions=inputs.input_revisions,
-                observed_case_revisions=tuple(
-                    (ref.case_id, ref.revision) for ref in inputs.case_revisions
-                ),
+            observed_case_revisions=tuple(
+                (ref.case_id, ref.revision) for ref in inputs.case_revisions
+            ),
+            # 解析出来的实际执行输入摘要随请求一起参与**观察比对**（B-02）：
+            # 它不进 `payload_hash`（那是请求内容），但变了必须报"依据需重新准备"。
+            observed_resolved_input_digest=inputs.execution_source.resolved_input_digest,
         ),
         record,
     )
@@ -371,6 +395,9 @@ def prepare_run(
                     input_revisions=inputs.input_revisions,
                     observed_case_revisions=tuple(
                         (ref.case_id, ref.revision) for ref in inputs.case_revisions
+                    ),
+                    observed_resolved_input_digest=(
+                        inputs.execution_source.resolved_input_digest
                     ),
                 ),
                 intent_id=intent_id,

@@ -165,6 +165,9 @@ PAYLOAD_FIELDS: tuple[str, ...] = (
     "skipped_scope",
     "applicability_exclusions",
     "source_snippets_enabled",
+    # 执行来源的**请求侧**字段（B-02）：漏掉它们会出现"同意图换实际输入而摘要不变"。
+    # 注意只放请求内容，不放解析结果 `resolved_input_digest`（那是观察事实）。
+    "execution_source",
 )
 
 
@@ -211,12 +214,23 @@ class PreparationRequest:
     #: **不进 `payload_hash`**；改在 `decide_preparation()` 里与 `InputRevisions` 一起比对，
     #: 变化判为 `needs_reprepare`（`DEC-005` 裁定为乙）。
     observed_case_revisions: tuple[tuple[str, int], ...] = ()
+    #: **观察到的**实际执行输入摘要（`execution_source.resolved_input_digest`）。
+    #:
+    #: 它是**解析结果**而不是请求内容，因此按架构《01-项目与计划》第 11 节
+    #: **不进 `payload_hash`**；改在 `decide_preparation()` 里单独比对，
+    #: 变化判为 `needs_reprepare`（与 `observed_case_revisions` 同一处理方式）。
+    #: 为 `None` 表示该次请求没有解析结果可比（不参与判定）。
+    observed_resolved_input_digest: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
         _require_text(self.client_id, "client_id")
         _require_text(self.prepare_request_id, "prepare_request_id")
         _require_text(self.payload_hash, "payload_hash")
+        if self.observed_resolved_input_digest is not None:
+            _require_text(
+                self.observed_resolved_input_digest, "observed resolved input digest"
+            )
         seen: set[str] = set()
         for case_id, revision in self.observed_case_revisions:
             _require_text(case_id, "observed case_id")
@@ -293,6 +307,8 @@ def preparation_record_payload(record: PreparationRecord) -> dict[str, object]:
             [case_id, revision]
             for case_id, revision in record.request.observed_case_revisions
         ],
+        # 同上：解析出来的实际输入摘要也要随记录落盘，否则重启后无法比对。
+        "observed_resolved_input_digest": record.request.observed_resolved_input_digest,
     }
 
 
@@ -341,6 +357,12 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             )
         observed.append((case_id, revision))
 
+    # 该键是后加的：老记录可能没有它。缺失不报错（否则读不懂的记录会被当成
+    # "没有记录"，反而让同键异输入可以覆盖既有意图）；出现时必须是字符串。
+    raw_digest = payload.get("observed_resolved_input_digest")
+    if raw_digest is not None and not isinstance(raw_digest, str):
+        raise ValueError("observed_resolved_input_digest must be a string when given")
+
     return PreparationRecord(
         request=PreparationRequest(
             project_id=_payload_text(payload, "project_id"),
@@ -349,6 +371,7 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             payload_hash=_payload_text(payload, "payload_hash"),
             input_revisions=InputRevisions(**revisions),
             observed_case_revisions=tuple(observed),
+            observed_resolved_input_digest=raw_digest,
         ),
         intent_id=_payload_text(payload, "intent_id"),
         created_at_commit=_payload_text(payload, "created_at_commit"),
@@ -406,6 +429,14 @@ def decide_preparation(
         # 「哪个用例配哪个修订」变了也是**依据变化**，不是"换了请求"：
         # 配对不进摘要（见 PreparationRequest 的说明），因此在这里单独识别。
         changed.append("case_revisions")
+    previous_digest = existing.request.observed_resolved_input_digest
+    current_digest = request.observed_resolved_input_digest
+    if previous_digest is not None and current_digest != previous_digest:
+        # 解析出来的实际执行输入变了：旧意图绑定的输入已经不是当前输入，
+        # 必须报"依据需重新准备"，不得复用（B-02：同意图不得换实际输入）。
+        # 只拿"双方都有值且不同"判定：旧记录没有该值（本次新增字段之前的记录）
+        # 时不能算变化，否则会把历史记录一律判成需重新准备。
+        changed.append("resolved_input_digest")
     if changed:
         return PreparationLookup(
             decision=PreparationDecision.NEEDS_REPREPARE,

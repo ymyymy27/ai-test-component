@@ -66,7 +66,7 @@ A 至今未在 `develop` 上留下任何工作包，对 `B-A-端口与保存需�
 
 | 不做项 | 原因 |
 | --- | --- |
-| 真实文件存储（`infrastructure/file_store/`） | **A 的目录**，B 不碰；已按用户决定"先不接，继续等" |
+| 真实文件存储（`infrastructure/file_store/`） | **A 的目录**，B 不碰；B 只经端口调用 |
 | 修改 `application/ports.py` | A 唯一所有；B 只在 `B-A` 文档提需求 |
 | `SourceSnapshotPort` 的真实读取 | 分工已裁定，端口与适配待实现（B-Q01 / C-Q08） |
 | 模型请求编排、脱敏投影、GitHub 只读 | 依赖 `ProjectionPort` / `ModelProvider` / `SecretPort`；本次只做底座，接它们属下一步 |
