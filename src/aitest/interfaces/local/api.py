@@ -14,7 +14,11 @@ from pydantic import JsonValue
 from aitest.application.connectivity import retry_delay
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.errors import ErrorDTO
-from aitest.contracts.redaction import redact_structure, scrub_secret_text
+from aitest.contracts.redaction import (
+    redact_structure,
+    safeguard_projector,
+    scrub_secret_text,
+)
 from aitest.contracts.views import Response
 
 Handler = Callable[[Command], Mapping[str, object] | dict[str, object]]
@@ -48,6 +52,7 @@ class LocalAPI:
             Callable[[Mapping[str, object]], Mapping[str, object]] | None
         ) = None,
         sleeper: Callable[[float], None] | None = None,
+        connection_persistence: object | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -62,15 +67,29 @@ class LocalAPI:
         self.handlers = handlers or {}
         self.transaction_port = transaction_port
         self.connector = connector
-        self.projector = projector
-        self.credential_projector = credential_projector
+        # 自定义投影器只能再组织输出；其结果仍必须过统一脱敏底线（A-09），
+        # 装配时即包装，调用方无法通过自定义投影器绕过凭据过滤。
+        self.projector = (
+            safeguard_projector(projector) if projector is not None else None
+        )
+        self.credential_projector = (
+            safeguard_projector(credential_projector)
+            if credential_projector is not None
+            else None
+        )
         self._sleeper = sleeper or time.sleep
-        #: 持久统一连接状态：多次 test_connection 共享同一份结论。
+        #: 持久统一连接状态：多次 test_connection 共享同一份结论；A-10 起
+        #: 装配连接持久化后，初始结论从工作空间事实台账水合（跨重启可恢复）。
         self.connection_state: dict[str, object] = {
             "connected": False,
             "attempts": 0,
             "last_error": None,
         }
+        self._connection_persistence = connection_persistence
+        if connection_persistence is not None:
+            recovered = connection_persistence.load()  # type: ignore[attr-defined]
+            if isinstance(recovered, dict):
+                self.connection_state.update(recovered)
         self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = (
             OrderedDict()
         )
@@ -182,11 +201,17 @@ class LocalAPI:
             result = method(**kwargs)
             if isinstance(result, Response):
                 return result
+            # 事务出口同样是出站边界：经统一安全投影后再回写（A-09）。
+            safe = (
+                self.safe_projection(result)
+                if isinstance(result, Mapping)
+                else {"result": result}
+            )
             return Response(
                 request_id=command.request_id,
                 instance_id=self.instance_id,
                 workspace_id=self.workspace_id,
-                result=dict(result),
+                result=cast(dict[str, JsonValue], dict(safe)),
             )
         except Exception as exc:
             return self._error(
@@ -211,18 +236,36 @@ class LocalAPI:
         while True:
             error_message: str | None = None
             result: object = None
+            error_kind: str | None = None
+            elapsed_ms = 0
             try:
                 result = self.connector()
             except Exception as exc:  # 连接探测允许归一失败，不允许抛出协议外
                 error_message = self._safe_message(exc)
             # 管道/端点未就绪时连接器返回 None/falsy，同样属于未连接，
             # 必须按重试策略继续，而不是直接报告 connected=False 成功返回。
-            connected = bool(result)
+            # 富事实（TransportFact）以 reachable 为准——dataclass 实例本身
+            # 恒为真值，直接 bool() 会把不可达事实误判为可达（A-10）。
+            connected = bool(
+                getattr(result, "reachable", result) if result is not None else False
+            )
+            if connected:
+                # 连接器可返回富事实（TransportFact）；普通布尔/falsy 结果兼容。
+                elapsed_ms = int(getattr(result, "elapsed_ms", 0) or 0)
+            else:
+                error_kind = getattr(result, "error_kind", None)
             self.connection_state = {
                 "connected": connected,
                 "attempts": retries_completed + 1,
                 "last_error": None if connected else (error_message or "目标未就绪"),
+                "last_error_kind": error_kind,
+                "elapsed_ms": elapsed_ms,
             }
+            if self._connection_persistence is not None:
+                # 每次探测事实即时落盘，核心崩溃/换实例后结论不丢（A-10）。
+                self._connection_persistence.save(  # type: ignore[attr-defined]
+                    self.connection_state
+                )
             if connected:
                 return Response(
                     request_id=command.request_id,

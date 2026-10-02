@@ -68,6 +68,39 @@ def validate_workspace_id(workspace_id: str) -> str:
     return workspace_id
 
 
+def process_exists(process_id: int) -> bool:
+    """进程是否仍存活；非 Windows 或无法取证时按存活处理（不误杀核心）。
+
+    供长生命周期核心在**连接边界**探测父进程（启动器/宿主）是否已消亡：
+    父进程不在后，核心在当前客户端断开后自行退出，避免孤儿核心长期占管。
+    权限不足等取证失败按存活返回——宁可留待显式停机，也不猜测父进程死亡。
+    """
+    if process_id <= 0:
+        return True
+    if not sys.platform.startswith("win"):
+        return True
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
+    if not handle:
+        # ERROR_INVALID_PARAMETER(87)：进程不存在；其他错误（权限等）按存活。
+        return ctypes.get_last_error() != 87
+    try:
+        exit_code = wintypes.DWORD(0)
+        kernel32.GetExitCodeProcess.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return True
+        # STILL_ACTIVE = 259
+        return int(exit_code.value) == 259
+    finally:
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle(handle)
+
+
 class _Kernel:
     """kernel32/advapi32 函数签名的懒加载容器。"""
 
@@ -98,6 +131,8 @@ class _Kernel:
         ]
         kernel32.WaitNamedPipeW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD]
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.LocalFree.argtypes = [wintypes.HLOCAL]
+        kernel32.LocalFree.restype = wintypes.HLOCAL
         kernel32.GetNamedPipeClientProcessId.argtypes = [
             wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)
         ]
@@ -360,6 +395,80 @@ class NamedPipeClient:
         return bytes(chunks)
 
 
+#: 进程内共享的 kernel32/advapi32 签名容器，避免重复加载与声明。
+_SHARED_KERNEL: _Kernel | None = None
+
+
+def _shared_kernel() -> _Kernel:
+    global _SHARED_KERNEL
+    if _SHARED_KERNEL is None:
+        _SHARED_KERNEL = _Kernel()
+    return _SHARED_KERNEL
+
+
+def current_session_id() -> int | None:
+    """当前进程所在的 Windows 会话 ID；非 Windows 返回 None。"""
+    if not sys.platform.startswith("win"):
+        return None
+    kernel = _shared_kernel()
+    pid = kernel.kernel32.GetCurrentProcessId()
+    session = wintypes.DWORD(0)
+    kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session))
+    return session.value
+
+
+def current_user_sid() -> str | None:
+    """当前进程令牌用户 SID 字符串；非 Windows 或取证失败返回 None。
+
+    供连接台账记录“来源会话/来源用户”事实：连接核对通过后，台账里
+    必须留下与管道对端核对所用的同一份身份，跨重启可查，不允许只
+    在实例内存里保存。
+    """
+    if not sys.platform.startswith("win"):
+        return None
+    kernel = _shared_kernel()
+    kernel32 = kernel.kernel32
+    advapi32 = kernel.advapi32
+    pid = kernel32.GetCurrentProcessId()
+    process = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not process:
+        return None
+    token = wintypes.HANDLE()
+    try:
+        if not advapi32.OpenProcessToken(process, _TOKEN_QUERY, ctypes.byref(token)):
+            return None
+        # TOKEN_USER 内嵌变长 SID，需要先探取所需缓冲区长度再二次分配。
+        needed = wintypes.DWORD(0)
+        advapi32.GetTokenInformation(
+            token, _TOKEN_USER, None, 0, ctypes.byref(needed)
+        )
+        if not needed.value:
+            return None
+        raw = (ctypes.c_byte * needed.value)()
+        if not advapi32.GetTokenInformation(
+            token,
+            _TOKEN_USER,
+            raw,
+            needed.value,
+            ctypes.byref(needed),
+        ):
+            return None
+        token_user = _TokenUser.from_buffer(raw)
+        sid_string = wintypes.LPWSTR()
+        if not advapi32.ConvertSidToStringSidW(
+            token_user.user.Sid, ctypes.byref(sid_string)
+        ):
+            return None
+        value = sid_string.value or None
+        if sid_string:
+            kernel32.LocalFree(sid_string)
+        return value
+    finally:
+        if token:
+            kernel32.CloseHandle(token)
+        kernel32.CloseHandle(process)
+
+
 __all__ = [
     "MAX_MESSAGE_BYTES",
     "NamedPipeClient",
@@ -367,5 +476,8 @@ __all__ = [
     "PeerRejected",
     "PipeUnavailable",
     "check_peer_identity",
+    "current_session_id",
+    "current_user_sid",
+    "process_exists",
     "validate_workspace_id",
 ]

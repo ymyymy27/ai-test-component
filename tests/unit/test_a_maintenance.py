@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -24,8 +25,14 @@ def service(tmp_path: Path) -> FileMaintenanceService:
 
 
 def _make_atomic_leftover(tmp_path: Path, *, content: bytes = b"stale") -> Path:
+    # A-07：回收资格需要“正式目标已发布且候选不新于目标”的事实，因此
+    # 先放置已发布目标 records.json，再放置更旧的崩溃遗留暂存。
+    target = tmp_path / "records.json"
+    target.write_text(json.dumps({"records": {}, "commit": 0}), encoding="utf-8")
     path = tmp_path / ".records.json.tmp"
     path.write_bytes(content)
+    older = target.stat().st_mtime_ns - 10_000_000
+    os.utime(path, ns=(older, older))
     return path
 
 
