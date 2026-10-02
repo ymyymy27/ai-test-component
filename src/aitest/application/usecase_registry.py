@@ -144,6 +144,10 @@ from aitest.contracts.prepared_run import (
     SnapshotRef,
     TemplateVersionRef,
 )
+from aitest.domain.planning.plans import (
+    RunDriver,
+    RunTier,
+)
 from aitest.domain.planning.rules import RuleDraft, RuleEnablement, RuleVersion
 from aitest.domain.planning.templates import TemplateRef
 
@@ -1171,13 +1175,13 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             ),
             template_refs=_template_refs_for(parameters),
             run_tier=_enum_or(
-                RunTierFact, parameters.get("run_tier"), "run_tier", RunTierFact.FULL
+                RunTier, parameters.get("run_tier"), "run_tier", RunTier.FULL
             ),
             initial_driver=_enum_or(
-                RunDriverFact,
+                RunDriver,
                 parameters.get("initial_driver"),
                 "initial_driver",
-                RunDriverFact.PLANNED,
+                RunDriver.PLANNED,
             ),
         )
         result = publish_plan(
