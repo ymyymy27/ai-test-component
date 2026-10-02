@@ -457,6 +457,158 @@ def test_request_side_change_does_change_the_hash() -> None:
     )
 
 
+# ------------------------------------------------------------- B-02 实际输入冻结
+
+
+def _with_resolved_digest(digest: str) -> PreparationInputs:
+    source = _inputs().execution_source
+    return _inputs(
+        execution_source=source.model_copy(update={"resolved_input_digest": digest})
+    )
+
+
+def test_execution_source_request_fields_are_in_the_payload() -> None:
+    """执行来源的**请求侧**字段必须进摘要（B-02）。
+
+    漏掉它们就会出现"同一个意图换掉实际执行输入，摘要却不变"，旧意图被当成可复用。
+    """
+    base = preparation_payload(_inputs())
+    changed_entry = preparation_payload(
+        _inputs(
+            execution_source=_inputs().execution_source.model_copy(
+                update={"registered_entry": "python -m other"}
+            )
+        )
+    )
+    assert base != changed_entry
+
+    changed_args = preparation_payload(
+        _inputs(
+            execution_source=_inputs().execution_source.model_copy(
+                update={"entry_arguments": ("tests/other",)}
+            )
+        )
+    )
+    assert base != changed_args
+
+    changed_ref = preparation_payload(
+        _inputs(
+            execution_source=_inputs().execution_source.model_copy(
+                update={"test_config_ref": "pyproject.toml#tool.other"}
+            )
+        )
+    )
+    assert base != changed_ref
+
+
+def test_resolved_input_digest_is_not_in_the_payload() -> None:
+    """`resolved_input_digest` 是**解析结果**，不进摘要。
+
+    它是观察事实：变了要报"依据需重新准备"，而不是"同键异输入冲突"
+    （判定次序"冲突 > 需重新准备"）。
+    """
+    assert preparation_payload(_with_resolved_digest("sha256:resolved-1")) == (
+        preparation_payload(_with_resolved_digest("sha256:resolved-2"))
+    )
+
+
+def test_changing_only_the_resolved_input_digest_needs_reprepare() -> None:
+    """B-02 反例：只改 `resolved_input_digest` 时**不得**复用旧意图。
+
+    旧意图绑定的实际输入已经不是当前输入，必须报"依据需重新准备"；
+    同时摘要不变（它是观察事实），所以判定落在 `needs_reprepare` 而不是冲突。
+    """
+    unit_of_work, reader, clock = _world()
+
+    first = prepare_run(
+        _with_resolved_digest("sha256:resolved-1"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert first.status is PreparedRunStatusFact.PREPARED
+
+    # 只改解析出来的实际输入摘要：不得复用。
+    second = prepare_run(
+        _with_resolved_digest("sha256:resolved-2"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert second.status is PreparedRunStatusFact.BLOCKED
+    assert any(
+        reason.code == "needs_reprepare" for reason in second.blocking_reasons
+    ), second.blocking_reasons
+    assert any(
+        rule.source_kind == "resolved_input_digest"
+        for rule in second.invalidation_rules
+    ), second.invalidation_rules
+
+
+def test_resolved_input_digest_swapped_back_still_reuses_the_bound_intent() -> None:
+    """`needs_reprepare` 分支**不落盘**：记录仍绑定当时那次输入。
+
+    因此换回原输入时按幂等复用（意图本来就是为这套输入准备的），
+    而不是把它判成"又变了一次"。这一点决定了"复用"与"需重新准备"的边界。
+    """
+    unit_of_work, reader, clock = _world()
+    prepare_run(
+        _with_resolved_digest("sha256:resolved-1"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    needs = prepare_run(
+        _with_resolved_digest("sha256:resolved-2"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert needs.status is PreparedRunStatusFact.BLOCKED
+
+    back = prepare_run(
+        _with_resolved_digest("sha256:resolved-1"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert back.status is PreparedRunStatusFact.PREPARED
+    assert back.invalidation_rules == ()
+
+    # 而"改后的输入"再来一次仍然是需重新准备，不会被静默复用。
+    again = prepare_run(
+        _with_resolved_digest("sha256:resolved-2"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert again.status is PreparedRunStatusFact.BLOCKED
+    assert any(
+        rule.source_kind == "resolved_input_digest"
+        for rule in again.invalidation_rules
+    ), again.invalidation_rules
+
+
+def test_same_resolved_input_digest_still_reuses() -> None:
+    """输入没变时仍然幂等复用——修 B-02 不能把正常复用一起禁掉。"""
+    unit_of_work, reader, clock = _world()
+    first = prepare_run(
+        _with_resolved_digest("sha256:resolved-1"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    again = prepare_run(
+        _with_resolved_digest("sha256:resolved-1"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        clock=clock,
+    )
+    assert again.status is PreparedRunStatusFact.PREPARED
+    assert again.prepared_run_id == first.prepared_run_id
+    assert again.payload_hash == first.payload_hash
+
+
 def test_quick_tier_yields_a_partial_ceiling() -> None:
     unit_of_work, reader, clock = _world()
     result = prepare_run(

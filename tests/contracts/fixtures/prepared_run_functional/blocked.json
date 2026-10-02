@@ -168,7 +168,7 @@
   "intent_id": "intent-1accaf884dacfd962726b72f1451d82c10241a94",
   "invalidation_rules": [],
   "model_outbound_policy_revision": null,
-  "payload_hash": "sha256:d0dba010ec5615f55ea6ffccebb276ebebe1906232414544e17f86f5c495eb99",
+  "payload_hash": "sha256:338ab8db355eed26b29239d564bdaee326166a34197fd0b7ac094ff15c9ec0d7",
   "plain_manifest_digest": null,
   "plan_revision": {
     "digest": "sha256:plan-ticket",
