@@ -15,8 +15,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from hashlib import sha256
 from importlib.resources import files
+from typing import Any
 
 from aitest.application.project.context import ContextGap
 from aitest.contracts.templates import TemplatePack
@@ -230,6 +233,56 @@ def apply_template(
             revision_context=revision_context,
         )
     )
+
+
+def text_digest(text: str) -> str | None:
+    """文本摘要；空文本返回 `None`（**不是**空串占位）。"""
+    if not text.strip():
+        return None
+    return "sha256:" + sha256(text.encode("utf-8")).hexdigest()
+
+
+def template_draft_text(pack: TemplatePack) -> str:
+    """模板草稿的**正文**：模板内容按冻结 Schema 的规范 JSON 形态。
+
+    为什么用模板内容本身当正文：`apply_template()` 产出的是"应用了哪个模板的哪一个版本"
+    的**草稿元数据**，模板的可核对内容就是它自己声明的检查项、必测项、关键链路与样例。
+    把它按 `TemplatePack` 的生成 Schema 序输出（键排序、紧凑分隔符、`ensure_ascii`），
+    正文就是**可复现、可核对**的字节，`content_digest` 也才有意义。
+
+    这一步**不编造检查内容**：正文完全来自已安装的模板资源，模板里没有的东西不会出现。
+    """
+    canonical = pack.model_dump(mode="json")
+    return json.dumps(
+        canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
+
+
+def generated_content_payload(content: GeneratedContent, draft_text: str) -> dict[str, Any]:
+    """草稿的落盘 payload：**正文与摘要一起落**。
+
+    只存元数据会让"到底产出了什么"没有可核对的字节，报告与导出也就无法引用真实内容。
+    模板草稿与模型草稿**共用这一份形状**，避免两条路径各写一套。
+    """
+    return {
+        "project_id": content.project_id,
+        "generated_content_id": content.generated_content_id,
+        "draft_kind": content.draft_kind,
+        "template_id": content.template_ref.template_id,
+        "template_version": content.template_ref.version,
+        "revision": content.revision,
+        "status": content.status,
+        "content_digest": content.content_digest,
+        "draft_text": draft_text,
+        "revision_context": {
+            "project_revision": content.revision_context.project_revision,
+            "binding_revision": content.revision_context.binding_revision,
+            "template_revision": content.revision_context.template_revision,
+            "environment_revision": content.revision_context.environment_revision,
+            "source_revision": content.revision_context.source_revision,
+            "rules_revision": content.revision_context.rules_revision,
+        },
+    }
 
 
 def draft_expiry(

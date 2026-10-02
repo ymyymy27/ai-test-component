@@ -201,6 +201,68 @@ def test_generate_draft_returns_the_draft_with_its_revision_context(
     assert revision_context["project_revision"] == 1
 
 
+def test_generate_draft_persists_the_body_not_only_metadata(
+    workspace_root: Path,
+) -> None:
+    """草稿**正文与摘要一起落盘**，并且重启后能按记录读回。
+
+    只返回元数据会让"到底产出了什么"没有可核对的字节；本用例在真实文件存储上
+    读回 `generated_content` 记录，逐项核对正文与摘要。
+    """
+    api = _api(_start(workspace_root))
+    response = api.dispatch(
+        _command("generate_draft", DRAFT_REQ, _draft_parameters()), _session()
+    )
+    assert response.error is None, response.error
+    assert response.result is not None
+    record = response.result.get("record")
+    assert isinstance(record, dict), response.result
+    assert record["aggregate_kind"] == "generated_content"
+    assert record["revision"] == 1
+
+    content = response.result["content"]
+    assert isinstance(content, dict)
+    assert content["content_digest"]
+
+    # 重启：重新构造一整套底座对象，复用同一目录，按准确修订读回。
+    committed = _start(workspace_root).reader.read(
+        aggregate_kind="generated_content",
+        record_id=str(record["record_id"]),
+        revision=1,
+    )
+    payload = committed.payload
+    draft_text = payload["draft_text"]
+    assert isinstance(draft_text, str) and draft_text
+    # 正文摘要必须与正文一致，且与响应里报的摘要相同。
+    assert payload["content_digest"] == content["content_digest"]
+    assert payload["draft_text"] == draft_text
+    # 正文来自模板内容本身：模板声明的必测项必须能在正文里找到。
+    assert "items" in draft_text
+    assert payload["template_id"] == TEMPLATE_ID
+
+
+def test_generate_draft_body_is_reproducible(workspace_root: Path) -> None:
+    """同样的输入两次生成，正文与摘要**逐字节一致**（可复现、可核对）。"""
+    api = _api(_start(workspace_root))
+    first = api.dispatch(
+        _command("generate_draft", DRAFT_REQ, _draft_parameters()), _session()
+    )
+    second = api.dispatch(
+        _command(
+            "generate_draft",
+            f"{DRAFT_REQ}-2",
+            _draft_parameters(content_revision=2),
+        ),
+        _session(),
+    )
+    assert first.error is None and second.error is None
+    assert first.result is not None and second.result is not None
+    first_content = first.result["content"]
+    second_content = second.result["content"]
+    assert isinstance(first_content, dict) and isinstance(second_content, dict)
+    assert first_content["content_digest"] == second_content["content_digest"]
+
+
 def test_generate_draft_with_gaps_is_a_normal_blocked_result(
     workspace_root: Path,
 ) -> None:

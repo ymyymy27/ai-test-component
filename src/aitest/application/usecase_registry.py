@@ -57,7 +57,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import wraps
 from typing import TypeVar, cast
@@ -68,6 +68,10 @@ from aitest.application.planning.draft import (
     DraftResult,
     RevisionContext,
     apply_template,
+    generated_content_payload,
+    load_template,
+    template_draft_text,
+    text_digest,
 )
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
@@ -84,6 +88,7 @@ from aitest.application.planning.substrate import (
     RecordQuery,
     RecordReader,
     UnitOfWork,
+    transaction,
 )
 from aitest.application.ports import Clock
 from aitest.application.project.context import ContextGap
@@ -864,7 +869,33 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 parameters.get("content_revision") or 1, "content_revision"
             ),
         )
-        return _draft_result(result)
+        if result.content is None:
+            # 缺口非空：**不生成草稿**，因此也没有正文可落盘（返回缺口即结果）。
+            return _draft_result(result)
+
+        # 正文与摘要一起落盘：只存元数据会让"到底产出了什么"没有可核对的字节。
+        pack = load_template(template_ref)
+        draft_text = template_draft_text(pack)
+        content = replace(
+            result.content, content_digest=text_digest(draft_text)
+        )
+        with transaction(deps.unit_of_work, project_id) as tx:
+            staged = tx.stage_record(
+                aggregate_kind="generated_content",
+                record_id=content.generated_content_id,
+                expected_revision=None,
+                payload=generated_content_payload(content, draft_text),
+            )
+            tx.commit()
+        return {
+            "blocked": False,
+            "content": _generated_content(content),
+            "record": {
+                "aggregate_kind": staged.aggregate_kind,
+                "record_id": staged.record_id,
+                "revision": staged.revision,
+            },
+        }
 
     def handle_publish_rules(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)

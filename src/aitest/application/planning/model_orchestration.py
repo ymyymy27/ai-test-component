@@ -41,12 +41,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
-from hashlib import sha256
 
 from aitest.application.planning.draft import (
     DraftKind,
     GeneratedContent,
     RevisionContext,
+    generated_content_payload,
+    text_digest,
 )
 from aitest.application.planning.model_ports import (
     CredentialResolver,
@@ -407,13 +408,13 @@ def request_model_draft(
                     template_revision=_template_version(template_ref),
                     source_revision=source_revision,
                 ),
-                content_digest=_text_digest(result.draft_text),
+                content_digest=text_digest(result.draft_text),
             )
             tx.stage_record(
                 aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
                 record_id=content.generated_content_id,
                 expected_revision=None,
-                payload=_content_payload(content, result.draft_text),
+                payload=generated_content_payload(content, result.draft_text),
             )
         tx.commit()
 
@@ -467,7 +468,7 @@ def _outcome_payload(
         "provider_request_id": request.provider_request_id,
         "call_status": request.call_status,
         "error_kind": request.error_kind,
-        "error_detail_digest": _text_digest(result.error_detail),
+        "error_detail_digest": text_digest(result.error_detail),
         "error_detail_chars": len(result.error_detail),
         "state": OUTBOUND_STATE_OUTCOME,
     }
@@ -489,40 +490,6 @@ def _identity_fields(request: OutboundRequest) -> dict[str, object]:
         "model_id": request.model_id,
         "credential_purpose": request.credential_purpose,
     }
-
-
-def _content_payload(content: GeneratedContent, draft_text: str) -> dict[str, object]:
-    """草稿的落盘 payload：**正文与摘要一起落**。
-
-    只存元数据会让"模型确实产出了什么"没有可核对的字节，
-    报告与导出也就无法引用真实内容。
-    """
-    return {
-        "project_id": content.project_id,
-        "generated_content_id": content.generated_content_id,
-        "draft_kind": content.draft_kind,
-        "template_id": content.template_ref.template_id,
-        "template_version": content.template_ref.version,
-        "revision": content.revision,
-        "status": content.status,
-        "content_digest": content.content_digest,
-        "draft_text": draft_text,
-        "revision_context": {
-            "project_revision": content.revision_context.project_revision,
-            "binding_revision": content.revision_context.binding_revision,
-            "template_revision": content.revision_context.template_revision,
-            "environment_revision": content.revision_context.environment_revision,
-            "source_revision": content.revision_context.source_revision,
-            "rules_revision": content.revision_context.rules_revision,
-        },
-    }
-
-
-def _text_digest(text: str) -> str | None:
-    """文本摘要；空文本返回 `None`（**不是**空串占位）。"""
-    if not text.strip():
-        return None
-    return "sha256:" + sha256(text.encode("utf-8")).hexdigest()
 
 
 # ------------------------------------------------------------------ 迟到响应
