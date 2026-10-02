@@ -73,11 +73,19 @@ from aitest.application.planning.draft import (
     template_draft_text,
     text_digest,
 )
+from aitest.application.planning.persistence import (
+    save_acceptance_scope,
+    save_case,
+)
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
 from aitest.application.planning.publish import (
     PublicationResult,
     publish_rules,
+)
+from aitest.application.planning.serialization import (
+    acceptance_scope_from_payload,
+    case_from_payload,
 )
 from aitest.application.planning.substrate import (
     AggregateKind,
@@ -141,6 +149,8 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_binding",
         "save_environment",
         "save_dependency_graph",
+        "save_acceptance",
+        "save_case",
         "generate_draft",
         "publish_rules",
         "prepare_run",
@@ -766,6 +776,49 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             revision=staged.revision,
         )
 
+    def handle_save_acceptance(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        raw = _required(parameters, "acceptance_scope")
+        payload = _as_mapping(raw, "acceptance_scope")
+        try:
+            scope = acceptance_scope_from_payload(payload)
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid acceptance_scope: {error}"
+            ) from error
+        staged = save_acceptance_scope(
+            scope,
+            project_id=project_id,
+            unit_of_work=deps.unit_of_work,
+            expected_revision=_command_expected_revision(command),
+        )
+        return _stage_result(
+            aggregate_kind=staged.aggregate_kind,
+            record_id=staged.record_id,
+            revision=staged.revision,
+        )
+
+    def handle_save_case(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        payload = _as_mapping(_required(parameters, "case"), "case")
+        try:
+            case = case_from_payload(payload)
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", f"invalid case: {error}") from error
+        staged = save_case(
+            case,
+            project_id=project_id,
+            unit_of_work=deps.unit_of_work,
+            expected_revision=_command_expected_revision(command),
+        )
+        return _stage_result(
+            aggregate_kind=staged.aggregate_kind,
+            record_id=staged.record_id,
+            revision=staged.revision,
+        )
+
     def handle_query(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
@@ -914,6 +967,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_binding": _guard(handle_save_binding),
         "save_environment": _guard(handle_save_environment),
         "save_dependency_graph": _guard(handle_save_dependency_graph),
+        "save_acceptance": _guard(handle_save_acceptance),
+        "save_case": _guard(handle_save_case),
         "generate_draft": _guard(handle_generate_draft),
         "publish_rules": _guard(handle_publish_rules),
         "prepare_run": _guard(handle_prepare_run),

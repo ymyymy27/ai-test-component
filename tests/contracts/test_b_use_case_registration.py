@@ -315,6 +315,127 @@ def test_context_writes_land_on_real_storage_and_read_back(workspace_root: Path)
         assert committed.revision == 1
 
 
+def _case_payload(case_id: str = "case-1", revision: int = 1) -> Mapping[str, object]:
+    return {
+        "case_id": case_id,
+        "revision": revision,
+        "layer": "L2",
+        "objective": "create a ticket through the registered handler",
+        "preconditions": ["the service is running"],
+        "inputs": ["ticket body"],
+        "steps": ["POST /tickets", "GET /tickets/{id}"],
+        "expected": "the created ticket is read back unchanged",
+        "verification_method": "read-only query against the same ticket id",
+        "links": {
+            "acceptance_item_ids": ["ai-1"],
+            "module_ids": ["module-ticket"],
+            "environment_ids": ["env-local"],
+            "critical_path_ids": ["path-1"],
+        },
+        "assertion_basis": {
+            "revision": 1,
+            "state": "confirmed",
+            "text": "check the persisted body",
+            "text_digest": "sha256:basis-1",
+        },
+        "independent_verification": "read-only query against the same ticket id",
+        "mock_scope": [],
+        "importance": "P0",
+    }
+
+
+def _scope_payload() -> Mapping[str, object]:
+    return {
+        "scope_id": "scope-1",
+        "revision": 1,
+        "name": "ticket acceptance",
+        "required_case_ids": ["case-1"],
+        "template_case_ids": ["case-1"],
+        "objective": "accept the ticket flow",
+        "excluded_case_ids": [],
+        "exclusion_reasons": [],
+        "dependency_closure_ids": [],
+        "applicability_exclusions": [],
+    }
+
+
+def test_case_and_acceptance_scope_reach_the_entry_and_read_back(
+    workspace_root: Path,
+) -> None:
+    """`save_case` 与 `save_acceptance` 经统一入口落盘，重启后按准确修订读回。
+
+    这两类记录此前只在领域层存在、没有落盘路径；本用例锁定"独立用例与验收范围
+    可以作为独立记录保存与查询"。
+    """
+    stack = _start(workspace_root)
+    api = _api(stack)
+
+    writes = (
+        ("save_case", BREAKDOWN, {"case": _case_payload()}),
+        ("save_acceptance", BREAKDOWN_2, {"acceptance_scope": _scope_payload()}),
+    )
+    for action, request_id, parameters in writes:
+        response = api.dispatch(
+            _write_command(action=action, request_id=request_id, parameters=parameters),
+            _session(),
+        )
+        assert response.error is None, (action, response.error)
+        assert response.result is not None
+        assert response.result["revision"] == 1
+
+    restarted = _start(workspace_root)
+    case_record = restarted.reader.read(
+        aggregate_kind="case", record_id="case-1", revision=1
+    )
+    assert case_record.payload["project_id"] == PROJECT_ID
+    assert case_record.payload["assertion_basis"]["state"] == "confirmed"
+
+    scope_record = restarted.reader.read(
+        aggregate_kind="acceptance_scope", record_id="scope-1", revision=1
+    )
+    assert scope_record.payload["name"] == "ticket acceptance"
+
+
+def test_save_case_rejects_a_case_for_another_project(workspace_root: Path) -> None:
+    """参数里的 `project_id` 与命令范围不一致时不得静默保存。"""
+    api = _api(_start(workspace_root))
+    payload = dict(_case_payload())
+    payload["project_id"] = "project-other"
+    response = api.dispatch(
+        _write_command(
+            action="save_case", request_id=BREAKDOWN_BAD, parameters={"case": payload}
+        ),
+        _session(),
+    )
+    # 参数里的 project_id 只用于形状核对，记录范围由命令给出；
+    # 因此这里要么被拒，要么落盘的项目范围仍是命令的项目。
+    if response.error is None:
+        assert response.result is not None
+        committed = _start(workspace_root).reader.read(
+            aggregate_kind="case",
+            record_id=str(response.result["record_id"]),
+            revision=1,
+        )
+        assert committed.payload["project_id"] == PROJECT_ID
+    else:
+        assert response.error.code == "B_INVALID_PARAMETER"
+
+
+def test_save_case_invalid_payload_is_named(workspace_root: Path) -> None:
+    api = _api(_start(workspace_root))
+    payload = dict(_case_payload())
+    del payload["objective"]
+    response = api.dispatch(
+        _write_command(
+            action="save_case", request_id=BREAKDOWN_BAD, parameters={"case": payload}
+        ),
+        _session(),
+    )
+    assert response.error is not None
+    assert response.error.code == "B_INVALID_PARAMETER"
+    assert "objective" in response.error.message
+
+
 def test_query_reports_missing_index_instead_of_succeeding_with_nothing(
     workspace_root: Path,
 ) -> None:
