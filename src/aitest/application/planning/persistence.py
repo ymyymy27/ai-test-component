@@ -30,6 +30,7 @@
 
 from __future__ import annotations
 
+from aitest.application.planning.portable import rule_draft_to_payload
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
     acceptance_scope_to_payload,
@@ -50,11 +51,13 @@ from aitest.domain.planning.plans import (
     Case,
     ConfirmationRecord,
 )
+from aitest.domain.planning.rules import RuleDraft
 
 #: 三类记录的类别取值；与 `substrate.AggregateKind` 逐字一致。
 CASE_AGGREGATE: AggregateKind = "case"
 ACCEPTANCE_SCOPE_AGGREGATE: AggregateKind = "acceptance_scope"
 CONFIRMATION_AGGREGATE: AggregateKind = "case_link"
+RULE_DRAFT_AGGREGATE: AggregateKind = "rule_draft"
 
 
 def _stage_and_commit(
@@ -171,6 +174,30 @@ def load_acceptance_scope(
     return acceptance_scope_from_payload(payload)
 
 
+def save_rule_draft(
+    draft: RuleDraft,
+    *,
+    project_id: str,
+    unit_of_work: UnitOfWork,
+    expected_revision: int | None = None,
+) -> StagedRevision:
+    """保存一份规则**草稿**的某个修订。
+
+    落盘形状由 `portable.rule_draft_to_payload()` 决定：它与导入导出的可携带形状
+    **同一套**，因此"导入的规则"与"本地编辑的规则"在记录里长得一样，不会出现两套形状。
+    草稿的确认与启用状态**不落盘**——它们是动作产生的事实，草稿记录只承载内容
+    （发布才产生 `rule_version`）。
+    """
+    return _stage_and_commit(
+        project_id=project_id,
+        aggregate_kind=RULE_DRAFT_AGGREGATE,
+        record_id=draft.rule_id,
+        expected_revision=expected_revision,
+        payload=rule_draft_to_payload(draft, project_id=project_id),
+        unit_of_work=unit_of_work,
+    )
+
+
 # ------------------------------------------------------------------ 依据确认
 
 
@@ -214,10 +241,12 @@ __all__ = [
     "ACCEPTANCE_SCOPE_AGGREGATE",
     "CASE_AGGREGATE",
     "CONFIRMATION_AGGREGATE",
+    "RULE_DRAFT_AGGREGATE",
     "load_acceptance_scope",
     "load_case",
     "load_confirmation",
     "save_acceptance_scope",
     "save_case",
     "save_confirmation",
+    "save_rule_draft",
 ]

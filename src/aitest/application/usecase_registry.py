@@ -56,6 +56,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
@@ -76,8 +77,13 @@ from aitest.application.planning.draft import (
 from aitest.application.planning.persistence import (
     save_acceptance_scope,
     save_case,
+    save_rule_draft,
 )
 from aitest.application.planning.plan_builder import build_plan
+from aitest.application.planning.portable import (
+    export_rule_payloads,
+    import_rule_payloads,
+)
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
 from aitest.application.planning.publish import (
@@ -161,6 +167,8 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_task",
         "save_delivery",
         "generate_draft",
+        "export_rules",
+        "import_rules",
         "publish_rules",
         "publish_plan",
         "prepare_run",
@@ -1074,6 +1082,69 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             prepared.model_dump(mode="json"),
         )
 
+    def handle_export_rules(command: object) -> Mapping[str, object]:
+        _command_project_id(command)
+        parameters = _command_parameters(command)
+        raw = parameters.get("rule_versions")
+        if raw is None:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "rule_versions must be a non-empty list"
+            )
+        versions = _rule_versions_for(
+            deps,
+            project_id=_command_project_id(command),
+            parameters={"rule_revisions": raw},
+        )
+        # 导出的是**内容**：导入方拿到草稿，"已发布"由各自实例重新发布产生。
+        return {"bundle": export_rule_payloads(versions)}
+
+    def handle_import_rules(command: object) -> Mapping[str, object]:
+        """导入规则：**只得到草稿**，并作为 `rule_draft` 记录落盘。
+
+        导入不是发布：产出的草稿恒为未确认、未启用；`expected_revision` 与其他写动作同样
+        由命令给出（`0` 表示新建），因此"同一 `rule_id` 再导入一次"会按正常修订冲突处理，
+        要追加修订就显式给出已看到的修订。
+        """
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        raw = _required(parameters, "bundle")
+        bundle = raw if isinstance(raw, str) else _as_mapping(raw, "bundle")
+        if isinstance(bundle, str):
+            try:
+                decoded: object = json.loads(bundle)
+            except json.JSONDecodeError as error:
+                raise BUseCaseError(
+                    "B_INVALID_PARAMETER", f"bundle is not valid JSON: {error}"
+                ) from error
+        else:
+            decoded = dict(bundle)
+        try:
+            drafts = import_rule_payloads(decoded)
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", f"invalid bundle: {error}") from error
+        if not drafts:
+            raise BUseCaseError("B_INVALID_PARAMETER", "bundle carries no rules")
+
+        stored: list[dict[str, object]] = []
+        for draft in drafts:
+            staged = save_rule_draft(
+                draft,
+                project_id=project_id,
+                unit_of_work=deps.unit_of_work,
+                expected_revision=_command_expected_revision(command),
+            )
+            stored.append(
+                {
+                    "aggregate_kind": staged.aggregate_kind,
+                    "record_id": staged.record_id,
+                    "revision": staged.revision,
+                    "rule_id": draft.rule_id,
+                    "confirmed": draft.confirmed,
+                    "enablement": draft.enablement.value,
+                }
+            )
+        return {"imported": stored}
+
     def handle_publish_plan(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
@@ -1224,6 +1295,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_task": _guard(handle_save_task),
         "save_delivery": _guard(handle_save_delivery),
         "generate_draft": _guard(handle_generate_draft),
+        "export_rules": _guard(handle_export_rules),
+        "import_rules": _guard(handle_import_rules),
         "publish_rules": _guard(handle_publish_rules),
         "publish_plan": _guard(handle_publish_plan),
         "prepare_run": _guard(handle_prepare_run),
