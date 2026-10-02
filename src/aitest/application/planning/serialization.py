@@ -303,6 +303,22 @@ SERIALIZED_KINDS: tuple[str, ...] = (
 )
 
 
+def case_content_digest(case: Case, *, project_id: str) -> str:
+    """**单条**用例的内容身份摘要。
+
+    与 `case_revision_digest()` 同一套规范形态，只是作用在一条用例上；
+    供 `Plan.case_revisions[].digest` 使用——该值必须由服务端按用例内容算出，
+    不接受调用方传入（否则等于允许伪造内容身份）。
+    """
+    encoded = json.dumps(
+        case_to_payload(case, project_id=project_id),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return "sha256:" + sha256(encoded).hexdigest()
+
+
 def case_revision_digest(cases: Sequence[Case], *, project_id: str) -> str:
     """一组用例的规范摘要；供引用方核对"读到的是不是同一批用例"。"""
     canonical = sorted(

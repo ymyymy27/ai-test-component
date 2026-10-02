@@ -41,8 +41,12 @@ from aitest.domain.planning.rules import (
 )
 
 
-def _digest(payload: object) -> str:
-    """规范摘要：键排序、紧凑分隔符，与调用方构造顺序无关。"""
+def payload_digest(payload: object) -> str:
+    """规范摘要：键排序、紧凑分隔符，与调用方构造顺序无关。
+
+    公开它是为了让"后来者要重算同一份内容的摘要"时**复用同一口径**，
+    而不是各自 `json.dumps` 一套（两套口径一旦分叉，身份就对不上）。
+    """
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str
     ).encode("utf-8")
@@ -174,7 +178,7 @@ def publish_rules(
         evidence_requirements=draft.evidence_requirements,
         source=draft.source,
         confirmation_id=result.commit_seq,
-        digest=_digest(payload),
+        digest=payload_digest(payload),
     )
     return PublicationResult(value=version)
 
@@ -299,7 +303,7 @@ def plan_publication_digest(
     plan: Plan, cases: Sequence[Case], *, project_id: str
 ) -> str:
     """计划落盘内容的摘要；供 `PreparedRun.plan_revision.digest` 引用。"""
-    return _digest(_plan_payload(plan, cases, project_id=project_id))
+    return payload_digest(_plan_payload(plan, cases, project_id=project_id))
 
 
 __all__ = [

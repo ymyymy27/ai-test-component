@@ -77,10 +77,13 @@ from aitest.application.planning.persistence import (
     save_acceptance_scope,
     save_case,
 )
+from aitest.application.planning.plan_builder import build_plan
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
 from aitest.application.planning.publish import (
     PublicationResult,
+    payload_digest,
+    publish_plan,
     publish_rules,
 )
 from aitest.application.planning.serialization import (
@@ -131,7 +134,7 @@ from aitest.contracts.prepared_run import (
     SnapshotRef,
     TemplateVersionRef,
 )
-from aitest.domain.planning.rules import RuleDraft, RuleEnablement
+from aitest.domain.planning.rules import RuleDraft, RuleEnablement, RuleVersion
 from aitest.domain.planning.templates import TemplateRef
 
 #: 与 `aitest.bootstrap.Handler` 形状一致（`Callable[[Command], Mapping[str, object]]`）。
@@ -153,6 +156,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_case",
         "generate_draft",
         "publish_rules",
+        "publish_plan",
         "prepare_run",
         "query",
     }
@@ -335,16 +339,142 @@ def _publication_result(
     if result.value is None:
         return {"published": False, "blocked_by": list(result.blocked_by)}
     value = result.value
-    return {
+    header: dict[str, object] = {
         "published": True,
         "kind": published_kind,
-        "rule_id": _as_text(getattr(value, "rule_id", None), "rule_id"),
         "revision": _revision_of(getattr(value, "revision", None), "revision"),
         "confirmation_id": _as_text(
             getattr(value, "confirmation_id", None), "confirmation_id"
         ),
-        "digest": _as_text(getattr(value, "digest", None), "digest"),
     }
+    if published_kind == "plan":
+        scope = getattr(value, "scope", None)
+        header["plan_id"] = _as_text(getattr(value, "plan_id", None), "plan_id")
+        header["scope_id"] = _as_text(getattr(scope, "scope_id", None), "scope_id")
+        header["scope_revision"] = _revision_of(
+            getattr(scope, "revision", None), "scope_revision"
+        )
+        header["case_revisions"] = [
+            {"case_id": ref.case_id, "revision": ref.revision, "digest": ref.digest}
+            for ref in getattr(value, "case_revisions", ())
+        ]
+        header["rule_revisions"] = [
+            {"rule_id": ref.rule_id, "revision": ref.revision, "digest": ref.digest}
+            for ref in getattr(value, "rule_revisions", ())
+        ]
+        header["template_versions"] = [
+            {
+                "template_id": ref.template_id,
+                "version": ref.version,
+                "digest": ref.digest,
+            }
+            for ref in getattr(value, "template_versions", ())
+        ]
+        return header
+    header["rule_id"] = _as_text(getattr(value, "rule_id", None), "rule_id")
+    header["digest"] = _as_text(getattr(value, "digest", None), "digest")
+    return header
+
+
+def _enum_or[E: StrEnum](
+    enum: type[E], value: object, name: str, default: E
+) -> E:
+    """可选枚举：缺省时用领域默认值，给了就必须合法。"""
+    if value is None:
+        return default
+    return _enum_of(enum, value, name)
+
+
+def _rule_versions_for(
+    deps: BUseCaseDependencies,
+    *,
+    project_id: str,
+    parameters: Mapping[str, object],
+) -> tuple[RuleVersion, ...]:
+    """按 `{rule_id, revision}` 读回**已发布**的规则版本。
+
+    摘要取自记录本身；记录不存在时**拒绝**，不填占位值——用占位值填出来的
+    计划会在 `PreparedRun.rule_versions` 里带一个假身份，事后无法核对。
+    """
+    raw = parameters.get("rule_revisions")
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", "rule_revisions must be a list")
+    versions: list[RuleVersion] = []
+    for index, item in enumerate(raw):
+        entry = _as_mapping(item, f"rule_revisions[{index}]")
+        rule_id = _as_text(
+            _required(entry, "rule_id"), f"rule_revisions[{index}].rule_id"
+        )
+        revision = _revision_of(
+            _required(entry, "revision"), f"rule_revisions[{index}].revision"
+        )
+        try:
+            record = deps.reader.read(
+                aggregate_kind="rule_version", record_id=rule_id, revision=revision
+            )
+        except Exception as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER",
+                f"no published rule version for {rule_id}@{revision}",
+            ) from error
+        versions.append(_rule_version_from_payload(record.payload))
+    return tuple(versions)
+
+
+def _rule_version_from_payload(payload: Mapping[str, object]) -> RuleVersion:
+    """按 `publish_rules()` 的落盘形状重建规则版本。
+
+    两处**如实说明**（记录里没有这些字段，不假装有）：
+
+    - `digest`：发布时算出来放在内存对象上，**没有落进 payload**。这里用发布器
+      公开的同一口径（`publish.payload_digest`）对记录内容重算，因此两者必须一致；
+      若将来发布器换了口径，这条重建路径会跟着一致，不会各算一套。
+    - `confirmation_id`：取**本次提交的提交序号**，记录里没有该字段。重建时用记录自带的
+      提交序号占位（`created_at_commit` 同源语义），**它不参与计划冻结**，
+      只用于满足领域对象的不变量。
+
+    缺字段即拒绝，不填默认值（读不懂的记录不得被当成合法版本）。
+    """
+    digest = payload_digest(dict(payload))
+    return RuleVersion(
+        rule_id=_as_text(payload.get("rule_id"), "rule_id"),
+        revision=_revision_of(payload.get("revision"), "revision"),
+        scope=_as_text(payload.get("scope"), "scope"),
+        text=_as_text(payload.get("text"), "text"),
+        steps=_text_list(payload.get("steps"), "steps"),
+        evidence_requirements=_text_list(
+            payload.get("evidence_requirements"), "evidence_requirements"
+        ),
+        source=_as_text(payload.get("source"), "source"),
+        confirmation_id=digest,
+        digest=digest,
+    )
+
+
+def _template_refs_for(parameters: Mapping[str, object]) -> tuple[TemplateRef, ...]:
+    """按 `{template_id, version}` 解析模板引用。"""
+    raw = parameters.get("template_versions")
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", "template_versions must be a list")
+    refs: list[TemplateRef] = []
+    for index, item in enumerate(raw):
+        entry = _as_mapping(item, f"template_versions[{index}]")
+        refs.append(
+            TemplateRef(
+                template_id=_as_text(
+                    _required(entry, "template_id"),
+                    f"template_versions[{index}].template_id",
+                ),
+                version=_as_text(
+                    _required(entry, "version"), f"template_versions[{index}].version"
+                ),
+            )
+        )
+    return tuple(refs)
 
 
 def _rule_draft_of(parameters: Mapping[str, object]) -> RuleDraft:
@@ -867,6 +997,51 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             prepared.model_dump(mode="json"),
         )
 
+    def handle_publish_plan(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
+        revision = _revision_of(_required(parameters, "revision"), "revision")
+        scope = acceptance_scope_from_payload(
+            _as_mapping(_required(parameters, "scope"), "scope")
+        )
+        raw_cases = _required(parameters, "cases")
+        if not isinstance(raw_cases, list) or not raw_cases:
+            raise BUseCaseError("B_INVALID_PARAMETER", "cases must be a non-empty list")
+        cases = tuple(
+            case_from_payload(_as_mapping(item, f"cases[{index}]"))
+            for index, item in enumerate(raw_cases)
+        )
+        plan = build_plan(
+            plan_id=plan_id,
+            revision=revision,
+            scope=scope,
+            cases=cases,
+            project_id=project_id,
+            rule_versions=_rule_versions_for(
+                deps, project_id=project_id, parameters=parameters
+            ),
+            template_refs=_template_refs_for(parameters),
+            run_tier=_enum_or(
+                RunTierFact, parameters.get("run_tier"), "run_tier", RunTierFact.FULL
+            ),
+            initial_driver=_enum_or(
+                RunDriverFact,
+                parameters.get("initial_driver"),
+                "initial_driver",
+                RunDriverFact.PLANNED,
+            ),
+        )
+        result = publish_plan(
+            plan,
+            project_id=project_id,
+            cases=cases,
+            unit_of_work=deps.unit_of_work,
+            reader=deps.reader,
+            context_gaps=_gaps_of(parameters.get("context_gaps"), "context_gaps"),
+        )
+        return _publication_result(result, published_kind="plan")
+
     def handle_generate_draft(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
@@ -971,6 +1146,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_case": _guard(handle_save_case),
         "generate_draft": _guard(handle_generate_draft),
         "publish_rules": _guard(handle_publish_rules),
+        "publish_plan": _guard(handle_publish_plan),
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
     }
