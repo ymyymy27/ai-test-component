@@ -621,7 +621,7 @@ class CommandAdapter:
         )
 
     def _stop_persisted(self, handle: ExecutionHandle) -> StopRequestResult:
-        persisted = self._persisted_for(handle)
+        self._persisted_for(handle)
         pid = _real_pid(handle)
         if not _process_is_alive(pid):
             return StopRequestResult(

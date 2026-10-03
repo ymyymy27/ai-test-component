@@ -187,7 +187,11 @@ def aggregate_case_execution(
     by_step = {item.step_id: item for item in steps}
     required = tuple(required_step_ids)
     current = tuple(by_step.get(step_id) for step_id in required)
-    missing = tuple(step_id for step_id, item in zip(required, current) if item is None)
+    missing = tuple(
+        step_id
+        for step_id, item in zip(required, current, strict=True)
+        if item is None
+    )
     inherited = tuple(item for item in current if item is not None and not item.from_current_run)
     current_started = any(item is not None and item.from_current_run for item in current)
     decisive_failures = tuple(
@@ -196,7 +200,7 @@ def aggregate_case_execution(
 
     pending: list[str] = list(missing)
     invalidated: list[str] = []
-    for step_id, item in zip(required, current):
+    for step_id, item in zip(required, current, strict=True):
         if item is None:
             continue
         if not item.from_current_run:
