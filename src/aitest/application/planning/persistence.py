@@ -41,6 +41,7 @@ from aitest.application.planning.serialization import (
 )
 from aitest.application.planning.substrate import (
     AggregateKind,
+    ConcurrentEditError,
     RecordReader,
     StagedRevision,
     UnitOfWork,
@@ -68,14 +69,28 @@ def _stage_and_commit(
     expected_revision: int | None,
     payload: dict[str, object],
     unit_of_work: UnitOfWork,
+    revision_carrying_key: str | None = None,
 ) -> StagedRevision:
     """一次短事务：在**事务上下文**里暂存并提交。
 
     用 `transaction()` 而不是裸 `open()`：真实底座的 `open()` 会取工作空间级
     排他写锁，收尾一旦靠调用方的记性，抛异常或提前返回就会把锁留在这个进程里；
     上下文对象负责收尾（见 `substrate.Transaction`）。
+
+    `revision_carrying_key` 给出**正文里带修订号的键**（`case` 用 `"revision"`）；
+    给出时会在暂存前核对"正文修订 == 这次要分配的仓储修订"（检查项 B-11）。
+    核对放在事务**内部**、`stage_record` **之前**：这样底座的并发校验先生效，
+    本核对只处理"修订号本身的错配"。
     """
     with transaction(unit_of_work, project_id) as tx:
+        if revision_carrying_key is not None:
+            _require_revision_matches_assignment(
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=payload,
+                key=revision_carrying_key,
+            )
         staged = tx.stage_record(
             aggregate_kind=aggregate_kind,
             record_id=record_id,
@@ -84,6 +99,39 @@ def _stage_and_commit(
         )
         tx.commit()
     return staged
+
+
+def _require_revision_matches_assignment(
+    *,
+    aggregate_kind: AggregateKind,
+    record_id: str,
+    expected_revision: int | None,
+    payload: dict[str, object],
+    key: str,
+) -> None:
+    """正文修订必须等于**这次实际会分配的仓储修订**（检查项 B-11）。
+
+    底座的语义是：`expected_revision` 是"调用方看到的当前仓储修订"，
+    `None` / `0` 表示"我认定这是新建"，成功时分配 `expected_revision + 1`。
+    而带修订号的正文对象（`Case` / `AcceptanceScope`）会把自己的 `revision`
+    一起写进 payload——两者一旦分叉，就会出现检查文档记录的现象：
+    **记录 `@1` 里躺着正文 `@9`**，按 `@1` 读回得到 `@9`、按 `@9` 又读不到东西。
+
+    因此这里要求 `正文修订 == (expected_revision or 0) + 1`，否则报
+    `ConcurrentEditError` 并带上"正文写的修订"与"将要分配的修订"两个数——
+    调用方据此要么按顺序递增，要么先读回当前修订再重试。
+    """
+    declared = payload.get(key)
+    if not isinstance(declared, int) or isinstance(declared, bool):
+        raise ValueError(f"{key} must be an integer in the {aggregate_kind} payload")
+    assigned = (expected_revision or 0) + 1
+    if declared != assigned:
+        raise ConcurrentEditError(
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            expected_revision=expected_revision,
+            current_revision=assigned,
+        )
 
 
 def _load_payload(
@@ -115,7 +163,11 @@ def save_case(
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
 ) -> StagedRevision:
-    """保存一条用例的某个修订。"""
+    """保存一条用例的某个修订。
+
+    `case.revision` 必须等于**这次会分配的仓储修订**（`expected_revision + 1`，新建时为 1）：
+    正文里的修订号与记录修订分叉就会出现"记录 `@1`、正文 `@9`"（检查项 B-11）。
+    """
     return _stage_and_commit(
         project_id=project_id,
         aggregate_kind=CASE_AGGREGATE,
@@ -123,6 +175,7 @@ def save_case(
         expected_revision=expected_revision,
         payload=case_to_payload(case, project_id=project_id),
         unit_of_work=unit_of_work,
+        revision_carrying_key="revision",
     )
 
 
@@ -150,7 +203,11 @@ def save_acceptance_scope(
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
 ) -> StagedRevision:
-    """保存一个验收范围的某个修订。"""
+    """保存一个验收范围的某个修订。
+
+    与 `save_case()` 同一不变量：`scope.revision` 必须等于这次会分配的仓储修订
+    （检查项 B-11 的"Scope 同类路径"）。
+    """
     return _stage_and_commit(
         project_id=project_id,
         aggregate_kind=ACCEPTANCE_SCOPE_AGGREGATE,
@@ -158,6 +215,7 @@ def save_acceptance_scope(
         expected_revision=expected_revision,
         payload=acceptance_scope_to_payload(scope, project_id=project_id),
         unit_of_work=unit_of_work,
+        revision_carrying_key="revision",
     )
 
 

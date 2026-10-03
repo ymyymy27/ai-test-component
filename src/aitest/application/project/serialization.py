@@ -36,8 +36,12 @@ from aitest.domain.project.context import (
     ModuleDependencyGraph,
     SecretRef,
     SelfReport,
+    SourceFileDigest,
+    SourceForm,
+    SourceManifest,
     Task,
     _canonical_portable_path,
+    source_content_identity,
 )
 
 #: `git` 形态专有键；`plain` 形态的 payload 中必须**不出现**这些键。
@@ -663,6 +667,102 @@ def delivery_from_payload(payload: Mapping[str, Any]) -> Delivery:
     )
 
 
+# ----------------------------------------------------- 源码内容身份（SourceManifest）
+
+
+def source_manifest_to_payload(
+    manifest: SourceManifest, *, project_id: str, snapshot_id: str, purpose: str
+) -> dict[str, Any]:
+    """源码快照的落盘 payload。
+
+    **形式互斥**：`git` 形态**真正省略** `manifest_digest` 键，
+    `plain` 形态**真正省略** `git_base_commit` / `git_diff_digest` 键
+    （不是写 `None`、不是写空串——与绑定序列化同一做法）。
+
+    `content_identity` 一并落盘：读回时据此核对"这份快照的身份没被改过"，
+    而不是重新扫描目录（端口语义见 `AB-001` 第 11.4 节）。
+    """
+    payload: dict[str, Any] = {
+        "project_id": project_id,
+        "snapshot_id": snapshot_id,
+        "purpose": purpose,
+        "source_scope": manifest.source_scope,
+        "source_form": manifest.source_form.value,
+        "content_identity": source_content_identity(manifest),
+        "files": [
+            {
+                "relative_path": item.relative_path,
+                "size": item.size,
+                "content_digest": item.content_digest,
+            }
+            for item in manifest.normalized_files()
+        ],
+        "exclusion_rules": list(manifest.exclusion_rules),
+        "refetch_dependencies": list(manifest.refetch_dependencies),
+        "refetch_scope": manifest.refetch_scope,
+    }
+    if manifest.source_form is SourceForm.GIT:
+        payload["git_base_commit"] = manifest.git_base_commit
+        payload["git_diff_digest"] = manifest.git_diff_digest
+    else:
+        payload["plain_manifest_digest"] = manifest.manifest_digest
+    return payload
+
+
+def source_manifest_from_payload(payload: Mapping[str, Any]) -> SourceManifest:
+    """从落盘 payload 还原源码内容身份；形态字段缺失即报错（不用空值假装存在）。"""
+    raw_form = _payload_text(payload, "source_form")
+    try:
+        form = SourceForm(raw_form)
+    except ValueError as error:
+        raise ValueError(f"unknown source_form: {raw_form}") from error
+
+    raw_files = payload.get("files")
+    if not isinstance(raw_files, (list, tuple)):
+        raise ValueError("files must be a list")
+    files: list[SourceFileDigest] = []
+    for index, item in enumerate(raw_files):
+        entry = _require_payload_mapping(item, f"files[{index}]")
+        files.append(
+            SourceFileDigest(
+                relative_path=_payload_text(entry, "relative_path"),
+                size=_payload_non_negative_int(entry, "size"),
+                content_digest=_payload_text(entry, "content_digest"),
+            )
+        )
+
+    common: dict[str, Any] = {
+        "source_scope": _payload_text(payload, "source_scope"),
+        "source_form": form,
+        "files": tuple(files),
+        "exclusion_rules": _payload_text_tuple(payload, "exclusion_rules"),
+        "refetch_dependencies": _payload_text_tuple(payload, "refetch_dependencies"),
+        "refetch_scope": _payload_optional_text(payload, "refetch_scope"),
+    }
+    if form is SourceForm.GIT:
+        # 形态互斥：git 形态下 `manifest_digest` 键必须**不出现**。
+        if "plain_manifest_digest" in payload:
+            raise ValueError("a git source payload must omit plain_manifest_digest")
+        return SourceManifest(
+            **common,
+            git_base_commit=_payload_text(payload, "git_base_commit"),
+            git_diff_digest=_payload_text(payload, "git_diff_digest"),
+        )
+    if "git_base_commit" in payload or "git_diff_digest" in payload:
+        raise ValueError("a plain source payload must omit the git identity keys")
+    return SourceManifest(
+        **common,
+        manifest_digest=_payload_text(payload, "plain_manifest_digest"),
+    )
+
+
+def _payload_non_negative_int(payload: Mapping[str, Any], name: str) -> int:
+    value = payload.get(name)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return value
+
+
 __all__ = [
     "GIT_ONLY_KEYS",
     "PLAIN_ONLY_KEYS",
@@ -678,6 +778,8 @@ __all__ = [
     "environment_to_payload",
     "project_from_payload",
     "project_to_payload",
+    "source_manifest_from_payload",
+    "source_manifest_to_payload",
     "task_from_payload",
     "task_to_payload",
 ]

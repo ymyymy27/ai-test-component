@@ -47,6 +47,8 @@ from aitest.application.project.serialization import (
     environment_to_payload,
     project_from_payload,
     project_to_payload,
+    source_manifest_from_payload,
+    source_manifest_to_payload,
     task_from_payload,
     task_to_payload,
 )
@@ -56,11 +58,16 @@ from aitest.domain.project.context import (
     LocalProject,
     LocalProjectBinding,
     ModuleDependencyGraph,
+    SourceManifest,
     Task,
+    source_content_identity,
 )
 
 #: 依赖图的记录标识前缀；一个项目一份当前依赖图。
 _DEPENDENCY_GRAPH_PREFIX = "graph:"
+
+#: 源码快照的用途取值（`AB-001` 第 11.2 节）：只有这两个。
+_SNAPSHOT_PURPOSES: frozenset[str] = frozenset({"analysis", "prepare"})
 
 
 def dependency_graph_record_id(project_id: str) -> str:
@@ -234,6 +241,71 @@ def save_dependency_graph(
 # ------------------------------------------------------------------ 读取
 
 
+def save_source_snapshot(
+    manifest: SourceManifest,
+    *,
+    project_id: str,
+    snapshot_id: str,
+    purpose: str,
+    unit_of_work: UnitOfWork,
+    expected_revision: int | None = None,
+) -> StagedRevision:
+    """把一份**源码内容身份**固定成 `source_snapshot` 记录（检查文档 B-04）。
+
+    这是"实际来源 → 正式快照"的**落盘那一跳**：`SourceManifest` 是内容身份，
+    记录是它的不可变固定事实；`content_identity` 随记录一起落盘，
+    读取方据此核对"这份快照的身份没被改过"，而不是重新扫描目录。
+
+    `snapshot_id` 由调用方给出（同一逻辑快照重新固定必须产生**新** id，不复用）；
+    `purpose` 只允许 `analysis` / `prepare`（`AB-001` 第 11.2 节）。
+    """
+    if not project_id.strip():
+        raise ValueError("project_id must not be empty")
+    if not snapshot_id.strip():
+        raise ValueError("snapshot_id must not be empty")
+    if purpose not in _SNAPSHOT_PURPOSES:
+        raise ValueError(
+            f"unknown snapshot purpose: {purpose!r} (expected one of {_SNAPSHOT_PURPOSES})"
+        )
+    return _stage_and_commit(
+        project_id=project_id,
+        aggregate_kind="source_snapshot",
+        record_id=snapshot_id,
+        expected_revision=expected_revision,
+        payload=source_manifest_to_payload(
+            manifest, project_id=project_id, snapshot_id=snapshot_id, purpose=purpose
+        ),
+        unit_of_work=unit_of_work,
+    )
+
+
+def load_source_snapshot(
+    reader: RecordReader, *, project_id: str, snapshot_id: str, revision: int
+) -> SourceManifest:
+    """按**准确修订**读回一份源码内容身份。
+
+    记录里的 `content_identity` 会与按当前 payload 重算的结果比对：
+    **不一致即报错**——那说明记录的内容身份与字节对不上，
+    继续读下去等于拿一份自相矛盾的依据去做核对。
+    """
+    payload = _load_payload(
+        reader,
+        project_id=project_id,
+        aggregate_kind="source_snapshot",
+        record_id=snapshot_id,
+        revision=revision,
+    )
+    manifest = source_manifest_from_payload(payload)
+    stored_identity = payload.get("content_identity")
+    recomputed = source_content_identity(manifest)
+    if stored_identity != recomputed:
+        raise ValueError(
+            f"source_snapshot {snapshot_id} revision {revision} carries a content "
+            f"identity that does not match its bytes: {stored_identity!r} != {recomputed!r}"
+        )
+    return manifest
+
+
 def load_project(
     reader: RecordReader, *, project_id: str, revision: int
 ) -> LocalProject:
@@ -382,11 +454,13 @@ __all__ = [
     "load_dependency_graph",
     "load_environment",
     "load_project",
+    "load_source_snapshot",
     "load_task",
     "save_binding",
     "save_delivery",
     "save_dependency_graph",
     "save_environment",
     "save_project",
+    "save_source_snapshot",
     "save_task",
 ]

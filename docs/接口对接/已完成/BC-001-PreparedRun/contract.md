@@ -550,3 +550,49 @@ C 对 SourceSnapshot 分工无异议；该分工已由袁（项目负责人）�
 
 **在本节被确认前，`last_verified_commit` 置空**：先前验证所对应的提交不再生成当前夹具字节。
 字段契约本身仍然有效。
+
+## 16 运行中修订的落盘与消费（2026-10-03 追加）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-05**：
+"RuntimeRevision 未持久写入实际运行序列，C runner 未消费接受/失效清单"。
+
+### 16.1 B 侧已交付什么（本次不需 C 改字段）
+
+B 侧的**领域门禁与决策结果**已实现并有回归测试
+（`domain/planning/runtime_revision.py`、`application/planning/run_mode.py`）：
+
+| B 侧的产物 | 内容 |
+| --- | --- |
+| `RunRuntimeFacts` | 由 C 的 `ExecutionFacts` 翻译来的一致事实视图（运行/步骤/尝试/游标/必测集合） |
+| `RuntimeRevisionRequest` | 一次修订请求：**冻结计划完整身份**（`base_plan_revision_id` + `base_plan_revision_no` + 可选 `base_plan_revision_digest`）、观察到的快照游标、逐用例的新修订与目标步骤 |
+| `RuntimeRevisionDecision` | 决策结果：`accepted`、`revision_no`、`effective_driver`、`snapshot_commit_id`/`snapshot_cursor`，以及交接清单 `affected_step_ids`、`preserved_step_ids`、`invalidated_basis_step_ids`、`rejudge_case_ids`、`confirmation_required_case_ids`、`pause_required`、`new_run_required` |
+| 拒绝原因 | `RuntimeRevisionRefusalCode` 的结构化枚举（未发布计划、修订不符、陈旧游标、运行不活跃、驱动扩张、必测移除、适用性弱化、断言弱化、独立核验移除、步骤正在执行/已记录事实、无可改步骤等） |
+
+**B 侧不加新字段、不改 `PreparedRun` 或 `ExecutionFacts` 的 Schema**：
+本节的落盘与消费属 C 的记录序列与 runner 行为。
+
+### 16.2 C 侧需要的动作（请 C 确认）
+
+| # | 事项 | 说明 |
+| --- | --- | --- |
+| 1 | **保存运行中修订的序列** | 按 `RuntimeRevisionDecision` 落 `RunPlanRevision`（或等价记录）与 `StepRevisionRef`，使"第几次修订、依据哪个冻结计划、作用到哪些步骤"可按准确修订读回 |
+| 2 | **应用接受清单** | runner 在**步骤边界**应用：`affected_step_ids` 用新修订、`preserved_step_ids` 绑原修订；`pause_required` 时在边界暂停而不是中途打断 |
+| 3 | **应用失效清单** | 按 `invalidated_basis_step_ids` 失效受影响依据（含 C 自己的传递失效），不得把旧尝试回退成当前通过 |
+| 4 | **给"运行中/正在执行"快照夹具** | 现行交付夹具的 `run.control_state` 只有 `completed`／`pending_verification`，且没有任何一步是 `running`；这两类取值在合同里合法但**没有样本**，B 侧只能自行派生，属"夹具覆盖缺口" |
+| 5 | **真实半程运行证据** | 半程修订、驱动收窄（`planned → stepwise`）、必测不弱化的真实流程验证 |
+
+### 16.3 依赖的既有约定（不变）
+
+- 修订序列号由**已记录条数**派生，不接受调用者自报（B 侧已按此实现）；
+- 决策按**同一 commit 的一致快照**作出（`observed_snapshot_cursor` 与 C 的事实不符即 `stale_snapshot`）；
+- 驱动只允许收窄，扩张需新运行；
+- 历史事实保留，失效的是**依据**而不是删记录。
+
+### 16.4 C 侧动作
+
+1. 按 16.2 逐条确认范围与归属，并回写本节；
+2. 若第 1／2／3 条需要新的记录类别或字段，**走新的契约 PR**，不在本节散改；
+3. 第 4 条（运行中/正在执行夹具）确认后由 C 补，B 侧据此替换自行派生的部分。
+
+**在本节被确认前**，B 侧对 B-05 只登记"领域门禁已完成、落盘与消费待 C"，
+**不声称 B-05 已闭合**。
