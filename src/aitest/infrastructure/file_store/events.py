@@ -106,16 +106,23 @@ def derive_event_id(
     commit_sequence: int,
     event_type: str,
     project_id: str,
+    aggregate_kind: str = "",
     record_id: str,
     revision: int,
 ) -> str:
-    """由事件身份元组确定性派生 event_id，供重放幂等。"""
+    """由事件身份元组确定性派生 event_id，供重放幂等。
+
+    aggregate_kind 必须进入身份（A-17）：rule_draft/x@1 与
+    rule_version/x@1 是不同聚合的事件，不能因 record_id/revision 相同
+    而在暂存去重时互相吞掉。
+    """
     identity = "\u001f".join(
         [
             instance_id,
             str(commit_sequence),
             event_type,
             project_id,
+            aggregate_kind,
             record_id,
             str(revision),
         ]
@@ -230,6 +237,7 @@ class FileEventJournal:
         intent_id: str | None,
         workspace_id: str,
         writer_epoch: int,
+        aggregate_kind: str = "",
     ) -> Event:
         """在边界内记录事件；同一事件重复追加返回既有事件（幂等）。"""
         staging = self._staging_path(commit_sequence)
@@ -240,6 +248,7 @@ class FileEventJournal:
             commit_sequence=commit_sequence,
             event_type=event_type,
             project_id=project_id,
+            aggregate_kind=aggregate_kind,
             record_id=record_id,
             revision=revision,
         )

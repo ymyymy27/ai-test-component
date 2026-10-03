@@ -181,9 +181,9 @@ def test_query_spec_fixed_sort_and_bounded_cursor_page(tmp_path: Path) -> None:
     )
 
     assert [item["commit_sequence"] for item in first.items] == [1, 2]
-    # 游标为绑定 qid/代次/提交根/快照偏移的不透明 token（A-05）。
+    # 游标为绑定 qid/代次/提交根/末尾完整排序键的不透明 token（A-05）。
     assert first.next_cursor is not None
-    assert decode_cursor(first.next_cursor).offset == 2
+    assert decode_cursor(first.next_cursor).cursor_id
     assert decode_cursor(first.next_cursor).commit_id == 3
     assert [item["commit_sequence"] for item in second.items] == [3]
     assert second.next_cursor is None

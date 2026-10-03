@@ -96,7 +96,7 @@ def test_candidate_bytes_referenced_by_permanent_record_is_refused(root: Path) -
     content = b"still referenced bytes"
     digest = hashlib.sha256(content).hexdigest()
     (root / "records.json").write_text(
-        json.dumps({"records": {}, "evidence": f"sha256:{digest}"}),
+        json.dumps({"records": {}, "object_digest": f"sha256:{digest}"}),
         encoding="utf-8",
     )
     leftover = root / ".records.json.AbCdEf12"
@@ -193,3 +193,60 @@ def test_recovery_then_maintenance_cooperation_unblocks_reclaim(root: Path) -> N
     report = _service(root).reclaim(relative_paths=(relative,), dry_run=False)
     assert report.state == "reclaimed"
     assert not leftover.exists()
+
+
+# ------------------------------------------------------------ A-07 本轮补强
+
+
+def test_candidate_bytes_referenced_by_permanent_jsonl_is_refused(
+    root: Path,
+) -> None:
+    """永久 JSONL 台账中的对象引用同样证明回收资格（A-MAINTENANCE-02）。"""
+    content = b"jsonl-referenced bytes"
+    digest = hashlib.sha256(content).hexdigest()
+    ledger = root / "events" / "journal.jsonl"
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    ledger.write_text(
+        json.dumps({"object_digest": f"sha256:{digest}"}) + "\n",
+        encoding="utf-8",
+    )
+    leftover = root / ".records.json.AbCdEf12"
+    leftover.write_bytes(content)
+    _set_mtime(leftover, ns_delta=-10_000_000)
+    assert _service(root).reclaimable() == ()
+
+
+def test_unreadable_permanent_reference_blocks_reclaim(root: Path) -> None:
+    """引用文件不可解析时回收资格不可证明：阻塞而非跳过。"""
+    _stale_leftover(
+        root, ".records.json.tmp", target="records.json", content=b"stale"
+    )
+    (root / "diagnostics").mkdir(parents=True, exist_ok=True)
+    (root / "diagnostics" / "broken.jsonl").write_text(
+        '{"object_digest": "sha256:' + "0" * 64 + '"}\n{"torn"\n',
+        encoding="utf-8",
+    )
+    report = _service(root).reclaim(dry_run=False)
+    assert report.state == "blocked"
+    assert "不可读" in report.blocked_reason
+
+
+def test_unsealed_spool_output_blocks_without_marker(root: Path) -> None:
+    """无短事务标记但存在未封口 spool 输出：按在途执行保守阻塞。"""
+    attempt = root / "spool" / "attempt-live"
+    attempt.mkdir(parents=True)
+    (attempt / "stdout.log").write_bytes(b"partial output")
+    assert detect_activity_blocker(root) is not None
+    assert _service(root).reclaim(dry_run=False).state == "blocked"
+
+
+def test_sealed_spool_output_does_not_block(root: Path) -> None:
+    """抢救封口（manifest.json 已生成）后活动门禁解除。"""
+    attempt = root / "spool" / "attempt-sealed"
+    attempt.mkdir(parents=True)
+    (attempt / "stdout.log").write_bytes(b"sealed output")
+    (attempt / "manifest.json").write_text(
+        json.dumps({"attempt_id": "attempt-sealed", "blocks": [], "cursors": []}),
+        encoding="utf-8",
+    )
+    assert detect_activity_blocker(root) is None

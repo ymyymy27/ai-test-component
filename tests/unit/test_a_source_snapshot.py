@@ -46,8 +46,11 @@ def test_pin_has_real_hashes(store: FileSourceSnapshotStore, source: Path) -> No
 
 def test_pin_idempotent_same_id(store: FileSourceSnapshotStore, source: Path) -> None:
     first = store.pin(canonical_path=str(source), purpose="analysis")
-    second = store.pin(canonical_path=str(source), purpose="prepare")
+    second = store.pin(canonical_path=str(source), purpose="analysis")
     assert first["snapshot_id"] == second["snapshot_id"]
+    # A-15：用途不同即使字节相同也是不同快照身份（blob 仍内容去重）。
+    other_purpose = store.pin(canonical_path=str(source), purpose="prepare")
+    assert other_purpose["snapshot_id"] != first["snapshot_id"]
 
 
 def test_pin_default_excludes_git(store: FileSourceSnapshotStore, source: Path) -> None:

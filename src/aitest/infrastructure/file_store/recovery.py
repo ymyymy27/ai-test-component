@@ -119,11 +119,35 @@ class RecoveryOrchestrator:
         )
 
     def restore_backup(self, *, backup: Path, target: Path) -> RecoveryState:
-        """从备份恢复到隔离目标并核对；不替换活动工作空间。"""
+        """从备份恢复到隔离目标并核对；不替换活动工作空间。
+
+        备份恢复被目标边界（非空/符号链接/越界清单等）拒绝时必须如实以
+        blocked 上报，不谎报 repaired，也不声称完整性已核实（A-06）。
+        """
         try:
             report = FileBackupStore(self._root).restore(backup=backup, target=target)
         except BackupError as error:
             raise RecoveryBlocked(str(error)) from error
+        if report.state == "rejected":
+            return RecoveryState(
+                state="blocked",
+                integrity_ok=False,
+                committed_sequences=self._committed_sequences(),
+                actions=(f"备份恢复被拒绝，未写入目标: {report.target}",),
+                reconcile=None,
+                restore=report,
+            )
+        if not report.verified:
+            return RecoveryState(
+                state="blocked",
+                integrity_ok=False,
+                committed_sequences=self._committed_sequences(),
+                actions=(
+                    f"备份恢复后核对未通过，保持阻塞: {report.target}",
+                ),
+                reconcile=None,
+                restore=report,
+            )
         return RecoveryState(
             state="repaired",
             integrity_ok=True,
@@ -182,9 +206,49 @@ class RecoveryOrchestrator:
         }
 
 
+def seal_inflight_outputs(root: Path) -> tuple[str, ...]:
+    """父进程消亡后核心退出前，补封所有未封口的在途 spool 输出（A-02）。
+
+    对有 ``*.log`` 字节且清单已建立但仍有未封口尾部的 attempt 调用统一
+    抢救路径补记清单，使已 fsync 的输出仍可被下一次启动恢复核对；抢救
+    结果交启动恢复编排核实，不自动重放任何外部效果。连清单都不存在的
+    attempt 缺少 run/step 身份事实，不在此猜测，留给启动恢复按活动标记
+    核实处理。幂等：字节均已被清单覆盖时不重复声称。
+    """
+    from .spool import FileSpoolStore
+
+    spool_dir = root / "spool"
+    if not spool_dir.is_dir():
+        return ()
+    store = FileSpoolStore(root)
+    sealed: list[str] = []
+    for attempt in spool_dir.iterdir():
+        if not attempt.is_dir() or attempt.is_symlink():
+            continue
+        if not (attempt / "manifest.json").exists():
+            continue
+        try:
+            has_streams = any(
+                path.is_file()
+                and path.suffix.lower() == ".log"
+                and path.name != "manifest.json"
+                for path in attempt.iterdir()
+            )
+        except OSError:
+            continue
+        if not has_streams:
+            continue
+        before = len(store.read_manifest(attempt.name).blocks)
+        salvaged = store.salvage_streams(attempt.name)
+        if len(salvaged.blocks) > before:
+            sealed.append(attempt.name)
+    return tuple(sealed)
+
+
 __all__ = [
     "RecoveryBlocked",
     "RecoveryOrchestrator",
     "RecoveryState",
     "recover_workspace",
+    "seal_inflight_outputs",
 ]

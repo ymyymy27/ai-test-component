@@ -182,8 +182,14 @@ def test_repeated_pin_is_idempotent_after_restart(
         canonical_path=str(source_tree), purpose="run-1"
     )
     second = FileSourceSnapshotStore(workspace).pin(
-        canonical_path=str(source_tree), purpose="run-other"
+        canonical_path=str(source_tree), purpose="run-1"
     )
-    # 内容相同：身份相同，且既有清单不被新 purpose 覆盖。
+    # 同范围/用途：重启后重复 pin 身份相同，既有清单不被覆盖。
     assert second["snapshot_id"] == first["snapshot_id"]
     assert second["purpose"] == "run-1"
+    # A-15：用途不同即使字节相同也是不同快照身份与清单。
+    other = FileSourceSnapshotStore(workspace).pin(
+        canonical_path=str(source_tree), purpose="run-other"
+    )
+    assert other["snapshot_id"] != first["snapshot_id"]
+    assert other["purpose"] == "run-other"

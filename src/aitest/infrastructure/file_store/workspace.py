@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import atomic
-from .locking import writer_lock
+from .locking import LifetimeWriterLock, writer_lock
 
 
 class Workspace:
@@ -50,3 +50,20 @@ class Workspace:
             self.identity["writer_epoch"] += 1
             atomic.write_json(self.identity_path, self.identity)
             yield self
+
+    def admit_lifetime(self) -> LifetimeWriterLock:
+        """取得覆盖核心全生命周期的排他写锁并登记新 epoch（A-02）。
+
+        恢复、服务与退出全程持有；调用方必须在核心关闭时释放。同根二次
+        准入（同进程）或他进程已持锁时抛
+        :class:`aitest.application.errors.WorkspaceInUse`。
+        """
+        lock = LifetimeWriterLock(self.root / "writer.lock")
+        lock.acquire()
+        try:
+            self.identity["writer_epoch"] += 1
+            atomic.write_json(self.identity_path, self.identity)
+        except BaseException:
+            lock.release()
+            raise
+        return lock

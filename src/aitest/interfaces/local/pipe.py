@@ -48,7 +48,10 @@ def check_peer_identity(
     """纯函数校验对端会话与用户身份是否同源。
 
     抽出为独立函数便于单元测试；不依赖 Windows kernel32 调用结果。
+    任一 SID 为空都拒绝：空 SID 相等不能证明同源（A-18）。
     """
+    if not client_user_sid or not expected_user_sid:
+        raise PeerRejected("空用户 SID 无法证明同源，拒绝连接")
     if client_session_id != expected_session_id:
         raise PeerRejected(
             f"跨会话连接被拒绝: client={client_session_id} "
@@ -143,6 +146,13 @@ class _Kernel:
             wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)
         ]
         kernel32.GetCurrentProcessId.restype = wintypes.DWORD
+        kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+        kernel32.QueryFullProcessImageNameW.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.LPWSTR,
+            ctypes.POINTER(wintypes.DWORD),
+        ]
         kernel32.OpenProcess.restype = wintypes.HANDLE
         kernel32.OpenProcess.argtypes = [
             wintypes.DWORD, wintypes.BOOL, wintypes.DWORD
@@ -212,13 +222,15 @@ class NamedPipeServer:
         assert self._handle is not None
         client_pid = wintypes.ULONG(0)
         client_session = wintypes.ULONG(0)
-        self._kernel.kernel32.GetNamedPipeClientProcessId(
+        if not self._kernel.kernel32.GetNamedPipeClientProcessId(
             self._handle, ctypes.byref(client_pid)
-        )
-        self._kernel.kernel32.GetNamedPipeClientSessionId(
+        ):
+            raise PeerRejected("无法取得客户端进程标识")
+        if not self._kernel.kernel32.GetNamedPipeClientSessionId(
             self._handle, ctypes.byref(client_session)
-        )
-        client_sid = self._process_user_sid(client_pid.value)
+        ):
+            raise PeerRejected("无法取得客户端会话标识")
+        client_sid = self._process_user_sid(int(client_pid.value))
         local_sid = self._process_user_sid(
             self._kernel.kernel32.GetCurrentProcessId()
         )
@@ -228,6 +240,17 @@ class NamedPipeServer:
             client_user_sid=client_sid,
             expected_user_sid=local_sid,
         )
+
+    def peer_process_basename(self) -> str | None:
+        """对端进程映像 basename（小写）；取证失败返回 None，调用方按
+        最小权限归类入口（A-02）。"""
+        assert self._handle is not None
+        client_pid = wintypes.ULONG(0)
+        if not self._kernel.kernel32.GetNamedPipeClientProcessId(
+            self._handle, ctypes.byref(client_pid)
+        ):
+            return None
+        return query_process_image_basename(self._kernel, int(client_pid.value))
 
     def read_message(self) -> bytes:
         length = int.from_bytes(self._read_exact(4), "big")
@@ -255,28 +278,15 @@ class NamedPipeServer:
         return session.value
 
     def _process_user_sid(self, process_id: int) -> str:
-        kernel32 = self._kernel.kernel32
-        advapi32 = self._kernel.advapi32
-        process = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
-        if not process:
-            raise PeerRejected(f"无法打开客户端进程: {process_id}")
-        token = wintypes.HANDLE()
-        try:
-            advapi32.OpenProcessToken(process, _TOKEN_QUERY, ctypes.byref(token))
-            buffer = (_TokenUser * 1)()
-            returned = wintypes.DWORD(0)
-            advapi32.GetTokenInformation(
-                token, _TOKEN_USER, buffer, ctypes.sizeof(buffer), ctypes.byref(returned)
-            )
-            sid_string = wintypes.LPWSTR()
-            advapi32.ConvertSidToStringSidW(
-                buffer[0].user.Sid, ctypes.byref(sid_string)
-            )
-            return sid_string.value or ""
-        finally:
-            if token:
-                kernel32.CloseHandle(token)
-            kernel32.CloseHandle(process)
+        """服务端对端 SID 取证：任何失败/空 SID 都拒绝连接（A-18）。
+
+        复用与 :func:`current_user_sid` 同一份“长度探询 + 全结果核对
+        + LocalFree”实现，不再使用旧的固定缓冲写法。
+        """
+        sid = _query_process_user_sid(self._kernel, process_id)
+        if not sid:
+            raise PeerRejected(f"无法核实客户端进程用户身份: {process_id}")
+        return sid
 
     def _read_exact(self, size: int) -> bytes:
         assert self._handle is not None
@@ -417,27 +427,22 @@ def current_session_id() -> int | None:
     return session.value
 
 
-def current_user_sid() -> str | None:
-    """当前进程令牌用户 SID 字符串；非 Windows 或取证失败返回 None。
+def _query_process_user_sid(kernel: _Kernel, process_id: int) -> str | None:
+    """查询指定进程令牌用户 SID；任何一步取证失败都返回 None（A-18）。
 
-    供连接台账记录“来源会话/来源用户”事实：连接核对通过后，台账里
-    必须留下与管道对端核对所用的同一份身份，跨重启可查，不允许只
-    在实例内存里保存。
+    TOKEN_USER 内嵌变长 SID：先以 NULL/0 探询所需缓冲区长度，再按精确
+    长度二次分配；所有 Win32 返回值逐一核对；ConvertSidToStringSidW
+    成功后必须 LocalFree。
     """
-    if not sys.platform.startswith("win"):
-        return None
-    kernel = _shared_kernel()
     kernel32 = kernel.kernel32
     advapi32 = kernel.advapi32
-    pid = kernel32.GetCurrentProcessId()
-    process = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    process = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
     if not process:
         return None
     token = wintypes.HANDLE()
     try:
         if not advapi32.OpenProcessToken(process, _TOKEN_QUERY, ctypes.byref(token)):
             return None
-        # TOKEN_USER 内嵌变长 SID，需要先探取所需缓冲区长度再二次分配。
         needed = wintypes.DWORD(0)
         advapi32.GetTokenInformation(
             token, _TOKEN_USER, None, 0, ctypes.byref(needed)
@@ -469,6 +474,51 @@ def current_user_sid() -> str | None:
         kernel32.CloseHandle(process)
 
 
+def query_process_image_basename(kernel: _Kernel, process_id: int) -> str | None:
+    """查询客户端进程可执行映像文件名（小写 basename）；失败返回 None。
+
+    入口类型只能由核心依据对端**进程事实**判定，不能接受连接帧自报
+    （A-02）。取证失败时调用方按最小权限（AGENT_RELAY）归类。
+    """
+    if process_id <= 0:
+        return None
+    kernel32 = kernel.kernel32
+    process = kernel32.OpenProcess(
+        _PROCESS_QUERY_LIMITED_INFORMATION, False, process_id
+    )
+    if not process:
+        return None
+    try:
+        size = wintypes.DWORD(32768)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not kernel32.QueryFullProcessImageNameW(
+            process, 0, buffer, ctypes.byref(size)
+        ):
+            return None
+        full_path = buffer.value
+        if not full_path:
+            return None
+        # rsplit 兼容路径中可能出现的正反斜杠；basename 比较只用于
+        # 入口归类，不参与路径拼接。
+        return full_path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    finally:
+        kernel32.CloseHandle(process)
+
+
+def current_user_sid() -> str | None:
+    """当前进程令牌用户 SID 字符串；非 Windows 或取证失败返回 None。
+
+    供连接台账记录“来源会话/来源用户”事实：连接核对通过后，台账里
+    必须留下与管道对端核对所用的同一份身份，跨重启可查，不允许只
+    在实例内存里保存。
+    """
+    if not sys.platform.startswith("win"):
+        return None
+    kernel = _shared_kernel()
+    current_pid = kernel.kernel32.GetCurrentProcessId()
+    return _query_process_user_sid(kernel, current_pid)
+
+
 __all__ = [
     "MAX_MESSAGE_BYTES",
     "NamedPipeClient",
@@ -479,5 +529,6 @@ __all__ = [
     "current_session_id",
     "current_user_sid",
     "process_exists",
+    "query_process_image_basename",
     "validate_workspace_id",
 ]

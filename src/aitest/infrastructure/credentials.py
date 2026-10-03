@@ -21,6 +21,8 @@ from typing import Protocol, runtime_checkable
 
 from aitest.contracts.secrets import KNOWN_PURPOSES, ResolvedSecret
 
+from .security import known_secrets
+
 #: 凭据目标名允许的片段：字母数字、._-/；不允许反斜杠、空白与控制字符，
 #: 避免凭据管理器目标注入与 str.format 风格的模板注入。
 _TARGET_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._\-/]+$")
@@ -193,6 +195,9 @@ class SecretManager:
             except SecretUnavailable as error:
                 failures.append(f"{provider.name}: {error}")
                 continue
+            # A-09：凭据一进入受控进程即登记精确值，objects/spool/业务记录
+            # 的落盘前底线据此替换；注册表只存在于内存，绝不序列化。
+            known_secrets().register(value)
             return ResolvedSecret(
                 purpose=purpose, reference=reference, source=provider.name, _value=value
             )

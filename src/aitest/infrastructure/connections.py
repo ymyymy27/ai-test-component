@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlparse
 
+from .security import guard_bytes
+
 _FACT_SCHEMA = "aitest.connection-fact/1.0"
 _FACT_DIR = "diagnostics"
 _FACT_FILE = "connection-facts.jsonl"
@@ -250,6 +252,8 @@ class ConnectionFactStore:
         line = (
             json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
         ).encode("utf-8")
+        # A-09：错误文本可能回显带凭据的 URL/头，落盘前强制过滤。
+        line, _changed = guard_bytes(line)
         self._dir.mkdir(parents=True, exist_ok=True)
         with self._path.open("ab") as handle:
             handle.write(line)

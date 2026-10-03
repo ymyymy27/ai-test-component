@@ -17,14 +17,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
 from . import atomic
 from .backup import FileBackupStore
 from .maintenance import detect_activity_blocker
+
+#: 回滚逆向操作接收 apply 时记录的前态事实；空映射表示无记录的历史步骤。
+Backward = Callable[[Path, Mapping[str, object]], str]
 
 _REGISTRY_NAME: Final = "registry.json"
 _JOURNAL_NAME: Final = "journal.jsonl"
@@ -46,7 +49,10 @@ class Migration:
     description: str
     reversible: bool
     forward: Callable[[Path], str]
-    backward: Callable[[Path], str] | None
+    backward: Backward | None
+    #: 前向会修改的 JSON 对象文件；管理器据此在 apply 前后捕获顶层键集合，
+    #: 回滚时只删除“本步真正新增”的键（A-16）。
+    tracked_files: tuple[str, ...] = field(default=())
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,13 +104,36 @@ def _ensure_workspace_schema_version(root: Path) -> str:
     return "补充 schema_version=1.0"
 
 
-def _remove_workspace_schema_version(root: Path) -> str:
+def _step_added_keys(change: Mapping[str, object], file_name: str) -> set[str] | None:
+    """从 apply 前态事实取本步对某文件真正新增的顶层键。
+
+    返回 None 表示没有前态记录（历史注册表条目），调用方退回保守的值检查。
+    """
+    added = change.get("added_keys")
+    if not isinstance(added, Mapping):
+        return None
+    raw = added.get(file_name)
+    if not isinstance(raw, list):
+        return None
+    return {str(item) for item in raw}
+
+
+def _remove_workspace_schema_version(
+    root: Path, change: Mapping[str, object]
+) -> str:
     path = root / "workspace.json"
     if not path.exists():
         return "workspace.json 不存在，跳过"
+    added = _step_added_keys(change, "workspace.json")
+    if added is not None:
+        if "schema_version" not in added:
+            # 本步没有新增该字段（迁移前已存在），回滚绝不删除（A-16）。
+            return "schema_version 非本步新增，保留"
+    else:  # 历史注册表无事实：退回旧的值口径
+        data = _load_json(path)
+        if data.get("schema_version") != "1.0":
+            return "schema_version 非本迁移引入值，保留"
     data = _load_json(path)
-    if data.get("schema_version") != "1.0":
-        return "schema_version 非本迁移引入值，保留"
     data.pop("schema_version")
     _write_json(path, data)
     return "移除 schema_version"
@@ -122,12 +151,18 @@ def _ensure_records_intents(root: Path) -> str:
     return "补充 intents={} 容器"
 
 
-def _remove_records_intents(root: Path) -> str:
+def _remove_records_intents(
+    root: Path, change: Mapping[str, object]
+) -> str:
     path = root / "records.json"
     if not path.exists():
         return "records.json 不存在，跳过"
+    added = _step_added_keys(change, "records.json")
     data = _load_json(path)
-    if data.get("intents") != {}:
+    if added is not None:
+        if "intents" not in added:
+            return "intents 容器非本步新增，保留"
+    elif data.get("intents") != {}:
         return "intents 非空或非本迁移引入，保留"
     data.pop("intents")
     _write_json(path, data)
@@ -143,6 +178,7 @@ _BUILT_IN: Final[dict[str, Migration]] = {
             reversible=True,
             forward=_ensure_workspace_schema_version,
             backward=_remove_workspace_schema_version,
+            tracked_files=("workspace.json",),
         ),
         Migration(
             id="0002-records-intents-container",
@@ -150,6 +186,7 @@ _BUILT_IN: Final[dict[str, Migration]] = {
             reversible=True,
             forward=_ensure_records_intents,
             backward=_remove_records_intents,
+            tracked_files=("records.json",),
         ),
     )
 }
@@ -256,15 +293,36 @@ class FileMigrationManager:
         executed: list[str] = []
         for migration_id in pending:
             migration = _BUILT_IN[migration_id]
+            before_keys = {
+                file_name: self._json_top_keys(file_name)
+                for file_name in migration.tracked_files
+            }
+            commit_before = self._read_field("records.json", "commit")
             self._append_journal(plan_id, migration_id, "step_started")
             try:
                 detail = migration.forward(self._root)
             except BaseException:
                 self._append_journal(plan_id, migration_id, "step_failed")
                 raise
+            after_keys = {
+                file_name: self._json_top_keys(file_name)
+                for file_name in migration.tracked_files
+            }
+            added_keys: dict[str, list[str]] = {}
+            for file_name in migration.tracked_files:
+                before_set = before_keys[file_name]
+                after_set = after_keys[file_name]
+                if before_set is not None and after_set is not None:
+                    added_keys[file_name] = sorted(after_set - before_set)
+            changed = any(added_keys.values())
             self._append_journal(plan_id, migration_id, f"step_succeeded: {detail}")
             applied = dict(applied)
-            applied[migration_id] = {"plan_id": plan_id}
+            applied[migration_id] = {
+                "plan_id": plan_id,
+                "changed": changed,
+                "added_keys": added_keys,
+                "records_commit_before": commit_before,
+            }
             self._save_registry(applied=applied)
             executed.append(migration_id)
         state = "resumed" if len(executed) < len(steps) else "applied"
@@ -298,11 +356,25 @@ class FileMigrationManager:
             migration = _BUILT_IN[migration_id]
             if not migration.reversible or migration.backward is None:
                 raise MigrationError(f"迁移不可逆，回滚阻塞: {migration_id}")
+        # 回滚前有迁移后新写入时拒绝：格式回滚会破坏新写入依赖的结构，
+        # 必须先核实并处置新业务事实（A-16）。
+        current_commit = self._read_field("records.json", "commit")
+        if isinstance(current_commit, int):
+            watermarks = [
+                watermark
+                for entry in applied.values()
+                if isinstance((watermark := entry.get("records_commit_before")), int)
+            ]
+            if watermarks and current_commit > max(watermarks):
+                raise MigrationError(
+                    "迁移后存在新的业务写入，拒绝回滚；请先核实并处置新事实"
+                )
         rolled_back: list[str] = []
         for migration_id in reversible:
             backward = _BUILT_IN[migration_id].backward
             assert backward is not None
-            detail = backward(self._root)
+            entry = applied.get(migration_id, {})
+            detail = backward(self._root, entry)
             self._append_journal(plan_id, migration_id, f"rolled_back: {detail}")
             applied = dict(applied)
             applied.pop(migration_id)
@@ -338,16 +410,24 @@ class FileMigrationManager:
         FileBackupStore(self._root).create(destination)
         return destination
 
-    def _load_registry(self) -> dict[str, dict[str, str]]:
+    def _load_registry(self) -> dict[str, dict[str, object]]:
         raw = json.loads(self._registry_path.read_text(encoding="utf-8"))
         applied = raw.get("applied")
         if not isinstance(applied, dict):
             return {}
         return {str(key): dict(value) for key, value in applied.items() if isinstance(value, dict)}
 
-    def _save_registry(self, *, applied: dict[str, dict[str, str]]) -> None:
+    def _save_registry(self, *, applied: dict[str, dict[str, object]]) -> None:
         payload = {"schema": _REGISTRY_SCHEMA, "applied": applied}
         atomic.write_json(self._registry_path, payload)
+
+    def _json_top_keys(self, file_name: str) -> set[str] | None:
+        """迁移跟踪文件的顶层键集合；文件不存在返回 None。"""
+        path = self._root / file_name
+        if not path.exists():
+            return None
+        data = _load_json(path)
+        return set(data)
 
     def _append_journal(self, plan_id: str, migration_id: str, event: str) -> None:
         entry = {"plan_id": plan_id, "migration_id": migration_id, "event": event}

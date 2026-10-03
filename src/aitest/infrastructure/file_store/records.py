@@ -14,7 +14,7 @@ from aitest.contracts.queries import QuerySpec
 
 from . import atomic
 from .events import FileEventJournal
-from .index import FileQueryIndex
+from .index import FileQueryIndex, build_index_row
 
 #: 待提交业务记录：(聚合类型, 记录 ID, 期望修订（None 表示新建）, 业务载荷)。
 #: 使用 Sequence + Mapping 而非 list/dict，保证 list 不变性与 dict→Mapping
@@ -59,6 +59,78 @@ class FileRecordRepository:
 
     def _save(self, data: dict[str, Any]) -> None:
         atomic.write_json(self.path, data)
+
+    @staticmethod
+    def _row_project(row: object) -> str | None:
+        if isinstance(row, Mapping):
+            owner = row.get("project_id")
+            if isinstance(owner, str) and owner:
+                return owner
+        return None
+
+    def _verify_ownership(
+        self,
+        *,
+        kind: str,
+        record_id: str,
+        rows: Sequence[object],
+        project_id: str | None,
+        payload: Mapping[str, object],
+        index_rows: Sequence[Mapping[str, Any]] | None = None,
+    ) -> None:
+        """稳定记录原项目归属核对（A-11）。
+
+        同一 (aggregate_kind, record_id) 的全部修订必须属于同一项目；
+        本次事务声明的 project_id、payload 内 project_id 以及历史修订/
+        索引行归属三方一致才允许发布。同名不同项目是不同记录，但物理
+        存储键相同，必须在此显式拒绝而不能让后写者改归属。
+        """
+        owners = {owner for row in rows if (owner := self._row_project(row))}
+        if index_rows is not None:
+            for index_row in index_rows:
+                if (
+                    index_row.get("aggregate_kind") == kind
+                    and index_row.get("record_id") == record_id
+                ):
+                    owner = index_row.get("project_id")
+                    if isinstance(owner, str) and owner:
+                        owners.add(owner)
+        payload_owner = self._row_project(payload)
+        if payload_owner is not None:
+            owners.add(payload_owner)
+        if project_id is not None:
+            owners.add(project_id)
+        if len(owners) > 1:
+            raise ValueError(
+                f"cross-project ownership conflict for {kind}/{record_id}: "
+                f"{sorted(owners)}"
+            )
+
+    def find_committed_request(
+        self,
+        *,
+        request_id: str | None,
+        intent_id: str | None,
+        project_id: str | None,
+    ) -> dict[str, Any] | None:
+        """按请求/意图/项目核实权威提交台账中是否已有本次意图（A-12）。
+
+        提交结果未知时的重入只允许查询，不允许盲重发。命中返回台账条目，
+        未命中返回 None（可安全丢弃暂存）。
+        """
+        for entry in self._load().get("commits", []):
+            if not isinstance(entry, Mapping):
+                continue
+            if request_id is not None and entry.get("request_id") != request_id:
+                continue
+            if intent_id is not None and entry.get("intent_id") != intent_id:
+                continue
+            if project_id is not None and entry.get("project_id") != project_id:
+                continue
+            if request_id is None and intent_id is None:
+                continue
+            return dict(entry)
+        return None
 
     def current_revision(self, aggregate_kind: str, record_id: str) -> int:
         """当前修订（该业务身份的不可变修订条数）；只读，不经索引。
@@ -106,6 +178,13 @@ class FileRecordRepository:
             raise ValueError(
                 f"revision conflict: expected {expected_revision}, current {current}"
             )
+        self._verify_ownership(
+            kind=kind,
+            record_id=record_id,
+            rows=rows,
+            project_id=self._row_project(payload),
+            payload=payload,
+        )
         rows.append(dict(payload))
         data["commit"] += 1
         self._save(data)
@@ -124,6 +203,13 @@ class FileRecordRepository:
                 raise ValueError(
                     f"revision conflict: expected {expected_revision}, current {current}"
                 )
+            self._verify_ownership(
+                kind=kind,
+                record_id=record_id,
+                rows=rows,
+                project_id=self._row_project(payload),
+                payload=payload,
+            )
             rows.append(dict(payload))
             data["commit"] += 1
             created.append((kind, record_id, current + 1))
@@ -153,6 +239,13 @@ class FileRecordRepository:
             raise ValueError(
                 f"revision conflict: expected {expected_revision}, current {current}"
             )
+        self._verify_ownership(
+            kind=kind,
+            record_id=record_id,
+            rows=rows,
+            project_id=self._row_project(payload),
+            payload=payload,
+        )
         rows.append(dict(payload))
         revision = current + 1
         data["commit"] += 1
@@ -164,7 +257,7 @@ class FileRecordRepository:
         return revision
 
     def query(self, query: RecordQuery) -> RecordQueryResult:
-        index = FileQueryIndex(self.root)
+        index = FileQueryIndex(self.root, journal=self._journal)
         result = index.query_spec(
             QuerySpec(
                 project_id=query.project_id,
@@ -200,16 +293,66 @@ class FileRecordRepository:
             status="ok", items=tuple(items), next_cursor=result.next_cursor
         )
 
-    def _load_index_rows(self) -> list[dict[str, Any]]:
-        path = self.root / "indexes.json"
-        if not path.exists():
-            return []
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            rows = raw.get("rows")
-            return list(rows) if isinstance(rows, list) else []
-        except (OSError, json.JSONDecodeError, TypeError):
-            return []
+    def _summary_rows_from_authority(
+        self,
+        data: dict[str, Any],
+        ledger: Sequence[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """从权威 records + 提交台账派生最小摘要索引行（A-05）。
+
+        每条已提交记录的 ``commit_sequence`` 由台账 ``created`` 清单按
+        提交顺序枚举确定（序号按记录递增）；载荷取自权威记录修订本体，
+        只复制白名单摘要字段，证据正文不进索引。权威台账引用的修订在
+        records 中缺失时以空载荷保留身份行，并交由完整性检查暴露，
+        不在投影层补造内容。
+        """
+        records = data.get("records", {})
+        rows: list[dict[str, Any]] = []
+        sequence = 0
+        ordered = sorted(
+            (entry for entry in ledger if isinstance(entry, dict)),
+            key=lambda entry: int(entry.get("commit_sequence", 0)),
+        )
+        for entry in ordered:
+            project_id = entry.get("project_id")
+            created = entry.get("created")
+            if not isinstance(created, list):
+                continue
+            for item in created:
+                if not isinstance(item, dict):
+                    continue
+                sequence += 1
+                kind = item.get("aggregate_kind")
+                record_id = item.get("record_id")
+                revision = item.get("revision")
+                if not isinstance(kind, str) or not isinstance(record_id, str):
+                    continue
+                if not isinstance(revision, int):
+                    continue
+                revisions = (
+                    records.get(kind, {}).get(record_id, [])
+                    if isinstance(records, dict)
+                    else []
+                )
+                payload = (
+                    revisions[revision - 1]
+                    if 1 <= revision <= len(revisions)
+                    and isinstance(revisions[revision - 1], dict)
+                    else {}
+                )
+                rows.append(
+                    build_index_row(
+                        project_id=str(project_id)
+                        if isinstance(project_id, str)
+                        else "",
+                        aggregate_kind=kind,
+                        record_id=record_id,
+                        revision=revision,
+                        commit_sequence=sequence,
+                        payload=payload,
+                    )
+                )
+        return rows
 
     def _load_commits(self) -> list[dict[str, Any]]:
         path = self.root / "commit.json"
@@ -269,31 +412,6 @@ class FileRecordRepository:
                 if isinstance(entry.get("commit_sequence"), int)
             )
         )
-
-    @staticmethod
-    def _index_rows_from_commits(
-        commits: Sequence[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for entry in commits:
-            project_id = entry.get("project_id")
-            commit_sequence = entry.get("commit_sequence")
-            created = entry.get("created")
-            if not isinstance(created, list):
-                continue
-            for item in created:
-                if not isinstance(item, dict):
-                    continue
-                rows.append(
-                    {
-                        "project_id": project_id,
-                        "aggregate_kind": item.get("aggregate_kind"),
-                        "record_id": item.get("record_id"),
-                        "revision": item.get("revision"),
-                        "commit_sequence": commit_sequence,
-                    }
-                )
-        return rows
 
     @staticmethod
     def _events_from_commits(
@@ -386,36 +504,23 @@ class FileRecordRepository:
             self._save_commits(ordered_commits, sequence)
             actions.append("从 records 权威边界重建提交清单 commit.json")
 
-        # 2) 查询索引 indexes.json：合并既有可读行与台账派生行后整投影重发。
-        index = FileQueryIndex(self.root)
+        # 2) 查询索引：全局根 indexes.json + indexes/<family> 分片目录。
+        #    根版本/提交根/任一分片目录不健康时，从权威边界全量重建
+        #    （显式维护成本）；健康且覆盖台账提交根时不重写（A-05）。
+        index = FileQueryIndex(self.root, journal=self._journal)
         raw_index = index._read_raw()  # noqa: SLF001 - 同底座投影协作
-        need_rebuild = True
-        if raw_index is not None and raw_index.get("version") == FileQueryIndex.VERSION:
-            existing_rows = raw_index.get("rows")
-            if isinstance(existing_rows, list):
-                derived = self._index_rows_from_commits(ledger)
-                merged_rows = self._merge_index_rows(
-                    [row for row in existing_rows if isinstance(row, dict)],
-                    derived,
-                )
-                index_root = raw_index.get("last_commit_sequence")
-                covers_commit_root = (
-                    isinstance(index_root, int) and index_root >= max(ledger_sequences)
-                )
-                if (
-                    covers_commit_root
-                    and len(merged_rows) == len(existing_rows)
-                    and all(
-                        row.get("commit_sequence") is not None for row in merged_rows
-                    )
-                ):
-                    need_rebuild = False
-        if need_rebuild:
-            merged_rows = self._merge_index_rows(
-                self._load_index_rows(), self._index_rows_from_commits(ledger)
+        covers_commit_root = (
+            raw_index is not None
+            and raw_index.get("version") == FileQueryIndex.VERSION
+            and int(raw_index.get("last_commit_sequence", -1))
+            >= max(ledger_sequences)
+            and index.is_healthy()
+        )
+        if not covers_commit_root:
+            index.rebuild(self._summary_rows_from_authority(data, ledger))
+            actions.append(
+                "从 records 权威边界重建查询索引 indexes.json 与 indexes 分片目录"
             )
-            index.rebuild(merged_rows)
-            actions.append("从 records 权威边界重建查询索引 indexes.json")
 
         # 3) 旧版 events.json（仅非 journal 世界的迁移期工作空间）。
         if not self._journal_world():
@@ -424,32 +529,6 @@ class FileRecordRepository:
                 self._save_events(expected_events)
                 actions.append("从 records 权威边界重建旧版事件 events.json")
         return actions
-
-    @staticmethod
-    def _merge_index_rows(
-        existing: Sequence[dict[str, Any]],
-        derived: Sequence[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        merged: dict[tuple[object, ...], dict[str, Any]] = {}
-        for row in (*existing, *derived):
-            key = (
-                row.get("project_id"),
-                row.get("aggregate_kind"),
-                row.get("record_id"),
-                row.get("revision"),
-            )
-            # 台账派生行为准；台账缺失的历史投影行保留，不丢历史。
-            if key not in merged or row.get("commit_sequence") is not None:
-                merged[key] = dict(row)
-        return sorted(
-            merged.values(),
-            key=lambda row: (
-                int(row.get("commit_sequence") or 0),
-                str(row.get("aggregate_kind") or ""),
-                str(row.get("record_id") or ""),
-                int(row.get("revision") or 0),
-            ),
-        )
 
     def _write_active_marker(
         self,
@@ -541,11 +620,10 @@ class FileRecordRepository:
                 ]
                 return original_created, int(stored_intent["commit_sequence"])
 
-        current_index_rows = self._load_index_rows()
         commits = self._load_commits()
         events = self._load_events()
         created: list[tuple[str, str, int]] = []
-        new_index_rows = list(current_index_rows)
+        new_index_rows: list[dict[str, Any]] = []
         commit_sequence = int(data.get("commit", 0))
         new_events: list[dict[str, Any]] = []
         for kind, record_id, expected_revision, payload in pending:
@@ -556,18 +634,29 @@ class FileRecordRepository:
                     f"revision conflict: expected {expected_revision}, "
                     f"current {current}"
                 )
+            # A-11：稳定记录的项目归属必须与本次事务一致，拒绝 B 项目
+            # 借 expected_revision 修订 A 项目同名记录。历史修订本身就是
+            # 权威 records 中的 rows，身份核对以权威边界为准。
+            self._verify_ownership(
+                kind=kind,
+                record_id=record_id,
+                rows=rows,
+                project_id=project_id,
+                payload=payload,
+            )
             rows.append(dict(payload))
             commit_sequence += 1
             revision = current + 1
             created.append((kind, record_id, revision))
             new_index_rows.append(
-                {
-                    "project_id": project_id,
-                    "aggregate_kind": kind,
-                    "record_id": record_id,
-                    "revision": revision,
-                    "commit_sequence": commit_sequence,
-                }
+                build_index_row(
+                    project_id=project_id,
+                    aggregate_kind=kind,
+                    record_id=record_id,
+                    revision=revision,
+                    commit_sequence=commit_sequence,
+                    payload=dict(payload),
+                )
             )
             new_events.append(
                 {
@@ -627,13 +716,14 @@ class FileRecordRepository:
                     writer_epoch=writer_epoch,
                 )
                 boundary_started = True
-                for (_kind, record_id, revision), event_payload in zip(
+                for (kind, record_id, revision), event_payload in zip(
                     created, new_events, strict=True
                 ):
                     self._journal.record_event(
                         commit_sequence=commit_sequence,
                         event_type=str(event_payload["event_type"]),
                         project_id=project_id,
+                        aggregate_kind=kind,
                         record_id=record_id,
                         revision=revision,
                         request_id=request_id,
@@ -651,7 +741,14 @@ class FileRecordRepository:
                 self._journal.commit_boundary(commit_sequence=commit_sequence)
             else:
                 self._save_events(events + new_events)
-            FileQueryIndex(self.root).rebuild(new_index_rows)
+            # A-05：通用记录目录只增量重写落点分片；索引根缺失/版本不符
+            # 时用内存中的权威全量摘要行全量重建（无额外历史扫描）。
+            all_index_rows = self._summary_rows_from_authority(data, ledger)
+            FileQueryIndex(self.root, journal=self._journal).publish(
+                new_index_rows,
+                commit_sequence=commit_sequence,
+                all_rows=all_index_rows,
+            )
         except BaseException:
             if records_published:
                 # records 权威边界已发布：提交事实存在。尽力从权威边界

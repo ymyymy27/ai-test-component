@@ -39,6 +39,16 @@ _PERMANENT_DIRS: Final = frozenset(
         "exports",
         "migrations",
         "reports",
+        # generations 为历史世代永久材料；core 下的启动/运行台账与
+        # maintenance/audit.jsonl 回收审计同为永久留存，备份闭包必须覆盖，
+        # 缺目录跳过、缺文件不伪造（A-06）。
+        "generations",
+        "core",
+        "maintenance",
+        # indexes/ 为分片查询目录（A-05）：全局根 indexes.json 之外的
+        # 有序分片、折叠键账同为可从权威边界重建但必须随备份闭包保存的
+        # 投影，恢复后列表不得退回 INDEX_REBUILD_REQUIRED。
+        "indexes",
     }
 )
 
@@ -72,6 +82,24 @@ def _contained_path(base: Path, relative: object) -> Path | None:
     if not candidate.is_relative_to(base):
         return None
     return candidate
+
+
+def _chain_has_symlink(raw_target: Path) -> bool:
+    """在 resolve() 之前按 lstat 逐层核对目标路径上的符号链接。
+
+    ``resolve()`` 会跟随符号链接，先 resolve 再查 ``is_symlink()`` 永远
+    发现不了目标自身或其现存祖先中的链接（A-06）。目标尚不存在时上溯到
+    最近的现存祖先，再根→叶逐层检查；不存在的层 lstat 失败返回 False。
+    """
+    anchor = raw_target
+    missing: list[str] = []
+    while not anchor.exists() and anchor.parent != anchor:
+        missing.append(anchor.name)
+        anchor = anchor.parent
+    chain: list[Path] = [anchor]
+    for name in reversed(missing):
+        chain.append(chain[-1] / name)
+    return any(path.is_symlink() for path in chain)
 
 
 def _read_manifest(backup: Path) -> dict[str, str]:
@@ -190,6 +218,10 @@ class FileBackupStore:
         内容摘要不符属于备份损坏，抛 :class:`BackupError`。
         """
         backup = backup.resolve()
+        # 先按原始路径核对目标及各现存层的符号链接，再 resolve：否则链接
+        # 已被跟随，后续 is_symlink() 永远为假，写入会落到链接对端（A-06）。
+        if _chain_has_symlink(target):
+            raise BackupError("恢复目标路径含符号链接，拒绝恢复")
         target = target.resolve()
 
         try:
@@ -227,10 +259,6 @@ class FileBackupStore:
                 )
             destinations[name] = destination
 
-        if target.is_symlink():
-            # 恢复目标本身是符号链接时，iterdir/写入都会落到链接对端，
-            # 等于在工作空间边界外写文件——整体拒绝（A-06 恢复目标边界）。
-            raise BackupError("恢复目标是符号链接，拒绝恢复")
         if target.exists() and any(target.iterdir()):
             raise BackupError("恢复目标非空，拒绝覆盖")
         post_errors: list[str] = []

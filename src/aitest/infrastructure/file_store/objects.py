@@ -10,6 +10,8 @@ from pathlib import Path
 
 from aitest.domain.evidence.evidence import StoredObjectRef
 
+from ..security import KnownSecretRegistry, guard_bytes, known_secrets
+
 
 def _safe_component(value: str, name: str) -> str:
     if not value or value in {".", ".."} or Path(value).name != value:
@@ -20,10 +22,20 @@ def _safe_component(value: str, name: str) -> str:
 
 
 class FileObjectStore:
-    """Store immutable bytes under objects/<project>/<sha256>."""
+    """Store immutable bytes under objects/<project>/<sha256>.
 
-    def __init__(self, workspace_root: Path) -> None:
+    落盘前安全底线（A-09）：内容先经过不可关闭的凭据过滤，摘要与对象
+    一律基于**过滤后字节**；过滤前字节从不进入临时文件或内容寻址区。
+    """
+
+    def __init__(
+        self,
+        workspace_root: Path,
+        *,
+        registry: KnownSecretRegistry | None = None,
+    ) -> None:
         self._root = workspace_root.resolve()
+        self._registry = registry or known_secrets()
 
     def publish_bytes(
         self,
@@ -32,6 +44,9 @@ class FileObjectStore:
         *,
         media_type: str = "application/octet-stream",
     ) -> StoredObjectRef:
+        # 必须在任何临时文件创建之前完成过滤：调用方拿到的 digest/大小
+        # 只描述可安全保存的字节（架构02第13节）。
+        content, _changed = guard_bytes(content, self._registry)
         safe_project = _safe_component(project_id, "project_id")
         digest_hex = hashlib.sha256(content).hexdigest()
         digest = "sha256:" + digest_hex

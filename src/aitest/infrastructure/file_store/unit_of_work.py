@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aitest.contracts.identity import IntentId, RequestId
 
+from ..security import KnownSecretRegistry, guard_value, known_secrets
 from .events import FileEventJournal
 from .records import FileRecordRepository
 from .workspace import Workspace
@@ -19,13 +20,16 @@ class FileUnitOfWork:
         root: Path,
         *,
         journal: FileEventJournal | None = None,
+        registry: KnownSecretRegistry | None = None,
     ) -> None:
         """文件 UOW。
 
         :param journal: 正式事件日志。注入后 commit 走正式事件日志路径；
             None 时 records.commit_transaction 写旧版 ``events.json``
             （迁移过渡期使用）。
+        :param registry: 已知凭据登记表，默认进程级全局表（A-09）。
         """
+        self._registry = registry or known_secrets()
         self.workspace = Workspace(root)
         self.repo = FileRecordRepository(root, journal=journal)
         self.project: str | None = None
@@ -35,6 +39,9 @@ class FileUnitOfWork:
         self.request_id: RequestId | None = None
         self.intent_id: IntentId | None = None
         self._lock_context: AbstractContextManager[object] | None = None
+        #: 上一次 commit 发布结果未知（提交抛错且锁已释放）。此时禁止
+        #: 无锁重试/继续暂存，只能重新持锁核实权威边界或回滚（A-12）。
+        self._commit_uncertain = False
 
     def begin(
         self,
@@ -43,6 +50,10 @@ class FileUnitOfWork:
         workspace_id: str | None = None,
         intent_id: IntentId | None = None,
     ) -> dict[str, object]:
+        if self._commit_uncertain:
+            raise RuntimeError(
+                "previous commit result is unknown; verify or rollback required"
+            )
         if self.project is not None:
             raise RuntimeError("transaction already open")
         if workspace_id is not None:
@@ -66,6 +77,10 @@ class FileUnitOfWork:
             raise
 
     def open(self, project_id: str) -> None:
+        if self._commit_uncertain:
+            raise RuntimeError(
+                "previous commit result is unknown; verify or rollback required"
+            )
         if self.project is not None:
             raise RuntimeError("transaction already open")
         self.project = project_id
@@ -102,10 +117,19 @@ class FileUnitOfWork:
     ) -> int:
         if self.project is None:
             raise RuntimeError("no open transaction")
+        if self._commit_uncertain:
+            raise RuntimeError(
+                "previous commit result is unknown; verify or rollback required"
+            )
         current = self.repo.current_revision(aggregate_kind, record_id)
         if current != (expected_revision or 0):
             raise ValueError("revision conflict")
-        self.pending.append((aggregate_kind, record_id, current, dict(payload)))
+        # A-09 落盘前底线：业务记录 payload 经结构+已知凭据过滤后再暂存，
+        # records.json 中不得出现凭据原文（后续投影/备份/导出只读安全副本）。
+        safe_payload, _changed = guard_value(dict(payload), self._registry)
+        if not isinstance(safe_payload, Mapping):
+            raise TypeError("guarded payload must remain a mapping")
+        self.pending.append((aggregate_kind, record_id, current, safe_payload))
         return current + 1
 
     def commit(
@@ -119,6 +143,14 @@ class FileUnitOfWork:
             self.workspace.validate(workspace_id)
         if self.project is None or not self.pending:
             raise RuntimeError("nothing staged")
+        if self._commit_uncertain:
+            raise RuntimeError(
+                "previous commit result is unknown; verify or rollback required"
+            )
+        if self._lock_context is None:
+            # 绝不允许在无 writer.lock 的状态下发布：两个交错 UOW 无锁提交
+            # 会同时读到旧边界、互相覆盖并丢记录（A-12）。
+            raise RuntimeError("commit requires the writer lock")
         assert self.request_id is not None
         try:
             created, commit_sequence = self.repo.commit_transaction(
@@ -129,8 +161,14 @@ class FileUnitOfWork:
                 workspace_id=self.workspace.workspace_id,
                 writer_epoch=self.workspace.identity.get("writer_epoch", 1),
             )
-        finally:
+        except BaseException:
+            # 发布结果未知：先释放锁允许他者工作，但本实例进入“仅核实/
+            # 回滚”状态——暂存与身份保留待查，禁止无锁重试或继续暂存，
+            # 避免与持锁提交交错覆盖已成功发布的记录（A-12）。
             self._release()
+            self._commit_uncertain = True
+            raise
+        self._release()
         rid = self.request_id
         self.project = None
         self.pending = []
@@ -152,6 +190,11 @@ class FileUnitOfWork:
             raise RuntimeError("request_id does not own transaction")
         if workspace_id is not None:
             self.workspace.validate(workspace_id)
+        # 上一次提交结果未知时，rollback 是“重新准入”：重新持锁并核实权威
+        # 边界——已实际发布则如实报 committed（业务事实不可回滚），确认未
+        # 发布才丢弃暂存（A-12）。
+        if self._commit_uncertain:
+            return self._resolve_uncertain()
         rid = self.request_id
         iid = self.intent_id
         self.project = None
@@ -167,8 +210,38 @@ class FileUnitOfWork:
             rollback_result["intent_id"] = iid
         return rollback_result
 
+    def _resolve_uncertain(self) -> dict[str, object]:
+        """重新持锁核实未知提交的权威结果，再决定已提交或回滚。"""
+        rid = self.request_id
+        iid = self.intent_id
+        with self.workspace.acquire():
+            committed = self.repo.find_committed_request(
+                request_id=rid,
+                intent_id=iid,
+                project_id=self.project,
+            )
+            if committed is not None:
+                result: dict[str, object] = {
+                    "request_id": rid,
+                    "state": "committed",
+                    "commit_sequence": committed.get("commit_sequence"),
+                    "created": committed.get("created", []),
+                }
+            else:
+                result = {"request_id": rid, "state": "rolled_back"}
+            if iid is not None:
+                result["intent_id"] = iid
+        self.project = None
+        self.pending = []
+        self.request_id = None
+        self.intent_id = None
+        self._commit_uncertain = False
+        return result
+
     def recover(self, workspace_id: str) -> dict[str, str]:
         self.workspace.validate(workspace_id)
+        if self._commit_uncertain:
+            return {"workspace_id": workspace_id, "state": "uncertain"}
         return {
             "workspace_id": workspace_id,
             "state": "not_started" if self.project is None else "active",
