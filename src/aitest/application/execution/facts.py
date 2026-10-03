@@ -73,6 +73,23 @@ def _enum[EnumT: StrEnum](enum_type: type[EnumT], value: str) -> EnumT:
 
 
 @dataclass(frozen=True, slots=True)
+class ExecutionFactsBoundary:
+    """Authoritative commit boundary read as one coherent fact set."""
+
+    snapshot_commit_id: str
+    snapshot_cursor: int
+    snapshot_revision: int
+
+    def __post_init__(self) -> None:
+        if not self.snapshot_commit_id.strip():
+            raise ValueError("snapshot_commit_id must not be empty")
+        if self.snapshot_cursor < 0:
+            raise ValueError("snapshot_cursor must be non-negative")
+        if self.snapshot_revision < 1:
+            raise ValueError("snapshot_revision must be positive")
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionFactsAssembly:
     facts_id: str
     snapshot_commit_id: str
@@ -82,6 +99,7 @@ class ExecutionFactsAssembly:
     run: Run
     steps: tuple[Step, ...]
     attempts: tuple[Attempt, ...]
+    boundary: ExecutionFactsBoundary | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
     source_check_results: tuple[SourceCheckResult, ...] = ()
     source_verifications: tuple[ExecutionSourceVerification, ...] = ()
@@ -92,13 +110,16 @@ class ExecutionFactsAssembly:
     gaps: tuple[EvidenceGapFact, ...] = ()
     redaction_summaries: Mapping[str, RedactionSummary] = field(default_factory=dict)
     coverage: CoverageSummary = field(default_factory=CoverageSummary)
-    completeness: FactCompleteness = FactCompleteness.COMPLETE
+    completeness: FactCompleteness = FactCompleteness.UNKNOWN
+    evidence_readable: bool | None = None
 
 
 class ExecutionFactsAssembler:
     """Map internal C domain facts to the versioned C-D contract."""
 
     def assemble(self, assembly: ExecutionFactsAssembly) -> ExecutionFacts:
+        _validate_assembly_boundary(assembly)
+        completeness = _effective_completeness(assembly)
         run = assembly.run
         attempts_by_step: dict[str, tuple[Attempt, ...]] = {}
         for attempt in assembly.attempts:
@@ -156,8 +177,55 @@ class ExecutionFactsAssembler:
             unknowns=assembly.unknowns,
             gaps=assembly.gaps,
             coverage=assembly.coverage,
-            completeness=assembly.completeness,
+            completeness=completeness,
         )
+
+    def assemble_at_boundary(
+        self,
+        assembly: ExecutionFactsAssembly,
+        boundary: ExecutionFactsBoundary,
+    ) -> ExecutionFacts:
+        actual = ExecutionFactsBoundary(
+            snapshot_commit_id=assembly.snapshot_commit_id,
+            snapshot_cursor=assembly.snapshot_cursor,
+            snapshot_revision=assembly.snapshot_revision,
+        )
+        if actual != boundary:
+            raise ValueError("execution facts do not belong to the authoritative boundary")
+        if assembly.boundary is not None and assembly.boundary != boundary:
+            raise ValueError("assembly boundary conflicts with the authoritative boundary")
+        return self.assemble(assembly)
+
+
+def _validate_assembly_boundary(assembly: ExecutionFactsAssembly) -> None:
+    if assembly.boundary is None:
+        return
+    actual = ExecutionFactsBoundary(
+        snapshot_commit_id=assembly.snapshot_commit_id,
+        snapshot_cursor=assembly.snapshot_cursor,
+        snapshot_revision=assembly.snapshot_revision,
+    )
+    if actual != assembly.boundary:
+        raise ValueError("execution facts do not belong to the authoritative boundary")
+
+
+def _effective_completeness(assembly: ExecutionFactsAssembly) -> FactCompleteness:
+    claimed = assembly.completeness
+    has_gap = bool(assembly.gaps or assembly.unknowns)
+    has_partial_attempt = any(
+        attempt.capture_completeness.value != "complete" for attempt in assembly.attempts
+    )
+    has_partial_evidence = any(
+        evidence.integrity.value != "complete" or bool(evidence.gap_ids)
+        for evidence in assembly.evidence_refs
+    )
+    if has_gap or has_partial_attempt or has_partial_evidence:
+        return FactCompleteness.PARTIAL if claimed is not FactCompleteness.UNKNOWN else claimed
+    if assembly.evidence_readable is False:
+        return FactCompleteness.PARTIAL
+    if assembly.evidence_readable is None and not assembly.evidence_refs:
+        return claimed
+    return claimed
 
 
 def _plan_revision(ref: PlanRevisionRef) -> PlanRevisionRefFact:
@@ -491,4 +559,8 @@ def _mock_fact(item: MockDeclaration) -> MockDeclarationFact:
     )
 
 
-__all__ = ["ExecutionFactsAssembler", "ExecutionFactsAssembly"]
+__all__ = [
+    "ExecutionFactsAssembler",
+    "ExecutionFactsAssembly",
+    "ExecutionFactsBoundary",
+]

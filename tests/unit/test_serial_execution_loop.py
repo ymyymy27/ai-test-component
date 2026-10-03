@@ -290,3 +290,43 @@ def test_command_timeout_becomes_pending_verification(tmp_path: Path) -> None:
     assert result.attempts[0].timed_out is True
     assert result.attempts[0].unknown_reason_ref == "command_timeout"
     assert result.steps[0].state is StepState.PENDING_VERIFICATION
+
+
+def test_long_running_command_finishes_without_poll_budget_pending(
+    tmp_path: Path,
+) -> None:
+    adapter = CommandAdapter()
+    adapter.register(
+        CommandRegistration(
+            entry_id="python",
+            executable=sys.executable,
+            cwd=Path.cwd(),
+        )
+    )
+    request = replace(
+        _request("step-1", "attempt-1"),
+        registered_entry=RegisteredEntryRef(
+            entry_id="python",
+            adapter_kind=AdapterKind.COMMAND,
+            entrypoint=str(Path(sys.executable).resolve()),
+            arguments=("-c", "import time; time.sleep(0.35); print('done')"),
+        ),
+    )
+    runner = SerialRunner(
+        adapter,
+        FileSpoolStore(tmp_path),
+        poll_interval_seconds=0.01,
+    )
+
+    result = runner.run_serial(
+        (
+            SerialExecutionItem(
+                step=_step("step-1", 1),
+                attempt=_attempt("step-1", "attempt-1"),
+                request=request,
+            ),
+        )
+    )
+
+    assert result.attempts[0].state is AttemptState.COMPLETED
+    assert result.attempts[0].unknown_reason_ref is None

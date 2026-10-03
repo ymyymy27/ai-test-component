@@ -189,8 +189,14 @@ class FileBackupStore:
         路径时整体拒绝（不写入任何文件）并返回 ``state="rejected"``；
         内容摘要不符属于备份损坏，抛 :class:`BackupError`。
         """
-        backup = backup.resolve()
-        target = target.resolve()
+        raw_backup = Path(backup)
+        raw_target = Path(target)
+        if raw_target.is_symlink():
+            # 必须在 resolve() 之前检查；否则符号链接已被展开，
+            # 后续写入会落到链接对端并越过工作空间边界。
+            raise BackupError("恢复目标是符号链接，拒绝恢复")
+        backup = raw_backup.resolve()
+        target = raw_target.resolve()
 
         try:
             raw = json.loads((backup / "backup.json").read_text(encoding="utf-8"))
@@ -227,10 +233,6 @@ class FileBackupStore:
                 )
             destinations[name] = destination
 
-        if target.is_symlink():
-            # 恢复目标本身是符号链接时，iterdir/写入都会落到链接对端，
-            # 等于在工作空间边界外写文件——整体拒绝（A-06 恢复目标边界）。
-            raise BackupError("恢复目标是符号链接，拒绝恢复")
         if target.exists() and any(target.iterdir()):
             raise BackupError("恢复目标非空，拒绝覆盖")
         post_errors: list[str] = []

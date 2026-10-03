@@ -1,6 +1,7 @@
 """A-package abstract ports; implementations live in infrastructure."""
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -39,7 +40,7 @@ from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.contracts.verification import VerificationFact
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
-from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.evidence.evidence import StoredObjectRef, Verification
 from aitest.domain.execution.runs import (
     CapturedOutputBlock,
     ExecutionCollectionResult,
@@ -336,6 +337,26 @@ class VerificationPort(Protocol):
     """Independent read-only verification of the same business object."""
 
     def verify(self, path: Path, expected_sha256: str) -> VerificationFact: ...
+
+
+@dataclass(frozen=True, slots=True)
+class VerificationRequest:
+    """Business-level independent verification request."""
+
+    verification_of: str
+    business_object_id: str
+    query_method: str
+    deadline_condition: str
+    target_deployment_ref: str
+    query_interval: str = "configured"
+    evidence_refs: tuple[str, ...] = ()
+    expected_facts: Mapping[str, object] = field(default_factory=dict)
+
+
+class BusinessVerificationPort(Protocol):
+    """Read-only verifier that reports only actual observed facts."""
+
+    def verify(self, request: VerificationRequest) -> Verification: ...
 
 
 class ModelProvider(Protocol):
