@@ -954,3 +954,40 @@ detect_changes(snapshot_id) -> 变化清单
 - **不新建第二套 `SourceSnapshot`**：类位置仍唯一在 `domain/execution/sources.py`。
 - **不手工改生成 Schema 与夹具**：字段落地后由声明所有者重新生成。
 - **不把本节的"冻结字段"写成"已实现"**：`provider_implementation` 仍为 `partial`。
+
+### 11.7 B 侧实现落地与 Q3 迁移说明（2026-10-03）
+
+**B 侧已实现**（第 11.3 节的算法不再只是口径，有代码与测试）：
+
+| 项 | 位置 |
+| --- | --- |
+| `SourceForm`（形式互斥，取值同 `BindingForm`） | `domain/project/context.py` |
+| `SourceManifest` 形式化（`git`：基准提交＋差异摘要；`plain`：清单摘要） | 同上 |
+| **`source_content_identity()`** —— 第 11.3 节算法的**唯一实现** | 同上 |
+| 快照 payload 编解码（形式互斥**落到字节**：另一形态的键真正不出现） | `application/project/serialization.py` |
+| 快照落盘 `save_source_snapshot()` / `load_source_snapshot()`（类别 `source_snapshot`；`purpose` 只允许 `analysis`/`prepare`） | `application/project/persistence.py` |
+| 漂移核对按**内容身份**比对 | `application/planning/drift.py` |
+| 测试 | `tests/unit/test_source_identity.py`（21）、`tests/unit/test_source_snapshot_persistence.py`（12）、`test_frozen_basis_drift.py`（+3） |
+
+**Q3 迁移说明（B 给 C）**：
+
+1. **算法唯一来源**：C 的 `SourceSnapshot.content_identity` 应**调用**
+   `aitest.domain.project.context.source_content_identity()`（或按同一规范字节自行实现并加
+   交叉断言）。**不要**再自行构造——两套算法一旦分叉，同一份源码在 B 与 C 会得到不同身份。
+2. **规范字节**：逐文件行 `<relative_path>\t<size>\t<content_digest>`，
+   **按 `relative_path` 升序**，用 `\n` 连接；末尾追加一行形态身份
+   （`git:<git_base_commit>:<git_diff_digest>` 或 `plain:<plain_manifest_digest>`）；
+   取该字符串的 sha256，前缀 `sha256:`。
+3. **不参与计算**：`mtime`、`source_scope`、`exclusion_rules`、`refetch_*`、
+   `snapshot_id`、`purpose`、绝对路径与盘符。
+4. **是否提升 Schema 主版本**：由 C 按 Q1／Q2 结论判断。若 C 现行构造与本节规范字节不同，
+   则**同一记录的身份值会变**，应按第 8 节"变更和兼容规则"处理
+   （旧记录身份不静默覆盖，登记迁移方式）。
+5. **B 侧不做的事**：不新加快照端口签名、不改 `domain/execution/sources.py`、
+   不自行执行 `git`——`git_base_commit` / `git_diff_digest` 由 A 的端口给出。
+
+**仍然待办（不因本节完成而关闭）**：
+
+- **A**：`pin` / `read_pinned` / `materialize` / `detect_changes` 的实现与默认装配（第 11.4 节）；
+- **C**：按 Q1／Q2 回写兼容性结论并在 `sources.py` 补齐字段（走新的契约 PR）；
+- **B**：Q4（快照是否登记为 `InputRevisions.snapshot_revision` 的来源修订）仍待在 BC/BD 合同中引用。
