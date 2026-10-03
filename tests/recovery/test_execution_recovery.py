@@ -2,9 +2,11 @@ from pathlib import Path
 from typing import NoReturn
 
 from aitest.application.execution.recovery import (
+    CaseReuseBasis,
     RecoveryAction,
     RecoveryRecord,
     invalidate_downstream_attempts,
+    invalidate_reuse_bases,
     recover_attempt,
 )
 from aitest.application.execution.runner import SerialRunner
@@ -187,14 +189,17 @@ def test_plan_change_invalidates_only_precise_downstream_dependencies() -> None:
         current_plan_revision=new_revision,
         affected_upstream_attempt_ids=("upstream-1",),
     )
-    assert [item.attempt.attempt_id for item in invalidations] == ["executing-affected"]
-    assert invalidations[0].attempt.state is AttemptState.INVALIDATED
+    assert [item.attempt.attempt_id for item in invalidations] == [
+        "executing-affected",
+        "completed-dependent",
+    ]
+    assert all(item.attempt.state is AttemptState.INVALIDATED for item in invalidations)
     assert invalidations[0].upstream_attempt_ids == ("upstream-1",)
+    assert invalidations[1].upstream_attempt_ids == ("upstream-1",)
     assert unrelated.state is AttemptState.RUNNING
-    assert completed.state is AttemptState.COMPLETED
 
 
-def test_same_plan_revision_has_no_false_invalidation() -> None:
+def test_same_plan_revision_still_invalidates_replaced_upstream_dependents() -> None:
     revision = PlanRevisionRef(
         revision_id="plan-1",
         revision_no=1,
@@ -207,8 +212,57 @@ def test_same_plan_revision_has_no_false_invalidation() -> None:
         current_plan_revision=revision,
         affected_upstream_attempt_ids=("upstream-1",),
     )
-    assert invalidations == ()
-    assert attempt.state is AttemptState.RUNNING
+    assert [item.attempt.attempt_id for item in invalidations] == ["executing"]
+    assert invalidations[0].attempt.state is AttemptState.INVALIDATED
+    assert invalidations[0].reason == "upstream_attempt_replaced"
+
+
+def test_invalidation_closes_transitive_dependents_without_touching_other_branch() -> None:
+    old_revision = PlanRevisionRef(
+        revision_id="plan-1",
+        revision_no=1,
+        digest="sha256:plan-old",
+    )
+    new_revision = PlanRevisionRef(
+        revision_id="plan-1",
+        revision_no=2,
+        digest="sha256:plan-new",
+    )
+    direct = _attempt("direct", upstream_attempt_ids=("upstream-1",))
+    transitive = _attempt("transitive", upstream_attempt_ids=("direct",))
+    unrelated = _attempt("unrelated", upstream_attempt_ids=("upstream-2",))
+
+    invalidations = invalidate_downstream_attempts(
+        (transitive, direct, unrelated),
+        previous_plan_revision=old_revision,
+        current_plan_revision=new_revision,
+        affected_upstream_attempt_ids=("upstream-1",),
+    )
+
+    assert [item.attempt.attempt_id for item in invalidations] == ["transitive", "direct"]
+    assert all(item.attempt.state is AttemptState.INVALIDATED for item in invalidations)
+    assert unrelated.state is AttemptState.RUNNING
+
+
+def test_reuse_basis_is_revoked_when_its_source_attempt_changes() -> None:
+    affected = CaseReuseBasis(
+        case_id="case-1",
+        source_attempt_ids=("upstream-1", "upstream-2"),
+    )
+    unrelated = CaseReuseBasis(
+        case_id="case-2",
+        source_attempt_ids=("upstream-3",),
+    )
+
+    invalidations = invalidate_reuse_bases(
+        (affected, unrelated),
+        affected_upstream_attempt_ids=("upstream-1",),
+    )
+
+    assert len(invalidations) == 1
+    assert invalidations[0].case_id == "case-1"
+    assert invalidations[0].source_attempt_ids == ("upstream-1",)
+    assert invalidations[0].reason == "reuse_basis_invalidated"
 
 
 class _LostPort:

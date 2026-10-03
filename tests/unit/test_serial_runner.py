@@ -1,5 +1,8 @@
+from dataclasses import replace
+
 import pytest
 
+from aitest.application.execution.recovery import RecoveryRecord
 from aitest.application.execution.runner import SerialRunner
 from aitest.domain.execution.runs import (
     AdapterKind,
@@ -15,6 +18,7 @@ from aitest.domain.execution.runs import (
     ExecutionRequest,
     OutputCursor,
     PlanRevisionRef,
+    RecoveryCheckpoint,
     RegisteredEntryRef,
     SideEffectClass,
     Step,
@@ -23,6 +27,11 @@ from aitest.domain.execution.runs import (
     StepState,
     StopRequestResult,
 )
+from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
+from tests.support.fake_execution import (
+    FakeExecutionPort as DeterministicFakeExecutionPort,
+)
+from tests.support.fake_execution import FakeExecutionSpec
 
 
 class FakeExecutionPort:
@@ -159,6 +168,117 @@ def test_start_attempt_records_real_handle() -> None:
     assert port.started == [_request()]
     assert started.state is AttemptState.RUNNING
     assert started.execution_handle_ref == port.handle
+
+
+def test_execute_attempt_persists_intent_checkpoint_before_start(tmp_path) -> None:
+    port = DeterministicFakeExecutionPort()
+    port.register(
+        FakeExecutionSpec(
+            attempt_id="attempt-1",
+            run_id="run-1",
+            step_id="step-1",
+            running_observations_before_exit=0,
+        )
+    )
+    checkpoint_path = tmp_path / "checkpoints" / "attempt-1.json"
+    port_started_after_checkpoint = False
+
+    original_start = port.start
+
+    def start(request: ExecutionRequest) -> ExecutionHandle:
+        nonlocal port_started_after_checkpoint
+        port_started_after_checkpoint = checkpoint_path.exists()
+        return original_start(request)
+
+    port.start = start  # type: ignore[method-assign]
+    runner = SerialRunner(
+        port,
+        checkpoint_store=FileCheckpointStore(tmp_path),
+    )
+
+    result = runner.execute_attempt(_attempt(), _request())
+
+    assert result.state is AttemptState.COMPLETED
+    assert port_started_after_checkpoint is True
+
+
+def test_execute_attempt_rejects_mismatched_authorization_before_start() -> None:
+    port = FakeExecutionPort()
+    runner = SerialRunner(port)
+    request = _request()
+    request = replace(
+        request,
+        authorization_ref=replace(
+            request.authorization_ref,
+            resolved_input_digest="sha256:other-input",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="authorization input digest"):
+        runner.execute_attempt(_attempt(), request)
+
+    assert port.started == []
+
+
+def test_execute_attempt_rejects_frozen_input_mismatch_before_start() -> None:
+    port = FakeExecutionPort()
+    runner = SerialRunner(port)
+    mismatch = replace(
+        _attempt(),
+        resolved_input_digest="sha256:other-input",
+    )
+
+    with pytest.raises(ValueError, match="resolved input digest"):
+        runner.execute_attempt(mismatch, _request())
+
+    assert port.started == []
+
+
+def test_repeated_same_intent_does_not_start_second_execution(tmp_path) -> None:
+    port = DeterministicFakeExecutionPort()
+    port.register(
+        FakeExecutionSpec(
+            attempt_id="attempt-1",
+            run_id="run-1",
+            step_id="step-1",
+            running_observations_before_exit=0,
+        )
+    )
+    runner = SerialRunner(
+        port,
+        checkpoint_store=FileCheckpointStore(tmp_path),
+    )
+
+    first = runner.execute_attempt(_attempt(), _request())
+    second = runner.execute_attempt(_attempt(), _request())
+
+    assert first.state is AttemptState.COMPLETED
+    assert second.state is AttemptState.COMPLETED
+    assert port.execution_order == ["attempt-1"]
+
+
+def test_start_intent_without_confirmed_handle_stays_pending(tmp_path) -> None:
+    store = FileCheckpointStore(tmp_path)
+    attempt = _attempt()
+    store.persist(
+        RecoveryRecord(
+            checkpoint=RecoveryCheckpoint(
+                run_id=attempt.run_id,
+                step_id=attempt.step_id,
+                attempt_id=attempt.attempt_id,
+                last_committed_stage="intent_recorded",
+            ),
+            attempt=attempt,
+        )
+    )
+    port = DeterministicFakeExecutionPort()
+    runner = SerialRunner(port, checkpoint_store=store)
+
+    result = runner.execute_attempt(attempt, _request())
+
+    assert result.state is AttemptState.PENDING_VERIFICATION
+    assert result.unknown_reason_ref == "start_intent_without_confirmed_handle"
+    assert port.execution_order == []
 
 
 def test_runner_rejects_attempt_request_identity_mismatch() -> None:

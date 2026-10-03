@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from aitest.domain.execution.runs import CapturedOutputBlock, OutputStreamName
+from aitest.infrastructure.file_store import spool as spool_module
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 
 
@@ -65,6 +66,39 @@ def test_spool_appends_while_stream_is_still_open(tmp_path: Path) -> None:
     manifest = store.read_manifest("attempt-1")
     assert manifest.cursors[0].offset == 5
     assert store.read_block(manifest.blocks[0]) == b"hello"
+    writer.close()
+
+
+def test_spool_fsyncs_stream_before_marking_cursor_durable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = FileSpoolStore(tmp_path)
+    writer = store.open_stream(
+        run_id="run-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        stream_name=OutputStreamName.STDOUT,
+        block_size=2,
+    )
+    order: list[str] = []
+    real_fsync = spool_module.os.fsync
+    real_seal = writer._seal
+
+    def record_fsync(fd: int) -> None:
+        order.append("fsync")
+        real_fsync(fd)
+
+    def record_seal(*, complete: bool):
+        order.append("seal")
+        return real_seal(complete=complete)
+
+    monkeypatch.setattr(spool_module.os, "fsync", record_fsync)
+    monkeypatch.setattr(writer, "_seal", record_seal)
+
+    assert writer.append(b"ok")
+    assert order[:2] == ["fsync", "seal"]
+    assert store.read_manifest("attempt-1").cursors[0].durable is True
     writer.close()
 
 

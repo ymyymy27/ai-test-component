@@ -8,8 +8,10 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from io import BufferedReader
 from pathlib import Path
 from typing import IO, Any
 from uuid import uuid4
@@ -36,6 +38,8 @@ from aitest.domain.execution.runs import (
 from .redaction import StreamingRedactor
 
 SecretResolver = Callable[[str], Mapping[str, str]]
+
+_WINDOWS_JOB_PROCESS_ACCESS = 0x0001 | 0x0100 | 0x0200 | 0x1000
 
 _DEFAULT_ENV_ALLOWLIST = (
     "PATH",
@@ -84,6 +88,7 @@ class _CommandRuntime:
     timed_out: bool = False
     timeout_timer: threading.Timer | None = None
     job_handle: int | None = None
+    group_stopped: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -239,7 +244,7 @@ class CommandAdapter:
                 state=ExecutionInspectionState.STOPPED,
                 process_reachable=return_code is None,
                 identity_matches=True,
-                stop_confirmed=return_code is not None,
+                stop_confirmed=runtime.group_stopped,
             )
         if return_code is None:
             return ExecutionInspectionResult(
@@ -269,9 +274,20 @@ class CommandAdapter:
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
             )
+
         self._cancel_timeout(runtime)
+        group_stopped = self._cleanup_group(runtime)
         for thread in runtime.threads:
             thread.join(timeout=5)
+        readers_done = all(not thread.is_alive() for thread in runtime.threads)
+        complete = readers_done and not runtime.read_errors and group_stopped
+        completeness = self._capture_completeness(runtime)
+        if not complete:
+            completeness = (
+                CaptureCompleteness.GAP
+                if runtime.read_errors or not group_stopped
+                else CaptureCompleteness.PARTIAL
+            )
 
         if self._spool_store is not None:
             manifest = self._spool_store.read_manifest(runtime.request.attempt_id)
@@ -281,9 +297,18 @@ class CommandAdapter:
         else:
             output_blocks = tuple(runtime.output_blocks)
             output_cursors = _cursors_from_buffers(runtime)
-            captured_blocks = _captured_blocks(runtime)
+            captured_blocks = _captured_blocks(runtime) if complete else ()
 
-        completeness = self._capture_completeness(runtime)
+        if not complete:
+            return ExecutionCollectionResult(
+                attempt_id=runtime.request.attempt_id,
+                output_blocks=output_blocks,
+                captured_blocks=captured_blocks,
+                output_cursors=output_cursors or (cursors or ()),
+                capture_completeness=completeness,
+                complete=False,
+            )
+
         exit_fact = ExitFact(
             attempt_id=runtime.request.attempt_id,
             startup_token=runtime.startup_token,
@@ -305,7 +330,6 @@ class CommandAdapter:
             ),
             timed_out=runtime.timed_out,
         )
-        self._cleanup_group(runtime)
         return ExecutionCollectionResult(
             attempt_id=runtime.request.attempt_id,
             output_blocks=output_blocks,
@@ -337,10 +361,16 @@ class CommandAdapter:
         except subprocess.TimeoutExpired:
             self._terminate_group(runtime.process.pid, force=True)
             runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+        group_stopped = self._cleanup_group(runtime)
         return StopRequestResult(
             handle_id=handle.handle_id,
-            stop_confirmed=True,
-            observed_state=ExecutionInspectionState.STOPPED,
+            stop_confirmed=group_stopped,
+            observed_state=(
+                ExecutionInspectionState.STOPPED
+                if group_stopped
+                else ExecutionInspectionState.UNKNOWN
+            ),
+            unknown_reason=None if group_stopped else "process_group_stop_unconfirmed",
         )
 
     def _timeout_runtime(self, runtime: _CommandRuntime) -> None:
@@ -386,7 +416,11 @@ class CommandAdapter:
             reader_error = False
             try:
                 while True:
-                    chunk = stream.read(4096)
+                    chunk = (
+                        stream.read1(4096)
+                        if isinstance(stream, BufferedReader)
+                        else stream.read(4096)
+                    )
                     if not chunk:
                         break
                     filtered = redactor.feed(chunk)
@@ -491,12 +525,18 @@ class CommandAdapter:
         _terminate_process_group(pid, force=force)
 
     @staticmethod
-    def _cleanup_group(runtime: _CommandRuntime) -> None:
+    def _cleanup_group(runtime: _CommandRuntime) -> bool:
         if os.name == "nt":
+            if runtime.job_handle is None:
+                runtime.group_stopped = False
+                return False
             _close_job(runtime.job_handle)
             runtime.job_handle = None
-            return
+            runtime.group_stopped = True
+            return True
         _terminate_process_group(runtime.process.pid, force=True)
+        runtime.group_stopped = _process_group_stopped(runtime.process.pid)
+        return runtime.group_stopped
 
 
 def _cursors_from_buffers(runtime: _CommandRuntime) -> tuple[OutputCursor, ...]:
@@ -566,6 +606,17 @@ def _terminate_process_group(pid: int, *, force: bool) -> None:
         return
 
 
+def _process_group_stopped(pid: int) -> bool:
+    if os.name == "nt":
+        return True
+    for _ in range(50):
+        try:
+            os.killpg(pid, 0)  # type: ignore[attr-defined]
+        except ProcessLookupError:
+            return True
+        time.sleep(0.02)
+    return False
+
 def _assign_windows_job(pid: int) -> int | None:
     if os.name != "nt":
         return None
@@ -615,7 +666,7 @@ def _assign_windows_job(pid: int) -> int | None:
     if not set_info(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
         kernel32.CloseHandle(job)
         return None
-    process_handle = kernel32.OpenProcess(0x0100 | 0x0200 | 0x1000, False, pid)
+    process_handle = kernel32.OpenProcess(_WINDOWS_JOB_PROCESS_ACCESS, False, pid)
     if not process_handle:
         kernel32.CloseHandle(job)
         return None
