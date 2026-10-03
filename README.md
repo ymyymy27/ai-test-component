@@ -180,9 +180,10 @@ uv run aitest mcp-relay --binding example
 
 自动化测试覆盖部分领域规则、合同、依赖边界、存储故障和恢复行为，但不能替代产品验收。P1-AC01—35 的状态统一记录在 [`tests/acceptance/p1/status.json`](tests/acceptance/p1/status.json)。
 
-截至2026年10月2日本次续查，源码基线为`develop 9bd4337`：版本、ruff、mypy（本次136个分析文件）和7份生成Schema一致性通过；本机pytest **1148 passed、2 skipped**（符号链接权限不足）。面板build和候选VSIX打包通过，静态Playwright **1 failed**（阶段标题数预期3、实际4）。该基线已记录的[Windows CI](https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076)为 **1149 passed、1 failed**，符号链接恢复目标未拒绝；本机跳过该项不能视为修复通过。真实一期验收仍 **0/35**。
+截至2026年10月3日本轮端到端深查，取证基线`develop 40c82c3`、产品源码仍`9bd4337`。144个非生成产品文件逐文件读取；pytest **1148 passed、2 skipped**，版本/ruff/mypy/7份Schema一致性通过，panel/wheel/VSIX构建及共享面板字节核对通过。独立wheel资源可读取，doctor仍NOT_READY、MCP relay仍不可用。Playwright **1 failed**，后续流程未执行；真实一期仍 **0/35**。
 
-详见[整体分析](docs/当前代码分析与一期工程对比.md)、四包检查 [A](docs/一期工程检查-A包.md) / [B](docs/一期工程检查-B包.md) / [C](docs/一期工程检查-C包.md) / [D](docs/一期工程检查-D包.md)及[本轮证据](docs/validation/p1-audit-20261002/README.md)。四包只保留当前未闭合工作，共33项（A11/B7/C9/D6）；本次19个关键文件定向深查新增7项、细化A-06，[新证据](docs/validation/p1-audit-20261002/deep-audit-9bd4337.json)独立保存。修复过程另存修改日志和历史证据，不把条目数当缺陷数或完成率。
+详见[深入检查](docs/一期端到端深入检查-2026-10-03.md)、[整体分析](docs/当前代码分析与一期工程对比.md)、四包 [A](docs/一期工程检查-A包.md) / [B](docs/一期工程检查-B包.md) / [C](docs/一期工程检查-C包.md) / [D](docs/一期工程检查-D包.md)及[本轮证据](docs/validation/p1-e2e-audit-20261003/README.md)。新增15项，当前48项未闭合任务（A15/B13/C13/D7），包含原接入/验收工作，不能作为缺陷数或完成率；产品本轮未整改。
+
 
 CI普通develop/PR范围为Windows/Python版本、静态、Schema和pytest；面板/VSIX/wheel/制品smoke只在tag路径运行。底层Windows凭据、管道和本地Git集成不替代真实Trae、模型、业务核验和掉电验收。
 

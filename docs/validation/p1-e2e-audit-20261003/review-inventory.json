@@ -1,0 +1,1237 @@
+{
+  "baseline": "40c82c34ae01bdb01deff76d133ce317bec65daf",
+  "scope": "all tracked product implementation, resources, integration and build/CI files",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "lines": 96,
+      "sha256": "f25f4681645483ef031ce3650734ad6f501917d477a529d7c54ef0fe23d52574",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "lines": 58,
+      "sha256": "ca0ff7338d7cf9e823fd941dedcf5980171e2537c5d7adc626f38b6be731bae1",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "integrations/trae/.vscodeignore",
+      "lines": 6,
+      "sha256": "1a1556286becac0e619a3e0902c131d5e80f6c60a602c21cc5b6bdddc3a79024",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "integrations/trae/README.md",
+      "lines": 18,
+      "sha256": "d169d01c0a34de138bd704351e0b759054ab694605ac477dd71f6dc096790e34",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "integrations/trae/package-lock.json",
+      "lines": 4349,
+      "sha256": "23bfa5c6ed9fd1cfe9bd35fbb9b120f4b5bc50dd9261581d279b0743d967aff5",
+      "generated": true,
+      "status": "lock_checked_with_build",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "integrations/trae/package.json",
+      "lines": 25,
+      "sha256": "db9b10d44473f6dd9d3a9d5b96c17894e6ff5ae3ce43e1d2ef414b03168d85f5",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "integrations/trae/scripts/build.mjs",
+      "lines": 7,
+      "sha256": "7a7505b9b18d0f94b2059a2194dcaf20d65c083faa335feb0482161a03b56e59",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "integrations/trae/src/extension.ts",
+      "lines": 29,
+      "sha256": "d0922e83ae2a0f3c0f62a36141f977327dd73532432c3a311a280f2175f40033",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "integrations/trae/tsconfig.json",
+      "lines": 7,
+      "sha256": "ac201fd38c35d7246a1aabc77c20d6f92495e854d378d0fb4e488c3be257da6f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "scripts/check_versions.py",
+      "lines": 38,
+      "sha256": "ebc351580c197e06500a037d3f7e55d10866b661f4550f45f86e051f57296412",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "scripts/generate_schemas.py",
+      "lines": 25,
+      "sha256": "16b6cd36ccbda4ef09e3b3fa174d6b5c313560cdaa74a766e77f532ecde33cb6",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "scripts/smoke_wheel.py",
+      "lines": 50,
+      "sha256": "3b3001b3a965d7a4ac40c065f1e665beecaa22c4ceb1365bf71266ef949a5acd",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "scripts/verify_artifacts.py",
+      "lines": 42,
+      "sha256": "88135539169786e560c3e256c7fcdaffa3af0262ce6195e5726283433288fe84",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/__init__.py",
+      "lines": 3,
+      "sha256": "344b541f96ee148d47973498a8644a7a2e1052b1dbe42675aff8dc1e089f3d7e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/ai_assistance.py",
+      "lines": 43,
+      "sha256": "c5fea2bbee5589346cdf1dcdd548e449cf0892e824b439f4870bf58b2c398f03",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/connectivity.py",
+      "lines": 9,
+      "sha256": "669e8d7caefc9cf5d89dacd530a66ec74a4e87ed461f3de9c9d667393dcf5a81",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/errors.py",
+      "lines": 9,
+      "sha256": "f6aa68c78337bcea53282be418aac84e204f1fafe43e466cb44cea74489d0580",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/evidence/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/evidence/evidence_review.py",
+      "lines": 4,
+      "sha256": "9820c13017d28360d1b1d62d40849eb32eaa81862acb596cdf9bb314a08720a7",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/evidence/publication.py",
+      "lines": 100,
+      "sha256": "18dfe0d168d012780fa85d46d9b360e3c25e266638c64d568d75f2efa6322f9a",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/execution/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/execution/facts.py",
+      "lines": 494,
+      "sha256": "736d4d8c37db40dd3bd1db5156ef9b4856ec8b424c9f7f12122612f4a67b8500",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/execution/recovery.py",
+      "lines": 229,
+      "sha256": "00bd4c6c2247f64dba69f4e2cd19cb152d0ba260251e118d376219126f7d913d",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：C-10,C-11"
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "lines": 448,
+      "sha256": "0c3cf18ad8fbe4079f70fc0d492b38a102af3db05ec732665a54bdf0d1ce178d",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：C-10,C-12"
+    },
+    {
+      "path": "src/aitest/application/execution/source_checks.py",
+      "lines": 4,
+      "sha256": "a610c8834573ae8e9751daf0ee952cbd2cfd3f253b2a09b7539badad6033c3aa",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/draft.py",
+      "lines": 404,
+      "sha256": "765280871df34ab54270f63610f06e8b97c1d65cec035daf7e7f9854962e2eee",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/drift.py",
+      "lines": 144,
+      "sha256": "b6a7a03cc7195da52c21e5fab16314aaafcf1dca7baafe32cf9c9a20717382d4",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/model_orchestration.py",
+      "lines": 581,
+      "sha256": "9eb58def49bc6b23bfe771c313889bb879080304018091203d9344e6a0d19e5e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-12"
+    },
+    {
+      "path": "src/aitest/application/planning/model_ports.py",
+      "lines": 227,
+      "sha256": "b1c3a699271f9bd929d7d95da55f430139290cd16fafbe582b68666c30874957",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/persistence.py",
+      "lines": 252,
+      "sha256": "40357f0fa1cd211597f8c9a3c4cbab4a56bd400fb87832bf950a9b09eb8be698",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/plan_builder.py",
+      "lines": 127,
+      "sha256": "29f066aa5330ae3f31e49342272aef048a6b9b9abd0dcf05f5a044ce00c4c177",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/portable.py",
+      "lines": 264,
+      "sha256": "7fae515b4f3fd82e495395848f080320b9d728046ede9dc1ddedd3169ebc9452",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/preparation.py",
+      "lines": 470,
+      "sha256": "3e3900ed666e319fc78d78e06cb06af1f98dc0bea68fa3cf3b7484b84877fbdc",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/prepare_run.py",
+      "lines": 420,
+      "sha256": "5dddec267d8e07dac5735f804187c26d6ce4fa25948395bb5a309489ece0e686",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/publish.py",
+      "lines": 314,
+      "sha256": "791ac2f756d0c4b65039acf194ebb331383d4c89550061da86d765fb5e6d4bac",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-14"
+    },
+    {
+      "path": "src/aitest/application/planning/regression.py",
+      "lines": 18,
+      "sha256": "a3ad99295b6f414bda71bdc5c516fdff0fde1e891d8f664d9476e2f386771aa7",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/regression_graph.py",
+      "lines": 169,
+      "sha256": "81b33e44e09740e3e77751781d5e14d8e19e38ab265a4c84396a4d28c3565e8a",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/run_mode.py",
+      "lines": 152,
+      "sha256": "b2c6a79420c276e274e9879794321dede1cab06a786c4357f219090e243801f1",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/serialization.py",
+      "lines": 331,
+      "sha256": "d25a82ffeb3444fba35ab919ebd4c947a19f548f29582f20492e0d5299039af0",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/substrate.py",
+      "lines": 438,
+      "sha256": "c193628e33e4c3f82a7baf0371672953d43dd8b144bf3a56b69b66f66ad0904a",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/planning/substrate_adapter.py",
+      "lines": 552,
+      "sha256": "6bb4b725d5d56136f942cbcc6d327179e195fcff0dd3736b176e4976d80c6373",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/ports.py",
+      "lines": 441,
+      "sha256": "b211e0d9af72b472a126ca1290051ad5d144cb301a62067d6d12715ea9de8558",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/project/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/project/context.py",
+      "lines": 488,
+      "sha256": "e83855f2b9a32d7f8f4c2b1cdc97e75587a6654d7ba35cb44e14e1a879a61d63",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-16,B-17"
+    },
+    {
+      "path": "src/aitest/application/project/persistence.py",
+      "lines": 341,
+      "sha256": "070e058f94ba6cf60fc136a8d91d1c7c3c9250e4578d43d1448f9a418587659f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-12"
+    },
+    {
+      "path": "src/aitest/application/project/serialization.py",
+      "lines": 658,
+      "sha256": "013b04aeed71ca32160ea38b4357b69053319ae678a4bf45afe0bf2f138105bd",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-12,B-13"
+    },
+    {
+      "path": "src/aitest/application/review/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/review/defect_management.py",
+      "lines": 185,
+      "sha256": "d83a1656990bdff9c84234ada0b47fea6e7f0cbde0045c13796eaf76a36660e8",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/review/reporting.py",
+      "lines": 111,
+      "sha256": "5998fc70c3e2b2375f00205bfeeb039f9445beb93044fa9b7f2464c113ff98fe",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "lines": 1318,
+      "sha256": "219e3860c60b579a01ee62fc062360791b574f93ded540d394ba0f04b9c2a09d",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-12,B-13,B-14"
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "lines": 648,
+      "sha256": "30da8b2bd2aac1ce0f1901bd0740868b5ecebd7ffccb307ca237836782d2546c",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/__init__.py",
+      "lines": 24,
+      "sha256": "9d96abce9f03461ae0affe5050fbf6967bb0e0bc3ab11ae012917a251b8e67c8",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/capabilities.py",
+      "lines": 35,
+      "sha256": "e17ad2cba814193d422944e892e2418ffc93a3699d4c0a1f6b97160585b4f1d5",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/commands.py",
+      "lines": 87,
+      "sha256": "5b5300dd74cdd3d320158d3224d7992236506173a4275ec152a86689f135f9fe",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/errors.py",
+      "lines": 49,
+      "sha256": "7e91e0ef73dcb579b257159e0ecf7340cfca5cf76bc9003c4fd7603b18ba22af",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/events.py",
+      "lines": 25,
+      "sha256": "ffca4a831d5107f88c74a110e1723dbe234d7e8faacd4b9957de308cdd78c176",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/execution_facts.py",
+      "lines": 599,
+      "sha256": "6925417dfdc646ad267cb80975af65d3945b09d0aa276e1fb64357ac8b6e7f54",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/identity.py",
+      "lines": 28,
+      "sha256": "c160b00ed18ac906ee4e9cdb1316ffa9bfb1ff2362eba2d23841a2d76034d54b",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "lines": 428,
+      "sha256": "08bcb09fab402b60d5e5286b272ac0b216a5b1cc5dce18f0f68bfcda951b9ca5",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "lines": 36,
+      "sha256": "63986349b96ba7cabc831eb2dac8d9dd343c0d3cf64063bb042d4720e27789cf",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/redaction.py",
+      "lines": 161,
+      "sha256": "3ded7266dd89b8ad1b057c7d8eae764f1abe7110fe315c73adecf0eb0ff5159a",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/responses.py",
+      "lines": 29,
+      "sha256": "49981c3ad511c6c1bc596cf90bab898d9ba76c8f8d0d4b543370de4a3780245d",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Command.json",
+      "lines": 104,
+      "sha256": "5beb567170d49fcc19c2594d52bfa50a143bc1b0c9c32906e7db29bf811a68d7",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/CoverageDTO.json",
+      "lines": 62,
+      "sha256": "fc7843597773034df6c7278a64b8f1ec12a2742b53689dbd9f7432fb303b011a",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Event.json",
+      "lines": 101,
+      "sha256": "270d7550351e7ceaecf52d0334fe43951a36d94648e765743727c868638bbb82",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/ExecutionFacts.json",
+      "lines": 2228,
+      "sha256": "8e2447e3c999ebb100ac94a40b498e2f32e9ac7c75ca0d409e0da5c23cd98d53",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/PreparedRun.json",
+      "lines": 978,
+      "sha256": "b5c3f6f82a5f992168d1df2688b950d259fdfb43006e91edd7aaf8f67ad731a3",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Response.json",
+      "lines": 256,
+      "sha256": "fb0b4fa9400f6920a074bd7226f45dfa165ed216c71bdf0e10780554546736fc",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/TemplatePack.json",
+      "lines": 261,
+      "sha256": "1ce3651553340ad5ff06ad82af9eaf97866ddf438fe1028c0523efbfc78df0a6",
+      "generated": true,
+      "status": "schema_regenerated_no_diff",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/contracts/secrets.py",
+      "lines": 49,
+      "sha256": "ec79f13d63fb1f6ac073bb04ded2ca5e1db70051096d32da92d2c9a73fd4627f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/templates.py",
+      "lines": 87,
+      "sha256": "39303d90d3d21d6148c4cc0d5a1daae112e34700cf40a38e47027bd54481c941",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/verification.py",
+      "lines": 35,
+      "sha256": "783a3b7526be809c6601f0c5d7962dab874fba6bc5636ee7cbbbdcec14083c16",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/versions.py",
+      "lines": 10,
+      "sha256": "18df2f7c7d158d846b02d9a4b69f1017b96cd57e9c5a93bb95cf63b230035815",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/contracts/views.py",
+      "lines": 19,
+      "sha256": "b3afe1eb9860ab80db201534f856972b4d057a2e0b1786c0acfeefa14520d926",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/evidence/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/evidence/evidence.py",
+      "lines": 370,
+      "sha256": "0314c302711f61ef2519e9eba5c0df39aaf32931dc889aa576655754f524d11a",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/execution/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/execution/runs.py",
+      "lines": 695,
+      "sha256": "9eed7632029c26699d7202bc4b8e3a31d9433fa53369a80f30b108fbf6c16e1d",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/execution/sources.py",
+      "lines": 136,
+      "sha256": "db1a87a4e5f3aabb19963ffbebb036108c03189ec33f7e18a58522a55e980007",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/planning/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/planning/model_outbound.py",
+      "lines": 433,
+      "sha256": "270f6aa8bde29ac0a72a91d82be09e68837fa736eed8d85dc2e4d4582101e7ae",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/planning/plans.py",
+      "lines": 509,
+      "sha256": "a46251c371f0bb85dce2b2ac59e4bf490f4b6ca66ae6da2ac2a6e6c690510c1e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/planning/rules.py",
+      "lines": 151,
+      "sha256": "0cb2902d71382b7b2cd436c84c36401382296622453b31a5c79ec3e81f2295fc",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/planning/runtime_revision.py",
+      "lines": 661,
+      "sha256": "65fb2b21b93c5bb02851cfd148451cf9c1ead8238d135897e80bb6780e5b8432",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-15"
+    },
+    {
+      "path": "src/aitest/domain/planning/templates.py",
+      "lines": 9,
+      "sha256": "772b4dab6cc14ff8421183948ca79309bac9beb4e7b2c3da6c413e72ed3048fc",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/project/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/project/context.py",
+      "lines": 659,
+      "sha256": "4ee32fc9661b81885c82e41cac4b093f1fe116b089a6c064cca8946d53a53383",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：B-13"
+    },
+    {
+      "path": "src/aitest/domain/review/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/review/defects.py",
+      "lines": 458,
+      "sha256": "0c304bda7d9de8e5b89372f6b2abff0b99b1bae0dc3561ed77a131057f76adb5",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/domain/review/reports.py",
+      "lines": 801,
+      "sha256": "493c23f614adbe77ae500d15825be29881a2170511c11b49824c18c43a08ad35",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：D-09"
+    },
+    {
+      "path": "src/aitest/infrastructure/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/deepseek.py",
+      "lines": 72,
+      "sha256": "4084702e968d481a1f350be423da0a39489782aee23eb108b0b3e3e76af4cb0c",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/agent.py",
+      "lines": 4,
+      "sha256": "c3bda188f62f90d697116fac19faa1cb77c77dac05d10d9b47f2e6c7e736b03b",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "lines": 685,
+      "sha256": "851281e2203c862548c7f8ed4a571376610d48e082fd0b6bd8610add1021cef7",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：C-13"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/external_result.py",
+      "lines": 4,
+      "sha256": "c9ff6ced0c5a2bb518e04f1120a6f166b8977041b7b10cbbf8756ff020837975",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/http.py",
+      "lines": 4,
+      "sha256": "8fabfca1b47e06350febf1412d4d4251cdb7d91b991a3962fb3e8499d3a2a32e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/manual_evidence.py",
+      "lines": 4,
+      "sha256": "7b4a2b228f6e0c09c0ec880471d7397152292335b4dde62850cc2eae3d64e0bf",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/python_checks.py",
+      "lines": 4,
+      "sha256": "78fd9e69b2acd9b984264f4d01f5de15564e1aa08d403f8cbbcfc32bd73bb2eb",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/redaction.py",
+      "lines": 109,
+      "sha256": "5cb8377ef80d37c62844842287a4c7bba5e2e3aef09dc5f581c4ccca0411a608",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/verification.py",
+      "lines": 69,
+      "sha256": "28c9448766c3a20f14ec481f0beedb7b616081bbb6b1c3898bd57192349a4c8e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/model.py",
+      "lines": 195,
+      "sha256": "3305f1f8368dc877464beb34413337dfd37c525397a287830664c8c5be37e8d4",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_control.py",
+      "lines": 271,
+      "sha256": "be94f014c5217c7a5c50db5afae35495cdaaa7084ec0fe3590383d7012514776",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+      "lines": 348,
+      "sha256": "c72e5dcd5e259ffae6446e16f9609e03199858a0b83e284cc04a9d3bb5d43730",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：A-15"
+    },
+    {
+      "path": "src/aitest/infrastructure/clock.py",
+      "lines": 10,
+      "sha256": "592c9cd0b8a04b60e2924471504cb2c597c6d9f77fc436a978950a7312f36c70",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/connections.py",
+      "lines": 381,
+      "sha256": "761f67b753585889296b4aa5b1deed25a2ce45067a7816f481bef5a650fa9ff2",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/credentials.py",
+      "lines": 227,
+      "sha256": "31020fb4d0aee8fcbe1ab6d7e4e2662140770ce10e7c44c903655b22043d3d68",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/exports.py",
+      "lines": 4,
+      "sha256": "6e9b242b8018712809b15f70f76821e0134ab40c457659b79f2343ca321db42e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/atomic.py",
+      "lines": 87,
+      "sha256": "80811bf3140942a22d906323faa6a6600d14192b11fd41db6742a6cc10a629a4",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/backup.py",
+      "lines": 258,
+      "sha256": "252b85d29a2bda25a12ed347e4f1c7831439c8e7e88ee9a1ec32f9a34c51783f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/checkpoints.py",
+      "lines": 77,
+      "sha256": "d3eb08b1cc332ff869457ef134d480f34c0827804ab69a882bc74b3656bd422b",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/events.py",
+      "lines": 562,
+      "sha256": "f92380f940a34d25b9cb04d92a054d8fe4a6d4f01af06af865d05c36f523cb18",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：A-17"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/fake.py",
+      "lines": 91,
+      "sha256": "2493f37c81dbefa25e73b1b9224c671ca3faa8c37fd3250054e09503ebe420f3",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "lines": 340,
+      "sha256": "ef72998197075a2dc9d8b92c1bab28f6d44b06072bff42cfcfffbdca74255bb2",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/integrity.py",
+      "lines": 305,
+      "sha256": "8d826ec8a75d551128ac39d9d8a4457ea0da3fabb3e584dbd9a3ea7ff3adb7ce",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/locking.py",
+      "lines": 24,
+      "sha256": "3d533a6f0baed0b21edcad02891c42f59af5e1f2a6c00d2aadddc8aae30af6f1",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/maintenance.py",
+      "lines": 431,
+      "sha256": "16279b8595255aaa6db06145e31c72ce3e643bfd40789d6bb5bc740698b450c0",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "lines": 376,
+      "sha256": "9ebebbe9c9cf8d6111cb78cfaca79ae5235be53d32a0c4e773e18748f583b375",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：A-16"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/objects.py",
+      "lines": 82,
+      "sha256": "926fc541638ebd5810cfa830b9a95d0f5671fc61dd5cb964da207675384c12c7",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "lines": 670,
+      "sha256": "f1a7533a057d4a9f6e366fb3e4d87f97e9cc4528120335c753af1d3fe3e8c08d",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/recovery.py",
+      "lines": 190,
+      "sha256": "3228776fb802c11aa61cadfe92ebd2fa1e422c3eddfaf290a848c99f0c1f32db",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/spool.py",
+      "lines": 616,
+      "sha256": "6c80505f9b11e6744b16560854e2f0b0085ffeb1bb4a8c3f4512d8f30e0c1e5a",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：C-11"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "lines": 180,
+      "sha256": "1141d73915d6e76c41c57bd089207c18a5538939a873096e7148c842ea52ae12",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/workspace.py",
+      "lines": 52,
+      "sha256": "0aba36ae02ab5ae6801bbf8490e3a519c585603e5693285c8d485516a151a4ed",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/infrastructure/projections.py",
+      "lines": 149,
+      "sha256": "9f9d4d13be18d8de89f52e1ca245b68674d75246ba18cdf1769fba72cc253c7f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/dto.py",
+      "lines": 227,
+      "sha256": "fb84758d1017e5151495299e6b948f1ecc857e8256901814d339cb8d3b06aa6e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/local/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/local/api.py",
+      "lines": 296,
+      "sha256": "07337fa65f07b3e28f917d4e78ddfc56344bc3eceb3e379df665e7f320f2edcc",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/local/b_registration.py",
+      "lines": 73,
+      "sha256": "761c22f47694a90b117cfc4cff42b42eb4902dc02cf489ef79885e879c8fb4f5",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/local/core_worker.py",
+      "lines": 306,
+      "sha256": "b1f3ae370dd486a767022684653fbb6edd0d39fbda63c935bdd0c0788a017b4f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/local/editor_host.py",
+      "lines": 86,
+      "sha256": "9bd75bd052e211ba0393d2b19e8d42b2a81d0f2be23aa17540633e3b4b3e7060",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/local/pipe.py",
+      "lines": 483,
+      "sha256": "a71c495d242c7ffaf033abaf2654805fa4df46263fc83027e1af3efce619d113",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "新增关联：A-18"
+    },
+    {
+      "path": "src/aitest/interfaces/tools/__init__.py",
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/tools/agent_relay.py",
+      "lines": 9,
+      "sha256": "2e9f47de50777aa5c6c80e4e450798ec00211828603f51fb1e6913c1e1170e01",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/interfaces/tools/cli.py",
+      "lines": 59,
+      "sha256": "f0648e768de0e2e761be25727266c320f3952750b92a728f9eed23ef65153879",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/panel/package-lock.json",
+      "lines": 560,
+      "sha256": "0faf73028ed4d459cde52308d5500f68478455d50e552bc0018d88f7cbc4e157",
+      "generated": true,
+      "status": "lock_checked_with_build",
+      "review_notes": "生成物检查，不算人工实现阅读"
+    },
+    {
+      "path": "src/aitest/resources/panel/package.json",
+      "lines": 16,
+      "sha256": "8714a5f87daf32ac69539e2645f738b430ce95c0149f93f50d2c90a1dc3e7c25",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/panel/playwright.config.ts",
+      "lines": 8,
+      "sha256": "6f658f7ee757bbf080739c914641241489047aee5797c822301fd12f355d62eb",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/panel/src/index.ts",
+      "lines": 157,
+      "sha256": "964198a915986181e42799d7c7eaca254c3237e187dc330a25b696e8d66c4fed",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/panel/tests/panel.spec.ts",
+      "lines": 25,
+      "sha256": "5df428490e464f42b24badbd396c0a9bc660f6b3a161c28e5145a948976c3a7e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/panel/tsconfig.json",
+      "lines": 7,
+      "sha256": "a8c0e066a4763cc042e1f5a1c306002c55edfafaba31e13ef34834647d1ac32e",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/templates/agent-workflow/1.0.0.json",
+      "lines": 131,
+      "sha256": "4ea1cc8be4ce1d58098a84a872daec8059818a7ae187162cc212b70fba9c878c",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/templates/http-workflow/1.0.0.json",
+      "lines": 161,
+      "sha256": "6ec2805ca0cb1207eb8a9d901055b060145f0129318eecfd1bfad6376ffb516c",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/templates/manual-web-workflow/1.0.0.json",
+      "lines": 131,
+      "sha256": "0eecc14b01fb6422dca4e72d425d6cd21242a9cae9d6e83ea16780048d72665f",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/templates/python-library/1.0.0.json",
+      "lines": 140,
+      "sha256": "518099282038fdcb9033e9acbaf23f96c7001e4130111ae5a741d44f579345b8",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/templates/python-service/1.0.0.json",
+      "lines": 159,
+      "sha256": "916b47e1419d471ab095b72fa34151f925d6ab01fc919cbfe64e70fa32cdc588",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    },
+    {
+      "path": "src/aitest/resources/templates/ticket-workflow/1.0.0.json",
+      "lines": 214,
+      "sha256": "5641b36d4739c3e5ed156879e7babcd92970ebb5c2410c561cb56e3636ac2181",
+      "generated": false,
+      "status": "source_reviewed",
+      "review_notes": "核对层次/身份/修订/事实来源/失败恢复；无新独立问题不代表动态路径全部通过"
+    }
+  ],
+  "coverage": {
+    "tracked": 153,
+    "non_generated_reviewed": 144,
+    "generated_checked": 9,
+    "original_lines": 35848
+  },
+  "method": "All executable Python statements; nonblank non-Python implementation/config/resource bodies; Python docstrings/comment-only/blank lines omitted. Test files not all individually reviewed."
+}

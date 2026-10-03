@@ -1,8 +1,8 @@
 # 一期工程检查-A包
 
-复核完成日期：2026年10月3日；本轮从10月2日开始、10月3日收敛。源码基线：`develop 9bd4337c1a0696db9cd8bd21e7b67f3a751923bb`，文档分支`文档更新-袁`。
+复核完成日期：2026年10月3日。取证基线：`develop 40c82c3`；产品源码仍`9bd4337c1a0696db9cd8bd21e7b67f3a751923bb`。本轮分支`codex/p1-end-to-end-audit-20261003`。
 
-本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-03-一期源码深查与新增问题.md)。
+本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-03-一期端到端深入检查.md)。
 
 其他包：[B包](一期工程检查-B包.md) · [C包](一期工程检查-C包.md) · [D包](一期工程检查-D包.md)。
 
@@ -10,7 +10,7 @@
 
 - 主责来源：[文档总览](项目文档/README.md)、[总体架构](项目文档/总体架构.md)、[阅读索引](项目文档/阅读索引.md)、[一期需求](项目文档/一期/需求文档/01-需求文档.md)、[一期功能](项目文档/一期/功能文档/01-功能文档.md)、架构00—06及[面板与工作台](项目文档/一期/设计文档/01-面板与工作台.md)。一期仍为17 FR/35 AC，不增删或重编号。
 - 四部分分工沿用原拆分方案；字段、状态、时序按现行分册及[接口总台账](接口对接/README.md)、DEC-001—006实施，不因文档更新改接口冻结状态。
-- 本次19个关键文件定向深查：[JSON](validation/p1-audit-20261002/deep-audit-9bd4337.json)、[脚本](validation/p1-audit-20261002/deep_probes.py)记录8项观察；预览118目标，19定向已审/99明确跳过，[覆盖清单](validation/p1-audit-20261002/deep-review-inventory.json)列范围/原因。不是全仓逐字重审；[前次JSON](validation/p1-audit-20261002/followup-9bd4337.json)和历史材料在[证据说明](validation/p1-audit-20261002/README.md)保留。临时数据/合成请求与本机进程/API实验不替代真实供应方、Trae、业务或掉电AC。
+- 本轮144个非生成产品文件逐文件读取，7份Schema与2份npm锁另作生成/构建核对；153文件清单、14组隔离观察及端到端阻断见[深入检查](一期端到端深入检查-2026-10-03.md)。阅读覆盖不等于全部路径实测；旧19文件定向深查作为历史证据保留。
 - “高风险”有源码或当前反例依据；“接入缺口”需补默认装配/真实持久链；“待验收”需真实输入、版本、预期/实际和证据。“待核对”不计为已确认缺陷。未以文件数、通过数估算完成率。
 
 ## 2. 主责与尚缺验收
@@ -29,6 +29,10 @@
 
 | 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
+| A-15 P1/本轮新增 | **不同选择范围复用同一快照，新增文件漏检**：先固定 a.py，再以整目录固定相同字节，返回同一 snapshot_id，第二次仍记录 selected_paths=[a.py]、purpose=selected。随后新增 b.py，整目录请求的 detect_changes 返回 unchanged。 源码[source_snapshot.py](../src/aitest/infrastructure/adapters/source_snapshot.py)第166行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构01第2/7/12节；FR01/06/08，AC12/25/30/31。区分快照记录身份与内容对象去重；覆盖单文件→整目录、整目录→单文件、排除规则变化、用途变化，以及新增/删除文件。字节对象可去重，冻结范围不可混用。 |
+| A-16 P1/本轮新增 | **迁移回滚删除迁移前已有字段**：workspace.json 原有 schema_version=1.0，records.json 原有 intents={}。应用两项内置迁移后回滚，两字段都被删除，备份虽已创建，反向迁移未恢复原值。 源码[migrations.py](../src/aitest/infrastructure/file_store/migrations.py)第101行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构04第6/10/11节；FR16，AC28。记录前态或实际变更，回滚逐项核对并恢复；验证已存在/不存在字段、部分前向失败、重复 apply/resume/rollback、回滚前有新写入的拒绝路径和备份可读性。 |
+| A-17 P1/本轮新增 | **不同记录类型相同 ID/修订被事件去重**：真实 FileUnitOfWork 在同一事务创建 rule_draft/same-id@1 与 rule_version/same-id@1，提交结果 created=2，FileEventJournal 只有 1 条事件。 源码[events.py](../src/aitest/infrastructure/file_store/events.py)第103行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构06第4节、架构04原子提交；FR14/17，AC27/34。以完整记录命名空间构造事件身份；同提交不同 kind 相同 ID、同 kind 不同 ID、多条修订、重传同一事件和恢复重放均应无漏重。 |
+| A-18 P1/本轮新增 | **管道服务端 SID 查询失败后以空值通过身份比较**：Windows 11 本机对当前进程查询：current_user_sid() 得到有效 SID，NamedPipeServer._process_user_sid(同 PID) 返回空字符串。校验函数只比较字符串，两个空 SID 在会话相同时被接受。 源码[pipe.py](../src/aitest/interfaces/local/pipe.py)第218行；[详细证据](一期端到端深入检查-2026-10-03.md) | 总体架构本地通信；一期架构05入口/会话合同；AC31/34。先查询所需长度，核对所有 API 结果并正确释放 SID 字符串；空值/权限错误/进程退出均拒绝。补同用户、异用户、异会话、查询失败及真实管道接入验证。 |
 | A-12 高风险/新发现 | commit异常释放锁后仍保留暂存/身份，无锁重试被接受；另一UOW持锁的交错提交均序号1，已成功返回的case-a记录丢失（A-UOW-01-failed-commit-retry；[unit_of_work.py](../src/aitest/infrastructure/file_store/unit_of_work.py)，132—140行） | 项目架构04第2节唯一写入队列/原子提交；CORE-001第4节事务状态；AC28。 异常后禁止无锁继续提交；进入仅回滚/核实状态或重新准入并校验权威边界；验证竞争写入、未知发布结果及永久历史不丢。B转接头自动回滚已有，本反例不表示所有B动作必然丢记录。 |
 | A-13 高风险/新发现 | 默认urllib跟随302，把Authorization从已确认HTTPS端点转给未确认的另一域，并接受其草稿为ok（A-MODEL-01-redirect-authorization；[model.py](../src/aitest/infrastructure/adapters/model.py)，53—58行） | 一期需求第7节/AC32接收目标变化需重新确认；A模型传输主责，B策略协作。 禁止未经确认的目标跳转，或逐跳校验授权范围，跨目标不转发凭据；与B策略联验同域/跨域/降级跳转。探针保留真实urllib流程、仅替换网络I/O，无真实外发或凭据。 |
 | A-11 高风险/新发现 | B正式save_case经A真实端口，将project-a/case-1@1以project-b、expected_revision=1追加为@2，稳定记录链混入两个项目（A-OWNERSHIP-01-cross-project-lineage；[records.py](../src/aitest/infrastructure/file_store/records.py)，552—560行） | 项目架构04第2节原子提交需校验项目归属；架构01稳定项目/记录身份；FR01/06/16，AC28。 A短事务校验稳定记录原项目及payload/project一致；B保存/导入核对命名空间和归属，拒绝跨项目改归属。验证同名不同项目及合法同项目修订；旧修订在本反例中仍保留。 |
@@ -56,13 +60,9 @@
 
 ## 4. 当前验证边界
 
-本次8项深查观察由内部断言核对（7新问题、1细化A-06），新探针ruff通过；产品代码/测试未改。下列全量Python/构建/CI结果沿用同基线前次续查，本次未重跑；反例复现成功不表示缺陷已修复或AC通过。
+本轮2026-10-03重新执行：全量pytest **1148 passed、2 skipped（37.47s）**，两项符号链接权限跳过；版本/ruff/mypy（136文件）与7份Schema一致性通过。面板build、wheel/sdist、6文件VSIX及共享panel字节核对通过；独立wheel资源/诊断冒烟通过，但doctor仍NOT_READY、MCP relay仍不可用。Playwright **1 failed**（阶段标题预期3、实际4），后续流程未执行。
 
-10月2日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（本次136个分析文件），7份生成Schema无差异；全量pytest **1148 passed、2 skipped、0 failed/error**（33.54s）。两项符号链接测试因本机会话无创建权限跳过。
-
-面板build通过，但静态Playwright **1 failed**：阶段区域标题数预期3、实际4；后续断言尚未执行。候选VSIX6文件打包通过。该基线已记录的[Windows CI](https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076)为 **1149 passed、1 failed**：`test_restore_rejects_symlink_target`未抛BackupError；版本/静态/Schema步骤通过。普通CI未运行面板和发布制品检查；本次沿用原CI证据，未重新查询远端。
-
-当前自动化含真实Windows凭据原语、命名管道、本地Git及本机监听器的底层集成；它们不替代真实Trae、模型、业务独立核验、安全导出、跨核心执行/掉电与35项产品AC。合成反例和完整验证范围见[本轮证据](validation/p1-audit-20261002/README.md)。
+14组隔离观察确认15项新增问题，探针ruff通过；退出0表示当前缺陷符合断言，不表示已修复或AC通过。真实一期仍0/35，所有证据路径空。真实Trae、业务独立核验、模型、跨核心执行与掉电未验收。完整方法、结果和边界见[本轮深入检查](一期端到端深入检查-2026-10-03.md)与[结果JSON](validation/p1-e2e-audit-20261003/validation-results.json)；旧CI失败仅作为历史证据保留，本轮没有重新推断远端通过。
 
 ## 5. 收敛顺序与交付条件
 
