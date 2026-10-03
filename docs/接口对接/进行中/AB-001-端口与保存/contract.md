@@ -994,7 +994,7 @@ detect_changes(snapshot_id) -> 变化清单
 | Q1 | §11.1 形式互斥是否符 C 对 `plain` 的解析预期 | **符合**。`plain` **必须真正省略** Git 键，**不能写 `null`、空串或 `unknown`**；C 按"**键不存在**"处理 | 已确认，C 按此落地 |
 | Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 兼容 | **兼容**。与现有 `SourceFile` 兼容；`SourceSnapshot` 这些字段按**纯新增**处理，**不复制第二套模型**；只补字段、不改旧字段语义，**原则上不需提升主版本**。`binding_revision` 保持 `int`、语义收紧为 `>= 1`；`purpose` 在 C 落地时按 `analysis`／`prepare` 约束 | **是否提升主版本等 Q3 的 `content_identity` 迁移说明确认后再定**（见第 11.7 节） |
 | Q3 | `content_identity` 迁移说明 | **B 已给**（第 11.7 节）。C 明确要求：**不得由 C 自行重算**，必须复用 B 的 `source_content_identity()`；**C 只保存返回值与引用，不复制算法** | 见第 11.7 节的函数接口 |
-| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | **仍待 B**（未定） | B 在 BC／BD 合同中引用本节 |
+| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | **已查明该字段存在语义冲突，转裁定**：A 的快照元数据**不含 `revision`**（内容寻址、清单不可变），B 的快照记录**每次为 `@1`**，而 `changed_inputs()` 按值比对、其失效描述为"source bytes changed"——**该判定项在现行实现下无法触发**。三个候选见 [`待裁定/DEC-009`](../../待裁定/DEC-009-源码快照的修订语义.md) | 待项目负责人裁定；**裁定前 B 侧不填该值、不改 `InputRevisions` 结构** |
 
 **C 侧落地前提已满足**：C 明确"把 Q1／Q2 的回复和函数接口补到对应合同后，再按新契约 PR 落地"。
 本节与第 11.7 节即为该前提。**字段实现不在本合同内散改**，仍在 `domain/execution/sources.py` 走新的契约 PR。
