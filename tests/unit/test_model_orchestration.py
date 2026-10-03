@@ -7,8 +7,12 @@
 import pytest
 
 from aitest.application.planning.model_orchestration import (
+    CREDENTIAL_FILTER_POLICY,
+    CREDENTIAL_PLACEHOLDER,
     OUTBOUND_BLOCKED,
     OUTBOUND_DRAFT_READY,
+    OUTBOUND_UNRESOLVED,
+    ModelGenerationConflictError,
     OutboundOutcome,
     OutboundRequest,
     ResponseSettlement,
@@ -136,6 +140,8 @@ def _request(
     caller: ModelCaller | None = None,
     source_revision: int = 1,
     template_ref: TemplateRef | None = None,
+    generation_request_id: str | None = None,
+    known_credentials: tuple[str, ...] = (),
 ) -> OutboundOutcome:
     if unit_of_work is None or reader is None:
         unit_of_work, reader = _world()
@@ -156,6 +162,8 @@ def _request(
         clock=FixedClock(),
         source_revision=source_revision,
         base_manual_revision=0,
+        generation_request_id=generation_request_id,
+        known_credentials=known_credentials,
         template_ref=template_ref
         if template_ref is not None
         else TemplateRef(template_id="ticket-workflow", version="1.0.0"),
@@ -600,32 +608,263 @@ def test_human_path_stays_available_after_a_failure() -> None:
     assert outcome.status == OUTBOUND_BLOCKED
 
 
-def test_repeating_the_same_request_lands_a_new_record_revision() -> None:
+def test_the_same_generation_request_returns_the_original_result() -> None:
+    """检查项 B-10：同一业务请求号 + 同输入 → **复用原结果，不再调用模型**。
+
+    旧行为是两次调用各调一次模型、各存一份草稿（同一出站记录写到修订 4），
+    也就是"稳定记录 ID 并没有去重外部副作用"。
+    """
     unit_of_work, reader = _world()
-    first = _request(unit_of_work=unit_of_work, reader=reader)
-    second = _request(unit_of_work=unit_of_work, reader=reader)
+    caller = MemoryModelCaller()
+    first = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+    )
+    second = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+    )
+
     assert first.request is not None and second.request is not None
     assert first.request.request_id == second.request.request_id
-    # 每条请求两次提交：意图一次、结果一次。
-    assert unit_of_work.commit_seq() == "commit-4"
-    assert (
-        reader.read(
-            aggregate_kind="model_outbound_request",
-            record_id=first.request.request_id,
-            revision=2,
-        ).payload["policy_revision"]
-        == 1
-    )
-    assert (
+    # **只调用了一次模型**：第二次是复用。
+    assert caller.call_count == 1
+    assert second.is_reused
+    assert second.status == OUTBOUND_DRAFT_READY
+    assert first.content is not None and second.content is not None
+    assert second.content.generated_content_id == first.content.generated_content_id
+    # 每条请求两次提交：意图一次、结果一次；第二次不产生新提交。
+    assert unit_of_work.commit_seq() == "commit-2"
+    # 出站记录也只有两个修订，没有第三、第四个。
+    with pytest.raises(ValueError, match="unknown revision"):
         reader.read(
             aggregate_kind="model_outbound_request",
             record_id=first.request.request_id,
             revision=3,
-        ).payload["state"]
-        == "intent"
+        )
+
+
+def test_the_same_generation_request_with_different_input_conflicts() -> None:
+    """检查项 B-10：同键**异输入** → 冲突，不覆盖、不静默换输入。"""
+    unit_of_work, reader = _world()
+    caller = MemoryModelCaller()
+    _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+        source_revision=1,
     )
+    with pytest.raises(ModelGenerationConflictError):
+        _request(
+            caller=caller,
+            unit_of_work=unit_of_work,
+            reader=reader,
+            generation_request_id="gen-1",
+            source_revision=2,
+        )
+    # 冲突发生在调用之前：没有第二次外部副作用。
+    assert caller.call_count == 1
+
+
+def test_an_explicit_new_generation_request_calls_the_model_again() -> None:
+    """检查项 B-10：**明确重新生成**用新的请求号，是一次真实的第二次调用。"""
+    unit_of_work, reader = _world()
+    caller = MemoryModelCaller()
+    first = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+    )
+    second = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-2",
+    )
+    assert caller.call_count == 2
+    assert not second.is_reused
+    assert first.request is not None and second.request is not None
+    assert first.request.request_id != second.request.request_id
     assert first.content is not None and second.content is not None
     assert first.content.generated_content_id != second.content.generated_content_id
+
+
+class _CrashingCaller:
+    """第一次调用抛异常，模拟"意图已提交、进程随后崩溃"（响应丢失）。"""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def call(self, request: ModelCall) -> ModelCallResult:
+        self.call_count += 1
+        raise RuntimeError("connection lost after the request was sent")
+
+
+def test_an_intent_without_a_committed_result_is_not_resent() -> None:
+    """检查项 B-10：已有意图但结果未提交（响应丢失）→ **不盲目重发**。
+
+    外部调用可能已经发生且不可撤销；这里返回 `unresolved`，
+    由调用方先核对原出站事实再决定是否用新请求号重新生成。
+    """
+    unit_of_work, reader = _world()
+    crashing = _CrashingCaller()
+    # 第一次：意图已提交，调用过程崩溃 → 记录停在 `intent` 修订。
+    with pytest.raises(RuntimeError, match="connection lost"):
+        _request(
+            caller=crashing,
+            unit_of_work=unit_of_work,
+            reader=reader,
+            generation_request_id="gen-1",
+        )
+
+    # 第二次：同一请求号重传 → 不重发，返回 unresolved。
+    second_caller = MemoryModelCaller()
+    outcome = _request(
+        caller=second_caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+    )
+    assert outcome.status == OUTBOUND_UNRESOLVED
+    assert outcome.blocked_by
+    assert second_caller.call_count == 0
+
+
+def test_a_previous_failure_is_not_retried_automatically() -> None:
+    """检查项 B-10：上次调用**已失败并落盘**时，重传返回原失败，不自动重试。"""
+    unit_of_work, reader = _world()
+    caller = MemoryModelCaller(error_kind="timeout")
+    first = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+    )
+    assert first.status == OUTBOUND_BLOCKED
+    second = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        generation_request_id="gen-1",
+    )
+    assert second.status == OUTBOUND_BLOCKED
+    assert caller.call_count == 1
+
+
+# ------------------------------------------------------------------ 落盘前凭据过滤（B-03）
+
+
+def test_a_known_credential_is_filtered_before_the_response_is_saved() -> None:
+    """检查项 B-03：模型响应里的已知凭据**落盘前**被剔除。
+
+    反例原文是"合成模型返回 password 正文，经当前编排原样进入 generated_content 记录"。
+    """
+    secret = "s3cr3t-value-9"
+    unit_of_work, reader = _world()
+    caller = MemoryModelCaller(draft_text=f"proposed checks\npassword={secret}\nmore")
+    outcome = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        known_credentials=(secret,),
+    )
+    assert outcome.content is not None
+
+    page = reader.query(
+        RecordQuery(
+            project_id=PROJECT_ID,
+            aggregate_kind="generated_content",
+            record_id=outcome.content.generated_content_id,
+        )
+    )
+    assert len(page.items) == 1
+    stored = page.items[0].payload
+    # 正文里**没有**凭据原值，且如实登记了过滤事实。
+    assert secret not in str(stored["draft_text"])
+    assert CREDENTIAL_PLACEHOLDER in str(stored["draft_text"])
+    assert stored["credential_filter"] == {
+        "policy": CREDENTIAL_FILTER_POLICY,
+        "replacements": 1,
+        "filtered": True,
+    }
+    # 摘要按**过滤后**的正文算，与落盘字节一致。
+    assert stored["content_digest"] == outcome.content.content_digest
+
+
+def test_the_outbound_record_also_records_the_filter_fact() -> None:
+    """过滤事实同时登记在出站结果上，事后可与供应商日志对账。"""
+    secret = "s3cr3t-value-9"
+    unit_of_work, reader = _world()
+    outcome = _request(
+        caller=MemoryModelCaller(draft_text=f"password={secret}"),
+        unit_of_work=unit_of_work,
+        reader=reader,
+        known_credentials=(secret,),
+    )
+    assert outcome.request is not None
+    stored = reader.read(
+        aggregate_kind="model_outbound_request",
+        record_id=outcome.request.request_id,
+        revision=2,
+    ).payload
+    assert stored["credential_filter"]["replacements"] == 1
+    # 出站记录里也不得有凭据原值。
+    assert secret not in str(stored)
+
+
+def test_a_response_without_credentials_is_still_marked_as_filtered() -> None:
+    """没有命中也要写明"按哪一版策略过滤过"：缺这个键就等于没说清楚。"""
+    unit_of_work, reader = _world()
+    outcome = _request(
+        unit_of_work=unit_of_work,
+        reader=reader,
+        known_credentials=("s3cr3t-value-9",),
+    )
+    assert outcome.content is not None
+    stored = reader.read(
+        aggregate_kind="generated_content",
+        record_id=outcome.content.generated_content_id,
+        revision=1,
+    ).payload
+    assert stored["credential_filter"] == {
+        "policy": CREDENTIAL_FILTER_POLICY,
+        "replacements": 0,
+        "filtered": False,
+    }
+
+
+def test_a_too_short_credential_is_refused_before_the_call() -> None:
+    """无法可靠识别的短凭据：**调用之前**拒绝，不假装过滤干净（fail closed）。"""
+    unit_of_work, reader = _world()
+    caller = MemoryModelCaller()
+    outcome = _request(
+        caller=caller,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        known_credentials=("abc",),
+    )
+    assert outcome.status == OUTBOUND_BLOCKED
+    assert any("too short" in reason for reason in outcome.blocked_by)
+    assert caller.call_count == 0
+
+
+def test_the_template_draft_payload_has_no_credential_filter_key() -> None:
+    """模板路径不经过模型：payload 里**不该出现**这个模型专有键。"""
+    unit_of_work, reader = _world()
+    outcome = _request(unit_of_work=unit_of_work, reader=reader)
+    assert outcome.content is not None
+    stored = reader.read(
+        aggregate_kind="generated_content",
+        record_id=outcome.content.generated_content_id,
+        revision=1,
+    ).payload
+    assert "credential_filter" in stored  # 模型路径有
 
 
 # ------------------------------------------------------------------ 迟到响应

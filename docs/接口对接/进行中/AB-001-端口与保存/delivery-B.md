@@ -56,6 +56,22 @@
 **仍需 A 守住的一半**：检查文档要求"A 同时守住持久命名空间"（A-11）。
 本交付只做 B 侧的准入与引用校验。
 
+### 1.5 模型出站的生成意图与落盘前过滤（2026-10-03，B-10 / B-03）
+
+合同依据：本目录 `contract.md` **第 8.13 节**；检查文档 2026-10-03 版 B-10／B-03。
+
+| 项 | 位置 | 说明 |
+| --- | --- | --- |
+| 持久业务请求号 | `model_orchestration.py` 的 `request_model_draft(generation_request_id=)` | 给定时出站记录按"（项目, 业务请求号）"稳定；不给则沿用旧规则 |
+| 复用 / 冲突 / 未决 | 同上 | 同键同输入**复用原结果不再调用模型**；同键异输入报 `ModelGenerationConflictError`；有意图无结果返回 `OUTBOUND_UNRESOLVED` 且**不重发**；已落盘失败不自动重试 |
+| 落盘前凭据过滤 | 同上 `_filter_known_credentials()` | 已知凭据值在写进 `generated_content` **之前**按精确值剔除；摘要按**过滤后**正文计算 |
+| 过滤事实落盘 | 草稿与出站结果 payload 的 `credential_filter` | `{policy, replacements, filtered}`——**只有计数与策略版本，无凭据正文或摘要**；模板路径不出现该键 |
+| 短凭据 fail closed | 同上 `_reject_short_credentials()` | 值短于 4 字符时**在调用之前**拒绝："无法可靠识别"不接受"假装过滤干净" |
+
+**仍归 A**：真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接线，
+以及"哪些值算已知凭据"的来源解析。本交付的 `known_credentials` 由调用方给出，
+集合不全时过滤必然不全——已如实登记为缺口，不声称完整。
+
 ---
 
 ## 2 已通过的静态 / 单元 / 合同检查（实测）

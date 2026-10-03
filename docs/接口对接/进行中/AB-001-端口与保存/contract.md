@@ -716,6 +716,44 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 - 入口**不回退**到草稿/计划自己的修订号来"补"一个基线：
   那仍然是替调用方猜基线，正是本项要消除的行为。
 
+### 8.13 模型出站：记录标识规则与落盘前过滤事实（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）的 **B-10** 与 **B-03**；
+实现与实测见 `docs/修改日志/feix-a/2026-10-03-B包模型生成意图与落盘前过滤.md`。
+**本节不改端口签名、不改跨包 Schema 字节**，登记以下三处供 A/C/D 核对。
+
+**① 出站记录的标识规则多了一种（B-10）**
+
+- 过去：`outbound:{project_id}:{policy_revision}:{task_type}`
+  ——两次不同业务意图会**共用同一条记录**。
+- 现在：调用方给出 `generation_request_id` 时用
+  `outbound:{project_id}:{generation_request_id}`；
+  **不给时沿用旧规则**，因此既有记录与既有行为仍可复现。
+- 影响面：出站记录是**B 自己的聚合类别**（`model_outbound_request`），
+  存储层不需要为它新增索引键；A 侧无改动。
+
+**② 出站结果的 payload 多了两个键（B-10 / B-03）**
+
+| 键 | 含义 |
+| --- | --- |
+| `generated_content_id` / `generated_content_revision` | 复用分支按引用读回**原草稿**的依据 |
+| `credential_filter` | `{policy, replacements, filtered}`：落盘前过滤掉了几个已知凭据。**只有计数与策略版本，没有凭据原值，也没有其摘要** |
+
+意图修订的 payload 同时多一个 `generation_identity`（"同键是否同输入"的判定依据）。
+三个键都是**新增可选键**，旧消费方忽略即可；`credential_filter` 在模板生成路径**不出现**。
+
+**③ 调用方需要认识的新状态与参数（B-10）**
+
+- `request_model_draft()` 新增 `generation_request_id`、`known_credentials` 两个参数；
+- `OutboundOutcome` 新增状态 **`OUTBOUND_UNRESOLVED`**：同一业务请求号已有出站意图、
+  但结果未提交（响应丢失）。此时**不重发**——外部调用不可撤销，
+  由调用方先核对原出站事实，再用新的 `generation_request_id` 明确重新生成。
+  在 D 侧（面板/CLI/MCP relay）接入该状态之前，它只在核心与测试层可见。
+
+**仍归 A 的部分**：真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接线；
+"哪些值算已知凭据"的来源解析。本包只在既有端口协议内实现编排语义，
+`known_credentials` 由调用方给出，集合不全时过滤必然不全（已如实登记为缺口）。
+
 ---
 
 ## 9 变更记录
@@ -733,6 +771,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-02 | 0.9 | 补第 8.11 节：`prepare_run` 参数适配层已实现并注册（合同测试 10 项）；**登记"准备链路已依赖提交序号"这一实测事实**——第 8.8 节三个方法由"将来需要"变为现行前置。B 侧交付说明另立 `delivery-B.md`，本节不重复 | B 包（知悉性登记，待 A 确认接法与冻结签名） |
 | 2026-10-02 | 1.0 | 第 11 节标题明确为**最终口径**：该口径按第 10.1 节裁定写成，属 B 主责范围内的字段定义，可据以实施 | B 包（字段口径已定；待 C 回写 Q1／Q2 兼容性并按新契约 PR 实施） |
 | 2026-10-03 | 1.1 | 补第 8.12 节：保存语义收紧——**项目归属统一校验**（写出/读入都要求正文自带项目且一致，`Delivery` payload 新增 `project_id`；旧记录缺归属显式拒绝）与**发布核对调用方 `expected_revision`**（入口透传、同事务校验、不符报 `B_REVISION_CONFLICT`；第二次发布须声明 `@N`）。对应检查文档 2026-10-03 版 B-12／B-14。**不改跨包 Schema 字节，不需 A/C/D 改代码**；A-11 的底层命名空间归属仍归 A | B 包（知悉性登记） |
+| 2026-10-03 | 1.2 | 补第 8.13 节：模型出站——**出站记录标识多一种规则**（给 `generation_request_id` 时按"（项目, 业务请求号）"，不给则沿用旧规则）、**结果 payload 新增 `generated_content_id` / `credential_filter`、意图 payload 新增 `generation_identity`**（均为新增可选键，**无凭据正文或摘要**）、**新增 `OUTBOUND_UNRESOLVED` 状态**与两个新参数。对应检查文档 2026-10-03 版 B-10／B-03。**不改端口签名与跨包 Schema 字节**；真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接入与凭据来源解析仍归 A | B 包（知悉性登记） |
 
 ---
 
