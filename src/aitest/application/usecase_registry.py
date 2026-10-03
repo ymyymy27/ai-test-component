@@ -34,10 +34,16 @@
 | `prepare_run` | 编排一次准备，产出 `PreparedRun` | `preparation_record` |
 | `query` | 有界查询（读动作，不要求写身份） | — |
 
-**尚未包括**（避免读者以为已经覆盖）：`publish_plan`、模型出站类动作。
-`publish_plan` 的输入是 `Plan`（10 字段）+ `Case` 列表（每项 14 字段、含嵌套 `CaseLink`），
-需要一个**独立的领域对象参数适配层**（放在按主责合同定义的模块里，不在本动作表内临时拼 JSON）；
-模型出站类动作依赖 A 的 `ModelProvider` / `SecretPort` 与运行时凭据，属另一个批次。
+**模型出站与运行修订**（AB-001 §8.16.3，由 A 接进统一入口并做能力声明）：
+
+- `request_model_draft`：模型出站编排（准入→凭据→投影→调用→登记）。
+  依赖 `projector`/`caller`/`credentials` 三端口，缺一即 `B_DEPENDENCY_NOT_CONFIGURED`。
+- `revise_pending_steps`：运行中修订守卫评估（纯规则，事实随命令带来）。
+- `narrow_driver`：驱动收窄判定（纯规则）。
+
+凭据形状按**候选甲**收敛：`credentials` 是 B 的 `CredentialResolver` 形状，
+由装配处把 A 的 `SecretPort` 包成按用途绑定的窄适配器
+（`infrastructure/credential_resolver.py`），B 侧只拿到状态、拿不到正文。
 
 `prepare_run` 的参数形状
 -----------------------
@@ -74,6 +80,16 @@ from aitest.application.planning.draft import (
     template_draft_text,
     text_digest,
 )
+from aitest.application.planning.model_orchestration import (
+    ModelGenerationConflictError,
+    OutboundOutcome,
+    request_model_draft,
+)
+from aitest.application.planning.model_ports import (
+    CredentialResolver,
+    MaterialProjector,
+    ModelCaller,
+)
 from aitest.application.planning.persistence import (
     save_acceptance_scope,
     save_case,
@@ -97,9 +113,11 @@ from aitest.application.planning.rules_markdown import (
     rule_draft_from_markdown,
     rule_markdown_from_payload,
 )
+from aitest.application.planning.run_mode import request_runtime_revision
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
     case_from_payload,
+    confirmation_from_payload,
 )
 from aitest.application.planning.substrate import (
     AggregateKind,
@@ -131,6 +149,7 @@ from aitest.application.project.serialization import (
     project_from_payload,
     task_from_payload,
 )
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.prepared_run import (
     AssertionBasisEntry,
     AuthorizationRequirement,
@@ -149,11 +168,35 @@ from aitest.contracts.prepared_run import (
     SnapshotRef,
     TemplateVersionRef,
 )
+from aitest.domain.planning.model_outbound import (
+    MaterialKind,
+    ModelEndpoint,
+    ModelOutboundPolicy,
+    ModelTaskType,
+    OutboundConfirmation,
+)
 from aitest.domain.planning.plans import (
+    Case,
+    ConfirmationRecord,
+    Plan,
+    PlanPublicationStatus,
+    RuleRevisionRef,
     RunDriver,
     RunTier,
+    narrow_driver,
+)
+from aitest.domain.planning.plans import (
+    CaseRevisionRef as DomainCaseRevisionRef,
+)
+from aitest.domain.planning.plans import (
+    TemplateVersionRef as DomainTemplateVersionRef,
 )
 from aitest.domain.planning.rules import RuleDraft, RuleEnablement, RuleVersion
+from aitest.domain.planning.runtime_revision import (
+    CaseRuntimeChange,
+    RuntimeRevisionDecision,
+    RuntimeRevisionRequest,
+)
 from aitest.domain.planning.templates import TemplateRef
 
 #: 与 `aitest.bootstrap.Handler` 形状一致（`Callable[[Command], Mapping[str, object]]`）。
@@ -184,6 +227,9 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "publish_plan",
         "prepare_run",
         "query",
+        "request_model_draft",
+        "revise_pending_steps",
+        "narrow_driver",
     }
 )
 
@@ -701,6 +747,287 @@ def _optional_commit(value: object, name: str) -> str | None:
     return _as_text(value, name)
 
 
+# ------------------------------------------------------------------ 模型出站 / 运行修订参数适配
+#
+# 依据 AB-001 §8.16.3：三个动作由 A 接进统一入口。这里把命令参数翻成领域对象，
+# 规则与本文件既有适配层一致——键名与领域对象逐字一致、缺字段即拒绝、不填默认值。
+
+
+def _list_of(parameters: Mapping[str, object], name: str) -> list[object]:
+    """可选列表参数：缺省为空列表，给了就必须是 list。"""
+    value = parameters.get(name)
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a list")
+    return value
+
+
+def _outbound_confirmation_of(raw: object) -> OutboundConfirmation | None:
+    """策略内嵌的出站确认；`None` 表示**尚未确认**（准入将按未确认阻塞）。"""
+    if raw is None:
+        return None
+    payload = _as_mapping(raw, "policy.confirmation")
+    try:
+        return OutboundConfirmation(
+            confirmation_id=_as_text(
+                _required(payload, "confirmation_id"),
+                "policy.confirmation.confirmation_id",
+            ),
+            endpoint_digest=_as_text(
+                _required(payload, "endpoint_digest"),
+                "policy.confirmation.endpoint_digest",
+            ),
+            material_kinds_digest=_as_text(
+                _required(payload, "material_kinds_digest"),
+                "policy.confirmation.material_kinds_digest",
+            ),
+            source_snippets_enabled=_bool_of(
+                payload.get("source_snippets_enabled"),
+                "policy.confirmation.source_snippets_enabled",
+            ),
+            confirmed_at_commit=_as_text(
+                _required(payload, "confirmed_at_commit"),
+                "policy.confirmation.confirmed_at_commit",
+            ),
+        )
+    except ValueError as error:
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER", f"invalid policy.confirmation: {error}"
+        ) from error
+
+
+def _case_revision_refs_of(raw: object, name: str) -> tuple[DomainCaseRevisionRef, ...]:
+    refs: list[DomainCaseRevisionRef] = []
+    for index, item in enumerate(_list_of({name: raw} if raw is not None else {}, name)):
+        entry = _as_mapping(item, f"{name}[{index}]")
+        refs.append(
+            DomainCaseRevisionRef(
+                case_id=_as_text(_required(entry, "case_id"), f"{name}[{index}].case_id"),
+                revision=_revision_of(
+                    _required(entry, "revision"), f"{name}[{index}].revision"
+                ),
+                digest=_as_text(_required(entry, "digest"), f"{name}[{index}].digest"),
+            )
+        )
+    return tuple(refs)
+
+
+def _rule_revision_refs_of(raw: object, name: str) -> tuple[RuleRevisionRef, ...]:
+    refs: list[RuleRevisionRef] = []
+    for index, item in enumerate(_list_of({name: raw} if raw is not None else {}, name)):
+        entry = _as_mapping(item, f"{name}[{index}]")
+        refs.append(
+            RuleRevisionRef(
+                rule_id=_as_text(_required(entry, "rule_id"), f"{name}[{index}].rule_id"),
+                revision=_revision_of(
+                    _required(entry, "revision"), f"{name}[{index}].revision"
+                ),
+                digest=_as_text(_required(entry, "digest"), f"{name}[{index}].digest"),
+            )
+        )
+    return tuple(refs)
+
+
+def _template_version_refs_of(
+    raw: object, name: str
+) -> tuple[DomainTemplateVersionRef, ...]:
+    refs: list[DomainTemplateVersionRef] = []
+    for index, item in enumerate(_list_of({name: raw} if raw is not None else {}, name)):
+        entry = _as_mapping(item, f"{name}[{index}]")
+        refs.append(
+            DomainTemplateVersionRef(
+                template_id=_as_text(
+                    _required(entry, "template_id"), f"{name}[{index}].template_id"
+                ),
+                version=_as_text(
+                    _required(entry, "version"), f"{name}[{index}].version"
+                ),
+                digest=_as_text(_required(entry, "digest"), f"{name}[{index}].digest"),
+            )
+        )
+    return tuple(refs)
+
+
+def _plan_from_payload(payload: Mapping[str, object]) -> Plan:
+    """按发布口径重建**冻结计划**（运行中修订的对照基线）。
+
+    只重建身份与冻结引用，不重算任何摘要；缺字段或违反领域不变量即拒绝。
+    """
+    try:
+        return Plan(
+            plan_id=_as_text(_required(payload, "plan_id"), "plan.plan_id"),
+            revision=_revision_of(_required(payload, "revision"), "plan.revision"),
+            scope=acceptance_scope_from_payload(
+                _as_mapping(_required(payload, "scope"), "plan.scope")
+            ),
+            case_revisions=_case_revision_refs_of(
+                payload.get("case_revisions"), "plan.case_revisions"
+            ),
+            rule_revisions=_rule_revision_refs_of(
+                payload.get("rule_revisions"), "plan.rule_revisions"
+            ),
+            template_versions=_template_version_refs_of(
+                payload.get("template_versions"), "plan.template_versions"
+            ),
+            run_tier=_enum_of(RunTier, _required(payload, "run_tier"), "plan.run_tier"),
+            initial_driver=_enum_of(
+                RunDriver, _required(payload, "initial_driver"), "plan.initial_driver"
+            ),
+            status=_enum_of(
+                PlanPublicationStatus, _required(payload, "status"), "plan.status"
+            ),
+            confirmation_id=_optional_text(
+                payload.get("confirmation_id"), "plan.confirmation_id"
+            ),
+        )
+    except ValueError as error:
+        raise BUseCaseError("B_INVALID_PARAMETER", f"invalid plan: {error}") from error
+
+
+def _cases_from_payload(raw: object) -> tuple[Case, ...]:
+    """被改动用例的**冻结修订**对象列表；至少一条。"""
+    if not isinstance(raw, list) or not raw:
+        raise BUseCaseError("B_INVALID_PARAMETER", "cases must be a non-empty list")
+    cases: list[Case] = []
+    for index, item in enumerate(raw):
+        try:
+            cases.append(case_from_payload(_as_mapping(item, f"cases[{index}]")))
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid cases[{index}]: {error}"
+            ) from error
+    return tuple(cases)
+
+
+def _confirmations_from_payload(raw: object) -> tuple[ConfirmationRecord, ...]:
+    """依据确认记录列表；可以没有（未确认是合法状态）。"""
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise BUseCaseError("B_INVALID_PARAMETER", "confirmations must be a list")
+    confirmations: list[ConfirmationRecord] = []
+    for index, item in enumerate(raw):
+        try:
+            confirmations.append(
+                confirmation_from_payload(
+                    _as_mapping(item, f"confirmations[{index}]")
+                )
+            )
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid confirmations[{index}]: {error}"
+            ) from error
+    return tuple(confirmations)
+
+
+def _runtime_revision_request_from_payload(
+    payload: Mapping[str, object],
+) -> RuntimeRevisionRequest:
+    """运行中修订请求；`case_changes` 至少一条（领域不变量）。"""
+    raw_changes = _required(payload, "case_changes")
+    if not isinstance(raw_changes, list) or not raw_changes:
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER", "request.case_changes must be a non-empty list"
+        )
+    changes: list[CaseRuntimeChange] = []
+    for index, item in enumerate(raw_changes):
+        prefix = f"request.case_changes[{index}]"
+        entry = _as_mapping(item, prefix)
+        try:
+            next_case = case_from_payload(
+                _as_mapping(_required(entry, "next_case"), f"{prefix}.next_case")
+            )
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid {prefix}.next_case: {error}"
+            ) from error
+        changes.append(
+            CaseRuntimeChange(
+                next_case=next_case,
+                target_step_ids=_text_list(
+                    entry.get("target_step_ids"), f"{prefix}.target_step_ids"
+                ),
+                remove_from_required=_bool_of(
+                    entry.get("remove_from_required"), f"{prefix}.remove_from_required"
+                ),
+            )
+        )
+    try:
+        return RuntimeRevisionRequest(
+            base_plan_revision_id=_as_text(
+                _required(payload, "base_plan_revision_id"),
+                "request.base_plan_revision_id",
+            ),
+            base_plan_revision_no=_revision_of(
+                _required(payload, "base_plan_revision_no"),
+                "request.base_plan_revision_no",
+            ),
+            base_plan_revision_digest=_optional_text(
+                payload.get("base_plan_revision_digest"),
+                "request.base_plan_revision_digest",
+            ),
+            observed_snapshot_cursor=_int_of(
+                _required(payload, "observed_snapshot_cursor"),
+                "request.observed_snapshot_cursor",
+            ),
+            case_changes=tuple(changes),
+            reason=_as_text(_required(payload, "reason"), "request.reason"),
+            operator_ref=_as_text(
+                _required(payload, "operator_ref"), "request.operator_ref"
+            ),
+            requested_driver=(
+                None
+                if payload.get("requested_driver") is None
+                else _enum_of(
+                    RunDriver, payload["requested_driver"], "request.requested_driver"
+                )
+            ),
+        )
+    except ValueError as error:
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER", f"invalid request: {error}"
+        ) from error
+
+
+def _outbound_outcome_result(outcome: OutboundOutcome) -> Mapping[str, object]:
+    """模型出站结果：状态 + 阻塞原因 / 草稿 / 复用来源；**不含任何凭据**。"""
+    result: dict[str, object] = {"status": outcome.status}
+    if outcome.blocked_by:
+        result["blocked_by"] = list(outcome.blocked_by)
+    if outcome.request is not None:
+        result["request_id"] = outcome.request.request_id
+    if outcome.content is not None:
+        result["content"] = _generated_content(outcome.content)
+    if outcome.reused_from is not None:
+        result["reused_from"] = dict(outcome.reused_from)
+    return result
+
+
+def _runtime_revision_result(decision: RuntimeRevisionDecision) -> Mapping[str, object]:
+    """运行中修订决策：只搬运交接清单，不产生任何业务结论。"""
+    return {
+        "accepted": decision.accepted,
+        "revision_no": decision.revision_no,
+        "effective_driver": decision.effective_driver.value,
+        "snapshot_commit_id": decision.snapshot_commit_id,
+        "snapshot_cursor": decision.snapshot_cursor,
+        "refusals": [
+            {"code": refusal.code.value, "detail": refusal.detail}
+            for refusal in decision.refusals
+        ],
+        "affected_step_ids": list(decision.affected_step_ids),
+        "preserved_step_ids": list(decision.preserved_step_ids),
+        "invalidated_basis_step_ids": list(decision.invalidated_basis_step_ids),
+        "rejudge_case_ids": list(decision.rejudge_case_ids),
+        "confirmation_required_case_ids": list(
+            decision.confirmation_required_case_ids
+        ),
+        "pause_required": decision.pause_required,
+        "new_run_required": decision.new_run_required,
+    }
+
+
 def _preparation_inputs(command: object) -> PreparationInputs:
     """把 `Command.parameters` 逐字翻成 `PreparationInputs`。
 
@@ -860,6 +1187,8 @@ def _guard(handler: Handler) -> Handler:
             return handler(command)
         except BUseCaseError:
             raise
+        except ModelGenerationConflictError as error:
+            raise BUseCaseError("B_GENERATION_CONFLICT", str(error)) from error
         except PreparationConflictError as error:
             raise BUseCaseError("B_PREPARATION_CONFLICT", str(error)) from error
         except ConcurrentEditError as error:
@@ -878,11 +1207,17 @@ class BUseCaseDependencies:
 
     `unit_of_work` / `reader` 是 B 的窄底座协议（`substrate.py`），
     由装配点注入 A 的实现或 `substrate_adapter.py` 的转接头。
+
+    模型三端口（AB-001 §8.16.3）：`projector` / `caller` / `credentials`
+    为可选；缺省时模型出站动作返回"未配置"阻塞，其余动作不受影响。
     """
 
     unit_of_work: UnitOfWork
     reader: RecordReader
     clock: Clock
+    projector: MaterialProjector | None = None
+    caller: ModelCaller | None = None
+    credentials: CredentialResolver | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1447,6 +1782,133 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
         return _publication_result(result, published_kind="rule_version")
 
+    def handle_request_model_draft(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        if deps.projector is None or deps.caller is None or deps.credentials is None:
+            raise BUseCaseError(
+                "B_DEPENDENCY_NOT_CONFIGURED",
+                "model outbound ports (projector/caller/credentials) not injected",
+            )
+        policy_payload = _as_mapping(_required(parameters, "policy"), "policy")
+        endpoint_payload = _as_mapping(
+            _required(policy_payload, "endpoint"), "endpoint"
+        )
+        try:
+            policy = ModelOutboundPolicy(
+                project_id=project_id,
+                revision=_revision_of(
+                    _required(policy_payload, "revision"), "policy.revision"
+                ),
+                endpoint=ModelEndpoint(
+                    provider=_as_text(
+                        _required(endpoint_payload, "provider"), "endpoint.provider"
+                    ),
+                    address=_as_text(
+                        _required(endpoint_payload, "address"), "endpoint.address"
+                    ),
+                    model_id=_as_text(
+                        _required(endpoint_payload, "model_id"), "endpoint.model_id"
+                    ),
+                    purpose=_as_text(
+                        endpoint_payload.get("purpose") or "model", "endpoint.purpose"
+                    ),
+                ),
+                allowed_material_kinds=frozenset(
+                    MaterialKind(_as_text(item, f"allowed_material_kinds[{i}]"))
+                    for i, item in enumerate(
+                        _list_of(policy_payload, "allowed_material_kinds")
+                    )
+                ),
+                source_snippets_enabled=bool(
+                    policy_payload.get("source_snippets_enabled", False)
+                ),
+                ai_enabled=bool(policy_payload.get("ai_enabled", True)),
+                confirmation=_outbound_confirmation_of(
+                    policy_payload.get("confirmation")
+                ),
+            )
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid policy: {error}"
+            ) from error
+        task_type = _enum_of(
+            ModelTaskType, _required(parameters, "task_type"), "task_type"
+        )
+        raw_material = _as_mapping(
+            _required(parameters, "selected_material"), "selected_material"
+        )
+        selected_material: dict[MaterialKind, str] = {}
+        for kind_key, text in raw_material.items():
+            if not isinstance(text, str):
+                raise BUseCaseError(
+                    "B_INVALID_PARAMETER",
+                    f"selected_material[{kind_key}] must be a string",
+                )
+            selected_material[
+                _enum_of(MaterialKind, kind_key, f"selected_material[{kind_key}]")
+            ] = text
+        outcome = request_model_draft(
+            project_id=project_id,
+            policy=policy,
+            task_type=task_type,
+            selected_material=selected_material,
+            unit_of_work=deps.unit_of_work,
+            reader=deps.reader,
+            projector=deps.projector,
+            credentials=deps.credentials,
+            caller=deps.caller,
+            clock=deps.clock,
+            source_revision=_revision_of(
+                _required(parameters, "source_revision"), "source_revision"
+            ),
+            base_manual_revision=_revision_of(
+                _required(parameters, "base_manual_revision"), "base_manual_revision"
+            ),
+            generation_request_id=(
+                _as_text(parameters["generation_request_id"], "generation_request_id")
+                if parameters.get("generation_request_id") is not None
+                else None
+            ),
+            known_credentials=tuple(
+                _as_text(item, f"known_credentials[{i}]")
+                for i, item in enumerate(_list_of(parameters, "known_credentials"))
+            ),
+        )
+        return _outbound_outcome_result(outcome)
+
+    def handle_revise_pending_steps(command: object) -> Mapping[str, object]:
+        parameters = _command_parameters(command)
+        plan = _plan_from_payload(_as_mapping(_required(parameters, "plan"), "plan"))
+        cases = _cases_from_payload(_required(parameters, "cases"))
+        confirmations = _confirmations_from_payload(
+            _required(parameters, "confirmations")
+        )
+        request = _runtime_revision_request_from_payload(
+            _as_mapping(_required(parameters, "request"), "request")
+        )
+        facts = _model_of(ExecutionFacts, _required(parameters, "facts"), "facts")
+        decision = request_runtime_revision(
+            plan=plan,
+            cases=cases,
+            confirmations=confirmations,
+            request=request,
+            facts=facts,
+        )
+        return _runtime_revision_result(decision)
+
+    def handle_narrow_driver(command: object) -> Mapping[str, object]:
+        parameters = _command_parameters(command)
+        try:
+            current = RunDriver(_as_text(_required(parameters, "current"), "current"))
+            requested = RunDriver(
+                _as_text(_required(parameters, "requested"), "requested")
+            )
+            result = narrow_driver(current, requested)
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+        return {"driver": result.value}
+
     actions: dict[str, Handler] = {
         "save_context": _guard(handle_save_context),
         "save_binding": _guard(handle_save_binding),
@@ -1465,6 +1927,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "publish_plan": _guard(handle_publish_plan),
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
+        "request_model_draft": _guard(handle_request_model_draft),
+        "revise_pending_steps": _guard(handle_revise_pending_steps),
+        "narrow_driver": _guard(handle_narrow_driver),
     }
     return BUseCaseRegistry(actions=actions, owned_actions=OWNED_ACTIONS)
 

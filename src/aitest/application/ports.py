@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Protocol
 
 from aitest.application.planning.model_ports import (
+    CredentialResolution as CredentialResolution,
+)
+from aitest.application.planning.model_ports import (
+    CredentialStatus as CredentialStatus,
+)
+from aitest.application.planning.model_ports import (
     ModelCall as ModelCall,
 )
 from aitest.application.planning.model_ports import (
@@ -50,6 +56,7 @@ from aitest.domain.execution.runs import (
     OutputBlockRef,
     OutputCursor,
     OutputStreamName,
+    RecoveryRecord,
     SpoolManifest,
     StopRequestResult,
 )
@@ -331,6 +338,34 @@ class SpoolStore(Protocol):
         stream_name: OutputStreamName,
         summary: DomainRedactionSummary,
     ) -> str: ...
+
+
+class CheckpointPort(Protocol):
+    """Persist, load and scan recovery checkpoints for Attempt resumption.
+
+    对齐 AC-001 §7.3：C 包通过本端口调用，不得直接实例化
+    :class:`FileCheckpointStore`。记录版本固定 ``aitest.recovery-checkpoint/1.0``。
+
+    ID/修订规则与 :meth:`WorkspaceUnitOfWork.stage_record` 同构：
+    ``aggregate_kind`` 固定 ``execution_facts``，``record_id`` 取 ``run_id``，
+    每次快照发布递增 ``snapshot_revision``（对应 ``expected_revision``），
+    ``snapshot_commit_id`` 取 A 返回的 ``commit_sequence``。
+    """
+
+    def persist(self, record: RecoveryRecord) -> Path:
+        """原子写入当前 Attempt 的检查点记录，返回落盘路径。"""
+        ...
+
+    def load(self, attempt_id: str) -> RecoveryRecord:
+        """按 attempt_id 读取单条检查点记录。"""
+        ...
+
+    def scan(self) -> tuple[RecoveryRecord, ...]:
+        """启动时只读扫描全部检查点，返回未完成 Attempt 的记录列表。
+
+        A 核心启动时调用；只读，不修改任何文件。
+        """
+        ...
 
 
 class VerificationPort(Protocol):

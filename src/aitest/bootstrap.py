@@ -49,6 +49,7 @@ from aitest.infrastructure.connections import (
     EndpointConfig,
     LocalAPIConnectionBridge,
 )
+from aitest.infrastructure.credential_resolver import PurposeBoundCredentialResolver
 from aitest.infrastructure.credentials import SecretManager
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
@@ -59,6 +60,7 @@ from aitest.infrastructure.file_store.recovery import (
 )
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
+from aitest.infrastructure.projections import SafeMaterialProjector
 from aitest.interfaces.local.api import Handler, LocalAPI
 from aitest.interfaces.local.b_registration import b_registration_for
 from aitest.interfaces.local.editor_host import (
@@ -273,19 +275,7 @@ def assemble_workspace_core(
             sequence=unit_of_work,
         )
         reader = PortsRecordReader(unit_of_work.repo)
-        dependencies = BUseCaseDependencies(
-            unit_of_work=ports_unit_of_work,
-            reader=reader,
-            clock=SystemClock(),
-        )
-        handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
-        if extra_handlers:
-            conflicts = sorted(handlers.keys() & extra_handlers.keys())
-            if conflicts:
-                raise ValueError(
-                    f"registered use case conflicts with built-in actions: {conflicts}"
-                )
-            handlers.update(extra_handlers)
+        clock = SystemClock()
 
         # A-10：默认装配真实凭据/来源能力与动作级能力门。能力门在
         # LocalAPI 构造前建立，连接水合结论与各能力条件随装配确定。
@@ -352,6 +342,40 @@ def assemble_workspace_core(
             # 后续成功事实可自动恢复；未提供凭据引用则保持 not_configured
             # （缺配置）。两者都不是操作者意图，不得落人工降级——人工
             # 降级只能显式 restore，会把临时凭据故障永久钉死。
+
+        # AB-001 §8.16.3：默认装配把模型三端口注入 B 的用例依赖。
+        # - 投影器是本地纯计算，任何配置下都可用；
+        # - 模型调用端点与凭据引用未配齐时 `caller` 为 None，模型动作按
+        #   "未配置"降级（能力门 + handler 双重把关），不影响其余动作；
+        # - 凭据解析走窄适配器（候选甲）：引用由装配方按用途绑定，B 侧
+        #   只能按用途取状态，拿不到、也换不了凭据正文。
+        credential_references: dict[str, str] = {}
+        if model_secret_reference is not None:
+            secret_purpose, secret_reference = model_secret_reference
+            credential_references[secret_purpose] = secret_reference
+        dependencies = BUseCaseDependencies(
+            unit_of_work=ports_unit_of_work,
+            reader=reader,
+            clock=clock,
+            projector=SafeMaterialProjector(),
+            caller=model_provider,
+            credentials=PurposeBoundCredentialResolver(
+                secret_manager, credential_references
+            ),
+        )
+        handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
+        if extra_handlers:
+            conflicts = sorted(handlers.keys() & extra_handlers.keys())
+            if conflicts:
+                raise ValueError(
+                    f"registered use case conflicts with built-in actions: {conflicts}"
+                )
+            handlers.update(extra_handlers)
+
+        # AB-001 §8.16.3 第 4 条：动作级能力声明。模型出站依赖真实模型调用
+        # 与凭据解析；`revise_pending_steps` / `narrow_driver` 是纯规则
+        # （执行事实随命令带来），无外部能力依赖，不声明。
+        gate.require("request_model_draft", MODEL, SECRET)
 
         if extra_action_dependencies:
             for action, keys in extra_action_dependencies.items():
