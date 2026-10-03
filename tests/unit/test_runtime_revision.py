@@ -128,6 +128,7 @@ def _case(
     basis_text: str = _BASIS_TEXT,
     basis_digest: str = _BASIS_DIGEST,
     critical_paths: frozenset[str] = frozenset({"path-1"}),
+    acceptance_item_ids: frozenset[str] = frozenset({"AC-01"}),
     independent_verification: str | None = "查询订单库核对状态",
 ) -> Case:
     basis = (
@@ -152,7 +153,7 @@ def _case(
         verification_method="命令输出比对",
         independent_verification=independent_verification,
         links=CaseLink(
-            acceptance_item_ids=frozenset({"AC-01"}),
+            acceptance_item_ids=acceptance_item_ids,
             critical_path_ids=critical_paths,
         ),
         assertion_basis=basis,
@@ -164,9 +165,10 @@ def _plan(
     revision: int = 1,
     status: PlanPublicationStatus = PlanPublicationStatus.PUBLISHED,
     case_revision: int = 1,
+    plan_id: str = "plan-1",
 ) -> Plan:
     return Plan(
-        plan_id="plan-1",
+        plan_id=plan_id,
         revision=revision,
         scope=AcceptanceScope(
             scope_id="scope-1",
@@ -223,14 +225,24 @@ def _decide(
     cursor: int | None = None,
     driver: RunDriver | None = None,
     base_plan_revision_no: int = 1,
+    base_plan_revision_id: str = "plan-1",
+    base_plan_revision_digest: str | None = "sha256:plan-1",
 ) -> RuntimeRevisionDecision:
+    """驱动一次运行中修订。
+
+    默认写入的是夹具里的**冻结计划身份**（`plan-1@1`，摘要 `sha256:plan-1`）：
+    检查项 B-15 要求核对完整身份，因此正向用例也必须给出这三项，
+    否则测不到"身份对了才放行"这一半。
+    """
     case = frozen_case if frozen_case is not None else _case()
     return request_runtime_revision(
         plan=plan if plan is not None else _plan(),
         cases=(case,),
         confirmations=tuple(confirmations),
         request=RuntimeRevisionRequest(
+            base_plan_revision_id=base_plan_revision_id,
             base_plan_revision_no=base_plan_revision_no,
+            base_plan_revision_digest=base_plan_revision_digest,
             observed_snapshot_cursor=(
                 int(payload["snapshot_cursor"]) if cursor is None else cursor
             ),
@@ -708,12 +720,146 @@ def test_the_application_gate_raises_with_the_decision() -> None:
 def test_a_request_must_change_something() -> None:
     with pytest.raises(ValueError, match="at least one case"):
         RuntimeRevisionRequest(
+            base_plan_revision_id="plan-1",
             base_plan_revision_no=1,
             observed_snapshot_cursor=11,
             case_changes=(),
             reason="无改动",
             operator_ref="operator-1",
         )
+
+
+# ------------------------------------------------------------------ 7 冻结计划完整身份（B-15）
+
+
+def test_a_plan_with_the_same_revision_but_another_id_is_refused() -> None:
+    """检查项 B-15：同修订号、不同 `plan_id` 的计划不得被当成冻结依据。
+
+    反例原文是"同修订号但 plan_id=unrelated-plan 的计划也被接受"。
+    """
+    decision = _decide(
+        _failure_in_progress(),
+        plan=_plan(plan_id="unrelated-plan"),
+    )
+    assert decision.accepted is False
+    assert _codes(decision) == {
+        RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH.value
+    }
+    assert decision.revision_no == 1
+
+
+def test_a_request_naming_another_plan_id_is_refused() -> None:
+    """请求声明的基线计划 ID 与冻结计划不一致：同样拒绝（两个方向都要守）。"""
+    decision = _decide(
+        _failure_in_progress(),
+        base_plan_revision_id="unrelated-plan",
+    )
+    assert decision.accepted is False
+    assert RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH.value in _codes(decision)
+
+
+def test_a_mismatched_plan_digest_is_refused() -> None:
+    """完整身份包括摘要：ID 与修订号都对、摘要对不上也不能当同一份冻结计划。"""
+    decision = _decide(
+        _failure_in_progress(),
+        base_plan_revision_digest="sha256:another-plan-content",
+    )
+    assert decision.accepted is False
+    assert RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH.value in _codes(decision)
+
+
+def test_the_frozen_plan_identity_is_checked_when_the_digest_is_given() -> None:
+    """给出摘要且与事实一致时正常放行：身份核对不是"一律拒绝"。"""
+    decision = _decide(_failure_in_progress())
+    assert decision.accepted is True
+    assert decision.refusals == ()
+
+    # 不给摘要时不做摘要核对（不拿计划内容猜一个来跟自己比），但修订号与 ID 仍必须匹配。
+    without_digest = _decide(
+        _failure_in_progress(), base_plan_revision_digest=None
+    )
+    assert without_digest.accepted is True
+
+    wrong_revision = _decide(_failure_in_progress(), base_plan_revision_no=2)
+    assert wrong_revision.accepted is False
+    assert (
+        RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH.value
+        in _codes(wrong_revision)
+    )
+
+
+def test_replacing_a_mandatory_acceptance_link_is_refused() -> None:
+    """检查项 B-15：必测关联只能保留或增加，"替换"同样拒绝。
+
+    反例原文是把必测 Case 的验收关联从 `{AC-A,AC-B}` 改成 `{AC-A,AC-C}`：
+    两个集合互不包含，真子集比较发现不了，于是原依据被悄悄换掉。
+    """
+    frozen = _case(
+        acceptance_item_ids=frozenset({"AC-A", "AC-B"}),
+    )
+    replaced = CaseRuntimeChange(
+        next_case=dataclasses.replace(
+            frozen,
+            revision=2,
+            links=CaseLink(
+                acceptance_item_ids=frozenset({"AC-A", "AC-C"}),
+                critical_path_ids=frozenset({"path-1"}),
+            ),
+        )
+    )
+    decision = _decide(
+        _failure_in_progress(),
+        change=replaced,
+        frozen_case=frozen,
+    )
+    assert decision.accepted is False
+    assert RuntimeRevisionRefusalCode.APPLICABILITY_WEAKENED.value in _codes(decision)
+
+
+def test_adding_a_mandatory_acceptance_link_is_allowed() -> None:
+    """增加关联是允许的：`required ⊆ next` 成立。"""
+    frozen = _case(acceptance_item_ids=frozenset({"AC-A"}))
+    widened = CaseRuntimeChange(
+        next_case=dataclasses.replace(
+            frozen,
+            revision=2,
+            links=CaseLink(
+                acceptance_item_ids=frozenset({"AC-A", "AC-C"}),
+                critical_path_ids=frozenset({"path-1"}),
+            ),
+        )
+    )
+    decision = _decide(
+        _failure_in_progress(),
+        change=widened,
+        frozen_case=frozen,
+    )
+    assert decision.accepted is True
+    assert RuntimeRevisionRefusalCode.APPLICABILITY_WEAKENED.value not in _codes(
+        decision
+    )
+
+
+def test_replacing_a_mandatory_critical_path_is_refused() -> None:
+    """关键链路同样只增不减（当前 `{path-1}` → 换成 `{path-2}`）。"""
+    frozen = _case(critical_paths=frozenset({"path-1"}))
+    replaced = CaseRuntimeChange(
+        next_case=dataclasses.replace(
+            frozen,
+            revision=2,
+            links=CaseLink(
+                acceptance_item_ids=frozenset({"AC-01"}),
+                critical_path_ids=frozenset({"path-2"}),
+            ),
+        )
+    )
+    decision = _decide(
+        _failure_in_progress(),
+        change=replaced,
+        frozen_case=frozen,
+    )
+    assert decision.accepted is False
+    assert RuntimeRevisionRefusalCode.APPLICABILITY_WEAKENED.value in _codes(decision)
 
 
 def test_a_derived_payload_is_always_a_fresh_copy() -> None:

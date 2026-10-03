@@ -287,9 +287,19 @@ def request_model_draft(
     6. 成功 → 登记出站记录并产出 `GeneratedContent(status=draft)`。
 
     第 1、2 步在**投影之前**：先拦住不该送的材料，再花代价做投影。
+
+    另外**策略必须属于本次请求的项目**（检查项 B-12）：`ModelOutboundPolicy` 自带
+    `project_id`，过去准入只看 AI 开关、确认状态与材料类别，不看策略归谁，于是
+    "用 A 项目的出站策略为 B 项目准备请求"也能通过。策略是项目级授权，
+    借用别的项目的策略等于绕过本项目的出站授权。
     """
     if not project_id.strip():
         raise ValueError("project_id must not be empty")
+    if policy.project_id != project_id:
+        return _blocked(
+            f"the model outbound policy belongs to project {policy.project_id!r}, "
+            f"not to {project_id!r}"
+        )
 
     reason = _admission_reason(policy, task_type, selected_material)
     if reason is not None:

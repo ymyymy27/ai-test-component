@@ -27,6 +27,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from aitest.application.planning.substrate import (
     AggregateKind,
     RecordReader,
@@ -82,7 +84,17 @@ def _stage_and_commit(
     用 `transaction()` 而不是 `open()` / `try`…`finally`：真实底座的 `open()`
     会取工作空间级排他写锁，收尾一旦靠调用方的记性，抛异常或提前返回就会把锁
     留在这个进程里。上下文对象负责收尾（见 `substrate.Transaction`）。
+
+    写入前先核对**正文自己的项目**与本次写入项目一致（检查项 B-12）：正文带
+    `project_id` 就不是可选项，而是这条记录归属谁的唯一凭据；正文不带则该记录
+    归属未知，同样拒绝——不允许"没写项目"被读成"哪个项目都能写"。
     """
+    _verify_payload_project(
+        payload,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+    )
     with transaction(unit_of_work, project_id) as tx:
         staged = tx.stage_record(
             aggregate_kind=aggregate_kind,
@@ -106,13 +118,40 @@ def _load_payload(
         aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
     )
     payload = dict(record.payload)
-    # 项目校验：跨项目的记录不得被当成同一条读到。
-    stored_project = payload.get("project_id")
-    if stored_project is not None and stored_project != project_id:
-        raise ValueError(
-            f"{aggregate_kind} {record_id} belongs to another project"
-        )
+    _verify_payload_project(
+        payload,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+    )
     return payload
+
+
+def _verify_payload_project(
+    payload: Mapping[str, object],
+    *,
+    project_id: str,
+    aggregate_kind: AggregateKind,
+    record_id: str,
+) -> None:
+    """项目归属校验：**缺失与不符都拒绝**，不把"没有项目"当成"任何项目都能读"。
+
+    检查项 B-12：过去只在 `stored_project is not None` 时比较，于是正文里没有项目字段的
+    记录（例如 `Delivery`）可以被**任意项目**读回；写入侧也只看 `command.project_id` 非空，
+    不看正文/引用/策略自己的项目。这里把两侧合成一条规则：
+
+    - 正文带 `project_id` 且与本次访问的项目不同 → 拒绝（跨项目）；
+    - 正文**不带** `project_id` → 拒绝并说明这是归属未知的旧记录，
+      需要显式迁移或由调用方判为阻塞（与检查文档"旧记录归属未知应显式阻塞或迁移"一致）。
+    """
+    stored_project = payload.get("project_id")
+    if stored_project is None:
+        raise ValueError(
+            f"{aggregate_kind} {record_id} carries no project_id, so its owning project "
+            "is unknown; it cannot be read through a project-scoped lookup"
+        )
+    if stored_project != project_id:
+        raise ValueError(f"{aggregate_kind} {record_id} belongs to another project")
 
 
 # ------------------------------------------------------------------ 写入
@@ -287,15 +326,27 @@ def save_delivery(
 
     交付说明自身不带项目字段，项目由调用方显式给出——记录需要项目范围才可查询。
     落盘形状把**自述与验证事实分列**，不给"把自述当验证事实"留通道。
+
+    **验证范围不接受调用方自填**（检查项 B-13）：`verified_in_scope` 只能由执行事实
+    派生，"提测者说已验证"不是证据。过去 `save_delivery` 照收 `verified_in_scope`，
+    读回 `Delivery.is_verified` 直接为真，等于让提测者自己宣布测试通过。这里改为拒绝：
+    要声明什么还没验证，写 `unverified_scope`（那本来就是声明字段）；已验证范围由后续
+    的执行/核验事实投影产生，不从这里写入。
     """
     if not project_id.strip():
         raise ValueError("project_id must not be empty")
+    if delivery.verified_in_scope:
+        raise ValueError(
+            "verified_in_scope is derived from execution facts and must not be "
+            "self-declared on save; record what is not verified in unverified_scope "
+            f"instead (got {list(delivery.verified_in_scope)!r})"
+        )
     return _stage_and_commit(
         project_id=project_id,
         aggregate_kind="delivery",
         record_id=delivery.delivery_id,
         expected_revision=expected_revision,
-        payload=delivery_to_payload(delivery),
+        payload=delivery_to_payload(delivery, project_id=project_id),
         unit_of_work=unit_of_work,
     )
 

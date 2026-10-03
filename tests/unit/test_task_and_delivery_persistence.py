@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import tempfile
 from collections.abc import Iterator, Mapping
@@ -27,7 +28,7 @@ from uuid import uuid4
 
 import pytest
 
-from aitest.application.planning.substrate import ConcurrentEditError
+from aitest.application.planning.substrate import ConcurrentEditError, transaction
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -262,6 +263,118 @@ def test_cross_project_read_is_rejected(workspace_root: Path) -> None:
         )
 
 
+def test_cross_project_delivery_read_is_rejected(workspace_root: Path) -> None:
+    """检查项 B-12：交付记录落盘带项目，异项目读回**不得**成功。
+
+    反例原文是"保存的 `Delivery` 正文没有 `project_id`，随后 `load_delivery(foreign-project)`
+    可读取"。
+    """
+    stack = _start(workspace_root)
+    save_delivery(_delivery(), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+
+    restarted = _start(workspace_root)
+    assert (
+        load_delivery(
+            restarted.reader,
+            project_id=PROJECT_ID,
+            delivery_id="delivery-1",
+            revision=1,
+        )
+        == _delivery()
+    )
+    with pytest.raises(ValueError, match="another project"):
+        load_delivery(
+            restarted.reader,
+            project_id=OTHER_PROJECT,
+            delivery_id="delivery-1",
+            revision=1,
+        )
+
+
+def test_a_record_without_a_project_is_not_readable_through_any_project(
+    workspace_root: Path,
+) -> None:
+    """归属未知的旧记录**显式阻塞**，不表现为"哪个项目都能读"。
+
+    构造方式是直接写入一份**正文缺 `project_id`** 的交付记录（旧格式或人工写入都可能
+    这样），再按任意项目读回：必须报"归属未知"，而不是静默成功。
+    """
+    from aitest.application.project.serialization import delivery_from_payload
+
+    stack = _start(workspace_root)
+    legacy_payload = delivery_to_payload(_delivery(), project_id=PROJECT_ID)
+    del legacy_payload["project_id"]
+    # 正文仍然自洽：领域对象读得回来，缺的只是**项目归属**。
+    assert delivery_from_payload(legacy_payload) == _delivery()
+
+    with transaction(stack.unit_of_work, PROJECT_ID) as tx:
+        tx.stage_record(
+            aggregate_kind="delivery",
+            record_id="delivery-1",
+            expected_revision=None,
+            payload=legacy_payload,
+        )
+        tx.commit()
+
+    restarted = _start(workspace_root)
+    for project_id in (PROJECT_ID, OTHER_PROJECT):
+        with pytest.raises(ValueError, match="no project_id"):
+            load_delivery(
+                restarted.reader,
+                project_id=project_id,
+                delivery_id="delivery-1",
+                revision=1,
+            )
+
+
+def test_saving_a_delivery_that_self_declares_verification_is_refused(
+    workspace_root: Path,
+) -> None:
+    """检查项 B-13：`verified_in_scope` 不接受调用方自填。"""
+    stack = _start(workspace_root)
+    declared = dataclasses.replace(
+        _delivery(), verified_in_scope=("all-required",)
+    )
+    with pytest.raises(ValueError, match="verified_in_scope"):
+        save_delivery(declared, project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+    # 被拒时什么都没写。
+    with pytest.raises(ValueError, match="unknown revision"):
+        stack.reader.read(
+            aggregate_kind="delivery", record_id="delivery-1", revision=1
+        )
+
+
+def test_the_delivery_entry_refuses_a_self_declared_verification(
+    workspace_root: Path,
+) -> None:
+    """同一拒绝在统一入口上表现为具名参数错误，而不是静默"已验证"。"""
+    api = _api(_start(workspace_root))
+    payload = delivery_to_payload(_delivery(), project_id=PROJECT_ID)
+    payload["verified_in_scope"] = ["all-required"]
+    response = api.dispatch(
+        _command("save_delivery", "req-delivery-self", {"delivery": payload}),
+        _session(),
+    )
+    assert response.error is not None
+    assert response.error.code == "B_INVALID_PARAMETER"
+    assert "verified_in_scope" in response.error.message
+
+
+def test_the_delivery_entry_refuses_a_foreign_project_payload(
+    workspace_root: Path,
+) -> None:
+    """检查项 B-12：命令项目与正文项目不一致时拒绝写入。"""
+    api = _api(_start(workspace_root))
+    payload = delivery_to_payload(_delivery(), project_id=OTHER_PROJECT)
+    response = api.dispatch(
+        _command("save_delivery", "req-delivery-foreign", {"delivery": payload}),
+        _session(),
+    )
+    assert response.error is not None
+    assert response.error.code == "B_INVALID_PARAMETER"
+    assert "project-other" in response.error.message
+
+
 def test_missing_revision_is_an_error(workspace_root: Path) -> None:
     stack = _start(workspace_root)
     save_task(_task(), unit_of_work=stack.unit_of_work)
@@ -293,14 +406,24 @@ def test_unreadable_payload_is_rejected_not_defaulted() -> None:
     with pytest.raises(ValueError, match="goal"):
         task_from_payload(task_payload)
 
-    delivery_payload = delivery_to_payload(_delivery())
+    delivery_payload = delivery_to_payload(_delivery(), project_id=PROJECT_ID)
     del delivery_payload["self_report"]
     with pytest.raises(ValueError, match="self_report"):
         delivery_from_payload(delivery_payload)
 
 
+def test_delivery_payload_carries_its_own_project() -> None:
+    """检查项 B-12：项目写进**正文**，不只留在记录命名空间。
+
+    正文没有项目字段时，同一个 `delivery_id` 可以被任意项目读回；
+    这里锁定"落盘形状自带项目"，读侧才有可核对的依据。
+    """
+    payload = delivery_to_payload(_delivery(), project_id=PROJECT_ID)
+    assert payload["project_id"] == PROJECT_ID
+
+
 def test_delivery_payload_keeps_self_report_and_facts_separate() -> None:
-    payload = delivery_to_payload(_delivery())
+    payload = delivery_to_payload(_delivery(), project_id=PROJECT_ID)
     assert payload["self_report"] == {"completed": ["ai-1"], "incomplete": ["ai-2"]}
     assert payload["verified_in_scope"] == []
     assert payload["unverified_scope"] == ["ai-2"]
@@ -320,7 +443,11 @@ def test_save_task_and_delivery_reach_the_entry(workspace_root: Path) -> None:
 
     for action, request_id, parameters in (
         ("save_task", "req-task-1", {"task": task_to_payload(_task())}),
-        ("save_delivery", "req-delivery-1", {"delivery": delivery_to_payload(_delivery())}),
+        (
+            "save_delivery",
+            "req-delivery-1",
+            {"delivery": delivery_to_payload(_delivery(), project_id=PROJECT_ID)},
+        ),
     ):
         response = api.dispatch(
             _command(action, request_id, parameters), _session()

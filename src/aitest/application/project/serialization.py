@@ -405,18 +405,28 @@ def _dependency_to_payload(dependency: Dependency) -> dict[str, Any]:
 
 
 def dependency_graph_to_payload(graph: ModuleDependencyGraph) -> dict[str, Any]:
-    """模块依赖图的 payload；项目范围内可完整往返。"""
+    """模块依赖图的 payload；项目范围内可完整往返。
+
+    `edges_declared` 一并落盘（检查项 B-17）：它是"已明确没有依赖"与"依赖尚未登记"的唯一
+    区分依据，丢了这个布尔值，读回时就只能靠"有没有边"猜，误判不可避免。
+    """
     return {
         "project_id": graph.project_id,
         "modules": [_module_to_payload(module) for module in graph.modules],
         "dependencies": [
             _dependency_to_payload(dependency) for dependency in graph.dependencies
         ],
+        "edges_declared": graph.edges_declared,
     }
 
 
 def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependencyGraph:
-    """从 payload 还原依赖图。"""
+    """从 payload 还原依赖图。
+
+    旧记录（本键之前的版本）没有 `edges_declared`：那时"有模块没有边"一律按缺口处理，
+    为了**不改动既有记录的语义**，这类记录读回时视为 `edges_declared=True`（即沿用旧口径、
+    不新造缺口），而不是顺手把它们变成阻塞项。
+    """
     project_id = payload.get("project_id")
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("project_id must be a non-empty string")
@@ -460,10 +470,19 @@ def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependenc
             )
         )
 
+    raw_declared = payload.get("edges_declared")
+    if raw_declared is None:
+        edges_declared = True
+    elif isinstance(raw_declared, bool):
+        edges_declared = raw_declared
+    else:
+        raise ValueError("edges_declared must be a boolean when present")
+
     return ModuleDependencyGraph(
         project_id=project_id,
         modules=tuple(_module_from_payload(raw) for raw in raw_modules),
         dependencies=tuple(dependencies),
+        edges_declared=edges_declared,
     )
 
 
@@ -581,12 +600,18 @@ def task_from_payload(payload: Mapping[str, Any]) -> Task:
     )
 
 
-def delivery_to_payload(delivery: Delivery) -> dict[str, Any]:
+def delivery_to_payload(delivery: Delivery, *, project_id: str) -> dict[str, Any]:
     """交付说明落盘形状：**自述与验证事实结构分离**（需求 P1-FR02）。
 
     两者字段各自独立成块，读回时也各自重建——不给"把自述当验证事实"留通道。
+
+    `project_id` 写在**记录正文里**，不只留在记录的命名空间（检查项 B-12）：
+    `Delivery` 领域对象本身不带项目字段，正文又没有项目时，这条记录就成了
+    "归属未知"，任何项目都能按同一个 `delivery_id` 读回。项目由调用方显式给出，
+    与 `acceptance_scope`/`case`/`rule_draft` 的既有做法一致。
     """
     return {
+        "project_id": project_id,
         "delivery_id": delivery.delivery_id,
         "task_id": delivery.task_id,
         "version": delivery.version,

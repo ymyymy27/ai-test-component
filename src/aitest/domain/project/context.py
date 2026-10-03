@@ -315,11 +315,22 @@ class ModuleDependencyGraph:
 
     `Dependency` 记录是依赖关系的唯一权威来源；本对象只做投影，
     不提供第二处可写入口（见设计说明第 4 节决定 1）。
+
+    `edges_declared` 区分**"已明确没有依赖"与"依赖还没登记"**（检查项 B-17）：
+
+    - `register_graph()` 是真的在登记一张图，因此它产出的图一律 `edges_declared=True`
+      ——此时没有边就是**明确的"没有依赖"**（单模块项目、若干互不依赖的模块都属此列），
+      不构成缺口；
+    - 默认 `False` 表示"这张图不是通过登记入口来的"（直接构造、或无法证明边已登记），
+      调用方据此保守处理：**未知不得被读成没有影响**。
+
+    两者在字节上不可互推，所以这个事实随图一起落盘、一起读回。
     """
 
     project_id: str
     modules: tuple[Module, ...] = field(default_factory=tuple)
     dependencies: tuple[Dependency, ...] = field(default_factory=tuple)
+    edges_declared: bool = False
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
