@@ -36,8 +36,12 @@ from aitest.domain.project.context import (
     ModuleDependencyGraph,
     SecretRef,
     SelfReport,
+    SourceFileDigest,
+    SourceForm,
+    SourceManifest,
     Task,
     _canonical_portable_path,
+    source_content_identity,
 )
 
 #: `git` 形态专有键；`plain` 形态的 payload 中必须**不出现**这些键。
@@ -405,18 +409,28 @@ def _dependency_to_payload(dependency: Dependency) -> dict[str, Any]:
 
 
 def dependency_graph_to_payload(graph: ModuleDependencyGraph) -> dict[str, Any]:
-    """模块依赖图的 payload；项目范围内可完整往返。"""
+    """模块依赖图的 payload；项目范围内可完整往返。
+
+    `edges_declared` 一并落盘（检查项 B-17）：它是"已明确没有依赖"与"依赖尚未登记"的唯一
+    区分依据，丢了这个布尔值，读回时就只能靠"有没有边"猜，误判不可避免。
+    """
     return {
         "project_id": graph.project_id,
         "modules": [_module_to_payload(module) for module in graph.modules],
         "dependencies": [
             _dependency_to_payload(dependency) for dependency in graph.dependencies
         ],
+        "edges_declared": graph.edges_declared,
     }
 
 
 def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependencyGraph:
-    """从 payload 还原依赖图。"""
+    """从 payload 还原依赖图。
+
+    旧记录（本键之前的版本）没有 `edges_declared`：那时"有模块没有边"一律按缺口处理，
+    为了**不改动既有记录的语义**，这类记录读回时视为 `edges_declared=True`（即沿用旧口径、
+    不新造缺口），而不是顺手把它们变成阻塞项。
+    """
     project_id = payload.get("project_id")
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("project_id must be a non-empty string")
@@ -460,10 +474,19 @@ def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependenc
             )
         )
 
+    raw_declared = payload.get("edges_declared")
+    if raw_declared is None:
+        edges_declared = True
+    elif isinstance(raw_declared, bool):
+        edges_declared = raw_declared
+    else:
+        raise ValueError("edges_declared must be a boolean when present")
+
     return ModuleDependencyGraph(
         project_id=project_id,
         modules=tuple(_module_from_payload(raw) for raw in raw_modules),
         dependencies=tuple(dependencies),
+        edges_declared=edges_declared,
     )
 
 
@@ -581,12 +604,18 @@ def task_from_payload(payload: Mapping[str, Any]) -> Task:
     )
 
 
-def delivery_to_payload(delivery: Delivery) -> dict[str, Any]:
+def delivery_to_payload(delivery: Delivery, *, project_id: str) -> dict[str, Any]:
     """交付说明落盘形状：**自述与验证事实结构分离**（需求 P1-FR02）。
 
     两者字段各自独立成块，读回时也各自重建——不给"把自述当验证事实"留通道。
+
+    `project_id` 写在**记录正文里**，不只留在记录的命名空间（检查项 B-12）：
+    `Delivery` 领域对象本身不带项目字段，正文又没有项目时，这条记录就成了
+    "归属未知"，任何项目都能按同一个 `delivery_id` 读回。项目由调用方显式给出，
+    与 `acceptance_scope`/`case`/`rule_draft` 的既有做法一致。
     """
     return {
+        "project_id": project_id,
         "delivery_id": delivery.delivery_id,
         "task_id": delivery.task_id,
         "version": delivery.version,
@@ -638,6 +667,102 @@ def delivery_from_payload(payload: Mapping[str, Any]) -> Delivery:
     )
 
 
+# ----------------------------------------------------- 源码内容身份（SourceManifest）
+
+
+def source_manifest_to_payload(
+    manifest: SourceManifest, *, project_id: str, snapshot_id: str, purpose: str
+) -> dict[str, Any]:
+    """源码快照的落盘 payload。
+
+    **形式互斥**：`git` 形态**真正省略** `manifest_digest` 键，
+    `plain` 形态**真正省略** `git_base_commit` / `git_diff_digest` 键
+    （不是写 `None`、不是写空串——与绑定序列化同一做法）。
+
+    `content_identity` 一并落盘：读回时据此核对"这份快照的身份没被改过"，
+    而不是重新扫描目录（端口语义见 `AB-001` 第 11.4 节）。
+    """
+    payload: dict[str, Any] = {
+        "project_id": project_id,
+        "snapshot_id": snapshot_id,
+        "purpose": purpose,
+        "source_scope": manifest.source_scope,
+        "source_form": manifest.source_form.value,
+        "content_identity": source_content_identity(manifest),
+        "files": [
+            {
+                "relative_path": item.relative_path,
+                "size": item.size,
+                "content_digest": item.content_digest,
+            }
+            for item in manifest.normalized_files()
+        ],
+        "exclusion_rules": list(manifest.exclusion_rules),
+        "refetch_dependencies": list(manifest.refetch_dependencies),
+        "refetch_scope": manifest.refetch_scope,
+    }
+    if manifest.source_form is SourceForm.GIT:
+        payload["git_base_commit"] = manifest.git_base_commit
+        payload["git_diff_digest"] = manifest.git_diff_digest
+    else:
+        payload["plain_manifest_digest"] = manifest.manifest_digest
+    return payload
+
+
+def source_manifest_from_payload(payload: Mapping[str, Any]) -> SourceManifest:
+    """从落盘 payload 还原源码内容身份；形态字段缺失即报错（不用空值假装存在）。"""
+    raw_form = _payload_text(payload, "source_form")
+    try:
+        form = SourceForm(raw_form)
+    except ValueError as error:
+        raise ValueError(f"unknown source_form: {raw_form}") from error
+
+    raw_files = payload.get("files")
+    if not isinstance(raw_files, (list, tuple)):
+        raise ValueError("files must be a list")
+    files: list[SourceFileDigest] = []
+    for index, item in enumerate(raw_files):
+        entry = _require_payload_mapping(item, f"files[{index}]")
+        files.append(
+            SourceFileDigest(
+                relative_path=_payload_text(entry, "relative_path"),
+                size=_payload_non_negative_int(entry, "size"),
+                content_digest=_payload_text(entry, "content_digest"),
+            )
+        )
+
+    common: dict[str, Any] = {
+        "source_scope": _payload_text(payload, "source_scope"),
+        "source_form": form,
+        "files": tuple(files),
+        "exclusion_rules": _payload_text_tuple(payload, "exclusion_rules"),
+        "refetch_dependencies": _payload_text_tuple(payload, "refetch_dependencies"),
+        "refetch_scope": _payload_optional_text(payload, "refetch_scope"),
+    }
+    if form is SourceForm.GIT:
+        # 形态互斥：git 形态下 `manifest_digest` 键必须**不出现**。
+        if "plain_manifest_digest" in payload:
+            raise ValueError("a git source payload must omit plain_manifest_digest")
+        return SourceManifest(
+            **common,
+            git_base_commit=_payload_text(payload, "git_base_commit"),
+            git_diff_digest=_payload_text(payload, "git_diff_digest"),
+        )
+    if "git_base_commit" in payload or "git_diff_digest" in payload:
+        raise ValueError("a plain source payload must omit the git identity keys")
+    return SourceManifest(
+        **common,
+        manifest_digest=_payload_text(payload, "plain_manifest_digest"),
+    )
+
+
+def _payload_non_negative_int(payload: Mapping[str, Any], name: str) -> int:
+    value = payload.get(name)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return value
+
+
 __all__ = [
     "GIT_ONLY_KEYS",
     "PLAIN_ONLY_KEYS",
@@ -653,6 +778,8 @@ __all__ = [
     "environment_to_payload",
     "project_from_payload",
     "project_to_payload",
+    "source_manifest_from_payload",
+    "source_manifest_to_payload",
     "task_from_payload",
     "task_to_payload",
 ]

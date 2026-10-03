@@ -10,8 +10,8 @@ consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers: []
-next_owner: A/C
-next_action: A 冻结 current_revision / commit_seq / next_commit_seq 三个只读方法（准备链路已依赖）并确认装配点接法；C 回写第 11 节 SourceSnapshot 字段口径的执行兼容性结论（Q1/Q2），按新的契约 PR 补齐字段
+next_owner: A
+next_action: A 确认第 8.16.3 节三项（模型端口注入默认装配／模型与运行修订动作接入统一入口／凭据解析形状冲突按候选甲或乙收敛）；B 出 `running` 快照草案与"半程运行"证据口径（见 `已完成/BC-001` 第 16.2 节）；B 定 Q4（快照是否登记为来源修订）
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -679,6 +679,190 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 - B 侧的实现／验证／缺口按 `接口对接/AGENTS.md` 第 4 节单独登记在
   [`delivery-B.md`](delivery-B.md)，本文件不再重复。
 
+### 8.12 保存语义收紧：项目归属统一校验、发布核对预期修订（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）的 **B-12** 与 **B-14**，
+逐条反例见 `docs/一期端到端深入检查-2026-10-03.md` 第 4 节。**本节只登记 B 侧语义变化，
+不改任何跨包 Schema 字节，不需要 A/C/D 改代码**；以下两处行为变化供 A/C/D 核对。
+
+**① 项目归属：写入与读取都要求正文自带项目，且必须一致（B-12）**
+
+- 入口侧：`save_delivery` / `save_task` 在构造领域对象之前比对正文 `project_id` 与
+  命令 `project_id`，不一致报 `B_INVALID_PARAMETER`。
+  **过去的实际行为是用命令项目覆盖正文项目再落盘**——调用方以为存的是 B 的记录，
+  实际落成了 A 的。这是本轮修掉的主要问题。
+- 落盘形状：`Delivery` 的 payload 现在**自带 `project_id`**（与 `case` /
+  `acceptance_scope` / `rule_draft` 一致）；`delivery_to_payload()` 的调用方需要传项目。
+- 读取侧：`_load_payload` 对"正文缺 `project_id`"与"正文项目不一致"**都拒绝**。
+  依据是检查文档"旧记录归属未知应显式阻塞或迁移"，
+  **不再把"没有项目"读成"任何项目都能读"**。
+- 模型出站：`request_model_draft()` 在准入之前比对 `policy.project_id` 与 `project_id`，
+  不一致直接阻塞，**不调用供应方、不落出站记录**。
+
+> **A 侧范围说明**：本项只做 B 侧的准入与引用校验。
+> 检查文档同时要求"A 守住持久命名空间"（即 **A-11** 的跨项目底层归属），
+> 该条属 A 的主责范围，不在本合同的实现与交付之内。
+
+**② 发布核对调用方声明的预期修订（B-14）**
+
+- `publish_rules()` / `publish_plan()` 新增 `expected_revision` 参数；
+  入口从 `Command.expected_revision` 原样透传（`0` = "我认定这是新建"）。
+- 校验在**同一次事务内**完成（新增 `publish._revision_to_stage()`）：与当前修订不符即
+  `ConcurrentEditError`（携带当前修订），入口翻成 `B_REVISION_CONFLICT`。
+  过去发布自己读当前修订当 `expected_revision`，**等于替调用方接受最新基线**，
+  于是旧编辑也能发布成功、旧正文成为最新发布版。
+- **调用方行为变化**：第二次及以后的发布必须声明"我看到的是 `@N`"。
+  不声明（`0`）而当前已有记录时会被拒绝——这是刻意行为，不是回归。
+- 入口**不回退**到草稿/计划自己的修订号来"补"一个基线：
+  那仍然是替调用方猜基线，正是本项要消除的行为。
+
+### 8.13 模型出站：记录标识规则与落盘前过滤事实（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）的 **B-10** 与 **B-03**；
+实现与实测见 `docs/修改日志/feix-a/2026-10-03-B包模型生成意图与落盘前过滤.md`。
+**本节不改端口签名、不改跨包 Schema 字节**，登记以下三处供 A/C/D 核对。
+
+**① 出站记录的标识规则多了一种（B-10）**
+
+- 过去：`outbound:{project_id}:{policy_revision}:{task_type}`
+  ——两次不同业务意图会**共用同一条记录**。
+- 现在：调用方给出 `generation_request_id` 时用
+  `outbound:{project_id}:{generation_request_id}`；
+  **不给时沿用旧规则**，因此既有记录与既有行为仍可复现。
+- 影响面：出站记录是**B 自己的聚合类别**（`model_outbound_request`），
+  存储层不需要为它新增索引键；A 侧无改动。
+
+**② 出站结果的 payload 多了两个键（B-10 / B-03）**
+
+| 键 | 含义 |
+| --- | --- |
+| `generated_content_id` / `generated_content_revision` | 复用分支按引用读回**原草稿**的依据 |
+| `credential_filter` | `{policy, replacements, filtered}`：落盘前过滤掉了几个已知凭据。**只有计数与策略版本，没有凭据原值，也没有其摘要** |
+
+意图修订的 payload 同时多一个 `generation_identity`（"同键是否同输入"的判定依据）。
+三个键都是**新增可选键**，旧消费方忽略即可；`credential_filter` 在模板生成路径**不出现**。
+
+**③ 调用方需要认识的新状态与参数（B-10）**
+
+- `request_model_draft()` 新增 `generation_request_id`、`known_credentials` 两个参数；
+- `OutboundOutcome` 新增状态 **`OUTBOUND_UNRESOLVED`**：同一业务请求号已有出站意图、
+  但结果未提交（响应丢失）。此时**不重发**——外部调用不可撤销，
+  由调用方先核对原出站事实，再用新的 `generation_request_id` 明确重新生成。
+  在 D 侧（面板/CLI/MCP relay）接入该状态之前，它只在核心与测试层可见。
+
+**仍归 A 的部分**：真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接线；
+"哪些值算已知凭据"的来源解析。本包只在既有端口协议内实现编排语义，
+`known_credentials` 由调用方给出，集合不全时过滤必然不全（已如实登记为缺口）。
+
+### 8.14 保存语义：正文修订必须等于分配的仓储修订（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）的 **B-11**
+（`B-REVISION-01-payload-storage`）。**不改端口签名与跨包 Schema 字节**。
+
+**问题**：`case` / `acceptance_scope` 的落盘过去把 `expected_revision` 交给底座当
+**仓储修订**，而正文 payload 里写的是对象自己的 `revision`，两者从不比对。
+于是"新建一条 `revision=9` 的用例"会落成**记录 `@1`、正文 `@9`**：
+按记录修订读回得到另一个修订号，按正文修订又读不到东西。
+
+**现在的规则（B 侧不变量）**：
+
+```
+正文修订 == 这次会分配的仓储修订 == (expected_revision or 0) + 1
+```
+
+- 适用：`save_case()`、`save_acceptance_scope()`；
+- 不符时抛 `ConcurrentEditError`，入口透出 **`B_REVISION_CONFLICT`**；
+- 校验在事务内、`stage_record` 之前完成，因此底座的并发校验**先生效**，
+  本核对只处理"修订号本身的错配"。
+
+**调用方行为变化**：把一条正文修订不等于"当前修订 + 1"的 `Case` / `AcceptanceScope`
+直接保存会被**拒绝**。要新增修订必须按顺序递增（`@1` 新建、随后 `expected_revision=1`
+写 `@2`），不能跳号或复用旧修订号。
+
+**未纳入（待定口径）**：`rule_draft` 与 `plan` 不适用本条——它们的修订号在
+**导入**路径上来自外部规则包（`portable.import_rule_payloads()` 原样还原文件里的
+`revision`），`publish_plan` 的 `plan` 记录 payload 修订也来自计划对象、
+仓储修订是独立序号。是否需要一致属设计决定，见
+`docs/文档-feix-a/B包/09-待解决问题清单.md` 第 7 节的待定问题。
+
+### 8.15 新增两个规则 Markdown 出口动作（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-04** 末句
+"已有 JSON 往返尚未实现合同的规则 Markdown 导入导出"。**不改端口签名与跨包 Schema 字节**。
+
+**B 的动作表由 17 增至 19**，新增两个动作（与既有 `export_rules` / `import_rules` 对称）：
+
+| 动作 | 参数 | 结果 |
+| --- | --- | --- |
+| `export_rules_markdown` | `rule_versions`（同 `export_rules`） | `documents`：每项 `{rule_id, revision, markdown}` |
+| `import_rules_markdown` | `markdown`：单份字符串或字符串列表 | `imported`：与 `import_rules` 同一形状（`rule_draft` 落盘结果） |
+
+**两条行为约定**：
+
+1. **导入恒为草稿**：与 `import_rules` 同一口径——不接受 `confirmed` / `enablement`，
+   产出的 `rule_draft` 恒为未确认、未启用；
+2. **Markdown 不承载本地发布追溯**：`export_rule_version()` 另带的
+   `published_confirmation_id` / `published_digest` **不进 Markdown**。
+   它们是"某个实例已发布"的本地事实，而 Markdown 是给人编辑、可跨实例搬的格式。
+
+**方言**：写入 `application/planning/rules_markdown.py` 的模块 docstring（唯一权威）。
+要点：文首一级标题承载 `rule_id @revision`；固定三行元数据；
+正文 / 步骤 / 证据要求 / 未识别字段各成一段；空列表写 `_（无）_`；
+未识别字段放 ```json 围栏块。**不引入 YAML 依赖**（`pyproject.toml` 无 YAML，
+新增依赖属第③级决定），因此不用 front matter。
+
+**给 D 的知悉项**：面板/CLI/MCP relay 若要暴露"以 Markdown 导入导出规则"，
+可直接调用这两个动作；方言由本包定义，D 侧不做第二套渲染。
+
+### 8.16 模型出站与运行修订：端口现状、装配与逐条待确认项（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-01**（"模型与运行修订动作未注册"）
+与 **B-03／B-10** 的真实端口部分。**本节不改端口签名**，只登记实测现状与要 A 确认的事项。
+
+#### 8.16.1 实测现状（2026-10-03，`develop 7563aeb`）
+
+| 项 | 实测结果 | 结论 |
+| --- | --- | --- |
+| B 的三个只读方法 | `application/ports.py` 第 191／198／222 行已有 `commit_seq` / `next_commit_seq` / `current_revision` | **第 8.8 节的待冻结项已完成**，B 的转接头可直接用 |
+| A 的三个模型端口签名 | `ports.py` 第 362／368／423 行有 `ModelProvider` / `ProjectionPort` / `SecretPort` | **已有** |
+| 类型是否两套 | A 的 `ports.py` 第 10—25 行**直接 import B 的 `model_ports` 类型**（`ModelCall as ModelCall` 等） | **同一套类型**，不存在两套同义定义 |
+| A 的适配器实现 | `infrastructure/projections.py`（`SafeMaterialProjector.project`）、`infrastructure/adapters/model.py`（`HttpModelProvider.call`）、`infrastructure/credentials.py` | **已有实现** |
+| 默认装配 | `bootstrap.py` 第 243 行只构造 `BUseCaseDependencies(unit_of_work, reader, clock)`；**未注入任何模型端口** | **装配缺口在此** |
+| B 的动作注册 | 注册表当前 17 个动作（`save_context`…`query`）；**没有** `save_confirmation`、`request_model_draft`、`revise_pending_steps`／`narrow_driver` | **注册缺口** |
+
+#### 8.16.2 三处需要 B 适配、其余无差异（实测对比）
+
+| B 的窄协议 | A 的端口／适配器 | 差异 |
+| --- | --- | --- |
+| `MaterialProjector.project(*, material: Mapping[MaterialKind, str], source_snippets_enabled) -> Projection` | `SafeMaterialProjector.project(...) -> Projection`（**同一 `Projection` 类**） | **无** |
+| `ModelCaller.call(request: ModelCall) -> ModelCallResult` | `HttpModelProvider.call(request: ModelCall) -> ModelCallResult`（**同一套类**） | **无** |
+| `CredentialResolver.resolve(*, purpose: str) -> CredentialResolution` | `SecretPort.resolve(reference: str, *, purpose: str) -> ResolvedSecret` | **有**（见 8.16.3 第 3 条） |
+
+#### 8.16.3 要 A 确认／决定的事项（逐条）
+
+| # | 事项 | 现状 | 请 A 确认什么 |
+| --- | --- | --- | --- |
+| 1 | **把三个模型端口注入默认装配** | `bootstrap` 只注入 `unit_of_work`/`reader`/`clock` | A 把 `ProjectionPort`／`ModelProvider`／凭据解析实现注入 `BUseCaseDependencies`（或给出等价装配位置）。B 侧只消费注入对象，不改 `bootstrap.py` |
+| 2 | **模型动作与运行修订动作注册进统一入口** | 注册表无这三个动作 | 确认由谁把 `request_model_draft`、`revise_pending_steps`／`narrow_driver` 的 handler 接进入口并做能力声明。B 提供 handler，装配归 A（B-01 的"装配点由谁改"） |
+| 3 | **凭据解析的形状冲突（最关键）** | B 调 `credentials.resolve(purpose="model")`，要"只有状态、永不回传正文"；A 的 `SecretPort.resolve(reference, *, purpose) -> ResolvedSecret`（`ports.py` 第 423 行）**要求 `reference`，B 的编排从不提供**，且返回类型是 `ResolvedSecret` 而不是 B 的 `CredentialResolution` | **A 决定收敛方式**，B 给两个候选：**（甲）** A 在装配处提供窄适配器，把 `SecretPort` 包成 B 的 `CredentialResolver` 形状（`reference` 由装配方按用途配置，B 侧仍只拿到状态、拿不到 `ResolvedSecret`）；**（乙）** 把 `CredentialResolver` 提升为公共合同并进 `ports.py`（破坏性变更，走完整流程）。**B 倾向甲**：不动 A 的端口签名，且 `ResolvedSecret` 不进入 B 的应用层类型 |
+| 4 | **`capabilities` 的能力声明** | 未声明模型类动作 | A／B 谁改共享的 `contracts/capabilities.py`：确认后由能改的一方加，不两边同时改 |
+
+**B 侧已具备**（供 A 判断对接成本）：`application/planning/model_orchestration.py` 的
+`request_model_draft()` 已把准入→凭据→投影→调用→登记串好，并有内存实现验证；
+`application/planning/run_mode.py` 的 `request_runtime_revision()` 已组装运行修订的领域入参。
+两处的依赖面就是上表的三个协议。
+
+**B 侧明确不做**：不改 `bootstrap.py`、不改 `contracts/capabilities.py`、
+不改 `application/ports.py`、不自行执行真实供应方调用。
+
+#### 8.16.4 运行修订的落盘与消费（B→C）
+
+`RuntimeRevision` 未持久写入实际运行序列、C 的 runner 未消费接受／失效清单
+（检查文档 **B-05**）。B 侧已给出领域门禁与决策结果
+（`RuntimeRevisionDecision` 的 `affected`／`preserved`／`invalidated_basis`／
+`rejudge`／`confirmation_required`／`pause_required`）；**保存与消费归 C**。
+该条已追加到 `已完成/BC-001`（B↔C）合同（见其第 16 节）。
+
 ---
 
 ## 9 变更记录
@@ -695,6 +879,12 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-01 | 0.8 | 补第 8.10 节：B 把依赖**闭包进 handler**，因此不必先等装配点改造即可经统一入口运行项目上下文类动作；登记 5 个动作、5 个错误码、合同测试 10 项，并说明"写动作不报提交序号"与"索引缺失不返回空列表"两处细节。装配点接线与 `Handler` 依赖注入仍归 A | B 包（知悉性登记，待 A 确认装配点接法） |
 | 2026-10-02 | 0.9 | 补第 8.11 节：`prepare_run` 参数适配层已实现并注册（合同测试 10 项）；**登记"准备链路已依赖提交序号"这一实测事实**——第 8.8 节三个方法由"将来需要"变为现行前置。B 侧交付说明另立 `delivery-B.md`，本节不重复 | B 包（知悉性登记，待 A 确认接法与冻结签名） |
 | 2026-10-02 | 1.0 | 第 11 节标题明确为**最终口径**：该口径按第 10.1 节裁定写成，属 B 主责范围内的字段定义，可据以实施 | B 包（字段口径已定；待 C 回写 Q1／Q2 兼容性并按新契约 PR 实施） |
+| 2026-10-03 | 1.1 | 补第 8.12 节：保存语义收紧——**项目归属统一校验**（写出/读入都要求正文自带项目且一致，`Delivery` payload 新增 `project_id`；旧记录缺归属显式拒绝）与**发布核对调用方 `expected_revision`**（入口透传、同事务校验、不符报 `B_REVISION_CONFLICT`；第二次发布须声明 `@N`）。对应检查文档 2026-10-03 版 B-12／B-14。**不改跨包 Schema 字节，不需 A/C/D 改代码**；A-11 的底层命名空间归属仍归 A | B 包（知悉性登记） |
+| 2026-10-03 | 1.2 | 补第 8.13 节：模型出站——**出站记录标识多一种规则**（给 `generation_request_id` 时按"（项目, 业务请求号）"，不给则沿用旧规则）、**结果 payload 新增 `generated_content_id` / `credential_filter`、意图 payload 新增 `generation_identity`**（均为新增可选键，**无凭据正文或摘要**）、**新增 `OUTBOUND_UNRESOLVED` 状态**与两个新参数。对应检查文档 2026-10-03 版 B-10／B-03。**不改端口签名与跨包 Schema 字节**；真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接入与凭据来源解析仍归 A | B 包（知悉性登记） |
+| 2026-10-03 | 1.3 | 补第 8.14 节：保存语义——**`case` / `acceptance_scope` 的正文修订必须等于这次分配的仓储修订**（`expected_revision + 1`），不符报 `B_REVISION_CONFLICT`；**调用方不能再跳号或复用旧修订号**。对应检查文档 2026-10-03 版 B-11。**不改端口签名与跨包 Schema 字节**；`rule_draft` 与 `plan` 未纳入，待定口径登记在待解决问题清单第 7 节 | B 包（知悉性登记） |
+| 2026-10-03 | 1.4 | 补第 8.15 节：**新增两个规则 Markdown 出口动作**（`export_rules_markdown` / `import_rules_markdown`，动作表 17 → 19），登记两条行为约定（导入恒为草稿、Markdown 不承载本地发布追溯）与方言要点（不引入 YAML 依赖）。对应检查文档 2026-10-03 版 B-04 末句。**不改端口签名与跨包 Schema 字节**；方言由 B 定义，D 侧不做第二套渲染 | B 包（知悉性登记） |
+| 2026-10-03 | 1.5 | 补第 8.16 节：**模型出站与运行修订的端口现状、装配与逐条待确认项**（对应 B-01／B-03／B-10 的真实端口部分）。实测登记：B 的三个只读方法**已冻结**、A 的三个模型端口**已有签名与适配器**、类型经 `ports.py` **共用同一套**；缺口在**默认装配**与**动作注册**，另有**凭据解析形状冲突**（B 要"只有状态"，A 的 `SecretPort.resolve` 要求引用且返回明文）给出甲乙两案。同步更新第 11.7 节（B 侧 `content_identity` 落地与 Q3 迁移说明）。**本节不改端口签名** | B 包（待 A 逐条确认） |
+| 2026-10-03 | 1.6 | **第 11.5 节由"待 C 确认"改为"C 侧执行兼容性结论（已回写）"**：Q1 `plain` 必须真正省略 Git 键（C 按"键不存在"处理）、Q2 纯新增不复制第二套模型且主版本待 Q3 定；新增 **第 11.7.1 节函数接口规格**（模块／输入类型／规范字节／返回／异常／版本标识 `SOURCE_CONTENT_IDENTITY_VERSION`）与 **第 11.7.2 节 `content_digest` 前缀口径**（实测裸十六进制与带前缀会算出**不同身份**，故统一为构造处加 `sha256:` 前缀）。**不改端口签名与跨包 Schema 字节；代码仅新增一个版本常量** | B 包（待 C 落地） |
 
 ---
 
@@ -797,17 +987,17 @@ detect_changes(snapshot_id) -> 变化清单
     无法证明"未变"时不得报"未变"
 ```
 
-### 11.5 待 C 确认（执行兼容性，不是归属问题）
+### 11.5 C 侧执行兼容性结论（2026-10-03 已回写）
 
-| # | 待确认项 | 责任方 | 下一动作 | 阻塞影响 |
-| --- | --- | --- | --- | --- |
-| Q1 | §11.1 形式互斥是否符合 C 侧对 `plain` 的解析预期 | C | 在本文档追加确认 | 不阻塞现状（现行 `SourceSnapshot` 不含这些字段） |
-| Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 现有 `SourceFile`／`SourceSnapshot` 兼容 | C | 同上 | 决定 C 的补字段改动是否为纯新增 |
-| Q3 | §11.3 `content_identity` 改由 B 口径计算后，C 现有 `content_identity` 构造值如何迁移 | B＋C | B 给迁移说明 | 决定是否需提升 Schema 主版本 |
-| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | B | B 在 BD/BC 合同中引用本节 | 影响 `PreparedRun` 快照修订语义 |
+| # | 事项 | C 侧结论（2026-10-03） | 后续 |
+| --- | --- | --- | --- |
+| Q1 | §11.1 形式互斥是否符 C 对 `plain` 的解析预期 | **符合**。`plain` **必须真正省略** Git 键，**不能写 `null`、空串或 `unknown`**；C 按"**键不存在**"处理 | 已确认，C 按此落地 |
+| Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 兼容 | **兼容**。与现有 `SourceFile` 兼容；`SourceSnapshot` 这些字段按**纯新增**处理，**不复制第二套模型**；只补字段、不改旧字段语义，**原则上不需提升主版本**。`binding_revision` 保持 `int`、语义收紧为 `>= 1`；`purpose` 在 C 落地时按 `analysis`／`prepare` 约束 | **是否提升主版本等 Q3 的 `content_identity` 迁移说明确认后再定**（见第 11.7 节） |
+| Q3 | `content_identity` 迁移说明 | **B 已给**（第 11.7 节）。C 明确要求：**不得由 C 自行重算**，必须复用 B 的 `source_content_identity()`；**C 只保存返回值与引用，不复制算法** | 见第 11.7 节的函数接口 |
+| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | **已查明该字段存在语义冲突，转裁定**：A 的快照元数据**不含 `revision`**（内容寻址、清单不可变），B 的快照记录**每次为 `@1`**，而 `changed_inputs()` 按值比对、其失效描述为"source bytes changed"——**该判定项在现行实现下无法触发**。三个候选见 [`待裁定/DEC-009`](../../待裁定/DEC-009-源码快照的修订语义.md) | 待项目负责人裁定；**裁定前 B 侧不填该值、不改 `InputRevisions` 结构** |
 
-**B 侧下一步**：本节字段口径已定（见本节开头说明）。C 回写 Q1／Q2 的执行兼容性结论后，
-按**新的契约 PR** 在 `domain/execution/sources.py` 补齐字段；字段实现不在本合同内散改。
+**C 侧落地前提已满足**：C 明确"把 Q1／Q2 的回复和函数接口补到对应合同后，再按新契约 PR 落地"。
+本节与第 11.7 节即为该前提。**字段实现不在本合同内散改**，仍在 `domain/execution/sources.py` 走新的契约 PR。
 
 ### 11.6 本节不改变的事项
 
@@ -815,3 +1005,85 @@ detect_changes(snapshot_id) -> 变化清单
 - **不新建第二套 `SourceSnapshot`**：类位置仍唯一在 `domain/execution/sources.py`。
 - **不手工改生成 Schema 与夹具**：字段落地后由声明所有者重新生成。
 - **不把本节的"冻结字段"写成"已实现"**：`provider_implementation` 仍为 `partial`。
+
+### 11.7 B 侧实现落地与 Q3 迁移说明（2026-10-03）
+
+**B 侧已实现**（第 11.3 节的算法不再只是口径，有代码与测试）：
+
+| 项 | 位置 |
+| --- | --- |
+| `SourceForm`（形式互斥，取值同 `BindingForm`） | `domain/project/context.py` |
+| `SourceManifest` 形式化（`git`：基准提交＋差异摘要；`plain`：清单摘要） | 同上 |
+| **`source_content_identity()`** —— 第 11.3 节算法的**唯一实现** | 同上 |
+| 快照 payload 编解码（形式互斥**落到字节**：另一形态的键真正不出现） | `application/project/serialization.py` |
+| 快照落盘 `save_source_snapshot()` / `load_source_snapshot()`（类别 `source_snapshot`；`purpose` 只允许 `analysis`/`prepare`） | `application/project/persistence.py` |
+| 漂移核对按**内容身份**比对 | `application/planning/drift.py` |
+| 测试 | `tests/unit/test_source_identity.py`（21）、`tests/unit/test_source_snapshot_persistence.py`（12）、`test_frozen_basis_drift.py`（+3） |
+
+**Q3 迁移说明（B 给 C）**：
+
+1. **算法唯一来源**：C 的 `SourceSnapshot.content_identity` 应**调用**
+   `aitest.domain.project.context.source_content_identity()`（或按同一规范字节自行实现并加
+   交叉断言）。**不要**再自行构造——两套算法一旦分叉，同一份源码在 B 与 C 会得到不同身份。
+2. **规范字节**：逐文件行 `<relative_path>\t<size>\t<content_digest>`，
+   **按 `relative_path` 升序**，用 `\n` 连接；末尾追加一行形态身份
+   （`git:<git_base_commit>:<git_diff_digest>` 或 `plain:<plain_manifest_digest>`）；
+   取该字符串的 sha256，前缀 `sha256:`。
+3. **不参与计算**：`mtime`、`source_scope`、`exclusion_rules`、`refetch_*`、
+   `snapshot_id`、`purpose`、绝对路径与盘符。
+4. **是否提升 Schema 主版本**：由 C 按 Q1／Q2 结论判断。若 C 现行构造与本节规范字节不同，
+   则**同一记录的身份值会变**，应按第 8 节"变更和兼容规则"处理
+   （旧记录身份不静默覆盖，登记迁移方式）。
+5. **B 侧不做的事**：不新加快照端口签名、不改 `domain/execution/sources.py`、
+   不自行执行 `git`——`git_base_commit` / `git_diff_digest` 由 A 的端口给出。
+
+#### 11.7.1 函数接口规格（C 落地时按此引用，**不得复制算法**）
+
+C 于 2026-10-03 明确要求："请把函数所在模块、输入类型、编码/摘要前缀、异常语义和版本标识固定下来；C 只保存返回值与引用，不复制算法。" 以下为固定值（**2026-10-03 实测**，非约定值）：
+
+| 项 | 固定值 |
+| --- | --- |
+| **模块** | `aitest.domain.project.context` |
+| **函数** | `source_content_identity(manifest: SourceManifest) -> str` |
+| **输入类型** | **`SourceManifest` 对象**（不是文件列表）；其 `files` 为 `tuple[SourceFileDigest, ...]`，`SourceFileDigest` 的字段是 `relative_path` / `size` / `content_digest` / `mtime_hint` |
+| **规范字节** | 每个文件一行 `<relative_path>\t<size>\t<content_digest>`，**按 `relative_path` 升序**，用 `\n` 连接；**末尾追加一行**形态身份：`git:<git_base_commit>:<git_diff_digest>` 或 `plain:<plain_manifest_digest>` |
+| **返回值** | `"sha256:"` + sha256(规范字节 UTF-8) 的 64 位小写十六进制（总长 71） |
+| **异常语义** | 该函数**不抛异常**；输入校验发生在 `SourceManifest`／`SourceFileDigest` **构造时**（`ValueError`） |
+| **版本标识** | 常量 `SOURCE_CONTENT_IDENTITY_VERSION = "aitest.source-content-identity/1.0"`（同模块，2026-10-03 新增） |
+
+**版本标识的口径**（避免与 A 的版本混用）：
+
+- `SOURCE_CONTENT_IDENTITY_VERSION` 描述的是**规范字节的写法**，不是任何记录的 Schema 版本；
+- 算法**任何**改动（字段顺序、分隔符、摘要前缀、参与计算的字段集合）都必须同时升版；
+- 它与 `aitest.source-snapshot/1.0`（**A** 的快照 blob 记录版本）**不是一回事**，不得互相替代。
+
+#### 11.7.2 `content_digest` 的前缀口径（**落地前必须统一**）
+
+**实测事实（2026-10-03）**：
+
+| 位置 | 现状 |
+| --- | --- |
+| B 的 `SourceFileDigest.content_digest` | **不校验格式**，接受任意非空字符串（`'abc'`、`'ABC'` 均通过） |
+| B 的夹具 | 写作**带前缀** `sha256:...` |
+| A 的 `infrastructure/adapters/source_snapshot.py` | 逐文件记录**裸十六进制** `sha256`（字段名也叫 `sha256`，不是 `content_digest`） |
+| C 的 `domain/execution/sources.py` 的 `SourceFile` | 字段名 `sha256`、**裸十六进制** |
+
+**风险（已实测，不是推测）**：同一个文件、同样大小，
+`content_digest='deadbeef'` 与 `'sha256:deadbeef'` 算出的身份**不同**
+（实测 `sha256:393f0fef…` vs `sha256:5f2e536e…`）。因为 `content_digest` **原样进入**规范字节，
+前缀风格不同即身份不同——**同一份源码会出现两个身份**。
+
+**统一口径（本节即契约）**：
+
+1. **进入 `SourceManifest` 之前必须统一为带前缀形式** `sha256:<64 位小写十六进制>`；
+2. A 的裸十六进制与 C 的 `SourceFile.sha256` **在构造 `SourceFileDigest` 时加前缀**，
+   转换只做一次、位置在**构造处**，不在算法内；
+3. **不修改 A 的端口输出格式、不修改 C 的 `SourceFile` 字段名**（属各自目录）；
+   转换由需要构造 `SourceManifest` 的一方完成；
+4. C 引用 B 的函数时，**必须**用带前缀的清单，否则身份与 B 不一致。
+
+**仍然待办（不因本节完成而关闭）**：
+
+- **A**：`pin` / `read_pinned` / `materialize` / `detect_changes` 的实现与默认装配（第 11.4 节）；
+- **C**：按 Q1／Q2 回写兼容性结论并在 `sources.py` 补齐字段（走新的契约 PR）；
+- **B**：Q4（快照是否登记为 `InputRevisions.snapshot_revision` 的来源修订）仍待在 BC/BD 合同中引用。

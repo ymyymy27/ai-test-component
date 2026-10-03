@@ -121,6 +121,7 @@ class _FileSpoolStreamWriter:
             self._block_length += len(safe)
             if self._block_length < self._block_size:
                 return ()
+            os.fsync(self._handle.fileno())
             return (self._seal(complete=True),)
 
     def close(self, *, complete: bool = True) -> tuple[OutputBlockRef, ...]:

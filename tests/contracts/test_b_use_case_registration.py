@@ -421,6 +421,31 @@ def test_save_case_rejects_a_case_for_another_project(workspace_root: Path) -> N
         assert response.error.code == "B_INVALID_PARAMETER"
 
 
+def test_save_case_with_a_mismatched_revision_is_reported_as_a_conflict(
+    workspace_root: Path,
+) -> None:
+    """检查项 B-11：正文修订与仓储修订分叉时，入口报**修订冲突**而不是静默落盘。
+
+    反例原文是"合法 `Case.revision=9` 被保存为仓储修订 1；按 `@1` 读回返回正文 `@9`"。
+    修好后这种保存被拒绝，调用方能拿到 `B_REVISION_CONFLICT` 去重新读取修订。
+    """
+    api = _api(_start(workspace_root))
+    payload = dict(_case_payload())
+    payload["revision"] = 9
+    response = api.dispatch(
+        _write_command(
+            action="save_case", request_id=BREAKDOWN_BAD, parameters={"case": payload}
+        ),
+        _session(),
+    )
+    assert response.error is not None
+    assert response.error.code == "B_REVISION_CONFLICT"
+    # 被拒时什么都没写：记录不存在。
+    restarted = _start(workspace_root)
+    with pytest.raises(ValueError, match="unknown revision"):
+        restarted.reader.read(aggregate_kind="case", record_id="case-1", revision=1)
+
+
 def test_save_case_invalid_payload_is_named(workspace_root: Path) -> None:
     api = _api(_start(workspace_root))
     payload = dict(_case_payload())

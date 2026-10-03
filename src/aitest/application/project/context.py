@@ -275,8 +275,20 @@ def move_binding(
     *,
     canonical_path: str,
     drive_kind: DriveKind,
+    manifest_digest: str | None = None,
 ) -> BindingResult:
-    """目录移动产生**新绑定修订**；历史修订保留，仍归同一项目。"""
+    """目录移动产生**新绑定修订**；历史修订保留，仍归同一项目。
+
+    但**移动不是"确认过了"**（检查项 B-16）：旧确认只对旧路径成立，旧内容摘要只对旧
+    位置的内容成立。过去 `move_binding` 把 `confirmed` 与 `manifest_digest` 原样传下去，
+    于是 `C:/old` 上确认过的绑定移动到 `C:/new` 后仍然 `confirmed=true`，还继承旧摘要——
+    等于把"新路径 + 未核对的内容"当成已确认。这里改为：
+
+    - 新修订一律 `confirmed=False`（新路径要重新确认，确认是人工动作）；
+    - 内容摘要**不继承**：移动后内容身份要重新固定，调用方核对完新位置的内容再通过
+      `manifest_digest` 传进来；没核对就不带摘要（`plain` 形态会因此报载体缺口，
+      那正是"未知不能被当成已知"的既有口径）。
+    """
     return create_binding(
         BindingInputs(
             binding_id=binding.binding_id,
@@ -288,9 +300,9 @@ def move_binding(
             repository_id=binding.repository_id,
             branch=binding.branch,
             base_commit=binding.base_commit,
-            manifest_digest=binding.manifest_digest,
+            manifest_digest=manifest_digest,
             local_owner=binding.local_owner,
-            confirmed=binding.confirmed,
+            confirmed=False,
         )
     )
 
@@ -396,9 +408,16 @@ def register_graph(
 
     依赖边是**唯一权威来源**（`Module` 上没有第二个可写的依赖字段）。
     允许循环（只影响传播遍历），拒绝自环；悬空引用由领域构造即拒绝。
+
+    **本入口产出的图一律 `edges_declared=True`**：调用方明确给出了边的集合
+    （哪怕是空集合），因此"没有边"是**已声明的结论**而不是漏登记。检查项 B-17 的反例
+    正是一个只有一个模块、本来就没有跨模块依赖的项目被判成阻塞缺口。
     """
     return ModuleDependencyGraph(
-        project_id=project_id, modules=modules, dependencies=dependencies
+        project_id=project_id,
+        modules=modules,
+        dependencies=dependencies,
+        edges_declared=True,
     )
 
 
@@ -417,8 +436,10 @@ def detect_context_gaps(
     逐条依据（每行一条，便于核对）：
 
     - 项目没有任何模块 → `no_modules`：FR01 需要可执行的模块范围；
-    - 有模块但没有登记任何依赖边 → `missing_dependency_registration`：
-      P1-FR03 的回归范围需要依赖，**"映射缺失不能解释为没有影响"**；
+    - 有模块但**依赖边尚未登记**（`graph.edges_declared is False`）→
+      `missing_dependency_registration`：P1-FR03 的回归范围需要依赖，
+      **"映射缺失不能解释为没有影响"**；反过来，**已明确没有依赖**（单模块项目、
+      若干互不依赖的模块）不是缺口——检查项 B-17 的反例就是被这条误判的；
     - 没有环境 → `missing_environment_carrier`：环境缺载体阻塞；
     - 盘符类型无法核实 → `unverified_drive_kind`（**非阻塞**）：
       `DriveKind.UNKNOWN` 不由领域层擅自拒绝。
@@ -434,14 +455,14 @@ def detect_context_gaps(
                 detail="the project registers no module, so no applicable scope can be derived",
             )
         )
-    if graph.modules and not graph.dependencies:
+    if graph.modules and not graph.edges_declared:
         gaps.append(
             ContextGap(
                 kind=GAP_MISSING_DEPENDENCY_REGISTRATION,
                 subject=project.local_project_id,
                 detail=(
-                    "modules are registered but no dependency edge is: a missing mapping "
-                    "must not be read as 'no impact'"
+                    "modules are registered but the dependency edges were never declared: "
+                    "a missing mapping must not be read as 'no impact'"
                 ),
             )
         )

@@ -278,6 +278,7 @@ class ExecutionRequest:
     authorization_ref: AuthorizationRef
     side_effect_class: SideEffectClass
     timeout_ms: int | None = None
+    expected_plan_revision_ref: PlanRevisionRef | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -294,6 +295,10 @@ class ExecutionRequest:
             _require_text(getattr(self, name), name)
         if self.timeout_ms is not None:
             _require_positive(self.timeout_ms, "timeout_ms")
+        if self.expected_plan_revision_ref is not None and not isinstance(
+            self.expected_plan_revision_ref, PlanRevisionRef
+        ):
+            raise ValueError("expected_plan_revision_ref must be a PlanRevisionRef")
 
 
 @dataclass(frozen=True, slots=True)
@@ -545,6 +550,7 @@ class Attempt:
     state: AttemptState = AttemptState.INTENT_RECORDED
     intent_id: str = ""
     intent_digest: str = ""
+    expected_plan_revision_ref: PlanRevisionRef | None = None
     consumed_outputs: tuple[ConsumedOutput, ...] = ()
     consumed_conditions: tuple[ConsumedCondition, ...] = ()
     authorization_ref: AuthorizationRef | None = None
@@ -579,6 +585,10 @@ class Attempt:
         _require_non_negative(self.revision, "revision")
         if self.timeout_ms is not None:
             _require_positive(self.timeout_ms, "timeout_ms")
+        if self.expected_plan_revision_ref is not None and not isinstance(
+            self.expected_plan_revision_ref, PlanRevisionRef
+        ):
+            raise ValueError("expected_plan_revision_ref must be a PlanRevisionRef")
 
     @property
     def output_cursor_ref(self) -> OutputCursor | None:

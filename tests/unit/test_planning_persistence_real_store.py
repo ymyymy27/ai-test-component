@@ -128,12 +128,12 @@ def _case(*, revision: int = 1, case_id: str = "case-1") -> Case:
     )
 
 
-def _scope():  # noqa: ANN202 - 测试内部构造
+def _scope(*, revision: int = 1):  # noqa: ANN202 - 测试内部构造
     from aitest.domain.planning.plans import AcceptanceScope
 
     return AcceptanceScope(
         scope_id="scope-1",
-        revision=1,
+        revision=revision,
         name="ticket acceptance",
         required_case_ids=frozenset({"case-2", "case-1"}),
         template_case_ids=frozenset({"case-1"}),
@@ -194,6 +194,83 @@ def test_case_revisions_are_append_only(workspace_root: Path) -> None:
         ).revision
         == 2
     )
+
+
+# ------------------------------------------------------------------ 修订不变量（B-11）
+
+
+def test_a_case_revision_that_does_not_match_the_record_is_refused(
+    workspace_root: Path,
+) -> None:
+    """检查项 B-11：正文修订必须等于这次分配的仓储修订。
+
+    反例原文是"合法 `Case.revision=9` 被保存为仓储修订 1；按 `@1` 读回返回正文 `@9`，
+    正文与记录修订不一致"。修好后这种保存会被**当场拒绝**，而不是落成一条自相矛盾的记录。
+    """
+    stack = _start(workspace_root)
+    with pytest.raises(ConcurrentEditError):
+        save_case(_case(revision=9), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+    # 被拒时什么都没写：记录不存在。
+    with pytest.raises(ValueError, match="unknown revision"):
+        load_case(
+            stack.reader, project_id=PROJECT_ID, case_id="case-1", revision=1
+        )
+
+
+def test_a_case_revision_matching_the_record_reads_back_the_same_revision(
+    workspace_root: Path,
+) -> None:
+    """不变量成立时：记录 `@N` 里就是正文 `@N`，按 `@N` 读回得到的也是 `@N`。"""
+    stack = _start(workspace_root)
+    save_case(_case(revision=1), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+    save_case(
+        _case(revision=2),
+        project_id=PROJECT_ID,
+        unit_of_work=stack.unit_of_work,
+        expected_revision=1,
+    )
+    restarted = _start(workspace_root)
+    for revision in (1, 2):
+        loaded = load_case(
+            restarted.reader,
+            project_id=PROJECT_ID,
+            case_id="case-1",
+            revision=revision,
+        )
+        # 正文修订与记录修订一致——这正是反例里对不上的地方。
+        assert loaded.revision == revision
+
+
+def test_a_skipped_case_revision_is_refused(workspace_root: Path) -> None:
+    """跳号（当前 `@2`、正文写 `@9`）同样拒绝，不分配一个假修订。"""
+    stack = _start(workspace_root)
+    save_case(_case(revision=1), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+    save_case(
+        _case(revision=2),
+        project_id=PROJECT_ID,
+        unit_of_work=stack.unit_of_work,
+        expected_revision=1,
+    )
+    with pytest.raises(ConcurrentEditError):
+        save_case(
+            _case(revision=9),
+            project_id=PROJECT_ID,
+            unit_of_work=stack.unit_of_work,
+            expected_revision=2,
+        )
+
+
+def test_an_acceptance_scope_revision_that_does_not_match_is_refused(
+    workspace_root: Path,
+) -> None:
+    """`acceptance_scope` 与 `case` 同一不变量（检查项 B-11 的"Scope 同类路径"）。"""
+    stack = _start(workspace_root)
+    with pytest.raises(ConcurrentEditError):
+        save_acceptance_scope(
+            _scope(revision=9),
+            project_id=PROJECT_ID,
+            unit_of_work=stack.unit_of_work,
+        )
 
 
 def test_case_is_not_overwritten_by_accident(workspace_root: Path) -> None:

@@ -1,14 +1,19 @@
 """Serial execution loop and dependency dispatch skeleton."""
 
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import Protocol
 
+from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.recovery import (
+    CaseReuseBasis,
+    CaseReuseInvalidation,
     CheckpointStore,
     RecoveryRecord,
     RecoveryResult,
     invalidate_downstream_attempts,
+    invalidate_reuse_bases,
     recover_attempt,
 )
 from aitest.application.ports import ExecutionPort, SpoolStore
@@ -69,6 +74,12 @@ class SerialExecutionResult:
     attempts: tuple[Attempt, ...]
 
 
+class StartValidationPort(Protocol):
+    """Optional boundary for authorization/input/source checks owned by a caller."""
+
+    def validate(self, attempt: Attempt, request: ExecutionRequest) -> None: ...
+
+
 class SerialRunner:
     """Execute ready steps serially and persist sealed captured blocks."""
 
@@ -79,6 +90,10 @@ class SerialRunner:
         *,
         checkpoint_store: CheckpointStore | None = None,
         poll_interval_seconds: float = 0.01,
+        start_validator: StartValidationPort | None = None,
+        commit_coordinator: ExecutionCommitCoordinator | None = None,
+        reuse_bases: Sequence[CaseReuseBasis] = (),
+        previous_attempt_ids_by_step: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be non-negative")
@@ -86,6 +101,15 @@ class SerialRunner:
         self._spool_store = spool_store
         self._checkpoint_store = checkpoint_store
         self._poll_interval_seconds = poll_interval_seconds
+        self._start_validator = start_validator
+        self._commit_coordinator = commit_coordinator
+        self._reuse_bases = tuple(reuse_bases)
+        self._previous_attempt_ids_by_step = {
+            step_id: tuple(attempt_ids)
+            for step_id, attempt_ids in (previous_attempt_ids_by_step or {}).items()
+        }
+        self._reuse_invalidations: list[CaseReuseInvalidation] = []
+        self._intent_claims: dict[str, Attempt] = {}
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
         states = self._state_by_step_id(steps)
@@ -162,32 +186,159 @@ class SerialRunner:
         attempt: Attempt,
         request: ExecutionRequest,
         *,
-        max_polls: int = 100,
+        max_polls: int | None = None,
     ) -> Attempt:
-        if max_polls < 1:
-            raise ValueError("max_polls must be positive")
-        current = self.start_attempt(attempt, request)
-        self._persist_checkpoint(current, stage="started")
-        for _ in range(max_polls):
+        prepared = self._prepare_attempt(attempt, request)
+        existing = self._find_intent_claim(request.intent_id)
+        if existing is not None:
+            if existing.attempt_id != prepared.attempt_id:
+                raise ValueError("intent_id is already claimed by another attempt")
+            if existing.execution_handle_ref is not None:
+                return existing
+            return replace(
+                existing,
+                state=AttemptState.PENDING_VERIFICATION,
+                unknown_reason_ref="start_intent_without_confirmed_handle",
+            )
+
+        self._revoke_reuse_for_new_attempt(prepared)
+        self._validate_start(prepared, request)
+        self._intent_claims[request.intent_id] = prepared
+        self._persist_checkpoint(
+            prepared,
+            stage="intent_recorded",
+            project_id=request.project_id,
+        )
+        current = self.start_attempt(prepared, request)
+        self._intent_claims[request.intent_id] = current
+        self._persist_checkpoint(
+            current,
+            stage="started",
+            project_id=request.project_id,
+        )
+        polls = 0
+        while max_polls is None or polls < max_polls:
+            polls += 1
             inspection = self.inspect_attempt(current)
             if inspection.state is ExecutionInspectionState.RUNNING:
+                if self._checkpoint_store is not None and polls % 100 == 0:
+                    self._persist_checkpoint(
+                        current,
+                        stage="running",
+                        project_id=request.project_id,
+                    )
                 if self._poll_interval_seconds:
                     time.sleep(self._poll_interval_seconds)
                 continue
             collection = self.collect_attempt(current, current.output_cursors or None)
             completed = self._apply_collection(current, inspection, collection)
-            self._persist_checkpoint(completed, stage=completed.state.value)
+            self._persist_checkpoint(
+                completed,
+                stage=completed.state.value,
+                project_id=request.project_id,
+            )
+            self._intent_claims[request.intent_id] = completed
             return completed
         pending = replace(
             current,
             state=AttemptState.PENDING_VERIFICATION,
             unknown_reason_ref="poll_limit_reached",
         )
-        self._persist_checkpoint(pending, stage="poll_limit_reached")
+        self._persist_checkpoint(
+            pending,
+            stage="poll_limit_reached",
+            project_id=request.project_id,
+        )
+        self._intent_claims[request.intent_id] = pending
         return pending
+
+    def _prepare_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
+        self._require_attempt_identity(attempt, request)
+        if attempt.intent_id and attempt.intent_id != request.intent_id:
+            raise ValueError("attempt intent_id does not match execution request")
+        if attempt.resolved_input_digest != request.resolved_input_digest:
+            raise ValueError("attempt resolved input digest does not match request")
+        if attempt.source_binding_digest != request.source_binding_digest:
+            raise ValueError("attempt source binding digest does not match request")
+        if (
+            attempt.authorization_ref is not None
+            and attempt.authorization_ref != request.authorization_ref
+        ):
+            raise ValueError("attempt authorization does not match execution request")
+        if (
+            attempt.expected_plan_revision_ref is not None
+            and request.expected_plan_revision_ref is not None
+            and attempt.expected_plan_revision_ref != request.expected_plan_revision_ref
+        ):
+            raise ValueError("attempt expected plan revision does not match request")
+        return replace(
+            attempt,
+            intent_id=request.intent_id,
+            resolved_input_digest=request.resolved_input_digest,
+            source_binding_digest=request.source_binding_digest,
+            authorization_ref=request.authorization_ref,
+            expected_plan_revision_ref=(
+                request.expected_plan_revision_ref
+                if request.expected_plan_revision_ref is not None
+                else attempt.expected_plan_revision_ref
+            ),
+        )
+
+    def _validate_start(self, attempt: Attempt, request: ExecutionRequest) -> None:
+        authorization = request.authorization_ref
+        if attempt.intent_id and attempt.intent_id != request.intent_id:
+            raise ValueError("attempt intent_id does not match request")
+        if authorization.intent_id != request.intent_id:
+            raise ValueError("authorization intent_id does not match request")
+        if authorization.step_id != request.step_id:
+            raise ValueError("authorization step_id does not match request")
+        if authorization.resolved_input_digest != request.resolved_input_digest:
+            raise ValueError("authorization input digest does not match request")
+        if (
+            authorization.consumed_by_attempt_id is not None
+            and authorization.consumed_by_attempt_id != request.attempt_id
+        ):
+            raise ValueError("authorization is already consumed by another attempt")
+        expected_plan_revision = (
+            request.expected_plan_revision_ref or attempt.expected_plan_revision_ref
+        )
+        if (
+            expected_plan_revision is not None
+            and authorization.plan_revision_ref != expected_plan_revision
+        ):
+            raise ValueError("authorization plan revision does not match frozen plan")
+        if (
+            attempt.expected_plan_revision_ref is not None
+            and request.expected_plan_revision_ref is not None
+            and attempt.expected_plan_revision_ref != request.expected_plan_revision_ref
+        ):
+            raise ValueError("attempt expected plan revision does not match request")
+        if attempt.resolved_input_digest != request.resolved_input_digest:
+            raise ValueError("attempt resolved input digest does not match request")
+        if attempt.source_binding_digest != request.source_binding_digest:
+            raise ValueError("attempt source binding digest does not match request")
+        if self._start_validator is not None:
+            self._start_validator.validate(attempt, request)
+
+    def _find_intent_claim(self, intent_id: str) -> Attempt | None:
+        claims: list[Attempt] = []
+        in_memory = self._intent_claims.get(intent_id)
+        if in_memory is not None:
+            claims.append(in_memory)
+        if self._checkpoint_store is not None:
+            claims.extend(
+                record.attempt
+                for record in self._checkpoint_store.scan()
+                if record.attempt.intent_id == intent_id
+            )
+        unique = {claim.attempt_id: claim for claim in claims}
+        if len(unique) > 1:
+            raise ValueError("intent_id has multiple persisted attempts")
+        return next(iter(unique.values()), None)
 
     def start_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
         self._require_attempt_identity(attempt, request)
+        self._validate_start(attempt, request)
         handle = self._execution_port.start(request)
         return replace(
             attempt,
@@ -213,11 +364,16 @@ class SerialRunner:
             return ()
         results: list[RecoveryResult] = []
         for record in self._checkpoint_store.scan():
-            inspection = (
-                self.inspect_attempt(record.attempt)
-                if record.attempt.execution_handle_ref is not None
-                else None
+            reliable_terminal = (
+                record.attempt.state in {AttemptState.COMPLETED, AttemptState.CANCELLED}
+                and record.attempt.exit_fact_ref is not None
             )
+            inspection = None
+            if not reliable_terminal and record.attempt.execution_handle_ref is not None:
+                try:
+                    inspection = self.inspect_attempt(record.attempt)
+                except (KeyError, ValueError):
+                    inspection = None
             result = recover_attempt(
                 record.checkpoint,
                 record.attempt,
@@ -247,9 +403,41 @@ class SerialRunner:
             self._persist_checkpoint(attempt, stage=attempt.state.value)
         return tuple(by_id.get(attempt.attempt_id, attempt) for attempt in attempts)
 
-    def _persist_checkpoint(self, attempt: Attempt, *, stage: str) -> None:
-        if self._checkpoint_store is None:
+    def invalidate_reuse(
+        self,
+        bases: Sequence[CaseReuseBasis],
+        *,
+        affected_upstream_attempt_ids: Sequence[str],
+    ) -> tuple[CaseReuseInvalidation, ...]:
+        return invalidate_reuse_bases(
+            bases,
+            affected_upstream_attempt_ids=affected_upstream_attempt_ids,
+        )
+
+    @property
+    def reuse_invalidations(self) -> tuple[CaseReuseInvalidation, ...]:
+        return tuple(self._reuse_invalidations)
+
+    def _revoke_reuse_for_new_attempt(self, attempt: Attempt) -> None:
+        previous = self._previous_attempt_ids_by_step.get(attempt.step_id, ())
+        if not previous or not self._reuse_bases:
             return
+        invalidations = invalidate_reuse_bases(
+            self._reuse_bases,
+            affected_upstream_attempt_ids=previous,
+        )
+        known = {item.case_id for item in self._reuse_invalidations}
+        self._reuse_invalidations.extend(
+            item for item in invalidations if item.case_id not in known
+        )
+
+    def _persist_checkpoint(
+        self,
+        attempt: Attempt,
+        *,
+        stage: str,
+        project_id: str | None = None,
+    ) -> None:
         checkpoint = RecoveryCheckpoint(
             run_id=attempt.run_id,
             step_id=attempt.step_id,
@@ -261,7 +449,14 @@ class SerialRunner:
             side_effect_class=attempt.side_effect_class,
             execution_handle_ref=attempt.execution_handle_ref,
         )
-        self._checkpoint_store.persist(RecoveryRecord(checkpoint=checkpoint, attempt=attempt))
+        record = RecoveryRecord(checkpoint=checkpoint, attempt=attempt)
+        if self._checkpoint_store is not None:
+            self._checkpoint_store.persist(record)
+        if self._commit_coordinator is not None and project_id is not None:
+            self._commit_coordinator.commit_checkpoint(
+                project_id=project_id,
+                checkpoint=record,
+            )
 
     def _apply_collection(
         self,
@@ -445,4 +640,10 @@ class SerialRunner:
             raise ValueError("attempt and execution request identity must match")
 
 
-__all__ = ["DispatchPlan", "SerialExecutionItem", "SerialExecutionResult", "SerialRunner"]
+__all__ = [
+    "DispatchPlan",
+    "SerialExecutionItem",
+    "SerialExecutionResult",
+    "SerialRunner",
+    "StartValidationPort",
+]

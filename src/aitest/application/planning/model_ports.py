@@ -1,16 +1,23 @@
 """模型出站的端口协议：**B 侧窄接口**，与薄底座同一路线。
 
 **这不是 A 的 `application/ports.py`。** 架构文档第 9 节把
-`ModelProvider` / `ProjectionPort` / `SecretPort` 归 A，且 A 至今只留了文档字符串。
-B 不擅改该文件，所需签名写在 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`。
+`ModelProvider` / `ProjectionPort` / `SecretPort` 归 A。
 
-本模块定义的三个协议是**编排的依赖面**：
+**2026-10-03 实测更新**：A 的 `application/ports.py` 已冻结三个端口的签名，
+并且——关键——它**直接 import 本模块的类型**（`ModelCall` / `ModelCallResult` /
+`Projection` / `ProjectedMaterial` / `ProjectionStatus` 均以 `X as X` 形式引用），
+因此**不存在两套同义类型**，两边的形状差异只剩凭据一处（见
+`docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.16 节）。
 
-| 协议 | 职责 | A 的对应端口 |
-| --- | --- | --- |
-| `MaterialProjector` | 把已选材料生成**脱敏投影**并给出真实摘要与排除项 | `ProjectionPort` |
-| `ModelCaller` | 发一次模型请求并归一化响应与错误 | `ModelProvider` |
-| `CredentialResolver` | 按**用途**解析凭据引用（永不回传正文） | `SecretPort` |
+本模块定义的三个协议是**编排的依赖面**，与 A 的端口对应关系：
+
+- `MaterialProjector` ↔ A 的 `ProjectionPort`——**同一套类型**，形状无差异；
+- `ModelCaller` ↔ A 的 `ModelProvider`——**同一套类型**，形状无差异；
+- `CredentialResolver` ↔ A 的 `SecretPort`——**有差异**（两处）：
+  ① A 的 `resolve(reference, *, purpose) -> ResolvedSecret`（`ports.py` 第 423 行）
+  **要求 `reference`**，而本模块的调用方只传 `purpose`；
+  ② 返回类型是 `ResolvedSecret`（受控对象、不是裸字符串），
+  本协议只回"状态"，类型不同（见 AB-001 第 8.16 节）。
 
 三者的**共同底线**（需求 §7、三期上传白名单同理）：
 

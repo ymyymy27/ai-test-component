@@ -40,6 +40,38 @@
 | `prepare_run` 参数适配 | `usecase_registry.py` 的 `_preparation_inputs()` | 键名与 `PreparationInputs` **逐字一致**，不别名、不补默认值；嵌套模型用 `contracts` 的 `model_validate` 解析；成功返回 `PreparedRun.model_dump(mode="json")`（与 `BC-001` 同一套字段） |
 | 结构化错误码 | 同上 `BUseCaseError` + `_guard()` | `B_INVALID_PARAMETER`、`B_REVISION_CONFLICT`、`B_PREPARATION_CONFLICT`、`B_INDEX_MAINTENANCE_REQUIRED`、`B_INVALID_QUERY_CURSOR` |
 
+### 1.4 保存语义收紧（2026-10-03，B-12 / B-13 / B-14）
+
+合同依据：本目录 `contract.md` **第 8.12 节**；检查文档 2026-10-03 版 B-12／B-13／B-14。
+
+| 项 | 位置 | 说明 |
+| --- | --- | --- |
+| 正文/命令项目一致性 | `usecase_registry.py` 的 `_require_owned_by_command()` | `save_delivery` / `save_task` 在构造领域对象**之前**比对；不一致报 `B_INVALID_PARAMETER`。**过去是拿命令项目覆盖正文项目再落盘** |
+| `Delivery` 正文带项目 | `application/project/serialization.py` 的 `delivery_to_payload(..., project_id=)` | 新增**必填**关键字参数，与 `case` / `acceptance_scope` / `rule_draft` 同一做法 |
+| 读侧归属严格化 | `application/project/persistence.py` 的 `_verify_payload_project()` | **缺失与不符都拒绝**；写入前与读取时共用。旧记录缺 `project_id` 时显式报错，不读成"任何项目都能读" |
+| 拒绝自报已验证 | 同上 `save_delivery()` | 非空 `verified_in_scope` 被拒（入口翻成 `B_INVALID_PARAMETER`）；请改用 `unverified_scope` 声明 |
+| 发布核对预期修订 | `application/planning/publish.py` 的 `_revision_to_stage()` + `usecase_registry.py` 的 `_expected_revision_or_none()` | 入口透传 `Command.expected_revision`，同事务比对，不符抛 `ConcurrentEditError` → `B_REVISION_CONFLICT`（带当前修订）。**第二次及以后的发布须声明 `@N`** |
+| 模型策略归属 | `application/planning/model_orchestration.py` | `request_model_draft()` 在准入前比对 `policy.project_id`；不一致即 `blocked`，不调用供应方、不落出站记录 |
+
+**仍需 A 守住的一半**：检查文档要求"A 同时守住持久命名空间"（A-11）。
+本交付只做 B 侧的准入与引用校验。
+
+### 1.5 模型出站的生成意图与落盘前过滤（2026-10-03，B-10 / B-03）
+
+合同依据：本目录 `contract.md` **第 8.13 节**；检查文档 2026-10-03 版 B-10／B-03。
+
+| 项 | 位置 | 说明 |
+| --- | --- | --- |
+| 持久业务请求号 | `model_orchestration.py` 的 `request_model_draft(generation_request_id=)` | 给定时出站记录按"（项目, 业务请求号）"稳定；不给则沿用旧规则 |
+| 复用 / 冲突 / 未决 | 同上 | 同键同输入**复用原结果不再调用模型**；同键异输入报 `ModelGenerationConflictError`；有意图无结果返回 `OUTBOUND_UNRESOLVED` 且**不重发**；已落盘失败不自动重试 |
+| 落盘前凭据过滤 | 同上 `_filter_known_credentials()` | 已知凭据值在写进 `generated_content` **之前**按精确值剔除；摘要按**过滤后**正文计算 |
+| 过滤事实落盘 | 草稿与出站结果 payload 的 `credential_filter` | `{policy, replacements, filtered}`——**只有计数与策略版本，无凭据正文或摘要**；模板路径不出现该键 |
+| 短凭据 fail closed | 同上 `_reject_short_credentials()` | 值短于 4 字符时**在调用之前**拒绝："无法可靠识别"不接受"假装过滤干净" |
+
+**仍归 A**：真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接线，
+以及"哪些值算已知凭据"的来源解析。本交付的 `known_credentials` 由调用方给出，
+集合不全时过滤必然不全——已如实登记为缺口，不声称完整。
+
 ---
 
 ## 2 已通过的静态 / 单元 / 合同检查（实测）
@@ -85,7 +117,11 @@ B 侧本轮**没有**任何真实环境证据：
 | 3 | 运行中修订的落盘与查读端口 | P1-AC20 一直 `blocked` | **A**（仓储） |
 | 4 | `Handler` 依赖注入（**可选**） | B 现在靠"注册时闭包"绕过；若 A 改成装配时注入，B 的动作表与测试都不用改 | **A**，B 不主张必须改 |
 | 5 | `rule_version` 的索引与查询面 | DEC-004 只定了发布落 `rule_version`；索引键是否要为它增项未核实 | **A**（索引）／D（展示口径见 `BD-001`） |
-| 6 | `publish_rules` / `publish_plan` / `generate_draft` / 模型出站类动作**未注册** | 这些动作在产品入口上仍不可用 | **B**（后续分批，需要各自的参数适配层） |
+| 6 | `generate_draft` 之外的模型出站类动作与运行修订动作**未注册** | 这些动作在产品入口上仍不可用 | **B**（后续分批，需要各自的参数适配层） |
+
+> **2026-10-03 更新**：`publish_rules`、`publish_plan` 已注册并接入统一入口
+> （见第 1.4 节与 `contract.md` 第 8.12 节）；本节第 6 行据此收窄为
+> 模型出站类与运行修订动作。
 
 **已如实登记但不在本合同的**：`serialization.py` 与 `prepare_run.py` 原本带 UTF-8 BOM，
 导致 `tests/architecture/test_boundaries.py` 在 `develop` 上一直失败，本交付已修（见第 2 节）。

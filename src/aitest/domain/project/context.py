@@ -13,11 +13,20 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from hashlib import sha256
 from pathlib import PureWindowsPath
 
 SCHEMA_VERSION_PROJECT = "aitest.project/2.0"
 SCHEMA_VERSION_TASK = "aitest.task/2.0"
 SCHEMA_VERSION_DELIVERY = "aitest.delivery/2.0"
+
+#: 源码内容身份算法的版本标识（`AB-001` 第 11.3 节）。
+#:
+#: **这个标识描述的是"规范字节的写法"，不是任何记录的 Schema 版本。**
+#: 它必须随算法**任何**改动一起升版（改字段顺序、改分隔符、改摘要前缀、
+#: 改参与计算的字段集合等），否则同一份源码在不同版本下算出的身份无法区分。
+#: 与 `aitest.source-snapshot/1.0`（A 的快照 blob 记录版本）**不是一回事**。
+SOURCE_CONTENT_IDENTITY_VERSION = "aitest.source-content-identity/1.0"
 
 
 def _require_text(value: str, name: str) -> None:
@@ -62,6 +71,18 @@ class BindingForm(StrEnum):
 
     值集合与 `contracts/prepared_run.py` 的 `BindingFormFact` 一致，
     由 `tests/contracts/test_project_vocabulary.py` 锁定。
+    """
+
+    GIT = "git"
+    PLAIN = "plain"
+
+
+class SourceForm(StrEnum):
+    """源码快照形态，与 `BindingForm` **同一套值**（`AB-001` 第 11.1 节要求形式互斥）。
+
+    单独声明而不是复用 `BindingForm`：两者是**不同的记录**（绑定 vs 源码快照），
+    将来任一方的取值变化不应牵连另一方。值集合一致由
+    `tests/unit/test_source_identity.py` 锁定。
     """
 
     GIT = "git"
@@ -315,11 +336,22 @@ class ModuleDependencyGraph:
 
     `Dependency` 记录是依赖关系的唯一权威来源；本对象只做投影，
     不提供第二处可写入口（见设计说明第 4 节决定 1）。
+
+    `edges_declared` 区分**"已明确没有依赖"与"依赖还没登记"**（检查项 B-17）：
+
+    - `register_graph()` 是真的在登记一张图，因此它产出的图一律 `edges_declared=True`
+      ——此时没有边就是**明确的"没有依赖"**（单模块项目、若干互不依赖的模块都属此列），
+      不构成缺口；
+    - 默认 `False` 表示"这张图不是通过登记入口来的"（直接构造、或无法证明边已登记），
+      调用方据此保守处理：**未知不得被读成没有影响**。
+
+    两者在字节上不可互推，所以这个事实随图一起落盘、一起读回。
     """
 
     project_id: str
     modules: tuple[Module, ...] = field(default_factory=tuple)
     dependencies: tuple[Dependency, ...] = field(default_factory=tuple)
+    edges_declared: bool = False
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
@@ -502,14 +534,27 @@ class SourceFileDigest:
 
 @dataclass(frozen=True, slots=True)
 class SourceManifest:
-    """`plain` 形态的内容身份：文件清单摘要与复取范围。
+    """源码内容身份：**形式互斥**的文件清单与复取范围。
 
-    `git` 形态的基准提交与差异摘要属于源码快照对象，其归属待裁定，
-    不在本 Sprint 定义（见设计说明第 1.2 节）。
+    形态规则与 `LocalProjectBinding` **完全相同**（`AB-001` 第 11.1 节）：
+
+    | `source_form` | 必须有 | 必须省略（不是 `None`、不是空串） |
+    | --- | --- | --- |
+    | `git` | `git_base_commit`、`git_diff_digest` | `manifest_digest` |
+    | `plain` | `manifest_digest` | `git_base_commit`、`git_diff_digest` |
+
+    这样 `git` 形态的基准提交与差异摘要与 `plain` 的清单摘要**不会同时出现**，
+    也不会用空值假装存在（B 包 AI 规则第 3.6 节）。
+
+    `content_identity` 按 `AB-001` 第 11.3 节计算（见 `source_content_identity()`）：
+    它**不包含** `snapshot_id`、`purpose`、绝对路径、盘符与任何时间戳。
     """
 
     source_scope: str
-    manifest_digest: str
+    source_form: SourceForm = SourceForm.PLAIN
+    manifest_digest: str | None = None
+    git_base_commit: str | None = None
+    git_diff_digest: str | None = None
     files: tuple[SourceFileDigest, ...] = field(default_factory=tuple)
     exclusion_rules: tuple[str, ...] = field(default_factory=tuple)
     refetch_dependencies: tuple[str, ...] = field(default_factory=tuple)
@@ -517,12 +562,68 @@ class SourceManifest:
 
     def __post_init__(self) -> None:
         _require_text(self.source_scope, "source_scope")
-        _require_text(self.manifest_digest, "manifest_digest")
         _require_unique(tuple(f.relative_path for f in self.files), "relative_path")
         _require_items(self.exclusion_rules, "exclusion_rules")
         _require_items(self.refetch_dependencies, "refetch_dependencies")
         if self.refetch_scope is not None:
             _require_text(self.refetch_scope, "refetch_scope")
+
+        if self.source_form is SourceForm.GIT:
+            for value, name in (
+                (self.git_base_commit, "git_base_commit"),
+                (self.git_diff_digest, "git_diff_digest"),
+            ):
+                if value is None:
+                    raise ValueError(f"git source identity requires {name}")
+                _require_text(value, name)
+            if self.manifest_digest is not None:
+                raise ValueError("git source identity must not carry a manifest digest")
+        elif self.source_form is SourceForm.PLAIN:
+            for value, name in (
+                (self.git_base_commit, "git_base_commit"),
+                (self.git_diff_digest, "git_diff_digest"),
+            ):
+                if value is not None:
+                    raise ValueError(f"plain source identity must omit {name}")
+            if self.manifest_digest is None:
+                raise ValueError("plain source identity requires manifest_digest")
+            _require_text(self.manifest_digest, "manifest_digest")
+        else:  # pragma: no cover - 枚举已穷尽
+            raise ValueError(f"unmapped source form: {self.source_form}")
+
+    def normalized_files(self) -> tuple[SourceFileDigest, ...]:
+        """按 `relative_path` **升序**规范化：身份计算不依赖目录遍历顺序。"""
+        return tuple(sorted(self.files, key=lambda item: item.relative_path))
+
+    def form_identity(self) -> str:
+        """形态身份：`git` 用基准提交＋差异摘要，`plain` 用清单摘要（§11.3 第 1 条）。"""
+        if self.source_form is SourceForm.GIT:
+            assert self.git_base_commit is not None
+            assert self.git_diff_digest is not None
+            return f"git:{self.git_base_commit}:{self.git_diff_digest}"
+        assert self.manifest_digest is not None
+        return f"plain:{self.manifest_digest}"
+
+
+def source_content_identity(manifest: SourceManifest) -> str:
+    """按 `AB-001` 第 11.3 节计算 `content_identity`（**B 主责口径**）。
+
+    规范字节 = 逐文件的 `relative_path` / `size` / `sha256` 记录行（按路径升序）
+    再拼上**形态身份**，最后取 sha256。
+
+    **不参与计算**（第 11.3 节第 3 条）：文件系统时间戳、绝对路径、盘符、
+    目录遍历顺序、`purpose`、`snapshot_id`。
+    因此 `mtime_hint` 只作变化提示，永不进身份；
+    `source_scope` 与 `exclusion_rules` 也不进——它们是**范围声明**，
+    其影响已经体现在"哪些文件在清单里"。
+    """
+    lines = [
+        f"file\t{item.relative_path}\t{item.size}\t{item.content_digest}"
+        for item in manifest.normalized_files()
+    ]
+    lines.append(f"form\t{manifest.form_identity()}")
+    canonical = "\n".join(lines)
+    return "sha256:" + sha256(canonical.encode("utf-8")).hexdigest()
 
 
 # --------------------------------------------------------- 任务、验收项与交付

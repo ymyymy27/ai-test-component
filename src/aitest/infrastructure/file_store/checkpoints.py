@@ -35,7 +35,13 @@ class FileCheckpointStore:
         if record.checkpoint.attempt_id != attempt_id:
             raise ValueError("checkpoint and attempt identity must match")
         path = self._root / "checkpoints" / f"{attempt_id}.json"
-        payload: object = {
+        payload: object = self.to_payload(record)
+        atomic.write_json(path, payload)  # type: ignore[arg-type]
+        return path
+
+    @staticmethod
+    def to_payload(record: RecoveryRecord) -> dict[str, object]:
+        return {
             "schema_version": _SCHEMA_VERSION,
             "checkpoint": _CHECKPOINT_ADAPTER.dump_python(
                 record.checkpoint,
@@ -43,8 +49,6 @@ class FileCheckpointStore:
             ),
             "attempt": _ATTEMPT_ADAPTER.dump_python(record.attempt, mode="json"),
         }
-        atomic.write_json(path, payload)  # type: ignore[arg-type]
-        return path
 
     def load(self, attempt_id: str) -> RecoveryRecord:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
@@ -72,6 +76,10 @@ class FileCheckpointStore:
         checkpoint = _CHECKPOINT_ADAPTER.validate_python(payload.get("checkpoint"))
         attempt = _ATTEMPT_ADAPTER.validate_python(payload.get("attempt"))
         return RecoveryRecord(checkpoint=checkpoint, attempt=attempt)
+
+    @classmethod
+    def from_payload(cls, payload: object) -> RecoveryRecord:
+        return cls._from_payload(payload)
 
 
 __all__ = ["FileCheckpointStore"]

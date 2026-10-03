@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 from importlib.resources import files
@@ -258,13 +259,22 @@ def template_draft_text(pack: TemplatePack) -> str:
     )
 
 
-def generated_content_payload(content: GeneratedContent, draft_text: str) -> dict[str, Any]:
+def generated_content_payload(
+    content: GeneratedContent,
+    draft_text: str,
+    *,
+    credential_filter: Mapping[str, object] | None = None,
+) -> dict[str, Any]:
     """草稿的落盘 payload：**正文与摘要一起落**。
 
     只存元数据会让"到底产出了什么"没有可核对的字节，报告与导出也就无法引用真实内容。
     模板草稿与模型草稿**共用这一份形状**，避免两条路径各写一套。
+
+    `credential_filter` 是**模型路径专有**的落盘事实（检查项 B-03）：
+    `draft_text` 是**已在落盘前过滤掉已知凭据**的正文，这里只登记"过滤了几个、
+    按哪一版策略"，**不含任何凭据原值或摘要**。模板路径不传，键不出现。
     """
-    return {
+    payload: dict[str, Any] = {
         "project_id": content.project_id,
         "generated_content_id": content.generated_content_id,
         "draft_kind": content.draft_kind,
@@ -283,6 +293,9 @@ def generated_content_payload(content: GeneratedContent, draft_text: str) -> dic
             "rules_revision": content.revision_context.rules_revision,
         },
     }
+    if credential_filter is not None:
+        payload["credential_filter"] = dict(credential_filter)
+    return payload
 
 
 def draft_expiry(

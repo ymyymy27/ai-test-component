@@ -11,7 +11,7 @@ verification_status: fixture_passed
 last_verified_commit: null
 blockers: []
 next_owner: C
-next_action: 知悉第 15 节的功能夹具取值变更（B 侧实测 C 无需改代码）；确认后回写该节即可关闭
+next_action: C 确认第 16 节（运行中修订的落盘与消费）与第 17 节（`running`／半程运行草案）；B 侧在 C 确认前不改夹具、不新增字段
 ---
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
@@ -410,6 +410,8 @@ B 侧把环境拆成两个对象，**C 只应接触后者**：
 | 2026-09-26 | 0.7 | C 将 RunFact 改为三态隔离方式，四份夹具覆盖 venv/none/unmanaged，重生成 Schema 并补合同测试 | 已完成 | 已完成 |
 | 2026-09-29 | 0.8 | C 确认 SourceSnapshot 分工与 PreparedRun 功能夹具四条场景、plain Git 键省略和 snapshot_revision 取值 | 待组长确认字段口径 | 已确认 |
 | 2026-09-30 | 0.9 | 项目负责人确认 SourceSnapshot 采用“规则归 B、类位置留 C、端口适配归 A”；实现缺口转入 AB-001，不改变 PreparedRun 冻结合同 | 已裁定 | 已确认兼容边界 |
+| 2026-10-03 | 0.10 | 新增第 16 节：运行中修订的落盘与消费（B-05）。B 侧领域门禁与决策结果已交付，落盘、步骤边界应用、失效清单与 runner 消费归 C | 已提出 | **待确认** |
+| 2026-10-03 | 0.11 | 新增第 17 节：`running` 快照与“半程运行”草案（B 侧提交、**待 C 确认**）。含实测缺口清单（三个状态枚举的未覆盖取值）、中间态十条字段语义、三份半程夹具设计与六条证据口径。**不改 `ExecutionFacts` 任何字段** | 草案已提交 | **待确认** |
 
 ---
 
@@ -550,3 +552,138 @@ C 对 SourceSnapshot 分工无异议；该分工已由袁（项目负责人）�
 
 **在本节被确认前，`last_verified_commit` 置空**：先前验证所对应的提交不再生成当前夹具字节。
 字段契约本身仍然有效。
+
+## 16 运行中修订的落盘与消费（2026-10-03 追加）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-05**：
+"RuntimeRevision 未持久写入实际运行序列，C runner 未消费接受/失效清单"。
+
+### 16.1 B 侧已交付什么（本次不需 C 改字段）
+
+B 侧的**领域门禁与决策结果**已实现并有回归测试
+（`domain/planning/runtime_revision.py`、`application/planning/run_mode.py`）：
+
+| B 侧的产物 | 内容 |
+| --- | --- |
+| `RunRuntimeFacts` | 由 C 的 `ExecutionFacts` 翻译来的一致事实视图（运行/步骤/尝试/游标/必测集合） |
+| `RuntimeRevisionRequest` | 一次修订请求：**冻结计划完整身份**（`base_plan_revision_id` + `base_plan_revision_no` + 可选 `base_plan_revision_digest`）、观察到的快照游标、逐用例的新修订与目标步骤 |
+| `RuntimeRevisionDecision` | 决策结果：`accepted`、`revision_no`、`effective_driver`、`snapshot_commit_id`/`snapshot_cursor`，以及交接清单 `affected_step_ids`、`preserved_step_ids`、`invalidated_basis_step_ids`、`rejudge_case_ids`、`confirmation_required_case_ids`、`pause_required`、`new_run_required` |
+| 拒绝原因 | `RuntimeRevisionRefusalCode` 的结构化枚举（未发布计划、修订不符、陈旧游标、运行不活跃、驱动扩张、必测移除、适用性弱化、断言弱化、独立核验移除、步骤正在执行/已记录事实、无可改步骤等） |
+
+**B 侧不加新字段、不改 `PreparedRun` 或 `ExecutionFacts` 的 Schema**：
+本节的落盘与消费属 C 的记录序列与 runner 行为。
+
+### 16.2 C 侧需要的动作（请 C 确认）
+
+| # | 事项 | 说明 |
+| --- | --- | --- |
+| 1 | **保存运行中修订的序列** | 按 `RuntimeRevisionDecision` 落 `RunPlanRevision`（或等价记录）与 `StepRevisionRef`，使"第几次修订、依据哪个冻结计划、作用到哪些步骤"可按准确修订读回 |
+| 2 | **应用接受清单** | runner 在**步骤边界**应用：`affected_step_ids` 用新修订、`preserved_step_ids` 绑原修订；`pause_required` 时在边界暂停而不是中途打断 |
+| 3 | **应用失效清单** | 按 `invalidated_basis_step_ids` 失效受影响依据（含 C 自己的传递失效），不得把旧尝试回退成当前通过 |
+| 4 | **给"运行中/正在执行"快照夹具** | 现行交付夹具的 `run.control_state` 只有 `completed`／`pending_verification`，且没有任何一步是 `running`；这两类取值在合同里合法但**没有样本**，B 侧只能自行派生，属"夹具覆盖缺口" |
+| 5 | **真实半程运行证据** | 半程修订、驱动收窄（`planned → stepwise`）、必测不弱化的真实流程验证 |
+
+### 16.3 依赖的既有约定（不变）
+
+- 修订序列号由**已记录条数**派生，不接受调用者自报（B 侧已按此实现）；
+- 决策按**同一 commit 的一致快照**作出（`observed_snapshot_cursor` 与 C 的事实不符即 `stale_snapshot`）；
+- 驱动只允许收窄，扩张需新运行；
+- 历史事实保留，失效的是**依据**而不是删记录。
+
+### 16.4 C 侧动作
+
+1. 按 16.2 逐条确认范围与归属，并回写本节；
+2. 若第 1／2／3 条需要新的记录类别或字段，**走新的契约 PR**，不在本节散改；
+3. 第 4 条（运行中/正在执行夹具）确认后由 C 补，B 侧据此替换自行派生的部分。
+
+---
+
+## 17 `running` 快照与"半程运行"草案（2026-10-03，B 侧提交，**待 C 确认**）
+
+对应第 16.2 节第 4、5 条。C 于 2026-10-03 要求"**B 先出 `running` 草案，C 再在接口文档与 C 侧夹具里补齐
+`running` / 半程运行样本，避免两边各造一套**"，并请 B "**把 `running` 的字段语义和'半程运行'的证据口径一并固定**"。
+
+**本节性质**：B 侧**草案**，是待 C 确认的提案，**不是已冻结口径**；C 确认并回写后方可作为夹具依据。
+本节**不改 `ExecutionFacts` 任何字段**，只固定"什么样的中间态记录算合法、算完整"。
+
+### 17.1 好消息：中间态在合同里**早已合法**，缺的只是样本
+
+`RunControlStateFact` / `StepStateFact` / `AttemptStateFact` 三个枚举的取值**完整覆盖**中间态，
+不需要新增枚举值、不需要改合同字段。缺口在**夹具覆盖**——实测交付夹具
+（`tests/contracts/fixtures/execution_facts/`：`success.json`／`quick.json`／`failure.json`／`unknown.json`）
+只出现了少数取值，**没有任何一步是 `running`**。
+
+**实测缺口清单**（2026-10-03 逐文件统计，非估计）：
+
+| 枚举 | 合同取值数 | 已有样本 | **缺样本** |
+| --- | --- | --- | --- |
+| `RunControlStateFact` | **11** | `completed`、`pending_verification` | `not_started`、**`running`**、`pause_requested`、`paused`、`cancel_requested`、`cancelling`、`recovering`、`cancelled`、`execution_error` |
+| `StepStateFact` | **9** | `blocked`、`completed`、`execution_error`、`pending_verification` | `pending`、`ready`、**`running`**、`cancelled`、`invalidated` |
+| `AttemptStateFact` | **11** | `completed`、`execution_error`、`pending_verification` | `intent_recorded`、`starting`、**`running`**、`stop_requested`、`collecting`、`cancelled`、`invalidated`、`unknown` |
+
+**B 侧需要的**（不是全部都要，见第 17.2／17.3 节）：`running` 与 `pause_requested`／`paused`
+的**运行级**样本、`running`／`pending`／`completed` 的**步骤级**样本、
+`running`／`collecting` 的**尝试级**样本。其余取值可在后续批次补。
+
+### 17.2 中间态快照的字段语义（草案）
+
+下列口径用于判定"一份 `running` 快照是否自洽"。**全部基于既有字段**，不新增字段。
+
+| # | 口径 | 说明与理由 |
+| --- | --- | --- |
+| 1 | **恰好一个步骤处于 `running`** | 一期串行执行（架构"一个用户数据工作空间由一个核心进程持排他写锁"）。若出现多个 `running` 步骤，该快照**不自洽**，C 侧夹具不得产生 |
+| 2 | `RUNNING` 步骤**必须有当前尝试**，且 `current_attempt_by_step[step_id]` 非空 | 否则"正在执行"没有可核对的事实（`current_attempt_by_step` 已是合同字段） |
+| 3 | 该尝试的 `AttemptStateFact` ∈ {`starting`, `running`, `collecting`, `stop_requested`} | `intent_recorded` 表示**尚未开始**（可出现在"已登记意图但未启动"的快照，此时步骤应为 `ready`） |
+| 4 | **`waiting_*` 不改写历史事实** | 快照必须**保留**已终止尝试与其证据引用；`pending_verification` 的步骤**保留** `current_attempt_by_step`（因为要核验） |
+| 5 | **`control_state=running` 时不得出现已结算的结论** | `run.evidence_level` **不得**为 `full_link`（唯一"完整链路"档）；取 `None` 或 `unknown`／`insufficient` 均可，由 C 按当时能否判定选择。`conclusion_ceiling` 仍按档位冻结（`quick`／`on_demand` → `partial`，`full` → `passable`），**不因"跑了一半"放宽或收紧** |
+| 6 | **`pause_requested` ≠ `paused`** | `pause_requested` 表示"已请求、**尚未生效**"；执行中的步骤仍为 `running`。`paused` 表示**已在步骤边界停下**，此时**不应有** `running` 步骤（`RUNNING` 步骤应转为 `pending`/`ready`）。二者混用会让"步骤边界暂停"无法验证 |
+| 7 | **`invalidated` 与 `running` 可共存，但互斥于同一步骤** | 受影响步骤为 `invalidated` 且带 `invalidated_by`；正在执行的步骤不得被标记 `invalidated`（架构：正在执行的拒绝修改） |
+| 8 | **`completeness` 取 `partial` 或 `unknown`，不得取 `complete`** | 中间态运行未结束，事实不完整。既有 `unknown.json` 夹具即以 `completeness=unknown` 表达"判不了"（本项与既有做法一致） |
+| 9 | **`runtime_revision_refs` 为运行中修订** | 与第 16.2 节第 1 条对应：运行中修订的序号须可按准确修订读回 |
+| 10 | **`snapshot_cursor` 表达一致视角** | 决策按同一 commit 的一致快照作出（第 16.3 节），中间态快照的 `snapshot_cursor` 必须与其中包含的步骤/尝试修订自洽 |
+
+**B 侧不需要**（明确排除，避免范围膨胀）：`recovering`、`cancelling`、`cancel_requested`、`cancelled`
+的中间样本——它们属恢复与取消路径，与本轮"运行中修订"验证无关。
+
+### 17.3 三份"半程运行"夹具的设计（草案）
+
+**共同前提**：`run.tier = full`、`required_scope` ⊇ 已选范围、必测项未被删除或弱化
+（否则运行中修订本就应被拒绝，见 `RuntimeRevisionRefusalCode`）。
+
+| # | 夹具 | 关键取值 | 用来验证什么 |
+| --- | --- | --- | --- |
+| **R1** | **正常执行中** | `run.control_state=running`；步骤：1 个 `completed`（带历史尝试与证据引用）、1 个 `running`（有当前尝试）、其余 `pending` 或 `ready`；`current_attempt_by_step` 齐全；`completeness=partial`；`run.evidence_level=None` | 设计 §16.2 第 1、2 条的基础样本：修订**只作用于未执行步骤**，已完成的步骤修订与依据不变 || **R2** | **暂停请求 → 已在边界暂停** | 同一逻辑运行的两份快照：①`pause_requested`（执行中的步骤仍 `running`）；②`paused`（**无** `running` 步骤，下一步为 `pending`／`ready`） | §16.2 第 2 条的"在**步骤边界**暂停而不是中途打断"；这是第 17.2 节第 6 条的直接检验 |
+| **R3** | **依据失效 + 修订生效** | `paused` 或 `running`；1 个步骤 `invalidated` 且带 `invalidated_by`；另一部分步骤为 `pending`（未执行）；`runtime_revision_refs` 非空；`run.evidence_level=None` | §16.2 第 3 条：失效的是**依据**而不是删记录；失效步骤**不得**回退成"当前通过" |
+
+**每份夹具的最低自洽要求**：能通过 `ExecutionFacts` 的既有校验器；`current_attempt_by_step` 与
+`steps[].current_attempt_id`、`attempts[].state` 三者一致；保留已终止尝试的历史。
+
+### 17.4 "半程运行"的证据口径（草案）
+
+**用来证明**：运行中修订**只影响未执行步骤**、**正在执行的拒绝修改**、**反向驱动切换被拒**、
+**依据失效时暂停**（对应 P1-AC20）。**不能用来**结算业务结论或证据等级。
+
+| # | 口径 | 说明 |
+| --- | --- | --- |
+| 1 | 证据由**同一运行的连续快照**构成：至少"修订前"与"修订后"两份，`snapshot_commit_id` 与 `snapshot_cursor` 表达先后 | 单份快照证明不了"只影响未执行步骤" |
+| 2 | 必须**同时**呈现：被修订步骤的 `step_revision_ref`、已完成的步骤**保持原修订**、`invalidated_by` 指向具体失效依据 | 缺任一项即视为证据不完整 |
+| 3 | **`runtime_revision_refs` 的序号须可按准确修订读回**（第 16.2 节第 1 条） | 否则"第几次修订"不可核对 |
+| 4 | **不得**使用 `run.evidence_level` 或 `conclusion_ceiling` 作为"运行通过"的证据 | 中间态没有业务结论（第 17.2 节第 5 条） |
+| 5 | **"暂停"必须体现为步骤边界**（无 `running` 步骤），不得只写 `paused` 而仍留执行中的步骤 | 与第 17.2 节第 6 条一致 |
+| 6 | 缺少任何一项时的正确呈现是**如实登记缺口**，不是补默认值 | `FactCompleteness`／`EvidenceGapFact` 已能承载 |
+
+### 17.5 待 C 确认
+
+| # | 事项 |
+| --- | --- |
+| 1 | 第 17.1 节的**缺口清单**与 B 侧实际需要的样本集合是否一致（是否有 B 未列、但 C 认为必需的中间态） |
+| 2 | 第 17.2 节十条口径是否与 C 侧既有实现一致；**特别是第 6 条 `pause_requested` 与 `paused` 的区分**是否与 C 的 runner 实际行为相符 |
+| 3 | 第 17.3 节 R1／R2／R3 三份夹具的取值是否可实现（尤其 R2 是否确实产生**两份**快照） |
+| 4 | 坐标：夹具放在 `tests/contracts/fixtures/execution_facts/`（与既有四份同目录）是否符合 C 侧约定 |
+| 5 | 第 17.2 节第 5 条（中间态 `evidence_level` 为 `None`）是否与 C 既有构造一致 |
+
+**B 侧在 C 确认前不据此改动任何夹具、也不新增字段。** C 确认后本节转为冻结口径，
+B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
+
+**在本节被确认前**，B 侧对 B-05 只登记"领域门禁已完成、落盘与消费待 C"，
+**不声称 B-05 已闭合**。
