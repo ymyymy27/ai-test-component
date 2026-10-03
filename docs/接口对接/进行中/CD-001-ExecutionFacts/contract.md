@@ -5,13 +5,13 @@ provider: C
 consumer: D
 contract_version: "1.0"
 contract_status: agreed
-provider_implementation: done
+provider_implementation: partial
 consumer_implementation: partial
 verification_status: fixture_passed
 last_verified_commit: 8d9883c
 blockers: []
-next_owner: D
-next_action: D 完成 ExecutionFacts 消费适配、Run 级证据等级派生和真实夹具对拍
+next_owner: C
+next_action: C 修复 C-01—C-13 后，双方重放七类夹具和 A 真实一致快照/对象读取对拍
 ---
 
 # C包-D包 ExecutionFacts 对接说明
@@ -206,4 +206,4 @@ AttemptFact.output_cursors为数组，每个元素对应一个OutputStreamName�
 确认：[x] C包 赵    日期：2026-09-27  
 确认：[x] D包 郭    日期：2026-10-02  
 
-双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；消费方接入和真实夹具对拍由 `review-D.md` 跟踪。
+双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；D 侧适配与测试进度由 `delivery-D.md` 跟踪，C-01—C-13 修复后仍需重放和真实对拍。
