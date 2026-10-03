@@ -116,12 +116,18 @@ def _session() -> Session:
     return Session(session_id="cli-draft", entry_kind=EntryKind.HUMAN_UI)
 
 
-def _command(action: str, request_id: str, parameters: Mapping[str, object]) -> Command:
+def _command(
+    action: str,
+    request_id: str,
+    parameters: Mapping[str, object],
+    *,
+    expected_revision: int = 0,
+) -> Command:
     return Command(
         request_id=request_id,
         action=action,
         project_id=PROJECT_ID,
-        expected_revision=0,
+        expected_revision=expected_revision,
         intent_id=f"intent-{request_id}",
         parameters=cast("dict[str, JsonValue]", dict(parameters)),
     )
@@ -393,7 +399,10 @@ def test_publish_rules_invalid_draft_is_named(workspace_root: Path) -> None:
 def test_publish_rules_second_publish_appends_a_new_revision(
     workspace_root: Path,
 ) -> None:
-    """已发布规则再发布：**追加新修订**，旧修订保留（记录只追加）。"""
+    """已发布规则再发布：**追加新修订**，旧修订保留（记录只追加）。
+
+    第二次发布必须声明"我看到的是 `@1`"（检查项 B-14）：发布不再替调用方接受最新基线。
+    """
     _rebuild_index(workspace_root)
     api = _api(_start(workspace_root))
     first = api.dispatch(
@@ -402,9 +411,50 @@ def test_publish_rules_second_publish_appends_a_new_revision(
     assert first.error is None, first.error
     second_parameters = _rule_parameters(revision=2, text="updated check text")
     second = api.dispatch(
-        _command("publish_rules", f"{PUBLISH_REQ}-2", second_parameters), _session()
+        _command(
+            "publish_rules",
+            f"{PUBLISH_REQ}-2",
+            second_parameters,
+            expected_revision=1,
+        ),
+        _session(),
     )
     assert second.error is None, second.error
     assert second.result is not None
     assert second.result["published"] is True
     assert second.result["revision"] == 2
+
+
+def test_publish_rules_with_a_stale_expected_revision_is_refused(
+    workspace_root: Path,
+) -> None:
+    """检查项 B-14：旧编辑继续发布必须报冲突，并带上当前修订。"""
+    _rebuild_index(workspace_root)
+    api = _api(_start(workspace_root))
+    first = api.dispatch(
+        _command("publish_rules", PUBLISH_REQ, _rule_parameters()), _session()
+    )
+    assert first.error is None, first.error
+    # 另一个编辑者手上仍是 `@1`：先真实发布到 `@2`，再用 `@1` 提交第三次发布。
+    second = api.dispatch(
+        _command(
+            "publish_rules",
+            f"{PUBLISH_REQ}-2",
+            _rule_parameters(revision=2, text="updated check text"),
+            expected_revision=1,
+        ),
+        _session(),
+    )
+    assert second.error is None, second.error
+    stale = api.dispatch(
+        _command(
+            "publish_rules",
+            f"{PUBLISH_REQ}-3",
+            _rule_parameters(revision=3, text="第三个编辑者手上的旧正文"),
+            expected_revision=1,
+        ),
+        _session(),
+    )
+    assert stale.error is not None
+    assert stale.error.code == "B_REVISION_CONFLICT"
+    assert "2" in stale.error.message

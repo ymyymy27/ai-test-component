@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 
 from aitest.application.planning.substrate import (
+    ConcurrentEditError,
     RecordQuery,
     RecordReader,
     UnitOfWork,
@@ -109,6 +110,40 @@ def _current_revision(
     return max(item.revision for item in page.items)
 
 
+def _revision_to_stage(
+    reader: RecordReader,
+    *,
+    project_id: str,
+    aggregate_kind: str,
+    record_id: str,
+    expected_revision: int | None,
+) -> int | None:
+    """把**调用方所见修订**与当前修订当场对上，返回要交给底座写入的修订。
+
+    检查项 B-14：发布过去自己读当前修订当作 `expected_revision`，等于**替调用方
+    接受最新基线**——用户在一份旧正文上点"发布"也会成功，旧编辑因此成为最新发布版。
+    这里反过来：调用方给的"我看到的修订"必须**等于**当前修订（`None` 与 `0` 同样表示
+    "这是一条新记录"，`0 == 当前 0` 通过）；不一致就当场拒绝并带上当前修订，
+    让调用方重新读取后再发布。检查与写入在同一次事务里完成，
+    乐观锁窗口因此不是"读取之后"而是"这次事务之内"。
+    """
+    current = _current_revision(
+        reader,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+    )
+    current_or_zero = 0 if current is None else current
+    if current_or_zero != (expected_revision or 0):
+        raise ConcurrentEditError(
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            expected_revision=expected_revision,
+            current_revision=current_or_zero,
+        )
+    return expected_revision
+
+
 # ------------------------------------------------------------------ 规则发布
 
 
@@ -118,6 +153,7 @@ def publish_rules(
     project_id: str,
     unit_of_work: UnitOfWork,
     reader: RecordReader,
+    expected_revision: int | None = None,
     context_gaps: tuple[ContextGap, ...] = (),
 ) -> PublicationResult:
     """把规则草稿发布为不可变的 `RuleVersion`。
@@ -126,7 +162,9 @@ def publish_rules(
 
     1. 上下文有**阻塞级**缺口 → 拒绝；
     2. `validate_draft_publication()`：草稿必须已确认 → 拒绝；
-    3. 提交失败 → 异常向上抛（写入失败**不得**显示为已保存）。
+    3. `expected_revision` 与当前 `rule_version` 修订不符 → `ConcurrentEditError`
+       （检查项 B-14：旧编辑不得继续发布）；
+    4. 提交失败 → 异常向上抛（写入失败**不得**显示为已保存）。
 
     `confirmation_id` 取**本次提交的提交序号**：发布是人工动作，
     但标识绑定的是这次提交事实，不由调用方传入（不接受"自报确认"）。
@@ -159,11 +197,12 @@ def publish_rules(
         tx.stage_record(
             aggregate_kind="rule_version",
             record_id=draft.rule_id,
-            expected_revision=_current_revision(
+            expected_revision=_revision_to_stage(
                 reader,
                 project_id=project_id,
                 aggregate_kind="rule_version",
                 record_id=draft.rule_id,
+                expected_revision=expected_revision,
             ),
             payload=payload,
         )
@@ -193,6 +232,7 @@ def publish_plan(
     cases: Sequence[Case],
     unit_of_work: UnitOfWork,
     reader: RecordReader,
+    expected_revision: int | None = None,
     context_gaps: tuple[ContextGap, ...] = (),
 ) -> PublicationResult:
     """把计划发布为带确认标识的不可变修订。
@@ -202,7 +242,9 @@ def publish_plan(
     1. 上下文有**阻塞级**缺口 → 拒绝（"上下文缺失时阻塞，不编造结论"）；
     2. `validate_plan_publication()`：`T ⊆ M`、冻结必测不得含依据缺失、
        必测项须有独立核验方式、冻结用例修订必须齐全 → 拒绝；
-    3. 提交失败 → 异常向上抛。
+    3. `expected_revision` 与当前 `plan` 记录修订不符 → `ConcurrentEditError`
+       （检查项 B-14：与规则发布同一调用链上的同一处缺陷）；
+    4. 提交失败 → 异常向上抛。
 
     已发布的计划**不重新发布**（`Plan` 不可变，历史运行仍引用原修订）：
     传进来的计划若已是 `published`，直接拒绝并说明。
@@ -230,11 +272,12 @@ def publish_plan(
         tx.stage_record(
             aggregate_kind="plan",
             record_id=plan.plan_id,
-            expected_revision=_current_revision(
+            expected_revision=_revision_to_stage(
                 reader,
                 project_id=project_id,
                 aggregate_kind="plan",
                 record_id=plan.plan_id,
+                expected_revision=expected_revision,
             ),
             payload=payload,
         )

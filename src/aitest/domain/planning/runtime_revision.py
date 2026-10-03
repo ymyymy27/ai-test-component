@@ -289,6 +289,10 @@ class CaseRuntimeChange:
 class RuntimeRevisionRequest:
     """一次运行中修订请求。
 
+    - `base_plan_revision_id` / `base_plan_revision_digest`：本次修订所依据的**冻结计划身份**
+      （ID + 修订 + 摘要）。只比修订号不够——检查项 B-15 的反例正是"同修订号、不同
+      `plan_id`"的计划被当成冻结依据接受。摘要为可选是为了兼容只做修订号核对的旧调用方，
+      但**应用层一律给出**：`plan_revision_digest` 在 C 的事实里就有，不给就等于放弃这项核对；
     - `base_plan_revision_no`：本次修订所依据的冻结计划修订，必须与计划**和** C 的事实一致；
     - `observed_snapshot_cursor`：决策时读到的 C 快照游标；不一致即 `stale_snapshot`，
       保证"按同一 commit 读取整个快照"（`CD-001` 第 3 节）而不是在混合快照上做决策；
@@ -296,16 +300,21 @@ class RuntimeRevisionRequest:
     - `operator_ref`：操作者／授权引用，由受控交互入口提供；本模块只如实登记，不校验角色。
     """
 
+    base_plan_revision_id: str
     base_plan_revision_no: int
     observed_snapshot_cursor: int
     case_changes: tuple[CaseRuntimeChange, ...]
     reason: str
     operator_ref: str
+    base_plan_revision_digest: str | None = None
     requested_driver: RunDriver | None = None
 
     def __post_init__(self) -> None:
+        _require_text(self.base_plan_revision_id, "base_plan_revision_id")
         if self.base_plan_revision_no < 1:
             raise ValueError("base_plan_revision_no must be >= 1")
+        if self.base_plan_revision_digest is not None:
+            _require_text(self.base_plan_revision_digest, "base_plan_revision_digest")
         if self.observed_snapshot_cursor < 0:
             raise ValueError("observed_snapshot_cursor must be >= 0")
         _require_text(self.reason, "reason")
@@ -414,14 +423,28 @@ def evaluate_runtime_revision(
         )
 
     if (
-        plan.revision != facts.plan_revision_no
+        request.base_plan_revision_id != plan.plan_id
+        or plan.revision != facts.plan_revision_no
         or request.base_plan_revision_no != plan.revision
     ):
         refuse(
             RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH,
-            "frozen plan revision "
-            f"{plan.revision}, facts plan revision {facts.plan_revision_no}, "
-            f"request base revision {request.base_plan_revision_no}",
+            "frozen plan "
+            f"{plan.plan_id}@{plan.revision}, request base plan "
+            f"{request.base_plan_revision_id}@{request.base_plan_revision_no}, "
+            f"facts plan {facts.plan_revision_id}@{facts.plan_revision_no}",
+        )
+    elif (
+        request.base_plan_revision_digest is not None
+        and request.base_plan_revision_digest != facts.plan_revision_digest
+    ):
+        # 摘要只在调用方给出时核对：没给就是没核对，不拿计划自己的内容**猜**一个摘要来比
+        # （那样等于自己跟自己比，看着通过、其实什么也没验）。
+        refuse(
+            RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH,
+            "request base plan digest "
+            f"{request.base_plan_revision_digest} does not match the frozen plan digest "
+            f"{facts.plan_revision_digest}",
         )
 
     if request.observed_snapshot_cursor != facts.snapshot_cursor:
@@ -500,15 +523,24 @@ def evaluate_runtime_revision(
                 "from the required set mid-run",
             )
 
-        if case_id in mandatory and (
-            next_case.links.critical_path_ids < current.links.critical_path_ids
-            or next_case.links.acceptance_item_ids < current.links.acceptance_item_ids
-        ):
-            refuse(
-                RuntimeRevisionRefusalCode.APPLICABILITY_WEAKENED,
-                f"{case_id} drops acceptance items or critical paths while remaining "
-                "mandatory",
+        if case_id in mandatory:
+            # 必测用例的适用性**只能保留或增加**：`required ⊆ next`。
+            # 检查项 B-15：过去用真子集比较（`next < current`），两个互不包含的集合比不出
+            # 真子集关系，于是"把 {AC-A,AC-B} 换成 {AC-A,AC-C}"这种**替换**被静默接受——
+            # 等于在运行中删掉了一条必测验收依据。
+            dropped_acceptance = (
+                current.links.acceptance_item_ids - next_case.links.acceptance_item_ids
             )
+            dropped_critical_paths = (
+                current.links.critical_path_ids - next_case.links.critical_path_ids
+            )
+            if dropped_acceptance or dropped_critical_paths:
+                refuse(
+                    RuntimeRevisionRefusalCode.APPLICABILITY_WEAKENED,
+                    f"{case_id} drops acceptance items or critical paths while remaining "
+                    f"mandatory (acceptance {sorted(dropped_acceptance)}, "
+                    f"critical paths {sorted(dropped_critical_paths)})",
+                )
 
         basis_changed = next_case.assertion_basis != current.assertion_basis
         weakened = basis_changed and assertion_basis_weakened(

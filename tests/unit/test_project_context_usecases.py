@@ -33,6 +33,7 @@ from aitest.domain.project.context import (
     DriveKind,
     IsolationMode,
     Module,
+    ModuleDependencyGraph,
     SecretRef,
     WorkspaceLocationRejection,
 )
@@ -228,6 +229,40 @@ def test_moving_a_directory_creates_a_new_binding_revision() -> None:
     assert first.binding_revision == 1
 
 
+def test_moving_a_directory_does_not_inherit_confirmation_or_digest() -> None:
+    """检查项 B-16：移动后必须**重新确认**、**重新固定内容**。
+
+    反例原文是"`confirmed=true`、`manifest_digest=sha256:old` 的 `C:/old` 绑定移动到
+    `C:/new` 后，修订增加到 2，但仍 `confirmed=true` 并继承原摘要"。
+    旧确认只对旧路径成立，旧摘要只对旧位置的内容成立。
+    """
+    first = create_binding(
+        _plain_inputs(canonical_path=r"C:\old", confirmed=True, manifest_digest="sha256:old")
+    ).binding
+    assert first is not None
+    assert first.confirmed is True
+
+    moved = move_binding(
+        first, canonical_path=r"C:\new", drive_kind=DriveKind.FIXED
+    )
+    # 旧摘要不得继承；plain 形态因此按"缺内容身份"给出**缺口而不是绑定**，
+    # 而不是拿旧摘要冒充新内容、或者把新路径当成已确认。
+    assert moved.binding is None
+    assert GAP_MISSING_ENVIRONMENT_CARRIER in {gap.kind for gap in moved.gaps}
+    assert blocking_gaps(moved.gaps)
+
+    # 调用方重新核对完新位置的内容后，可以显式带上新摘要。
+    rechecked = move_binding(
+        first,
+        canonical_path=r"C:\new",
+        drive_kind=DriveKind.FIXED,
+        manifest_digest="sha256:new",
+    ).binding
+    assert rechecked is not None
+    assert rechecked.manifest_digest == "sha256:new"
+    assert rechecked.confirmed is False
+
+
 def test_binding_result_cannot_be_both_successful_and_rejected() -> None:
     from aitest.application.project.context import BindingResult
 
@@ -389,12 +424,58 @@ def test_project_without_modules_is_a_blocking_gap() -> None:
     assert GAP_NO_MODULES in {gap.kind for gap in gaps}
 
 
-def test_modules_without_any_dependency_edge_is_a_blocking_gap() -> None:
-    """关键：**"映射缺失不能解释为没有影响"**，所以这是阻塞缺口而不是"无依赖"。"""
+def test_a_single_module_without_any_edge_is_not_a_gap() -> None:
+    """检查项 B-17：**已明确没有依赖**不是缺口。
+
+    反例原文是"一个有职责/输入输出的模块、匹配项目的无边依赖图和有效环境输入，
+    `detect_context_gaps` 返回 blocking missing_dependency_registration`"——
+    单模块项目本来就不可能有跨模块边，把它判成漏登记会误阻塞合法最小项目。
+    """
     project = _project_with_modules()
+    environment = create_environment(_environment()).environment
     graph = register_graph(project_id="p1", modules=(_module("m1"),), dependencies=())
-    gaps = detect_context_gaps(project=project, graph=graph, environment=None)  # type: ignore[arg-type]
+    gaps = detect_context_gaps(
+        project=project,  # type: ignore[arg-type]
+        graph=graph,
+        environment=environment,
+        drive_kind=DriveKind.FIXED,
+    )
+    assert gaps == ()
+    assert blocking_gaps(gaps) == ()
+
+
+def test_independent_modules_without_edges_are_not_a_gap() -> None:
+    """若干互不依赖的模块：边为空但**依赖已登记为"没有"**，同样不是缺口。"""
+    project = _project_with_modules()
+    environment = create_environment(_environment()).environment
+    graph = register_graph(
+        project_id="p1",
+        modules=(_module("m1"), _module("m2")),
+        dependencies=(),
+    )
+    gaps = detect_context_gaps(
+        project=project,  # type: ignore[arg-type]
+        graph=graph,
+        environment=environment,
+        drive_kind=DriveKind.FIXED,
+    )
+    assert GAP_MISSING_DEPENDENCY_REGISTRATION not in {gap.kind for gap in gaps}
+
+
+def test_undeclared_dependency_edges_are_still_a_blocking_gap() -> None:
+    """真正缺登记时仍是阻塞缺口：`edges_declared=False` 的图不得被读成"没有影响"。"""
+    project = _project_with_modules()
+    environment = create_environment(_environment()).environment
+    graph = ModuleDependencyGraph(project_id="p1", modules=(_module("m1"),))
+    assert graph.edges_declared is False
+    gaps = detect_context_gaps(
+        project=project,  # type: ignore[arg-type]
+        graph=graph,
+        environment=environment,
+        drive_kind=DriveKind.FIXED,
+    )
     assert GAP_MISSING_DEPENDENCY_REGISTRATION in {gap.kind for gap in gaps}
+    assert blocking_gaps(gaps)
 
 
 def test_registered_dependency_edge_removes_that_gap() -> None:

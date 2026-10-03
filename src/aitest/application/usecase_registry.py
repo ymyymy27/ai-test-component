@@ -290,6 +290,31 @@ def _command_action(command: object) -> str:
     return _as_text(getattr(command, "action", None), "action")
 
 
+def _require_owned_by_command(
+    payload: Mapping[str, object],
+    *,
+    command: object,
+    name: str,
+    aggregate_kind: str,
+) -> None:
+    """正文自带的项目必须与命令的项目一致（检查项 B-12）。
+
+    过去只有个别动作（如依赖图、环境）逐个比对，其余动作**直接把命令的项目写进正文**，
+    于是"命令项目 A + 正文项目 B"会被静默改写成 A 落盘——调用方以为存的是 B 的记录。
+    这里统一在入口处拒绝：正文自带项目就必须对得上；不带项目（`None`）留给持久化层
+    按"归属未知"处理，不在这里替它猜一个。
+    """
+    declared = payload.get("project_id")
+    if declared is None:
+        return
+    if declared != _command_project_id(command):
+        raise BUseCaseError(
+            "B_INVALID_PARAMETER",
+            f"{aggregate_kind} {name} declares project_id {declared!r}, which does not "
+            "match the command project",
+        )
+
+
 def _draft_result(result: DraftResult) -> Mapping[str, object]:
     """草稿结果：草稿与缺口**不会同时出现**，据此分支出结果。
 
@@ -614,6 +639,22 @@ def _payload_revision_or_none(
     if value is None:
         return None
     number = _int_of(value, name)
+    if number == 0:
+        return None
+    return number
+
+
+def _expected_revision_or_none(command: object) -> int | None:
+    """命令里的"我看到的修订"，`0` 表示**新建**。
+
+    与 `_payload_revision_or_none()` 同一套约定，但不带"缺省回退到某个领域修订"的
+    参数：发布的基线只能由调用方给出，不能由应用层从草稿/计划自己的修订号推出来
+    （检查项 B-14——那正是"替调用方接受最新基线"）。
+    """
+    value = getattr(command, "expected_revision", None)
+    if value is None:
+        return None
+    number = _int_of(value, "expected_revision")
     if number == 0:
         return None
     return number
@@ -993,6 +1034,10 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         _command_project_id(command)  # 写动作必须带项目范围
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "task"), "task")
+        # 检查项 B-12：任务正文自带项目，必须与命令项目一致。
+        _require_owned_by_command(
+            payload, command=command, name="task", aggregate_kind="task"
+        )
         try:
             task = task_from_payload(payload)
         except ValueError as error:
@@ -1016,22 +1061,31 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "delivery"), "delivery")
+        # 检查项 B-12：正文自己的项目必须与命令项目一致。不能像过去那样"用命令项目
+        # 覆盖正文项目"再落盘——那会把 A 项目的记录写成 B 项目的，调用方还以为存对了。
+        _require_owned_by_command(
+            payload, command=command, name="delivery", aggregate_kind="delivery"
+        )
         try:
             delivery = delivery_from_payload(payload)
         except ValueError as error:
             raise BUseCaseError(
                 "B_INVALID_PARAMETER", f"invalid delivery: {error}"
             ) from error
-        staged = save_delivery(
-            delivery,
-            project_id=project_id,
-            unit_of_work=deps.unit_of_work,
-            expected_revision=_payload_revision_or_none(
-                command,
-                default=delivery.revision,
-                name="expected_revision",
-            ),
-        )
+        try:
+            staged = save_delivery(
+                delivery,
+                project_id=project_id,
+                unit_of_work=deps.unit_of_work,
+                expected_revision=_payload_revision_or_none(
+                    command,
+                    default=delivery.revision,
+                    name="expected_revision",
+                ),
+            )
+        except ValueError as error:
+            # B-13：自述的"已验证范围"不接受写入；这是**参数问题**，不是内部错误。
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
         return _stage_result(
             aggregate_kind=staged.aggregate_kind,
             record_id=staged.record_id,
@@ -1190,6 +1244,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             cases=cases,
             unit_of_work=deps.unit_of_work,
             reader=deps.reader,
+            expected_revision=_expected_revision_or_none(command),
             context_gaps=_gaps_of(parameters.get("context_gaps"), "context_gaps"),
         )
         return _publication_result(result, published_kind="plan")
@@ -1280,11 +1335,16 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_publish_rules(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
+        draft = _rule_draft_of(_as_mapping(_required(parameters, "draft"), "draft"))
         result = publish_rules(
-            _rule_draft_of(_as_mapping(_required(parameters, "draft"), "draft")),
+            draft,
             project_id=project_id,
             unit_of_work=deps.unit_of_work,
             reader=deps.reader,
+            # 检查项 B-14：把**调用方所见修订**原样交给发布，不允许发布替调用方接受最新基线。
+            # 命令层用 `0` 表达"我认定这是一条新记录"；这里**不**回退到草稿自己的修订号——
+            # 那样又变成替调用方猜基线，正是本项要消除的行为。
+            expected_revision=_expected_revision_or_none(command),
             context_gaps=_gaps_of(parameters.get("context_gaps"), "context_gaps"),
         )
         return _publication_result(result, published_kind="rule_version")

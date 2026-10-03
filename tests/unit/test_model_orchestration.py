@@ -165,6 +165,43 @@ def _request(
 # ------------------------------------------------------------------ 正常路径
 
 
+def test_a_policy_from_another_project_is_refused() -> None:
+    """检查项 B-12：不得借用另一个项目的出站策略。
+
+    反例原文是"真实模型编排在内存外部端口下接受 `project-ticket` 的策略为
+    `other-project` 准备请求"。策略是**项目级授权**，借用别的项目的策略等于绕过
+    本项目的出站授权。
+    """
+    unit_of_work, reader = _world()
+    caller = _IntentProbeCaller(reader)
+    outcome = request_model_draft(
+        project_id="other-project",
+        policy=_policy(),
+        task_type=ModelTaskType.CHECK_CONTENT_DRAFT,
+        selected_material={MaterialKind.PROJECT_CONTEXT: "context"},
+        unit_of_work=unit_of_work,
+        reader=reader,
+        projector=MemoryProjector(),
+        credentials=MemoryCredentialResolver(),
+        caller=caller,
+        clock=FixedClock(),
+        source_revision=1,
+        base_manual_revision=0,
+        template_ref=TemplateRef(template_id="ticket-workflow", version="1.0.0"),
+    )
+    assert outcome.status == OUTBOUND_BLOCKED
+    assert outcome.content is None
+    assert any("belongs to project" in reason for reason in outcome.blocked_by)
+    # 被拒时**没有**调用供应方，也没有留下出站记录。
+    assert caller.call_count == 0
+    assert (
+        reader.query(
+            RecordQuery(project_id="other-project", aggregate_kind="model_outbound_request")
+        ).items
+        == ()
+    )
+
+
 def test_successful_request_produces_a_draft() -> None:
     outcome = _request()
     assert outcome.status == OUTBOUND_DRAFT_READY

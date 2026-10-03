@@ -12,6 +12,7 @@ from aitest.application.planning.publish import (
     publish_plan,
     publish_rules,
 )
+from aitest.application.planning.substrate import ConcurrentEditError
 from aitest.application.project.context import GAP_NO_MODULES, ContextGap
 from aitest.domain.planning.plans import (
     AcceptanceScope,
@@ -143,13 +144,65 @@ def test_a_second_rule_draft_revision_lands_as_a_new_record_revision() -> None:
         _draft(revision=2, text="tighten the assertion"),
         project_id="p1",
         unit_of_work=unit_of_work,
-    reader=reader,
+        reader=reader,
+        # 检查项 B-14：第二条发布必须声明"我看到的是 @1"，否则发布方等于替调用方
+        # 接受最新基线。
+        expected_revision=1,
     )
     first = reader.read(aggregate_kind="rule_version", record_id="rule-1", revision=1)
     second = reader.read(aggregate_kind="rule_version", record_id="rule-1", revision=2)
     assert "status code" in str(first.payload["text"])
     assert first.payload["status"] == "published"
     assert second.payload["text"] == "tighten the assertion"
+
+
+def test_a_stale_rule_publication_is_refused_with_the_current_revision() -> None:
+    """检查项 B-14：旧编辑不得继续发布，且拒绝时要说清当前修订。"""
+    unit_of_work, reader = _world()
+    publish_rules(_draft(), project_id="p1", unit_of_work=unit_of_work, reader=reader)
+    publish_rules(
+        _draft(revision=2, text="tighten the assertion"),
+        project_id="p1",
+        unit_of_work=unit_of_work,
+        reader=reader,
+        expected_revision=1,
+    )
+    # 第三个编辑者手上仍是 @0（"我认定这是新建"）：当前已经是 @2，必须当场拒绝。
+    with pytest.raises(ConcurrentEditError) as raised:
+        publish_rules(
+            _draft(revision=3, text="a third editor's stale text"),
+            project_id="p1",
+            unit_of_work=unit_of_work,
+            reader=reader,
+        )
+    assert raised.value.current_revision == 2
+    assert raised.value.aggregate_kind == "rule_version"
+    # 拒绝之后**没有**产生第三份正文历史。
+    with pytest.raises(ValueError, match="unknown revision"):
+        reader.read(aggregate_kind="rule_version", record_id="rule-1", revision=3)
+
+
+def test_a_stale_rule_publication_naming_an_old_revision_is_refused() -> None:
+    """声明了一个**过期但非零**的修订（@1 对当前 @2）同样拒绝。"""
+    unit_of_work, reader = _world()
+    publish_rules(_draft(), project_id="p1", unit_of_work=unit_of_work, reader=reader)
+    publish_rules(
+        _draft(revision=2, text="tighten the assertion"),
+        project_id="p1",
+        unit_of_work=unit_of_work,
+        reader=reader,
+        expected_revision=1,
+    )
+    with pytest.raises(ConcurrentEditError) as raised:
+        publish_rules(
+            _draft(revision=3, text="stale"),
+            project_id="p1",
+            unit_of_work=unit_of_work,
+            reader=reader,
+            expected_revision=1,
+        )
+    assert raised.value.current_revision == 2
+    assert raised.value.expected_revision == 1
 
 
 # ------------------------------------------------------------------ 计划
