@@ -754,6 +754,66 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 "哪些值算已知凭据"的来源解析。本包只在既有端口协议内实现编排语义，
 `known_credentials` 由调用方给出，集合不全时过滤必然不全（已如实登记为缺口）。
 
+### 8.14 保存语义：正文修订必须等于分配的仓储修订（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）的 **B-11**
+（`B-REVISION-01-payload-storage`）。**不改端口签名与跨包 Schema 字节**。
+
+**问题**：`case` / `acceptance_scope` 的落盘过去把 `expected_revision` 交给底座当
+**仓储修订**，而正文 payload 里写的是对象自己的 `revision`，两者从不比对。
+于是"新建一条 `revision=9` 的用例"会落成**记录 `@1`、正文 `@9`**：
+按记录修订读回得到另一个修订号，按正文修订又读不到东西。
+
+**现在的规则（B 侧不变量）**：
+
+```
+正文修订 == 这次会分配的仓储修订 == (expected_revision or 0) + 1
+```
+
+- 适用：`save_case()`、`save_acceptance_scope()`；
+- 不符时抛 `ConcurrentEditError`，入口透出 **`B_REVISION_CONFLICT`**；
+- 校验在事务内、`stage_record` 之前完成，因此底座的并发校验**先生效**，
+  本核对只处理"修订号本身的错配"。
+
+**调用方行为变化**：把一条正文修订不等于"当前修订 + 1"的 `Case` / `AcceptanceScope`
+直接保存会被**拒绝**。要新增修订必须按顺序递增（`@1` 新建、随后 `expected_revision=1`
+写 `@2`），不能跳号或复用旧修订号。
+
+**未纳入（待定口径）**：`rule_draft` 与 `plan` 不适用本条——它们的修订号在
+**导入**路径上来自外部规则包（`portable.import_rule_payloads()` 原样还原文件里的
+`revision`），`publish_plan` 的 `plan` 记录 payload 修订也来自计划对象、
+仓储修订是独立序号。是否需要一致属设计决定，见
+`docs/文档-feix-a/B包/09-待解决问题清单.md` 第 7 节的待定问题。
+
+### 8.15 新增两个规则 Markdown 出口动作（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-04** 末句
+"已有 JSON 往返尚未实现合同的规则 Markdown 导入导出"。**不改端口签名与跨包 Schema 字节**。
+
+**B 的动作表由 17 增至 19**，新增两个动作（与既有 `export_rules` / `import_rules` 对称）：
+
+| 动作 | 参数 | 结果 |
+| --- | --- | --- |
+| `export_rules_markdown` | `rule_versions`（同 `export_rules`） | `documents`：每项 `{rule_id, revision, markdown}` |
+| `import_rules_markdown` | `markdown`：单份字符串或字符串列表 | `imported`：与 `import_rules` 同一形状（`rule_draft` 落盘结果） |
+
+**两条行为约定**：
+
+1. **导入恒为草稿**：与 `import_rules` 同一口径——不接受 `confirmed` / `enablement`，
+   产出的 `rule_draft` 恒为未确认、未启用；
+2. **Markdown 不承载本地发布追溯**：`export_rule_version()` 另带的
+   `published_confirmation_id` / `published_digest` **不进 Markdown**。
+   它们是"某个实例已发布"的本地事实，而 Markdown 是给人编辑、可跨实例搬的格式。
+
+**方言**：写入 `application/planning/rules_markdown.py` 的模块 docstring（唯一权威）。
+要点：文首一级标题承载 `rule_id @revision`；固定三行元数据；
+正文 / 步骤 / 证据要求 / 未识别字段各成一段；空列表写 `_（无）_`；
+未识别字段放 ```json 围栏块。**不引入 YAML 依赖**（`pyproject.toml` 无 YAML，
+新增依赖属第③级决定），因此不用 front matter。
+
+**给 D 的知悉项**：面板/CLI/MCP relay 若要暴露"以 Markdown 导入导出规则"，
+可直接调用这两个动作；方言由本包定义，D 侧不做第二套渲染。
+
 ---
 
 ## 9 变更记录
@@ -772,6 +832,8 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-02 | 1.0 | 第 11 节标题明确为**最终口径**：该口径按第 10.1 节裁定写成，属 B 主责范围内的字段定义，可据以实施 | B 包（字段口径已定；待 C 回写 Q1／Q2 兼容性并按新契约 PR 实施） |
 | 2026-10-03 | 1.1 | 补第 8.12 节：保存语义收紧——**项目归属统一校验**（写出/读入都要求正文自带项目且一致，`Delivery` payload 新增 `project_id`；旧记录缺归属显式拒绝）与**发布核对调用方 `expected_revision`**（入口透传、同事务校验、不符报 `B_REVISION_CONFLICT`；第二次发布须声明 `@N`）。对应检查文档 2026-10-03 版 B-12／B-14。**不改跨包 Schema 字节，不需 A/C/D 改代码**；A-11 的底层命名空间归属仍归 A | B 包（知悉性登记） |
 | 2026-10-03 | 1.2 | 补第 8.13 节：模型出站——**出站记录标识多一种规则**（给 `generation_request_id` 时按"（项目, 业务请求号）"，不给则沿用旧规则）、**结果 payload 新增 `generated_content_id` / `credential_filter`、意图 payload 新增 `generation_identity`**（均为新增可选键，**无凭据正文或摘要**）、**新增 `OUTBOUND_UNRESOLVED` 状态**与两个新参数。对应检查文档 2026-10-03 版 B-10／B-03。**不改端口签名与跨包 Schema 字节**；真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接入与凭据来源解析仍归 A | B 包（知悉性登记） |
+| 2026-10-03 | 1.3 | 补第 8.14 节：保存语义——**`case` / `acceptance_scope` 的正文修订必须等于这次分配的仓储修订**（`expected_revision + 1`），不符报 `B_REVISION_CONFLICT`；**调用方不能再跳号或复用旧修订号**。对应检查文档 2026-10-03 版 B-11。**不改端口签名与跨包 Schema 字节**；`rule_draft` 与 `plan` 未纳入，待定口径登记在待解决问题清单第 7 节 | B 包（知悉性登记） |
+| 2026-10-03 | 1.4 | 补第 8.15 节：**新增两个规则 Markdown 出口动作**（`export_rules_markdown` / `import_rules_markdown`，动作表 17 → 19），登记两条行为约定（导入恒为草稿、Markdown 不承载本地发布追溯）与方言要点（不引入 YAML 依赖）。对应检查文档 2026-10-03 版 B-04 末句。**不改端口签名与跨包 Schema 字节**；方言由 B 定义，D 侧不做第二套渲染 | B 包（知悉性登记） |
 
 ---
 

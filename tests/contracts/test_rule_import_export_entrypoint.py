@@ -171,6 +171,171 @@ def _publish_and_export(api: LocalAPI) -> dict[str, object]:
     return exported.result["bundle"]
 
 
+def _markdown_document(rule_id: str, text: str) -> str:
+    """一份最小但**完整**的规则 Markdown 文档（方言见 `rules_markdown.py`）。"""
+    return (
+        f"# 规则：{rule_id} @1\n"
+        "\n"
+        "- 规范版本：aitest.rule-portable/1.0\n"
+        "- 适用范围：http workflows\n"
+        "- 来源：imported\n"
+        "\n"
+        "## 规则正文\n"
+        "\n"
+        f"{text}\n"
+        "\n"
+        "## 步骤\n"
+        "\n"
+        "- call the endpoint\n"
+        "\n"
+        "## 证据要求\n"
+        "\n"
+        "_（无）_\n"
+        "\n"
+        "## 未识别字段\n"
+        "\n"
+        "```json\n"
+        "[]\n"
+        "```\n"
+    )
+
+
+# ------------------------------------------------------------------ Markdown 形态（B-04）
+
+
+def test_export_rules_markdown_renders_a_readable_document(
+    workspace_root: Path,
+) -> None:
+    """`export_rules_markdown` 取自已发布记录，渲染成人类可读的 Markdown。"""
+    FileQueryIndex(workspace_root).rebuild(())
+    api = _api(_start(workspace_root))
+    _publish_and_export(api)
+    response = api.dispatch(
+        _command(
+            "export_rules_markdown",
+            "req-export-md-1",
+            {"rule_versions": [{"rule_id": "rule-1", "revision": 1}]},
+        ),
+        _session(),
+    )
+    assert response.error is None, response.error
+    assert response.result is not None
+    documents = response.result["documents"]
+    assert isinstance(documents, list) and len(documents) == 1
+    document = documents[0]
+    assert document["rule_id"] == "rule-1"
+    assert document["revision"] == 1
+    markdown = document["markdown"]
+    assert isinstance(markdown, str)
+    # 身份、四个标签与四个段落名都在（"给人看"的最低要求）。
+    for token in (
+        "# 规则：rule-1 @1",
+        "- 规范版本：aitest.rule-portable/1.0",
+        "- 适用范围：http workflows",
+        "- 来源：manual",
+        "## 规则正文",
+        "## 步骤",
+        "## 证据要求",
+        "## 未识别字段",
+    ):
+        assert token in markdown, token
+
+
+def test_a_markdown_document_round_trips_through_the_entry(
+    workspace_root: Path,
+) -> None:
+    """**导出 → 导入**经统一入口往返：字段语义一致，且落盘的是未确认草稿。"""
+    FileQueryIndex(workspace_root).rebuild(())
+    api = _api(_start(workspace_root))
+    _publish_and_export(api)
+    exported = api.dispatch(
+        _command(
+            "export_rules_markdown",
+            "req-export-md-1",
+            {"rule_versions": [{"rule_id": "rule-1", "revision": 1}]},
+        ),
+        _session(),
+    )
+    assert exported.error is None, exported.error
+    assert exported.result is not None
+    markdown = exported.result["documents"][0]["markdown"]
+
+    imported = api.dispatch(
+        _command("import_rules_markdown", "req-import-md-1", {"markdown": markdown}),
+        _session(),
+    )
+    assert imported.error is None, imported.error
+    assert imported.result is not None
+    entry = imported.result["imported"][0]
+    assert entry["aggregate_kind"] == "rule_draft"
+    assert entry["rule_id"] == "rule-1"
+    # 导入不是发布：恒为未确认、未启用。
+    assert entry["confirmed"] is False
+    assert entry["enablement"] == "disabled"
+
+    # 重启后按记录读回：字段与导出前的内容一致。
+    committed = _start(workspace_root).reader.read(
+        aggregate_kind="rule_draft", record_id="rule-1", revision=1
+    )
+    assert committed.payload["scope"] == "http workflows"
+    assert committed.payload["text"] == "check the status code and the persisted body"
+    assert committed.payload["steps"] == ["call the endpoint", "read it back"]
+    assert committed.payload["evidence_requirements"] == ["raw response"]
+    assert "confirmed" not in committed.payload
+
+
+def test_import_rules_markdown_accepts_several_documents(
+    workspace_root: Path,
+) -> None:
+    """一次可导入多份；每份各自成一条草稿记录。"""
+    api = _api(_start(workspace_root))
+    documents = [
+        _markdown_document(rule_id, f"text for {rule_id}")
+        for rule_id in ("rule-a", "rule-b")
+    ]
+    response = api.dispatch(
+        _command("import_rules_markdown", "req-import-md-2", {"markdown": documents}),
+        _session(),
+    )
+    assert response.error is None, response.error
+    assert response.result is not None
+    imported = response.result["imported"]
+    assert [item["rule_id"] for item in imported] == ["rule-a", "rule-b"]
+    assert all(item["confirmed"] is False for item in imported)
+
+
+def test_a_broken_markdown_document_is_named_and_nothing_is_stored(
+    workspace_root: Path,
+) -> None:
+    """坏文档**指名报错**，不"跳过坏的继续导入"（否则调用方以为全部都进来了）。"""
+    api = _api(_start(workspace_root))
+    broken = _markdown_document("rule-a", "ok").replace("## 步骤", "## 步骤清单")
+    response = api.dispatch(
+        _command("import_rules_markdown", "req-import-md-bad", {"markdown": broken}),
+        _session(),
+    )
+    assert response.error is not None
+    assert response.error.code == "B_INVALID_PARAMETER"
+    assert "markdown[0]" in response.error.message
+    # 好文档若与坏文档同批，也不得被写入（整批拒绝）。
+    restarted = _start(workspace_root)
+    with pytest.raises(ValueError, match="unknown revision"):
+        restarted.reader.read(aggregate_kind="rule_draft", record_id="rule-a", revision=1)
+
+
+def test_import_rules_markdown_rejects_a_non_string_entry(
+    workspace_root: Path,
+) -> None:
+    api = _api(_start(workspace_root))
+    response = api.dispatch(
+        _command("import_rules_markdown", "req-import-md-bad", {"markdown": [123]}),
+        _session(),
+    )
+    assert response.error is not None
+    assert response.error.code == "B_INVALID_PARAMETER"
+    assert "markdown[0]" in response.error.message
+
+
 # ------------------------------------------------------------------ 导入
 
 
