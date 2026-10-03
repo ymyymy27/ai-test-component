@@ -10,8 +10,8 @@ consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers: []
-next_owner: A/C
-next_action: A 冻结 current_revision / commit_seq / next_commit_seq 三个只读方法（准备链路已依赖）并确认装配点接法；C 回写第 11 节 SourceSnapshot 字段口径的执行兼容性结论（Q1/Q2），按新的契约 PR 补齐字段
+next_owner: A
+next_action: 第 8.16 节逐条确认：①把 ProjectionPort／ModelProvider／凭据解析注入默认装配；②确认模型与运行修订动作由谁接入统一入口与能力声明；③凭据解析形状冲突（B 要"只有状态"、A 的端口要求引用且返回明文）按候选甲/乙收敛；④第 11 节 Q1/Q2 兼容性结论仍待 C 回写
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -834,6 +834,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-03 | 1.2 | 补第 8.13 节：模型出站——**出站记录标识多一种规则**（给 `generation_request_id` 时按"（项目, 业务请求号）"，不给则沿用旧规则）、**结果 payload 新增 `generated_content_id` / `credential_filter`、意图 payload 新增 `generation_identity`**（均为新增可选键，**无凭据正文或摘要**）、**新增 `OUTBOUND_UNRESOLVED` 状态**与两个新参数。对应检查文档 2026-10-03 版 B-10／B-03。**不改端口签名与跨包 Schema 字节**；真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接入与凭据来源解析仍归 A | B 包（知悉性登记） |
 | 2026-10-03 | 1.3 | 补第 8.14 节：保存语义——**`case` / `acceptance_scope` 的正文修订必须等于这次分配的仓储修订**（`expected_revision + 1`），不符报 `B_REVISION_CONFLICT`；**调用方不能再跳号或复用旧修订号**。对应检查文档 2026-10-03 版 B-11。**不改端口签名与跨包 Schema 字节**；`rule_draft` 与 `plan` 未纳入，待定口径登记在待解决问题清单第 7 节 | B 包（知悉性登记） |
 | 2026-10-03 | 1.4 | 补第 8.15 节：**新增两个规则 Markdown 出口动作**（`export_rules_markdown` / `import_rules_markdown`，动作表 17 → 19），登记两条行为约定（导入恒为草稿、Markdown 不承载本地发布追溯）与方言要点（不引入 YAML 依赖）。对应检查文档 2026-10-03 版 B-04 末句。**不改端口签名与跨包 Schema 字节**；方言由 B 定义，D 侧不做第二套渲染 | B 包（知悉性登记） |
+| 2026-10-03 | 1.5 | 补第 8.16 节：**模型出站与运行修订的端口现状、装配与逐条待确认项**（对应 B-01／B-03／B-10 的真实端口部分）。实测登记：B 的三个只读方法**已冻结**、A 的三个模型端口**已有签名与适配器**、类型经 `ports.py` **共用同一套**；缺口在**默认装配**与**动作注册**，另有**凭据解析形状冲突**（B 要"只有状态"，A 的 `SecretPort.resolve` 要求引用且返回明文）给出甲乙两案。同步更新第 11.7 节（B 侧 `content_identity` 落地与 Q3 迁移说明）。**本节不改端口签名** | B 包（待 A 逐条确认） |
 
 ---
 
@@ -991,3 +992,52 @@ detect_changes(snapshot_id) -> 变化清单
 - **A**：`pin` / `read_pinned` / `materialize` / `detect_changes` 的实现与默认装配（第 11.4 节）；
 - **C**：按 Q1／Q2 回写兼容性结论并在 `sources.py` 补齐字段（走新的契约 PR）；
 - **B**：Q4（快照是否登记为 `InputRevisions.snapshot_revision` 的来源修订）仍待在 BC/BD 合同中引用。
+
+### 8.16 模型出站与运行修订：端口现状、装配与逐条待确认项（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-01**（"模型与运行修订动作未注册"）
+与 **B-03／B-10** 的真实端口部分。**本节不改端口签名**，只登记实测现状与要 A 确认的事项。
+
+#### 8.16.1 实测现状（2026-10-03，`develop 7563aeb`）
+
+| 项 | 实测结果 | 结论 |
+| --- | --- | --- |
+| B 的三个只读方法 | `application/ports.py` 第 191／198／222 行已有 `commit_seq` / `next_commit_seq` / `current_revision` | **第 8.8 节的待冻结项已完成**，B 的转接头可直接用 |
+| A 的三个模型端口签名 | `ports.py` 第 362／368／408 行有 `ModelProvider` / `ProjectionPort` / `SecretPort` | **已有** |
+| 类型是否两套 | A 的 `ports.py` 第 10—25 行**直接 import B 的 `model_ports` 类型**（`ModelCall as ModelCall` 等） | **同一套类型**，不存在两套同义定义 |
+| A 的适配器实现 | `infrastructure/projections.py`（`SafeMaterialProjector.project`）、`infrastructure/adapters/model.py`（`HttpModelProvider.call`）、`infrastructure/credentials.py` | **已有实现** |
+| 默认装配 | `bootstrap.py` 第 243 行只构造 `BUseCaseDependencies(unit_of_work, reader, clock)`；**未注入任何模型端口** | **装配缺口在此** |
+| B 的动作注册 | 注册表当前 17 个动作（`save_context`…`query`）；**没有** `save_confirmation`、`request_model_draft`、`revise_pending_steps`／`narrow_driver` | **注册缺口** |
+
+#### 8.16.2 三处需要 B 适配、其余无差异（实测对比）
+
+| B 的窄协议 | A 的端口／适配器 | 差异 |
+| --- | --- | --- |
+| `MaterialProjector.project(*, material: Mapping[MaterialKind, str], source_snippets_enabled) -> Projection` | `SafeMaterialProjector.project(...) -> Projection`（**同一 `Projection` 类**） | **无** |
+| `ModelCaller.call(request: ModelCall) -> ModelCallResult` | `HttpModelProvider.call(request: ModelCall) -> ModelCallResult`（**同一套类**） | **无** |
+| `CredentialResolver.resolve(*, purpose: str) -> CredentialResolution` | `SecretPort.resolve(*, purpose: str, reference: str) -> str` | **有**（见 8.16.3 第 3 条） |
+
+#### 8.16.3 要 A 确认／决定的事项（逐条）
+
+| # | 事项 | 现状 | 请 A 确认什么 |
+| --- | --- | --- | --- |
+| 1 | **把三个模型端口注入默认装配** | `bootstrap` 只注入 `unit_of_work`/`reader`/`clock` | A 把 `ProjectionPort`／`ModelProvider`／凭据解析实现注入 `BUseCaseDependencies`（或给出等价装配位置）。B 侧只消费注入对象，不改 `bootstrap.py` |
+| 2 | **模型动作与运行修订动作注册进统一入口** | 注册表无这三个动作 | 确认由谁把 `request_model_draft`、`revise_pending_steps`／`narrow_driver` 的 handler 接进入口并做能力声明。B 提供 handler，装配归 A（B-01 的"装配点由谁改"） |
+| 3 | **凭据解析的形状冲突（最关键）** | B 调 `resolve(purpose="model")` 要"只有状态、永不回传正文"；A 的端点是 `resolve(*, purpose, reference) -> str`，**要求引用且返回明文**，而 B 的编排**从不提供引用** | **A 决定收敛方式**，B 给两个候选：**（甲）** A 在装配处提供窄适配器，把 `SecretPort` 包成 B 的 `CredentialResolver` 形状（引用由装配方按用途配置，明文不出 A 的适配器）；**（乙）** 把 `CredentialResolver` 提升为公共合同并进 `ports.py`（破坏性变更，走完整流程）。**B 倾向甲**：不动 A 的端口，且明文不进入 B 的应用层类型 |
+| 4 | **`capabilities` 的能力声明** | 未声明模型类动作 | A／B 谁改共享的 `contracts/capabilities.py`：确认后由能改的一方加，不两边同时改 |
+
+**B 侧已具备**（供 A 判断对接成本）：`application/planning/model_orchestration.py` 的
+`request_model_draft()` 已把准入→凭据→投影→调用→登记串好，并有内存实现验证；
+`application/planning/run_mode.py` 的 `request_runtime_revision()` 已组装运行修订的领域入参。
+两处的依赖面就是上表的三个协议。
+
+**B 侧明确不做**：不改 `bootstrap.py`、不改 `contracts/capabilities.py`、
+不改 `application/ports.py`、不自行执行真实供应方调用。
+
+#### 8.16.4 运行修订的落盘与消费（B→C）
+
+`RuntimeRevision` 未持久写入实际运行序列、C 的 runner 未消费接受／失效清单
+（检查文档 **B-05**）。B 侧已给出领域门禁与决策结果
+（`RuntimeRevisionDecision` 的 `affected`／`preserved`／`invalidated_basis`／
+`rejudge`／`confirmation_required`／`pause_required`）；**保存与消费归 C**。
+该条已追加到 `进行中/BC-001`（B↔C）合同。
