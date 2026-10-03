@@ -13,9 +13,11 @@
 
 - `MaterialProjector` ↔ A 的 `ProjectionPort`——**同一套类型**，形状无差异；
 - `ModelCaller` ↔ A 的 `ModelProvider`——**同一套类型**，形状无差异；
-- `CredentialResolver` ↔ A 的 `SecretPort`——**有差异**：A 的
-  `resolve(*, purpose, reference) -> str` 需要引用参数并返回正文，
-  而本协议只收 `purpose` 且只回状态（见 AB-001 第 8.16 节）。
+- `CredentialResolver` ↔ A 的 `SecretPort`——**有差异**（两处）：
+  ① A 的 `resolve(reference, *, purpose) -> ResolvedSecret`（`ports.py` 第 423 行）
+  **要求 `reference`**，而本模块的调用方只传 `purpose`；
+  ② 返回类型是 `ResolvedSecret`（受控对象、不是裸字符串），
+  本协议只回"状态"，类型不同（见 AB-001 第 8.16 节）。
 
 三者的**共同底线**（需求 §7、三期上传白名单同理）：
 

@@ -191,9 +191,9 @@ next_action: 补齐字段映射并请求 C 评审
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing` | A `partial`；B/C/D `partial` | 未登记统一对拍 | A 冻结一期端口；B/C/D 确认语义 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A `partial`；B `partial`（用例已可经统一入口运行，见第 8.10、8.11 节；B 侧交付说明见 [`delivery-B.md`](进行中/AB-001-端口与保存/delivery-B.md)） | B 侧真实文件存储集成测试通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试通过；双方对拍**未做**。**2026-10-03 实测**：B 的三个只读方法已在 `ports.py` 冻结，A 的三个模型端口已有签名与适配器，类型经 `ports.py` 与 B **共用同一套**（见第 8.16.1 节） | **待 A 逐条确认**：①把 `ProjectionPort`／`ModelProvider`／凭据解析**注入默认装配**（`bootstrap` 现只注入 `unit_of_work`/`reader`/`clock`）；②模型与运行修订动作由谁接统一入口与能力声明；③**凭据解析形状冲突**（B 要"只有状态"，A 的 `SecretPort.resolve(*, purpose, reference) -> str` 要求引用且返回明文）按候选甲/乙收敛；④C 回写第 11 节 Q1／Q2。详见第 8.16 节 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A `partial`；B `partial`（用例已可经统一入口运行，见第 8.10、8.11 节；B 侧交付说明见 [`delivery-B.md`](进行中/AB-001-端口与保存/delivery-B.md)） | B 侧真实文件存储集成测试通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试通过；双方对拍**未做**。**2026-10-03 实测**：B 的三个只读方法已在 `ports.py` 冻结，A 的三个模型端口已有签名与适配器，类型经 `ports.py` 与 B **共用同一套**（见第 8.16.1 节） | **待 A 逐条确认**：①把 `ProjectionPort`／`ModelProvider`／凭据解析**注入默认装配**（`bootstrap` 现只注入 `unit_of_work`/`reader`/`clock`）；②模型与运行修订动作由谁接统一入口与能力声明；③**凭据解析形状冲突**（B 只传 `purpose`、只要状态；A 的 `SecretPort.resolve(reference, *, purpose) -> ResolvedSecret` 要求 `reference` 且返回受控对象）按候选甲/乙收敛；④C 回写第 11 节 Q1／Q2。详见第 8.16 节 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
-| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复展示与查询问题 |
+| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复第 5 节展示与查询五项问题，以及**第 8 节**（2026-10-03 新增）动作与状态的三项变化与排期：发布第二次起必须声明 `expected_revision`（不符报 `B_REVISION_CONFLICT`）、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作（动作表 17 → 19） |
 | [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `agreed` | C `done`；D `partial` | `fixture_passed` | D 完成 ExecutionFacts→DecisionFacts 适配、Run 级证据等级派生和夹具对拍；见 [`review-D.md`](进行中/CD-001-ExecutionFacts/review-D.md) |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
@@ -244,4 +244,4 @@ DEC-004／005／006 三项已裁定，结论已回写本节与各合同，实现
 | --- | --- | --- |
 | 2026-09-30 | 采用本目录结构（`进行中/已完成/待裁定/归档/`），多事项汇总拆分为 `DEC-001`—`DEC-003` | 项目负责人 |
 | 2026-10-01 | `DEC-004`／`005`／`006` 裁定并实现，移入 `归档/裁定/`；§10.3 补三行 | 项目负责人 |
-| 2026-10-03 | `AB-001` 补第 8.12—8.16 节（保存语义、模型出站、规则 Markdown、端口现状与待确认项）；`BC-001` 补第 16 节（运行中修订的落盘与消费）；**§10.4 由"无待裁定"改为 `DEC-007`／`DEC-008` 两项**，同步 `待裁定/README.md`；§10.1／§10.2 状态行按 2026-10-03 实测更新 | B 包（待 A／C 确认） |
+| 2026-10-03 | `AB-001` 补第 8.12—8.16 节（保存语义、模型出站、规则 Markdown、端口现状与待确认项）；`BC-001` 补第 16 节（运行中修订的落盘与消费）；**`BD-001` 补第 8 节（动作与状态新增：发布第一次用 `0`／第二次起必须声明 `@N`、`OUTBOUND_UNRESOLVED`、两个 Markdown 动作，动作表 17 → 19）**；**§10.4 由"无待裁定"改为 `DEC-007`／`DEC-008` 两项**，同步 `待裁定/README.md`；§10.1／§10.2 状态行按 2026-10-03 实测更新 | B 包（待 A／C／D 确认） |

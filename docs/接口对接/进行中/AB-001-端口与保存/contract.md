@@ -824,7 +824,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 项 | 实测结果 | 结论 |
 | --- | --- | --- |
 | B 的三个只读方法 | `application/ports.py` 第 191／198／222 行已有 `commit_seq` / `next_commit_seq` / `current_revision` | **第 8.8 节的待冻结项已完成**，B 的转接头可直接用 |
-| A 的三个模型端口签名 | `ports.py` 第 362／368／408 行有 `ModelProvider` / `ProjectionPort` / `SecretPort` | **已有** |
+| A 的三个模型端口签名 | `ports.py` 第 362／368／423 行有 `ModelProvider` / `ProjectionPort` / `SecretPort` | **已有** |
 | 类型是否两套 | A 的 `ports.py` 第 10—25 行**直接 import B 的 `model_ports` 类型**（`ModelCall as ModelCall` 等） | **同一套类型**，不存在两套同义定义 |
 | A 的适配器实现 | `infrastructure/projections.py`（`SafeMaterialProjector.project`）、`infrastructure/adapters/model.py`（`HttpModelProvider.call`）、`infrastructure/credentials.py` | **已有实现** |
 | 默认装配 | `bootstrap.py` 第 243 行只构造 `BUseCaseDependencies(unit_of_work, reader, clock)`；**未注入任何模型端口** | **装配缺口在此** |
@@ -836,7 +836,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | --- | --- | --- |
 | `MaterialProjector.project(*, material: Mapping[MaterialKind, str], source_snippets_enabled) -> Projection` | `SafeMaterialProjector.project(...) -> Projection`（**同一 `Projection` 类**） | **无** |
 | `ModelCaller.call(request: ModelCall) -> ModelCallResult` | `HttpModelProvider.call(request: ModelCall) -> ModelCallResult`（**同一套类**） | **无** |
-| `CredentialResolver.resolve(*, purpose: str) -> CredentialResolution` | `SecretPort.resolve(*, purpose: str, reference: str) -> str` | **有**（见 8.16.3 第 3 条） |
+| `CredentialResolver.resolve(*, purpose: str) -> CredentialResolution` | `SecretPort.resolve(reference: str, *, purpose: str) -> ResolvedSecret` | **有**（见 8.16.3 第 3 条） |
 
 #### 8.16.3 要 A 确认／决定的事项（逐条）
 
@@ -844,7 +844,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | --- | --- | --- | --- |
 | 1 | **把三个模型端口注入默认装配** | `bootstrap` 只注入 `unit_of_work`/`reader`/`clock` | A 把 `ProjectionPort`／`ModelProvider`／凭据解析实现注入 `BUseCaseDependencies`（或给出等价装配位置）。B 侧只消费注入对象，不改 `bootstrap.py` |
 | 2 | **模型动作与运行修订动作注册进统一入口** | 注册表无这三个动作 | 确认由谁把 `request_model_draft`、`revise_pending_steps`／`narrow_driver` 的 handler 接进入口并做能力声明。B 提供 handler，装配归 A（B-01 的"装配点由谁改"） |
-| 3 | **凭据解析的形状冲突（最关键）** | B 调 `resolve(purpose="model")` 要"只有状态、永不回传正文"；A 的端点是 `resolve(*, purpose, reference) -> str`，**要求引用且返回明文**，而 B 的编排**从不提供引用** | **A 决定收敛方式**，B 给两个候选：**（甲）** A 在装配处提供窄适配器，把 `SecretPort` 包成 B 的 `CredentialResolver` 形状（引用由装配方按用途配置，明文不出 A 的适配器）；**（乙）** 把 `CredentialResolver` 提升为公共合同并进 `ports.py`（破坏性变更，走完整流程）。**B 倾向甲**：不动 A 的端口，且明文不进入 B 的应用层类型 |
+| 3 | **凭据解析的形状冲突（最关键）** | B 调 `credentials.resolve(purpose="model")`，要"只有状态、永不回传正文"；A 的 `SecretPort.resolve(reference, *, purpose) -> ResolvedSecret`（`ports.py` 第 423 行）**要求 `reference`，B 的编排从不提供**，且返回类型是 `ResolvedSecret` 而不是 B 的 `CredentialResolution` | **A 决定收敛方式**，B 给两个候选：**（甲）** A 在装配处提供窄适配器，把 `SecretPort` 包成 B 的 `CredentialResolver` 形状（`reference` 由装配方按用途配置，B 侧仍只拿到状态、拿不到 `ResolvedSecret`）；**（乙）** 把 `CredentialResolver` 提升为公共合同并进 `ports.py`（破坏性变更，走完整流程）。**B 倾向甲**：不动 A 的端口签名，且 `ResolvedSecret` 不进入 B 的应用层类型 |
 | 4 | **`capabilities` 的能力声明** | 未声明模型类动作 | A／B 谁改共享的 `contracts/capabilities.py`：确认后由能改的一方加，不两边同时改 |
 
 **B 侧已具备**（供 A 判断对接成本）：`application/planning/model_orchestration.py` 的
