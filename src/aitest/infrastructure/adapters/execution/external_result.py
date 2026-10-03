@@ -66,6 +66,7 @@ class ExternalResultAdapter:
         idempotency_state = "duplicate" if previous is not None else "new"
         self._seen[payload.import_id] = digest
 
+        gap_ids: tuple[str, ...]
         if not expected_assertions:
             observation = VerificationObservation.NO_RESULT
             gap_ids = ("expected_assertions_missing",)
