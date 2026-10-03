@@ -333,6 +333,8 @@ def prepare_run(
             # 解析出来的实际执行输入摘要随请求一起参与**观察比对**（B-02）：
             # 它不进 `payload_hash`（那是请求内容），但变了必须报"依据需重新准备"。
             observed_resolved_input_digest=inputs.execution_source.resolved_input_digest,
+            # 源码内容身份同上（`DEC-009` 选丙）：源码变了必须报"依据需重新准备"。
+            observed_snapshot_identity=inputs.snapshot.content_identity,
         ),
         record,
     )
@@ -399,6 +401,9 @@ def prepare_run(
                     observed_resolved_input_digest=(
                         inputs.execution_source.resolved_input_digest
                     ),
+                    # 源码内容身份也随请求参与**观察比对**（`DEC-009` 选丙）：
+                    # 它不进 `payload_hash`，但源码内容变了必须报"依据需重新准备"。
+                    observed_snapshot_identity=inputs.snapshot.content_identity,
                 ),
                 intent_id=intent_id,
                 # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。

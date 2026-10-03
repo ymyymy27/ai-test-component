@@ -162,7 +162,7 @@ B 牵头的这四个 AC 需要 D 的界面配合，列在这里便于对齐：
 | --- | --- | --- | --- |
 | 2026-09-24 | 0.1 | 初稿 | B 包（待 D 回复） |
 | 2026-09-25 | 0.2 | 2.2 节标注三个枚举已实现；新增第 7 节 B 侧环境与交付对象的展示口径 | B 包 |
-| 2026-10-03 | 0.3 | 新增第 8 节：B 侧动作与状态的新增（发布第二次起必须声明 `expected_revision`、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作，动作表 17 → 19）并列出 4 条待 D 确认项。对应检查文档 2026-10-03 版 B-11／B-10／B-04 第三块。**不改既有字段、不要求 D 改 Schema** | B 包（待 D 知悉与排期） |
+| 2026-10-03 | 0.3 | 新增第 8 节：B 侧动作与状态的新增（发布第二次起必须声明 `expected_revision`、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作与受控确认动作 `confirm_assertion_basis`，**动作表 15 → 18**）并列出 5 条待 D 确认项。对应检查文档 2026-10-03 版 B-11／B-10／B-04 第三块与 B-01。**不改既有字段、不要求 D 改 Schema** | B 包（待 D 确认与排期） |
 
 ---
 
@@ -247,15 +247,17 @@ B 侧已随 PR #70 合并（`develop a7ad9fc`）。**本节不改 `BD-001` 既�
 该状态对应的展示要求是"**本次出站结果未知，需核对原始出站事实**"；
 重新生成需由用户明确选择新的业务请求号。展示口径属第 8.4 节待确认项。
 
-### 8.3 新增两个规则 Markdown 动作
+### 8.3 新增两个规则 Markdown 动作与一个受控确认动作
 
 | 动作 | 参数 | 结果 |
 | --- | --- | --- |
 | `export_rules_markdown` | `rule_versions` | `documents`：每项 `{rule_id, revision, markdown}` |
 | `import_rules_markdown` | `markdown`（单份或列表） | `imported`：与 `import_rules` 同形（**恒为未确认未启用草稿**） |
+| `confirm_assertion_basis` | `case_id`／`case_revision`／`basis_text_digest` | 登记一条依据确认（`confirmation_id` 与 `confirmed_at_commit` 由系统派生，见 `AB-001` 第 8.17 节） |
 
 **与 D-06 的衔接**（"CLI/MCP/面板/Trae 没有同核心业务动作"）：
-动作清单由 17 增至 **19**，D 侧实现用户动作与导航时可直接接入这两个动作。
+**动作清单由 15 增至 18**（两个 Markdown 动作与一个受控确认动作），
+D 侧实现用户动作与导航时可直接接入这三个动作。
 **Markdown 方言由 B 定义**（`application/planning/rules_markdown.py` 的模块 docstring 为唯一权威），
 无需在 D 侧另行实现渲染。
 
