@@ -66,16 +66,21 @@ class ExternalResultAdapter:
         idempotency_state = "duplicate" if previous is not None else "new"
         self._seen[payload.import_id] = digest
 
-        mismatched = sorted(
-            key
-            for key, expected in expected_assertions.items()
-            if payload.assertion_values.get(key) != expected
-        )
-        observation = (
-            VerificationObservation.MATCHED
-            if not mismatched
-            else VerificationObservation.MISMATCHED
-        )
+        if not expected_assertions:
+            observation = VerificationObservation.NO_RESULT
+            gap_ids = ("expected_assertions_missing",)
+        else:
+            mismatched = sorted(
+                key
+                for key, expected in expected_assertions.items()
+                if payload.assertion_values.get(key) != expected
+            )
+            observation = (
+                VerificationObservation.MATCHED
+                if not mismatched
+                else VerificationObservation.MISMATCHED
+            )
+            gap_ids = tuple(f"assertion_mismatch:{key}" for key in mismatched)
         import_ref = ExternalImportRef(
             import_id=payload.import_id,
             external_schema=payload.external_schema,
@@ -92,7 +97,7 @@ class ExternalResultAdapter:
             query_method="external_recompute",
             observation=observation,
             actual_result_ref=digest,
-            gap_ids=tuple(f"assertion_mismatch:{key}" for key in mismatched),
+            gap_ids=gap_ids,
         )
         return ExternalValidationResult(
             import_ref=import_ref,

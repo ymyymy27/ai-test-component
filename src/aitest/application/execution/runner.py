@@ -1,10 +1,11 @@
 """Serial execution loop and dependency dispatch skeleton."""
 
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
 
+from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.recovery import (
     CaseReuseBasis,
     CaseReuseInvalidation,
@@ -90,6 +91,9 @@ class SerialRunner:
         checkpoint_store: CheckpointStore | None = None,
         poll_interval_seconds: float = 0.01,
         start_validator: StartValidationPort | None = None,
+        commit_coordinator: ExecutionCommitCoordinator | None = None,
+        reuse_bases: Sequence[CaseReuseBasis] = (),
+        previous_attempt_ids_by_step: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be non-negative")
@@ -98,6 +102,13 @@ class SerialRunner:
         self._checkpoint_store = checkpoint_store
         self._poll_interval_seconds = poll_interval_seconds
         self._start_validator = start_validator
+        self._commit_coordinator = commit_coordinator
+        self._reuse_bases = tuple(reuse_bases)
+        self._previous_attempt_ids_by_step = {
+            step_id: tuple(attempt_ids)
+            for step_id, attempt_ids in (previous_attempt_ids_by_step or {}).items()
+        }
+        self._reuse_invalidations: list[CaseReuseInvalidation] = []
         self._intent_claims: dict[str, Attempt] = {}
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
@@ -190,25 +201,42 @@ class SerialRunner:
                 unknown_reason_ref="start_intent_without_confirmed_handle",
             )
 
+        self._revoke_reuse_for_new_attempt(prepared)
         self._validate_start(prepared, request)
         self._intent_claims[request.intent_id] = prepared
-        self._persist_checkpoint(prepared, stage="intent_recorded")
+        self._persist_checkpoint(
+            prepared,
+            stage="intent_recorded",
+            project_id=request.project_id,
+        )
         current = self.start_attempt(prepared, request)
         self._intent_claims[request.intent_id] = current
-        self._persist_checkpoint(current, stage="started")
+        self._persist_checkpoint(
+            current,
+            stage="started",
+            project_id=request.project_id,
+        )
         polls = 0
         while max_polls is None or polls < max_polls:
             polls += 1
             inspection = self.inspect_attempt(current)
             if inspection.state is ExecutionInspectionState.RUNNING:
                 if self._checkpoint_store is not None and polls % 100 == 0:
-                    self._persist_checkpoint(current, stage="running")
+                    self._persist_checkpoint(
+                        current,
+                        stage="running",
+                        project_id=request.project_id,
+                    )
                 if self._poll_interval_seconds:
                     time.sleep(self._poll_interval_seconds)
                 continue
             collection = self.collect_attempt(current, current.output_cursors or None)
             completed = self._apply_collection(current, inspection, collection)
-            self._persist_checkpoint(completed, stage=completed.state.value)
+            self._persist_checkpoint(
+                completed,
+                stage=completed.state.value,
+                project_id=request.project_id,
+            )
             self._intent_claims[request.intent_id] = completed
             return completed
         pending = replace(
@@ -216,7 +244,11 @@ class SerialRunner:
             state=AttemptState.PENDING_VERIFICATION,
             unknown_reason_ref="poll_limit_reached",
         )
-        self._persist_checkpoint(pending, stage="poll_limit_reached")
+        self._persist_checkpoint(
+            pending,
+            stage="poll_limit_reached",
+            project_id=request.project_id,
+        )
         self._intent_claims[request.intent_id] = pending
         return pending
 
@@ -382,9 +414,30 @@ class SerialRunner:
             affected_upstream_attempt_ids=affected_upstream_attempt_ids,
         )
 
-    def _persist_checkpoint(self, attempt: Attempt, *, stage: str) -> None:
-        if self._checkpoint_store is None:
+    @property
+    def reuse_invalidations(self) -> tuple[CaseReuseInvalidation, ...]:
+        return tuple(self._reuse_invalidations)
+
+    def _revoke_reuse_for_new_attempt(self, attempt: Attempt) -> None:
+        previous = self._previous_attempt_ids_by_step.get(attempt.step_id, ())
+        if not previous or not self._reuse_bases:
             return
+        invalidations = invalidate_reuse_bases(
+            self._reuse_bases,
+            affected_upstream_attempt_ids=previous,
+        )
+        known = {item.case_id for item in self._reuse_invalidations}
+        self._reuse_invalidations.extend(
+            item for item in invalidations if item.case_id not in known
+        )
+
+    def _persist_checkpoint(
+        self,
+        attempt: Attempt,
+        *,
+        stage: str,
+        project_id: str | None = None,
+    ) -> None:
         checkpoint = RecoveryCheckpoint(
             run_id=attempt.run_id,
             step_id=attempt.step_id,
@@ -396,7 +449,14 @@ class SerialRunner:
             side_effect_class=attempt.side_effect_class,
             execution_handle_ref=attempt.execution_handle_ref,
         )
-        self._checkpoint_store.persist(RecoveryRecord(checkpoint=checkpoint, attempt=attempt))
+        record = RecoveryRecord(checkpoint=checkpoint, attempt=attempt)
+        if self._checkpoint_store is not None:
+            self._checkpoint_store.persist(record)
+        if self._commit_coordinator is not None and project_id is not None:
+            self._commit_coordinator.commit_checkpoint(
+                project_id=project_id,
+                checkpoint=record,
+            )
 
     def _apply_collection(
         self,

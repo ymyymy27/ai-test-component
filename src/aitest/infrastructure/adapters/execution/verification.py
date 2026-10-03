@@ -98,6 +98,12 @@ class BusinessVerificationAdapter:
         expected_facts: Mapping[str, object] | None = None,
     ) -> Verification:
         expected = expected_facts if expected_facts is not None else request.expected_facts
+        if not expected:
+            return self._fact(
+                request,
+                VerificationObservation.NO_RESULT,
+                gap_ids=("expected_facts_missing",),
+            )
         try:
             observed = self._query_port.read_business_object(
                 business_object_id=request.business_object_id,

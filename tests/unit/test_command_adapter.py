@@ -196,6 +196,38 @@ def test_windows_job_process_access_requests_process_terminate() -> None:
     assert command_module._WINDOWS_JOB_PROCESS_ACCESS & 0x0001
 
 
+def test_windows_job_cleanup_waits_until_active_processes_reach_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeKernel32:
+        def TerminateJobObject(self, job: object, exit_code: int) -> int:
+            return 1
+
+        def QueryInformationJobObject(
+            self,
+            job: object,
+            info_class: int,
+            info: object,
+            size: int,
+            returned: object,
+        ) -> int:
+            accounting = command_module.ctypes.cast(
+                info,
+                command_module.ctypes.POINTER(
+                    command_module._JobBasicAccountingInformation
+                ),
+            ).contents
+            accounting.ActiveProcesses = 0
+            return 1
+
+    monkeypatch.setattr(command_module, "_kernel32", lambda: FakeKernel32())
+
+    assert command_module._terminate_and_wait_windows_job(
+        123,
+        timeout_seconds=1,
+    )
+
+
 def test_command_adapter_rejects_resolved_secret_in_arguments() -> None:
     adapter = _adapter()
     request = _request("python", ("-c", "print('secret-value')"))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 
 from aitest.domain.evidence.evidence import (
     Verification,
@@ -45,11 +46,20 @@ class AgentEvaluation:
                 raise ValueError(f"{name} must not be empty")
 
 
+class EvidenceReferenceValidator(Protocol):
+    def exists(self, evidence_ref: str) -> bool: ...
+
+
 class AgentAdapter:
     """Persist actual calls and reject text-only self-report as evidence."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        evidence_validator: EvidenceReferenceValidator | None = None,
+    ) -> None:
         self._calls: dict[str, AgentToolCall] = {}
+        self._evidence_validator = evidence_validator
 
     def record_tool_call(self, call: AgentToolCall) -> None:
         if call.call_id in self._calls and self._calls[call.call_id] != call:
@@ -71,6 +81,8 @@ class AgentAdapter:
             for call_id in evaluation.tool_call_ids
             for evidence_ref in self._calls[call_id].evidence_refs
         )
+        self._validate_evidence_refs(call_evidence)
+        self._validate_evidence_refs(evaluation.evidence_refs)
         evidence_refs = tuple(dict.fromkeys((*call_evidence, *evaluation.evidence_refs)))
         return Verification(
             verification_id=evaluation.verification_id,
@@ -83,5 +95,23 @@ class AgentAdapter:
             created_at=evaluation.created_at,
         )
 
+    def _validate_evidence_refs(self, evidence_refs: tuple[str, ...]) -> None:
+        if not evidence_refs:
+            return
+        if self._evidence_validator is None:
+            raise ValueError("agent evidence refs require a real evidence validator")
+        missing = [
+            evidence_ref
+            for evidence_ref in evidence_refs
+            if not self._evidence_validator.exists(evidence_ref)
+        ]
+        if missing:
+            raise ValueError(f"unknown agent evidence refs: {missing}")
 
-__all__ = ["AgentAdapter", "AgentEvaluation", "AgentToolCall"]
+
+__all__ = [
+    "AgentAdapter",
+    "AgentEvaluation",
+    "AgentToolCall",
+    "EvidenceReferenceValidator",
+]

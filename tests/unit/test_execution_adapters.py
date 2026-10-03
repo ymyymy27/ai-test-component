@@ -145,7 +145,11 @@ def test_http_adapter_extracts_and_evaluates_json_assertions() -> None:
 
 
 def test_agent_adapter_rejects_text_only_evaluation() -> None:
-    adapter = AgentAdapter()
+    class EvidenceValidator:
+        def exists(self, evidence_ref: str) -> bool:
+            return evidence_ref == "evidence-1"
+
+    adapter = AgentAdapter(evidence_validator=EvidenceValidator())
     adapter.record_tool_call(
         AgentToolCall(
             call_id="call-1",
@@ -168,6 +172,16 @@ def test_agent_adapter_rejects_text_only_evaluation() -> None:
 
     assert result.business_object_id == "order-1"
     assert result.evidence_refs == ("evidence-1",)
+    with pytest.raises(ValueError, match="unknown agent evidence refs"):
+        adapter.evaluate(
+            AgentEvaluation(
+                verification_id="verify-unknown",
+                verification_of="query_order",
+                business_object_id="order-1",
+                observation=VerificationObservation.MATCHED,
+                evidence_refs=("missing-evidence",),
+            )
+        )
     with pytest.raises(ValueError, match="text self-report"):
         adapter.evaluate(
             AgentEvaluation(
@@ -241,6 +255,25 @@ def test_external_result_validates_schema_digest_and_idempotency() -> None:
         )
 
 
+def test_external_result_without_expected_assertions_is_not_matched() -> None:
+    result = ExternalResultAdapter().validate(
+        ExternalResultPayload(
+            import_id="import-empty",
+            external_schema="order-result/1.0",
+            source_instance_id="external-1",
+            source_record_id="order-1",
+            content={"status": "paid"},
+            assertion_values={"status": "paid"},
+        ),
+        expected_schema="order-result/1.0",
+        expected_assertions={},
+        verification_id="verify-empty",
+    )
+
+    assert result.verification.observation is VerificationObservation.NO_RESULT
+    assert result.verification.gap_ids == ("expected_assertions_missing",)
+
+
 class _OrderQuery:
     def __init__(self, value: dict[str, object]) -> None:
         self._value = value
@@ -284,3 +317,21 @@ def test_business_verification_uses_independent_query_facts() -> None:
 
     assert matched.observation is VerificationObservation.MATCHED
     assert mismatch.observation is VerificationObservation.MISMATCHED
+
+
+def test_business_verification_without_expected_facts_is_not_matched() -> None:
+    request = VerificationRequest(
+        verification_of="query_order",
+        business_object_id="order-1",
+        query_method="read_only_query",
+        deadline_condition="immediate",
+        target_deployment_ref="deployment-1",
+    )
+    service = EvidenceReviewService(
+        BusinessVerificationAdapter(_OrderQuery({"status": "paid"}))
+    )
+
+    result = service.review(request)
+
+    assert result.observation is VerificationObservation.NO_RESULT
+    assert result.gap_ids == ("expected_facts_missing",)
