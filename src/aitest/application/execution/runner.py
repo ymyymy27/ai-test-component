@@ -198,10 +198,11 @@ class SerialRunner:
         self._persist_checkpoint(current, stage="started")
         polls = 0
         while max_polls is None or polls < max_polls:
-            if max_polls is not None:
-                polls += 1
+            polls += 1
             inspection = self.inspect_attempt(current)
             if inspection.state is ExecutionInspectionState.RUNNING:
+                if self._checkpoint_store is not None and polls % 100 == 0:
+                    self._persist_checkpoint(current, stage="running")
                 if self._poll_interval_seconds:
                     time.sleep(self._poll_interval_seconds)
                 continue

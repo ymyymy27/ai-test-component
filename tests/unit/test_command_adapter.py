@@ -147,6 +147,35 @@ def test_command_adapter_streams_verified_blocks_to_spool(tmp_path: Path) -> Non
     assert (tmp_path / "spool" / "attempt-1" / "stderr.log").exists()
 
 
+def test_command_adapter_flushes_early_output_before_process_exit(tmp_path: Path) -> None:
+    store = FileSpoolStore(tmp_path)
+    adapter = _adapter(store, block_size=1)
+    script = (
+        "import sys, time; "
+        "print('EARLY', flush=True); "
+        "time.sleep(0.5); "
+        "print('LATE', flush=True)"
+    )
+    handle = adapter.start(_request("python", ("-c", script)))
+
+    observed: bytes | None = None
+    for _ in range(50):
+        try:
+            manifest = store.read_manifest("attempt-1")
+        except FileNotFoundError:
+            manifest = None
+        if manifest is not None and manifest.blocks:
+            observed = b"".join(store.read_block(block) for block in manifest.blocks)
+            if b"EARLY" in observed:
+                break
+        time.sleep(0.01)
+
+    assert observed is not None
+    assert b"EARLY" in observed
+    inspection = _wait_for_terminal(adapter, handle)
+    assert inspection.state is ExecutionInspectionState.EXITED
+
+
 def test_command_adapter_does_not_claim_complete_without_group_stop_confirmation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

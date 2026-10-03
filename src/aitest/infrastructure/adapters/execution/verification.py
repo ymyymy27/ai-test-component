@@ -8,11 +8,19 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Protocol
 
+from aitest.application.evidence.evidence_review import VerificationRequest
 from aitest.contracts.verification import (
     VerificationFact,
     VerificationState,
+)
+from aitest.domain.evidence.evidence import (
+    Verification,
+    VerificationObservation,
 )
 
 _HASH_BLOCK = 64 * 1024
@@ -66,4 +74,97 @@ class IndependentFileVerifier:
         )
 
 
-__all__ = ["IndependentFileVerifier"]
+class ReadOnlyBusinessQueryPort(Protocol):
+    def read_business_object(
+        self,
+        *,
+        business_object_id: str,
+        target_deployment_ref: str,
+    ) -> Mapping[str, object] | None: ...
+
+
+class BusinessVerificationAdapter:
+    """Independently read the same business object and compare key facts."""
+
+    method = "read_only_business_query"
+
+    def __init__(self, query_port: ReadOnlyBusinessQueryPort) -> None:
+        self._query_port = query_port
+
+    def verify(
+        self,
+        request: VerificationRequest,
+        *,
+        expected_facts: Mapping[str, object] | None = None,
+    ) -> Verification:
+        expected = expected_facts if expected_facts is not None else request.expected_facts
+        try:
+            observed = self._query_port.read_business_object(
+                business_object_id=request.business_object_id,
+                target_deployment_ref=request.target_deployment_ref,
+            )
+        except Exception:  # noqa: BLE001
+            return self._fact(
+                request,
+                VerificationObservation.QUERY_ERROR,
+                gap_ids=("independent_query_error",),
+            )
+        if observed is None:
+            return self._fact(
+                request,
+                VerificationObservation.NO_RESULT,
+                gap_ids=("business_object_not_found",),
+            )
+        mismatched = tuple(
+            sorted(
+                key
+                for key, expected_value in expected.items()
+                if observed.get(key) != expected_value
+            )
+        )
+        return self._fact(
+            request,
+            (
+                VerificationObservation.MISMATCHED
+                if mismatched
+                else VerificationObservation.MATCHED
+            ),
+            actual_result_ref=_mapping_digest(observed),
+            gap_ids=tuple(f"business_fact_mismatch:{key}" for key in mismatched),
+        )
+
+    @staticmethod
+    def _fact(
+        request: VerificationRequest,
+        observation: VerificationObservation,
+        *,
+        actual_result_ref: str | None = None,
+        gap_ids: tuple[str, ...] = (),
+    ) -> Verification:
+        return Verification(
+            verification_id=(
+                f"verification:{request.verification_of}:{request.business_object_id}"
+            ),
+            verification_of=request.verification_of,
+            business_object_id=request.business_object_id,
+            query_method=request.query_method,
+            observation=observation,
+            query_interval=request.query_interval,
+            deadline_condition=request.deadline_condition,
+            target_deployment_ref=request.target_deployment_ref,
+            actual_result_ref=actual_result_ref,
+            evidence_refs=request.evidence_refs,
+            gap_ids=gap_ids,
+        )
+
+
+def _mapping_digest(value: Mapping[str, object]) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+__all__ = [
+    "BusinessVerificationAdapter",
+    "IndependentFileVerifier",
+    "ReadOnlyBusinessQueryPort",
+]

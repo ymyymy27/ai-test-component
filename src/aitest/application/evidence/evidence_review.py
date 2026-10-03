@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from aitest.domain.evidence.evidence import Verification
@@ -17,6 +18,7 @@ class VerificationRequest:
     target_deployment_ref: str
     query_interval: str = "configured"
     evidence_refs: tuple[str, ...] = ()
+    expected_facts: Mapping[str, object] = field(default_factory=dict)
 
 
 class BusinessVerificationPort(Protocol):
