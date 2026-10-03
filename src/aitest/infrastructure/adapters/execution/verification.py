@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Protocol
 
-from aitest.application.evidence.evidence_review import VerificationRequest
+from aitest.application.ports import VerificationRequest
 from aitest.contracts.verification import (
     VerificationFact,
     VerificationState,

@@ -2,27 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from typing import Protocol
-
+from aitest.application.ports import BusinessVerificationPort, VerificationRequest
 from aitest.domain.evidence.evidence import Verification
-
-
-@dataclass(frozen=True, slots=True)
-class VerificationRequest:
-    verification_of: str
-    business_object_id: str
-    query_method: str
-    deadline_condition: str
-    target_deployment_ref: str
-    query_interval: str = "configured"
-    evidence_refs: tuple[str, ...] = ()
-    expected_facts: Mapping[str, object] = field(default_factory=dict)
-
-
-class BusinessVerificationPort(Protocol):
-    def verify(self, request: VerificationRequest) -> Verification: ...
 
 
 class EvidenceReviewService:
