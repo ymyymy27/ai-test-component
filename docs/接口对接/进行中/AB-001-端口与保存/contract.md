@@ -11,7 +11,7 @@ verification_status: not_run
 last_verified_commit: null
 blockers: []
 next_owner: A
-next_action: A 确认第 8.16.3 节三项（模型端口注入默认装配／模型与运行修订动作接入统一入口／凭据解析形状冲突按候选甲或乙收敛）；B 出 `running` 快照草案与"半程运行"证据口径（见 `已完成/BC-001` 第 16.2 节）；B 定 Q4（快照是否登记为来源修订）
+next_action: A 确认第 8.16.3 节三项（模型端口注入默认装配／模型与运行修订动作接入统一入口／凭据解析形状冲突按候选甲或乙收敛）与第 8.18 节内联摘要清单（修 A-06）；B 出 `running` 快照草案（已提交，见 `已完成/BC-001` 第 17 节）；B 定 Q4（已转 `待裁定/DEC-009`）
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -790,7 +790,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-04** 末句
 "已有 JSON 往返尚未实现合同的规则 Markdown 导入导出"。**不改端口签名与跨包 Schema 字节**。
 
-**B 的动作表由 17 增至 19**，新增两个动作（与既有 `export_rules` / `import_rules` 对称）：
+**B 的动作表由 15 增至 17**，新增两个动作（与既有 `export_rules` / `import_rules` 对称）：
 
 | 动作 | 参数 | 结果 |
 | --- | --- | --- |
@@ -813,6 +813,111 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 
 **给 D 的知悉项**：面板/CLI/MCP relay 若要暴露"以 Markdown 导入导出规则"，
 可直接调用这两个动作；方言由本包定义，D 侧不做第二套渲染。
+
+### 8.17 新增受控依据确认动作 `confirm_assertion_basis`（2026-10-03）
+
+对应 `docs/一期工程检查-B包.md`（2026-10-03 版）**B-01**："`save_confirmation` 已有保存函数
+但**未由受控人工动作接入**"。动作表由 **17 增至 18**。**不改端口签名与跨包 Schema 字节。**
+
+**调用方只能声明"我核对了哪个用例的哪一版依据"**：
+
+| 参数 | 说明 |
+| --- | --- |
+| `case_id` | 确认必须绑定具体用例（`ConfirmationRecord.matches()` 的既有口径：只比修订与摘要会让别的用例的同修订同摘要确认把本用例判成已确认） |
+| `case_revision` | **准确**用例修订，不接受"最新" |
+| `basis_text_digest` | 调用方**宣称**核对的依据摘要；**必须与那份用例记录里的依据一致** |
+
+**以下三项由系统派生，调用方不得自称**：
+
+| 字段 | 派生方式 |
+| --- | --- |
+| `basis_revision` | 取自已按准确修订读回的用例的 `assertion_basis.revision` |
+| `confirmation_id` | `confirmation-{case_id}-r{basis_revision}`——**同一事实同一标识**；重复确认报 `B_REVISION_CONFLICT`（如实告诉调用方"已经确认过"），依据修订变化才产生新记录 |
+| `confirmed_at_commit` | **保存之前**取的 `next_commit_seq()`。提交序号在 `save_*` 返回后已经前进，事后补读会拿到**下一次**的号（与既有 `_stage_result` 的说明同一理由） |
+
+**为什么不能省掉"比对依据"**：`ConfirmationRecord` 构造时**不校验依据是否存在**
+（实测可传入任意 `basis_revision` 与摘要），只凭调用方声明就会记下一条
+"确认了某个不存在的依据"的记录——那种记录将来永远匹配不上任何依据，却看起来像已确认。
+因此本动作先用**准确用例修订**读回记录，逐字比对依据摘要后才登记确认。
+
+**结果形状**：在既有 `_stage_result` 之上追加 `confirmation_id`、`basis_revision`、
+`confirmed_at_commit` 三个字段；`record_id` 即 `confirmation_id`。
+
+**与 `publish_rules` / `publish_plan` 的关系**：发布路径的 `confirmation_id` 是
+`RuleVersion` / `Plan` 上的**字段**（取本次提交序号），**不是** `ConfirmationRecord` 记录；
+两者不共享记录标识，不冲突。
+
+### 8.18 B 侧记录的「内联摘要」与「对象引用」清单（2026-10-03，**给 A 修 A-06 用**）
+
+对应 `docs/一期工程检查-A包.md`（2026-10-03 版）**A-06**：
+"`A-INTEGRITY-03-inline-digest`：默认 `generate_draft` 保存成功，
+**完整检查却把正文 `content_digest` 当 objects 引用，核心重启 blocked**"；
+其完成条件写明要"**按实际记录类型区分内联摘要、对象引用、源码 Blob 与其他永久材料**"。
+
+**本节给 A 提供该区分所需的字段清单**（实测，非推断）。
+**B 侧不改 `infrastructure/file_store/integrity.py`**（A 的存储层），
+也不要求 A 采用某种实现；本节只固定"**哪些字段是内联摘要**"这一事实。
+
+#### 8.18.1 根因（实测定位）
+
+| 位置 | 行为 |
+| --- | --- |
+| `infrastructure/file_store/integrity.py` 第 27 行 | `_DIGEST_RE = re.compile(r"^sha256:([0-9a-f]{64})$")` |
+| 同上第 73—86 行 `_iter_digest_refs()` | **递归收集任意位置**的值：`isinstance(value, str)` 且匹配 `_DIGEST_RE` 即算"永久对象引用"。**它只看值的形状，不看键名、也不看记录类别** |
+| 同上第 300 行 | 对 `referenced - object_digests` 报 `unreachable object reference` |
+
+#### 8.18.2 实测复现（2026-10-03）
+
+写入两条记录后运行 `check_workspace()`：
+
+```
+完整检查 ok = False
+  error: unreachable object reference: sha256:bbbb…（64 个 b）
+  error: unreachable object reference: sha256:cccc…（64 个 c）
+```
+
+两条分别由 `generated_content` 的 `content_digest` 与 `preparation_record` 的 `payload_hash` 触发。
+
+#### 8.18.3 **内联摘要**清单（值形如 `sha256:<64 hex>`，但**不是**对象引用）
+
+以下字段的取值是**记录自身内容的摘要**（或本次内容的摘要），**不指向 `objects/` 下任何 blob**；
+完整性检查必须把它们的值**排除**在"对象引用"之外：
+
+| 字段 | 所在记录 / payload | 取值来源（实测） |
+| --- | --- | --- |
+| `content_digest` | `generated_content`（模板草稿与模型草稿共用） | `draft.py` 的正文摘要 |
+| `payload_hash` | `preparation_record` | `publish.py` 的 `payload_digest()`：规范化 JSON 的 `"sha256:" + sha256(...)` |
+| `error_detail_digest` | `model_outbound_request` | `draft.py` 的 `text_digest()`：`"sha256:" + sha256(text)`；空文本为 `None` |
+| `projection_digest` | `model_outbound_request` / `generated_content` | **投影端口**返回的投影摘要（投影内容未落 `objects/`） |
+| `basis_text_digest` | `case`（`assertion_basis.text_digest`）、`confirmation_record` | 断言依据文本摘要 |
+| `published_digest` | `rule_version`（发布追溯字段） | 发布时的内容摘要（见第 8.15 节） |
+| `digest` | `rule_version` / 各 `*RefFact` | 元素级内容摘要（非 blob 引用） |
+| `observed_resolved_input_digest` | 准备记录的观察字段 | 解析后输入的观察摘要 |
+
+**B 侧的保证（本节即契约）**：B **不会**为上述任何字段在 `objects/` 下写 blob；
+它们全是**自包含**的字符串。因此"引用不可达"对它们**不适用**。
+
+#### 8.18.4 真正的**对象引用**（必须可达）
+
+以下才是"指向 `objects/` 下永久材料"的引用，检查必须保持严格：
+
+| 字段 | 所在 | 说明 |
+| --- | --- | --- |
+| `content_ref` | `SnapshotRef`（`PreparedRun.snapshot.content_ref`） | 内容引用（**内容未留存时为 `None` 并同时登记缺口**，见第 11.2 节） |
+| `output_object_digest` | C 的执行事实（`application/execution/facts.py`） | 执行输出的对象摘要 |
+| `replaced_object_ref` | C 的执行事实 | 被替换的对象引用 |
+
+**边界说明**：这些引用的**写入方是各自的所有者**（B 只在快照固定时给出 `content_ref`）。
+B 不代 A 决定检查实现；若 A 采用"按记录类别 + 键名白名单跳过内联摘要"，
+第 8.18.3 节的清单可直接作为白名单依据。
+
+#### 8.18.5 待 A 确认
+
+| # | 事项 |
+| --- | --- |
+| 1 | 第 8.18.3 节的清单是否覆盖 A 侧实测到的全部误判字段（A 是否还发现别的内联摘要字段） |
+| 2 | A 采用的白名单/分类方式（按键名、按记录类别，或其他）——B 侧据此知悉，避免以后新增摘要字段又触发同类误判 |
+| 3 | 若 A 的实现要求"B 侧新增内联摘要字段时必须登记"，请明确登记位置；B 侧可在本清单追加 |
 
 ### 8.16 模型出站与运行修订：端口现状、装配与逐条待确认项（2026-10-03）
 
@@ -882,9 +987,10 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-03 | 1.1 | 补第 8.12 节：保存语义收紧——**项目归属统一校验**（写出/读入都要求正文自带项目且一致，`Delivery` payload 新增 `project_id`；旧记录缺归属显式拒绝）与**发布核对调用方 `expected_revision`**（入口透传、同事务校验、不符报 `B_REVISION_CONFLICT`；第二次发布须声明 `@N`）。对应检查文档 2026-10-03 版 B-12／B-14。**不改跨包 Schema 字节，不需 A/C/D 改代码**；A-11 的底层命名空间归属仍归 A | B 包（知悉性登记） |
 | 2026-10-03 | 1.2 | 补第 8.13 节：模型出站——**出站记录标识多一种规则**（给 `generation_request_id` 时按"（项目, 业务请求号）"，不给则沿用旧规则）、**结果 payload 新增 `generated_content_id` / `credential_filter`、意图 payload 新增 `generation_identity`**（均为新增可选键，**无凭据正文或摘要**）、**新增 `OUTBOUND_UNRESOLVED` 状态**与两个新参数。对应检查文档 2026-10-03 版 B-10／B-03。**不改端口签名与跨包 Schema 字节**；真实 `ProjectionPort` / `SecretPort` / `ModelProvider` 接入与凭据来源解析仍归 A | B 包（知悉性登记） |
 | 2026-10-03 | 1.3 | 补第 8.14 节：保存语义——**`case` / `acceptance_scope` 的正文修订必须等于这次分配的仓储修订**（`expected_revision + 1`），不符报 `B_REVISION_CONFLICT`；**调用方不能再跳号或复用旧修订号**。对应检查文档 2026-10-03 版 B-11。**不改端口签名与跨包 Schema 字节**；`rule_draft` 与 `plan` 未纳入，待定口径登记在待解决问题清单第 7 节 | B 包（知悉性登记） |
-| 2026-10-03 | 1.4 | 补第 8.15 节：**新增两个规则 Markdown 出口动作**（`export_rules_markdown` / `import_rules_markdown`，动作表 17 → 19），登记两条行为约定（导入恒为草稿、Markdown 不承载本地发布追溯）与方言要点（不引入 YAML 依赖）。对应检查文档 2026-10-03 版 B-04 末句。**不改端口签名与跨包 Schema 字节**；方言由 B 定义，D 侧不做第二套渲染 | B 包（知悉性登记） |
+| 2026-10-03 | 1.4 | 补第 8.15 节：**新增两个规则 Markdown 出口动作**（`export_rules_markdown` / `import_rules_markdown`，动作表 15 → 17），登记两条行为约定（导入恒为草稿、Markdown 不承载本地发布追溯）与方言要点（不引入 YAML 依赖）。对应检查文档 2026-10-03 版 B-04 末句。**不改端口签名与跨包 Schema 字节**；方言由 B 定义，D 侧不做第二套渲染 | B 包（知悉性登记） |
 | 2026-10-03 | 1.5 | 补第 8.16 节：**模型出站与运行修订的端口现状、装配与逐条待确认项**（对应 B-01／B-03／B-10 的真实端口部分）。实测登记：B 的三个只读方法**已冻结**、A 的三个模型端口**已有签名与适配器**、类型经 `ports.py` **共用同一套**；缺口在**默认装配**与**动作注册**，另有**凭据解析形状冲突**（B 要"只有状态"，A 的 `SecretPort.resolve` 要求引用且返回明文）给出甲乙两案。同步更新第 11.7 节（B 侧 `content_identity` 落地与 Q3 迁移说明）。**本节不改端口签名** | B 包（待 A 逐条确认） |
 | 2026-10-03 | 1.6 | **第 11.5 节由"待 C 确认"改为"C 侧执行兼容性结论（已回写）"**：Q1 `plain` 必须真正省略 Git 键（C 按"键不存在"处理）、Q2 纯新增不复制第二套模型且主版本待 Q3 定；新增 **第 11.7.1 节函数接口规格**（模块／输入类型／规范字节／返回／异常／版本标识 `SOURCE_CONTENT_IDENTITY_VERSION`）与 **第 11.7.2 节 `content_digest` 前缀口径**（实测裸十六进制与带前缀会算出**不同身份**，故统一为构造处加 `sha256:` 前缀）。**不改端口签名与跨包 Schema 字节；代码仅新增一个版本常量** | B 包（待 C 落地） |
+| 2026-10-03 | 1.7 | **第 8.15 节动作数更正**：原写"动作表 17 → 19"，实测基数有误（`7563aeb` 为 15，加两个 Markdown 动作后为 17），改为 **15 → 17**。新增 **第 8.17 节**（受控依据确认动作 `confirm_assertion_basis`，动作表 **17 → 18**）与 **第 8.18 节**（B 侧记录的**内联摘要 vs 对象引用**清单，供 A 修 A-06；含根因定位、实测复现、8 个内联摘要字段与 3 个真引用字段）。**不改端口签名与跨包 Schema 字节** | B 包（§8.18 待 A 确认） |
 
 ---
 
