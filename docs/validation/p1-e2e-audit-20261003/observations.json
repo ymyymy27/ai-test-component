@@ -1,0 +1,66 @@
+{
+  "baseline": "40c82c34ae01bdb01deff76d133ce317bec65daf",
+  "observations": {
+    "single_module": {
+      "single_module": true,
+      "blocking_gaps": [
+        "missing_dependency_registration"
+      ]
+    },
+    "binding_move": {
+      "new_revision": 2,
+      "new_path": "C:/new",
+      "confirmation_inherited": true,
+      "digest_inherited": "sha256:old"
+    },
+    "policy_project": {
+      "policy_project": "project-ticket",
+      "request_project": "other-project",
+      "accepted": true,
+      "boundary": "real application orchestration with memory external ports; no network"
+    },
+    "command_delivery": {
+      "project_envelope_mismatch_accepted": true,
+      "stored_project": "payload-project",
+      "self_supplied_verified_scope_accepted": true,
+      "verified_scope": [
+        "all-required"
+      ],
+      "foreign_project_delivery_read_accepted": true,
+      "task_registered": false,
+      "execution_records": 0,
+      "boundary": "default LocalAPI and real file-backed storage"
+    },
+    "stale_publication": {
+      "same_stale_expected_revision": 0,
+      "published": [
+        true,
+        true,
+        true
+      ],
+      "stored_text_history": [
+        "original",
+        "new edit",
+        "stale edit"
+      ],
+      "boundary": "default human session, real immutable store; caller expected revision ignored"
+    },
+    "terminal_recovery": {
+      "before": "completed",
+      "after": "invalidated",
+      "action": "safe_retry",
+      "stored_after": "invalidated",
+      "real_completed_exit_fact_saved": true,
+      "boundary": "real child command, spool and checkpoint; new core inspection reports lost; no replay executed"
+    },
+    "live_salvage": {
+      "live_process_reachable": true,
+      "action": "reattach",
+      "blocks_before": 0,
+      "blocks_after": 1,
+      "published_partial_recovery_block_while_writer_open": true,
+      "writer_close_error": "spool block conflicts with existing metadata"
+    }
+  },
+  "scope": "contract probes, not real Trae acceptance"
+}

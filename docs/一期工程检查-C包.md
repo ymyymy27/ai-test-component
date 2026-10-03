@@ -1,8 +1,8 @@
 # 一期工程检查-C包
 
-复核完成日期：2026年10月3日；本轮从10月2日开始、10月3日收敛。源码基线：`develop 9bd4337c1a0696db9cd8bd21e7b67f3a751923bb`，文档分支`文档更新-袁`。
+复核完成日期：2026年10月3日。取证基线：`develop 40c82c3`；产品源码仍`9bd4337c1a0696db9cd8bd21e7b67f3a751923bb`。本轮分支`codex/p1-end-to-end-audit-20261003`。
 
-本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-03-一期源码深查与新增问题.md)。
+本文是**当前未闭合问题清单**，只列待修复、待补全、待核对或待真实验收的工作；部分完成条目只保留剩余缺口，编号不重排。实施进展和历史问题流转见[整体对比](当前代码分析与一期工程对比.md)，清单维护记录见[本轮修改日志](修改日志/袁/2026-10-03-一期端到端深入检查.md)。
 
 其他包：[A包](一期工程检查-A包.md) · [B包](一期工程检查-B包.md) · [D包](一期工程检查-D包.md)。
 
@@ -10,7 +10,7 @@
 
 - 主责来源：[文档总览](项目文档/README.md)、[总体架构](项目文档/总体架构.md)、[阅读索引](项目文档/阅读索引.md)、[一期需求](项目文档/一期/需求文档/01-需求文档.md)、[一期功能](项目文档/一期/功能文档/01-功能文档.md)、架构00—06及[面板与工作台](项目文档/一期/设计文档/01-面板与工作台.md)。一期仍为17 FR/35 AC，不增删或重编号。
 - 四部分分工沿用原拆分方案；字段、状态、时序按现行分册及[接口总台账](接口对接/README.md)、DEC-001—006实施，不因文档更新改接口冻结状态。
-- 本次19个关键文件定向深查：[JSON](validation/p1-audit-20261002/deep-audit-9bd4337.json)、[脚本](validation/p1-audit-20261002/deep_probes.py)记录8项观察；预览118目标，19定向已审/99明确跳过，[覆盖清单](validation/p1-audit-20261002/deep-review-inventory.json)列范围/原因。不是全仓逐字重审；[前次JSON](validation/p1-audit-20261002/followup-9bd4337.json)和历史材料在[证据说明](validation/p1-audit-20261002/README.md)保留。临时数据/合成请求与本机进程/API实验不替代真实供应方、Trae、业务或掉电AC。
+- 本轮144个非生成产品文件逐文件读取，7份Schema与2份npm锁另作生成/构建核对；153文件清单、14组隔离观察及端到端阻断见[深入检查](一期端到端深入检查-2026-10-03.md)。阅读覆盖不等于全部路径实测；旧19文件定向深查作为历史证据保留。
 - “高风险”有源码或当前反例依据；“接入缺口”需补默认装配/真实持久链；“待验收”需真实输入、版本、预期/实际和证据。“待核对”不计为已确认缺陷。未以文件数、通过数估算完成率。
 
 ## 2. 主责与尚缺验收
@@ -29,6 +29,10 @@
 
 | 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
+| C-10 P1/本轮新增 | **重启恢复把已完成 Attempt 改成失效并允许安全重试**：真实临时 Python 子进程已 COMPLETED，ExitFact、输出及 checkpoint 已保存。新核心模拟 inspect=LOST，recover_pending 扫到该记录并改为 INVALIDATED，action=SAFE_RETRY，失效状态写回文件。 源码[runner.py](../src/aitest/application/execution/runner.py)第211行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构02第8/12节、架构04恢复顺序；FR09/16，AC19/28/34。先核对可靠终态/输出，再处理活动或未确定尝试；只读、幂等写、非幂等写分别验证完成后重启、重复恢复、退出标记损坏与真实未完成。 |
+| C-11 P1/本轮新增 | **恢复抢救仍存活写入器的尾块，正常封口发生冲突**：写入器已写 13 字节、block_size=1024，原块尚未封口。inspection=RUNNING/identity_matches=true 时 recover_attempt 先 salvage，发布 index=0 的 partial 恢复块后返回 REATTACH；原写入器 close 报 spool block conflicts with existing metadata。 源码[recovery.py](../src/aitest/application/execution/recovery.py)第85行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构02第3/8/12节、架构04第3节；FR09/16，AC19/28。分清活动采集与失效尾部的所有权，存活只读取封口块；补存活追加/封口、已退出尾部、重复恢复、恢复再次中断和双流编号。 |
+| C-12 P2/本轮新增 | **固定轮询预算使正常长步骤提前进入待核实，串行流程无续行**：真实只读命令运行 2.5 秒、timeout=10000ms，execute_attempt 约 1.05 秒返回 pending_verification/poll_limit_reached，此时进程仍运行；手动等待并 collect 后才得到完整结果。 源码[runner.py](../src/aitest/application/execution/runner.py)第125行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构02调度/控制；FR09/10，AC19/23/34。将轮询切片与执行截止分开，持久保留活动态并继续 inspect/collect；验证长步骤及其依赖后续步骤、真正超时、暂停/取消和重启，不靠无限同步等待规避。 |
+| C-13 P2/本轮新增 | **BufferedReader.read 延迟短输出采集到进程退出**：真实子进程打印 EARLY 并 flush 后睡眠，设置 stream_block_size=1，约一秒时 spool 无任何块；退出后才采集 EARLY/LATE。 源码[command.py](../src/aitest/infrastructure/adapters/execution/command.py)第389行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期架构02第12/13节；FR09/16，AC09/19/28。使用可增量返回的读取并保持跨块脱敏；验证小输出后长等待、多次 flush、stderr、跨块凭据、停止/中断、EOF 与 reader 异常。 |
 | C-08 高风险/新发现 | 父退出/后台子进程持流时collect仍报complete；返回时2个reader未结束、脱敏摘要0份、输出0字节，探针清理后才封口8字节（C-CAPTURE-01-parent-exit-before-stream-seal；[command.py](../src/aitest/infrastructure/adapters/execution/command.py)，273—286行） | 项目架构02第12/13节退出与完整采集分离；C采集/进程控制主责，A保存协作；AC19/24/28。 核实全组停止及两流EOF/封口、最终块/字节数和脱敏摘要后保存完整ExitFact；未完成保持partial/gap/待核实。补父先退出、持流子进程、reader超时/异常及最终补采，与A正式保存协作。 |
 | C-09 高风险/新发现 | Windows OpenProcess缺PROCESS_TERMINATE(0x0001)，原Job绑定None/错误5；同一临时进程仅在内存补该权限位后成功（C-PROCESS-01-windows-job-access；[command.py](../src/aitest/infrastructure/adapters/execution/command.py)，618—625行） | 项目架构02第12节已验证受控作业/进程组；FR09，AC19/28。 按原生API设置正确权限/句柄声明，明确处理绑定失败及受控降级；不能用父退出代替全组停止。验证后台子进程、取消/超时/核心退出及实际全组终止，不用单父进程用例关闭。 |
 | C-01 高风险 | `invalidate_downstream_attempts` 只处理活动态，完成的下游消费旧上游仍不失效：**C-INVALIDATION-01**；已支持活动Attempt的直接数据/控制依赖，但同计划修订提前返回；续查已明确上游变化仍不失效，链式依赖只失效直接下游、漏掉传递末端（`C-INVALIDATION-02/03`）。整用例旧复用撤销未接 | AC19/20/24；新 Attempt 立即撤销旧 R；所有实际消费旧结果的下游（含完成项）立即依据过期，同/异输出摘要均处理；无依赖分支保留，历史结论不改 |
@@ -52,13 +56,9 @@
 
 ## 4. 当前验证边界
 
-本次8项深查观察由内部断言核对（7新问题、1细化A-06），新探针ruff通过；产品代码/测试未改。下列全量Python/构建/CI结果沿用同基线前次续查，本次未重跑；反例复现成功不表示缺陷已修复或AC通过。
+本轮2026-10-03重新执行：全量pytest **1148 passed、2 skipped（37.47s）**，两项符号链接权限跳过；版本/ruff/mypy（136文件）与7份Schema一致性通过。面板build、wheel/sdist、6文件VSIX及共享panel字节核对通过；独立wheel资源/诊断冒烟通过，但doctor仍NOT_READY、MCP relay仍不可用。Playwright **1 failed**（阶段标题预期3、实际4），后续流程未执行。
 
-10月2日本机Windows11 x64/build22631、CPython3.13.13、uv0.11.8、Node24.14.1、npm11.13.0，产品0.4.0。版本/ruff/mypy通过（本次136个分析文件），7份生成Schema无差异；全量pytest **1148 passed、2 skipped、0 failed/error**（33.54s）。两项符号链接测试因本机会话无创建权限跳过。
-
-面板build通过，但静态Playwright **1 failed**：阶段区域标题数预期3、实际4；后续断言尚未执行。候选VSIX6文件打包通过。该基线已记录的[Windows CI](https://github.com/ymyymy27/ai-test-component/actions/runs/37008560076)为 **1149 passed、1 failed**：`test_restore_rejects_symlink_target`未抛BackupError；版本/静态/Schema步骤通过。普通CI未运行面板和发布制品检查；本次沿用原CI证据，未重新查询远端。
-
-当前自动化含真实Windows凭据原语、命名管道、本地Git及本机监听器的底层集成；它们不替代真实Trae、模型、业务独立核验、安全导出、跨核心执行/掉电与35项产品AC。合成反例和完整验证范围见[本轮证据](validation/p1-audit-20261002/README.md)。
+14组隔离观察确认15项新增问题，探针ruff通过；退出0表示当前缺陷符合断言，不表示已修复或AC通过。真实一期仍0/35，所有证据路径空。真实Trae、业务独立核验、模型、跨核心执行与掉电未验收。完整方法、结果和边界见[本轮深入检查](一期端到端深入检查-2026-10-03.md)与[结果JSON](validation/p1-e2e-audit-20261003/validation-results.json)；旧CI失败仅作为历史证据保留，本轮没有重新推断远端通过。
 
 ## 5. 收敛顺序与交付条件
 

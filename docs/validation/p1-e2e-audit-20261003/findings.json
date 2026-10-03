@@ -1,0 +1,336 @@
+{
+  "baseline": "40c82c34ae01bdb01deff76d133ce317bec65daf",
+  "product_source": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+  "findings": [
+    {
+      "id": "A-15",
+      "priority": "P1",
+      "title": "不同选择范围复用同一快照，新增文件漏检",
+      "source": [
+        [
+          "src/aitest/infrastructure/adapters/source_snapshot.py",
+          166
+        ]
+      ],
+      "contract": "一期架构01第2/7/12节；FR01/06/08，AC12/25/30/31",
+      "probe": "extended-observations.json#snapshot_scope",
+      "expected": "快照身份必须保存所选范围、排除策略和用途；按整目录准备不能沿用单文件的变化检测范围。",
+      "actual": "先固定 a.py，再以整目录固定相同字节，返回同一 snapshot_id，第二次仍记录 selected_paths=[a.py]、purpose=selected。随后新增 b.py，整目录请求的 detect_changes 返回 unchanged。",
+      "cause": "identity_base 仅含目录和文件摘要，命中已有记录直接返回，选择范围、排除规则和 purpose 未参与记录身份。",
+      "impact": "整目录的准备/漂移核对可能漏掉新增源码或沿用错误适用范围；本反例验证底层快照，未证明当前默认入口已经完成真实执行。",
+      "acceptance": "区分快照记录身份与内容对象去重；覆盖单文件→整目录、整目录→单文件、排除规则变化、用途变化，以及新增/删除文件。字节对象可去重，冻结范围不可混用。"
+    },
+    {
+      "id": "A-16",
+      "priority": "P1",
+      "title": "迁移回滚删除迁移前已有字段",
+      "source": [
+        [
+          "src/aitest/infrastructure/file_store/migrations.py",
+          101
+        ],
+        [
+          "src/aitest/infrastructure/file_store/migrations.py",
+          288
+        ]
+      ],
+      "contract": "一期架构04第6/10/11节；FR16，AC28",
+      "probe": "extended-observations.json#migration_rollback",
+      "expected": "回滚恢复迁移前准确状态；前向步骤没有改变的字段不得由反向步骤删除。",
+      "actual": "workspace.json 原有 schema_version=1.0，records.json 原有 intents={}。应用两项内置迁移后回滚，两字段都被删除，备份虽已创建，反向迁移未恢复原值。",
+      "cause": "前向 ensure 对已存在字段不改变数据，却仍登记步骤已应用；backward 只按字段值判断并删除，没有记录本步骤实际改变了什么。",
+      "impact": "正常当前格式工作空间的回滚会改变原始结构，损害后续读取/恢复依据。实验在临时工作空间执行，没有改动用户业务数据。",
+      "acceptance": "记录前态或实际变更，回滚逐项核对并恢复；验证已存在/不存在字段、部分前向失败、重复 apply/resume/rollback、回滚前有新写入的拒绝路径和备份可读性。"
+    },
+    {
+      "id": "A-17",
+      "priority": "P1",
+      "title": "不同记录类型相同 ID/修订被事件去重",
+      "source": [
+        [
+          "src/aitest/infrastructure/file_store/events.py",
+          103
+        ],
+        [
+          "src/aitest/infrastructure/file_store/events.py",
+          238
+        ]
+      ],
+      "contract": "一期架构06第4节、架构04原子提交；FR14/17，AC27/34",
+      "probe": "extended-observations.json#event_identity",
+      "expected": "同一提交中的每条业务变化都必须可重放；不同 aggregate_kind 的记录不是同一事件。",
+      "actual": "真实 FileUnitOfWork 在同一事务创建 rule_draft/same-id@1 与 rule_version/same-id@1，提交结果 created=2，FileEventJournal 只有 1 条事件。",
+      "cause": "derive_event_id 的身份材料不含 aggregate_kind，相同项目、ID、修订及事件类型发生碰撞，被 staging 去重。",
+      "impact": "记录保存成功但订阅者漏掉一类变化，破坏同提交多事件及视图重建；不是网络重复投递的合理去重。",
+      "acceptance": "以完整记录命名空间构造事件身份；同提交不同 kind 相同 ID、同 kind 不同 ID、多条修订、重传同一事件和恢复重放均应无漏重。"
+    },
+    {
+      "id": "A-18",
+      "priority": "P1",
+      "title": "管道服务端 SID 查询失败后以空值通过身份比较",
+      "source": [
+        [
+          "src/aitest/interfaces/local/pipe.py",
+          218
+        ],
+        [
+          "src/aitest/interfaces/local/pipe.py",
+          257
+        ],
+        [
+          "src/aitest/interfaces/local/pipe.py",
+          41
+        ]
+      ],
+      "contract": "总体架构本地通信；一期架构05入口/会话合同；AC31/34",
+      "probe": "extended-observations.json#peer_identity",
+      "expected": "查询进程用户身份失败时拒绝连接，不能把两个未知 SID 当成同用户证明。",
+      "actual": "Windows 11 本机对当前进程查询：current_user_sid() 得到有效 SID，NamedPipeServer._process_user_sid(同 PID) 返回空字符串。校验函数只比较字符串，两个空 SID 在会话相同时被接受。",
+      "cause": "TokenUser 缓冲区未按 Win32 返回长度分配，未核对 OpenProcessToken/GetTokenInformation/ConvertSidToStringSidW 的成功结果；空值继续进入身份比较。",
+      "impact": "用户身份守卫失效。已实测自己的进程查询，未进行跨用户连接或攻击验证；会话检查仍在，不能声称跨用户利用已证实。",
+      "acceptance": "先查询所需长度，核对所有 API 结果并正确释放 SID 字符串；空值/权限错误/进程退出均拒绝。补同用户、异用户、异会话、查询失败及真实管道接入验证。"
+    },
+    {
+      "id": "B-12",
+      "priority": "P1",
+      "title": "命令、正文、模型策略和读取项目归属未统一校验",
+      "source": [
+        [
+          "src/aitest/application/usecase_registry.py",
+          863
+        ],
+        [
+          "src/aitest/application/project/persistence.py",
+          99
+        ],
+        [
+          "src/aitest/application/project/serialization.py",
+          589
+        ],
+        [
+          "src/aitest/application/planning/model_orchestration.py",
+          291
+        ]
+      ],
+      "contract": "一期架构01第1/6/8节、架构04第2节；FR01/02/04/06，AC01/17/31/32",
+      "probe": "observations.json#command_delivery；observations.json#policy_project",
+      "expected": "命令所属项目、待保存正文、引用与策略应属于同一稳定项目；未知归属不能绕过读取校验。",
+      "actual": "默认 LocalAPI 接受 envelope-project 下保存 payload-project 的项目。保存的 Delivery 正文没有 project_id，随后 load_delivery(foreign-project) 可读取。真实模型编排在内存外部端口下接受 project-ticket 的策略为 other-project 准备请求。",
+      "cause": "部分 handler 只检查 command.project_id 非空；Delivery 序列化不带项目；读取仅在 stored_project 非空时比较；模型准入不比较 policy.project_id 与请求项目。",
+      "impact": "应用边界可错写/错读项目并借用另一项目的出站策略。与 A-11 的底层稳定记录链改归属不同：本项负责准入及引用校验；没有实际向供应方外发。",
+      "acceptance": "B 校验正文/引用/策略归属，A 同时守住持久命名空间；旧记录归属未知应显式阻塞或迁移。覆盖项目/绑定/任务/交付/规则引用/模型策略的同项目、跨项目及缺失归属输入。"
+    },
+    {
+      "id": "B-13",
+      "priority": "P1",
+      "title": "交付方自填 verified_in_scope 即成为已验证交付",
+      "source": [
+        [
+          "src/aitest/application/usecase_registry.py",
+          1015
+        ],
+        [
+          "src/aitest/application/project/serialization.py",
+          589
+        ],
+        [
+          "src/aitest/domain/project/context.py",
+          657
+        ]
+      ],
+      "contract": "一期功能10.2/12节、架构01第1节；FR02，AC01/21",
+      "probe": "observations.json#command_delivery",
+      "expected": "开发自述和真实测试验证分开；已验证范围从准确 Run/Attempt/核验/证据派生。",
+      "actual": "默认 save_delivery 接受未登记 task_id 和调用方填写 verified_in_scope=[all-required]，没有执行记录或证据，读回 Delivery.is_verified 为真。",
+      "cause": "保存与反序列化直接接受 verified_in_scope，is_verified 只以该范围非空判断，未读取权威执行事实。",
+      "impact": "交付记录的验证状态可由提测者直接声明。当前生产报告未贯通，本反例不表示已生成了错误完整报告。",
+      "acceptance": "自述字段与核心验证投影分离；核对任务/版本及新执行依据，拒绝自报验证标记或将其明确保留为声明。验证无执行、只自测说明、跨任务、失效证据与真实有效验证。"
+    },
+    {
+      "id": "B-14",
+      "priority": "P1",
+      "title": "发布忽略调用方预期修订，旧编辑可继续发布",
+      "source": [
+        [
+          "src/aitest/application/usecase_registry.py",
+          1280
+        ],
+        [
+          "src/aitest/application/usecase_registry.py",
+          1152
+        ],
+        [
+          "src/aitest/application/planning/publish.py",
+          88
+        ]
+      ],
+      "contract": "一期架构01第8节、架构04原子提交；FR05/06，AC12/17/20/31",
+      "probe": "observations.json#stale_publication",
+      "expected": "发布使用用户编辑时所见的 expected_revision；并发或过期编辑返回冲突及当前修订。",
+      "actual": "真实默认 HUMAN_UI 接口依次发布 original/new edit/stale edit，三个 Command.expected_revision 都是 0，全部 published=true，rule_version 产生三份正文历史。",
+      "cause": "handler 不向发布用例传调用方 expected_revision；发布用例自行读当前仓储修订，替调用方接受最新基线，底层乐观锁只能保护读取后的短窗口。",
+      "impact": "旧编辑可成为最新发布版。不可变旧历史仍保留，不应描述为旧正文被原地覆盖。publish_plan 也存在相同调用链，动态反例针对规则发布。",
+      "acceptance": "从编辑/挑战传递准确预期修订，在同事务检查相关依据；验证两个编辑者、旧修订、同请求重传、新明确发布、计划/规则及确认过期路径。"
+    },
+    {
+      "id": "B-15",
+      "priority": "P1",
+      "title": "运行修订允许替换掉必测验收关联，且未校验计划完整身份",
+      "source": [
+        [
+          "src/aitest/domain/planning/runtime_revision.py",
+          417
+        ],
+        [
+          "src/aitest/domain/planning/runtime_revision.py",
+          503
+        ]
+      ],
+      "contract": "一期功能第4/15节、架构01第4/8节；FR06/07，AC20/24/31",
+      "probe": "extended-observations.json#runtime_scope",
+      "expected": "必测关联只能保留或增加，不得删除；运行修订必须匹配冻结计划 ID、修订与摘要。",
+      "actual": "必测 Case 的验收关联从 {AC-A,AC-B} 改为 {AC-A,AC-C} 被 accepted；同修订号但 plan_id=unrelated-plan 的计划也被接受。反例经真实应用门禁，输入为已派生的运行中 ExecutionFacts 夹具。",
+      "cause": "范围检查使用 proper-subset 比较，替换集合互不包含时漏检；计划检查只比较修订号，忽略事实中的 ID/digest。",
+      "impact": "可移除原必测验收依据，或将另一计划当成冻结依据。真实半程运行尚未接通，不能说已在 Trae 中完成该修改。",
+      "acceptance": "要求原关联集合包含于新集合，完整核对冻结计划身份及 Case/依据引用；补删除、替换、增加、同版本异计划/异摘要、正在执行步骤与受影响完成步骤。"
+    },
+    {
+      "id": "B-16",
+      "priority": "P2",
+      "title": "目录移动沿用旧确认和内容摘要",
+      "source": [
+        [
+          "src/aitest/application/project/context.py",
+          273
+        ]
+      ],
+      "contract": "一期架构01第1节、功能10.1；FR01，AC12/25/30",
+      "probe": "observations.json#binding_move",
+      "expected": "移动或绑定形态变化产生新修订并重新确认，新内容身份需重新核对。",
+      "actual": "confirmed=true、manifest_digest=sha256:old 的 C:/old 绑定移动到 C:/new 后，修订增加到 2，但仍 confirmed=true 并继承原摘要。",
+      "cause": "move_binding 将 binding.confirmed 与 manifest_digest 原样传给 create_binding。",
+      "impact": "底层移动用例把新路径作为已确认绑定；默认产品重新绑定入口仍未闭合，本项不能替代其验收。",
+      "acceptance": "保留旧绑定，新的路径/形态先待确认并重新固定内容；补同字节移动、不同内容目标、取消选择、形态转换及冻结运行仍引用旧绑定。"
+    },
+    {
+      "id": "B-17",
+      "priority": "P2",
+      "title": "合法单模块无依赖项目被判为阻塞缺口",
+      "source": [
+        [
+          "src/aitest/application/project/context.py",
+          437
+        ]
+      ],
+      "contract": "一期功能第11节、需求 AC03；FR01/03，AC03/30",
+      "probe": "observations.json#single_module",
+      "expected": "单模块项目可正常进入适用检查；没有跨模块边是明确不适用，不代表漏登记。",
+      "actual": "一个有职责/输入输出的模块、匹配项目的无边依赖图和有效环境输入，detect_context_gaps 返回 blocking missing_dependency_registration。",
+      "cause": "有 modules 但 dependencies 为空即认定缺登记，没有区分合法无依赖与信息未知。",
+      "impact": "调用该门禁的草稿/发布流程会误阻塞合法最小项目；默认入口尚未自动执行此函数，不声称所有新建项目都已被阻塞。",
+      "acceptance": "区分已明确无依赖和未登记；覆盖单模块、独立多模块、真实依赖缺登记及无模块，单模块变更/回归照常执行。"
+    },
+    {
+      "id": "C-10",
+      "priority": "P1",
+      "title": "重启恢复把已完成 Attempt 改成失效并允许安全重试",
+      "source": [
+        [
+          "src/aitest/application/execution/runner.py",
+          211
+        ],
+        [
+          "src/aitest/application/execution/recovery.py",
+          85
+        ]
+      ],
+      "contract": "一期架构02第8/12节、架构04恢复顺序；FR09/16，AC19/28/34",
+      "probe": "observations.json#terminal_recovery",
+      "expected": "已可靠保存退出和输出的完成事实在重启后保持终态；适配器内存句柄消失不等于原命令未完成。",
+      "actual": "真实临时 Python 子进程已 COMPLETED，ExitFact、输出及 checkpoint 已保存。新核心模拟 inspect=LOST，recover_pending 扫到该记录并改为 INVALIDATED，action=SAFE_RETRY，失效状态写回文件。",
+      "cause": "scan 未过滤终态，恢复优先依据当前句柄检查，未先核对已保存 ExitFact/完成事实。",
+      "impact": "破坏已完成执行的当前有效性并给出错误重试资格。本反例没有再次执行业务，不能声称实际发生了二次副作用。",
+      "acceptance": "先核对可靠终态/输出，再处理活动或未确定尝试；只读、幂等写、非幂等写分别验证完成后重启、重复恢复、退出标记损坏与真实未完成。"
+    },
+    {
+      "id": "C-11",
+      "priority": "P1",
+      "title": "恢复抢救仍存活写入器的尾块，正常封口发生冲突",
+      "source": [
+        [
+          "src/aitest/application/execution/recovery.py",
+          85
+        ],
+        [
+          "src/aitest/infrastructure/file_store/spool.py",
+          351
+        ]
+      ],
+      "contract": "一期架构02第3/8/12节、架构04第3节；FR09/16，AC19/28",
+      "probe": "observations.json#live_salvage",
+      "expected": "先确认活动身份并重关联；存活采集器仍持有的未封口尾部不能由恢复方抢先定义为恢复块。",
+      "actual": "写入器已写 13 字节、block_size=1024，原块尚未封口。inspection=RUNNING/identity_matches=true 时 recover_attempt 先 salvage，发布 index=0 的 partial 恢复块后返回 REATTACH；原写入器 close 报 spool block conflicts with existing metadata。",
+      "cause": "salvage_streams 在运行状态分支前执行，和存活写入器竞争同一个块编号与元数据。",
+      "impact": "合法存活恢复制造元数据冲突，妨碍后续完整输出认领；采用真实 spool 与受控 inspection，不是 Trae 强杀实测。",
+      "acceptance": "分清活动采集与失效尾部的所有权，存活只读取封口块；补存活追加/封口、已退出尾部、重复恢复、恢复再次中断和双流编号。"
+    },
+    {
+      "id": "C-12",
+      "priority": "P2",
+      "title": "固定轮询预算使正常长步骤提前进入待核实，串行流程无续行",
+      "source": [
+        [
+          "src/aitest/application/execution/runner.py",
+          125
+        ],
+        [
+          "src/aitest/application/execution/runner.py",
+          161
+        ]
+      ],
+      "contract": "一期架构02调度/控制；FR09/10，AC19/23/34",
+      "probe": "extended-observations.json#command_poll_and_capture",
+      "expected": "正常执行应按已配置截止和真实状态推进；正常运行不能仅因本地轮询次数耗尽就失去续行。",
+      "actual": "真实只读命令运行 2.5 秒、timeout=10000ms，execute_attempt 约 1.05 秒返回 pending_verification/poll_limit_reached，此时进程仍运行；手动等待并 collect 后才得到完整结果。",
+      "cause": "默认 100×0.01 秒预算与 request.timeout_ms 无关；run_serial 对非 pending/ready 步骤停止派发，当前无活动步骤后台续采/续行消费者。",
+      "impact": "普通超过约一秒的命令可使串行工作流停在待核实；不表示适配器真实超时，也不应当成业务失败。",
+      "acceptance": "将轮询切片与执行截止分开，持久保留活动态并继续 inspect/collect；验证长步骤及其依赖后续步骤、真正超时、暂停/取消和重启，不靠无限同步等待规避。"
+    },
+    {
+      "id": "C-13",
+      "priority": "P2",
+      "title": "BufferedReader.read 延迟短输出采集到进程退出",
+      "source": [
+        [
+          "src/aitest/infrastructure/adapters/execution/command.py",
+          389
+        ]
+      ],
+      "contract": "一期架构02第12/13节；FR09/16，AC09/19/28",
+      "probe": "extended-observations.json#command_poll_and_capture",
+      "expected": "已输出并 flush 的安全字节应按大小/刷新边界持续进入采集，不能长期只留在核心匿名管道缓冲。",
+      "actual": "真实子进程打印 EARLY 并 flush 后睡眠，设置 stream_block_size=1，约一秒时 spool 无任何块；退出后才采集 EARLY/LATE。",
+      "cause": "消费线程使用 BufferedReader.read(4096)，小输出在未达到请求长度且未 EOF 时被阻塞；spool 的小块设置不能改变该入口行为。",
+      "impact": "实时日志与早期抢救窗口缺失，核心中断时这些已 flush 字节没有耐久 spool。与 C-07 的字节 fsync 顺序是不同环节；未执行真实掉电。",
+      "acceptance": "使用可增量返回的读取并保持跨块脱敏；验证小输出后长等待、多次 flush、stderr、跨块凭据、停止/中断、EOF 与 reader 异常。"
+    },
+    {
+      "id": "D-09",
+      "priority": "P1",
+      "title": "空 full 范围在调用方标志为真时返回业务通过",
+      "source": [
+        [
+          "src/aitest/domain/review/reports.py",
+          459
+        ]
+      ],
+      "contract": "一期功能第3/14节；FR07/14/17，AC18/21/22/24/27",
+      "probe": "extended-observations.json#empty_full",
+      "expected": "无有效执行/复用依据的 full 不可通过；明确全部不适用应独立输出 not_applicable 及其理由。",
+      "actual": "M/S/E/R/V/P/F 均空，tier=FULL，has_applicable_checks 默认 true，来源匹配、关键链路/证据/环境标志为 true，领域返回 business_outcome=passed、evidence_grade=D、gap=no_valid_execution_basis。",
+      "cause": "_full_pass_conditions_met 对空集合的包含/相等检查都为真，没有非空有效依据或适用范围一致性守卫。",
+      "impact": "领域结论和无有效依据缺口互相矛盾；D 尚无生产事实适配，不能声称真实面板已经展示该错误。与已关闭 D-01 的等级耦合和空分母比例修复不同。",
+      "acceptance": "领域主动核对适用性和有效依据，空/未知输入 fail closed；覆盖显式全不适用、缺失范围、空执行、全合法复用、实际失败和 quick/on_demand，DTO/报告同口径。"
+    }
+  ]
+}

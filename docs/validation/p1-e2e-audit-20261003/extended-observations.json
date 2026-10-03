@@ -1,0 +1,54 @@
+{
+  "empty_full": {
+    "selected": 0,
+    "executed": 0,
+    "verified": 0,
+    "business_outcome": "passed",
+    "evidence_grade": "D",
+    "gap": "no_valid_execution_basis"
+  },
+  "runtime_scope": {
+    "required_case_removed_acceptance": "AC-B",
+    "added_acceptance": "AC-C",
+    "scope_substitution_accepted": true,
+    "unrelated_plan_same_revision_accepted": true,
+    "boundary": "real application gate, derived running ExecutionFacts fixture; no live run"
+  },
+  "peer_identity": {
+    "current_user_sid_verified": true,
+    "server_sid_lookup_returned_empty": true,
+    "two_empty_sids_accepted": true,
+    "boundary": "real Win32 lookup for own process; no foreign-user connection attempted"
+  },
+  "snapshot_scope": {
+    "same_snapshot_id": true,
+    "whole_request_recorded_selection": [
+      "a.py"
+    ],
+    "whole_request_recorded_purpose": "selected",
+    "added_file": "b.py",
+    "drift_state": "unchanged"
+  },
+  "migration_rollback": {
+    "preexisting_schema_version_removed": true,
+    "preexisting_intents_container_removed": true,
+    "backup_created": true,
+    "boundary": "real built-in forward/backward migration, temporary files"
+  },
+  "event_identity": {
+    "records_created": 2,
+    "events_created": 1,
+    "same_id_and_revision_across_distinct_aggregates": true,
+    "boundary": "real FileUnitOfWork + FileEventJournal"
+  },
+  "command_poll_and_capture": {
+    "declared_timeout_ms": 10000,
+    "runner_return_seconds": 1.043,
+    "runner_state": "pending_verification",
+    "reason": "poll_limit_reached",
+    "process_still_running": true,
+    "early_flushed_output_saved_before_exit": false,
+    "after_exit_complete": true,
+    "boundary": "real Windows Python subprocess; controlled read-only command, no network"
+  }
+}

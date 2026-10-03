@@ -1,0 +1,69 @@
+{
+  "baseline": "40c82c34ae01bdb01deff76d133ce317bec65daf",
+  "product_source": "9bd4337c1a0696db9cd8bd21e7b67f3a751923bb",
+  "environment": {
+    "os": "Windows 11 x64 build 22631",
+    "python": "3.13.13",
+    "uv": "0.11.8",
+    "node": "24.14.1",
+    "npm": "11.13.0",
+    "product": "0.4.0"
+  },
+  "pytest": {
+    "passed": 1148,
+    "skipped": 2,
+    "failed": 0,
+    "elapsed_seconds_console": 37.47,
+    "skips": [
+      {
+        "name": "test_symlink_anywhere_is_reported",
+        "reason": "当前会话无权创建符号链接"
+      },
+      {
+        "name": "test_restore_rejects_symlink_target",
+        "reason": "当前会话无权创建符号链接"
+      }
+    ]
+  },
+  "ruff": "passed",
+  "mypy": {
+    "result": "passed",
+    "source_files": 136
+  },
+  "version_check": "passed",
+  "schema": {
+    "count": 7,
+    "generated_diff": false
+  },
+  "panel_build": "passed",
+  "playwright": {
+    "failed": 1,
+    "test": "prototype follows current-test panel and same-panel detail flow",
+    "expected_headings": 3,
+    "actual_headings": 4,
+    "later_assertions_executed": false
+  },
+  "wheel_sdist_build": "passed",
+  "vsix_build": {
+    "result": "passed",
+    "files": 6
+  },
+  "artifact_identity": "passed",
+  "wheel_install_smoke": "passed_resources_and_diagnostics_only",
+  "probe_groups": 14,
+  "new_findings": 15,
+  "real_product_acceptance": {
+    "verified": 0,
+    "not_verified": 7,
+    "blocked": 1,
+    "untested": 27,
+    "all_evidence_paths_empty": true
+  },
+  "limits": [
+    "No real Trae business acceptance",
+    "No power-loss experiment",
+    "No foreign-user pipe connection attempt",
+    "No real model-provider request",
+    "No product fixes"
+  ]
+}

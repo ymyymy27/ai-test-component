@@ -1,0 +1,45 @@
+{
+  "module_path": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.git\\p1-e2e-audit-20261003\\wheel-venv\\Lib\\site-packages\\aitest\\__init__.py",
+  "version": "0.4.0",
+  "templates": [
+    "agent-workflow",
+    "http-workflow",
+    "manual-web-workflow",
+    "python-library",
+    "python-service",
+    "ticket-workflow"
+  ],
+  "schema_present": true,
+  "panel_present": true,
+  "pydantic": "2.13.5",
+  "portalocker": "3.2.0",
+  "cli_checks": [
+    {
+      "arguments": [
+        "templates"
+      ],
+      "exit_code": 0,
+      "stdout": "[\n  {\n    \"template_id\": \"agent-workflow\",\n    \"version\": \"1.0.0\",\n    \"status\": \"released\",\n    \"delivery_method\": \"registered_command\"\n  },\n  {\n    \"template_id\": \"http-workflow\",\n    \"version\": \"1.0.0\",\n    \"status\": \"released\",\n    \"delivery_method\": \"automatic\"\n  },\n  {\n    \"template_id\": \"manual-web-workflow\",\n    \"version\": \"1.0.0\",\n    \"status\": \"released\",\n    \"delivery_method\": \"manual\"\n  },\n  {\n    \"template_id\": \"python-library\",\n    \"version\": \"1.0.0\",\n    \"status\": \"released\",\n    \"delivery_method\": \"registered_command\"\n  },\n  {\n    \"template_id\": \"python-service\",\n    \"version\": \"1.0.0\",\n    \"status\": \"released\",\n    \"delivery_method\": \"registered_command\"\n  },\n  {\n    \"template_id\": \"ticket-workflow\",\n    \"version\": \"1.0.0\",\n    \"status\": \"released\",\n    \"delivery_method\": \"automatic\"\n  }\n]\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "doctor"
+      ],
+      "exit_code": 2,
+      "stdout": "{\n  \"protocol_version\": \"aitest.local/2.0\",\n  \"request_id\": \"1be3d987-d4e3-4260-9b1f-523af0a2a167\",\n  \"instance_id\": \"c72f5968-3bf5-4884-b9b3-381a53ac4084\",\n  \"workspace_id\": null,\n  \"project_id\": null,\n  \"intent_id\": null,\n  \"binding_revision\": null,\n  \"result\": {\n    \"status\": \"NOT_READY\",\n    \"protocol\": \"aitest.local/2.0\",\n    \"supported_actions\": [\n      \"doctor\"\n    ],\n    \"phase\": 1\n  },\n  \"page\": null,\n  \"error\": null\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "mcp-relay",
+        "--binding",
+        "audit-unavailable"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "{\"code\": \"CAPABILITY_UNAVAILABLE\", \"message\": \"MCP relay requires the verified local pipe transport; not implemented yet\"}\n"
+    }
+  ],
+  "scope": "fresh wheel install/resource smoke only; no product or Trae acceptance"
+}

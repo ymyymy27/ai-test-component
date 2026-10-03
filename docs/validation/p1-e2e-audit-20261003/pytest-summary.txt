@@ -1,0 +1,5 @@
+Full repository suite: 1148 passed, 2 skipped in 37.47s.
+No product acceptance inferred.
+
+test_symlink_anywhere_is_reported: 当前会话无权创建符号链接
+test_restore_rejects_symlink_target: 当前会话无权创建符号链接

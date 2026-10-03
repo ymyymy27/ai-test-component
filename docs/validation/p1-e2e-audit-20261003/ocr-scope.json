@@ -1,0 +1,1011 @@
+{
+  "baseline": "40c82c34ae01bdb01deff76d133ce317bec65daf",
+  "from": "origin/main",
+  "merge_base": "382bcf62232f588786b277ad2a0a09bd6444ea01",
+  "total_files": 415,
+  "reviewable_count": 125,
+  "excluded_count": 290,
+  "scope_note": "OCR diff candidates are not the denominator for full product source review",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "status": "modified",
+      "insertions": 53,
+      "deletions": 46,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": ".gitignore",
+      "status": "modified",
+      "insertions": 1,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/additional-probe-results.json",
+      "status": "added",
+      "insertions": 48,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/additional_probes.py",
+      "status": "added",
+      "insertions": 139,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/develop-refresh-10fc22f.json",
+      "status": "added",
+      "insertions": 238,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/probe-results.json",
+      "status": "added",
+      "insertions": 84,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/probes.py",
+      "status": "added",
+      "insertions": 344,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/recheck-test-summary.json",
+      "status": "added",
+      "insertions": 110,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261001/test-summary.json",
+      "status": "added",
+      "insertions": 141,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/deep-audit-9bd4337.json",
+      "status": "added",
+      "insertions": 276,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/deep-review-inventory.json",
+      "status": "added",
+      "insertions": 844,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/deep_probes.py",
+      "status": "added",
+      "insertions": 367,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/develop-refresh-9bd4337.json",
+      "status": "added",
+      "insertions": 245,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/followup-9bd4337.json",
+      "status": "added",
+      "insertions": 277,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/followup_probes.py",
+      "status": "added",
+      "insertions": 104,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "docs/validation/p1-audit-20261002/probes.py",
+      "status": "added",
+      "insertions": 304,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "probe_now.json",
+      "status": "added",
+      "insertions": 81,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "pyproject.toml",
+      "status": "modified",
+      "insertions": 1,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "scripts/generate_schemas.py",
+      "status": "modified",
+      "insertions": 3,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/ai_assistance.py",
+      "status": "modified",
+      "insertions": 41,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/evidence/publication.py",
+      "status": "added",
+      "insertions": 100,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/execution/facts.py",
+      "status": "added",
+      "insertions": 494,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/execution/recovery.py",
+      "status": "modified",
+      "insertions": 228,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "status": "modified",
+      "insertions": 447,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/draft.py",
+      "status": "added",
+      "insertions": 404,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/drift.py",
+      "status": "added",
+      "insertions": 144,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/model_orchestration.py",
+      "status": "added",
+      "insertions": 581,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/model_ports.py",
+      "status": "added",
+      "insertions": 227,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/persistence.py",
+      "status": "added",
+      "insertions": 252,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/plan_builder.py",
+      "status": "modified",
+      "insertions": 125,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/portable.py",
+      "status": "added",
+      "insertions": 264,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/preparation.py",
+      "status": "added",
+      "insertions": 470,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/prepare_run.py",
+      "status": "added",
+      "insertions": 420,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/publish.py",
+      "status": "added",
+      "insertions": 314,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/regression_graph.py",
+      "status": "added",
+      "insertions": 169,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/run_mode.py",
+      "status": "modified",
+      "insertions": 150,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/serialization.py",
+      "status": "added",
+      "insertions": 331,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/substrate.py",
+      "status": "added",
+      "insertions": 438,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/planning/substrate_adapter.py",
+      "status": "added",
+      "insertions": 552,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/ports.py",
+      "status": "modified",
+      "insertions": 388,
+      "deletions": 9,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/project/context.py",
+      "status": "modified",
+      "insertions": 486,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/project/persistence.py",
+      "status": "added",
+      "insertions": 341,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/project/serialization.py",
+      "status": "added",
+      "insertions": 658,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/review/defect_management.py",
+      "status": "modified",
+      "insertions": 185,
+      "deletions": 4,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/review/reporting.py",
+      "status": "modified",
+      "insertions": 109,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "status": "added",
+      "insertions": 1318,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "status": "modified",
+      "insertions": 643,
+      "deletions": 4,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/__init__.py",
+      "status": "modified",
+      "insertions": 24,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/capabilities.py",
+      "status": "added",
+      "insertions": 35,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/commands.py",
+      "status": "modified",
+      "insertions": 6,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/errors.py",
+      "status": "added",
+      "insertions": 49,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/events.py",
+      "status": "modified",
+      "insertions": 10,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/execution_facts.py",
+      "status": "added",
+      "insertions": 599,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/identity.py",
+      "status": "added",
+      "insertions": 28,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "status": "added",
+      "insertions": 428,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "status": "added",
+      "insertions": 36,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/redaction.py",
+      "status": "added",
+      "insertions": 161,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/responses.py",
+      "status": "added",
+      "insertions": 29,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Command.json",
+      "status": "modified",
+      "insertions": 4,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Event.json",
+      "status": "modified",
+      "insertions": 38,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/ExecutionFacts.json",
+      "status": "added",
+      "insertions": 2228,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/PreparedRun.json",
+      "status": "added",
+      "insertions": 978,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/Response.json",
+      "status": "modified",
+      "insertions": 141,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/schemas/TemplatePack.json",
+      "status": "modified",
+      "insertions": 11,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/secrets.py",
+      "status": "added",
+      "insertions": 49,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/templates.py",
+      "status": "modified",
+      "insertions": 17,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/verification.py",
+      "status": "added",
+      "insertions": 35,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/versions.py",
+      "status": "added",
+      "insertions": 10,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/contracts/views.py",
+      "status": "modified",
+      "insertions": 3,
+      "deletions": 20,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/evidence/evidence.py",
+      "status": "modified",
+      "insertions": 356,
+      "deletions": 10,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/execution/runs.py",
+      "status": "modified",
+      "insertions": 668,
+      "deletions": 8,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/execution/sources.py",
+      "status": "modified",
+      "insertions": 117,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/planning/model_outbound.py",
+      "status": "added",
+      "insertions": 433,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/planning/plans.py",
+      "status": "modified",
+      "insertions": 475,
+      "deletions": 8,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/planning/rules.py",
+      "status": "modified",
+      "insertions": 135,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/planning/runtime_revision.py",
+      "status": "added",
+      "insertions": 661,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/project/context.py",
+      "status": "modified",
+      "insertions": 577,
+      "deletions": 61,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/review/defects.py",
+      "status": "modified",
+      "insertions": 458,
+      "deletions": 25,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/domain/review/reports.py",
+      "status": "modified",
+      "insertions": 801,
+      "deletions": 32,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/deepseek.py",
+      "status": "modified",
+      "insertions": 69,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "status": "modified",
+      "insertions": 684,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/redaction.py",
+      "status": "added",
+      "insertions": 109,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/verification.py",
+      "status": "modified",
+      "insertions": 67,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/model.py",
+      "status": "modified",
+      "insertions": 192,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_control.py",
+      "status": "modified",
+      "insertions": 269,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+      "status": "modified",
+      "insertions": 346,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/connections.py",
+      "status": "modified",
+      "insertions": 378,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/credentials.py",
+      "status": "modified",
+      "insertions": 225,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/atomic.py",
+      "status": "modified",
+      "insertions": 2,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/backup.py",
+      "status": "modified",
+      "insertions": 257,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/checkpoints.py",
+      "status": "added",
+      "insertions": 77,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/events.py",
+      "status": "modified",
+      "insertions": 560,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/fake.py",
+      "status": "added",
+      "insertions": 91,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "status": "modified",
+      "insertions": 338,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/integrity.py",
+      "status": "added",
+      "insertions": 305,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/maintenance.py",
+      "status": "modified",
+      "insertions": 429,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "status": "modified",
+      "insertions": 374,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/objects.py",
+      "status": "modified",
+      "insertions": 81,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "status": "modified",
+      "insertions": 669,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/recovery.py",
+      "status": "added",
+      "insertions": 190,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/spool.py",
+      "status": "added",
+      "insertions": 616,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "status": "modified",
+      "insertions": 179,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/workspace.py",
+      "status": "modified",
+      "insertions": 51,
+      "deletions": 3,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/infrastructure/projections.py",
+      "status": "modified",
+      "insertions": 147,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/interfaces/dto.py",
+      "status": "modified",
+      "insertions": 212,
+      "deletions": 1,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/interfaces/local/api.py",
+      "status": "modified",
+      "insertions": 236,
+      "deletions": 16,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/interfaces/local/b_registration.py",
+      "status": "added",
+      "insertions": 73,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/interfaces/local/core_worker.py",
+      "status": "added",
+      "insertions": 306,
+      "deletions": 0,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/interfaces/local/editor_host.py",
+      "status": "modified",
+      "insertions": 84,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/interfaces/local/pipe.py",
+      "status": "modified",
+      "insertions": 481,
+      "deletions": 2,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/panel/src/index.ts",
+      "status": "modified",
+      "insertions": 136,
+      "deletions": 41,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/templates/agent-workflow/1.0.0.json",
+      "status": "modified",
+      "insertions": 41,
+      "deletions": 31,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/templates/http-workflow/1.0.0.json",
+      "status": "modified",
+      "insertions": 59,
+      "deletions": 44,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/templates/manual-web-workflow/1.0.0.json",
+      "status": "modified",
+      "insertions": 45,
+      "deletions": 35,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/templates/python-library/1.0.0.json",
+      "status": "modified",
+      "insertions": 50,
+      "deletions": 42,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/templates/python-service/1.0.0.json",
+      "status": "modified",
+      "insertions": 60,
+      "deletions": 47,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "src/aitest/resources/templates/ticket-workflow/1.0.0.json",
+      "status": "modified",
+      "insertions": 77,
+      "deletions": 59,
+      "audit_status": "product_source_reviewed",
+      "reason": "Full product inventory"
+    },
+    {
+      "path": "tests/__init__.py",
+      "status": "added",
+      "insertions": 0,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/acceptance/p1/status.json",
+      "status": "modified",
+      "insertions": 988,
+      "deletions": 8,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/support/__init__.py",
+      "status": "added",
+      "insertions": 0,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/support/fake_execution.py",
+      "status": "added",
+      "insertions": 212,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/support/fake_unit_of_work.py",
+      "status": "added",
+      "insertions": 25,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/support/memory_model.py",
+      "status": "added",
+      "insertions": 189,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/support/memory_substrate.py",
+      "status": "added",
+      "insertions": 375,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    },
+    {
+      "path": "tests/support/prepared_run_factory.py",
+      "status": "added",
+      "insertions": 656,
+      "deletions": 0,
+      "audit_status": "not_individually_reviewed",
+      "reason": "Outside product-file inventory; tests executed as suite, selected fixtures/documents consulted. No complete per-file claim."
+    }
+  ]
+}
