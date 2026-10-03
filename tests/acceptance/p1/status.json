@@ -1,7 +1,7 @@
 {
-  "version": "0.1",
-  "updated_at": "2026-09-28",
-  "baseline_commit": "eaa315fdc32d606f931c76bc5d71db4f09ee7e91",
+  "version": "0.2",
+  "updated_at": "2026-10-03",
+  "baseline_commit": "0e4bd81",
   "scope": "product_acceptance_not_scaffold_tests",
   "update_rules": {
     "owner_field": "owner 由《一期工程四部分拆分与低对接实施方案》第 5 节确定",
@@ -30,17 +30,17 @@
         "baseline_commit：见顶层字段",
         "交付说明与任务领域模型的修订号（domain/project、domain/planning）"
       ],
-      "actual": "未执行。已具备纯规则与用例层校验：交付说明必填字段缺失时拒绝登记（tests/unit/test_deliveries.py）；缺少上下文时 detect_context_gaps() 返回阻塞缺口且不生成草稿（tests/unit/test_project_context_usecases.py、tests/unit/test_draft_generation.py）。真实落盘与入口提示未接通，未产生任何验收证据。",
+      "actual": "未执行。已具备纯规则与用例层校验：交付说明必填字段缺失时拒绝登记（tests/unit/test_deliveries.py）；缺少上下文时 detect_context_gaps() 返回阻塞缺口且不生成草稿（tests/unit/test_project_context_usecases.py、tests/unit/test_draft_generation.py）。B 侧用例已可经统一入口运行并落盘（tests/unit/test_substrate_adapter.py、tests/contracts/test_b_use_case_registration.py），但保存→重启读回→入口提示的完整产品路径未跑通，未产生任何验收证据。",
       "evidence": {
         "path": null,
         "description": "待补：真实项目输入、阻塞原因截图或日志、落盘记录与修订号",
         "method": "real_entry_then_domain_assertion"
       },
-      "unverified_reason": "缺真实存储落盘与入口提示：交付说明校验目前只在用例层生效，未落盘、未经入口触发，无法证明『不将任务推进为可验收』在真实产品路径上成立。",
+      "unverified_reason": "缺真实产品路径的端到端证据：B 侧用例与落盘已接通，但保存、重启后读回与入口提示尚未在真实路径上跑通，无法证明『不将任务推进为可验收』在真实产品路径上成立。",
       "blockers": [
         {
           "kind": "package_port",
-          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "detail": "真实存储与统一入口的业务链路仍未跑通：保存、重启读回与入口提示未在真实产品路径上验证",
           "resolved_by": "A"
         },
         {
@@ -92,7 +92,7 @@
         "baseline_commit：见顶层字段",
         "模块与依赖图的修订号（domain/project/context.py）"
       ],
-      "actual": "未执行。单模块项目、依赖边方向与循环／自环规则已有单元测试（tests/unit/test_modules_and_dependencies.py）；跨模块传播的『不适用并说明原因』纯规则在应用层具备。未接真实存储与真实执行，无验收证据。",
+      "actual": "未执行。单模块项目、依赖边方向与循环／自环规则已有单元测试（tests/unit/test_modules_and_dependencies.py），已明确没有依赖不被判为缺口也有回归测试（tests/unit/test_project_context_usecases.py::test_a_single_module_without_any_edge_is_not_a_gap，检查项 B-17）；跨模块传播的『不适用并说明原因』纯规则在应用层具备。未接真实存储与真实执行，无验收证据。",
       "evidence": {
         "path": null,
         "description": "待补：单模块项目输入、适用检查结果、跨模块不适用原因",
@@ -102,7 +102,7 @@
       "blockers": [
         {
           "kind": "package_port",
-          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "detail": "真实被测项目尚未建立：项目、模块与绑定未在真实存储上落盘",
           "resolved_by": "A"
         },
         {
@@ -308,7 +308,7 @@
         "baseline_commit：见顶层字段",
         "规则修订（domain/planning/rules.py）、计划修订（domain/planning/plans.py）、模板修订"
       ],
-      "actual": "未执行。规则发布门禁与『发布修订不可变、新版本另存』已有测试（tests/unit/test_rules.py、tests/unit/test_publish_orchestration.py：第二次修订落为新的记录修订）；草稿定向失效已实现（tests/unit/test_draft_generation.py）。真实存储的历史保留与新执行绑定未验证。",
+      "actual": "未执行。规则发布门禁与『发布修订不可变、新版本另存』已有测试（tests/unit/test_rules.py、tests/unit/test_publish_orchestration.py：第二次修订落为新的记录修订），且发布现已核对调用方声明的修订、不符报 B_REVISION_CONFLICT（检查项 B-14）；草稿定向失效已实现（tests/unit/test_draft_generation.py）。真实存储的历史保留与新执行绑定未验证。",
       "evidence": {
         "path": null,
         "description": "待补：变化前后的修订号、旧记录读取结果、新执行绑定的修订",
@@ -318,7 +318,7 @@
       "blockers": [
         {
           "kind": "package_port",
-          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "detail": "变化前后的真实保存与按准确修订读回尚未在真实存储上跑通",
           "resolved_by": "A"
         },
         {
@@ -442,23 +442,23 @@
         "baseline_commit：见顶层字段",
         "六个内置模板修订（resources/templates/*/1.0.0.json）"
       ],
-      "actual": "未执行。六模板结构与草稿生成、来源标注、上下文缺口阻塞均有测试（tests/contracts/test_template_content.py、tests/unit/test_draft_generation.py：缺口存在时不生成草稿、只列缺口）；『生成内容为草稿且无自动发布路径』有反例测试。真实存储落盘与入口执行未接通。",
+      "actual": "未执行。六模板结构与草稿生成、来源标注、上下文缺口阻塞均有测试（tests/contracts/test_template_content.py、tests/unit/test_draft_generation.py：缺口存在时不生成草稿、只列缺口）；『生成内容为草稿且无自动发布路径』有反例测试；草稿现已按 generated_content 记录落盘（application/planning/draft.py、统一入口的生成动作）。真实产品路径上的落盘与入口执行未跑通。",
       "evidence": {
         "path": null,
         "description": "待补：两个项目的草稿结构对比、缺口清单、草稿未进入执行的记录",
         "method": "two_project_draft_comparison"
       },
-      "unverified_reason": "缺真实落盘与入口：草稿目前不落盘，『未确认草稿不进入执行』无法在真实入口上被证伪或证实；git 形态的源码身份分工已裁定但尚未实现。",
+      "unverified_reason": "缺真实产品路径的落盘与入口：草稿已可落盘为记录，但『未确认草稿不进入执行』未在真实入口上被证伪或证实；源码身份（SourceSnapshot）的实现已有、尚未进默认装配。",
       "blockers": [
         {
           "kind": "package_port",
-          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "detail": "真实存储与统一入口的草稿链路未在真实产品路径上跑通",
           "resolved_by": "A"
         },
         {
           "kind": "decision",
-          "detail": "B-Q01／C-Q08：SourceSnapshot 归属待 A 或组长裁定",
-          "resolved_by": "A/组长"
+          "detail": "SourceSnapshot 的规则与身份判据口径已定（DEC-001），端口实现已有但未进默认装配",
+          "resolved_by": "A"
         },
         {
           "kind": "user_entry",
@@ -542,7 +542,7 @@
         "description": "待补：运行中修订记录、正在执行步骤的拒绝结果、依据失效后的暂停与重跑清单",
         "method": "running_revision_sequence_assertion"
       },
-      "unverified_reason": "该项必须在一半已执行的运行上判定，需要步骤级执行事实与运行中修订序列；两者均未交付，故当前无法构造输入，不属『已具备但未跑』。",
+      "unverified_reason": "该项必须在一半已执行的运行上判定，需要步骤级执行事实与运行中修订序列；两者均未交付，故当前无法构造输入，不属『已具备但未跑』。B 侧的领域门禁与决策结果已实现并有回归测试（domain/planning/runtime_revision.py、application/planning/run_mode.py），但运行中修订的落盘与 runner 消费归 C，尚未接通；运行中／正在执行的快照夹具也尚缺（BC-001 第 17 节已列设计）。",
       "blockers": [
         {
           "kind": "execution_facts",
@@ -551,8 +551,8 @@
         },
         {
           "kind": "package_port",
-          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
-          "resolved_by": "A"
+          "detail": "运行中修订的落盘与 runner 消费尚未接通（B 侧领域门禁与决策结果已就绪）",
+          "resolved_by": "C"
         },
         {
           "kind": "real_storage",
@@ -791,22 +791,22 @@
         "baseline_commit：见顶层字段",
         "模板修订、源码清单摘要（domain/project/context.py 的 SourceManifest）"
       ],
-      "actual": "未执行。最小输入与适用检查的选择规则、无模型时人工建计划的路径已在纯规则与用例层具备（tests/unit/test_model_outbound_policy.py、tests/unit/test_prepare_run_flow.py）；plain 形态的 SourceManifest 内容身份有测试（tests/unit/test_source_manifest.py）。尚无真实源码读取与固定。",
+      "actual": "未执行。最小输入与适用检查的选择规则、无模型时人工建计划的路径已在纯规则与用例层具备（tests/unit/test_model_outbound_policy.py、tests/unit/test_prepare_run_flow.py）；plain 形态的 SourceManifest 内容身份有测试（tests/unit/test_source_manifest.py），内容身份算法与 git 形态已实现并有回归测试（domain/project/context.py 的 source_content_identity()、tests/unit/test_source_identity.py），快照记录与读回亦已实现（application/project/persistence.py 的 save_source_snapshot()／load_source_snapshot()、tests/unit/test_source_snapshot_persistence.py）。真实源码读取仍未进默认装配。",
       "evidence": {
         "path": null,
         "description": "待补：两个项目的分析输出、固定内容摘要、分析后源码变化的提示",
         "method": "analysis_then_source_change_assertion"
       },
-      "unverified_reason": "缺 SourceSnapshotPort 的真实读取与按已裁定分工实现的完整 SourceSnapshot：源码读取与摘要计算目前无真实实现，『分析后源码变化提示依据变化』无法在真实字节上验证。",
+      "unverified_reason": "缺默认装配下的真实源码读取：内容身份算法、快照记录与读写已实现，但文件型快照适配未进默认装配，『分析后源码变化提示依据变化』无法在真实字节上验证。",
       "blockers": [
         {
           "kind": "decision",
-          "detail": "B-Q01／C-Q08：SourceSnapshot 分工已裁定，字段与适配待实现",
-          "resolved_by": "A/组长"
+          "detail": "SourceSnapshot 的规则与身份判据口径已定（DEC-001 与 AB-001 第 11 节），字段与适配已有实现",
+          "resolved_by": "A"
         },
         {
           "kind": "package_port",
-          "detail": "SourceSnapshotPort 无方法签名（B-Q02 同组）",
+          "detail": "文件型快照适配器未进默认装配：pin／read_pinned／materialize／detect_changes 已有实现，但未注入默认核心",
           "resolved_by": "A"
         },
         {
@@ -839,13 +839,13 @@
         "baseline_commit：见顶层字段",
         "档位／驱动／结论上限（contracts/prepared_run.py）、授权命令（contracts/commands.py）"
       ],
-      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。确认记录、MCP 反例与真实副作用动作均未接通。",
+      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。受控依据确认动作已接入统一入口（confirm_assertion_basis，检查项 B-01，tests/contracts/test_confirm_assertion_basis_entrypoint.py）；MCP 反例与真实副作用动作尚未接通。",
       "evidence": {
         "path": null,
         "description": "待补：每个动作的确认记录、变更后原授权失效的记录、MCP 三条反例的拒绝结果",
         "method": "per_action_authorization_assertion"
       },
-      "unverified_reason": "缺真实副作用动作、确认记录落盘与 MCP relay 入口：B 只拥有档位／范围与授权边界规则，『每个副作用动作单独有确认记录』的载体（D 的入口 + A 的保存）尚未交付。",
+      "unverified_reason": "缺真实副作用动作、确认记录的完整落盘链与 MCP relay 入口：B 侧受控确认动作与边界规则已就绪，『每个副作用动作单独有确认记录』在真实入口与真实介质上尚未验证。",
       "blockers": [
         {
           "kind": "user_entry",
@@ -854,7 +854,7 @@
         },
         {
           "kind": "package_port",
-          "detail": "A 在 application/ports.py 提供方法签名（B-Q02）",
+          "detail": "确认记录在真实入口与真实介质上的完整落盘链未跑通",
           "resolved_by": "A"
         },
         {
@@ -885,23 +885,23 @@
         "baseline_commit：见顶层字段",
         "模型出站策略修订（domain/planning/model_outbound.py）、请求编排（application/planning/model_orchestration.py）"
       ],
-      "actual": "未执行。出站准入九条门禁、`source_snippets` 默认关闭、接收地址或材料类别变化后重新确认、关闭 AI 阻止新请求而人工路径继续，均有纯规则测试（tests/unit/test_model_outbound_policy.py）与编排测试（tests/unit/test_model_orchestration.py，走内存替身）。真实脱敏字节、真实凭据解析与真实调用未做。",
+      "actual": "未执行。出站准入九条门禁、`source_snippets` 默认关闭、接收地址或材料类别变化后重新确认、关闭 AI 阻止新请求而人工路径继续，均有纯规则测试（tests/unit/test_model_outbound_policy.py）与编排测试（tests/unit/test_model_orchestration.py，走内存替身）。三个模型端口在 application/ports.py 已有签名与适配器实现（ModelProvider／ProjectionPort／SecretPort），但未进默认装配，故真实脱敏字节、真实凭据解析与真实调用仍无法验证。",
       "evidence": {
         "path": null,
         "description": "待补：首次调用前的确认记录、实际出站材料与脱敏结果、关闭 AI 后的阻断结果",
         "method": "real_outbound_material_assertion"
       },
-      "unverified_reason": "缺真实出站端口：出站编排目前全部经内存替身（tests/support/memory_model.py），『仅发送选定脱敏材料』无法在真实字节上验证；B-Q06（模型请求是否需逐项授权）口径也未裁定。",
+      "unverified_reason": "缺默认装配下的真实出站端口：三个模型端口已有签名与适配器实现，但默认装配未注入（出站编排仍走内存替身 tests/support/memory_model.py），『仅发送选定脱敏材料』无法在真实字节上验证。",
       "blockers": [
         {
           "kind": "package_port",
-          "detail": "ProjectionPort／SecretPort／ModelProvider 无方法签名（B-Q03）",
+          "detail": "ProjectionPort／SecretPort／ModelProvider 未进默认装配：签名与适配器已有，默认核心未注入",
           "resolved_by": "A"
         },
         {
           "kind": "decision",
-          "detail": "B-Q06：模型出站请求本身是否需逐项授权待裁定",
-          "resolved_by": "A/D"
+          "detail": "凭据解析的形状差异（B 只取状态、A 的 SecretPort 要求引用并返回受控对象）待 A 选定收敛方式",
+          "resolved_by": "A"
         },
         {
           "kind": "user_entry",
