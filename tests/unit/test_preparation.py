@@ -229,6 +229,53 @@ def test_conflict_takes_precedence_over_changed_revisions() -> None:
     assert lookup.changed_inputs == ()
 
 
+# ---------------------------------------- 源码内容身份（`DEC-009` 选丙）
+
+
+def test_changed_snapshot_identity_needs_reprepare_even_with_the_same_revisions() -> (
+    None
+):
+    """**源码内容变了就必须重新准备**，即使所有修订号都相同。
+
+    这条是 `DEC-009` 选丙的可执行证据：源码快照按内容寻址、其记录恒为修订 1，
+    因此"源码变了"**只能**由内容身份比出来；只比修订号会漏掉这种变化。
+    """
+    record = _record(
+        request=_request(observed_snapshot_identity="sha256:source-a")
+    )
+    incoming = _request(
+        # 八个修订号**全都一样**——只有内容身份不同。
+        input_revisions=_revisions(),
+        observed_snapshot_identity="sha256:source-b",
+    )
+    lookup = decide_preparation(incoming, record)
+    assert lookup.decision is PreparationDecision.NEEDS_REPREPARE
+    assert lookup.intent_id == "intent-1"
+    # 沿用既有名字，失效提示与 `changed_inputs` 形状不变。
+    assert lookup.changed_inputs == ("snapshot_revision",)
+
+
+def test_an_unchanged_snapshot_identity_reuses() -> None:
+    """内容身份相同 → 复用；这是上一条的对照，避免"一律重新准备"。"""
+    record = _record(
+        request=_request(observed_snapshot_identity="sha256:source-a")
+    )
+    lookup = decide_preparation(
+        _request(observed_snapshot_identity="sha256:source-a"), record
+    )
+    assert lookup.decision is PreparationDecision.REUSED
+    assert lookup.intent_id == "intent-1"
+
+
+def test_historical_records_without_the_identity_are_not_forced_to_reprepare() -> None:
+    """本次新增字段**之前**的记录没有该值：缺失不算变化，否则历史记录会被一律判成需重新准备。"""
+    record = _record(request=_request(observed_snapshot_identity=None))
+    lookup = decide_preparation(
+        _request(observed_snapshot_identity="sha256:source-a"), record
+    )
+    assert lookup.decision is PreparationDecision.REUSED
+
+
 # ------------------------------------------------------------------ 取消语义
 
 

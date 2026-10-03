@@ -93,6 +93,7 @@ from aitest.application.planning.model_ports import (
 from aitest.application.planning.persistence import (
     save_acceptance_scope,
     save_case,
+    save_confirmation,
     save_rule_draft,
 )
 from aitest.application.planning.plan_builder import build_plan
@@ -216,6 +217,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_dependency_graph",
         "save_acceptance",
         "save_case",
+        "confirm_assertion_basis",
         "save_task",
         "save_delivery",
         "generate_draft",
@@ -301,6 +303,24 @@ def _optional_text(value: object, name: str) -> str | None:
     if value is None:
         return None
     return _as_text(value, name)
+
+
+def _confirmation_identity(*, case_id: str, basis_revision: int) -> str:
+    """一条依据确认的**稳定记录标识**（检查项 B-01）。
+
+    确认是**追加**记录（`save_confirmation()` 没有 `expected_revision`），且既有约定是
+    "同一 `confirmation_id` 再登记一次**冲突而不是静默覆盖**"
+    （见 `tests/unit/test_planning_persistence_real_store.py` 的说明）。
+    因此标识必须**只由被确认的事实决定**，不能包含提交序号或时间：
+
+    - 同一 `(用例, 依据修订)` 重复确认 → **同一个标识** →
+      报 `B_REVISION_CONFLICT`（如实告诉调用方"已经确认过"）；
+    - 依据修订变了 → **新标识** → 作为新确认追加，旧确认按原样读得到。
+
+    形状与既有夹具一致（`tests/support/prepared_run_factory.py` 的 `confirmation-{case_id}`），
+    并带上依据修订以区分同用例的不同依据。
+    """
+    return f"confirmation-{case_id}-r{basis_revision}"
 
 
 def _stage_result(
@@ -1545,6 +1565,93 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             )
         return {"imported": stored}
 
+    def handle_confirm_assertion_basis(command: object) -> Mapping[str, object]:
+        """受控确认一条**存在的**断言依据（检查项 B-01）。
+
+        调用方只能声明"**我核对了哪个用例的哪一版依据**"：
+
+        | 参数 | 谁给 | 说明 |
+        | --- | --- | --- |
+        | `case_id` | 调用方 | 确认必须绑定具体用例 |
+        | `case_revision` | 调用方 | **准确**用例修订，不接受"最新" |
+        | `basis_text_digest` | 调用方 | 调用方**宣称**核对的摘要；必须与那份用例记录一致 |
+
+        **系统派生、调用方不得自称**：
+
+        | 字段 | 派生方式 |
+        | --- | --- |
+        | `basis_revision` | 取自已读回用例的 `assertion_basis.revision` |
+        | `confirmation_id` | 同一事实同一标识（见 `_confirmation_identity`） |
+        | `confirmed_at_commit` | **保存前**的 `next_commit_seq()`；保存返回后它已前进 |
+
+        **为什么不能省掉比对**：`ConfirmationRecord` 构造时**不校验依据是否存在**
+        （可传入任意 `basis_revision` / 摘要），只凭调用方声明就会记下一条
+        "确认了某个不存在的依据"的记录——那种记录将来永远匹配不上任何依据，
+        却看起来像已确认。因此这里先用**准确用例修订**读回记录并逐字比对依据摘要。
+        """
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        case_id = _as_text(_required(parameters, "case_id"), "case_id")
+        case_revision = _revision_of(
+            _required(parameters, "case_revision"), "case_revision"
+        )
+        claimed_digest = _as_text(
+            _required(parameters, "basis_text_digest"), "basis_text_digest"
+        )
+
+        try:
+            record = deps.reader.read(
+                aggregate_kind="case", record_id=case_id, revision=case_revision
+            )
+        except Exception as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER",
+                f"no case {case_id}@{case_revision} to confirm",
+            ) from error
+        try:
+            case = case_from_payload(record.payload)
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"unreadable case record: {error}"
+            ) from error
+
+        basis = case.assertion_basis
+        if basis.revision < 1:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER",
+                f"case {case_id}@{case_revision} carries no assertion basis to confirm",
+            )
+        if claimed_digest != basis.text_digest:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER",
+                "the confirmed basis text digest does not match the one recorded "
+                f"on case {case_id}@{case_revision}",
+            )
+
+        confirmation = ConfirmationRecord(
+            confirmation_id=_confirmation_identity(
+                case_id=case_id, basis_revision=basis.revision
+            ),
+            case_id=case_id,
+            basis_revision=basis.revision,
+            basis_text_digest=basis.text_digest,
+            # 保存**之前**取本次提交序号；保存返回后它已经前进（见 `_stage_result` 的说明）。
+            confirmed_at_commit=deps.unit_of_work.next_commit_seq(),
+        )
+        staged = save_confirmation(
+            confirmation, project_id=project_id, unit_of_work=deps.unit_of_work
+        )
+        return {
+            **_stage_result(
+                aggregate_kind=staged.aggregate_kind,
+                record_id=staged.record_id,
+                revision=staged.revision,
+            ),
+            "confirmation_id": confirmation.confirmation_id,
+            "basis_revision": basis.revision,
+            "confirmed_at_commit": confirmation.confirmed_at_commit,
+        }
+
     def handle_export_rules_markdown(command: object) -> Mapping[str, object]:
         """导出规则为 **Markdown**（需求 P1-FR05 的"Markdown 导入导出"）。
 
@@ -1916,6 +2023,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_dependency_graph": _guard(handle_save_dependency_graph),
         "save_acceptance": _guard(handle_save_acceptance),
         "save_case": _guard(handle_save_case),
+        "confirm_assertion_basis": _guard(handle_confirm_assertion_basis),
         "save_task": _guard(handle_save_task),
         "save_delivery": _guard(handle_save_delivery),
         "generate_draft": _guard(handle_generate_draft),
