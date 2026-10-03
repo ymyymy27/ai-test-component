@@ -20,6 +20,14 @@ SCHEMA_VERSION_PROJECT = "aitest.project/2.0"
 SCHEMA_VERSION_TASK = "aitest.task/2.0"
 SCHEMA_VERSION_DELIVERY = "aitest.delivery/2.0"
 
+#: 源码内容身份算法的版本标识（`AB-001` 第 11.3 节）。
+#:
+#: **这个标识描述的是"规范字节的写法"，不是任何记录的 Schema 版本。**
+#: 它必须随算法**任何**改动一起升版（改字段顺序、改分隔符、改摘要前缀、
+#: 改参与计算的字段集合等），否则同一份源码在不同版本下算出的身份无法区分。
+#: 与 `aitest.source-snapshot/1.0`（A 的快照 blob 记录版本）**不是一回事**。
+SOURCE_CONTENT_IDENTITY_VERSION = "aitest.source-content-identity/1.0"
+
 
 def _require_text(value: str, name: str) -> None:
     """空文本不是合法取值；不适用一律用 ``None``。"""

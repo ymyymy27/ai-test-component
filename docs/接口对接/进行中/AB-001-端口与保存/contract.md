@@ -11,7 +11,7 @@ verification_status: not_run
 last_verified_commit: null
 blockers: []
 next_owner: A
-next_action: 第 8.16 节逐条确认：①把 ProjectionPort／ModelProvider／凭据解析注入默认装配；②确认模型与运行修订动作由谁接入统一入口与能力声明；③凭据解析形状冲突（B 要"只有状态"、A 的端口要求引用且返回明文）按候选甲/乙收敛；④第 11 节 Q1/Q2 兼容性结论仍待 C 回写
+next_action: A 确认第 8.16.3 节三项（模型端口注入默认装配／模型与运行修订动作接入统一入口／凭据解析形状冲突按候选甲或乙收敛）；B 出 `running` 快照草案与"半程运行"证据口径（见 `已完成/BC-001` 第 16.2 节）；B 定 Q4（快照是否登记为来源修订）
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
@@ -884,6 +884,7 @@ B 目前只依赖它在**同一项目内单调**。一期若允许多项目共�
 | 2026-10-03 | 1.3 | 补第 8.14 节：保存语义——**`case` / `acceptance_scope` 的正文修订必须等于这次分配的仓储修订**（`expected_revision + 1`），不符报 `B_REVISION_CONFLICT`；**调用方不能再跳号或复用旧修订号**。对应检查文档 2026-10-03 版 B-11。**不改端口签名与跨包 Schema 字节**；`rule_draft` 与 `plan` 未纳入，待定口径登记在待解决问题清单第 7 节 | B 包（知悉性登记） |
 | 2026-10-03 | 1.4 | 补第 8.15 节：**新增两个规则 Markdown 出口动作**（`export_rules_markdown` / `import_rules_markdown`，动作表 17 → 19），登记两条行为约定（导入恒为草稿、Markdown 不承载本地发布追溯）与方言要点（不引入 YAML 依赖）。对应检查文档 2026-10-03 版 B-04 末句。**不改端口签名与跨包 Schema 字节**；方言由 B 定义，D 侧不做第二套渲染 | B 包（知悉性登记） |
 | 2026-10-03 | 1.5 | 补第 8.16 节：**模型出站与运行修订的端口现状、装配与逐条待确认项**（对应 B-01／B-03／B-10 的真实端口部分）。实测登记：B 的三个只读方法**已冻结**、A 的三个模型端口**已有签名与适配器**、类型经 `ports.py` **共用同一套**；缺口在**默认装配**与**动作注册**，另有**凭据解析形状冲突**（B 要"只有状态"，A 的 `SecretPort.resolve` 要求引用且返回明文）给出甲乙两案。同步更新第 11.7 节（B 侧 `content_identity` 落地与 Q3 迁移说明）。**本节不改端口签名** | B 包（待 A 逐条确认） |
+| 2026-10-03 | 1.6 | **第 11.5 节由"待 C 确认"改为"C 侧执行兼容性结论（已回写）"**：Q1 `plain` 必须真正省略 Git 键（C 按"键不存在"处理）、Q2 纯新增不复制第二套模型且主版本待 Q3 定；新增 **第 11.7.1 节函数接口规格**（模块／输入类型／规范字节／返回／异常／版本标识 `SOURCE_CONTENT_IDENTITY_VERSION`）与 **第 11.7.2 节 `content_digest` 前缀口径**（实测裸十六进制与带前缀会算出**不同身份**，故统一为构造处加 `sha256:` 前缀）。**不改端口签名与跨包 Schema 字节；代码仅新增一个版本常量** | B 包（待 C 落地） |
 
 ---
 
@@ -986,17 +987,17 @@ detect_changes(snapshot_id) -> 变化清单
     无法证明"未变"时不得报"未变"
 ```
 
-### 11.5 待 C 确认（执行兼容性，不是归属问题）
+### 11.5 C 侧执行兼容性结论（2026-10-03 已回写）
 
-| # | 待确认项 | 责任方 | 下一动作 | 阻塞影响 |
-| --- | --- | --- | --- | --- |
-| Q1 | §11.1 形式互斥是否符合 C 侧对 `plain` 的解析预期 | C | 在本文档追加确认 | 不阻塞现状（现行 `SourceSnapshot` 不含这些字段） |
-| Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 现有 `SourceFile`／`SourceSnapshot` 兼容 | C | 同上 | 决定 C 的补字段改动是否为纯新增 |
-| Q3 | §11.3 `content_identity` 改由 B 口径计算后，C 现有 `content_identity` 构造值如何迁移 | B＋C | B 给迁移说明 | 决定是否需提升 Schema 主版本 |
-| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | B | B 在 BD/BC 合同中引用本节 | 影响 `PreparedRun` 快照修订语义 |
+| # | 事项 | C 侧结论（2026-10-03） | 后续 |
+| --- | --- | --- | --- |
+| Q1 | §11.1 形式互斥是否符 C 对 `plain` 的解析预期 | **符合**。`plain` **必须真正省略** Git 键，**不能写 `null`、空串或 `unknown`**；C 按"**键不存在**"处理 | 已确认，C 按此落地 |
+| Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 兼容 | **兼容**。与现有 `SourceFile` 兼容；`SourceSnapshot` 这些字段按**纯新增**处理，**不复制第二套模型**；只补字段、不改旧字段语义，**原则上不需提升主版本**。`binding_revision` 保持 `int`、语义收紧为 `>= 1`；`purpose` 在 C 落地时按 `analysis`／`prepare` 约束 | **是否提升主版本等 Q3 的 `content_identity` 迁移说明确认后再定**（见第 11.7 节） |
+| Q3 | `content_identity` 迁移说明 | **B 已给**（第 11.7 节）。C 明确要求：**不得由 C 自行重算**，必须复用 B 的 `source_content_identity()`；**C 只保存返回值与引用，不复制算法** | 见第 11.7 节的函数接口 |
+| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | **仍待 B**（未定） | B 在 BC／BD 合同中引用本节 |
 
-**B 侧下一步**：本节字段口径已定（见本节开头说明）。C 回写 Q1／Q2 的执行兼容性结论后，
-按**新的契约 PR** 在 `domain/execution/sources.py` 补齐字段；字段实现不在本合同内散改。
+**C 侧落地前提已满足**：C 明确"把 Q1／Q2 的回复和函数接口补到对应合同后，再按新契约 PR 落地"。
+本节与第 11.7 节即为该前提。**字段实现不在本合同内散改**，仍在 `domain/execution/sources.py` 走新的契约 PR。
 
 ### 11.6 本节不改变的事项
 
@@ -1035,6 +1036,51 @@ detect_changes(snapshot_id) -> 变化清单
    （旧记录身份不静默覆盖，登记迁移方式）。
 5. **B 侧不做的事**：不新加快照端口签名、不改 `domain/execution/sources.py`、
    不自行执行 `git`——`git_base_commit` / `git_diff_digest` 由 A 的端口给出。
+
+#### 11.7.1 函数接口规格（C 落地时按此引用，**不得复制算法**）
+
+C 于 2026-10-03 明确要求："请把函数所在模块、输入类型、编码/摘要前缀、异常语义和版本标识固定下来；C 只保存返回值与引用，不复制算法。" 以下为固定值（**2026-10-03 实测**，非约定值）：
+
+| 项 | 固定值 |
+| --- | --- |
+| **模块** | `aitest.domain.project.context` |
+| **函数** | `source_content_identity(manifest: SourceManifest) -> str` |
+| **输入类型** | **`SourceManifest` 对象**（不是文件列表）；其 `files` 为 `tuple[SourceFileDigest, ...]`，`SourceFileDigest` 的字段是 `relative_path` / `size` / `content_digest` / `mtime_hint` |
+| **规范字节** | 每个文件一行 `<relative_path>\t<size>\t<content_digest>`，**按 `relative_path` 升序**，用 `\n` 连接；**末尾追加一行**形态身份：`git:<git_base_commit>:<git_diff_digest>` 或 `plain:<plain_manifest_digest>` |
+| **返回值** | `"sha256:"` + sha256(规范字节 UTF-8) 的 64 位小写十六进制（总长 71） |
+| **异常语义** | 该函数**不抛异常**；输入校验发生在 `SourceManifest`／`SourceFileDigest` **构造时**（`ValueError`） |
+| **版本标识** | 常量 `SOURCE_CONTENT_IDENTITY_VERSION = "aitest.source-content-identity/1.0"`（同模块，2026-10-03 新增） |
+
+**版本标识的口径**（避免与 A 的版本混用）：
+
+- `SOURCE_CONTENT_IDENTITY_VERSION` 描述的是**规范字节的写法**，不是任何记录的 Schema 版本；
+- 算法**任何**改动（字段顺序、分隔符、摘要前缀、参与计算的字段集合）都必须同时升版；
+- 它与 `aitest.source-snapshot/1.0`（**A** 的快照 blob 记录版本）**不是一回事**，不得互相替代。
+
+#### 11.7.2 `content_digest` 的前缀口径（**落地前必须统一**）
+
+**实测事实（2026-10-03）**：
+
+| 位置 | 现状 |
+| --- | --- |
+| B 的 `SourceFileDigest.content_digest` | **不校验格式**，接受任意非空字符串（`'abc'`、`'ABC'` 均通过） |
+| B 的夹具 | 写作**带前缀** `sha256:...` |
+| A 的 `infrastructure/adapters/source_snapshot.py` | 逐文件记录**裸十六进制** `sha256`（字段名也叫 `sha256`，不是 `content_digest`） |
+| C 的 `domain/execution/sources.py` 的 `SourceFile` | 字段名 `sha256`、**裸十六进制** |
+
+**风险（已实测，不是推测）**：同一个文件、同样大小，
+`content_digest='deadbeef'` 与 `'sha256:deadbeef'` 算出的身份**不同**
+（实测 `sha256:393f0fef…` vs `sha256:5f2e536e…`）。因为 `content_digest` **原样进入**规范字节，
+前缀风格不同即身份不同——**同一份源码会出现两个身份**。
+
+**统一口径（本节即契约）**：
+
+1. **进入 `SourceManifest` 之前必须统一为带前缀形式** `sha256:<64 位小写十六进制>`；
+2. A 的裸十六进制与 C 的 `SourceFile.sha256` **在构造 `SourceFileDigest` 时加前缀**，
+   转换只做一次、位置在**构造处**，不在算法内；
+3. **不修改 A 的端口输出格式、不修改 C 的 `SourceFile` 字段名**（属各自目录）；
+   转换由需要构造 `SourceManifest` 的一方完成；
+4. C 引用 B 的函数时，**必须**用带前缀的清单，否则身份与 B 不一致。
 
 **仍然待办（不因本节完成而关闭）**：
 
