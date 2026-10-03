@@ -51,7 +51,7 @@ def test_healthy_workspace_passes(root: Path) -> None:
     digest = _publish_object(root, b"evidence-bytes")
     records = root / "records.json"
     records.write_text(
-        json.dumps({"records": {"x": {"r": [{"evidence": digest}]}}, "commit": 1}),
+        json.dumps({"records": {"x": {"r": [{"object_digest": digest}]}}, "commit": 1}),
         encoding="utf-8",
     )
     report = check_workspace(root)
@@ -123,7 +123,7 @@ def test_references_in_all_permanent_records_must_resolve(
     path = root / record_location
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"attachments": [{"digest": digest, "name": "a.png"}]}),
+        json.dumps({"attachments": [{"artifact_digest": digest, "name": "a.png"}]}),
         encoding="utf-8",
     )
     assert check_workspace(root)["ok"] is True
@@ -143,7 +143,7 @@ def test_jsonl_ledgers_are_line_validated_and_closure_checked(root: Path) -> Non
     ledger = root / "diagnostics" / "connection-facts.jsonl"
     ledger.parent.mkdir(parents=True, exist_ok=True)
     ledger.write_text(
-        json.dumps({"fact": "x", "attachment": digest}) + "\n", encoding="utf-8"
+        json.dumps({"fact": "x", "artifact_digest": digest}) + "\n", encoding="utf-8"
     )
     assert check_workspace(root)["ok"] is True
 
@@ -231,7 +231,7 @@ def test_salvaged_partial_output_keeps_closure_verifiable(root: Path) -> None:
 def test_portable_backup_closure_verifies_and_restores(root: Path, tmp_path: Path) -> None:
     digest = _publish_object(root, b"portable evidence")
     (root / "records.json").write_text(
-        json.dumps({"records": {"e": {"r": [{"d": digest}]}}, "commit": 1}),
+        json.dumps({"records": {"e": {"r": [{"object_digest": digest}]}}, "commit": 1}),
         encoding="utf-8",
     )
     store = FileBackupStore(root)

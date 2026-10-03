@@ -42,17 +42,30 @@ class HttpTransport(Protocol):
     ) -> HttpResponse: ...
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """拒绝一切自动重定向。
+
+    默认 HTTPRedirectHandler 会跟随 3xx 并把 Authorization 头转发到未确认
+    的另一域（A-13）。返回 None 后 urllib 对 3xx 直接抛 HTTPError，由上层
+    归类；需要重定向时必须重新确认 endpoint 后发起新请求。
+    """
+
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
+
+
 class UrllibTransport:
     """urllib 传输；网络错误以原始异常抛出，由上层归类。"""
+
+    def __init__(self) -> None:
+        self._opener = urllib.request.build_opener(_NoRedirectHandler())
 
     def post(
         self, url: str, *, headers: dict[str, str], body: bytes, timeout_seconds: float
     ) -> HttpResponse:
         request = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(  # noqa: S310
-                request, timeout=timeout_seconds
-            ) as response:
+            with self._opener.open(request, timeout=timeout_seconds) as response:  # noqa: S310
                 return HttpResponse(status=response.status, body=response.read())
         except urllib.error.HTTPError as error:
             return HttpResponse(status=error.code, body=error.read())
@@ -122,6 +135,9 @@ class HttpModelProvider:
             return self._failed("auth", response)
         if response.status == 429:
             return self._failed("rate_limit", response)
+        if 300 <= response.status < 400:
+            # 传输层不自动跟随重定向，Authorization 不会转发到未确认的目标域。
+            return self._failed("unconfirmed_redirect", response)
         if response.status in {400, 413, 422}:
             return self._failed("input_limit", response)
         if response.status >= 400:

@@ -66,12 +66,20 @@ def test_check_peer_identity_rejects_both_cross_session_and_user() -> None:
 
 
 def test_check_peer_identity_rejects_empty_sid() -> None:
-    with pytest.raises(PeerRejected, match="跨用户"):
+    # A-18：空 SID 直接拒绝，不能与空期望“相等”而被接受。
+    with pytest.raises(PeerRejected, match="空用户 SID"):
         check_peer_identity(
             client_session_id=100,
             expected_session_id=100,
             client_user_sid="",
             expected_user_sid="S-1-5-21-user",
+        )
+    with pytest.raises(PeerRejected, match="空用户 SID"):
+        check_peer_identity(
+            client_session_id=100,
+            expected_session_id=100,
+            client_user_sid="",
+            expected_user_sid="",
         )
 
 

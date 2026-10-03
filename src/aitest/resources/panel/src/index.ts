@@ -72,9 +72,13 @@ class AITestPanel extends HTMLElement {
   }
 
   private phaseSection(): HTMLElement {
+    // “当前测试”是区块标题，不属于阶段摘要本身：phase-summary 内只允许
+    // 三个阶段标题（运行前/运行时/运行后），标题放在外层（Playwright 按
+    // role=heading 核对阶段数时不得把区块标题计入）。
+    const fragment = document.createElement("div");
+    const title = document.createElement("h2"); title.textContent = "当前测试";
     const section = document.createElement("section");
     section.dataset.testid = "phase-summary";
-    const title = document.createElement("h2"); title.textContent = "当前测试";
     const grid = document.createElement("div"); grid.className = "phases";
     for (const [phase, state, description] of phases) {
       const card = document.createElement("article"); card.className = "phase";
@@ -84,8 +88,9 @@ class AITestPanel extends HTMLElement {
       const detail = document.createElement("p"); detail.className = "muted"; detail.textContent = description;
       card.append(name, current, detail); grid.append(card);
     }
-    section.append(title, grid);
-    return section;
+    section.append(grid);
+    fragment.append(title, section);
+    return fragment;
   }
 
   private aiSection(): HTMLElement {

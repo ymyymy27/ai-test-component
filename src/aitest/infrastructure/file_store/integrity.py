@@ -6,10 +6,16 @@
    出现在任何位置都视为越界（解析后仍可能逃出工作空间）。
 2. **结构化材料可解析**：所有永久 ``*.json`` 必须是合法 JSON；永久
    JSONL 段（事件日志、各类审计/台账）逐行可解析，撕裂尾行显式报错。
-3. **对象内容摘要**：``objects/<project>/<sha256>`` 字节摘要必须与名一致。
+3. **对象内容摘要**：``objects/<project>/<sha256>`` 字节摘要必须与名一致；
+   ``snapshots/blobs/<sha256>`` 固定字节同样核对，且每个快照清单
+   ``snapshots/<snapshot_id>.json`` 的 ``files[].sha256`` 必须在 blob 区可达。
 4. **永久引用闭包**：记录、提交台账、事件、诊断、导出、报告、历史世代
-   及附件链接中的每个 ``sha256:<hex>`` 引用都必须有可达对象；spool
-   清单引用按输出流切片逐块核对摘要与游标边界。
+   及附件链接中，**只有对象引用键**（``object_digest``、
+   ``output_object_digest``、``artifact_digest``）携带的 ``sha256:<hex>``
+   才构成对 ``objects/`` 的闭包引用；内联指纹（``content_digest``、
+   ``projection_digest``、规则/计划 ``digest`` 等）只是对自身字节的校验
+   值，不要求存在同名对象。spool 清单引用按输出流切片逐块核对摘要与游标
+   边界。
 
 活动暂存（``event-log/staging``）的撕裂字节属于崩溃后正常材料，由事件
 日志恢复编排在对账阶段处理，不在本检查中判损坏；隐藏临时遗留（``.``
@@ -26,6 +32,17 @@ from typing import Any, Final
 
 _DIGEST_RE: Final = re.compile(r"^sha256:([0-9a-f]{64})$")
 _HEX64_RE: Final = re.compile(r"^[0-9a-f]{64}$")
+
+#: 指向 ``objects/<project>/<sha256>`` 内容寻址对象的引用键白名单。
+#: 只有这些键携带的 ``sha256:<hex>`` 参与对象闭包核对；其余键名下的
+#: 摘要均为内联指纹（内容/投影/规则/计划等），不要求存在同名对象（A-06）。
+_OBJECT_REF_KEYS: Final = frozenset(
+    {
+        "object_digest",
+        "output_object_digest",
+        "artifact_digest",
+    }
+)
 
 #: 根目录允许的永久/运行期文件。
 _ALLOWED_TOP_FILES: Final = frozenset(
@@ -70,19 +87,25 @@ _ALLOWED_TOP_DIRS: Final = frozenset(
 _STAGING_PREFIX: Final = ("event-log", "staging")
 
 
-def _iter_digest_refs(value: Any) -> list[str]:
-    """递归收集 ``sha256:<hex>`` 形式的永久对象引用。"""
+def _iter_digest_refs(value: Any, *, key: str | None = None) -> list[str]:
+    """递归收集对象引用键携带的 ``sha256:<hex>`` 永久对象引用。
+
+    仅当字符串挂在白名单对象引用键下才计入闭包；内联摘要键（甚至任意
+    其他键名）携带的同形字符串不构成对 ``objects/`` 的引用（A-06）。
+    数组元素继承其所在字段的键名。
+    """
     found: list[str] = []
     if isinstance(value, str):
-        match = _DIGEST_RE.match(value)
-        if match is not None:
-            found.append(match.group(1))
+        if key in _OBJECT_REF_KEYS:
+            match = _DIGEST_RE.match(value)
+            if match is not None:
+                found.append(match.group(1))
     elif isinstance(value, dict):
-        for nested in value.values():
-            found.extend(_iter_digest_refs(nested))
+        for child_key, nested in value.items():
+            found.extend(_iter_digest_refs(nested, key=str(child_key)))
     elif isinstance(value, list):
         for nested in value:
-            found.extend(_iter_digest_refs(nested))
+            found.extend(_iter_digest_refs(nested, key=key))
     return found
 
 
@@ -242,6 +265,45 @@ def _check_permanent_record(
             referenced.update(_iter_digest_refs(data))
 
 
+def _verify_snapshot_manifests(
+    root: Path,
+    manifests: list[Path],
+    blob_digests: set[str],
+    errors: list[str],
+) -> None:
+    """每个快照清单的 files[].sha256 必须在 snapshots/blobs 可达（A-BACKUP-02）。"""
+    for path in manifests:
+        location = _rel(path, root)
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append(f"{location}: {exc}")
+            continue
+        if not isinstance(record, dict):
+            errors.append(f"{location}: snapshot manifest must be an object")
+            continue
+        files = record.get("files", [])
+        if not isinstance(files, list):
+            errors.append(f"{location}: snapshot files must be a list")
+            continue
+        for raw in files:
+            if not isinstance(raw, dict):
+                errors.append(f"{location}: snapshot file entry must be an object")
+                continue
+            relative = raw.get("relative_path")
+            digest = raw.get("sha256")
+            if not isinstance(relative, str) or not isinstance(digest, str):
+                errors.append(f"{location}: malformed snapshot file entry")
+                continue
+            if not _HEX64_RE.match(digest):
+                errors.append(f"{location}: invalid blob digest for {relative}")
+            elif digest not in blob_digests:
+                errors.append(
+                    f"{location}: unreachable snapshot blob sha256:{digest} "
+                    f"for {relative}"
+                )
+
+
 def check_workspace(root: Path) -> dict[str, object]:
     """对已提交工作空间边界执行显式完整检查（只读）。"""
     root = root.resolve()
@@ -253,6 +315,8 @@ def check_workspace(root: Path) -> dict[str, object]:
 
     objects = 0
     object_digests: set[str] = set()
+    snapshot_blob_digests: set[str] = set()
+    snapshot_manifests: list[Path] = []
     for path in root.rglob("*"):
         if path.is_symlink():
             errors.append(f"unexpected symlink: {_rel(path, root)}")
@@ -281,6 +345,26 @@ def check_workspace(root: Path) -> dict[str, object]:
                 )
             continue
 
+        # 快照固定字节：仅接受 snapshots/blobs/<sha256>，内容摘要必须与名一致。
+        if parts and parts[0] == "snapshots":
+            if len(parts) == 3 and parts[1] == "blobs":
+                if _HEX64_RE.match(name):
+                    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+                    snapshot_blob_digests.add(name)
+                    if actual != name:
+                        errors.append(f"digest mismatch: {_rel(path, root)}")
+                else:
+                    errors.append(
+                        "snapshot blob outside snapshots/blobs/<sha256>: "
+                        f"{_rel(path, root)}"
+                    )
+                continue
+            if len(parts) == 2 and path.suffix.lower() == ".json":
+                # 快照清单走专用 blob 闭包核对（files[].sha256 为裸 hex，
+                # 不属于 objects/ 引用），不再进入通用永久记录扫描。
+                snapshot_manifests.append(path)
+                continue
+
         # 活动暂存允许撕裂，由事件日志恢复编排处理。
         if parts[:2] == _STAGING_PREFIX:
             continue
@@ -296,7 +380,11 @@ def check_workspace(root: Path) -> dict[str, object]:
         if path.suffix.lower() in {".json", ".jsonl"}:
             _check_permanent_record(path, root, errors, referenced)
 
-    # 永久引用闭包：每条 sha256 引用都必须有可达且摘要一致的对象。
+    # 快照清单闭包：每个 files[].sha256 必须有可达且摘要一致的 blob。
+    _verify_snapshot_manifests(
+        root, snapshot_manifests, snapshot_blob_digests, errors
+    )
+    # 永久引用闭包：每条对象引用都必须有可达且摘要一致的对象。
     for digest in sorted(referenced - object_digests):
         errors.append(f"unreachable object reference: sha256:{digest}")
     return {"ok": not errors, "objects": objects, "errors": errors}

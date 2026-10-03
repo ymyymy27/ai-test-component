@@ -31,14 +31,32 @@ from aitest.application.planning.substrate_adapter import (
     PortsUnitOfWork,
 )
 from aitest.application.usecase_registry import BUseCaseDependencies
+from aitest.infrastructure.adapters.execution.python_checks import (
+    PythonLoadSourceProbe,
+)
+from aitest.infrastructure.adapters.model import HttpModelProvider
+from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
+from aitest.infrastructure.capabilities import (
+    CONNECTION,
+    MODEL,
+    SECRET,
+    SOURCE,
+    CapabilityGate,
+)
 from aitest.infrastructure.clock import SystemClock
 from aitest.infrastructure.connections import (
     ConnectionFactStore,
     EndpointConfig,
     LocalAPIConnectionBridge,
 )
+from aitest.infrastructure.credentials import SecretManager
 from aitest.infrastructure.file_store.events import FileEventJournal
-from aitest.infrastructure.file_store.recovery import RecoveryOrchestrator, RecoveryState
+from aitest.infrastructure.file_store.locking import LifetimeWriterLock
+from aitest.infrastructure.file_store.recovery import (
+    RecoveryOrchestrator,
+    RecoveryState,
+    seal_inflight_outputs,
+)
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.interfaces.local.api import Handler, LocalAPI
@@ -65,6 +83,7 @@ class CoreInstance:
     instance_id: str
     workspace_id: str
     api: LocalAPI
+    lifetime_lock: LifetimeWriterLock | None = None
 
 
 class CoreAssemblyBlocked(RuntimeError):
@@ -195,6 +214,13 @@ class CoreAssembly:
     workspace: Workspace
     unit_of_work: FileUnitOfWork
     recovery: RecoveryState
+    lifetime_lock: LifetimeWriterLock
+    seal_inflight: Callable[[], tuple[str, ...]]
+    gate: CapabilityGate | None = None
+    secret_manager: SecretManager | None = None
+    model_provider: HttpModelProvider | None = None
+    snapshot_store: FileSourceSnapshotStore | None = None
+    source_probe: PythonLoadSourceProbe | None = None
 
 
 def assemble_workspace_core(
@@ -204,6 +230,9 @@ def assemble_workspace_core(
     workspace_id: str | None = None,
     extra_handlers: Mapping[str, Handler] | None = None,
     connection_endpoint: str | None = None,
+    model_endpoint: str | None = None,
+    model_secret_reference: tuple[str, str] | None = None,
+    extra_action_dependencies: Mapping[str, tuple[str, ...]] | None = None,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -224,63 +253,134 @@ def assemble_workspace_core(
     workspace = Workspace(root)
     if workspace_id is not None:
         workspace.validate(workspace_id)
-    journal = FileEventJournal(root, instance_id=workspace.workspace_id)
-    recovery = RecoveryOrchestrator(
-        root, instance_id=workspace.workspace_id
-    ).run()
-    if recovery.state == "blocked":
-        raise CoreAssemblyBlocked(
-            f"工作空间恢复 blocked，核心拒绝启动: {recovery.actions}"
-        )
-
-    unit_of_work = FileUnitOfWork(root, journal=journal)
-    ports_unit_of_work = PortsUnitOfWork(
-        unit_of_work,
-        repository=unit_of_work.repo,
-        sequence=unit_of_work,
-    )
-    reader = PortsRecordReader(unit_of_work.repo)
-    dependencies = BUseCaseDependencies(
-        unit_of_work=ports_unit_of_work,
-        reader=reader,
-        clock=SystemClock(),
-    )
-    handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
-    if extra_handlers:
-        conflicts = sorted(handlers.keys() & extra_handlers.keys())
-        if conflicts:
-            raise ValueError(
-                f"registered use case conflicts with built-in actions: {conflicts}"
+    # 全生命周期唯一写入者（A-02）：先取得排他写锁再跑恢复与服务装配，
+    # 同进程/跨进程的同根第二核心在此被拒绝；恢复 blocked 时释放锁退出。
+    lifetime_lock = workspace.admit_lifetime()
+    try:
+        journal = FileEventJournal(root, instance_id=workspace.workspace_id)
+        recovery = RecoveryOrchestrator(
+            root, instance_id=workspace.workspace_id
+        ).run()
+        if recovery.state == "blocked":
+            raise CoreAssemblyBlocked(
+                f"工作空间恢复 blocked，核心拒绝启动: {recovery.actions}"
             )
-        handlers.update(extra_handlers)
 
-    connector: LocalAPIConnectionBridge | None = None
-    if connection_endpoint is not None:
-        # 真实目标接线（A-10）：探测事实持久化到工作空间，核心换实例后
-        # test_connection 的历史结论仍可恢复；未配置目标时不挂连接器，
-        # doctor/业务用例等不依赖外网的动作不受影响（动作级降级）。
-        from aitest.interfaces.local.pipe import current_user_sid
-
-        endpoint_config = EndpointConfig.from_address(connection_endpoint)
-        bridge = LocalAPIConnectionBridge(
-            endpoint_config,
-            ConnectionFactStore(root),
-            source_session=current_user_sid() or "",
+        unit_of_work = FileUnitOfWork(root, journal=journal)
+        ports_unit_of_work = PortsUnitOfWork(
+            unit_of_work,
+            repository=unit_of_work.repo,
+            sequence=unit_of_work,
         )
-        connector = bridge
-    api = LocalAPI(
-        instance_id=instance_id,
-        workspace_id=workspace.workspace_id,
-        handlers=handlers,
-        transaction_port=unit_of_work,
-        connector=connector,
-        connection_persistence=connector,
-    )
+        reader = PortsRecordReader(unit_of_work.repo)
+        dependencies = BUseCaseDependencies(
+            unit_of_work=ports_unit_of_work,
+            reader=reader,
+            clock=SystemClock(),
+        )
+        handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
+        if extra_handlers:
+            conflicts = sorted(handlers.keys() & extra_handlers.keys())
+            if conflicts:
+                raise ValueError(
+                    f"registered use case conflicts with built-in actions: {conflicts}"
+                )
+            handlers.update(extra_handlers)
+
+        # A-10：默认装配真实凭据/来源能力与动作级能力门。能力门在
+        # LocalAPI 构造前建立，连接水合结论与各能力条件随装配确定。
+        gate = CapabilityGate()
+        secret_manager = SecretManager.default()
+        gate.configure(SECRET)
+        snapshot_store = FileSourceSnapshotStore(root)
+        source_probe = PythonLoadSourceProbe()
+        gate.configure(SOURCE)
+
+        connector: LocalAPIConnectionBridge | None = None
+        if connection_endpoint is not None:
+            # 真实目标接线（A-10）：探测事实持久化到工作空间，核心换实例后
+            # test_connection 的历史结论仍可恢复；未配置目标时不挂连接器，
+            # doctor/业务用例等不依赖外网的动作不受影响（动作级降级）。
+            from aitest.interfaces.local.pipe import current_user_sid
+
+            endpoint_config = EndpointConfig.from_address(connection_endpoint)
+            bridge = LocalAPIConnectionBridge(
+                endpoint_config,
+                ConnectionFactStore(root),
+                source_session=current_user_sid() or "",
+            )
+            connector = bridge
+            # 换核心/重连验收：新实例装配即按台账最近事实确定连接条件，
+            # 上次未恢复的故障分类不被重置，最近成功则视为就绪。
+            recovered_state = bridge.load()
+            if recovered_state is None or recovered_state.get("connected"):
+                gate.configure(CONNECTION)
+            else:
+                gate.report(
+                    CONNECTION,
+                    healthy=False,
+                    reason=str(recovered_state.get("last_error") or "目标未就绪"),
+                    classification=str(
+                        recovered_state.get("last_error_kind") or "transport"
+                    ),
+                )
+
+        model_provider: HttpModelProvider | None = None
+        if model_endpoint is not None:
+            # 模型能力必须显式装配：端点与已解析凭据同时具备才构造真实
+            # provider；凭据解析失败只降级模型能力，不阻断核心启动。
+            resolved_secret = None
+            if model_secret_reference is not None:
+                purpose, reference = model_secret_reference
+                try:
+                    resolved_secret = secret_manager.resolve(
+                        reference, purpose=purpose
+                    )
+                except Exception as error:
+                    gate.report(
+                        MODEL,
+                        healthy=False,
+                        reason=f"模型凭据不可解析: {error}",
+                        classification="auth",
+                    )
+            if resolved_secret is not None:
+                model_provider = HttpModelProvider(
+                    model_endpoint, secret=resolved_secret
+                )
+                gate.configure(MODEL)
+            # 凭据解析失败已在 except 中写入自动 degraded（auth）事实，
+            # 后续成功事实可自动恢复；未提供凭据引用则保持 not_configured
+            # （缺配置）。两者都不是操作者意图，不得落人工降级——人工
+            # 降级只能显式 restore，会把临时凭据故障永久钉死。
+
+        if extra_action_dependencies:
+            for action, keys in extra_action_dependencies.items():
+                gate.require(action, *keys)
+
+        api = LocalAPI(
+            instance_id=instance_id,
+            workspace_id=workspace.workspace_id,
+            handlers=handlers,
+            transaction_port=unit_of_work,
+            connector=connector,
+            connection_persistence=connector,
+            capability_gate=gate,
+        )
+    except BaseException:
+        lifetime_lock.release()
+        raise
     return CoreAssembly(
         api=api,
         workspace=workspace,
         unit_of_work=unit_of_work,
         recovery=recovery,
+        lifetime_lock=lifetime_lock,
+        seal_inflight=lambda: seal_inflight_outputs(root),
+        gate=gate,
+        secret_manager=secret_manager,
+        model_provider=model_provider,
+        snapshot_store=snapshot_store,
+        source_probe=source_probe,
     )
 
 
@@ -350,9 +450,28 @@ class CoreBootstrap:
                 assembly.api.instance_id,
                 assembly.workspace.workspace_id,
                 assembly.api,
+                assembly.lifetime_lock,
             )
             self._instances[root] = instance
             return instance
+
+    def release(self, workspace_root: Path) -> None:
+        """关闭指定工作空间的进程内核心并释放全生命周期写锁（A-02）。"""
+        root = workspace_root.resolve()
+        with self._lock:
+            instance = self._instances.pop(root, None)
+        if instance is not None and instance.lifetime_lock is not None:
+            instance.lifetime_lock.release()
+
+
+def registered_use_cases() -> Mapping[str, Handler] | None:
+    """全局注册表当前快照（C/D 用例）；无注册时返回 None。
+
+    跨进程 worker 与进程内装配都只能经这条只读快照取得 C/D 动作，
+    不能由连接帧自报入口类型或绕注册表注入 handler（A-02）。
+    """
+    snapshot = _GLOBAL_BOOTSTRAP.registry.snapshot()
+    return dict(snapshot) if snapshot else None
 
 
 class SystemProcessLauncher:
@@ -644,5 +763,6 @@ __all__ = [
     "make_editor_host",
     "make_pipe_connector",
     "register_use_cases",
+    "registered_use_cases",
     "shutdown_endpoint",
 ]

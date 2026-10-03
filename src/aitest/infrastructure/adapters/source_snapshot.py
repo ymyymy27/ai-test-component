@@ -10,8 +10,10 @@
 - ``read_pinned``：按稳定标识读元数据，不重新扫描；
 - ``detect_changes``：按清单的选定范围与排除规则重新扫描比对增/删/改。
 
-默认排除 ``.git``（Git 身份走 SourceControl）。内容相同 → 相同 snapshot_id
-（幂等）；快照清单一经写入不可变，不同 purpose 的重复 pin 不覆盖既有元数据。
+默认排除 ``.git``（Git 身份走 SourceControl）。同一来源、同一选定范围/排除
+规则/用途且内容相同 → 相同 snapshot_id（幂等）；范围或用途不同即使字节完全
+相同也产生不同快照身份与各自清单（blob 仍按内容去重）。不同 purpose 的重复
+pin 不覆盖既有元数据。
 """
 
 from __future__ import annotations
@@ -163,8 +165,20 @@ class FileSourceSnapshotStore:
                 )
         files.sort(key=lambda item: str(item["relative_path"]))
 
+        # 快照**记录身份**与内容对象去重分离（A-15）：blob 仍按 sha256
+        # 内容寻址去重，但 snapshot_id 必须区分 canonical_path、选定范围、
+        # 排除规则与用途——先 pin 单文件再 pin 整目录不能共用同一清单，
+        # 否则整目录新增文件后按旧清单比对会误报 unchanged。
         identity_base = json.dumps(
-            [source.as_posix(), files], sort_keys=True, separators=(",", ":")
+            [
+                source.as_posix(),
+                purpose,
+                list(selection),
+                list(rules),
+                files,
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
         ).encode("utf-8")
         snapshot_id = "snap-" + hashlib.sha256(identity_base).hexdigest()[:16]
 

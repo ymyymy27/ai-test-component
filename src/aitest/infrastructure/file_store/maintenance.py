@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import re
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -101,12 +102,15 @@ class ReclaimReport:
 def detect_activity_blocker(workspace_root: Path) -> str | None:
     """从落盘事实证明是否存在未核实活动；无活动返回 None。
 
-    两个独立事实来源，任一成立即阻塞回收/迁移，不能只凭活动标记文件
+    独立事实来源，任一成立即阻塞回收/迁移，不能只凭活动标记文件
     缺失就把材料当垃圾（A-07）：
 
     - ``transactions/active.json``：事务边界仍标记在途；
     - ``event-log/staging/*.jsonl`` 非空：存在未封口事务暂存事件，
-      发布结果未知，须先由恢复编排核实/抢救。
+      发布结果未知，须先由恢复编排核实/抢救；
+    - ``spool/<attempt>/`` 下已有输出流字节但没有 ``manifest.json``
+      封口：可能是在途执行（写流先于清单封口，崩溃后须先抢救），
+      无短事务标记也不能回收/迁移该工作空间。
     """
     root = workspace_root.resolve()
     marker = root / _ACTIVE_MARKER
@@ -121,6 +125,28 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
             except OSError:
                 # 取证失败按活动中处理（保守，不误删）。
                 return f"活动暂存状态无法核实: {path.name}"
+    spool = root / "spool"
+    if spool.is_dir():
+        for attempt in spool.iterdir():
+            if not attempt.is_dir() or attempt.is_symlink():
+                continue
+            try:
+                streams = [
+                    path
+                    for path in attempt.iterdir()
+                    if path.is_file()
+                    and path.suffix.lower() == ".log"
+                    and path.stat().st_size >= 0
+                ]
+            except OSError:
+                return f"在途执行目录状态无法核实: spool/{attempt.name}"
+            if not streams:
+                continue
+            if not (attempt / "manifest.json").exists():
+                return (
+                    "存在未封口在途执行输出（无 manifest 封口）: "
+                    f"spool/{attempt.name}"
+                )
     return None
 
 
@@ -177,7 +203,11 @@ class FileMaintenanceService:
                 totals[category] += size
                 total_bytes += size
                 total_files += 1
-        candidates = self.reclaimable()
+        candidates: tuple[ReclaimCandidate, ...] = ()
+        with suppress(MaintenanceError):
+            # 永久引用不可读时回收资格不可证明；空间诊断仍可给出占用，
+            # 但可回收量保守为 0（A-07）。
+            candidates = self.reclaimable()
         reclaimable_bytes = sum(candidate.size_bytes for candidate in candidates)
         integrity = check_workspace(self._root)
         raw_errors = integrity.get("errors", [])
@@ -216,21 +246,56 @@ class FileMaintenanceService:
         return tuple(candidates)
 
     def _referenced_digests(self) -> set[str]:
-        """永久记录/台账中声明的全部 sha256 引用（活动暂存除外）。"""
+        """永久记录/台账中声明的全部 sha256 引用（活动暂存除外）。
+
+        同时读取永久 ``*.json`` 与 ``*.jsonl``（逐行解析）：JSONL 事件/
+        审计台账同样构成引用事实，漏读会把仍被引用的临时材料当垃圾回收
+        （A-MAINTENANCE-02）。任何永久引用文件不可读/不可解析时，引用
+        集合不完整，直接抛 :class:`MaintenanceError` 阻塞回收——未知引用
+        与“无引用”不是同一事实。
+        """
         referenced: set[str] = set()
+        unreadable: list[str] = []
         for path in self._root.rglob("*"):
             if not path.is_file() or path.is_symlink() or path.name.startswith("."):
                 continue
             parts = path.relative_to(self._root).parts
             if parts[:2] == ("event-log", "staging"):
                 continue
-            if path.suffix.lower() != ".json":
+            suffix = path.suffix.lower()
+            if suffix not in {".json", ".jsonl"}:
                 continue
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                raw = path.read_bytes()
+            except OSError:
+                unreadable.append(path.relative_to(self._root).as_posix())
                 continue
-            referenced.update(_iter_digest_refs(data))
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                unreadable.append(path.relative_to(self._root).as_posix())
+                continue
+            if suffix == ".json":
+                try:
+                    referenced.update(_iter_digest_refs(json.loads(text)))
+                except json.JSONDecodeError:
+                    unreadable.append(path.relative_to(self._root).as_posix())
+            else:
+                for line in text.splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        referenced.update(_iter_digest_refs(json.loads(line)))
+                    except json.JSONDecodeError:
+                        unreadable.append(
+                            path.relative_to(self._root).as_posix()
+                        )
+                        break
+        if unreadable:
+            raise MaintenanceError(
+                "存在不可读的永久引用文件，回收资格无法证明，已阻塞: "
+                + ", ".join(sorted(set(unreadable)))
+            )
         return referenced
 
     def _classify_candidate(
@@ -326,7 +391,18 @@ class FileMaintenanceService:
         活动执行引用，资格未被证实，不得按位置/名字猜测回收。
         """
         blocker = detect_activity_blocker(self._root)
-        allowed = {candidate.relative_path: candidate for candidate in self.reclaimable()}
+        try:
+            candidates = self.reclaimable()
+        except MaintenanceError as error:
+            # 永久引用不可读 → 引用事实未知，整体阻塞，不按名字/位置猜测。
+            return ReclaimReport(
+                state="blocked",
+                removed=(),
+                bytes_freed=0,
+                refused=tuple(relative_paths or ()),
+                blocked_reason=str(error),
+            )
+        allowed = {candidate.relative_path: candidate for candidate in candidates}
         requested = list(allowed) if relative_paths is None else list(relative_paths)
         if blocker is not None:
             return ReclaimReport(
@@ -341,11 +417,16 @@ class FileMaintenanceService:
         bytes_freed = 0
         for relative in requested:
             candidate = allowed.get(relative)
-            if (
-                candidate is None
-                or detect_activity_blocker(self._root) is not None
-                or not self._still_safe(relative)
-            ):
+            try:
+                still_safe = (
+                    candidate is not None
+                    and detect_activity_blocker(self._root) is None
+                    and self._still_safe(relative)
+                )
+            except MaintenanceError:
+                # 删除前复核时引用事实变得不可读：保守拒绝。
+                still_safe = False
+            if not still_safe:
                 refused.append(relative)
                 continue
             if dry_run:

@@ -56,17 +56,27 @@ _SECRET_VALUE_PATTERNS = (
 
 
 def scrub_secret_text(text: str) -> tuple[str, bool]:
-    """替换字符串内已知凭据形态；返回（脱敏文本，是否发生替换）。"""
+    """替换字符串内已知凭据形态；返回（脱敏文本，是否发生替换）。
+
+    对已经脱敏的文本幂等：值位为 ``[REDACTED]`` 时不再计为命中，避免
+    重复过滤把安全材料误判为不洁（A-09 落盘底线复用本原语）。
+    """
     redacted = text
     changed = False
     for pattern in _SECRET_VALUE_PATTERNS:
         if pattern.groups >= 1:
-            redacted, count = pattern.subn(
-                lambda match: match.group(1) + _REDACTED, redacted
-            )
+
+            def _replace(match: re.Match[str]) -> str:
+                nonlocal changed
+                if match.group(2) == _REDACTED:
+                    return match.group(0)
+                changed = True
+                return match.group(1) + _REDACTED
+
+            redacted = pattern.sub(_replace, redacted)
         else:
             redacted, count = pattern.subn(_REDACTED, redacted)
-        changed = changed or count > 0
+            changed = changed or count > 0
     return redacted, changed
 
 

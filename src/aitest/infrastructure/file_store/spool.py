@@ -18,6 +18,13 @@ from aitest.domain.execution.runs import (
     SpoolManifest,
 )
 
+from ..security import (
+    KnownSecretRegistry,
+    StreamSecretFilter,
+    UnsafeMaterialError,
+    guard_bytes,
+    known_secrets,
+)
 from . import atomic
 
 _INVALID_COMPONENT_CHARS = frozenset('\\/:*?"<>|')
@@ -73,6 +80,7 @@ class _FileSpoolStreamWriter:
         capture_source: str,
         block_size: int,
         redaction_summary_id: str | None,
+        registry: KnownSecretRegistry,
     ) -> None:
         if block_size < 1:
             raise ValueError("block_size must be positive")
@@ -94,6 +102,8 @@ class _FileSpoolStreamWriter:
         self._block_length = 0
         self._hasher = hashlib.sha256()
         self._block_index = store._next_block_index(attempt_id, stream_name)
+        # A-09：跨块凭据过滤的未决尾部只存在内存；落盘的一律是过滤后字节。
+        self._filter = StreamSecretFilter(registry)
 
     def append(self, content: bytes) -> tuple[OutputBlockRef, ...]:
         if not content:
@@ -101,10 +111,14 @@ class _FileSpoolStreamWriter:
         with self._lock:
             if self._closed:
                 raise RuntimeError("spool stream writer is closed")
-            self._handle.write(content)
+            safe = self._filter.feed(content)
+            if not safe:
+                # 整块（或尾部）仍在未决窗口：尚未确认安全，不落盘。
+                return ()
+            self._handle.write(safe)
             self._handle.flush()
-            self._hasher.update(content)
-            self._block_length += len(content)
+            self._hasher.update(safe)
+            self._block_length += len(safe)
             if self._block_length < self._block_size:
                 return ()
             os.fsync(self._handle.fileno())
@@ -117,8 +131,14 @@ class _FileSpoolStreamWriter:
             self._closed = True
             refs: tuple[OutputBlockRef, ...] = ()
             try:
+                tail = self._filter.flush()
+                if tail:
+                    self._handle.write(tail)
                 self._handle.flush()
                 os.fsync(self._handle.fileno())
+                if tail:
+                    self._hasher.update(tail)
+                    self._block_length += len(tail)
                 if self._block_length:
                     refs = (self._seal(complete=complete),)
             finally:
@@ -132,6 +152,8 @@ class _FileSpoolStreamWriter:
             if self._closed:
                 return
             self._closed = True
+            # 未确认安全的尾部随异常终止丢弃，绝不转储（架构02第13节）。
+            self._filter.abort()
             try:
                 self._handle.flush()
                 os.fsync(self._handle.fileno())
@@ -179,8 +201,14 @@ class _FileSpoolStreamWriter:
 class FileSpoolStore:
     """File-backed streaming spool store for one workspace."""
 
-    def __init__(self, workspace_root: Path) -> None:
+    def __init__(
+        self,
+        workspace_root: Path,
+        *,
+        registry: KnownSecretRegistry | None = None,
+    ) -> None:
         self._root = workspace_root.resolve()
+        self._registry = registry or known_secrets()
         self._manifest_lock = threading.RLock()
         self._writer_lock = threading.Lock()
         self._open_writers: set[tuple[str, OutputStreamName]] = set()
@@ -213,6 +241,7 @@ class FileSpoolStore:
                 capture_source=capture_source,
                 block_size=block_size,
                 redaction_summary_id=redaction_summary_id,
+                registry=self._registry,
             )
             self._open_writers.add(key)
             return writer
@@ -227,11 +256,21 @@ class FileSpoolStore:
         step_id = _safe_component(first.step_id, "step_id")
         refs: list[OutputBlockRef] = []
         cursors: list[OutputCursor] = []
+        # 先对全部密封块做落盘前检查，任何一块不洁则整批拒绝（无孤儿字节）。
         for block in batch:
             if not block.complete:
                 raise ValueError("only sealed blocks may be persisted")
             if (block.attempt_id, block.run_id, block.step_id) != (attempt_id, run_id, step_id):
                 raise ValueError("all spool blocks must share run_id, step_id and attempt_id")
+            _guarded, dirty = guard_bytes(block.content, self._registry)
+            if dirty:
+                # A-09：改写会使 C 包装器既有 digest/offset 失效，故拒绝落盘，
+                # 由调用方登记采集缺口并重供安全材料。
+                raise UnsafeMaterialError(
+                    "sealed spool block still contains a known credential; "
+                    "register a capture gap instead of persisting raw bytes"
+                )
+        for block in batch:
             ref = OutputBlockRef(
                 block_id=f"{attempt_id}:{block.stream_name.value}:{block.block_index}",
                 attempt_id=attempt_id,
@@ -375,6 +414,16 @@ class FileSpoolStore:
                 content = handle.read(size - start)
             if not content:
                 continue
+            # A-09：抢救路径同样不得让凭据进入认领事实。尾区尚未被任何块
+            # 认领（文件末尾），过滤后就地重写该尾区，摘要只描述安全字节；
+            # 过滤前字节不保留、不复制。
+            content, dirty = guard_bytes(content, self._registry)
+            if dirty:
+                with path.open("r+b") as handle:
+                    handle.truncate(start)
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
             block_index = (
                 max(
                     (block.block_index for block in stream_blocks),

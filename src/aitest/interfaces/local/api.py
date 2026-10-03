@@ -38,6 +38,23 @@ class Session:
     entry_kind: EntryKind
 
 
+@dataclass(frozen=True, slots=True)
+class _TransactionOwnership:
+    """会话内活动事务的归属事实（A-14）。
+
+    传输请求幂等（command.request_id）与事务归属（begin 建立的句柄）是
+    两个不同事实：commit/rollback 必须显式引用 begin 句柄，异号且不持有
+    句柄的结束请求必须拒绝，不能路由到他人事务。
+    """
+
+    begin_request_id: str
+    project_id: str | None
+
+
+#: commit/rollback 在 parameters 中携带的 begin 句柄字段。
+BEGIN_REQUEST_ID_PARAM = "begin_request_id"
+
+
 class LocalAPI:
     def __init__(
         self,
@@ -53,6 +70,7 @@ class LocalAPI:
         ) = None,
         sleeper: Callable[[float], None] | None = None,
         connection_persistence: object | None = None,
+        capability_gate: object | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -86,6 +104,8 @@ class LocalAPI:
             "last_error": None,
         }
         self._connection_persistence = connection_persistence
+        #: 动作级能力门（A-10）；接口层只按结构调用，不导入基础设施。
+        self.capability_gate = capability_gate
         if connection_persistence is not None:
             recovered = connection_persistence.load()  # type: ignore[attr-defined]
             if isinstance(recovered, dict):
@@ -93,6 +113,8 @@ class LocalAPI:
         self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = (
             OrderedDict()
         )
+        #: 会话 → 活动事务归属（A-14）。
+        self._active_transactions: dict[str, _TransactionOwnership] = {}
 
     def dispatch(self, command: Command, session: Session) -> Response:
         fingerprint = sha256(
@@ -121,9 +143,16 @@ class LocalAPI:
             command.action in {"begin", "commit", "rollback", "recover"}
             and self.transaction_port is not None
         ):
-            response = self._transaction(command)
+            response = self._transaction(command, session)
         elif command.action == "test_connection" and self.connector is not None:
             response = self._connect(command)
+        elif (
+            command.action in self.handlers
+            and (denied_reason := self._gate_denial(command.action)) is not None
+        ):
+            # A-10：只拦截实际依赖故障能力的动作，不依赖该能力的动作与
+            # doctor/test_connection 等恢复性动作不在此分支，继续可用。
+            response = self._error(command, "CAPABILITY_DEGRADED", denied_reason)
         elif command.action in self.handlers:
             try:
                 result = self.handlers[command.action](command)
@@ -154,6 +183,12 @@ class LocalAPI:
                 ),
                 "phase": 1,
             }
+            if self.capability_gate is not None:
+                # A-10：显式报告各项外部能力条件与动作依赖，调用方据此做
+                # 动作级降级判断，而不是把单个适配器故障当成整体不可用。
+                doctor_result["dependencies"] = cast(
+                    JsonValue, self.capability_gate.snapshot()  # type: ignore[attr-defined]
+                )
             response = Response(
                 request_id=command.request_id,
                 instance_id=self.instance_id,
@@ -186,39 +221,123 @@ class LocalAPI:
             ),
         )
 
-    def _transaction(self, command: Command) -> Response:
+    def _transaction(self, command: Command, session: Session) -> Response:
         try:
-            method = getattr(self.transaction_port, command.action)
-            kwargs: dict[str, object] = {
-                "request_id": command.request_id,
-                "workspace_id": self.workspace_id,
-            }
-            if command.action == "begin":
-                kwargs.update(
-                    project_id=command.project_id,
-                    intent_id=command.intent_id,
+            if command.action == "recover":
+                # 恢复是只读核实，不需要活动事务归属。
+                result = self._call_transaction_port(
+                    command,
+                    action="recover",
+                    owner_request_id=command.request_id,
                 )
-            result = method(**kwargs)
-            if isinstance(result, Response):
-                return result
-            # 事务出口同样是出站边界：经统一安全投影后再回写（A-09）。
-            safe = (
-                self.safe_projection(result)
-                if isinstance(result, Mapping)
-                else {"result": result}
+                return self._transaction_response(command, result)
+
+            if command.action == "begin":
+                active = self._active_transactions.get(session.session_id)
+                if active is not None:
+                    return self._error(
+                        command,
+                        "TRANSACTION_ALREADY_ACTIVE",
+                        "another transaction is already open in this session",
+                    )
+                result = self._call_transaction_port(
+                    command,
+                    action="begin",
+                    owner_request_id=command.request_id,
+                )
+                self._active_transactions[session.session_id] = _TransactionOwnership(
+                    begin_request_id=command.request_id,
+                    project_id=command.project_id,
+                )
+                return self._transaction_response(command, result)
+
+            # commit / rollback：传输请求幂等（command.request_id）与事务
+            # 归属（begin 句柄）分离。必须持有活动事务，且 parameters 中
+            # 携带的 begin_request_id 必须与归属一致（A-14）。
+            active = self._active_transactions.get(session.session_id)
+            if active is None:
+                return self._error(
+                    command,
+                    "NO_ACTIVE_TRANSACTION",
+                    "commit/rollback requires an open transaction owned by this session",
+                )
+            referenced = command.parameters.get(BEGIN_REQUEST_ID_PARAM)
+            if referenced is not None and referenced != active.begin_request_id:
+                return self._error(
+                    command,
+                    "TRANSACTION_NOT_OWNED",
+                    "begin_request_id does not match the open transaction",
+                )
+            if (
+                command.project_id is not None
+                and active.project_id is not None
+                and command.project_id != active.project_id
+            ):
+                return self._error(
+                    command,
+                    "TRANSACTION_PROJECT_MISMATCH",
+                    "commit/rollback project differs from begin project",
+                )
+            result = self._call_transaction_port(
+                command,
+                action=command.action,
+                owner_request_id=active.begin_request_id,
             )
-            return Response(
-                request_id=command.request_id,
-                instance_id=self.instance_id,
-                workspace_id=self.workspace_id,
-                result=cast(dict[str, JsonValue], dict(safe)),
-            )
+            response = self._transaction_response(command, result)
+            if response.error is None:
+                # 事务结束（提交或回滚）后释放归属；后续异号 commit/rollback
+                # 不再路由到已关闭事务。
+                self._active_transactions.pop(session.session_id, None)
+            return response
         except Exception as exc:
             return self._error(
                 command,
                 getattr(exc, "code", "INTERNAL_ERROR"),
                 self._safe_message(exc),
             )
+
+    def _call_transaction_port(
+        self,
+        command: Command,
+        *,
+        action: str,
+        owner_request_id: str,
+    ) -> object:
+        method = getattr(self.transaction_port, action)
+        kwargs: dict[str, object] = {
+            # 事务归属以 begin 的 request_id 为准，而不是结束命令自己的
+            # 传输 request_id；同句柄重传幂等，异号请求不得接管。
+            "request_id": owner_request_id,
+            "workspace_id": self.workspace_id,
+        }
+        if action == "begin":
+            kwargs.update(
+                project_id=command.project_id,
+                intent_id=command.intent_id,
+            )
+        return method(**kwargs)
+
+    def _transaction_response(
+        self, command: Command, result: object
+    ) -> Response:
+        if isinstance(result, Response):
+            return result
+        # 事务出口同样是出站边界：经统一安全投影后再回写（A-09）。
+        safe = (
+            self.safe_projection(result)
+            if isinstance(result, Mapping)
+            else {"result": result}
+        )
+        payload = dict(safe)
+        if command.action == "begin":
+            # 明确返回事务句柄，供 commit/rollback 在 parameters 中引用。
+            payload.setdefault(BEGIN_REQUEST_ID_PARAM, command.request_id)
+        return Response(
+            request_id=command.request_id,
+            instance_id=self.instance_id,
+            workspace_id=self.workspace_id,
+            result=cast(dict[str, JsonValue], payload),
+        )
 
     def safe_projection(
         self, value: Mapping[str, object]
@@ -266,6 +385,11 @@ class LocalAPI:
                 self._connection_persistence.save(  # type: ignore[attr-defined]
                     self.connection_state
                 )
+            self._report_gate_connection(
+                connected,
+                reason=error_message or "目标未就绪",
+                error_kind=error_kind,
+            )
             if connected:
                 return Response(
                     request_id=command.request_id,
@@ -294,3 +418,38 @@ class LocalAPI:
         text = str(exc).replace("\r", " ").replace("\n", " ")
         text, _changed = scrub_secret_text(text)
         return text[:500] or exc.__class__.__name__
+
+    def _gate_denial(self, action: str) -> str | None:
+        """动作级门禁：返回拒绝原因；未装门或允许时返回 None。"""
+        gate = self.capability_gate
+        if gate is None:
+            return None
+        try:
+            decision = gate.check(action)  # type: ignore[attr-defined]
+        except Exception:
+            # 门禁自身故障不得让业务动作整体停摆；装配测试会抓住门实现错误。
+            return None
+        if getattr(decision, "allowed", True):
+            return None
+        reason = getattr(decision, "reason", None)
+        return str(reason) if reason else f"动作 {action} 依赖的外部能力当前不可用"
+
+    def _report_gate_connection(
+        self, connected: bool, *, reason: str, error_kind: str | None
+    ) -> None:
+        """把一次真实探测事实写入能力门；门故障不影响探测协议本身。"""
+        gate = self.capability_gate
+        if gate is None:
+            return
+        try:
+            if connected:
+                gate.report("connection", healthy=True)  # type: ignore[attr-defined]
+            else:
+                gate.report(  # type: ignore[attr-defined]
+                    "connection",
+                    healthy=False,
+                    reason=reason,
+                    classification=error_kind or "transport",
+                )
+        except Exception:
+            return

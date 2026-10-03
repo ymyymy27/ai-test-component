@@ -151,6 +151,8 @@ def test_extra_handlers_overlay_and_conflict_rejection(tmp_path: Path) -> None:
     )
     assert response.result == {"echo": "req-c"}
 
+    # 同根第二核心必须先释放生命周期写锁后才能重新准入（A-02）。
+    assembly.lifetime_lock.release()
     with pytest.raises(ValueError, match="conflicts with built-in actions"):
         assemble_workspace_core(
             tmp_path,
@@ -159,9 +161,26 @@ def test_extra_handlers_overlay_and_conflict_rejection(tmp_path: Path) -> None:
         )
 
 
+def test_second_lifetime_admission_for_same_root_is_rejected(
+    tmp_path: Path,
+) -> None:
+    from aitest.application.errors import WorkspaceInUse
+
+    assembly = assemble_workspace_core(tmp_path, instance_id="core-first")
+    try:
+        with pytest.raises(WorkspaceInUse):
+            assemble_workspace_core(tmp_path, instance_id="core-second")
+    finally:
+        assembly.lifetime_lock.release()
+    # 释放后同根可被新核心准入（模拟干净重启）。
+    restarted = assemble_workspace_core(tmp_path, instance_id="core-restart")
+    restarted.lifetime_lock.release()
+
+
 def test_assembly_blocked_on_integrity_failure(tmp_path: Path) -> None:
     # 先建立合法工作空间身份，再放入不可解析的 JSON 制造完整性失败。
-    assemble_workspace_core(tmp_path, instance_id="core-seed")
+    seeded = assemble_workspace_core(tmp_path, instance_id="core-seed")
+    seeded.lifetime_lock.release()
     (tmp_path / "records.json").write_text("{not-json", encoding="utf-8")
     with pytest.raises(CoreAssemblyBlocked):
         assemble_workspace_core(tmp_path, instance_id="core-blocked")
