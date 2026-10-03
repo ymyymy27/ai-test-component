@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
 from aitest.application.ports import EvidenceObjectStore, SpoolStore
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.evidence.evidence import (
     CodeIdentity,
     EvidenceCaptureSource,
@@ -16,7 +18,7 @@ from aitest.domain.evidence.evidence import (
     ProjectionState,
     RedactionState,
 )
-from aitest.domain.execution.runs import OutputBlockRef
+from aitest.domain.execution.runs import OutputBlockRef, RecoveryRecord
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +32,18 @@ class EvidencePublicationContext:
     capture_source: EvidenceCaptureSource = EvidenceCaptureSource.PLUGIN_RUNTIME
     projection_state: ProjectionState = ProjectionState.DISPLAYABLE
     media_type: str = "application/octet-stream"
+
+
+class TransactionalCommitPort(Protocol):
+    def publish_and_stage(
+        self,
+        *,
+        checkpoint: RecoveryRecord,
+        evidence_publisher: EvidencePublisher,
+        evidence_context: EvidencePublicationContext,
+        facts: ExecutionFacts,
+        expected_revisions: Mapping[str, int] | None = None,
+    ) -> object: ...
 
 
 class EvidencePublisher:
@@ -49,6 +63,24 @@ class EvidencePublisher:
     ) -> tuple[EvidenceRef, ...]:
         manifest = self._spool_store.read_manifest(context.attempt_id)
         return self.publish_blocks(context, manifest.blocks)
+
+    def publish_attempt_transactional(
+        self,
+        context: EvidencePublicationContext,
+        *,
+        coordinator: TransactionalCommitPort,
+        checkpoint: RecoveryRecord,
+        facts: ExecutionFacts,
+        expected_revisions: Mapping[str, int] | None = None,
+    ) -> object:
+        """Formal path: publish evidence refs and stage them with facts/UOW."""
+        return coordinator.publish_and_stage(
+            checkpoint=checkpoint,
+            evidence_publisher=self,
+            evidence_context=context,
+            facts=facts,
+            expected_revisions=expected_revisions,
+        )
 
     def publish_blocks(
         self,
@@ -97,4 +129,8 @@ class EvidencePublisher:
         )
 
 
-__all__ = ["EvidencePublicationContext", "EvidencePublisher"]
+__all__ = [
+    "EvidencePublicationContext",
+    "EvidencePublisher",
+    "TransactionalCommitPort",
+]

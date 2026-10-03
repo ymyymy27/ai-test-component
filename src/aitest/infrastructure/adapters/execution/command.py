@@ -100,6 +100,19 @@ class _CommandRuntime:
     threads: list[threading.Thread] = field(default_factory=list)
 
 
+class _JobBasicAccountingInformation(ctypes.Structure):
+    _fields_ = [
+        ("TotalUserTime", ctypes.c_longlong),
+        ("TotalKernelTime", ctypes.c_longlong),
+        ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+        ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+        ("TotalPageFaultCount", ctypes.c_uint32),
+        ("TotalProcesses", ctypes.c_uint32),
+        ("ActiveProcesses", ctypes.c_uint32),
+        ("TotalTerminatedProcesses", ctypes.c_uint32),
+    ]
+
+
 class CommandAdapter:
     """Launch registered argv arrays without a shell and redact before spooling."""
 
@@ -652,16 +665,19 @@ class CommandAdapter:
     def _terminate_group(self, pid: int, *, force: bool) -> None:
         _terminate_process_group(pid, force=force)
 
-    @staticmethod
-    def _cleanup_group(runtime: _CommandRuntime) -> bool:
+    def _cleanup_group(self, runtime: _CommandRuntime) -> bool:
         if os.name == "nt":
             if runtime.job_handle is None:
                 runtime.group_stopped = False
                 return False
+            stopped = _terminate_and_wait_windows_job(
+                runtime.job_handle,
+                timeout_seconds=self._force_kill_timeout_seconds,
+            )
             _close_job(runtime.job_handle)
             runtime.job_handle = None
-            runtime.group_stopped = True
-            return True
+            runtime.group_stopped = stopped
+            return stopped
         _terminate_process_group(runtime.process.pid, force=True)
         runtime.group_stopped = _process_group_stopped(runtime.process.pid)
         return runtime.group_stopped
@@ -810,6 +826,32 @@ def _assign_windows_job(pid: int) -> int | None:
 def _close_job(job_handle: int | None) -> None:
     if os.name == "nt" and job_handle:
         _kernel32().CloseHandle(ctypes.c_void_p(job_handle))
+
+
+def _terminate_and_wait_windows_job(
+    job_handle: int,
+    *,
+    timeout_seconds: float,
+) -> bool:
+    if os.name != "nt":
+        return False
+    kernel32 = _kernel32()
+    kernel32.TerminateJobObject(ctypes.c_void_p(job_handle), 1)
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        info = _JobBasicAccountingInformation()
+        if not kernel32.QueryInformationJobObject(
+            ctypes.c_void_p(job_handle),
+            1,
+            ctypes.byref(info),
+            ctypes.sizeof(info),
+            None,
+        ):
+            return False
+        if info.ActiveProcesses == 0:
+            return True
+        time.sleep(0.02)
+    return False
 
 
 def _kernel32() -> Any:

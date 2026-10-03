@@ -2,7 +2,8 @@ from dataclasses import replace
 
 import pytest
 
-from aitest.application.execution.recovery import RecoveryRecord
+from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.recovery import CaseReuseBasis, RecoveryRecord
 from aitest.application.execution.runner import SerialRunner
 from aitest.domain.execution.runs import (
     AdapterKind,
@@ -77,6 +78,37 @@ class FakeExecutionPort:
             stop_confirmed=True,
             observed_state=ExecutionInspectionState.STOPPED,
         )
+
+
+class _RecordingUnitOfWork:
+    def __init__(self) -> None:
+        self.staged: list[tuple[str, str, dict[str, object]]] = []
+        self.commits = 0
+        self.rollbacks = 0
+
+    def open(self, project_id: str) -> None:
+        return None
+
+    def begin(self, request_id: str, project_id: str) -> object:
+        return {"request_id": request_id, "project_id": project_id}
+
+    def stage_record(
+        self,
+        *,
+        aggregate_kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: dict[str, object],
+    ) -> str:
+        self.staged.append((aggregate_kind, record_id, payload))
+        return f"{aggregate_kind}:{record_id}:{expected_revision}"
+
+    def commit(self) -> str:
+        self.commits += 1
+        return "commit-1"
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
 
 
 def _plan_revision() -> PlanRevisionRef:
@@ -339,3 +371,60 @@ def test_missing_handle_cannot_be_inspected() -> None:
     runner = SerialRunner(FakeExecutionPort())
     with pytest.raises(ValueError, match="handle"):
         runner.inspect_attempt(_attempt())
+
+
+def test_start_intent_is_committed_to_uow_before_execution_port_start() -> None:
+    port = DeterministicFakeExecutionPort()
+    port.register(
+        FakeExecutionSpec(
+            attempt_id="attempt-1",
+            run_id="run-1",
+            step_id="step-1",
+            running_observations_before_exit=0,
+        )
+    )
+    unit = _RecordingUnitOfWork()
+    coordinator = ExecutionCommitCoordinator(unit)
+    commits_at_start: list[int] = []
+    original_start = port.start
+
+    def start(request: ExecutionRequest) -> ExecutionHandle:
+        commits_at_start.append(unit.commits)
+        return original_start(request)
+
+    port.start = start  # type: ignore[method-assign]
+    runner = SerialRunner(port, commit_coordinator=coordinator)
+
+    result = runner.execute_attempt(_attempt(), _request())
+
+    assert result.state is AttemptState.COMPLETED
+    assert commits_at_start and commits_at_start[0] >= 1
+    assert any(kind == "execution_checkpoint" for kind, _, _ in unit.staged)
+
+
+def test_new_attempt_revokes_old_case_reuse_basis_in_runner_path() -> None:
+    port = DeterministicFakeExecutionPort()
+    port.register(
+        FakeExecutionSpec(
+            attempt_id="attempt-1",
+            run_id="run-1",
+            step_id="step-1",
+            running_observations_before_exit=0,
+        )
+    )
+    runner = SerialRunner(
+        port,
+        reuse_bases=(
+            CaseReuseBasis(
+                case_id="case-1",
+                source_attempt_ids=("old-attempt-1",),
+            ),
+        ),
+        previous_attempt_ids_by_step={"step-1": ("old-attempt-1",)},
+    )
+
+    runner.execute_attempt(_attempt(), _request())
+    runner.execute_attempt(_attempt(), _request())
+
+    assert len(runner.reuse_invalidations) == 1
+    assert runner.reuse_invalidations[0].case_id == "case-1"

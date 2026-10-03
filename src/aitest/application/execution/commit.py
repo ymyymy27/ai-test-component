@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
+from uuid import uuid4
 
 from pydantic import TypeAdapter
 
@@ -26,6 +27,10 @@ _EVIDENCE_ADAPTER = TypeAdapter(EvidenceRef)
 
 
 class StageableWorkspaceUnitOfWork(Protocol):
+    def open(self, project_id: str) -> None: ...
+
+    def begin(self, request_id: str, project_id: str) -> object: ...
+
     def stage_record(
         self,
         *,
@@ -36,6 +41,8 @@ class StageableWorkspaceUnitOfWork(Protocol):
     ) -> object: ...
 
     def commit(self) -> object: ...
+
+    def rollback(self) -> object: ...
 
 
 class CheckpointPayloadCodec(Protocol):
@@ -125,6 +132,36 @@ class ExecutionCommitCoordinator:
         staged = self.stage(batch)
         return ExecutionCommitResult(staged=staged, committed=self._uow.commit())
 
+    def commit_checkpoint(
+        self,
+        *,
+        project_id: str,
+        checkpoint: RecoveryRecord,
+        expected_revision: int | None = None,
+    ) -> ExecutionCommitResult:
+        """Commit one start/control intent before any external side effect."""
+        begin = getattr(self._uow, "begin", None)
+        if callable(begin):
+            begin(f"execution-{uuid4().hex}", project_id)
+        else:
+            self._uow.open(project_id)
+        try:
+            staged = self._uow.stage_record(
+                aggregate_kind="execution_checkpoint",
+                record_id=checkpoint.attempt.attempt_id,
+                expected_revision=expected_revision,
+                payload=(
+                    self._checkpoint_store.to_payload(checkpoint)
+                    if self._checkpoint_store is not None
+                    else _json_payload(_CHECKPOINT_ADAPTER, checkpoint)
+                ),
+            )
+            committed = self._uow.commit()
+        except BaseException:
+            self._uow.rollback()
+            raise
+        return ExecutionCommitResult(staged=(staged,), committed=committed)
+
     def publish_and_stage(
         self,
         *,
@@ -135,14 +172,23 @@ class ExecutionCommitCoordinator:
         expected_revisions: Mapping[str, int] | None = None,
     ) -> ExecutionCommitResult:
         evidence_refs = evidence_publisher.publish_attempt(evidence_context)
-        return self.stage_and_commit(
-            ExecutionCommitBatch(
-                checkpoint=checkpoint,
-                evidence_refs=evidence_refs,
-                facts=facts,
-                expected_revisions=expected_revisions or {},
+        begin = getattr(self._uow, "begin", None)
+        if callable(begin):
+            begin(f"execution-{uuid4().hex}", evidence_context.project_id)
+        else:
+            self._uow.open(evidence_context.project_id)
+        try:
+            return self.stage_and_commit(
+                ExecutionCommitBatch(
+                    checkpoint=checkpoint,
+                    evidence_refs=evidence_refs,
+                    facts=facts,
+                    expected_revisions=expected_revisions or {},
+                )
             )
-        )
+        except BaseException:
+            self._uow.rollback()
+            raise
 
 
 def _json_payload(adapter: TypeAdapter[Any], value: Any) -> dict[str, object]:
