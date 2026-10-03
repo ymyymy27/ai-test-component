@@ -221,6 +221,18 @@ class PreparationRequest:
     #: 变化判为 `needs_reprepare`（与 `observed_case_revisions` 同一处理方式）。
     #: 为 `None` 表示该次请求没有解析结果可比（不参与判定）。
     observed_resolved_input_digest: str | None = None
+    #: **观察到的**源码内容身份（`SnapshotRef.content_identity`）。
+    #:
+    #: 它是**观察结果**而不是请求内容，因此按架构《01-项目与计划》第 11 节
+    #: **不进 `payload_hash`**；改在 `decide_preparation()` 里单独比对，
+    #: 变化判为 `needs_reprepare`（`DEC-009` 选丙）。
+    #:
+    #: **为什么快照的变化判据是内容身份而不是修订号**：源码快照按内容寻址
+    #: （`snapshot_id` 由内容决定、同一标识的清单不可变），其记录**恒为修订 1**；
+    #: 而准备判定是**按值比对**修订号的。若沿用修订号，"源码变了"这件事永远
+    #: 比不出来。内容身份**随源码内容变化**，因此它就是现成的、可核对的判据。
+    #: 为 `None` 表示该次请求没有内容身份可比（不参与判定，历史记录因此不被误判）。
+    observed_snapshot_identity: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
@@ -230,6 +242,10 @@ class PreparationRequest:
         if self.observed_resolved_input_digest is not None:
             _require_text(
                 self.observed_resolved_input_digest, "observed resolved input digest"
+            )
+        if self.observed_snapshot_identity is not None:
+            _require_text(
+                self.observed_snapshot_identity, "observed snapshot identity"
             )
         seen: set[str] = set()
         for case_id, revision in self.observed_case_revisions:
@@ -309,6 +325,8 @@ def preparation_record_payload(record: PreparationRecord) -> dict[str, object]:
         ],
         # 同上：解析出来的实际输入摘要也要随记录落盘，否则重启后无法比对。
         "observed_resolved_input_digest": record.request.observed_resolved_input_digest,
+        # 同上：源码内容身份也要随记录落盘，否则重启后无法比对（`DEC-009` 选丙）。
+        "observed_snapshot_identity": record.request.observed_snapshot_identity,
     }
 
 
@@ -363,6 +381,11 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
     if raw_digest is not None and not isinstance(raw_digest, str):
         raise ValueError("observed_resolved_input_digest must be a string when given")
 
+    # 同上：该键也是后加的，老记录可能没有它；缺失不报错，出现时必须是字符串。
+    raw_identity = payload.get("observed_snapshot_identity")
+    if raw_identity is not None and not isinstance(raw_identity, str):
+        raise ValueError("observed_snapshot_identity must be a string when given")
+
     return PreparationRecord(
         request=PreparationRequest(
             project_id=_payload_text(payload, "project_id"),
@@ -372,6 +395,7 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             input_revisions=InputRevisions(**revisions),
             observed_case_revisions=tuple(observed),
             observed_resolved_input_digest=raw_digest,
+            observed_snapshot_identity=raw_identity,
         ),
         intent_id=_payload_text(payload, "intent_id"),
         created_at_commit=_payload_text(payload, "created_at_commit"),
@@ -437,6 +461,16 @@ def decide_preparation(
         # 只拿"双方都有值且不同"判定：旧记录没有该值（本次新增字段之前的记录）
         # 时不能算变化，否则会把历史记录一律判成需重新准备。
         changed.append("resolved_input_digest")
+    previous_identity = existing.request.observed_snapshot_identity
+    current_identity = request.observed_snapshot_identity
+    if previous_identity is not None and current_identity != previous_identity:
+        # **源码内容变了**：旧意图绑定的依据已经不是当前来源，必须报"依据需重新准备"，
+        # 不得复用（`DEC-009` 选丙：快照的变化判据是**内容身份**，不是记录修订号——
+        # 快照按内容寻址、其记录恒为修订 1，用修订号永远比不出源码变化）。
+        # 只拿"双方都有值且不同"判定：旧记录没有该值（本次新增字段之前的记录）
+        # 时不能算变化，否则会把历史记录一律判成需重新准备。
+        # 报出的名字沿用既有 `snapshot_revision`：失效提示与既有 `changed_inputs` 形状不变。
+        changed.append("snapshot_revision")
     if changed:
         return PreparationLookup(
             decision=PreparationDecision.NEEDS_REPREPARE,

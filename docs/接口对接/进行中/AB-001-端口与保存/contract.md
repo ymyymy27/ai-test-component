@@ -992,6 +992,7 @@ B 不代 A 决定检查实现；若 A 采用"按记录类别 + 键名白名单�
 | 2026-10-03 | 1.6 | **第 11.5 节由"待 C 确认"改为"C 侧执行兼容性结论（已回写）"**：Q1 `plain` 必须真正省略 Git 键（C 按"键不存在"处理）、Q2 纯新增不复制第二套模型且主版本待 Q3 定；新增 **第 11.7.1 节函数接口规格**（模块／输入类型／规范字节／返回／异常／版本标识 `SOURCE_CONTENT_IDENTITY_VERSION`）与 **第 11.7.2 节 `content_digest` 前缀口径**（实测裸十六进制与带前缀会算出**不同身份**，故统一为构造处加 `sha256:` 前缀）。**不改端口签名与跨包 Schema 字节；代码仅新增一个版本常量** | B 包（待 C 落地） |
 | 2026-10-03 | 1.7 | **第 8.15 节动作数更正**：原写"动作表 17 → 19"，实测基数有误（`7563aeb` 为 15，加两个 Markdown 动作后为 17），改为 **15 → 17**。新增 **第 8.17 节**（受控依据确认动作 `confirm_assertion_basis`，动作表 **17 → 18**）与 **第 8.18 节**（B 侧记录的**内联摘要 vs 对象引用**清单，供 A 修 A-06；含根因定位、实测复现、8 个内联摘要字段与 3 个真引用字段）。**不改端口签名与跨包 Schema 字节** | B 包（§8.18 待 A 确认） |
 | 2026-10-03 | 1.8 | **第 11.5 节补 C 的 Q1／Q2 结论与 Q4 的 C 侧倾向**：Q1 符合 `plain` 解析预期；Q2 纯新增、不改旧语义，**主版本是否提升取决于 C 侧历史 `content_identity` 是否用了另一套字节算法，且迁移说明落定前不得关闭该议题**；Q4 已转 `DEC-009`，C 给的倾向是"甲不可取、优先丙其次乙"。**不改端口签名与跨包 Schema 字节** | B 包（待裁定） |
+| 2026-10-03 | 1.9 | **Q4 的 `DEC-009` 已按选项丙实现**（B 与 C 一致）：`PreparationRequest` 新增**观察字段** `observed_snapshot_identity`（源码内容身份），`decide_preparation()` 据此判定、报出的名字沿用 `snapshot_revision`；该值随准备记录落盘、可重建，老记录缺该键不报错。**`InputRevisions` 结构、`PreparedRun` 外部字段与跨包 Schema 字节均未改**；`ExecutionFacts.snapshot_revision` 未涉及。**结论状态仍为待裁定，待项目负责人确认** | B 包（已实现，待确认） |
 
 ---
 
@@ -1101,7 +1102,7 @@ detect_changes(snapshot_id) -> 变化清单
 | Q1 | §11.1 形式互斥是否符 C 对 `plain` 的解析预期 | **符合**。`plain` **必须真正省略** Git 键，**不能写 `null`、空串或 `unknown`**；C 按"**键不存在**"处理 | 已确认，C 按此落地 |
 | Q2 | §11.2 字段名与类型是否与 C 侧 `sources.py` 兼容 | **兼容**。与现有 `SourceFile` 兼容；`SourceSnapshot` 这些字段按**纯新增**处理，**不复制第二套模型**；只补字段、不改旧字段语义，**原则上不需提升主版本**。`binding_revision` 保持 `int`、语义收紧为 `>= 1`；`purpose` 在 C 落地时按 `analysis`／`prepare` 约束 | **是否提升主版本，取决于 C 侧历史 `content_identity` 是否用了另一套字节算法**；**若历史值会变，必须先写迁移说明**，且**迁移说明落定前不得关闭该议题**（C 侧 2026-10-03 明确要求） |
 | Q3 | `content_identity` 迁移说明 | **B 已给**（第 11.7 节）。C 明确要求：**不得由 C 自行重算**，必须复用 B 的 `source_content_identity()`；**C 只保存返回值与引用，不复制算法** | 见第 11.7 节的函数接口 |
-| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | **已查明该字段存在语义冲突，转裁定**：A 的快照元数据**不含 `revision`**（内容寻址、清单不可变），B 的快照记录**每次为 `@1`**，而 `changed_inputs()` 按值比对、其失效描述为"source bytes changed"——**该判定项在现行实现下无法触发**。三个候选见 [`待裁定/DEC-009`](../../待裁定/DEC-009-源码快照的修订语义.md)；**C 已给出倾向**：甲不可取，优先丙、其次乙 | 待裁定；**裁定前 B 侧不填该值、不改 `InputRevisions` 结构** |
+| Q4 | `SourceSnapshot` 是否登记为 `PreparedRun.InputRevisions.snapshot_revision` 的来源修订 | **已查明该字段存在语义冲突，转裁定**；**B 与 C 已就选项丙达成一致并按其实现**（准备判定改比对**源码内容身份**，见 `application/planning/preparation.py` 的 `observed_snapshot_identity`），**待项目负责人确认后转为已裁定**。**实测冲突**：A 的快照元数据**不含 `revision`**（内容寻址、清单不可变），B 的快照记录**每次为 `@1`**，而 `changed_inputs()` 按值比对、其失效描述为"source bytes changed"——**该判定项在修订号口径下无法触发**。详见 [`待裁定/DEC-009`](../../待裁定/DEC-009-源码快照的修订语义.md) | 已实现，待确认 |
 
 
 **C 侧落地前提已满足**：C 明确"把 Q1／Q2 的回复和函数接口补到对应合同后，再按新契约 PR 落地"。

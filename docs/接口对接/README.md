@@ -223,7 +223,7 @@ next_action: 补齐字段映射并请求 C 评审
 | --- | --- | --- | --- | --- |
 | [DEC-007](待裁定/DEC-007-规则与计划记录的修订配对.md) | `rule_draft` / `plan` 记录的「正文修订」与「仓储修订」是否必须一致 | B | A、C | **待裁定**；甲乙两案，B 倾向乙（不动字段、不破坏导入保真，用测试与 docstring 写死差异） |
 | [DEC-008](待裁定/DEC-008-验收范围标识是否冻结进PreparedRun.md) | `PreparedRun` 是否冻结验收范围的 `scope_id`（用于漂移核对） | B | C、D | **待裁定**；甲乙丙三案，B 倾向甲（补 `acceptance_scope_id`） |
-| [DEC-009](待裁定/DEC-009-源码快照的修订语义.md) | 源码快照的修订语义（`InputRevisions.snapshot_revision` 到底该是什么） | B | A、C、D | **待裁定**；甲乙丙三案，B 倾向乙。**实测冲突**：A 的快照元数据不含 `revision`、B 的记录恒为 `@1`，而 `changed_inputs()` 按值比对 → "源码变化须重新准备"**无法触发** |
+| [DEC-009](待裁定/DEC-009-源码快照的修订语义.md) | 源码快照的修订语义（`InputRevisions.snapshot_revision` 到底该是什么） | B | A、C、D | **待裁定**；B 与 C 共同倾向选项丙（改比对 `content_identity`）并**已按其实现**，**待项目负责人确认后转为已裁定**。**实测冲突**：A 的快照元数据不含 `revision`、B 的记录恒为 `@1`，而 `changed_inputs()` 按值比对 → "源码变化须重新准备"**无法触发** |
 
 两项的详细冲突依据、候选方案与代价见各自 `DEC-*.md`；索引见
 [`待裁定/README.md`](待裁定/README.md)。裁定后按第 7 节流程回写合同并移入
