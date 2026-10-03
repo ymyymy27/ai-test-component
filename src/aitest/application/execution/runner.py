@@ -331,11 +331,16 @@ class SerialRunner:
             return ()
         results: list[RecoveryResult] = []
         for record in self._checkpoint_store.scan():
-            inspection = (
-                self.inspect_attempt(record.attempt)
-                if record.attempt.execution_handle_ref is not None
-                else None
+            reliable_terminal = (
+                record.attempt.state in {AttemptState.COMPLETED, AttemptState.CANCELLED}
+                and record.attempt.exit_fact_ref is not None
             )
+            inspection = None
+            if not reliable_terminal and record.attempt.execution_handle_ref is not None:
+                try:
+                    inspection = self.inspect_attempt(record.attempt)
+                except (KeyError, ValueError):
+                    inspection = None
             result = recover_attempt(
                 record.checkpoint,
                 record.attempt,

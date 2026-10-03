@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from typing import NoReturn
 
@@ -19,6 +20,7 @@ from aitest.domain.execution.runs import (
     ExecutionInspectionResult,
     ExecutionInspectionState,
     ExecutionRequest,
+    ExitFact,
     OutputCursor,
     OutputStreamName,
     PlanRevisionRef,
@@ -119,6 +121,44 @@ def test_recovery_restores_spool_cursors_after_process_loss(tmp_path: Path) -> N
     assert "execution_result_unknown" in result.gaps
 
 
+def test_recovery_preserves_completed_attempt_with_reliable_exit_fact(
+    tmp_path: Path,
+) -> None:
+    attempt = replace(
+        _attempt(state=AttemptState.COMPLETED),
+        exit_fact_ref=ExitFact(
+            attempt_id="attempt-1",
+            startup_token="startup-1",
+            process_start_identity="start-1",
+            real_exit_code=0,
+        ),
+    )
+    checkpoint = RecoveryCheckpoint(
+        run_id="run-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        last_committed_stage="completed",
+        side_effect_class=SideEffectClass.UNKNOWN,
+        execution_handle_ref=_handle(),
+    )
+
+    result = recover_attempt(
+        checkpoint,
+        attempt,
+        FileSpoolStore(tmp_path),
+        inspection=ExecutionInspectionResult(
+            handle_id="handle-1",
+            state=ExecutionInspectionState.LOST,
+            process_reachable=False,
+            identity_matches=False,
+        ),
+    )
+
+    assert result.action is RecoveryAction.TERMINAL_PRESERVED
+    assert result.attempt.state is AttemptState.COMPLETED
+    assert result.attempt.exit_fact_ref is not None
+
+
 def test_recovery_salvages_unsealed_tail_after_crash(tmp_path: Path) -> None:
     store = FileSpoolStore(tmp_path)
     writer = store.open_stream(
@@ -162,6 +202,45 @@ def test_recovery_salvages_unsealed_tail_after_crash(tmp_path: Path) -> None:
     assert "partial_spool_block" in result.gaps
     assert result.recovered_blocks[0].complete is False
     assert result.capture_completeness.value == "partial"
+
+
+def test_recovery_does_not_salvage_live_writer_tail(tmp_path: Path) -> None:
+    store = FileSpoolStore(tmp_path)
+    writer = store.open_stream(
+        run_id="run-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        stream_name=OutputStreamName.STDOUT,
+        block_size=1024,
+    )
+    writer.append(b"unsealed-tail")
+    checkpoint = RecoveryCheckpoint(
+        run_id="run-1",
+        step_id="step-1",
+        attempt_id="attempt-1",
+        last_committed_stage="started",
+        side_effect_class=SideEffectClass.READ_ONLY,
+        execution_handle_ref=_handle(),
+    )
+
+    result = recover_attempt(
+        checkpoint,
+        _attempt(),
+        store,
+        inspection=ExecutionInspectionResult(
+            handle_id="handle-1",
+            state=ExecutionInspectionState.RUNNING,
+            process_reachable=True,
+            identity_matches=True,
+        ),
+    )
+
+    assert result.action is RecoveryAction.REATTACH
+    assert result.recovered_blocks == ()
+    writer.close()
+    manifest = store.read_manifest("attempt-1")
+    assert len(manifest.blocks) == 1
+    assert store.read_block(manifest.blocks[0]) == b"unsealed-tail"
 
 
 def test_plan_change_invalidates_only_precise_downstream_dependencies() -> None:
@@ -289,6 +368,11 @@ class _LostPort:
         raise AssertionError("stop must not be called for a lost process")
 
 
+class _ExplodingInspectPort(_LostPort):
+    def inspect(self, handle: ExecutionHandle) -> NoReturn:
+        raise AssertionError("reliable terminal attempts must not be inspected")
+
+
 def test_runner_startup_scan_persists_recovery_decision(tmp_path: Path) -> None:
     spool = FileSpoolStore(tmp_path)
     writer = spool.open_stream(
@@ -324,3 +408,42 @@ def test_runner_startup_scan_persists_recovery_decision(tmp_path: Path) -> None:
     assert results[0].attempt.state is AttemptState.PENDING_VERIFICATION
     stored = checkpoint_store.load("attempt-1")
     assert stored.checkpoint.last_committed_stage == "pending_verification"
+
+
+def test_runner_preserves_reliable_terminal_without_inspecting_handle(
+    tmp_path: Path,
+) -> None:
+    attempt = replace(
+        _attempt(state=AttemptState.COMPLETED),
+        exit_fact_ref=ExitFact(
+            attempt_id="attempt-1",
+            startup_token="startup-1",
+            process_start_identity="start-1",
+            real_exit_code=0,
+        ),
+    )
+    checkpoint_store = FileCheckpointStore(tmp_path)
+    checkpoint_store.persist(
+        RecoveryRecord(
+            checkpoint=RecoveryCheckpoint(
+                run_id="run-1",
+                step_id="step-1",
+                attempt_id="attempt-1",
+                last_committed_stage="completed",
+                side_effect_class=SideEffectClass.READ_ONLY,
+                execution_handle_ref=_handle(),
+            ),
+            attempt=attempt,
+        )
+    )
+    runner = SerialRunner(
+        _ExplodingInspectPort(),
+        FileSpoolStore(tmp_path),
+        checkpoint_store=checkpoint_store,
+    )
+
+    results = runner.recover_pending()
+
+    assert len(results) == 1
+    assert results[0].action is RecoveryAction.TERMINAL_PRESERVED
+    assert results[0].attempt.state is AttemptState.COMPLETED

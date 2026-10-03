@@ -13,7 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from io import BufferedReader
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, Protocol
 from uuid import uuid4
 
 from aitest.application.ports import SpoolStore, SpoolStreamWriter
@@ -34,10 +34,17 @@ from aitest.domain.execution.runs import (
     ProcessTerminationReason,
     StopRequestResult,
 )
+from aitest.infrastructure.file_store.execution_handles import PersistedExecutionHandle
 
 from .redaction import StreamingRedactor
 
 SecretResolver = Callable[[str], Mapping[str, str]]
+
+
+class CommandHandleStore(Protocol):
+    def save(self, record: PersistedExecutionHandle) -> Path: ...
+
+    def load(self, handle_id: str) -> PersistedExecutionHandle: ...
 
 _WINDOWS_JOB_PROCESS_ACCESS = 0x0001 | 0x0100 | 0x0200 | 0x1000
 
@@ -103,6 +110,7 @@ class CommandAdapter:
         secret_resolver: SecretResolver | None = None,
         *,
         spool_store: SpoolStore | None = None,
+        handle_store: CommandHandleStore | None = None,
         stream_block_size: int = 64 * 1024,
         graceful_stop_timeout_seconds: float = 3.0,
         force_kill_timeout_seconds: float = 3.0,
@@ -115,6 +123,7 @@ class CommandAdapter:
         self._runtimes: dict[str, _CommandRuntime] = {}
         self._secret_resolver = secret_resolver or (lambda _scope: {})
         self._spool_store = spool_store
+        self._handle_store = handle_store
         self._stream_block_size = stream_block_size
         self._graceful_stop_timeout_seconds = graceful_stop_timeout_seconds
         self._force_kill_timeout_seconds = force_kill_timeout_seconds
@@ -207,6 +216,13 @@ class CommandAdapter:
             job_handle=_assign_windows_job(process.pid) if os.name == "nt" else None,
         )
         self._runtimes[handle.handle_id] = runtime
+        try:
+            self._persist_handle(runtime)
+        except BaseException:
+            self._terminate_group(process.pid, force=True)
+            _close_job(runtime.job_handle)
+            self._runtimes.pop(handle.handle_id, None)
+            raise
 
         try:
             self._open_spool_writers(runtime)
@@ -226,7 +242,9 @@ class CommandAdapter:
         return handle
 
     def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
-        runtime = self._runtime_for(handle)
+        runtime = self._runtimes.get(handle.handle_id)
+        if runtime is None:
+            return self._inspect_persisted(handle)
         return_code = runtime.process.poll()
         if return_code is not None:
             self._cancel_timeout(runtime)
@@ -265,7 +283,9 @@ class CommandAdapter:
         handle: ExecutionHandle,
         cursors: tuple[OutputCursor, ...] | None = None,
     ) -> ExecutionCollectionResult:
-        runtime = self._runtime_for(handle)
+        runtime = self._runtimes.get(handle.handle_id)
+        if runtime is None:
+            return self._collect_persisted(handle, cursors)
         return_code = runtime.process.poll()
         if return_code is None:
             return ExecutionCollectionResult(
@@ -342,7 +362,9 @@ class CommandAdapter:
         )
 
     def request_stop(self, handle: ExecutionHandle) -> StopRequestResult:
-        runtime = self._runtime_for(handle)
+        runtime = self._runtimes.get(handle.handle_id)
+        if runtime is None:
+            return self._stop_persisted(handle)
         return_code = runtime.process.poll()
         if return_code is not None:
             self._cancel_timeout(runtime)
@@ -515,6 +537,112 @@ class CommandAdapter:
         if runtime is None:
             raise KeyError(f"unknown command handle: {handle.handle_id}")
         return runtime
+
+    def _persist_handle(self, runtime: _CommandRuntime) -> None:
+        if self._handle_store is None:
+            return
+        self._handle_store.save(
+            PersistedExecutionHandle(
+                attempt_id=runtime.request.attempt_id,
+                startup_token=runtime.startup_token,
+                handle=runtime.handle,
+            )
+        )
+
+    def _persisted_for(self, handle: ExecutionHandle) -> PersistedExecutionHandle:
+        if self._handle_store is None:
+            raise KeyError(f"unknown command handle: {handle.handle_id}")
+        try:
+            persisted = self._handle_store.load(handle.handle_id)
+        except FileNotFoundError as error:
+            raise KeyError(f"unknown persisted command handle: {handle.handle_id}") from error
+        if persisted.handle != handle:
+            raise ValueError("persisted command handle identity does not match")
+        return persisted
+
+    def _inspect_persisted(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
+        persisted = self._persisted_for(handle)
+        pid = _real_pid(handle)
+        if not _process_is_alive(pid):
+            return ExecutionInspectionResult(
+                handle_id=handle.handle_id,
+                state=ExecutionInspectionState.LOST,
+                process_reachable=False,
+                identity_matches=False,
+                unknown_reason="execution_handle_not_live",
+            )
+        identity_matches = _process_start_identity(pid) == persisted.handle.process_start_identity
+        return ExecutionInspectionResult(
+            handle_id=handle.handle_id,
+            state=(
+                ExecutionInspectionState.RUNNING
+                if identity_matches
+                else ExecutionInspectionState.LOST
+            ),
+            process_reachable=True,
+            identity_matches=identity_matches,
+            unknown_reason=None if identity_matches else "process_identity_mismatch",
+        )
+
+    def _collect_persisted(
+        self,
+        handle: ExecutionHandle,
+        cursors: tuple[OutputCursor, ...] | None,
+    ) -> ExecutionCollectionResult:
+        persisted = self._persisted_for(handle)
+        if self._spool_store is None:
+            return ExecutionCollectionResult(
+                attempt_id=persisted.attempt_id,
+                output_cursors=cursors or (),
+                capture_completeness=CaptureCompleteness.GAP,
+                complete=False,
+            )
+        try:
+            manifest = self._spool_store.read_manifest(persisted.attempt_id)
+        except FileNotFoundError:
+            return ExecutionCollectionResult(
+                attempt_id=persisted.attempt_id,
+                output_cursors=cursors or (),
+                capture_completeness=CaptureCompleteness.GAP,
+                complete=False,
+            )
+        return ExecutionCollectionResult(
+            attempt_id=persisted.attempt_id,
+            output_blocks=manifest.blocks,
+            output_cursors=manifest.cursors or (cursors or ()),
+            capture_completeness=(
+                CaptureCompleteness.COMPLETE
+                if manifest.blocks and all(block.complete for block in manifest.blocks)
+                else CaptureCompleteness.PARTIAL
+                if manifest.blocks
+                else CaptureCompleteness.GAP
+            ),
+            complete=False,
+        )
+
+    def _stop_persisted(self, handle: ExecutionHandle) -> StopRequestResult:
+        persisted = self._persisted_for(handle)
+        pid = _real_pid(handle)
+        if not _process_is_alive(pid):
+            return StopRequestResult(
+                handle_id=handle.handle_id,
+                stop_confirmed=False,
+                observed_state=ExecutionInspectionState.EXITED,
+                unknown_reason="process_already_exited",
+            )
+        _terminate_process_group(pid, force=True)
+        if _wait_for_process_exit(pid):
+            return StopRequestResult(
+                handle_id=handle.handle_id,
+                stop_confirmed=True,
+                observed_state=ExecutionInspectionState.STOPPED,
+            )
+        return StopRequestResult(
+            handle_id=handle.handle_id,
+            stop_confirmed=False,
+            observed_state=ExecutionInspectionState.UNKNOWN,
+            unknown_reason="process_group_stop_unconfirmed",
+        )
 
     @staticmethod
     def _cancel_timeout(runtime: _CommandRuntime) -> None:
@@ -696,6 +824,41 @@ def _process_start_identity(pid: int) -> str:
     return f"pid:{pid}:unverified"
 
 
+def _real_pid(handle: ExecutionHandle) -> int:
+    try:
+        return int(handle.real_execution_id)
+    except ValueError as error:
+        raise ValueError("command handle real_execution_id must be a process id") from error
+
+
+def _process_is_alive(pid: int) -> bool:
+    if os.name == "nt":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+            shell=False,
+        )
+        return str(pid) in result.stdout
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _wait_for_process_exit(pid: int) -> bool:
+    for _ in range(100):
+        if not _process_is_alive(pid):
+            return True
+        time.sleep(0.02)
+    return False
+
+
 def _windows_process_start_identity(pid: int) -> str:
     from ctypes import wintypes
 
@@ -733,4 +896,4 @@ def _linux_process_start_identity(pid: int) -> str:
     return f"linux-boot:{boot_id}:pid:{pid}:start:{start_ticks}"
 
 
-__all__ = ["CommandAdapter", "CommandRegistration", "SecretResolver"]
+__all__ = ["CommandAdapter", "CommandHandleStore", "CommandRegistration", "SecretResolver"]
