@@ -40,8 +40,7 @@ from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.contracts.verification import VerificationFact
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
-from aitest.domain.evidence.evidence import StoredObjectRef
-from aitest.domain.evidence.evidence import Verification
+from aitest.domain.evidence.evidence import StoredObjectRef, Verification
 from aitest.domain.execution.runs import (
     CapturedOutputBlock,
     ExecutionCollectionResult,
