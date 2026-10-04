@@ -1,0 +1,13 @@
+{
+  "source_archive": "docs\\validation\\p1-abc-fix-20261003\\history\\current-attempt-transition-1687\\validation-source.zip",
+  "source_archive_sha256": "4338ed7760515d155d273098ac6dad06400a64d18edcdd862f5a59c35c431aa2",
+  "scratch": ".git\\p1-abc-fix-20261003\\connection-before-5bc570b78aa84b89872fc2cdb22a89d8",
+  "test_sha256": "76d6004c11608c2ec9b0d057b7049d8a41540ae47ceccdac9b16ad14018d9d79",
+  "scope": "Corrected command fixture against frozen pre-repair source; original fixture failure log retained",
+  "archived_test": "connection-fact-before-test.py",
+  "expected_before_result": {
+    "failed": 18,
+    "passed": 2,
+    "seconds": 1.91
+  }
+}

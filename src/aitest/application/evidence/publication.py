@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -97,11 +98,23 @@ class EvidencePublisher:
         if block.attempt_id != context.attempt_id:
             raise ValueError("spool block and publication context attempt_id must match")
         content = self._spool_store.read_block(block)
+        if (
+            len(content) != block.length
+            or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
+        ):
+            raise ValueError("spool publication bytes do not match the frozen output block")
         stored = self._object_store.publish_bytes(
             context.project_id,
             content,
             media_type=context.media_type,
         )
+        if (
+            stored.project_id != context.project_id
+            or stored.digest != block.digest
+            or stored.size != block.length
+            or self._object_store.read_bytes(stored) != content
+        ):
+            raise ValueError("published evidence does not preserve the verified output bytes")
         integrity = EvidenceIntegrity.COMPLETE if block.complete else EvidenceIntegrity.PARTIAL
         return EvidenceRef(
             evidence_id=f"evidence:{context.attempt_id}:{block.stream_name.value}:{block.block_index}",

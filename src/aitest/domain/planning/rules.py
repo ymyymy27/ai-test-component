@@ -98,6 +98,8 @@ class RuleVersion:
     source: str
     confirmation_id: str
     digest: str
+    # 正文 revision 可来自导入；仓储修订由提交分配，冻结引用使用后者。
+    record_revision: int | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.rule_id, "rule_id")
@@ -108,6 +110,8 @@ class RuleVersion:
         _require_text(self.digest, "digest")
         if self.revision < 1:
             raise ValueError("rule revision must be >= 1")
+        if self.record_revision is not None and self.record_revision < 1:
+            raise ValueError("rule record revision must be >= 1")
         _require_items(self.steps, "steps")
         _require_items(self.evidence_requirements, "evidence_requirements")
 
@@ -135,7 +139,7 @@ class RuleRevisionRef:
     def of(cls, version: RuleVersion) -> RuleRevisionRef:
         return cls(
             rule_id=version.rule_id,
-            revision=version.revision,
+            revision=version.record_revision or version.revision,
             digest=version.digest,
         )
 

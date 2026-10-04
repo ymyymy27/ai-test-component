@@ -1,0 +1,514 @@
+FFFFFFFFFFFFFFFFF                                                        [100%]
+================================== FAILURES ===================================
+_________ test_illegal_selector_combinations_are_rejected[selectors0] _________
+
+selectors = {'revision': 2}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors1] _________
+
+selectors = {'record_id': 'x'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors2] _________
+
+selectors = {'aggregate_kind': 'case', 'revision': 2}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors3] _________
+
+selectors = {'view': 'ALL', 'report_id': 'x'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors4] _________
+
+selectors = {'view': 'OPEN', 'run_id': 'x'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors5] _________
+
+selectors = {'view': 'ALL', 'business_outcome': 'failed'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors6] _________
+
+selectors = {'view': 'ALL', 'aggregate_kind': 'case'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors7] _________
+
+selectors = {'view': 'ALL', 'record_id': 'x', 'aggregate_kind': 'issue'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors8] _________
+
+selectors = {'view': 'ALL', 'revision': 1}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+_________ test_illegal_selector_combinations_are_rejected[selectors9] _________
+
+selectors = {'facet': 'module', 'facet_value': 'm', 'report_id': 'x'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors10] _________
+
+selectors = {'severity': 'high', 'report_id': 'x'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors11] _________
+
+selectors = {'report_id': 'x', 'run_id': 'y'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors12] _________
+
+selectors = {'report_id': 'x', 'aggregate_kind': 'case'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors13] _________
+
+selectors = {'report_id': 'x', 'record_id': 'y', 'aggregate_kind': 'report'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors14] _________
+
+selectors = {'run_id': 'x', 'revision': 1}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors15] _________
+
+selectors = {'aggregate_kind': 'case', 'business_outcome': 'passed'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+________ test_illegal_selector_combinations_are_rejected[selectors16] _________
+
+selectors = {'aggregate_kind': 'report', 'record_id': 'x', 'business_outcome': 'passed'}
+
+    @pytest.mark.parametrize("selectors", [
+        {"revision": 2},
+        {"record_id": "x"},
+        {"aggregate_kind": "case", "revision": 2},
+        {"view": "ALL", "report_id": "x"},
+        {"view": "OPEN", "run_id": "x"},
+        {"view": "ALL", "business_outcome": "failed"},
+        {"view": "ALL", "aggregate_kind": "case"},
+        {"view": "ALL", "record_id": "x", "aggregate_kind": "issue"},
+        {"view": "ALL", "revision": 1},
+        {"facet": "module", "facet_value": "m", "report_id": "x"},
+        {"severity": "high", "report_id": "x"},
+        {"report_id": "x", "run_id": "y"},
+        {"report_id": "x", "aggregate_kind": "case"},
+        {"report_id": "x", "record_id": "y", "aggregate_kind": "report"},
+        {"run_id": "x", "revision": 1},
+        {"aggregate_kind": "case", "business_outcome": "passed"},
+        {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
+    ])
+    def test_illegal_selector_combinations_are_rejected(selectors):
+>       with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests\unit\test_finite_query_routes.py:29: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors0]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors1]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors2]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors3]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors4]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors5]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors6]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors7]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors8]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors9]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors10]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors11]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors12]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors13]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors14]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors15]
+FAILED tests/unit/test_finite_query_routes.py::test_illegal_selector_combinations_are_rejected[selectors16]
+17 failed in 0.29s

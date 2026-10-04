@@ -153,6 +153,6 @@ def test_decisive_failure_remains_visible_without_counting_pass() -> None:
     )
 
     assert aggregate.has_decisive_failure is True
-    assert aggregate.can_count_execution is False
+    assert aggregate.can_count_execution is True
     assert aggregate.can_count_reuse is False
-    assert aggregate.can_count_verification is False
+    assert aggregate.can_count_verification is True

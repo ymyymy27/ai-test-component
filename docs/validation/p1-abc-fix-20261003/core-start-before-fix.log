@@ -1,0 +1,198 @@
+FFFFFFFF.F                                                               [100%]
+================================== FAILURES ===================================
+_______________ test_failed_creation_does_not_publish_discovery _______________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-466/test_failed_creation_does_not_0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002064087DA70>
+
+    def test_failed_creation_does_not_publish_discovery(tmp_path, monkeypatch):
+    
+        def fail(*args, **kwargs):
+            raise OSError('controlled creation failure')
+        monkeypatch.setattr(bootstrap.subprocess, 'Popen', fail)
+        with pytest.raises((WorkspaceInUse, OSError)):
+            SystemProcessLauncher(tmp_path).start('workspace')
+>       assert not (tmp_path / '.core-instance-id').exists()
+E       assert not True
+E        +  where True = exists()
+E        +    where exists = (WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-466/test_failed_creation_does_not_0") / '.core-instance-id').exists
+
+tests\unit\test_startup_before.py:18: AssertionError
+___________ test_repeated_claim_preserves_first_child_and_discovery ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-466/test_repeated_claim_preserves_0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000206401B0B00>
+
+    def test_repeated_claim_preserves_first_child_and_discovery(tmp_path, monkeypatch):
+        children = []
+    
+        class Alive:
+            pid = os.getpid()
+    
+            def __init__(self, cmd, **kwargs):
+                children.append(cmd)
+    
+            def poll(self):
+                return None
+        monkeypatch.setattr(bootstrap.subprocess, 'Popen', Alive)
+        launcher = SystemProcessLauncher(tmp_path)
+        first = launcher.start('workspace')
+        second = SystemProcessLauncher(tmp_path).start('workspace')
+>       assert len(children) == 1
+E       assert 2 == 1
+E        +  where 2 = len([["C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Scripts\\python.exe", '-m', 'aitest.interfaces.local.core_work...rs\\y'm'y\\AppData\\Local\\Temp\\pytest-of-y'm'y\\pytest-466\\test_repeated_claim_preserves_0", '--workspace-id', ...]])
+
+tests\unit\test_startup_before.py:35: AssertionError
+_______ test_client_completes_partial_writes_without_duplicating_frame ________
+
+    def test_client_completes_partial_writes_without_duplicating_frame():
+        captured = bytearray()
+    
+        def write(handle, buffer, size, output, overlap):
+            count = min(size, 3)
+            captured.extend(bytes(buffer[:count]))
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+            return True
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+        client._kernel = SimpleNamespace(kernel32=SimpleNamespace(WriteFile=write))
+        payload = b'{"action":"query"}'
+        client.write_message(payload)
+>       assert captured == len(payload).to_bytes(4, 'big') + payload
+E       assert bytearray(b'\x00\x00\x00') == b'\x00\x00\x0...ion":"query"}'
+E         
+E         Right contains 19 more items, first extra item: 18
+E         Use -v to get more diff
+
+tests\unit\test_startup_before.py:51: AssertionError
+______ test_client_failed_writes_cannot_claim_complete_command[False-2] _______
+
+success = False, count = 2
+
+    @pytest.mark.parametrize('success,count', [(False, 2), (True, 0), (True, 999)])
+    def test_client_failed_writes_cannot_claim_complete_command(success, count):
+    
+        def write(handle, buffer, size, output, overlap):
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+            return success
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+        client._kernel = SimpleNamespace(kernel32=SimpleNamespace(WriteFile=write))
+>       with pytest.raises(pipe.PipeUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PipeUnavailable
+
+tests\unit\test_startup_before.py:62: Failed
+_______ test_client_failed_writes_cannot_claim_complete_command[True-0] _______
+
+success = True, count = 0
+
+    @pytest.mark.parametrize('success,count', [(False, 2), (True, 0), (True, 999)])
+    def test_client_failed_writes_cannot_claim_complete_command(success, count):
+    
+        def write(handle, buffer, size, output, overlap):
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+            return success
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+        client._kernel = SimpleNamespace(kernel32=SimpleNamespace(WriteFile=write))
+>       with pytest.raises(pipe.PipeUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PipeUnavailable
+
+tests\unit\test_startup_before.py:62: Failed
+______ test_client_failed_writes_cannot_claim_complete_command[True-999] ______
+
+success = True, count = 999
+
+    @pytest.mark.parametrize('success,count', [(False, 2), (True, 0), (True, 999)])
+    def test_client_failed_writes_cannot_claim_complete_command(success, count):
+    
+        def write(handle, buffer, size, output, overlap):
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+            return success
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+        client._kernel = SimpleNamespace(kernel32=SimpleNamespace(WriteFile=write))
+>       with pytest.raises(pipe.PipeUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PipeUnavailable
+
+tests\unit\test_startup_before.py:62: Failed
+__ test_client_rejects_oversized_response_before_allocating_or_reading_body ___
+
+    def test_client_rejects_oversized_response_before_allocating_or_reading_body():
+        calls = []
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+    
+        def read(size):
+            calls.append(size)
+            assert size == 4
+            return (pipe.MAX_MESSAGE_BYTES + 1).to_bytes(4, 'big')
+        client._read_exact = read
+        with pytest.raises(pipe.PipeUnavailable, match='��������'):
+>           client.read_message()
+
+tests\unit\test_startup_before.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\interfaces\local\pipe.py:381: in read_message
+    return self._read_exact(length)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+size = 8388609
+
+    def read(size):
+        calls.append(size)
+>       assert size == 4
+E       assert 8388609 == 4
+
+tests\unit\test_startup_before.py:72: AssertionError
+__ test_client_failed_reads_do_not_accept_partial_or_false_success[False-2] ___
+
+success = False, count = 2
+
+    @pytest.mark.parametrize('success,count', [(False, 2), (True, 0), (True, 999)])
+    def test_client_failed_reads_do_not_accept_partial_or_false_success(success, count):
+    
+        def read(handle, buffer, size, output, overlap):
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+            return success
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+        client._kernel = SimpleNamespace(kernel32=SimpleNamespace(ReadFile=read))
+>       with pytest.raises(pipe.PipeUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PipeUnavailable
+
+tests\unit\test_startup_before.py:88: Failed
+__ test_client_failed_reads_do_not_accept_partial_or_false_success[True-999] __
+
+success = True, count = 999
+
+    @pytest.mark.parametrize('success,count', [(False, 2), (True, 0), (True, 999)])
+    def test_client_failed_reads_do_not_accept_partial_or_false_success(success, count):
+    
+        def read(handle, buffer, size, output, overlap):
+            ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+            return success
+        client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+        client._handle = 99
+        client._kernel = SimpleNamespace(kernel32=SimpleNamespace(ReadFile=read))
+>       with pytest.raises(pipe.PipeUnavailable):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PipeUnavailable
+
+tests\unit\test_startup_before.py:88: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_startup_before.py::test_failed_creation_does_not_publish_discovery
+FAILED tests/unit/test_startup_before.py::test_repeated_claim_preserves_first_child_and_discovery
+FAILED tests/unit/test_startup_before.py::test_client_completes_partial_writes_without_duplicating_frame
+FAILED tests/unit/test_startup_before.py::test_client_failed_writes_cannot_claim_complete_command[False-2]
+FAILED tests/unit/test_startup_before.py::test_client_failed_writes_cannot_claim_complete_command[True-0]
+FAILED tests/unit/test_startup_before.py::test_client_failed_writes_cannot_claim_complete_command[True-999]
+FAILED tests/unit/test_startup_before.py::test_client_rejects_oversized_response_before_allocating_or_reading_body
+FAILED tests/unit/test_startup_before.py::test_client_failed_reads_do_not_accept_partial_or_false_success[False-2]
+FAILED tests/unit/test_startup_before.py::test_client_failed_reads_do_not_accept_partial_or_false_success[True-999]
+9 failed, 1 passed in 0.74s

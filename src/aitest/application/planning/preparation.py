@@ -76,17 +76,13 @@ class InputRevisions:
             _require_revision(getattr(self, field_name), field_name)
 
 
-_REVISION_FIELDS: tuple[str, ...] = tuple(
-    field.name for field in fields(InputRevisions)
-)
+_REVISION_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(InputRevisions))
 
 
 # ------------------------------------------------------------------ 业务身份
 
 
-def preparation_identity_digest(
-    *, project_id: str, client_id: str, prepare_request_id: str
-) -> str:
+def preparation_identity_digest(*, project_id: str, client_id: str, prepare_request_id: str) -> str:
     """三个业务身份键的稳定摘要。
 
     准备记录标识与业务意图标识**都由它派生**，因此两者同域、定长、无歧义：
@@ -107,9 +103,7 @@ def preparation_identity_digest(
     return sha256(raw.encode("utf-8")).hexdigest()[:40]
 
 
-def preparation_record_id(
-    *, project_id: str, client_id: str, prepare_request_id: str
-) -> str:
+def preparation_record_id(*, project_id: str, client_id: str, prepare_request_id: str) -> str:
     """`preparation_record` 的稳定记录标识。"""
     return _RECORD_PREFIX + preparation_identity_digest(
         project_id=project_id,
@@ -118,9 +112,7 @@ def preparation_record_id(
     )
 
 
-def preparation_intent_id(
-    *, project_id: str, client_id: str, prepare_request_id: str
-) -> str:
+def preparation_intent_id(*, project_id: str, client_id: str, prepare_request_id: str) -> str:
     """业务意图标识；由应用派生，**不是**传输层的 `prepare_request_id`。"""
     return _INTENT_PREFIX + preparation_identity_digest(
         project_id=project_id,
@@ -183,9 +175,7 @@ def payload_hash(payload: Mapping[str, object]) -> str:
     只应传入业务输入。把 `request_id`、重试次数、接收时间一类传输层参数放进来，
     会让"同号重传"被误判为"输入不同"。
     """
-    canonical = {
-        key: _canonical_item(payload[key]) for key in sorted(payload)
-    }
+    canonical = {key: _canonical_item(payload[key]) for key in sorted(payload)}
     encoded = json.dumps(
         canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("utf-8")
@@ -221,6 +211,8 @@ class PreparationRequest:
     #: 变化判为 `needs_reprepare`（与 `observed_case_revisions` 同一处理方式）。
     #: 为 `None` 表示该次请求没有解析结果可比（不参与判定）。
     observed_resolved_input_digest: str | None = None
+    observed_snapshot_content_identity: str | None = None
+    observed_scope_id: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
@@ -228,9 +220,11 @@ class PreparationRequest:
         _require_text(self.prepare_request_id, "prepare_request_id")
         _require_text(self.payload_hash, "payload_hash")
         if self.observed_resolved_input_digest is not None:
-            _require_text(
-                self.observed_resolved_input_digest, "observed resolved input digest"
-            )
+            _require_text(self.observed_resolved_input_digest, "observed resolved input digest")
+        if self.observed_snapshot_content_identity is not None:
+            _require_text(self.observed_snapshot_content_identity, "snapshot content identity")
+        if self.observed_scope_id is not None:
+            _require_text(self.observed_scope_id, "scope_id")
         seen: set[str] = set()
         for case_id, revision in self.observed_case_revisions:
             _require_text(case_id, "observed case_id")
@@ -273,9 +267,7 @@ class PreparationRecord:
         # 传输层的 request_id 不能代替业务身份；本值对象不接受 request_id，
         # 这里再挡住"把请求号当意图号"这一种实际会发生的写法。
         if self.intent_id == self.request.prepare_request_id:
-            raise ValueError(
-                "intent_id must not be the transport-level prepare_request_id"
-            )
+            raise ValueError("intent_id must not be the transport-level prepare_request_id")
 
     def matches_identity(self, request: PreparationRequest) -> bool:
         return self.request.identity_key == request.identity_key
@@ -299,16 +291,16 @@ def preparation_record_payload(record: PreparationRecord) -> dict[str, object]:
         "created_at_commit": record.created_at_commit,
         "cancelled": record.cancelled,
         "input_revisions": {
-            name: getattr(record.request.input_revisions, name)
-            for name in _REVISION_FIELDS
+            name: getattr(record.request.input_revisions, name) for name in _REVISION_FIELDS
         },
         # 观察事实也随记录落盘：不落盘则进程重启后无法比对，"换配对要识别为异输入"就失效。
         "observed_case_revisions": [
-            [case_id, revision]
-            for case_id, revision in record.request.observed_case_revisions
+            [case_id, revision] for case_id, revision in record.request.observed_case_revisions
         ],
         # 同上：解析出来的实际输入摘要也要随记录落盘，否则重启后无法比对。
         "observed_resolved_input_digest": record.request.observed_resolved_input_digest,
+        "observed_snapshot_content_identity": record.request.observed_snapshot_content_identity,
+        "observed_scope_id": record.request.observed_scope_id,
     }
 
 
@@ -362,6 +354,12 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
     raw_digest = payload.get("observed_resolved_input_digest")
     if raw_digest is not None and not isinstance(raw_digest, str):
         raise ValueError("observed_resolved_input_digest must be a string when given")
+    raw_identity = payload.get("observed_snapshot_content_identity")
+    if raw_identity is not None and not isinstance(raw_identity, str):
+        raise ValueError("observed_snapshot_content_identity must be a string when given")
+    raw_scope = payload.get("observed_scope_id")
+    if raw_scope is not None and not isinstance(raw_scope, str):
+        raise ValueError("observed_scope_id must be a string when given")
 
     return PreparationRecord(
         request=PreparationRequest(
@@ -372,12 +370,13 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             input_revisions=InputRevisions(**revisions),
             observed_case_revisions=tuple(observed),
             observed_resolved_input_digest=raw_digest,
+            observed_snapshot_content_identity=raw_identity,
+            observed_scope_id=raw_scope,
         ),
         intent_id=_payload_text(payload, "intent_id"),
         created_at_commit=_payload_text(payload, "created_at_commit"),
         cancelled=cancelled,
     )
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -389,14 +388,10 @@ class PreparationLookup:
     changed_inputs: tuple[str, ...] = ()
 
 
-def changed_inputs(
-    previous: InputRevisions, current: InputRevisions
-) -> tuple[str, ...]:
+def changed_inputs(previous: InputRevisions, current: InputRevisions) -> tuple[str, ...]:
     """列出发生变化的输入项名；顺序固定为字段声明顺序，便于稳定提示与测试。"""
     return tuple(
-        name
-        for name in _REVISION_FIELDS
-        if getattr(previous, name) != getattr(current, name)
+        name for name in _REVISION_FIELDS if getattr(previous, name) != getattr(current, name)
     )
 
 
@@ -422,9 +417,13 @@ def decide_preparation(
     if existing.request.payload_hash != request.payload_hash:
         return PreparationLookup(decision=PreparationDecision.CONFLICTED)
 
-    changed = list(
-        changed_inputs(existing.request.input_revisions, request.input_revisions)
-    )
+    changed = list(changed_inputs(existing.request.input_revisions, request.input_revisions))
+    previous_identity = existing.request.observed_snapshot_content_identity
+    current_identity = request.observed_snapshot_content_identity
+    if previous_identity != current_identity:
+        changed.append("snapshot_content_identity")
+    if existing.request.observed_scope_id != request.observed_scope_id:
+        changed.append("scope_id")
     if existing.request.observed_case_revisions != request.observed_case_revisions:
         # 「哪个用例配哪个修订」变了也是**依据变化**，不是"换了请求"：
         # 配对不进摘要（见 PreparationRequest 的说明），因此在这里单独识别。

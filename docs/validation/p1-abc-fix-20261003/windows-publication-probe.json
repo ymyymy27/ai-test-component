@@ -1,0 +1,88 @@
+{
+  "status": "verified_component_behavior",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "python": "3.13.13",
+  "before": {
+    "kind": "frozen_source_contract_gap_not_a_runtime_failure",
+    "archive": "history/publication-prototype-1928/validation-source.zip",
+    "archive_sha256": "0f79b0c9a67b966498f7b73cb3a9e0226965e5e964b96395524efad92b1bea34",
+    "source": "src/aitest/infrastructure/file_store/commit_manifest.py",
+    "source_sha256": "bbac95bae25ec001735ea4404cb5480e1cf6bae46a29939c6766c37f0959b8ea",
+    "pointer_fields": 4,
+    "publication_api": "atomic.write_json/os.replace"
+  },
+  "actual_native_calls": {
+    "flush": 23,
+    "replace": 1,
+    "initialize": 1
+  },
+  "pointer_fields": [
+    "commit_id",
+    "event_cursor",
+    "generation",
+    "index_root",
+    "manifest_digest",
+    "schema_version",
+    "workspace_id"
+  ],
+  "backup_matches_previous": true,
+  "scenarios": [
+    {
+      "cut": "replacement_denied",
+      "acknowledged": false,
+      "root_unchanged": true,
+      "commit": 0,
+      "revision": 0,
+      "inspection": "old"
+    },
+    {
+      "cut": "lost_response_after_actual_ReplaceFileW",
+      "acknowledged": true,
+      "intent_recalled": true,
+      "commit": 1,
+      "revision": 1,
+      "event_count": 1,
+      "query_status": "ok",
+      "query_event_cursor_present": true
+    }
+  ],
+  "remaining": [
+    "full normative manifest field/reference closure",
+    "evidence object and business change index closure",
+    "actual core emitter origin",
+    "bounded ordinary startup",
+    "manual uncertain-publication recovery workflow",
+    "target-device physical power-loss validation",
+    "default business/Trae/AC acceptance"
+  ],
+  "sources": [
+    {
+      "path": "src/aitest/infrastructure/file_store/publication_backend.py",
+      "sha256": "cb644a98fb1b7ad2121cb9d45169916c2efd11a20ad2dcce0fc838a1c5c86e91"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py",
+      "sha256": "b041349508b010e93cc5714bf546322c767d570a472fb48ef7d43d8f8a8d0d96"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "sha256": "f7084657405d47b9965c28ed47317167b48492c0beaeb48a6d3464bfc64d83ae"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "sha256": "e7e980137b116da4d7020356f1f350a36484e736aa16e0d7eac68c8c4b0ffcd4"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "sha256": "5c8b9c233fce0272ad2e146122e414e771603e2733407b596fa75d071ade0330"
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "sha256": "49ced87b478e849b4e4720f80b4fc5fa227e79649ddc4c064e18c25457baf8ca"
+    },
+    {
+      "path": "tests/unit/test_windows_publication_integrity.py",
+      "sha256": "1276a70f74357c3824bb2b751dc117c4ba81fd41f2f6fdbec33b4489548da928"
+    }
+  ]
+}

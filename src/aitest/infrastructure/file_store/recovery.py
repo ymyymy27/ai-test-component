@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Final
 
 from .backup import BackupError, FileBackupStore, RestoreReport
-from .events import FileEventJournal, ReconcileReport
+from .events import EventMaintenanceRequired, FileEventJournal, ReconcileReport
 from .integrity import check_workspace
 from .records import FileRecordRepository
 
@@ -103,7 +103,17 @@ class RecoveryOrchestrator:
 
         # Phase C：事件日志核对（提交清单为事实来源）。
         journal = FileEventJournal(self._root, instance_id=self._instance_id)
-        reconcile = journal.reconcile(committed_sequences=committed)
+        try:
+            reconcile = journal.reconcile(committed_sequences=committed)
+        except EventMaintenanceRequired:
+            return RecoveryState(
+                state="blocked",
+                integrity_ok=True,
+                committed_sequences=tuple(sorted(committed)),
+                actions=("事件边界身份或字节无法核实，需人工恢复",),
+                reconcile=None,
+                restore=None,
+            )
         actions.extend(reconcile.actions)
 
         state = "repaired" if actions else "healthy"
@@ -142,9 +152,7 @@ class RecoveryOrchestrator:
                 state="blocked",
                 integrity_ok=False,
                 committed_sequences=self._committed_sequences(),
-                actions=(
-                    f"备份恢复后核对未通过，保持阻塞: {report.target}",
-                ),
+                actions=(f"备份恢复后核对未通过，保持阻塞: {report.target}",),
                 reconcile=None,
                 restore=report,
             )
@@ -215,12 +223,20 @@ def seal_inflight_outputs(root: Path) -> tuple[str, ...]:
     attempt 缺少 run/step 身份事实，不在此猜测，留给启动恢复按活动标记
     核实处理。幂等：字节均已被清单覆盖时不重复声称。
     """
+    import portalocker
+
+    from aitest.domain.execution.runs import ExecutionInspectionState
+    from aitest.infrastructure.adapters.execution.command import CommandAdapter
+
+    from .execution_handles import FileExecutionHandleStore
     from .spool import FileSpoolStore
 
     spool_dir = root / "spool"
     if not spool_dir.is_dir():
         return ()
     store = FileSpoolStore(root)
+    handles = FileExecutionHandleStore(root)
+    execution = CommandAdapter(spool_store=store, handle_store=handles)
     sealed: list[str] = []
     for attempt in spool_dir.iterdir():
         if not attempt.is_dir() or attempt.is_symlink():
@@ -229,17 +245,28 @@ def seal_inflight_outputs(root: Path) -> tuple[str, ...]:
             continue
         try:
             has_streams = any(
-                path.is_file()
-                and path.suffix.lower() == ".log"
-                and path.name != "manifest.json"
+                path.is_file() and path.suffix.lower() == ".log" and path.name != "manifest.json"
                 for path in attempt.iterdir()
             )
         except OSError:
             continue
         if not has_streams:
             continue
+        owned = handles.find_by_attempt(attempt.name)
+        if owned is not None:
+            inspection = execution.inspect(owned.handle)
+            if inspection.state not in {
+                ExecutionInspectionState.EXITED,
+                ExecutionInspectionState.STOPPED,
+            }:
+                # 存活、身份不符或取证失败的执行不能由退出清理夺走输出。
+                continue
         before = len(store.read_manifest(attempt.name).blocks)
-        salvaged = store.salvage_streams(attempt.name)
+        try:
+            salvaged = store.salvage_streams(attempt.name)
+        except portalocker.exceptions.LockException:
+            # 真实采集者持锁，继续保留原材料；后续核心按原句柄核实。
+            continue
         if len(salvaged.blocks) > before:
             sealed.append(attempt.name)
     return tuple(sealed)

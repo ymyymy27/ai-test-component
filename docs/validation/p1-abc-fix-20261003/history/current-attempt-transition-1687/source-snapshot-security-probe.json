@@ -1,0 +1,9 @@
+{
+  "scope": "synthetic known credential only; source snapshot component",
+  "expected": "reject unsafe original source before any plaintext write",
+  "actual_known_credential_written": true,
+  "metadata_published": true,
+  "status": "confirmed defect",
+  "issue": "A-09",
+  "source": "src/aitest/infrastructure/adapters/source_snapshot.py:FileSourceSnapshotStore._store_blob"
+}

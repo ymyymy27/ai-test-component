@@ -136,6 +136,9 @@ class FileEventJournal:
     def __init__(self, workspace_root: Path, *, instance_id: str) -> None:
         if not instance_id:
             raise ValueError("instance_id is required")
+        from .commit_manifest import FileCommitStore
+
+        FileCommitStore.reject_links(workspace_root)
         self._root = workspace_root.resolve()
         self._instance_id = instance_id
         self._dir = self._root / "event-log"
@@ -144,17 +147,28 @@ class FileEventJournal:
         self._staging_dir = self._dir / _STAGING_DIR
         self._boundary_dir = self._dir / _BOUNDARY_DIR
         self._quarantine_dir = self._dir / _QUARANTINE_DIR
+        if FileCommitStore(self._root).read_current() is not None:
+            self._repaired_tail_lines = 0
+            return
         for path in (self._staging_dir, self._boundary_dir, self._quarantine_dir):
+            FileCommitStore.reject_links(path)
             path.mkdir(parents=True, exist_ok=True)
         if not self._journal.exists():
             self._journal.touch()
-        self._repaired_tail_lines = self._repair_tail()
+        self._repaired_tail_lines = (
+            0 if FileCommitStore(self._root).read_current() is not None else self._repair_tail()
+        )
 
     # ----- 公开读能力 -------------------------------------------------
 
     def health(self) -> dict[str, object]:
         """日志健康与当前位置摘要。"""
-        position = self._load_position()
+        from .commit_manifest import FileCommitStore
+
+        current = FileCommitStore(self._root).read_current()
+        position = (
+            current["manifest"]["event_root"] if current is not None else self._load_position()
+        )
         return {
             "ok": True,
             "instance_id": self._instance_id,
@@ -165,6 +179,14 @@ class FileEventJournal:
 
     def read(self, *, cursor: str | None = None, limit: int = _DEFAULT_LIMIT) -> EventReadResult:
         """从游标后续读事件；cursor=None 从头开始。"""
+        from .commit_manifest import CommitMaterialError, FileCommitStore
+        from .ordered_events import OrderedEventStore
+
+        try:
+            if FileCommitStore(self._root).read_current() is not None:
+                return OrderedEventStore(self._root).read(cursor=cursor, limit=limit)
+        except CommitMaterialError:
+            return EventReadResult(status="maintenance_required")
         after_sequence = 0
         if cursor is not None:
             try:
@@ -176,9 +198,7 @@ class FileEventJournal:
             events = self._parse_journal()
         except EventMaintenanceRequired:
             return EventReadResult(status="maintenance_required")
-        later = (
-            event for event in events if event.event_sequence > after_sequence
-        )
+        later = (event for event in events if event.event_sequence > after_sequence)
         selected = tuple(later)[:bounded]
         if not selected:
             return EventReadResult(status="ok", next_cursor=None)
@@ -190,6 +210,11 @@ class FileEventJournal:
 
     def snapshot_cursor(self, *, commit_sequence: int) -> str | None:
         """返回某已提交边界末尾的游标，供快照后续读；边界不存在返回 None。"""
+        from .commit_manifest import FileCommitStore
+        from .ordered_events import OrderedEventStore
+
+        if FileCommitStore(self._root).read_current() is not None:
+            return OrderedEventStore(self._root).snapshot_cursor(commit_sequence=commit_sequence)
         marker = self._load_boundary(commit_sequence)
         if marker is None:
             return None
@@ -210,6 +235,10 @@ class FileEventJournal:
         writer_epoch: int,
     ) -> BoundaryHandle:
         """开启一个事件边界；已存在标记的边界禁止重开（幂等提交走 commit）。"""
+        from .commit_manifest import FileCommitStore
+
+        if FileCommitStore(self._root).read_current() is not None:
+            raise ValueError("event publication must use the shared commit unit")
         if commit_sequence < 1:
             raise ValueError("commit_sequence must be >= 1")
         if self._load_boundary(commit_sequence) is not None:
@@ -345,6 +374,15 @@ class FileEventJournal:
         是否真实存在”的事实来源；不在其中的暂存边界只登记为孤立，不
         自动重放。
         """
+        from .commit_manifest import FileCommitStore
+
+        if FileCommitStore(self._root).read_current(verify_material=True) is not None:
+            return ReconcileReport(
+                repaired_tail_lines=0,
+                completed_boundaries=(),
+                orphaned_staging=(),
+                actions=(),
+            )
         actions: list[str] = []
         repaired = self._repair_tail()
         if repaired:
@@ -363,8 +401,7 @@ class FileEventJournal:
             else:
                 orphaned.append(commit_sequence)
                 actions.append(
-                    f"orphaned staging for boundary {commit_sequence}; "
-                    "left for human recovery"
+                    f"orphaned staging for boundary {commit_sequence}; left for human recovery"
                 )
         self._rebuild_position_from_journal(actions)
         return ReconcileReport(
@@ -440,12 +477,37 @@ class FileEventJournal:
         """journal 已有该提交的事件时去重，否则补追加，最后写标记。"""
         journal_events = self._parse_journal()
         staged_events = self._read_staging(staging)
-        existing_sequences = {event.event_sequence for event in journal_events}
-        missing = [
-            event
-            for event in staged_events
-            if event.event_sequence not in existing_sequences
-        ]
+        existing: dict[int, Event] = {}
+        identities: set[str] = set()
+        last_sequence = 0
+        for event in journal_events:
+            if event.event_sequence != last_sequence + 1 or event.event_id in identities:
+                raise EventMaintenanceRequired("journal event identity or range cannot be verified")
+            existing[event.event_sequence] = event
+            identities.add(event.event_id)
+            last_sequence = event.event_sequence
+        missing: list[Event] = []
+        previous_staged = None
+        for event in staged_events:
+            if (
+                event.commit_sequence != commit_sequence
+                or previous_staged is not None
+                and event.event_sequence != previous_staged + 1
+            ):
+                raise EventMaintenanceRequired("staged boundary range cannot be verified")
+            previous_staged = event.event_sequence
+            saved = existing.get(event.event_sequence)
+            if saved is not None:
+                if saved != event:
+                    raise EventMaintenanceRequired(
+                        "same event sequence has different saved material"
+                    )
+                continue
+            if event.event_sequence != last_sequence + 1 or event.event_id in identities:
+                raise EventMaintenanceRequired("staged event cannot extend the saved range")
+            missing.append(event)
+            identities.add(event.event_id)
+            last_sequence = event.event_sequence
         if missing:
             with self._journal.open("ab") as handle:
                 for event in missing:

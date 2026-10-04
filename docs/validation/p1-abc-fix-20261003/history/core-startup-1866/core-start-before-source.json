@@ -1,0 +1,21 @@
+{
+  "scope": "Portable equivalents of six named regression functions (10 cases) against frozen 1799 source; not byte-identical original test file",
+  "source_archive": "docs/validation/p1-abc-fix-20261003/history/finite-query-routes-1799/validation-source.zip",
+  "source_archive_sha256": "74fb352b2e34dd352e104e90def27730987a59775bd4fcc73cadf5affa3628b1",
+  "baseline": "7dbc5a45aa1666652c3dcdc2d0b0604066bc6498",
+  "test": "core-start-before-test.py",
+  "test_sha256": "20e966a578c2604a9d320a0f9d97e9671e821d065054ac25cd7d66498214bde9",
+  "scratch": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.git\\p1-abc-fix-20261003\\startup-before-452875f5b6d34811842a4152e69de072",
+  "result": {
+    "failed": 9,
+    "passed": 1
+  },
+  "original_functions": [
+    "test_client_completes_partial_writes_without_duplicating_frame",
+    "test_client_failed_reads_do_not_accept_partial_or_false_success",
+    "test_client_failed_writes_cannot_claim_complete_command",
+    "test_client_rejects_oversized_response_before_allocating_or_reading_body",
+    "test_failed_creation_does_not_publish_discovery",
+    "test_repeated_claim_preserves_first_child_and_discovery"
+  ]
+}

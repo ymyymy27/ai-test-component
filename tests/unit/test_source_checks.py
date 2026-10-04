@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 from aitest.application.execution.source_checks import (
@@ -50,6 +51,7 @@ def test_source_verification_accepts_only_bytes_inside_materialized_root(
             observed_source_digest="sha256:source-1",
             observed_entry_ref=str(entry),
             observed_import_ref=str(entry),
+            observed_interpreter_ref=sys.executable,
         ),
     )
 

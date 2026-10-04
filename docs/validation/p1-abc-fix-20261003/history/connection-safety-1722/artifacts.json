@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "scope": "artifact_resources_and_module_bytes_only",
+  "artifacts": [
+    {
+      "path": "dist/ai_test_component-0.4.0-py3-none-any.whl",
+      "sha256": "f0c7a163f1189610159e6700ec2cf8b16c3b612b6c248477719bdb01507a6e26"
+    },
+    {
+      "path": "dist/ai_test_component-0.4.0.tar.gz",
+      "sha256": "19d2e656de531dd17c4b88b363aa2f24d67e1ee8c8efc6e14ee0c96d530cf97b"
+    },
+    {
+      "path": "integrations/trae/dist/aitest-trae.vsix",
+      "sha256": "9a71d2c74005dfcb665b93d1824f7645b337bc3f44e89dd90c4253e009f06b0c"
+    }
+  ]
+}

@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from aitest.application.planning.preparation import PreparationRecord
+from aitest.contracts.queries import QueryUnsupportedFilter
 
 #: 参与提交与查询的记录类别。新增时同步更新文档与内存实现。
 AggregateKind = Literal[
@@ -97,8 +98,7 @@ class SubstrateContractError(RuntimeError):
         self.owner = owner
         self.request = request
         super().__init__(
-            f"the injected substrate does not provide {capability!r}; "
-            f"owner={owner}; see {request}"
+            f"the injected substrate does not provide {capability!r}; owner={owner}; see {request}"
         )
 
 
@@ -181,6 +181,8 @@ class RecordQuery:
     def __post_init__(self) -> None:
         if not self.project_id.strip():
             raise ValueError("query requires a project_id")
+        if self.record_id is not None and self.aggregate_kind is None:
+            raise QueryUnsupportedFilter("record identity requires aggregate_kind")
         if self.limit < 1:
             raise ValueError("query limit must be >= 1")
         if self.cursor is not None and not self.cursor.strip():
@@ -419,6 +421,43 @@ class RecordReader(Protocol):
     def find_preparation_by_intent(self, *, intent_id: str) -> PreparationRecord | None: ...
 
 
+def current_record(
+    reader: RecordReader, *, project_id: str, aggregate_kind: AggregateKind, record_id: str
+) -> CommittedRecord | None:
+    """定位权威当前修订后准确读回；旧端口逐页查询，不能取首分页冒充最新。"""
+    current = getattr(reader, "current_revision", None)
+    if callable(current):
+        revision = int(current(aggregate_kind=aggregate_kind, record_id=record_id))
+        if revision == 0:
+            return None
+        record = reader.read(aggregate_kind=aggregate_kind, record_id=record_id, revision=revision)
+        owner = record.payload.get("project_id", record.payload.get("local_project_id"))
+        if owner != project_id:
+            raise ValueError("record belongs to another project or ownership is unverified")
+        return record
+    latest: CommittedRecord | None = None
+    cursor: str | None = None
+    seen: set[str] = set()
+    while True:
+        page = reader.query(
+            RecordQuery(
+                project_id=project_id,
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                cursor=cursor,
+            )
+        )
+        for item in page.items:
+            if latest is None or item.revision > latest.revision:
+                latest = item
+        cursor = page.next_cursor
+        if cursor is None:
+            return latest
+        if cursor in seen:
+            raise InvalidQueryCursor("query repeated a cursor while locating a revision")
+        seen.add(cursor)
+
+
 __all__ = [
     "AggregateKind",
     "CommitResult",
@@ -435,4 +474,5 @@ __all__ = [
     "Transaction",
     "UnitOfWork",
     "transaction",
+    "current_record",
 ]

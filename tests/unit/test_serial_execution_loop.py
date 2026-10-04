@@ -102,6 +102,7 @@ def _request(step_id: str, attempt_id: str) -> ExecutionRequest:
             target_ref="target-1",
             credential_scope_ref="credential-scope-1",
             plan_revision_ref=_plan_revision(),
+            step_revision_ref=_step_revision(step_id),
         ),
         side_effect_class=SideEffectClass.READ_ONLY,
     )

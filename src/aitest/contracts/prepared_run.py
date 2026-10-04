@@ -90,6 +90,7 @@ class SnapshotRef(ContractModel):
     source_snapshot_id: str = Field(min_length=1)
     purpose: str = Field(min_length=1)
     content_identity: str = Field(min_length=1)
+    record_revision: int = Field(default=1, ge=1)
 
 
 class EnvironmentRefFact(ContractModel):
@@ -254,6 +255,9 @@ class PreparedRun(ContractModel):
     # 身份与幂等
     prepared_run_id: str = Field(min_length=1)
     project_id: str = Field(min_length=1)
+    # 缺失只用于读取历史记录；不能据此证明启动依据有效。
+    project_revision: int | None = Field(default=None, ge=1)
+    scope_id: str | None = Field(default=None, min_length=1)
     workspace_id: str = Field(min_length=1)
     binding_id: str = Field(min_length=1)
     binding_revision: int = Field(ge=1)

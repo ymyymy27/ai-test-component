@@ -16,17 +16,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import threading
 from collections.abc import Mapping
-from typing import Any
+from typing import IO, Any
 
 from aitest.contracts.redaction import SENSITIVE_KEYS, scrub_secret_text
 
 _REDACTION = "[REDACTED]"
-
-#: 已知值过短不做精确替换：避免单字符/常见短词把正常证据打成红action。
-_MIN_KNOWN_SECRET_LENGTH = 6
 
 #: 切点检查尾部窗口：取最后一个空白分隔段（指示词 + token 同段，
 #: Bearer/sk-/ghp_ 等均以空白分隔）；超过窗口仍无分隔符的极端无空白
@@ -34,7 +32,8 @@ _MIN_KNOWN_SECRET_LENGTH = 6
 _PARTIAL_WINDOW = 4096
 
 #: 已知值最短片段：切点回退时只有长度达到该值的"疑似凭据前缀"才保留。
-_MIN_PARTIAL_PREFIX = 6
+_MIN_PARTIAL_PREFIX = 1
+
 
 #: 切点处"疑似密钥半截"形态：指示词、键值对、Bearer/Basic、token 前缀
 #: 可能正停在切点上（含指示词被切成 1-2 个字符、值刚开头）。命中则切点
@@ -90,7 +89,7 @@ _PARTIAL_SECRET_TAIL = re.compile(
     rf"{_BOUNDARY}(?:{_KEY_ALT})\s*[:=]?\s*\S*"
     rf"|{_BOUNDARY}(?:{_BEARER_ALT})(?:\s+\S*)?"
     rf"|{_BOUNDARY}(?:{_TOKEN_ALT})[A-Za-z0-9_.\-]*(?:\.[A-Za-z0-9_.-]*){{0,2}}"
-    r")$"
+    r")\Z"
 )
 
 #: ASCII 空白分隔字节。
@@ -109,8 +108,8 @@ class KnownSecretRegistry:
         self._lock = threading.Lock()
 
     def register(self, value: str) -> None:
-        """登记一个已解析凭据值；空值/过短值忽略（短值不具识别意义）。"""
-        if not isinstance(value, str) or len(value) < _MIN_KNOWN_SECRET_LENGTH:
+        """登记非空精确值；凭据长度不能作为允许泄露的依据。"""
+        if not isinstance(value, str) or not value:
             return
         with self._lock:
             self._values.add(value)
@@ -121,10 +120,7 @@ class KnownSecretRegistry:
             return tuple(sorted(self._values, key=len, reverse=True))
 
     def byte_values(self) -> tuple[bytes, ...]:
-        try:
-            return tuple(value.encode("utf-8") for value in self.text_values())
-        except UnicodeEncodeError:
-            return ()
+        return tuple(value.encode("utf-8") for value in self.text_values())
 
     def longest_length(self) -> int:
         values = self.text_values()
@@ -153,12 +149,15 @@ def scrub_text(
     registry: KnownSecretRegistry | None = None,
 ) -> tuple[str, bool]:
     """文本过滤：先精确值（长→短），再走明列模式。"""
-    target = registry or _GLOBAL_REGISTRY
+    target = registry if registry is not None else _GLOBAL_REGISTRY
+    values = target.text_values()
     changed = False
-    for value in target.text_values():
-        if value in text:
-            text = text.replace(value, _REDACTION)
-            changed = True
+    if values:
+        # 一次替换，避免短凭据再次匹配刚插入的脱敏标记。
+        text, count = re.subn(
+            "|".join(re.escape(value) for value in values), lambda _match: _REDACTION, text
+        )
+        changed = count > 0
     redacted, pattern_changed = scrub_secret_text(text)
     return redacted, changed or pattern_changed
 
@@ -172,17 +171,22 @@ def guard_bytes(
     精确值替换对二进制同样执行（字节级）；明列模式仅在字节为合法 UTF-8
     文本时适用，二进制证据不做猜测性改写。返回（过滤后字节，是否变更）。
     """
-    target = registry or _GLOBAL_REGISTRY
+    target = registry if registry is not None else _GLOBAL_REGISTRY
+    needles = target.byte_values()
     changed = False
-    for needle in target.byte_values():
-        if needle in content:
-            content = content.replace(needle, _REDACTION.encode("utf-8"))
-            changed = True
+    if needles:
+        content, count = re.subn(
+            b"|".join(re.escape(value) for value in needles),
+            lambda _match: _REDACTION.encode("utf-8"),
+            content,
+        )
+        changed = count > 0
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError:
         return content, changed
-    redacted, text_changed = scrub_text(text, target)
+    # 精确值已经处理，只对安全字节执行模式过滤。
+    redacted, text_changed = scrub_secret_text(text)
     if text_changed:
         return redacted.encode("utf-8"), True
     return content, changed
@@ -193,7 +197,7 @@ def guard_value(
     registry: KnownSecretRegistry | None = None,
 ) -> tuple[Any, bool]:
     """递归过滤业务结构（UOW payload 底线）：敏感键整体替换 + 值内凭据。"""
-    target = registry or _GLOBAL_REGISTRY
+    target = registry if registry is not None else _GLOBAL_REGISTRY
     return _guard(value, target)
 
 
@@ -205,7 +209,7 @@ def _guard(value: Any, registry: KnownSecretRegistry) -> tuple[Any, bool]:
             normalized = str(key).lower().replace("-", "_")
             if {str(key).lower(), normalized} & SENSITIVE_KEYS:
                 result[str(key)] = _REDACTION
-                changed_any = True
+                changed_any = changed_any or item != _REDACTION
                 continue
             guarded, changed = _guard(item, registry)
             result[str(key)] = guarded
@@ -242,14 +246,25 @@ class StreamSecretFilter:
 
     ``feed`` 返回允许写盘的**已过滤**字节。切点逐字节回退直到前缀尾部
     不再包含任何"疑似密钥半截"：(1) Bearer/Basic/键值指示词及其刚开头的
-    值；(2) ``sk-``/``ghp_``/JWT 前缀；(3) 长度 ≥6 的已知凭据前缀；
+    值；(2) ``sk-``/``ghp_``/JWT 前缀；(3) 非空的已知凭据前缀；
     (4) 多字节 UTF-8 字符中部。因此完整凭据不可能跨相邻两次 feed 漏出。
     未决尾部只在受控内存，``abort`` 丢弃，``flush`` 在封口时统一过滤。
     """
 
     def __init__(self, registry: KnownSecretRegistry | None = None) -> None:
-        self._registry = registry or _GLOBAL_REGISTRY
+        self._registry = registry if registry is not None else _GLOBAL_REGISTRY
         self._carry = b""
+        self._changed = False
+
+    @property
+    def changed(self) -> bool:
+        """Whether an emitted prefix or flushed tail has required filtering."""
+        return self._changed
+
+    @property
+    def pending_bytes(self) -> int:
+        """Unresolved bytes held in memory, so collectors can enforce their own budget."""
+        return len(self._carry)
 
     def _carry_limit(self) -> int:
         return max(_MIN_CARRY, self._registry.longest_length())
@@ -265,11 +280,11 @@ class StreamSecretFilter:
             # 取更早的回退位置：已知值本身可能以普通字符开头（如 zz-…），
             # 只回退到内部"secret"子串会把已知值切成两半而漏匹配。
             back_to = -1
-            window_start = max(0, cut - _PARTIAL_WINDOW)
+            window_start = _utf8_cut_point(combined, max(0, cut - _PARTIAL_WINDOW))
             window = combined[window_start:cut].decode("utf-8", errors="ignore")
             match = _PARTIAL_SECRET_TAIL.search(window)
             if match is not None:
-                back_to = window_start + match.start(1)
+                back_to = window_start + len(window[: match.start(1)].encode("utf-8"))
             for needle in needles:
                 limit = min(len(needle), cut)
                 for length in range(limit, _MIN_PARTIAL_PREFIX - 1, -1):
@@ -300,13 +315,15 @@ class StreamSecretFilter:
         prefix, self._carry = combined[:cut], combined[cut:]
         if not prefix:
             return b""
-        guarded, _changed = guard_bytes(prefix, self._registry)
+        guarded, changed = guard_bytes(prefix, self._registry)
+        self._changed = self._changed or changed
         return guarded
 
     def flush(self) -> bytes:
         if not self._carry:
             return b""
-        guarded, _changed = guard_bytes(self._carry, self._registry)
+        guarded, changed = guard_bytes(self._carry, self._registry)
+        self._changed = self._changed or changed
         self._carry = b""
         return guarded
 
@@ -315,11 +332,53 @@ class StreamSecretFilter:
         self._carry = b""
 
 
+def copy_unchanged_safe_bytes(
+    source: IO[bytes],
+    destination: IO[bytes] | None = None,
+    *,
+    registry: KnownSecretRegistry | None = None,
+    block_size: int = 64 * 1024,
+    max_pending_bytes: int = 1024 * 1024,
+) -> tuple[str, int]:
+    """Scan/copy immutable material without changing its claimed byte identity.
+
+    Only filtered emissions may reach the destination. Any required redaction
+    rejects the copy; the caller must discard unpublished temporary material.
+    This protects source snapshots and backup/restore with the same policy.
+    """
+    if block_size < 1 or max_pending_bytes < 1:
+        raise ValueError("safe copy bounds must be positive")
+    stream = StreamSecretFilter(registry)
+    digest, size = hashlib.sha256(), 0
+    try:
+        while chunk := source.read(block_size):
+            safe = stream.feed(chunk)
+            if stream.pending_bytes > max_pending_bytes:
+                raise UnsafeMaterialError("未决敏感片段超出安全内存范围，拒绝复制")
+            if stream.changed:
+                raise UnsafeMaterialError("材料含敏感材料，拒绝改变原始字节身份")
+            if destination is not None:
+                destination.write(safe)
+            digest.update(safe)
+            size += len(safe)
+        tail = stream.flush()
+        if stream.changed:
+            raise UnsafeMaterialError("材料含敏感材料，拒绝改变原始字节身份")
+        if destination is not None:
+            destination.write(tail)
+        digest.update(tail)
+        size += len(tail)
+        return digest.hexdigest(), size
+    finally:
+        stream.abort()
+
+
 __all__ = [
     "KnownSecretRegistry",
     "StreamSecretFilter",
     "UnsafeMaterialError",
     "guard_bytes",
+    "copy_unchanged_safe_bytes",
     "guard_value",
     "known_secrets",
     "scrub_text",

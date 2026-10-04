@@ -7,7 +7,10 @@ import json
 import os
 import threading
 from collections.abc import Sequence
+from contextlib import ExitStack
 from pathlib import Path
+
+import portalocker
 
 from aitest.domain.evidence.evidence import RedactionSummary
 from aitest.domain.execution.runs import (
@@ -96,7 +99,14 @@ class _FileSpoolStreamWriter:
         self._closed = False
         self._path = store._stream_path(attempt_id, stream_name)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._handle = self._path.open("ab")
+        self._capture_lock = store._capture_lock(attempt_id, stream_name)
+        self._capture_lock.acquire()
+        try:
+            store._capture_state(attempt_id, stream_name, "active")
+            self._handle = self._path.open("ab")
+        except BaseException:
+            self._capture_lock.release()
+            raise
         self._offset = self._path.stat().st_size
         self._block_start = self._offset
         self._block_length = 0
@@ -141,8 +151,10 @@ class _FileSpoolStreamWriter:
                     self._block_length += len(tail)
                 if self._block_length:
                     refs = (self._seal(complete=complete),)
+                self._store._capture_state(self._attempt_id, self._stream_name, "sealed")
             finally:
                 self._handle.close()
+                self._capture_lock.release()
                 self._store._unregister_writer(self._attempt_id, self._stream_name)
             return refs
 
@@ -159,6 +171,7 @@ class _FileSpoolStreamWriter:
                 os.fsync(self._handle.fileno())
             finally:
                 self._handle.close()
+                self._capture_lock.release()
                 self._store._unregister_writer(self._attempt_id, self._stream_name)
 
     def _seal(self, *, complete: bool) -> OutputBlockRef:
@@ -208,7 +221,7 @@ class FileSpoolStore:
         registry: KnownSecretRegistry | None = None,
     ) -> None:
         self._root = workspace_root.resolve()
-        self._registry = registry or known_secrets()
+        self._registry = registry if registry is not None else known_secrets()
         self._manifest_lock = threading.RLock()
         self._writer_lock = threading.Lock()
         self._open_writers: set[tuple[str, OutputStreamName]] = set()
@@ -270,39 +283,42 @@ class FileSpoolStore:
                     "sealed spool block still contains a known credential; "
                     "register a capture gap instead of persisting raw bytes"
                 )
-        for block in batch:
-            ref = OutputBlockRef(
-                block_id=f"{attempt_id}:{block.stream_name.value}:{block.block_index}",
-                attempt_id=attempt_id,
-                stream_name=block.stream_name,
-                block_index=block.block_index,
-                offset=block.offset,
-                length=block.length,
-                digest=block.digest,
-                complete=block.complete,
-                capture_source=block.capture_source,
-                redaction_summary_id=block.redaction_summary_id,
-            )
-            self._write_block(ref, block.content)
-            refs.append(ref)
-            cursors.append(
-                OutputCursor(
+        with ExitStack() as leases:
+            for stream in sorted({block.stream_name for block in batch}):
+                leases.enter_context(self._capture_lock(attempt_id, stream))  # type: ignore[arg-type]
+            for block in batch:
+                ref = OutputBlockRef(
+                    block_id=f"{attempt_id}:{block.stream_name.value}:{block.block_index}",
                     attempt_id=attempt_id,
                     stream_name=block.stream_name,
-                    offset=block.offset + block.length,
-                    last_block_index=block.block_index,
-                    last_committed_digest=block.digest,
-                    durable=True,
+                    block_index=block.block_index,
+                    offset=block.offset,
+                    length=block.length,
+                    digest=block.digest,
+                    complete=block.complete,
+                    capture_source=block.capture_source,
+                    redaction_summary_id=block.redaction_summary_id,
                 )
+                self._write_block(ref, block.content)
+                refs.append(ref)
+                cursors.append(
+                    OutputCursor(
+                        attempt_id=attempt_id,
+                        stream_name=block.stream_name,
+                        offset=block.offset + block.length,
+                        last_block_index=block.block_index,
+                        last_committed_digest=block.digest,
+                        durable=True,
+                    )
+                )
+            self._merge_manifest(
+                attempt_id=attempt_id,
+                run_id=run_id,
+                step_id=step_id,
+                new_blocks=tuple(refs),
+                new_cursors=tuple(cursors),
             )
-        self._merge_manifest(
-            attempt_id=attempt_id,
-            run_id=run_id,
-            step_id=step_id,
-            new_blocks=tuple(refs),
-            new_cursors=tuple(cursors),
-        )
-        return self.read_manifest(attempt_id)
+            return self.read_manifest(attempt_id)
 
     def read_manifest(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
@@ -390,6 +406,42 @@ class FileSpoolStore:
 
     def salvage_streams(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
+        # OS 锁覆盖全部抢救操作，另一实例/进程的写流存在时绝不抢认字节。
+        with ExitStack() as locks:
+            for stream in OutputStreamName:
+                lock = self._capture_lock(safe_attempt, stream)
+                lock.acquire()
+                locks.callback(lock.release)
+            result = self._salvage_locked(safe_attempt)
+            for stream in OutputStreamName:
+                if self._capture_path(safe_attempt, stream).exists():
+                    self._capture_state(safe_attempt, stream, "recovered")
+            return result
+
+    def _capture_path(self, attempt_id: str, stream: OutputStreamName) -> Path:
+        return self._attempt_dir(attempt_id) / f"capture-{stream.value}.json"
+
+    def _capture_lock(self, attempt_id: str, stream: OutputStreamName) -> portalocker.Lock:
+        directory = self._attempt_dir(attempt_id)
+        directory.mkdir(parents=True, exist_ok=True)
+        return portalocker.Lock(
+            directory / f".capture-{stream.value}.lock",
+            mode="a",
+            timeout=0,
+            flags=portalocker.LOCK_EX | portalocker.LOCK_NB,
+        )
+
+    def _capture_state(self, attempt_id: str, stream: OutputStreamName, state: str) -> None:
+        atomic.write_json(
+            self._capture_path(attempt_id, stream),
+            {
+                "attempt_id": attempt_id,
+                "stream": stream.value,
+                "state": state,
+            },
+        )
+
+    def _salvage_locked(self, safe_attempt: str) -> SpoolManifest:
         manifest = self.read_manifest(safe_attempt)
         recovered: list[OutputBlockRef] = []
         for stream_name in (OutputStreamName.STDOUT, OutputStreamName.STDERR):
@@ -421,6 +473,7 @@ class FileSpoolStore:
             if dirty:
                 with path.open("r+b") as handle:
                     handle.truncate(start)
+                    handle.seek(start)
                     handle.write(content)
                     handle.flush()
                     os.fsync(handle.fileno())

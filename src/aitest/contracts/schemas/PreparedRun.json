@@ -642,6 +642,12 @@
           "minLength": 1,
           "title": "Content Identity",
           "type": "string"
+        },
+        "record_revision": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Record Revision",
+          "type": "integer"
         }
       },
       "required": [
@@ -697,6 +703,32 @@
       "minLength": 1,
       "title": "Project Id",
       "type": "string"
+    },
+    "project_revision": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Revision"
+    },
+    "scope_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scope Id"
     },
     "workspace_id": {
       "minLength": 1,

@@ -26,9 +26,10 @@ from aitest.contracts.redaction import (
     scrub_secret_text,
 )
 from aitest.domain.planning.model_outbound import MaterialKind
+from aitest.infrastructure.security import KnownSecretRegistry, scrub_text
 
 #: 投影策略版本；策略变化必须递增。
-POLICY_REVISION = 2
+POLICY_REVISION = 3
 #: 单项投影字节上限，防止误投超大材料（超出即排除并显示缺口）。
 ITEM_LIMIT_BYTES = 256 * 1024
 
@@ -58,9 +59,7 @@ def _is_printable_text(text: str) -> bool:
 def _safe_text(text: str) -> str:
     """丢弃命中凭据标记的整行，保留其余行。"""
     return "\n".join(
-        line
-        for line in text.splitlines()
-        if line.strip() and not _looks_like_credential(line)
+        line for line in text.splitlines() if line.strip() and not _looks_like_credential(line)
     )
 
 
@@ -70,6 +69,9 @@ def sha256_text(text: str) -> str:
 
 class SafeMaterialProjector:
     """ProjectionPort 的生产实现：逐项安全检查 + 真实字节摘要。"""
+
+    def __init__(self, *, registry: KnownSecretRegistry | None = None) -> None:
+        self._registry = registry
 
     def project(
         self,
@@ -97,6 +99,11 @@ class SafeMaterialProjector:
                     excluded.append((kind, field_path))
             else:
                 safe = _safe_text(text)
+                if any(_looks_like_credential(line) for line in text.splitlines()):
+                    excluded.append((kind, field_path))
+            safe, changed = scrub_text(safe, self._registry)
+            if changed and (kind, field_path) not in excluded:
+                excluded.append((kind, field_path))
             if not safe.strip():
                 excluded.append((kind, field_path))
                 continue

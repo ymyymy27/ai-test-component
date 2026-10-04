@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
 from aitest.application.ports import SpoolStore
+from aitest.domain.execution.dependencies import (
+    AttemptInvalidation,
+    CaseReuseBasis,
+    CaseReuseInvalidation,
+    invalidate_downstream_attempts,
+    invalidate_reuse_bases,
+)
 from aitest.domain.execution.runs import (
     Attempt,
     AttemptState,
@@ -17,7 +23,6 @@ from aitest.domain.execution.runs import (
     ExecutionInspectionState,
     OutputBlockRef,
     OutputCursor,
-    PlanRevisionRef,
     RecoveryCheckpoint,
     RecoveryRecord,
     SpoolManifest,
@@ -48,22 +53,6 @@ class RecoveryResult:
     gaps: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True, slots=True)
-class AttemptInvalidation:
-    attempt: Attempt
-    upstream_attempt_ids: tuple[str, ...]
-    reason: str
-
-
-_NON_INVALIDATABLE_STATES = frozenset(
-    {
-        AttemptState.INVALIDATED,
-        AttemptState.CANCELLED,
-        AttemptState.EXECUTION_ERROR,
-    }
-)
-
-
 def recover_attempt(
     checkpoint: RecoveryCheckpoint,
     attempt: Attempt,
@@ -79,6 +68,31 @@ def recover_attempt(
         or checkpoint.step_id != attempt.step_id
     ):
         raise ValueError("checkpoint and attempt identity must match")
+
+    if attempt.state is AttemptState.INVALIDATED:
+        # Captured bytes and even a live handle cannot restore the superseded basis.
+        try:
+            manifest = spool_store.read_manifest(attempt.attempt_id)
+            blocks, cursors = manifest.blocks, manifest.cursors
+        except FileNotFoundError:
+            blocks, cursors = checkpoint.output_block_refs, checkpoint.output_cursors
+        handle = attempt.execution_handle_ref
+        exit_fact = attempt.exit_fact_ref
+        uncertain = handle is not None and (
+            exit_fact is None
+            or exit_fact.attempt_id != attempt.attempt_id
+            or exit_fact.process_start_identity != handle.process_start_identity
+        )
+        return RecoveryResult(
+            action=RecoveryAction.PENDING_VERIFICATION
+            if uncertain
+            else RecoveryAction.TERMINAL_PRESERVED,
+            attempt=attempt,
+            recovered_blocks=blocks,
+            recovered_cursors=cursors,
+            capture_completeness=attempt.capture_completeness,
+            gaps=("outdated_execution_termination_unverified",) if uncertain else (),
+        )
 
     if (
         attempt.state in {AttemptState.COMPLETED, AttemptState.CANCELLED}
@@ -144,8 +158,7 @@ def recover_attempt(
     }:
         state = (
             AttemptState.CANCELLED
-            if inspection.state is ExecutionInspectionState.STOPPED
-            and inspection.stop_confirmed
+            if inspection.state is ExecutionInspectionState.STOPPED and inspection.stop_confirmed
             else AttemptState.COLLECTING
         )
         return _result(
@@ -183,102 +196,6 @@ def recover_attempt(
         gaps,
         "execution_result_unknown",
     )
-
-
-@dataclass(frozen=True, slots=True)
-class CaseReuseBasis:
-    case_id: str
-    source_attempt_ids: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class CaseReuseInvalidation:
-    case_id: str
-    source_attempt_ids: tuple[str, ...]
-    reason: str
-
-
-def invalidate_downstream_attempts(
-    attempts: Sequence[Attempt],
-    *,
-    previous_plan_revision: PlanRevisionRef,
-    current_plan_revision: PlanRevisionRef,
-    affected_upstream_attempt_ids: Sequence[str],
-) -> tuple[AttemptInvalidation, ...]:
-    """Invalidate direct and transitive consumers of changed upstream facts."""
-    affected = set(affected_upstream_attempt_ids)
-    if not affected:
-        return ()
-
-    invalidated: set[str] = set()
-    changed = True
-    while changed:
-        changed = False
-        for attempt in attempts:
-            if attempt.attempt_id in invalidated:
-                continue
-            if attempt.state in _NON_INVALIDATABLE_STATES:
-                continue
-            dependencies = {
-                consumed.upstream_attempt_id for consumed in attempt.consumed_outputs
-            } | {
-                condition.upstream_attempt_id for condition in attempt.consumed_conditions
-            }
-            if not dependencies & affected:
-                continue
-            invalidated.add(attempt.attempt_id)
-            affected.add(attempt.attempt_id)
-            changed = True
-
-    results: list[AttemptInvalidation] = []
-    for attempt in attempts:
-        if attempt.attempt_id not in invalidated:
-            continue
-        dependencies = {
-            consumed.upstream_attempt_id for consumed in attempt.consumed_outputs
-        } | {
-            condition.upstream_attempt_id for condition in attempt.consumed_conditions
-        }
-        results.append(
-            AttemptInvalidation(
-                attempt=replace(
-                    attempt,
-                    state=AttemptState.INVALIDATED,
-                    unknown_reason_ref="upstream_dependency_invalidated",
-                ),
-                upstream_attempt_ids=tuple(sorted(dependencies & affected)),
-                reason=(
-                    "upstream_plan_changed"
-                    if previous_plan_revision != current_plan_revision
-                    else "upstream_attempt_replaced"
-                ),
-            )
-        )
-    return tuple(results)
-
-
-def invalidate_reuse_bases(
-    bases: Sequence[CaseReuseBasis],
-    *,
-    affected_upstream_attempt_ids: Sequence[str],
-) -> tuple[CaseReuseInvalidation, ...]:
-    """Revoke whole-case reuse when its source execution basis changed."""
-    affected = frozenset(affected_upstream_attempt_ids)
-    if not affected:
-        return ()
-    invalidations: list[CaseReuseInvalidation] = []
-    for basis in bases:
-        matched = tuple(sorted(set(basis.source_attempt_ids) & affected))
-        if not matched:
-            continue
-        invalidations.append(
-            CaseReuseInvalidation(
-                case_id=basis.case_id,
-                source_attempt_ids=matched,
-                reason="reuse_basis_invalidated",
-            )
-        )
-    return tuple(invalidations)
 
 
 def _result(

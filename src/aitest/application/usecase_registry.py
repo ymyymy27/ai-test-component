@@ -63,7 +63,7 @@ from enum import StrEnum
 from functools import wraps
 from typing import TypeVar, cast
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from aitest.application.planning.draft import (
     DraftResult,
@@ -73,6 +73,16 @@ from aitest.application.planning.draft import (
     load_template,
     template_draft_text,
     text_digest,
+)
+from aitest.application.planning.model_orchestration import (
+    ModelGenerationConflictError,
+    policy_record_id,
+    request_model_draft,
+)
+from aitest.application.planning.model_ports import (
+    CredentialResolver,
+    MaterialProjector,
+    ModelCaller,
 )
 from aitest.application.planning.persistence import (
     save_acceptance_scope,
@@ -110,12 +120,14 @@ from aitest.application.planning.substrate import (
     RecordQuery,
     RecordReader,
     UnitOfWork,
+    current_record,
     transaction,
 )
 from aitest.application.ports import Clock
 from aitest.application.project.context import ContextGap
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
+    load_project,
     save_binding,
     save_delivery,
     save_dependency_graph,
@@ -149,6 +161,7 @@ from aitest.contracts.prepared_run import (
     SnapshotRef,
     TemplateVersionRef,
 )
+from aitest.domain.planning.model_outbound import MaterialKind, ModelOutboundPolicy, ModelTaskType
 from aitest.domain.planning.plans import (
     RunDriver,
     RunTier,
@@ -176,6 +189,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_task",
         "save_delivery",
         "generate_draft",
+        "save_model_outbound_policy",
         "export_rules",
         "export_rules_markdown",
         "import_rules",
@@ -360,9 +374,7 @@ def _generated_content(content: object) -> Mapping[str, object]:
         "status": _as_text(getattr(content, "status", None), "status"),
         "content_digest": getattr(content, "content_digest", None),
         "template_ref": {
-            "template_id": _as_text(
-                getattr(template_ref, "template_id", None), "template_id"
-            ),
+            "template_id": _as_text(getattr(template_ref, "template_id", None), "template_id"),
             "version": _as_text(getattr(template_ref, "version", None), "version"),
         },
         "revision_context": {
@@ -382,9 +394,7 @@ def _generated_content(content: object) -> Mapping[str, object]:
     }
 
 
-def _publication_result(
-    result: PublicationResult, *, published_kind: str
-) -> Mapping[str, object]:
+def _publication_result(result: PublicationResult, *, published_kind: str) -> Mapping[str, object]:
     """发布结果：**要么得到已发布版本，要么得到阻塞原因**（`PublicationResult` 的不变量）。"""
     if result.value is None:
         return {"published": False, "blocked_by": list(result.blocked_by)}
@@ -393,17 +403,14 @@ def _publication_result(
         "published": True,
         "kind": published_kind,
         "revision": _revision_of(getattr(value, "revision", None), "revision"),
-        "confirmation_id": _as_text(
-            getattr(value, "confirmation_id", None), "confirmation_id"
-        ),
+        "record_revision": _revision_of(value.record_revision, "record_revision"),
+        "confirmation_id": _as_text(getattr(value, "confirmation_id", None), "confirmation_id"),
     }
     if published_kind == "plan":
         scope = getattr(value, "scope", None)
         header["plan_id"] = _as_text(getattr(value, "plan_id", None), "plan_id")
         header["scope_id"] = _as_text(getattr(scope, "scope_id", None), "scope_id")
-        header["scope_revision"] = _revision_of(
-            getattr(scope, "revision", None), "scope_revision"
-        )
+        header["scope_revision"] = _revision_of(getattr(scope, "revision", None), "scope_revision")
         header["case_revisions"] = [
             {"case_id": ref.case_id, "revision": ref.revision, "digest": ref.digest}
             for ref in getattr(value, "case_revisions", ())
@@ -426,9 +433,7 @@ def _publication_result(
     return header
 
 
-def _enum_or[E: StrEnum](
-    enum: type[E], value: object, name: str, default: E
-) -> E:
+def _enum_or[E: StrEnum](enum: type[E], value: object, name: str, default: E) -> E:
     """可选枚举：缺省时用领域默认值，给了就必须合法。"""
     if value is None:
         return default
@@ -454,12 +459,8 @@ def _rule_versions_for(
     versions: list[RuleVersion] = []
     for index, item in enumerate(raw):
         entry = _as_mapping(item, f"rule_revisions[{index}]")
-        rule_id = _as_text(
-            _required(entry, "rule_id"), f"rule_revisions[{index}].rule_id"
-        )
-        revision = _revision_of(
-            _required(entry, "revision"), f"rule_revisions[{index}].revision"
-        )
+        rule_id = _as_text(_required(entry, "rule_id"), f"rule_revisions[{index}].rule_id")
+        revision = _revision_of(_required(entry, "revision"), f"rule_revisions[{index}].revision")
         try:
             record = deps.reader.read(
                 aggregate_kind="rule_version", record_id=rule_id, revision=revision
@@ -469,11 +470,15 @@ def _rule_versions_for(
                 "B_INVALID_PARAMETER",
                 f"no published rule version for {rule_id}@{revision}",
             ) from error
-        versions.append(_rule_version_from_payload(record.payload))
+        if record.payload.get("project_id") != project_id:
+            raise BUseCaseError("B_INVALID_PARAMETER", "rule version belongs to another project")
+        versions.append(_rule_version_from_payload(record.payload, record_revision=record.revision))
     return tuple(versions)
 
 
-def _rule_version_from_payload(payload: Mapping[str, object]) -> RuleVersion:
+def _rule_version_from_payload(
+    payload: Mapping[str, object], *, record_revision: int | None = None
+) -> RuleVersion:
     """按 `publish_rules()` 的落盘形状重建规则版本。
 
     两处**如实说明**（记录里没有这些字段，不假装有）：
@@ -500,6 +505,7 @@ def _rule_version_from_payload(payload: Mapping[str, object]) -> RuleVersion:
         source=_as_text(payload.get("source"), "source"),
         confirmation_id=digest,
         digest=digest,
+        record_revision=record_revision,
     )
 
 
@@ -557,9 +563,7 @@ def _rule_draft_of(parameters: Mapping[str, object]) -> RuleDraft:
 
 def _required(parameters: Mapping[str, object], name: str) -> object:
     if name not in parameters:
-        raise BUseCaseError(
-            "B_INVALID_PARAMETER", f"missing required parameter: {name}"
-        )
+        raise BUseCaseError("B_INVALID_PARAMETER", f"missing required parameter: {name}")
     return parameters[name]
 
 
@@ -573,16 +577,12 @@ def _model_of[M: BaseModel](model: type[M], value: object, name: str) -> M:
         ) from error
 
 
-def _models_of[M: BaseModel](
-    model: type[M], value: object, name: str
-) -> tuple[M, ...]:
+def _models_of[M: BaseModel](model: type[M], value: object, name: str) -> tuple[M, ...]:
     if value is None:
         return ()
     if not isinstance(value, list):
         raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a list")
-    return tuple(
-        _model_of(model, item, f"{name}[{index}]") for index, item in enumerate(value)
-    )
+    return tuple(_model_of(model, item, f"{name}[{index}]") for index, item in enumerate(value))
 
 
 def _text_list(value: object, name: str) -> tuple[str, ...]:
@@ -629,9 +629,7 @@ def _revision_of(value: object, name: str) -> int:
     return number
 
 
-def _payload_revision_or_none(
-    command: object, *, default: int, name: str
-) -> int | None:
+def _payload_revision_or_none(command: object, *, default: int, name: str) -> int | None:
     """取"我看到的修订"，并允许调用方用 `0` 表示**新建**。
 
     命令层只允许 `expected_revision >= 0`（`0` 是既有的"我认定这是新建"写法），
@@ -709,16 +707,13 @@ def _preparation_inputs(command: object) -> PreparationInputs:
     """
     project_id = _command_project_id(command)
     parameters = _command_parameters(command)
-    revisions = _as_mapping(
-        _required(parameters, "input_revisions"), "input_revisions"
-    )
+    revisions = _as_mapping(_required(parameters, "input_revisions"), "input_revisions")
     return PreparationInputs(
+        scope_id=_as_text(_required(parameters, "scope_id"), "scope_id"),
         project_id=project_id,
         workspace_id=_as_text(_required(parameters, "workspace_id"), "workspace_id"),
         binding_id=_as_text(_required(parameters, "binding_id"), "binding_id"),
-        binding_revision=_int_of(
-            _required(parameters, "binding_revision"), "binding_revision"
-        ),
+        binding_revision=_int_of(_required(parameters, "binding_revision"), "binding_revision"),
         binding_form=_enum_of(
             BindingFormFact, _required(parameters, "binding_form"), "binding_form"
         ),
@@ -755,9 +750,7 @@ def _preparation_inputs(command: object) -> PreparationInputs:
             ),
         ),
         snapshot=_model_of(SnapshotRef, _required(parameters, "snapshot"), "snapshot"),
-        selected_paths=_text_list(
-            _required(parameters, "selected_paths"), "selected_paths"
-        ),
+        selected_paths=_text_list(_required(parameters, "selected_paths"), "selected_paths"),
         environment=_model_of(
             EnvironmentRefFact, _required(parameters, "environment"), "environment"
         ),
@@ -773,9 +766,7 @@ def _preparation_inputs(command: object) -> PreparationInputs:
             _required(parameters, "acceptance_scope_revision"),
             "acceptance_scope_revision",
         ),
-        rule_versions=_models_of(
-            RuleVersionRef, parameters.get("rule_versions"), "rule_versions"
-        ),
+        rule_versions=_models_of(RuleVersionRef, parameters.get("rule_versions"), "rule_versions"),
         template_versions=_models_of(
             TemplateVersionRef, parameters.get("template_versions"), "template_versions"
         ),
@@ -807,12 +798,8 @@ def _preparation_inputs(command: object) -> PreparationInputs:
         refetch_dependencies=_text_list(
             parameters.get("refetch_dependencies"), "refetch_dependencies"
         ),
-        git_base_commit=_optional_commit(
-            parameters.get("git_base_commit"), "git_base_commit"
-        ),
-        git_diff_digest=_optional_commit(
-            parameters.get("git_diff_digest"), "git_diff_digest"
-        ),
+        git_base_commit=_optional_commit(parameters.get("git_base_commit"), "git_base_commit"),
+        git_diff_digest=_optional_commit(parameters.get("git_diff_digest"), "git_diff_digest"),
         plain_manifest_digest=_optional_commit(
             parameters.get("plain_manifest_digest"), "plain_manifest_digest"
         ),
@@ -832,9 +819,7 @@ def _preparation_inputs(command: object) -> PreparationInputs:
         frozen_required_case_ids=_text_list(
             parameters.get("frozen_required_case_ids"), "frozen_required_case_ids"
         ),
-        selected_case_ids=_text_list(
-            parameters.get("selected_case_ids"), "selected_case_ids"
-        ),
+        selected_case_ids=_text_list(parameters.get("selected_case_ids"), "selected_case_ids"),
         skipped_scope=_models_of(
             SkippedScopeEntry, parameters.get("skipped_scope"), "skipped_scope"
         ),
@@ -862,6 +847,8 @@ def _guard(handler: Handler) -> Handler:
             raise
         except PreparationConflictError as error:
             raise BUseCaseError("B_PREPARATION_CONFLICT", str(error)) from error
+        except ModelGenerationConflictError as error:
+            raise BUseCaseError("B_MODEL_INTENT_CONFLICT", str(error)) from error
         except ConcurrentEditError as error:
             raise BUseCaseError("B_REVISION_CONFLICT", str(error)) from error
         except IndexMaintenanceRequired as error:
@@ -883,6 +870,10 @@ class BUseCaseDependencies:
     unit_of_work: UnitOfWork
     reader: RecordReader
     clock: Clock
+    model_provider: ModelCaller | None = None
+    model_credentials: CredentialResolver | None = None
+    material_projector: MaterialProjector | None = None
+    workspace_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -909,13 +900,17 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     """按依赖构造 B 的动作表；每个 handler 都闭包了 `deps`。"""
 
     def handle_save_context(command: object) -> Mapping[str, object]:
-        _command_project_id(command)  # 写动作必须带项目范围
+        project_id = _command_project_id(command)
         raw = _command_parameters(command).get("project")
         payload = _as_mapping(raw, "project")
         try:
             project = project_from_payload(payload)
         except ValueError as error:
             raise BUseCaseError("B_INVALID_PARAMETER", f"invalid project: {error}") from error
+        if project.local_project_id != project_id:
+            raise BUseCaseError("B_INVALID_PARAMETER", "project belongs to another project")
+        if deps.workspace_id is not None and project.workspace_id != deps.workspace_id:
+            raise BUseCaseError("B_INVALID_PARAMETER", "project belongs to another workspace")
         staged = save_project(
             project,
             unit_of_work=deps.unit_of_work,
@@ -928,13 +923,15 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_binding(command: object) -> Mapping[str, object]:
-        _command_project_id(command)  # 写动作必须带项目范围
+        project_id = _command_project_id(command)
         raw = _command_parameters(command).get("binding")
         payload = _as_mapping(raw, "binding")
         try:
             binding = binding_from_payload(payload)
         except ValueError as error:
             raise BUseCaseError("B_INVALID_PARAMETER", f"invalid binding: {error}") from error
+        if binding.project_id != project_id:
+            raise BUseCaseError("B_INVALID_PARAMETER", "binding belongs to another project")
         staged = save_binding(
             binding,
             unit_of_work=deps.unit_of_work,
@@ -953,9 +950,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         try:
             environment = environment_from_payload(payload)
         except ValueError as error:
-            raise BUseCaseError(
-                "B_INVALID_PARAMETER", f"invalid environment: {error}"
-            ) from error
+            raise BUseCaseError("B_INVALID_PARAMETER", f"invalid environment: {error}") from error
         staged = save_environment(
             environment,
             project_id=project_id,
@@ -1042,9 +1037,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "task"), "task")
         # 检查项 B-12：任务正文自带项目，必须与命令项目一致。
-        _require_owned_by_command(
-            payload, command=command, name="task", aggregate_kind="task"
-        )
+        _require_owned_by_command(payload, command=command, name="task", aggregate_kind="task")
         try:
             task = task_from_payload(payload)
         except ValueError as error:
@@ -1076,14 +1069,14 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         try:
             delivery = delivery_from_payload(payload)
         except ValueError as error:
-            raise BUseCaseError(
-                "B_INVALID_PARAMETER", f"invalid delivery: {error}"
-            ) from error
+            raise BUseCaseError("B_INVALID_PARAMETER", f"invalid delivery: {error}") from error
         try:
             staged = save_delivery(
                 delivery,
                 project_id=project_id,
                 unit_of_work=deps.unit_of_work,
+                reader=deps.reader,
+                task_revision=_revision_of(parameters.get("task_revision", 1), "task_revision"),
                 expected_revision=_payload_revision_or_none(
                     command,
                     default=delivery.revision,
@@ -1107,9 +1100,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         if raw_kind is not None:
             kind = _as_text(raw_kind, "aggregate_kind")
             if kind not in _AGGREGATE_KINDS:
-                raise BUseCaseError(
-                    "B_INVALID_PARAMETER", f"unknown aggregate_kind: {kind}"
-                )
+                raise BUseCaseError("B_INVALID_PARAMETER", f"unknown aggregate_kind: {kind}")
             aggregate_kind = kind  # type: ignore[assignment]
         page = deps.reader.query(
             RecordQuery(
@@ -1152,9 +1143,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         parameters = _command_parameters(command)
         raw = parameters.get("rule_versions")
         if raw is None:
-            raise BUseCaseError(
-                "B_INVALID_PARAMETER", "rule_versions must be a non-empty list"
-            )
+            raise BUseCaseError("B_INVALID_PARAMETER", "rule_versions must be a non-empty list")
         versions = _rule_versions_for(
             deps,
             project_id=_command_project_id(command),
@@ -1221,9 +1210,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         parameters = _command_parameters(command)
         raw = parameters.get("rule_versions")
         if raw is None:
-            raise BUseCaseError(
-                "B_INVALID_PARAMETER", "rule_versions must be a non-empty list"
-            )
+            raise BUseCaseError("B_INVALID_PARAMETER", "rule_versions must be a non-empty list")
         versions = _rule_versions_for(
             deps,
             project_id=_command_project_id(command),
@@ -1266,9 +1253,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             sources = [raw]
         elif isinstance(raw, list):
             if not raw:
-                raise BUseCaseError(
-                    "B_INVALID_PARAMETER", "markdown must be a non-empty list"
-                )
+                raise BUseCaseError("B_INVALID_PARAMETER", "markdown must be a non-empty list")
             sources = [_as_text(item, f"markdown[{index}]") for index, item in enumerate(raw)]
         else:
             raise BUseCaseError(
@@ -1306,9 +1291,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         parameters = _command_parameters(command)
         plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
         revision = _revision_of(_required(parameters, "revision"), "revision")
-        scope = acceptance_scope_from_payload(
-            _as_mapping(_required(parameters, "scope"), "scope")
-        )
+        scope = acceptance_scope_from_payload(_as_mapping(_required(parameters, "scope"), "scope"))
         raw_cases = _required(parameters, "cases")
         if not isinstance(raw_cases, list) or not raw_cases:
             raise BUseCaseError("B_INVALID_PARAMETER", "cases must be a non-empty list")
@@ -1322,13 +1305,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             scope=scope,
             cases=cases,
             project_id=project_id,
-            rule_versions=_rule_versions_for(
-                deps, project_id=project_id, parameters=parameters
-            ),
+            rule_versions=_rule_versions_for(deps, project_id=project_id, parameters=parameters),
             template_refs=_template_refs_for(parameters),
-            run_tier=_enum_or(
-                RunTier, parameters.get("run_tier"), "run_tier", RunTier.FULL
-            ),
+            run_tier=_enum_or(RunTier, parameters.get("run_tier"), "run_tier", RunTier.FULL),
             initial_driver=_enum_or(
                 RunDriver,
                 parameters.get("initial_driver"),
@@ -1350,6 +1329,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_generate_draft(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
+        mode = parameters.get("generation_mode", "template")
+        if mode == "model":
+            return handle_model_draft(command)
+        if mode != "template":
+            raise BUseCaseError("B_INVALID_PARAMETER", "unknown generation_mode")
         template_ref = TemplateRef(
             template_id=_as_text(
                 _required(
@@ -1366,9 +1350,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 "template_ref.version",
             ),
         )
-        context = _as_mapping(
-            _required(parameters, "revision_context"), "revision_context"
-        )
+        context = _as_mapping(_required(parameters, "revision_context"), "revision_context")
         result = apply_template(
             template_ref=template_ref,
             project_id=project_id,
@@ -1409,9 +1391,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         # 正文与摘要一起落盘：只存元数据会让"到底产出了什么"没有可核对的字节。
         pack = load_template(template_ref)
         draft_text = template_draft_text(pack)
-        content = replace(
-            result.content, content_digest=text_digest(draft_text)
-        )
+        content = replace(result.content, content_digest=text_digest(draft_text))
         with transaction(deps.unit_of_work, project_id) as tx:
             staged = tx.stage_record(
                 aggregate_kind="generated_content",
@@ -1447,6 +1427,149 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
         return _publication_result(result, published_kind="rule_version")
 
+    def handle_model_policy(command: object) -> Mapping[str, object]:
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        load_project(
+            deps.reader,
+            project_id=project_id,
+            revision=_revision_of(
+                _required(parameters, "project_revision"),
+                "project_revision",
+            ),
+        )
+        raw = _as_mapping(_required(parameters, "policy"), "policy")
+        try:
+            policy = TypeAdapter(ModelOutboundPolicy).validate_python(raw)
+        except (ValueError, TypeError) as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", "invalid model outbound policy") from error
+        if policy.project_id != project_id:
+            raise BUseCaseError("B_INVALID_PARAMETER", "policy belongs to another project")
+        expected = _command_expected_revision(command)
+        if expected is None or policy.revision != expected + 1:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "policy revision must follow expected_revision"
+            )
+        with transaction(deps.unit_of_work, project_id) as tx:
+            # 人工确认时间由本次核心提交决定，客户端不能伪造历史提交号。
+            if policy.confirmation is not None:
+                policy = replace(
+                    policy,
+                    confirmation=replace(
+                        policy.confirmation,
+                        confirmed_at_commit=tx.next_commit_seq(),
+                    ),
+                )
+            payload = TypeAdapter(ModelOutboundPolicy).dump_python(policy, mode="json")
+            staged = tx.stage_record(
+                aggregate_kind="model_outbound_policy",
+                record_id=policy_record_id(project_id),
+                expected_revision=None if expected == 0 else expected,
+                payload=payload,
+            )
+            tx.commit()
+        return _stage_result(
+            aggregate_kind=staged.aggregate_kind,
+            record_id=staged.record_id,
+            revision=staged.revision,
+        )
+
+    def handle_model_draft(command: object) -> Mapping[str, object]:
+        if (
+            deps.model_provider is None
+            or deps.model_credentials is None
+            or deps.material_projector is None
+        ):
+            return {"blocked": True, "status": "blocked", "blocked_by": ["model_not_configured"]}
+        parameters = _command_parameters(command)
+        project_id = _command_project_id(command)
+        project_revision = _revision_of(
+            _required(parameters, "project_revision"),
+            "project_revision",
+        )
+        try:
+            load_project(deps.reader, project_id=project_id, revision=project_revision)
+        except (ValueError, TypeError, KeyError) as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", "saved project is unavailable") from error
+        revision = _revision_of(_required(parameters, "policy_revision"), "policy_revision")
+        try:
+            record = deps.reader.read(
+                aggregate_kind="model_outbound_policy",
+                record_id=policy_record_id(project_id),
+                revision=revision,
+            )
+            policy = TypeAdapter(ModelOutboundPolicy).validate_python(record.payload)
+        except (ValueError, TypeError, KeyError) as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "saved outbound policy is unavailable"
+            ) from error
+        # 最新策略的关闭/撤销立即生效，旧授权不能绕过新修订。
+        latest_policy = current_record(
+            deps.reader,
+            project_id=project_id,
+            aggregate_kind="model_outbound_policy",
+            record_id=policy_record_id(project_id),
+        )
+        if latest_policy is None or latest_policy.revision != revision:
+            return {"blocked": True, "status": "blocked", "blocked_by": ["stale_outbound_policy"]}
+
+        def basis_is_current() -> bool:
+            try:
+                latest = current_record(
+                    deps.reader,
+                    project_id=project_id,
+                    aggregate_kind="model_outbound_policy",
+                    record_id=policy_record_id(project_id),
+                )
+                project = current_record(
+                    deps.reader,
+                    project_id=project_id,
+                    aggregate_kind="project",
+                    record_id=project_id,
+                )
+            except (ValueError, OSError):
+                return False
+            return (
+                latest is not None
+                and latest.revision == revision
+                and project is not None
+                and project.revision == project_revision
+            )
+
+        selected = _as_mapping(_required(parameters, "selected_material"), "selected_material")
+        material = {
+            _enum_of(MaterialKind, key, "material_kind"): _as_text(value, "material text")
+            for key, value in selected.items()
+        }
+        result = request_model_draft(
+            project_id=project_id,
+            policy=policy,
+            task_type=_enum_of(ModelTaskType, _required(parameters, "task_type"), "task_type"),
+            selected_material=material,
+            unit_of_work=deps.unit_of_work,
+            reader=deps.reader,
+            projector=deps.material_projector,
+            credentials=deps.model_credentials,
+            caller=deps.model_provider,
+            clock=deps.clock,
+            source_revision=_int_of(_required(parameters, "source_revision"), "source_revision"),
+            base_manual_revision=_int_of(
+                _required(parameters, "base_manual_revision"),
+                "base_manual_revision",
+            ),
+            generation_request_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+            project_revision=project_revision,
+            draft_kind=_as_text(_required(parameters, "draft_kind"), "draft_kind"),
+            basis_is_current=basis_is_current,
+        )
+        return {
+            "blocked": result.content is None,
+            "status": result.status,
+            "blocked_by": list(result.blocked_by),
+            "response_currency": result.response_currency,
+            "content": _generated_content(result.content) if result.content is not None else None,
+        }
+
     actions: dict[str, Handler] = {
         "save_context": _guard(handle_save_context),
         "save_binding": _guard(handle_save_binding),
@@ -1457,6 +1580,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_task": _guard(handle_save_task),
         "save_delivery": _guard(handle_save_delivery),
         "generate_draft": _guard(handle_generate_draft),
+        "save_model_outbound_policy": _guard(handle_model_policy),
         "export_rules": _guard(handle_export_rules),
         "export_rules_markdown": _guard(handle_export_rules_markdown),
         "import_rules": _guard(handle_import_rules),

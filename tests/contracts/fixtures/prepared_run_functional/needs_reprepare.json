@@ -31,7 +31,7 @@
   "blocking_reasons": [
     {
       "code": "needs_reprepare",
-      "message": "Basis needs re-preparation: snapshot_revision"
+      "message": "Basis needs re-preparation: snapshot_content_identity"
     }
   ],
   "case_revisions": [
@@ -169,7 +169,7 @@
   "invalidation_rules": [
     {
       "description": "source bytes changed",
-      "source_kind": "snapshot_revision"
+      "source_kind": "snapshot_content_identity"
     }
   ],
   "model_outbound_policy_revision": null,
@@ -183,6 +183,7 @@
   "prepare_request_id": "prepare-request-1",
   "prepared_run_id": "prepared-1accaf884dacfd962726b72f1451d82c10241a94",
   "project_id": "project-ticket",
+  "project_revision": 1,
   "refetch_dependencies": [
     "git-lfs:assets/*"
   ],
@@ -195,6 +196,7 @@
   ],
   "run_tier": "full",
   "schema_version": "aitest.prepared-run/1.0",
+  "scope_id": "scope-ticket",
   "selected_case_ids": [
     "case-create-ticket",
     "case-change-status"
@@ -205,9 +207,10 @@
   ],
   "skipped_scope": [],
   "snapshot": {
-    "content_identity": "git:9c44344bcd612df1a7d033efa1e7a47c810c49cf",
+    "content_identity": "sha256:changed-source-content",
     "purpose": "prepare",
-    "source_snapshot_id": "snapshot-ticket-1"
+    "record_revision": 1,
+    "source_snapshot_id": "snapshot-ticket-9"
   },
   "source_snippets_enabled": false,
   "status": "blocked",

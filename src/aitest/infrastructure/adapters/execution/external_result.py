@@ -60,11 +60,20 @@ class ExternalResultAdapter:
         if payload.external_schema != expected_schema:
             raise ValueError("external result schema does not match")
         digest = _content_digest(payload.content)
+        fingerprint = _content_digest({
+            "schema": payload.external_schema,
+            "source_instance_id": payload.source_instance_id,
+            "source_record_id": payload.source_record_id,
+            "content": dict(payload.content),
+            "assertion_values": dict(payload.assertion_values),
+            "attachment_refs": payload.attachment_refs,
+            "expected_assertions": dict(expected_assertions),
+        })
         previous = self._seen.get(payload.import_id)
-        if previous is not None and previous != digest:
+        if previous is not None and previous != fingerprint:
             raise ValueError("external import id conflicts with different content")
         idempotency_state = "duplicate" if previous is not None else "new"
-        self._seen[payload.import_id] = digest
+        self._seen[payload.import_id] = fingerprint
 
         gap_ids: tuple[str, ...]
         if not expected_assertions:
@@ -107,7 +116,7 @@ class ExternalResultAdapter:
 
 
 def _content_digest(content: Mapping[str, object]) -> str:
-    encoded = json.dumps(content, sort_keys=True, separators=(",", ":"), default=str)
+    encoded = json.dumps(content, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

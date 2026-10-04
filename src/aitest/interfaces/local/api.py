@@ -87,14 +87,10 @@ class LocalAPI:
         self.connector = connector
         # 自定义投影器只能再组织输出；其结果仍必须过统一脱敏底线（A-09），
         # 装配时即包装，调用方无法通过自定义投影器绕过凭据过滤。
-        self.projector = (
-            safeguard_projector(projector) if projector is not None else None
-        )
-        self.credential_projector = (
-            safeguard_projector(credential_projector)
-            if credential_projector is not None
-            else None
-        )
+        self.projector = safeguard_projector(projector) if projector is not None else None
+        # This callback is the configured known-credential boundary. Failure
+        # must block the output, rather than fall back to pattern-only filtering.
+        self.credential_projector = credential_projector
         self._sleeper = sleeper or time.sleep
         #: 持久统一连接状态：多次 test_connection 共享同一份结论；A-10 起
         #: 装配连接持久化后，初始结论从工作空间事实台账水合（跨重启可恢复）。
@@ -107,19 +103,21 @@ class LocalAPI:
         #: 动作级能力门（A-10）；接口层只按结构调用，不导入基础设施。
         self.capability_gate = capability_gate
         if connection_persistence is not None:
-            recovered = connection_persistence.load()  # type: ignore[attr-defined]
-            if isinstance(recovered, dict):
-                self.connection_state.update(recovered)
-        self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = (
-            OrderedDict()
-        )
+            try:
+                recovered = connection_persistence.load()  # type: ignore[attr-defined]
+            except Exception as exc:
+                reason = self._safe_message(exc)
+                self.connection_state.update(last_error=reason, last_error_kind="storage")
+                self._report_gate_connection(False, reason=reason, error_kind="storage")
+            else:
+                if isinstance(recovered, dict):
+                    self.connection_state.update(recovered)
+        self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = OrderedDict()
         #: 会话 → 活动事务归属（A-14）。
         self._active_transactions: dict[str, _TransactionOwnership] = {}
 
     def dispatch(self, command: Command, session: Session) -> Response:
-        fingerprint = sha256(
-            json.dumps(command.model_dump(), sort_keys=True).encode()
-        ).hexdigest()
+        fingerprint = sha256(json.dumps(command.model_dump(), sort_keys=True).encode()).hexdigest()
         key = (session.session_id, command.request_id)
         cached = self._requests.get(key)
         if cached:
@@ -130,10 +128,7 @@ class LocalAPI:
                     "request_id has different inputs",
                 )
             return cached[1].model_copy(deep=True)
-        if (
-            session.entry_kind == EntryKind.AGENT_RELAY
-            and command.action in HUMAN_ACTIONS
-        ):
+        if session.entry_kind == EntryKind.AGENT_RELAY and command.action in HUMAN_ACTIONS:
             response = self._error(
                 command,
                 "AWAITING_USER_CONFIRMATION",
@@ -148,7 +143,7 @@ class LocalAPI:
             response = self._connect(command)
         elif (
             command.action in self.handlers
-            and (denied_reason := self._gate_denial(command.action)) is not None
+            and (denied_reason := self._gate_denial(command.action, command.parameters)) is not None
         ):
             # A-10：只拦截实际依赖故障能力的动作，不依赖该能力的动作与
             # doctor/test_connection 等恢复性动作不在此分支，继续可用。
@@ -178,16 +173,15 @@ class LocalAPI:
             doctor_result: dict[str, JsonValue] = {
                 "status": ready,
                 "protocol": "aitest.local/2.0",
-                "supported_actions": cast(
-                    list[JsonValue], sorted(set(self.handlers) | {"doctor"})
-                ),
+                "supported_actions": cast(list[JsonValue], sorted(set(self.handlers) | {"doctor"})),
                 "phase": 1,
             }
             if self.capability_gate is not None:
                 # A-10：显式报告各项外部能力条件与动作依赖，调用方据此做
                 # 动作级降级判断，而不是把单个适配器故障当成整体不可用。
                 doctor_result["dependencies"] = cast(
-                    JsonValue, self.capability_gate.snapshot()  # type: ignore[attr-defined]
+                    JsonValue,
+                    self.capability_gate.snapshot(),  # type: ignore[attr-defined]
                 )
             response = Response(
                 request_id=command.request_id,
@@ -216,7 +210,7 @@ class LocalAPI:
             binding_revision=command.binding_revision,
             error=ErrorDTO(
                 code=code,
-                message=message,
+                message=self._safe_error_text(message),
                 next_step="See docs/一期/工程状态.md",
             ),
         )
@@ -317,17 +311,11 @@ class LocalAPI:
             )
         return method(**kwargs)
 
-    def _transaction_response(
-        self, command: Command, result: object
-    ) -> Response:
+    def _transaction_response(self, command: Command, result: object) -> Response:
         if isinstance(result, Response):
             return result
         # 事务出口同样是出站边界：经统一安全投影后再回写（A-09）。
-        safe = (
-            self.safe_projection(result)
-            if isinstance(result, Mapping)
-            else {"result": result}
-        )
+        safe = self.safe_projection(result) if isinstance(result, Mapping) else {"result": result}
         payload = dict(safe)
         if command.action == "begin":
             # 明确返回事务句柄，供 commit/rollback 在 parameters 中引用。
@@ -339,13 +327,16 @@ class LocalAPI:
             result=cast(dict[str, JsonValue], payload),
         )
 
-    def safe_projection(
-        self, value: Mapping[str, object]
-    ) -> Mapping[str, object]:
+    def safe_projection(self, value: Mapping[str, object]) -> Mapping[str, object]:
         """Return a redacted projection; credentials never leave this adapter."""
-        projector = self.credential_projector or self.projector
-        if projector is not None:
-            return projector(value)
+        if self.credential_projector is not None:
+            projected = self.credential_projector(value)
+            if not isinstance(projected, Mapping):
+                raise ValueError("credential projection did not return a safe mapping")
+            redacted, _changed = redact_structure(projected)
+            return cast(Mapping[str, object], redacted)
+        if self.projector is not None:
+            return self.projector(value)
         redacted, _changed = redact_structure(value)
         return cast(Mapping[str, object], redacted)
 
@@ -365,12 +356,22 @@ class LocalAPI:
             # 必须按重试策略继续，而不是直接报告 connected=False 成功返回。
             # 富事实（TransportFact）以 reachable 为准——dataclass 实例本身
             # 恒为真值，直接 bool() 会把不可达事实误判为可达（A-10）。
-            connected = bool(
-                getattr(result, "reachable", result) if result is not None else False
-            )
+            reachability = getattr(result, "reachable", result) if result is not None else False
+            connected = reachability is True
+            if type(reachability) is not bool:
+                error_message = "connection probe returned an invalid reachability fact"
+            reported_kind = getattr(result, "error_kind", None)
+            if reported_kind is not None and (connected or not isinstance(reported_kind, str)):
+                connected = False
+                error_message = "connection probe returned contradictory error metadata"
             if connected:
                 # 连接器可返回富事实（TransportFact）；普通布尔/falsy 结果兼容。
-                elapsed_ms = int(getattr(result, "elapsed_ms", 0) or 0)
+                duration = getattr(result, "elapsed_ms", 0)
+                if type(duration) is not int or duration < 0:
+                    connected = False
+                    error_message = "connection probe returned an invalid duration fact"
+                else:
+                    elapsed_ms = duration
             else:
                 error_kind = getattr(result, "error_kind", None)
             self.connection_state = {
@@ -382,9 +383,16 @@ class LocalAPI:
             }
             if self._connection_persistence is not None:
                 # 每次探测事实即时落盘，核心崩溃/换实例后结论不丢（A-10）。
-                self._connection_persistence.save(  # type: ignore[attr-defined]
-                    self.connection_state
-                )
+                try:
+                    self._connection_persistence.save(  # type: ignore[attr-defined]
+                        self.connection_state
+                    )
+                except Exception as exc:
+                    reason = self._safe_message(exc)
+                    self._report_gate_connection(False, reason=reason, error_kind="storage")
+                    return self._error(
+                        command, "INTERNAL_ERROR", "connection fact could not be saved: " + reason
+                    )
             self._report_gate_connection(
                 connected,
                 reason=error_message or "目标未就绪",
@@ -400,9 +408,7 @@ class LocalAPI:
                         "attempts": retries_completed + 1,
                     },
                 )
-            delay = retry_delay(
-                retries_completed, read_only=True, idempotency_proven=True
-            )
+            delay = retry_delay(retries_completed, read_only=True, idempotency_proven=True)
             if delay is None:
                 return self._error(
                     command,
@@ -413,23 +419,39 @@ class LocalAPI:
             self._sleeper(delay)
             retries_completed += 1
 
-    @staticmethod
-    def _safe_message(exc: Exception) -> str:
+    def _safe_message(self, exc: Exception) -> str:
         text = str(exc).replace("\r", " ").replace("\n", " ")
-        text, _changed = scrub_secret_text(text)
+        text = self._safe_error_text(text)
         return text[:500] or exc.__class__.__name__
 
-    def _gate_denial(self, action: str) -> str | None:
+    def _safe_error_text(self, message: str) -> str:
+        """Error replies use the same configured credential boundary as success replies."""
+        try:
+            projected = self.safe_projection({"message": message})
+            text = projected.get("message")
+            if not isinstance(text, str):
+                return "error detail unavailable after safe projection"
+            text, _changed = scrub_secret_text(text)
+            return text
+        except Exception:
+            return "error detail unavailable after safe projection"
+
+    def _gate_denial(
+        self, action: str, parameters: Mapping[str, object] | None = None
+    ) -> str | None:
         """动作级门禁：返回拒绝原因；未装门或允许时返回 None。"""
         gate = self.capability_gate
         if gate is None:
             return None
         try:
-            decision = gate.check(action)  # type: ignore[attr-defined]
+            command_check = getattr(gate, "check_command", None)
+            if callable(command_check):
+                decision = command_check(action, parameters or {})
+            else:
+                decision = gate.check(action)  # type: ignore[attr-defined]
         except Exception:
-            # 门禁自身故障不得让业务动作整体停摆；装配测试会抓住门实现错误。
-            return None
-        if getattr(decision, "allowed", True):
+            return f"动作 {action} 的能力门禁无法核实，请先恢复该门禁"
+        if getattr(decision, "allowed", False) is True:
             return None
         reason = getattr(decision, "reason", None)
         return str(reason) if reason else f"动作 {action} 依赖的外部能力当前不可用"

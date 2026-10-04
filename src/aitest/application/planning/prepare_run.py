@@ -66,7 +66,8 @@ from aitest.contracts.prepared_run import (
 _INVALIDATION_DESCRIPTIONS: Mapping[str, str] = {
     "project_revision": "project context changed",
     "binding_revision": "binding changed",
-    "snapshot_revision": "source bytes changed",
+    "snapshot_revision": "source snapshot record revision changed",
+    "snapshot_content_identity": "source bytes changed",
     "environment_revision": "environment changed",
     "plan_revision": "plan republished",
     "rules_revision": "rules republished",
@@ -102,11 +103,10 @@ class PreparationInputs:
     case_revisions: tuple[CaseRevisionRef, ...]
     frozen_cases: tuple[FrozenCase, ...]
     assertion_bases: tuple[AssertionBasisEntry, ...]
+    scope_id: str | None = None
     #: 项目上下文缺口；非空即阻塞（P1-AC17）。
     context_gaps: tuple[GapEntry, ...] = field(default_factory=tuple)
-    authorization_requirements: tuple[AuthorizationRequirement, ...] = field(
-        default_factory=tuple
-    )
+    authorization_requirements: tuple[AuthorizationRequirement, ...] = field(default_factory=tuple)
     model_outbound_policy_revision: int | None = None
     source_snippets_enabled: bool = False
     exclusion_rules: tuple[str, ...] = field(default_factory=tuple)
@@ -166,13 +166,9 @@ def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
         "driver": inputs.initial_driver.value,
         "case_revision_ids": sorted({ref.case_id for ref in inputs.case_revisions}),
         "rule_version_ids": sorted({ref.rule_id for ref in inputs.rule_versions}),
-        "template_version_ids": sorted(
-            {ref.template_id for ref in inputs.template_versions}
-        ),
+        "template_version_ids": sorted({ref.template_id for ref in inputs.template_versions}),
         "selected_case_ids": sorted(inputs.selected_case_ids),
-        "skipped_scope": [
-            [entry.case_id, entry.reason] for entry in inputs.skipped_scope
-        ],
+        "skipped_scope": [[entry.case_id, entry.reason] for entry in inputs.skipped_scope],
         "applicability_exclusions": [
             [entry.case_id, entry.reason] for entry in inputs.applicability_exclusions
         ],
@@ -229,6 +225,8 @@ def _build(
     return PreparedRun(
         prepared_run_id=_prepared_run_id(inputs),
         project_id=inputs.project_id,
+        project_revision=inputs.input_revisions.project_revision,
+        scope_id=inputs.scope_id,
         workspace_id=inputs.workspace_id,
         binding_id=inputs.binding_id,
         binding_revision=inputs.binding_revision,
@@ -298,6 +296,20 @@ def prepare_run(
     )
     digest = payload_hash(preparation_payload(inputs))
     now = clock.now()
+    if inputs.scope_id is None or not inputs.scope_id.strip():
+        return _build(
+            inputs,
+            intent_id=intent_id,
+            digest=digest,
+            created_at=now,
+            created_at_commit=unit_of_work.commit_seq(),
+            status=_STATUS_BLOCKED,
+            blocking_reasons=(
+                BlockingReason(
+                    code="needs_reprepare", message="A frozen scope_id is required; prepare again."
+                ),
+            ),
+        )
 
     # 步骤 1：项目上下文缺口 → 列缺口并阻塞，不编造依赖与结论（P1-AC17）。
     if inputs.context_gaps:
@@ -309,8 +321,7 @@ def prepare_run(
             created_at_commit=unit_of_work.commit_seq(),
             status=_STATUS_BLOCKED,
             blocking_reasons=tuple(
-                BlockingReason(code=gap.kind, message=gap.detail)
-                for gap in inputs.context_gaps
+                BlockingReason(code=gap.kind, message=gap.detail) for gap in inputs.context_gaps
             ),
         )
 
@@ -333,6 +344,8 @@ def prepare_run(
             # 解析出来的实际执行输入摘要随请求一起参与**观察比对**（B-02）：
             # 它不进 `payload_hash`（那是请求内容），但变了必须报"依据需重新准备"。
             observed_resolved_input_digest=inputs.execution_source.resolved_input_digest,
+            observed_snapshot_content_identity=inputs.snapshot.content_identity,
+            observed_scope_id=inputs.scope_id,
         ),
         record,
     )
@@ -360,14 +373,27 @@ def prepare_run(
             blocking_reasons=(
                 BlockingReason(
                     code="needs_reprepare",
-                    message="Basis needs re-preparation: "
-                    + ", ".join(decision.changed_inputs),
+                    message="Basis needs re-preparation: " + ", ".join(decision.changed_inputs),
                 ),
             ),
             invalidation_rules=_invalidation_rules_for(decision.changed_inputs),
         )
 
     if decision.decision is PreparationDecision.REUSED:
+        if existing is not None and existing.scope_id is None:
+            return _build(
+                inputs,
+                intent_id=existing.intent_id,
+                digest=digest,
+                created_at=now,
+                created_at_commit=existing.created_at_commit,
+                status=_STATUS_BLOCKED,
+                blocking_reasons=(
+                    BlockingReason(
+                        code="needs_reprepare", message="Legacy preparation has no scope_id."
+                    ),
+                ),
+            )
         if existing is not None:
             return existing
         return _build(
@@ -396,9 +422,9 @@ def prepare_run(
                     observed_case_revisions=tuple(
                         (ref.case_id, ref.revision) for ref in inputs.case_revisions
                     ),
-                    observed_resolved_input_digest=(
-                        inputs.execution_source.resolved_input_digest
-                    ),
+                    observed_resolved_input_digest=(inputs.execution_source.resolved_input_digest),
+                    observed_snapshot_content_identity=inputs.snapshot.content_identity,
+                    observed_scope_id=inputs.scope_id,
                 ),
                 intent_id=intent_id,
                 # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。

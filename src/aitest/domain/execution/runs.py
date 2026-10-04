@@ -250,6 +250,7 @@ class AuthorizationRef:
     credential_scope_ref: str
     plan_revision_ref: PlanRevisionRef
     consumed_by_attempt_id: str | None = None
+    step_revision_ref: StepRevisionRef | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -261,6 +262,24 @@ class AuthorizationRef:
             "credential_scope_ref",
         ):
             _require_text(getattr(self, name), name)
+        if self.step_revision_ref is not None and not isinstance(
+            self.step_revision_ref, StepRevisionRef
+        ):
+            raise ValueError("authorization step_revision_ref must be a StepRevisionRef")
+
+
+def authorization_action_basis(authorization: AuthorizationRef) -> tuple[object, ...]:
+    """An occupied grant still describes the same original authorized action."""
+    return (
+        authorization.authorization_id,
+        authorization.intent_id,
+        authorization.step_id,
+        authorization.resolved_input_digest,
+        authorization.target_ref,
+        authorization.credential_scope_ref,
+        authorization.plan_revision_ref,
+        authorization.step_revision_ref,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -599,10 +618,41 @@ class Attempt:
         return self.attempt_index - 1
 
 
+def attempt_start_basis(attempt: Attempt) -> tuple[object, ...]:
+    """Frozen execution identity; collection, control and transport progress are separate."""
+    return (
+        attempt.attempt_id,
+        attempt.run_id,
+        attempt.step_id,
+        attempt.attempt_index,
+        attempt.intent_id,
+        attempt.intent_digest,
+        attempt.resolved_input_digest,
+        attempt.step_revision_ref,
+        attempt.source_binding_digest,
+        attempt.side_effect_class,
+        attempt.adapter_kind,
+        attempt.adapter_version,
+        attempt.expected_plan_revision_ref,
+        attempt.consumed_outputs,
+        attempt.consumed_conditions,
+        attempt.business_idempotency_key_ref,
+        attempt.timeout_ms,
+        authorization_action_basis(attempt.authorization_ref)
+        if attempt.authorization_ref is not None
+        else None,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class RecoveryRecord:
     checkpoint: RecoveryCheckpoint
     attempt: Attempt
+    project_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.project_id is not None:
+            _require_text(self.project_id, "checkpoint project_id")
 
 
 class ExecutionInspectionState(StrEnum):
@@ -666,6 +716,8 @@ __all__ = [
     "AdapterKind",
     "Attempt",
     "AttemptState",
+    "attempt_start_basis",
+    "authorization_action_basis",
     "AuthorizationRef",
     "CaptureCompleteness",
     "CapturedOutputBlock",

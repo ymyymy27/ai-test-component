@@ -1,0 +1,22 @@
+{
+  "scope": "12 real current 1866 source boundary regressions; original test bytes retained",
+  "source_archive": "docs/validation/p1-abc-fix-20261003/history/core-startup-1866/validation-source.zip",
+  "source_archive_sha256": "21c0ed18d9c3aec09bd5cfffad993070b674a3901ec1731df0f1da2d447d8764",
+  "test": "discovery-path-before-test.py",
+  "test_sha256": "6a87152fa0af42b00f05e1daa60b68a985f637c3fe1252b96fcc99cb005bc868",
+  "sources": [
+    {
+      "path": "src/aitest/bootstrap.py",
+      "sha256": "2d76cd1de49c7f7baefe2713f7ac721174755a6b4115c94197b69dec824de279"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/core_launch.py",
+      "sha256": "de15f36fa887af8d15eb61ba857d826535dbb18dea9bf0367047a081da3809eb"
+    }
+  ],
+  "result": {
+    "failed": 12,
+    "passed": 0
+  },
+  "baseline": "7dbc5a45aa1666652c3dcdc2d0b0604066bc6498"
+}

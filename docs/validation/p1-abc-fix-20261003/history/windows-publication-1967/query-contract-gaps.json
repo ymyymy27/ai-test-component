@@ -1,0 +1,59 @@
+{
+  "status": "remaining_contract_gaps_not_fix_proof",
+  "generic_revision": {
+    "spec": {
+      "project_id": "p",
+      "aggregate_kind": null,
+      "record_id": null,
+      "revision": 2,
+      "sort": "commit_sequence",
+      "descending": false,
+      "limit": 1,
+      "cursor": null,
+      "business_outcome": null,
+      "run_id": null,
+      "report_id": null,
+      "view": null,
+      "facet": "NONE",
+      "facet_value": null,
+      "severity": null
+    },
+    "actual_status": "ok",
+    "returned": 1,
+    "leaf_pages_read": 10,
+    "cause": "revision without object identity uses residual filtering"
+  },
+  "mixed_query": {
+    "spec": {
+      "project_id": "p",
+      "aggregate_kind": null,
+      "record_id": null,
+      "revision": null,
+      "sort": "aggregate_kind",
+      "descending": false,
+      "limit": 50,
+      "cursor": null,
+      "business_outcome": null,
+      "run_id": null,
+      "report_id": "report-x",
+      "view": "ALL",
+      "facet": "NONE",
+      "facet_value": null,
+      "severity": null
+    },
+    "actual_status": "ok",
+    "target_family": "issues",
+    "ignored_field": "report_id"
+  },
+  "scope": "Synthetic read-only diagnostics. Requires finite-combination contract/route repair; not an acceptance pass.",
+  "source": [
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "sha256": "1f3eb1f63796868354b8c38751fe1e3ad6925772fd0c898beff7ca606cf51070"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "sha256": "31ab17f0c61aba6825b1a1ddb170a3fb5c50e2928ac3024f78c2c4d367853e8f"
+    }
+  ]
+}

@@ -32,8 +32,17 @@ def _plan(manager: FileMigrationManager, steps: tuple[str, ...] = _BOTH_STEPS) -
 def test_inspect_reports_available_and_pending(manager: FileMigrationManager) -> None:
     report = manager.inspect()
     assert report["applied"] == []
-    assert report["available"] == sorted(_BOTH_STEPS)
-    assert report["pending"] == sorted(_BOTH_STEPS)
+    available = sorted(
+        (
+            *_BOTH_STEPS,
+            "0003-sharded-record-authority",
+            "0004-bounded-query-directory",
+            "0005-complete-commit-closure",
+            "0006-canonical-current-publication",
+        )
+    )
+    assert report["available"] == available
+    assert report["pending"] == available
     assert report["workspace_schema_version"] == "1.0"
 
 
@@ -107,9 +116,7 @@ def test_rollback_unknown_plan_is_error(manager: FileMigrationManager) -> None:
 
 def test_workspace_migration_has_real_file_effect_and_rollback(tmp_path: Path) -> None:
     workspace_file = tmp_path / "workspace.json"
-    workspace_file.write_text(
-        json.dumps({"workspace_id": "ws-1"}), encoding="utf-8"
-    )
+    workspace_file.write_text(json.dumps({"workspace_id": "ws-1"}), encoding="utf-8")
     manager = FileMigrationManager(tmp_path)
     plan_id = manager.plan((_BOTH_STEPS[0],)).plan_id
 

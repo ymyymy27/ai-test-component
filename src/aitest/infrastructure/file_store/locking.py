@@ -33,6 +33,7 @@ class _Admission:
 
 _registry_guard = threading.Lock()
 _admissions: dict[str, _Admission] = {}
+_held = threading.local()
 
 
 def _normalize(path: Path) -> str:
@@ -55,20 +56,32 @@ def _open_os_lock(path: Path) -> portalocker.Lock:
 
 
 @contextmanager
-def writer_lock(path: Path) -> Iterator[None]:
+def writer_lock(path: Path, *, reentrant: bool = False) -> Iterator[None]:
     key = _normalize(path)
+    owned: set[str] = getattr(_held, "paths", set())
+    if key in owned:
+        if not reentrant:
+            raise WorkspaceInUse("workspace already has a writer in this thread")
+        yield
+        return
     with _registry_guard:
         admission = _admissions.get(key)
     if admission is not None:
         # 本进程已是该工作空间的唯一写入者：事务只需进程内串行，绝不
         # 重复对同一 OS 锁区域加锁（A-02）。
         with admission.serial:
-            yield
+            _held.paths = owned | {key}
+            try:
+                yield
+            finally:
+                _held.paths = owned
         return
     lock = _open_os_lock(path)
+    _held.paths = owned | {key}
     try:
         yield
     finally:
+        _held.paths = owned
         lock.release()
 
 

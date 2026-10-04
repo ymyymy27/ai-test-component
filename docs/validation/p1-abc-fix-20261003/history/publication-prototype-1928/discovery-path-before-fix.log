@@ -1,0 +1,348 @@
+FFFFFFFFFFFF                                                             [100%]
+================================== FAILURES ===================================
+_ test_public_entry_rejects_junction_before_any_host_or_target_access[acquire] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_public_entry_rejects_junc0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000220B10B2060>
+entry = 'acquire'
+
+    @pytest.mark.parametrize("entry", ["acquire", "shutdown"])
+    @pytest.mark.skipif(sys.platform != "win32", reason="real Windows directory junction")
+    def test_public_entry_rejects_junction_before_any_host_or_target_access(
+        tmp_path, monkeypatch, entry
+    ):
+        target = tmp_path / "target"
+        target.mkdir()
+        link = tmp_path / "linked"
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+        )
+        assert result.returncode == 0 and link.is_junction()
+        calls = []
+        monkeypatch.setattr(
+            bootstrap,
+            "make_editor_host",
+            lambda *a, **kw: SimpleNamespace(acquire=lambda workspace: calls.append("acquire")),
+        )
+        monkeypatch.setattr(
+            bootstrap,
+            "make_pipe_connector",
+            lambda *a, **kw: lambda workspace: calls.append("connect"),
+        )
+        try:
+>           with pytest.raises(WorkspaceInUse, match="filesystem link"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:38: Failed
+_ test_public_entry_rejects_junction_before_any_host_or_target_access[shutdown] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_public_entry_rejects_junc1")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000220B0A8CB00>
+entry = 'shutdown'
+
+    @pytest.mark.parametrize("entry", ["acquire", "shutdown"])
+    @pytest.mark.skipif(sys.platform != "win32", reason="real Windows directory junction")
+    def test_public_entry_rejects_junction_before_any_host_or_target_access(
+        tmp_path, monkeypatch, entry
+    ):
+        target = tmp_path / "target"
+        target.mkdir()
+        link = tmp_path / "linked"
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+        )
+        assert result.returncode == 0 and link.is_junction()
+        calls = []
+        monkeypatch.setattr(
+            bootstrap,
+            "make_editor_host",
+            lambda *a, **kw: SimpleNamespace(acquire=lambda workspace: calls.append("acquire")),
+        )
+        monkeypatch.setattr(
+            bootstrap,
+            "make_pipe_connector",
+            lambda *a, **kw: lambda workspace: calls.append("connect"),
+        )
+        try:
+>           with pytest.raises(WorkspaceInUse, match="filesystem link"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:38: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[NUL] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi0")
+name = 'NUL'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[nul.txt] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi1")
+name = 'nul.txt'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[AUX] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi2")
+name = 'AUX'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[COM1] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi3")
+name = 'COM1'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[LPT2] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi4")
+name = 'LPT2'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[stream:id] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi5")
+name = 'stream:id'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[id.] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi6")
+name = 'id.'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[id ] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi7")
+name = 'id '
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[bad?name] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi8")
+name = 'bad?name'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+_ test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[id\x00] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-469/test_reserved_or_ambiguous_poi9")
+name = 'id\x00'
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "NUL",
+            "nul.txt",
+            "AUX",
+            "COM1",
+            "LPT2",
+            "stream:id",
+            "id.",
+            "id ",
+            "bad?name",
+            "id\x00",
+        ],
+    )
+    def test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access(tmp_path, name):
+>       with pytest.raises(WorkspaceInUse):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_discovery_path_integrity.py:66: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_public_entry_rejects_junction_before_any_host_or_target_access[acquire]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_public_entry_rejects_junction_before_any_host_or_target_access[shutdown]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[NUL]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[nul.txt]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[AUX]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[COM1]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[LPT2]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[stream:id]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[id.]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[id ]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[bad?name]
+FAILED tests/unit/test_core_discovery_path_integrity.py::test_reserved_or_ambiguous_pointer_filename_is_rejected_before_workspace_access[id\x00]
+12 failed in 0.45s

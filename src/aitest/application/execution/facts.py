@@ -140,7 +140,7 @@ class ExecutionFactsAssembler:
             run=_run_fact(run),
             steps=tuple(_step_fact(step) for step in assembly.steps),
             attempts=tuple(
-                _attempt_fact(
+                project_attempt_fact(
                     attempt,
                     is_current=current_attempt_by_step.get(attempt.step_id) == attempt.attempt_id,
                     redaction_summaries=assembly.redaction_summaries,
@@ -305,12 +305,13 @@ def _step_fact(step: Step) -> StepFact:
     )
 
 
-def _attempt_fact(
+def project_attempt_fact(
     attempt: Attempt,
     *,
     is_current: bool,
-    redaction_summaries: Mapping[str, RedactionSummary],
+    redaction_summaries: Mapping[str, RedactionSummary] | None = None,
 ) -> AttemptFact:
+    """The same domain projection is used for assembly and commit validation."""
     return AttemptFact(
         attempt_id=attempt.attempt_id,
         run_id=attempt.run_id,
@@ -392,7 +393,7 @@ def _attempt_fact(
                 capture_source=block.capture_source,
                 redaction_summary=_redaction_summary_fact(
                     block.redaction_summary_id,
-                    redaction_summaries,
+                    redaction_summaries or {},
                 ),
             )
             for block in attempt.output_block_refs
@@ -510,6 +511,7 @@ def _source_verification_fact(item: ExecutionSourceVerification) -> SourceVerifi
         state=_enum(SourceVerificationStateFact, item.state.value),
         observed_entry_ref=item.observed_entry_ref,
         observed_import_ref=item.observed_import_ref,
+        observed_interpreter_ref=item.observed_interpreter_ref,
         failure_class=item.failure_class.value if item.failure_class is not None else None,
         gap_ids=item.gap_ids,
         evidence_refs=item.evidence_refs,
@@ -563,4 +565,5 @@ __all__ = [
     "ExecutionFactsAssembler",
     "ExecutionFactsAssembly",
     "ExecutionFactsBoundary",
+    "project_attempt_fact",
 ]

@@ -5,30 +5,28 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from enum import StrEnum
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from aitest.domain.execution.assertions import (
+    HttpAssertion as HttpAssertion,
+)
+from aitest.domain.execution.assertions import (
+    HttpAssertionOperator as HttpAssertionOperator,
+)
+from aitest.domain.execution.assertions import (
+    evaluate_http_assertion,
+)
 
-class HttpAssertionOperator(StrEnum):
-    EQUALS = "equals"
-    CONTAINS = "contains"
-    EXISTS = "exists"
-
-
-@dataclass(frozen=True, slots=True)
-class HttpAssertion:
-    assertion_id: str
-    json_path: str
-    operator: HttpAssertionOperator
-    expected: object = None
+_MISSING = object()
 
 
 @dataclass(frozen=True, slots=True)
 class HttpAssertionResult:
     assertion_id: str
-    matched: bool
+    matched: bool | None
     actual: object = None
+    value_available: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +63,7 @@ class HttpExchangeResult:
     extracted: dict[str, object] = field(default_factory=dict)
     assertion_results: tuple[HttpAssertionResult, ...] = ()
     request_log_ref: str | None = None
+    missing_extractions: tuple[str, ...] = ()
 
 
 class HttpAdapter:
@@ -126,21 +125,25 @@ class HttpAdapter:
         spec: HttpRequestSpec,
     ) -> HttpExchangeResult:
         payload = _json_payload(result.body)
-        extracted = {
+        observations = {
             name: _json_path(payload, path)
             for name, path in spec.extract_paths
         }
-        assertions = tuple(
-            HttpAssertionResult(
+        extracted = {
+            name: None if value is _MISSING else value for name, value in observations.items()
+        }
+        assertions = []
+        for assertion in spec.assertions:
+            actual = _json_path(payload, assertion.json_path)
+            available = actual is not _MISSING
+            assertions.append(HttpAssertionResult(
                 assertion_id=assertion.assertion_id,
-                matched=_matches(
-                    _json_path(payload, assertion.json_path),
-                    assertion,
+                matched=evaluate_http_assertion(
+                    actual, assertion, value_available=available,
                 ),
-                actual=_json_path(payload, assertion.json_path),
-            )
-            for assertion in spec.assertions
-        )
+                actual=actual if available else None,
+                value_available=available,
+            ))
         return HttpExchangeResult(
             request_id=result.request_id,
             method=result.method,
@@ -152,7 +155,10 @@ class HttpAdapter:
             error_detail=result.error_detail,
             elapsed_ms=result.elapsed_ms,
             extracted=extracted,
-            assertion_results=assertions,
+            assertion_results=tuple(assertions),
+            missing_extractions=tuple(
+                name for name, value in observations.items() if value is _MISSING
+            ),
             request_log_ref=(
                 result.request_log_ref
                 or f"http-request:{result.request_id}"
@@ -162,11 +168,11 @@ class HttpAdapter:
 
 def _json_payload(body: bytes) -> object:
     if not body:
-        return None
+        return _MISSING
     try:
         return json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return None
+        return _MISSING
 
 
 def _json_path(payload: object, path: str) -> object:
@@ -177,32 +183,17 @@ def _json_path(payload: object, path: str) -> object:
         name, _, index_text = part.partition("[")
         if name:
             if not isinstance(current, dict) or name not in current:
-                return None
+                return _MISSING
             current = current[name]
         if index_text:
             try:
                 index = int(index_text.rstrip("]"))
             except ValueError:
-                return None
+                return _MISSING
             if not isinstance(current, list) or not 0 <= index < len(current):
-                return None
+                return _MISSING
             current = current[index]
     return current
-
-
-def _matches(actual: object, assertion: HttpAssertion) -> bool:
-    if assertion.operator is HttpAssertionOperator.EXISTS:
-        return actual is not None
-    if assertion.operator is HttpAssertionOperator.EQUALS:
-        return actual == assertion.expected
-    if assertion.operator is HttpAssertionOperator.CONTAINS:
-        if isinstance(actual, str):
-            return str(assertion.expected) in actual
-        if isinstance(actual, list):
-            return assertion.expected in actual
-        if isinstance(actual, dict):
-            return assertion.expected in actual
-    return False
 
 
 __all__ = [

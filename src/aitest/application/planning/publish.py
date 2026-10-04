@@ -23,9 +23,9 @@ from hashlib import sha256
 
 from aitest.application.planning.substrate import (
     ConcurrentEditError,
-    RecordQuery,
     RecordReader,
     UnitOfWork,
+    current_record,
     transaction,
 )
 from aitest.application.project.context import ContextGap, blocking_gaps
@@ -98,16 +98,13 @@ def _current_revision(
     发布**新修订**时必须把当前修订传下去，否则底座按"新建"处理并报冲突——
     这正是"不自动覆盖"这条守卫在起作用。
     """
-    page = reader.query(
-        RecordQuery(
-            project_id=project_id,
-            aggregate_kind=aggregate_kind,  # type: ignore[arg-type]
-            record_id=record_id,
-        )
+    record = current_record(
+        reader,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,  # type: ignore[arg-type]
+        record_id=record_id,
     )
-    if not page.items:
-        return None
-    return max(item.revision for item in page.items)
+    return None if record is None else record.revision
 
 
 def _revision_to_stage(
@@ -218,6 +215,7 @@ def publish_rules(
         source=draft.source,
         confirmation_id=result.commit_seq,
         digest=payload_digest(payload),
+        record_revision=result.revision_of("rule_version", draft.rule_id).revision,
     )
     return PublicationResult(value=version)
 
@@ -294,13 +292,12 @@ def publish_plan(
         initial_driver=plan.initial_driver,
         status=PlanPublicationStatus.PUBLISHED,
         confirmation_id=result.commit_seq,
+        record_revision=result.revision_of("plan", plan.plan_id).revision,
     )
     return PublicationResult(value=published)
 
 
-def _plan_payload(
-    plan: Plan, cases: Sequence[Case], *, project_id: str
-) -> dict[str, object]:
+def _plan_payload(plan: Plan, cases: Sequence[Case], *, project_id: str) -> dict[str, object]:
     """计划落盘用的 payload：冻结修订与**实际用例摘要**，便于事后核对。"""
     return {
         "project_id": project_id,
@@ -342,9 +339,7 @@ def _plan_payload(
     }
 
 
-def plan_publication_digest(
-    plan: Plan, cases: Sequence[Case], *, project_id: str
-) -> str:
+def plan_publication_digest(plan: Plan, cases: Sequence[Case], *, project_id: str) -> str:
     """计划落盘内容的摘要；供 `PreparedRun.plan_revision.digest` 引用。"""
     return payload_digest(_plan_payload(plan, cases, project_id=project_id))
 

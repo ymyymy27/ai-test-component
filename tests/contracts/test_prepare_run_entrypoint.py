@@ -171,6 +171,7 @@ def _parameters(inputs: PreparationInputs) -> dict[str, object]:
         "execution_source": _plain(inputs.execution_source),
         "plan_revision": _plain(inputs.plan_revision),
         "acceptance_scope_revision": inputs.acceptance_scope_revision,
+        "scope_id": inputs.scope_id,
         "rule_versions": _plain(inputs.rule_versions),
         "template_versions": _plain(inputs.template_versions),
         "case_revisions": _plain(inputs.case_revisions),

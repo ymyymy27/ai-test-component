@@ -173,6 +173,7 @@
   "prepare_request_id": "prepare-request-1",
   "prepared_run_id": "prepared-1accaf884dacfd962726b72f1451d82c10241a94",
   "project_id": "project-ticket",
+  "project_revision": 1,
   "refetch_dependencies": [
     "git-lfs:assets/*"
   ],
@@ -185,6 +186,7 @@
   ],
   "run_tier": "full",
   "schema_version": "aitest.prepared-run/1.0",
+  "scope_id": "scope-ticket",
   "selected_case_ids": [
     "case-create-ticket",
     "case-change-status"
@@ -197,6 +199,7 @@
   "snapshot": {
     "content_identity": "git:9c44344bcd612df1a7d033efa1e7a47c810c49cf",
     "purpose": "prepare",
+    "record_revision": 1,
     "source_snapshot_id": "snapshot-ticket-1"
   },
   "source_snippets_enabled": false,

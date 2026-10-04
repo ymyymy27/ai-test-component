@@ -1,0 +1,21 @@
+{
+  "scope": "Native publication source before deep-JSON normalization; failed child-runtime case is included; 1965 full log predates the two added JSON cases",
+  "files": [
+    {
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py",
+      "sha256": "280d6c78f3ff27fdbda47f5380520d7c881262c24bbf942ea8a2e087950136a0"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/publication_backend.py",
+      "sha256": "321d2e4e437b4a865afca0664ba0283f7ed4c0e7b183efc4d3c8f17053513b2f"
+    },
+    {
+      "path": "tests/unit/test_windows_publication_integrity.py",
+      "sha256": "e55f77b59d596b27d235ad042cd08e8b5e92aab2de6b462ad183018f9efc8f74"
+    }
+  ],
+  "archive_sha256": "372707b5e373e37c9a2f0f44a7f2bdadc53b2fb77c3e6b363ec01b33b36fea54",
+  "before_failed": 1,
+  "before_passed": 1,
+  "before_log": "windows-json-before-fix.log"
+}

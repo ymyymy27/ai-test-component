@@ -4,10 +4,10 @@ A-05 有限访问合同（架构《存储与恢复》第 13 节）
 
 - 全局清单 ``indexes.json`` 只保存代次/提交根等元数据，不再整库存放
   rows；查询行按**查询目录**分片保存在 ``indexes/<family>/`` 下，
-  每页只读取定位到的 1—2 个有界分片，无关历史增长只增加分片数，
-  不增加固定范围分页的访问量。
-- 每个分片是一条有序不可变行链：分片条目保存完整排序键 ``k`` 与
-  最小摘要行 ``v``；目录元数据登记各分片首/尾键，定位用区间裁剪。
+  页读取有限目录路径和范围内叶页；单节点最多16个子引用，叶页最多
+ 128行（可配置8—1024），无关历史不会使单份元数据或键账增长。
+- 节点按摘要校验且不可变；叶条目保存完整排序键 ``k`` 与最小摘要
+  行 ``v``。报告/问题当前键账也按准确身份点查，提交只复制相关路径。
 - 游标 v3 绑定完整查询条件摘要 qid、索引代次 generation、快照提交根
   commit_id 与**最后完整排序键**（服务端游标文件保存键本身，令牌
   保持 QuerySpec 冻结的 256 字符上限）；同并列键不漏不重。
@@ -32,9 +32,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
-from aitest.contracts.queries import QuerySpec
+from pydantic import ValidationError
+
+from aitest.contracts.queries import QuerySpec, QueryUnsupportedFilter
 
 from . import atomic
+from .commit_manifest import CommitMaterialError, FileCommitStore
+from .ordered_index import OrderedIndexTree
 
 if TYPE_CHECKING:
     from .events import FileEventJournal
@@ -73,8 +77,12 @@ _ALL_FAMILIES: Final = (
 _SORT_TO_FAMILY: Final = {field: family for family, field in _RECORD_ORDERINGS}
 
 #: 报告/问题“当前修订”折叠的服务端键账（只存物理键，不存正文）。
-_SIDECAR_NAME: Final = ".latest-keys.json"
 _CURSOR_PREFIX: Final = ".cursor-"
+
+
+def re_root_id(value: str) -> bool:
+    return len(value) == 32 and all(char in "0123456789abcdef" for char in value)
+
 
 #: issues.list 固定 14 种掩码（facet 编码 × 是否叠加 severity）。
 _FACET_CODES: Final = {
@@ -149,9 +157,7 @@ def build_index_row(
             row[key] = value
     for key in _SUMMARY_LIST_KEYS:
         value = data.get(key)
-        if isinstance(value, list) and all(
-            isinstance(item, str) for item in value
-        ):
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
             row[key] = list(value)
     entries = data.get("issue_index_entries")
     if isinstance(entries, list):
@@ -215,9 +221,7 @@ def encode_cursor(
         "gen": generation,
         "commit": commit_id,
     }
-    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
-        "utf-8"
-    )
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii")
 
 
@@ -317,9 +321,7 @@ def _key_cmp(left: Key, right: Key) -> int:
             try:
                 return -1 if a < b else 1
             except TypeError as error:
-                raise IndexMissing(
-                    "index shard contains incomparable keys"
-                ) from error
+                raise IndexMissing("index shard contains incomparable keys") from error
     if len(left) == len(right):
         return 0
     return -1 if len(left) < len(right) else 1
@@ -348,99 +350,67 @@ def _prefix_equals(key: Key, prefix: tuple[Any, ...]) -> bool:
     return all(key[i] == prefix[i] for i in range(len(prefix)))
 
 
-def _insort(
-    items: list[tuple[Key, dict[str, Any]]],
-    key: Key,
-    row: dict[str, Any],
-) -> None:
-    lo, hi = 0, len(items)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if _key_lt(items[mid][0], key):
-            lo = mid + 1
-        else:
-            hi = mid
-    items.insert(lo, (key, row))
-
-
-# --------------------------------------------------------------- 分片目录
-
-
-@dataclass(frozen=True, slots=True)
-class _ShardInfo:
-    file: str
-    count: int
-    first: Key
-    last: Key
-
-
 _Predicate = Callable[[dict[str, Any]], bool]
+_DIRECTORY_SCHEMA = "aitest.sorted-directory/1"
+_ROOT_SCHEMA = "aitest.index-root/3-tree"
 
 
 class _ShardDirectory:
-    """一个查询目录的有序分片链；只做有界读写，不感知筛选语义。"""
+    """Immutable ordered tree with fixed-size metadata and bounded seek paths."""
 
     def __init__(self, root: Path, name: str, shard_size: int) -> None:
         self.dir = root / "indexes" / name
         self.meta_path = self.dir / "meta.json"
         self.name = name
-        self.shard_size = max(8, shard_size)
+        self.shard_size = min(1024, max(8, shard_size))
 
-    # ----- 元数据 -----------------------------------------------------
+    def _tree(self, meta: dict[str, Any]) -> OrderedIndexTree:
+        if (
+            set(meta) != {"schema", "family", "generation", "commit_id", "shard_size", "root"}
+            or meta["schema"] != _DIRECTORY_SCHEMA
+            or meta["family"] != self.name
+            or type(meta["generation"]) is not int
+            or meta["generation"] < 1
+            or type(meta["commit_id"]) is not int
+            or meta["commit_id"] < 0
+            or type(meta["shard_size"]) is not int
+            or not 8 <= meta["shard_size"] <= 1024
+        ):
+            raise IndexMissing(f"invalid query directory metadata: {self.name}")
+        return OrderedIndexTree(
+            self.dir,
+            _key_cmp,
+            leaf_size=meta["shard_size"],
+            root=meta["root"],
+            leaf_reader=self._read_shard,
+        )
 
     def load_meta(self) -> dict[str, Any] | None:
-        if not self.meta_path.exists():
-            return None
         try:
             raw = json.loads(self.meta_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, TypeError):
+            if not isinstance(raw, dict):
+                return None
+            self._tree(raw)
+            return raw
+        except (OSError, ValueError, TypeError, IndexMissing):
             return None
-        if not isinstance(raw, dict) or not isinstance(raw.get("shards"), list):
-            return None
-        return raw
 
-    def _infos(self, meta: dict[str, Any]) -> list[_ShardInfo]:
-        infos: list[_ShardInfo] = []
-        for entry in meta["shards"]:
-            if (
-                not isinstance(entry, dict)
-                or not isinstance(entry.get("file"), str)
-                or not isinstance(entry.get("count"), int)
-                or not isinstance(entry.get("first"), list)
-                or not isinstance(entry.get("last"), list)
-            ):
-                raise IndexMissing(f"corrupt shard meta in {self.name}")
-            infos.append(
-                _ShardInfo(
-                    file=str(entry["file"]),
-                    count=int(entry["count"]),
-                    first=tuple(entry["first"]),
-                    last=tuple(entry["last"]),
-                )
-            )
-        return infos
-
-    def _read_shard(self, info: _ShardInfo) -> list[dict[str, Any]]:
-        path = self.dir / info.file
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, TypeError) as error:
-            raise IndexMissing(f"missing or corrupt shard {info.file}") from error
-        if not isinstance(raw, dict) or not isinstance(raw.get("entries"), list):
-            raise IndexMissing(f"corrupt shard payload {info.file}")
-        entries: list[dict[str, Any]] = raw["entries"]
-        if len(entries) != info.count:
-            raise IndexMissing(f"shard count mismatch {info.file}")
+    def _read_shard(self, info: dict[str, Any]) -> list[dict[str, Any]]:
+        tree = OrderedIndexTree(self.dir, _key_cmp, leaf_size=1024)
+        entries: list[dict[str, Any]] = tree.read(info)["entries"]
         return entries
 
-    # ----- 发布 -------------------------------------------------------
-
-    def wipe(self) -> None:
-        if not self.dir.exists():
-            return
-        for child in self.dir.iterdir():
-            if child.is_file() and child.suffix == ".json":
-                child.unlink()
+    def _publish(self, tree: OrderedIndexTree, generation: int, commit_id: int) -> dict[str, Any]:
+        meta = dict(
+            schema=_DIRECTORY_SCHEMA,
+            family=self.name,
+            generation=generation,
+            commit_id=commit_id,
+            shard_size=tree.leaf_size,
+            root=tree.root,
+        )
+        atomic.write_json(self.meta_path, meta)
+        return meta
 
     def bulk_build(
         self,
@@ -448,39 +418,10 @@ class _ShardDirectory:
         *,
         generation: int,
         commit_id: int,
-    ) -> None:
-        """从全量有序行重建目录（维护或恢复的显式成本）。"""
-        self.wipe()
-        self.dir.mkdir(parents=True, exist_ok=True)
-        ordered = sorted(entries_with_keys, key=lambda item: item[0])
-        shard_infos: list[dict[str, Any]] = []
-        for start in range(0, len(ordered), self.shard_size):
-            chunk = ordered[start : start + self.shard_size]
-            name = f"{uuid.uuid4().hex[:16]}.json"
-            atomic.write_json(
-                self.dir / name,
-                {"entries": [
-                    {"k": list(key), "v": row} for key, row in chunk
-                ]},
-            )
-            shard_infos.append(
-                {
-                    "file": name,
-                    "count": len(chunk),
-                    "first": list(chunk[0][0]),
-                    "last": list(chunk[-1][0]),
-                }
-            )
-        atomic.write_json(
-            self.meta_path,
-            {
-                "family": self.name,
-                "generation": generation,
-                "commit_id": commit_id,
-                "shard_size": self.shard_size,
-                "shards": shard_infos,
-            },
-        )
+    ) -> dict[str, Any]:
+        tree = OrderedIndexTree(self.dir, _key_cmp, leaf_size=self.shard_size)
+        tree.bulk_build(entries_with_keys)
+        return self._publish(tree, generation, commit_id)
 
     def insert(
         self,
@@ -488,23 +429,15 @@ class _ShardDirectory:
         *,
         generation: int,
         commit_id: int,
-    ) -> None:
-        """把新行插入有序链；只重写落点分片（超长时分裂为两个文件）。"""
-        if not entries_with_keys:
-            return
-        meta = self.load_meta()
-        if meta is None or not meta.get("shards"):
-            self.bulk_build(
-                entries_with_keys, generation=generation, commit_id=commit_id
-            )
-            return
-        infos = self._infos(meta)
-        targets: dict[int, list[tuple[Key, dict[str, Any]]]] = {}
-        for key, row in sorted(entries_with_keys, key=lambda item: item[0]):
-            index = self._locate_shard_for_write(infos, key)
-            targets.setdefault(index, []).append((key, row))
-        kept = self._rewrite_shards(infos, targets, frozenset())
-        self._publish_meta(kept, generation, commit_id)
+        snapshot_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self.replace(
+            entries_with_keys,
+            [],
+            generation=generation,
+            commit_id=commit_id,
+            snapshot_meta=snapshot_meta,
+        )
 
     def replace(
         self,
@@ -513,123 +446,17 @@ class _ShardDirectory:
         *,
         generation: int,
         commit_id: int,
-    ) -> None:
-        """移除旧键后插入新行（报告新修订/问题投影迁移的同目录键替换）。
-
-        只重写落点分片与确含旧键的分片；被清空的分片连同文件一并移除。
-        """
-        if not entries_with_keys and not evict_keys:
-            return
-        meta = self.load_meta()
-        if meta is None or not meta.get("shards"):
-            self.bulk_build(
-                entries_with_keys, generation=generation, commit_id=commit_id
-            )
-            return
-        infos = self._infos(meta)
-        targets: dict[int, list[tuple[Key, dict[str, Any]]]] = {}
-        for key, row in sorted(entries_with_keys, key=lambda item: item[0]):
-            index = self._locate_shard_for_write(infos, key)
-            targets.setdefault(index, []).append((key, row))
-        for old_key in evict_keys:
-            targets.setdefault(self._locate_shard_for_write(infos, old_key), [])
-        kept = self._rewrite_shards(infos, targets, frozenset(evict_keys))
-        self._publish_meta(kept, generation, commit_id)
-
-    def _publish_meta(
-        self, infos: list[_ShardInfo], generation: int, commit_id: int
-    ) -> None:
-        atomic.write_json(
-            self.meta_path,
-            {
-                "family": self.name,
-                "generation": generation,
-                "commit_id": commit_id,
-                "shard_size": self.shard_size,
-                "shards": [
-                    {
-                        "file": info.file,
-                        "count": info.count,
-                        "first": list(info.first),
-                        "last": list(info.last),
-                    }
-                    for info in infos
-                ],
-            },
-        )
-
-    def _rewrite_shards(
-        self,
-        infos: list[_ShardInfo],
-        targets: dict[int, list[tuple[Key, dict[str, Any]]]],
-        evict_keys: frozenset[Key],
-    ) -> list[_ShardInfo]:
-        """重写受影响分片：剔除旧键、并入新行、超长分裂、清空即移除。"""
-        new_infos: list[_ShardInfo | None] = list(infos)
-        extras: list[_ShardInfo] = []
-        for index, additions in sorted(targets.items()):
-            merged = [
-                (tuple(item["k"]), item["v"])
-                for item in self._read_shard(infos[index])
-                if tuple(item["k"]) not in evict_keys
-            ]
-            existing_keys = {key for key, _ in merged}
-            for key, row in additions:
-                if key not in existing_keys:
-                    _insort(merged, key, row)
-            old_file = infos[index].file
-            if not merged:
-                # 分片被整体清空：从信息链移除并删除文件，不留空壳区间。
-                new_infos[index] = None
-            else:
-                written = self._rewrite_or_split(merged)
-                new_infos[index] = written[0]
-                extras.extend(written[1:])
-            with suppress(OSError):
-                (self.dir / old_file).unlink()
-        kept = [info for info in new_infos if info is not None]
-        kept.extend(extras)
-        # 分裂产生的新分片按首键重新排序信息链。
-        kept.sort(key=lambda info: info.first)
-        return kept
-
-    def _locate_shard_for_write(
-        self, infos: list[_ShardInfo], key: Key
-    ) -> int:
-        for index, info in enumerate(infos):
-            if _key_le(key, info.last):
-                return index
-        return len(infos) - 1
-
-    def _rewrite_or_split(
-        self, merged: list[tuple[Key, dict[str, Any]]]
-    ) -> list[_ShardInfo]:
-        chunks: list[list[tuple[Key, dict[str, Any]]]]
-        if len(merged) <= self.shard_size:
-            chunks = [merged]
-        else:
-            middle = len(merged) // 2
-            chunks = [merged[:middle], merged[middle:]]
-        written: list[_ShardInfo] = []
-        for chunk in chunks:
-            name = f"{uuid.uuid4().hex[:16]}.json"
-            atomic.write_json(
-                self.dir / name,
-                {"entries": [
-                    {"k": list(key), "v": row} for key, row in chunk
-                ]},
-            )
-            written.append(
-                _ShardInfo(
-                    file=name,
-                    count=len(chunk),
-                    first=chunk[0][0],
-                    last=chunk[-1][0],
-                )
-            )
-        return written
-
-    # ----- 读取：有界页扫描 ------------------------------------------
+        snapshot_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        meta = snapshot_meta if snapshot_meta is not None else self.load_meta()
+        if meta is None:
+            raise IndexMissing(f"index directory missing: {self.name}")
+        try:
+            tree = self._tree(meta)
+            tree.replace(entries_with_keys, evict_keys)
+            return self._publish(tree, generation, commit_id)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise IndexMissing(f"query directory unavailable: {self.name}") from error
 
     def page(
         self,
@@ -639,47 +466,27 @@ class _ShardDirectory:
         descending: bool,
         limit: int,
         accept: _Predicate,
+        snapshot_meta: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, Any]], Key | None, bool]:
-        """在固定列前缀区间按键集续读；返回 (行, 最后返回行键, 是否还有)。
-
-        ``accept(row)`` 承担前缀等值之外的全部有限谓词（精确 ID、修订、
-        提交根等）；命中 limit+1 行即证明还有下一页。只访问与前缀区间
-        重叠的分片文件。
-        """
-        meta = self.load_meta()
+        meta = snapshot_meta if snapshot_meta is not None else self.load_meta()
         if meta is None:
             raise IndexMissing(f"index directory missing: {self.name}")
-        infos = self._infos(meta)
-        region_start: Key = (*prefix, MIN)
-        region_end: Key = (*prefix, MAX)
-        ordered = reversed(infos) if descending else iter(infos)
-        collected: list[dict[str, Any]] = []
-        last_key: Key | None = None
-        for info in ordered:
-            if not (_key_le(info.first, region_end) and _key_ge(info.last, region_start)):
-                continue
-            entries = self._read_shard(info)
-            indexed = [(tuple(item["k"]), item["v"]) for item in entries]
-            if descending:
-                indexed.reverse()
-            for key, row in indexed:
-                if not _prefix_equals(key, prefix):
-                    continue
-                if start_after is not None:
-                    if descending:
-                        if not _key_lt(key, start_after):
-                            continue
-                    elif not _key_gt(key, start_after):
-                        continue
-                if not accept(row):
+        try:
+            tree = self._tree(meta)
+            collected: list[dict[str, Any]] = []
+            last_key = None
+            for key, row in tree.scan(
+                lower=(*prefix, MIN), upper=(*prefix, MAX), after=start_after, descending=descending
+            ):
+                if not _prefix_equals(key, prefix) or not accept(row):
                     continue
                 if len(collected) == limit:
-                    # 第 limit+1 个命中行只用于证明还有下一页；游标末键
-                    # 仍为已返回的第 limit 行完整排序键。
                     return collected, last_key, True
                 collected.append(row)
                 last_key = key
-        return collected, last_key, False
+            return collected, last_key, False
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise IndexMissing(f"query directory unavailable: {self.name}") from error
 
 
 # --------------------------------------------------------------- 索引门面
@@ -724,19 +531,34 @@ class FileQueryIndex:
         *,
         shard_size: int = _DEFAULT_SHARD_SIZE,
         journal: FileEventJournal | None = None,
+        detached: bool = False,
+        snapshot_meta: dict[str, Any] | None = None,
     ) -> None:
         self.root = root.resolve()
         self.indexes_dir = self.root / "indexes"
         self.meta_path = self.root / "indexes.json"
-        self.shard_size = max(8, shard_size)
+        self.shard_size = min(1024, max(8, shard_size))
         self._journal = journal
+        self._detached = detached
+        self._snapshot_meta = snapshot_meta
 
     # ----- 全局元数据 -------------------------------------------------
 
     def _read_meta(self) -> dict[str, Any] | None:
+        if self._snapshot_meta is not None:
+            return dict(self._snapshot_meta)
+        if not self._detached:
+            try:
+                current = FileCommitStore(self.root).read_current()
+            except CommitMaterialError:
+                return None
+            if current is not None:
+                return dict(current["manifest"]["index_root"])
         if not self.meta_path.exists():
             return None
         try:
+            if self.meta_path.stat().st_size > 16 * 1024:
+                return None
             raw = json.loads(self.meta_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, TypeError):
             return None
@@ -744,7 +566,7 @@ class FileQueryIndex:
             return None
         generation = raw.get("generation")
         last_commit = raw.get("last_commit_sequence")
-        if not isinstance(generation, int) or not isinstance(last_commit, int):
+        if type(generation) is not int or type(last_commit) is not int:
             return None
         if generation < _FIRST_GENERATION or last_commit < 0:
             return None
@@ -752,27 +574,124 @@ class FileQueryIndex:
             "version": VERSION,
             "generation": generation,
             "last_commit_sequence": last_commit,
+            "snapshot_root": raw.get("snapshot_root"),
+            "schema": raw.get("schema"),
         }
 
-    def _write_meta(self, generation: int, commit_sequence: int) -> None:
+    def _write_meta(
+        self,
+        generation: int,
+        commit_sequence: int,
+        *,
+        families: dict[str, Any],
+        latest_keys: dict[str, Any],
+    ) -> dict[str, Any]:
+        root_id = uuid.uuid4().hex
         atomic.write_json(
-            self.meta_path,
+            self.indexes_dir / "roots" / f"{root_id}.json",
             {
-                "version": VERSION,
-                "schema": "aitest.index-root/3",
                 "generation": generation,
-                "last_commit_sequence": commit_sequence,
+                "commit_id": commit_sequence,
+                "families": families,
+                "latest_keys": latest_keys,
             },
         )
+        meta = {
+            "version": VERSION,
+            "schema": _ROOT_SCHEMA,
+            "generation": generation,
+            "last_commit_sequence": commit_sequence,
+            "snapshot_root": root_id,
+            "snapshot_sha256": hashlib.sha256(
+                (self.indexes_dir / "roots" / f"{root_id}.json").read_bytes()
+            ).hexdigest(),
+        }
+        if not self._detached:
+            store = FileCommitStore(self.root)
+            current = store.read_current()
+            if current is None:
+                atomic.write_json(self.meta_path, meta)
+            else:
+                manifest = dict(current["manifest"])
+                if commit_sequence != manifest["commit_sequence"]:
+                    raise IndexMissing("business index publication must use the commit unit")
+                manifest.update(
+                    index_root=meta,
+                    operation="maintenance",
+                    created=[],
+                    request_id=None,
+                    intent_id=None,
+                    project_id=None,
+                    parent_manifest=current["pointer"]["manifest_digest"],
+                )
+                store.publish(store.prepare(manifest))
+        return meta
 
     def is_healthy(self) -> bool:
-        """元数据与每个查询目录都可读才算健康；任一缺失即须维护重建。"""
-        if self._read_meta() is None:
+        """Only the published root is authoritative; abandoned family metas are ignored."""
+        try:
+            meta = self._read_meta()
+            if meta is None:
+                return False
+            snapshot = self._snapshot(meta)
+            for name, directory_meta in [
+                *snapshot["families"].items(),
+                ("latest-keys", snapshot["latest_keys"]),
+            ]:
+                tree = self._directory(name)._tree(directory_meta)
+                if tree.root is not None:
+                    tree.read(tree.root)
+            return True
+        except (IndexMissing, OSError, ValueError, KeyError, TypeError):
             return False
-        return all(
-            self._directory(family).load_meta() is not None
-            for family in _ALL_FAMILIES
-        )
+
+    def requires_layout_migration(self) -> bool:
+        meta = self._read_meta()
+        return meta is not None and meta["schema"] != _ROOT_SCHEMA
+
+    def _snapshot(self, meta: dict[str, Any]) -> dict[str, Any]:
+        root_id = meta.get("snapshot_root")
+        if (
+            meta.get("schema") != _ROOT_SCHEMA
+            or not isinstance(root_id, str)
+            or not re_root_id(root_id)
+        ):
+            raise IndexMissing("query directory layout requires explicit migration")
+        try:
+            path = self.indexes_dir / "roots" / f"{root_id}.json"
+            FileCommitStore.reject_links(path)
+            if path.stat().st_size > 256 * 1024:
+                raise IndexMissing("query root exceeds bounded metadata size")
+            raw_bytes = path.read_bytes()
+            if meta.get("snapshot_sha256") is not None and (
+                hashlib.sha256(raw_bytes).hexdigest() != meta["snapshot_sha256"]
+            ):
+                raise IndexMissing("query root digest mismatch")
+            raw = json.loads(raw_bytes)
+            if (
+                not isinstance(raw, dict)
+                or set(raw) != {"generation", "commit_id", "families", "latest_keys"}
+                or type(raw["generation"]) is not int
+                or raw["generation"] != meta["generation"]
+                or type(raw["commit_id"]) is not int
+                or raw["commit_id"] != meta["last_commit_sequence"]
+                or not isinstance(raw["families"], dict)
+                or set(raw["families"]) != set(_ALL_FAMILIES)
+            ):
+                raise IndexMissing("query snapshot identity or families mismatch")
+            for name, directory_meta in [
+                *raw["families"].items(),
+                ("latest-keys", raw["latest_keys"]),
+            ]:
+                self._directory(name)._tree(directory_meta)
+                if (
+                    directory_meta["generation"] != raw["generation"]
+                    or directory_meta["commit_id"] > raw["commit_id"]
+                ):
+                    raise IndexMissing("query directory belongs to another root")
+            return raw
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise IndexMissing("query snapshot root unavailable") from error
 
     def _read_raw(self) -> dict[str, Any] | None:
         """同底座投影协作用只读元数据视图（不含行；行只在分片目录中）。"""
@@ -786,29 +705,20 @@ class FileQueryIndex:
     def _cursor_path(self, cursor_id: str) -> Path:
         return self.indexes_dir / f"{_CURSOR_PREFIX}{cursor_id}.json"
 
-    def _sidecar_path(self) -> Path:
-        return self.indexes_dir / _SIDECAR_NAME
-
-    def _read_sidecar(self) -> dict[str, dict[str, list[list[Any]]]]:
-        path = self._sidecar_path()
-        empty: dict[str, dict[str, list[list[Any]]]] = {"reports": {}, "issues": {}}
-        if not path.exists():
-            return empty
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, TypeError):
-            return empty
-        if not isinstance(raw, dict):
-            return empty
-        for section in ("reports", "issues"):
-            value = raw.get(section)
-            empty[section] = value if isinstance(value, dict) else {}
-        return empty
-
-    def _write_sidecar(
-        self, sidecar: dict[str, dict[str, list[list[Any]]]]
-    ) -> None:
-        atomic.write_json(self._sidecar_path(), sidecar)
+    @staticmethod
+    def _latest_rank(row: dict[str, Any], section: str) -> list[int]:
+        if section == "reports":
+            return [
+                FileQueryIndex._report_sequence(row),
+                _row_int(row, "content_revision", 0),
+                int(row["commit_sequence"]),
+                int(row["revision"]),
+            ]
+        return [
+            _row_int(row, "updated_sequence", 0),
+            int(row["commit_sequence"]),
+            int(row["revision"]),
+        ]
 
     # ----- 行 → 物理键派生 -------------------------------------------
 
@@ -838,9 +748,7 @@ class FileQueryIndex:
                     # published/updated 缺失的普通记录排在有序链低端。
                     value = 0
             keys.append((family, (project, kind, value, record_id, revision)))
-        keys.append(
-            (_POINT_FAMILY, (project, kind, record_id, revision))
-        )
+        keys.append((_POINT_FAMILY, (project, kind, record_id, revision)))
         return keys
 
     @staticmethod
@@ -857,22 +765,14 @@ class FileQueryIndex:
         report_id = str(row["report_id"])
         sequence = FileQueryIndex._report_sequence(row)
         revision = int(row["revision"])
-        keys: list[tuple[str, Key]] = [
-            (_REPORT_FAMILY, (project, _ALL, sequence, report_id))
-        ]
+        keys: list[tuple[str, Key]] = [(_REPORT_FAMILY, (project, _ALL, sequence, report_id))]
         outcome = row.get("business_outcome")
         if isinstance(outcome, str) and outcome:
-            keys.append(
-                (_REPORT_FAMILY, (project, outcome, sequence, report_id))
-            )
-        keys.append(
-            (_REPORT_BY_ID_FAMILY, (project, "report", report_id, sequence, revision))
-        )
+            keys.append((_REPORT_FAMILY, (project, outcome, sequence, report_id)))
+        keys.append((_REPORT_BY_ID_FAMILY, (project, "report", report_id, sequence, revision)))
         run_id = row.get("run_id")
         if isinstance(run_id, str) and run_id:
-            keys.append(
-                (_REPORT_BY_ID_FAMILY, (project, "run", run_id, sequence, revision))
-            )
+            keys.append((_REPORT_BY_ID_FAMILY, (project, "run", run_id, sequence, revision)))
         return keys
 
     @staticmethod
@@ -933,7 +833,7 @@ class FileQueryIndex:
         self, rows: list[dict[str, Any]]
     ) -> tuple[
         dict[str, list[tuple[Key, dict[str, Any]]]],
-        dict[str, dict[str, list[list[Any]]]],
+        list[tuple[Key, dict[str, Any]]],
     ]:
         """从全量摘要行派生各目录键；报告/问题按身份折叠到当前最新修订。"""
         buckets: dict[str, list[tuple[Key, dict[str, Any]]]] = {
@@ -954,11 +854,7 @@ class FileQueryIndex:
             ),
         )
         latest_issues = self._select_latest(
-            [
-                row
-                for row in rows
-                if isinstance(row.get("issue_index_entries"), list)
-            ],
+            [row for row in rows if isinstance(row.get("issue_index_entries"), list)],
             lambda row: (str(row["project_id"]), str(row["record_id"])),
             lambda row: (
                 _row_int(row, "updated_sequence", 0),
@@ -967,27 +863,55 @@ class FileQueryIndex:
             ),
         )
 
-        report_ledger: dict[str, list[list[Any]]] = {}
+        ledger: list[tuple[Key, dict[str, Any]]] = []
         for (project, report_id), row in latest_reports.items():
             physical = self._report_physical_keys(row)
-            report_ledger[f"{project}\x1f{report_id}"] = [
-                [family, list(key)] for family, key in physical
-            ]
+            ledger.append(
+                (
+                    ("reports", project, report_id),
+                    {
+                        "keys": [[family, list(key)] for family, key in physical],
+                        "rank": self._latest_rank(row, "reports"),
+                    },
+                )
+            )
             for family, key in physical:
                 buckets[family].append((key, row))
 
-        issue_ledger: dict[str, list[list[Any]]] = {}
         for (project, issue_id), row in latest_issues.items():
             physical = self._issue_physical_keys(row)
-            issue_ledger[f"{project}\x1f{issue_id}"] = [
-                [family, list(key)] for family, key in physical
-            ]
+            ledger.append(
+                (
+                    ("issues", project, issue_id),
+                    {
+                        "keys": [[family, list(key)] for family, key in physical],
+                        "rank": self._latest_rank(row, "issues"),
+                    },
+                )
+            )
             for family, key in physical:
                 buckets[family].append((key, row))
 
-        return buckets, {"reports": report_ledger, "issues": issue_ledger}
+        return buckets, ledger
 
     # ----- 发布：全量构建 / 维护重建 / 增量发布 ------------------------
+
+    @staticmethod
+    def _validate_rows(rows: list[dict[str, Any]], commit_sequence: int) -> None:
+        if type(commit_sequence) is not int or commit_sequence < 0:
+            raise IndexMissing("invalid query publication boundary")
+        for row in rows:
+            if (
+                type(row.get("commit_sequence")) is not int
+                or not 0 <= row["commit_sequence"] <= commit_sequence
+                or type(row.get("revision")) is not int
+                or row["revision"] < 1
+                or any(
+                    not isinstance(row.get(field), str) or not row[field]
+                    for field in ("project_id", "aggregate_kind", "record_id")
+                )
+            ):
+                raise IndexMissing("index row does not belong to the publication boundary")
 
     def _build_all(
         self,
@@ -995,17 +919,25 @@ class FileQueryIndex:
         *,
         generation: int,
         commit_sequence: int,
-    ) -> None:
-        buckets, sidecar = self._derive_buckets(rows)
+    ) -> dict[str, Any]:
+        self._validate_rows(rows, commit_sequence)
+        buckets, ledger = self._derive_buckets(rows)
         self.indexes_dir.mkdir(parents=True, exist_ok=True)
+        families: dict[str, Any] = {}
         for family in _ALL_FAMILIES:
-            self._directory(family).bulk_build(
+            families[family] = self._directory(family).bulk_build(
                 buckets[family],
                 generation=generation,
                 commit_id=commit_sequence,
             )
-        self._write_sidecar(sidecar)
-        self._write_meta(generation, commit_sequence)
+        latest_keys = self._directory("latest-keys").bulk_build(
+            ledger,
+            generation=generation,
+            commit_id=commit_sequence,
+        )
+        return self._write_meta(
+            generation, commit_sequence, families=families, latest_keys=latest_keys
+        )
 
     def rebuild(
         self,
@@ -1022,9 +954,7 @@ class FileQueryIndex:
             if prior is not None
             else _FIRST_GENERATION
         )
-        commit_sequence = max(
-            (int(row["commit_sequence"]) for row in rows), default=0
-        )
+        commit_sequence = max((int(row["commit_sequence"]) for row in rows), default=0)
         self._build_all(
             list(rows),
             generation=chosen_generation,
@@ -1034,18 +964,12 @@ class FileQueryIndex:
     def rebuild_for_maintenance(self, rows: list[dict[str, Any]]) -> int:
         """维护重建：晋升代次并使全部旧游标失效，返回新代次。"""
         prior = self._read_meta()
-        generation = (
-            prior["generation"] + 1
-            if prior is not None
-            else _FIRST_GENERATION
-        )
+        generation = prior["generation"] + 1 if prior is not None else _FIRST_GENERATION
         if self.indexes_dir.exists():
             for path in self.indexes_dir.glob(f"{_CURSOR_PREFIX}*.json"):
                 with suppress(OSError):
                     path.unlink()
-        commit_sequence = max(
-            (int(row["commit_sequence"]) for row in rows), default=0
-        )
+        commit_sequence = max((int(row["commit_sequence"]) for row in rows), default=0)
         self._build_all(
             list(rows),
             generation=generation,
@@ -1059,142 +983,145 @@ class FileQueryIndex:
         *,
         commit_sequence: int,
         all_rows: list[dict[str, Any]] | None = None,
-    ) -> None:
+    ) -> dict[str, Any]:
         """一次业务提交的索引发布：通用目录增量、报告/问题目录键替换。
 
         索引根缺失或版本不符时，调用方必须提供权威全量行 ``all_rows``
         触发全量重建；否则抛 :class:`IndexMissing`，绝不带版本混用。
         """
+        self._validate_rows(new_rows, commit_sequence)
         meta = self._read_meta()
+        if self.requires_layout_migration():
+            raise IndexMissing("legacy query directory requires backed up migration")
         if meta is None:
             if all_rows is None:
                 raise IndexMissing("index root missing; authority rebuild required")
-            self._build_all(
+            return self._build_all(
                 list(all_rows),
                 generation=_FIRST_GENERATION,
                 commit_sequence=commit_sequence,
             )
-            return
         generation = meta["generation"]
-
+        snapshot = self._snapshot(meta)
+        if type(commit_sequence) is not int or commit_sequence < meta["last_commit_sequence"]:
+            raise IndexMissing("query publication cannot move behind the saved commit root")
         generic: dict[str, list[tuple[Key, dict[str, Any]]]] = {}
         for row in new_rows:
             for family, key in self._generic_family_keys(row):
                 generic.setdefault(family, []).append((key, row))
         for family, entries in generic.items():
-            self._directory(family).insert(
-                entries, generation=generation, commit_id=commit_sequence
+            snapshot["families"][family] = self._directory(family).insert(
+                entries,
+                generation=generation,
+                commit_id=commit_sequence,
+                snapshot_meta=snapshot["families"][family],
             )
 
-        sidecar = self._read_sidecar()
-        self._publish_report_replacements(
-            new_rows, sidecar, generation, commit_sequence
+        for section in ("reports", "issues"):
+            self._publish_latest_replacements(
+                section, new_rows, snapshot, generation, commit_sequence
+            )
+        return self._write_meta(
+            generation,
+            commit_sequence,
+            families=snapshot["families"],
+            latest_keys=snapshot["latest_keys"],
         )
-        self._publish_issue_replacements(
-            new_rows, sidecar, generation, commit_sequence
-        )
-        self._write_meta(generation, commit_sequence)
 
-    def _publish_report_replacements(
+    def _publish_latest_replacements(
         self,
+        section: str,
         new_rows: list[dict[str, Any]],
-        sidecar: dict[str, dict[str, list[list[Any]]]],
-        generation: int,
-        commit_sequence: int,
-    ) -> None:
-        candidates = [row for row in new_rows if self._is_report_row(row)]
-        if not candidates:
-            return
-        chosen = self._select_latest(
-            candidates,
-            lambda row: (str(row["project_id"]), str(row["report_id"])),
-            lambda row: (
-                self._report_sequence(row),
-                _row_int(row, "content_revision", 0),
-                int(row["commit_sequence"]),
-                int(row["revision"]),
-            ),
-        )
-        ledger = sidecar.setdefault("reports", {})
-        additions: dict[str, list[tuple[Key, dict[str, Any]]]] = {
-            _REPORT_FAMILY: [],
-            _REPORT_BY_ID_FAMILY: [],
-        }
-        evictions: dict[str, list[Key]] = {
-            _REPORT_FAMILY: [],
-            _REPORT_BY_ID_FAMILY: [],
-        }
-        for (project, report_id), row in chosen.items():
-            identity = f"{project}\x1f{report_id}"
-            for entry in ledger.get(identity, []):
-                if isinstance(entry, list) and len(entry) == 2:
-                    family, key = entry
-                    if isinstance(family, str) and isinstance(key, list):
-                        evictions.setdefault(family, []).append(tuple(key))
-            physical = self._report_physical_keys(row)
-            ledger[identity] = [
-                [family, list(key)] for family, key in physical
-            ]
-            for family, key in physical:
-                additions.setdefault(family, []).append((key, row))
-        for family in (_REPORT_FAMILY, _REPORT_BY_ID_FAMILY):
-            if additions[family] or evictions[family]:
-                self._directory(family).replace(
-                    additions[family],
-                    evictions[family],
-                    generation=generation,
-                    commit_id=commit_sequence,
-                )
-        self._write_sidecar(sidecar)
-
-    def _publish_issue_replacements(
-        self,
-        new_rows: list[dict[str, Any]],
-        sidecar: dict[str, dict[str, list[list[Any]]]],
+        snapshot: dict[str, Any],
         generation: int,
         commit_sequence: int,
     ) -> None:
         candidates = [
             row
             for row in new_rows
-            if isinstance(row.get("issue_index_entries"), list)
+            if (
+                self._is_report_row(row)
+                if section == "reports"
+                else isinstance(row.get("issue_index_entries"), list)
+            )
         ]
         if not candidates:
             return
         chosen = self._select_latest(
             candidates,
-            lambda row: (str(row["project_id"]), str(row["record_id"])),
             lambda row: (
-                _row_int(row, "updated_sequence", 0),
-                int(row["commit_sequence"]),
-                int(row["revision"]),
+                str(row["project_id"]),
+                str(row["report_id"] if section == "reports" else row["record_id"]),
             ),
+            lambda row: tuple(self._latest_rank(row, section)),
         )
-        ledger = sidecar.setdefault("issues", {})
-        additions: list[tuple[Key, dict[str, Any]]] = []
-        evictions: list[Key] = []
-        for (project, issue_id), row in chosen.items():
-            identity = f"{project}\x1f{issue_id}"
-            for entry in ledger.get(identity, []):
-                if isinstance(entry, list) and len(entry) == 2:
-                    family, key = entry
-                    if family == _ISSUE_FAMILY and isinstance(key, list):
-                        evictions.append(tuple(key))
-            physical = self._issue_physical_keys(row)
-            ledger[identity] = [
-                [family, list(key)] for family, key in physical
-            ]
-            # physical 为 (family, key) 对，目录 replace 需要 (key, row)；
-            # 问题物理键全部位于 _ISSUE_FAMILY。
-            additions.extend((key, row) for _family, key in physical)
-        if additions or evictions:
-            self._directory(_ISSUE_FAMILY).replace(
-                additions,
-                evictions,
-                generation=generation,
-                commit_id=commit_sequence,
-            )
-        self._write_sidecar(sidecar)
+        ledger_directory = self._directory("latest-keys")
+        additions: dict[str, list[tuple[Key, dict[str, Any]]]] = {}
+        evictions: dict[str, list[Key]] = {}
+        ledger_rows: list[tuple[Key, dict[str, Any]]] = []
+        ledger_evict: list[Key] = []
+        allowed = (
+            {_REPORT_FAMILY, _REPORT_BY_ID_FAMILY} if section == "reports" else {_ISSUE_FAMILY}
+        )
+        try:
+            ledger = ledger_directory._tree(snapshot["latest_keys"])
+            for (project, record_id), row in chosen.items():
+                identity = (section, project, record_id)
+                prior = ledger.get(identity)
+                rank = self._latest_rank(row, section)
+                if prior is not None:
+                    if (
+                        set(prior) != {"keys", "rank"}
+                        or not isinstance(prior["keys"], list)
+                        or not isinstance(prior["rank"], list)
+                        or len(prior["rank"]) != len(rank)
+                        or any(type(part) is not int for part in prior["rank"])
+                    ):
+                        raise IndexMissing("invalid current identity ledger entry")
+                    if rank < prior["rank"]:
+                        continue
+                    for entry in prior["keys"]:
+                        if (
+                            not isinstance(entry, list)
+                            or len(entry) != 2
+                            or entry[0] not in allowed
+                            or not isinstance(entry[1], list)
+                            or not entry[1]
+                            or entry[1][0] != project
+                        ):
+                            raise IndexMissing("invalid current physical key ledger")
+                        OrderedIndexTree._key(entry[1])
+                        evictions.setdefault(entry[0], []).append(tuple(entry[1]))
+                physical = (
+                    self._report_physical_keys(row)
+                    if section == "reports"
+                    else self._issue_physical_keys(row)
+                )
+                value = {"keys": [[family, list(key)] for family, key in physical], "rank": rank}
+                if prior is not None and rank == prior["rank"] and value != prior:
+                    raise IndexMissing("conflicting current identity at the same rank")
+                ledger_rows.append((identity, value))
+                ledger_evict.append(identity)
+                for family, key in physical:
+                    additions.setdefault(family, []).append((key, row))
+            for family in sorted(allowed):
+                if additions.get(family) or evictions.get(family):
+                    snapshot["families"][family] = self._directory(family).replace(
+                        additions.get(family, []),
+                        evictions.get(family, []),
+                        generation=generation,
+                        commit_id=commit_sequence,
+                        snapshot_meta=snapshot["families"][family],
+                    )
+            if ledger_rows:
+                ledger.replace(ledger_rows, ledger_evict)
+                snapshot["latest_keys"] = ledger_directory._publish(
+                    ledger,
+                    generation,
+                    commit_sequence,
+                )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise IndexMissing("current identity ledger unavailable") from error
 
     # ----- 查询路由 ---------------------------------------------------
 
@@ -1211,9 +1138,7 @@ class FileQueryIndex:
                 spec.facet_value or _ALL,
                 spec.severity or _ALL,
             )
-            return _QueryPlan(
-                _ISSUE_FAMILY, issue_prefix, True, lambda _row: True
-            )
+            return _QueryPlan(_ISSUE_FAMILY, issue_prefix, True, lambda _row: True)
 
         if spec.report_id is not None or spec.run_id is not None:
             by_id_prefix: Key
@@ -1227,18 +1152,14 @@ class FileQueryIndex:
             ) -> bool:
                 return outcome is None or row.get("business_outcome") == outcome
 
-            return _QueryPlan(
-                _REPORT_BY_ID_FAMILY, by_id_prefix, spec.descending, _by_id_extra
-            )
+            return _QueryPlan(_REPORT_BY_ID_FAMILY, by_id_prefix, spec.descending, _by_id_extra)
 
         # 对象点查 (project, record_type, record_id, revision) 是身份查询，
         # 对包括 report 在内的所有聚合类型都必须可用，且保留全部历史修订；
         # 因此优先于 reports.latest 的“当前修订”分区（A-05）。
         if spec.record_id is not None and spec.aggregate_kind is not None:
 
-            def _point_extra(
-                row: dict[str, Any], revision: int | None = spec.revision
-            ) -> bool:
+            def _point_extra(row: dict[str, Any], revision: int | None = spec.revision) -> bool:
                 return revision is None or int(row["revision"]) == revision
 
             return _QueryPlan(
@@ -1259,9 +1180,7 @@ class FileQueryIndex:
 
         family = _SORT_TO_FAMILY[spec.sort]
         generic_prefix: Key = (
-            (project, spec.aggregate_kind)
-            if spec.aggregate_kind is not None
-            else (project,)
+            (project, spec.aggregate_kind) if spec.aggregate_kind is not None else (project,)
         )
 
         def _generic_extra(
@@ -1278,6 +1197,9 @@ class FileQueryIndex:
     def query_spec(self, spec: QuerySpec) -> IndexQueryResult:
         """执行有限查询；损坏/缺目录→maintenance_required，游标不符→invalid_cursor。"""
         try:
+            # model_copy/model_construct do not run pydantic validators. Do not
+            # let internal callers bypass finite routing with those objects.
+            spec = QuerySpec.model_validate(spec.model_dump(warnings=False))
             meta = self._read_meta()
             if meta is None:
                 return IndexQueryResult(status="maintenance_required")
@@ -1285,6 +1207,8 @@ class FileQueryIndex:
             current_commit = meta["last_commit_sequence"]
 
             bound = current_commit
+            snapshot_root = meta.get("snapshot_root")
+            snapshot_sha256 = meta.get("snapshot_sha256")
             start_after: Key | None = None
             query_id = _query_id(spec)
             if spec.cursor is not None:
@@ -1298,9 +1222,7 @@ class FileQueryIndex:
                     return IndexQueryResult(status="invalid_cursor")
                 try:
                     stored = json.loads(
-                        self._cursor_path(decoded.cursor_id).read_text(
-                            encoding="utf-8"
-                        )
+                        self._cursor_path(decoded.cursor_id).read_text(encoding="utf-8")
                     )
                 except (OSError, json.JSONDecodeError, TypeError):
                     return IndexQueryResult(status="invalid_cursor")
@@ -1316,8 +1238,19 @@ class FileQueryIndex:
                     return IndexQueryResult(status="invalid_cursor")
                 start_after = tuple(stored["key"])
                 bound = decoded.commit_id
+                snapshot_root = stored.get("snapshot_root")
+                snapshot_sha256 = stored.get("snapshot_sha256")
 
             plan = self._plan(spec)
+            snapshot = self._snapshot(
+                {
+                    **meta,
+                    "snapshot_root": snapshot_root,
+                    "snapshot_sha256": snapshot_sha256,
+                    "last_commit_sequence": bound,
+                }
+            )
+            snapshot_meta = snapshot["families"][plan.family]
 
             def _accept(row: dict[str, Any]) -> bool:
                 if int(row["commit_sequence"]) > bound:
@@ -1330,6 +1263,7 @@ class FileQueryIndex:
                 descending=plan.descending,
                 limit=spec.limit,
                 accept=_accept,
+                snapshot_meta=snapshot_meta,
             )
 
             next_cursor: str | None = None
@@ -1344,6 +1278,8 @@ class FileQueryIndex:
                         "gen": generation,
                         "commit": bound,
                         "key": list(last_key),
+                        "snapshot_root": snapshot_root,
+                        "snapshot_sha256": snapshot_sha256,
                     },
                 )
                 next_cursor = encode_cursor(
@@ -1366,5 +1302,111 @@ class FileQueryIndex:
                 commit_id=bound,
                 event_cursor=event_cursor,
             )
-        except IndexMissing:
+        except (IndexMissing, CommitMaterialError):
             return IndexQueryResult(status="maintenance_required")
+        except (QueryUnsupportedFilter, ValidationError):
+            return IndexQueryResult(status="unsupported_filter")
+
+
+def migrate_query_layout(root: Path) -> str:
+    """Explicit format conversion, called only by the backed up migration manager."""
+    index = FileQueryIndex(root)
+    meta = index._read_meta()
+    if meta is None:
+        if index.meta_path.exists():
+            raise IndexMissing("unreadable legacy index root cannot be migrated")
+        return "查询根不存在，首次业务提交创建新格式"
+    if meta["schema"] == _ROOT_SCHEMA:
+        if not index.is_healthy():
+            raise IndexMissing("current query root is unhealthy")
+        return "有界查询目录已存在"
+    if meta["schema"] != "aitest.index-root/3":
+        raise IndexMissing("unknown query layout cannot be migrated")
+    before_path = index.indexes_dir / "layout-before.json"
+    if before_path.exists():
+        before = json.loads(before_path.read_text(encoding="utf-8"))
+        if before.get("header") != json.loads(index.meta_path.read_text(encoding="utf-8")):
+            raise IndexMissing("legacy query root differs from frozen migration prestate")
+    else:
+        header = json.loads(index.meta_path.read_text(encoding="utf-8"))
+        root_id = header.get("snapshot_root")
+        if not isinstance(root_id, str) or not re_root_id(root_id):
+            raise IndexMissing("legacy query snapshot missing")
+        snapshot = json.loads(
+            (index.indexes_dir / "roots" / f"{root_id}.json").read_text(encoding="utf-8")
+        )
+        if (
+            snapshot.get("generation") != meta["generation"]
+            or snapshot.get("commit_id") != meta["last_commit_sequence"]
+            or not isinstance(snapshot.get("families"), dict)
+            or set(snapshot["families"]) != set(_ALL_FAMILIES)
+        ):
+            raise IndexMissing("legacy query snapshot identity mismatch")
+        before = {"header": header, "families": snapshot["families"]}
+        # Frozen before any directory write. Retry reads this same prestate,
+        # even when a previous attempt already replaced some family meta files.
+        atomic.write_json(before_path, before)
+    legacy = before["families"][_POINT_FAMILY]
+    if not isinstance(legacy.get("shards"), list):
+        raise IndexMissing("legacy identity directory unavailable")
+    rows: list[dict[str, Any]] = []
+    previous: Key | None = None
+    for ref in legacy["shards"]:
+        file = ref.get("file")
+        if (
+            not isinstance(file, str)
+            or len(file) != 21
+            or not file.endswith(".json")
+            or any(c not in "0123456789abcdef" for c in file[:-5])
+        ):
+            raise IndexMissing("invalid legacy shard path")
+        node = json.loads((index.indexes_dir / _POINT_FAMILY / file).read_text(encoding="utf-8"))
+        entries = node.get("entries")
+        if (
+            not isinstance(entries, list)
+            or not entries
+            or type(ref.get("count")) is not int
+            or len(entries) != ref["count"]
+            or entries[0].get("k") != ref.get("first")
+            or entries[-1].get("k") != ref.get("last")
+        ):
+            raise IndexMissing("legacy shard interval mismatch")
+        for entry in entries:
+            key = OrderedIndexTree._key(entry["k"])
+            row = entry["v"]
+            if (
+                not isinstance(row, dict)
+                or previous is not None
+                and _key_cmp(previous, key) >= 0
+                or key
+                != (row["project_id"], row["aggregate_kind"], row["record_id"], row["revision"])
+                or type(row["commit_sequence"]) is not int
+                or not 0 <= row["commit_sequence"] <= meta["last_commit_sequence"]
+            ):
+                raise IndexMissing("legacy identity row mismatch")
+            rows.append(row)
+            previous = key
+    index._build_all(
+        rows, generation=meta["generation"] + 1, commit_sequence=meta["last_commit_sequence"]
+    )
+    return "发布有界有序树与身份键账；旧材料保留，旧游标要求刷新"
+
+
+def rollback_query_layout(root: Path) -> str:
+    """Restore the frozen legacy root last, without deleting any immutable node."""
+    index = FileQueryIndex(root)
+    before_path = index.indexes_dir / "layout-before.json"
+    if not before_path.exists():
+        return "本步未转换旧查询根，保留现状"
+    before = json.loads(before_path.read_text(encoding="utf-8"))
+    header = before["header"]
+    if (
+        header.get("schema") != "aitest.index-root/3"
+        or not isinstance(before.get("families"), dict)
+        or set(before["families"]) != set(_ALL_FAMILIES)
+    ):
+        raise IndexMissing("query migration prestate is corrupt")
+    for name, directory_meta in before["families"].items():
+        atomic.write_json(index._directory(name).meta_path, directory_meta)
+    atomic.write_json(index.meta_path, header)
+    return "恢复旧查询根；树节点、原分片与游标材料永久保留"

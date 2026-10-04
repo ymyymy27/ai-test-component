@@ -16,6 +16,7 @@ import json
 import os
 import subprocess as subprocess
 import sys
+import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from types import MappingProxyType
 from typing import cast
 from uuid import uuid4
 
+from aitest.application.errors import WorkspaceInUse
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -34,7 +36,7 @@ from aitest.application.usecase_registry import BUseCaseDependencies
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
 )
-from aitest.infrastructure.adapters.model import HttpModelProvider
+from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
 from aitest.infrastructure.capabilities import (
     CONNECTION,
@@ -42,6 +44,7 @@ from aitest.infrastructure.capabilities import (
     SECRET,
     SOURCE,
     CapabilityGate,
+    FileCapabilityConditionStore,
 )
 from aitest.infrastructure.clock import SystemClock
 from aitest.infrastructure.connections import (
@@ -50,8 +53,16 @@ from aitest.infrastructure.connections import (
     LocalAPIConnectionBridge,
 )
 from aitest.infrastructure.credentials import SecretManager
+from aitest.infrastructure.file_store.core_launch import (
+    FileCoreLaunchStore,
+    ProcessFact,
+    probe_process,
+    python_launch_program,
+    valid_instance_filename,
+)
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
+from aitest.infrastructure.file_store.migrations import FileMigrationManager
 from aitest.infrastructure.file_store.recovery import (
     RecoveryOrchestrator,
     RecoveryState,
@@ -59,12 +70,15 @@ from aitest.infrastructure.file_store.recovery import (
 )
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
+from aitest.infrastructure.projections import SafeMaterialProjector
+from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.api import Handler, LocalAPI
 from aitest.interfaces.local.b_registration import b_registration_for
 from aitest.interfaces.local.editor_host import (
     Connector,
     CoreEndpoint,
     CoreLauncher,
+    CoreStartupObservation,
     EditorHost,
 )
 
@@ -138,9 +152,7 @@ class CoreConnectionLedger:
             "source_session_id": self._source_session(),
             "source_user_sid": self._source_user(),
         }
-        line = (
-            json.dumps(fact, ensure_ascii=False, sort_keys=True) + "\n"
-        ).encode("utf-8")
+        line = (json.dumps(fact, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
         self._dir.mkdir(parents=True, exist_ok=True)
         with self._path.open("ab") as handle:
             handle.write(line)
@@ -232,6 +244,7 @@ def assemble_workspace_core(
     connection_endpoint: str | None = None,
     model_endpoint: str | None = None,
     model_secret_reference: tuple[str, str] | None = None,
+    secret_manager: SecretManager | None = None,
     extra_action_dependencies: Mapping[str, tuple[str, ...]] | None = None,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
@@ -257,14 +270,37 @@ def assemble_workspace_core(
     # 同进程/跨进程的同根第二核心在此被拒绝；恢复 blocked 时释放锁退出。
     lifetime_lock = workspace.admit_lifetime()
     try:
-        journal = FileEventJournal(root, instance_id=workspace.workspace_id)
-        recovery = RecoveryOrchestrator(
-            root, instance_id=workspace.workspace_id
-        ).run()
+        try:
+            journal = FileEventJournal(root, instance_id=workspace.workspace_id)
+            recovery = RecoveryOrchestrator(root, instance_id=workspace.workspace_id).run()
+        except (OSError, ValueError) as error:
+            raise CoreAssemblyBlocked("提交与恢复材料无法核实，核心拒绝启动") from error
         if recovery.state == "blocked":
-            raise CoreAssemblyBlocked(
-                f"工作空间恢复 blocked，核心拒绝启动: {recovery.actions}"
+            raise CoreAssemblyBlocked(f"工作空间恢复 blocked，核心拒绝启动: {recovery.actions}")
+
+        # 格式变化仍在生命周期写锁内，且必须经过可校验备份与活动守卫。
+        migrations = FileMigrationManager(root)
+        migration_plan = migrations.plan(
+            (
+                "0003-sharded-record-authority",
+                "0004-bounded-query-directory",
+                "0005-complete-commit-closure",
+                "0006-canonical-current-publication",
             )
+        )
+        try:
+            migration_report = migrations.apply(migration_plan.plan_id)
+        except (OSError, ValueError) as error:
+            raise CoreAssemblyBlocked("提交材料迁移无法核实，核心拒绝启动") from error
+        if migration_report.state == "blocked":
+            raise CoreAssemblyBlocked("权威分片迁移被未核实活动阻塞，核心拒绝启动")
+
+        from .infrastructure.file_store.publication_backend import FilePublicationBackend
+
+        try:
+            FilePublicationBackend(root).confirm_current()
+        except OSError as error:
+            raise CoreAssemblyBlocked("发布后端保存能力无法核实，核心拒绝新写入") from error
 
         unit_of_work = FileUnitOfWork(root, journal=journal)
         ports_unit_of_work = PortsUnitOfWork(
@@ -273,24 +309,13 @@ def assemble_workspace_core(
             sequence=unit_of_work,
         )
         reader = PortsRecordReader(unit_of_work.repo)
-        dependencies = BUseCaseDependencies(
-            unit_of_work=ports_unit_of_work,
-            reader=reader,
-            clock=SystemClock(),
-        )
-        handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
-        if extra_handlers:
-            conflicts = sorted(handlers.keys() & extra_handlers.keys())
-            if conflicts:
-                raise ValueError(
-                    f"registered use case conflicts with built-in actions: {conflicts}"
-                )
-            handlers.update(extra_handlers)
-
         # A-10：默认装配真实凭据/来源能力与动作级能力门。能力门在
         # LocalAPI 构造前建立，连接水合结论与各能力条件随装配确定。
-        gate = CapabilityGate()
-        secret_manager = SecretManager.default()
+        gate = CapabilityGate(
+            clock=lambda: datetime.now(UTC).isoformat(),
+            state_store=FileCapabilityConditionStore(root, workspace_id=workspace.workspace_id),
+        )
+        secret_manager = secret_manager if secret_manager is not None else SecretManager.default()
         gate.configure(SECRET)
         snapshot_store = FileSourceSnapshotStore(root)
         source_probe = PythonLoadSourceProbe()
@@ -312,20 +337,32 @@ def assemble_workspace_core(
             connector = bridge
             # 换核心/重连验收：新实例装配即按台账最近事实确定连接条件，
             # 上次未恢复的故障分类不被重置，最近成功则视为就绪。
-            recovered_state = bridge.load()
-            if recovered_state is None or recovered_state.get("connected"):
-                gate.configure(CONNECTION)
-            else:
+            try:
+                recovered_state = bridge.load()
+            except (ValueError, OSError):
                 gate.report(
                     CONNECTION,
                     healthy=False,
-                    reason=str(recovered_state.get("last_error") or "目标未就绪"),
-                    classification=str(
-                        recovered_state.get("last_error_kind") or "transport"
-                    ),
+                    reason="连接事实无法核实",
+                    classification="storage",
                 )
+            else:
+                if recovered_state is None:
+                    gate.configure(CONNECTION)
+                elif recovered_state.get("connected") is True:
+                    # Probe records are the source; the automatic gate condition
+                    # is a projection which can predate the latest saved probe.
+                    gate.report(CONNECTION, healthy=True)
+                else:
+                    gate.report(
+                        CONNECTION,
+                        healthy=False,
+                        reason=str(recovered_state.get("last_error") or "目标未就绪"),
+                        classification=str(recovered_state.get("last_error_kind") or "transport"),
+                    )
 
         model_provider: HttpModelProvider | None = None
+        model_credentials: ModelCredentialResolver | None = None
         if model_endpoint is not None:
             # 模型能力必须显式装配：端点与已解析凭据同时具备才构造真实
             # provider；凭据解析失败只降级模型能力，不阻断核心启动。
@@ -333,9 +370,7 @@ def assemble_workspace_core(
             if model_secret_reference is not None:
                 purpose, reference = model_secret_reference
                 try:
-                    resolved_secret = secret_manager.resolve(
-                        reference, purpose=purpose
-                    )
+                    resolved_secret = secret_manager.resolve(reference, purpose=purpose)
                 except Exception as error:
                     gate.report(
                         MODEL,
@@ -343,15 +378,44 @@ def assemble_workspace_core(
                         reason=f"模型凭据不可解析: {error}",
                         classification="auth",
                     )
-            if resolved_secret is not None:
+            if resolved_secret is not None and resolved_secret.purpose == "model":
                 model_provider = HttpModelProvider(
-                    model_endpoint, secret=resolved_secret
+                    model_endpoint,
+                    secret=resolved_secret,
+                    on_result=lambda result: gate.report(
+                        MODEL,
+                        healthy=result.status.value == "ok",
+                        reason=result.error_detail,
+                        classification=result.error_kind,
+                    ),
                 )
+                model_credentials = ModelCredentialResolver(resolved_secret)
                 gate.configure(MODEL)
             # 凭据解析失败已在 except 中写入自动 degraded（auth）事实，
             # 后续成功事实可自动恢复；未提供凭据引用则保持 not_configured
             # （缺配置）。两者都不是操作者意图，不得落人工降级——人工
             # 降级只能显式 restore，会把临时凭据故障永久钉死。
+
+        gate.require_if(
+            "generate_draft", parameter="generation_mode", equals="model", keys=(MODEL, SECRET)
+        )
+        dependencies = BUseCaseDependencies(
+            unit_of_work=ports_unit_of_work,
+            reader=reader,
+            clock=SystemClock(),
+            model_provider=model_provider,
+            model_credentials=model_credentials,
+            material_projector=SafeMaterialProjector(),
+            workspace_id=workspace.workspace_id,
+        )
+        handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
+        if extra_handlers:
+            conflicts = sorted(handlers.keys() & extra_handlers.keys())
+            if conflicts:
+                raise ValueError(
+                    f"registered use case conflicts with built-in actions: {conflicts}"
+                )
+            handlers.update(extra_handlers)
 
         if extra_action_dependencies:
             for action, keys in extra_action_dependencies.items():
@@ -365,6 +429,7 @@ def assemble_workspace_core(
             connector=connector,
             connection_persistence=connector,
             capability_gate=gate,
+            credential_projector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
         )
     except BaseException:
         lifetime_lock.release()
@@ -430,9 +495,7 @@ class CoreBootstrap:
     def registry(self) -> UseCaseRegistry:
         return self._registry
 
-    def register_use_cases(
-        self, package: str, handlers: Mapping[str, Handler]
-    ) -> None:
+    def register_use_cases(self, package: str, handlers: Mapping[str, Handler]) -> None:
         self._registry.register(package, handlers, closed=self._registration_closed)
 
     def create(self, workspace_root: Path) -> CoreInstance:
@@ -475,12 +538,11 @@ def registered_use_cases() -> Mapping[str, Handler] | None:
 
 
 class SystemProcessLauncher:
-    """通过 :mod:`subprocess` 启动长生命周期子进程作为唯一核心。
+    """Serialize startup claims, verify process birth, then publish discovery.
 
-    启动后立即返回子进程的 ``instance_id``，不等待子进程进入就绪状态——
-    调用方（通常是 :class:`EditorHost`）后续轮询管道连接确认子进程已就绪。
-    子进程通过工作空间 ``.core-instance-id`` 文件与父进程共享实例标识；
-    connector 读到该文件即知目标管道命名，管道尚未就绪则探测返回 ``None``。
+    Repeated hosts wait for the same living child. Uncertain creation or process
+    identity blocks another launch; only verified exit permits a new claim.
+    The OS lifetime writer lock remains the business single-writer authority.
     """
 
     def __init__(
@@ -491,32 +553,93 @@ class SystemProcessLauncher:
         worker_module: str = _DEFAULT_WORKER_MODULE,
         instance_id_file: str = _INSTANCE_ID_FILE,
         env: Mapping[str, str] | None = None,
+        process_probe: Callable[[int], ProcessFact] | None = None,
     ) -> None:
+        FileCoreLaunchStore.reject_links(workspace_root)
         self._root = workspace_root.resolve()
+        if not valid_instance_filename(instance_id_file):
+            raise WorkspaceInUse("core discovery pointer must be a workspace filename")
         self._python = python_executable or sys.executable
         self._module = worker_module
         self._id_path = self._root / instance_id_file
         self._env: dict[str, str] | None = dict(env) if env is not None else None
+        self._launches = FileCoreLaunchStore(self._root)
+        self._probe = process_probe or probe_process
+        self._children: dict[str, subprocess.Popen[bytes]] = {}
 
     def start(self, workspace_id: str) -> str:
-        """启动子进程并返回新分配的 ``instance_id``。
+        """Return the verified live instance, or create exactly one new child."""
+        from aitest.interfaces.local.pipe import PipeUnavailable, validate_workspace_id
 
-        - 写入 ``instance_id`` 文件供 connector 探测（原子替换）；
-        - 用 ``DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`` 启动脱离父进程
-          的子进程（仅 Windows；其他平台无 ``creationflags`` 语义）；
-        - 子进程的 stdin/stdout/stderr 全部丢弃，避免占用管道；
-        - 显式把 ``src/`` 注入子进程 ``PYTHONPATH``，让 ``python -m
-          aitest.interfaces.local.core_worker`` 在未 pip 装包环境也能解析。
-        """
+        try:
+            validate_workspace_id(workspace_id)
+            if len(workspace_id) > 128:
+                raise PipeUnavailable("oversized core workspace identity")
+        except PipeUnavailable as error:
+            raise WorkspaceInUse("invalid core endpoint workspace identity") from error
+        with self._launches.locked():
+            prior = self._launches.read()
+            pointer = self._launches.read_instance_id(self._id_path)
+            if prior is None and pointer is not None:
+                raise WorkspaceInUse(
+                    "legacy core process identity is unknown; verify exit before recovery"
+                )
+            if prior is not None:
+                if prior["state"] in {"creating", "publication_uncertain"}:
+                    raise WorkspaceInUse("prior core creation is uncertain; preserve startup facts")
+                if prior["state"] in {"created", "stopping"}:
+                    fact = self._process_fact(prior)
+                    if prior["state"] == "stopping":
+                        deadline = time.monotonic() + 2.0
+                        while (
+                            fact.alive is True
+                            and fact.identity == prior["process_identity"]
+                            and time.monotonic() < deadline
+                        ):
+                            time.sleep(_DEFAULT_POLL_INTERVAL_SECONDS)
+                            fact = self._process_fact(prior)
+                    if fact.identity is not None and fact.identity != prior["process_identity"]:
+                        self._record_exit(prior, ProcessFact(False), "pid_reused")
+                    elif fact.alive is False:
+                        self._record_exit(prior, fact)
+                    elif fact.alive is True and fact.identity == prior["process_identity"]:
+                        if prior["state"] == "stopping":
+                            raise WorkspaceInUse(
+                                "core shutdown has not completed; preserve the writer"
+                            )
+                        if prior["endpoint_workspace_id"] != workspace_id:
+                            raise WorkspaceInUse(
+                                "living core belongs to a different endpoint identity"
+                            )
+                        if pointer != prior["instance_id"]:
+                            self._launches.publish_instance_id(self._id_path, prior["instance_id"])
+                        return str(prior["instance_id"])
+                    else:
+                        raise WorkspaceInUse("prior core process identity cannot be verified")
+            return self._create_child(workspace_id)
+
+    def _create_child(self, workspace_id: str) -> str:
+        program, venv_launcher = python_launch_program(self._python)
+        # Missing discovery data does not prove absence of an existing writer.
+        # Probe the real lifetime lock before publishing any new launch fact.
+        FileCoreLaunchStore.reject_links(self._root / "writer.lock")
+        admission = LifetimeWriterLock(self._root / "writer.lock")
+        admission.acquire()
+        admission.release()
         instance_id = f"core-{uuid4().hex[:12]}"
-        self._root.mkdir(parents=True, exist_ok=True)
-        tmp = self._id_path.with_name(
-            f".{self._id_path.name}.{os.getpid()}.tmp"
-        )
-        tmp.write_text(instance_id, encoding="utf-8")
-        os.replace(tmp, self._id_path)
+        value: dict[str, object] = {
+            "schema": FileCoreLaunchStore.SCHEMA,
+            "endpoint_workspace_id": workspace_id,
+            "instance_id": instance_id,
+            "state": "creating",
+            "process_id": None,
+            "process_identity": None,
+            "exit_code": None,
+            "reason": None,
+        }
+        self._launches.save(value)
         cmd = [
-            self._python,
+            program,
             "-m",
             self._module,
             "--workspace-root",
@@ -525,17 +648,22 @@ class SystemProcessLauncher:
             workspace_id,
             "--instance-id",
             instance_id,
+            # Child cannot assemble or recover business files before the claim
+            # and discovery pointer have both been published by its parent.
+            "--launch-claim",
+            "--instance-id-file",
+            self._id_path.name,
             # 父进程消亡后子核心在连接边界自行退出，避免孤儿核心长期占管。
             "--parent-pid",
             str(os.getpid()),
         ]
         creationflags = 0
         if sys.platform == "win32":
-            creationflags = (
-                subprocess.DETACHED_PROCESS
-                | subprocess.CREATE_NEW_PROCESS_GROUP
-            )
+            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         env = dict(self._env if self._env is not None else os.environ)
+        env.pop("__PYVENV_LAUNCHER__", None)
+        if venv_launcher is not None:
+            env["__PYVENV_LAUNCHER__"] = venv_launcher
         # 推导 src 目录：本文件位于 src/aitest/bootstrap.py
         src_dir = Path(__file__).resolve().parent.parent
         python_path_parts = [str(src_dir)]
@@ -543,20 +671,143 @@ class SystemProcessLauncher:
         if existing_pp:
             python_path_parts.append(existing_pp)
         env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
-        subprocess.Popen(  # noqa: S603 - 受控的子进程入口，命令由本类构造
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True,
-            creationflags=creationflags,
-            env=env,
-        )
+        try:
+            child = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=creationflags,
+                env=env,
+            )
+        except OSError as error:
+            value.update(state="create_failed", reason="create_failed")
+            self._launches.save(value)
+            raise WorkspaceInUse(
+                "core process creation failed; discovery was not published"
+            ) from error
+        self._children[instance_id] = child
+        try:
+            fact = self._probe(child.pid)
+            if fact.alive is None or fact.identity is None:
+                raise WorkspaceInUse("created core process birth cannot be verified")
+            value.update(state="created", process_id=child.pid, process_identity=fact.identity)
+            if fact.alive is False:
+                self._record_exit(value, fact)
+                raise WorkspaceInUse("core process exited before discovery publication")
+            self._launches.save(value)
+            self._launches.publish_instance_id(self._id_path, instance_id)
+        except Exception as error:
+            # Only the captured Popen handle can be stopped. Never terminate a
+            # PID read from disk (it can refer to an unrelated reused process).
+            code = child.poll()
+            if code is None:
+                with suppress(OSError, subprocess.TimeoutExpired):
+                    child.terminate()
+                    code = child.wait(timeout=1.0)
+            failed = dict(value)
+            if code is not None and failed["process_identity"] is not None:
+                failed.update(state="exited", exit_code=code, reason="publication_failed")
+            else:
+                failed.update(
+                    state="publication_uncertain",
+                    process_id=None,
+                    process_identity=None,
+                    exit_code=None,
+                    reason="publication_failed",
+                )
+            with suppress(OSError, ValueError, WorkspaceInUse):
+                self._launches.save(failed)
+            raise WorkspaceInUse(
+                "core startup publication failed; process facts retained"
+            ) from error
         return instance_id
+
+    def _process_fact(self, value: dict[str, object]) -> ProcessFact:
+        instance_id = str(value["instance_id"])
+        child = self._children.get(instance_id)
+        if child is not None and child.pid == value["process_id"]:
+            # Popen retains the actual process handle, including its exit code.
+            code = child.poll()
+            return ProcessFact(code is None, str(value["process_identity"]), code)
+        return self._probe(cast(int, value["process_id"]))
+
+    def _record_exit(
+        self,
+        value: dict[str, object],
+        fact: ProcessFact,
+        reason: str = "process_exited",
+    ) -> None:
+        exited = dict(value)
+        exited.update(state="exited", exit_code=fact.exit_code, reason=reason)
+        self._launches.save(exited)
+        self._children.pop(str(value["instance_id"]), None)
+
+    def observe_start(self, instance_id: str) -> CoreStartupObservation:
+        """Finite safe facts; raw startup exception text never enters discovery."""
+        try:
+            value = self._launches.read()
+            if value is None or value["instance_id"] != instance_id:
+                return CoreStartupObservation("unknown")
+            if value["state"] == "exited":
+                return CoreStartupObservation("exited", value["exit_code"], value["reason"])
+            if value["state"] not in {"created", "stopping"}:
+                return CoreStartupObservation("unknown")
+            fact = self._process_fact(value)
+            reused = fact.identity is not None and fact.identity != value["process_identity"]
+            if reused or fact.alive is False:
+                reason = "pid_reused" if reused else "process_exited"
+                observed = ProcessFact(False) if reused else fact
+                # A concurrent launch may already have advanced the current
+                # fact. Never overwrite another instance with this old exit.
+                with self._launches.locked():
+                    if self._launches.read() == value:
+                        self._record_exit(value, observed, reason)
+                return CoreStartupObservation("exited", observed.exit_code, reason)
+            if fact.alive is True and fact.identity == value["process_identity"]:
+                return CoreStartupObservation("starting")
+        except (OSError, WorkspaceInUse):
+            pass
+        return CoreStartupObservation("unknown")
 
     @property
     def instance_id_path(self) -> Path:
         return self._id_path
+
+
+def await_core_launch_claim(
+    workspace_root: Path,
+    endpoint_workspace_id: str,
+    instance_id: str,
+    *,
+    timeout_seconds: float = 5.0,
+    instance_id_file: str = _INSTANCE_ID_FILE,
+) -> bool:
+    """Child gate: no business assembly before its exact creation claim is visible."""
+    if not valid_instance_filename(instance_id_file):
+        return False
+    store = FileCoreLaunchStore(workspace_root)
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        value = store.read()
+        if value is not None and (
+            value["instance_id"] != instance_id
+            or value["endpoint_workspace_id"] != endpoint_workspace_id
+        ):
+            return False
+        if value is not None and value["state"] == "created":
+            if value["process_id"] != os.getpid():
+                return False
+            own = probe_process(os.getpid())
+            if own.alive is not True or own.identity != value["process_identity"]:
+                return False
+            if store.read_instance_id(workspace_root / instance_id_file) == instance_id:
+                return True
+        elif value is not None and value["state"] != "creating":
+            return False
+        time.sleep(0.01)
+    return False
 
 
 def make_pipe_connector(
@@ -581,18 +832,24 @@ def make_pipe_connector(
         validate_workspace_id,
     )
 
+    FileCoreLaunchStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     id_path = root / _INSTANCE_ID_FILE
+    launches = FileCoreLaunchStore(root)
 
     def connect(workspace_id: str) -> tuple[object, str] | None:
-        if not id_path.exists():
-            return None
         try:
-            raw = id_path.read_text(encoding="utf-8")
-        except OSError:
+            instance_id = launches.read_instance_id(id_path)
+            launch = launches.read()
+        except (OSError, WorkspaceInUse):
             return None
-        instance_id = raw.strip()
-        if not instance_id:
+        if instance_id is None:
+            return None
+        if launch is not None and (
+            launch["state"] != "created"
+            or launch["instance_id"] != instance_id
+            or launch["endpoint_workspace_id"] != workspace_id
+        ):
             return None
         try:
             validate_workspace_id(workspace_id)
@@ -601,6 +858,15 @@ def make_pipe_connector(
         try:
             client = NamedPipeClient(workspace_id, instance_id=instance_id)
             client.connect(timeout_ms=connect_timeout_ms)
+            if launch is not None:
+                actual = probe_process(client.peer_process_id or 0)
+                if (
+                    client.peer_process_id != launch["process_id"]
+                    or actual.alive is not True
+                    or actual.identity != launch["process_identity"]
+                ):
+                    client.close()
+                    return None
         except PipeUnavailable:
             return None
         if ledger is not None:
@@ -649,6 +915,7 @@ def acquire_endpoint(
       抛 :class:`aitest.interfaces.local.editor_host.WorkspaceInUse`；
     - 每次核对成功的连接都写入工作空间连接台账（A-10），跨重启可核对。
     """
+    FileCoreLaunchStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     if workspace_id is None:
         workspace_id = Workspace(root).workspace_id
@@ -684,13 +951,12 @@ def shutdown_endpoint(
     from aitest.interfaces.local.core_worker import shutdown_frame
     from aitest.interfaces.local.pipe import NamedPipeClient, PipeUnavailable
 
+    FileCoreLaunchStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     if workspace_id is None:
         workspace_id = Workspace(root).workspace_id
     ledger = CoreConnectionLedger(root)
-    connector = make_pipe_connector(
-        root, connect_timeout_ms=connect_timeout_ms, ledger=ledger
-    )
+    connector = make_pipe_connector(root, connect_timeout_ms=connect_timeout_ms, ledger=ledger)
     deadline = time.monotonic() + max(0.0, wait_timeout_seconds)
     while True:
         connected = connector(workspace_id)
@@ -713,6 +979,19 @@ def shutdown_endpoint(
             pipe_workspace_id=workspace_id,
             instance_id=instance_id,
         )
+    # A shutdown request is distinct from actual exit. A following acquisition
+    # waits only for a verified stopping process; it cannot mistake a vanished
+    # pipe for permission to launch another writer.
+    launches = FileCoreLaunchStore(root)
+    with launches.locked():
+        launch = launches.read()
+        if launch is not None and (
+            launch["state"] == "created"
+            and launch["instance_id"] == instance_id
+            and launch["endpoint_workspace_id"] == workspace_id
+        ):
+            launch.update(state="stopping", reason="shutdown_requested")
+            launches.save(launch)
     return True
 
 

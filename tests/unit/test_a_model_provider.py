@@ -27,6 +27,7 @@ from aitest.infrastructure.adapters.model import (
     HttpResponse,
     ModelAdapterError,
 )
+from aitest.infrastructure.capabilities import MODEL, CapabilityGate, CapabilityState
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -128,6 +129,38 @@ def test_rate_limit(server: ThreadingHTTPServer, secret: ResolvedSecret) -> None
     _Handler.response_status = 429
     result = _provider(server, secret).call(_call(endpoint=_endpoint(server)))
     assert result.error_kind == "rate_limit"
+
+
+def test_model_results_report_failure_and_recovery_without_clearing_manual_pause(
+    server: ThreadingHTTPServer, secret: ResolvedSecret
+) -> None:
+    gate = CapabilityGate()
+    gate.configure(MODEL)
+    provider = HttpModelProvider(
+        _endpoint(server), secret=secret,
+        on_result=lambda result: gate.report(
+            MODEL, healthy=result.status is ModelCallStatus.OK,
+            reason=result.error_detail, classification=result.error_kind,
+        ),
+    )
+    _Handler.response_status = 401
+    _Handler.response_body = b'{"error":"key-123"}'
+    provider.call(_call(endpoint=_endpoint(server)))
+    failed = gate.condition(MODEL)
+    assert failed.state is CapabilityState.DEGRADED
+    assert failed.classification == "auth"
+    assert "key-123" not in failed.reason
+    _Handler.response_status = 200
+    _Handler.response_body = b'{"choices":[{"message":{"content":"safe draft"}}]}'
+    provider.call(_call(endpoint=_endpoint(server)))
+    assert gate.condition(MODEL).state is CapabilityState.READY
+    gate.degrade(MODEL, "operator pause")
+    paused = gate.condition(MODEL)
+    _Handler.response_status = 429
+    provider.call(_call(endpoint=_endpoint(server)))
+    _Handler.response_status = 200
+    provider.call(_call(endpoint=_endpoint(server)))
+    assert gate.condition(MODEL) == paused
 
 
 def test_input_limit(server: ThreadingHTTPServer, secret: ResolvedSecret) -> None:

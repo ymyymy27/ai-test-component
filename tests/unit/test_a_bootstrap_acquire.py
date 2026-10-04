@@ -20,6 +20,7 @@ from aitest.bootstrap import (
     make_pipe_connector,
     shutdown_endpoint,
 )
+from aitest.infrastructure.file_store.core_launch import ProcessFact
 from aitest.interfaces.local.editor_host import (
     CoreEndpoint,
     EditorHost,
@@ -27,27 +28,33 @@ from aitest.interfaces.local.editor_host import (
 )
 from aitest.interfaces.local.pipe import NamedPipeClient
 
-win_only = pytest.mark.skipif(
-    not sys.platform.startswith("win"), reason="命名管道仅 Windows"
-)
+win_only = pytest.mark.skipif(not sys.platform.startswith("win"), reason="命名管道仅 Windows")
 
 
 # ----- 纯单元：launcher / connector 行为 ----------------------------------
 
 
 def test_launcher_writes_instance_id_file(tmp_path: Path) -> None:
-    launcher = SystemProcessLauncher(tmp_path)
     # 改用假入口模块避免真启动子进程
     fake_module = "aitest.interfaces.local.core_worker"
-    launcher = SystemProcessLauncher(tmp_path, worker_module=fake_module)
+    launcher = SystemProcessLauncher(
+        tmp_path,
+        worker_module=fake_module,
+        process_probe=lambda pid: ProcessFact(True, "a" * 64),
+    )
     # 拦截 Popen，避免真启动
     import aitest.bootstrap as bootstrap_mod
 
     captured: list[list[str]] = []
 
     class _FakePopen:
+        pid = 123456
+
         def __init__(self, cmd: list[str], **kwargs: object) -> None:
             captured.append(cmd)
+
+        def poll(self) -> None:
+            return None
 
     monkey = pytest.MonkeyPatch()
     monkey.setattr(bootstrap_mod.subprocess, "Popen", _FakePopen)

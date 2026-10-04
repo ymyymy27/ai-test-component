@@ -7,7 +7,14 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from aitest.domain.execution.runs import AdapterKind, ExecutionHandle
+from pydantic import TypeAdapter
+
+from aitest.domain.execution.runs import (
+    AdapterKind,
+    ExecutionCollectionResult,
+    ExecutionHandle,
+    StopRequestResult,
+)
 
 from . import atomic
 
@@ -33,6 +40,10 @@ class FileExecutionHandleStore:
 
     def save(self, record: PersistedExecutionHandle) -> Path:
         path = self._path(record.handle.handle_id)
+        if path.exists():
+            if self.load(record.handle.handle_id) != record:
+                raise ValueError("execution handle identity is immutable")
+            return path
         payload: object = {
             "schema_version": _SCHEMA_VERSION,
             "attempt_id": record.attempt_id,
@@ -49,10 +60,103 @@ class FileExecutionHandleStore:
         atomic.write_json(path, payload)  # type: ignore[arg-type]
         return path
 
-    def load(self, handle_id: str) -> PersistedExecutionHandle:
-        payload: object = json.loads(
-            self._path(handle_id).read_text(encoding="utf-8")
+    def save_collection(self, handle: ExecutionHandle, result: ExecutionCollectionResult) -> None:
+        original = self.load(handle.handle_id)
+        if original.handle != handle or result.attempt_id != original.attempt_id:
+            raise ValueError("execution collection identity mismatch")
+        if not result.complete or result.exit_fact_ref is None:
+            raise ValueError("only a confirmed exit collection may be frozen")
+        if (
+            result.exit_fact_ref.startup_token != original.startup_token
+            or result.exit_fact_ref.process_start_identity != handle.process_start_identity
+        ):
+            raise ValueError("execution exit identity mismatch")
+        previous = self.load_collection(handle)
+        if previous is not None:
+            if previous != result:
+                raise ValueError("confirmed execution collection is immutable")
+            return
+        atomic.write_json(
+            self._result_path(handle.handle_id),
+            {
+                "schema_version": "aitest.execution-collection/1.0",
+                "startup_token": original.startup_token,
+                "result": TypeAdapter(ExecutionCollectionResult).dump_python(result, mode="json"),
+            },
         )
+
+    def load_collection(self, handle: ExecutionHandle) -> ExecutionCollectionResult | None:
+        path = self._result_path(handle.handle_id)
+        if not path.exists():
+            return None
+        record = self.load(handle.handle_id)
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            raw.get("schema_version") != "aitest.execution-collection/1.0"
+            or raw.get("startup_token") != record.startup_token
+            or record.handle != handle
+        ):
+            raise ValueError("confirmed execution collection identity mismatch")
+        result = TypeAdapter(ExecutionCollectionResult).validate_python(raw["result"])
+        if (
+            result.attempt_id != record.attempt_id
+            or not result.complete
+            or result.exit_fact_ref is None
+            or result.exit_fact_ref.startup_token != record.startup_token
+            or result.exit_fact_ref.process_start_identity != handle.process_start_identity
+        ):
+            raise ValueError("confirmed execution exit identity mismatch")
+        return result
+
+    def _result_path(self, handle_id: str) -> Path:
+        path = self._path(handle_id)
+        return path.with_name(path.stem + "-result.json")
+
+    def save_stop(self, handle: ExecutionHandle, result: StopRequestResult) -> None:
+        record = self.load(handle.handle_id)
+        if (
+            record.handle != handle
+            or result.handle_id != handle.handle_id
+            or not result.stop_confirmed
+        ):
+            raise ValueError("only an owned confirmed group stop can be frozen")
+        previous = self.load_stop(handle)
+        if previous is not None:
+            if previous != result:
+                raise ValueError("confirmed stop fact is immutable")
+            return
+        atomic.write_json(
+            self._stop_path(handle.handle_id),
+            {
+                "schema_version": "aitest.execution-stop/1.0",
+                "startup_token": record.startup_token,
+                "result": TypeAdapter(StopRequestResult).dump_python(result, mode="json"),
+            },
+        )
+
+    def load_stop(self, handle: ExecutionHandle) -> StopRequestResult | None:
+        path = self._stop_path(handle.handle_id)
+        if not path.exists():
+            return None
+        record = self.load(handle.handle_id)
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            record.handle != handle
+            or raw.get("schema_version") != "aitest.execution-stop/1.0"
+            or raw.get("startup_token") != record.startup_token
+        ):
+            raise ValueError("confirmed stop identity mismatch")
+        result = TypeAdapter(StopRequestResult).validate_python(raw["result"])
+        if result.handle_id != handle.handle_id or not result.stop_confirmed:
+            raise ValueError("confirmed stop fact is invalid")
+        return result
+
+    def _stop_path(self, handle_id: str) -> Path:
+        path = self._path(handle_id)
+        return path.with_name(path.stem + "-stop.json")
+
+    def load(self, handle_id: str) -> PersistedExecutionHandle:
+        payload: object = json.loads(self._path(handle_id).read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("execution handle payload must be an object")
         if payload.get("schema_version") != _SCHEMA_VERSION:
@@ -71,6 +175,8 @@ class FileExecutionHandleStore:
             ),
             workdir_ref=_text(raw_handle.get("workdir_ref"), "workdir_ref"),
         )
+        if handle.handle_id != handle_id:
+            raise ValueError("execution handle file identity mismatch")
         return PersistedExecutionHandle(
             attempt_id=_text(payload.get("attempt_id"), "attempt_id"),
             startup_token=_text(payload.get("startup_token"), "startup_token"),
@@ -82,6 +188,8 @@ class FileExecutionHandleStore:
         if not directory.exists():
             return None
         for path in sorted(directory.glob("*.json")):
+            if path.stem.endswith(("-result", "-stop")):
+                continue
             payload: object = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(payload, dict):
                 continue

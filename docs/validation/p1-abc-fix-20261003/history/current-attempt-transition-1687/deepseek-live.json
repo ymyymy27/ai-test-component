@@ -1,0 +1,51 @@
+{
+  "scope": "live_model_component_only",
+  "status": "passed",
+  "captured_at": "2026-10-04T02:13:45.426917+08:00",
+  "python": "3.13.13",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "workspace": "C:\\Users\\y'm'y\\AppData\\Local\\aitest\\validation\\dfa453fab83c46579ef38c5b99b0a593",
+  "project_id": "synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593",
+  "endpoint": "https://api.deepseek.com",
+  "model": "deepseek-flash",
+  "credential_reference": "deepseek-validation",
+  "credential_environment": "DEEPSEEK_API_KEY",
+  "calls_this_invocation": [],
+  "original_result": "committed_successful_draft",
+  "resumed_existing_workspace": true,
+  "same_process_replay_equal": true,
+  "new_core_replay_equal": true,
+  "workspace_secret_scan": "passed",
+  "files_scanned": 117,
+  "draft": {
+    "generated_content_id": "draft:synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593:check_content:outbound:synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593:draft-intent-dfa453fab83c46579ef38c5b99b0a593:1",
+    "project_id": "synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593",
+    "draft_kind": "check_content",
+    "revision": 1,
+    "status": "draft",
+    "content_digest": "sha256:7d3c6f847e35dc3da49d6af5409ce0b3f5585f0871ef9ce5dfff34684ccd9e52",
+    "template_ref": {
+      "template_id": "manual",
+      "version": "1.0.0"
+    },
+    "revision_context": {
+      "project_revision": 1,
+      "binding_revision": 1,
+      "template_revision": "1.0.0"
+    }
+  },
+  "saved_draft_text": "1. \u8ba2\u5355\u670d\u52a1\u521b\u5efa\u8ba2\u5355\u540e\u8fd4\u56de\u552f\u4e00\u8ba2\u5355\u53f7\u4e0e\u5f85\u652f\u4ed8\u72b6\u6001\u3002\n2. \u8ba1\u8d39\u670d\u52a1\u4f9d\u636e\u540c\u4e00\u8ba2\u5355\u53f7\u72ec\u7acb\u67e5\u8be2\u5e76\u6821\u9a8c\u652f\u4ed8\u3002\n3. \u865a\u6784\u8ba2\u5355\u652f\u4ed8\u6210\u529f\u540e\uff0c\u8ba1\u8d39\u670d\u52a1\u6807\u8bb0\u5df2\u652f\u4ed8\u4e14\u91d1\u989d\u4e00\u81f4\u3002",
+  "saved_draft_digest_verified": true,
+  "outbound_fact": {
+    "record_id": "outbound:synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593:draft-intent-dfa453fab83c46579ef38c5b99b0a593",
+    "revision": 2,
+    "provider_request_id": "c1251459-3d93-4b87-b343-c4bf9edf8d45",
+    "call_status": "ok",
+    "projection_digest": "sha256:50c7798f611e9dff571c0bc7c6fa124c2191fd8c0468231c99dabaec08af3fed"
+  },
+  "not_verified": [
+    "real Trae entry",
+    "business backend execution",
+    "physical power loss"
+  ]
+}

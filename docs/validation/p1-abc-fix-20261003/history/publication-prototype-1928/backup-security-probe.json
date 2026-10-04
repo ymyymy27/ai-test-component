@@ -1,0 +1,9 @@
+{
+  "scope": "synthetic defect probe before backup repair",
+  "credential_type": "synthetic_registered_value",
+  "original_source_untouched": true,
+  "registered_credential_copied_into_backup": true,
+  "backup_self_verification_passed": true,
+  "restore_exception_type": "BackupError",
+  "corrupt_backup_written_before_rejection": true
+}

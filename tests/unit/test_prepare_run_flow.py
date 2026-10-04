@@ -209,21 +209,20 @@ def _inputs_from(plan: Plan, case: Case) -> PreparationInputs:
             resolved_input_digest="sha256:resolved-1",
         ),
         plan_revision=PlanRevisionRef(
-            revision_id=plan.plan_id, revision_no=plan.revision, digest="sha256:plan-1"
+            revision_id=plan.plan_id,
+            revision_no=plan.record_revision or plan.revision,
+            digest="sha256:plan-1",
         ),
         acceptance_scope_revision=plan.scope.revision,
-        rule_versions=(
-            RuleVersionRef(rule_id="rule-1", revision=1, digest="sha256:rule-1"),
-        ),
+        scope_id=plan.scope.scope_id,
+        rule_versions=(RuleVersionRef(rule_id="rule-1", revision=1, digest="sha256:rule-1"),),
         template_versions=(
             TemplateVersionRef(
                 template_id="ticket-workflow", version="1.0.0", digest="sha256:tpl-1"
             ),
         ),
         case_revisions=(
-            CaseRevisionRef(
-                case_id=case.case_id, revision=case.revision, digest="sha256:case-1"
-            ),
+            CaseRevisionRef(case_id=case.case_id, revision=case.revision, digest="sha256:case-1"),
         ),
         frozen_cases=(
             FrozenCase(

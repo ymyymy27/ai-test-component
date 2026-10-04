@@ -211,7 +211,7 @@ def test_query_spec_fixed_sort_and_bounded_cursor_page(tmp_path: Path) -> None:
         )
     )
     assert continued.status == "ok"
-    assert continued.items == ()
+    assert [item["record_id"] for item in continued.items] == ["case-3"]
     refreshed = index.query_spec(
         QuerySpec(project_id="project-1", sort="commit_sequence", limit=20)
     )

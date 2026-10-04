@@ -197,7 +197,9 @@ def test_task_survives_a_restart_on_real_storage(workspace_root: Path) -> None:
 
 def test_delivery_survives_a_restart_on_real_storage(workspace_root: Path) -> None:
     first = _start(workspace_root)
-    save_delivery(_delivery(), project_id=PROJECT_ID, unit_of_work=first.unit_of_work)
+    save_task(_task(), unit_of_work=first.unit_of_work)
+    save_delivery(_delivery(), project_id=PROJECT_ID, unit_of_work=first.unit_of_work,
+                  reader=first.reader)
 
     restarted = _start(workspace_root)
     loaded = load_delivery(
@@ -213,11 +215,13 @@ def test_task_and_delivery_revisions_are_append_only(workspace_root: Path) -> No
     stack = _start(workspace_root)
     save_task(_task(revision=1), unit_of_work=stack.unit_of_work)
     save_task(_task(revision=2), unit_of_work=stack.unit_of_work, expected_revision=1)
-    save_delivery(_delivery(revision=1), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+    save_delivery(_delivery(revision=1), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work,
+                  reader=stack.reader)
     save_delivery(
         _delivery(revision=2),
         project_id=PROJECT_ID,
         unit_of_work=stack.unit_of_work,
+        reader=stack.reader,
         expected_revision=1,
     )
 
@@ -270,7 +274,9 @@ def test_cross_project_delivery_read_is_rejected(workspace_root: Path) -> None:
     可读取"。
     """
     stack = _start(workspace_root)
-    save_delivery(_delivery(), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work)
+    save_task(_task(), unit_of_work=stack.unit_of_work)
+    save_delivery(_delivery(), project_id=PROJECT_ID, unit_of_work=stack.unit_of_work,
+                  reader=stack.reader)
 
     restarted = _start(workspace_root)
     assert (

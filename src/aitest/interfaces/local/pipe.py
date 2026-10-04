@@ -54,13 +54,11 @@ def check_peer_identity(
         raise PeerRejected("空用户 SID 无法证明同源，拒绝连接")
     if client_session_id != expected_session_id:
         raise PeerRejected(
-            f"跨会话连接被拒绝: client={client_session_id} "
-            f"expected={expected_session_id}"
+            f"跨会话连接被拒绝: client={client_session_id} expected={expected_session_id}"
         )
     if client_user_sid != expected_user_sid:
         raise PeerRejected(
-            f"跨用户连接被拒绝: client={client_user_sid!r} "
-            f"expected={expected_user_sid!r}"
+            f"跨用户连接被拒绝: client={client_user_sid!r} expected={expected_user_sid!r}"
         )
 
 
@@ -115,36 +113,61 @@ class _Kernel:
 
         kernel32.CreateNamedPipeW.restype = wintypes.HANDLE
         kernel32.CreateNamedPipeW.argtypes = [
-            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
-            wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
         ]
         kernel32.ConnectNamedPipe.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
         kernel32.ReadFile.argtypes = [
-            wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
-            ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p,
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.c_void_p,
         ]
         kernel32.WriteFile.argtypes = [
-            wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
-            ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p,
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.c_void_p,
         ]
         kernel32.CreateFileW.restype = wintypes.HANDLE
         kernel32.CreateFileW.argtypes = [
-            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
-            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
         ]
         kernel32.WaitNamedPipeW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD]
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
         kernel32.LocalFree.argtypes = [wintypes.HLOCAL]
         kernel32.LocalFree.restype = wintypes.HLOCAL
         kernel32.GetNamedPipeClientProcessId.argtypes = [
-            wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
         ]
         kernel32.GetNamedPipeClientSessionId.argtypes = [
-            wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
         ]
-        kernel32.ProcessIdToSessionId.argtypes = [
-            wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)
+        kernel32.GetNamedPipeServerProcessId.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
         ]
+        kernel32.GetNamedPipeServerSessionId.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
+        ]
+        kernel32.ProcessIdToSessionId.argtypes = [wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
         kernel32.GetCurrentProcessId.restype = wintypes.DWORD
         kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
         kernel32.QueryFullProcessImageNameW.argtypes = [
@@ -154,18 +177,22 @@ class _Kernel:
             ctypes.POINTER(wintypes.DWORD),
         ]
         kernel32.OpenProcess.restype = wintypes.HANDLE
-        kernel32.OpenProcess.argtypes = [
-            wintypes.DWORD, wintypes.BOOL, wintypes.DWORD
-        ]
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
         advapi32.OpenProcessToken.argtypes = [
-            wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.HANDLE),
         ]
         advapi32.GetTokenInformation.argtypes = [
-            wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
             ctypes.POINTER(wintypes.DWORD),
         ]
         advapi32.ConvertSidToStringSidW.argtypes = [
-            ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.LPWSTR),
         ]
 
 
@@ -187,9 +214,7 @@ class NamedPipeServer:
         validate_workspace_id(workspace_id)
         self._kernel = _Kernel()
         self._session_id = self._current_session()
-        self._pipe_name = (
-            f"{_PIPE_PREFIX}/{workspace_id}/session-{self._session_id}/{instance_id}"
-        )
+        self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{self._session_id}/{instance_id}"
         self._handle: int | None = None
 
     @property
@@ -231,9 +256,7 @@ class NamedPipeServer:
         ):
             raise PeerRejected("无法取得客户端会话标识")
         client_sid = self._process_user_sid(int(client_pid.value))
-        local_sid = self._process_user_sid(
-            self._kernel.kernel32.GetCurrentProcessId()
-        )
+        local_sid = self._process_user_sid(self._kernel.kernel32.GetCurrentProcessId())
         check_peer_identity(
             client_session_id=int(client_session.value),
             expected_session_id=self._session_id,
@@ -274,7 +297,8 @@ class NamedPipeServer:
     def _current_session(self) -> int:
         pid = self._kernel.kernel32.GetCurrentProcessId()
         session = wintypes.DWORD(0)
-        self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session))
+        if not self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session)):
+            raise PipeUnavailable("无法核实当前登录会话")
         return session.value
 
     def _process_user_sid(self, process_id: int) -> str:
@@ -330,10 +354,10 @@ class NamedPipeClient:
         validate_workspace_id(workspace_id)
         self._kernel = _Kernel()
         session = self._current_session()
-        self._pipe_name = (
-            f"{_PIPE_PREFIX}/{workspace_id}/session-{session}/{instance_id}"
-        )
+        self._session_id = session
+        self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{session}/{instance_id}"
         self._handle: int | None = None
+        self._peer_pid: int | None = None
 
     def connect(self, *, timeout_ms: int = 2000) -> None:
         """连接服务端管道，超时内重试 ``ERROR_PIPE_BUSY``。
@@ -355,6 +379,11 @@ class NamedPipeClient:
             )
             if handle != _INVALID_HANDLE:
                 self._handle = handle
+                try:
+                    self._validate_server()
+                except PeerRejected as error:
+                    self.close()
+                    raise PipeUnavailable("核心管道服务端身份无法核实") from error
                 return
             if ctypes.get_last_error() != _ERROR_PIPE_BUSY:
                 raise PipeUnavailable("核心管道不存在或不可连接")
@@ -363,32 +392,70 @@ class NamedPipeClient:
                 raise PipeUnavailable("核心管道不可连接：超时")
             kernel32.WaitNamedPipeW(self._pipe_name, remaining_ms)
 
+    def _validate_server(self) -> None:
+        assert self._handle is not None
+        kernel32 = self._kernel.kernel32
+        pid, session = wintypes.ULONG(), wintypes.ULONG()
+        if not kernel32.GetNamedPipeServerProcessId(self._handle, ctypes.byref(pid)):
+            raise PeerRejected("无法取得核心进程身份")
+        if not kernel32.GetNamedPipeServerSessionId(self._handle, ctypes.byref(session)):
+            raise PeerRejected("无法取得核心会话身份")
+        check_peer_identity(
+            client_session_id=int(session.value),
+            expected_session_id=self._session_id,
+            client_user_sid=_query_process_user_sid(self._kernel, int(pid.value)) or "",
+            expected_user_sid=(
+                _query_process_user_sid(self._kernel, kernel32.GetCurrentProcessId()) or ""
+            ),
+        )
+        self._peer_pid = int(pid.value)
+
+    @property
+    def peer_process_id(self) -> int | None:
+        """Actual connected server PID, available only after same-user/session verification."""
+        return self._peer_pid
+
     def write_message(self, payload: bytes) -> None:
         if self._handle is None:
             raise PipeUnavailable("未连接")
         if len(payload) > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("消息超过上限")
         frame = len(payload).to_bytes(4, "big") + payload
-        written = wintypes.DWORD(0)
-        self._kernel.kernel32.WriteFile(
-            self._handle, frame, len(frame), ctypes.byref(written), None
-        )
+        offset = 0
+        while offset < len(frame):
+            chunk = frame[offset:]
+            buffer = (wintypes.BYTE * len(chunk)).from_buffer_copy(chunk)
+            written = wintypes.DWORD()
+            ok = self._kernel.kernel32.WriteFile(
+                self._handle,
+                buffer,
+                len(chunk),
+                ctypes.byref(written),
+                None,
+            )
+            if not ok or not 0 < written.value <= len(chunk):
+                raise PipeUnavailable("核心管道写入失败，提交结果待核实")
+            offset += written.value
 
     def read_message(self) -> bytes:
         if self._handle is None:
             raise PipeUnavailable("未连接")
         length = int.from_bytes(self._read_exact(4), "big")
+        if length > MAX_MESSAGE_BYTES:
+            raise PipeUnavailable("核心响应消息超过上限")
         return self._read_exact(length)
 
     def close(self) -> None:
         if self._handle is not None:
             self._kernel.kernel32.CloseHandle(self._handle)
             self._handle = None
+        self._peer_pid = None
 
     def _current_session(self) -> int:
         pid = self._kernel.kernel32.GetCurrentProcessId()
         session = wintypes.DWORD(0)
-        self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session))
+        if not self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session)):
+            raise PipeUnavailable("无法核实当前登录会话")
         return session.value
 
     def _read_exact(self, size: int) -> bytes:
@@ -396,10 +463,10 @@ class NamedPipeClient:
         while len(chunks) < size:
             buffer = (wintypes.BYTE * (size - len(chunks)))()
             read = wintypes.DWORD(0)
-            self._kernel.kernel32.ReadFile(
+            ok = self._kernel.kernel32.ReadFile(
                 self._handle, buffer, len(buffer), ctypes.byref(read), None
             )
-            if read.value == 0:
+            if not ok or not 0 < read.value <= len(buffer):
                 raise PipeUnavailable("对端关闭")
             chunks.extend(bytes(buffer[: read.value]))
         return bytes(chunks)
@@ -444,9 +511,7 @@ def _query_process_user_sid(kernel: _Kernel, process_id: int) -> str | None:
         if not advapi32.OpenProcessToken(process, _TOKEN_QUERY, ctypes.byref(token)):
             return None
         needed = wintypes.DWORD(0)
-        advapi32.GetTokenInformation(
-            token, _TOKEN_USER, None, 0, ctypes.byref(needed)
-        )
+        advapi32.GetTokenInformation(token, _TOKEN_USER, None, 0, ctypes.byref(needed))
         if not needed.value:
             return None
         raw = (ctypes.c_byte * needed.value)()
@@ -460,9 +525,7 @@ def _query_process_user_sid(kernel: _Kernel, process_id: int) -> str | None:
             return None
         token_user = _TokenUser.from_buffer(raw)
         sid_string = wintypes.LPWSTR()
-        if not advapi32.ConvertSidToStringSidW(
-            token_user.user.Sid, ctypes.byref(sid_string)
-        ):
+        if not advapi32.ConvertSidToStringSidW(token_user.user.Sid, ctypes.byref(sid_string)):
             return None
         value = sid_string.value or None
         if sid_string:
@@ -483,17 +546,13 @@ def query_process_image_basename(kernel: _Kernel, process_id: int) -> str | None
     if process_id <= 0:
         return None
     kernel32 = kernel.kernel32
-    process = kernel32.OpenProcess(
-        _PROCESS_QUERY_LIMITED_INFORMATION, False, process_id
-    )
+    process = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
     if not process:
         return None
     try:
         size = wintypes.DWORD(32768)
         buffer = ctypes.create_unicode_buffer(size.value)
-        if not kernel32.QueryFullProcessImageNameW(
-            process, 0, buffer, ctypes.byref(size)
-        ):
+        if not kernel32.QueryFullProcessImageNameW(process, 0, buffer, ctypes.byref(size)):
             return None
         full_path = buffer.value
         if not full_path:

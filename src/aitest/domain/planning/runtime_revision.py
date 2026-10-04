@@ -424,7 +424,8 @@ def evaluate_runtime_revision(
 
     if (
         request.base_plan_revision_id != plan.plan_id
-        or plan.revision != facts.plan_revision_no
+        or plan.plan_id != facts.plan_revision_id
+        or (plan.record_revision or plan.revision) != facts.plan_revision_no
         or request.base_plan_revision_no != plan.revision
     ):
         refuse(

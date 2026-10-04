@@ -1,0 +1,12 @@
+Building source distribution...
+WARN Retry attempt #0. Sleeping 1.380179s before the next attempt
+WARN Retry attempt #1. Sleeping 1.5934343s before the next attempt
+WARN Retry attempt #2. Sleeping 2.9678349s before the next attempt
+  × Failed to build `C:\Users\y'm'y\Desktop\ai-test-component`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `hatchling>=1.27`
+  ├─▶ Request failed after 3 retries in 26.0s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/hatchling/`
+  ├─▶ error sending request for url (https://pypi.org/simple/hatchling/)
+  ├─▶ client error (Connect)
+  ╰─▶ tls handshake eof

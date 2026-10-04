@@ -1,0 +1,87 @@
+{
+  "status": "verified_behavioral_component_fix",
+  "workspace": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\aitest-commit-closure-after-596kjfay",
+  "scope": "Actual default assembly and file UOW, controlled faults; no network/model/business execution",
+  "index_preparation_failure": {
+    "authority_commit": 1,
+    "record_revision": 0,
+    "query": {
+      "status": "ok",
+      "items": 0,
+      "commit": 1
+    },
+    "event_cursor_present": true,
+    "event_records": [
+      "first"
+    ],
+    "index_healthy": true
+  },
+  "later_incremental_commit": {
+    "authority_commit": 2,
+    "record_revision": 0,
+    "query": {
+      "status": "ok",
+      "items": 0,
+      "commit": 2
+    },
+    "event_cursor_present": true,
+    "event_records": [
+      "first",
+      "third"
+    ],
+    "index_healthy": true
+  },
+  "retry_failed_intent": {
+    "authority_commit": 3,
+    "record_revision": 1,
+    "query": {
+      "status": "ok",
+      "items": 1,
+      "commit": 3
+    },
+    "event_cursor_present": true,
+    "event_records": [
+      "first",
+      "third",
+      "lost"
+    ],
+    "index_healthy": true
+  },
+  "event_preparation_failure": {
+    "authority_commit": 1,
+    "record_revision": 0,
+    "query": {
+      "status": "ok",
+      "items": 0,
+      "commit": 1
+    },
+    "event_cursor_present": true,
+    "event_records": [
+      "first"
+    ],
+    "index_healthy": true
+  },
+  "remaining": "A-05 partial: normative current fields, Windows publication backend/recovery material, object/change-index closure, bounded startup and true AC",
+  "sources": [
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "sha256": "8601d4be99e9e06857257d682def3885416d93f0d095e5b769d48ce90134d7ac"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "sha256": "c805759c592c543c2f564084b230da24a239f8eec99b0dde8c21d36de5f50132"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py",
+      "sha256": "bbac95bae25ec001735ea4404cb5480e1cf6bae46a29939c6766c37f0959b8ea"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/ordered_events.py",
+      "sha256": "86279343bb57c472e64fbc3a66161053a615aee1d5433772ee286efe695dac40"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/commit_migration.py",
+      "sha256": "9b49c2989af4e83625b89e2feea595d8675b145693b5d0a11e1025477ccb4de5"
+    }
+  ]
+}

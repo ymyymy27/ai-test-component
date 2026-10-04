@@ -210,6 +210,9 @@ class PortsRecordReader:
             aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
         )
 
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int:
+        return self._repository.current_revision(aggregate_kind, record_id)
+
     def query(self, query: RecordQuery) -> RecordPage:
         _require(self._repository, "query")
         result = self._repository.query(

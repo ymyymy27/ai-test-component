@@ -99,6 +99,44 @@ def test_manual_degrade_survives_healthy_fact_until_explicit_restore() -> None:
     assert gate.condition(CONNECTION).state is CapabilityState.READY
 
 
+def test_failed_then_healthy_facts_cannot_clear_manual_degrade() -> None:
+    gate = CapabilityGate(action_dependencies={"send": frozenset({MODEL})})
+    gate.configure(MODEL)
+    gate.degrade(MODEL, "operator paused model requests")
+    original = gate.condition(MODEL)
+    gate.report(MODEL, healthy=False, reason="429", classification="rate_limit")
+    gate.configure(MODEL)
+    gate.report(MODEL, healthy=True)
+    assert gate.condition(MODEL) == original
+    assert not gate.check("send").allowed
+    gate.restore(MODEL)
+    assert gate.check("send").allowed
+
+
+def test_model_mode_is_blocked_without_disabling_template_mode() -> None:
+    gate = CapabilityGate()
+    gate.require_if("generate_draft", parameter="generation_mode", equals="model", keys=(MODEL,))
+    calls = []
+    api = LocalAPI(
+        instance_id="mode-gate", workspace_id="ws", capability_gate=gate,
+        handlers={"generate_draft": lambda command: calls.append(command.parameters) or {}},
+    )
+    model = Command(request_id="model", action="generate_draft", project_id="p",
+                    intent_id="model-intent", expected_revision=0, parameters={
+        "generation_mode": "model",
+    })
+    assert api.dispatch(model, _SESSION).error.code == "CAPABILITY_DEGRADED"
+    template = model.model_copy(update={
+        "request_id": "template", "parameters": {"generation_mode": "template"},
+    })
+    assert api.dispatch(template, _SESSION).error is None
+    assert calls == [{"generation_mode": "template"}]
+    assert gate.affected_actions(MODEL) == ("generate_draft",)
+    assert gate.snapshot()["conditional_action_dependencies"] == {
+        "generate_draft": [{"parameter": "generation_mode", "equals": "model", "keys": [MODEL]}]
+    }
+
+
 def test_unknown_dependency_key_rejected() -> None:
     gate = CapabilityGate()
     with pytest.raises(ValueError):

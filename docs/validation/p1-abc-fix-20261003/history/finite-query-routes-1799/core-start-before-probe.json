@@ -1,0 +1,17 @@
+{
+  "status": "root_causes_reproduced_not_fixed",
+  "failed_create": {
+    "stale_discovery_pointer": true
+  },
+  "repeated_start": {
+    "created_children": 2,
+    "first_instance": "core-4ecf3694deaa",
+    "second_instance": "core-b86c63ab3176",
+    "discovery_pointer_overwritten": true
+  },
+  "scope": "Mocked Popen boundaries on actual SystemProcessLauncher; no real child process or acceptance claim",
+  "source": {
+    "path": "src/aitest/bootstrap.py",
+    "sha256": "ff3b6b1b68005c3de1a79645325250001d0599c4c329ea89f345ca6e7d61e167"
+  }
+}

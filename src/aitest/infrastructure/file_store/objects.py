@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import tempfile
 from contextlib import suppress
 from pathlib import Path
@@ -21,6 +22,11 @@ def _safe_component(value: str, name: str) -> str:
     return value
 
 
+def _reject_links(path: Path) -> None:
+    if any(item.is_symlink() or item.is_junction() for item in (path, *path.parents)):
+        raise ValueError("object path cannot traverse a link")
+
+
 class FileObjectStore:
     """Store immutable bytes under objects/<project>/<sha256>.
 
@@ -34,8 +40,9 @@ class FileObjectStore:
         *,
         registry: KnownSecretRegistry | None = None,
     ) -> None:
+        _reject_links(workspace_root)
         self._root = workspace_root.resolve()
-        self._registry = registry or known_secrets()
+        self._registry = registry if registry is not None else known_secrets()
 
     def publish_bytes(
         self,
@@ -51,6 +58,7 @@ class FileObjectStore:
         digest_hex = hashlib.sha256(content).hexdigest()
         digest = "sha256:" + digest_hex
         relative = Path("objects") / safe_project / digest_hex
+        _reject_links(self._root / relative)
         path = (self._root / relative).resolve()
         if not path.is_relative_to(self._root):
             raise ValueError("object path escapes workspace root")
@@ -64,7 +72,14 @@ class FileObjectStore:
         )
 
     def read_bytes(self, ref: StoredObjectRef) -> bytes:
-        path = (self._root / ref.relative_path).resolve()
+        safe_project = _safe_component(ref.project_id, "project_id")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", ref.digest):
+            raise ValueError("object digest identity is invalid")
+        relative = Path("objects") / safe_project / ref.digest.removeprefix("sha256:")
+        if ref.relative_path != relative.as_posix():
+            raise ValueError("object reference does not match its project/digest path")
+        _reject_links(self._root / relative)
+        path = (self._root / relative).resolve()
         if not path.is_relative_to(self._root):
             raise ValueError("object path escapes workspace root")
         content = path.read_bytes()

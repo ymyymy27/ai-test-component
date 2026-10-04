@@ -1,0 +1,279 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 13%]
+................................................................FFF..... [ 18%]
+...............................................s................s....... [ 22%]
+........................................................................ [ 27%]
+.................F.....................................................F [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 50%]
+........................................................................ [ 55%]
+........................................................................ [ 59%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 87%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+......................................................                   [100%]
+================================== FAILURES ===================================
+_______________ test_worker_dispatches_commands_over_real_pipe ________________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-405/test_worker_dispatches_command0")
+
+    @win_only
+    def test_worker_dispatches_commands_over_real_pipe(tmp_path: Path) -> None:
+        workspace_id = "wsA02Dispatch"
+        _seed_project_record(tmp_path, "project-a02")
+>       endpoint = acquire_endpoint(
+            tmp_path, workspace_id=workspace_id, wait_timeout_seconds=8.0
+        )
+
+tests\unit\test_a_a02_core_dispatch.py:360: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\bootstrap.py:672: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.interfaces.local.editor_host.EditorHost object at 0x0000014591A2A270>
+workspace_id = 'wsA02Dispatch'
+
+    def acquire(self, workspace_id: str) -> CoreEndpoint:
+        existing = self._connect(workspace_id)
+        if existing is not None:
+            connection, instance_id = existing
+            return CoreEndpoint(workspace_id, instance_id, connection)
+    
+        expected_instance = self._launcher.start(workspace_id)
+    
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline:
+            connected = self._connect(workspace_id)
+            if connected is not None:
+                connection, instance_id = connected
+                if instance_id != expected_instance:
+                    raise WorkspaceInUse("����ʵ��������������ʵ��һ��")
+                return CoreEndpoint(workspace_id, instance_id, connection)
+            time.sleep(self._poll)
+    
+>       raise WorkspaceInUse("�������������޶�ʱ���ڲ�������")
+E       aitest.application.errors.WorkspaceInUse: �������������޶�ʱ���ڲ�������
+
+src\aitest\interfaces\local\editor_host.py:77: WorkspaceInUse
+___________ test_worker_is_long_lived_unique_core_across_reconnects ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-405/test_worker_is_long_lived_uniq0")
+
+    @win_only
+    def test_worker_is_long_lived_unique_core_across_reconnects(
+        tmp_path: Path,
+    ) -> None:
+        workspace_id = "wsA02Reconnect"
+>       first = acquire_endpoint(
+            tmp_path, workspace_id=workspace_id, wait_timeout_seconds=8.0
+        )
+
+tests\unit\test_a_a02_core_dispatch.py:406: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\bootstrap.py:672: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.interfaces.local.editor_host.EditorHost object at 0x000001459196A990>
+workspace_id = 'wsA02Reconnect'
+
+    def acquire(self, workspace_id: str) -> CoreEndpoint:
+        existing = self._connect(workspace_id)
+        if existing is not None:
+            connection, instance_id = existing
+            return CoreEndpoint(workspace_id, instance_id, connection)
+    
+        expected_instance = self._launcher.start(workspace_id)
+    
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline:
+            connected = self._connect(workspace_id)
+            if connected is not None:
+                connection, instance_id = connected
+                if instance_id != expected_instance:
+                    raise WorkspaceInUse("����ʵ��������������ʵ��һ��")
+                return CoreEndpoint(workspace_id, instance_id, connection)
+            time.sleep(self._poll)
+    
+>       raise WorkspaceInUse("�������������޶�ʱ���ڲ�������")
+E       aitest.application.errors.WorkspaceInUse: �������������޶�ʱ���ڲ�������
+
+src\aitest\interfaces\local\editor_host.py:77: WorkspaceInUse
+______________ test_worker_startup_recovers_stale_core_leavings _______________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-405/test_worker_startup_recovers_s0")
+
+    @win_only
+    def test_worker_startup_recovers_stale_core_leavings(tmp_path: Path) -> None:
+        workspace_id = "wsA02Recovery"
+        # ģ����һ���ģ���ʵ�ύ 1 ����¼������������ѷ�����ʵ + ���ǡ�
+        unit = FileUnitOfWork(tmp_path)
+        unit.begin("req-crashed", "project-a02")
+        unit.stage_record(
+            aggregate_kind="project",
+            record_id="project-a02",
+            expected_revision=None,
+            payload={"project_id": "project-a02", "name": "demo"},
+        )
+        unit.commit("req-crashed")
+        marker_dir = tmp_path / "transactions"
+        marker_dir.mkdir(parents=True, exist_ok=True)
+        (marker_dir / "active.json").write_text(
+            json.dumps(
+                {
+                    "request_id": "req-crashed",
+                    "project_id": "project-a02",
+                    "commit_sequence": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+    
+>       endpoint = acquire_endpoint(
+            tmp_path, workspace_id=workspace_id, wait_timeout_seconds=8.0
+        )
+
+tests\unit\test_a_a02_core_dispatch.py:466: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\bootstrap.py:672: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.interfaces.local.editor_host.EditorHost object at 0x000001459196B390>
+workspace_id = 'wsA02Recovery'
+
+    def acquire(self, workspace_id: str) -> CoreEndpoint:
+        existing = self._connect(workspace_id)
+        if existing is not None:
+            connection, instance_id = existing
+            return CoreEndpoint(workspace_id, instance_id, connection)
+    
+        expected_instance = self._launcher.start(workspace_id)
+    
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline:
+            connected = self._connect(workspace_id)
+            if connected is not None:
+                connection, instance_id = connected
+                if instance_id != expected_instance:
+                    raise WorkspaceInUse("����ʵ��������������ʵ��һ��")
+                return CoreEndpoint(workspace_id, instance_id, connection)
+            time.sleep(self._poll)
+    
+>       raise WorkspaceInUse("�������������޶�ʱ���ڲ�������")
+E       aitest.application.errors.WorkspaceInUse: �������������޶�ʱ���ڲ�������
+
+src\aitest\interfaces\local\editor_host.py:77: WorkspaceInUse
+______________ test_real_pipe_connections_are_recorded_in_ledger ______________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-405/test_real_pipe_connections_are0")
+
+    @win_only
+    def test_real_pipe_connections_are_recorded_in_ledger(tmp_path: Path) -> None:
+        workspace_id = "wsA10Ledger"
+>       endpoint = acquire_endpoint(
+            tmp_path, workspace_id=workspace_id, wait_timeout_seconds=8.0
+        )
+
+tests\unit\test_a_a10_connection_recovery.py:534: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\bootstrap.py:672: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.interfaces.local.editor_host.EditorHost object at 0x0000014591E6C050>
+workspace_id = 'wsA10Ledger'
+
+    def acquire(self, workspace_id: str) -> CoreEndpoint:
+        existing = self._connect(workspace_id)
+        if existing is not None:
+            connection, instance_id = existing
+            return CoreEndpoint(workspace_id, instance_id, connection)
+    
+        expected_instance = self._launcher.start(workspace_id)
+    
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline:
+            connected = self._connect(workspace_id)
+            if connected is not None:
+                connection, instance_id = connected
+                if instance_id != expected_instance:
+                    raise WorkspaceInUse("����ʵ��������������ʵ��һ��")
+                return CoreEndpoint(workspace_id, instance_id, connection)
+            time.sleep(self._poll)
+    
+>       raise WorkspaceInUse("�������������޶�ʱ���ڲ�������")
+E       aitest.application.errors.WorkspaceInUse: �������������޶�ʱ���ڲ�������
+
+src\aitest\interfaces\local\editor_host.py:77: WorkspaceInUse
+_________________ test_acquire_endpoint_with_real_subprocess __________________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-405/test_acquire_endpoint_with_rea0")
+
+    @win_only
+    def test_acquire_endpoint_with_real_subprocess(tmp_path: Path) -> None:
+        """�˵��ˣ�SystemProcessLauncher ���� core_worker �ӽ��̣�
+        acquire_endpoint ͨ���ܵ�������ӣ������Ѻ˶����ݵ� CoreEndpoint��
+    
+        A-02 ������ǳ���Ψһ���ģ��ͻ��˶Ͽ����˳���������ͣ������֡
+        ��ʽ���������ռ��������ڣ�������ܵ���ʧ������������
+        """
+        workspace_id = "wsRealSubprocess"
+>       endpoint = acquire_endpoint(
+            tmp_path,
+            workspace_id=workspace_id,
+            wait_timeout_seconds=8.0,
+        )
+
+tests\unit\test_a_bootstrap_acquire.py:170: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\bootstrap.py:672: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.interfaces.local.editor_host.EditorHost object at 0x0000014591BF0E20>
+workspace_id = 'wsRealSubprocess'
+
+    def acquire(self, workspace_id: str) -> CoreEndpoint:
+        existing = self._connect(workspace_id)
+        if existing is not None:
+            connection, instance_id = existing
+            return CoreEndpoint(workspace_id, instance_id, connection)
+    
+        expected_instance = self._launcher.start(workspace_id)
+    
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline:
+            connected = self._connect(workspace_id)
+            if connected is not None:
+                connection, instance_id = connected
+                if instance_id != expected_instance:
+                    raise WorkspaceInUse("����ʵ��������������ʵ��һ��")
+                return CoreEndpoint(workspace_id, instance_id, connection)
+            time.sleep(self._poll)
+    
+>       raise WorkspaceInUse("�������������޶�ʱ���ڲ�������")
+E       aitest.application.errors.WorkspaceInUse: �������������޶�ʱ���ڲ�������
+
+src\aitest\interfaces\local\editor_host.py:77: WorkspaceInUse
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_worker_dispatches_commands_over_real_pipe
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_worker_is_long_lived_unique_core_across_reconnects
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_worker_startup_recovers_stale_core_leavings
+FAILED tests/unit/test_a_a10_connection_recovery.py::test_real_pipe_connections_are_recorded_in_ledger
+FAILED tests/unit/test_a_bootstrap_acquire.py::test_acquire_endpoint_with_real_subprocess
+5 failed, 1559 passed, 2 skipped in 333.57s (0:05:33)

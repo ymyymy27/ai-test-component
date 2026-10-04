@@ -346,7 +346,7 @@ def _prepare_inputs(
         input_revisions=InputRevisions(
             project_revision=project.revision,
             binding_revision=2,
-            snapshot_revision=source_revision,
+            snapshot_revision=1,
             environment_revision=1,
             plan_revision=plan.revision,
             rules_revision=1,
@@ -354,10 +354,11 @@ def _prepare_inputs(
             scope_revision=plan.scope.revision,
         ),
         snapshot=SnapshotRef(
-            source_snapshot_id="snapshot-ticket-1",
+            source_snapshot_id=f"snapshot-ticket-{source_revision}",
             purpose="prepare",
             content_identity=(
-                f"git:{BASE_COMMIT}" if is_git else f"sha256:{MANIFEST_DIGEST}"
+                (f"git:{BASE_COMMIT}" if is_git else f"sha256:{MANIFEST_DIGEST}")
+                if source_revision == 1 else "sha256:changed-source-content"
             ),
         ),
         selected_paths=SELECTED_PATHS,
@@ -382,10 +383,11 @@ def _prepare_inputs(
         ),
         plan_revision=PlanRevisionRef(
             revision_id=plan.plan_id,
-            revision_no=plan.revision,
+            revision_no=plan.record_revision or plan.revision,
             digest="sha256:plan-ticket",
         ),
         acceptance_scope_revision=plan.scope.revision,
+        scope_id=plan.scope.scope_id,
         rule_versions=(
             RuleVersionRef(
                 rule_id="rule-ticket", revision=1, digest="sha256:rule-ticket"

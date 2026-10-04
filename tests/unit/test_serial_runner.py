@@ -168,6 +168,7 @@ def _request() -> ExecutionRequest:
             target_ref="target-1",
             credential_scope_ref="credential-scope-1",
             plan_revision_ref=_plan_revision(),
+            step_revision_ref=_step_revision(),
         ),
         side_effect_class=SideEffectClass.READ_ONLY,
     )
@@ -301,6 +302,7 @@ def test_start_intent_without_confirmed_handle_stays_pending(tmp_path) -> None:
                 last_committed_stage="intent_recorded",
             ),
             attempt=attempt,
+            project_id=_request().project_id,
         )
     )
     port = DeterministicFakeExecutionPort()

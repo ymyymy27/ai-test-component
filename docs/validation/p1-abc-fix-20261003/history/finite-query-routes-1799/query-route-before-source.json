@@ -1,0 +1,15 @@
+{
+  "archive": "history/bounded-query-directory-1750/validation-source.zip",
+  "archive_sha256": "693bf7d55f908c3b53c0c1ecbf91237c13af84c7e34b8cfe6fbbeafe60187c89",
+  "source": {
+    "path": "src/aitest/contracts/queries.py",
+    "sha256": "1f3eb1f63796868354b8c38751fe1e3ad6925772fd0c898beff7ca606cf51070"
+  },
+  "portable_test": "query-route-before-test.py",
+  "test_sha256": "0457a3e2639cf82c2b8a2b4c7a12444104cf8f3be82dd26a073cc0d0574d8804",
+  "expected_result": {
+    "failed": 17,
+    "seconds": 0.29
+  },
+  "scope": "Actual pre-repair run with these exact test bytes; QuerySpec bytes preserved in the 1750 phase archive"
+}

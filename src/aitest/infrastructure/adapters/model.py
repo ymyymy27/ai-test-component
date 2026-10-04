@@ -14,20 +14,46 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
 from aitest.application.ports import (
+    CredentialResolution,
+    CredentialStatus,
     ModelCall,
     ModelCallResult,
     ModelCallStatus,
 )
 from aitest.contracts.redaction import scrub_secret_text
 from aitest.contracts.secrets import ResolvedSecret
+from aitest.infrastructure.security import KnownSecretRegistry, scrub_text
 
 
 class ModelAdapterError(RuntimeError):
     """请求构造不合法（如缺少凭据）。"""
+
+
+class ModelCredentialResolver:
+    """按用途报告已配置凭据状态，B 端口不获得正文。"""
+
+    def __init__(self, secret: ResolvedSecret) -> None:
+        self._secret = secret
+
+    def resolve(self, *, purpose: str) -> CredentialResolution:
+        if self._secret.purpose != purpose:
+            return CredentialResolution(
+                status=CredentialStatus.PURPOSE_MISMATCH,
+                purpose=purpose,
+                detail="purpose mismatch",
+            )
+        if not self._secret.reveal():
+            return CredentialResolution(
+                status=CredentialStatus.MISSING,
+                purpose=purpose,
+                detail="credential unavailable",
+            )
+        return CredentialResolution(status=CredentialStatus.AVAILABLE, purpose=purpose)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +112,23 @@ class HttpModelProvider:
         *,
         transport: HttpTransport | None = None,
         secret: ResolvedSecret | None = None,
+        on_result: Callable[[ModelCallResult], None] | None = None,
     ) -> None:
         self._endpoint = endpoint.rstrip("/")
         self._transport = transport or UrllibTransport()
         self._secret = secret
+        self._on_result = on_result
+        self._registry = KnownSecretRegistry()
+        if secret is not None:
+            self._registry.register(secret.reveal())
 
     def call(self, request: ModelCall) -> ModelCallResult:
+        result = self._call(request)
+        if self._on_result is not None:
+            self._on_result(result)
+        return result
+
+    def _call(self, request: ModelCall) -> ModelCallResult:
         if self._secret is None:
             raise ModelAdapterError("模型请求缺少已解析凭据")
         # 逐次证明：实际请求目标必须与本次调用策略确认的 endpoint_address 相同，
@@ -101,9 +138,7 @@ class HttpModelProvider:
             return ModelCallResult(
                 status=ModelCallStatus.FAILED,
                 error_kind="endpoint_mismatch",
-                error_detail=(
-                    "策略确认端点与已配置提供方端点不一致，已拒绝发送请求"
-                ),
+                error_detail=("策略确认端点与已配置提供方端点不一致，已拒绝发送请求"),
             )
         url = confirmed_endpoint + self._CHAT_PATH
         body = json.dumps(
@@ -161,8 +196,8 @@ class HttpModelProvider:
         provider_id = payload.get("id") if isinstance(payload, dict) else None
         return ModelCallResult(
             status=ModelCallStatus.OK,
-            draft_text=draft,
-            provider_request_id=str(provider_id) if provider_id else None,
+            draft_text=self._safe_detail(draft, limit=None),
+            provider_request_id=self._safe_detail(str(provider_id)) if provider_id else None,
         )
 
     @staticmethod
@@ -184,22 +219,20 @@ class HttpModelProvider:
             return None
         return content
 
-    @classmethod
-    def _failed(cls, kind: str, response: HttpResponse) -> ModelCallResult:
-        detail = cls._safe_detail(
-            response.body[:512].decode("utf-8", errors="replace")
-        )
+    def _failed(self, kind: str, response: HttpResponse) -> ModelCallResult:
+        detail = self._safe_detail(response.body[:512].decode("utf-8", errors="replace"))
         return ModelCallResult(
             status=ModelCallStatus.FAILED,
             error_kind=kind,
             error_detail=detail,
         )
 
-    @staticmethod
-    def _safe_detail(detail: str) -> str:
+    def _safe_detail(self, detail: str, *, limit: int | None = 512) -> str:
         """失败详情同样过凭据脱敏，防止供应方回显凭据正文。"""
-        redacted, _changed = scrub_secret_text(detail)
-        return redacted[:512]
+        redacted, _changed = scrub_text(detail, self._registry)
+        redacted, _changed = scrub_text(redacted)
+        redacted, _changed = scrub_secret_text(redacted)
+        return redacted if limit is None else redacted[:limit]
 
 
 __all__ = [

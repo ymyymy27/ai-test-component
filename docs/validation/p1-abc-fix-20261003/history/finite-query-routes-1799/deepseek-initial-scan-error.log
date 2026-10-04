@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\scripts\validate_deepseek.py", line 194, in <module>
+    result = run(args.credential_environment)
+  File "C:\Users\y'm'y\Desktop\ai-test-component\scripts\validate_deepseek.py", line 169, in run
+    assert not any(needle in path.read_bytes() for path in files)
+               ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\y'm'y\Desktop\ai-test-component\scripts\validate_deepseek.py", line 169, in <genexpr>
+    assert not any(needle in path.read_bytes() for path in files)
+                             ~~~~~~~~~~~~~~~^^
+  File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_abc.py", line 626, in read_bytes
+    return f.read()
+           ~~~~~~^^
+PermissionError: [Errno 13] Permission denied

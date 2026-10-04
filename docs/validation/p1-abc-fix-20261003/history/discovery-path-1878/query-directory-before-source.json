@@ -1,0 +1,9 @@
+{
+  "archive": "history/connection-safety-1722/validation-source.zip",
+  "archive_sha256": "4a84c38c23ebf6d18dccc70f01a412bbe7f07015e22aa6a90054fdb03121070d",
+  "portable_test": "query-directory-before-test.py",
+  "test_sha256": "2d7b6ce2739cc1262ab1909a6b61a686e1bf4ce3b9372d43c35b691a2f58b9e6",
+  "scratch": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.git\\p1-abc-fix-20261003\\query-before-72eab58b0bc741ac8d3919027dd613cb",
+  "scope": "3 equivalent regression cases extracted from current tests; frozen 1722 source",
+  "expected_result": "3 failed"
+}

@@ -1,0 +1,551 @@
+FFFFFFFFFFFFFFFFFFF.                                                     [100%]
+================================== FAILURES ===================================
+_ test_latest_saved_success_recovers_automatic_failure_without_clearing_pause[False] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_latest_saved_success_reco0")
+paused = False
+
+    @pytest.mark.parametrize("paused", [False, True])
+    def test_latest_saved_success_recovers_automatic_failure_without_clearing_pause(tmp_path, paused):
+        first = assemble_workspace_core(
+            tmp_path, instance_id="connection-before", connection_endpoint=ADDRESS
+        )
+        first.gate.report(CONNECTION, healthy=False, reason="old timeout", classification="timeout")
+        if paused:
+            first.gate.degrade(CONNECTION, "operator paused connection")
+        first.lifetime_lock.release()
+        ConnectionFactStore(tmp_path).append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(True, 3, None, ""),
+            source_session="controlled-session",
+            observed_at=1.0,
+        )
+        second = assemble_workspace_core(
+            tmp_path, instance_id="connection-after", connection_endpoint=ADDRESS
+        )
+        try:
+            automatic = {item["key"]: item for item in second.gate.snapshot()["automatic_conditions"]}
+>           assert automatic[CONNECTION]["state"] == "ready"
+E           AssertionError: assert 'degraded' == 'ready'
+E             
+E             - ready
+E             + degraded
+
+tests\unit\test_connection_fact_integrity.py:37: AssertionError
+_ test_latest_saved_success_recovers_automatic_failure_without_clearing_pause[True] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_latest_saved_success_reco1")
+paused = True
+
+    @pytest.mark.parametrize("paused", [False, True])
+    def test_latest_saved_success_recovers_automatic_failure_without_clearing_pause(tmp_path, paused):
+        first = assemble_workspace_core(
+            tmp_path, instance_id="connection-before", connection_endpoint=ADDRESS
+        )
+        first.gate.report(CONNECTION, healthy=False, reason="old timeout", classification="timeout")
+        if paused:
+            first.gate.degrade(CONNECTION, "operator paused connection")
+        first.lifetime_lock.release()
+        ConnectionFactStore(tmp_path).append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(True, 3, None, ""),
+            source_session="controlled-session",
+            observed_at=1.0,
+        )
+        second = assemble_workspace_core(
+            tmp_path, instance_id="connection-after", connection_endpoint=ADDRESS
+        )
+        try:
+            automatic = {item["key"]: item for item in second.gate.snapshot()["automatic_conditions"]}
+>           assert automatic[CONNECTION]["state"] == "ready"
+E           AssertionError: assert 'degraded' == 'ready'
+E             
+E             - ready
+E             + degraded
+
+tests\unit\test_connection_fact_integrity.py:37: AssertionError
+_ test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[false] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_invalid_reachable_record_0")
+value = 'false'
+
+    @pytest.mark.parametrize("value", ["false", 1, None, [], {}])
+    def test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success(tmp_path, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record["reachable"] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:59: Failed
+_ test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[1] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_invalid_reachable_record_1")
+value = 1
+
+    @pytest.mark.parametrize("value", ["false", 1, None, [], {}])
+    def test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success(tmp_path, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record["reachable"] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:59: Failed
+_ test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[None] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_invalid_reachable_record_2")
+value = None
+
+    @pytest.mark.parametrize("value", ["false", 1, None, [], {}])
+    def test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success(tmp_path, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record["reachable"] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:59: Failed
+_ test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[value3] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_invalid_reachable_record_3")
+value = []
+
+    @pytest.mark.parametrize("value", ["false", 1, None, [], {}])
+    def test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success(tmp_path, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record["reachable"] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:59: Failed
+_ test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[value4] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_invalid_reachable_record_4")
+value = {}
+
+    @pytest.mark.parametrize("value", ["false", 1, None, [], {}])
+    def test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success(tmp_path, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record["reachable"] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:59: Failed
+__ test_corrupted_fact_metadata_is_never_silently_defaulted[schema-unknown] ___
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i0")
+field = 'schema', value = 'unknown'
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+__ test_corrupted_fact_metadata_is_never_silently_defaulted[elapsed_ms-True] __
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i1")
+field = 'elapsed_ms', value = True
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+___ test_corrupted_fact_metadata_is_never_silently_defaulted[elapsed_ms--1] ___
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i2")
+field = 'elapsed_ms', value = -1
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+___ test_corrupted_fact_metadata_is_never_silently_defaulted[elapsed_ms-3] ____
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i3")
+field = 'elapsed_ms', value = '3'
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+_ test_corrupted_fact_metadata_is_never_silently_defaulted[error_kind-unknown] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i4")
+field = 'error_kind', value = 'unknown'
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+___ test_corrupted_fact_metadata_is_never_silently_defaulted[detail-value5] ___
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i5")
+field = 'detail', value = []
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+__ test_corrupted_fact_metadata_is_never_silently_defaulted[observed_at-nan] __
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_corrupted_fact_metadata_i6")
+field = 'observed_at', value = nan
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("schema", "unknown"),
+            ("elapsed_ms", True),
+            ("elapsed_ms", -1),
+            ("elapsed_ms", "3"),
+            ("error_kind", "unknown"),
+            ("detail", []),
+            ("observed_at", float("nan")),
+        ],
+    )
+    def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, value):
+        store = ConnectionFactStore(tmp_path)
+        store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "timeout"),
+            source_session="session",
+            observed_at=1.0,
+        )
+        record = json.loads(store.path.read_text(encoding="utf-8"))
+        record[field] = value
+        store.path.write_text(json.dumps(record), encoding="utf-8")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_connection_fact_integrity.py:86: Failed
+_ test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[false] _
+
+value = 'false'
+
+    @pytest.mark.parametrize("value", ["false", 1, {}, SimpleNamespace(reachable="false")])
+    def test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency(value):
+        calls = []
+        api = LocalAPI(
+            instance_id="strict-probe",
+            connector=lambda: value,
+            sleeper=lambda _: None,
+            connection_persistence=SimpleNamespace(
+                load=lambda: None, save=lambda state: calls.append(dict(state))
+            ),
+        )
+        response = api.dispatch(
+>           Command(request_id="probe", action="test_connection"),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Session("session", EntryKind.INTERACTIVE_CLI),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, write actions require project, intent and expected revision [type=value_error, input_value={'request_id': 'probe', '...ion': 'test_connection'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\unit\test_connection_fact_integrity.py:102: ValidationError
+_ test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[1] _
+
+value = 1
+
+    @pytest.mark.parametrize("value", ["false", 1, {}, SimpleNamespace(reachable="false")])
+    def test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency(value):
+        calls = []
+        api = LocalAPI(
+            instance_id="strict-probe",
+            connector=lambda: value,
+            sleeper=lambda _: None,
+            connection_persistence=SimpleNamespace(
+                load=lambda: None, save=lambda state: calls.append(dict(state))
+            ),
+        )
+        response = api.dispatch(
+>           Command(request_id="probe", action="test_connection"),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Session("session", EntryKind.INTERACTIVE_CLI),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, write actions require project, intent and expected revision [type=value_error, input_value={'request_id': 'probe', '...ion': 'test_connection'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\unit\test_connection_fact_integrity.py:102: ValidationError
+_ test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[value2] _
+
+value = {}
+
+    @pytest.mark.parametrize("value", ["false", 1, {}, SimpleNamespace(reachable="false")])
+    def test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency(value):
+        calls = []
+        api = LocalAPI(
+            instance_id="strict-probe",
+            connector=lambda: value,
+            sleeper=lambda _: None,
+            connection_persistence=SimpleNamespace(
+                load=lambda: None, save=lambda state: calls.append(dict(state))
+            ),
+        )
+        response = api.dispatch(
+>           Command(request_id="probe", action="test_connection"),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Session("session", EntryKind.INTERACTIVE_CLI),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, write actions require project, intent and expected revision [type=value_error, input_value={'request_id': 'probe', '...ion': 'test_connection'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\unit\test_connection_fact_integrity.py:102: ValidationError
+_ test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[value3] _
+
+value = namespace(reachable='false')
+
+    @pytest.mark.parametrize("value", ["false", 1, {}, SimpleNamespace(reachable="false")])
+    def test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency(value):
+        calls = []
+        api = LocalAPI(
+            instance_id="strict-probe",
+            connector=lambda: value,
+            sleeper=lambda _: None,
+            connection_persistence=SimpleNamespace(
+                load=lambda: None, save=lambda state: calls.append(dict(state))
+            ),
+        )
+        response = api.dispatch(
+>           Command(request_id="probe", action="test_connection"),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Session("session", EntryKind.INTERACTIVE_CLI),
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, write actions require project, intent and expected revision [type=value_error, input_value={'request_id': 'probe', '...ion': 'test_connection'}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\unit\test_connection_fact_integrity.py:102: ValidationError
+_ test_escaped_registered_credential_is_filtered_before_connection_diagnostic_write _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-434/test_escaped_registered_creden0")
+
+    def test_escaped_registered_credential_is_filtered_before_connection_diagnostic_write(tmp_path):
+        from aitest.infrastructure.security import known_secrets
+    
+        secret = 'synthetic-connection-"credential"'
+        known_secrets().register(secret)
+        store = ConnectionFactStore(tmp_path)
+        record = store.append(
+            endpoint_address=ADDRESS,
+            fact=TransportFact(False, 3, "timeout", "probe echoed " + secret),
+            source_session="session",
+            observed_at=1.0,
+        )
+        parsed = json.loads(store.path.read_text(encoding="utf-8"))
+>       assert secret not in parsed["detail"]
+E       assert 'synthetic-c..."credential"' not in 'probe echoe..."credential"'
+E         
+E         'synthetic-connection-"credential"' is contained here:
+E           probe echoed synthetic-connection-"credential"
+
+tests\unit\test_connection_fact_integrity.py:123: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_connection_fact_integrity.py::test_latest_saved_success_recovers_automatic_failure_without_clearing_pause[False]
+FAILED tests/unit/test_connection_fact_integrity.py::test_latest_saved_success_recovers_automatic_failure_without_clearing_pause[True]
+FAILED tests/unit/test_connection_fact_integrity.py::test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[false]
+FAILED tests/unit/test_connection_fact_integrity.py::test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[1]
+FAILED tests/unit/test_connection_fact_integrity.py::test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[None]
+FAILED tests/unit/test_connection_fact_integrity.py::test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[value3]
+FAILED tests/unit/test_connection_fact_integrity.py::test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success[value4]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[schema-unknown]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[elapsed_ms-True]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[elapsed_ms--1]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[elapsed_ms-3]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[error_kind-unknown]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[detail-value5]
+FAILED tests/unit/test_connection_fact_integrity.py::test_corrupted_fact_metadata_is_never_silently_defaulted[observed_at-nan]
+FAILED tests/unit/test_connection_fact_integrity.py::test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[false]
+FAILED tests/unit/test_connection_fact_integrity.py::test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[1]
+FAILED tests/unit/test_connection_fact_integrity.py::test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[value2]
+FAILED tests/unit/test_connection_fact_integrity.py::test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency[value3]
+FAILED tests/unit/test_connection_fact_integrity.py::test_escaped_registered_credential_is_filtered_before_connection_diagnostic_write

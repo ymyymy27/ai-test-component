@@ -393,6 +393,8 @@ def save_delivery(
     project_id: str,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    reader: RecordReader | None = None,
+    task_revision: int = 1,
 ) -> StagedRevision:
     """保存一份交付说明的某个修订。
 
@@ -413,14 +415,23 @@ def save_delivery(
             "self-declared on save; record what is not verified in unverified_scope "
             f"instead (got {list(delivery.verified_in_scope)!r})"
         )
-    return _stage_and_commit(
-        project_id=project_id,
-        aggregate_kind="delivery",
-        record_id=delivery.delivery_id,
-        expected_revision=expected_revision,
-        payload=delivery_to_payload(delivery, project_id=project_id),
-        unit_of_work=unit_of_work,
-    )
+    if reader is None:
+        raise ValueError("delivery requires an authoritative task reader")
+    # 准确任务修订与交付写入处于同一短事务，不查询另一项目或猜一个任务。
+    with transaction(unit_of_work, project_id) as tx:
+        task = load_task(
+            reader, project_id=project_id, task_id=delivery.task_id, revision=task_revision,
+        )
+        if task.project_id != project_id:
+            raise ValueError("delivery task belongs to another project")
+        payload = delivery_to_payload(delivery, project_id=project_id)
+        payload["task_revision"] = task_revision
+        staged = tx.stage_record(
+            aggregate_kind="delivery", record_id=delivery.delivery_id,
+            expected_revision=expected_revision, payload=payload,
+        )
+        tx.commit()
+        return staged
 
 
 def load_task(reader: RecordReader, *, project_id: str, task_id: str, revision: int) -> Task:

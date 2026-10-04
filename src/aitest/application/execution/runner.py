@@ -1,9 +1,13 @@
 """Serial execution loop and dependency dispatch skeleton."""
 
+import hashlib
+import json
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
+
+from pydantic import TypeAdapter
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.recovery import (
@@ -33,6 +37,7 @@ from aitest.domain.execution.runs import (
     Step,
     StepState,
     StopRequestResult,
+    authorization_action_basis,
 )
 
 _TERMINAL_STEP_STATES = frozenset(
@@ -109,7 +114,9 @@ class SerialRunner:
             for step_id, attempt_ids in (previous_attempt_ids_by_step or {}).items()
         }
         self._reuse_invalidations: list[CaseReuseInvalidation] = []
-        self._intent_claims: dict[str, Attempt] = {}
+        self._intent_claims: dict[tuple[str, str], Attempt] = {}
+        self._intent_fingerprints: dict[tuple[str, str], str] = {}
+        self._authorization_claims: dict[str, tuple[str, str]] = {}
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
         states = self._state_by_step_id(steps)
@@ -188,40 +195,22 @@ class SerialRunner:
         *,
         max_polls: int | None = None,
     ) -> Attempt:
+        if max_polls is not None and max_polls < 1:
+            raise ValueError("max_polls must be positive")
         prepared = self._prepare_attempt(attempt, request)
-        existing = self._find_intent_claim(request.intent_id)
-        if existing is not None:
-            if existing.attempt_id != prepared.attempt_id:
-                raise ValueError("intent_id is already claimed by another attempt")
-            if existing.execution_handle_ref is not None:
-                return existing
-            return replace(
-                existing,
-                state=AttemptState.PENDING_VERIFICATION,
-                unknown_reason_ref="start_intent_without_confirmed_handle",
-            )
-
-        self._revoke_reuse_for_new_attempt(prepared)
-        self._validate_start(prepared, request)
-        self._intent_claims[request.intent_id] = prepared
-        self._persist_checkpoint(
-            prepared,
-            stage="intent_recorded",
-            project_id=request.project_id,
-        )
         current = self.start_attempt(prepared, request)
-        self._intent_claims[request.intent_id] = current
-        self._persist_checkpoint(
-            current,
-            stage="started",
-            project_id=request.project_id,
-        )
+        if current.execution_handle_ref is None or current.state in {
+            AttemptState.COMPLETED,
+            AttemptState.CANCELLED,
+            AttemptState.EXECUTION_ERROR,
+        }:
+            return current
         polls = 0
         while max_polls is None or polls < max_polls:
             polls += 1
             inspection = self.inspect_attempt(current)
             if inspection.state is ExecutionInspectionState.RUNNING:
-                if self._checkpoint_store is not None and polls % 100 == 0:
+                if polls % 100 == 0:
                     self._persist_checkpoint(
                         current,
                         stage="running",
@@ -237,19 +226,19 @@ class SerialRunner:
                 stage=completed.state.value,
                 project_id=request.project_id,
             )
-            self._intent_claims[request.intent_id] = completed
+            self._intent_claims[(request.project_id, request.intent_id)] = completed
             return completed
         pending = replace(
             current,
-            state=AttemptState.PENDING_VERIFICATION,
-            unknown_reason_ref="poll_limit_reached",
+            state=AttemptState.RUNNING,
+            unknown_reason_ref=None,
         )
         self._persist_checkpoint(
             pending,
             stage="poll_limit_reached",
             project_id=request.project_id,
         )
-        self._intent_claims[request.intent_id] = pending
+        self._intent_claims[(request.project_id, request.intent_id)] = pending
         return pending
 
     def _prepare_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
@@ -260,10 +249,15 @@ class SerialRunner:
             raise ValueError("attempt resolved input digest does not match request")
         if attempt.source_binding_digest != request.source_binding_digest:
             raise ValueError("attempt source binding digest does not match request")
-        if (
-            attempt.authorization_ref is not None
-            and attempt.authorization_ref != request.authorization_ref
-        ):
+        if attempt.side_effect_class != request.side_effect_class:
+            raise ValueError("attempt side effect class does not match request")
+        if attempt.adapter_kind != request.registered_entry.adapter_kind:
+            raise ValueError("attempt adapter kind does not match request")
+        if attempt.timeout_ms is not None and attempt.timeout_ms != request.timeout_ms:
+            raise ValueError("attempt timeout does not match request")
+        if attempt.authorization_ref is not None and authorization_action_basis(
+            attempt.authorization_ref
+        ) != authorization_action_basis(request.authorization_ref):
             raise ValueError("attempt authorization does not match execution request")
         if (
             attempt.expected_plan_revision_ref is not None
@@ -280,8 +274,12 @@ class SerialRunner:
             expected_plan_revision_ref=(
                 request.expected_plan_revision_ref
                 if request.expected_plan_revision_ref is not None
-                else attempt.expected_plan_revision_ref
+                else (
+                    attempt.expected_plan_revision_ref
+                    or request.authorization_ref.plan_revision_ref
+                )
             ),
+            timeout_ms=request.timeout_ms,
         )
 
     def _validate_start(self, attempt: Attempt, request: ExecutionRequest) -> None:
@@ -292,6 +290,10 @@ class SerialRunner:
             raise ValueError("authorization intent_id does not match request")
         if authorization.step_id != request.step_id:
             raise ValueError("authorization step_id does not match request")
+        if authorization.step_revision_ref is None:
+            raise ValueError("authorization step revision is unverified; confirm the current step")
+        if authorization.step_revision_ref != attempt.step_revision_ref:
+            raise ValueError("authorization step revision does not match attempt")
         if authorization.resolved_input_digest != request.resolved_input_digest:
             raise ValueError("authorization input digest does not match request")
         if (
@@ -320,31 +322,117 @@ class SerialRunner:
         if self._start_validator is not None:
             self._start_validator.validate(attempt, request)
 
-    def _find_intent_claim(self, intent_id: str) -> Attempt | None:
+    def _find_intent_claim(self, intent_id: str, project_id: str) -> Attempt | None:
         claims: list[Attempt] = []
-        in_memory = self._intent_claims.get(intent_id)
+        in_memory = self._intent_claims.get((project_id, intent_id))
         if in_memory is not None:
             claims.append(in_memory)
         if self._checkpoint_store is not None:
-            claims.extend(
-                record.attempt
-                for record in self._checkpoint_store.scan()
-                if record.attempt.intent_id == intent_id
-            )
+            for record in self._checkpoint_store.scan():
+                if record.attempt.intent_id != intent_id:
+                    continue
+                if record.project_id is None:
+                    raise ValueError("legacy execution intent project is unverified; do not replay")
+                if record.project_id == project_id:
+                    claims.append(record.attempt)
         unique = {claim.attempt_id: claim for claim in claims}
         if len(unique) > 1:
             raise ValueError("intent_id has multiple persisted attempts")
         return next(iter(unique.values()), None)
 
     def start_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
-        self._require_attempt_identity(attempt, request)
-        self._validate_start(attempt, request)
+        prepared = self._prepare_attempt(attempt, request)
+        self._validate_start(prepared, request)
+        fingerprint = _start_fingerprint(prepared, request)
+        prepared = replace(prepared, intent_digest=fingerprint)
+        key = (request.project_id, request.intent_id)
+        previous_fingerprint = self._intent_fingerprints.get(key)
+        if previous_fingerprint is not None and previous_fingerprint != fingerprint:
+            raise ValueError("execution intent conflicts with different input")
+        existing = self._find_intent_claim(request.intent_id, request.project_id)
+        if self._commit_coordinator is not None:
+            authoritative = self._commit_coordinator.find_start(
+                project_id=request.project_id,
+                intent_id=request.intent_id,
+                fingerprint=fingerprint,
+            )
+            if authoritative is not None:
+                existing = authoritative
+            elif existing is not None:
+                raise ValueError("checkpoint has no authoritative start claim; inspect it first")
+        if existing is not None:
+            self._prepare_attempt(existing, request)
+            if existing.attempt_id != prepared.attempt_id:
+                raise ValueError("intent_id is already claimed by another attempt")
+            if existing.intent_digest and existing.intent_digest != fingerprint:
+                raise ValueError("execution intent conflicts with different input")
+            if existing.execution_handle_ref is None:
+                return replace(
+                    existing,
+                    state=AttemptState.PENDING_VERIFICATION,
+                    unknown_reason_ref="start_intent_without_confirmed_handle",
+                )
+            if not existing.intent_digest:
+                raise ValueError("legacy execution fingerprint is unverified; inspect it first")
+            return existing
+        if prepared.state is not AttemptState.INTENT_RECORDED or (
+            prepared.execution_handle_ref is not None
+        ):
+            raise ValueError("new execution requires a fresh intent-recorded attempt")
+        authorization_id = request.authorization_ref.authorization_id
+        authorized_attempt = self._authorization_claims.get(authorization_id)
+        if authorized_attempt is not None and authorized_attempt != (
+            request.project_id,
+            prepared.attempt_id,
+        ):
+            raise ValueError("authorization is already consumed by another attempt")
+        if self._commit_coordinator is not None:
+            existing = self._commit_coordinator.claim_start(
+                project_id=request.project_id,
+                intent_id=request.intent_id,
+                fingerprint=fingerprint,
+                checkpoint=self._checkpoint_record(prepared, stage="intent_recorded"),
+            )
+            if existing is not None:
+                if existing.execution_handle_ref is None:
+                    return replace(
+                        existing,
+                        state=AttemptState.PENDING_VERIFICATION,
+                        unknown_reason_ref="start_intent_without_confirmed_handle",
+                    )
+                return existing
+        else:
+            self._verify_checkpoint_authorization(prepared, request)
+            self._persist_checkpoint(
+                prepared, stage="intent_recorded", project_id=request.project_id
+            )
+        self._authorization_claims[authorization_id] = (request.project_id, prepared.attempt_id)
+        self._revoke_reuse_for_new_attempt(prepared)
+        self._intent_claims[key] = prepared
+        self._intent_fingerprints[key] = fingerprint
         handle = self._execution_port.start(request)
-        return replace(
-            attempt,
+        started = replace(
+            prepared,
             state=AttemptState.RUNNING,
             execution_handle_ref=handle,
         )
+        self._intent_claims[key] = started
+        self._persist_checkpoint(started, stage="started", project_id=request.project_id)
+        return started
+
+    def _verify_checkpoint_authorization(self, attempt: Attempt, request: ExecutionRequest) -> None:
+        if self._checkpoint_store is None:
+            return
+        for record in self._checkpoint_store.scan():
+            authorization = record.attempt.authorization_ref
+            if authorization is None or (
+                authorization.authorization_id != request.authorization_ref.authorization_id
+            ):
+                continue
+            if record.project_id != request.project_id or (
+                record.attempt.attempt_id != attempt.attempt_id
+            ):
+                raise ValueError("authorization is already consumed by another attempt")
 
     def inspect_attempt(self, attempt: Attempt) -> ExecutionInspectionResult:
         return self._execution_port.inspect(self._require_handle(attempt))
@@ -364,8 +452,21 @@ class SerialRunner:
             return ()
         results: list[RecoveryResult] = []
         for record in self._checkpoint_store.scan():
+            if self._commit_coordinator is not None and record.project_id is None:
+                raise ValueError("legacy checkpoint project must be verified before recovery")
+            if self._commit_coordinator is not None:
+                assert record.project_id is not None
+                record = self._commit_coordinator.read_checkpoint(
+                    project_id=record.project_id,
+                    attempt_id=record.attempt.attempt_id,
+                )
             reliable_terminal = (
-                record.attempt.state in {AttemptState.COMPLETED, AttemptState.CANCELLED}
+                record.attempt.state
+                in {
+                    AttemptState.COMPLETED,
+                    AttemptState.CANCELLED,
+                    AttemptState.INVALIDATED,
+                }
                 and record.attempt.exit_fact_ref is not None
             )
             inspection = None
@@ -381,7 +482,9 @@ class SerialRunner:
                 inspection=inspection,
             )
             results.append(result)
-            self._persist_checkpoint(result.attempt, stage=result.action.value)
+            self._persist_checkpoint(
+                result.attempt, stage=result.action.value, project_id=record.project_id
+            )
         return tuple(results)
 
     def invalidate_dependencies(
@@ -438,6 +541,15 @@ class SerialRunner:
         stage: str,
         project_id: str | None = None,
     ) -> None:
+        record = replace(self._checkpoint_record(attempt, stage=stage), project_id=project_id)
+        # 权威事务先提交，单文件检查点只是恢复投影，不能先于失败的业务提交。
+        if self._commit_coordinator is not None and project_id is not None:
+            self._commit_coordinator.commit_checkpoint(project_id=project_id, checkpoint=record)
+        if self._checkpoint_store is not None:
+            self._checkpoint_store.persist(record)
+
+    @staticmethod
+    def _checkpoint_record(attempt: Attempt, *, stage: str) -> RecoveryRecord:
         checkpoint = RecoveryCheckpoint(
             run_id=attempt.run_id,
             step_id=attempt.step_id,
@@ -449,14 +561,7 @@ class SerialRunner:
             side_effect_class=attempt.side_effect_class,
             execution_handle_ref=attempt.execution_handle_ref,
         )
-        record = RecoveryRecord(checkpoint=checkpoint, attempt=attempt)
-        if self._checkpoint_store is not None:
-            self._checkpoint_store.persist(record)
-        if self._commit_coordinator is not None and project_id is not None:
-            self._commit_coordinator.commit_checkpoint(
-                project_id=project_id,
-                checkpoint=record,
-            )
+        return RecoveryRecord(checkpoint=checkpoint, attempt=attempt)
 
     def _apply_collection(
         self,
@@ -638,6 +743,32 @@ class SerialRunner:
             or attempt.step_id != request.step_id
         ):
             raise ValueError("attempt and execution request identity must match")
+
+
+def _start_fingerprint(attempt: Attempt, request: ExecutionRequest) -> str:
+    request_payload = TypeAdapter(ExecutionRequest).dump_python(request, mode="json")
+    # Consumption is a saved fact; it does not change the original authorized action.
+    request_payload["authorization_ref"].pop("consumed_by_attempt_id", None)
+    attempt_payload = TypeAdapter(Attempt).dump_python(attempt, mode="json")
+    payload = {
+        "fingerprint_version": "aitest.execution-start/2.0",
+        "request": request_payload,
+        "attempt_basis": {
+            name: attempt_payload[name]
+            for name in (
+                "attempt_index",
+                "step_revision_ref",
+                "consumed_outputs",
+                "consumed_conditions",
+                "adapter_version",
+                "business_idempotency_key_ref",
+                "expected_plan_revision_ref",
+            )
+        },
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()
 
 
 __all__ = [

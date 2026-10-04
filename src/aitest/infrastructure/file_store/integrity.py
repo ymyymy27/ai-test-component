@@ -80,6 +80,8 @@ _ALLOWED_TOP_DIRS: Final = frozenset(
         "backup",
         "backups",
         "indexes",
+        "execution-handles",
+        "record-store",
     }
 )
 
@@ -119,6 +121,7 @@ def _check_whitelist(root: Path, errors: list[str]) -> None:
         # 隐藏文件一律是原子发布/锁遗留候选，由维护回收判定，不属越界。
         if name.startswith("."):
             continue
+
         if child.is_symlink():
             errors.append(f"unexpected symlink: {name}")
             continue
@@ -345,6 +348,12 @@ def check_workspace(root: Path) -> dict[str, object]:
                 )
             continue
 
+        if parts[:1] == ("record-store",):
+            if len(parts) != 2 or not _HEX64_RE.fullmatch(path.stem) or path.suffix != ".json":
+                errors.append(f"invalid authority node name: {_rel(path, root)}")
+            elif hashlib.sha256(path.read_bytes()).hexdigest() != path.stem:
+                errors.append(f"authority digest mismatch: {_rel(path, root)}")
+
         # 快照固定字节：仅接受 snapshots/blobs/<sha256>，内容摘要必须与名一致。
         if parts and parts[0] == "snapshots":
             if len(parts) == 3 and parts[1] == "blobs":
@@ -387,6 +396,28 @@ def check_workspace(root: Path) -> dict[str, object]:
     # 永久引用闭包：每条对象引用都必须有可达且摘要一致的对象。
     for digest in sorted(referenced - object_digests):
         errors.append(f"unreachable object reference: sha256:{digest}")
+    from .sharded_records import SCHEMA, open_authority
+
+    authority_path = root / "records.json"
+    if authority_path.exists():
+        try:
+            header = json.loads(authority_path.read_text(encoding="utf-8"))
+            if header.get("schema") == SCHEMA:
+                authority = open_authority(root, header)
+                for _key, _value in authority["_tree"].items():
+                    pass
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            errors.append(f"authority reference closure: {error}")
+    from .commit_manifest import FileCommitStore
+
+    try:
+        current = FileCommitStore(root).read_current(verify_material=True)
+        if current is not None:
+            authority = open_authority(root, current["manifest"]["record_header"])
+            for _key, _value in authority["_tree"].items():
+                pass
+    except (OSError, ValueError, KeyError, TypeError):
+        errors.append("current commit reference closure cannot be verified")
     return {"ok": not errors, "objects": objects, "errors": errors}
 
 

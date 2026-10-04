@@ -142,7 +142,7 @@ def test_reprepare_fixture_names_the_changed_source() -> None:
     assert prepared.status is PreparedRunStatusFact.BLOCKED
     assert any(reason.code == "needs_reprepare" for reason in prepared.blocking_reasons)
     assert any(
-        rule.source_kind == "snapshot_revision" for rule in prepared.invalidation_rules
+        rule.source_kind == "snapshot_content_identity" for rule in prepared.invalidation_rules
     )
 
 

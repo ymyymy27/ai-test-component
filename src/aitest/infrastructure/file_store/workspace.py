@@ -47,9 +47,22 @@ class Workspace:
     @contextmanager
     def acquire(self) -> Iterator[Workspace]:
         with writer_lock(self.root / "writer.lock"):
-            self.identity["writer_epoch"] += 1
+            self._advance_epoch()
             atomic.write_json(self.identity_path, self.identity)
             yield self
+
+    def _advance_epoch(self) -> None:
+        """Read under the lock: another UOW may have advanced the saved epoch."""
+        latest = json.loads(self.identity_path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(latest, dict)
+            or latest.get("workspace_id") != self.workspace_id
+            or type(latest.get("writer_epoch")) is not int
+            or latest["writer_epoch"] < 0
+        ):
+            raise ValueError("workspace writer identity cannot be verified")
+        self.identity = latest
+        self.identity["writer_epoch"] += 1
 
     def admit_lifetime(self) -> LifetimeWriterLock:
         """取得覆盖核心全生命周期的排他写锁并登记新 epoch（A-02）。
@@ -61,7 +74,7 @@ class Workspace:
         lock = LifetimeWriterLock(self.root / "writer.lock")
         lock.acquire()
         try:
-            self.identity["writer_epoch"] += 1
+            self._advance_epoch()
             atomic.write_json(self.identity_path, self.identity)
         except BaseException:
             lock.release()

@@ -68,7 +68,8 @@ def test_credential_line_dropped_other_lines_kept() -> None:
     projection = _project(
         {MaterialKind.CASE_CONTENT: "useful line\napi_key=abc123\nsecond line"}
     )
-    assert projection.status is ProjectionStatus.COMPLETE
+    assert projection.status is ProjectionStatus.PARTIAL
+    assert (MaterialKind.CASE_CONTENT, "material.case_content") in projection.excluded
     text = projection.projected[0].projected_text
     assert "api_key=abc123" not in text
     assert "useful line" in text

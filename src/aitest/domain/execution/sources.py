@@ -77,6 +77,7 @@ class ExecutionSourceVerification:
     state: SourceVerificationState
     observed_entry_ref: str | None = None
     observed_import_ref: str | None = None
+    observed_interpreter_ref: str | None = None
     failure_class: FailureClass | None = None
     gap_ids: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()

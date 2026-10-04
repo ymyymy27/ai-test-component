@@ -428,8 +428,8 @@ def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependenc
     """从 payload 还原依赖图。
 
     旧记录（本键之前的版本）没有 `edges_declared`：那时"有模块没有边"一律按缺口处理，
-    为了**不改动既有记录的语义**，这类记录读回时视为 `edges_declared=True`（即沿用旧口径、
-    不新造缺口），而不是顺手把它们变成阻塞项。
+    无法证明已经声明完整依赖，这类记录读回时视为 `edges_declared=False`。
+    当前准备门禁据此登记未知缺口；不回写或改变历史运行结论。
     """
     project_id = payload.get("project_id")
     if not isinstance(project_id, str) or not project_id.strip():
@@ -476,7 +476,7 @@ def dependency_graph_from_payload(payload: Mapping[str, Any]) -> ModuleDependenc
 
     raw_declared = payload.get("edges_declared")
     if raw_declared is None:
-        edges_declared = True
+        edges_declared = False
     elif isinstance(raw_declared, bool):
         edges_declared = raw_declared
     else:

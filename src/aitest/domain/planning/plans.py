@@ -431,11 +431,14 @@ class Plan:
     initial_driver: RunDriver
     status: PlanPublicationStatus = PlanPublicationStatus.DRAFT
     confirmation_id: str | None = None
+    record_revision: int | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.plan_id, "plan_id")
         if self.revision < 1:
             raise ValueError("plan revision must be >= 1")
+        if self.record_revision is not None and self.record_revision < 1:
+            raise ValueError("plan record revision must be >= 1")
         if not self.case_revisions:
             raise ValueError("a plan must freeze at least one case revision")
         _require_unique(

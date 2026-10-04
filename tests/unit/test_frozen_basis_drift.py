@@ -41,7 +41,7 @@ def test_the_chain_covers_the_record_backed_sources() -> None:
     assert rest == (
         ["rule_versions"] * len(scenario.prepared_run.rule_versions)
         + [_TEMPLATE_BACKED] * len(scenario.prepared_run.template_versions)
-        + [_SNAPSHOT_BACKED]
+        + [_SNAPSHOT_BACKED, "project_revision", "acceptance_scope"]
     )
 
 
@@ -72,7 +72,10 @@ def test_a_persisted_snapshot_with_a_different_identity_is_missing() -> None:
             aggregate_kind="source_snapshot",
             record_id=snapshot_id,
             expected_revision=None,
-            payload={"content_identity": "sha256:something-else"},
+            payload={
+                "project_id": scenario.prepared_run.project_id,
+                "content_identity": "sha256:something-else",
+            },
         )
         tx.commit()
 
@@ -91,7 +94,10 @@ def test_a_persisted_snapshot_with_the_frozen_identity_is_readable() -> None:
             aggregate_kind="source_snapshot",
             record_id=snapshot.source_snapshot_id,
             expected_revision=None,
-            payload={"content_identity": snapshot.content_identity},
+            payload={
+                "project_id": scenario.prepared_run.project_id,
+                "content_identity": snapshot.content_identity,
+            },
         )
         tx.commit()
 
@@ -205,7 +211,8 @@ def test_sources_without_evidence_are_listed_as_uncovered() -> None:
     scenario = build_scenario("git")
     report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
     assert report.uncovered == UNCOVERED_SOURCES
-    assert set(report.uncovered) == {"project_revision", "acceptance_scope"}
+    assert report.uncovered == ()
+    assert {"project_revision", "acceptance_scope"} <= {c.source_kind for c in report.checks}
     # 已经纳入核对的类别**不得**再出现在未覆盖里。
     for kind in (
         "case_revisions",

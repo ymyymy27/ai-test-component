@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 from aitest.application.errors import WorkspaceInUse
 
@@ -29,6 +29,15 @@ class CoreLauncher(Protocol):
     """核心启动器协议：启动子进程并返回 instance_id。"""
 
     def start(self, workspace_id: str) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CoreStartupObservation:
+    """Optional launcher observation; readiness still requires a verified connection."""
+
+    state: Literal["starting", "exited", "unknown"]
+    exit_code: int | None = None
+    reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +81,15 @@ class EditorHost:
                 if instance_id != expected_instance:
                     raise WorkspaceInUse("核心实例身份与启动事实不一致")
                 return CoreEndpoint(workspace_id, instance_id, connection)
+            observe = getattr(self._launcher, "observe_start", None)
+            if callable(observe):
+                fact = observe(expected_instance)
+                if isinstance(fact, CoreStartupObservation):
+                    if fact.state == "exited":
+                        code = str(fact.exit_code) if fact.exit_code is not None else "unknown"
+                        raise WorkspaceInUse(f"核心已退出，exit_code={code}")
+                    if fact.state == "unknown":
+                        raise WorkspaceInUse("核心启动进程身份无法核实，保留现场待恢复")
             time.sleep(self._poll)
 
         raise WorkspaceInUse("核心启动后在限定时间内不可连接")
@@ -81,6 +99,7 @@ __all__ = [
     "Connector",
     "CoreEndpoint",
     "CoreLauncher",
+    "CoreStartupObservation",
     "EditorHost",
     "WorkspaceInUse",
 ]

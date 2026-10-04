@@ -37,6 +37,7 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
+from aitest.application.errors import WorkspaceInUse
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.responses import Response
@@ -84,9 +85,7 @@ def _safe_request_id(obj: object) -> str:
     return _FALLBACK_REQUEST_ID
 
 
-def _protocol_error(
-    api: LocalAPI, request_id: str, code: str, message: str
-) -> Response:
+def _protocol_error(api: LocalAPI, request_id: str, code: str, message: str) -> Response:
     return Response(
         request_id=request_id,
         instance_id=api.instance_id,
@@ -99,9 +98,7 @@ def _protocol_error(
     )
 
 
-def dispatch_frame(
-    api: LocalAPI, session: Session, payload: bytes
-) -> Response | ShutdownControl:
+def dispatch_frame(api: LocalAPI, session: Session, payload: bytes) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
     - 非法 UTF-8 / JSON / 非对象帧 → ``MALFORMED_MESSAGE`` 错误响应；
@@ -143,9 +140,7 @@ def dispatch_frame(
     return api.dispatch(command, session)
 
 
-def classify_entry_kind(
-    image_basename: str | None, human_host_images: frozenset[str]
-) -> EntryKind:
+def classify_entry_kind(image_basename: str | None, human_host_images: frozenset[str]) -> EntryKind:
     """按对端进程映像事实归类入口；未知/取证失败按最小权限归类。"""
     if image_basename and image_basename in human_host_images:
         return EntryKind.HUMAN_UI
@@ -277,6 +272,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workspace-root", required=True)
     parser.add_argument("--workspace-id", required=True)
     parser.add_argument("--instance-id", required=True)
+    parser.add_argument("--launch-claim", action="store_true")
+    parser.add_argument("--instance-id-file", default=".core-instance-id")
     parser.add_argument(
         "--max-clients",
         type=int,
@@ -313,9 +310,7 @@ def main(argv: list[str] | None = None) -> int:
 
     human_host_images = set(_BUILT_IN_HUMAN_HOST_IMAGES)
     human_host_images.update(
-        item.strip().lower()
-        for item in args.human_host_images.split(",")
-        if item.strip()
+        item.strip().lower() for item in args.human_host_images.split(",") if item.strip()
     )
 
     # 延迟导入：bootstrap 反向延迟导入本模块（shutdown_endpoint），
@@ -323,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     from aitest.bootstrap import (
         CoreAssemblyBlocked,
         assemble_workspace_core,
+        await_core_launch_claim,
         registered_use_cases,
     )
     from aitest.interfaces.local.pipe import (
@@ -333,6 +329,17 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     workspace_root = Path(args.workspace_root)
+    if args.launch_claim:
+        try:
+            if not await_core_launch_claim(
+                workspace_root,
+                args.workspace_id,
+                args.instance_id,
+                instance_id_file=args.instance_id_file,
+            ):
+                return 7
+        except (OSError, WorkspaceInUse):
+            return 7
     try:
         # --workspace-id 是**管道地址**（可信宿主按工作空间身份命名，
         # 但运输层不承载身份校验）；持久工作空间身份由工作空间根目录的
@@ -351,9 +358,7 @@ def main(argv: list[str] | None = None) -> int:
 
     coordinator: ShutdownCoordinator | None = None
     if args.parent_pid:
-        coordinator = ShutdownCoordinator(
-            parent_pid=args.parent_pid, is_alive=process_exists
-        )
+        coordinator = ShutdownCoordinator(parent_pid=args.parent_pid, is_alive=process_exists)
         coordinator.start_watchdog()
 
     def _parent_lost_exit() -> int:
@@ -375,9 +380,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.max_clients and served >= args.max_clients:
                 return 0
             try:
-                server = NamedPipeServer(
-                    args.workspace_id, instance_id=args.instance_id
-                )
+                server = NamedPipeServer(args.workspace_id, instance_id=args.instance_id)
                 server.start()
             except PipeUnavailable:
                 # 同名管道仍被另一核心持有：唯一核心语义，本进程退出。
@@ -393,10 +396,7 @@ def main(argv: list[str] | None = None) -> int:
                     # 拒绝期间父进程可能已消亡，循环顶部统一检查。
                     continue
                 except PipeUnavailable:
-                    if (
-                        coordinator is not None
-                        and coordinator.exit_requested
-                    ):
+                    if coordinator is not None and coordinator.exit_requested:
                         return _parent_lost_exit()
                     raise
                 finally:
@@ -404,9 +404,7 @@ def main(argv: list[str] | None = None) -> int:
                         coordinator.unbind_accept()
                 # 对端身份核对通过后按进程映像事实归类入口（A-02）。
                 image_basename = server.peer_process_basename()
-                entry_kind = classify_entry_kind(
-                    image_basename, frozenset(human_host_images)
-                )
+                entry_kind = classify_entry_kind(image_basename, frozenset(human_host_images))
                 connection_no += 1
                 outcome = serve_connection(
                     server,

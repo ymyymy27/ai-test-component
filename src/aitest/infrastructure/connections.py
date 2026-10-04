@@ -15,21 +15,34 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import socket
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 from urllib.parse import urlparse
 
-from .security import guard_bytes
+from .security import UnsafeMaterialError, guard_value
 
 _FACT_SCHEMA = "aitest.connection-fact/1.0"
 _FACT_DIR = "diagnostics"
 _FACT_FILE = "connection-facts.jsonl"
+_FACT_KEYS = frozenset(
+    {
+        "schema",
+        "endpoint_address",
+        "reachable",
+        "elapsed_ms",
+        "error_kind",
+        "detail",
+        "source_session",
+        "observed_at",
+    }
+)
 
 
 class EndpointError(ValueError):
@@ -112,16 +125,12 @@ def classify_os_error(error: OSError) -> TransportErrorKind:
 class ConnectionProbe:
     """TCP 连接探测；只产生事实。"""
 
-    def probe(
-        self, endpoint: EndpointConfig, *, timeout_seconds: float = 2.0
-    ) -> TransportFact:
+    def probe(self, endpoint: EndpointConfig, *, timeout_seconds: float = 2.0) -> TransportFact:
         if timeout_seconds <= 0:
             raise EndpointError("timeout 必须为正")
         started = time.monotonic()
         try:
-            with socket.create_connection(
-                (endpoint.host, endpoint.port), timeout=timeout_seconds
-            ):
+            with socket.create_connection((endpoint.host, endpoint.port), timeout=timeout_seconds):
                 pass
         except OSError as error:
             kind = classify_os_error(error)
@@ -142,9 +151,7 @@ class ConnectionProbe:
 class ConnectionProbePort(Protocol):
     """连接探测端口；允许测试替身与其他探测实现结构替换。"""
 
-    def probe(
-        self, endpoint: EndpointConfig, *, timeout_seconds: float = 2.0
-    ) -> TransportFact: ...
+    def probe(self, endpoint: EndpointConfig, *, timeout_seconds: float = 2.0) -> TransportFact: ...
 
 
 class ConnectionMonitor:
@@ -242,24 +249,32 @@ class ConnectionFactStore:
         record = {
             "schema": _FACT_SCHEMA,
             "endpoint_address": endpoint_address,
-            "reachable": bool(fact.reachable),
-            "elapsed_ms": int(fact.elapsed_ms),
+            "reachable": fact.reachable,
+            "elapsed_ms": fact.elapsed_ms,
             "error_kind": fact.error_kind,
-            "detail": str(fact.detail)[:300],
+            "detail": fact.detail,
             "source_session": source_session,
             "observed_at": observed_at,
         }
+        _transport_fact(record)
+        safe, _changed = guard_value(record)
+        if not isinstance(safe, dict) or any(
+            safe.get(name) != record[name] for name in ("schema", "endpoint_address")
+        ):
+            raise UnsafeMaterialError("connection fact identity cannot be safely persisted")
+        _transport_fact(safe)
+        # Filter the complete field before truncating it or JSON escaping it.
+        # An escaped known value must not bypass the persistence boundary.
+        safe["detail"] = cast(str, safe["detail"])[:300]
         line = (
-            json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
+            json.dumps(safe, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n"
         ).encode("utf-8")
-        # A-09：错误文本可能回显带凭据的 URL/头，落盘前强制过滤。
-        line, _changed = guard_bytes(line)
         self._dir.mkdir(parents=True, exist_ok=True)
         with self._path.open("ab") as handle:
             handle.write(line)
             handle.flush()
             os.fsync(handle.fileno())
-        return record
+        return safe
 
     def load(self, endpoint_address: str) -> ConnectionState | None:
         """重建某端点的统一状态；无任何事实返回 None。"""
@@ -267,25 +282,20 @@ class ConnectionFactStore:
             return None
         attempts: list[TransportFact] = []
         observed = 0.0
-        for raw in self._path.read_bytes().splitlines():
-            if not raw.strip():
-                continue
-            record = json.loads(raw.decode("utf-8"))
-            if record.get("endpoint_address") != endpoint_address:
-                continue
-            attempts.append(
-                TransportFact(
-                    reachable=bool(record.get("reachable")),
-                    elapsed_ms=int(record.get("elapsed_ms", 0)),
-                    error_kind=(
-                        str(record["error_kind"])
-                        if record.get("error_kind") is not None
-                        else None
-                    ),
-                    detail=str(record.get("detail", "")),
-                )
-            )
-            observed = float(record.get("observed_at", 0.0))
+        with self._path.open("rb") as handle:
+            for raw in handle:
+                if not raw.strip():
+                    continue
+                if not raw.endswith(b"\n"):
+                    raise ValueError("connection fact tail is not durably delimited")
+                record = json.loads(raw.decode("utf-8"), object_pairs_hook=_fact_object)
+                if not isinstance(record, dict):
+                    raise ValueError("connection fact must be a JSON object")
+                fact = _transport_fact(record)
+                if record["endpoint_address"] != endpoint_address:
+                    continue
+                attempts.append(fact)
+                observed = float(record["observed_at"])
         if not attempts:
             return None
         return ConnectionState(
@@ -347,17 +357,14 @@ class LocalAPIConnectionBridge:
         """把一次探测结论落盘为不可变事实。"""
         error_message = state.get("last_error")
         raw_elapsed = state.get("elapsed_ms", 0)
-        elapsed_ms = (
-            int(raw_elapsed)
-            if isinstance(raw_elapsed, int | float)
-            else 0
-        )
+        if type(state.get("connected")) is not bool or type(raw_elapsed) is not int:
+            raise ValueError("connection projection lacks a typed transport fact")
         raw_kind = state.get("last_error_kind")
         self._store.append(
             endpoint_address=self._endpoint.base_address,
             fact=TransportFact(
-                reachable=bool(state.get("connected")),
-                elapsed_ms=elapsed_ms,
+                reachable=cast(bool, state["connected"]),
+                elapsed_ms=raw_elapsed,
                 error_kind=str(raw_kind) if raw_kind else None,
                 detail=(
                     str(error_message)[:300]
@@ -368,6 +375,46 @@ class LocalAPIConnectionBridge:
             source_session=self._source_session,
             observed_at=time.time(),
         )
+
+
+def _fact_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("connection fact has duplicate JSON fields")
+        result[key] = value
+    return result
+
+
+def _transport_fact(record: Mapping[str, object]) -> TransportFact:
+    if set(record) != _FACT_KEYS or record.get("schema") != _FACT_SCHEMA:
+        raise ValueError("connection fact schema cannot be verified")
+    address = record["endpoint_address"]
+    if not isinstance(address, str) or EndpointConfig.from_address(address).base_address != address:
+        raise ValueError("connection fact endpoint identity cannot be verified")
+    if type(record["reachable"]) is not bool:
+        raise ValueError("connection reachability must be a boolean fact")
+    elapsed = record["elapsed_ms"]
+    if type(elapsed) is not int or elapsed < 0:
+        raise ValueError("connection duration must be a nonnegative integer")
+    kind = record["error_kind"]
+    if kind is not None and (
+        not isinstance(kind, str) or kind not in {value.value for value in TransportErrorKind}
+    ):
+        raise ValueError("connection error classification cannot be verified")
+    if record["reachable"] is True and kind is not None:
+        raise ValueError("a successful transport fact cannot carry a failure classification")
+    detail, session = record["detail"], record["source_session"]
+    if not isinstance(detail, str) or not isinstance(session, str):
+        raise ValueError("connection metadata must be strings")
+    observed = record["observed_at"]
+    if (
+        type(observed) not in (int, float)
+        or not math.isfinite(cast(float, observed))
+        or cast(float, observed) < 0
+    ):
+        raise ValueError("connection observation time cannot be verified")
+    return TransportFact(record["reachable"], elapsed, kind, detail)
 
 
 __all__ = [

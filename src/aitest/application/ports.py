@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Protocol
 
 from aitest.application.planning.model_ports import (
+    CredentialResolution as CredentialResolution,
+)
+from aitest.application.planning.model_ports import (
+    CredentialStatus as CredentialStatus,
+)
+from aitest.application.planning.model_ports import (
     ModelCall as ModelCall,
 )
 from aitest.application.planning.model_ports import (
@@ -65,13 +71,10 @@ class TransactionPort(Protocol):
         project_id: str,
         intent_id: IntentId | None = None,
     ) -> Response: ...
-    def commit(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
-    def rollback(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def commit(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
+    def rollback(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
     def recover(self, *, workspace_id: str) -> Response: ...
+
 
 class StoragePort(Protocol):
     def append_record(
@@ -115,10 +118,9 @@ class StoragePort(Protocol):
         digest: str,
     ) -> bytes: ...
 
+
 class BackupPort(Protocol):
-    def inspect(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def inspect(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
     def create(
         self,
         *,
@@ -169,9 +171,8 @@ class IndexPort(Protocol):
 class QueryPort(Protocol):
     def dispatch(self, query: Query) -> Response: ...
     def list_events(self, query: Query) -> Response: ...
-    def capabilities(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> CapabilitySet: ...
+    def capabilities(self, *, request_id: RequestId, workspace_id: str) -> CapabilitySet: ...
+
 
 class LocalProtocolPort(Protocol):
     def dispatch(self, command: Command) -> Response: ...
@@ -187,6 +188,7 @@ class Clock(Protocol):
 
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
+
     def open(self, project_id: str) -> None: ...
     def commit_seq(self) -> str:
         """当前工作空间全局提交序号（``records.json`` 的 ``commit``）。
@@ -195,6 +197,7 @@ class WorkspaceUnitOfWork(Protocol):
         复用分支不暂存任何记录，但仍要按它判断业务顺序（不使用系统时间）。
         """
         ...
+
     def next_commit_seq(self) -> str:
         """本次提交后下一条暂存记录将得到的序号。
 
@@ -203,6 +206,7 @@ class WorkspaceUnitOfWork(Protocol):
         ``created_at_commit`` 写进不可变 payload。
         """
         ...
+
     def stage_record(
         self,
         *,
@@ -217,6 +221,7 @@ class WorkspaceUnitOfWork(Protocol):
 
 class RecordRepository(Protocol):
     """Immutable revisions and project-scoped pagination."""
+
     def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> object: ...
     def query(self, query: object) -> object: ...
     def current_revision(self, *, aggregate_kind: str, record_id: str) -> int:
@@ -292,6 +297,10 @@ class ExecutionPort(Protocol):
 
 
 class SpoolStreamWriter(Protocol):
+    def abort(self) -> None:
+        """Release the capture lease while preserving unconfirmed output for recovery."""
+        ...
+
     """Append filtered bytes to one output stream and seal blocks."""
 
     def append(self, content: bytes) -> tuple[OutputBlockRef, ...]: ...
@@ -433,17 +442,11 @@ class MaintenancePort(Protocol):
     active execution blocks migration.
     """
 
-    def check_integrity(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def check_integrity(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
-    def diagnose_space(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def diagnose_space(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
-    def preview_reclaim(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def preview_reclaim(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
     def reclaim(
         self,

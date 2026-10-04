@@ -8,10 +8,20 @@ from pathlib import Path
 
 from aitest.contracts.identity import IntentId, RequestId
 
-from ..security import KnownSecretRegistry, guard_value, known_secrets
+from ..security import KnownSecretRegistry, UnsafeMaterialError, guard_value, known_secrets
 from .events import FileEventJournal
 from .records import FileRecordRepository
 from .workspace import Workspace
+
+
+def _has_content_fingerprint(value: object) -> bool:
+    if isinstance(value, Mapping):
+        if any(key in value for key in ("content_digest", "projection_digest", "digest")):
+            return True
+        return any(_has_content_fingerprint(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_content_fingerprint(item) for item in value)
+    return False
 
 
 class FileUnitOfWork:
@@ -29,13 +39,11 @@ class FileUnitOfWork:
             （迁移过渡期使用）。
         :param registry: 已知凭据登记表，默认进程级全局表（A-09）。
         """
-        self._registry = registry or known_secrets()
+        self._registry = registry if registry is not None else known_secrets()
         self.workspace = Workspace(root)
         self.repo = FileRecordRepository(root, journal=journal)
         self.project: str | None = None
-        self.pending: list[
-            tuple[str, str, int | None, Mapping[str, object]]
-        ] = []
+        self.pending: list[tuple[str, str, int | None, Mapping[str, object]]] = []
         self.request_id: RequestId | None = None
         self.intent_id: IntentId | None = None
         self._lock_context: AbstractContextManager[object] | None = None
@@ -51,9 +59,7 @@ class FileUnitOfWork:
         intent_id: IntentId | None = None,
     ) -> dict[str, object]:
         if self._commit_uncertain:
-            raise RuntimeError(
-                "previous commit result is unknown; verify or rollback required"
-            )
+            raise RuntimeError("previous commit result is unknown; verify or rollback required")
         if self.project is not None:
             raise RuntimeError("transaction already open")
         if workspace_id is not None:
@@ -78,9 +84,7 @@ class FileUnitOfWork:
 
     def open(self, project_id: str) -> None:
         if self._commit_uncertain:
-            raise RuntimeError(
-                "previous commit result is unknown; verify or rollback required"
-            )
+            raise RuntimeError("previous commit result is unknown; verify or rollback required")
         if self.project is not None:
             raise RuntimeError("transaction already open")
         self.project = project_id
@@ -93,6 +97,16 @@ class FileUnitOfWork:
         （A-02 由 bootstrap 注入本对象），替代 B 侧的恢复巡检临时接法。
         """
         return self.repo.current_commit_sequence()
+
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int:
+        return self.repo.current_revision(aggregate_kind, record_id)
+
+    def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> object:
+        return self.repo.read(
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            revision=revision,
+        )
 
     def commit_seq(self) -> str:
         """当前提交序号（字符串）；未开事务也可读，冻结于 AB-001 §8.8。"""
@@ -118,15 +132,17 @@ class FileUnitOfWork:
         if self.project is None:
             raise RuntimeError("no open transaction")
         if self._commit_uncertain:
-            raise RuntimeError(
-                "previous commit result is unknown; verify or rollback required"
-            )
+            raise RuntimeError("previous commit result is unknown; verify or rollback required")
         current = self.repo.current_revision(aggregate_kind, record_id)
         if current != (expected_revision or 0):
             raise ValueError("revision conflict")
         # A-09 落盘前底线：业务记录 payload 经结构+已知凭据过滤后再暂存，
         # records.json 中不得出现凭据原文（后续投影/备份/导出只读安全副本）。
-        safe_payload, _changed = guard_value(dict(payload), self._registry)
+        safe_payload, changed = guard_value(dict(payload), self._registry)
+        if changed and _has_content_fingerprint(payload):
+            raise UnsafeMaterialError(
+                "fingerprinted record requires filtering before computing its digest"
+            )
         if not isinstance(safe_payload, Mapping):
             raise TypeError("guarded payload must remain a mapping")
         self.pending.append((aggregate_kind, record_id, current, safe_payload))
@@ -144,9 +160,7 @@ class FileUnitOfWork:
         if self.project is None or not self.pending:
             raise RuntimeError("nothing staged")
         if self._commit_uncertain:
-            raise RuntimeError(
-                "previous commit result is unknown; verify or rollback required"
-            )
+            raise RuntimeError("previous commit result is unknown; verify or rollback required")
         if self._lock_context is None:
             # 绝不允许在无 writer.lock 的状态下发布：两个交错 UOW 无锁提交
             # 会同时读到旧边界、互相覆盖并丢记录（A-12）。
@@ -221,6 +235,14 @@ class FileUnitOfWork:
                 project_id=self.project,
             )
             if committed is not None:
+                from .commit_manifest import FileCommitStore
+                from .publication_backend import FilePublicationBackend
+
+                if (
+                    FileCommitStore(self.workspace.root).read_current(verify_material=True)
+                    is not None
+                ):
+                    FilePublicationBackend(self.workspace.root).confirm_current()
                 result: dict[str, object] = {
                     "request_id": rid,
                     "state": "committed",
