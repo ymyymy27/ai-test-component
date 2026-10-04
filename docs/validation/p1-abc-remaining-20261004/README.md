@@ -37,3 +37,5 @@ uv build
 `*-before*.log`记录实际反例；部分初次测试写错临时夹具调用/路径，名称明确保留，后续`*-corrected`/`*-behavior`记录纠正后的实际输入。`full-pytest-current.log`为首轮2028 passed/37 failed/2 skipped，`full-regression-repairs.log`为修正真实对象/权威材料后的150 passed，`full-pytest-corrected.log`为第二轮2065 passed/2 skipped。不能把没有收集到测试、夹具错误或历史档案格式错误写成工程测试通过。
 
 静态检查、构建与wheel冒烟各有单独日志。所有真实AC状态未改变；不宣称本轮真实Trae、真实人工页面、物理掉电或供应方故障已经通过。
+
+- [model-response-resolution-2177/manifest.json](history/model-response-resolution-2177/manifest.json)：本轮完整Python为2177 passed、2 skipped（1298.72秒），包括全部27个新增补登记节点。Ruff、Mypy165文件、Schema/0.4.0版本、wheel/sdist、隔离wheel冒烟及现有VSIX面板字节核对通过。冻结354份工程文件、147个AST符号与170份原始记录；源码ZIP SHA256为`1b776098d8b2c559923a0cb4f87cc302bedda7d08816172436d8179af469dd06`，档案及当时工作区核对通过。原2项反例、fixture导入/关键字参数错误和首次中断全量均原样保留；未知维护活动标记、完整依赖/执行链及真实验收仍缺。

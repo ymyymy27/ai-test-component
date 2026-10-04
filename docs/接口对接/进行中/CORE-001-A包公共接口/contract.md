@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.3"
+contract_version: "1.4"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,15 +20,17 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.3
-日期：2026-10-04
+版本：1.4
+日期：2026-10-05
 状态：草案，待B/C/D确认  
+
+1.4补能力协商动作`resolve_model_response`及永久响应索引备份闭包，语义唯一引用AB-001 1.18。动作只补登记准确已保存响应，不需要模型/凭据/网络能力，不重发请求或产生执行授权；原依据无法证明时保留unresolved或安全历史。默认B暴露22动作，C/D及真实验收仍为partial，不能单方签为已完成。
 
 1.3补初始运行保存边界：C必须从准确已保存PreparedRun@1建立Run/Step及初始ExecutionFacts，按同一A工作单元提交运行、步骤、运行登记意图、当前快照引用和不可变快照；无需伪造一个Attempt或RecoveryCheckpoint来取得保存入口。运行/步骤身份包含项目、运行意图、用例与冻结步骤命名空间；同登记意图回读准确原快照，不用后续当前结果替代初始回执，同意图异准备材料拒绝。提交前失败不得留下已发布半套Run/Step/当前引用。
 
 初始登记保存NOT_STARTED/PENDING，无Attempt、授权消费、执行、独立核验或复用事实，M/S从B准确冻结，E/R/V为空，证据等级与实际source_binding_digest未知。来源固定/静态依据可核对不能代替实际解释器/入口/加载核验。该登记组件不单独暴露为start_run成功能力，默认start与可信授权、环境/实际执行消费接通后才协商支持。
 
-1.2按主责存储合同补共享StageableWorkspaceUnitOfWork，归属application/ports.py；B/C同用begin(request_id,project_id,workspace_id=None,intent_id=None)、stage_record、next_commit_seq、commit/rollback，不另建事务系统。原窄WorkspaceUnitOfWork保留兼容读取/调用，新默认源码及确认业务链冻结真实业务意图。实际核心epoch、完整提交清单、源码动作迁移及ModelResponseStore安全旁录边界引用AB-001 1.17，不在此另起定义。
+1.2按主责存储合同补共享StageableWorkspaceUnitOfWork，归属application/ports.py；B/C同用begin(request_id,project_id,workspace_id=None,intent_id=None)、stage_record、next_commit_seq、commit/rollback，不另建事务系统。原窄WorkspaceUnitOfWork保留兼容读取/调用，新默认源码及确认业务链冻结真实业务意图。实际核心epoch、完整提交清单、源码动作迁移及ModelResponseStore安全旁录边界引用AB-001 1.18，不在此另起定义。
 
 C串行轮询切片须有界（默认每次100次inspect），额度耗尽保留活动检查点及原句柄，不补未知或终态，不等待无限次轮询。再次推进先按保存意图核对原输入并inspect/collect；读取原活动意图不依赖新启动的来源/授权门禁，实际新执行仍须核对。活动未终止不启动第二个串行动作；完成后再调度依赖步骤。新动作前从权威当前运行控制事实判断是否允许调度，暂停/取消不消耗未用意图；切片额度不替代执行真实截止与停止确认。默认控制及真实宿主验收仍须另有业务证据。
 提供方：A包（本地核心底座）  

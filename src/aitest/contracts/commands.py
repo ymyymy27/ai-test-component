@@ -35,6 +35,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "save_rules",
         "publish_rules",
         "generate_draft",
+        "resolve_model_response",
         "save_plan",
         "publish_plan",
         "prepare_run",

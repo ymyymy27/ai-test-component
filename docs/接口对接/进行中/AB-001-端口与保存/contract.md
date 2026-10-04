@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.17"
+contract_version: "1.18"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -11,13 +11,13 @@ verification_status: not_run
 last_verified_commit: null
 blockers: []
 next_owner: A
-next_action: 默认来源、准备快照与受控依据确认已有组件证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
+next_action: 默认来源、准备快照与受控依据确认已有组件证据；未发布响应补登记已有受控证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
 ---
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.17
-日期：2026-10-04
+版本：1.18
+日期：2026-10-05
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
 状态：**三项归属与范围已由项目负责人裁定；默认业务链及完整保存闭包继续实现与对拍**
@@ -26,6 +26,12 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 ---
 
 ## 1 目的与前提
+
+1.18补未发布响应的受控补登记：新增能力协商动作`resolve_model_response`，参数为原`outbound_request_id`与准确`saved_response_ref`，命令expected_revision必须为1，并使用独立修复意图。只消费同项目原意图@1、完整generation_identity及A端口核对过的安全旁录，不发送模型请求，不依赖当前供应方/凭据可用性。缺依据、未知响应或伪造引用保持阻塞；不能从旧数字推定冻结依据。补登记重建原准确引用并核对正文摘要，在事务外观察实际源码，短事务内核对当前修订、目标占用与原意图；与正常发布共用一次原结果@2和草稿@1的原子提交。已提交的同响应只读回原结果，不重复写入。
+
+旁录保存的observed_currency和当前核对共同约束结果：曾失效的响应不能因源码回退重新升级；人工推进优先派生superseded_by_manual，其他失效为source_changed，只保存安全历史。补登记不产生动作授权、执行或有效验证。错误正文只保留原摘要/长度，旧旁录缺长度时保存null，不猜0。提交失败仍返回unresolved和原准确引用，不能重新固定损坏材料或放宽权威完整性守卫。
+
+`model-responses/`准确旁录索引与安全对象同属永久备份闭包；恢复需保留其原字节并逐项核对，不因只备份对象而丢失原请求到响应的索引。旧备份缺索引保持缺口，不猜对象归属。此动作及备份补闭包先用受控组件/故障注入验证，真实供应方、宿主与掉电恢复仍须独立验收。
 
 1.17补模型依据：默认模型生成的`source_revision>0`必须同时传现有SnapshotRef形状的`source_ref`（source_snapshot_id、purpose、content_identity、record_revision），按准确业务快照读取并冻结实际绑定/正文摘要；整数1本身不证明来源。`source_revision=0`只表示本次不使用源码，草稿RevisionContext.source_revision保存null，不能夹带SOURCE_SNIPPET。`base_manual_revision>0`必须传`manual_ref`（record_id、record_revision、content_digest），固定generated_content准确仓储修订及安全正文摘要；0可不引用人工正文，或以准确record_id/revision=0/content_digest=null冻结“尚无正文”。
 

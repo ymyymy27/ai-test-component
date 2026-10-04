@@ -1,0 +1,21 @@
+EE..................................................................     [100%]
+=================================== ERRORS ====================================
+_ ERROR at setup of test_pending_response_can_commit_without_provider_reissue _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 54
+  def test_pending_response_can_commit_without_provider_reissue(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:54
+_ ERROR at setup of test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 64
+  def test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration(
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:64
+=========================== short test summary info ===========================
+ERROR tests/unit/test_model_response_resolution.py::test_pending_response_can_commit_without_provider_reissue
+ERROR tests/unit/test_model_response_resolution.py::test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration

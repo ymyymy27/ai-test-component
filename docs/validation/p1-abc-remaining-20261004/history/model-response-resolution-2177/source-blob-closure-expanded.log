@@ -1,0 +1,26 @@
+......F............................................                      [100%]
+================================== FAILURES ===================================
+___ test_default_prepare_refuses_blob_loss_without_consuming_prepare_intent ___
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001985E265E10>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-542/test_default_prepare_refuses_b0/tested"))
+
+    def test_default_prepare_refuses_blob_loss_without_consuming_prepare_intent(authoritative):
+        core, inputs, _source = authoritative
+        saved = core.unit_of_work.repo.read(
+            aggregate_kind="source_snapshot", record_id=inputs.snapshot.source_snapshot_id, revision=1
+        )
+        path = blob_path(core.workspace.root, saved.payload)
+        path.write_bytes(b"VALUE = 9\n")
+        bad = path.read_bytes()
+        seq = core.unit_of_work.current_commit_sequence()
+        result = prepare(core, inputs)
+        assert result.error is None
+>       assert result.result["status"] == "needs_reprepare"
+E       AssertionError: assert 'blocked' == 'needs_reprepare'
+E         
+E         - needs_reprepare
+E         + blocked
+
+tests\unit\test_pinned_source_closure.py:111: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_pinned_source_closure.py::test_default_prepare_refuses_blob_loss_without_consuming_prepare_intent

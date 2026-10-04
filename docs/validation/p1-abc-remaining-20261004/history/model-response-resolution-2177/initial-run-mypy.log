@@ -1,0 +1,2 @@
+src\aitest\application\execution\registration.py:184: error: Need type annotation for "steps" (hint: "steps: list[<type>] = ...")  [var-annotated]
+Found 1 error in 1 file (checked 162 source files)

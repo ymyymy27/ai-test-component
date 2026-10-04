@@ -1,0 +1,354 @@
+EEEEEEEEEEEEEEEEEEEEEEEE                                                 [100%]
+=================================== ERRORS ====================================
+_ ERROR at setup of test_pending_response_can_commit_without_provider_reissue _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 62
+  def test_pending_response_can_commit_without_provider_reissue(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:62
+_ ERROR at setup of test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 78
+  def test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration(
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:78
+___ ERROR at setup of test_forged_response_reference_cannot_publish[digest] ___
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 100
+  @pytest.mark.parametrize("damage", ["digest", "size_bool", "owner", "path", "extra"])
+  def test_forged_response_reference_cannot_publish(model_stack, monkeypatch, damage):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:100
+_ ERROR at setup of test_forged_response_reference_cannot_publish[size_bool] __
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 100
+  @pytest.mark.parametrize("damage", ["digest", "size_bool", "owner", "path", "extra"])
+  def test_forged_response_reference_cannot_publish(model_stack, monkeypatch, damage):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:100
+___ ERROR at setup of test_forged_response_reference_cannot_publish[owner] ____
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 100
+  @pytest.mark.parametrize("damage", ["digest", "size_bool", "owner", "path", "extra"])
+  def test_forged_response_reference_cannot_publish(model_stack, monkeypatch, damage):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:100
+____ ERROR at setup of test_forged_response_reference_cannot_publish[path] ____
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 100
+  @pytest.mark.parametrize("damage", ["digest", "size_bool", "owner", "path", "extra"])
+  def test_forged_response_reference_cannot_publish(model_stack, monkeypatch, damage):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:100
+___ ERROR at setup of test_forged_response_reference_cannot_publish[extra] ____
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 100
+  @pytest.mark.parametrize("damage", ["digest", "size_bool", "owner", "path", "extra"])
+  def test_forged_response_reference_cannot_publish(model_stack, monkeypatch, damage):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:100
+_____ ERROR at setup of test_reconciliation_requires_original_revision[0] _____
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 121
+  @pytest.mark.parametrize("expected", [0, 2])
+  def test_reconciliation_requires_original_revision(model_stack, monkeypatch, expected):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:121
+_____ ERROR at setup of test_reconciliation_requires_original_revision[2] _____
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 121
+  @pytest.mark.parametrize("expected", [0, 2])
+  def test_reconciliation_requires_original_revision(model_stack, monkeypatch, expected):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:121
+__ ERROR at setup of test_current_source_change_keeps_only_original_history ___
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 130
+  def test_current_source_change_keeps_only_original_history(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:130
+_ ERROR at setup of test_observed_expiry_cannot_be_promoted_when_source_reverts _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 143
+  def test_observed_expiry_cannot_be_promoted_when_source_reverts(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:143
+________ ERROR at setup of test_manual_advance_wins_over_source_change ________
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 156
+  def test_manual_advance_wins_over_source_change(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:156
+_________ ERROR at setup of test_occupied_target_keeps_human_content __________
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 171
+  def test_occupied_target_keeps_human_content(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:171
+_ ERROR at setup of test_lost_source_blob_does_not_repin_or_weaken_current_guard _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 192
+  def test_lost_source_blob_does_not_repin_or_weaken_current_guard(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:192
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[provider_call_started-unknown] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[observed_currency-unknown] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[call_status-passed] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[draft_text-7] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[error_detail_chars-True] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[error_detail_digest-not-a-digest] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[extra-invented] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_malformed_saved_response_cannot_publish[credential_filter-value7] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 207
+  @pytest.mark.parametrize(
+      "field,value",
+      [
+          ("provider_call_started", "unknown"),
+          ("observed_currency", "unknown"),
+          ("call_status", "passed"),
+          ("draft_text", 7),
+          ("error_detail_chars", True),
+          ("error_detail_digest", "not-a-digest"),
+          ("extra", "invented"),
+          (
+              "credential_filter",
+              {"policy": "known-values@1", "filtered": False, "replacements": True},
+          ),
+      ],
+  )
+  def test_malformed_saved_response_cannot_publish(model_stack, monkeypatch, field, value):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:207
+_ ERROR at setup of test_legacy_receipt_missing_error_length_preserves_unknown _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 242
+  def test_legacy_receipt_missing_error_length_preserves_unknown(model_stack, monkeypatch):
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:242
+_ ERROR at setup of test_recovery_publication_failure_preserves_receipt_for_next_resolution _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py, line 259
+  def test_recovery_publication_failure_preserves_receipt_for_next_resolution(
+E       fixture 'model_stack' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_model_response_resolution.py:259
+=========================== short test summary info ===========================
+ERROR tests/unit/test_model_response_resolution.py::test_pending_response_can_commit_without_provider_reissue
+ERROR tests/unit/test_model_response_resolution.py::test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration
+ERROR tests/unit/test_model_response_resolution.py::test_forged_response_reference_cannot_publish[digest]
+ERROR tests/unit/test_model_response_resolution.py::test_forged_response_reference_cannot_publish[size_bool]
+ERROR tests/unit/test_model_response_resolution.py::test_forged_response_reference_cannot_publish[owner]
+ERROR tests/unit/test_model_response_resolution.py::test_forged_response_reference_cannot_publish[path]
+ERROR tests/unit/test_model_response_resolution.py::test_forged_response_reference_cannot_publish[extra]
+ERROR tests/unit/test_model_response_resolution.py::test_reconciliation_requires_original_revision[0]
+ERROR tests/unit/test_model_response_resolution.py::test_reconciliation_requires_original_revision[2]
+ERROR tests/unit/test_model_response_resolution.py::test_current_source_change_keeps_only_original_history
+ERROR tests/unit/test_model_response_resolution.py::test_observed_expiry_cannot_be_promoted_when_source_reverts
+ERROR tests/unit/test_model_response_resolution.py::test_manual_advance_wins_over_source_change
+ERROR tests/unit/test_model_response_resolution.py::test_occupied_target_keeps_human_content
+ERROR tests/unit/test_model_response_resolution.py::test_lost_source_blob_does_not_repin_or_weaken_current_guard
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[provider_call_started-unknown]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[observed_currency-unknown]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[call_status-passed]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[draft_text-7]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[error_detail_chars-True]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[error_detail_digest-not-a-digest]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[extra-invented]
+ERROR tests/unit/test_model_response_resolution.py::test_malformed_saved_response_cannot_publish[credential_filter-value7]
+ERROR tests/unit/test_model_response_resolution.py::test_legacy_receipt_missing_error_length_preserves_unknown
+ERROR tests/unit/test_model_response_resolution.py::test_recovery_publication_failure_preserves_receipt_for_next_resolution

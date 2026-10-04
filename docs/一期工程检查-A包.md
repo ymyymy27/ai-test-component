@@ -53,3 +53,5 @@
 继续处理当前 7 项具体剩余边界；优先权威实际来源、启动授权/依赖/复用同提交、运行修订与受控默认入口，再补真实环境证据。已关闭代码问题从当前表移出，根因、源码/测试和故障分支保留在[修复证据清单](ABC包问题修复证据清单-2026-10-03.md)及详细修改日志，不重排问题编号或降低FR/AC完成条件。
 
 前次Windows发布阶段（历史）：1967 passed、2 skipped（333.34s），解析修复前提交/Windows/迁移专项97 passed（98.37s），解析修复后新增2场景通过（2.42s）；Ruff和mypy138文件、生成物、wheel/sdist构建、制品字节对拍及隔离wheel冒烟通过。面板/VSIX源未改，沿用前轮日志并对拍字节，未声明重新构建。 39个新增场景包括真实ReplaceFileW/只读句柄及共享拒绝、严格字段、旧格式迁移、缺current/备份损坏、刷盘失效和真实子进程切点。见[阶段证据](validation/p1-abc-fix-20261003/WINDOWS-PUBLICATION.md)。A-05保持partial，真实AC未改变。
+
+2026-10-05补登记后续阶段：本轮完整Python为2177 passed、2 skipped（1298.72秒），包括全部27个新增补登记节点。Ruff、Mypy165文件、Schema/0.4.0版本、wheel/sdist、隔离wheel冒烟及现有VSIX面板字节核对通过。准确源码见[2177项阶段清单](validation/p1-abc-remaining-20261004/history/model-response-resolution-2177/manifest.json)。原阶段档案不改写，真实AC仍0/35，22项产品完成条件未整项关闭。

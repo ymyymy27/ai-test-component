@@ -84,6 +84,7 @@ from aitest.application.planning.model_ports import (
     MaterialProjector,
     ModelCaller,
 )
+from aitest.application.planning.model_response_resolution import resolve_model_response
 from aitest.application.planning.persistence import (
     save_acceptance_scope,
     save_case,
@@ -192,6 +193,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_task",
         "save_delivery",
         "generate_draft",
+        "resolve_model_response",
         "save_model_outbound_policy",
         "export_rules",
         "export_rules_markdown",
@@ -1738,6 +1740,44 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             "content": _generated_content(result.content) if result.content is not None else None,
         }
 
+    def handle_resolve_model_response(command: object) -> Mapping[str, object]:
+        if deps.model_responses is None:
+            return {
+                "blocked": True,
+                "status": "blocked",
+                "blocked_by": ["response_store_unavailable"],
+            }
+        parameters = _command_parameters(command)
+        if getattr(command, "expected_revision", None) != 1:
+            raise BUseCaseError("B_INVALID_PARAMETER", "original intent revision must be 1")
+        try:
+            result = resolve_model_response(
+                project_id=_command_project_id(command),
+                request_id=_as_text(
+                    _required(parameters, "outbound_request_id"), "outbound_request_id"
+                ),
+                expected_revision=1,
+                saved_response_ref=_as_mapping(
+                    _required(parameters, "saved_response_ref"), "saved_response_ref"
+                ),
+                reader=deps.reader,
+                unit_of_work=deps.unit_of_work,
+                response_store=deps.model_responses,
+                sources=deps.source_analysis,
+            )
+        except (ValueError, TypeError, KeyError, OSError) as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "original model intent unavailable"
+            ) from error
+        return {
+            "blocked": result.content is None,
+            "status": result.status,
+            "blocked_by": list(result.blocked_by),
+            "response_currency": result.response_currency,
+            "saved_response_ref": result.saved_response_ref,
+            "content": _generated_content(result.content) if result.content is not None else None,
+        }
+
     actions: dict[str, Handler] = {
         "save_context": _guard(handle_save_context),
         "save_binding": _guard(handle_save_binding),
@@ -1748,6 +1788,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_task": _guard(handle_save_task),
         "save_delivery": _guard(handle_save_delivery),
         "generate_draft": _guard(handle_generate_draft),
+        "resolve_model_response": _guard(handle_resolve_model_response),
         "save_model_outbound_policy": _guard(handle_model_policy),
         "export_rules": _guard(handle_export_rules),
         "export_rules_markdown": _guard(handle_export_rules_markdown),

@@ -1,0 +1,45 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [  9%]
+........................................................................ [ 13%]
+...............................................s................s....... [ 16%]
+........................................................................ [ 19%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 46%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+........................................................................ [ 56%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 95%]
+........................................................................ [ 99%]
+...................                                                      [100%]
+============================ slowest 12 durations =============================
+18.83s call     tests/unit/test_sharded_record_authority.py::test_exact_read_and_healthy_commit_never_traverse_unrelated_history
+15.82s call     tests/unit/test_initial_run_registration.py::test_explicit_new_run_intent_has_distinct_run_and_step_namespace
+14.84s call     tests/unit/test_initial_run_registration.py::test_same_run_intent_cannot_be_rebound_to_different_preparation
+12.91s call     tests/unit/test_model_basis_authority.py::test_actual_manual_revision_during_model_call_wins_and_response_is_history
+12.54s call     tests/unit/test_initial_run_registration.py::test_registration_recall_reads_original_snapshot_even_if_current_has_advanced
+11.66s call     tests/unit/test_model_response_resolution.py::test_manual_advance_wins_over_source_change
+11.27s call     tests/unit/test_initial_run_registration.py::test_initial_publication_failure_leaves_no_run_step_or_current_authority
+11.21s call     tests/unit/test_initial_run_registration.py::test_initial_run_recall_survives_restart_and_active_source_change
+9.57s call     tests/unit/test_initial_run_registration.py::test_initial_run_step_and_current_snapshot_publish_once_without_attempt
+9.32s call     tests/unit/test_model_response_resolution.py::test_pending_response_can_commit_without_provider_reissue
+9.26s call     tests/unit/test_model_basis_authority.py::test_model_checks_actual_source_only_outside_short_write_transaction
+9.16s setup    tests/unit/test_initial_run_registration.py::test_same_run_intent_cannot_be_rebound_to_different_preparation
+2177 passed, 2 skipped in 1298.72s (0:21:38)

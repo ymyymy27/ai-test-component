@@ -62,6 +62,7 @@ _PERMANENT_DIRS: Final = frozenset(
         # 投影，恢复后列表不得退回 INDEX_REBUILD_REQUIRED。
         "indexes",
         "execution-handles",
+        "model-responses",
         "record-store",
     }
 )

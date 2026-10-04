@@ -785,6 +785,7 @@ def request_model_draft(
     )
     filter_fact = _credential_filter_payload(replacements)
 
+    observed_currency = current_currency()
     saved_response_ref: Mapping[str, object] | None = None
     if response_store is not None:
         try:
@@ -801,7 +802,8 @@ def request_model_draft(
                         "error_detail_digest": text_digest(result.error_detail),
                         "credential_filter": filter_fact,
                         "provider_call_started": provider_call_started,
-                        "observed_currency": current_currency().value,
+                        "observed_currency": observed_currency.value,
+                        "error_detail_chars": len(result.error_detail),
                     },
                 )
             )
@@ -815,12 +817,101 @@ def request_model_draft(
                 ),
             )
 
+    return _publish_model_response(
+        request=request,
+        result=result,
+        identity=identity,
+        unit_of_work=unit_of_work,
+        reader=reader,
+        intent_revision=intent_revision,
+        draft_kind=draft_kind,
+        template_ref=template_ref,
+        project_revision=project_revision,
+        binding_revision=binding_revision,
+        source_revision=source_revision,
+        basis=basis,
+        current_currency=current_currency,
+        slot_available=slot_available,
+        filtered_text=filtered_text,
+        filter_fact=filter_fact,
+        provider_call_started=provider_call_started,
+        saved_response_ref=saved_response_ref,
+        observed_currency=observed_currency,
+        error_detail_digest=text_digest(result.error_detail),
+        error_detail_chars=len(result.error_detail),
+    )
+
+
+def _combined_currency(observed: ResponseCurrency, current: ResponseCurrency) -> ResponseCurrency:
+    """An observed expiry cannot be promoted when the active basis later reverts."""
+    return response_currency_from_facts(
+        manual_advanced=ResponseCurrency.SUPERSEDED_BY_MANUAL in {observed, current},
+        source_matches=observed is current is ResponseCurrency.CURRENT,
+    )
+
+
+def _recall_outcome(
+    reader: RecordReader, request: OutboundRequest, payload: Mapping[str, object]
+) -> OutboundOutcome:
+    currency = ResponseCurrency(str(payload.get("response_currency")))
+    content = (
+        _recall_existing_draft(reader, project_id=request.project_id, payload=payload)
+        if currency is ResponseCurrency.CURRENT and payload.get("call_status") == "ok"
+        else None
+    )
+    saved_ref = payload.get("saved_response_ref")
+    return OutboundOutcome(
+        status=OUTBOUND_DRAFT_READY if content is not None else OUTBOUND_BLOCKED,
+        request=request,
+        content=content,
+        response_currency=currency,
+        blocked_by=() if content is not None else ("saved response is history or unavailable",),
+        reused_from=payload,
+        saved_response_ref=saved_ref if isinstance(saved_ref, Mapping) else None,
+    )
+
+
+def _publish_model_response(
+    *,
+    request: OutboundRequest,
+    result: ModelCallResult,
+    identity: Mapping[str, object],
+    unit_of_work: UnitOfWork,
+    reader: RecordReader,
+    intent_revision: int,
+    draft_kind: str,
+    template_ref: TemplateRef | None,
+    project_revision: int,
+    binding_revision: int | None,
+    source_revision: int,
+    basis: ModelGenerationBasis | None,
+    current_currency: Callable[[], ResponseCurrency],
+    slot_available: Callable[[], bool],
+    filtered_text: str,
+    filter_fact: Mapping[str, object],
+    provider_call_started: bool,
+    saved_response_ref: Mapping[str, object] | None,
+    observed_currency: ResponseCurrency,
+    error_detail_digest: object,
+    error_detail_chars: int | None,
+) -> OutboundOutcome:
+    """Normal and recovered responses share one atomic original-result publication."""
+    project_id = request.project_id
     # 步骤 8：提交安全响应；成功时把草稿正文与其引用放在**同一次提交**里。
     content: GeneratedContent | None = None
     currency = ResponseCurrency.CURRENT
     try:
         with transaction(unit_of_work, project_id) as tx:
-            currency = current_currency()
+            existing = _current_payload(reader, project_id=project_id, record_id=request.request_id)
+            if existing is None or existing.get("generation_identity") != identity:
+                raise ValueError("original model intent cannot be verified")
+            if existing.get("state") == OUTBOUND_STATE_OUTCOME:
+                if existing.get("saved_response_ref") != saved_response_ref:
+                    raise ValueError("another response already owns the original outcome")
+                return _recall_outcome(reader, request, existing)
+            if existing.get("state") != OUTBOUND_STATE_INTENT:
+                raise ValueError("original model intent state cannot be verified")
+            currency = _combined_currency(observed_currency, current_currency())
             if currency is ResponseCurrency.CURRENT and not slot_available():
                 currency = ResponseCurrency.SUPERSEDED_BY_MANUAL
             usable = result.status is ModelCallStatus.OK and currency is ResponseCurrency.CURRENT
@@ -841,6 +932,8 @@ def request_model_draft(
                         generated_content_revision=(intent_revision if usable else None),
                         credential_filter=filter_fact,
                     ),
+                    "error_detail_digest": error_detail_digest,
+                    "error_detail_chars": error_detail_chars,
                     "response_currency": currency.value,
                     "provider_call_started": provider_call_started,
                     "saved_response_ref": saved_response_ref,
@@ -917,7 +1010,12 @@ def request_model_draft(
         )
 
     assert content is not None
-    return OutboundOutcome(status=OUTBOUND_DRAFT_READY, request=request, content=content)
+    return OutboundOutcome(
+        status=OUTBOUND_DRAFT_READY,
+        request=request,
+        content=content,
+        saved_response_ref=saved_response_ref,
+    )
 
 
 def _template_version(template_ref: TemplateRef | None) -> str:
