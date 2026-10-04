@@ -1,0 +1,13 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_default_prepared_snapshot_is_saved_atomically_and_recalled_after_restart _
+tests\unit\test_authoritative_preparation.py:114: in test_default_prepared_snapshot_is_saved_atomically_and_recalled_after_restart
+    assert core.unit_of_work.repo.current_revision("prepared_run", result["prepared_run_id"]) == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = current_revision('prepared_run', 'prepared-1accaf884dacfd962726b72f1451d82c10241a94')
+E    +    where current_revision = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x000001E3B4323CE0>.current_revision
+E    +      where <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x000001E3B4323CE0> = <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001E3B43D8050>.repo
+E    +        where <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001E3B43D8050> = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001E3B43D92B0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001E3B43D8C20>).unit_of_work
+=========================== short test summary info ===========================
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepared_snapshot_is_saved_atomically_and_recalled_after_restart
+1 failed, 7 deselected in 14.72s

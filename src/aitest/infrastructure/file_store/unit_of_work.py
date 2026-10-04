@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from pathlib import Path
 
+from aitest.application.errors import WorkspaceInUse
 from aitest.contracts.identity import IntentId, RequestId
 
 from ..security import KnownSecretRegistry, UnsafeMaterialError, guard_value, known_secrets
@@ -31,6 +33,7 @@ class FileUnitOfWork:
         *,
         journal: FileEventJournal | None = None,
         registry: KnownSecretRegistry | None = None,
+        expected_writer_epoch: int | None = None,
     ) -> None:
         """文件 UOW。
 
@@ -50,8 +53,29 @@ class FileUnitOfWork:
         #: 上一次 commit 发布结果未知（提交抛错且锁已释放）。此时禁止
         #: 无锁重试/继续暂存，只能重新持锁核实权威边界或回滚（A-12）。
         self._commit_uncertain = False
+        self._expected_writer_epoch = expected_writer_epoch
+        self._transaction_writer_epoch: int | None = None
+        self._state_guard = threading.Lock()
+        self._owns_state_guard = False
+        self._transaction_thread: int | None = None
 
     def begin(
+        self,
+        request_id: RequestId,
+        project_id: str,
+        workspace_id: str | None = None,
+        intent_id: IntentId | None = None,
+    ) -> dict[str, object]:
+        if not self._state_guard.acquire(blocking=False):
+            raise WorkspaceInUse("workspace unit of work is busy; retry the same intent")
+        self._owns_state_guard = True
+        try:
+            return self._begin(request_id, project_id, workspace_id, intent_id)
+        except BaseException:
+            self._release()
+            raise
+
+    def _begin(
         self,
         request_id: RequestId,
         project_id: str,
@@ -64,9 +88,15 @@ class FileUnitOfWork:
             raise RuntimeError("transaction already open")
         if workspace_id is not None:
             self.workspace.validate(workspace_id)
-        self._lock_context = self.workspace.acquire()
-        self._lock_context.__enter__()
+        self._lock_context = self.workspace.acquire(expected_epoch=self._expected_writer_epoch)
         try:
+            self._transaction_thread = threading.get_ident()
+            self._lock_context.__enter__()
+        except BaseException:
+            self._lock_context = None
+            raise
+        try:
+            self._transaction_writer_epoch = self.workspace.identity["writer_epoch"]
             self.request_id = request_id
             self.intent_id = intent_id
             self.open(project_id)
@@ -129,6 +159,7 @@ class FileUnitOfWork:
         expected_revision: int | None,
         payload: Mapping[str, object],
     ) -> int:
+        self._check_transaction_thread()
         if self.project is None:
             raise RuntimeError("no open transaction")
         if self._commit_uncertain:
@@ -153,6 +184,7 @@ class FileUnitOfWork:
         request_id: RequestId | None = None,
         workspace_id: str | None = None,
     ) -> dict[str, object]:
+        self._check_transaction_thread()
         if request_id is not None and request_id != self.request_id:
             raise RuntimeError("request_id does not own transaction")
         if workspace_id is not None:
@@ -166,6 +198,13 @@ class FileUnitOfWork:
             # 会同时读到旧边界、互相覆盖并丢记录（A-12）。
             raise RuntimeError("commit requires the writer lock")
         assert self.request_id is not None
+        assert self._transaction_writer_epoch is not None
+        try:
+            self.workspace.validate_writer_epoch(self._transaction_writer_epoch)
+        except BaseException:
+            # Identity rejection happens before publication; no commit is uncertain.
+            self._release()
+            raise
         try:
             created, commit_sequence = self.repo.commit_transaction(
                 self.pending,
@@ -173,7 +212,7 @@ class FileUnitOfWork:
                 intent_id=self.intent_id,
                 project_id=self.project,
                 workspace_id=self.workspace.workspace_id,
-                writer_epoch=self.workspace.identity.get("writer_epoch", 1),
+                writer_epoch=self._transaction_writer_epoch,
             )
         except BaseException:
             # 发布结果未知：先释放锁允许他者工作，但本实例进入“仅核实/
@@ -200,6 +239,7 @@ class FileUnitOfWork:
         request_id: RequestId | None = None,
         workspace_id: str | None = None,
     ) -> dict[str, object]:
+        self._check_transaction_thread()
         if request_id is not None and request_id != self.request_id:
             raise RuntimeError("request_id does not own transaction")
         if workspace_id is not None:
@@ -225,10 +265,20 @@ class FileUnitOfWork:
         return rollback_result
 
     def _resolve_uncertain(self) -> dict[str, object]:
+        if not self._state_guard.acquire(blocking=False):
+            raise WorkspaceInUse("workspace unit of work is busy; verify the same intent later")
+        self._owns_state_guard = True
+        self._transaction_thread = threading.get_ident()
+        try:
+            return self._read_uncertain()
+        finally:
+            self._release()
+
+    def _read_uncertain(self) -> dict[str, object]:
         """重新持锁核实未知提交的权威结果，再决定已提交或回滚。"""
         rid = self.request_id
         iid = self.intent_id
-        with self.workspace.acquire():
+        with self.workspace.acquire(expected_epoch=self._expected_writer_epoch):
             committed = self.repo.find_committed_request(
                 request_id=rid,
                 intent_id=iid,
@@ -273,3 +323,15 @@ class FileUnitOfWork:
         if self._lock_context is not None:
             self._lock_context.__exit__(None, None, None)
             self._lock_context = None
+        self._transaction_writer_epoch = None
+        self._transaction_thread = None
+        if self._owns_state_guard:
+            self._owns_state_guard = False
+            self._state_guard.release()
+
+    def _check_transaction_thread(self) -> None:
+        if (
+            self._transaction_thread is not None
+            and self._transaction_thread != threading.get_ident()
+        ):
+            raise WorkspaceInUse("transaction must finish on its owning core thread")

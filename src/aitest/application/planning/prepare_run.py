@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -277,6 +277,8 @@ def prepare_run(
     reader: RecordReader,
     clock: Clock,
     existing: PreparedRun | None = None,
+    basis_verifier: Callable[[PreparedRun], tuple[BlockingReason, ...]] | None = None,
+    persist_snapshot: bool = False,
 ) -> PreparedRun:
     """编排一次准备；返回可直接展示的 `PreparedRun`。
 
@@ -379,7 +381,37 @@ def prepare_run(
             invalidation_rules=_invalidation_rules_for(decision.changed_inputs),
         )
 
+    candidate = _build(
+        inputs,
+        intent_id=intent_id,
+        digest=digest,
+        created_at=now,
+        created_at_commit=unit_of_work.commit_seq(),
+        status=_STATUS_PREPARED,
+    )
+    if basis_verifier is not None:
+        reasons = basis_verifier(candidate)
+        if reasons:
+            return candidate.model_copy(
+                update={
+                    "status": _STATUS_BLOCKED,
+                    "blocking_reasons": reasons,
+                }
+            )
+
     if decision.decision is PreparationDecision.REUSED:
+        if persist_snapshot and existing is None:
+            return candidate.model_copy(
+                update={
+                    "status": _STATUS_BLOCKED,
+                    "blocking_reasons": (
+                        BlockingReason(
+                            code="needs_reprepare",
+                            message="Legacy intent has no saved PreparedRun.",
+                        ),
+                    ),
+                }
+            )
         if existing is not None and existing.scope_id is None:
             return _build(
                 inputs,
@@ -411,6 +443,27 @@ def prepare_run(
     # 用事务上下文而不是裸 `open()`：真实底座的 `open()` 会取工作空间级排他写锁，
     # 这里若抛异常或提前返回，锁必须还回去（`substrate.Transaction` 负责收尾）。
     with transaction(unit_of_work, inputs.project_id) as tx:
+        if basis_verifier is not None:
+            reasons = basis_verifier(candidate)
+            if reasons:
+                return candidate.model_copy(
+                    update={
+                        "status": _STATUS_BLOCKED,
+                        "blocking_reasons": reasons,
+                    }
+                )
+        if persist_snapshot:
+            candidate = candidate.model_copy(
+                update={
+                    "created_at_commit": str(int(tx.next_commit_seq()) + 1),
+                }
+            )
+            tx.stage_record(
+                aggregate_kind="prepared_run",
+                record_id=candidate.prepared_run_id,
+                expected_revision=None,
+                payload=candidate.model_dump(mode="json"),
+            )
         tx.stage_preparation(
             record=PreparationRecord(
                 request=PreparationRequest(
@@ -433,6 +486,10 @@ def prepare_run(
         )
         result = tx.commit()
 
+    if persist_snapshot:
+        if candidate.created_at_commit != result.commit_seq:
+            raise RuntimeError("saved preparation commit boundary differs from actual commit")
+        return candidate
     return _build(
         inputs,
         intent_id=intent_id,

@@ -21,6 +21,7 @@ from aitest.domain.execution.runs import (
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.persistent_evidence_fixture import OUTPUT_DIGEST, save_fixture_bytes
 from tests.unit.test_current_execution_snapshot import _batch, _publish
 from tests.unit.test_serial_runner import FakeExecutionPort, _request
 
@@ -43,6 +44,7 @@ def _record(attempt, stage="completed"):
 
 def _saved_graph(root, middle_state=AttemptState.COMPLETED):
     unit = FileUnitOfWork(root)
+    save_fixture_bytes(root)
     coordinator = ExecutionCommitCoordinator(unit)
     batch = _batch()
     first = replace(batch.checkpoint.attempt, capture_completeness=CaptureCompleteness.COMPLETE)
@@ -55,7 +57,7 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED):
                 step_id=f"step-{index}",
                 intent_id=f"intent-{index}",
                 step_revision_ref=StepRevisionRef(f"step-rev-{index}", 1, f"sha256:step-{index}"),
-                consumed_outputs=(ConsumedOutput("attempt-1", "sha256:output-a", "value:a"),)
+                consumed_outputs=(ConsumedOutput("attempt-1", OUTPUT_DIGEST, "value:a"),)
                 if index == 2
                 else (),
                 consumed_conditions=(ConsumedCondition("attempt-2", "condition:a", "sha256:c"),)

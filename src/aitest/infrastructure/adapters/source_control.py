@@ -11,9 +11,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -66,6 +68,52 @@ def _is_not_a_repository(error: GitUnavailable) -> bool:
     return any(marker in lowered for marker in _NOT_A_REPOSITORY_MARKERS)
 
 
+def _diff_identity(path: Path, executable: str) -> str:
+    """Hash actual binary Git output in memory-bounded chunks; never spool it."""
+    digest = hashlib.sha256()
+    failures: list[Exception] = []
+    try:
+        child = subprocess.Popen(  # noqa: S603 - fixed arguments, no shell
+            [executable, "diff", "--binary", "HEAD", "--"],
+            cwd=path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        raise GitUnavailable("git diff could not start") from error
+    assert child.stdout is not None
+    output = child.stdout
+
+    def consume() -> None:
+        try:
+            total = 0
+            while block := output.read(64 * 1024):
+                total += len(block)
+                if total > 512 * 1024 * 1024:
+                    raise GitUnavailable("git diff exceeded the identity read budget")
+                digest.update(block)
+        except Exception as error:
+            failures.append(error)
+            child.kill()
+
+    reader = threading.Thread(target=consume, daemon=True)
+    reader.start()
+    try:
+        code = child.wait(timeout=10)
+        reader.join(timeout=1)
+        if reader.is_alive() or failures or code != 0:
+            raise GitUnavailable("git diff identity could not be verified")
+    except subprocess.TimeoutExpired as error:
+        raise GitUnavailable("git diff identity timed out") from error
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait(timeout=1)
+        reader.join(timeout=1)
+        child.stdout.close()
+    return digest.hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class GitHubRef:
     """从远端 URL 解析出的 owner/repo。"""
@@ -76,14 +124,10 @@ class GitHubRef:
     @classmethod
     def parse(cls, remote_url: str) -> GitHubRef | None:
         # HTTPS: https://github.com/owner/repo(.git)
-        match = re.match(
-            r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", remote_url
-        )
+        match = re.match(r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", remote_url)
         if not match:
             # SSH: git@github.com:owner/repo(.git)
-            match = re.match(
-                r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$", remote_url
-            )
+            match = re.match(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$", remote_url)
         if not match:
             return None
         return cls(owner=match.group(1), repo=match.group(2))
@@ -110,8 +154,10 @@ class GitSourceControl:
             raise GitUnavailable("git 不可用")
         try:
             result = _run_git(
-                "rev-parse", "--is-inside-work-tree",
-                cwd=path, executable=self._executable,
+                "rev-parse",
+                "--is-inside-work-tree",
+                cwd=path,
+                executable=self._executable,
             )
         except GitUnavailable as error:
             # 只有 git 明确报告“不是仓库”才返回 False；权限、IO 等其他
@@ -129,17 +175,21 @@ class GitSourceControl:
             "rev-parse", "--show-toplevel", cwd=path, executable=self._executable
         ).strip()
         branch = _run_git(
-            "rev-parse", "--abbrev-ref", "HEAD",
-            cwd=path, executable=self._executable,
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+            cwd=path,
+            executable=self._executable,
         ).strip()
-        head = _run_git(
-            "rev-parse", "HEAD", cwd=path, executable=self._executable
-        ).strip()
+        head = _run_git("rev-parse", "HEAD", cwd=path, executable=self._executable).strip()
         remote_url: str | None = None
         try:
             remote_url = _run_git(
-                "config", "--get", "remote.origin.url",
-                cwd=path, executable=self._executable,
+                "config",
+                "--get",
+                "remote.origin.url",
+                cwd=path,
+                executable=self._executable,
             ).strip()
         except GitUnavailable:
             remote_url = None
@@ -166,9 +216,7 @@ class GitSourceControl:
         """
         if not self.is_repository(path):
             return {"is_repository": False}
-        raw = _run_git(
-            "status", "--porcelain=v1", "-z", cwd=path, executable=self._executable
-        )
+        raw = _run_git("status", "--porcelain=v1", "-z", cwd=path, executable=self._executable)
         tokens = raw.split("\x00")
         added: list[str] = []
         modified: list[str] = []
@@ -209,14 +257,63 @@ class GitSourceControl:
             "untracked": sorted(untracked),
         }
 
+    def snapshot_identity(self, path: Path) -> dict[str, object]:
+        """Freeze real HEAD, tracked binary diff and untracked content identity."""
+        facts = self.describe(path)
+        if facts.get("is_repository") is not True:
+            raise GitUnavailable("git binding is not a repository")
+        changes = self.changes(path)
+        root = Path(str(facts["root"]))
+        if root.resolve() != path.resolve():
+            raise GitUnavailable("binding must identify the actual repository root")
+        untracked = []
+        names = changes["untracked"]
+        if not isinstance(names, list) or any(not isinstance(name, str) for name in names):
+            raise GitUnavailable("untracked source names are unreadable")
+        for name in names:
+            candidate = root / name
+            if (
+                Path(name).is_absolute()
+                or ".." in Path(name).parts
+                or not candidate.resolve().is_relative_to(root.resolve())
+                or any(
+                    part.is_symlink() or part.is_junction()
+                    for part in (candidate, *candidate.parents)
+                )
+            ):
+                raise GitUnavailable("untracked source path cannot be verified")
+            digest = hashlib.sha256()
+            size = 0
+            with candidate.open("rb") as handle:
+                while block := handle.read(64 * 1024):
+                    digest.update(block)
+                    size += len(block)
+            untracked.append({"path": name, "sha256": digest.hexdigest(), "size": size})
+        material = {
+            "base_commit": facts["head_commit"],
+            "tracked_diff_sha256": _diff_identity(root, self._executable),
+            "untracked": untracked,
+        }
+        raw = json.dumps(
+            material, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        latest = self.describe(path)
+        if any(latest.get(key) != facts.get(key) for key in ("root", "branch", "head_commit")):
+            raise GitUnavailable("git source changed while identity was read")
+        return {**facts, "git_diff_digest": "sha256:" + hashlib.sha256(raw).hexdigest()}
+
     def upstream_counts(self, path: Path) -> dict[str, object]:
         """基于本地 upstream 引用的 ahead/behind；不做网络 fetch。"""
         if not self.is_repository(path):
             return {"is_repository": False}
         try:
             raw = _run_git(
-                "rev-list", "--left-right", "--count", "HEAD...@{u}",
-                cwd=path, executable=self._executable,
+                "rev-list",
+                "--left-right",
+                "--count",
+                "HEAD...@{u}",
+                cwd=path,
+                executable=self._executable,
             ).strip()
         except GitUnavailable:
             return {"is_repository": True, "upstream": None}
@@ -239,10 +336,7 @@ class GitHubReadOnlyClient:
         self._timeout = timeout_seconds
 
     def branch_head(self, ref: GitHubRef, branch: str) -> dict[str, object]:
-        url = (
-            f"{self._API_ROOT}/repos/{ref.owner}/{ref.repo}/"
-            f"branches/{urllib.parse.quote(branch)}"
-        )
+        url = f"{self._API_ROOT}/repos/{ref.owner}/{ref.repo}/branches/{urllib.parse.quote(branch)}"
         request = urllib.request.Request(
             url, headers={"Accept": "application/vnd.github+json", "User-Agent": "aitest"}
         )

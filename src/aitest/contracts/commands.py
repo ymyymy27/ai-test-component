@@ -16,6 +16,9 @@ HUMAN_ACTIONS = frozenset(
         "save_model_outbound_policy",
         "close_issue",
         "update_issue",
+        "save_binding",
+        "bind_project",
+        "confirm_basis",
     }
 )
 PHASE_ONE_ACTIONS = frozenset(
@@ -25,6 +28,8 @@ PHASE_ONE_ACTIONS = frozenset(
         "save_delivery",
         "save_acceptance",
         "analyze_project",
+        "check_source",
+        "confirm_basis",
         "save_model_outbound_policy",
         "save_project_view_preference",
         "save_rules",
@@ -61,7 +66,9 @@ PHASE_ONE_ACTIONS = frozenset(
         "migrate",
     }
 )
-READ_ACTIONS = frozenset({"query", "events", "doctor", "storage_usage", "copy_repair_brief"})
+READ_ACTIONS = frozenset(
+    {"query", "events", "doctor", "storage_usage", "copy_repair_brief", "check_source"}
+)
 
 
 class Command(BaseModel):

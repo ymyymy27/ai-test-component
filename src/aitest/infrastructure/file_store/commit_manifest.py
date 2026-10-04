@@ -13,10 +13,16 @@ from typing import Any
 
 from aitest.infrastructure.security import guard_bytes, guard_value
 
+from .canonical_manifest import FIELDS as COMPLETE_FIELDS
+from .canonical_manifest import OPTIONAL_FIELDS as COMPLETE_OPTIONAL_FIELDS
+from .canonical_manifest import SCHEMA as COMPLETE_SCHEMA
+from .canonical_manifest import validate_complete, verify_complete
 from .ordered_index import OrderedIndexTree
 from .publication_backend import FilePublicationBackend
+from .references import verify_record_objects
 from .sharded_records import SCHEMA as RECORD_SCHEMA
 from .sharded_records import open_authority
+from .source_material import source_record_files
 
 MANIFEST_SCHEMA = "aitest.commit-manifest/1"
 CURRENT_SCHEMA = "aitest.current-commit/2"
@@ -222,8 +228,12 @@ class FileCommitStore:
 
     def validate(self, value: dict[str, Any]) -> None:
         if (
-            set(value) != _MANIFEST_FIELDS
-            or value["schema"] != MANIFEST_SCHEMA
+            not (
+                value.get("schema") == MANIFEST_SCHEMA
+                and set(value) == _MANIFEST_FIELDS
+                or value.get("schema") == COMPLETE_SCHEMA
+                and set(value) - COMPLETE_OPTIONAL_FIELDS == _MANIFEST_FIELDS | COMPLETE_FIELDS
+            )
             or not _text(value["workspace_id"], maximum=128)
             or not _text(value["generation_id"], maximum=128)
             or not _integer(value["writer_epoch"], 1)
@@ -343,6 +353,8 @@ class FileCommitStore:
             or not _text(source["emitter_id"], maximum=128)
         ):
             raise CommitMaterialError("invalid migration event source")
+        if value["schema"] == COMPLETE_SCHEMA:
+            validate_complete(self.root, value)
 
     def verify_material(self, value: dict[str, Any]) -> None:
         """Check prepared roots and changed bodies; no traversal of unrelated history."""
@@ -357,6 +369,20 @@ class FileCommitStore:
                 raise CommitMaterialError("changed record bytes do not match the manifest")
             if rows.metadata.get("project_id") != value["project_id"]:
                 raise CommitMaterialError("changed record belongs to another project")
+            try:
+                verify_record_objects(self.root, body, value["project_id"])
+                source_record_files(
+                    self.root,
+                    ref["aggregate_kind"],
+                    body,
+                    value["project_id"],
+                    data,
+                    require_verified="source_material_files" in value,
+                )
+            except (OSError, ValueError) as error:
+                raise CommitMaterialError(
+                    "changed record permanent object reference or pinned source is unverified"
+                ) from error
         index = value["index_root"]
         raw = self._read_bytes(
             self.root / "indexes/roots" / f"{index['snapshot_root']}.json",
@@ -392,6 +418,8 @@ class FileCommitStore:
             # Full history reads belong to migration/explicit verification only.
             if hashlib.sha256(path.read_bytes()).hexdigest() != source["sha256"]:
                 raise CommitMaterialError("retained migration source bytes changed")
+        if value["schema"] == COMPLETE_SCHEMA:
+            verify_complete(self.root, value)
 
     def _verify_business(
         self,
@@ -444,6 +472,8 @@ class FileCommitStore:
                 )
             )
             or entry.get("state") != "committed"
+            or value["schema"] == COMPLETE_SCHEMA
+            and entry.get("instance_id") != value["instance_id"]
         ):
             raise CommitMaterialError("authority intent result does not match the manifest")
         index = FileQueryIndex(self.root, detached=True, snapshot_meta=value["index_root"])
@@ -468,7 +498,7 @@ class FileCommitStore:
             event = Event.model_validate(raw_event)
             expected = Event(
                 event_id=derive_event_id(
-                    instance_id=value["workspace_id"],
+                    instance_id=value.get("instance_id", value["workspace_id"]),
                     commit_sequence=value["commit_sequence"],
                     event_type="record_created",
                     project_id=value["project_id"],
@@ -476,7 +506,7 @@ class FileCommitStore:
                     record_id=record_id,
                     revision=revision,
                 ),
-                instance_id=value["workspace_id"],
+                instance_id=value.get("instance_id", value["workspace_id"]),
                 record_id=record_id,
                 revision=revision,
                 event_type="record_created",
@@ -534,6 +564,8 @@ class FileCommitStore:
             raise CommitMaterialError("prepared commit was based on a different current root")
         if prior is not None:
             previous = prior["manifest"]
+            if previous["schema"] == COMPLETE_SCHEMA and value["schema"] != COMPLETE_SCHEMA:
+                raise CommitMaterialError("canonical manifest format cannot be downgraded")
             if value["workspace_id"] != previous["workspace_id"]:
                 raise CommitMaterialError("workspace identity cannot be rebound")
             if value["commit_sequence"] < previous["commit_sequence"]:
@@ -547,6 +579,12 @@ class FileCommitStore:
                 or value["migration_source"] != previous["migration_source"]
             ):
                 raise CommitMaterialError("same-sequence maintenance cannot replace business facts")
+            if (
+                value["schema"] == previous["schema"] == COMPLETE_SCHEMA
+                and value["operation"] != "business"
+                and value["business_change_index_root"] != previous["business_change_index_root"]
+            ):
+                raise CommitMaterialError("ordinary maintenance must retain the business index")
         self.verify_material(value)
         pointer = self.current_pointer(value, digest)
         raw = canonical_bytes(pointer)

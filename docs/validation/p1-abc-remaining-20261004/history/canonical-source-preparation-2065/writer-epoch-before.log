@@ -1,0 +1,63 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+______ test_one_core_keeps_one_epoch_for_multiple_business_transactions _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-504/test_one_core_keeps_one_epoch_0")
+
+    def test_one_core_keeps_one_epoch_for_multiple_business_transactions(tmp_path: Path) -> None:
+        core = assemble_workspace_core(tmp_path, instance_id="first-core")
+        admitted_epoch = core.workspace.identity["writer_epoch"]
+        try:
+            write_case(core.unit_of_work, "first", "first")
+            write_case(core.unit_of_work, "second", "second")
+            stored = json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))
+>           assert stored["writer_epoch"] == admitted_epoch
+E           assert 3 == 1
+
+tests\unit\test_core_writer_epoch.py:32: AssertionError
+__________ test_old_core_unit_cannot_write_after_new_core_admission ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-504/test_old_core_unit_cannot_writ0")
+
+    def test_old_core_unit_cannot_write_after_new_core_admission(tmp_path: Path) -> None:
+        first = assemble_workspace_core(tmp_path, instance_id="first-core")
+        first_epoch = first.workspace.identity["writer_epoch"]
+        first.lifetime_lock.release()
+        second = assemble_workspace_core(tmp_path, instance_id="second-core")
+        try:
+            assert second.workspace.identity["writer_epoch"] == first_epoch + 1
+>           with pytest.raises(ValueError, match="epoch"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests\unit\test_core_writer_epoch.py:45: Failed
+_______ test_epoch_changed_after_begin_cannot_publish_or_consume_intent _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-504/test_epoch_changed_after_begin0")
+
+    def test_epoch_changed_after_begin_cannot_publish_or_consume_intent(tmp_path: Path) -> None:
+        core = assemble_workspace_core(tmp_path, instance_id="first-core")
+        unit = core.unit_of_work
+        try:
+            unit.begin("request", "project", intent_id="intent")
+            unit.stage_record(
+                aggregate_kind="case",
+                record_id="case",
+                expected_revision=0,
+                payload={"project_id": "project", "summary": "case"},
+            )
+            pointer = FileCommitStore(tmp_path).read_current()["pointer"]
+            identity = tmp_path / "workspace.json"
+            saved = json.loads(identity.read_text(encoding="utf-8"))
+            saved["writer_epoch"] += 1
+            identity.write_text(json.dumps(saved), encoding="utf-8")
+>           with pytest.raises(ValueError, match="epoch"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests\unit\test_core_writer_epoch.py:72: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_writer_epoch.py::test_one_core_keeps_one_epoch_for_multiple_business_transactions
+FAILED tests/unit/test_core_writer_epoch.py::test_old_core_unit_cannot_write_after_new_core_admission
+FAILED tests/unit/test_core_writer_epoch.py::test_epoch_changed_after_begin_cannot_publish_or_consume_intent
+3 failed in 4.68s

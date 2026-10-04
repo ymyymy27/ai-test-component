@@ -12,12 +12,15 @@ import json
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Any, Final, cast
 
 from .backup import BackupError, FileBackupStore, RestoreReport
+from .commit_manifest import FileCommitStore, canonical_bytes
 from .events import EventMaintenanceRequired, FileEventJournal, ReconcileReport
 from .integrity import check_workspace
+from .publication_backend import FilePublicationBackend
 from .records import FileRecordRepository
+from .sharded_records import find_commit, open_authority
 
 _REPORT_SCHEMA: Final = "aitest.recovery-report/1.0"
 
@@ -36,6 +39,8 @@ class RecoveryState:
     actions: tuple[str, ...]
     reconcile: ReconcileReport | None
     restore: RestoreReport | None
+    full_history_checked: bool = True
+    last_commit_sequence: int | None = None
 
 
 def recover_workspace(root: Path) -> dict[str, object]:
@@ -67,8 +72,23 @@ class RecoveryOrchestrator:
             "committed_sequences": committed,
         }
 
-    def run(self) -> RecoveryState:
-        """执行恢复编排。"""
+    def run(self, *, startup: bool = False) -> RecoveryState:
+        """Inspect published recovery material on startup; full history on request."""
+        if startup:
+            try:
+                current = FileCommitStore(self._root).read_current(verify_material=True)
+                if current is not None:
+                    return self._run_incremental(current)
+            except (OSError, ValueError, KeyError, TypeError):
+                return RecoveryState(
+                    state="blocked",
+                    integrity_ok=False,
+                    committed_sequences=(),
+                    actions=("当前提交或必要恢复材料无法核实，保留原字节并阻塞新写入",),
+                    reconcile=None,
+                    restore=None,
+                    full_history_checked=False,
+                )
         actions: list[str] = []
 
         # Phase A：完整性。
@@ -126,6 +146,82 @@ class RecoveryOrchestrator:
             actions=tuple(actions),
             reconcile=reconcile,
             restore=None,
+        )
+
+    def _run_incremental(self, current: dict[str, Any]) -> RecoveryState:
+        """No rglob, historical payload scan, or enumeration of the commit ledger."""
+        FilePublicationBackend(self._root).confirm_current()
+        marker = self._read_active_marker()
+        sequence = current["manifest"]["commit_sequence"]
+        actions: tuple[str, ...] = ("当前提交及必要恢复根已核实；未扫描完整历史",)
+        state = "healthy"
+        if marker is not None:
+            if (
+                marker.get("state") != "in_progress"
+                or not isinstance(marker.get("request_id"), str)
+                or not marker["request_id"]
+                or not isinstance(marker.get("project_id"), str)
+                or not marker["project_id"]
+                or type(marker.get("commit_sequence")) is not int
+            ):
+                raise ValueError("active transaction marker identity is unverified")
+            authority = open_authority(self._root, current["manifest"]["record_header"])
+            entry = find_commit(
+                authority["_tree"],
+                field="request_id",
+                project_id=cast(str, marker["project_id"]),
+                value=cast(str, marker["request_id"]),
+            )
+            if (
+                not isinstance(entry, dict)
+                or entry.get("state") != "committed"
+                or any(
+                    entry.get(key) != marker.get(key)
+                    for key in ("request_id", "project_id", "intent_id", "commit_sequence")
+                )
+            ):
+                raise ValueError("active transaction cannot be proved by this published root")
+            self._save_marker_resolution(current, marker)
+            self._clear_active_marker()
+            actions = ("已发布根证明准确活动事务已提交；保存恢复诊断后清除残留标记",)
+            state = "repaired"
+        return RecoveryState(
+            state=state,
+            integrity_ok=True,
+            # An incremental check intentionally does not enumerate this list.
+            # The checked current high-water mark is reported separately.
+            committed_sequences=(),
+            actions=actions,
+            reconcile=None,
+            restore=None,
+            full_history_checked=False,
+            last_commit_sequence=sequence,
+        )
+
+    def _save_marker_resolution(self, current: dict[str, Any], marker: dict[str, object]) -> None:
+        import hashlib
+
+        from aitest.infrastructure.security import guard_bytes, guard_value
+
+        fact = {
+            "schema": "aitest.transaction-recovery/1",
+            "instance_id": self._instance_id,
+            "workspace_id": current["manifest"]["workspace_id"],
+            "manifest_digest": current["pointer"]["manifest_digest"],
+            "state": "verified_committed",
+            "marker": {
+                key: marker.get(key)
+                for key in ("request_id", "project_id", "intent_id", "commit_sequence")
+            },
+        }
+        raw = canonical_bytes(fact)
+        safe, changed = guard_value(fact)
+        guarded, bytes_changed = guard_bytes(raw)
+        if changed or safe != fact or bytes_changed or guarded != raw:
+            raise ValueError("transaction recovery identity cannot preserve safe bytes")
+        digest = hashlib.sha256(raw).hexdigest()
+        FilePublicationBackend(self._root).publish_immutable(
+            self._root / "diagnostics" / "recovery" / f"{digest}.json", raw
         )
 
     def restore_backup(self, *, backup: Path, target: Path) -> RecoveryState:

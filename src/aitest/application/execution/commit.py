@@ -22,8 +22,13 @@ from aitest.application.evidence.publication import (
     EvidencePublisher,
 )
 from aitest.application.execution.current import project_current_update
-from aitest.application.execution.facts import project_attempt_fact
+from aitest.application.execution.facts import (
+    ExecutionFactsAssembler,
+    ExecutionFactsAssembly,
+    project_attempt_fact,
+)
 from aitest.application.ports import RecordRepository
+from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
 from aitest.contracts.execution_facts import AttemptFact, ExecutionFacts
 from aitest.domain.evidence.evidence import EvidenceRef
 from aitest.domain.execution.dependencies import AttemptInvalidation, invalidate_downstream_attempts
@@ -33,31 +38,16 @@ from aitest.domain.execution.runs import (
     AuthorizationRef,
     PlanRevisionRef,
     RecoveryRecord,
+    Run,
+    RunControlState,
+    Step,
+    StepState,
     attempt_start_basis,
     authorization_action_basis,
 )
 
 _CHECKPOINT_ADAPTER = TypeAdapter(RecoveryRecord)
 _EVIDENCE_ADAPTER = TypeAdapter(EvidenceRef)
-
-
-class StageableWorkspaceUnitOfWork(Protocol):
-    def open(self, project_id: str) -> None: ...
-
-    def begin(self, request_id: str, project_id: str) -> object: ...
-
-    def stage_record(
-        self,
-        *,
-        aggregate_kind: str,
-        record_id: str,
-        expected_revision: int | None,
-        payload: Mapping[str, object],
-    ) -> object: ...
-
-    def commit(self) -> object: ...
-
-    def rollback(self) -> object: ...
 
 
 class CheckpointPayloadCodec(Protocol):
@@ -102,6 +92,134 @@ class ExecutionCommitCoordinator:
         if expected is not None and expected != current:
             raise ValueError("revision conflict")
         return current
+
+    def recall_initial_run(
+        self, *, run_id: str, project_id: str, fingerprint: str
+    ) -> ExecutionFacts | None:
+        intent = self._read_payload("execution_intent", "run-registration:" + run_id)
+        if intent is None:
+            return None
+        if (
+            intent.get("schema_version") != "aitest.run-registration-intent/1.0"
+            or intent.get("project_id") != project_id
+            or intent.get("run_id") != run_id
+            or intent.get("fingerprint") != fingerprint
+            or intent.get("snapshot_revision") != 1
+            or not isinstance(intent.get("snapshot_commit_id"), str)
+        ):
+            raise ValueError("run registration intent conflicts with saved preparation")
+        read = getattr(self._records or self._uow, "read", None)
+        if not callable(read):
+            raise ValueError("original run registration snapshot cannot be read")
+        saved = read(
+            aggregate_kind="execution_facts", record_id=intent["snapshot_commit_id"], revision=1
+        )
+        payload = getattr(saved, "payload", None)
+        if not isinstance(payload, Mapping) or _payload_digest(payload) != intent.get(
+            "snapshot_digest"
+        ):
+            raise ValueError("original run registration snapshot digest cannot be verified")
+        facts = ExecutionFacts.model_validate(payload)
+        if (facts.project_id, facts.run_id) != (project_id, run_id):
+            raise ValueError("original run registration belongs to another project/run")
+        _validate_current_facts(facts)
+        return facts
+
+    def stage_initial_run(
+        self,
+        *,
+        run: Run,
+        steps: tuple[Step, ...],
+        facts: ExecutionFacts,
+        fingerprint: str,
+        prepared_run_id: str,
+        intent_id: str,
+    ) -> ExecutionFacts:
+        """Stage the initial run in an already open common UOW; fabricate no attempt."""
+        projected = ExecutionFactsAssembler().assemble(
+            ExecutionFactsAssembly(
+                facts_id=facts.facts_id,
+                snapshot_commit_id=facts.snapshot_commit_id,
+                snapshot_cursor=facts.snapshot_cursor,
+                snapshot_revision=facts.snapshot_revision,
+                committed_at=facts.committed_at,
+                run=run,
+                steps=steps,
+                attempts=(),
+            )
+        )
+        if (
+            run.control_state is not RunControlState.NOT_STARTED
+            or run.revision != 1
+            or run.started_at is not None
+            or run.ended_at is not None
+            or projected.run != facts.run
+            or projected.steps != facts.steps
+            or projected.current_attempt_by_step != facts.current_attempt_by_step
+            or set(facts.coverage.mandatory_case_ids) != run.required_scope
+            or set(facts.coverage.selected_case_ids) != run.selected_scope
+            or facts.coverage.executed_attempt_ids
+            or facts.run.control_state.value != "not_started"
+            or (facts.project_id, facts.run_id) != (run.project_id, run.run_id)
+            or facts.attempts
+            or facts.verifications
+            or facts.evidence_refs
+            or facts.source_check_results
+            or facts.source_verifications
+            or facts.run.evidence_level is not None
+            or facts.run.source_binding_digest is not None
+            or any(
+                s.state is not StepState.PENDING or s.current_attempt_id is not None for s in steps
+            )
+            or self.read_current_facts(project_id=run.project_id, run_id=run.run_id) is not None
+        ):
+            raise ValueError("initial run must contain only unexecuted frozen steps")
+        if self._revision("run", run.run_id) or any(
+            self._revision("step", s.step_id) for s in steps
+        ):
+            raise ValueError("run/step identity already exists without this registration intent")
+        self._uow.stage_record(
+            aggregate_kind="run",
+            record_id=run.run_id,
+            expected_revision=0,
+            payload={"project_id": run.project_id, **_json_payload(TypeAdapter(Run), run)},
+        )
+        for step in steps:
+            self._uow.stage_record(
+                aggregate_kind="step",
+                record_id=step.step_id,
+                expected_revision=0,
+                payload={"project_id": run.project_id, **_json_payload(TypeAdapter(Step), step)},
+            )
+        # Intent, pointer, and snapshot are the last three records of this batch.
+        sequence = int(self._uow.next_commit_seq()) + 2
+        frozen = facts.model_copy(
+            update={
+                "snapshot_commit_id": f"commit-{sequence}",
+                "snapshot_cursor": sequence,
+                "snapshot_revision": 1,
+            }
+        )
+        self._uow.stage_record(
+            aggregate_kind="execution_intent",
+            record_id="run-registration:" + run.run_id,
+            expected_revision=0,
+            payload={
+                "schema_version": "aitest.run-registration-intent/1.0",
+                "project_id": run.project_id,
+                "run_id": run.run_id,
+                "intent_id": intent_id,
+                "prepared_run_id": prepared_run_id,
+                "fingerprint": fingerprint,
+                "snapshot_commit_id": frozen.snapshot_commit_id,
+                "snapshot_revision": 1,
+                "snapshot_digest": _payload_digest(frozen.model_dump(mode="json")),
+            },
+        )
+        _staged, published = self._stage_snapshot(frozen)
+        if published != frozen:
+            raise ValueError("initial run snapshot does not match its reserved commit boundary")
+        return published
 
     def _read_payload(self, kind: str, record_id: str) -> Mapping[str, object] | None:
         current = self._revision(kind, record_id)

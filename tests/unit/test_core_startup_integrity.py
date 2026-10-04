@@ -16,6 +16,7 @@ import aitest.bootstrap as bootstrap
 from aitest.application.errors import WorkspaceInUse
 from aitest.bootstrap import SystemProcessLauncher, await_core_launch_claim, make_pipe_connector
 from aitest.infrastructure.file_store import core_launch
+from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.core_launch import FileCoreLaunchStore, ProcessFact
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
 from aitest.infrastructure.security import known_secrets
@@ -570,10 +571,13 @@ def test_windows_probe_distinguishes_signaled_exit_259_from_living_process():
 
 @pytest.mark.skipif(sys.platform != "win32", reason="actual child/pipe startup failure")
 def test_real_worker_reports_blocked_recovery_exit_to_host(tmp_path):
-    # A damaged authority file blocks default core recovery (exit 5).
+    # Damage the authority referenced by current, rather than the obsolete
+    # records.json pointer retained from the backed-up format migration.
     seeded = bootstrap.assemble_workspace_core(tmp_path, instance_id="core-seed")
+    current = FileCommitStore(tmp_path).read_current()
+    authority = tmp_path / "record-store" / f"{current['manifest']['record_header']['root']}.json"
     seeded.lifetime_lock.release()
-    (tmp_path / "records.json").write_text("{not-json", encoding="utf-8")
+    authority.write_text("{not-json", encoding="utf-8")
     launcher = SystemProcessLauncher(tmp_path)
     host = EditorHost(
         connector=make_pipe_connector(tmp_path),
@@ -586,7 +590,7 @@ def test_real_worker_reports_blocked_recovery_exit_to_host(tmp_path):
             host.acquire("workspace")
         value = FileCoreLaunchStore(tmp_path).read()
         assert value["state"] == "exited" and value["exit_code"] == 5
-        assert (tmp_path / "records.json").read_text(encoding="utf-8") == "{not-json"
+        assert authority.read_text(encoding="utf-8") == "{not-json"
     finally:
         for child in launcher._children.values():
             if child.poll() is None:

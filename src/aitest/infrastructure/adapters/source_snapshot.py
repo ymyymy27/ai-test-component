@@ -24,11 +24,18 @@ import os
 import re
 import shutil
 import uuid
+from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
 from typing import IO, Final
 
 from aitest.infrastructure.file_store.atomic import write_json
+from aitest.infrastructure.file_store.source_material import (
+    MAX_METADATA_BYTES,
+    SourceMaterialError,
+    read_metadata,
+    verify_pinned_material,
+)
 from aitest.infrastructure.security import (
     KnownSecretRegistry,
     UnsafeMaterialError,
@@ -149,8 +156,8 @@ class FileSourceSnapshotStore:
         *,
         canonical_path: str,
         purpose: str,
-        selected_paths: tuple[str, ...] | list[str] = (),
-        exclusion_rules: tuple[str, ...] | list[str] = (),
+        selected_paths: Sequence[str] = (),
+        exclusion_rules: Sequence[str] = (),
     ) -> dict[str, object]:
         raw_source = Path(canonical_path)
         if _has_link_ancestor(raw_source):
@@ -217,71 +224,24 @@ class FileSourceSnapshotStore:
             "exclusion_rules": rules,
             "files": files,
         }
+        if len(json.dumps(record, ensure_ascii=False).encode("utf-8")) > MAX_METADATA_BYTES:
+            raise SnapshotError("源码快照清单超过读取预算，不能发布")
         write_json(record_path, record)
         # 清单原子发布后持久化目录项，掉电后快照身份与 blob 引用同时可达。
         _fsync_directory(record_path.parent)
         return dict(record)
 
     def read_pinned(self, snapshot_id: str) -> dict[str, object]:
-        path = self._path(snapshot_id)
-        if _has_link_ancestor(path):
-            raise SnapshotError("源码快照清单不能经过链接")
-        if not path.exists():
-            raise SnapshotError(f"快照不存在: {snapshot_id}")
-        record = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(record, dict):
-            raise SnapshotError("源码快照清单不是对象")
-        self._require_safe_metadata(record)
-        files = _files(record)
-        if (
-            record.get("schema") != _SCHEMA
-            or record.get("snapshot_id") != snapshot_id
-            or not isinstance(record.get("canonical_path"), str)
-            or not isinstance(record.get("purpose"), str)
-            or not isinstance(record.get("selected_paths"), list)
-            or not isinstance(record.get("exclusion_rules"), list)
-        ):
-            raise SnapshotError("源码快照身份或范围无法核实")
-        if (
-            not Path(record["canonical_path"]).is_absolute()
-            or "\x00" in record["canonical_path"]
-            or any(
-                not isinstance(item, str) or not _is_safe_relative(item)
-                for item in record["selected_paths"]
-            )
-            or any(
-                not isinstance(item, str) or "\x00" in item for item in record["exclusion_rules"]
-            )
-        ):
-            raise SnapshotError("源码快照范围条目无法核实")
-        paths: set[str] = set()
-        for item in files:
-            name, digest, size = item.get("relative_path"), item.get("sha256"), item.get("size")
-            if (
-                not isinstance(name, str)
-                or not _is_safe_relative(name)
-                or name in paths
-                or not isinstance(digest, str)
-                or not _DIGEST_RE.fullmatch(digest)
-                or type(size) is not int
-                or size < 0
-            ):
-                raise SnapshotError("源码快照文件引用损坏")
-            paths.add(name)
-        identity_bytes = json.dumps(
-            [
-                record["canonical_path"],
-                record["purpose"],
-                record["selected_paths"],
-                record["exclusion_rules"],
-                files,
-            ],
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        if "snap-" + hashlib.sha256(identity_bytes).hexdigest()[:16] != snapshot_id:
-            raise SnapshotError("源码快照清单摘要无法核实")
-        return record
+        try:
+            return read_metadata(self._root, snapshot_id, registry=self._registry)
+        except SourceMaterialError as error:
+            raise SnapshotError("源码快照清单无法核实: " + str(error)) from error
+
+    def verify_pinned(self, snapshot_id: str) -> dict[str, object]:
+        try:
+            return verify_pinned_material(self._root, snapshot_id, registry=self._registry)
+        except SourceMaterialError as error:
+            raise SnapshotError("固定源码材料无法核实: " + str(error)) from error
 
     def materialize(self, snapshot_id: str, destination: str) -> dict[str, object]:
         record = self.read_pinned(snapshot_id)

@@ -16,6 +16,7 @@ from aitest.domain.execution.runs import (
     StepRevisionRef,
 )
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.persistent_evidence_fixture import fixture_facts, save_fixture_bytes
 from tests.unit.test_serial_runner import _attempt
 
 
@@ -131,6 +132,7 @@ def _batch():
             encoding="utf-8"
         )
     )
+    facts = fixture_facts(facts)
     step = facts.attempts[0].step_revision_ref
     attempt = replace(
         _attempt(),
@@ -146,6 +148,7 @@ def _batch():
 
 
 def _publish(unit, batch, request="publish"):
+    save_fixture_bytes(unit.workspace.root, batch.facts.project_id)
     unit.begin(request, batch.facts.project_id)
     return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
 

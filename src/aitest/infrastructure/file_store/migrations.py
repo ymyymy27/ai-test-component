@@ -29,6 +29,7 @@ from .commit_manifest import FileCommitStore
 from .commit_migration import migrate_commit_closure
 from .index import migrate_query_layout, rollback_query_layout
 from .maintenance import detect_activity_blocker
+from .manifest_migration import migrate_canonical_manifest
 from .sharded_records import SCHEMA as RECORD_SCHEMA
 from .sharded_records import migrate_to_shards, rollback_shards
 
@@ -241,6 +242,14 @@ _BUILT_IN: Final[dict[str, Migration]] = {
             description="按存储主责合同发布七字段 current 并保留候选/前指针恢复材料",
             reversible=False,
             forward=_upgrade_current_pointer,
+            backward=None,
+            tracked_files=("current.json",),
+        ),
+        Migration(
+            id="0007-canonical-manifest-and-business-changes",
+            description="备份后发布完整提交清单及固定高水位业务变更索引",
+            reversible=False,
+            forward=migrate_canonical_manifest,
             backward=None,
             tracked_files=("current.json",),
         ),

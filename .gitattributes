@@ -1,3 +1,4 @@
 # Validation logs, manifests and frozen evidence must retain their hashed bytes.
 docs/validation/p1-abc-fix-20261003/** -text -whitespace
 docs/validation/p1-fix-recheck-20261003/** -text -whitespace
+docs/validation/p1-abc-remaining-20261004/** -text -whitespace

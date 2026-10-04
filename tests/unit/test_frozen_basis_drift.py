@@ -1,7 +1,7 @@
 """准备 → 启动的漂移核对链（检查文档 B-04 第③条）。
 
 核对的是"`PreparedRun` 冻结的依据还能不能按**准确修订**读回来"。
-记录不可变，所以能读到就等于依据完好；读不到就是缺口。
+记录可读后仍须核对内容摘要；只有标签或不完整正文不能证明冻结依据完好。
 
 **覆盖范围（2026-10-03 扩展）**：绑定、环境、计划、**用例修订、已发布规则版本、
 模板版本**。**仍然没有证据的来源必须如实列出**（项目修订、源码快照、验收范围），
@@ -15,7 +15,13 @@ from aitest.application.planning.drift import (
     DriftReport,
     check_frozen_basis,
 )
+from aitest.application.planning.plan_builder import template_version_ref
+from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.substrate import transaction
+from aitest.application.project.serialization import source_manifest_to_payload
+from aitest.contracts.prepared_run import SnapshotRef
+from aitest.domain.planning.templates import TemplateRef
+from aitest.domain.project.context import SourceManifest, source_content_identity
 from tests.support.memory_substrate import MemoryReader, MemoryStore
 from tests.support.prepared_run_factory import build_scenario
 
@@ -23,8 +29,23 @@ from tests.support.prepared_run_factory import build_scenario
 _RECORD_BACKED = ("binding", "environment", "plan", "case_revisions", "rule_versions")
 #: 模板不是记录：它按标识+版本装载已安装资源。
 _TEMPLATE_BACKED = "template_versions"
-#: 源码快照按 id 取最新修订并比对内容身份（`SnapshotRef` 没有修订号）。
+#: 源码快照按冻结仓储修订读取，重算完整清单的内容身份。
 _SNAPSHOT_BACKED = "source_snapshot"
+
+
+def accurate_readable_refs(scenario):
+    """局部补齐实际保存的计划与已安装模板摘要；其它夹具缺口仍保留。"""
+    prepared = scenario.prepared_run
+    ref = prepared.plan_revision
+    saved = scenario.reader.read(
+        aggregate_kind="plan", record_id=ref.revision_id, revision=ref.revision_no
+    )
+    return prepared.model_copy(
+        update={
+            "plan_revision": ref.model_copy(update={"digest": payload_digest(saved.payload)}),
+            "template_versions": (template_version_ref(TemplateRef("ticket-workflow", "1.0.0")),),
+        }
+    )
 
 
 def test_the_chain_covers_the_record_backed_sources() -> None:
@@ -48,7 +69,7 @@ def test_the_chain_covers_the_record_backed_sources() -> None:
 def test_the_frozen_source_snapshot_is_checked_by_content_identity() -> None:
     """检查文档 B-04：源码快照过去在 `uncovered` 里，现在按**内容身份**核对。
 
-    `SnapshotRef` 没有修订号，所以核对的是"记录里的内容身份是否等于冻结值"。
+    按冻结修订核对清单是否能证明内容身份。
     夹具没有落快照记录，因此如实报成缺口（并给出原因），而不是留给 `uncovered`。
     """
     scenario = build_scenario("git")
@@ -89,19 +110,32 @@ def test_a_persisted_snapshot_with_the_frozen_identity_is_readable() -> None:
     """身份一致时核对通过——核对不是"一律报缺口"。"""
     scenario = build_scenario("git")
     snapshot = scenario.prepared_run.snapshot
+    manifest = SourceManifest(source_scope="fixture", manifest_digest="sha256:fixture")
     with transaction(scenario.unit_of_work, scenario.prepared_run.project_id) as tx:
         tx.stage_record(
             aggregate_kind="source_snapshot",
             record_id=snapshot.source_snapshot_id,
             expected_revision=None,
-            payload={
-                "project_id": scenario.prepared_run.project_id,
-                "content_identity": snapshot.content_identity,
-            },
+            payload=source_manifest_to_payload(
+                manifest,
+                project_id=scenario.prepared_run.project_id,
+                snapshot_id=snapshot.source_snapshot_id,
+                purpose="component-test",
+            ),
         )
         tx.commit()
 
-    report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
+    prepared = scenario.prepared_run.model_copy(
+        update={
+            "snapshot": SnapshotRef(
+                source_snapshot_id=snapshot.source_snapshot_id,
+                purpose="component-test",
+                record_revision=1,
+                content_identity=source_content_identity(manifest),
+            )
+        }
+    )
+    report = check_frozen_basis(prepared, reader=scenario.reader)
     check = next(c for c in report.checks if c.source_kind == _SNAPSHOT_BACKED)
     assert check.readable is True
     assert check.detail == ""
@@ -128,7 +162,7 @@ def test_case_and_rule_revisions_are_read_back_by_exact_revision() -> None:
 def test_the_frozen_template_version_is_loadable() -> None:
     """模板按**标识+版本**核对：冻结的那个版本必须能从已安装资源装载。"""
     scenario = build_scenario("git")
-    report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
+    report = check_frozen_basis(accurate_readable_refs(scenario), reader=scenario.reader)
     template = next(c for c in report.checks if c.source_kind == _TEMPLATE_BACKED)
     assert template.readable is True
     assert template.record_id == "template:ticket-workflow@1.0.0"
@@ -187,7 +221,7 @@ def test_the_chain_catches_a_declared_revision_that_was_never_persisted() -> Non
 def test_the_plan_frozen_by_the_fixture_is_reproducible() -> None:
     """计划那一版是真实落盘的，按准确修订读得回来。"""
     scenario = build_scenario("git")
-    report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
+    report = check_frozen_basis(accurate_readable_refs(scenario), reader=scenario.reader)
     plan = next(c for c in report.checks if c.source_kind == "plan")
     assert plan.readable is True
 
@@ -196,7 +230,7 @@ def test_an_empty_workspace_reports_every_record_check_as_missing() -> None:
     """空工作空间里**记录类**核对全部落空；模板走资源装载，因此不受影响。"""
     scenario = build_scenario("git")
     empty = MemoryReader(MemoryStore())
-    report = check_frozen_basis(scenario.prepared_run, reader=empty)
+    report = check_frozen_basis(accurate_readable_refs(scenario), reader=empty)
     assert report.intact is False
     record_checks = [c for c in report.checks if c.source_kind != _TEMPLATE_BACKED]
     assert report.missing == tuple(record_checks)

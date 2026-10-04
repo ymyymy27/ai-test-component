@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from aitest.application.errors import WorkspaceInUse
 from aitest.bootstrap import create_api
 from aitest.contracts.commands import Command
 from aitest.contracts.queries import QuerySpec
@@ -19,7 +20,7 @@ def test_workspace_allows_only_one_active_write_transaction(tmp_path: Path) -> N
     started = unit.begin("request-1", "project-1")
     assert started == {"request_id": "request-1", "state": "active"}
 
-    with pytest.raises(RuntimeError, match="transaction already open"):
+    with pytest.raises(WorkspaceInUse, match="busy"):
         unit.begin("request-2", "project-1")
 
     assert unit.rollback("request-1")["state"] == "rolled_back"

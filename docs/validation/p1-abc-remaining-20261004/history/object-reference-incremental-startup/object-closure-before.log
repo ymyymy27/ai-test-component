@@ -1,0 +1,108 @@
+FFFF.                                                                    [100%]
+================================== FAILURES ===================================
+_ test_invalid_permanent_reference_cannot_publish_or_consume_intent[missing] __
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001C5C1B7FA10>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001C5C1B7F620>)
+damage = 'missing'
+
+    @pytest.mark.parametrize("damage", ["missing", "different_project", "different_size", "changed_bytes"])
+    def test_invalid_permanent_reference_cannot_publish_or_consume_intent(core, damage: str) -> None:
+        store = FileObjectStore(core.workspace.root)
+        reference = asdict(store.publish_bytes("project", b"observed output"))
+        path = core.workspace.root / str(reference["relative_path"])
+        if damage == "missing":
+            path.unlink()
+        elif damage == "different_project":
+            reference = asdict(store.publish_bytes("other-project", b"observed output"))
+        elif damage == "different_size":
+            reference["size"] = int(reference["size"]) + 1
+        else:
+            path.write_bytes(b"corrupt bytes")
+        before = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        stage_reference(core, reference)
+>       with pytest.raises((ValueError, OSError), match="object|reference|digest|size|project"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE any of (ValueError, OSError)
+
+tests\unit\test_commit_object_closure.py:50: Failed
+_ test_invalid_permanent_reference_cannot_publish_or_consume_intent[different_project] _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001C5C1CB4B90>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001C5C1CB47D0>)
+damage = 'different_project'
+
+    @pytest.mark.parametrize("damage", ["missing", "different_project", "different_size", "changed_bytes"])
+    def test_invalid_permanent_reference_cannot_publish_or_consume_intent(core, damage: str) -> None:
+        store = FileObjectStore(core.workspace.root)
+        reference = asdict(store.publish_bytes("project", b"observed output"))
+        path = core.workspace.root / str(reference["relative_path"])
+        if damage == "missing":
+            path.unlink()
+        elif damage == "different_project":
+            reference = asdict(store.publish_bytes("other-project", b"observed output"))
+        elif damage == "different_size":
+            reference["size"] = int(reference["size"]) + 1
+        else:
+            path.write_bytes(b"corrupt bytes")
+        before = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        stage_reference(core, reference)
+>       with pytest.raises((ValueError, OSError), match="object|reference|digest|size|project"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE any of (ValueError, OSError)
+
+tests\unit\test_commit_object_closure.py:50: Failed
+_ test_invalid_permanent_reference_cannot_publish_or_consume_intent[different_size] _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001C5C1CB4050>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001C5C1CB42D0>)
+damage = 'different_size'
+
+    @pytest.mark.parametrize("damage", ["missing", "different_project", "different_size", "changed_bytes"])
+    def test_invalid_permanent_reference_cannot_publish_or_consume_intent(core, damage: str) -> None:
+        store = FileObjectStore(core.workspace.root)
+        reference = asdict(store.publish_bytes("project", b"observed output"))
+        path = core.workspace.root / str(reference["relative_path"])
+        if damage == "missing":
+            path.unlink()
+        elif damage == "different_project":
+            reference = asdict(store.publish_bytes("other-project", b"observed output"))
+        elif damage == "different_size":
+            reference["size"] = int(reference["size"]) + 1
+        else:
+            path.write_bytes(b"corrupt bytes")
+        before = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        stage_reference(core, reference)
+>       with pytest.raises((ValueError, OSError), match="object|reference|digest|size|project"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE any of (ValueError, OSError)
+
+tests\unit\test_commit_object_closure.py:50: Failed
+_ test_invalid_permanent_reference_cannot_publish_or_consume_intent[changed_bytes] _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001C5C1CD4180>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001C5C1BEBCE0>)
+damage = 'changed_bytes'
+
+    @pytest.mark.parametrize("damage", ["missing", "different_project", "different_size", "changed_bytes"])
+    def test_invalid_permanent_reference_cannot_publish_or_consume_intent(core, damage: str) -> None:
+        store = FileObjectStore(core.workspace.root)
+        reference = asdict(store.publish_bytes("project", b"observed output"))
+        path = core.workspace.root / str(reference["relative_path"])
+        if damage == "missing":
+            path.unlink()
+        elif damage == "different_project":
+            reference = asdict(store.publish_bytes("other-project", b"observed output"))
+        elif damage == "different_size":
+            reference["size"] = int(reference["size"]) + 1
+        else:
+            path.write_bytes(b"corrupt bytes")
+        before = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        stage_reference(core, reference)
+>       with pytest.raises((ValueError, OSError), match="object|reference|digest|size|project"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE any of (ValueError, OSError)
+
+tests\unit\test_commit_object_closure.py:50: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_commit_object_closure.py::test_invalid_permanent_reference_cannot_publish_or_consume_intent[missing]
+FAILED tests/unit/test_commit_object_closure.py::test_invalid_permanent_reference_cannot_publish_or_consume_intent[different_project]
+FAILED tests/unit/test_commit_object_closure.py::test_invalid_permanent_reference_cannot_publish_or_consume_intent[different_size]
+FAILED tests/unit/test_commit_object_closure.py::test_invalid_permanent_reference_cannot_publish_or_consume_intent[changed_bytes]
+4 failed, 1 passed in 12.14s

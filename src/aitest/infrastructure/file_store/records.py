@@ -20,6 +20,7 @@ from .commit_manifest import FileCommitStore, canonical_bytes
 from .events import FileEventJournal, derive_event_id
 from .index import FileQueryIndex, build_index_row
 from .ordered_events import OrderedEventStore
+from .references import verify_record_objects
 from .sharded_records import (
     SCHEMA,
     ShardedRows,
@@ -27,6 +28,7 @@ from .sharded_records import (
     find_commit,
     open_authority,
 )
+from .source_material import source_record_files
 
 #: 待提交业务记录：(聚合类型, 记录 ID, 期望修订（None 表示新建）, 业务载荷)。
 #: 使用 Sequence + Mapping 而非 list/dict，保证 list 不变性与 dict→Mapping
@@ -683,6 +685,12 @@ class FileRecordRepository:
         if changed or safe != identity or raw_changed or guarded != raw:
             raise ValueError("transaction identity cannot be safely preserved")
 
+        # A readable record body does not prove that its permanent attachments
+        # exist. Validate before adding even uncommitted authority/intent nodes.
+        for _kind, _record, _expected, body in pending:
+            verify_record_objects(self.root, body, project_id)
+            source_record_files(self.root, _kind, body, project_id, data, require_verified=True)
+
         # 持久意图幂等：同意图 + 同业务输入（跨入口/重启）直接返回原提交结果，
         # 不生成第二个修订；业务输入不同则意图冲突。重跑须建立新意图。
         if current_root is not None:
@@ -775,6 +783,17 @@ class FileRecordRepository:
             ],
             "state": "committed",
         }
+        if (
+            current_root is not None
+            and current_root["manifest"]["schema"] == "aitest.commit-manifest/2"
+        ):
+            from uuid import uuid4
+
+            commit_entry["instance_id"] = (
+                self._journal.instance_id
+                if self._journal is not None
+                else "component-" + uuid4().hex
+            )
         # 权威提交台账与业务记录在同一次原子写中发布；投影全部可从它重建。
         ledger = data.setdefault("commits", [])
         ledger.append(commit_entry)
@@ -876,13 +895,14 @@ class FileRecordRepository:
         if entry["workspace_id"] != previous["workspace_id"]:
             raise ValueError("transaction workspace identity mismatch")
         sequence = entry["commit_sequence"]
+        instance_id = entry.get("instance_id", previous["workspace_id"])
         header = authority_header(data)
         index = FileQueryIndex(self.root, detached=True, snapshot_meta=previous["index_root"])
         index_root = index.publish(index_rows, commit_sequence=sequence)
         events = [
             Event(
                 event_id=derive_event_id(
-                    instance_id=previous["workspace_id"],
+                    instance_id=instance_id,
                     commit_sequence=sequence,
                     event_type="record_created",
                     project_id=entry["project_id"],
@@ -892,7 +912,7 @@ class FileRecordRepository:
                 ),
                 request_id=entry["request_id"],
                 intent_id=entry["intent_id"],
-                instance_id=previous["workspace_id"],
+                instance_id=instance_id,
                 workspace_id=previous["workspace_id"],
                 writer_epoch=entry["writer_epoch"],
                 commit_sequence=sequence,
@@ -937,5 +957,41 @@ class FileRecordRepository:
                 for k, r, rev in created
             ],
         )
+        if previous["schema"] == "aitest.commit-manifest/2":
+            from .business_changes import BusinessChangeIndex
+            from .canonical_manifest import complete_manifest
+
+            business_root = BusinessChangeIndex(
+                self.root, previous["business_change_index_root"]
+            ).prepare(
+                manifest["created"],
+                commit_sequence=sequence,
+                workspace_id=entry["workspace_id"],
+                project_id=entry["project_id"],
+            )
+            result = {
+                "schema": "aitest.idempotency-result/1",
+                "state": "committed",
+                **{
+                    k: entry[k]
+                    for k in (
+                        "request_id",
+                        "intent_id",
+                        "workspace_id",
+                        "project_id",
+                        "writer_epoch",
+                        "instance_id",
+                        "commit_sequence",
+                    )
+                },
+                "created": [list(ref) for ref in created],
+            }
+            manifest = complete_manifest(
+                self.root,
+                manifest,
+                instance_id=instance_id,
+                business_root=business_root,
+                result=result,
+            )
         store.publish(store.prepare(manifest))
         return created, sequence

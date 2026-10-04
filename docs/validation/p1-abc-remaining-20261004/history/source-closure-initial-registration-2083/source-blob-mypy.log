@@ -1,0 +1,10 @@
+src\aitest\infrastructure\file_store\source_material.py:175: error: No overload variant of "list" matches argument type "object"  [call-overload]
+src\aitest\infrastructure\file_store\source_material.py:175: note: Possible overload variants:
+src\aitest\infrastructure\file_store\source_material.py:175: note:     def [_T] list() -> list[_T]
+src\aitest\infrastructure\file_store\source_material.py:175: note:     def [_T] list(Iterable[_T], /) -> list[_T]
+src\aitest\infrastructure\file_store\source_material.py:176: error: No overload variant of "list" matches argument type "object"  [call-overload]
+src\aitest\infrastructure\file_store\source_material.py:176: note: Possible overload variants:
+src\aitest\infrastructure\file_store\source_material.py:176: note:     def [_T] list() -> list[_T]
+src\aitest\infrastructure\file_store\source_material.py:176: note:     def [_T] list(Iterable[_T], /) -> list[_T]
+src\aitest\application\project\source_analysis.py:383: error: Returning Any from function declared to return "Mapping[str, object]"  [no-any-return]
+Found 3 errors in 2 files (checked 161 source files)

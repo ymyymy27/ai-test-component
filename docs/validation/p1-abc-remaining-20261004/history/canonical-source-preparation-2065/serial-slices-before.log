@@ -1,0 +1,121 @@
+FFFFFFF                                                                  [100%]
+================================== FAILURES ===================================
+___ test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent ____
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-514/test_slice_resumes_saved_runni0")
+
+    def test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent(tmp_path):
+        port = FakeExecutionPort()
+        port.register(
+            FakeExecutionSpec("attempt-1", "run-1", "step-1", running_observations_before_exit=2)
+        )
+        port.register(
+            FakeExecutionSpec("attempt-2", "run-1", "step-2", running_observations_before_exit=0)
+        )
+        checkpoint = FileCheckpointStore(tmp_path)
+        runner = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+        first = runner.execute_attempt(items()[0].attempt, items()[0].request, max_polls=1)
+        assert first.state is AttemptState.RUNNING
+        active_items = (
+            replace(
+                items()[0],
+                step=replace(items()[0].step, state=StepState.RUNNING, current_attempt_id="attempt-1"),
+                attempt=first,
+            ),
+            items()[1],
+        )
+        restarted = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+>       result = restarted.run_serial(active_items, max_polls_per_slice=4)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: SerialRunner.run_serial() got an unexpected keyword argument 'max_polls_per_slice'
+
+tests\unit\test_serial_execution_slices.py:48: TypeError
+_____ test_default_slice_does_not_wait_for_all_long_running_observations ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-514/test_default_slice_does_not_wa0")
+
+    def test_default_slice_does_not_wait_for_all_long_running_observations(tmp_path):
+        port = FakeExecutionPort()
+        port.register(
+            FakeExecutionSpec("attempt-1", "run-1", "step-1", running_observations_before_exit=500)
+        )
+        port.register(FakeExecutionSpec("attempt-2", "run-1", "step-2"))
+        runner = SerialRunner(
+            port, checkpoint_store=FileCheckpointStore(tmp_path), poll_interval_seconds=0
+        )
+        result = runner.run_serial(items())
+>       assert result.steps[0].state is StepState.RUNNING
+E       AssertionError: assert <StepState.COMPLETED: 'completed'> is <StepState.RUNNING: 'running'>
+E        +  where <StepState.COMPLETED: 'completed'> = Step(step_id='step-1', run_id='run-1', ordinal=1, case_id='case-1', level=<StepLevel.L2: 'L2'>, step_revision_ref=Step...s=(), evidence_requirements=(), execution_source_requirement=None, current_attempt_id='attempt-1', invalidated_by=None).state
+E        +  and   <StepState.RUNNING: 'running'> = StepState.RUNNING
+
+tests\unit\test_serial_execution_slices.py:63: AssertionError
+________ test_control_gate_stops_new_dispatch_without_consuming_intent ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-514/test_control_gate_stops_new_di0")
+
+    def test_control_gate_stops_new_dispatch_without_consuming_intent(tmp_path):
+        port = FakeExecutionPort()
+        port.register(FakeExecutionSpec("attempt-1", "run-1", "step-1"))
+>       runner = SerialRunner(
+            port,
+            checkpoint_store=FileCheckpointStore(tmp_path),
+            dispatch_allowed=lambda request: False,
+            poll_interval_seconds=0,
+        )
+E       TypeError: SerialRunner.__init__() got an unexpected keyword argument 'dispatch_allowed'
+
+tests\unit\test_serial_execution_slices.py:72: TypeError
+_____________ test_slice_budget_is_a_positive_bounded_integer[0] ______________
+
+budget = 0
+
+    @pytest.mark.parametrize("budget", [0, -1, True, 1.5])
+    def test_slice_budget_is_a_positive_bounded_integer(budget):
+        with pytest.raises(ValueError):
+>           SerialRunner(FakeExecutionPort()).run_serial((), max_polls_per_slice=budget)
+E           TypeError: SerialRunner.run_serial() got an unexpected keyword argument 'max_polls_per_slice'
+
+tests\unit\test_serial_execution_slices.py:87: TypeError
+_____________ test_slice_budget_is_a_positive_bounded_integer[-1] _____________
+
+budget = -1
+
+    @pytest.mark.parametrize("budget", [0, -1, True, 1.5])
+    def test_slice_budget_is_a_positive_bounded_integer(budget):
+        with pytest.raises(ValueError):
+>           SerialRunner(FakeExecutionPort()).run_serial((), max_polls_per_slice=budget)
+E           TypeError: SerialRunner.run_serial() got an unexpected keyword argument 'max_polls_per_slice'
+
+tests\unit\test_serial_execution_slices.py:87: TypeError
+____________ test_slice_budget_is_a_positive_bounded_integer[True] ____________
+
+budget = True
+
+    @pytest.mark.parametrize("budget", [0, -1, True, 1.5])
+    def test_slice_budget_is_a_positive_bounded_integer(budget):
+        with pytest.raises(ValueError):
+>           SerialRunner(FakeExecutionPort()).run_serial((), max_polls_per_slice=budget)
+E           TypeError: SerialRunner.run_serial() got an unexpected keyword argument 'max_polls_per_slice'
+
+tests\unit\test_serial_execution_slices.py:87: TypeError
+____________ test_slice_budget_is_a_positive_bounded_integer[1.5] _____________
+
+budget = 1.5
+
+    @pytest.mark.parametrize("budget", [0, -1, True, 1.5])
+    def test_slice_budget_is_a_positive_bounded_integer(budget):
+        with pytest.raises(ValueError):
+>           SerialRunner(FakeExecutionPort()).run_serial((), max_polls_per_slice=budget)
+E           TypeError: SerialRunner.run_serial() got an unexpected keyword argument 'max_polls_per_slice'
+
+tests\unit\test_serial_execution_slices.py:87: TypeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_serial_execution_slices.py::test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent
+FAILED tests/unit/test_serial_execution_slices.py::test_default_slice_does_not_wait_for_all_long_running_observations
+FAILED tests/unit/test_serial_execution_slices.py::test_control_gate_stops_new_dispatch_without_consuming_intent
+FAILED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[0]
+FAILED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[-1]
+FAILED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[True]
+FAILED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[1.5]
+7 failed in 0.75s

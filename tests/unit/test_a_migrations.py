@@ -39,6 +39,7 @@ def test_inspect_reports_available_and_pending(manager: FileMigrationManager) ->
             "0004-bounded-query-directory",
             "0005-complete-commit-closure",
             "0006-canonical-current-publication",
+            "0007-canonical-manifest-and-business-changes",
         )
     )
     assert report["available"] == available

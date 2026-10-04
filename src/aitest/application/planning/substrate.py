@@ -45,6 +45,8 @@ AggregateKind = Literal[
     "acceptance_item",
     "environment",
     "source_snapshot",
+    "source_pin_intent",
+    "source_binding_current",
     "template_ref",
     "generated_content",
     "rule_draft",

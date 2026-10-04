@@ -1,0 +1,20 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_______ test_same_run_intent_cannot_be_rebound_to_different_preparation _______
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001EEAFB06660>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-549/test_same_run_intent_cannot_be0/tested"))
+
+    def test_same_run_intent_cannot_be_rebound_to_different_preparation(authoritative):
+        core, inputs, _ = authoritative
+        one = prepare(core, inputs).result
+        first = register(core, one)
+        two = prepare(
+            core, inputs, request="second-prepare-request", intent="second-prepare-intent"
+        ).result
+>       assert two["prepared_run_id"] != one["prepared_run_id"]
+E       AssertionError: assert 'prepared-1accaf884dacfd962726b72f1451d82c10241a94' != 'prepared-1accaf884dacfd962726b72f1451d82c10241a94'
+
+tests\unit\test_initial_run_registration.py:125: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_initial_run_registration.py::test_same_run_intent_cannot_be_rebound_to_different_preparation
+1 failed in 23.68s

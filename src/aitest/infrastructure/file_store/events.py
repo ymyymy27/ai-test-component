@@ -133,6 +133,10 @@ def derive_event_id(
 class FileEventJournal:
     """基于文件的正式追加事件日志。"""
 
+    @property
+    def instance_id(self) -> str:
+        return self._instance_id
+
     def __init__(self, workspace_root: Path, *, instance_id: str) -> None:
         if not instance_id:
             raise ValueError("instance_id is required")

@@ -624,6 +624,13 @@ class FileQueryIndex:
                     project_id=None,
                     parent_manifest=current["pointer"]["manifest_digest"],
                 )
+                if manifest["schema"] == "aitest.commit-manifest/2":
+                    from .canonical_manifest import complete_manifest
+
+                    manifest = complete_manifest(
+                        self.root, manifest, instance_id="index-maintenance-" + uuid.uuid4().hex,
+                        business_root=manifest["business_change_index_root"],
+                    )
                 store.publish(store.prepare(manifest))
         return meta
 

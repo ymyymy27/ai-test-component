@@ -711,6 +711,7 @@ def test_default_core_model_flow_persists_filtered_draft_and_reuses_original_int
 
 
 def test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary(tmp_path: Path) -> None:
+    from tests.support.persistent_evidence_fixture import fixture_facts, save_fixture_bytes
     fixture = Path(__file__).parents[1] / "contracts/fixtures/execution_facts/success.json"
     facts = ExecutionFacts.model_validate_json(fixture.read_text(encoding="utf-8"))
     frozen = facts.attempts[0]
@@ -730,6 +731,8 @@ def test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary(tmp_
     facts = facts.model_copy(update={"attempts": (project_attempt_fact(attempt, is_current=True),)})
     unit = FileUnitOfWork(tmp_path)
     for revision in (1, 2):
+        save_fixture_bytes(tmp_path, facts.project_id)
+        facts = fixture_facts(facts)
         unit.begin(f"publish-{revision}", facts.project_id)
         result = ExecutionCommitCoordinator(unit).stage_and_commit(
             ExecutionCommitBatch(

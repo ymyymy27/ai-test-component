@@ -30,19 +30,15 @@ import re
 from pathlib import Path
 from typing import Any, Final
 
+from .references import OBJECT_REFERENCE_KEYS
+
 _DIGEST_RE: Final = re.compile(r"^sha256:([0-9a-f]{64})$")
 _HEX64_RE: Final = re.compile(r"^[0-9a-f]{64}$")
 
 #: 指向 ``objects/<project>/<sha256>`` 内容寻址对象的引用键白名单。
 #: 只有这些键携带的 ``sha256:<hex>`` 参与对象闭包核对；其余键名下的
 #: 摘要均为内联指纹（内容/投影/规则/计划等），不要求存在同名对象（A-06）。
-_OBJECT_REF_KEYS: Final = frozenset(
-    {
-        "object_digest",
-        "output_object_digest",
-        "artifact_digest",
-    }
-)
+_OBJECT_REF_KEYS: Final = OBJECT_REFERENCE_KEYS
 
 #: 根目录允许的永久/运行期文件。
 _ALLOWED_TOP_FILES: Final = frozenset(
@@ -103,6 +99,10 @@ def _iter_digest_refs(value: Any, *, key: str | None = None) -> list[str]:
             if match is not None:
                 found.append(match.group(1))
     elif isinstance(value, dict):
+        if "relative_path" in value and "digest" in value:
+            digest = value.get("digest")
+            if isinstance(digest, str) and (match := _DIGEST_RE.fullmatch(digest)) is not None:
+                found.append(match.group(1))
         for child_key, nested in value.items():
             found.extend(_iter_digest_refs(nested, key=str(child_key)))
     elif isinstance(value, list):

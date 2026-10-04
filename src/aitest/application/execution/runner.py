@@ -3,7 +3,7 @@
 import hashlib
 import json
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
 
@@ -99,6 +99,7 @@ class SerialRunner:
         commit_coordinator: ExecutionCommitCoordinator | None = None,
         reuse_bases: Sequence[CaseReuseBasis] = (),
         previous_attempt_ids_by_step: Mapping[str, Sequence[str]] | None = None,
+        dispatch_allowed: Callable[[ExecutionRequest], bool] | None = None,
     ) -> None:
         if poll_interval_seconds < 0:
             raise ValueError("poll_interval_seconds must be non-negative")
@@ -117,6 +118,7 @@ class SerialRunner:
         self._intent_claims: dict[tuple[str, str], Attempt] = {}
         self._intent_fingerprints: dict[tuple[str, str], str] = {}
         self._authorization_claims: dict[str, tuple[str, str]] = {}
+        self._dispatch_allowed = dispatch_allowed
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
         states = self._state_by_step_id(steps)
@@ -159,14 +161,59 @@ class SerialRunner:
         items: Sequence[SerialExecutionItem],
         *,
         max_waves: int = 100,
+        max_polls_per_slice: int = 100,
     ) -> SerialExecutionResult:
         if max_waves < 1:
             raise ValueError("max_waves must be positive")
+        if type(max_polls_per_slice) is not int or not 1 <= max_polls_per_slice <= 10000:
+            raise ValueError("slice poll budget must be an integer in 1..10000")
         steps = [item.step for item in items]
         self._state_by_step_id(steps)
         step_index = self._index_by_step_id(steps)
         items_by_step = self._items_by_step_id(items)
-        attempts: list[Attempt] = []
+        attempts: dict[str, Attempt] = {}
+
+        def advance(step_id: str) -> Attempt:
+            item = items_by_step[step_id]
+            attempt = self.execute_attempt(
+                item.attempt, item.request, max_polls=max_polls_per_slice
+            )
+            attempts[attempt.attempt_id] = attempt
+            index = step_index[step_id]
+            steps[index] = replace(
+                steps[index],
+                state=self._step_state_for_attempt(attempt.state),
+                current_attempt_id=attempt.attempt_id,
+            )
+            items_by_step[step_id] = replace(item, step=steps[index], attempt=attempt)
+            return attempt
+
+        # Resume the already published current attempt before admitting another
+        # serial action. A running Step is not a reason to ignore its checkpoint.
+        for step in steps:
+            if step.state is StepState.RUNNING or (
+                step.state is StepState.PENDING_VERIFICATION and step.current_attempt_id is not None
+            ):
+                item = items_by_step[step.step_id]
+                if step.current_attempt_id != item.attempt.attempt_id:
+                    raise ValueError("active serial step does not name its current attempt")
+                prepared = self._prepare_attempt(item.attempt, item.request)
+                fingerprint = _start_fingerprint(prepared, item.request)
+                saved = (
+                    self._commit_coordinator.find_start(
+                        project_id=item.request.project_id,
+                        intent_id=item.request.intent_id,
+                        fingerprint=fingerprint,
+                    )
+                    if self._commit_coordinator is not None
+                    else self._find_intent_claim(item.request.intent_id, item.request.project_id)
+                )
+                if saved is None or saved.attempt_id != item.attempt.attempt_id:
+                    raise ValueError("active serial step has no verified saved start claim")
+                items_by_step[step.step_id] = replace(item, attempt=saved)
+                resumed = advance(step.step_id)
+                if self._blocks_serial_progress(resumed):
+                    return SerialExecutionResult(tuple(steps), tuple(attempts.values()))
 
         for _ in range(max_waves):
             plan = self.plan_dispatch(steps)
@@ -177,16 +224,29 @@ class SerialRunner:
                 break
             for step_id in plan.ready_step_ids:
                 item = items_by_step[step_id]
-                attempt = self.execute_attempt(item.attempt, item.request)
-                attempts.append(attempt)
-                index = step_index[step_id]
-                steps[index] = replace(
-                    steps[index],
-                    state=self._step_state_for_attempt(attempt.state),
-                    current_attempt_id=attempt.attempt_id,
-                )
+                if self._dispatch_allowed is not None and not self._dispatch_allowed(item.request):
+                    return SerialExecutionResult(tuple(steps), tuple(attempts.values()))
+                attempt = advance(step_id)
+                if self._blocks_serial_progress(attempt):
+                    return SerialExecutionResult(tuple(steps), tuple(attempts.values()))
 
-        return SerialExecutionResult(steps=tuple(steps), attempts=tuple(attempts))
+        return SerialExecutionResult(steps=tuple(steps), attempts=tuple(attempts.values()))
+
+    @staticmethod
+    def _blocks_serial_progress(attempt: Attempt) -> bool:
+        return (
+            attempt.state
+            in {
+                AttemptState.INTENT_RECORDED,
+                AttemptState.STARTING,
+                AttemptState.RUNNING,
+                AttemptState.STOP_REQUESTED,
+                AttemptState.COLLECTING,
+                AttemptState.UNKNOWN,
+            }
+            or attempt.state is AttemptState.PENDING_VERIFICATION
+            and attempt.exit_fact_ref is None
+        )
 
     def execute_attempt(
         self,
@@ -342,7 +402,6 @@ class SerialRunner:
 
     def start_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
         prepared = self._prepare_attempt(attempt, request)
-        self._validate_start(prepared, request)
         fingerprint = _start_fingerprint(prepared, request)
         prepared = replace(prepared, intent_digest=fingerprint)
         key = (request.project_id, request.intent_id)
@@ -375,6 +434,7 @@ class SerialRunner:
             if not existing.intent_digest:
                 raise ValueError("legacy execution fingerprint is unverified; inspect it first")
             return existing
+        self._validate_start(prepared, request)
         if prepared.state is not AttemptState.INTENT_RECORDED or (
             prepared.execution_handle_ref is not None
         ):

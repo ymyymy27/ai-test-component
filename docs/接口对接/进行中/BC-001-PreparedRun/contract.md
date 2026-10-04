@@ -3,11 +3,11 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.10"
-contract_status: agreed
+contract_version: "0.11"
+contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
-verification_status: fixture_passed
+verification_status: not_run
 last_verified_commit: null
 blockers: []
 next_owner: C
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.10（2026-10-03 增量修订）
+版本：0.11（2026-10-04 准备权威材料增量，验证记录待同步）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -27,6 +27,10 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 ---
 
 ## 1 目的
+
+本次增量约束：默认 `prepare_run` 不信任请求携带的“无缺口”、内容摘要或人工确认标签。登记新准备意图前，按冻结仓储修订核对项目归属、计划/用例/规则的完整正文摘要、模板资源摘要、源码清单内容身份、计划引用与验收范围、冻结步骤与用例正文、确认记录与准确依据修订。锁内提交前重复核对，失败返回 `blocked` 与 `basis_unverified`，不消耗新准备意图。请求摘要冲突仍优先于来源变化；人工补确认独立追加，不能改写冻结计划或用例，不能推导执行或核验通过。环境/执行来源的实际运行核对仍由 C 在启动时完成，材料可核不代表真实环境验收。
+
+默认准备成功时，`prepared_run@1` 完整合同 DTO 与 `preparation_record` 同次提交，`created_at_commit` 为该批真实提交边界。同准备身份重传从准确仓储修订回读原 DTO，不能用当前请求字段重新拼接冻结快照；缺少原 DTO 的旧意图显式要求重新准备。实际源码核对在短事务外执行，事务内复核保存的准确引用。新增受控 `confirm_basis` 只接受准确用例/依据修订及正文摘要，确认标识按项目和持久意图派生，单条不可变确认与该意图一次提交；重传回原确认，同键换输入冲突。新增协议动作按能力表协商，代理入口不得自签确认。
 
 C 包已先行完成 `ExecutionFacts` v1.0 与三份夹具。其中若干字段的**语义所有权属于 B 包**（档位、驱动、结论上限、必测范围），
 C 包按文档推导时出现了一处**取值错误**和两处**类型未闭合**。本文档提出最小改动方案，避免 D 包做报告时面对多套口径。

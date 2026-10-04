@@ -1,0 +1,89 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+________ test_contended_short_writer_returns_within_queue_wait_budget _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-518/test_contended_short_writer_re0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000265C4987490>
+
+    def test_contended_short_writer_returns_within_queue_wait_budget(tmp_path, monkeypatch):
+        monkeypatch.setattr(locking, "_TRANSACTION_WAIT_SECONDS", 0.05, raising=False)
+        lock = locking.LifetimeWriterLock(tmp_path / "writer.lock")
+        lock.acquire()
+        held, release, finished = Event(), Event(), Event()
+        errors = []
+    
+        def owner():
+            with locking.writer_lock(tmp_path / "writer.lock"):
+                held.set()
+                release.wait(5)
+    
+        def waiting():
+            try:
+                with locking.writer_lock(tmp_path / "writer.lock"):
+                    pass
+            except Exception as error:
+                errors.append(error)
+            finally:
+                finished.set()
+    
+        first, second = Thread(target=owner), Thread(target=waiting)
+        first.start()
+        assert held.wait(1)
+        second.start()
+        try:
+>           assert finished.wait(0.5), "writer exceeded its bounded wait"
+E           AssertionError: writer exceeded its bounded wait
+E           assert False
+E            +  where False = wait(0.5)
+E            +    where wait = <threading.Event at 0x265c49875c0: unset>.wait
+
+tests\unit\test_bounded_writer_admission.py:39: AssertionError
+_______ test_shared_unit_cannot_replace_another_begin_admission_context _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-518/test_shared_unit_cannot_replac0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000265C4334C30>
+
+    def test_shared_unit_cannot_replace_another_begin_admission_context(tmp_path, monkeypatch):
+        core = assemble_workspace_core(tmp_path, instance_id="actual-core")
+        unit = core.unit_of_work
+        first_entered, release = Event(), Event()
+        first_errors, second_errors = [], []
+    
+        @contextmanager
+        def suspended_acquire(**kwargs):
+            if not first_entered.is_set():
+                first_entered.set()
+                release.wait(5)
+            yield unit.workspace
+    
+        monkeypatch.setattr(unit.workspace, "acquire", suspended_acquire)
+    
+        def first_begin():
+            try:
+                unit.begin("first-request", "first-project", intent_id="first-intent")
+                unit.rollback("first-request")
+            except Exception as error:
+                first_errors.append(error)
+    
+        def second_begin():
+            try:
+                unit.begin("second-request", "second-project", intent_id="second-intent")
+                unit.rollback("second-request")
+            except Exception as error:
+                second_errors.append(error)
+    
+        first, second = Thread(target=first_begin), Thread(target=second_begin)
+        first.start()
+        assert first_entered.wait(1)
+        second.start()
+        second.join(1)
+        try:
+>           assert len(second_errors) == 1 and isinstance(second_errors[0], WorkspaceInUse)
+E           assert (0 == 1)
+E            +  where 0 = len([])
+
+tests\unit\test_bounded_writer_admission.py:83: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_bounded_writer_admission.py::test_contended_short_writer_returns_within_queue_wait_budget
+FAILED tests/unit/test_bounded_writer_admission.py::test_shared_unit_cannot_replace_another_begin_admission_context
+2 failed in 2.11s

@@ -1,0 +1,38 @@
+FFFFF............                                                        [100%]
+================================== FAILURES ===================================
+__ test_default_prepare_correct_saved_material_can_be_prepared_and_recalled ___
+tests\unit\test_authoritative_preparation.py:98: in test_default_prepare_correct_saved_material_can_be_prepared_and_recalled
+    assert first.error is None
+E   AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') = Response(protocol_version='aitest.local/2.0', request_id='prepare-request', instance_id='authoritative-core', workspac...', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')).error
+__ test_default_prepare_redundant_fields_cannot_override_saved_content[step] __
+tests\unit\test_authoritative_preparation.py:126: in test_default_prepare_redundant_fields_cannot_override_saved_content
+    assert result.error is None, result.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') = Response(protocol_version='aitest.local/2.0', request_id='prepare-request', instance_id='authoritative-core', workspac...', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')).error
+_ test_default_prepare_redundant_fields_cannot_override_saved_content[basis] __
+tests\unit\test_authoritative_preparation.py:126: in test_default_prepare_redundant_fields_cannot_override_saved_content
+    assert result.error is None, result.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') = Response(protocol_version='aitest.local/2.0', request_id='prepare-request', instance_id='authoritative-core', workspac...', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')).error
+_ test_default_prepare_redundant_fields_cannot_override_saved_content[scope] __
+tests\unit\test_authoritative_preparation.py:126: in test_default_prepare_redundant_fields_cannot_override_saved_content
+    assert result.error is None, result.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') = Response(protocol_version='aitest.local/2.0', request_id='prepare-request', instance_id='authoritative-core', workspac...', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')).error
+_ test_default_prepare_redundant_fields_cannot_override_saved_content[workspace] _
+tests\unit\test_authoritative_preparation.py:126: in test_default_prepare_redundant_fields_cannot_override_saved_content
+    assert result.error is None, result.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='1 validation error for PreparedRun selecte...t', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent') = Response(protocol_version='aitest.local/2.0', request_id='prepare-request', instance_id='authoritative-core', workspac...', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='prepare-request', intent_id='prepare-intent')).error
+=========================== short test summary info ===========================
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepare_correct_saved_material_can_be_prepared_and_recalled
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepare_redundant_fields_cannot_override_saved_content[step]
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepare_redundant_fields_cannot_override_saved_content[basis]
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepare_redundant_fields_cannot_override_saved_content[scope]
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepare_redundant_fields_cannot_override_saved_content[workspace]
+5 failed, 12 passed in 54.93s

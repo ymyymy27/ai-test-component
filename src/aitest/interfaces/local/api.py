@@ -208,10 +208,18 @@ class LocalAPI:
             instance_id=self.instance_id,
             project_id=command.project_id,
             binding_revision=command.binding_revision,
+            intent_id=command.intent_id,
             error=ErrorDTO(
                 code=code,
                 message=self._safe_error_text(message),
-                next_step="See docs/一期/工程状态.md",
+                retryable=code == "WORKSPACE_IN_USE",
+                next_step=(
+                    "写入入口繁忙，请稍后保留原业务意图重试。"
+                    if code == "WORKSPACE_IN_USE"
+                    else "核对当前状态和诊断后继续；结果未知的动作先核实原意图。"
+                ),
+                request_id=command.request_id,
+                intent_id=command.intent_id,
             ),
         )
 

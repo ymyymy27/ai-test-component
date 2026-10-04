@@ -28,15 +28,18 @@ from typing import cast
 from uuid import uuid4
 
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
 )
+from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
 )
 from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
+from aitest.infrastructure.adapters.source_control import GitSourceControl
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
 from aitest.infrastructure.capabilities import (
     CONNECTION,
@@ -53,6 +56,7 @@ from aitest.infrastructure.connections import (
     LocalAPIConnectionBridge,
 )
 from aitest.infrastructure.credentials import SecretManager
+from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.core_launch import (
     FileCoreLaunchStore,
     ProcessFact,
@@ -124,6 +128,7 @@ class CoreConnectionLedger:
         session_probe: Callable[[], int | None] | None = None,
         user_probe: Callable[[], str | None] | None = None,
     ) -> None:
+        FileCommitStore.reject_links(workspace_root)
         self._root = workspace_root.resolve()
         self._dir = self._root / _CORE_DIR
         self._path = self._dir / _CONNECTION_LEDGER_FILE
@@ -262,6 +267,7 @@ def assemble_workspace_core(
     - C/D 用例继续走 :class:`UseCaseRegistry`，经 ``extra_handlers`` 叠加，
       与默认动作同名时拒绝（动作归属唯一）。
     """
+    FileCommitStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     workspace = Workspace(root)
     if workspace_id is not None:
@@ -271,8 +277,8 @@ def assemble_workspace_core(
     lifetime_lock = workspace.admit_lifetime()
     try:
         try:
-            journal = FileEventJournal(root, instance_id=workspace.workspace_id)
-            recovery = RecoveryOrchestrator(root, instance_id=workspace.workspace_id).run()
+            journal = FileEventJournal(root, instance_id=instance_id)
+            recovery = RecoveryOrchestrator(root, instance_id=instance_id).run(startup=True)
         except (OSError, ValueError) as error:
             raise CoreAssemblyBlocked("提交与恢复材料无法核实，核心拒绝启动") from error
         if recovery.state == "blocked":
@@ -286,6 +292,7 @@ def assemble_workspace_core(
                 "0004-bounded-query-directory",
                 "0005-complete-commit-closure",
                 "0006-canonical-current-publication",
+                "0007-canonical-manifest-and-business-changes",
             )
         )
         try:
@@ -302,7 +309,9 @@ def assemble_workspace_core(
         except OSError as error:
             raise CoreAssemblyBlocked("发布后端保存能力无法核实，核心拒绝新写入") from error
 
-        unit_of_work = FileUnitOfWork(root, journal=journal)
+        unit_of_work = FileUnitOfWork(
+            root, journal=journal, expected_writer_epoch=workspace.identity["writer_epoch"]
+        )
         ports_unit_of_work = PortsUnitOfWork(
             unit_of_work,
             repository=unit_of_work.repo,
@@ -407,6 +416,12 @@ def assemble_workspace_core(
             model_credentials=model_credentials,
             material_projector=SafeMaterialProjector(),
             workspace_id=workspace.workspace_id,
+            source_analysis=SourceAnalysisService(
+                reader=reader, unit_of_work=unit_of_work, snapshots=snapshot_store,
+                source_control=GitSourceControl(),
+                source_available=lambda: gate.condition(SOURCE).state.value == "ready",
+            ),
+            basis_confirmations=BasisConfirmationService(reader=reader, unit=unit_of_work),
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
         if extra_handlers:
@@ -499,6 +514,7 @@ class CoreBootstrap:
         self._registry.register(package, handlers, closed=self._registration_closed)
 
     def create(self, workspace_root: Path) -> CoreInstance:
+        FileCommitStore.reject_links(workspace_root)
         root = workspace_root.resolve()
         with self._lock:
             if root in self._instances:
@@ -520,6 +536,7 @@ class CoreBootstrap:
 
     def release(self, workspace_root: Path) -> None:
         """关闭指定工作空间的进程内核心并释放全生命周期写锁（A-02）。"""
+        FileCommitStore.reject_links(workspace_root)
         root = workspace_root.resolve()
         with self._lock:
             instance = self._instances.pop(root, None)
@@ -556,6 +573,7 @@ class SystemProcessLauncher:
         process_probe: Callable[[int], ProcessFact] | None = None,
     ) -> None:
         FileCoreLaunchStore.reject_links(workspace_root)
+        FileCommitStore.reject_links(workspace_root)
         self._root = workspace_root.resolve()
         if not valid_instance_filename(instance_id_file):
             raise WorkspaceInUse("core discovery pointer must be a workspace filename")
@@ -833,6 +851,7 @@ def make_pipe_connector(
     )
 
     FileCoreLaunchStore.reject_links(workspace_root)
+    FileCommitStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     id_path = root / _INSTANCE_ID_FILE
     launches = FileCoreLaunchStore(root)
@@ -916,6 +935,7 @@ def acquire_endpoint(
     - 每次核对成功的连接都写入工作空间连接台账（A-10），跨重启可核对。
     """
     FileCoreLaunchStore.reject_links(workspace_root)
+    FileCommitStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     if workspace_id is None:
         workspace_id = Workspace(root).workspace_id
@@ -952,6 +972,7 @@ def shutdown_endpoint(
     from aitest.interfaces.local.pipe import NamedPipeClient, PipeUnavailable
 
     FileCoreLaunchStore.reject_links(workspace_root)
+    FileCommitStore.reject_links(workspace_root)
     root = workspace_root.resolve()
     if workspace_id is None:
         workspace_id = Workspace(root).workspace_id

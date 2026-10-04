@@ -1,0 +1,26 @@
+.....F......................................F.....................       [100%]
+================================== FAILURES ===================================
+_________________ test_assembly_blocked_on_integrity_failure __________________
+tests\unit\test_a_a02_core_dispatch.py:185: in test_assembly_blocked_on_integrity_failure
+    with pytest.raises(CoreAssemblyBlocked):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE CoreAssemblyBlocked
+___ test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary ___
+tests\unit\test_abc_root_cause_regressions.py:734: in test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary
+    result = ExecutionCommitCoordinator(unit).stage_and_commit(
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_assembly_blocked_on_integrity_failure
+FAILED tests/unit/test_abc_root_cause_regressions.py::test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary
+2 failed, 64 passed in 50.59s

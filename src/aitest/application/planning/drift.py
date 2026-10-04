@@ -70,6 +70,7 @@ def _readable(
     aggregate_kind: str,
     record_id: str,
     revision: int,
+    frozen_digest: str | None = None,
 ) -> bool:
     """按准确修订读回；读不到只表示**这条依据不可核**，不表示"项目没有它"。"""
     try:
@@ -80,7 +81,36 @@ def _readable(
         )
     except (ValueError, OSError):
         return False
-    return record.payload.get("project_id", record.payload.get("local_project_id")) == project_id
+    payload = record.payload
+    if payload.get("project_id", payload.get("local_project_id")) != project_id:
+        return False
+    identity_field = {
+        "binding": "binding_id",
+        "environment": "environment_id",
+        "plan": "plan_id",
+        "case": "case_id",
+        "rule_version": "rule_id",
+        "acceptance_scope": "scope_id",
+    }.get(aggregate_kind)
+    if identity_field is not None and payload.get(identity_field) != record_id:
+        return False
+    if frozen_digest is not None:
+        from aitest.application.planning.publish import payload_digest
+        from aitest.application.planning.serialization import case_content_digest, case_from_payload
+
+        try:
+            actual = (
+                case_content_digest(case_from_payload(payload), project_id=project_id)
+                if aggregate_kind == "case"
+                else payload_digest(payload)
+            )
+        except (ValueError, TypeError, KeyError):
+            return False
+        if actual != frozen_digest:
+            return False
+        if aggregate_kind == "rule_version" and payload.get("status") != "published":
+            return False
+    return True
 
 
 def _snapshot_identity_check(
@@ -101,16 +131,27 @@ def _snapshot_identity_check(
         return False, "the frozen source snapshot belongs to another project"
     if record.payload.get("content_identity") != frozen_identity:
         return False, "the persisted snapshot content identity differs from the frozen one"
+    from aitest.application.project.serialization import source_manifest_from_payload
+    from aitest.domain.project.context import source_content_identity
+
+    try:
+        manifest = source_manifest_from_payload(record.payload)
+        actual = source_content_identity(manifest)
+    except (ValueError, TypeError, KeyError):
+        return False, "the persisted snapshot has no verifiable source manifest"
+    if actual != frozen_identity:
+        return False, "the persisted snapshot bytes do not prove the frozen content identity"
     return True, ""
 
 
-def _template_readable(template_id: str, version: str) -> tuple[bool, str]:
+def _template_readable(template_id: str, version: str, digest: str) -> tuple[bool, str]:
     """模板版本按**标识+版本**核对：能否从已安装资源装载。
 
     模板是按 `<template_id>/<version>.json` 安装在包资源里的，不是记录，
     所以这里核对的是"冻结的那个版本还在不在"，不是"某个修订号读不读得到"。
     """
     from aitest.application.planning.draft import TemplateNotFoundError, load_template
+    from aitest.application.planning.plan_builder import template_version_ref
     from aitest.domain.planning.templates import TemplateRef
 
     try:
@@ -119,6 +160,8 @@ def _template_readable(template_id: str, version: str) -> tuple[bool, str]:
         return False, f"template resource is not loadable: {type(error).__name__}"
     if pack.template_id != template_id or pack.version != version:
         return False, "loaded template identity does not match the frozen reference"
+    if template_version_ref(TemplateRef(template_id, version)).digest != digest:
+        return False, "installed template bytes differ from the frozen digest"
     return True, ""
 
 
@@ -160,6 +203,7 @@ def check_frozen_basis(prepared_run: PreparedRun, *, reader: RecordReader) -> Dr
                 aggregate_kind="plan",
                 record_id=prepared_run.plan_revision.revision_id,
                 revision=prepared_run.plan_revision.revision_no,
+                frozen_digest=prepared_run.plan_revision.digest,
             ),
         ),
     ]
@@ -176,6 +220,7 @@ def check_frozen_basis(prepared_run: PreparedRun, *, reader: RecordReader) -> Dr
                 aggregate_kind="case",
                 record_id=ref.case_id,
                 revision=ref.revision,
+                frozen_digest=ref.digest,
             ),
         )
         for ref in prepared_run.case_revisions
@@ -193,6 +238,7 @@ def check_frozen_basis(prepared_run: PreparedRun, *, reader: RecordReader) -> Dr
                 aggregate_kind="rule_version",
                 record_id=ref.rule_id,
                 revision=ref.revision,
+                frozen_digest=ref.digest,
             ),
         )
         for ref in prepared_run.rule_versions
@@ -200,7 +246,9 @@ def check_frozen_basis(prepared_run: PreparedRun, *, reader: RecordReader) -> Dr
 
     # 模板版本：按标识 + 版本装载已安装资源（修订位用 0 表示"不适用修订号"）。
     for template_ref in prepared_run.template_versions:
-        loadable, detail = _template_readable(template_ref.template_id, template_ref.version)
+        loadable, detail = _template_readable(
+            template_ref.template_id, template_ref.version, template_ref.digest
+        )
         checks.append(
             BasisCheck(
                 source_kind="template_versions",

@@ -34,10 +34,8 @@
 | `prepare_run` | 编排一次准备，产出 `PreparedRun` | `preparation_record` |
 | `query` | 有界查询（读动作，不要求写身份） | — |
 
-**尚未包括**（避免读者以为已经覆盖）：`publish_plan`、模型出站类动作。
-`publish_plan` 的输入是 `Plan`（10 字段）+ `Case` 列表（每项 14 字段、含嵌套 `CaseLink`），
-需要一个**独立的领域对象参数适配层**（放在按主责合同定义的模块里，不在本动作表内临时拼 JSON）；
-模型出站类动作依赖 A 的 `ModelProvider` / `SecretPort` 与运行时凭据，属另一个批次。
+此外已注册计划发布、模型策略/生成、独立用例/范围/任务/交付及来源固定/核对。
+这些动作复用领域参数适配与端口；是否可用仍取决于实际依赖与能力门禁。
 
 `prepare_run` 的参数形状
 -----------------------
@@ -65,6 +63,7 @@ from typing import TypeVar, cast
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.draft import (
     DraftResult,
     RevisionContext,
@@ -143,10 +142,12 @@ from aitest.application.project.serialization import (
     project_from_payload,
     task_from_payload,
 )
+from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.contracts.prepared_run import (
     AssertionBasisEntry,
     AuthorizationRequirement,
     BindingFormFact,
+    BlockingReason,
     CaseRevisionRef,
     EnvironmentRefFact,
     ExclusionEntry,
@@ -154,6 +155,7 @@ from aitest.contracts.prepared_run import (
     FrozenCase,
     GapEntry,
     PlanRevisionRef,
+    PreparedRun,
     RuleVersionRef,
     RunDriverFact,
     RunTierFact,
@@ -198,6 +200,9 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "publish_plan",
         "prepare_run",
         "query",
+        "analyze_project",
+        "check_source",
+        "confirm_basis",
     }
 )
 
@@ -212,6 +217,8 @@ _AGGREGATE_KINDS: frozenset[str] = frozenset(
         "acceptance_item",
         "environment",
         "source_snapshot",
+        "source_pin_intent",
+        "source_binding_current",
         "template_ref",
         "generated_content",
         "rule_draft",
@@ -845,6 +852,8 @@ def _guard(handler: Handler) -> Handler:
             return handler(command)
         except BUseCaseError:
             raise
+        except ValidationError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
         except PreparationConflictError as error:
             raise BUseCaseError("B_PREPARATION_CONFLICT", str(error)) from error
         except ModelGenerationConflictError as error:
@@ -874,6 +883,8 @@ class BUseCaseDependencies:
     model_credentials: CredentialResolver | None = None
     material_projector: MaterialProjector | None = None
     workspace_id: str | None = None
+    source_analysis: SourceAnalysisService | None = None
+    basis_confirmations: BasisConfirmationService | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -898,6 +909,56 @@ class BUseCaseRegistry:
 
 def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     """按依赖构造 B 的动作表；每个 handler 都闭包了 `deps`。"""
+
+    def handle_analyze_project(command: object) -> Mapping[str, object]:
+        if deps.source_analysis is None:
+            raise BUseCaseError("CAPABILITY_UNAVAILABLE", "source analysis is unavailable")
+        parameters = _command_parameters(command)
+        binding_revision = getattr(command, "binding_revision", None)
+        return deps.source_analysis.analyze(
+            project_id=_command_project_id(command),
+            request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+            intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+            binding_id=_as_text(_required(parameters, "binding_id"), "binding_id"),
+            binding_revision=_int_of(binding_revision, "binding_revision"),
+            expected_revision=_int_of(
+                getattr(command, "expected_revision", None), "expected_revision"
+            ),
+            purpose=_as_text(_required(parameters, "purpose"), "purpose"),
+            source_scope=_as_text(_required(parameters, "source_scope"), "source_scope"),
+            selected_paths=_text_list(parameters.get("selected_paths", []), "selected_paths"),
+            exclusion_rules=_text_list(parameters.get("exclusion_rules", []), "exclusion_rules"),
+            refetch_dependencies=_text_list(
+                parameters.get("refetch_dependencies", []), "refetch_dependencies"
+            ),
+            refetch_scope=_optional_text(parameters.get("refetch_scope"), "refetch_scope"),
+        )
+
+    def handle_check_source(command: object) -> Mapping[str, object]:
+        if deps.source_analysis is None:
+            raise BUseCaseError("CAPABILITY_UNAVAILABLE", "source analysis is unavailable")
+        parameters = _command_parameters(command)
+        return deps.source_analysis.check(
+            project_id=_command_project_id(command),
+            snapshot_id=_as_text(_required(parameters, "snapshot_id"), "snapshot_id"),
+            revision=_int_of(_required(parameters, "revision"), "revision"),
+        )
+
+    def handle_confirm_basis(command: object) -> Mapping[str, object]:
+        if deps.basis_confirmations is None:
+            raise BUseCaseError("CAPABILITY_UNAVAILABLE", "basis confirmation is unavailable")
+        parameters = _command_parameters(command)
+        return deps.basis_confirmations.confirm(
+            project_id=_command_project_id(command),
+            request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+            intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+            case_id=_as_text(_required(parameters, "case_id"), "case_id"),
+            case_revision=_revision_of(_required(parameters, "case_revision"), "case_revision"),
+            basis_revision=_revision_of(_required(parameters, "basis_revision"), "basis_revision"),
+            basis_text_digest=_as_text(
+                _required(parameters, "basis_text_digest"), "basis_text_digest"
+            ),
+        )
 
     def handle_save_context(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
@@ -947,6 +1008,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         project_id = _command_project_id(command)
         raw = _command_parameters(command).get("environment")
         payload = _as_mapping(raw, "environment")
+        _require_owned_by_command(
+            payload, command=command, name="environment", aggregate_kind="environment"
+        )
         try:
             environment = environment_from_payload(payload)
         except ValueError as error:
@@ -994,6 +1058,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         parameters = _command_parameters(command)
         raw = _required(parameters, "acceptance_scope")
         payload = _as_mapping(raw, "acceptance_scope")
+        _require_owned_by_command(
+            payload, command=command, name="acceptance_scope", aggregate_kind="acceptance_scope"
+        )
         try:
             scope = acceptance_scope_from_payload(payload)
         except ValueError as error:
@@ -1016,6 +1083,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "case"), "case")
+        _require_owned_by_command(payload, command=command, name="case", aggregate_kind="case")
         try:
             case = case_from_payload(payload)
         except ValueError as error:
@@ -1124,12 +1192,78 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         }
 
     def handle_prepare_run(command: object) -> Mapping[str, object]:
+        from aitest.application.errors import CapabilityUnavailable
+        from aitest.application.planning.basis_validation import validate_prepared_material
+        from aitest.application.planning.preparation import preparation_identity_digest
+        from aitest.application.project.source_analysis import SourceAnalysisError
+
         inputs = _preparation_inputs(command)
+        existing = None
+        preparation = deps.reader.find_preparation(
+            project_id=inputs.project_id,
+            client_id=inputs.client_id,
+            prepare_request_id=inputs.prepare_request_id,
+        )
+        if preparation is not None:
+            snapshot_id = "prepared-" + preparation_identity_digest(
+                project_id=inputs.project_id,
+                client_id=inputs.client_id,
+                prepare_request_id=inputs.prepare_request_id,
+            )
+            try:
+                saved = deps.reader.read(
+                    aggregate_kind="prepared_run",
+                    record_id=snapshot_id,
+                    revision=1,
+                )
+                if saved.payload.get("project_id") != inputs.project_id:
+                    raise BUseCaseError(
+                        "B_INVALID_PARAMETER", "prepared snapshot has another owner"
+                    )
+                existing = PreparedRun.model_validate_json(json.dumps(dict(saved.payload)))
+            except (OSError, ValueError):
+                existing = None
+        source_reasons: tuple[BlockingReason, ...] = ()
+        if deps.source_analysis is not None:
+            try:
+                source = deps.source_analysis.check(
+                    project_id=inputs.project_id,
+                    snapshot_id=inputs.snapshot.source_snapshot_id,
+                    revision=inputs.snapshot.record_revision,
+                )
+                changes = _as_mapping(source.get("changes"), "source.changes")
+                if (
+                    changes.get("state") != "unchanged"
+                    or source.get("binding_state") != "unchanged"
+                    or source.get("git_state") not in {"not_applicable", "unchanged"}
+                ):
+                    source_reasons = (
+                        BlockingReason(
+                            code="needs_reprepare",
+                            message="Actual source or binding changed/unverified.",
+                        ),
+                    )
+            except (SourceAnalysisError, CapabilityUnavailable):
+                source_reasons = (
+                    BlockingReason(
+                        code="basis_unverified", message="Actual source cannot be verified."
+                    ),
+                )
         prepared = prepare_run(
             inputs,
             unit_of_work=deps.unit_of_work,
             reader=deps.reader,
             clock=deps.clock,
+            existing=existing,
+            persist_snapshot=True,
+            basis_verifier=lambda candidate: (
+                source_reasons
+                + validate_prepared_material(
+                    candidate,
+                    reader=deps.reader,
+                    workspace_id=deps.workspace_id,
+                )
+            ),
         )
         # DTO 与 `BC-001` 冻结的 `PreparedRun` 合同**同一套字段**：直接取模型的 JSON 形态，
         # 不在这里另写一份投影（两份形状一旦分叉，正是"每包自造 API"那类问题）。
@@ -1291,14 +1425,22 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         parameters = _command_parameters(command)
         plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
         revision = _revision_of(_required(parameters, "revision"), "revision")
-        scope = acceptance_scope_from_payload(_as_mapping(_required(parameters, "scope"), "scope"))
+        scope_payload = _as_mapping(_required(parameters, "scope"), "scope")
+        _require_owned_by_command(
+            scope_payload, command=command, name="scope", aggregate_kind="acceptance_scope"
+        )
+        scope = acceptance_scope_from_payload(scope_payload)
         raw_cases = _required(parameters, "cases")
         if not isinstance(raw_cases, list) or not raw_cases:
             raise BUseCaseError("B_INVALID_PARAMETER", "cases must be a non-empty list")
-        cases = tuple(
-            case_from_payload(_as_mapping(item, f"cases[{index}]"))
-            for index, item in enumerate(raw_cases)
-        )
+        case_values = []
+        for index, item in enumerate(raw_cases):
+            payload = _as_mapping(item, f"cases[{index}]")
+            _require_owned_by_command(
+                payload, command=command, name=f"cases[{index}]", aggregate_kind="case"
+            )
+            case_values.append(case_from_payload(payload))
+        cases = tuple(case_values)
         plan = build_plan(
             plan_id=plan_id,
             revision=revision,
@@ -1589,6 +1731,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "publish_plan": _guard(handle_publish_plan),
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
+        "analyze_project": _guard(handle_analyze_project),
+        "check_source": _guard(handle_check_source),
+        "confirm_basis": _guard(handle_confirm_basis),
     }
     return BUseCaseRegistry(actions=actions, owned_actions=OWNED_ACTIONS)
 
