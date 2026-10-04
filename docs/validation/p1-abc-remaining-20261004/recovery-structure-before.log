@@ -1,0 +1,2 @@
+{"changed_field": "records", "result": "unhandled", "type": "AttributeError", "staging_retained": true, "published_events": 0}
+{"changed_field": "commits", "result": "blocked", "staging_retained": true, "published_events": 0}

@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.20"
+contract_version: "1.21"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.20
+版本：1.21
 日期：2026-10-05
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
@@ -26,6 +26,8 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 ---
 
 ## 1 目的与前提
+
+1.21补旧版记录结构核对：事件恢复读取准确记录时，records/聚合/修订列表及载荷的非法形状须转换为材料无法核实并保留暂存，不能以AttributeError中断恢复接口或把非对象载荷当作可用记录。归属核对只接受对象载荷；此边界不放宽任何提交或事件身份条件，亦不代表完整旧版历史投影维护已全部改为有界读取。
 
 1.20补旧版事件恢复：commit.json及调用方传入的提交序号只作查找提示，不能证明业务已发布。reconcile必须读取records权威提交，按准确request/intent/project/workspace/writer_epoch、事务内created顺序与实际记录归属核对每个record_created事件，并重新核对含聚合类别的event_id；缺记录、跨项目、错误类型/修订或不完整事件集不能发布。已有边界也须与暂存及已保存日志逐项相符后才可清理；未知暂存原样保留，核心恢复报告blocked，不能把“未找到”记成已修复或自动重放。现行current提交仍消费同一完整冻结事件根；旧事件恢复只证明原业务记录存在，不产生新执行、授权或验证事实。
 

@@ -868,3 +868,37 @@ def test_a_derived_payload_is_always_a_fresh_copy() -> None:
     assert first["run"]["control_state"] == "running"
     assert _payload("failure")["run"]["control_state"] == "completed"
     assert copy.deepcopy(first)["run"]["control_state"] == "running"
+
+
+@pytest.mark.parametrize(
+    "body,stored,frozen,requested,accepted",
+    [
+        (7, 2, 2, 2, True),
+        (7, 2, 2, 7, False),
+        (2, 7, 7, 7, True),
+        (2, 7, 7, 2, False),
+        (7, None, 7, 7, True),
+        (7, 2, 2, 3, False),
+        (7, 2, 3, 2, False),
+        (7, 2, 3, 7, False),
+    ],
+)
+def test_runtime_plan_reference_uses_repository_revision(
+    body, stored, frozen, requested, accepted
+):
+    """DEC-007: a content version cannot impersonate the frozen repository reference."""
+    plan = dataclasses.replace(_plan(revision=body), record_revision=stored)
+    payload = _failure_in_progress()
+    payload["plan_revision"]["revision_no"] = frozen
+    payload["run"]["plan_revision"]["revision_no"] = frozen
+    original = copy.deepcopy(payload)
+    decision = _decide(payload, plan=plan, base_plan_revision_no=requested)
+    assert decision.accepted is accepted
+    assert decision.affected_step_ids == (("step-2",) if accepted else ())
+    assert payload == original
+    assert plan.revision == body and plan.record_revision == stored
+    if accepted:
+        assert decision.preserved_step_ids == ("step-1",)
+        assert decision.refusals == ()
+    else:
+        assert _codes(decision) == {RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH.value}

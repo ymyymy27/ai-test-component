@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.12"
+contract_version: "0.13"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.12（2026-10-05 运行事实身份核对增量，验证记录另行登记）
+版本：0.13（2026-10-05 运行中修订的仓储引用核对增量，验证记录另行登记）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -706,3 +706,10 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 5. 兼容性：Schema 保持 1.0，新增读取字段为可选；新准备要求 scope_id，旧准备需重新准备是明确迁移行为。Schema 与功能夹具由生成脚本产生，历史签署记录保留。
 
 实现入口：`contracts/prepared_run.py`、`planning/preparation.py`、`prepare_run.py`、`publish.py`、`plan_builder.py`、`drift.py`。验证详见 ABC 修复证据清单；不据此登记真实 AC 通过。
+
+
+## 19 运行中修订的准确仓储引用
+
+沿用第18节及DEC-007，不新增字段或改变PreparedRun/ExecutionFacts Schema。RuntimeRevisionRequest.base_plan_revision_no、C事实plan_revision.revision_no与已读取Plan.record_revision须核对同一准确仓储修订；Plan.revision仍是正文版本，不能在请求比较中替代仓储修订。正文7/仓储2时准确@2请求可以进入其余原门禁，@7请求须拒绝；正文2/仓储7同理。计划ID与已提供摘要仍单独核对，拒绝不能留下部分生效步骤。
+
+旧无record_revision的纯领域对象保持既有配对版本兼容调用；不能据该兼容调用宣称真实仓储读取或默认执行已核实。应用用例须按准确仓储引用读取并附读取修订，新的冻结引用不从正文版本推定。此修复只修领域比较条件，不新增运行中修订落盘、权威活动读取、默认C消费或真实验收。合同仍reviewing/partial，历史双方签署记录保留。

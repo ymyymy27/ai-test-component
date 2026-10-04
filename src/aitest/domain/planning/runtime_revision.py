@@ -293,7 +293,7 @@ class RuntimeRevisionRequest:
       （ID + 修订 + 摘要）。只比修订号不够——检查项 B-15 的反例正是"同修订号、不同
       `plan_id`"的计划被当成冻结依据接受。摘要为可选是为了兼容只做修订号核对的旧调用方，
       但**应用层一律给出**：`plan_revision_digest` 在 C 的事实里就有，不给就等于放弃这项核对；
-    - `base_plan_revision_no`：本次修订所依据的冻结计划修订，必须与计划**和** C 的事实一致；
+    - `base_plan_revision_no`：冻结计划的仓储读取修订，须与 Plan.record_revision 和 C 的事实一致；
     - `observed_snapshot_cursor`：决策时读到的 C 快照游标；不一致即 `stale_snapshot`，
       保证"按同一 commit 读取整个快照"（`CD-001` 第 3 节）而不是在混合快照上做决策；
     - `requested_driver`：只允许 `planned → stepwise` 收窄，反向由 `narrow_driver()` 拒绝；
@@ -422,16 +422,18 @@ def evaluate_runtime_revision(
             "an unpublished plan has no frozen run to revise",
         )
 
+    plan_record_revision = plan.record_revision or plan.revision
     if (
         request.base_plan_revision_id != plan.plan_id
         or plan.plan_id != facts.plan_revision_id
-        or (plan.record_revision or plan.revision) != facts.plan_revision_no
-        or request.base_plan_revision_no != plan.revision
+        or plan_record_revision != facts.plan_revision_no
+        or request.base_plan_revision_no != plan_record_revision
     ):
         refuse(
             RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH,
             "frozen plan "
-            f"{plan.plan_id}@{plan.revision}, request base plan "
+            f"{plan.plan_id}@{plan_record_revision} (body version {plan.revision}), "
+            "request base plan "
             f"{request.base_plan_revision_id}@{request.base_plan_revision_no}, "
             f"facts plan {facts.plan_revision_id}@{facts.plan_revision_no}",
         )

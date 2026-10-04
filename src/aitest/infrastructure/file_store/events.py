@@ -457,6 +457,8 @@ class FileEventJournal:
         )
 
     def _verify_recovery_events(self, entry: dict[str, object], events: tuple[Event, ...]) -> None:
+        from collections.abc import Mapping
+
         from aitest.infrastructure.security import guard_value
 
         from .records import FileRecordRepository
@@ -507,8 +509,10 @@ class FileEventJournal:
                     record_id=reference["record_id"],
                     revision=reference["revision"],
                 )
-            except (ValueError, KeyError, TypeError, OSError) as error:
+            except (ValueError, KeyError, TypeError, OSError, AttributeError) as error:
                 raise EventMaintenanceRequired("committed event record is unavailable") from error
+            if not isinstance(record.payload, Mapping):
+                raise EventMaintenanceRequired("committed event record is not an object")
             owner = record.payload.get("project_id", record.payload.get("local_project_id"))
             if owner != event.project_id or event.event_id != derive_event_id(
                 instance_id=event.instance_id,

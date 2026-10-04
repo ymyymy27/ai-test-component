@@ -1,0 +1,12 @@
+E501 Line too long (103 > 100)
+   --> src\aitest\domain\planning\runtime_revision.py:435:101
+    |
+433 |             RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH,
+434 |             "frozen plan "
+435 |             f"{plan.plan_id}@{plan_record_revision} (body version {plan.revision}), request base plan "
+    |                                                                                                     ^^^
+436 |             f"{request.base_plan_revision_id}@{request.base_plan_revision_no}, "
+437 |             f"facts plan {facts.plan_revision_id}@{facts.plan_revision_no}",
+    |
+
+Found 1 error.

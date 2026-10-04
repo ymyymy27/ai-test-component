@@ -225,3 +225,29 @@ def test_partial_or_foreign_recovery_material_is_retained(tmp_path, monkeypatch,
     assert result.state == "blocked"
     assert journal.read().events == ()
     assert staging.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "shape",
+    ["records_list", "kind_list", "rows_dict", "payload_list", "payload_scalar", "payload_null"],
+)
+def test_invalid_saved_record_shape_blocks_recovery(tmp_path, monkeypatch, shape):
+    journal, staging = pending_business_event(tmp_path, monkeypatch)
+    authority = tmp_path / "records.json"
+    body = json.loads(authority.read_bytes())
+    if shape == "records_list":
+        body["records"] = []
+    elif shape == "kind_list":
+        body["records"]["case"] = []
+    elif shape == "rows_dict":
+        body["records"]["case"]["saved-case"] = {"foreign": {"project_id": "project"}}
+    else:
+        body["records"]["case"]["saved-case"][0] = {
+            "payload_list": [], "payload_scalar": 42, "payload_null": None
+        }[shape]
+    authority.write_text(json.dumps(body), encoding="utf-8")
+    before = staging.read_bytes()
+    result = RecoveryOrchestrator(tmp_path, instance_id="inspection").run()
+    assert result.state == "blocked"
+    assert staging.read_bytes() == before
+    assert journal.read().events == ()
