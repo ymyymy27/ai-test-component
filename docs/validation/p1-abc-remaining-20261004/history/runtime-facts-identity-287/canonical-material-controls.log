@@ -1,0 +1,54 @@
+..............F                                                          [100%]
+================================== FAILURES ===================================
+______ test_canonical_migration_resumes_frozen_index_after_failed_switch ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-511/test_canonical_migration_resum0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B88BC84C30>
+
+    def test_canonical_migration_resumes_frozen_index_after_failed_switch(
+        tmp_path, monkeypatch
+    ) -> None:
+        from aitest.infrastructure.file_store.migrations import FileMigrationManager
+        from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+    
+        unit = FileUnitOfWork(tmp_path)
+        stage(unit, "one", ("case", "task"))
+        manager = FileMigrationManager(tmp_path)
+        plan = manager.plan(
+            (
+                "0003-sharded-record-authority",
+                "0004-bounded-query-directory",
+                "0005-complete-commit-closure",
+                "0006-canonical-current-publication",
+            )
+        )
+        manager.apply(plan.plan_id)
+        store = FileCommitStore(tmp_path)
+        saved = store.read_current(verify_material=True)
+        old_file = tmp_path / "manifests" / f"{saved['pointer']['manifest_digest']}.json"
+        old_bytes = old_file.read_bytes()
+        plan = manager.plan(("0007-canonical-manifest-and-business-changes",))
+        publish = FileCommitStore.publish
+    
+        def failed_publish(self, digest):
+            if self.read_manifest(digest)["schema"] == "aitest.commit-manifest/2":
+                raise OSError("injected before current switch")
+            return publish(self, digest)
+    
+        with monkeypatch.context() as patch:
+            patch.setattr(FileCommitStore, "publish", failed_publish)
+            with pytest.raises(OSError):
+                manager.apply(plan.plan_id)
+        assert store.read_current()["pointer"] == saved["pointer"]
+        assert (tmp_path / "migrations/business-index-progress.json").exists()
+        report = manager.resume(plan.plan_id)
+>       assert report.state == "resumed"
+E       AssertionError: assert 'applied' == 'resumed'
+E         
+E         - resumed
+E         + applied
+
+tests\unit\test_canonical_commit_material.py:232: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_canonical_commit_material.py::test_canonical_migration_resumes_frozen_index_after_failed_switch
+1 failed, 14 passed in 37.68s

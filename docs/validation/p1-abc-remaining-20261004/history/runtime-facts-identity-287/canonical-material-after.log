@@ -1,0 +1,23 @@
+F.......                                                                 [100%]
+================================== FAILURES ===================================
+______________ test_default_commit_records_actual_core_instance _______________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-508/test_default_commit_records_ac0")
+
+    def test_default_commit_records_actual_core_instance(tmp_path: Path) -> None:
+        first = assemble_workspace_core(tmp_path, instance_id="core-one")
+        stage(first.unit_of_work, "one")
+        first.lifetime_lock.release()
+        second = assemble_workspace_core(tmp_path, instance_id="core-two")
+        try:
+            stage(second.unit_of_work, "two")
+            current = FileCommitStore(tmp_path).read_current(verify_material=True)
+            assert current["manifest"]["instance_id"] == "core-two"
+>           events = second.journal.read(limit=20).events
+                     ^^^^^^^^^^^^^^
+E           AttributeError: 'CoreAssembly' object has no attribute 'journal'
+
+tests\unit\test_canonical_commit_material.py:36: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_canonical_commit_material.py::test_default_commit_records_actual_core_instance
+1 failed, 7 passed in 17.83s

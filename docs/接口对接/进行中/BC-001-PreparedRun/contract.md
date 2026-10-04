@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.11"
+contract_version: "0.12"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.11（2026-10-04 准备权威材料增量，验证记录待同步）
+版本：0.12（2026-10-05 运行事实身份核对增量，验证记录另行登记）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -590,6 +590,9 @@ B 侧的**领域门禁与决策结果**已实现并有回归测试
 ### 16.3 依赖的既有约定（不变）
 
 - 修订序列号由**已记录条数**派生，不接受调用者自报（B 侧已按此实现）；
+- 消费前先核对同一事实快照的准确身份：顶层与Run内run_id/run_revision相等，runtime_revision_refs逐项及顺序相等、引用非空且不重复。条数相等不能证明序列相同；不自动排序、合并或选择一处为准。
+- Step/Attempt均属于同一Run，步骤和尝试ID各自唯一，尝试指向本快照已知步骤；current_attempt_by_step的键集合准确等于全部步骤ID（包括值为null的未开始步骤），逐步值与Step.current_attempt_id一致。被选中的Attempt必须属于该步骤且is_current=true；历史Attempt可以保留但不能宣称当前。孤立/跨运行/跨步骤或矛盾当前身份整体拒绝，不能把历史完成状态当作当前状态。
+- 此增量落实既有准确事实语义，不新增PreparedRun/ExecutionFacts字段、状态或业务结论；历史材料仍可读取，矛盾材料不作为新的运行修订依据。核对通过也不证明事实来自权威仓储；默认修订仍须读取准确权威活动/依据、保存序列并由C实际消费。
 - 决策按**同一 commit 的一致快照**作出（`observed_snapshot_cursor` 与 C 的事实不符即 `stale_snapshot`）；
 - 驱动只允许收窄，扩张需新运行；
 - 历史事实保留，失效的是**依据**而不是删记录。

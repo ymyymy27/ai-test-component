@@ -1,0 +1,32 @@
+............F..................................................          [100%]
+================================== FAILURES ===================================
+_______________ test_the_translation_refuses_inconsistent_facts _______________
+
+    def test_the_translation_refuses_inconsistent_facts() -> None:
+        """C ����ʵ����ì��ʱ�״�����һ�µĿ��ղ����������������ݡ�"""
+        mismatched_run = _payload("success")
+        mismatched_run["run_id"] = "run-other"
+        with pytest.raises(ValueError, match="run identity"):
+            runtime_facts_from_execution_facts(
+                ExecutionFacts.model_validate(mismatched_run)
+            )
+    
+        mismatched_revisions = _payload("success")
+        mismatched_revisions["runtime_revision_refs"] = ["runtime-revision-1"]
+        with pytest.raises(ValueError, match="runtime revision sequence"):
+            runtime_facts_from_execution_facts(
+                ExecutionFacts.model_validate(mismatched_revisions)
+            )
+    
+        mismatched_attempt = _payload("success")
+        mismatched_attempt["current_attempt_by_step"]["step-1"] = None
+>       with pytest.raises(ValueError, match="current attempt"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'current attempt'
+E         Actual message: 'execution attempt current identity disagrees with the mapping'
+
+tests\unit\test_runtime_revision.py:330: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_runtime_revision.py::test_the_translation_refuses_inconsistent_facts
+1 failed, 62 passed in 0.30s

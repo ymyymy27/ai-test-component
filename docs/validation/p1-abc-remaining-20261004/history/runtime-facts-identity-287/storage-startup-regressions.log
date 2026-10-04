@@ -1,0 +1,31 @@
+........................................................................ [ 29%]
+......................................s................s................ [ 58%]
+...............................................................F........ [ 87%]
+..............................                                           [100%]
+================================== FAILURES ===================================
+___________ test_real_worker_reports_blocked_recovery_exit_to_host ____________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-502/test_real_worker_reports_block0")
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="actual child/pipe startup failure")
+    def test_real_worker_reports_blocked_recovery_exit_to_host(tmp_path):
+        # A damaged authority file blocks default core recovery (exit 5).
+        seeded = bootstrap.assemble_workspace_core(tmp_path, instance_id="core-seed")
+        seeded.lifetime_lock.release()
+        (tmp_path / "records.json").write_text("{not-json", encoding="utf-8")
+        launcher = SystemProcessLauncher(tmp_path)
+        host = EditorHost(
+            connector=make_pipe_connector(tmp_path),
+            launcher=launcher,
+            wait_timeout_seconds=8,
+            poll_interval_seconds=0.02,
+        )
+        try:
+>           with pytest.raises(WorkspaceInUse, match="exit_code=5"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE WorkspaceInUse
+
+tests\unit\test_core_startup_integrity.py:585: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_startup_integrity.py::test_real_worker_reports_blocked_recovery_exit_to_host
+1 failed, 243 passed, 2 skipped in 114.11s (0:01:54)

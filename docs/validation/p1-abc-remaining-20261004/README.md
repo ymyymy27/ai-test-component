@@ -10,6 +10,7 @@
 - 后续修复另建独立阶段，原档案不覆写。每阶段清单记录源码成员原始/换行规范化SHA256、AST符号行号、日志SHA256与准确结果；不以当前修改后的行号替代当时源码。
 - [consumed-source-closure-2092/manifest.json](history/consumed-source-closure-2092/manifest.json)固定准备/初始登记实际消费历史源码的提交闭包：347份工程文件、1087个AST符号、101份原始记录。完整2092 passed/2 skipped（947.00秒），Ruff、Mypy162文件、Schema/版本、构建/隔离wheel冒烟及现有VSIX面板字节核对通过。模型依据四个新反例在此版本仍未修复，后续另建阶段。
 - [model-basis-safe-receipt-2125/manifest.json](history/model-basis-safe-receipt-2125/manifest.json)固定模型准确依据、迟到响应与安全旁录阶段，基线为已推送d53f6d5。351份工程文件、407个AST符号、131份原始记录；完整2125 passed/2 skipped（1082.92秒），专项414 passed，Ruff、Mypy164文件、Schema/0.4.0版本、构建/隔离wheel冒烟及现有VSIX面板字节核对通过，档案/当前工程核对通过。未发布响应受控恢复、完整实际依赖和真实产品验收仍缺；其后运行事实身份7个实际反例尚未在此版本修复，重复步骤对照已被现有规则拒绝。此次全量于2026-10-05跨日完成。
+- [runtime-facts-identity-287/manifest.json](history/runtime-facts-identity-287/manifest.json)固定2026-10-05的后续事实身份守卫，基线为已推送bcdb0d0。352份工程文件、7个本次AST符号、146份原始记录（含原探针源码）；受影响回归/全部合同/架构287 passed，原探针8 passed，Ruff/Mypy164文件、生成物/版本、构建/隔离wheel冒烟及制品核对通过，档案/当前工程核对通过。本局部增量未再跑全量，2125项全量只属于上一351文件版本。档案如实保留首次错误文本匹配失败及文档函数链接L52误标；源码正确行号为53，更正文档后166个本地链接及源码符号核对通过，独立日志未覆写原记录。
 
 ## 重复验证
 
@@ -19,6 +20,7 @@
 .venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/source-closure-initial-registration-2083/manifest.json
 .venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/consumed-source-closure-2092/manifest.json
 .venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/model-basis-safe-receipt-2125/manifest.json
+.venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/runtime-facts-identity-287/manifest.json
 .venv/Scripts/python.exe -m pytest
 .venv/Scripts/ruff.exe check .
 .venv/Scripts/mypy.exe

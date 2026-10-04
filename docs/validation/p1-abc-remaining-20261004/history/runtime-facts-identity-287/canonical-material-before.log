@@ -1,0 +1,85 @@
+FFFFF                                                                    [100%]
+================================== FAILURES ===================================
+______________ test_default_commit_records_actual_core_instance _______________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-507/test_default_commit_records_ac0")
+
+    def test_default_commit_records_actual_core_instance(tmp_path: Path) -> None:
+        first = assemble_workspace_core(tmp_path, instance_id="core-one")
+        stage(first.unit_of_work, "one")
+        first.lifetime_lock.release()
+        second = assemble_workspace_core(tmp_path, instance_id="core-two")
+        try:
+            stage(second.unit_of_work, "two")
+            current = FileCommitStore(tmp_path).read_current(verify_material=True)
+>           assert current["manifest"]["instance_id"] == "core-two"
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'instance_id'
+
+tests\unit\test_canonical_commit_material.py:35: KeyError
+______ test_manifest_has_canonical_aliases_and_exact_idempotency_result _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-507/test_manifest_has_canonical_al0")
+
+    def test_manifest_has_canonical_aliases_and_exact_idempotency_result(tmp_path: Path) -> None:
+        core = assemble_workspace_core(tmp_path, instance_id="actual-core")
+        try:
+            stage(core.unit_of_work, "request", ("case", "task"))
+            manifest = FileCommitStore(tmp_path).read_current(verify_material=True)["manifest"]
+>           assert manifest["schema"] == "aitest.commit-manifest/2"
+E           AssertionError: assert 'aitest.commit-manifest/1' == 'aitest.commit-manifest/2'
+E             
+E             - aitest.commit-manifest/2
+E             ?                        ^
+E             + aitest.commit-manifest/1
+E             ?                        ^
+
+tests\unit\test_canonical_commit_material.py:48: AssertionError
+_______ test_every_record_in_batch_is_in_same_published_business_index ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-507/test_every_record_in_batch_is_0")
+
+    def test_every_record_in_batch_is_in_same_published_business_index(tmp_path: Path) -> None:
+        core = assemble_workspace_core(tmp_path, instance_id="actual-core")
+        try:
+            stage(core.unit_of_work, "batch", ("case", "task", "case"))
+            manifest = FileCommitStore(tmp_path).read_current(verify_material=True)["manifest"]
+>           root = manifest["business_change_index_root"]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'business_change_index_root'
+
+tests\unit\test_canonical_commit_material.py:73: KeyError
+_________________ test_diagnostic_commit_reuses_business_root _________________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-507/test_diagnostic_commit_reuses_0")
+
+    def test_diagnostic_commit_reuses_business_root(tmp_path: Path) -> None:
+        core = assemble_workspace_core(tmp_path, instance_id="actual-core")
+        try:
+            stage(core.unit_of_work, "business")
+>           original = FileCommitStore(tmp_path).read_current()["manifest"]["business_change_index_root"]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'business_change_index_root'
+
+tests\unit\test_canonical_commit_material.py:91: KeyError
+___________ test_lost_idempotency_file_blocks_current_verification ____________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-507/test_lost_idempotency_file_blo0")
+
+    def test_lost_idempotency_file_blocks_current_verification(tmp_path: Path) -> None:
+        core = assemble_workspace_core(tmp_path, instance_id="actual-core")
+        try:
+            stage(core.unit_of_work, "request")
+            manifest = FileCommitStore(tmp_path).read_current()["manifest"]
+>           (tmp_path / manifest["idempotency_result_ref"]["path"]).unlink()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'idempotency_result_ref'
+
+tests\unit\test_canonical_commit_material.py:105: KeyError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_canonical_commit_material.py::test_default_commit_records_actual_core_instance
+FAILED tests/unit/test_canonical_commit_material.py::test_manifest_has_canonical_aliases_and_exact_idempotency_result
+FAILED tests/unit/test_canonical_commit_material.py::test_every_record_in_batch_is_in_same_published_business_index
+FAILED tests/unit/test_canonical_commit_material.py::test_diagnostic_commit_reuses_business_root
+FAILED tests/unit/test_canonical_commit_material.py::test_lost_idempotency_file_blocks_current_verification
+5 failed in 7.89s

@@ -55,11 +55,12 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
 
     一致性核对（全部来自 C 自己的字段，不引入调用者输入）：
 
-    1. 顶层 `run_id` 与 `run.run_id` 必须一致；
-    2. 顶层 `runtime_revision_refs` 与 `run.runtime_revision_refs` 的条数必须一致——
+    1. 顶层与 Run 内的运行标识和修订必须一致；
+    2. 顶层 `runtime_revision_refs` 与 `run.runtime_revision_refs` 必须逐项同序一致——
        运行中修订序列是 C 的记录，两处不一致时不能任选一处当"修订序号"；
-    3. 每一步的 `current_attempt_id` 必须与 `current_attempt_by_step` 一致；
-    4. 被引用的当前尝试必须真的在 `attempts` 里。
+    3. 步骤与尝试各自标识唯一且属于本运行，尝试必须指向已知步骤；
+    4. 当前映射准确覆盖全部步骤，被引用尝试属于该步骤且确为当前；
+       历史尝试可以保留，但不能与映射矛盾地宣称当前。
 
     任一条不成立即抛 `ValueError`：事实自相矛盾时，"拒绝决策"也是一种猜测。
     """
@@ -68,14 +69,24 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
             "execution facts disagree on the run identity: "
             f"top level {facts.run_id!r}, run {facts.run.run_id!r}"
         )
+    if facts.run.run_revision != facts.run_revision:
+        raise ValueError("execution facts disagree on the run revision")
 
-    run_level_revisions = len(facts.run.runtime_revision_refs)
-    envelope_revisions = len(facts.runtime_revision_refs)
-    if run_level_revisions != envelope_revisions:
-        raise ValueError(
-            "execution facts disagree on the runtime revision sequence: "
-            f"top level {envelope_revisions}, run {run_level_revisions}"
-        )
+    revision_refs = facts.run.runtime_revision_refs
+    if revision_refs != facts.runtime_revision_refs:
+        raise ValueError("execution facts disagree on the exact runtime revision sequence")
+    if any(not ref.strip() for ref in revision_refs) or len(set(revision_refs)) != len(
+        revision_refs
+    ):
+        raise ValueError("runtime revision references must be nonempty and unique")
+
+    step_ids = {step.step_id for step in facts.steps}
+    if len(step_ids) != len(facts.steps):
+        raise ValueError("execution facts contain duplicate step ids")
+    if set(facts.current_attempt_by_step) != step_ids:
+        raise ValueError("current attempt mapping must cover exactly the known steps")
+    if any(step.run_id != facts.run_id for step in facts.steps):
+        raise ValueError("execution step belongs to another run")
 
     attempts = {attempt.attempt_id: attempt for attempt in facts.attempts}
     if len(attempts) != len(facts.attempts):
@@ -98,6 +109,8 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
                     f"{step.step_id} references an unknown attempt "
                     f"{step.current_attempt_id!r}"
                 )
+            if attempt.step_id != step.step_id:
+                raise ValueError("current execution attempt belongs to another step")
             attempt_state = AttemptRuntimeState(attempt.state.value)
         steps.append(
             StepRuntimeFacts(
@@ -112,6 +125,13 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
             )
         )
 
+    for attempt in facts.attempts:
+        if attempt.run_id != facts.run_id or attempt.step_id not in step_ids:
+            raise ValueError("execution attempt run/step ownership differs")
+        mapped_current = facts.current_attempt_by_step[attempt.step_id] == attempt.attempt_id
+        if attempt.is_current != mapped_current:
+            raise ValueError("execution current attempt identity disagrees with the mapping")
+
     return RunRuntimeFacts(
         run_id=facts.run.run_id,
         run_revision=facts.run.run_revision,
@@ -123,7 +143,7 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
         tier=RunTier(facts.run.tier.value),
         snapshot_commit_id=facts.snapshot_commit_id,
         snapshot_cursor=facts.snapshot_cursor,
-        runtime_revision_count=run_level_revisions,
+        runtime_revision_count=len(revision_refs),
         frozen_required_case_ids=frozenset(facts.run.required_scope),
         mandatory_case_ids=frozenset(facts.coverage.mandatory_case_ids),
         steps=tuple(steps),
