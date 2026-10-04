@@ -67,6 +67,7 @@ from aitest.infrastructure.file_store.core_launch import (
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
 from aitest.infrastructure.file_store.migrations import FileMigrationManager
+from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.recovery import (
     RecoveryOrchestrator,
     RecoveryState,
@@ -417,11 +418,16 @@ def assemble_workspace_core(
             material_projector=SafeMaterialProjector(),
             workspace_id=workspace.workspace_id,
             source_analysis=SourceAnalysisService(
-                reader=reader, unit_of_work=unit_of_work, snapshots=snapshot_store,
+                reader=reader,
+                unit_of_work=unit_of_work,
+                snapshots=snapshot_store,
                 source_control=GitSourceControl(),
                 source_available=lambda: gate.condition(SOURCE).state.value == "ready",
             ),
             basis_confirmations=BasisConfirmationService(reader=reader, unit=unit_of_work),
+            model_responses=FileModelResponseStore(
+                root, writer_epoch=workspace.identity["writer_epoch"]
+            ),
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
         if extra_handlers:

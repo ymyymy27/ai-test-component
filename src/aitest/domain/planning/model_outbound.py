@@ -231,15 +231,11 @@ class ModelOutboundPolicy:
         if self.source_snippets_enabled and (
             MaterialKind.SOURCE_SNIPPET not in self.allowed_material_kinds
         ):
-            raise ValueError(
-                "enabling source snippets requires the source snippet material kind"
-            )
+            raise ValueError("enabling source snippets requires the source snippet material kind")
         if self.confirmation is not None and (
             self.confirmation.source_snippets_enabled != self.source_snippets_enabled
         ):
-            raise ValueError(
-                "the confirmation must record the same source snippet switch value"
-            )
+            raise ValueError("the confirmation must record the same source snippet switch value")
 
     def effective_material_kinds(self) -> frozenset[MaterialKind]:
         """按 AI 开关与撤销集合派生当前实际可送出的类别；**不修改本对象**。
@@ -322,16 +318,13 @@ def validate_outbound_material(
         identity = (item.material_kind, item.field_path)
         if identity in seen:
             raise ValueError(
-                "duplicate outbound item: "
-                f"{item.material_kind.value} at {item.field_path}"
+                f"duplicate outbound item: {item.material_kind.value} at {item.field_path}"
             )
         seen.add(identity)
 
         if item.material_kind not in effective:
             if item.material_kind in policy.revoked_material_kinds:
-                raise ValueError(
-                    f"material kind is revoked: {item.material_kind.value}"
-                )
+                raise ValueError(f"material kind is revoked: {item.material_kind.value}")
             raise ValueError(
                 f"material kind is not allowed by the policy: {item.material_kind.value}"
             )
@@ -402,11 +395,22 @@ def response_currency(
     - 策略修订已变 → `SOURCE_CHANGED`（本次请求依据不再是当前依据）；
     - 否则 → `CURRENT`。
     """
-    if current_manual_revision > response.base_manual_revision:
+    return response_currency_from_facts(
+        manual_advanced=current_manual_revision > response.base_manual_revision,
+        source_matches=(
+            current_source_revision == response.source_revision
+            and current_policy_revision == response.request_revision
+        ),
+    )
+
+
+def response_currency_from_facts(
+    *, manual_advanced: bool, source_matches: bool
+) -> ResponseCurrency:
+    """Use observed content identity as well as revisions without inventing a revision."""
+    if manual_advanced:
         return ResponseCurrency.SUPERSEDED_BY_MANUAL
-    if current_source_revision != response.source_revision:
-        return ResponseCurrency.SOURCE_CHANGED
-    if current_policy_revision != response.request_revision:
+    if not source_matches:
         return ResponseCurrency.SOURCE_CHANGED
     return ResponseCurrency.CURRENT
 
@@ -429,5 +433,6 @@ __all__ = [
     "endpoint_digest",
     "material_kinds_digest",
     "response_currency",
+    "response_currency_from_facts",
     "validate_outbound_material",
 ]

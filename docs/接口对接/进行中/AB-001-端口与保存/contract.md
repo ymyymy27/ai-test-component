@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.16"
+contract_version: "1.17"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.16
+版本：1.17
 日期：2026-10-04
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
@@ -26,6 +26,16 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 ---
 
 ## 1 目的与前提
+
+1.17补模型依据：默认模型生成的`source_revision>0`必须同时传现有SnapshotRef形状的`source_ref`（source_snapshot_id、purpose、content_identity、record_revision），按准确业务快照读取并冻结实际绑定/正文摘要；整数1本身不证明来源。`source_revision=0`只表示本次不使用源码，草稿RevisionContext.source_revision保存null，不能夹带SOURCE_SNIPPET。`base_manual_revision>0`必须传`manual_ref`（record_id、record_revision、content_digest），固定generated_content准确仓储修订及安全正文摘要；0可不引用人工正文，或以准确record_id/revision=0/content_digest=null冻结“尚无正文”。
+
+模型草稿的RevisionContext.binding_revision取实际source_ref保存的准确绑定仓储修订；不使用源码/绑定时为null，不猜1。此null仅表示不适用，未知依赖仍阻塞；旧数字正文保持历史读取，定向失效只比较生成时实际使用的依赖。模板人工路径已有显式绑定输入保持原校验。
+
+新出站身份同时冻结上述依据，异输入同意图冲突；旧缺依据记录只作历史查询，不猜实际来源或自动重新发送。文件/Git/技术blob核对在意图前、发送前和响应后事务外完成；短事务内重复核对准确项目/策略/源码/绑定/人工正文引用。出站意图及当前草稿发布再次核对实际固定源码材料并登记清单路径；过期响应作为安全历史保存，不把已损坏旧源码重新标为可靠当前材料。
+
+人工正文推进优先派生superseded_by_manual，来源/策略变更或无法证明则source_changed；两者均保留过滤后响应/原依据，不发布当前草稿。生成目标已有正文时不覆盖；响应期间目标被占用也保存为历史。意图已登记但发送前撤销时明确保存“未调用供应方”的终结结果；同意图回读，不留下可盲发的新授权。真实供应方/可信人工入口与完整实际依赖映射仍需验收。
+
+过滤后响应先经A的ModelResponseStore端口可靠保存为永久对象及准确请求/输入摘要的不可变旁录，再尝试业务工作单元。当前提交损坏或发布结果未知时不放宽完整性守卫、不返回当前草稿；返回unresolved及saved_response_ref，同意图回读已保存材料且不重新调用。旁录不是权威业务提交或验收通过，当前源材料仍需受控恢复后核实原提交。旁录禁止凭据正文、重复字段、跨项目引用、路径链接和无界读取，使用同一安全对象存储与生命周期epoch。旧意图无旁录保持未知，不猜响应或自动发送。
 
 1.16补消费闭包：新PreparedRun（prepared）引用的准确source_snapshot，以及初始运行登记意图引用的PreparedRun@1和对应源码，都必须在准备权威节点前重新读取同一权威根，核对项目/修订/内容身份及实际技术材料；不是只核对本批新source_snapshot。新批次source_material_files/file_digests包含这些实际消费的历史材料。不得把“本批没有改源码记录”解释为无需证明消费的固定字节。登记意图fingerprint必须等于准确准备正文摘要。
 

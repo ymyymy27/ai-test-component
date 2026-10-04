@@ -1,0 +1,23 @@
+.............F.......................................................... [ 38%]
+........................................................................ [ 76%]
+............................................                             [100%]
+================================== FAILURES ===================================
+_ test_blob_lost_in_provider_call_saves_gap_history_without_recertifying_source _
+
+model_stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001E4C01D04B0>, workspace=<aitest.infrastructur...b_lost_in_provider_cal0/workspace/snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189")>])
+
+    def test_blob_lost_in_provider_call_saves_gap_history_without_recertifying_source(model_stack):
+        core, _, calls, on_call = model_stack
+        ref = source_basis(core)
+        path = source_blob(core, ref)
+        on_call[0] = path.unlink
+        result = generate(core, source_ref=ref)
+>       assert result.error is None, result.error
+E       AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='current commit cannot be verif...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent')
+E       assert ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='current commit cannot be verif...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='current commit cannot be verif...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent') = Response(protocol_version='aitest.local/2.0', request_id='generate_draft-request', instance_id='model-basis-fixture', ...e=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent')).error
+
+tests\unit\test_model_basis_authority.py:315: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_model_basis_authority.py::test_blob_lost_in_provider_call_saves_gap_history_without_recertifying_source
+1 failed, 187 passed in 151.76s (0:02:31)

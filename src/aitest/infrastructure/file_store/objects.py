@@ -71,10 +71,14 @@ class FileObjectStore:
             relative_path=relative.as_posix(),
         )
 
-    def read_bytes(self, ref: StoredObjectRef) -> bytes:
+    def read_bytes(self, ref: StoredObjectRef, *, max_bytes: int | None = None) -> bytes:
         safe_project = _safe_component(ref.project_id, "project_id")
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", ref.digest):
             raise ValueError("object digest identity is invalid")
+        if type(ref.size) is not int or ref.size < 0:
+            raise ValueError("object size must be a nonnegative integer")
+        if max_bytes is not None and (max_bytes < 0 or ref.size > max_bytes):
+            raise ValueError("object exceeds its explicit read budget")
         relative = Path("objects") / safe_project / ref.digest.removeprefix("sha256:")
         if ref.relative_path != relative.as_posix():
             raise ValueError("object reference does not match its project/digest path")
@@ -82,7 +86,8 @@ class FileObjectStore:
         path = (self._root / relative).resolve()
         if not path.is_relative_to(self._root):
             raise ValueError("object path escapes workspace root")
-        content = path.read_bytes()
+        with path.open("rb") as handle:
+            content = handle.read(ref.size + 1)
         if "sha256:" + hashlib.sha256(content).hexdigest() != ref.digest:
             raise ValueError("object digest mismatch")
         if len(content) != ref.size:
@@ -93,7 +98,9 @@ class FileObjectStore:
     def _write_immutable(path: Path, content: bytes) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
-            if path.read_bytes() != content:
+            with path.open("rb") as handle:
+                existing = handle.read(len(content) + 1)
+            if existing != content:
                 raise ValueError("content-addressed object conflicts")
             return
         descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)

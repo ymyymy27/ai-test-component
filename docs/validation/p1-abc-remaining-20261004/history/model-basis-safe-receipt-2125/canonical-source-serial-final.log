@@ -1,0 +1,14 @@
+..............F.....................                                     [100%]
+================================== FAILURES ===================================
+_ test_sparse_index_cannot_replace_history_while_preserving_count_and_new_batch _
+tests\unit\test_canonical_commit_material.py:210: in test_sparse_index_cannot_replace_history_while_preserving_count_and_new_batch
+    tree.replace([(key, {**row, "body_sha256": "0" * 64})], [])
+src\aitest\infrastructure\file_store\ordered_index.py:275: in replace
+    refs = update(self.root, key, value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\ordered_index.py:253: in update
+    raise ValueError("conflicting duplicate index key")
+E   ValueError: conflicting duplicate index key
+=========================== short test summary info ===========================
+FAILED tests/unit/test_canonical_commit_material.py::test_sparse_index_cannot_replace_history_while_preserving_count_and_new_batch
+1 failed, 35 passed in 119.76s (0:01:59)

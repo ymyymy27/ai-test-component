@@ -28,7 +28,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 初始登记保存NOT_STARTED/PENDING，无Attempt、授权消费、执行、独立核验或复用事实，M/S从B准确冻结，E/R/V为空，证据等级与实际source_binding_digest未知。来源固定/静态依据可核对不能代替实际解释器/入口/加载核验。该登记组件不单独暴露为start_run成功能力，默认start与可信授权、环境/实际执行消费接通后才协商支持。
 
-1.2按主责存储合同补共享StageableWorkspaceUnitOfWork，归属application/ports.py；B/C同用begin(request_id,project_id,workspace_id=None,intent_id=None)、stage_record、next_commit_seq、commit/rollback，不另建事务系统。原窄WorkspaceUnitOfWork保留兼容读取/调用，新默认源码及确认业务链冻结真实业务意图。实际核心epoch、完整提交清单和源码动作迁移边界引用AB-001 1.16，不在此另起定义。
+1.2按主责存储合同补共享StageableWorkspaceUnitOfWork，归属application/ports.py；B/C同用begin(request_id,project_id,workspace_id=None,intent_id=None)、stage_record、next_commit_seq、commit/rollback，不另建事务系统。原窄WorkspaceUnitOfWork保留兼容读取/调用，新默认源码及确认业务链冻结真实业务意图。实际核心epoch、完整提交清单、源码动作迁移及ModelResponseStore安全旁录边界引用AB-001 1.17，不在此另起定义。
 
 C串行轮询切片须有界（默认每次100次inspect），额度耗尽保留活动检查点及原句柄，不补未知或终态，不等待无限次轮询。再次推进先按保存意图核对原输入并inspect/collect；读取原活动意图不依赖新启动的来源/授权门禁，实际新执行仍须核对。活动未终止不启动第二个串行动作；完成后再调度依赖步骤。新动作前从权威当前运行控制事实判断是否允许调度，暂停/取消不消耗未用意图；切片额度不替代执行真实截止与停止确认。默认控制及真实宿主验收仍须另有业务证据。
 提供方：A包（本地核心底座）  

@@ -44,7 +44,7 @@
 源码与测试文件 SHA-256、状态及可重复命令另存[机器清单](validation/p1-abc-fix-20261003/issue-status.json)。
 ## 4. 当前验证边界
 
-当前根因及验证见[本轮说明](validation/p1-abc-remaining-20261004/README.md)：第二阶段完整2065 passed/2 skipped已独立封存；后续固定源码闭包/初始登记另有专项及全量记录，不能借前阶段数字证明后续新代码。前次整改的命令、输出与环境保留于[历史执行记录](validation/p1-abc-fix-20261003/validation-results.json)。旧 develop 复核的1405 passed/2 skipped与面板定位失败保留在[历史复核](一期修复复核-2026-10-03.md)，不覆盖历史反例。
+当前根因及验证见[本轮说明](validation/p1-abc-remaining-20261004/README.md)：2065、2083及2092阶段各自封存；模型准确依据/安全旁录阶段全量2125 passed/2 skipped，专项414项通过，另有Ruff、Mypy164文件及构建证据。各数字只证明对应不可变源码，不能借前阶段结果证明后续修改。前次整改的命令、输出与环境保留于[历史执行记录](validation/p1-abc-fix-20261003/validation-results.json)。旧 develop 复核的1405 passed/2 skipped与面板定位失败保留在[历史复核](一期修复复核-2026-10-03.md)，不覆盖历史反例。
 
 本轮自动化使用真实本地文件/临时Windows进程、受控HTTP transport、合成凭据及故障注入；这些证明各自的组件/合同边界。两项symlink权限跳过、真实Junction拒绝另有实测。真实一期仍0verified/7not_verified/1blocked/27untested，所有35项证据路径空；真实Trae、供应方/业务核验和物理掉电仍未验收。
 

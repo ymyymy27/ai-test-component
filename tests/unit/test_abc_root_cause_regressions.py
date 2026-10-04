@@ -684,7 +684,7 @@ def test_default_core_model_flow_persists_filtered_draft_and_reuses_original_int
                 "generation_mode": "model",
                 "project_revision": 1,
                 "policy_revision": 1,
-                "source_revision": 1,
+                "source_revision": 0,
                 "base_manual_revision": 0,
                 "task_type": "check_content_draft",
                 "draft_kind": "check_content",

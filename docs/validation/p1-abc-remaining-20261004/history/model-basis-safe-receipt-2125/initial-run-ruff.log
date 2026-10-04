@@ -1,0 +1,12 @@
+E501 Line too long (115 > 100)
+   --> src\aitest\application\execution\registration.py:114:101
+    |
+112 |                         subject_ref=run_id,
+113 |                         reason_code="execution_not_started",
+114 |                         safe_reason="Actual interpreter, environment and business loading have not been verified.",
+    |                                                                                                     ^^^^^^^^^^^^^^^
+115 |                         critical=True,
+116 |                     ),
+    |
+
+Found 1 error.

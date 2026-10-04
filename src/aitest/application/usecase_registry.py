@@ -73,6 +73,7 @@ from aitest.application.planning.draft import (
     template_draft_text,
     text_digest,
 )
+from aitest.application.planning.model_basis import ModelGenerationBasis
 from aitest.application.planning.model_orchestration import (
     ModelGenerationConflictError,
     policy_record_id,
@@ -122,7 +123,7 @@ from aitest.application.planning.substrate import (
     current_record,
     transaction,
 )
-from aitest.application.ports import Clock
+from aitest.application.ports import Clock, ModelResponseStore
 from aitest.application.project.context import ContextGap
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
@@ -389,7 +390,7 @@ def _generated_content(content: object) -> Mapping[str, object]:
                 getattr(context, "project_revision", None),
                 "revision_context.project_revision",
             ),
-            "binding_revision": _revision_of(
+            "binding_revision": _optional_revision(
                 getattr(context, "binding_revision", None),
                 "revision_context.binding_revision",
             ),
@@ -885,6 +886,7 @@ class BUseCaseDependencies:
     workspace_id: str | None = None
     source_analysis: SourceAnalysisService | None = None
     basis_confirmations: BasisConfirmationService | None = None
+    model_responses: ModelResponseStore | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1621,6 +1623,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             deps.model_provider is None
             or deps.model_credentials is None
             or deps.material_projector is None
+            or deps.model_responses is None
         ):
             return {"blocked": True, "status": "blocked", "blocked_by": ["model_not_configured"]}
         parameters = _command_parameters(command)
@@ -1683,6 +1686,28 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             _enum_of(MaterialKind, key, "material_kind"): _as_text(value, "material text")
             for key, value in selected.items()
         }
+        source_revision = _int_of(_required(parameters, "source_revision"), "source_revision")
+        manual_revision = _int_of(
+            _required(parameters, "base_manual_revision"), "base_manual_revision"
+        )
+        try:
+            basis = ModelGenerationBasis(
+                reader=deps.reader,
+                project_id=project_id,
+                source_revision=source_revision,
+                base_manual_revision=manual_revision,
+                source_ref=parameters.get("source_ref"),
+                manual_ref=parameters.get("manual_ref"),
+                sources=deps.source_analysis,
+            )
+        except (ValueError, TypeError, KeyError, OSError):
+            return {"blocked": True, "status": "blocked", "blocked_by": ["model_basis_unverified"]}
+        if source_revision == 0 and MaterialKind.SOURCE_SNIPPET in material:
+            return {
+                "blocked": True,
+                "status": "blocked",
+                "blocked_by": ["source_reference_required"],
+            }
         result = request_model_draft(
             project_id=project_id,
             policy=policy,
@@ -1694,21 +1719,22 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             credentials=deps.model_credentials,
             caller=deps.model_provider,
             clock=deps.clock,
-            source_revision=_int_of(_required(parameters, "source_revision"), "source_revision"),
-            base_manual_revision=_int_of(
-                _required(parameters, "base_manual_revision"),
-                "base_manual_revision",
-            ),
+            source_revision=source_revision,
+            base_manual_revision=manual_revision,
             generation_request_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
             project_revision=project_revision,
             draft_kind=_as_text(_required(parameters, "draft_kind"), "draft_kind"),
+            binding_revision=basis.binding_revision,
             basis_is_current=basis_is_current,
+            basis=basis,
+            response_store=deps.model_responses,
         )
         return {
             "blocked": result.content is None,
             "status": result.status,
             "blocked_by": list(result.blocked_by),
             "response_currency": result.response_currency,
+            "saved_response_ref": result.saved_response_ref,
             "content": _generated_content(result.content) if result.content is not None else None,
         }
 

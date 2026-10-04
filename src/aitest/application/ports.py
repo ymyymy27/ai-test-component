@@ -225,12 +225,19 @@ class StageableWorkspaceUnitOfWork(Protocol):
     def open(self, project_id: str) -> None: ...
     def next_commit_seq(self) -> str: ...
     def begin(
-        self, request_id: str, project_id: str, workspace_id: str | None = None,
+        self,
+        request_id: str,
+        project_id: str,
+        workspace_id: str | None = None,
         intent_id: str | None = None,
     ) -> object: ...
     def stage_record(
-        self, *, aggregate_kind: str, record_id: str,
-        expected_revision: int | None, payload: Mapping[str, object],
+        self,
+        *,
+        aggregate_kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
     ) -> object: ...
     def commit(self, request_id: str | None = None) -> object: ...
     def rollback(self, request_id: str | None = None) -> object: ...
@@ -262,6 +269,35 @@ class EvidenceObjectStore(Protocol):
     ) -> StoredObjectRef: ...
 
     def read_bytes(self, ref: StoredObjectRef) -> bytes: ...
+
+
+class ModelResponseStore(Protocol):
+    """Durable safe response material, independent of authority publication success."""
+
+    def validate(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        identity: Mapping[str, object],
+    ) -> None: ...
+
+    def save(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        identity: Mapping[str, object],
+        response: Mapping[str, object],
+    ) -> StoredObjectRef: ...
+
+    def find(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        identity: Mapping[str, object],
+    ) -> tuple[StoredObjectRef, Mapping[str, object]] | None: ...
 
 
 class SourceSnapshotPort(Protocol):

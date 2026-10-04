@@ -39,7 +39,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 
 from aitest.application.planning.draft import (
@@ -49,6 +49,7 @@ from aitest.application.planning.draft import (
     generated_content_payload,
     text_digest,
 )
+from aitest.application.planning.model_basis import ModelGenerationBasis
 from aitest.application.planning.model_ports import (
     CredentialResolver,
     MaterialProjector,
@@ -65,7 +66,7 @@ from aitest.application.planning.substrate import (
     current_record,
     transaction,
 )
-from aitest.application.ports import Clock
+from aitest.application.ports import Clock, ModelResponseStore
 from aitest.domain.planning.model_outbound import (
     TASK_MATERIAL_KINDS,
     MaterialKind,
@@ -75,6 +76,7 @@ from aitest.domain.planning.model_outbound import (
     OutboundItem,
     ResponseCurrency,
     response_currency,
+    response_currency_from_facts,
     validate_outbound_material,
 )
 from aitest.domain.planning.templates import TemplateRef
@@ -178,6 +180,7 @@ class OutboundOutcome:
     blocked_by: tuple[str, ...] = ()
     response_currency: ResponseCurrency | None = None
     reused_from: Mapping[str, object] | None = None
+    saved_response_ref: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if self.status == OUTBOUND_DRAFT_READY:
@@ -330,7 +333,7 @@ def _recall_existing_draft(
         revision=revision,
         revision_context=RevisionContext(
             project_revision=_payload_revision(context, "project_revision"),
-            binding_revision=_payload_revision(context, "binding_revision"),
+            binding_revision=_optional_revision(context, "binding_revision"),
             template_revision=str(context.get("template_revision", "")),
             environment_revision=_optional_revision(context, "environment_revision"),
             source_revision=_optional_revision(context, "source_revision"),
@@ -460,9 +463,11 @@ def request_model_draft(
     draft_kind: str = DraftKind.CHECK_CONTENT,
     template_ref: TemplateRef | None = None,
     project_revision: int = 1,
-    binding_revision: int = 1,
+    binding_revision: int | None = 1,
     timeout_seconds: int = 60,
     basis_is_current: Callable[[], bool] | None = None,
+    basis: ModelGenerationBasis | None = None,
+    response_store: ModelResponseStore | None = None,
 ) -> OutboundOutcome:
     """编排一次模型请求。
 
@@ -588,6 +593,42 @@ def request_model_draft(
         "project_revision": project_revision,
         "binding_revision": binding_revision,
     }
+    if basis is not None:
+        identity["basis_identity"] = basis.identity()
+
+    def current_currency() -> ResponseCurrency:
+        other_current = basis_is_current is None or basis_is_current()
+        if basis is not None:
+            return basis.currency(other_basis_current=other_current)
+        return response_currency_from_facts(manual_advanced=False, source_matches=other_current)
+
+    draft_id = f"draft:{project_id}:{draft_kind}:{request.request_id}:1"
+
+    def slot_available() -> bool:
+        try:
+            return (
+                current_record(
+                    reader,
+                    project_id=project_id,
+                    aggregate_kind="generated_content",
+                    record_id=draft_id,
+                )
+                is None
+            )
+        except (ValueError, OSError, TypeError):
+            return False
+
+    # Historical intent recall does not require observing the active source again.
+    if _current_payload(reader, project_id=project_id, record_id=request.request_id) is None:
+        if response_store is not None:
+            try:
+                response_store.validate(
+                    project_id=project_id, request_id=request.request_id, identity=identity
+                )
+            except (ValueError, TypeError, OSError, RuntimeError):
+                return _blocked("safe model response storage is unavailable for this intent")
+        if basis is not None:
+            basis.refresh_source()
 
     # 步骤 6：**先把出站意图落盘**，再发起外部调用。
     # 反序（先调用后登记）在"调用已发生、进程随后崩溃"时会丢掉整条出站事实，
@@ -608,12 +649,15 @@ def request_model_draft(
                     f"{request.request_id} was already used with different input"
                 )
             if existing.get("state") == OUTBOUND_STATE_OUTCOME:
-                if existing.get("response_currency") == ResponseCurrency.SOURCE_CHANGED.value:
+                if existing.get("response_currency") in {
+                    ResponseCurrency.SOURCE_CHANGED.value,
+                    ResponseCurrency.SUPERSEDED_BY_MANUAL.value,
+                }:
                     return OutboundOutcome(
                         status=OUTBOUND_BLOCKED,
                         request=request,
                         blocked_by=("the saved response belongs to an outdated basis",),
-                        response_currency=ResponseCurrency.SOURCE_CHANGED,
+                        response_currency=ResponseCurrency(str(existing["response_currency"])),
                     )
                 try:
                     recalled = _recall_existing_draft(
@@ -653,6 +697,24 @@ def request_model_draft(
                     ),
                 )
             if existing.get("state") == OUTBOUND_STATE_INTENT:
+                if response_store is not None:
+                    try:
+                        receipt = response_store.find(
+                            project_id=project_id, request_id=request.request_id, identity=identity
+                        )
+                    except (ValueError, TypeError, OSError, RuntimeError):
+                        receipt = None
+                    if receipt is not None:
+                        return OutboundOutcome(
+                            status=OUTBOUND_UNRESOLVED,
+                            request=request,
+                            blocked_by=(
+                                "the safe response is saved; verify the original authority "
+                                "before resolving its unpublished result",
+                            ),
+                            saved_response_ref=asdict(receipt[0]),
+                            reused_from=receipt[1],
+                        )
                 # 意图已落盘、结果未提交：外部调用**可能已经发生**。盲目重发会制造
                 # 第二次不可撤销的副作用，因此交由调用方核对原事实后决定。
                 return OutboundOutcome(
@@ -671,8 +733,10 @@ def request_model_draft(
                 ),
             )
 
-        if basis_is_current is not None and not basis_is_current():
+        if current_currency() is not ResponseCurrency.CURRENT:
             return _blocked("the outbound basis changed before intent publication")
+        if not slot_available():
+            return _blocked("the generation target is already occupied; preserve its saved content")
         tx.stage_record(
             aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
             record_id=request.request_id,
@@ -688,9 +752,19 @@ def request_model_draft(
     ).revision
 
     # 步骤 6b：事务外调用。**不持有写事务**发起外部请求。
-    if basis_is_current is not None and not basis_is_current():
-        return _blocked("the outbound basis was revoked before sending")
-    result: ModelCallResult = caller.call(call)
+    if basis is not None:
+        basis.refresh_source()
+    provider_call_started = current_currency() is ResponseCurrency.CURRENT
+    result: ModelCallResult
+    if provider_call_started:
+        result = caller.call(call)
+    else:
+        # A revoked, unsent intent gets a terminal receipt; it cannot be blindly resent.
+        result = ModelCallResult(
+            status=ModelCallStatus.FAILED, error_kind="basis_revoked_before_send"
+        )
+    if basis is not None:
+        basis.refresh_source()
 
     filtered_id, _ = _filter_known_credentials(result.provider_request_id or "", known_credentials)
     filtered_error, _ = _filter_known_credentials(result.error_detail, known_credentials)
@@ -711,66 +785,118 @@ def request_model_draft(
     )
     filter_fact = _credential_filter_payload(replacements)
 
+    saved_response_ref: Mapping[str, object] | None = None
+    if response_store is not None:
+        try:
+            saved_response_ref = asdict(
+                response_store.save(
+                    project_id=project_id,
+                    request_id=request.request_id,
+                    identity=identity,
+                    response={
+                        "draft_text": filtered_text,
+                        "provider_request_id": request.provider_request_id,
+                        "call_status": request.call_status,
+                        "error_kind": request.error_kind,
+                        "error_detail_digest": text_digest(result.error_detail),
+                        "credential_filter": filter_fact,
+                        "provider_call_started": provider_call_started,
+                        "observed_currency": current_currency().value,
+                    },
+                )
+            )
+        except (ValueError, TypeError, OSError, RuntimeError):
+            return OutboundOutcome(
+                status=OUTBOUND_UNRESOLVED,
+                request=request,
+                blocked_by=(
+                    "the response could not be safely saved; inspect the original intent "
+                    "and provider result before deciding to regenerate",
+                ),
+            )
+
     # 步骤 8：提交安全响应；成功时把草稿正文与其引用放在**同一次提交**里。
     content: GeneratedContent | None = None
     currency = ResponseCurrency.CURRENT
-    with transaction(unit_of_work, project_id) as tx:
-        if basis_is_current is not None and not basis_is_current():
-            currency = ResponseCurrency.SOURCE_CHANGED
-        usable = result.status is ModelCallStatus.OK and currency is ResponseCurrency.CURRENT
-        tx.stage_record(
-            aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
-            record_id=request.request_id,
-            expected_revision=intent_revision,
-            payload={
-                **_outcome_payload(
-                    request,
-                    result,
-                    identity=identity,
+    try:
+        with transaction(unit_of_work, project_id) as tx:
+            currency = current_currency()
+            if currency is ResponseCurrency.CURRENT and not slot_available():
+                currency = ResponseCurrency.SUPERSEDED_BY_MANUAL
+            usable = result.status is ModelCallStatus.OK and currency is ResponseCurrency.CURRENT
+            tx.stage_record(
+                aggregate_kind=OUTBOUND_AGGREGATE,  # type: ignore[arg-type]
+                record_id=request.request_id,
+                expected_revision=intent_revision,
+                payload={
+                    **_outcome_payload(
+                        request,
+                        result,
+                        identity=identity,
+                        generated_content_id=(
+                            f"draft:{project_id}:{draft_kind}:{request.request_id}:{intent_revision}"
+                            if usable
+                            else None
+                        ),
+                        generated_content_revision=(intent_revision if usable else None),
+                        credential_filter=filter_fact,
+                    ),
+                    "response_currency": currency.value,
+                    "provider_call_started": provider_call_started,
+                    "saved_response_ref": saved_response_ref,
+                    "historical_draft_text": filtered_text if not usable else None,
+                    "historical_draft_digest": text_digest(filtered_text) if not usable else None,
+                },
+            )
+            if usable:
+                # 草稿引用按**这次出站的修订号**唯一：重发同一条请求会产生新的草稿记录，
+                # 不会以"新建"语义覆盖上一次的草稿。
+                content = GeneratedContent(
                     generated_content_id=(
                         f"draft:{project_id}:{draft_kind}:{request.request_id}:{intent_revision}"
-                        if usable
-                        else None
                     ),
-                    generated_content_revision=(intent_revision if usable else None),
-                    credential_filter=filter_fact,
-                ),
-                "response_currency": currency.value,
-                "historical_draft_text": filtered_text if not usable else None,
-                "historical_draft_digest": text_digest(filtered_text) if not usable else None,
-            },
-        )
-        if usable:
-            # 草稿引用按**这次出站的修订号**唯一：重发同一条请求会产生新的草稿记录，
-            # 不会以"新建"语义覆盖上一次的草稿。
-            content = GeneratedContent(
-                generated_content_id=(
-                    f"draft:{project_id}:{draft_kind}:{request.request_id}:{intent_revision}"
-                ),
-                project_id=project_id,
-                draft_kind=draft_kind,
-                template_ref=template_ref if template_ref is not None else _PLACEHOLDER_TEMPLATE,
-                revision=intent_revision,
-                revision_context=RevisionContext(
-                    project_revision=project_revision,
-                    binding_revision=binding_revision,
-                    template_revision=_template_version(template_ref),
-                    source_revision=source_revision,
-                ),
-                # 摘要按**过滤后**的正文算：它就是将来会被读回的那份字节。
-                content_digest=text_digest(filtered_text),
-            )
-            tx.stage_record(
-                aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
-                record_id=content.generated_content_id,
-                expected_revision=None,
-                payload=generated_content_payload(
-                    content, filtered_text, credential_filter=filter_fact
-                ),
-            )
-        tx.commit()
+                    project_id=project_id,
+                    draft_kind=draft_kind,
+                    template_ref=template_ref
+                    if template_ref is not None
+                    else _PLACEHOLDER_TEMPLATE,
+                    revision=intent_revision,
+                    revision_context=RevisionContext(
+                        project_revision=project_revision,
+                        binding_revision=binding_revision,
+                        template_revision=_template_version(template_ref),
+                        source_revision=source_revision or None,
+                    ),
+                    # 摘要按**过滤后**的正文算：它就是将来会被读回的那份字节。
+                    content_digest=text_digest(filtered_text),
+                )
+                tx.stage_record(
+                    aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
+                    record_id=content.generated_content_id,
+                    expected_revision=None,
+                    payload={
+                        **generated_content_payload(
+                            content, filtered_text, credential_filter=filter_fact
+                        ),
+                        **({"generation_basis": basis.identity()} if basis is not None else {}),
+                    },
+                )
+            tx.commit()
 
-    if currency is ResponseCurrency.SOURCE_CHANGED:
+    except (ValueError, TypeError, OSError, RuntimeError):
+        if saved_response_ref is None:
+            raise
+        return OutboundOutcome(
+            status=OUTBOUND_UNRESOLVED,
+            request=request,
+            blocked_by=(
+                "the safe response is saved but authority publication is unverified; "
+                "restore material and inspect the original intent before resolving it",
+            ),
+            saved_response_ref=saved_response_ref,
+        )
+
+    if currency is not ResponseCurrency.CURRENT:
         return OutboundOutcome(
             status=OUTBOUND_BLOCKED,
             request=request,
