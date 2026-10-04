@@ -29,13 +29,13 @@
 
 | 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
-| D-09 P1/本轮新增 | **空 full 范围在调用方标志为真时返回业务通过**：M/S/E/R/V/P/F 均空，tier=FULL，has_applicable_checks 默认 true，来源匹配、关键链路/证据/环境标志为 true，领域返回 business_outcome=passed、evidence_grade=D、gap=no_valid_execution_basis。 源码[reports.py](../src/aitest/domain/review/reports.py)第459行；[详细证据](一期端到端深入检查-2026-10-03.md) | 一期功能第3/14节；FR07/14/17，AC18/21/22/24/27。领域主动核对适用性和有效依据，空/未知输入 fail closed；覆盖显式全不适用、缺失范围、空执行、全合法复用、实际失败和 quick/on_demand，DTO/报告同口径。 |
-| D-02 接入缺口 | FailureCandidate/H与F⊆H已有纯规则，但生产ExecutionFacts→DecisionFacts适配仍缺；E/R/V/P及候选有效性布尔事实由调用方给出，尚未按当前Step/Attempt/断言依据/核验/来源/依赖从A同一提交读取派生 | AC19/21/24/27；消费准确C事实形成唯一S/M整用例聚合和H引用，显示未完成U，禁止历史继承+部分新执行拼集合；接正式读取/守卫及真实夹具对拍 |
+| D-09 P1/代码已修复待入口验收 | 空 full 范围错误通过已由 `reports.py` 的 selected/required 非空门禁消除，单元反例通过。仍需真实入口、报告和 DTO 同口径验证，不能仅凭单元测试关闭。 | 一期功能第3/14节；FR07/14/17，AC18/21/22/24/27。继续验证空/未知输入 fail closed、显式全不适用、空执行、全合法复用、actual failure 和 quick/on_demand。 |
+| D-02 接入缺口（已部分推进） | ExecutionFacts→DecisionFacts 唯一适配器、七类夹具、当前 Attempt/证据/来源/依赖守卫和 F⊆H 已合并；D 侧业务 AssertionOutcomeFact 的生产来源与 C-01—C-13 后的真实对拍仍缺。 | AC19/21/24/27；补断言结果生产输入，按 A 同一提交读取/发布 S/M 整用例集合和 H，禁止旧继承+部分新执行拼集合。 |
 | D-04 高风险/接入缺口 | IssueClosureEvidence需显式入参，但真实新回归/当前Attempt/已保存证据等仍由调用方布尔自报，应用未查询权威记录或接UOW；ReportExport仍接收自给ref/digest，exports.py占位 | AC11/14/16/29/33/35；查同提交当前新实际回归和有效核验，保存不可变修复/复测/报告；经A制品端口真实生成安全摘要/相对路径包，完整校验后登记成功，LocalReview不改正文 |
-| D-05 接入缺口 | 新增S/M汇总和H引用尚未来自生产事实适配；case_ids_revision/source_commit/snapshot commit/cursor允许空，IssueSummary阻塞来源未在真实读取链派生。公开CoverageDTO仍为9个平铺计数，实际协议/各入口尚未统一完整输出形状 | AC21/24/27/34；把准确范围/来源/策略/提交游标接入完整核心DTO，未知不补0/false；面板/报告/CLI/MCP同修订逐项对拍，统一公开合同和生成Schema |
+| D-05 接入缺口 | selected/required 汇总、H 引用和快照元数据已进入 DTO；公开 `CoverageDTO`、所有入口统一形状、真实来源/游标读取链仍未闭合。 | AC21/24/27/34；统一核心、报告、面板、CLI、MCP 的同修订输出，未知不得补 0/false，Schema 仍由 A 主责。 |
 | D-06 阻断交付 | CLI/MCP/面板/Trae 没有同核心业务动作；LocalAPI 对人工动作只做 client_kind 限制，缺真实动作摘要/来源会话/输入与目标修订的受控挑战；扩展无业务消息桥 | AC26/31/33/34；D 实现用户动作与角色边界，A 校验会话/实例，B/C 校验范围/输入/授权修订；MCP 禁止人工确认，不能接受参数自报身份。列表走摘要索引，迟到响应和断线按原项目/运行处理 |
 | D-07 未验证 | 信息区三段、动作导航、主失败去向、复制修复说明、键盘/旧报告精确筛选、隐藏/折叠、事件重放/重复、portable 导出均无真实产品证据 | D 牵头 16 项仍 untested；现有静态导航测试和打包不能替代真实 Trae 生命周期与业务流程验收 |
-| D-08 自动化待修复 | 最新静态面板Playwright在phase-summary.getByRole(heading)断言失败：预期3、实际4（区域h2加三张阶段卡h3）；后续导航/窄屏断言未执行 | AC26相关静态验证；按阶段卡片精确定位并断言三阶段，再跑同面板返回/动作区/窄屏检查，不能仅删测试或把静态通过登记为真实Trae验收 |
+| D-08 自动化待运行 | 阶段卡选择器已改为精确定位 `article.phase`，`npm run build` 与 `playwright --list` 通过；当前沙箱禁止 Playwright 子进程，完整导航/窄屏运行仍需 CI 或正常 Windows 环境。 | AC26 静态验证；执行完整测试后登记命令、输入、预期/实际和日志，不能把 `--list` 当作运行通过或真实 Trae 验收。 |
 
 ### 3.2 源码实施入口与剩余缺口
 
