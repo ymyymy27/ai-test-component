@@ -458,7 +458,9 @@ def test_worker_startup_recovers_stale_core_leavings(tmp_path: Path) -> None:
             {
                 "request_id": "req-crashed",
                 "project_id": "project-a02",
+                "intent_id": None,
                 "commit_sequence": 1,
+                "state": "in_progress",
             }
         ),
         encoding="utf-8",

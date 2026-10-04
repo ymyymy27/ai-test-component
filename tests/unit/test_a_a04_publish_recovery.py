@@ -67,7 +67,8 @@ def test_post_publish_projection_loss_is_repaired_after_restart(tmp_path: Path) 
     active = tmp_path / "transactions" / "active.json"
     active.parent.mkdir(parents=True, exist_ok=True)
     active.write_text(
-        '{"request_id": "req-1", "commit_sequence": 1, "state": "in_progress"}',
+        '{"request_id": "req-1", "project_id": "project-1", "intent_id": null, '
+        '"commit_sequence": 1, "state": "in_progress"}',
         encoding="utf-8",
     )
 

@@ -29,13 +29,12 @@ _COMMIT_FILE = {
 def workspace(tmp_path: Path) -> Path:
     Workspace(tmp_path)
     FileEventJournal(tmp_path, instance_id="instance-1")
-    (tmp_path / "commit.json").write_text(
-        json.dumps(_COMMIT_FILE), encoding="utf-8"
-    )
+    (tmp_path / "commit.json").write_text(json.dumps(_COMMIT_FILE), encoding="utf-8")
     return tmp_path
 
 
 # ----- backup.restore -----------------------------------------------
+
 
 def test_restore_copies_files_and_reverifies(workspace: Path, tmp_path: Path) -> None:
     store = FileBackupStore(workspace)
@@ -75,6 +74,7 @@ def test_restore_detects_corrupt_backup(workspace: Path, tmp_path: Path) -> None
 
 # ----- recovery orchestration ---------------------------------------
 
+
 def test_recover_workspace_function(workspace: Path) -> None:
     report = recover_workspace(workspace)
     assert report["ok"] is True
@@ -96,7 +96,7 @@ def test_run_healthy_when_no_marker(workspace: Path) -> None:
     assert "无需恢复" in result.actions
 
 
-def test_run_clears_stale_marker_after_committed_crash(workspace: Path) -> None:
+def test_projection_sequence_alone_cannot_prove_a_committed_crash(workspace: Path) -> None:
     marker = workspace / "transactions" / "active.json"
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
@@ -106,12 +106,14 @@ def test_run_clears_stale_marker_after_committed_crash(workspace: Path) -> None:
 
     result = RecoveryOrchestrator(workspace, instance_id="instance-1").run()
 
-    assert result.state == "repaired"
-    assert not marker.exists()
-    assert any("残留活动标记" in action for action in result.actions)
+    assert result.state == "blocked"
+    assert json.loads(marker.read_text(encoding="utf-8")) == {
+        "request_id": "req-2",
+        "commit_sequence": 2,
+    }
 
 
-def test_run_marker_without_commit_clears_without_replay(workspace: Path) -> None:
+def test_run_marker_without_commit_preserves_unknown_activity(workspace: Path) -> None:
     marker = workspace / "transactions" / "active.json"
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
@@ -122,10 +124,12 @@ def test_run_marker_without_commit_clears_without_replay(workspace: Path) -> Non
 
     result = RecoveryOrchestrator(workspace, instance_id="instance-1").run()
 
-    assert result.state == "repaired"
-    assert not marker.exists()
+    assert result.state == "blocked"
+    assert json.loads(marker.read_text(encoding="utf-8")) == {
+        "request_id": "req-9",
+        "commit_sequence": 9,
+    }
     assert (workspace / "commit.json").read_text(encoding="utf-8") == before
-    assert any("不重放" in action for action in result.actions)
 
 
 def test_run_blocked_on_integrity_failure(workspace: Path) -> None:

@@ -39,3 +39,5 @@ uv build
 静态检查、构建与wheel冒烟各有单独日志。所有真实AC状态未改变；不宣称本轮真实Trae、真实人工页面、物理掉电或供应方故障已经通过。
 
 - [model-response-resolution-2177/manifest.json](history/model-response-resolution-2177/manifest.json)：本轮完整Python为2177 passed、2 skipped（1298.72秒），包括全部27个新增补登记节点。Ruff、Mypy165文件、Schema/0.4.0版本、wheel/sdist、隔离wheel冒烟及现有VSIX面板字节核对通过。冻结354份工程文件、147个AST符号与170份原始记录；源码ZIP SHA256为`1b776098d8b2c559923a0cb4f87cc302bedda7d08816172436d8179af469dd06`，档案及当时工作区核对通过。原2项反例、fixture导入/关键字参数错误和首次中断全量均原样保留；未知维护活动标记、完整依赖/执行链及真实验收仍缺。
+
+- [recovery-marker-authority-428/manifest.json](history/recovery-marker-authority-428/manifest.json)：最终428 passed（132.74秒），涵盖27项新增活动核对及受影响恢复/写锁/安全/合同/架构；Ruff、Mypy165文件、Schema/0.4.0版本、wheel/sdist、隔离wheel冒烟和现有VSIX面板字节核对通过。本局部阶段未再跑完整Python；2177全量只属于前一模型阶段。冻结355份工程文件、85个AST符号及12份原始记录，源码ZIP SHA256为`0fc405ce13a71b58d638bb21bf84dfa013bfb79dd5d58768891b83a0a1aacdea`；档案与当前工程核对通过。原8项失败与中间结果保留，C活动恢复和旧版事件权威对照仍缺。

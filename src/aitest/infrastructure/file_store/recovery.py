@@ -8,21 +8,40 @@
   决策只依据落盘事实；未知状态阻塞交人工，绝不自动重放。
 """
 
+import hashlib
 import json
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, cast
 
+from aitest.application.errors import WorkspaceInUse
+from aitest.infrastructure.security import guard_bytes, guard_value
+
 from .backup import BackupError, FileBackupStore, RestoreReport
 from .commit_manifest import FileCommitStore, canonical_bytes
 from .events import EventMaintenanceRequired, FileEventJournal, ReconcileReport
 from .integrity import check_workspace
+from .locking import writer_lock
 from .publication_backend import FilePublicationBackend
 from .records import FileRecordRepository
 from .sharded_records import find_commit, open_authority
 
 _REPORT_SCHEMA: Final = "aitest.recovery-report/1.0"
+_MARKER_MAX_BYTES: Final = 16 * 1024
+
+
+def _read_marker(root: Path) -> dict[str, object] | None:
+    store = FileCommitStore(root)
+    path = root / "transactions" / "active.json"
+    store.reject_links(path)
+    if not path.exists():
+        return None
+    marker = store._decode(store._read_bytes(path, _MARKER_MAX_BYTES))
+    safe, changed = guard_value(marker)
+    if changed or safe != marker:
+        raise ValueError("active transaction identity cannot be safely exposed")
+    return marker
 
 
 class RecoveryBlocked(RuntimeError):
@@ -44,12 +63,20 @@ class RecoveryState:
 
 
 def recover_workspace(root: Path) -> dict[str, object]:
+    try:
+        active = _read_marker(root)
+    except (OSError, ValueError, TypeError):
+        return {
+            "ok": False,
+            "recovery_required": True,
+            "active_marker_state": "unverified",
+            "errors": ["active transaction marker cannot be verified"],
+        }
     report = check_workspace(root)
-    pending = root / "transactions" / "active.json"
-    report["recovery_required"] = pending.exists()
-    if pending.exists():
-        active = json.loads(pending.read_text(encoding="utf-8"))
+    report["recovery_required"] = active is not None
+    if active is not None:
         report["active_request_id"] = active.get("request_id")
+        report["active_marker_state"] = "pending_verification"
     return report
 
 
@@ -57,13 +84,22 @@ class RecoveryOrchestrator:
     """按落盘事实编排事务恢复的完整闭环。"""
 
     def __init__(self, workspace_root: Path, *, instance_id: str) -> None:
+        FileCommitStore.reject_links(workspace_root)
         self._root = workspace_root.resolve()
         self._instance_id = instance_id
 
     def inspect(self) -> dict[str, object]:
         """只读巡检：完整性、活动标记、已确认提交、事件日志位置。"""
+        try:
+            marker = self._read_active_marker()
+        except (OSError, ValueError, TypeError):
+            return {
+                "integrity_ok": False,
+                "integrity_errors": ["active transaction marker cannot be verified"],
+                "active_marker": {"state": "unverified"},
+                "committed_sequences": (),
+            }
         integrity = check_workspace(self._root)
-        marker = self._read_active_marker()
         committed = self._committed_sequences()
         return {
             "integrity_ok": bool(integrity.get("ok")),
@@ -74,21 +110,25 @@ class RecoveryOrchestrator:
 
     def run(self, *, startup: bool = False) -> RecoveryState:
         """Inspect published recovery material on startup; full history on request."""
-        if startup:
-            try:
-                current = FileCommitStore(self._root).read_current(verify_material=True)
-                if current is not None:
-                    return self._run_incremental(current)
-            except (OSError, ValueError, KeyError, TypeError):
-                return RecoveryState(
-                    state="blocked",
-                    integrity_ok=False,
-                    committed_sequences=(),
-                    actions=("当前提交或必要恢复材料无法核实，保留原字节并阻塞新写入",),
-                    reconcile=None,
-                    restore=None,
-                    full_history_checked=False,
-                )
+        try:
+            with writer_lock(self._root / "writer.lock"):
+                return self._run_locked(startup=startup)
+        except (WorkspaceInUse, OSError, ValueError, KeyError, TypeError):
+            return RecoveryState(
+                state="blocked",
+                integrity_ok=False,
+                committed_sequences=(),
+                actions=("写入准入或必要恢复材料无法核实，保留原字节并阻塞恢复写入",),
+                reconcile=None,
+                restore=None,
+                full_history_checked=False,
+            )
+
+    def _run_locked(self, *, startup: bool) -> RecoveryState:
+        current = FileCommitStore(self._root).read_current(verify_material=True)
+        marker = self._read_active_marker()
+        if startup and current is not None:
+            return self._run_incremental(current)
         actions: list[str] = []
 
         # Phase A：完整性。
@@ -104,22 +144,18 @@ class RecoveryOrchestrator:
                 restore=None,
             )
 
-        # Phase B：先以 records.json 权威提交台账自愈落后/缺失的投影
+        # Verify activity before any projection repair; a sequence match is not ownership.
+        if marker is not None:
+            self._resolve_marker(current, marker)
+            actions.append("准确权威提交已核实；保存恢复事实后清除残留活动标记")
+
+        # Phase B：以 records.json 权威提交台账自愈落后/缺失的投影
         # （commit.json/indexes.json/events.json）。台账与业务记录在同一次
         # 原子写中发布；投影全部可重建，健康工作空间不产生修复动作。
         repository = FileRecordRepository(self._root)
         actions.extend(repository.rebuild_projections())
 
-        # 活动标记与权威提交对账。
-        marker = self._read_active_marker()
         committed = set(self._committed_sequences())
-        if marker is not None:
-            marker_commit = marker.get("commit_sequence")
-            if isinstance(marker_commit, int) and marker_commit in committed:
-                actions.append(f"提交 {marker_commit} 已落盘；清除崩溃后残留活动标记")
-            else:
-                actions.append("活动事务未形成提交；仅清除标记，不重放任何外部效果")
-            self._clear_active_marker()
 
         # Phase C：事件日志核对（提交清单为事实来源）。
         journal = FileEventJournal(self._root, instance_id=self._instance_id)
@@ -156,33 +192,7 @@ class RecoveryOrchestrator:
         actions: tuple[str, ...] = ("当前提交及必要恢复根已核实；未扫描完整历史",)
         state = "healthy"
         if marker is not None:
-            if (
-                marker.get("state") != "in_progress"
-                or not isinstance(marker.get("request_id"), str)
-                or not marker["request_id"]
-                or not isinstance(marker.get("project_id"), str)
-                or not marker["project_id"]
-                or type(marker.get("commit_sequence")) is not int
-            ):
-                raise ValueError("active transaction marker identity is unverified")
-            authority = open_authority(self._root, current["manifest"]["record_header"])
-            entry = find_commit(
-                authority["_tree"],
-                field="request_id",
-                project_id=cast(str, marker["project_id"]),
-                value=cast(str, marker["request_id"]),
-            )
-            if (
-                not isinstance(entry, dict)
-                or entry.get("state") != "committed"
-                or any(
-                    entry.get(key) != marker.get(key)
-                    for key in ("request_id", "project_id", "intent_id", "commit_sequence")
-                )
-            ):
-                raise ValueError("active transaction cannot be proved by this published root")
-            self._save_marker_resolution(current, marker)
-            self._clear_active_marker()
+            self._resolve_marker(current, marker)
             actions = ("已发布根证明准确活动事务已提交；保存恢复诊断后清除残留标记",)
             state = "repaired"
         return RecoveryState(
@@ -198,16 +208,90 @@ class RecoveryOrchestrator:
             last_commit_sequence=sequence,
         )
 
-    def _save_marker_resolution(self, current: dict[str, Any], marker: dict[str, object]) -> None:
-        import hashlib
+    def _resolve_marker(self, current: dict[str, Any] | None, marker: dict[str, object]) -> None:
+        if (
+            marker.get("state") != "in_progress"
+            or set(marker) - {"request_id", "project_id", "intent_id", "commit_sequence", "state"}
+            or any(
+                not isinstance(marker.get(key), str) or not str(marker[key]).strip()
+                for key in ("request_id", "project_id")
+            )
+            or (
+                marker.get("intent_id") is not None
+                and (
+                    not isinstance(marker["intent_id"], str) or not str(marker["intent_id"]).strip()
+                )
+            )
+            or type(marker.get("commit_sequence")) is not int
+            or cast(int, marker["commit_sequence"]) < 1
+        ):
+            raise ValueError("active transaction marker identity is unverified")
+        repository = FileRecordRepository(self._root)
+        if current is not None:
+            FilePublicationBackend(self._root).confirm_current()
+            authority = open_authority(self._root, current["manifest"]["record_header"])
+            entry = find_commit(
+                authority["_tree"],
+                field="request_id",
+                project_id=cast(str, marker["project_id"]),
+                value=cast(str, marker["request_id"]),
+            )
+        else:
+            # Validate the actual legacy authority, never commit.json or a sequence union.
+            store = FileCommitStore(self._root)
+            store._decode(store._read_bytes(self._root / "records.json", 64 * 1024 * 1024))
+            entry = repository.find_committed_request(
+                request_id=cast(str, marker["request_id"]),
+                project_id=cast(str, marker["project_id"]),
+                intent_id=cast(str | None, marker.get("intent_id")),
+            )
+        if (
+            not isinstance(entry, dict)
+            or entry.get("state") != "committed"
+            or type(entry.get("commit_sequence")) is not int
+            or any(
+                entry.get(key) != marker.get(key)
+                for key in ("request_id", "project_id", "intent_id", "commit_sequence")
+            )
+        ):
+            raise ValueError("active transaction is not proved by the saved authority")
+        if current is None:
+            created = entry.get("created")
+            if not isinstance(created, list) or not created:
+                raise ValueError("legacy activity has no verifiable created records")
+            for item in created:
+                if not isinstance(item, dict) or type(item.get("revision")) is not int:
+                    raise ValueError("legacy activity record revision is unverified")
+                saved = repository.read(
+                    aggregate_kind=item["aggregate_kind"],
+                    record_id=item["record_id"],
+                    revision=item["revision"],
+                )
+                owner = saved.payload.get("project_id", saved.payload.get("local_project_id"))
+                if owner != marker["project_id"]:
+                    raise ValueError("legacy activity record ownership is unverified")
+        self._save_marker_resolution(current, marker)
+        self._clear_active_marker(marker)
 
-        from aitest.infrastructure.security import guard_bytes, guard_value
-
+    def _save_marker_resolution(
+        self, current: dict[str, Any] | None, marker: dict[str, object]
+    ) -> None:
+        if current is None:
+            store = FileCommitStore(self._root)
+            identity = store._decode(store._read_bytes(self._root / "workspace.json", 16384))
+            workspace_id = identity["workspace_id"]
+            legacy_digest = hashlib.sha256(
+                store._read_bytes(self._root / "records.json", 64 * 1024 * 1024)
+            ).hexdigest()
+        else:
+            workspace_id = current["manifest"]["workspace_id"]
+            legacy_digest = None
         fact = {
             "schema": "aitest.transaction-recovery/1",
             "instance_id": self._instance_id,
-            "workspace_id": current["manifest"]["workspace_id"],
-            "manifest_digest": current["pointer"]["manifest_digest"],
+            "workspace_id": workspace_id,
+            "manifest_digest": current["pointer"]["manifest_digest"] if current else None,
+            "legacy_authority_digest": legacy_digest,
             "state": "verified_committed",
             "marker": {
                 key: marker.get(key)
@@ -264,19 +348,12 @@ class RecoveryOrchestrator:
     # ----- 内部 -------------------------------------------------------
 
     def _read_active_marker(self) -> dict[str, object] | None:
-        path = self._root / "transactions" / "active.json"
-        if not path.exists():
-            return None
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {"state": "unparseable"}
-        return dict(raw) if isinstance(raw, dict) else None
+        return _read_marker(self._root)
 
-    def _clear_active_marker(self) -> None:
-        path = self._root / "transactions" / "active.json"
-        if path.exists():
-            path.unlink()
+    def _clear_active_marker(self, expected: dict[str, object]) -> None:
+        if canonical_bytes(self._read_active_marker()) != canonical_bytes(expected):
+            raise ValueError("active marker changed during recovery; preserve the new activity")
+        (self._root / "transactions" / "active.json").unlink()
 
     def _committed_sequences(self) -> tuple[int, ...]:
         """已确认提交序列。
