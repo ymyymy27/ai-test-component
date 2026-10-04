@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.5"
+contract_version: "1.6"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,9 +20,11 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.5
+版本：1.6
 日期：2026-10-05
 状态：草案，待B/C/D确认  
+
+1.6补旧无current事件恢复，唯一引用AB-001 1.20：提交序号/投影只是查找提示，逐项核对实际records权威提交、准确业务引用及完整事件身份，已有边界和日志也须相符后清理。重复字段/非对象/链接/超限/不安全身份或核对后暂存变化保持阻塞和原材料；未知事件不自动重放。该组件修复不代表C实际活动、输出抢救或真实恢复验收通过。
 
 1.5统一增量启动/完整维护的准确活动核对，引用AB-001 1.19：恢复持写锁，先核实权威提交与身份、可靠保存恢复事实，再比较标记并清理；未知材料保留。只读巡检明确未核实，不暴露已知凭据。事务残留清理不代替C执行句柄、输出抢救与恢复事实。
 

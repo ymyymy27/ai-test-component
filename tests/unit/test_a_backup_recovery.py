@@ -86,13 +86,14 @@ def test_orchestrator_inspect(workspace: Path) -> None:
     state: dict[str, Any] = orchestrator.inspect()
     assert state["integrity_ok"] is True
     assert state["active_marker"] is None
-    assert tuple(state["committed_sequences"]) == (1, 2)
+    # This fixture only has commit.json projection rows, no business authority.
+    assert tuple(state["committed_sequences"]) == ()
 
 
 def test_run_healthy_when_no_marker(workspace: Path) -> None:
     result = RecoveryOrchestrator(workspace, instance_id="instance-1").run()
     assert result.state == "healthy"
-    assert result.committed_sequences == (1, 2)
+    assert result.committed_sequences == ()
     assert "无需恢复" in result.actions
 
 

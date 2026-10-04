@@ -495,10 +495,17 @@ def test_two_publishers_serialize_parent_check_and_only_one_can_switch(workspace
 
 @pytest.mark.parametrize("change", ["different_identity", "different_body", "exact_same"])
 def test_legacy_event_recovery_compares_saved_identity_and_whole_body(tmp_path, change):
+    from aitest.infrastructure.file_store.records import FileRecordRepository
+
     identity = Workspace(tmp_path)
     journal = FileEventJournal(tmp_path, instance_id="legacy-core")
     events = []
     for number in (1, 2):
+        FileRecordRepository(tmp_path).commit_transaction(
+            [("case", f"record-{number}", 0, {"project_id": "project"})],
+            request_id=f"r{number}", intent_id=None, project_id="project",
+            workspace_id=identity.workspace_id, writer_epoch=1,
+        )
         journal.begin_boundary(
             commit_sequence=number,
             request_id=f"r{number}",

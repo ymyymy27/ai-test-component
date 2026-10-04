@@ -1,0 +1,40 @@
+...........FFFFF........................................................ [ 69%]
+...............................                                          [100%]
+================================== FAILURES ===================================
+_____ test_partial_or_foreign_recovery_material_is_retained[empty_events] _____
+tests\unit\test_legacy_event_authority.py:140: in test_partial_or_foreign_recovery_material_is_retained
+    assert not staging.exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-577/test_partial_or_foreign_recove0/event-log/staging/1.jsonl").exists
+___ test_partial_or_foreign_recovery_material_is_retained[duplicate_event] ____
+tests\unit\test_legacy_event_authority.py:140: in test_partial_or_foreign_recovery_material_is_retained
+    assert not staging.exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-577/test_partial_or_foreign_recove1/event-log/staging/1.jsonl").exists
+____ test_partial_or_foreign_recovery_material_is_retained[missing_record] ____
+tests\unit\test_legacy_event_authority.py:140: in test_partial_or_foreign_recovery_material_is_retained
+    assert not staging.exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-577/test_partial_or_foreign_recove2/event-log/staging/1.jsonl").exists
+____ test_partial_or_foreign_recovery_material_is_retained[foreign_owner] _____
+tests\unit\test_legacy_event_authority.py:140: in test_partial_or_foreign_recovery_material_is_retained
+    assert not staging.exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-577/test_partial_or_foreign_recove3/event-log/staging/1.jsonl").exists
+____ test_partial_or_foreign_recovery_material_is_retained[false_boundary] ____
+tests\unit\test_legacy_event_authority.py:140: in test_partial_or_foreign_recovery_material_is_retained
+    assert not staging.exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-577/test_partial_or_foreign_recove4/event-log/staging/1.jsonl").exists
+=========================== short test summary info ===========================
+FAILED tests/unit/test_legacy_event_authority.py::test_partial_or_foreign_recovery_material_is_retained[empty_events]
+FAILED tests/unit/test_legacy_event_authority.py::test_partial_or_foreign_recovery_material_is_retained[duplicate_event]
+FAILED tests/unit/test_legacy_event_authority.py::test_partial_or_foreign_recovery_material_is_retained[missing_record]
+FAILED tests/unit/test_legacy_event_authority.py::test_partial_or_foreign_recovery_material_is_retained[foreign_owner]
+FAILED tests/unit/test_legacy_event_authority.py::test_partial_or_foreign_recovery_material_is_retained[false_boundary]
+5 failed, 98 passed in 85.78s (0:01:25)

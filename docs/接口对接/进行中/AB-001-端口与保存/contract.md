@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.19"
+contract_version: "1.20"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.19
+版本：1.20
 日期：2026-10-05
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
@@ -26,6 +26,10 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 ---
 
 ## 1 目的与前提
+
+1.20补旧版事件恢复：commit.json及调用方传入的提交序号只作查找提示，不能证明业务已发布。reconcile必须读取records权威提交，按准确request/intent/project/workspace/writer_epoch、事务内created顺序与实际记录归属核对每个record_created事件，并重新核对含聚合类别的event_id；缺记录、跨项目、错误类型/修订或不完整事件集不能发布。已有边界也须与暂存及已保存日志逐项相符后才可清理；未知暂存原样保留，核心恢复报告blocked，不能把“未找到”记成已修复或自动重放。现行current提交仍消费同一完整冻结事件根；旧事件恢复只证明原业务记录存在，不产生新执行、授权或验证事实。
+
+旧版事件核对读取权威和暂存时采用64 MiB上限、边界采用64 KiB上限，拒绝路径链接、重复字段、非对象和无法保持安全身份的材料；超过预算保留原材料并要求人工维护，不静默丢弃或改义。预算不代表完整旧版维护的所有历史投影读取已经有界。合并前重新读取并比较已核对的完整事件集，暂存中途变化不能借用先前核对结果。已存在但无效的边界不能当作“不存在”覆盖。
 
 1.19补恢复活动身份：增量启动与显式完整维护均在同一工作空间写锁内核对活动标记。清理只接受已发布权威提交中的准确request_id/project_id/intent_id/commit_sequence与in_progress状态，提交序号集合或commit.json投影不能证明该活动已提交。旧无current工作空间须从真实records权威台账及对应记录验证准确归属，不能用旧投影猜测。核对成功先保存永久恢复事实，删除前重复比较原标记；保存失败或标记变化保留原材料并阻塞。
 

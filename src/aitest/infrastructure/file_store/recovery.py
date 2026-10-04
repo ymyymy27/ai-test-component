@@ -157,7 +157,7 @@ class RecoveryOrchestrator:
 
         committed = set(self._committed_sequences())
 
-        # Phase C：事件日志核对（提交清单为事实来源）。
+        # Phase C：事件日志逐项核对实际业务权威；提交序号只作查找提示。
         journal = FileEventJournal(self._root, instance_id=self._instance_id)
         try:
             reconcile = journal.reconcile(committed_sequences=committed)
@@ -171,6 +171,16 @@ class RecoveryOrchestrator:
                 restore=None,
             )
         actions.extend(reconcile.actions)
+
+        if reconcile.orphaned_staging:
+            return RecoveryState(
+                state="blocked",
+                integrity_ok=True,
+                committed_sequences=tuple(sorted(committed)),
+                actions=tuple(actions),
+                reconcile=reconcile,
+                restore=None,
+            )
 
         state = "repaired" if actions else "healthy"
         if not actions:
@@ -358,33 +368,12 @@ class RecoveryOrchestrator:
     def _committed_sequences(self) -> tuple[int, ...]:
         """已确认提交序列。
 
-        records.json 的提交台账是唯一权威事实来源（与业务记录同一次原子
-        写发布）；commit.json 仅作迁移期并集兜底，保证旧版工作空间与
-        投影落后场景都不丢已确认序列。任一来源不可读时不伪造结论。
+        只使用与业务记录同一次发布的权威台账；投影不能补造已提交事实。
         """
         sequences: set[int] = set()
         with suppress(json.JSONDecodeError, OSError, TypeError, KeyError):
             sequences.update(FileRecordRepository(self._root).committed_sequences())
-        sequences.update(self._commit_file_sequences())
         return tuple(sorted(sequences))
-
-    def _commit_file_sequences(self) -> set[int]:
-        """读取旧版提交清单 commit.json 中的序列（投影，可能落后）。"""
-        path = self._root / "commit.json"
-        if not path.exists():
-            return set()
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return set()
-        commits = raw.get("commits")
-        if not isinstance(commits, list):
-            return set()
-        return {
-            int(entry["commit_sequence"])
-            for entry in commits
-            if isinstance(entry, dict) and isinstance(entry.get("commit_sequence"), int)
-        }
 
 
 def seal_inflight_outputs(root: Path) -> tuple[str, ...]:

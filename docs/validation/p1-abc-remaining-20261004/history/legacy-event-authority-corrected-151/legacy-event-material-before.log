@@ -1,0 +1,52 @@
+FFFFFF                                                                   [100%]
+================================== FAILURES ===================================
+_ test_ambiguous_recovery_json_cannot_be_overwritten_or_published[nonobject_boundary] _
+tests\unit\test_legacy_event_authority.py:96: in test_ambiguous_recovery_json_cannot_be_overwritten_or_published
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_ambiguous_recovery_json_cannot_be_overwritten_or_published[duplicate_boundary] _
+tests\unit\test_legacy_event_authority.py:96: in test_ambiguous_recovery_json_cannot_be_overwritten_or_published
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_ambiguous_recovery_json_cannot_be_overwritten_or_published[duplicate_event] _
+tests\unit\test_legacy_event_authority.py:96: in test_ambiguous_recovery_json_cannot_be_overwritten_or_published
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_ambiguous_recovery_json_cannot_be_overwritten_or_published[duplicate_authority] _
+tests\unit\test_legacy_event_authority.py:96: in test_ambiguous_recovery_json_cannot_be_overwritten_or_published
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+__________ test_staging_replacement_cannot_reuse_prior_verification ___________
+tests\unit\test_legacy_event_authority.py:120: in test_staging_replacement_cannot_reuse_prior_verification
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+___________ test_unsafe_event_identity_is_retained_without_new_copy ___________
+tests\unit\test_legacy_event_authority.py:145: in test_unsafe_event_identity_is_retained_without_new_copy
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+=========================== short test summary info ===========================
+FAILED tests/unit/test_legacy_event_authority.py::test_ambiguous_recovery_json_cannot_be_overwritten_or_published[nonobject_boundary]
+FAILED tests/unit/test_legacy_event_authority.py::test_ambiguous_recovery_json_cannot_be_overwritten_or_published[duplicate_boundary]
+FAILED tests/unit/test_legacy_event_authority.py::test_ambiguous_recovery_json_cannot_be_overwritten_or_published[duplicate_event]
+FAILED tests/unit/test_legacy_event_authority.py::test_ambiguous_recovery_json_cannot_be_overwritten_or_published[duplicate_authority]
+FAILED tests/unit/test_legacy_event_authority.py::test_staging_replacement_cannot_reuse_prior_verification
+FAILED tests/unit/test_legacy_event_authority.py::test_unsafe_event_identity_is_retained_without_new_copy
+6 failed, 16 deselected in 3.20s

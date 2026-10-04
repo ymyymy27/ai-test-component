@@ -1,0 +1,84 @@
+FFFFFFFFFF.                                                              [100%]
+================================== FAILURES ===================================
+___________ test_projection_without_authority_cannot_publish_event ____________
+tests\unit\test_legacy_event_authority.py:47: in test_projection_without_authority_cannot_publish_event
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_foreign_staged_event_cannot_borrow_known_commit[request_id-other-request] _
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_foreign_staged_event_cannot_borrow_known_commit[intent_id-other-intent] _
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_foreign_staged_event_cannot_borrow_known_commit[project_id-other-project] _
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_foreign_staged_event_cannot_borrow_known_commit[workspace_id-other-workspace] _
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+___ test_foreign_staged_event_cannot_borrow_known_commit[writer_epoch-999] ____
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_foreign_staged_event_cannot_borrow_known_commit[record_id-missing-record] _
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+______ test_foreign_staged_event_cannot_borrow_known_commit[revision-2] _______
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_ test_foreign_staged_event_cannot_borrow_known_commit[event_type-run_passed] _
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+__ test_foreign_staged_event_cannot_borrow_known_commit[event_id-evt_forged] __
+tests\unit\test_legacy_event_authority.py:66: in test_foreign_staged_event_cannot_borrow_known_commit
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+=========================== short test summary info ===========================
+FAILED tests/unit/test_legacy_event_authority.py::test_projection_without_authority_cannot_publish_event
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[request_id-other-request]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[intent_id-other-intent]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[project_id-other-project]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[workspace_id-other-workspace]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[writer_epoch-999]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[record_id-missing-record]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[revision-2]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[event_type-run_passed]
+FAILED tests/unit/test_legacy_event_authority.py::test_foreign_staged_event_cannot_borrow_known_commit[event_id-evt_forged]
+10 failed, 1 passed in 5.54s
