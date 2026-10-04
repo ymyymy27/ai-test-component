@@ -9,7 +9,8 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
   await page.addScriptTag({ path: resolve("dist/index.js") });
 
   await expect(page.getByTestId("panel-status")).toContainText("未连接核心");
-  await expect(page.getByTestId("phase-summary").getByRole("heading")).toHaveCount(3);
+  const phaseCards = page.getByTestId("phase-summary").locator("article.phase");
+  await expect(phaseCards).toHaveCount(3);
   await expect(page.getByText("运行前", { exact: true })).toBeVisible();
   await expect(page.getByText("运行时", { exact: true })).toBeVisible();
   await expect(page.getByText("运行后", { exact: true })).toBeVisible();
