@@ -1,0 +1,79 @@
+..F.                                                                     [100%]
+================================== FAILURES ===================================
+__ test_default_prepare_rejects_legacy_binding_even_with_current_valid_bytes __
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000283E36B42D0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-650/test_default_prepare_rejects_l0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000283E369EB10>
+
+    def test_default_prepare_rejects_legacy_binding_even_with_current_valid_bytes(
+        authoritative, monkeypatch
+    ):
+        core, inputs, _ = authoritative
+        read = core.unit_of_work.repo.read
+    
+        def legacy(**kwargs):
+            record = read(**kwargs)
+            if record.aggregate_kind == "binding":
+                payload = {
+                    key: value
+                    for key, value in record.payload.items()
+                    if not key.startswith("approval_") and key != "workspace_id"
+                }
+                return replace(record, payload=payload)
+            return record
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", legacy)
+        before = core.unit_of_work.current_commit_sequence()
+>       result = prepare(
+            core, inputs, request="legacy-binding-prepare", intent="legacy-binding-prepare"
+        )
+
+tests\unit\test_binding_controlled_origin.py:477: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_authoritative_preparation.py:173: in prepare
+    return dispatch(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000283E36B42D0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x00000283E357B890>)
+action = 'prepare_run', project = 'project-ticket'
+parameters = {'workspace_id': '83a34f49-315a-4839-ac3d-54d057438e49', 'binding_id': 'binding-ticket', 'binding_revision': 1, 'binding_form': 'plain', ...}
+intent = 'legacy-binding-prepare', request = 'legacy-binding-prepare'
+expected = 0, binding_revision = None
+session = Session(session_id='controlled-fixture', entry_kind=<EntryKind.HUMAN_UI: 'human_ui'>, interactive=False, interaction=None)
+
+    def dispatch(
+        core,
+        action,
+        *,
+        project="project",
+        parameters=None,
+        intent=None,
+        request=None,
+        expected=0,
+        binding_revision=None,
+        session=HUMAN,
+    ):
+        return core.api.dispatch(
+>           Command(
+                action=action,
+                request_id=request or action + "-request",
+                project_id=project,
+                intent_id=intent or action + "-intent",
+                expected_revision=expected,
+                binding_revision=binding_revision,
+                parameters=parameters or {},
+            ),
+            session,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, request_id must not be used as intent_id [type=value_error, input_value={'action': 'prepare_run',...bility_exclusions': []}}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\unit\test_default_source_analysis.py:36: ValidationError
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_binding_controlled_origin.py::test_saved_snapshot_check_revalidates_binding_before_actual_files
+PASSED tests/unit/test_binding_controlled_origin.py::test_pin_publish_revalidates_origin_inside_short_transaction
+PASSED tests/unit/test_binding_controlled_origin.py::test_original_binding_intent_with_different_input_is_conflict
+FAILED tests/unit/test_binding_controlled_origin.py::test_default_prepare_rejects_legacy_binding_even_with_current_valid_bytes
+1 failed, 3 passed, 24 deselected in 38.14s

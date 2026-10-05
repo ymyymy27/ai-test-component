@@ -7,6 +7,7 @@ from dataclasses import dataclass, fields, replace
 from pydantic import TypeAdapter
 
 from aitest.application.approval_service import ApprovalService, _digest
+from aitest.application.controlled_write import SavedControlledWriteResolver
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.model_orchestration import policy_record_id
 from aitest.application.ports import ApprovalRecords, StageableWorkspaceUnitOfWork
@@ -131,9 +132,13 @@ class SavedModelPolicyApprovalResolver:
 
 class SavedHumanActionResolver:
     def __init__(
-        self, basis: SavedBasisApprovalResolver, policies: SavedModelPolicyApprovalResolver
+        self,
+        basis: SavedBasisApprovalResolver,
+        policies: SavedModelPolicyApprovalResolver,
+        writes: SavedControlledWriteResolver,
     ) -> None:
         self.basis, self.policies = basis, policies
+        self.writes = writes
 
     def resolve(
         self,
@@ -144,7 +149,13 @@ class SavedHumanActionResolver:
         target: str,
         parameters: Mapping[str, object],
     ) -> ActionBasis:
-        resolver = self.policies if action == "save_model_outbound_policy" else self.basis
+        resolver = (
+            self.writes
+            if action in self.writes.actions
+            else self.policies
+            if action == "save_model_outbound_policy"
+            else self.basis
+        )
         return resolver.resolve(
             project_id=project_id,
             intent_id=intent_id,

@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.13"
+contract_version: "1.14"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,9 +20,11 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.13
+版本：1.14
 日期：2026-10-05
 状态：草案，待B/C/D确认  
+
+1.14引用AB-001 1.23的准确绑定来源：save_binding复用同一核心挑战消费，六记录同批保存；固定与准备消费回读准确控制证明，旧confirmed布尔不能代替。原意图回读准确历史，新固定/准备/执行各自仍需真实来源和独立许可；不新增默认C/D支持或宣称真实宿主验收。
 
 1.7引用AB-001 1.21的旧版记录结构核对：准确记录读取或载荷形状不能核实时统一阻塞并保留，不让结构异常绕过恢复结果合同；不是已核实提交、执行或验收完成的证明。
 

@@ -1,0 +1,6 @@
+..                                                                       [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_binding_controlled_origin.py::test_a_bare_human_label_cannot_create_confirmed_binding
+PASSED tests/unit/test_binding_controlled_origin.py::test_legacy_confirmed_binding_is_not_permission_to_pin_source
+2 passed in 7.18s

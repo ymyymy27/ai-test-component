@@ -134,6 +134,10 @@ class ApprovalService:
                 "confirmation_id",
                 "created_at_commit",
             },
+            "aitest.controlled-write-intent/1.0": {
+                "action", "intent_id", "input_digest", "aggregate_kind", "record_id",
+                "record_revision", "record_digest", "confirmation_id", "created_at_commit",
+            },
         }
         schema = raw.get("schema_version")
         if (

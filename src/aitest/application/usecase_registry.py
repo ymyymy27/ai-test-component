@@ -63,6 +63,7 @@ from typing import TypeVar, cast
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from aitest.application.controlled_write import ControlledWriteService
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.draft import (
     DraftResult,
@@ -128,6 +129,7 @@ from aitest.application.planning.substrate import (
 from aitest.application.ports import (
     BasisConfirmationProof,
     Clock,
+    ControlledWriteProof,
     ModelPolicyConfirmationProof,
     ModelResponseStore,
 )
@@ -898,6 +900,8 @@ class BUseCaseDependencies:
     model_responses: ModelResponseStore | None = None
     model_policy_confirmations: ModelPolicyConfirmationService | None = None
     model_policy_proof: ModelPolicyConfirmationProof | None = None
+    controlled_writes: ControlledWriteService | None = None
+    controlled_write_proof: ControlledWriteProof | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1009,6 +1013,20 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             raise BUseCaseError("B_INVALID_PARAMETER", f"invalid binding: {error}") from error
         if binding.project_id != project_id:
             raise BUseCaseError("B_INVALID_PARAMETER", "binding belongs to another project")
+        if deps.controlled_writes is not None:
+            parameters = dict(_command_parameters(command))
+            challenge = parameters.pop("approval_challenge_id", None)
+            return deps.controlled_writes.save(
+                project_id=project_id,
+                action="save_binding",
+                request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+                intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+                expected_revision=_int_of(
+                    getattr(command, "expected_revision", None), "expected_revision"
+                ),
+                parameters=parameters,
+                challenge_id=_optional_text(challenge, "approval_challenge_id"),
+            )
         staged = save_binding(
             binding,
             unit_of_work=deps.unit_of_work,
@@ -1279,6 +1297,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                     reader=deps.reader,
                     workspace_id=deps.workspace_id,
                     approvals=deps.basis_confirmation_proof,
+                    controlled_writes=deps.controlled_write_proof,
                 )
             ),
         )

@@ -28,6 +28,7 @@ from typing import cast
 from uuid import uuid4
 
 from aitest.application.approval_service import ApprovalService
+from aitest.application.controlled_write import ControlledWriteService, SavedControlledWriteResolver
 from aitest.application.errors import WorkspaceInUse
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
@@ -435,6 +436,7 @@ def assemble_workspace_core(
                 else "not_configured"
             ),
         )
+        write_resolver = SavedControlledWriteResolver(unit_of_work.repo, workspace.workspace_id)
         approvals = ApprovalService(
             unit=unit_of_work,
             records=unit_of_work.repo,
@@ -442,6 +444,7 @@ def assemble_workspace_core(
             resolver=SavedHumanActionResolver(
                 SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
                 policy_resolver,
+                write_resolver,
             ),
             identities=ApprovalIdentity(),
             clock=SystemClock(),
@@ -450,6 +453,7 @@ def assemble_workspace_core(
         policy_confirmations = ModelPolicyConfirmationService(
             unit_of_work, approvals, policy_resolver
         )
+        controlled_writes = ControlledWriteService(unit_of_work, approvals, write_resolver)
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
             reader=reader,
@@ -464,6 +468,7 @@ def assemble_workspace_core(
                 snapshots=snapshot_store,
                 source_control=GitSourceControl(),
                 source_available=lambda: gate.condition(SOURCE).state.value == "ready",
+                controlled_writes=controlled_writes,
             ),
             basis_confirmations=BasisConfirmationService(
                 reader=reader, unit=unit_of_work, approvals=approvals
@@ -471,6 +476,8 @@ def assemble_workspace_core(
             basis_confirmation_proof=approvals,
             model_policy_confirmations=policy_confirmations,
             model_policy_proof=policy_confirmations,
+            controlled_writes=controlled_writes,
+            controlled_write_proof=controlled_writes,
             model_responses=FileModelResponseStore(
                 root, writer_epoch=workspace.identity["writer_epoch"]
             ),

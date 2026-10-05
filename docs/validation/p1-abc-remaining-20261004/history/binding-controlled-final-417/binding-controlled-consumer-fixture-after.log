@@ -1,0 +1,5 @@
+.                                                                        [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_binding_controlled_origin.py::test_default_prepare_rejects_legacy_binding_even_with_current_valid_bytes
+1 passed, 27 deselected in 19.43s

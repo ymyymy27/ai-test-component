@@ -14,6 +14,7 @@ from aitest.contracts.commands import Command
 from aitest.domain.project.context import BindingForm, LocalProject, LocalProjectBinding
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
 from aitest.interfaces.local.api import EntryKind, Session
+from tests.support.controlled_binding import controlled_binding_save
 
 HUMAN = Session("controlled-fixture", EntryKind.HUMAN_UI)
 AGENT = Session("relay-fixture", EntryKind.AGENT_RELAY)
@@ -68,13 +69,12 @@ def seed(core, source, *, project="project", form=BindingForm.PLAIN, head=None):
         manifest_digest="declared-baseline" if form is BindingForm.PLAIN else None,
         confirmed=True,
     )
-    response = dispatch(
+    response = controlled_binding_save(
         core,
-        "save_binding",
         project=project,
         intent="bind-" + project,
         request="request-bind-" + project,
-        parameters={"binding": binding_to_payload(binding)},
+        binding=binding_to_payload(binding),
     )
     assert response.error is None
     return binding
@@ -238,13 +238,13 @@ def test_binding_revision_changed_during_pin_is_not_published(stack, monkeypatch
         pinned = original(self, **kwargs)
         payload = binding_to_payload(binding)
         payload["binding_revision"] = 2
-        response = dispatch(
+        response = controlled_binding_save(
             core,
-            "save_binding",
+            project="project",
             expected=1,
             intent="changed-binding",
             request="changed-binding-request",
-            parameters={"binding": payload},
+            binding=payload,
         )
         assert response.error is None
         return pinned

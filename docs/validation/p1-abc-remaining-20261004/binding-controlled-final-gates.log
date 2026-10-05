@@ -1,0 +1,32 @@
+............................                                             [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_binding_controlled_origin.py::test_a_bare_human_label_cannot_create_confirmed_binding
+PASSED tests/unit/test_binding_controlled_origin.py::test_legacy_confirmed_binding_is_not_permission_to_pin_source
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_save_and_confirmation_share_exact_six_record_commit
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[1]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[2]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[3]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[4]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[5]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[6]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_batch_failure_keeps_challenge_pending_and_retry_exact[before_commit]
+PASSED tests/unit/test_binding_controlled_origin.py::test_lost_binding_save_reply_is_exact_original_without_second_event
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[path]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[confirmed]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[origin]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[missing_interaction]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[receipt_digest]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[receipt_revision_bool]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[receipt_other_intent]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_origin_damage_blocks_pin_before_files_and_no_commit[schema]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_challenge_cannot_be_used_after_input_changes[path]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_challenge_cannot_be_used_after_input_changes[confirmed]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_challenge_cannot_be_used_after_input_changes[owner_revision]
+PASSED tests/unit/test_binding_controlled_origin.py::test_binding_challenge_cannot_be_used_after_input_changes[warehouse_revision]
+PASSED tests/unit/test_binding_controlled_origin.py::test_original_binding_save_cannot_be_redirected_and_reads_after_restart
+PASSED tests/unit/test_binding_controlled_origin.py::test_saved_snapshot_check_revalidates_binding_before_actual_files
+PASSED tests/unit/test_binding_controlled_origin.py::test_pin_publish_revalidates_origin_inside_short_transaction
+PASSED tests/unit/test_binding_controlled_origin.py::test_default_prepare_rejects_legacy_binding_even_with_current_valid_bytes
+PASSED tests/unit/test_binding_controlled_origin.py::test_original_binding_intent_with_different_input_is_conflict
+28 passed in 187.91s (0:03:07)

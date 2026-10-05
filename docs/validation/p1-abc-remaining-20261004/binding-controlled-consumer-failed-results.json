@@ -1,0 +1,9 @@
+{
+  "failed": 1,
+  "passed": 3,
+  "deselected": 24,
+  "seconds": 38.14,
+  "failure": "New fixture reused request_id as intent_id and was rejected by Command before business validation; product refusal assertions were not exercised.",
+  "default_risk_regression_still_running_at_capture": true,
+  "full_python_run": false
+}

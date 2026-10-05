@@ -246,6 +246,15 @@ class ModelPolicyConfirmationProof(Protocol):
     ) -> None: ...
 
 
+class ControlledWriteProof(Protocol):
+    """Read exact human origin for a saved registered write, without granting a new action."""
+
+    def validate_saved_write(
+        self, *, project_id: str, action: str, aggregate_kind: str, record_id: str,
+        record_revision: int, payload: Mapping[str, object],
+    ) -> None: ...
+
+
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
 

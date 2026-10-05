@@ -11,10 +11,12 @@ from typing import Any
 from aitest.application.errors import CapabilityUnavailable
 from aitest.application.planning.substrate import RecordReader, current_record
 from aitest.application.ports import (
+    ControlledWriteProof,
     SourceControlPort,
     SourceSnapshotPort,
     StageableWorkspaceUnitOfWork,
 )
+from aitest.domain.approvals import ApprovalRequired
 from aitest.domain.project.context import (
     LocalProjectBinding,
     SourceFileDigest,
@@ -62,10 +64,12 @@ class SourceAnalysisService:
         snapshots: SourceSnapshotPort,
         source_control: SourceControlPort | None,
         source_available: Callable[[], bool] | None = None,
+        controlled_writes: ControlledWriteProof | None = None,
     ) -> None:
         self.reader, self.unit = reader, unit_of_work
         self.snapshots, self.source_control = snapshots, source_control
         self.source_available = source_available
+        self.controlled_writes = controlled_writes
 
     def analyze(
         self,
@@ -117,6 +121,7 @@ class SourceAnalysisService:
         )
         if saved_binding is None or saved_binding.revision != binding_revision:
             raise SourceAnalysisError("current binding repository revision differs")
+        self._verify_binding(project_id, binding_id, binding_revision, saved_binding.payload)
         binding = binding_from_payload(saved_binding.payload)
         if purpose == "prepare" and not binding.confirmed:
             raise SourceAnalysisError("preparation source requires confirmed binding")
@@ -204,6 +209,7 @@ class SourceAnalysisService:
             )
             if latest_binding != saved_binding:
                 raise SourceAnalysisError("binding changed before source publication")
+            self._verify_binding(project_id, binding_id, binding_revision, latest_binding.payload)
             current = current_record(
                 self.reader,
                 project_id=project_id,
@@ -329,6 +335,14 @@ class SourceAnalysisService:
         )
         if saved.payload.get("project_id") != project_id:
             raise SourceAnalysisError("source snapshot belongs to another project")
+        binding_id = saved.payload.get("binding_id")
+        binding_revision = saved.payload.get("binding_revision")
+        if not isinstance(binding_id, str) or type(binding_revision) is not int:
+            raise SourceAnalysisError("source binding reference is unverified")
+        bound = self.reader.read(
+            aggregate_kind="binding", record_id=binding_id, revision=binding_revision
+        )
+        self._verify_binding(project_id, binding_id, binding_revision, bound.payload)
         technical_id = saved.payload.get("pinned_snapshot_id")
         if not isinstance(technical_id, str):
             raise SourceAnalysisError("legacy snapshot requires new preparation")
@@ -342,13 +356,6 @@ class SourceAnalysisService:
             sorted(self._files(pinned), key=lambda f: f.relative_path)
         ):
             raise SourceAnalysisError("business source manifest differs from actual pinned bytes")
-        binding_id = saved.payload.get("binding_id")
-        binding_revision = saved.payload.get("binding_revision")
-        if not isinstance(binding_id, str) or type(binding_revision) is not int:
-            raise SourceAnalysisError("source binding reference is unverified")
-        bound = self.reader.read(
-            aggregate_kind="binding", record_id=binding_id, revision=binding_revision
-        )
         if bound.payload.get("project_id") != project_id:
             raise SourceAnalysisError("source binding belongs to another project")
         binding = binding_from_payload(bound.payload)
@@ -375,6 +382,25 @@ class SourceAnalysisService:
             "binding_state": binding_state,
             "git_state": git_state,
         }
+
+    def _verify_binding(
+        self, project: str, identity: str, revision: int, payload: Mapping[str, object]
+    ) -> None:
+        if self.controlled_writes is None:
+            return
+        try:
+            self.controlled_writes.validate_saved_write(
+                project_id=project,
+                action="save_binding",
+                aggregate_kind="binding",
+                record_id=identity,
+                record_revision=revision,
+                payload=payload,
+            )
+        except (ApprovalRequired, ValueError, OSError, TypeError, KeyError) as error:
+            raise SourceAnalysisError(
+                "exact source binding confirmation cannot be verified"
+            ) from error
 
     def _verified_pinned(self, snapshot_id: str) -> Mapping[str, object]:
         verify = getattr(self.snapshots, "verify_pinned", None)

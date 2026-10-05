@@ -21,6 +21,7 @@ from aitest.contracts.prepared_run import (
 from aitest.domain.planning.plans import AssertionBasisState
 from aitest.domain.project.context import BindingForm, LocalProjectBinding
 from tests.contracts.test_prepare_run_entrypoint import _parameters
+from tests.support.controlled_binding import controlled_binding_save
 from tests.support.prepared_run_factory import build_scenario
 from tests.unit.test_default_source_analysis import dispatch
 
@@ -63,11 +64,10 @@ def authoritative(tmp_path):
         confirmed=True,
     )
     assert (
-        dispatch(
+        controlled_binding_save(
             core,
-            "save_binding",
             project=project.project_id,
-            parameters={"binding": binding_to_payload(binding)},
+            binding=binding_to_payload(binding),
         ).error
         is None
     )
