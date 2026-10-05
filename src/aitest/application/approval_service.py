@@ -219,7 +219,9 @@ class ApprovalService:
     ) -> ApprovalChallenge:
         actor = self.actors.current()
         require_controlled_actor(actor, workspace_id=self.workspace_id, project_id=project_id)
-        if action not in HUMAN_ACTIONS:
+        # Only non-default isolation requires an event in the save_environment adapter.
+        # Ordinary venv declarations remain an automatic metadata action.
+        if action not in HUMAN_ACTIONS and action != "save_environment":
             raise ValueError("this action has no human-confirmation capability")
         basis = self.resolver.resolve(
             project_id=project_id,

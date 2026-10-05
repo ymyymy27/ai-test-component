@@ -1,0 +1,5 @@
+.                                                                        [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED .git/p1-abc-fix-20261003/probe_environment_confirmation.py::test_relay_cannot_self_confirm_disabled_environment_isolation
+1 passed in 16.18s

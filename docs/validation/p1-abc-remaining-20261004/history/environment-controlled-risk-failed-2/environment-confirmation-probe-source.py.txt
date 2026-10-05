@@ -1,0 +1,18 @@
+from aitest.bootstrap import assemble_workspace_core
+from aitest.domain.project.context import EnvironmentRef, IsolationMode, LocalProject
+from aitest.application.project.serialization import environment_to_payload, project_to_payload
+from tests.unit.test_default_source_analysis import AGENT, dispatch
+
+def test_relay_cannot_self_confirm_disabled_environment_isolation(tmp_path):
+    core=assemble_workspace_core(tmp_path/'workspace',instance_id='environment-confirmation-probe')
+    try:
+        project=LocalProject('project-env',core.workspace.workspace_id,'Environment probe','Local component probe','1')
+        assert dispatch(core,'save_context',project=project.project_id,parameters={'project':project_to_payload(project)}).error is None
+        environment=EnvironmentRef('env-no-isolation',1,'Python 3.13','declared dependencies',isolation_mode=IsolationMode.NONE,isolation_confirmed=True)
+        sequence=core.unit_of_work.current_commit_sequence()
+        response=dispatch(core,'save_environment',project=project.project_id,parameters={'environment':environment_to_payload(environment,project_id=project.project_id)},session=AGENT)
+        assert response.error is not None
+        assert core.unit_of_work.current_commit_sequence()==sequence
+        assert core.unit_of_work.repo.current_revision('environment',environment.environment_id)==0
+    finally:
+        core.lifetime_lock.release()

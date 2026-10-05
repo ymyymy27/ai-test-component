@@ -148,6 +148,17 @@ def _verify_links(
     )
     if environment.get("isolation_mode") != prepared.environment.isolation_mode.value:
         raise ValueError("environment isolation differs from the saved carrier")
+    if prepared.environment.isolation_mode.value != "venv":
+        if controlled_writes is None:
+            raise ValueError("non-default environment requires exact controlled confirmation proof")
+        controlled_writes.validate_saved_write(
+            project_id=prepared.project_id,
+            action="save_environment",
+            aggregate_kind="environment",
+            record_id=prepared.environment.environment_id,
+            record_revision=prepared.environment.revision,
+            payload=environment,
+        )
     refs = {ref.case_id: ref for ref in prepared.case_revisions}
     bases = {basis.case_id: basis for basis in prepared.assertion_bases}
     for frozen in prepared.frozen_cases:

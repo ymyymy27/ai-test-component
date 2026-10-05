@@ -1,0 +1,40 @@
+....................................                                     [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[project_id-other]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[revision-True]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[revision-2]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[isolation_confirmed-true]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[isolation_confirmed-False]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[data_isolated-false]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[step_timeout_seconds-True]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[unknown-additional input]
+PASSED tests/unit/test_controlled_environment_input.py::test_confirmed_environment_rejects_ambiguous_body[isolation_mode-unknown]
+PASSED tests/unit/test_controlled_environment_input.py::test_environment_confirmation_keeps_declared_data_target_and_reference_scope
+PASSED tests/unit/test_controlled_environment.py::test_non_default_environment_needs_actual_core_interaction[session0]
+PASSED tests/unit/test_controlled_environment.py::test_non_default_environment_needs_actual_core_interaction[session1]
+PASSED tests/unit/test_controlled_environment.py::test_confirmed_environment_has_exact_saved_origin_and_six_record_batch[none]
+PASSED tests/unit/test_controlled_environment.py::test_confirmed_environment_has_exact_saved_origin_and_six_record_batch[unmanaged]
+PASSED tests/unit/test_controlled_environment.py::test_ordinary_venv_declaration_remains_available_to_relay
+PASSED tests/unit/test_controlled_environment.py::test_environment_proof_cannot_survive_lost_original_receipt
+PASSED tests/unit/test_controlled_environment.py::test_environment_publication_failure_does_not_consume_confirmation[approval_challenge-1]
+PASSED tests/unit/test_controlled_environment.py::test_environment_publication_failure_does_not_consume_confirmation[approval_interaction-1]
+PASSED tests/unit/test_controlled_environment.py::test_environment_publication_failure_does_not_consume_confirmation[approval_confirmation-1]
+PASSED tests/unit/test_controlled_environment.py::test_environment_publication_failure_does_not_consume_confirmation[approval_intent-1]
+PASSED tests/unit/test_controlled_environment.py::test_environment_publication_failure_does_not_consume_confirmation[environment-1]
+PASSED tests/unit/test_controlled_environment.py::test_environment_publication_failure_does_not_consume_confirmation[approval_intent-2]
+PASSED tests/unit/test_controlled_environment.py::test_non_default_environment_origin_is_consumed_by_c[initial]
+PASSED tests/unit/test_controlled_environment.py::test_non_default_environment_origin_is_consumed_by_c[runtime]
+PASSED tests/unit/test_environments.py::test_default_isolation_is_a_virtual_environment
+PASSED tests/unit/test_environments.py::test_explicitly_disabled_isolation_is_a_legal_fact
+PASSED tests/unit/test_environments.py::test_non_default_isolation_must_be_explicitly_confirmed
+PASSED tests/unit/test_environments.py::test_unknown_data_isolation_is_none_not_false
+PASSED tests/unit/test_environments.py::test_environment_requires_identity_and_declaration
+PASSED tests/unit/test_environments.py::test_timeouts_must_be_positive_when_set
+PASSED tests/unit/test_environments.py::test_network_targets_and_secret_keys_are_unique
+PASSED tests/unit/test_environments.py::test_secret_refs_are_declared_per_purpose
+PASSED tests/unit/test_environments.py::test_secret_ref_has_no_field_able_to_carry_a_credential_body
+PASSED tests/unit/test_environments.py::test_secret_ref_requires_purpose_and_env_key
+PASSED tests/unit/test_environments.py::test_environment_ref_carries_declarations_only
+PASSED tests/unit/test_environments.py::test_resolved_environment_requires_resolved_facts
+36 passed in 302.82s (0:05:02)

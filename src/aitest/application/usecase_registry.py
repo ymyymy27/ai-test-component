@@ -1049,6 +1049,26 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             environment = environment_from_payload(payload)
         except ValueError as error:
             raise BUseCaseError("B_INVALID_PARAMETER", f"invalid environment: {error}") from error
+        parameters = dict(_command_parameters(command))
+        if environment.isolation_is_explicitly_disabled or "approval_challenge_id" in parameters:
+            if deps.controlled_writes is None:
+                from aitest.domain.approvals import ApprovalRequired
+
+                raise ApprovalRequired(
+                    "non-default isolation requires its core confirmation adapter"
+                )
+            challenge = parameters.pop("approval_challenge_id", None)
+            return deps.controlled_writes.save(
+                project_id=project_id,
+                action="save_environment",
+                request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+                intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+                expected_revision=_int_of(
+                    getattr(command, "expected_revision", None), "expected_revision"
+                ),
+                parameters=parameters,
+                challenge_id=_optional_text(challenge, "approval_challenge_id"),
+            )
         staged = save_environment(
             environment,
             project_id=project_id,
@@ -1459,8 +1479,6 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_publish_plan(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
-        if deps.controlled_writes is not None:
-            return controlled_publication(command)
         plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
         revision = _revision_of(_required(parameters, "revision"), "revision")
         scope_payload = _as_mapping(_required(parameters, "scope"), "scope")
@@ -1479,6 +1497,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             )
             case_values.append(case_from_payload(payload))
         cases = tuple(case_values)
+        if deps.controlled_writes is not None:
+            return controlled_publication(command)
         plan = build_plan(
             plan_id=plan_id,
             revision=revision,

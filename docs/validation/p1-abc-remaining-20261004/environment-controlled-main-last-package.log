@@ -1,0 +1,18 @@
+warning: in the working copy of 'src/aitest/application/usecase_registry.py', LF will be replaced by CRLF the next time Git touches it
+Using CPython 3.13.13
+Creating virtual environment at: C:\Users\y'm'y\AppData\Local\Temp\aitest-wheel-0exvmoas\venv
+Activate with: C:\Users\y'm'y\AppData\Local\Temp\aitest-wheel-0exvmoas\venv\Scripts\activate
+Using Python 3.13.13 environment at: C:\Users\y'm'y\AppData\Local\Temp\aitest-wheel-0exvmoas\venv
+Resolved 8 packages in 106ms
+Prepared 1 package in 346ms
+Installed 8 packages in 1.64s
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component/.git/p1-abc-fix-20261003/environment-controlled-last-dist/ai_test_component-0.4.0-py3-none-any.whl)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+5 modified product modules match wheel/sdist source bytes.
+Isolated wheel smoke checks passed

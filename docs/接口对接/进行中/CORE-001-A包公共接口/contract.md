@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.16"
+contract_version: "1.17"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.16
+版本：1.17
 日期：2026-10-05
 状态：草案，待B/C/D确认  
 
@@ -252,3 +252,9 @@ A包独立验收必须在目标Windows文件系统上取得真实证据；内存
 5. 默认装配按能力提供受控上下文、确认与执行保存端口；未连接实际人工通道时明确AWAITING_USER_CONFIRMATION或缺能力，不以HUMAN_UI夹具代替产品确认。受控CLI无TTY拒绝确认，不提供--yes；面板需校验所属会话、挑战、动作摘要及实际用户事件。对同OS用户恶意进程的隔离不属于本合同承诺。
 
 本增量先补组件/合同与真实文件故障验证，再接默认人工/执行入口；不改现行公开DTO或代填P1-AC31/32、真实Trae和物理掉电结果。状态保持reviewing/partial/not_run，旧双方签署记录保留。
+
+## 14 条件性环境确认适配（2026-10-06）
+
+save_environment在非默认隔离或明确挑战输入时复用第13节受控确认、原子写与准确回读端口，普通venv声明不强制人工动作。prepare_approval解析此已注册适配器的准确环境正文和已保存项目/仓储修订；确认事件仍来自核心受控入口，不读取客户端角色/点击或布尔标签。
+
+原效果回执配对完整正文、工作空间/项目、动作意图、准确environment修订、确认和消费提交。六记录同批失败保持原挑战未消费及环境未发布；准确原意图回读与新许可区分。B准备、C内部初始登记及运行修订共享ControlledWriteProof，不扩大任意仓储查询或公开start支持。环境实际解析与执行授权仍缺，组件确认不能代填真实AC。

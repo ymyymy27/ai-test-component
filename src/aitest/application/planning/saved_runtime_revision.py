@@ -126,6 +126,35 @@ class SavedRuntimeRevisionAssessment:
                 )
         elif set(saved) != set(business_body):
             raise ValueError("controlled runtime publication requires its exact proof port")
+        if facts.run.environment_isolation_mode.value != "venv":
+            if self.controlled_writes is None:
+                raise ValueError(
+                    "non-default runtime environment requires exact confirmation proof"
+                )
+            environment_id, separator, revision_text = facts.run.environment_ref.rpartition("@")
+            if (
+                not separator
+                or not environment_id
+                or not revision_text.isascii()
+                or not revision_text.isdecimal()
+                or str(int(revision_text)) != revision_text
+                or int(revision_text) < 1
+            ):
+                raise ValueError("runtime environment has no exact warehouse reference")
+            environment_revision = int(revision_text)
+            environment = self._read(
+                project_id, "environment", environment_id, environment_revision
+            )
+            if environment.get("isolation_mode") != facts.run.environment_isolation_mode.value:
+                raise ValueError("runtime environment isolation differs from frozen carrier")
+            self.controlled_writes.validate_saved_write(
+                project_id=project_id,
+                action="save_environment",
+                aggregate_kind="environment",
+                record_id=environment_id,
+                record_revision=environment_revision,
+                payload=environment,
+            )
         if {key: saved.get(key) for key in business_body} != business_body:
             raise ValueError("plan view differs from the complete saved plan content")
         if (

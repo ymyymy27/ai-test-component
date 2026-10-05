@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.24"
+contract_version: "1.25"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.24
+版本：1.25
 日期：2026-10-05
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
@@ -1251,3 +1251,13 @@ shutdown_requested与实际exited分开保存。停机后的管道缺失不能�
 按项目存储分册第2节落实schema_version/workspace_id/generation/commit_id/manifest_digest/index_root/event_cursor；七字段同清单核对，旧四字段只保留读取，通过活动守卫及可校验备份0006迁移而不改写业务根。Windows发布核对同一固定本地卷，检查FlushFileBuffers/ReplaceFileW及备份路径；候选/前指针/描述符摘要永久保留。未知发布不自动回退或提升候选；新根后flush失败不返回提交成功、不重复意图，默认装配拒绝新写。
 
 1967 passed、2 skipped（333.34s），解析修复前提交/Windows/迁移专项97 passed（98.37s），解析修复后新增2场景通过（2.42s）；Ruff和mypy138文件、生成物、wheel/sdist构建、制品字节对拍及隔离wheel冒烟通过。面板/VSIX源未改，沿用前轮日志并对拍字节，未声明重新构建。 39新增场景及源码字节证据见[Windows阶段](../../../validation/p1-abc-fix-20261003/WINDOWS-PUBLICATION.md)。完整主责CommitManifest及幂等结果引用/文件摘要合同、证据对象与business_change_index完整闭包、实际核心实例来源、普通启动有界恢复、未知发布人工恢复、目标设备名称元数据耐久/物理掉电、产品历史/固定排序、默认业务入口与真实AC仍需落实。 当前内部manifest/1不是完整规范清单；不得据API调用证明掉电耐久。18个B公开动作及生成Schema语义未变，状态继续reviewing/partial/not_run。
+
+### 12.13 非默认隔离环境的准确确认与消费（2026-10-06）
+
+依一期项目与计划第1/4/8/12节，EnvironmentRef是声明；客户端isolation_confirmed不能代替确认来源，也不能证明实际解释器、依赖、数据或目标服务一致。普通venv声明继续允许原自动保存；none/unmanaged或明确携带确认挑战的save_environment必须走同一受控写适配器。
+
+准确输入包括已保存project_revision、expected_revision与完整规范环境正文，正文版本与下一仓储修订一致，拒绝跨项目、布尔修订、未知字段及过滤后不同正文。确认摘要覆盖解释器要求、依赖声明、隔离方式、业务数据/复位、目标部署、网络/超时及按用途SecretRef；凭据仅引用。确认消费、交互、核心确认/意图、environment与原效果回执六记录同一短事务，任一失败原环境/挑战保持，重试不重复发布。
+
+prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料并回读受控来源。旧无来源非默认隔离只保留历史，不能作为新准备/修订许可；原受控保存意图可按准确原回执读取，不授予其他动作。真实环境解析、未用执行授权和宿主事件继续另行实现/验证，接口仍reviewing/partial/not_run。
+
+受控计划发布仍先共用原嵌套项目归属输入守卫，scope/case显式冲突返回B_INVALID_PARAMETER，不以等待确认替代非法输入。该预检只解析请求正文、不授权、不写入；合法材料继续完整受控来源守卫。

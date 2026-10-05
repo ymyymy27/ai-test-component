@@ -12,7 +12,12 @@ from aitest.application.ports import (
     ControlledWriteProof,
     StageableWorkspaceUnitOfWork,
 )
-from aitest.application.project.serialization import binding_from_payload, binding_to_payload
+from aitest.application.project.serialization import (
+    binding_from_payload,
+    binding_to_payload,
+    environment_from_payload,
+    environment_to_payload,
+)
 from aitest.domain.approvals import (
     ActionBasis,
     ApprovalConflict,
@@ -67,12 +72,13 @@ def controlled_write(
             expected,
             publication.materials,
         )
-    if action != "save_binding":
+    if action not in {"save_binding", "save_environment"}:
         raise ApprovalRequired("this action has no controlled record write adapter")
-    if set(parameters) != {"project_revision", "expected_revision", "binding"}:
-        raise ApprovalRequired("binding confirmation needs its exact declared inputs")
+    field = "binding" if action == "save_binding" else "environment"
+    if set(parameters) != {"project_revision", "expected_revision", field}:
+        raise ApprovalRequired("controlled confirmation needs its exact declared inputs")
     project_revision, expected = parameters["project_revision"], parameters["expected_revision"]
-    raw = parameters["binding"]
+    raw = parameters[field]
     if (
         type(project_revision) is not int
         or project_revision < 1
@@ -80,23 +86,31 @@ def controlled_write(
         or expected < 0
         or not isinstance(raw, Mapping)
     ):
-        raise ApprovalRequired("binding confirmation requires exact warehouse revisions")
+        raise ApprovalRequired("controlled confirmation requires exact warehouse revisions")
     try:
-        binding = binding_from_payload(raw)
-        payload = binding_to_payload(binding)
+        if action == "save_binding":
+            binding = binding_from_payload(raw)
+            payload = binding_to_payload(binding)
+            identity, kind = binding.binding_id, "binding"
+            if (
+                binding.project_id != project_id
+                or set(raw) - set(payload)
+                or raw.get("schema_version") != payload["schema_version"]
+            ):
+                raise ApprovalRequired("binding has another owner or unknown fields")
+        else:
+            environment = environment_from_payload(raw)
+            payload = environment_to_payload(environment, project_id=project_id)
+            identity, kind = environment.environment_id, "environment"
+            if dict(raw) != payload or environment.revision != expected + 1:
+                raise ApprovalRequired("environment owner, declaration or revision differs")
     except (ValueError, TypeError, KeyError) as error:
-        raise ApprovalRequired("binding confirmation input cannot be verified") from error
-    if (
-        binding.project_id != project_id
-        or set(raw) - set(payload)
-        or raw.get("schema_version") != payload["schema_version"]
-    ):
-        raise ApprovalRequired("binding confirmation has another owner or unknown fields")
+        raise ApprovalRequired("controlled input cannot be verified") from error
     return ControlledWrite(
         action,
-        "binding",
-        binding.binding_id,
-        {"project_revision": project_revision, "expected_revision": expected, "binding": payload},
+        kind,
+        identity,
+        {"project_revision": project_revision, "expected_revision": expected, field: payload},
         payload,
         project_revision,
         expected,
@@ -104,7 +118,7 @@ def controlled_write(
 
 
 class SavedControlledWriteResolver:
-    actions = frozenset({"save_binding", "publish_rules", "publish_plan"})
+    actions = frozenset({"save_binding", "save_environment", "publish_rules", "publish_plan"})
 
     def __init__(self, records: ApprovalRecords, workspace_id: str) -> None:
         self.records, self.workspace_id = records, workspace_id
@@ -406,7 +420,7 @@ class ControlledWriteService:
             parameters = {
                 "project_revision": payload.get("approval_project_revision"),
                 "expected_revision": payload.get("approval_expected_revision"),
-                "binding": {
+                ("environment" if action == "save_environment" else "binding"): {
                     key: value for key, value in payload.items() if key not in _ORIGIN_FIELDS
                 },
             }

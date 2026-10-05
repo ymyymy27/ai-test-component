@@ -1,0 +1,15 @@
+{
+  "gates": {
+    "passed": 36,
+    "seconds": 278.93
+  },
+  "risk": {
+    "passed": 317,
+    "failed": 2,
+    "seconds": 579.73,
+    "log": "environment-controlled-main-risk.log"
+  },
+  "root": "Controlled plan dispatch returns before common nested owner validation; wrong error priority. Existing negative assertions retained.",
+  "full_python_run": false,
+  "remaining_abc_issues": 22
+}
