@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.facts import ExecutionFactsAssembler, ExecutionFactsAssembly
+from aitest.application.execution.step_content import freeze_initial_step_contents
 from aitest.application.planning.basis_validation import validate_prepared_material
 from aitest.application.planning.substrate import RecordReader
 from aitest.application.ports import RecordRepository, StageableWorkspaceUnitOfWork
@@ -90,6 +91,10 @@ class InitialRunRegistration:
         ):
             raise ValueError("actual source is changed or unverified; prepare again")
         run, steps = _initial_domain(prepared, run_id, fingerprint)
+        material = freeze_initial_step_contents(
+            prepared=prepared, run=run, steps=steps, reader=self.reader
+        )
+        steps = tuple(item.step for item in material)
         facts = ExecutionFactsAssembler().assemble(
             ExecutionFactsAssembly(
                 facts_id="initial-" + run_id,
@@ -131,6 +136,17 @@ class InitialRunRegistration:
                 self.unit.rollback(request_id)
                 return original
             self._validate(prepared)
+            if freeze_initial_step_contents(
+                prepared=prepared, run=run, steps=steps, reader=self.reader
+            ) != material:
+                raise ValueError("frozen step content changed before initial publication")
+            for item in material:
+                self.unit.stage_record(
+                    aggregate_kind="step_revision",
+                    record_id=item.step.step_revision_ref.step_revision_id,
+                    expected_revision=0,
+                    payload=item.content.model_dump(mode="json"),
+                )
             registered = self.coordinator.stage_initial_run(
                 run=run,
                 steps=steps,
@@ -140,8 +156,13 @@ class InitialRunRegistration:
                 intent_id=intent_id,
             )
             self.unit.commit(request_id)
-        except BaseException:
-            self.unit.rollback(request_id)
+        except BaseException as error:
+            try:
+                self.unit.rollback(request_id)
+            except Exception as cleanup_error:
+                # A lost commit response may have already ended the transaction.
+                # Preserve its original failure so a retry can recall the receipt.
+                raise error from cleanup_error
             raise
         return registered
 
@@ -201,9 +222,9 @@ def _initial_domain(
                     level=StepLevel(item.layer),
                     step_revision_ref=StepRevisionRef(
                         step_revision_id="step-revision-"
-                        + _digest([prepared.prepared_run_id, case.case_id, item.step_id]),
-                        revision_no=case.revision,
-                        digest="sha256:" + _digest(item.model_dump(mode="json")),
+                        + _digest([run_id, prepared.prepared_run_id, case.case_id, item.step_id]),
+                        revision_no=1,
+                        digest="pending-step-content",
                     ),
                     input_refs=run.frozen_input_refs,
                 )

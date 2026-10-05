@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.16"
+contract_version: "0.17"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.16（2026-10-05 运行修订保留已产生 Attempt 的步骤内容，验证记录另行登记）
+版本：0.17（2026-10-05 初始步骤内容准确仓储读取，验证记录另行登记）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -737,3 +737,16 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 - 当前Attempt的StepRevisionRef必须与当前Step逐字段相等（ID、仓储修订、摘要、继承及基础引用），不能只核对所属步骤ID。历史Attempt保留原引用，不要求它跟随当前步骤内容变化。
 
 应用翻译完整消费同快照中的当前/历史尝试，领域只计算一次修订进度。该增量仍是评估守卫；不代替真实停止核实、持久RunPlanRevision、runner步骤边界应用或真实半程验收。旧公开材料保持可读，无法证明依据的请求明确拒绝。合同状态继续reviewing/partial/not_run，不替代双方确认。
+
+
+## 21 可读步骤内容与运行修订基础
+
+沿用一期架构01第4/7节、架构02的StepRevisionRef及第16节，不新增公开Schema或业务结论。C通过A公共记录仓储保存不可变`step_revision`，与初始Run/Step、登记意图、当前指针和快照同一短事务发布。
+
+- 每份内容绑定项目、origin_workspace_id、Run、Step、准确PreparedRun@1、冻结PlanRevisionRef和CaseRevisionRef；保存完整Case正文、用例内步骤索引及冻结步骤的objective/expected/layer。内容摘要覆盖整个规范正文，不只覆盖步骤标题。本文定义内部存储记录，业务字段语义仍引用现行分册。
+- StepRevisionRef.revision_no为该内容记录的准确仓储读取修订，初始内容@1；Case正文版本/仓储引用另外保留，不能把Case版本当作首次step_revision的仓储修订。步骤内容身份包含Run，两个新运行即使消费同一准备也不共用带Run归属的内容记录。
+- 读取须逐项核对记录类别/ID/仓储修订、项目/工作空间/Run/Step及整个正文摘要，并核对完整Case摘要和冻结步骤索引/正文配对。当前/历史Step引用各读自身材料；不按latest替代准确引用，旧记录缺材料时不能据摘要猜正文或冒充可执行。
+- 重传原登记意图返回准确初始结果，不能重复创建内容。暂存或权威发布失败不发布部分内容/Run/指针；失联先核对原意图，不重新执行被测业务。
+- 此阶段补真实保存→换核心→准确回读与错误材料/同准备多Run/提交故障验证；内容可读不等于已具备实际执行入口、运行修订保存/应用、环境验证或半程AC。后续受控修订在本基础上核对最新内容、原子保存序列及C/D消费，不开放普通快照绕过字段守卫。
+
+合同保持reviewing/partial/not_run；项目文档只读，旧无独立内容的组件材料仍可读取，但后续受控执行/修订明确阻塞或重新准备，不伪造新执行记录。

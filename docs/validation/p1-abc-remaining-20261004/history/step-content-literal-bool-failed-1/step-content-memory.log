@@ -1,0 +1,10 @@
+........................F..                                              [100%]
+================================== FAILURES ===================================
+_ test_self_consistent_body_digest_still_checks_full_case_step_and_frozen_basis[prepared_run_ref-record_revision-True] _
+tests\unit\test_step_content_persistence.py:214: in test_self_consistent_body_digest_still_checks_full_case_step_and_frozen_basis
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_step_content_persistence.py::test_self_consistent_body_digest_still_checks_full_case_step_and_frozen_basis[prepared_run_ref-record_revision-True]
+1 failed, 26 passed, 4 deselected in 0.47s

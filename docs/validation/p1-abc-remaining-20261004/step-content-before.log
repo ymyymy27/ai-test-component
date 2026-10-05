@@ -1,0 +1,15 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_initial_step_reference_has_actual_content_in_the_same_authority _____
+tests\unit\test_step_content_persistence.py:14: in test_initial_step_reference_has_actual_content_in_the_same_authority
+    assert core.unit_of_work.repo.current_revision(
+E   AssertionError: assert 0 == 1
+E    +  where 0 = current_revision('step_revision', 'step-revision-b23afd21e23295228d1774e004e89fd25a1a79e084c1282336d51c544cf20bc4')
+E    +    where current_revision = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x00000174A19E6C40>.current_revision
+E    +      where <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x00000174A19E6C40> = <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x00000174A1A10EC0>.repo
+E    +        where <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x00000174A1A10EC0> = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000174A1A12CF0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x00000174A1A123C0>).unit_of_work
+E    +    and   'step-revision-b23afd21e23295228d1774e004e89fd25a1a79e084c1282336d51c544cf20bc4' = StepRevisionRefFact(step_revision_id='step-revision-b23afd21e23295228d1774e004e89fd25a1a79e084c1282336d51c544cf20bc4',...'sha256:e2389b2ebfbff8f2df2c994d3c8d3eff157294bd1c93c6b58f6a4b614268c4e8', inherited=False, base_step_revision_id=None).step_revision_id
+E    +  and   1 = StepRevisionRefFact(step_revision_id='step-revision-b23afd21e23295228d1774e004e89fd25a1a79e084c1282336d51c544cf20bc4',...'sha256:e2389b2ebfbff8f2df2c994d3c8d3eff157294bd1c93c6b58f6a4b614268c4e8', inherited=False, base_step_revision_id=None).revision_no
+=========================== short test summary info ===========================
+FAILED tests/unit/test_step_content_persistence.py::test_initial_step_reference_has_actual_content_in_the_same_authority
+1 failed in 19.27s

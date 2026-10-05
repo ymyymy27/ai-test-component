@@ -1,0 +1,32 @@
+..FF........................F..                                          [100%]
+================================== FAILURES ===================================
+________ test_step_content_staging_and_publication_failures_are_atomic ________
+tests\unit\test_step_content_persistence.py:127: in test_step_content_staging_and_publication_failures_are_atomic
+    with pytest.raises(OSError, match="controlled"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE OSError
+_ test_lost_commit_response_recalls_exact_content_without_duplicate_revision __
+tests\unit\test_step_content_persistence.py:146: in lose_response
+    raise OSError("controlled response lost after commit")
+E   OSError: controlled response lost after commit
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_step_content_persistence.py:150: in test_lost_commit_response_recalls_exact_content_without_duplicate_revision
+    register(core, prepared)
+tests\unit\test_initial_run_registration.py:33: in register
+    return service(core).register(
+src\aitest\application\execution\registration.py:160: in register
+    self.unit.rollback(request_id)
+src\aitest\infrastructure\file_store\unit_of_work.py:244: in rollback
+    raise RuntimeError("request_id does not own transaction")
+E   RuntimeError: request_id does not own transaction
+_ test_self_consistent_body_digest_still_checks_full_case_step_and_frozen_basis[prepared_run_ref-record_revision-True] _
+tests\unit\test_step_content_persistence.py:214: in test_self_consistent_body_digest_still_checks_full_case_step_and_frozen_basis
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_step_content_persistence.py::test_step_content_staging_and_publication_failures_are_atomic
+FAILED tests/unit/test_step_content_persistence.py::test_lost_commit_response_recalls_exact_content_without_duplicate_revision
+FAILED tests/unit/test_step_content_persistence.py::test_self_consistent_body_digest_still_checks_full_case_step_and_frozen_basis[prepared_run_ref-record_revision-True]
+3 failed, 28 passed in 87.91s (0:01:27)
