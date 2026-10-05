@@ -91,3 +91,30 @@ def test_close_cannot_roll_back_another_sessions_transaction():
     assert calls == [("begin", "owned-begin")]
     api.close_session(owner)
     assert calls == [("begin", "owned-begin"), ("rollback", "owned-begin")]
+
+
+def test_same_named_noninteractive_close_cannot_touch_humans_pending_challenge(authoritative):
+    core, inputs, _ = authoritative
+    owner = Session("same-name-close", EntryKind.HUMAN_UI, True)
+    prepared = prepare_basis_challenge(core, exact_command(core, inputs), session=owner)
+    assert prepared.error is None
+    sequence = core.unit_of_work.current_commit_sequence()
+    core.api.close_session(Session(owner.session_id, owner.entry_kind, False))
+    assert core.unit_of_work.current_commit_sequence() == sequence
+    assert (
+        core.unit_of_work.repo.current_revision(
+            "approval_challenge", prepared.result["challenge_id"]
+        )
+        == 1
+    )
+    # The real owner's cached original preparation is also preserved.
+    replay = prepare_basis_challenge(core, exact_command(core, inputs), session=owner)
+    assert replay.error is None
+    assert replay.result["challenge_id"] == prepared.result["challenge_id"]
+    core.api.close_session(owner)
+    assert (
+        core.unit_of_work.repo.current_revision(
+            "approval_challenge", prepared.result["challenge_id"]
+        )
+        == 2
+    )

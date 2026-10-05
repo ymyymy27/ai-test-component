@@ -1,0 +1,43 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_same_named_noninteractive_close_cannot_touch_humans_pending_challenge __
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000016DDDE4EBA0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-636/test_same_named_noninteractive0/tested"))
+
+    def test_same_named_noninteractive_close_cannot_touch_humans_pending_challenge(authoritative):
+        core, inputs, _ = authoritative
+        owner = Session("same-name-close", EntryKind.HUMAN_UI, True)
+        prepared = prepare_basis_challenge(core, exact_command(core, inputs), session=owner)
+        assert prepared.error is None
+        sequence = core.unit_of_work.current_commit_sequence()
+>       core.api.close_session(Session(owner.session_id, owner.entry_kind, False))
+
+tests\unit\test_approval_session_close.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\interfaces\local\api.py:243: in close_session
+    self._session_finalizer(session)
+src\aitest\bootstrap.py:528: in close_approval_session
+    approvals.revoke(
+src\aitest\application\approval_service.py:465: in revoke
+    self.require_actor(project_id)
+src\aitest\application\approval_service.py:352: in require_actor
+    require_controlled_actor(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+actor = TrustedActor(workspace_id='f502d764-9460-400e-b897-48f545a8c486', project_id='project-ticket', session_id='same-name-close', entry_kind=<EntryKind.HUMAN_UI: 'human_ui'>, interactive=False, interaction=None)
+workspace_id = 'f502d764-9460-400e-b897-48f545a8c486'
+project_id = 'project-ticket'
+
+    def require_controlled_actor(actor: TrustedActor, *, workspace_id: str, project_id: str) -> None:
+        if (
+            actor.entry_kind is EntryKind.AGENT_RELAY
+            or not actor.interactive
+            or (actor.workspace_id, actor.project_id) != (workspace_id, project_id)
+        ):
+>           raise ApprovalRequired("a controlled interactive user entry must review this action")
+E           aitest.domain.approvals.ApprovalRequired: a controlled interactive user entry must review this action
+
+src\aitest\domain\approvals.py:147: ApprovalRequired
+=========================== short test summary info ===========================
+FAILED tests/unit/test_approval_session_close.py::test_same_named_noninteractive_close_cannot_touch_humans_pending_challenge
+1 failed in 20.87s

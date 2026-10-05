@@ -514,6 +514,10 @@ def assemble_workspace_core(
                 gate.require(action, *keys)
 
         def close_approval_session(session: Session) -> None:
+            # Challenges can only be prepared on controlled interactive channels.
+            # A same-named noninteractive channel must not even read their hints.
+            if not session.interactive:
+                return
             for project, challenge_id in approvals.pending_for_session(
                 session.session_id, session.entry_kind
             ):

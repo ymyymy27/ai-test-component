@@ -36,6 +36,11 @@ class Session:
     interactive: bool = False
     interaction: UserInteraction | None = None
 
+    @property
+    def origin(self) -> tuple[str, EntryKind, bool]:
+        """A channel's allocated identity; one gesture does not create a new channel."""
+        return self.session_id, self.entry_kind, self.interactive
+
 
 @dataclass(frozen=True, slots=True)
 class _TransactionOwnership:
@@ -118,12 +123,12 @@ class LocalAPI:
         self._requests: OrderedDict[tuple[str, EntryKind, bool, str], tuple[str, Response]] = (
             OrderedDict()
         )
-        #: 会话 → 活动事务归属（A-14）。
-        self._active_transactions: dict[str, _TransactionOwnership] = {}
+        #: 受控通道来源 → 活动事务归属（A-14）。
+        self._active_transactions: dict[tuple[str, EntryKind, bool], _TransactionOwnership] = {}
 
     def dispatch(self, command: Command, session: Session) -> Response:
         fingerprint = sha256(json.dumps(command.model_dump(), sort_keys=True).encode()).hexdigest()
-        key = (session.session_id, session.entry_kind, session.interactive, command.request_id)
+        key = (*session.origin, command.request_id)
         cached = self._requests.get(key)
         if cached:
             if cached[0] != fingerprint:
@@ -223,7 +228,7 @@ class LocalAPI:
 
     def close_session(self, session: Session) -> None:
         """End only this channel's transaction and unused challenges, preserving history."""
-        active = self._active_transactions.get(session.session_id)
+        active = self._active_transactions.get(session.origin)
         if active is not None:
             command = Command(
                 action="rollback", request_id="close-" + uuid4().hex, project_id=active.project_id
@@ -233,11 +238,11 @@ class LocalAPI:
             )
             if isinstance(result, Response) and result.error is not None:
                 raise RuntimeError("the closing session's transaction could not be rolled back")
-            self._active_transactions.pop(session.session_id, None)
+            self._active_transactions.pop(session.origin, None)
         if self._session_finalizer is not None:
             self._session_finalizer(session)
         for key in tuple(self._requests):
-            if key[:2] == (session.session_id, session.entry_kind):
+            if key[:3] == session.origin:
                 self._requests.pop(key)
 
     def dispatch_user_confirmation(
@@ -296,7 +301,7 @@ class LocalAPI:
                 return self._transaction_response(command, result)
 
             if command.action == "begin":
-                active = self._active_transactions.get(session.session_id)
+                active = self._active_transactions.get(session.origin)
                 if active is not None:
                     return self._error(
                         command,
@@ -308,16 +313,19 @@ class LocalAPI:
                     action="begin",
                     owner_request_id=command.request_id,
                 )
-                self._active_transactions[session.session_id] = _TransactionOwnership(
-                    begin_request_id=command.request_id,
-                    project_id=command.project_id,
-                )
+                if not isinstance(result, Response) or result.error is None:
+                    # Keep ownership even if projecting a successful begin raises:
+                    # the acquired transaction still needs an exact rollback.
+                    self._active_transactions[session.origin] = _TransactionOwnership(
+                        begin_request_id=command.request_id,
+                        project_id=command.project_id,
+                    )
                 return self._transaction_response(command, result)
 
             # commit / rollback：传输请求幂等（command.request_id）与事务
             # 归属（begin 句柄）分离。必须持有活动事务，且 parameters 中
             # 携带的 begin_request_id 必须与归属一致（A-14）。
-            active = self._active_transactions.get(session.session_id)
+            active = self._active_transactions.get(session.origin)
             if active is None:
                 return self._error(
                     command,
@@ -325,17 +333,13 @@ class LocalAPI:
                     "commit/rollback requires an open transaction owned by this session",
                 )
             referenced = command.parameters.get(BEGIN_REQUEST_ID_PARAM)
-            if referenced is not None and referenced != active.begin_request_id:
+            if referenced != active.begin_request_id:
                 return self._error(
                     command,
                     "TRANSACTION_NOT_OWNED",
                     "begin_request_id does not match the open transaction",
                 )
-            if (
-                command.project_id is not None
-                and active.project_id is not None
-                and command.project_id != active.project_id
-            ):
+            if command.project_id != active.project_id:
                 return self._error(
                     command,
                     "TRANSACTION_PROJECT_MISMATCH",
@@ -350,7 +354,7 @@ class LocalAPI:
             if response.error is None:
                 # 事务结束（提交或回滚）后释放归属；后续异号 commit/rollback
                 # 不再路由到已关闭事务。
-                self._active_transactions.pop(session.session_id, None)
+                self._active_transactions.pop(session.origin, None)
             return response
         except Exception as exc:
             return self._error(
@@ -382,18 +386,46 @@ class LocalAPI:
 
     def _transaction_response(self, command: Command, result: object) -> Response:
         if isinstance(result, Response):
-            return result
-        # 事务出口同样是出站边界：经统一安全投影后再回写（A-09）。
-        safe = self.safe_projection(result) if isinstance(result, Mapping) else {"result": result}
-        payload = dict(safe)
-        if command.action == "begin":
-            # 明确返回事务句柄，供 commit/rollback 在 parameters 中引用。
-            payload.setdefault(BEGIN_REQUEST_ID_PARAM, command.request_id)
+            # A port DTO is still untrusted material. Only its safe facts cross
+            # the boundary; request/instance/owner identity belongs to this core.
+            facts = self.safe_projection(
+                {
+                    "result": result.result,
+                    "page": result.page.model_dump() if result.page is not None else None,
+                    "error": result.error.model_dump() if result.error is not None else None,
+                }
+            )
+            response = Response.model_validate(
+                dict(facts)
+                | {
+                    "request_id": command.request_id,
+                    "instance_id": self.instance_id,
+                }
+            )
+            payload = response.result
+            error = response.error
+            page = response.page
+        else:
+            material = result if isinstance(result, Mapping) else {"result": result}
+            payload = cast(dict[str, JsonValue], dict(self.safe_projection(material)))
+            error, page = None, None
+        if command.action == "begin" and error is None:
+            payload = dict(payload or {})
+            payload[BEGIN_REQUEST_ID_PARAM] = command.request_id
+        if error is not None:
+            error = error.model_copy(
+                update={"request_id": command.request_id, "intent_id": command.intent_id}
+            )
         return Response(
             request_id=command.request_id,
             instance_id=self.instance_id,
             workspace_id=self.workspace_id,
-            result=cast(dict[str, JsonValue], payload),
+            project_id=command.project_id,
+            intent_id=command.intent_id,
+            binding_revision=command.binding_revision,
+            result=payload,
+            page=page,
+            error=error,
         )
 
     def safe_projection(self, value: Mapping[str, object]) -> Mapping[str, object]:

@@ -59,9 +59,7 @@ def _command(
         action=action,
         project_id=project_id,
         intent_id=None if action in {"begin", "commit", "rollback", "recover"} else "i",
-        expected_revision=None
-        if action in {"begin", "commit", "rollback", "recover"}
-        else 0,
+        expected_revision=None if action in {"begin", "commit", "rollback", "recover"} else 0,
         parameters=parameters or {},
     )
 
@@ -133,11 +131,17 @@ def test_second_begin_while_active_rejected() -> None:
 def test_commit_after_close_is_rejected_but_retransmit_is_idempotent() -> None:
     api, _port = _api()
     api.dispatch(_command("begin", request_id="tx-begin"), _SESSION)
-    first = api.dispatch(_command("commit", request_id="tx-commit"), _SESSION)
+    first = api.dispatch(
+        _command("commit", request_id="tx-commit", parameters={BEGIN_REQUEST_ID_PARAM: "tx-begin"}),
+        _SESSION,
+    )
     assert first.error is None
 
     # 同传输 request_id + 同输入重传：幂等返回首次结果。
-    retry = api.dispatch(_command("commit", request_id="tx-commit"), _SESSION)
+    retry = api.dispatch(
+        _command("commit", request_id="tx-commit", parameters={BEGIN_REQUEST_ID_PARAM: "tx-begin"}),
+        _SESSION,
+    )
     assert retry.error is None
     assert retry.result["state"] == "committed"
 
@@ -160,31 +164,33 @@ def test_rollback_releases_ownership_and_recover_always_allowed() -> None:
     api, port = _api()
     api.dispatch(_command("begin", request_id="tx-begin"), _SESSION)
     rolled = api.dispatch(
-        _command("rollback", request_id="tx-rollback"), _SESSION
+        _command(
+            "rollback", request_id="tx-rollback", parameters={BEGIN_REQUEST_ID_PARAM: "tx-begin"}
+        ),
+        _SESSION,
     )
     assert rolled.error is None
     assert rolled.result["state"] == "rolled_back"
 
-    after = api.dispatch(
-        _command("rollback", request_id="tx-rollback-2"), _SESSION
-    )
+    after = api.dispatch(_command("rollback", request_id="tx-rollback-2"), _SESSION)
     assert after.error is not None
     assert after.error.code == "NO_ACTIVE_TRANSACTION"
 
-    recovered = api.dispatch(
-        _command("recover", request_id="read-only-recover"), _SESSION
-    )
+    recovered = api.dispatch(_command("recover", request_id="read-only-recover"), _SESSION)
     assert recovered.error is None
     assert recovered.result["state"] == "idle"
 
 
 def test_project_mismatch_between_begin_and_commit_rejected() -> None:
     api, _port = _api()
-    api.dispatch(
-        _command("begin", request_id="tx-begin", project_id="project-a"), _SESSION
-    )
+    api.dispatch(_command("begin", request_id="tx-begin", project_id="project-a"), _SESSION)
     response = api.dispatch(
-        _command("commit", request_id="tx-commit", project_id="project-b"),
+        _command(
+            "commit",
+            request_id="tx-commit",
+            project_id="project-b",
+            parameters={BEGIN_REQUEST_ID_PARAM: "tx-begin"},
+        ),
         _SESSION,
     )
     assert response.error is not None

@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.11"
+contract_version: "1.12"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.11
+版本：1.12
 日期：2026-10-05
 状态：草案，待B/C/D确认  
 
@@ -96,6 +96,10 @@ A包不负责生成测试计划、执行业务被测代码、判定业务结论�
 `request_id` 与 `intent_id` 的生命周期、去重范围和持久化语义不同，不能合并为一个字段或由页面层自行推导。
 
 ## 4 事务接口
+
+1.12补本地协议的准确事务归属：传输request_id与begin句柄分离；核心归属按已分配Session的会话ID、入口类别及交互通道事实共同识别。commit/rollback必须显式携带准确begin_request_id，且project_id与begin冻结值一致；缺句柄、缺项目或同名其他来源均不得接管。close_session只回滚同一来源的活动事务。该规则不把非交互调用当人工确认，也不承诺隔离同一OS用户的恶意进程。
+
+事务端口返回结构化失败Response时，begin不得登记并不存在的活动事务。端口返回的Response/Mapping/标量全部经过统一安全投影；嵌套DTO先转换为规范JSON字段，Response只提供结果/错误事实，外层请求、实例、工作空间、项目、意图与绑定身份及错误请求身份由核心回写，不能透传另一对象的身份或凭据。已取得事务后响应投影失败须保留准确归属以供关闭/回滚，不伪造成功。非交互通道关闭不读取同名交互通道的未用挑战提示。既有宽松省略句柄夹具改为显式传准确句柄，不放宽产品规则；未新增公开字段或手改生成Schema。
 
 上层调用方使用以下三个接口完成一次本地事务：
 

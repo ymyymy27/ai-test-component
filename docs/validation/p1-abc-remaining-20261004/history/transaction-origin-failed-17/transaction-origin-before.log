@@ -1,0 +1,403 @@
+FFFFFFFFFFF....FFFFFF                                                    [100%]
+================================== FAILURES ===================================
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session0] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.AGENT_RELAY: 'agent_relay'>, interactive=False, interaction=None)
+action = 'commit'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='foreign-end', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'committed'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:33: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session1] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.INTERACTIVE_CLI: 'interactive_cli'>, interactive=True, interaction=None)
+action = 'commit'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='foreign-end', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'committed'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:33: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session2] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.HUMAN_UI: 'human_ui'>, interactive=False, interaction=None)
+action = 'commit'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='foreign-end', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'committed'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:33: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session0] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.AGENT_RELAY: 'agent_relay'>, interactive=False, interaction=None)
+action = 'rollback'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='foreign-end', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'rolled_back'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:33: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session1] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.INTERACTIVE_CLI: 'interactive_cli'>, interactive=True, interaction=None)
+action = 'rollback'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='foreign-end', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'rolled_back'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:33: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session2] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.HUMAN_UI: 'human_ui'>, interactive=False, interaction=None)
+action = 'rollback'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='foreign-end', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'rolled_back'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:33: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[close-session0] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.AGENT_RELAY: 'agent_relay'>, interactive=False, interaction=None)
+action = 'close'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+            assert response.error is not None
+            assert response.error.code == "NO_ACTIVE_TRANSACTION"
+>       assert port.calls == [("begin", "begin-owner")]
+E       AssertionError: assert [('begin', 'b...begin-owner')] == [('begin', 'begin-owner')]
+E         
+E         Left contains one more item: ('rollback', 'begin-owner')
+E         Use -v to get more diff
+
+tests\unit\test_transaction_origin_boundary.py:35: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[close-session1] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.INTERACTIVE_CLI: 'interactive_cli'>, interactive=True, interaction=None)
+action = 'close'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+            assert response.error is not None
+            assert response.error.code == "NO_ACTIVE_TRANSACTION"
+>       assert port.calls == [("begin", "begin-owner")]
+E       AssertionError: assert [('begin', 'b...begin-owner')] == [('begin', 'begin-owner')]
+E         
+E         Left contains one more item: ('rollback', 'begin-owner')
+E         Use -v to get more diff
+
+tests\unit\test_transaction_origin_boundary.py:35: AssertionError
+_ test_same_named_foreign_origin_cannot_end_owners_transaction[close-session2] _
+
+session = Session(session_id='same-name', entry_kind=<EntryKind.HUMAN_UI: 'human_ui'>, interactive=False, interaction=None)
+action = 'close'
+
+    @pytest.mark.parametrize("session", FOREIGN)
+    @pytest.mark.parametrize("action", ["commit", "rollback", "close"])
+    def test_same_named_foreign_origin_cannot_end_owners_transaction(session, action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        if action == "close":
+            api.close_session(session)
+        else:
+            response = api.dispatch(
+                _command(action, request_id="foreign-end", parameters={"begin_request_id": "begin-owner"}),
+                session,
+            )
+            assert response.error is not None
+            assert response.error.code == "NO_ACTIVE_TRANSACTION"
+>       assert port.calls == [("begin", "begin-owner")]
+E       AssertionError: assert [('begin', 'b...begin-owner')] == [('begin', 'begin-owner')]
+E         
+E         Left contains one more item: ('rollback', 'begin-owner')
+E         Use -v to get more diff
+
+tests\unit\test_transaction_origin_boundary.py:35: AssertionError
+_______ test_end_requires_the_exact_explicit_begin_handle[None-commit] ________
+
+action = 'commit', handle = None
+
+    @pytest.mark.parametrize("action", ["commit", "rollback"])
+    @pytest.mark.parametrize("handle", [None, "", False])
+    def test_end_requires_the_exact_explicit_begin_handle(action, handle):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        parameters = {} if handle is None else {"begin_request_id": handle}
+        response = api.dispatch(_command(action, request_id="missing-handle", parameters=parameters), OWNER)
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='missing-handle', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'committed'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:47: AssertionError
+______ test_end_requires_the_exact_explicit_begin_handle[None-rollback] _______
+
+action = 'rollback', handle = None
+
+    @pytest.mark.parametrize("action", ["commit", "rollback"])
+    @pytest.mark.parametrize("handle", [None, "", False])
+    def test_end_requires_the_exact_explicit_begin_handle(action, handle):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        parameters = {} if handle is None else {"begin_request_id": handle}
+        response = api.dispatch(_command(action, request_id="missing-handle", parameters=parameters), OWNER)
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='missing-handle', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'rolled_back'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:47: AssertionError
+__________ test_end_cannot_omit_the_project_frozen_at_begin[commit] ___________
+
+action = 'commit'
+
+    @pytest.mark.parametrize("action", ["commit", "rollback"])
+    def test_end_cannot_omit_the_project_frozen_at_begin(action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        response = api.dispatch(
+            _command(action, request_id="missing-project", project_id=None,
+                     parameters={"begin_request_id": "begin-owner"}), OWNER,
+        )
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='missing-project', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'committed'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:61: AssertionError
+_________ test_end_cannot_omit_the_project_frozen_at_begin[rollback] __________
+
+action = 'rollback'
+
+    @pytest.mark.parametrize("action", ["commit", "rollback"])
+    def test_end_cannot_omit_the_project_frozen_at_begin(action):
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        response = api.dispatch(
+            _command(action, request_id="missing-project", project_id=None,
+                     parameters={"begin_request_id": "begin-owner"}), OWNER,
+        )
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='missing-project', instance_id='instance-1', workspace_id='ws-1', project_id=None, intent_id=None, binding_revision=None, result={'state': 'rolled_back'}, page=None, error=None).error
+
+tests\unit\test_transaction_origin_boundary.py:61: AssertionError
+_____ test_a_declined_begin_response_does_not_claim_an_active_transaction _____
+
+    def test_a_declined_begin_response_does_not_claim_an_active_transaction():
+        calls = []
+    
+        class Declined:
+            def begin(self, **kwargs):
+                calls.append(kwargs["request_id"])
+                return Response(
+                    request_id="internal-refused", instance_id="internal",
+                    error=ErrorDTO(code="WORKSPACE_IN_USE", message="busy", next_step="retry"),
+                )
+    
+        api = LocalAPI("actual", "workspace", transaction_port=Declined())
+        first = api.dispatch(_command("begin", request_id="first"), OWNER)
+        assert first.error.code == "WORKSPACE_IN_USE"
+        second = api.dispatch(_command("begin", request_id="second"), OWNER)
+>       assert second.error.code == "WORKSPACE_IN_USE"
+E       AssertionError: assert 'TRANSACTION_ALREADY_ACTIVE' == 'WORKSPACE_IN_USE'
+E         
+E         - WORKSPACE_IN_USE
+E         + TRANSACTION_ALREADY_ACTIVE
+
+tests\unit\test_transaction_origin_boundary.py:82: AssertionError
+_ test_transaction_response_dto_uses_core_envelope_and_safe_projection[False] _
+
+failed = False
+
+    @pytest.mark.parametrize("failed", [False, True])
+    def test_transaction_response_dto_uses_core_envelope_and_safe_projection(failed):
+        secret = "sk-" + "synthetic-transaction-secret-" * 2
+    
+        class RichResponse:
+            def recover(self, **kwargs):
+                return Response(
+                    request_id="other-request", instance_id="other-instance",
+                    workspace_id="other-workspace", project_id="other-project",
+                    intent_id="other-intent", binding_revision=99,
+                    result={"api_key": secret, "state": "unknown"},
+                    error=ErrorDTO(code="RECOVERY_REQUIRED", message=secret, next_step=secret,
+                                   request_id="other-error", intent_id="other-intent") if failed else None,
+                )
+    
+        api = LocalAPI("actual-instance", "actual-workspace", transaction_port=RichResponse())
+        command = _command("recover", request_id="actual-request")
+        response = api.dispatch(command, OWNER)
+>       assert secret not in response.model_dump_json()
+E       assert 'sk-syntheti...tion-secret-' not in '{"protocol_...error":null}'
+E         
+E         'sk-synthetic-trans...transaction-secret-' is contained here:
+E           api_key":"sk-synthetic-transaction-secret-synthetic-transaction-secret-","state":"unknown"},"page":null,"error":null}
+
+tests\unit\test_transaction_origin_boundary.py:105: AssertionError
+_ test_transaction_response_dto_uses_core_envelope_and_safe_projection[True] __
+
+failed = True
+
+    @pytest.mark.parametrize("failed", [False, True])
+    def test_transaction_response_dto_uses_core_envelope_and_safe_projection(failed):
+        secret = "sk-" + "synthetic-transaction-secret-" * 2
+    
+        class RichResponse:
+            def recover(self, **kwargs):
+                return Response(
+                    request_id="other-request", instance_id="other-instance",
+                    workspace_id="other-workspace", project_id="other-project",
+                    intent_id="other-intent", binding_revision=99,
+                    result={"api_key": secret, "state": "unknown"},
+                    error=ErrorDTO(code="RECOVERY_REQUIRED", message=secret, next_step=secret,
+                                   request_id="other-error", intent_id="other-intent") if failed else None,
+                )
+    
+        api = LocalAPI("actual-instance", "actual-workspace", transaction_port=RichResponse())
+        command = _command("recover", request_id="actual-request")
+        response = api.dispatch(command, OWNER)
+>       assert secret not in response.model_dump_json()
+E       assert 'sk-syntheti...tion-secret-' not in '{"protocol_...er-intent"}}'
+E         
+E         'sk-synthetic-trans...transaction-secret-' is contained here:
+E           api_key":"sk-synthetic-transaction-secret-synthetic-transaction-secret-","state":"unknown"},"page":null,"error":{"schema_version":"aitest.error/2.0","code":"RECOVERY_REQUIRED","message":"sk-synthetic-transaction-secret-synthetic-transaction-secret-","retryable":false,"next_step":"sk-synthetic-transaction-secret-synthetic-transaction-secret-","request_id":"other-error","intent_id":"other-intent"}}
+E         ?           +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+tests\unit\test_transaction_origin_boundary.py:105: AssertionError
+_______ test_scalar_transaction_result_still_crosses_the_safe_boundary ________
+
+    def test_scalar_transaction_result_still_crosses_the_safe_boundary():
+        secret = "sk-" + "B" * 32
+    
+        class ScalarResponse:
+            def recover(self, **kwargs):
+                return secret
+    
+        api = LocalAPI("actual", "workspace", transaction_port=ScalarResponse())
+        result = api.dispatch(_command("recover", request_id="scalar"), OWNER)
+>       assert secret not in json.dumps(result.result)
+E       assert 'sk-BBBBBBBB...BBBBBBBBBBBB' not in '{"result": ...BBBBBBBBBB"}'
+E         
+E         'sk-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB' is contained here:
+E           {"result": "sk-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}
+
+tests\unit\test_transaction_origin_boundary.py:126: AssertionError
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[-commit]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[-rollback]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[False-commit]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[False-rollback]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session0]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session1]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session2]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session0]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session1]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session2]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[close-session0]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[close-session1]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[close-session2]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[None-commit]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[None-rollback]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_end_cannot_omit_the_project_frozen_at_begin[commit]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_end_cannot_omit_the_project_frozen_at_begin[rollback]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_a_declined_begin_response_does_not_claim_an_active_transaction
+FAILED tests/unit/test_transaction_origin_boundary.py::test_transaction_response_dto_uses_core_envelope_and_safe_projection[False]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_transaction_response_dto_uses_core_envelope_and_safe_projection[True]
+FAILED tests/unit/test_transaction_origin_boundary.py::test_scalar_transaction_result_still_crosses_the_safe_boundary
+17 failed, 4 passed in 0.27s
