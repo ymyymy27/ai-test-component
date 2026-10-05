@@ -14,6 +14,7 @@ from aitest.application.planning.serialization import (
 )
 from aitest.application.planning.substrate import AggregateKind, RecordReader
 from aitest.application.ports import BasisConfirmationProof, ControlledWriteProof
+from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.contracts.prepared_run import BlockingReason, PreparedRun
 from aitest.domain.approvals import ApprovalRequired
 from aitest.domain.planning.plans import effective_assertion_basis_state
@@ -26,6 +27,7 @@ def validate_prepared_material(
     workspace_id: str | None = None,
     approvals: BasisConfirmationProof | None = None,
     controlled_writes: ControlledWriteProof | None = None,
+    environment_resolution: EnvironmentResolutionService | None = None,
 ) -> tuple[BlockingReason, ...]:
     report = check_frozen_basis(prepared, reader=reader)
     problems = [
@@ -39,6 +41,13 @@ def validate_prepared_material(
         problems.append("preparation belongs to another workspace")
     if not problems:
         try:
+            if environment_resolution is not None:
+                environment_resolution.validate_saved_inputs(
+                    project_id=prepared.project_id,
+                    binding_id=prepared.binding_id,
+                    binding_revision=prepared.binding_revision,
+                    environment=prepared.environment,
+                )
             _verify_links(prepared, reader, approvals, controlled_writes)
         except (ApprovalRequired, ValueError, TypeError, KeyError, OSError) as error:
             problems.append(str(error) or "frozen content is malformed")

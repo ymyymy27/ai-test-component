@@ -93,12 +93,78 @@ class SnapshotRef(ContractModel):
     record_revision: int = Field(default=1, ge=1)
 
 
+class EnvironmentResolutionFact(ContractModel):
+    """Observed by a core-owned registered carrier, never a client declaration."""
+
+    carrier_id: str = Field(min_length=1)
+    executable_path: str = Field(min_length=1)
+    executable_digest: str = Field(min_length=1)
+    interpreter_version: str = Field(min_length=1)
+    base_executable_path: str = Field(min_length=1)
+    base_executable_digest: str = Field(min_length=1)
+    probe_prefix: str = Field(min_length=1)
+    base_prefix: str = Field(min_length=1)
+    configuration_digest: str = Field(min_length=1)
+    dependency_roots: tuple[str, ...] = Field(min_length=1)
+    dependency_set_digest: str = Field(min_length=1)
+    probe_policy: Literal["python-isolated-no-site/1"] = "python-isolated-no-site/1"
+    # Filled by the application from exact saved inputs, not the probe or client.
+    project_id: str = Field(default="", min_length=0)
+    binding_id: str = Field(default="", min_length=0)
+    binding_revision: int = Field(default=0, ge=0)
+    binding_record_digest: str = ""
+    environment_id: str = ""
+    environment_revision: int = Field(default=0, ge=0)
+    environment_record_digest: str = ""
+
+    @property
+    def content_identity(self) -> str:
+        import hashlib
+        import json
+
+        return (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(
+                    self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")
+            ).hexdigest()
+        )
+
+    @property
+    def interpreter_identity(self) -> str:
+        import hashlib
+        import json
+
+        fields = self.model_dump(
+            mode="json",
+            exclude={
+                "dependency_set_digest",
+                "project_id",
+                "binding_id",
+                "binding_revision",
+                "binding_record_digest",
+                "environment_id",
+                "environment_revision",
+                "environment_record_digest",
+            },
+        )
+        return (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(fields, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+        )
+
+
 class EnvironmentRefFact(ContractModel):
     environment_id: str = Field(min_length=1)
     revision: int = Field(ge=1)
     isolation_mode: EnvironmentIsolationModeFact
     interpreter_identity: str = Field(min_length=1)
     dependency_set_digest: str = Field(min_length=1)
+    # Missing is readable history, not proof for a new admission.
+    resolution: EnvironmentResolutionFact | None = None
 
 
 class ExecutionSourceBinding(ContractModel):
@@ -305,9 +371,7 @@ class PreparedRun(ContractModel):
     frozen_cases: tuple[FrozenCase, ...] = Field(default_factory=tuple)
 
     # 授权前置、出站策略与失效规则
-    authorization_requirements: tuple[AuthorizationRequirement, ...] = Field(
-        default_factory=tuple
-    )
+    authorization_requirements: tuple[AuthorizationRequirement, ...] = Field(default_factory=tuple)
     model_outbound_policy_revision: int | None = None
     source_snippets_enabled: bool = False
     invalidation_rules: tuple[InvalidationRule, ...] = Field(default_factory=tuple)

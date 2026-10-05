@@ -61,6 +61,12 @@ def test_initial_run_recall_survives_restart_and_active_source_change(authoritat
     restarted = assemble_workspace_core(core.workspace.root, instance_id="registration-restarted")
     try:
         assert register(restarted, prepared, request="restarted-request") == first
+        with pytest.raises(ValueError, match="not registered"):
+            register(
+                restarted, prepared, request="unconfigured-request", intent="unconfigured-intent"
+            )
+        # A new admission needs the same explicit tested carrier after restart.
+        restarted.environment_resolution.resolver = core.environment_resolution.resolver
         with pytest.raises(ValueError, match="source"):
             register(restarted, prepared, request="new-request", intent="new-run-intent")
     finally:

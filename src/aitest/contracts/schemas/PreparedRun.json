@@ -265,6 +265,17 @@
           "minLength": 1,
           "title": "Dependency Set Digest",
           "type": "string"
+        },
+        "resolution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvironmentResolutionFact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -275,6 +286,130 @@
         "dependency_set_digest"
       ],
       "title": "EnvironmentRefFact",
+      "type": "object"
+    },
+    "EnvironmentResolutionFact": {
+      "additionalProperties": false,
+      "description": "Observed by a core-owned registered carrier, never a client declaration.",
+      "properties": {
+        "carrier_id": {
+          "minLength": 1,
+          "title": "Carrier Id",
+          "type": "string"
+        },
+        "executable_path": {
+          "minLength": 1,
+          "title": "Executable Path",
+          "type": "string"
+        },
+        "executable_digest": {
+          "minLength": 1,
+          "title": "Executable Digest",
+          "type": "string"
+        },
+        "interpreter_version": {
+          "minLength": 1,
+          "title": "Interpreter Version",
+          "type": "string"
+        },
+        "base_executable_path": {
+          "minLength": 1,
+          "title": "Base Executable Path",
+          "type": "string"
+        },
+        "base_executable_digest": {
+          "minLength": 1,
+          "title": "Base Executable Digest",
+          "type": "string"
+        },
+        "probe_prefix": {
+          "minLength": 1,
+          "title": "Probe Prefix",
+          "type": "string"
+        },
+        "base_prefix": {
+          "minLength": 1,
+          "title": "Base Prefix",
+          "type": "string"
+        },
+        "configuration_digest": {
+          "minLength": 1,
+          "title": "Configuration Digest",
+          "type": "string"
+        },
+        "dependency_roots": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Dependency Roots",
+          "type": "array"
+        },
+        "dependency_set_digest": {
+          "minLength": 1,
+          "title": "Dependency Set Digest",
+          "type": "string"
+        },
+        "probe_policy": {
+          "const": "python-isolated-no-site/1",
+          "default": "python-isolated-no-site/1",
+          "title": "Probe Policy",
+          "type": "string"
+        },
+        "project_id": {
+          "default": "",
+          "minLength": 0,
+          "title": "Project Id",
+          "type": "string"
+        },
+        "binding_id": {
+          "default": "",
+          "minLength": 0,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "binding_revision": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Binding Revision",
+          "type": "integer"
+        },
+        "binding_record_digest": {
+          "default": "",
+          "title": "Binding Record Digest",
+          "type": "string"
+        },
+        "environment_id": {
+          "default": "",
+          "title": "Environment Id",
+          "type": "string"
+        },
+        "environment_revision": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Environment Revision",
+          "type": "integer"
+        },
+        "environment_record_digest": {
+          "default": "",
+          "title": "Environment Record Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "carrier_id",
+        "executable_path",
+        "executable_digest",
+        "interpreter_version",
+        "base_executable_path",
+        "base_executable_digest",
+        "probe_prefix",
+        "base_prefix",
+        "configuration_digest",
+        "dependency_roots",
+        "dependency_set_digest"
+      ],
+      "title": "EnvironmentResolutionFact",
       "type": "object"
     },
     "ExclusionEntry": {

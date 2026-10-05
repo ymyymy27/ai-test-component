@@ -1,0 +1,50 @@
+"""Actual local Python carrier + real B prepare/C initial registration, no execution."""
+
+from dataclasses import replace
+
+import pytest
+
+from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
+from tests.unit.test_authoritative_preparation import authoritative as authoritative
+from tests.unit.test_authoritative_preparation import prepare
+from tests.unit.test_initial_run_registration import register
+from tests.unit.test_python_environment import carrier as carrier
+
+
+def test_actual_local_environment_is_frozen_and_changed_bytes_block_new_admission(
+    authoritative, carrier,
+):
+    core, inputs, _ = authoritative
+    registered = replace(carrier, project_id=inputs.project_id,
+                         environment_id=inputs.environment.environment_id)
+    resolver = RegisteredPythonEnvironmentResolver((registered,))
+    probes_under_lock = []
+
+    class Observe:
+        def resolve(self, request):
+            probes_under_lock.append(bool(core.unit_of_work.pending))
+            assert not core.unit_of_work.pending
+            return resolver.resolve(request)
+
+    core.environment_resolution.resolver = Observe()
+    dependency = registered.dependency_roots[0] / "example.py"
+    dependency.write_text("VALUE = 1\n")
+    prepared = prepare(core, inputs).result
+    assert prepared["status"] == "prepared"
+    assert prepared["environment"]["resolution"]["executable_path"] == str(
+        registered.executable.resolve()
+    )
+    original = register(core, prepared)
+    before = core.unit_of_work.current_commit_sequence()
+    dependency.write_text("VALUE = 2\n")
+    changed = prepare(core, inputs, request="actual-dependency-change").result
+    assert changed["status"] == "blocked"
+    assert any(rule["source_kind"] == "environment_content_identity"
+               for rule in changed["invalidation_rules"])
+    with pytest.raises(ValueError, match="actual environment changed"):
+        register(core, prepared, request="actual-new-registration", intent="actual-new-intent")
+    assert core.unit_of_work.current_commit_sequence() == before
+    assert not any(probes_under_lock)
+    probes = len(probes_under_lock)
+    assert register(core, prepared, request="actual-original-recall") == original
+    assert len(probes_under_lock) == probes

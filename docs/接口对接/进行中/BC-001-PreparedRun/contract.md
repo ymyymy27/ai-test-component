@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.20"
+contract_version: "0.21"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,8 +16,8 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.20（2026-10-05 初始运行持续消费准确准备与人工来源，实施与验证记录另行登记）
-日期：2026-09-26
+版本：0.21（2026-10-06 冻结可信环境解析与初始登记重探，实施与验证记录另行登记）
+日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
 状态：**旧版签署与交接历史保留；本次新增合同已由负责人裁定，默认消费与真实环境验收仍在进行**
@@ -774,3 +774,9 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 沿用一期项目与计划的环境声明及启动来源合同，不新增公开DTO。B准备和C新登记对none/unmanaged的冻结EnvironmentRefFact引用回读准确environment记录与CORE-001受控写证明；isolation_confirmed标签、入口HUMAN_UI标签及客户端声明不能充当来源。缺端口/回执/原确认、归属或准确引用错误均阻塞，失败不生成新的Run/Step/业务意图。
 
 运行修订按Run.environment_ref的准确ID@仓储修订读取材料，核对冻结隔离方式并消费同一证明。旧环境记录不补造确认；准确历史回读维持原事实，但新动作仍须合法来源。确认不产生执行/核验事实、整用例复用或证据等级，也不证明解释器/依赖与实际服务已解析。静态/组件证据与真实宿主/环境验收分别登记，接口保持reviewing/partial/not_run。
+
+## 24 冻结实际环境解析事实（2026-10-06）
+
+引用AB-001 1.26的EnvironmentResolver主责合同。EnvironmentRefFact新增可选resolution，供读取旧记录；新默认准备必须由核心解析端口生成。resolution保存载体身份、实际解释器路径/版本/内容摘要、基础解释器身份、配置摘要、依赖根与内容摘要及探测策略，content_identity规范摘要覆盖全体字段。客户端不能直接提交可信证明。外层interpreter_identity与dependency_set_digest由该事实派生。
+
+PreparationRecord增加observed_environment_content_identity，与原记录单独比对；旧缺值、同声明修订下文件变化均要求重新准备，历史材料保留。C新初始登记必须具有冻结证明，并在事务外重解析比较，事务内只校验准确保存来源；准确历史回读不执行新探测也不产生新许可。实际Step启动与持续复用仍需接通每步环境守卫，不以初始登记或本轮组件测试声称已经完成。公共schema由模型生成；真实Trae/环境AC状态不升级。

@@ -55,6 +55,7 @@
     "environment_id": "env-local",
     "interpreter_identity": "cpython-3.13.3-windows-amd64",
     "isolation_mode": "venv",
+    "resolution": null,
     "revision": 1
   },
   "exclusion_rules": [

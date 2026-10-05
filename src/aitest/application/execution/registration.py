@@ -21,6 +21,7 @@ from aitest.application.ports import (
     RecordRepository,
     StageableWorkspaceUnitOfWork,
 )
+from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.contracts.execution_facts import (
     CoverageSummary,
@@ -62,10 +63,12 @@ class InitialRunRegistration:
         source_analysis: SourceAnalysisService,
         approvals: BasisConfirmationProof | None = None,
         controlled_writes: ControlledWriteProof | None = None,
+        environment_resolution: EnvironmentResolutionService | None = None,
     ) -> None:
         self.unit, self.reader = unit, reader
         self.workspace_id, self.source_analysis = workspace_id, source_analysis
         self.approvals, self.controlled_writes = approvals, controlled_writes
+        self.environment_resolution = environment_resolution
         self.coordinator = ExecutionCommitCoordinator(unit, records=records)
 
     def register(
@@ -89,6 +92,8 @@ class InitialRunRegistration:
         if original is not None:
             return original
         self._validate(prepared)
+        assert self.environment_resolution is not None
+        self.environment_resolution.validate_current(prepared)
         source = self.source_analysis.check(
             project_id=project_id,
             snapshot_id=prepared.snapshot.source_snapshot_id,
@@ -196,6 +201,8 @@ class InitialRunRegistration:
     def _validate(self, prepared: PreparedRun) -> None:
         if self.approvals is None or self.controlled_writes is None:
             raise ValueError("initial registration requires exact saved confirmation proof ports")
+        if self.environment_resolution is None:
+            raise ValueError("initial registration requires trusted actual environment resolution")
         if prepared.status is not PreparedRunStatusFact.PREPARED or prepared.blocking_reasons:
             raise ValueError("saved preparation is blocked or requires re-preparation")
         validate_preparation_origin(prepared, reader=self.reader)
@@ -205,6 +212,7 @@ class InitialRunRegistration:
             workspace_id=self.workspace_id,
             approvals=self.approvals,
             controlled_writes=self.controlled_writes,
+            environment_resolution=self.environment_resolution,
         )
         if problems:
             raise ValueError(

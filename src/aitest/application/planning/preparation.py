@@ -213,6 +213,7 @@ class PreparationRequest:
     observed_resolved_input_digest: str | None = None
     observed_snapshot_content_identity: str | None = None
     observed_scope_id: str | None = None
+    observed_environment_content_identity: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
@@ -225,6 +226,10 @@ class PreparationRequest:
             _require_text(self.observed_snapshot_content_identity, "snapshot content identity")
         if self.observed_scope_id is not None:
             _require_text(self.observed_scope_id, "scope_id")
+        if self.observed_environment_content_identity is not None:
+            _require_text(
+                self.observed_environment_content_identity, "environment content identity"
+            )
         seen: set[str] = set()
         for case_id, revision in self.observed_case_revisions:
             _require_text(case_id, "observed case_id")
@@ -301,6 +306,9 @@ def preparation_record_payload(record: PreparationRecord) -> dict[str, object]:
         "observed_resolved_input_digest": record.request.observed_resolved_input_digest,
         "observed_snapshot_content_identity": record.request.observed_snapshot_content_identity,
         "observed_scope_id": record.request.observed_scope_id,
+        "observed_environment_content_identity": (
+            record.request.observed_environment_content_identity
+        ),
     }
 
 
@@ -360,6 +368,9 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
     raw_scope = payload.get("observed_scope_id")
     if raw_scope is not None and not isinstance(raw_scope, str):
         raise ValueError("observed_scope_id must be a string when given")
+    raw_environment = payload.get("observed_environment_content_identity")
+    if raw_environment is not None and not isinstance(raw_environment, str):
+        raise ValueError("observed_environment_content_identity must be a string when given")
 
     return PreparationRecord(
         request=PreparationRequest(
@@ -372,6 +383,7 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             observed_resolved_input_digest=raw_digest,
             observed_snapshot_content_identity=raw_identity,
             observed_scope_id=raw_scope,
+            observed_environment_content_identity=raw_environment,
         ),
         intent_id=_payload_text(payload, "intent_id"),
         created_at_commit=_payload_text(payload, "created_at_commit"),
@@ -424,6 +436,11 @@ def decide_preparation(
         changed.append("snapshot_content_identity")
     if existing.request.observed_scope_id != request.observed_scope_id:
         changed.append("scope_id")
+    if (
+        existing.request.observed_environment_content_identity
+        != request.observed_environment_content_identity
+    ):
+        changed.append("environment_content_identity")
     if existing.request.observed_case_revisions != request.observed_case_revisions:
         # 「哪个用例配哪个修订」变了也是**依据变化**，不是"换了请求"：
         # 配对不进摘要（见 PreparationRequest 的说明），因此在这里单独识别。

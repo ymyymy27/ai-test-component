@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.25"
+contract_version: "1.26"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,8 +16,8 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.25
-日期：2026-10-05
+版本：1.26
+日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
 状态：**三项归属与范围已由项目负责人裁定；默认业务链及完整保存闭包继续实现与对拍**
@@ -1261,3 +1261,13 @@ shutdown_requested与实际exited分开保存。停机后的管道缺失不能�
 prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料并回读受控来源。旧无来源非默认隔离只保留历史，不能作为新准备/修订许可；原受控保存意图可按准确原回执读取，不授予其他动作。真实环境解析、未用执行授权和宿主事件继续另行实现/验证，接口仍reviewing/partial/not_run。
 
 受控计划发布仍先共用原嵌套项目归属输入守卫，scope/case显式冲突返回B_INVALID_PARAMETER，不以等待确认替代非法输入。该预检只解析请求正文、不授权、不写入；合法材料继续完整受控来源守卫。
+
+### 12.14 可信被测环境解析（2026-10-06）
+
+依据一期项目与计划第1、8、11、12节，EnvironmentRef仍为声明。EnvironmentResolver属于application/ports.py；核心装配注入已登记载体，客户端不得通过路径、解释器要求文本或自报身份登记可执行文件。登记绑定project/environment、绝对可执行文件与预期内容摘要、依赖根及venv配置；未配置时阻塞该环境准备，禁止回退核心sys.executable。
+
+探测在短事务外以隔离启动、禁用site的固定脚本核对Python版本与真实可执行文件，过滤环境变量，不导入项目、sitecustomize或执行.pth。依赖根逐文件内容摘要，缺根、链接逃逸、扫描/输出/超时超限、非映射.pth及系统包混入均明确阻塞；不只读取包名称、METADATA或mtime。前后内容核对，无法证明稳定则拒绝。此实现保守阻塞需特殊加载映射的环境；不声称证明实际业务服务、数据复位、加载来源或安全沙箱。
+
+核心覆盖客户端的解析观察值并冻结可读resolution事实；客户端自报身份/依赖摘要只作兼容输入，不作为证明。原EnvironmentRef、Binding准确仓储修订与正文摘要在短提交边界再次核对。环境内容身份作为PreparationRecord观察事实独立比较，变化或旧记录缺证明时needs_reprepare；不把它混入人工请求摘要、不覆盖原意图。
+
+启动前核对venv.cfg home解析到登记基础解释器，非venv载体不忽略活动venv.cfg。只读版本探测直接使用显式登记的基础解释器以避开Windows venv启动器子进程，不默用核心解释器；载体文件/配置观察与基础解释器进程观察分开，不声称业务通过载体启动器已执行。可靠停止后临时目录清理失败不覆盖原超限/超时诊断，未确认停止的业务材料不按此路径回收。

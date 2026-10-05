@@ -1,0 +1,48 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+____________ test_venv_home_must_be_registered_before_probe[False] ____________
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:23: in test_venv_home_must_be_registered_before_probe
+    resolver.resolve(request())
+src\aitest\infrastructure\python_environment.py:256: in resolve
+    probe = self._probe(executable)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:21: in <lambda>
+    monkeypatch.setattr(resolver, "_probe", lambda _: pytest.fail("unregistered home reached probe"))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: unregistered home reached probe
+____________ test_venv_home_must_be_registered_before_probe[True] _____________
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:23: in test_venv_home_must_be_registered_before_probe
+    resolver.resolve(request())
+src\aitest\infrastructure\python_environment.py:256: in resolve
+    probe = self._probe(executable)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:21: in <lambda>
+    monkeypatch.setattr(resolver, "_probe", lambda _: pytest.fail("unregistered home reached probe"))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: unregistered home reached probe
+__ test_non_venv_registration_cannot_ignore_active_venv_configuration[none] ___
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:32: in test_non_venv_registration_cannot_ignore_active_venv_configuration
+    resolver.resolve(request(isolation_mode=mode))
+src\aitest\infrastructure\python_environment.py:256: in resolve
+    probe = self._probe(executable)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:30: in <lambda>
+    monkeypatch.setattr(resolver, "_probe", lambda _: pytest.fail("hidden venv reached probe"))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: hidden venv reached probe
+_ test_non_venv_registration_cannot_ignore_active_venv_configuration[unmanaged] _
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:32: in test_non_venv_registration_cannot_ignore_active_venv_configuration
+    resolver.resolve(request(isolation_mode=mode))
+src\aitest\infrastructure\python_environment.py:256: in resolve
+    probe = self._probe(executable)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+.git\p1-abc-fix-20261003\probe_environment_home_origin.py:30: in <lambda>
+    monkeypatch.setattr(resolver, "_probe", lambda _: pytest.fail("hidden venv reached probe"))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: hidden venv reached probe
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_venv_home_must_be_registered_before_probe[False]
+FAILED .git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_venv_home_must_be_registered_before_probe[True]
+FAILED .git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_non_venv_registration_cannot_ignore_active_venv_configuration[none]
+FAILED .git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_non_venv_registration_cannot_ignore_active_venv_configuration[unmanaged]
+4 failed in 2.19s

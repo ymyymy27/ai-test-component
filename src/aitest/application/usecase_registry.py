@@ -134,6 +134,7 @@ from aitest.application.ports import (
     ModelResponseStore,
 )
 from aitest.application.project.context import ContextGap
+from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
     load_project,
@@ -902,6 +903,7 @@ class BUseCaseDependencies:
     model_policy_proof: ModelPolicyConfirmationProof | None = None
     controlled_writes: ControlledWriteService | None = None
     controlled_write_proof: ControlledWriteProof | None = None
+    environment_resolution: EnvironmentResolutionService | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1278,6 +1280,23 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             except (OSError, ValueError):
                 existing = None
         source_reasons: tuple[BlockingReason, ...] = ()
+        environment_reasons: tuple[BlockingReason, ...] = ()
+        try:
+            if deps.environment_resolution is None:
+                raise ValueError("trusted tested environment resolver is not configured")
+            environment = deps.environment_resolution.resolve(
+                project_id=inputs.project_id,
+                binding_id=inputs.binding_id,
+                binding_revision=inputs.binding_revision,
+                environment_id=inputs.environment.environment_id,
+                environment_revision=inputs.environment.revision,
+            )
+            # The old request fields are compatibility input, never observed authority.
+            inputs = replace(inputs, environment=environment)
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            environment_reasons = (
+                BlockingReason(code="environment_unverified", message=str(error)),
+            )
         if deps.source_analysis is not None:
             try:
                 source = deps.source_analysis.check(
@@ -1312,12 +1331,14 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             persist_snapshot=True,
             basis_verifier=lambda candidate: (
                 source_reasons
+                + environment_reasons
                 + validate_prepared_material(
                     candidate,
                     reader=deps.reader,
                     workspace_id=deps.workspace_id,
                     approvals=deps.basis_confirmation_proof,
                     controlled_writes=deps.controlled_write_proof,
+                    environment_resolution=deps.environment_resolution,
                 )
             ),
         )

@@ -45,6 +45,7 @@ from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.events import Event
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.identity import IntentId, RequestId
+from aitest.contracts.prepared_run import EnvironmentRefFact
 from aitest.contracts.queries import Query, QuerySpec
 from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
@@ -66,6 +67,20 @@ from aitest.domain.execution.runs import (
 )
 from aitest.domain.planning.model_outbound import MaterialKind
 from aitest.domain.planning.plans import Case, Plan
+
+
+@dataclass(frozen=True, slots=True)
+class EnvironmentResolutionRequest:
+    project_id: str
+    environment_id: str
+    isolation_mode: str
+    interpreter_requirement: str
+
+
+class EnvironmentResolver(Protocol):
+    """Probe only a core-registered tested carrier, outside the business UOW."""
+
+    def resolve(self, request: EnvironmentResolutionRequest) -> EnvironmentRefFact: ...
 
 
 class TransactionPort(Protocol):
@@ -250,8 +265,14 @@ class ControlledWriteProof(Protocol):
     """Read exact human origin for a saved registered write, without granting a new action."""
 
     def validate_saved_write(
-        self, *, project_id: str, action: str, aggregate_kind: str, record_id: str,
-        record_revision: int, payload: Mapping[str, object],
+        self,
+        *,
+        project_id: str,
+        action: str,
+        aggregate_kind: str,
+        record_id: str,
+        record_revision: int,
+        payload: Mapping[str, object],
     ) -> None: ...
 
 

@@ -23,13 +23,18 @@ from aitest.domain.project.context import BindingForm, LocalProjectBinding
 from tests.contracts.test_prepare_run_entrypoint import _parameters
 from tests.support.controlled_binding import controlled_binding_save
 from tests.support.controlled_publication import controlled_publication_save
+from tests.support.environment_resolution import FixtureEnvironmentResolver
 from tests.support.prepared_run_factory import build_scenario
 from tests.unit.test_default_source_analysis import dispatch
 
 
 @pytest.fixture
 def authoritative(tmp_path):
-    core = assemble_workspace_core(tmp_path / "workspace", instance_id="authoritative-core")
+    core = assemble_workspace_core(
+        tmp_path / "workspace",
+        instance_id="authoritative-core",
+        environment_resolver=FixtureEnvironmentResolver(),
+    )
     source = tmp_path / "tested"
     source.mkdir()
     (source / "main.py").write_text("VALUE = 1\n", encoding="utf-8")
@@ -97,6 +102,8 @@ def authoritative(tmp_path):
             "environment_id": "env-local",
             "revision": 1,
             "isolation_mode": "venv",
+            "interpreter_requirement": "Python 3.13",
+            "dependency_declaration": "synthetic-fixture-dependencies",
         },
     )
     unit.commit("fixture-material-request")
@@ -205,7 +212,11 @@ def test_default_prepared_snapshot_is_saved_atomically_and_recalled_after_restar
     )
     assert dict(saved.payload) == result
     core.lifetime_lock.release()
-    restarted = assemble_workspace_core(core.workspace.root, instance_id="restarted-preparer")
+    restarted = assemble_workspace_core(
+        core.workspace.root,
+        instance_id="restarted-preparer",
+        environment_resolver=core.environment_resolution.resolver,
+    )
     try:
         recalled = prepare(restarted, inputs, request="after-restart")
         assert recalled.error is None

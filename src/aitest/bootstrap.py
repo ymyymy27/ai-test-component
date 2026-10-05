@@ -42,7 +42,8 @@ from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
 )
-from aitest.application.ports import RecordRepository
+from aitest.application.ports import EnvironmentResolver, RecordRepository
+from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
 from aitest.contracts.commands import Command
@@ -88,6 +89,7 @@ from aitest.infrastructure.file_store.recovery import (
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.infrastructure.projections import SafeMaterialProjector
+from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
 from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
 from aitest.interfaces.local.api import Handler, LocalAPI, Session
@@ -253,6 +255,7 @@ class CoreAssembly:
     snapshot_store: FileSourceSnapshotStore | None = None
     source_probe: PythonLoadSourceProbe | None = None
     initial_run_registration: InitialRunRegistration | None = None
+    environment_resolution: EnvironmentResolutionService | None = None
 
 
 def assemble_workspace_core(
@@ -266,6 +269,7 @@ def assemble_workspace_core(
     model_secret_reference: tuple[str, str] | None = None,
     secret_manager: SecretManager | None = None,
     extra_action_dependencies: Mapping[str, tuple[str, ...]] | None = None,
+    environment_resolver: EnvironmentResolver | None = None,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -458,6 +462,10 @@ def assemble_workspace_core(
         )
         controlled_writes = ControlledWriteService(unit_of_work, approvals, write_resolver)
         write_resolver.proof = controlled_writes
+        environment_resolution = EnvironmentResolutionService(
+            reader=reader,
+            resolver=environment_resolver or RegisteredPythonEnvironmentResolver(),
+        )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
             reader=reader,
@@ -482,6 +490,7 @@ def assemble_workspace_core(
             model_policy_proof=policy_confirmations,
             controlled_writes=controlled_writes,
             controlled_write_proof=controlled_writes,
+            environment_resolution=environment_resolution,
             model_responses=FileModelResponseStore(
                 root, writer_epoch=workspace.identity["writer_epoch"]
             ),
@@ -495,6 +504,7 @@ def assemble_workspace_core(
             source_analysis=dependencies.source_analysis,
             approvals=approvals,
             controlled_writes=controlled_writes,
+            environment_resolution=environment_resolution,
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
 
@@ -608,6 +618,7 @@ def assemble_workspace_core(
         snapshot_store=snapshot_store,
         source_probe=source_probe,
         initial_run_registration=initial_run_registration,
+        environment_resolution=environment_resolution,
     )
 
 

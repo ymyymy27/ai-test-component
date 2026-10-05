@@ -1,0 +1,24 @@
+{
+  "groups": [
+    {
+      "name": "new-gates-before-fixture-correction",
+      "passed": 27,
+      "failed": 1,
+      "duration_seconds": 336.56
+    }
+  ],
+  "status": "failed",
+  "notes": [
+    "REQUEST_CONFLICT: new prepare reused the first transport request_id; product source unchanged.",
+    "184 risk nodes and actual local core probe are separate groups, not counted here."
+  ],
+  "log_files": [
+    "environment-resolution-gates.log",
+    "environment-resolution-ruff.log",
+    "environment-resolution-mypy.log",
+    "environment-resolution-package.log",
+    "environment-resolution-build.log",
+    "environment-resolution-version.log",
+    "environment-resolution-history-observations.log"
+  ]
+}

@@ -1,0 +1,1 @@
+Manual rule checks passed: legacy readable/reprepare, input conflict priority, malformed bool refused. Not counted as pytest nodes.

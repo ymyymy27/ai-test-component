@@ -69,6 +69,7 @@ _INVALIDATION_DESCRIPTIONS: Mapping[str, str] = {
     "snapshot_revision": "source snapshot record revision changed",
     "snapshot_content_identity": "source bytes changed",
     "environment_revision": "environment changed",
+    "environment_content_identity": "actual environment content changed or is unverified",
     "plan_revision": "plan republished",
     "rules_revision": "rules republished",
     "template_revision": "template version changed",
@@ -348,6 +349,11 @@ def prepare_run(
             observed_resolved_input_digest=inputs.execution_source.resolved_input_digest,
             observed_snapshot_content_identity=inputs.snapshot.content_identity,
             observed_scope_id=inputs.scope_id,
+            observed_environment_content_identity=(
+                inputs.environment.resolution.content_identity
+                if inputs.environment.resolution is not None
+                else None
+            ),
         ),
         record,
     )
@@ -478,6 +484,11 @@ def prepare_run(
                     observed_resolved_input_digest=(inputs.execution_source.resolved_input_digest),
                     observed_snapshot_content_identity=inputs.snapshot.content_identity,
                     observed_scope_id=inputs.scope_id,
+                    observed_environment_content_identity=(
+                        inputs.environment.resolution.content_identity
+                        if inputs.environment.resolution is not None
+                        else None
+                    ),
                 ),
                 intent_id=intent_id,
                 # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。

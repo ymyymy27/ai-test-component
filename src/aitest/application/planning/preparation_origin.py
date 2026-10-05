@@ -80,6 +80,9 @@ def validate_preparation_origin(prepared: PreparedRun, *, reader: RecordReader) 
         or request.observed_resolved_input_digest != prepared.execution_source.resolved_input_digest
         or request.observed_snapshot_content_identity != prepared.snapshot.content_identity
         or request.observed_scope_id != prepared.scope_id
+        or prepared.environment.resolution is None
+        or request.observed_environment_content_identity
+        != prepared.environment.resolution.content_identity
         or any(
             getattr(request.input_revisions, name) != value
             for name, value in (

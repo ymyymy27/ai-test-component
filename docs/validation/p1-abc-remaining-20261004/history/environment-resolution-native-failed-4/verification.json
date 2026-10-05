@@ -1,0 +1,387 @@
+{
+  "phase": "environment-resolution-native-failed-4-narrow",
+  "baseline": "510c74f",
+  "source_files": [
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "sha256": "4fa47501698daf6b09b556039a5b96061ca8d6f80860ee61fb74b40b73f10d01",
+      "normalized_sha256": "cf8e9ea69c67314748d4fac37e602b8e4f022f79a6efa911962fccc6495669ec"
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "sha256": "784d4a2c7795134acbc7a9e8aa06805e12c4c5126798f4314759b7f7368e4706",
+      "normalized_sha256": "784d4a2c7795134acbc7a9e8aa06805e12c4c5126798f4314759b7f7368e4706"
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "sha256": "00d385aea3532e4a5f2b6434f7a16d15a27321c2d09949f842128f50ef8fec0c",
+      "normalized_sha256": "a6af9ebf0d806706796bb049b4eb689920e164934bb0192cbe3ed42b931692d9"
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "sha256": "3b18054771b8d76aa109d055a49b09826378affb68c370e59c56913a28197694",
+      "normalized_sha256": "3b18054771b8d76aa109d055a49b09826378affb68c370e59c56913a28197694"
+    }
+  ],
+  "references": [
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "_digest",
+      "line": 23
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "PythonEnvironmentCarrier",
+      "line": 33
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver",
+      "line": 56
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver.__init__",
+      "line": 57
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver._no_links",
+      "line": 89
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver._file_digest",
+      "line": 94
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver._dependencies",
+      "line": 107
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver._configuration",
+      "line": 151
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver._probe",
+      "line": 182
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "symbol": "RegisteredPythonEnvironmentResolver.resolve",
+      "line": 232
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "symbol": "EnvironmentResolutionService",
+      "line": 14
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "symbol": "EnvironmentResolutionService.__init__",
+      "line": 15
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "symbol": "EnvironmentResolutionService._read",
+      "line": 18
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "symbol": "EnvironmentResolutionService.resolve",
+      "line": 30
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "symbol": "EnvironmentResolutionService.validate_saved_inputs",
+      "line": 92
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "symbol": "EnvironmentResolutionService.validate_current",
+      "line": 131
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "ContractModel",
+      "line": 18
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "RunTierFact",
+      "line": 25
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "RunDriverFact",
+      "line": 31
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "ConclusionCeilingFact",
+      "line": 36
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "AssertionBasisStateFact",
+      "line": 41
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "BindingFormFact",
+      "line": 47
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "EnvironmentIsolationModeFact",
+      "line": 52
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRunStatusFact",
+      "line": 68
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "conclusion_ceiling_for",
+      "line": 79
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "SnapshotRef",
+      "line": 89
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "EnvironmentResolutionFact",
+      "line": 96
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "EnvironmentResolutionFact.content_identity",
+      "line": 121
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "EnvironmentResolutionFact.interpreter_identity",
+      "line": 135
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "EnvironmentRefFact",
+      "line": 160
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "ExecutionSourceBinding",
+      "line": 170
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PlanRevisionRef",
+      "line": 183
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "RuleVersionRef",
+      "line": 189
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "TemplateVersionRef",
+      "line": 195
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "CaseRevisionRef",
+      "line": 201
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "SkippedScopeEntry",
+      "line": 210
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "ExclusionEntry",
+      "line": 215
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "ConfirmationRef",
+      "line": 220
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "AssertionBasisEntry",
+      "line": 227
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "AssertionBasisEntry._confirmation_matches_state",
+      "line": 235
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "FrozenCaseStep",
+      "line": 249
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "CaseLinks",
+      "line": 256
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "FrozenCase",
+      "line": 263
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "AuthorizationRequirement",
+      "line": 278
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "AuthorizationRequirement._resolution_is_explicit",
+      "line": 288
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "InvalidationRule",
+      "line": 297
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "BlockingReason",
+      "line": 302
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "GapEntry",
+      "line": 307
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRun",
+      "line": 318
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRun._validate",
+      "line": 384
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRun._check_source_identity",
+      "line": 394
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRun._check_ceiling_is_derived",
+      "line": 406
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRun._check_scope_references",
+      "line": 414
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "symbol": "PreparedRun._check_admission_gates",
+      "line": 433
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "sha",
+      "line": 19
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "carrier",
+      "line": 24
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "request",
+      "line": 45
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_actual_registered_python_proves_exact_version_executable_and_stable_dependencies",
+      "line": 51
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_dependency_bytes_change_identity_even_with_restored_mtime_and_same_size",
+      "line": 64
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_unregistered_or_mismatched_request_is_refused",
+      "line": 88
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_default_has_no_implicit_core_interpreter",
+      "line": 93
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_changed_registered_binary_is_rejected_before_probe",
+      "line": 99
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_pth_is_not_executed_or_claimed_as_verified",
+      "line": 109
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_system_site_packages_mixed_into_venv_is_refused",
+      "line": 117
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_missing_root_and_byte_limits_do_not_produce_incomplete_digest",
+      "line": 128
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_probe_does_not_import_project_or_ambient_sitecustomize",
+      "line": 137
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_environment_mutation_during_probe_is_rejected",
+      "line": 150
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "symbol": "test_environment_mutation_during_probe_is_rejected.mutate",
+      "line": 154
+    }
+  ],
+  "logs": [
+    {
+      "path": "docs/validation/p1-abc-remaining-20261004/history/environment-resolution-native-failed-4/environment-resolution-native.log",
+      "sha256": "712cbeed44b5e90d32b8fa5af20e27821cad4b991d639d2629b4c120438ec64e"
+    }
+  ],
+  "source_archive": {
+    "path": "docs/validation/p1-abc-remaining-20261004/history/environment-resolution-native-failed-4/source.zip",
+    "sha256": "8fc601d5d3fcd46164c8dab3a32954da5b8c1aec64e725be2edb44ec833b0f8a"
+  },
+  "results": {
+    "collected": 17,
+    "passed": 13,
+    "failed": 4
+  },
+  "real_ac_verified": 0,
+  "limitations": [
+    "Four narrow relevant files; not the full product source snapshot. Original manifest and bytes preserved."
+  ]
+}
