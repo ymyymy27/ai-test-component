@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.13"
+contract_version: "0.14"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.13（2026-10-05 运行中修订的仓储引用核对增量，验证记录另行登记）
+版本：0.14（2026-10-05 权威运行修订评估入口增量，验证记录另行登记）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -713,3 +713,15 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 沿用第18节及DEC-007，不新增字段或改变PreparedRun/ExecutionFacts Schema。RuntimeRevisionRequest.base_plan_revision_no、C事实plan_revision.revision_no与已读取Plan.record_revision须核对同一准确仓储修订；Plan.revision仍是正文版本，不能在请求比较中替代仓储修订。正文7/仓储2时准确@2请求可以进入其余原门禁，@7请求须拒绝；正文2/仓储7同理。计划ID与已提供摘要仍单独核对，拒绝不能留下部分生效步骤。
 
 旧无record_revision的纯领域对象保持既有配对版本兼容调用；不能据该兼容调用宣称真实仓储读取或默认执行已核实。应用用例须按准确仓储引用读取并附读取修订，新的冻结引用不从正文版本推定。此修复只修领域比较条件，不新增运行中修订落盘、权威活动读取、默认C消费或真实验收。合同仍reviewing/partial，历史双方签署记录保留。
+
+## 20 权威运行修订评估入口（2026-10-05）
+
+沿用第16、18、19节，一期功能第10.6/15节与架构01第4节。新增应用组件 `SavedRuntimeRevisionAssessment`，只返回绑定当前快照的评估结果，不产生修订、执行授权或通过结论；原纯值 `request_runtime_revision` 保留，不能独立作为产品权威入口。
+
+1. C 提供 `RuntimeExecutionReader.read_runtime_revision_facts(project_id, run_id)`（协议声明归 `application/ports.py`）。从已保存的准确当前引用读取事实，并逐项读取当前 Attempt 的权威检查点，核对完整投影；缺失、跨项目、状态/依据/消费关系/输出不同均拒绝。检查点的 expected_plan_revision_ref 不在公开投影中，须单独与 Run 冻结引用逐项核对；缺失或不同均拒绝，不能按投影相等推定一致。读取后再核对当前快照未变化，不把仅自洽的调用方 DTO 当作活动来源。
+2. B 从该事实冻结的 `plan_revision` 按准确仓储修订读取计划正文，先核对归属与正文摘要。传入的 Plan 是待核对视图，必须附准确 `record_revision`，正文版本、完整计划内容及 Scope 正文与仓储材料一致。Case 从计划准确引用读取，逐项核对 ID、正文/仓储修订配对、规范内容摘要和断言文本摘要。不能用“同 ID/修订”的替代正文绕过独立核验或必测关联门禁，也不以最新记录替换冻结旧记录。
+3. 已冻结 M、S、档位与保存计划核对。确认只接受引用 ID，按 `case_link@1` 回读受控保存记录；核对项目、准确用例/依据、正文摘要、持久意图派生 ID 与输入摘要。请求写 `confirmed` 或自报确认对象不替代仓储事实；旧确认仅按原纯规则匹配新依据，不会因引用存在就有效。
+4. 尚无可读运行中修订序列记录的旧快照，若 `runtime_revision_refs` 非空，显式阻塞；不按字符串条数自签下一修订。材料读取后再次核对当前 C 事实完整相等，变化拒绝。评估结果仍可能在返回后过期，后续保存必须在同一短事务内重读并重新评估，不能凭预览结果直接执行。
+5. 兼容：不改 PreparedRun/ExecutionFacts Schema、生成夹具、公开动作或已签字段；不代替第17节待确认半程夹具、C 实际句柄检查、持久 RunPlanRevision/StepRevisionRef、暂停/依赖失效、默认产品入口和真实 AC。合同保持 reviewing/partial/not_run，组件验证另行记录。
+6. 当前事实的后续发布不能改写初始冻结 PlanRevisionRef、环境引用/隔离方式、规则引用及按档位派生的结论上限；与既有 workspace/intent/tier/M 一起逐项核对。运行中修订追加序列、保留初始计划引用；换环境、规则或不兼容依据须新建运行。拒绝发生在当前指针/快照暂存前；`allow_current_change` 仅支持原子认领新 Attempt，不能绕过冻结依据守卫。
+7. 普通状态/证据发布与新Attempt认领也不能增删冻结步骤或改写其case_id、ordinal、required_for_case、level、dependency_step_ids、registered_entry_ref、assertion_refs、evidence_requirement_ids和StepRevisionRef；这些属于冻结执行内容。运行修订需新的受控保存/应用入口核对可读权威序列，不能用普通发布或allow_current_change布尔值替代。当前仅保持状态、当前Attempt、失效及缺口等执行进度字段的合法更新路径；不把此守卫算作运行修订应用已经完成。

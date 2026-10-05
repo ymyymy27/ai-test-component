@@ -1,0 +1,6 @@
+{"frozen_step_field": "case_id", "publication": "blocked"}
+{"frozen_step_field": "required_for_case", "publication": "blocked"}
+{"frozen_step_field": "ordinal", "publication": "blocked"}
+{"frozen_step_field": "level", "publication": "blocked"}
+{"frozen_step_field": "assertion_refs", "publication": "blocked"}
+{"frozen_step_field": "dependency_step_ids", "publication": "blocked"}

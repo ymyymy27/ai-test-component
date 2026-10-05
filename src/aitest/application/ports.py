@@ -40,6 +40,7 @@ from aitest.contracts.capabilities import CapabilitySet
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.events import Event
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.identity import IntentId, RequestId
 from aitest.contracts.queries import Query, QuerySpec
 from aitest.contracts.responses import Response
@@ -255,6 +256,14 @@ class RecordRepository(Protocol):
         该值；新工作空间尚无索引文件，此读取不得经过索引分页。
         """
         ...
+
+
+class RuntimeExecutionReader(Protocol):
+    """Read saved current facts and exact current checkpoints (BC-001 section 20)."""
+
+    def read_runtime_revision_facts(
+        self, *, project_id: str, run_id: str
+    ) -> ExecutionFacts: ...
 
 
 class EvidenceObjectStore(Protocol):

@@ -1,0 +1,10 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____ test_current_projection_must_match_the_exact_saved_checkpoint[plan] _____
+tests\unit\test_saved_runtime_revision.py:470: in test_current_projection_must_match_the_exact_saved_checkpoint
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[plan]
+1 failed in 46.91s

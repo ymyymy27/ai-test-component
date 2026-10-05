@@ -305,6 +305,22 @@ class ExecutionCommitCoordinator:
         self._validate_checkpoint_update(project_id, record)
         return record
 
+    def read_runtime_revision_facts(self, *, project_id: str, run_id: str) -> ExecutionFacts:
+        """Read authority for an assessment; the returned snapshot is not a write grant."""
+        facts = self.read_current_facts(project_id=project_id, run_id=run_id)
+        if facts is None:
+            raise ValueError("runtime revision requires a registered current run")
+        frozen_plan = PlanRevisionRef(**facts.plan_revision.model_dump())
+        for fact in facts.attempts:
+            if fact.is_current:
+                saved = self.read_checkpoint(project_id=project_id, attempt_id=fact.attempt_id)
+                if saved.attempt.expected_plan_revision_ref != frozen_plan:
+                    raise ValueError("current checkpoint does not use the exact frozen run plan")
+                _validate_attempt_projection(saved.attempt, fact)
+        if self.read_current_facts(project_id=project_id, run_id=run_id) != facts:
+            raise ValueError("current execution snapshot changed during runtime assessment")
+        return facts
+
     def find_start(self, *, project_id: str, intent_id: str, fingerprint: str) -> Attempt | None:
         payload = self._read_payload("execution_intent", _intent_record_id(project_id, intent_id))
         if payload is None:
@@ -686,13 +702,25 @@ class ExecutionCommitCoordinator:
             )
             pointer_id = _run_pointer_id(facts.project_id, facts.run_id)
             previous = self.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+            if previous is not None:
+                _validate_frozen_step_basis(previous, facts)
             if previous is not None and not allow_current_change:
                 _validate_publication_current(previous, facts)
             if previous is not None and (
                 facts.run_revision < previous.run_revision
                 or any(
                     getattr(facts.run, name) != getattr(previous.run, name)
-                    for name in ("origin_workspace_id", "intent_id", "tier", "required_scope")
+                    for name in (
+                        "origin_workspace_id",
+                        "intent_id",
+                        "tier",
+                        "required_scope",
+                        "plan_revision",
+                        "environment_ref",
+                        "environment_isolation_mode",
+                        "rules_revision",
+                        "conclusion_ceiling",
+                    )
                 )
             ):
                 raise ValueError("publication cannot rewrite the frozen run identity")
@@ -888,6 +916,30 @@ def _validate_current_facts(facts: ExecutionFacts) -> None:
             )
         ):
             raise ValueError("execution snapshot attempt/current flag is inconsistent")
+
+
+def _validate_frozen_step_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
+    before = {step.step_id: step for step in previous.steps}
+    after = {step.step_id: step for step in facts.steps}
+    if set(before) != set(after):
+        raise ValueError("publication cannot add or remove frozen steps")
+    frozen = (
+        "case_id",
+        "ordinal",
+        "required_for_case",
+        "level",
+        "dependency_step_ids",
+        "registered_entry_ref",
+        "assertion_refs",
+        "evidence_requirement_ids",
+        "step_revision_ref",
+    )
+    if any(
+        getattr(after[identity], field) != getattr(step, field)
+        for identity, step in before.items()
+        for field in frozen
+    ):
+        raise ValueError("publication cannot rewrite frozen step execution basis")
 
 
 def _validate_publication_current(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
