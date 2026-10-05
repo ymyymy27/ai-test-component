@@ -1,0 +1,11 @@
+.......                                                                  [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[read_failure-human_ui]
+PASSED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[read_failure-agent_relay]
+PASSED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[write_failure-human_ui]
+PASSED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[write_failure-agent_relay]
+PASSED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[shutdown-human_ui]
+PASSED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[shutdown-agent_relay]
+PASSED tests/unit/test_approval_channel_finalization.py::test_finalizer_failure_is_reported_instead_of_claiming_a_completed_close
+7 passed in 0.28s

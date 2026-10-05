@@ -71,6 +71,7 @@ class LocalAPI:
         connection_persistence: object | None = None,
         capability_gate: object | None = None,
         actors: CoreActorContext | None = None,
+        session_finalizer: Callable[[Session], None] | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -103,6 +104,7 @@ class LocalAPI:
         #: 动作级能力门（A-10）；接口层只按结构调用，不导入基础设施。
         self.capability_gate = capability_gate
         self.actors = actors
+        self._session_finalizer = session_finalizer
         if connection_persistence is not None:
             try:
                 recovered = connection_persistence.load()  # type: ignore[attr-defined]
@@ -219,6 +221,25 @@ class LocalAPI:
         with self.actors.bind(actor):
             return self.handlers[command.action](command)
 
+    def close_session(self, session: Session) -> None:
+        """End only this channel's transaction and unused challenges, preserving history."""
+        active = self._active_transactions.get(session.session_id)
+        if active is not None:
+            command = Command(
+                action="rollback", request_id="close-" + uuid4().hex, project_id=active.project_id
+            )
+            result = self._call_transaction_port(
+                command, action="rollback", owner_request_id=active.begin_request_id
+            )
+            if isinstance(result, Response) and result.error is not None:
+                raise RuntimeError("the closing session's transaction could not be rolled back")
+            self._active_transactions.pop(session.session_id, None)
+        if self._session_finalizer is not None:
+            self._session_finalizer(session)
+        for key in tuple(self._requests):
+            if key[:2] == (session.session_id, session.entry_kind):
+                self._requests.pop(key)
+
     def dispatch_user_confirmation(
         self, command: Command, session: Session, *, challenge_id: str, input_digest: str
     ) -> Response:
@@ -234,8 +255,9 @@ class LocalAPI:
                 "confirmation requires an actual controlled user event",
             )
         if command.parameters.get("approval_challenge_id") != challenge_id:
-            return self._error(command, ApprovalRequired.code,
-                               "the actual user event differs from this challenge")
+            return self._error(
+                command, ApprovalRequired.code, "the actual user event differs from this challenge"
+            )
         interaction = UserInteraction(uuid4().hex, session.session_id, challenge_id, input_digest)
         return self.dispatch(
             command, Session(session.session_id, session.entry_kind, True, interaction)

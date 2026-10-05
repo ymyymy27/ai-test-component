@@ -29,6 +29,7 @@ from aitest.domain.approvals import (
     ApprovalMaterialRef,
     ApprovalRequired,
     ChallengeState,
+    EntryKind,
     UserInteraction,
     require_challenge_confirmation,
     require_controlled_actor,
@@ -91,11 +92,15 @@ class ApprovalService:
         self.unit, self.records, self.actors = unit, records, actors
         self.resolver, self.identities, self.clock = resolver, identities, clock
         self.workspace_id = workspace_id
+        self._pending: dict[tuple[str, EntryKind], dict[str, str]] = {}
 
     def _read(self, kind: str, identity: str, revision: int, project_id: str) -> dict[str, Any]:
         if type(revision) is not int or revision < 1:
             raise ApprovalRequired("approval material has no exact saved revision")
-        record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+        try:
+            record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("the exact saved approval material is unavailable") from error
         if (
             getattr(record, "aggregate_kind", None),
             getattr(record, "record_id", None),
@@ -119,6 +124,7 @@ class ApprovalService:
             "aitest.approval-interaction/1.0": {"interaction", "confirmation_id"},
             "aitest.action-confirmation/1.0": {"confirmation"},
             "aitest.approval-confirmation-intent/1.0": {"input_digest", "confirmation_id"},
+            "aitest.approval-revocation/1.0": {"input_digest", "challenge_id", "state"},
         }
         schema = raw.get("schema_version")
         if (
@@ -127,17 +133,21 @@ class ApprovalService:
             or set(raw) != (layouts[schema] | {"schema_version", "project_id", "workspace_id"})
         ):
             raise ApprovalRequired("saved approval record has an unknown schema or fields")
-        if (
-            kind != "approval_challenge"
-            and self.records.current_revision(aggregate_kind=kind, record_id=identity) != 1
-        ):
+        if kind != "approval_challenge" and self._revision(kind, identity) != 1:
             raise ApprovalRequired("an immutable approval record was revised")
         return dict(raw)
 
-    def _current(self, kind: str, identity: str, project_id: str) -> dict[str, Any] | None:
-        revision = self.records.current_revision(aggregate_kind=kind, record_id=identity)
+    def _revision(self, kind: str, identity: str) -> int:
+        try:
+            revision = self.records.current_revision(aggregate_kind=kind, record_id=identity)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("the exact approval revision is unavailable") from error
         if type(revision) is not int or revision < 0:
             raise ApprovalRequired("approval record revision cannot be verified")
+        return revision
+
+    def _current(self, kind: str, identity: str, project_id: str) -> dict[str, Any] | None:
+        revision = self._revision(kind, identity)
         return self._read(kind, identity, revision, project_id) if revision else None
 
     def read_challenge(self, *, project_id: str, challenge_id: str) -> ApprovalChallenge:
@@ -151,9 +161,7 @@ class ApprovalService:
             project_id,
         ):
             raise ApprovalRequired("approval challenge identity cannot be verified")
-        revision = self.records.current_revision(
-            aggregate_kind="approval_challenge", record_id=challenge_id
-        )
+        revision = self._revision("approval_challenge", challenge_id)
         if (challenge.state is ChallengeState.PENDING and revision != 1) or (
             challenge.state is not ChallengeState.PENDING and revision != 2
         ):
@@ -222,7 +230,9 @@ class ApprovalService:
         fingerprint = _digest([_payload(basis), actor.session_id, actor.entry_kind.value])
         original = self._prepared(project_id, identity, fingerprint)
         if original is not None:
+            self._remember(original)
             return original
+        self._require_pending_capacity(actor.session_id, actor.entry_kind)
         challenge = ApprovalChallenge(
             self.identities.create(),
             basis,
@@ -236,7 +246,9 @@ class ApprovalService:
             original = self._prepared(project_id, identity, fingerprint)
             if original is not None:
                 self.unit.rollback(request_id)
+                self._remember(original)
                 return original
+            self._require_pending_capacity(actor.session_id, actor.entry_kind)
             if (
                 self.actors.current() != actor
                 or self.resolver.resolve(
@@ -263,11 +275,48 @@ class ApprovalService:
                     "challenge_id": challenge.challenge_id,
                 },
             )
+            self._remember(challenge)
             self.unit.commit(request_id)
         except BaseException as error:
             self._rollback(request_id, error)
             raise
         return challenge
+
+    def pending_for_session(self, session: str, entry: EntryKind) -> tuple[tuple[str, str], ...]:
+        """Bounded hints for the core-owned close adapter, never a relay query."""
+        key = (session, entry)
+        for identity, project in tuple(self._pending.get(key, {}).items()):
+            current = self._current("approval_challenge", identity, project)
+            if current is None:
+                self._pending[key].pop(identity, None)
+                if not self._pending[key]:
+                    self._pending.pop(key)
+            else:
+                challenge = self.read_challenge(project_id=project, challenge_id=identity)
+                if challenge.state is not ChallengeState.PENDING:
+                    self._forget(challenge)
+        return tuple(
+            (project, identity) for identity, project in self._pending.get(key, {}).items()
+        )
+
+    def _remember(self, challenge: ApprovalChallenge) -> None:
+        if challenge.state is ChallengeState.PENDING:
+            pending = self._pending.setdefault(
+                (challenge.origin_session_id, challenge.origin_entry_kind), {}
+            )
+            pending[challenge.challenge_id] = challenge.basis.project_id
+
+    def _forget(self, challenge: ApprovalChallenge) -> None:
+        key = (challenge.origin_session_id, challenge.origin_entry_kind)
+        pending = self._pending.get(key)
+        if pending is not None:
+            pending.pop(challenge.challenge_id, None)
+            if not pending:
+                self._pending.pop(key)
+
+    def _require_pending_capacity(self, session: str, entry: EntryKind) -> None:
+        if len(self.pending_for_session(session, entry)) >= 16:
+            raise ApprovalRequired("finish or revoke a pending challenge before preparing another")
 
     def confirm(
         self,
@@ -414,24 +463,63 @@ class ApprovalService:
     ) -> ApprovalChallenge:
         """Retain consumed history; only the originating controlled session revokes."""
         self.require_actor(project_id)
+        actor = self.actors.current()
+        identity = "approval-revoke-" + _digest([self.workspace_id, project_id, intent_id])[7:]
+        fingerprint = _digest([challenge_id, actor.session_id, actor.entry_kind.value])
+        original = self._revoked(project_id, identity, fingerprint)
+        if original is not None:
+            self._forget(original)
+            return original
         self.unit.begin(request_id, project_id, intent_id=intent_id)
         try:
+            original = self._revoked(project_id, identity, fingerprint)
+            if original is not None:
+                self.unit.rollback(request_id)
+                self._forget(original)
+                return original
             challenge = self.read_challenge(project_id=project_id, challenge_id=challenge_id)
-            actor = self.actors.current()
-            if (actor.session_id, actor.entry_kind) != (
+            if self.actors.current() != actor or (actor.session_id, actor.entry_kind) != (
                 challenge.origin_session_id,
                 challenge.origin_entry_kind,
             ):
                 raise ApprovalRequired("another session cannot revoke this challenge")
-            if challenge.state is not ChallengeState.PENDING:
-                self.unit.rollback(request_id)
-                return challenge
-            challenge = replace(challenge, state=ChallengeState.REVOKED)
-            self._stage_challenge(challenge, expected_revision=1)
+            if challenge.state is ChallengeState.PENDING:
+                challenge = replace(challenge, state=ChallengeState.REVOKED)
+                self._stage_challenge(challenge, expected_revision=1)
+            self.unit.stage_record(
+                aggregate_kind="approval_intent",
+                record_id=identity,
+                expected_revision=0,
+                payload={
+                    "schema_version": "aitest.approval-revocation/1.0",
+                    "project_id": project_id,
+                    "workspace_id": self.workspace_id,
+                    "input_digest": fingerprint,
+                    "challenge_id": challenge_id,
+                    "state": challenge.state.value,
+                },
+            )
             self.unit.commit(request_id)
         except BaseException as error:
             self._rollback(request_id, error)
             raise
+        self._forget(challenge)
+        return challenge
+
+    def _revoked(self, project: str, identity: str, fingerprint: str) -> ApprovalChallenge | None:
+        raw = self._current("approval_intent", identity, project)
+        if raw is None:
+            return None
+        if raw.get("schema_version") != "aitest.approval-revocation/1.0":
+            raise ApprovalRequired("the revocation intent has an unknown schema")
+        if raw.get("input_digest") != fingerprint:
+            raise ApprovalConflict("revocation intent has a different challenge or origin")
+        cid = raw.get("challenge_id")
+        if not isinstance(cid, str) or not cid:
+            raise ApprovalRequired("the revocation receipt has no exact challenge")
+        challenge = self.read_challenge(project_id=project, challenge_id=cid)
+        if challenge.state is ChallengeState.PENDING or challenge.state.value != raw.get("state"):
+            raise ApprovalRequired("revocation receipt differs from its exact resulting state")
         return challenge
 
     def read_confirmation(self, *, project_id: str, confirmation_id: str) -> ActionConfirmation:
@@ -523,11 +611,16 @@ class ApprovalService:
         ):
             raise ApprovalRequired("saved confirmation has no complete consumed origin proof")
         for reference in result.basis.materials:
-            stored = self.records.read(
-                aggregate_kind=reference.aggregate_kind,
-                record_id=reference.record_id,
-                revision=reference.record_revision,
-            )
+            try:
+                stored = self.records.read(
+                    aggregate_kind=reference.aggregate_kind,
+                    record_id=reference.record_id,
+                    revision=reference.record_revision,
+                )
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise ApprovalRequired(
+                    "the exact frozen approval material is unavailable"
+                ) from error
             material = getattr(stored, "payload", None)
             if (
                 (

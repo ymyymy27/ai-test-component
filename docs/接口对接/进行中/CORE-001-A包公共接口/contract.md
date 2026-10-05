@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.10"
+contract_version: "1.11"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.10
+版本：1.11
 日期：2026-10-05
 状态：草案，待B/C/D确认  
 
@@ -233,6 +233,8 @@ A包独立验收必须在目标Windows文件系统上取得真实证据；内存
 4. 输入/目标/项目变化或确认通道失效时撤销尚未使用的挑战，已经保存的确认历史保留。未用ActionAuthorization需单独撤销，已占用授权仍只对应原Attempt；新Attempt须新授权。未知执行事实不自动重放，已有有效且未用授权的合法恢复不得重复询问。
 
 实现增量（2026-10-05）：`prepare_approval`和`revoke_approval`通过doctor的supported_actions协商；它们是受控人工入口动作，不从relay开放。当前仅登记`confirm_basis`的准确已保存Case/项目解析器；其他动作缺原子确认适配时拒绝，不能仅保存一般确认代替执行授权。`confirm_basis`携带`approval_challenge_id`，实际交互由核心入口上下文取得，不读取parameters中的角色/点击声明；准确旧意图可以回原结果，无来源证明的旧确认要求新受控确认。挑战消费、交互事实、核心确认/意图回执及原有case_link确认在一个短事务发布。新增内部记录不扩大B的任意查询面；保留既有确认DTO字段，case_link新增准确来源引用，准备与运行修订可按同一证明端口核对。默认宿主/CLI实际事件对接、其余发布/授权动作及真实AC仍须后续证据。
+
+1.11补撤销与不可读证明：撤销按准确工作空间/项目/intent保存不可变回执及冻结挑战/所属会话输入；同意图原挑战回原结果，换挑战或来源冲突，不把状态setter当持久幂等。撤销与挑战新修订同提交，已消费挑战只登记未改变历史的结果。来源记录缺失、不可读、未知封套/字段或仓储修订为布尔值时明确AWAITING_USER_CONFIRMATION，不把未知材料解释为已确认。当前连接内未用挑战列表有界，通道关闭时在原受控上下文逐项撤销；无法保存撤销不伪造成功，也不能重新使用旧会话挑战。实际宿主事件与其他人工动作仍按第9节/本节边界继续接入，接口仍reviewing/partial/not_run。
 5. 默认装配按能力提供受控上下文、确认与执行保存端口；未连接实际人工通道时明确AWAITING_USER_CONFIRMATION或缺能力，不以HUMAN_UI夹具代替产品确认。受控CLI无TTY拒绝确认，不提供--yes；面板需校验所属会话、挑战、动作摘要及实际用户事件。对同OS用户恶意进程的隔离不属于本合同承诺。
 
 本增量先补组件/合同与真实文件故障验证，再接默认人工/执行入口；不改现行公开DTO或代填P1-AC31/32、真实Trae和物理掉电结果。状态保持reviewing/partial/not_run，旧双方签署记录保留。

@@ -38,6 +38,7 @@ from aitest.application.planning.substrate_adapter import (
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
 from aitest.contracts.commands import Command
+from aitest.domain.approvals import TrustedActor
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
 )
@@ -81,7 +82,7 @@ from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.infrastructure.projections import SafeMaterialProjector
 from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
-from aitest.interfaces.local.api import Handler, LocalAPI
+from aitest.interfaces.local.api import Handler, LocalAPI, Session
 from aitest.interfaces.local.b_registration import b_registration_for
 from aitest.interfaces.local.editor_host import (
     Connector,
@@ -512,6 +513,25 @@ def assemble_workspace_core(
             for action, keys in extra_action_dependencies.items():
                 gate.require(action, *keys)
 
+        def close_approval_session(session: Session) -> None:
+            for project, challenge_id in approvals.pending_for_session(
+                session.session_id, session.entry_kind
+            ):
+                actor = TrustedActor(
+                    workspace.workspace_id,
+                    project,
+                    session.session_id,
+                    session.entry_kind,
+                    session.interactive,
+                )
+                with actors.bind(actor):
+                    approvals.revoke(
+                        project_id=project,
+                        challenge_id=challenge_id,
+                        request_id="close-challenge-" + uuid4().hex,
+                        intent_id="close-session-" + challenge_id,
+                    )
+
         api = LocalAPI(
             instance_id=instance_id,
             workspace_id=workspace.workspace_id,
@@ -522,6 +542,7 @@ def assemble_workspace_core(
             capability_gate=gate,
             credential_projector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
             actors=actors,
+            session_finalizer=close_approval_session,
         )
     except BaseException:
         lifetime_lock.release()

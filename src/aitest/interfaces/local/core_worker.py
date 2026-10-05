@@ -164,31 +164,35 @@ def serve_connection(
     session = Session(
         session_id=f"{prefix}-{connection_no}-{uuid4().hex[:12]}",
         entry_kind=entry_kind,
+        interactive=entry_kind is EntryKind.HUMAN_UI,
     )
-    while True:
-        try:
-            payload = server.read_message()  # type: ignore[attr-defined]
-        except Exception:
-            # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
-            return "disconnected"
-        outcome = dispatch_frame(api, session, payload)
-        if isinstance(outcome, ShutdownControl):
-            ack = Response(
-                request_id=outcome.request_id,
-                instance_id=api.instance_id,
-                workspace_id=api.workspace_id,
-                result={"status": "shutting_down"},
-            )
-            # 回执写不进去也必须停机：对端已经不在，停机语义不受影响。
-            with suppress(Exception):
-                server.write_message(serialize_response(ack))  # type: ignore[attr-defined]
-            return "shutdown"
-        try:
-            server.write_message(  # type: ignore[attr-defined]
-                serialize_response(outcome)
-            )
-        except Exception:
-            return "disconnected"
+    try:
+        while True:
+            try:
+                payload = server.read_message()  # type: ignore[attr-defined]
+            except Exception:
+                # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
+                return "disconnected"
+            outcome = dispatch_frame(api, session, payload)
+            if isinstance(outcome, ShutdownControl):
+                ack = Response(
+                    request_id=outcome.request_id,
+                    instance_id=api.instance_id,
+                    workspace_id=api.workspace_id,
+                    result={"status": "shutting_down"},
+                )
+                # 回执写不进去也必须停机：对端已经不在，停机语义不受影响。
+                with suppress(Exception):
+                    server.write_message(serialize_response(ack))  # type: ignore[attr-defined]
+                return "shutdown"
+            try:
+                server.write_message(  # type: ignore[attr-defined]
+                    serialize_response(outcome)
+                )
+            except Exception:
+                return "disconnected"
+    finally:
+        api.close_session(session)
 
 
 def watch_parent(
