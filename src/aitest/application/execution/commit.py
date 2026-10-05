@@ -609,6 +609,8 @@ class ExecutionCommitCoordinator:
             raise ValueError("checkpoint requires an attempt_id")
         previous = self.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
         if previous is not None:
+            _validate_frozen_run_basis(previous, facts)
+            _validate_frozen_step_basis(previous, facts)
             _validate_publication_current(previous, facts)
 
         attempt = batch.checkpoint.attempt
@@ -703,27 +705,10 @@ class ExecutionCommitCoordinator:
             pointer_id = _run_pointer_id(facts.project_id, facts.run_id)
             previous = self.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
             if previous is not None:
+                _validate_frozen_run_basis(previous, facts)
                 _validate_frozen_step_basis(previous, facts)
             if previous is not None and not allow_current_change:
                 _validate_publication_current(previous, facts)
-            if previous is not None and (
-                facts.run_revision < previous.run_revision
-                or any(
-                    getattr(facts.run, name) != getattr(previous.run, name)
-                    for name in (
-                        "origin_workspace_id",
-                        "intent_id",
-                        "tier",
-                        "required_scope",
-                        "plan_revision",
-                        "environment_ref",
-                        "environment_isolation_mode",
-                        "rules_revision",
-                        "conclusion_ceiling",
-                    )
-                )
-            ):
-                raise ValueError("publication cannot rewrite the frozen run identity")
             staged.append(
                 self._uow.stage_record(
                     aggregate_kind="execution_facts_current",
@@ -890,6 +875,13 @@ def _validate_current_facts(facts: ExecutionFacts) -> None:
         raise ValueError("execution snapshot run identity is inconsistent")
     if facts.plan_revision != facts.run.plan_revision:
         raise ValueError("execution snapshot plan identity is inconsistent")
+    refs = facts.runtime_revision_refs
+    if (
+        refs != facts.run.runtime_revision_refs
+        or any(not ref.strip() for ref in refs)
+        or len(refs) != len(set(refs))
+    ):
+        raise ValueError("execution snapshot runtime revision sequence is inconsistent")
     steps = {step.step_id: step for step in facts.steps}
     attempts = {attempt.attempt_id: attempt for attempt in facts.attempts}
     if len(steps) != len(facts.steps) or len(attempts) != len(facts.attempts):
@@ -940,6 +932,34 @@ def _validate_frozen_step_basis(previous: ExecutionFacts, facts: ExecutionFacts)
         for field in frozen
     ):
         raise ValueError("publication cannot rewrite frozen step execution basis")
+
+
+def _validate_frozen_run_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
+    """Progress and attempt claims cannot substitute for controlled runtime actions."""
+    frozen = (
+        "origin_workspace_id",
+        "intent_id",
+        "tier",
+        "required_scope",
+        "selected_scope",
+        "plan_revision",
+        "environment_ref",
+        "environment_isolation_mode",
+        "rules_revision",
+        "conclusion_ceiling",
+        "driver",
+        "source_binding_digest",
+        "runtime_revision_refs",
+    )
+    if facts.run_revision < previous.run_revision or any(
+        getattr(facts.run, field) != getattr(previous.run, field) for field in frozen
+    ):
+        raise ValueError("publication cannot rewrite the frozen run identity or runtime revision")
+    for scope_field in ("mandatory_case_ids", "selected_case_ids"):
+        before = getattr(previous.coverage, scope_field)
+        after = getattr(facts.coverage, scope_field)
+        if set(before) != set(after) or len(after) != len(set(after)):
+            raise ValueError("publication cannot rewrite the frozen coverage scope")
 
 
 def _validate_publication_current(previous: ExecutionFacts, facts: ExecutionFacts) -> None:

@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.14"
+contract_version: "0.15"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.14（2026-10-05 权威运行修订评估入口增量，验证记录另行登记）
+版本：0.15（2026-10-05 普通快照受控变更与范围守卫，验证记录另行登记）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -725,3 +725,4 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 5. 兼容：不改 PreparedRun/ExecutionFacts Schema、生成夹具、公开动作或已签字段；不代替第17节待确认半程夹具、C 实际句柄检查、持久 RunPlanRevision/StepRevisionRef、暂停/依赖失效、默认产品入口和真实 AC。合同保持 reviewing/partial/not_run，组件验证另行记录。
 6. 当前事实的后续发布不能改写初始冻结 PlanRevisionRef、环境引用/隔离方式、规则引用及按档位派生的结论上限；与既有 workspace/intent/tier/M 一起逐项核对。运行中修订追加序列、保留初始计划引用；换环境、规则或不兼容依据须新建运行。拒绝发生在当前指针/快照暂存前；`allow_current_change` 仅支持原子认领新 Attempt，不能绕过冻结依据守卫。
 7. 普通状态/证据发布与新Attempt认领也不能增删冻结步骤或改写其case_id、ordinal、required_for_case、level、dependency_step_ids、registered_entry_ref、assertion_refs、evidence_requirement_ids和StepRevisionRef；这些属于冻结执行内容。运行修订需新的受控保存/应用入口核对可读权威序列，不能用普通发布或allow_current_change布尔值替代。当前仅保持状态、当前Attempt、失效及缺口等执行进度字段的合法更新路径；不把此守卫算作运行修订应用已经完成。
+8. 普通发布与新Attempt认领同时保留已保存的driver、selected_scope、source_binding_digest及准确runtime_revision_refs序列，包括未核实源码的空值。驱动收窄须有受控DriverChange记录，运行修订须有可读序列和步骤边界应用，源码从待核实升级须有准确保存的来源核验；不能直接修改事实字段替代这些动作。Run的M/S与coverage的M/S分别保留原集合，序列顶层与Run内逐项同序一致、引用非空且唯一。进度、缺口和当前执行计数仍可合法改变；本条守卫不表示上述受控持久动作已完成。

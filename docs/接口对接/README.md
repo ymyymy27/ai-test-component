@@ -190,9 +190,9 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing`，1.8 | A `partial`；B/C/D `partial` | 初始登记/续行、权威修订评估与冻结发布有组件证据；未登记统一产品对拍 | A/B/C接持久修订/权威授权/环境/实际执行与控制；B/C/D确认完整消费语义 |
+| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing`，1.9 | A `partial`；B/C/D `partial` | 初始登记/续行、权威修订评估及受控变更/范围发布守卫有组件证据；未登记统一产品对拍 | A/B/C接持久修订/权威授权/环境/实际执行与控制；B/C/D确认完整消费语义 |
 | [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing`，1.21 | A `partial`；B `partial`（默认22动作；实际来源、准备/确认、模型/安全端口已注入） | 完整清单v2/0007迁移、对象/固定源码及准备/运行消费引用、业务稀疏索引、实际实例/epoch与有界启动有组件验证；新增模型准确依据、迟到响应及安全旁录414项专项通过，完整验证另记；见[本轮证据](../ABC剩余问题修复证据-2026-10-04.md)。双方产品对拍及真实AC未通过 | 补登记与响应索引备份有受控证据；继续完整实际依赖、可信人工会话、未使用授权/整用例复用、初始运行与C/D默认入口及真实验收；不能据组件通过移入已完成 |
-| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | reviewing，0.14 | B partial；C partial | 权威运行修订评估读取当前检查点、冻结正文及确认；快照不能改写冻结计划/环境/规则，真实AC未改变 | 接短事务重评估与修订持久化、C步骤边界实际消费与半程真实验收；旧签署历史保留 |
+| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | reviewing，0.15 | B partial；C partial | 权威评估读取当前检查点/冻结正文/确认；普通快照保留驱动、源码、范围和准确序列，真实AC未改变 | 接受控DriverChange/来源核验、修订持久化、C步骤边界实际消费与半程真实验收；旧签署历史保留 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复第 5 节展示与查询五项问题，以及**第 8 节**（2026-10-03 新增）动作与状态的三项变化与排期：发布第二次起必须声明 `expected_revision`（不符报 `B_REVISION_CONFLICT`）、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作（动作表 17 → 19） |
 | [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `agreed` | C `done`；D `partial` | `fixture_passed` | D 完成 ExecutionFacts→DecisionFacts 适配、Run 级证据等级派生和夹具对拍；见 [`review-D.md`](进行中/CD-001-ExecutionFacts/review-D.md) |
@@ -259,3 +259,4 @@ DEC-004／005／006 三项已裁定，结论已回写本节与各合同，实现
 | 2026-10-05 | AB-001 1.20、CORE-001 1.6补旧版事件逐项权威核对及暂存变化守卫，投影不能证明提交，未知材料保持blocked。准确保存恢复测试与真实C活动/宿主/掉电验收分开，接口仍reviewing/partial。 | 袁（组件实施与验证） |
 | 2026-10-05 | BC-001 0.13修运行修订请求正文/仓储版本混用；AB-001 1.21、CORE-001 1.7补非法旧记录结构的阻塞转换。准确引用与结构反例分别保留，默认持久修订/C消费/真实验收仍partial。 | 袁（组件实施与验证） |
 | 2026-10-05 | BC-001 0.14、CORE-001 1.8补权威修订评估与冻结发布守卫，读取准确当前检查点、冻结计划/用例/范围和确认；预览不代替保存/授权。运行修订序列、C实际应用与真实验收仍partial。 | 袁（组件实施与验证） |
+| 2026-10-05 | BC-001 0.15、CORE-001 1.9补普通快照受控变更/范围守卫；驱动、源码、S、准确序列及coverage原M/S不得绕过受控动作改写，批量暂存前拒绝。349项受影响验证通过，全量另行登记；持久修订和真实验收仍partial。 | 袁（组件实施与验证） |

@@ -51,3 +51,7 @@ uv build
 - [saved-runtime-hidden-plan-failed-1/manifest.json](history/saved-runtime-hidden-plan-failed-1/manifest.json)：权威评估初版遗漏公开投影之外的expected_plan_revision_ref，真实保存的错误计划检查点仍被接受，1 failed（46.91秒）。358文件/169符号/7记录，ZIP SHA256为`56597756921deb2de71b567f0143a6164d98345521ffb576880738a68b10a1c7`；修复前档案及当时工程核对通过，不能改写为后续通过版本。其他正文替代/发布字段前后探针分开保存，未新增实际AC证据。
 
 - [saved-runtime-assessment-frozen-publication-161/manifest.json](history/saved-runtime-assessment-frozen-publication-161/manifest.json)：最后161项执行/仓储/控制/认领/检查点/发布（543.42秒）、226项合同/架构/提交（17.63秒）、70项领域/事实（0.34秒）及1项真实正文7/仓储@2正负向（37.34秒），四组不重合，共458项通过。359文件/182符号/45记录，ZIP SHA256为`4852bd4ec929785664ac00549f27746303e4cee2e2108b3a881f8662d55af421`；档案/当前工程核对通过。Ruff/Mypy166、Schema、0.4.0、最新构建/隔离wheel及现有VSIX面板字节核对通过。本增量未再跑完整Python，早期26/336/338先于最后步骤守卫，更正失败也原样保留。只读评估不保存或授权；持久修订/实际C消费及真实验收仍缺，22项产品条件保留。
+
+- [frozen-run-admission-failed-25/manifest.json](history/frozen-run-admission-failed-25/manifest.json)：普通快照改写driver/S/源码/序列/coverage及矛盾序列的原26项边界检查为25 failed/1 passed；361份工程文件、8个符号、3份日志，ZIP SHA256为`83078ed71089c98f09968bd73be17afe7a3096b94ac4dfb127c08f6965597f2b`。真文件测试初次缺依赖fixture及提交结束后的cleanup错误另作夹具历史记录，一次无输出补查中断，不计测试通过。
+
+- [frozen-run-admission-349/manifest.json](history/frozen-run-admission-349/manifest.json)：342项合同/架构/规则/发布加7项真实文件事务，共349项通过；Ruff/Mypy166、Schema无差异、0.4.0、构建、隔离Python3.13.13 wheel及现有VSIX面板字节核对通过，未重建VSIX。361份工程文件、42个符号、13份记录，ZIP SHA256为`ed31cc74721eff3e6511f07551c8bdf5521d9660e0b0e5b5679f05fdf0577e8a`；与当前工程逐项核对通过。完整Python正在单独执行，未把中途输出写成通过。实际DriverChange/来源核验/持久运行修订及真实AC仍缺。

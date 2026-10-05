@@ -1,0 +1,154 @@
+FFFFFFFFFFFFFFFFFFFFFFFFF.                                               [100%]
+================================== FAILURES ===================================
+___ test_progress_cannot_replace_a_controlled_change[driver-stepwise-False] ___
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_progress_cannot_replace_a_controlled_change[driver-stepwise-True] ____
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[selected_scope-value1-False] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[selected_scope-value1-True] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[source_binding_digest-sha256:other-source-False] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[source_binding_digest-sha256:other-source-True] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[source_binding_digest-None-False] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[source_binding_digest-None-True] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[runtime_revision_refs-value4-False] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_replace_a_controlled_change[runtime_revision_refs-value4-True] _
+tests\unit\test_frozen_run_publication.py:46: in test_progress_cannot_replace_a_controlled_change
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[remove-False] _
+tests\unit\test_frozen_run_publication.py:72: in test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[remove-True] _
+tests\unit\test_frozen_run_publication.py:72: in test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[replace-False] _
+tests\unit\test_frozen_run_publication.py:72: in test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[replace-True] _
+tests\unit\test_frozen_run_publication.py:72: in test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[reorder-False] _
+tests\unit\test_frozen_run_publication.py:72: in test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[reorder-True] _
+tests\unit\test_frozen_run_publication.py:72: in test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence
+    with pytest.raises(ValueError, match="frozen run|runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_unverified_source_cannot_become_verified_by_adding_a_digest[False] ___
+tests\unit\test_frozen_run_publication.py:88: in test_unverified_source_cannot_become_verified_by_adding_a_digest
+    with pytest.raises(ValueError, match="frozen run"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_unverified_source_cannot_become_verified_by_adding_a_digest[True] ____
+tests\unit\test_frozen_run_publication.py:88: in test_unverified_source_cannot_become_verified_by_adding_a_digest
+    with pytest.raises(ValueError, match="frozen run"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+__ test_progress_cannot_edit_coverage_scope_alone[False-mandatory_case_ids] ___
+tests\unit\test_frozen_run_publication.py:99: in test_progress_cannot_edit_coverage_scope_alone
+    with pytest.raises(ValueError, match="frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_progress_cannot_edit_coverage_scope_alone[False-selected_case_ids] ___
+tests\unit\test_frozen_run_publication.py:99: in test_progress_cannot_edit_coverage_scope_alone
+    with pytest.raises(ValueError, match="frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_progress_cannot_edit_coverage_scope_alone[True-mandatory_case_ids] ___
+tests\unit\test_frozen_run_publication.py:99: in test_progress_cannot_edit_coverage_scope_alone
+    with pytest.raises(ValueError, match="frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_progress_cannot_edit_coverage_scope_alone[True-selected_case_ids] ____
+tests\unit\test_frozen_run_publication.py:99: in test_progress_cannot_edit_coverage_scope_alone
+    with pytest.raises(ValueError, match="frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_inconsistent_runtime_sequence_cannot_be_initially_published[different] _
+tests\unit\test_frozen_run_publication.py:121: in test_inconsistent_runtime_sequence_cannot_be_initially_published
+    with pytest.raises(ValueError, match="runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_inconsistent_runtime_sequence_cannot_be_initially_published[empty] ___
+tests\unit\test_frozen_run_publication.py:121: in test_inconsistent_runtime_sequence_cannot_be_initially_published
+    with pytest.raises(ValueError, match="runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_inconsistent_runtime_sequence_cannot_be_initially_published[duplicate] _
+tests\unit\test_frozen_run_publication.py:121: in test_inconsistent_runtime_sequence_cannot_be_initially_published
+    with pytest.raises(ValueError, match="runtime revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[driver-stepwise-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[driver-stepwise-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[selected_scope-value1-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[selected_scope-value1-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[source_binding_digest-sha256:other-source-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[source_binding_digest-sha256:other-source-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[source_binding_digest-None-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[source_binding_digest-None-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[runtime_revision_refs-value4-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_replace_a_controlled_change[runtime_revision_refs-value4-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[remove-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[remove-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[replace-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[replace-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[reorder-False]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_remove_replace_or_reorder_saved_runtime_sequence[reorder-True]
+FAILED tests/unit/test_frozen_run_publication.py::test_unverified_source_cannot_become_verified_by_adding_a_digest[False]
+FAILED tests/unit/test_frozen_run_publication.py::test_unverified_source_cannot_become_verified_by_adding_a_digest[True]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_edit_coverage_scope_alone[False-mandatory_case_ids]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_edit_coverage_scope_alone[False-selected_case_ids]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_edit_coverage_scope_alone[True-mandatory_case_ids]
+FAILED tests/unit/test_frozen_run_publication.py::test_progress_cannot_edit_coverage_scope_alone[True-selected_case_ids]
+FAILED tests/unit/test_frozen_run_publication.py::test_inconsistent_runtime_sequence_cannot_be_initially_published[different]
+FAILED tests/unit/test_frozen_run_publication.py::test_inconsistent_runtime_sequence_cannot_be_initially_published[empty]
+FAILED tests/unit/test_frozen_run_publication.py::test_inconsistent_runtime_sequence_cannot_be_initially_published[duplicate]
+25 failed, 1 passed in 2.18s
