@@ -54,8 +54,20 @@ uv build
 
 - [frozen-run-admission-failed-25/manifest.json](history/frozen-run-admission-failed-25/manifest.json)：普通快照改写driver/S/源码/序列/coverage及矛盾序列的原26项边界检查为25 failed/1 passed；361份工程文件、8个符号、3份日志，ZIP SHA256为`83078ed71089c98f09968bd73be17afe7a3096b94ac4dfb127c08f6965597f2b`。真文件测试初次缺依赖fixture及提交结束后的cleanup错误另作夹具历史记录，一次无输出补查中断，不计测试通过。
 
-- [frozen-run-admission-349/manifest.json](history/frozen-run-admission-349/manifest.json)：342项合同/架构/规则/发布加7项真实文件事务，共349项通过；Ruff/Mypy166、Schema无差异、0.4.0、构建、隔离Python3.13.13 wheel及现有VSIX面板字节核对通过，未重建VSIX。361份工程文件、42个符号、13份记录，ZIP SHA256为`ed31cc74721eff3e6511f07551c8bdf5521d9660e0b0e5b5679f05fdf0577e8a`；与当前工程逐项核对通过。完整Python正在单独执行，未把中途输出写成通过。实际DriverChange/来源核验/持久运行修订及真实AC仍缺。
+- [frozen-run-admission-349/manifest.json](history/frozen-run-admission-349/manifest.json)：342项合同/架构/规则/发布加7项真实文件事务，共349项通过；Ruff/Mypy166、Schema无差异、0.4.0、构建、隔离Python3.13.13 wheel及现有VSIX面板字节核对通过，未重建VSIX。361份工程文件、42个符号、13份记录，ZIP SHA256为`ed31cc74721eff3e6511f07551c8bdf5521d9660e0b0e5b5679f05fdf0577e8a`；与当前工程逐项核对通过。当时完整Python正在单独执行，后续中断/失败/最终完成结果分别另存，不把中途输出写成通过。实际DriverChange/来源核验/持久运行修订及真实AC仍缺。
 
 - [frozen-run-full-failed-2329/manifest.json](history/frozen-run-full-failed-2329/manifest.json)：第二轮完整实际1 failed/2329 passed/2 skipped/2 errors（2273.98秒），361文件/33符号/30记录，ZIP SHA256 `19d4725628d21b4ea7c44b638d701f86726b5dd8f785359922f88975d50f002e`。旧不可读序列夹具经普通发布被新守卫拒绝，又未回滚；后续setup出现写队列忙。准确失败源码和当时日志封存，不改写为通过。
 - [frozen-run-lock-owner-failed-3/manifest.json](history/frozen-run-lock-owner-failed-3/manifest.json)：追加五项探针真实复现工作空间A先退出时抹掉仍活动的B归属，3 failed/2 passed（7.26秒）；362文件/37符号/31记录，ZIP SHA256 `bc9c7b87df024e68c73aad2c7729961af65d9a0974cee3da14ab5233cb930e29`。普通OS锁、生命周期锁及真实两个UOW均复现，反向结束对照通过；新五项未参加前一完整2329阶段。
-- [frozen-run-lock-and-sequence-7/manifest.json](history/frozen-run-lock-and-sequence-7/manifest.json)：锁及旧材料/外来运行专项7 passed（51.60秒），早于两处纯测试格式修正；修后工程362文件/79符号/41记录，ZIP SHA256 `d1420e0a61c14dddaecf7ba6250c89d242e30ff93befadb36f3faa5408ebc694`，档案与当前工程核对通过。Ruff/Mypy166、最终构建/隔离wheel与制品字节通过，最新完整2338节点运行中，活动全量日志未收入本阶段。
+- [frozen-run-lock-and-sequence-7/manifest.json](history/frozen-run-lock-and-sequence-7/manifest.json)：锁及旧材料/外来运行专项7 passed（51.60秒），早于两处纯测试格式修正；修后工程362文件/79符号/41记录，ZIP SHA256 `d1420e0a61c14dddaecf7ba6250c89d242e30ff93befadb36f3faa5408ebc694`，档案与当前工程核对通过。Ruff/Mypy166、最终构建/隔离wheel与制品字节通过，当时最新完整2338节点运行中，活动全量日志未收入本阶段；最终完成见下节准确源码。
+
+## 完整回归最终登记（2026-10-05）
+
+- [frozen-run-current-errors-failed-2/manifest.json](history/frozen-run-current-errors-failed-2/manifest.json)：首次全量中两项当前Attempt回退/删除检查被新增冻结守卫抢先拒绝，独立复现2 failed in 3.08s；原测试不修改。361文件/0本次变更符号/17记录（源码与当时HEAD一致，但全份工程字节仍冻结），ZIP SHA256 `e463a60e9ce47fd5ac2d742acd422fbc985524cef823b5cea1bc6a27d3233b0e`；首轮全量中断，不登记完整结果。
+- [frozen-run-full-final-2336/manifest.json](history/frozen-run-full-final-2336/manifest.json)：恢复准确当前引用优先级后的最终完整Python**2336 passed, 2 skipped in 2253.18s (0:37:33)**，两项本机Windows符号链接权限跳过；362文件/79符号/49记录，ZIP SHA256 `b89a959dcf5cc2ad06b08abfa0139689a1cee2d3be39d9dc92e5a5d358a6b533`。档案/当时工程核对通过，最终Ruff/Mypy166、Schema/版本、构建/隔离wheel和C模块/共享面板字节核对通过；未重建VSIX，不补真实AC或整项关闭22项产品条件。
+
+```powershell
+.venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/frozen-run-full-final-2336/manifest.json --against-checkout
+.venv/Scripts/python.exe -u -m pytest -o addopts='' -q --tb=short -ra
+```
+
+后续源码修改后，旧阶段只能检查不可变档案自身，不把旧全量作为新工程已通过证明。
