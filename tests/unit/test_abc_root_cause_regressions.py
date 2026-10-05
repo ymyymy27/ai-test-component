@@ -670,8 +670,12 @@ def test_default_core_model_flow_persists_filtered_draft_and_reuses_original_int
             },
         )
         assert core.api.dispatch(policy_command, relay).error is not None
-        policy_result = core.api.dispatch(
-            policy_command.model_copy(update={"request_id": "policy-human"}), human
+        from tests.support.controlled_model_policy import controlled_policy_confirm
+
+        policy_result = controlled_policy_confirm(
+            core,
+            policy_command.model_copy(update={"request_id": "policy-human"}),
+            session=Session("human-model-controlled-policy", EntryKind.HUMAN_UI, True),
         )
         assert policy_result.error is None, policy_result.error
         command = Command(
@@ -712,6 +716,7 @@ def test_default_core_model_flow_persists_filtered_draft_and_reuses_original_int
 
 def test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary(tmp_path: Path) -> None:
     from tests.support.persistent_evidence_fixture import fixture_facts, save_fixture_bytes
+
     fixture = Path(__file__).parents[1] / "contracts/fixtures/execution_facts/success.json"
     facts = ExecutionFacts.model_validate_json(fixture.read_text(encoding="utf-8"))
     frozen = facts.attempts[0]

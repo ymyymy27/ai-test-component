@@ -125,6 +125,15 @@ class ApprovalService:
             "aitest.action-confirmation/1.0": {"confirmation"},
             "aitest.approval-confirmation-intent/1.0": {"input_digest", "confirmation_id"},
             "aitest.approval-revocation/1.0": {"input_digest", "challenge_id", "state"},
+            "aitest.model-policy-intent/1.0": {
+                "intent_id",
+                "input_digest",
+                "policy_record_id",
+                "policy_record_revision",
+                "policy_record_digest",
+                "confirmation_id",
+                "created_at_commit",
+            },
         }
         schema = raw.get("schema_version")
         if (

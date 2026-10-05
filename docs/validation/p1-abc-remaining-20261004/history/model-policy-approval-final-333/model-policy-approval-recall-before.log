@@ -1,0 +1,65 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+___ test_a_save_receipt_cannot_be_redirected_to_another_valid_policy_intent ___
+
+policy_core = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001D5AB1F81A0>, workspace=<aitest.infrastructur...probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001D5AB155D30>), [])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001D5AB11B950>
+
+    def test_a_save_receipt_cannot_be_redirected_to_another_valid_policy_intent(policy_core, monkeypatch):
+        from aitest.application.approval_service import _digest
+    
+        core, _ = policy_core
+        first = controlled_policy_confirm(core, policy_command(), session=HUMAN)
+        assert first.error is None
+        second = controlled_policy_confirm(core, policy_command(policy=replace(_policy(),revision=2,ai_enabled=False),
+            expected=1, intent="other-valid-policy-intent", request="other-valid-policy-request"), session=HUMAN)
+        assert second.error is None
+        repo, sequence = core.unit_of_work.repo, core.unit_of_work.current_commit_sequence()
+        read = repo.read
+        other = read(aggregate_kind="model_outbound_policy", record_id="model-policy:"+PROJECT_ID, revision=2).payload
+    
+        def redirected(**kwargs):
+            saved = read(**kwargs)
+            raw = dict(saved.payload)
+            if (kwargs["aggregate_kind"] == "approval_intent"
+                and raw.get("schema_version") == "aitest.model-policy-intent/1.0"
+                and raw.get("intent_id") == "model-policy-save-intent"):
+                raw.update(policy_record_revision=2, policy_record_digest=_digest(dict(other)),
+                           confirmation_id=other["approval_confirmation_id"])
+                return replace(saved, payload=raw)
+            return saved
+    
+        monkeypatch.setattr(repo, "read", redirected)
+        response = core.api.dispatch(policy_command(request="redirected-policy-receipt"), HUMAN)
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='redirected-policy-receipt', instance_id='policy-proof-fixtur...gate_kind': 'model_outbound_policy', 'record_id': 'model-policy:project-ticket', 'revision': 2}, page=None, error=None).error
+
+tests\unit\test_model_policy_approval.py:483: AssertionError
+_ test_historical_save_replay_is_readable_after_credential_reference_changes __
+
+policy_core = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001D5AB2AD590>, workspace=<aitest.infrastructur...probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000001D5AB123390>), [])
+
+    def test_historical_save_replay_is_readable_after_credential_reference_changes(policy_core):
+        core, _ = policy_core
+        first = controlled_policy_confirm(core, policy_command(), session=HUMAN)
+        assert first.error is None
+        sequence = core.unit_of_work.current_commit_sequence()
+        core.lifetime_lock.release()
+        changed = assemble_workspace_core(core.workspace.root, instance_id="historical-policy-recall",
+            model_endpoint=_policy().endpoint.address, model_secret_reference=("model", "different-reference"),
+            secret_manager=SecretManager((EnvironmentSecretProvider({
+                ("model", "different-reference"):"AITEST_POLICY_PROOF_FIXTURE",
+            }),)))
+        try:
+            historical = changed.api.dispatch(policy_command(request="historical-policy-only"), HUMAN)
+>           assert historical.error is None, historical.error
+E           AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='AWAITING_USER_CONFIRMATION', message='the exact model policy origin ...se, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='historical-policy-only', intent_id='model-policy-save-intent')
+E           assert ErrorDTO(schema_version='aitest.error/2.0', code='AWAITING_USER_CONFIRMATION', message='the exact model policy origin ...se, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='historical-policy-only', intent_id='model-policy-save-intent') is None
+E            +  where ErrorDTO(schema_version='aitest.error/2.0', code='AWAITING_USER_CONFIRMATION', message='the exact model policy origin ...se, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='historical-policy-only', intent_id='model-policy-save-intent') = Response(protocol_version='aitest.local/2.0', request_id='historical-policy-only', instance_id='historical-policy-reca...e, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='historical-policy-only', intent_id='model-policy-save-intent')).error
+
+tests\unit\test_model_policy_approval.py:501: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_model_policy_approval.py::test_a_save_receipt_cannot_be_redirected_to_another_valid_policy_intent
+FAILED tests/unit/test_model_policy_approval.py::test_historical_save_replay_is_readable_after_credential_reference_changes
+2 failed in 20.64s

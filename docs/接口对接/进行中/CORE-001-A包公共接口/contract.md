@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.12"
+contract_version: "1.13"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.12
+版本：1.13
 日期：2026-10-05
 状态：草案，待B/C/D确认  
 
@@ -228,6 +228,8 @@ A包独立验收必须在目标Windows文件系统上取得真实证据；内存
 合并到develop并完成B/C/D确认后，本文件作为A包与上层业务包之间事务、存储和查询对接的唯一依据。
 
 ## 13 核心确认挑战与会话来源
+
+1.13新增save_model_outbound_policy准确原子适配，策略/旧记录升级/发送消费/原意图回读的唯一语义引用AB-001 1.22第1节。prepare_approval仍只接受明确登记的人工动作：confirm_basis和模型策略；不开放通用空确认或将模型策略确认当作Step执行授权。模型确认四份内部来源事实、准确策略和原意图结果在固定六记录批次提交；策略和确认最终提交号相同，业务意图回执引用准确策略仓储修订/内容摘要。内部回执沿approval_intent类别，字段严格闭合，不手改生成Schema。
 
 沿用一期架构05第9节与架构02第6/10节，确认来源由核心受控会话上下文提供，不从Command.parameters、姓名、user_confirmed或调用方AuthorizationRef推定。人工确认组件与执行占用分开保存，授权消费仍经既有执行工作单元，不能把计划发布或断言确认当作执行授权。
 

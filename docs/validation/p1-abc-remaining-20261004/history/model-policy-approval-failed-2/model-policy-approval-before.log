@@ -1,0 +1,39 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+___ test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy ____
+
+policy_core = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000016D57383770>, workspace=<aitest.infrastructur...probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000016D573816A0>), [])
+
+    def test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy(policy_core):
+        core, calls = policy_core
+        sequence = core.unit_of_work.current_commit_sequence()
+        response = core.api.dispatch(policy_command(), HUMAN)
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='model-policy-save-request', instance_id='policy-proof-fixtur...gate_kind': 'model_outbound_policy', 'record_id': 'model-policy:project-ticket', 'revision': 1}, page=None, error=None).error
+
+tests\unit\test_model_policy_approval.py:80: AssertionError
+___ test_default_generation_cannot_use_a_legacy_policy_without_saved_origin ___
+
+policy_core = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000016D57468A50>, workspace=<aitest.infrastructur...cution.python_checks.PythonLoadSourceProbe object at 0x0000016D57362AD0>), ['https://api.example/v1/chat/completions'])
+
+    def test_default_generation_cannot_use_a_legacy_policy_without_saved_origin(policy_core):
+        core, calls = policy_core
+        unit = core.unit_of_work
+        unit.begin("legacy-policy-fixture", PROJECT_ID, intent_id="legacy-policy-fixture-intent")
+        unit.stage_record(aggregate_kind="model_outbound_policy", record_id="model-policy:"+PROJECT_ID,
+                          expected_revision=0, payload=TypeAdapter(ModelOutboundPolicy).dump_python(
+                              _policy(), mode="json",
+                          ))
+        unit.commit("legacy-policy-fixture")
+        sequence = unit.current_commit_sequence()
+        response = core.api.dispatch(generation_command(), RELAY)
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='model-policy-generation-request', instance_id='policy-proof-...ion_context': {'project_revision': 1, 'binding_revision': None, 'template_revision': '1.0.0'}}}, page=None, error=None).error
+
+tests\unit\test_model_policy_approval.py:97: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_model_policy_approval.py::test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy
+FAILED tests/unit/test_model_policy_approval.py::test_default_generation_cannot_use_a_legacy_policy_without_saved_origin
+2 failed in 10.53s

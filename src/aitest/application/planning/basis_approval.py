@@ -69,7 +69,10 @@ class SavedBasisApprovalResolver:
     def _read(self, kind: str, identity: str, revision: int, project: str) -> dict[str, object]:
         if type(revision) is not int or revision < 1:
             raise ApprovalRequired("approval requires an exact saved owner/material revision")
-        record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+        try:
+            record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("the exact saved approval material is unavailable") from error
         payload = getattr(record, "payload", None)
         if (
             (

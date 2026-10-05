@@ -31,6 +31,11 @@ from aitest.application.approval_service import ApprovalService
 from aitest.application.errors import WorkspaceInUse
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
+from aitest.application.planning.model_policy_confirmation import (
+    ModelPolicyConfirmationService,
+    SavedHumanActionResolver,
+    SavedModelPolicyApprovalResolver,
+)
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -420,14 +425,30 @@ def assemble_workspace_core(
             def create(self) -> str:
                 return "approval-challenge-" + uuid4().hex
 
+        policy_resolver = SavedModelPolicyApprovalResolver(
+            unit_of_work.repo,
+            workspace.workspace_id,
+            "model:"
+            + (
+                model_secret_reference[1]
+                if model_secret_reference is not None and model_secret_reference[0] == "model"
+                else "not_configured"
+            ),
+        )
         approvals = ApprovalService(
             unit=unit_of_work,
             records=unit_of_work.repo,
             actors=actors,
-            resolver=SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
+            resolver=SavedHumanActionResolver(
+                SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
+                policy_resolver,
+            ),
             identities=ApprovalIdentity(),
             clock=SystemClock(),
             workspace_id=workspace.workspace_id,
+        )
+        policy_confirmations = ModelPolicyConfirmationService(
+            unit_of_work, approvals, policy_resolver
         )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
@@ -448,6 +469,8 @@ def assemble_workspace_core(
                 reader=reader, unit=unit_of_work, approvals=approvals
             ),
             basis_confirmation_proof=approvals,
+            model_policy_confirmations=policy_confirmations,
+            model_policy_proof=policy_confirmations,
             model_responses=FileModelResponseStore(
                 root, writer_epoch=workspace.identity["writer_epoch"]
             ),

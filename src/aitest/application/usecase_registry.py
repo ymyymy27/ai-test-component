@@ -79,6 +79,7 @@ from aitest.application.planning.model_orchestration import (
     policy_record_id,
     request_model_draft,
 )
+from aitest.application.planning.model_policy_confirmation import ModelPolicyConfirmationService
 from aitest.application.planning.model_ports import (
     CredentialResolver,
     MaterialProjector,
@@ -124,7 +125,12 @@ from aitest.application.planning.substrate import (
     current_record,
     transaction,
 )
-from aitest.application.ports import BasisConfirmationProof, Clock, ModelResponseStore
+from aitest.application.ports import (
+    BasisConfirmationProof,
+    Clock,
+    ModelPolicyConfirmationProof,
+    ModelResponseStore,
+)
 from aitest.application.project.context import ContextGap
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
@@ -890,6 +896,8 @@ class BUseCaseDependencies:
     basis_confirmations: BasisConfirmationService | None = None
     basis_confirmation_proof: BasisConfirmationProof | None = None
     model_responses: ModelResponseStore | None = None
+    model_policy_confirmations: ModelPolicyConfirmationService | None = None
+    model_policy_proof: ModelPolicyConfirmationProof | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -963,8 +971,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             basis_text_digest=_as_text(
                 _required(parameters, "basis_text_digest"), "basis_text_digest"
             ),
-            challenge_id=_optional_text(parameters.get("approval_challenge_id"),
-                                         "approval_challenge_id"),
+            challenge_id=_optional_text(
+                parameters.get("approval_challenge_id"), "approval_challenge_id"
+            ),
         )
 
     def handle_save_context(command: object) -> Mapping[str, object]:
@@ -1580,6 +1589,19 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_model_policy(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
+        if deps.model_policy_confirmations is not None:
+            policy_input = dict(parameters)
+            challenge = policy_input.pop("approval_challenge_id", None)
+            return deps.model_policy_confirmations.save(
+                project_id=project_id,
+                request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+                intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+                expected_revision=_int_of(
+                    getattr(command, "expected_revision", None), "expected_revision"
+                ),
+                parameters=policy_input,
+                challenge_id=_optional_text(challenge, "approval_challenge_id"),
+            )
         load_project(
             deps.reader,
             project_id=project_id,
@@ -1663,6 +1685,10 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
         if latest_policy is None or latest_policy.revision != revision:
             return {"blocked": True, "status": "blocked", "blocked_by": ["stale_outbound_policy"]}
+        if deps.model_policy_proof is not None:
+            deps.model_policy_proof.validate_model_policy(
+                project_id=project_id, record_revision=record.revision, payload=record.payload
+            )
 
         def basis_is_current() -> bool:
             try:
@@ -1678,7 +1704,13 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                     aggregate_kind="project",
                     record_id=project_id,
                 )
-            except (ValueError, OSError):
+                if deps.model_policy_proof is not None and latest is not None:
+                    deps.model_policy_proof.validate_model_policy(
+                        project_id=project_id,
+                        record_revision=latest.revision,
+                        payload=latest.payload,
+                    )
+            except (ValueError, OSError, RuntimeError, KeyError, TypeError):
                 return False
             return (
                 latest is not None

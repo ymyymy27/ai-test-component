@@ -14,6 +14,7 @@ from aitest.domain.planning.model_outbound import ModelOutboundPolicy, ModelTask
 from aitest.infrastructure.file_store.backup import FileBackupStore
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
+from tests.support.controlled_model_policy import controlled_policy_save
 from tests.unit.test_default_source_analysis import dispatch
 from tests.unit.test_model_basis_authority import (
     generate,
@@ -151,9 +152,8 @@ def test_ai_disabled_after_response_allows_local_historical_reconciliation(
     core, _, calls, _ = model_stack
     ref = pending_response(core, monkeypatch, source_revision=0)
     policy = replace(_policy(), revision=2, ai_enabled=False)
-    saved = dispatch(
+    saved = controlled_policy_save(
         core,
-        "save_model_outbound_policy",
         project=PROJECT_ID,
         intent="disable-policy",
         request="disable-policy-request",

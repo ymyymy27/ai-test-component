@@ -234,6 +234,18 @@ class BasisConfirmationProof(Protocol):
     ) -> None: ...
 
 
+class ModelPolicyConfirmationProof(Protocol):
+    """Validate exact policy origin before model sending; no new user event is invented."""
+
+    def validate_model_policy(
+        self,
+        *,
+        project_id: str,
+        record_revision: int,
+        payload: Mapping[str, object],
+    ) -> None: ...
+
+
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
 

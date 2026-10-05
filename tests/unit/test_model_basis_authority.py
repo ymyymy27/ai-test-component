@@ -12,6 +12,7 @@ from aitest.domain.planning.model_outbound import ModelOutboundPolicy, ModelTask
 from aitest.infrastructure.adapters.model import HttpResponse
 from aitest.infrastructure.credentials import EnvironmentSecretProvider, SecretManager
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+from tests.support.controlled_model_policy import controlled_policy_save
 from tests.unit.test_default_source_analysis import analyze, dispatch, seed
 from tests.unit.test_model_orchestration import PROJECT_ID, _policy
 
@@ -39,9 +40,8 @@ def model_stack(tmp_path, monkeypatch):
     source.mkdir()
     (source / "main.py").write_text("VALUE = 1\n", encoding="utf-8")
     seed(core, source, project=PROJECT_ID)
-    response = dispatch(
+    response = controlled_policy_save(
         core,
-        "save_model_outbound_policy",
         project=PROJECT_ID,
         parameters={
             "project_revision": 1,
