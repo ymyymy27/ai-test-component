@@ -1,0 +1,5 @@
+{
+  "tests": [{"command": ".venv/Scripts/python.exe -m pytest tests/unit/test_current_history_projection.py -q", "failed": 2, "passed": 0}],
+  "meaning": "Two controlled domain/projection counterexamples reproduce historical-consumer contamination of an independent current Step and loss of already-published redaction provenance. This is not real host or execution acceptance.",
+  "real_ac_verified": 0
+}

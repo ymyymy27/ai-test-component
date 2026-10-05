@@ -31,6 +31,9 @@ from aitest.application.planning.model_ports import (
     ProjectionStatus as ProjectionStatus,
 )
 from aitest.application.planning.substrate import (
+    AggregateKind as AggregateKind,
+)
+from aitest.application.planning.substrate import (
     CommittedRecord as CommittedRecord,
 )
 from aitest.application.planning.substrate import (
@@ -61,6 +64,7 @@ from aitest.domain.execution.runs import (
     StopRequestResult,
 )
 from aitest.domain.planning.model_outbound import MaterialKind
+from aitest.domain.planning.plans import Case, Plan
 
 
 class TransactionPort(Protocol):
@@ -259,11 +263,27 @@ class RecordRepository(Protocol):
 
 
 class RuntimeExecutionReader(Protocol):
-    """Read saved current facts and exact current checkpoints (BC-001 section 20)."""
+    """Read saved facts and all consumed current/history checkpoints (BC-001 section 20)."""
 
     def read_runtime_revision_facts(
         self, *, project_id: str, run_id: str
     ) -> ExecutionFacts: ...
+
+
+class RuntimeRevisionBasisReader(Protocol):
+    """Verify the exact saved sequence and readable effective case/step content."""
+
+    def read_effective_cases(
+        self, *, facts: ExecutionFacts, plan: Plan, initial_cases: tuple[Case, ...]
+    ) -> tuple[Case, ...]: ...
+
+
+class RevisionRecordReader(Protocol):
+    """Only exact B material reads, without query or preparation lookup capabilities."""
+
+    def read(
+        self, *, aggregate_kind: AggregateKind, record_id: str, revision: int
+    ) -> CommittedRecord: ...
 
 
 class EvidenceObjectStore(Protocol):

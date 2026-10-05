@@ -22,10 +22,12 @@ B 提供守卫规则"。因此本模块只做两件事：
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.planning.plans import (
     Case,
+    CaseRevisionRef,
     ConfirmationRecord,
     Plan,
     RunDriver,
@@ -113,8 +115,7 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
             attempt = attempts.get(step.current_attempt_id)
             if attempt is None:
                 raise ValueError(
-                    f"{step.step_id} references an unknown attempt "
-                    f"{step.current_attempt_id!r}"
+                    f"{step.step_id} references an unknown attempt {step.current_attempt_id!r}"
                 )
             if attempt.step_id != step.step_id:
                 raise ValueError("current execution attempt belongs to another step")
@@ -167,6 +168,7 @@ def request_runtime_revision(
     confirmations: Sequence[ConfirmationRecord],
     request: RuntimeRevisionRequest,
     facts: ExecutionFacts,
+    effective_case_revisions: Sequence[CaseRevisionRef] = (),
 ) -> RuntimeRevisionDecision:
     """消费一次运行中修订请求；返回决策（含拒绝原因与交接清单）。
 
@@ -178,5 +180,8 @@ def request_runtime_revision(
         cases=cases,
         confirmations=confirmations,
         request=request,
-        facts=runtime_facts_from_execution_facts(facts),
+        facts=replace(
+            runtime_facts_from_execution_facts(facts),
+            effective_case_revisions=tuple(effective_case_revisions),
+        ),
     )

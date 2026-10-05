@@ -1,0 +1,49 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_historical_consumption_bridge_invalidates_current_descendant_before_start _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-622/test_historical_consumption_br0")
+
+    def test_historical_consumption_bridge_invalidates_current_descendant_before_start(tmp_path):
+        unit, coordinator, published, domain = _saved_graph(tmp_path, historical_middle=True)
+        port = FakeExecutionPort()
+        original = port.start
+        observed = []
+    
+        def start(request):
+            current = coordinator.read_current_facts(project_id="project-1", run_id="run-1")
+            attempts = {item.attempt_id: item for item in current.attempts}
+            assert attempts["attempt-2"].state == attempts["attempt-3"].state == "invalidated"
+            assert attempts["independent-current-2"].state == "completed"
+            assert current.steps[1] == published.facts.steps[1]
+            assert set(current.coverage.invalidated_step_ids) == {"step-3"}
+            assert set(current.coverage.executed_attempt_ids) == {"independent-current-2", "attempt-4"}
+            observed.append(current)
+            return original(request)
+    
+        port.start = start
+        runner, attempt, request = _new_start(domain[0], port, coordinator)
+>       runner.start_attempt(attempt, request)
+
+tests\unit\test_current_attempt_transition_integrity.py:151: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\runner.py:473: in start_attempt
+    handle = self._execution_port.start(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = ExecutionRequest(project_id='project-1', run_id='run-1', step_id='step-1', attempt_id='replacement', intent_id='replac...d=None)), side_effect_class=<SideEffectClass.READ_ONLY: 'read_only'>, timeout_ms=None, expected_plan_revision_ref=None)
+
+    def start(request):
+        current = coordinator.read_current_facts(project_id="project-1", run_id="run-1")
+        attempts = {item.attempt_id: item for item in current.attempts}
+>       assert attempts["attempt-2"].state == attempts["attempt-3"].state == "invalidated"
+E       AssertionError: assert <AttemptState...: 'completed'> == 'invalidated'
+E         
+E         - invalidated
+E         + completed
+
+tests\unit\test_current_attempt_transition_integrity.py:141: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_historical_consumption_bridge_invalidates_current_descendant_before_start
+1 failed in 4.64s

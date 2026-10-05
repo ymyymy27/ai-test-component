@@ -18,9 +18,13 @@ from aitest.application.planning.serialization import (
     case_from_payload,
     confirmation_from_payload,
 )
-from aitest.application.planning.substrate import AggregateKind, RecordReader
-from aitest.application.ports import RuntimeExecutionReader
-from aitest.domain.planning.plans import Case, ConfirmationRecord, Plan
+from aitest.application.planning.substrate import AggregateKind
+from aitest.application.ports import (
+    RevisionRecordReader,
+    RuntimeExecutionReader,
+    RuntimeRevisionBasisReader,
+)
+from aitest.domain.planning.plans import Case, CaseRevisionRef, ConfirmationRecord, Plan
 from aitest.domain.planning.runtime_revision import (
     RuntimeRevisionDecision,
     RuntimeRevisionRequest,
@@ -29,8 +33,9 @@ from aitest.domain.planning.runtime_revision import (
 
 @dataclass(frozen=True, slots=True)
 class SavedRuntimeRevisionAssessment:
-    reader: RecordReader
+    reader: RevisionRecordReader
     execution: RuntimeExecutionReader
+    runtime_basis: RuntimeRevisionBasisReader | None = None
 
     def assess(
         self,
@@ -49,7 +54,9 @@ class SavedRuntimeRevisionAssessment:
         facts = self.execution.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         if (facts.project_id, facts.run_id) != (project_id, run_id):
             raise ValueError("runtime facts belong to another project or run")
-        if facts.runtime_revision_refs or facts.run.runtime_revision_refs:
+        if (facts.runtime_revision_refs or facts.run.runtime_revision_refs) and (
+            self.runtime_basis is None
+        ):
             raise ValueError("saved runtime revision sequence is not yet readable")
         ref = facts.plan_revision
         saved = self._read(project_id, "plan", ref.revision_id, ref.revision_no)
@@ -111,9 +118,26 @@ class SavedRuntimeRevisionAssessment:
             basis = change.next_case.assertion_basis
             if basis.text_digest != (text_digest(basis.text) or ""):
                 raise ValueError("proposed assertion text does not prove its digest")
-        confirmations = self._confirmations(project_id, cases, request, confirmation_ids)
+        effective = cases
+        if self.runtime_basis is not None:
+            effective = self.runtime_basis.read_effective_cases(
+                facts=facts, plan=plan, initial_cases=cases
+            )
+        confirmations = self._confirmations(project_id, effective, request, confirmation_ids)
         decision = request_runtime_revision(
-            plan=plan, cases=cases, confirmations=confirmations, request=request, facts=facts
+            plan=plan,
+            cases=effective,
+            confirmations=confirmations,
+            request=request,
+            facts=facts,
+            effective_case_revisions=tuple(
+                CaseRevisionRef(
+                    case.case_id, case.revision, case_content_digest(case, project_id=project_id)
+                )
+                for case in effective
+            )
+            if facts.runtime_revision_refs
+            else (),
         )
         latest = self.execution.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         if latest != facts:

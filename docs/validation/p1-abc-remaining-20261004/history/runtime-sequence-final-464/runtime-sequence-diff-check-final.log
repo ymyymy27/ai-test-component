@@ -1,0 +1,7 @@
+warning: in the working copy of 'docs/ABC剩余问题整改计划-2026-10-04.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/接口对接/进行中/BC-001-PreparedRun/contract.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/execution/current.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/planning/saved_runtime_revision.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/ports.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/domain/execution/dependencies.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_current_attempt_transition_integrity.py', LF will be replaced by CRLF the next time Git touches it

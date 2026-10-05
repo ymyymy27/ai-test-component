@@ -1,0 +1,203 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_basis_revision_saves_history_closure_and_preserves_independent_current _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000237D26581A0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-625/test_basis_revision_saves_hist0/tested"))
+
+    def test_basis_revision_saves_history_closure_and_preserves_independent_current(authoritative):
+        core, inputs, _ = authoritative
+        plan, cases, before = initial_basis(core, inputs)
+        first_step, _, consumer_step, descendant_step = before.steps
+        common = dict(
+            run_id=before.run_id,
+            expected_plan_revision_ref=PlanRevisionRef(**before.plan_revision.model_dump()),
+            state=AttemptState.COMPLETED,
+            capture_completeness=CaptureCompleteness.COMPLETE,
+        )
+        upstream = replace(
+            _attempt(),
+            **common,
+            attempt_id="basis-upstream",
+            intent_id="basis-upstream",
+            step_id=first_step.step_id,
+            step_revision_ref=StepRevisionRef(**first_step.step_revision_ref.model_dump()),
+        )
+        old_consumer = replace(
+            upstream,
+            attempt_id="basis-old-consumer",
+            intent_id="basis-old-consumer",
+            step_id=consumer_step.step_id,
+            step_revision_ref=StepRevisionRef(**consumer_step.step_revision_ref.model_dump()),
+            consumed_conditions=(ConsumedCondition(upstream.attempt_id, "condition-1", "sha256:one"),),
+        )
+        current_consumer = replace(
+            old_consumer,
+            attempt_id="basis-current-independent",
+            intent_id="basis-current-independent",
+            attempt_index=2,
+            consumed_conditions=(),
+        )
+        descendant = replace(
+            upstream,
+            attempt_id="basis-descendant",
+            intent_id="basis-descendant",
+            step_id=descendant_step.step_id,
+            step_revision_ref=StepRevisionRef(**descendant_step.step_revision_ref.model_dump()),
+            consumed_conditions=(
+                ConsumedCondition(old_consumer.attempt_id, "condition-2", "sha256:two"),
+            ),
+        )
+        domain = (upstream, old_consumer, current_consumer, descendant)
+        unit = core.unit_of_work
+        coordinator = ExecutionCommitCoordinator(unit, records=unit.repo)
+        for attempt in domain:
+            coordinator.commit_checkpoint(
+                project_id=inputs.project_id,
+                checkpoint=RecoveryRecord(
+                    RecoveryCheckpoint(
+                        attempt.run_id, attempt.step_id, attempt.attempt_id, "completed"
+                    ),
+                    attempt,
+                    project_id=inputs.project_id,
+                ),
+            )
+        current = dict(before.current_attempt_by_step)
+        current.update({attempt.step_id: attempt.attempt_id for attempt in domain})
+        controlled = before.model_copy(
+            update={
+                "committed_at": datetime.now(UTC),
+                "run_revision": before.run_revision + 1,
+                "run": before.run.model_copy(update={"run_revision": before.run_revision + 1}),
+                "attempts": tuple(
+                    project_attempt_fact(
+                        attempt, is_current=current[attempt.step_id] == attempt.attempt_id
+                    )
+                    for attempt in domain
+                ),
+                "current_attempt_by_step": current,
+                "steps": tuple(
+                    step.model_copy(
+                        update={
+                            "current_attempt_id": current[step.step_id],
+                            "state": StepStateFact.COMPLETED,
+                        }
+                    )
+                    if current[step.step_id] is not None
+                    else step
+                    for step in before.steps
+                ),
+                "coverage": before.coverage.model_copy(
+                    update={
+                        "executed_attempt_ids": (
+                            upstream.attempt_id,
+                            current_consumer.attempt_id,
+                            descendant.attempt_id,
+                        )
+                    }
+                ),
+            }
+        )
+        unit.begin(
+            "controlled-history-fixture", inputs.project_id, intent_id="controlled-history-fixture"
+        )
+        _, controlled = coordinator._stage_snapshot(controlled, allow_current_change=True)
+        unit.commit("controlled-history-fixture")
+        next_text = cases[0].assertion_basis.text + " with a stricter check"
+        changed = saved_next_case(
+            core,
+            inputs,
+            replace(
+                cases[0],
+                revision=2,
+                assertion_basis=replace(
+                    cases[0].assertion_basis,
+                    revision=2,
+                    text=next_text,
+                    text_digest=text_digest(next_text),
+                ),
+            ),
+        )
+>       after = apply(
+            core, plan, controlled, revision_request(controlled, changed), intent="basis-update"
+        )
+
+tests\unit\test_runtime_revision_invalidation.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_persisted_runtime_revision.py:126: in apply
+    return RuntimeRevisionService(unit=core.unit_of_work, records=core.unit_of_work.repo).apply(
+src\aitest\application\execution\runtime_revision_service.py:32: in apply
+    result, created = self.coordinator.stage_runtime_revision(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.application.execution.commit.ExecutionCommitCoordinator object at 0x00000237D2583A80>
+project_id = 'project-ticket'
+run_id = 'run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b'
+plan = Plan(plan_id='plan-ticket', revision=1, scope=AcceptanceScope(scope_id='scope-ticket', revision=1, name='ticket lifecy...'>, status=<PlanPublicationStatus.PUBLISHED: 'published'>, confirmation_id='saved-publication-view', record_revision=1)
+request = RuntimeRevisionRequest(base_plan_revision_id='plan-ticket', base_plan_revision_no=1, observed_snapshot_cursor=32, case..._plan_revision_digest='sha256:06752707902cd6c84a484b3911464ce37d8b476d69c657386889833028b1667f', requested_driver=None)
+intent_id = 'basis-update', confirmation_ids = ()
+
+    def stage_runtime_revision(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        plan: Plan,
+        request: RuntimeRevisionRequest,
+        intent_id: str,
+        confirmation_ids: tuple[str, ...] = (),
+    ) -> tuple[ExecutionFacts, bool]:
+        """Reassess and derive one exact revision in the caller's short transaction.
+    
+        This action constructs the permitted projection itself. It accepts no
+        replacement facts, revision sequence number or generic admission bypass.
+        Proposed Case revisions must already be accurately saved by B.
+        """
+        if self._records is None or not intent_id.strip():
+            raise ValueError("runtime revision requires saved authority and a persistent intent")
+        reader = SavedRuntimeRevisionReader(self._records)
+        record_id = revision_record_id(project_id, run_id, intent_id)
+        request_payload = revision_request_payload(request, project_id)
+        request_from_payload(request_payload, project_id)
+        fingerprint = revision_input_digest(
+            project_id=project_id,
+            run_id=run_id,
+            request_payload=request_payload,
+            confirmation_ids=confirmation_ids,
+        )
+        if self._revision("run_plan_revision", record_id):
+            original = reader.read_record(
+                project_id=project_id, reference=f"run_plan_revision:{record_id}@1"
+            )
+            if original.run_id != run_id or original.input_digest != fingerprint:
+                raise ValueError("runtime revision intent conflicts with saved input")
+            result = reader.read_snapshot(
+                project_id=project_id, run_id=run_id, reference=original.result_snapshot
+            )
+            if (
+                len(result.runtime_revision_refs) != original.revision_no
+                or result.runtime_revision_refs[-1] != original.reference
+                or result.facts_id != "runtime-revision:" + record_id
+            ):
+                raise ValueError("runtime revision receipt does not identify its exact result")
+            return result, False
+        before = self.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
+        assessment = SavedRuntimeRevisionAssessment(
+            reader=RuntimePlanningRecordReader(reader, project_id),
+            execution=self,
+            runtime_basis=reader,
+        )
+        decision = assessment.assess(
+            project_id=project_id,
+            run_id=run_id,
+            plan=plan,
+            request=request,
+            confirmation_ids=confirmation_ids,
+        )
+        if not decision.accepted:
+>           raise RuntimeRevisionRefused(decision)
+E           aitest.domain.planning.runtime_revision.RuntimeRevisionRefused: runtime revision refused: no_unexecuted_step
+
+src\aitest\application\execution\commit.py:778: RuntimeRevisionRefused
+=========================== short test summary info ===========================
+FAILED tests/unit/test_runtime_revision_invalidation.py::test_basis_revision_saves_history_closure_and_preserves_independent_current
+1 failed in 48.64s

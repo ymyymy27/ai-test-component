@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from aitest.application.execution.facts import project_attempt_fact
+from aitest.application.execution.facts import project_attempt_fact, project_attempt_update
 from aitest.contracts.execution_facts import (
     AttemptStateFact,
     DependencyInvalidationFact,
@@ -27,8 +27,8 @@ def project_current_update(
     changes[attempt.attempt_id] = attempt
     current = {**previous.current_attempt_by_step, attempt.step_id: attempt.attempt_id}
     attempts = tuple(
-        project_attempt_fact(
-            changes[item.attempt_id], is_current=current[item.step_id] == item.attempt_id
+        project_attempt_update(
+            changes[item.attempt_id], item, is_current=current[item.step_id] == item.attempt_id
         )
         if item.attempt_id in changes
         else item.model_copy(update={"is_current": current[item.step_id] == item.attempt_id})
@@ -37,7 +37,11 @@ def project_current_update(
     if all(item.attempt_id != attempt.attempt_id for item in attempts):
         attempts += (project_attempt_fact(attempt, is_current=True),)
     by_id = {item.attempt_id: item for item in attempts}
-    affected_steps = {item.attempt.step_id: item for item in invalidations}
+    affected_steps = {
+        item.attempt.step_id: item
+        for item in invalidations
+        if current.get(item.attempt.step_id) == item.attempt.attempt_id
+    }
     steps = []
     for step in previous.steps:
         if step.step_id == attempt.step_id:

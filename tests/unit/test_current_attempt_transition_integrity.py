@@ -42,7 +42,7 @@ def _record(attempt, stage="completed"):
     )
 
 
-def _saved_graph(root, middle_state=AttemptState.COMPLETED):
+def _saved_graph(root, middle_state=AttemptState.COMPLETED, *, historical_middle=False):
     unit = FileUnitOfWork(root)
     save_fixture_bytes(root)
     coordinator = ExecutionCommitCoordinator(unit)
@@ -66,6 +66,18 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED):
                 state=middle_state if index == 2 else AttemptState.COMPLETED,
             )
         )
+    if historical_middle:
+        domain.append(
+            replace(
+                domain[1],
+                attempt_id="independent-current-2",
+                intent_id="independent-intent-2",
+                attempt_index=2,
+                consumed_outputs=(),
+                consumed_conditions=(),
+            )
+        )
+    current = {attempt.step_id: attempt.attempt_id for attempt in domain}
     for attempt in domain[1:]:
         coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
     steps = tuple(
@@ -78,7 +90,7 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED):
                     digest=attempt.step_revision_ref.digest,
                 ),
                 "ordinal": index,
-                "current_attempt_id": attempt.attempt_id,
+                "current_attempt_id": current[attempt.step_id],
                 "state": StepStateFact(
                     "pending"
                     if attempt.state is AttemptState.INTENT_RECORDED
@@ -90,20 +102,60 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED):
                 ),
             }
         )
-        for index, attempt in enumerate(domain, 1)
+        for index, attempt in enumerate(domain[:4], 1)
     )
     facts = batch.facts.model_copy(
         update={
             "steps": steps,
-            "attempts": tuple(project_attempt_fact(attempt, is_current=True) for attempt in domain),
-            "current_attempt_by_step": {attempt.step_id: attempt.attempt_id for attempt in domain},
+            "attempts": tuple(
+                project_attempt_fact(
+                    attempt, is_current=current[attempt.step_id] == attempt.attempt_id
+                )
+                for attempt in domain
+            ),
+            "current_attempt_by_step": current,
             "coverage": batch.facts.coverage.model_copy(
-                update={"executed_attempt_ids": tuple(attempt.attempt_id for attempt in domain)}
+                update={
+                    "executed_attempt_ids": tuple(
+                        attempt.attempt_id
+                        for attempt in domain
+                        if current[attempt.step_id] == attempt.attempt_id
+                    )
+                }
             ),
         }
     )
     published = _publish(unit, replace(batch, checkpoint=_record(first), facts=facts))
     return unit, coordinator, published, domain
+
+
+def test_historical_consumption_bridge_invalidates_current_descendant_before_start(tmp_path):
+    unit, coordinator, published, domain = _saved_graph(tmp_path, historical_middle=True)
+    port = FakeExecutionPort()
+    original = port.start
+    observed = []
+
+    def start(request):
+        current = coordinator.read_current_facts(project_id="project-1", run_id="run-1")
+        attempts = {item.attempt_id: item for item in current.attempts}
+        assert attempts["attempt-2"].state == attempts["attempt-3"].state == "invalidated"
+        assert attempts["independent-current-2"].state == "completed"
+        assert current.steps[1] == published.facts.steps[1]
+        assert set(current.coverage.invalidated_step_ids) == {"step-3"}
+        assert set(current.coverage.executed_attempt_ids) == {"independent-current-2", "attempt-4"}
+        observed.append(current)
+        return original(request)
+
+    port.start = start
+    runner, attempt, request = _new_start(domain[0], port, coordinator)
+    runner.start_attempt(attempt, request)
+    assert len(observed) == len(port.started) == 1
+    assert (
+        unit.read(aggregate_kind="execution_checkpoint", record_id="attempt-2", revision=1).payload[
+            "attempt"
+        ]["state"]
+        == "completed"
+    )
 
 
 def _new_start(first, port, coordinator):

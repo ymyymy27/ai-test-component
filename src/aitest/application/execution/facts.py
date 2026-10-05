@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -66,6 +68,83 @@ from aitest.domain.evidence.evidence import (
 )
 from aitest.domain.execution.runs import Attempt, PlanRevisionRef, Run, Step
 from aitest.domain.execution.sources import ExecutionSourceVerification, SourceCheckResult
+
+
+def execution_payload_digest(payload: Mapping[str, object]) -> str:
+    """The existing canonical C snapshot bytes, shared by pointers and lineage."""
+    encoded = json.dumps(
+        dict(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def project_attempt_update(
+    attempt: Attempt, previous: AttemptFact, *, is_current: bool
+) -> AttemptFact:
+    """Retain published redaction provenance only for the identical output block."""
+    projected = project_attempt_fact(attempt, is_current=is_current)
+    saved = {block.block_id: block for block in previous.output_blocks}
+    blocks = []
+    for block in projected.output_blocks:
+        old = saved.get(block.block_id)
+        if old is not None and old.model_dump(exclude={"redaction_summary"}) == block.model_dump(
+            exclude={"redaction_summary"}
+        ):
+            block = block.model_copy(update={"redaction_summary": old.redaction_summary})
+        blocks.append(block)
+    return projected.model_copy(update={"output_blocks": tuple(blocks)})
+
+
+def validate_frozen_step_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
+    before = {step.step_id: step for step in previous.steps}
+    after = {step.step_id: step for step in facts.steps}
+    if set(before) != set(after):
+        raise ValueError("publication cannot add or remove frozen steps")
+    frozen = (
+        "case_id",
+        "ordinal",
+        "required_for_case",
+        "level",
+        "dependency_step_ids",
+        "registered_entry_ref",
+        "assertion_refs",
+        "evidence_requirement_ids",
+        "step_revision_ref",
+    )
+    if any(
+        getattr(after[identity], field) != getattr(step, field)
+        for identity, step in before.items()
+        for field in frozen
+    ):
+        raise ValueError("publication cannot rewrite frozen step execution basis")
+
+
+def validate_frozen_run_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
+    """Progress and attempt claims cannot substitute for controlled runtime actions."""
+    frozen = (
+        "origin_workspace_id",
+        "intent_id",
+        "tier",
+        "required_scope",
+        "selected_scope",
+        "plan_revision",
+        "environment_ref",
+        "environment_isolation_mode",
+        "rules_revision",
+        "conclusion_ceiling",
+        "driver",
+        "source_binding_digest",
+        "runtime_revision_refs",
+    )
+    if facts.run_revision < previous.run_revision or any(
+        getattr(facts.run, field) != getattr(previous.run, field) for field in frozen
+    ):
+        raise ValueError("publication cannot rewrite the frozen run identity or runtime revision")
+    for scope_field in ("mandatory_case_ids", "selected_case_ids"):
+        before = getattr(previous.coverage, scope_field)
+        after = getattr(facts.coverage, scope_field)
+        if set(before) != set(after) or len(after) != len(set(after)):
+            raise ValueError("publication cannot rewrite the frozen coverage scope")
 
 
 def _enum[EnumT: StrEnum](enum_type: type[EnumT], value: str) -> EnumT:
@@ -566,4 +645,8 @@ __all__ = [
     "ExecutionFactsAssembly",
     "ExecutionFactsBoundary",
     "project_attempt_fact",
+    "project_attempt_update",
+    "execution_payload_digest",
+    "validate_frozen_run_basis",
+    "validate_frozen_step_basis",
 ]

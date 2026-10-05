@@ -1,0 +1,49 @@
+{
+  "test_groups": [
+    {
+      "log": "runtime-sequence-history-guards.log",
+      "passed": 77,
+      "seconds": 46.14
+    },
+    {
+      "log": "runtime-sequence-final-file.log",
+      "passed": 6,
+      "seconds": 237.05
+    },
+    {
+      "log": "runtime-sequence-invalidation-final.log",
+      "passed": 11,
+      "seconds": 53.97
+    },
+    {
+      "log": "runtime-sequence-redaction-identity.log",
+      "passed": 1,
+      "seconds": 0.22
+    },
+    {
+      "log": "runtime-sequence-regressions.log",
+      "passed": 371,
+      "seconds": 1106.79
+    }
+  ],
+  "distinct_passed": 464,
+  "overlaps": {
+    "runtime-sequence-invalidation-final.log": "Two history projection nodes also passed in the 77-node guard group."
+  },
+  "checks": {
+    "ruff": "runtime-sequence-ruff-final.log",
+    "mypy": "runtime-sequence-mypy.log",
+    "schemas": "runtime-sequence-schema.log",
+    "version": "runtime-sequence-version.log",
+    "build": "runtime-sequence-build.log",
+    "wheel_smoke": "runtime-sequence-wheel-smoke.log",
+    "package_content": "runtime-sequence-package-content.log",
+    "doc_links": "runtime-sequence-doc-links-final.log"
+  },
+  "full_python_rerun": false,
+  "real_ac_verified": 0,
+  "limitations": [
+    "Controlled file/checkpoint graph, paused projections and FakeExecutionPort are not actual Trae or business source/environment acceptance.",
+    "Default trusted actions, runtime registration/authorization mapping and real runner/D consumption remain under implementation."
+  ]
+}

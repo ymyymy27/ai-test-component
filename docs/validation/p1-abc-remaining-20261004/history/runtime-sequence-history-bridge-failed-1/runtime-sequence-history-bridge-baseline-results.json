@@ -1,0 +1,5 @@
+{
+  "tests": [{"command": ".venv/Scripts/python.exe -m pytest -o addopts='' tests/unit/test_current_attempt_transition_integrity.py::test_historical_consumption_bridge_invalidates_current_descendant_before_start -q", "failed": 1, "passed": 0, "seconds": 4.64}],
+  "meaning": "A real file/UOW with a controlled saved consumption graph reproduces omission of historical intermediary attempts before the fake external start. The current independent branch must remain valid while the actual current descendant through the historical branch becomes outdated.",
+  "real_ac_verified": 0
+}

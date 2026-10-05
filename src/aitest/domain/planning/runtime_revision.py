@@ -43,6 +43,7 @@ from aitest.domain.planning.plans import (
     AssertionBasis,
     AssertionBasisState,
     Case,
+    CaseRevisionRef,
     ConfirmationRecord,
     Plan,
     PlanPublicationStatus,
@@ -226,6 +227,7 @@ class RunRuntimeFacts:
     frozen_required_case_ids: frozenset[str] = frozenset()
     mandatory_case_ids: frozenset[str] = frozenset()
     steps: tuple[StepRuntimeFacts, ...] = ()
+    effective_case_revisions: tuple[CaseRevisionRef, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.run_id, "run_id")
@@ -241,6 +243,9 @@ class RunRuntimeFacts:
         if self.runtime_revision_count < 0:
             raise ValueError("runtime_revision_count must be >= 0")
         _require_unique([step.step_id for step in self.steps], "step_id")
+        _require_unique([ref.case_id for ref in self.effective_case_revisions], "effective case_id")
+        if any(type(ref.revision) is not int for ref in self.effective_case_revisions):
+            raise ValueError("effective case references require exact integer revisions")
 
     def steps_of(self, case_id: str) -> tuple[StepRuntimeFacts, ...]:
         return tuple(step for step in self.steps if step.case_id == case_id)
@@ -331,9 +336,7 @@ class RuntimeRevisionRequest:
         _require_text(self.operator_ref, "operator_ref")
         if not self.case_changes:
             raise ValueError("a runtime revision must change at least one case")
-        _require_unique(
-            [change.next_case.case_id for change in self.case_changes], "case_id"
-        )
+        _require_unique([change.next_case.case_id for change in self.case_changes], "case_id")
 
 
 @dataclass(frozen=True, slots=True)
@@ -391,9 +394,7 @@ _BASIS_RANK: dict[AssertionBasisState, int] = {
 }
 
 
-def assertion_basis_weakened(
-    *, current: AssertionBasis, requested: AssertionBasis
-) -> bool:
+def assertion_basis_weakened(*, current: AssertionBasis, requested: AssertionBasis) -> bool:
     """按**内容**判定断言是否被弱化，不看调用者怎么称呼这次改动。
 
     - 把依据改回 `missing`（删掉断言）→ 弱化；
@@ -477,9 +478,7 @@ def evaluate_runtime_revision(
     effective_driver = facts.driver
     new_run_required = False
     try:
-        effective_driver = narrow_driver(
-            facts.driver, request.requested_driver or facts.driver
-        )
+        effective_driver = narrow_driver(facts.driver, request.requested_driver or facts.driver)
     except ValueError:
         refuse(
             RuntimeRevisionRefusalCode.DRIVER_EXPANSION,
@@ -490,11 +489,23 @@ def evaluate_runtime_revision(
         effective_driver = facts.driver
 
     frozen_refs = {ref.case_id: ref for ref in plan.case_revisions}
+    effective_refs = {ref.case_id: ref for ref in facts.effective_case_revisions}
+    if effective_refs and (
+        set(effective_refs) != set(frozen_refs)
+        or facts.runtime_revision_count < 1
+        or any(
+            ref.revision < frozen_refs[key].revision
+            for key, ref in effective_refs.items()
+            if key in frozen_refs
+        )
+    ):
+        refuse(
+            RuntimeRevisionRefusalCode.FROZEN_CASE_REVISION_MISMATCH,
+            "effective case references require the complete saved runtime basis",
+        )
     provided = {case.case_id: case for case in cases}
     mandatory = (
-        plan.scope.required_case_ids
-        | facts.frozen_required_case_ids
-        | facts.mandatory_case_ids
+        plan.scope.required_case_ids | facts.frozen_required_case_ids | facts.mandatory_case_ids
     )
 
     affected: list[str] = []
@@ -508,6 +519,7 @@ def evaluate_runtime_revision(
         next_case = change.next_case
         case_id = next_case.case_id
         frozen_ref = frozen_refs.get(case_id)
+        effective_ref = effective_refs.get(case_id, frozen_ref)
         current = provided.get(case_id)
 
         if frozen_ref is None:
@@ -516,17 +528,18 @@ def evaluate_runtime_revision(
                 f"{case_id} is not frozen in the published plan",
             )
             continue
-        if current is None or current.revision != frozen_ref.revision:
+        assert effective_ref is not None
+        if current is None or current.revision != effective_ref.revision:
             refuse(
                 RuntimeRevisionRefusalCode.FROZEN_CASE_REVISION_MISMATCH,
-                f"{case_id} needs the frozen case revision {frozen_ref.revision}",
+                f"{case_id} needs the effective case revision {effective_ref.revision}",
             )
             continue
-        if next_case.revision <= frozen_ref.revision:
+        if next_case.revision <= effective_ref.revision:
             refuse(
                 RuntimeRevisionRefusalCode.CASE_REVISION_NOT_ADVANCED,
                 f"{case_id} next revision {next_case.revision} must advance past "
-                f"{frozen_ref.revision}",
+                f"{effective_ref.revision}",
             )
 
         if change.remove_from_required and case_id in mandatory:
@@ -592,9 +605,7 @@ def evaluate_runtime_revision(
             continue
 
         executing = [
-            step.step_id
-            for step in case_steps
-            if step.progress() is StepRuntimeProgress.EXECUTING
+            step.step_id for step in case_steps if step.progress() is StepRuntimeProgress.EXECUTING
         ]
         if executing:
             refuse(
@@ -620,19 +631,14 @@ def evaluate_runtime_revision(
             if named_recorded:
                 refuse(
                     RuntimeRevisionRefusalCode.STEP_FACTS_ALREADY_RECORDED,
-                    "steps that already recorded facts cannot be rewritten: "
-                    f"{named_recorded}",
+                    f"steps that already recorded facts cannot be rewritten: {named_recorded}",
                 )
-            targets = [
-                step for step in case_steps if step.step_id in set(change.target_step_ids)
-            ]
+            targets = [step for step in case_steps if step.step_id in set(change.target_step_ids)]
         else:
             targets = list(case_steps)
 
         fresh = sorted(
-            step.step_id
-            for step in targets
-            if step.progress() is StepRuntimeProgress.NOT_STARTED
+            step.step_id for step in targets if step.progress() is StepRuntimeProgress.NOT_STARTED
         )
         if not fresh:
             refuse(
