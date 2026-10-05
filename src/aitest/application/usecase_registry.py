@@ -124,7 +124,7 @@ from aitest.application.planning.substrate import (
     current_record,
     transaction,
 )
-from aitest.application.ports import Clock, ModelResponseStore
+from aitest.application.ports import BasisConfirmationProof, Clock, ModelResponseStore
 from aitest.application.project.context import ContextGap
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
@@ -888,6 +888,7 @@ class BUseCaseDependencies:
     workspace_id: str | None = None
     source_analysis: SourceAnalysisService | None = None
     basis_confirmations: BasisConfirmationService | None = None
+    basis_confirmation_proof: BasisConfirmationProof | None = None
     model_responses: ModelResponseStore | None = None
 
 
@@ -962,6 +963,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             basis_text_digest=_as_text(
                 _required(parameters, "basis_text_digest"), "basis_text_digest"
             ),
+            challenge_id=_optional_text(parameters.get("approval_challenge_id"),
+                                         "approval_challenge_id"),
         )
 
     def handle_save_context(command: object) -> Mapping[str, object]:
@@ -1266,6 +1269,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                     candidate,
                     reader=deps.reader,
                     workspace_id=deps.workspace_id,
+                    approvals=deps.basis_confirmation_proof,
                 )
             ),
         )

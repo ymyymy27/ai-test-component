@@ -49,6 +49,7 @@ from aitest.contracts.queries import Query, QuerySpec
 from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.contracts.verification import VerificationFact
+from aitest.domain.approvals import ActionBasis, TrustedActor
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
 from aitest.domain.evidence.evidence import StoredObjectRef, Verification
 from aitest.domain.execution.runs import (
@@ -191,6 +192,48 @@ class Clock(Protocol):
     def monotonic(self) -> float: ...
 
 
+class ControlledActorContext(Protocol):
+    """Allocated by the core entry; never populated from command parameters."""
+
+    def current(self) -> TrustedActor: ...
+
+
+class ApprovalActionResolver(Protocol):
+    """Freeze/revalidate actual action material without inventing a user gesture."""
+
+    def resolve(
+        self,
+        *,
+        project_id: str,
+        intent_id: str,
+        action: str,
+        target: str,
+        parameters: Mapping[str, object],
+    ) -> ActionBasis: ...
+
+
+class ApprovalIdentitySource(Protocol):
+    """Opaque identity allocation is independent of approval permission."""
+
+    def create(self) -> str: ...
+
+
+class ApprovalRecords(Protocol):
+    """Exact immutable approval reads; no scan or arbitrary query capability."""
+
+    def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> object: ...
+
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int: ...
+
+
+class BasisConfirmationProof(Protocol):
+    """Validate saved controlled origin, without inventing a new confirmation."""
+
+    def validate_basis_confirmation(
+        self, *, project_id: str, payload: Mapping[str, object]
+    ) -> None: ...
+
+
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
 
@@ -265,9 +308,7 @@ class RecordRepository(Protocol):
 class RuntimeExecutionReader(Protocol):
     """Read saved facts and all consumed current/history checkpoints (BC-001 section 20)."""
 
-    def read_runtime_revision_facts(
-        self, *, project_id: str, run_id: str
-    ) -> ExecutionFacts: ...
+    def read_runtime_revision_facts(self, *, project_id: str, run_id: str) -> ExecutionFacts: ...
 
 
 class RuntimeRevisionBasisReader(Protocol):

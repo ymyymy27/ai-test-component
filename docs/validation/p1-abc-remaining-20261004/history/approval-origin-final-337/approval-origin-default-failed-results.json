@@ -1,0 +1,7 @@
+{
+  "passed": 11,
+  "failed": 1,
+  "seconds": 146.9,
+  "log": "approval-origin-default-expanded.log",
+  "reason": "The negative legacy-origin fixture attached a confirmation for case_revisions[0] to assertion_bases[0], which can name a different case; exact ConfirmationRef validation correctly rejected the mismatched fixture before the origin guard."
+}

@@ -20,6 +20,7 @@ from aitest.application.planning.serialization import (
 )
 from aitest.application.planning.substrate import AggregateKind
 from aitest.application.ports import (
+    BasisConfirmationProof,
     RevisionRecordReader,
     RuntimeExecutionReader,
     RuntimeRevisionBasisReader,
@@ -36,6 +37,7 @@ class SavedRuntimeRevisionAssessment:
     reader: RevisionRecordReader
     execution: RuntimeExecutionReader
     runtime_basis: RuntimeRevisionBasisReader | None = None
+    approvals: BasisConfirmationProof | None = None
 
     def assess(
         self,
@@ -193,6 +195,8 @@ class SavedRuntimeRevisionAssessment:
         confirmations: list[ConfirmationRecord] = []
         for identity in identities:
             raw = self._read(project_id, "case_link", identity, 1)
+            if self.approvals is not None:
+                self.approvals.validate_basis_confirmation(project_id=project_id, payload=raw)
             confirmation = confirmation_from_payload(raw)
             case_revision = raw.get("case_revision")
             intent = raw.get("intent_id")

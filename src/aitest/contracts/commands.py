@@ -19,6 +19,8 @@ HUMAN_ACTIONS = frozenset(
         "save_binding",
         "bind_project",
         "confirm_basis",
+        "prepare_approval",
+        "revoke_approval",
     }
 )
 PHASE_ONE_ACTIONS = frozenset(
@@ -30,6 +32,8 @@ PHASE_ONE_ACTIONS = frozenset(
         "analyze_project",
         "check_source",
         "confirm_basis",
+        "prepare_approval",
+        "revoke_approval",
         "save_model_outbound_policy",
         "save_project_view_preference",
         "save_rules",

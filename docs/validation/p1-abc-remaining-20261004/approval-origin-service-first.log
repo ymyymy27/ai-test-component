@@ -1,0 +1,38 @@
+..................................                                       [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_approval_service.py::test_exact_confirm_single_use_and_original_replay_without_another_click
+PASSED tests/unit/test_approval_service.py::test_preparation_fault_has_no_partial_challenge_and_releases_transaction[1]
+PASSED tests/unit/test_approval_service.py::test_preparation_fault_has_no_partial_challenge_and_releases_transaction[2]
+PASSED tests/unit/test_approval_service.py::test_preparation_fault_has_no_partial_challenge_and_releases_transaction[before_commit]
+PASSED tests/unit/test_approval_service.py::test_confirmation_fault_never_leaves_consumption_without_the_saved_receipt[1]
+PASSED tests/unit/test_approval_service.py::test_confirmation_fault_never_leaves_consumption_without_the_saved_receipt[2]
+PASSED tests/unit/test_approval_service.py::test_confirmation_fault_never_leaves_consumption_without_the_saved_receipt[3]
+PASSED tests/unit/test_approval_service.py::test_confirmation_fault_never_leaves_consumption_without_the_saved_receipt[4]
+PASSED tests/unit/test_approval_service.py::test_confirmation_fault_never_leaves_consumption_without_the_saved_receipt[before_commit]
+PASSED tests/unit/test_approval_service.py::test_published_response_loss_recalls_the_original_result[prepare]
+PASSED tests/unit/test_approval_service.py::test_published_response_loss_recalls_the_original_result[confirm]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[no_gesture]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[relay]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[noninteractive]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[session]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[project]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[workspace]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[gesture_session]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[gesture_challenge]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[gesture_digest]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[input]
+PASSED tests/unit/test_approval_service.py::test_actor_gesture_and_material_mismatch_never_writes_consent[material]
+PASSED tests/unit/test_approval_service.py::test_revocation_is_idempotent_and_only_origin_session_can_revoke
+PASSED tests/unit/test_approval_service.py::test_one_actual_interaction_cannot_confirm_two_challenges
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[challenge]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[interaction]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[receipt]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[material]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[extra]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[revision]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[state]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[digest]
+PASSED tests/unit/test_approval_service.py::test_saved_receipt_requires_complete_exact_origin_after_restart[origin]
+PASSED tests/unit/test_approval_service.py::test_preparation_rechecks_actor_and_material_after_acquiring_writer
+34 passed in 0.35s

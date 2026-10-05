@@ -13,12 +13,17 @@ from aitest.application.planning.serialization import (
     confirmation_from_payload,
 )
 from aitest.application.planning.substrate import AggregateKind, RecordReader
+from aitest.application.ports import BasisConfirmationProof
 from aitest.contracts.prepared_run import BlockingReason, PreparedRun
 from aitest.domain.planning.plans import effective_assertion_basis_state
 
 
 def validate_prepared_material(
-    prepared: PreparedRun, *, reader: RecordReader, workspace_id: str | None = None
+    prepared: PreparedRun,
+    *,
+    reader: RecordReader,
+    workspace_id: str | None = None,
+    approvals: BasisConfirmationProof | None = None,
 ) -> tuple[BlockingReason, ...]:
     report = check_frozen_basis(prepared, reader=reader)
     problems = [
@@ -32,13 +37,15 @@ def validate_prepared_material(
         problems.append("preparation belongs to another workspace")
     if not problems:
         try:
-            _verify_links(prepared, reader)
+            _verify_links(prepared, reader, approvals)
         except (ValueError, TypeError, KeyError, OSError) as error:
             problems.append(str(error) or "frozen content is malformed")
     return tuple(BlockingReason(code="basis_unverified", message=problem) for problem in problems)
 
 
-def _verify_links(prepared: PreparedRun, reader: RecordReader) -> None:
+def _verify_links(
+    prepared: PreparedRun, reader: RecordReader, approvals: BasisConfirmationProof | None = None
+) -> None:
     def read(kind: AggregateKind, record: str, revision: int) -> dict[str, Any]:
         stored = reader.read(
             aggregate_kind=kind,
@@ -141,6 +148,10 @@ def _verify_links(prepared: PreparedRun, reader: RecordReader) -> None:
         confirmations = []
         for ref_confirmation in entry.confirmation_refs:
             saved_confirmation = read("case_link", ref_confirmation.confirmation_id, 1)
+            if approvals is not None:
+                approvals.validate_basis_confirmation(
+                    project_id=prepared.project_id, payload=saved_confirmation
+                )
             confirmation = confirmation_from_payload(saved_confirmation)
             intent = saved_confirmation.get("intent_id")
             declared_digest = payload_digest(

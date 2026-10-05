@@ -4,18 +4,18 @@ from dataclasses import replace
 
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.prepared_run import AssertionBasisStateFact, ConfirmationRef
+from tests.support.controlled_confirmation import basis_command, controlled_basis_confirm
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
-from tests.unit.test_default_source_analysis import AGENT, dispatch
+from tests.unit.test_default_source_analysis import AGENT
 
 
 def confirm(core, inputs, **kwargs):
     entry = inputs.assertion_bases[0]
-    return dispatch(
-        core,
-        "confirm_basis",
-        project=inputs.project_id,
-        parameters={
+    session = kwargs.pop("session", None)
+    command = basis_command(
+        inputs.project_id,
+        {
             "case_id": entry.case_id,
             "case_revision": 1,
             "basis_revision": entry.basis_revision,
@@ -23,6 +23,7 @@ def confirm(core, inputs, **kwargs):
         },
         **kwargs,
     )
+    return controlled_basis_confirm(core, command, session=session)
 
 
 def test_default_confirmation_freezes_exact_basis_and_preserves_plan_and_case(authoritative):

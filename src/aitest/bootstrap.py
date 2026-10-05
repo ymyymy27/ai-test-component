@@ -27,7 +27,9 @@ from types import MappingProxyType
 from typing import cast
 from uuid import uuid4
 
+from aitest.application.approval_service import ApprovalService
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
@@ -35,6 +37,7 @@ from aitest.application.planning.substrate_adapter import (
 )
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
+from aitest.contracts.commands import Command
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
 )
@@ -77,6 +80,7 @@ from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.infrastructure.projections import SafeMaterialProjector
 from aitest.infrastructure.security import guard_value
+from aitest.interfaces.local.actor_context import CoreActorContext
 from aitest.interfaces.local.api import Handler, LocalAPI
 from aitest.interfaces.local.b_registration import b_registration_for
 from aitest.interfaces.local.editor_host import (
@@ -409,6 +413,21 @@ def assemble_workspace_core(
         gate.require_if(
             "generate_draft", parameter="generation_mode", equals="model", keys=(MODEL, SECRET)
         )
+        actors = CoreActorContext()
+
+        class ApprovalIdentity:
+            def create(self) -> str:
+                return "approval-challenge-" + uuid4().hex
+
+        approvals = ApprovalService(
+            unit=unit_of_work,
+            records=unit_of_work.repo,
+            actors=actors,
+            resolver=SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
+            identities=ApprovalIdentity(),
+            clock=SystemClock(),
+            workspace_id=workspace.workspace_id,
+        )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
             reader=reader,
@@ -424,12 +443,63 @@ def assemble_workspace_core(
                 source_control=GitSourceControl(),
                 source_available=lambda: gate.condition(SOURCE).state.value == "ready",
             ),
-            basis_confirmations=BasisConfirmationService(reader=reader, unit=unit_of_work),
+            basis_confirmations=BasisConfirmationService(
+                reader=reader, unit=unit_of_work, approvals=approvals
+            ),
+            basis_confirmation_proof=approvals,
             model_responses=FileModelResponseStore(
                 root, writer_epoch=workspace.identity["writer_epoch"]
             ),
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
+
+        def prepare_approval(command: Command) -> Mapping[str, object]:
+            values = command.parameters
+            raw = values.get("parameters")
+            if (
+                command.project_id is None
+                or command.intent_id is None
+                or not isinstance(raw, Mapping)
+                or not all(
+                    isinstance(values.get(key), str) and values[key]
+                    for key in ("action_intent_id", "action", "target")
+                )
+            ):
+                raise ValueError("approval preparation requires an exact action/intent/target")
+            challenge = approvals.prepare(
+                project_id=command.project_id,
+                preparation_intent_id=command.intent_id,
+                request_id=command.request_id,
+                action_intent_id=cast(str, values["action_intent_id"]),
+                action=cast(str, values["action"]),
+                target=cast(str, values["target"]),
+                parameters=cast(Mapping[str, object], raw),
+            )
+            from pydantic import TypeAdapter
+
+            return cast(
+                Mapping[str, object],
+                TypeAdapter(type(challenge)).dump_python(challenge, mode="json"),
+            )
+
+        def revoke_approval(command: Command) -> Mapping[str, object]:
+            identity = command.parameters.get("challenge_id")
+            if (
+                command.project_id is None
+                or command.intent_id is None
+                or not isinstance(identity, str)
+                or not identity
+            ):
+                raise ValueError("revocation requires its exact project, intent and challenge")
+            challenge = approvals.revoke(
+                project_id=command.project_id,
+                challenge_id=identity,
+                request_id=command.request_id,
+                intent_id=command.intent_id,
+            )
+            return {"challenge_id": challenge.challenge_id, "state": challenge.state.value}
+
+        handlers.update(prepare_approval=prepare_approval, revoke_approval=revoke_approval)
         if extra_handlers:
             conflicts = sorted(handlers.keys() & extra_handlers.keys())
             if conflicts:
@@ -451,6 +521,7 @@ def assemble_workspace_core(
             connection_persistence=connector,
             capability_gate=gate,
             credential_projector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
+            actors=actors,
         )
     except BaseException:
         lifetime_lock.release()

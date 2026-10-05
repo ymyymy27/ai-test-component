@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\.git\p1-abc-fix-20261003\check_approval_links.py", line 6, in <module>
+    exec(compile(source, '<approval-origin-link-wrapper>', 'exec'))
+         ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<approval-origin-link-wrapper>", line 4
+    source = source.replace('paths.append(Path('docs/�޸���־/Ԭ/2026-10-05-�ܿ�����ȷ����һ������ս.md'))
+                                                                              ^
+SyntaxError: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers

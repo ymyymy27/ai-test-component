@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from aitest.application.approval_service import ApprovalService
 from aitest.application.planning.draft import text_digest
 from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.serialization import (
@@ -14,6 +15,7 @@ from aitest.application.planning.serialization import (
 )
 from aitest.application.planning.substrate import RecordReader, current_record
 from aitest.application.ports import StageableWorkspaceUnitOfWork
+from aitest.domain.approvals import ApprovalRequired
 from aitest.domain.planning.plans import AssertionBasisState, ConfirmationRecord
 
 
@@ -29,6 +31,7 @@ class BasisConfirmationConflict(BasisConfirmationError):
 class BasisConfirmationService:
     reader: RecordReader
     unit: StageableWorkspaceUnitOfWork
+    approvals: ApprovalService | None = None
 
     def confirm(
         self,
@@ -40,7 +43,10 @@ class BasisConfirmationService:
         case_revision: int,
         basis_revision: int,
         basis_text_digest: str,
+        challenge_id: str | None = None,
     ) -> Mapping[str, object]:
+        if self.approvals is not None:
+            self.approvals.require_actor(project_id)
         identity = "confirmation-" + payload_digest([project_id, intent_id])[7:]
         fingerprint = payload_digest(
             [project_id, case_id, case_revision, basis_revision, basis_text_digest]
@@ -76,6 +82,31 @@ class BasisConfirmationService:
                 or text_digest(basis.text) != basis_text_digest
             ):
                 raise BasisConfirmationError("confirmation does not match the exact saved basis")
+            origin = None
+            if self.approvals is not None:
+                if not challenge_id:
+                    raise ApprovalRequired("read the core challenge before confirming this basis")
+                challenge = self.approvals.read_challenge(
+                    project_id=project_id, challenge_id=challenge_id
+                )
+                if (challenge.basis.intent_id, challenge.basis.action, challenge.basis.target) != (
+                    intent_id,
+                    "confirm_basis",
+                    case_id,
+                ):
+                    raise ApprovalRequired("this challenge belongs to another business intent")
+                origin = self.approvals.stage_confirmation(
+                    project_id=project_id,
+                    challenge_id=challenge_id,
+                    confirmation_intent_id=intent_id,
+                    trailing_records=1,
+                    parameters={
+                        "case_id": case_id,
+                        "case_revision": case_revision,
+                        "basis_revision": basis_revision,
+                        "basis_text_digest": basis_text_digest,
+                    },
+                )
             confirmation = ConfirmationRecord(
                 identity, case_id, basis_revision, basis_text_digest, self.unit.next_commit_seq()
             )
@@ -86,13 +117,20 @@ class BasisConfirmationService:
                 intent_id=intent_id,
                 request_id=request_id,
             )
+            if origin is not None:
+                if origin.confirmed_at_commit != confirmation.confirmed_at_commit:
+                    raise ApprovalRequired("the atomic confirmation batch layout changed")
+                payload["approval_confirmation_id"] = origin.confirmation_id
             self.unit.stage_record(
                 aggregate_kind="case_link", record_id=identity, expected_revision=0, payload=payload
             )
             self.unit.commit(request_id)
             return confirmation_to_payload(confirmation, project_id=project_id)
-        except BaseException:
-            self.unit.rollback(request_id)
+        except BaseException as error:
+            try:
+                self.unit.rollback(request_id)
+            except Exception as cleanup_error:
+                raise error from cleanup_error
             raise
 
     def _original(self, project: str, record: str, fingerprint: str) -> Mapping[str, object] | None:
@@ -105,6 +143,8 @@ class BasisConfirmationService:
             raise BasisConfirmationError("immutable confirmation has an unknown owner or revision")
         if saved.payload.get("input_digest") != fingerprint:
             raise BasisConfirmationConflict("same confirmation intent has different inputs")
+        if self.approvals is not None:
+            self.approvals.validate_basis_confirmation(project_id=project, payload=saved.payload)
         confirmation = confirmation_from_payload(saved.payload)
         if confirmation.confirmation_id != record:
             raise BasisConfirmationError("saved confirmation identity differs")

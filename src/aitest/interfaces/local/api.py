@@ -5,9 +5,9 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from enum import StrEnum
 from hashlib import sha256
 from typing import cast
+from uuid import uuid4
 
 from pydantic import JsonValue
 
@@ -20,14 +20,11 @@ from aitest.contracts.redaction import (
     scrub_secret_text,
 )
 from aitest.contracts.views import Response
+from aitest.domain.approvals import ApprovalRequired, TrustedActor, UserInteraction
+from aitest.domain.approvals import EntryKind as EntryKind
+from aitest.interfaces.local.actor_context import CoreActorContext
 
 Handler = Callable[[Command], Mapping[str, object] | dict[str, object]]
-
-
-class EntryKind(StrEnum):
-    HUMAN_UI = "human_ui"
-    INTERACTIVE_CLI = "interactive_cli"
-    AGENT_RELAY = "agent_relay"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +33,8 @@ class Session:
 
     session_id: str
     entry_kind: EntryKind
+    interactive: bool = False
+    interaction: UserInteraction | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +70,7 @@ class LocalAPI:
         sleeper: Callable[[float], None] | None = None,
         connection_persistence: object | None = None,
         capability_gate: object | None = None,
+        actors: CoreActorContext | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -102,6 +102,7 @@ class LocalAPI:
         self._connection_persistence = connection_persistence
         #: 动作级能力门（A-10）；接口层只按结构调用，不导入基础设施。
         self.capability_gate = capability_gate
+        self.actors = actors
         if connection_persistence is not None:
             try:
                 recovered = connection_persistence.load()  # type: ignore[attr-defined]
@@ -112,13 +113,15 @@ class LocalAPI:
             else:
                 if isinstance(recovered, dict):
                     self.connection_state.update(recovered)
-        self._requests: OrderedDict[tuple[str, str], tuple[str, Response]] = OrderedDict()
+        self._requests: OrderedDict[tuple[str, EntryKind, bool, str], tuple[str, Response]] = (
+            OrderedDict()
+        )
         #: 会话 → 活动事务归属（A-14）。
         self._active_transactions: dict[str, _TransactionOwnership] = {}
 
     def dispatch(self, command: Command, session: Session) -> Response:
         fingerprint = sha256(json.dumps(command.model_dump(), sort_keys=True).encode()).hexdigest()
-        key = (session.session_id, command.request_id)
+        key = (session.session_id, session.entry_kind, session.interactive, command.request_id)
         cached = self._requests.get(key)
         if cached:
             if cached[0] != fingerprint:
@@ -150,7 +153,7 @@ class LocalAPI:
             response = self._error(command, "CAPABILITY_DEGRADED", denied_reason)
         elif command.action in self.handlers:
             try:
-                result = self.handlers[command.action](command)
+                result = self._invoke(command, session)
                 # 统一出口：无论是否注入投影器，handler 正常结果都必须经过
                 # 凭据脱敏，不能依赖上层逐个 handler 自觉过滤。
                 result = self.safe_projection(result)
@@ -201,6 +204,42 @@ class LocalAPI:
         if len(self._requests) > 256:
             self._requests.popitem(last=False)
         return response
+
+    def _invoke(self, command: Command, session: Session) -> Mapping[str, object]:
+        if self.actors is None or command.project_id is None or self.workspace_id is None:
+            return self.handlers[command.action](command)
+        actor = TrustedActor(
+            self.workspace_id,
+            command.project_id,
+            session.session_id,
+            session.entry_kind,
+            session.interactive,
+            session.interaction,
+        )
+        with self.actors.bind(actor):
+            return self.handlers[command.action](command)
+
+    def dispatch_user_confirmation(
+        self, command: Command, session: Session, *, challenge_id: str, input_digest: str
+    ) -> Response:
+        """Called by the controlled host's actual user-event adapter, not a Command.
+
+        The pipe/CLI adapter must establish that event in its controlled channel.
+        Relay cannot reach this path through ordinary business parameters.
+        """
+        if session.entry_kind is EntryKind.AGENT_RELAY or not session.interactive:
+            return self._error(
+                command,
+                ApprovalRequired.code,
+                "confirmation requires an actual controlled user event",
+            )
+        if command.parameters.get("approval_challenge_id") != challenge_id:
+            return self._error(command, ApprovalRequired.code,
+                               "the actual user event differs from this challenge")
+        interaction = UserInteraction(uuid4().hex, session.session_id, challenge_id, input_digest)
+        return self.dispatch(
+            command, Session(session.session_id, session.entry_kind, True, interaction)
+        )
 
     def _error(self, command: Command, code: str, message: str) -> Response:
         return Response(
