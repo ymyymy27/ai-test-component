@@ -33,7 +33,7 @@ from aitest.domain.planning.runtime_revision import (
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_default_source_analysis import dispatch
-from tests.unit.test_initial_run_registration import register
+from tests.unit.test_initial_run_registration import register, service
 
 
 def initial_basis(core, inputs):
@@ -123,7 +123,13 @@ def revision_request(facts, case, **updates):
 def apply(
     core, plan, facts, request, *, intent="runtime-revision-intent", request_id="rev-request"
 ):
-    return RuntimeRevisionService(unit=core.unit_of_work, records=core.unit_of_work.repo).apply(
+    origin = service(core)
+    return RuntimeRevisionService(
+        unit=core.unit_of_work,
+        records=core.unit_of_work.repo,
+        approvals=origin.approvals,
+        controlled_writes=origin.controlled_writes,
+    ).apply(
         project_id=facts.project_id,
         run_id=facts.run_id,
         plan=plan,

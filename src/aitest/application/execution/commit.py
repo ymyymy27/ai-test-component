@@ -25,6 +25,8 @@ from aitest.application.execution.current import project_current_update
 from aitest.application.execution.facts import (
     ExecutionFactsAssembler,
     ExecutionFactsAssembly,
+    _run_fact,
+    _step_fact,
     execution_payload_digest,
     project_attempt_fact,
     project_attempt_update,
@@ -47,7 +49,7 @@ from aitest.application.execution.step_content import StepContentReader
 from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.saved_runtime_revision import SavedRuntimeRevisionAssessment
 from aitest.application.planning.serialization import case_content_digest, case_to_payload
-from aitest.application.ports import RecordRepository
+from aitest.application.ports import BasisConfirmationProof, ControlledWriteProof, RecordRepository
 from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
 from aitest.contracts.execution_facts import (
     AttemptFact,
@@ -66,6 +68,7 @@ from aitest.domain.execution.runs import (
     Attempt,
     AttemptState,
     AuthorizationRef,
+    InputRef,
     PlanRevisionRef,
     RecoveryRecord,
     Run,
@@ -112,10 +115,13 @@ class ExecutionCommitCoordinator:
         *,
         checkpoint_store: CheckpointPayloadCodec | None = None,
         records: RecordRepository | None = None,
+        approvals: BasisConfirmationProof | None = None,
+        controlled_writes: ControlledWriteProof | None = None,
     ) -> None:
         self._uow = unit_of_work
         self._checkpoint_store = checkpoint_store
         self._records = records
+        self._approvals, self._controlled_writes = approvals, controlled_writes
 
     def _revision(self, kind: str, record_id: str, expected: int | None = None) -> int | None:
         reader = self._records or self._uow
@@ -128,36 +134,119 @@ class ExecutionCommitCoordinator:
         return current
 
     def recall_initial_run(
-        self, *, run_id: str, project_id: str, fingerprint: str
+        self,
+        *,
+        run_id: str,
+        project_id: str,
+        fingerprint: str,
+        intent_id: str,
+        prepared_run_id: str,
+        workspace_id: str,
     ) -> ExecutionFacts | None:
-        intent = self._read_payload("execution_intent", "run-registration:" + run_id)
-        if intent is None:
+        reader = self._records or self._uow
+        current = getattr(reader, "current_revision", None)
+        if not callable(current):
+            raise ValueError("original registration receipt reader is unavailable")
+        identity = "run-registration:" + run_id
+        revision = current(aggregate_kind="execution_intent", record_id=identity)
+        if type(revision) is not int or revision not in {0, 1}:
+            raise ValueError("original registration receipt has an unverified warehouse revision")
+        if revision == 0:
             return None
+        intent = self._registration_payload("execution_intent", identity, project_id)
         if (
-            intent.get("schema_version") != "aitest.run-registration-intent/1.0"
+            set(intent)
+            != {
+                "schema_version",
+                "project_id",
+                "run_id",
+                "intent_id",
+                "prepared_run_id",
+                "fingerprint",
+                "snapshot_commit_id",
+                "snapshot_revision",
+                "snapshot_digest",
+            }
+            or intent.get("schema_version") != "aitest.run-registration-intent/1.0"
             or intent.get("project_id") != project_id
             or intent.get("run_id") != run_id
+            or intent.get("intent_id") != intent_id
+            or intent.get("prepared_run_id") != prepared_run_id
             or intent.get("fingerprint") != fingerprint
+            or type(intent.get("snapshot_revision")) is not int
             or intent.get("snapshot_revision") != 1
             or not isinstance(intent.get("snapshot_commit_id"), str)
+            or not intent["snapshot_commit_id"]
         ):
             raise ValueError("run registration intent conflicts with saved preparation")
-        read = getattr(self._records or self._uow, "read", None)
-        if not callable(read):
-            raise ValueError("original run registration snapshot cannot be read")
-        saved = read(
-            aggregate_kind="execution_facts", record_id=intent["snapshot_commit_id"], revision=1
+        payload = self._registration_payload(
+            "execution_facts", str(intent["snapshot_commit_id"]), project_id
         )
-        payload = getattr(saved, "payload", None)
-        if not isinstance(payload, Mapping) or _payload_digest(payload) != intent.get(
-            "snapshot_digest"
-        ):
+        if _payload_digest(payload) != intent.get("snapshot_digest"):
             raise ValueError("original run registration snapshot digest cannot be verified")
-        facts = ExecutionFacts.model_validate(payload)
-        if (facts.project_id, facts.run_id) != (project_id, run_id):
+        facts = ExecutionFacts.model_validate_json(json.dumps(dict(payload)), strict=True)
+        if (
+            (facts.project_id, facts.run_id, facts.run.origin_workspace_id)
+            != (project_id, run_id, workspace_id)
+            or facts.snapshot_commit_id != intent["snapshot_commit_id"]
+            or facts.snapshot_revision != 1
+        ):
             raise ValueError("original run registration belongs to another project/run")
         _validate_current_facts(facts)
+        raw_run = self._registration_payload("run", run_id, project_id)
+        run = TypeAdapter(Run).validate_json(json.dumps(dict(raw_run)), strict=True)
+        if (
+            dict(raw_run) != _json_payload(TypeAdapter(Run), run)
+            or (run.run_id, run.project_id, run.origin_workspace_id)
+            != (run_id, project_id, workspace_id)
+            or run.frozen_input_refs
+            != (InputRef(prepared_run_id, f"prepared_run:{prepared_run_id}@1", fingerprint, True),)
+            or _run_fact(run) != facts.run
+        ):
+            raise ValueError("original registration run does not prove this frozen preparation")
+        if self._records is None:
+            raise ValueError("original registration step material reader is unavailable")
+        contents = StepContentReader(self._records)
+        for fact in facts.steps:
+            raw_step = self._registration_payload("step", fact.step_id, project_id)
+            step = TypeAdapter(Step).validate_json(
+                json.dumps({key: value for key, value in raw_step.items() if key != "project_id"}),
+                strict=True,
+            )
+            if (
+                dict(raw_step)
+                != {"project_id": project_id, **_json_payload(TypeAdapter(Step), step)}
+                or _step_fact(step) != fact
+            ):
+                raise ValueError(
+                    "original registration step projection differs from saved authority"
+                )
+            try:
+                contents.read(run=run, step=step)
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise ValueError("original registration step content cannot be verified") from error
         return facts
+
+    def _registration_payload(
+        self, kind: str, identity: str, project_id: str
+    ) -> Mapping[str, object]:
+        read = getattr(self._records or self._uow, "read", None)
+        if not callable(read):
+            raise ValueError("original registration material reader is unavailable")
+        try:
+            saved = read(aggregate_kind=kind, record_id=identity, revision=1)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ValueError("original registration material is unavailable") from error
+        if (
+            getattr(saved, "aggregate_kind", None),
+            getattr(saved, "record_id", None),
+            getattr(saved, "revision", None),
+        ) != (kind, identity, 1) or type(getattr(saved, "revision", None)) is not int:
+            raise ValueError("original registration material envelope cannot be verified")
+        payload = getattr(saved, "payload", None)
+        if not isinstance(payload, Mapping) or payload.get("project_id") != project_id:
+            raise ValueError("original registration material has a different project")
+        return payload
 
     def stage_initial_run(
         self,
@@ -766,6 +855,8 @@ class ExecutionCommitCoordinator:
             reader=RuntimePlanningRecordReader(reader, project_id),
             execution=self,
             runtime_basis=reader,
+            approvals=self._approvals,
+            controlled_writes=self._controlled_writes,
         )
         decision = assessment.assess(
             project_id=project_id,

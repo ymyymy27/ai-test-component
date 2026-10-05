@@ -1,0 +1,7 @@
+src\aitest\bootstrap.py:492: error: Argument "records" to "InitialRunRegistration" has incompatible type "FileRecordRepository"; expected "RecordRepository"  [arg-type]
+src\aitest\bootstrap.py:492: note: Following member(s) of "FileRecordRepository" have conflicts:
+src\aitest\bootstrap.py:492: note:     Expected:
+src\aitest\bootstrap.py:492: note:         def query(self, query: object) -> object
+src\aitest\bootstrap.py:492: note:     Got:
+src\aitest\bootstrap.py:492: note:         def query(self, query: RecordQuery) -> RecordQueryResult
+Found 1 error in 1 file (checked 177 source files)

@@ -1,0 +1,12 @@
+E501 Line too long (102 > 100)
+   --> tests\unit\test_initial_registration_origin.py:214:101
+    |
+212 |     assert register(core, prepared, request="historic-read-request") == original
+213 |     with pytest.raises(ValueError, match="basis"):
+214 |         register(core, prepared, request="new-unauthorized-request", intent="new-unauthorized-intent")
+    |                                                                                                     ^^
+215 |     assert core.unit_of_work.current_commit_sequence() == before
+    |
+
+Found 1 error.
+1 file reformatted

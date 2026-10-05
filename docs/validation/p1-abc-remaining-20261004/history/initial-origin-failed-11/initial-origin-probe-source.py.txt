@@ -1,0 +1,30 @@
+"""Read-only audit probe: C must re-read binding and plan approval receipts."""
+
+import pytest
+
+from tests.unit.test_authoritative_preparation import authoritative as authoritative
+from tests.unit.test_authoritative_preparation import prepare
+from tests.unit.test_initial_run_registration import register
+
+
+@pytest.mark.parametrize('action', ['publish_plan', 'save_binding'])
+def test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost(
+    authoritative, monkeypatch, action
+):
+    core, inputs, _ = authoritative
+    prepared = prepare(core, inputs).result
+    read = core.unit_of_work.repo.read
+
+    def lost(**kwargs):
+        saved = read(**kwargs)
+        if (saved.payload.get('schema_version'), saved.payload.get('action')) == (
+            'aitest.controlled-write-intent/1.0', action
+        ):
+            raise KeyError('exact controlled effect receipt is lost')
+        return saved
+
+    monkeypatch.setattr(core.unit_of_work.repo, 'read', lost)
+    before = core.unit_of_work.current_commit_sequence()
+    with pytest.raises(ValueError, match='basis|confirmation|origin|proof'):
+        register(core, prepared)
+    assert core.unit_of_work.current_commit_sequence() == before

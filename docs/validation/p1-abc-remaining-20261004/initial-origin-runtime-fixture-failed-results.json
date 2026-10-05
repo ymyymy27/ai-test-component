@@ -1,0 +1,18 @@
+{
+  "regression": {
+    "passed": 334,
+    "seconds": 2899.71,
+    "log": "initial-origin-final-regression.log"
+  },
+  "runtime": {
+    "passed": 46,
+    "failed": 2,
+    "seconds": 4043.83,
+    "log": "initial-origin-runtime-risk-after.log"
+  },
+  "failures": [
+    "test_lost_publication_origin_never_publishes_a_runtime_change[core_confirmation]",
+    "test_saved_plan_body_version_seven_is_read_at_repository_revision_two"
+  ],
+  "note": "Exact failed test fixtures preserved. Aggregate name typo and old relay publication fixture, not relaxed product gates."
+}

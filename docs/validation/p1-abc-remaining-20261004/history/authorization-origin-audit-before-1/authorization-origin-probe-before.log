@@ -1,0 +1,18 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+______ test_persistent_execution_requires_original_unused_authorization _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-673/test_persistent_execution_requ0")
+
+    def test_persistent_execution_requires_original_unused_authorization(tmp_path):
+        unit=FileUnitOfWork(tmp_path/'workspace')
+        port=FakeExecutionPort()
+        runner=SerialRunner(port,commit_coordinator=ExecutionCommitCoordinator(unit))
+>       with pytest.raises(ValueError,match='authoriz|authority|proof'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\probe_authorization_origin.py:11: Failed
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_authorization_origin.py::test_persistent_execution_requires_original_unused_authorization
+1 failed in 1.65s

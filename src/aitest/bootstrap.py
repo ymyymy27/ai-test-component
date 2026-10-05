@@ -30,6 +30,7 @@ from uuid import uuid4
 from aitest.application.approval_service import ApprovalService
 from aitest.application.controlled_write import ControlledWriteService, SavedControlledWriteResolver
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.model_policy_confirmation import (
@@ -41,6 +42,7 @@ from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
 )
+from aitest.application.ports import RecordRepository
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
 from aitest.contracts.commands import Command
@@ -250,6 +252,7 @@ class CoreAssembly:
     model_provider: HttpModelProvider | None = None
     snapshot_store: FileSourceSnapshotStore | None = None
     source_probe: PythonLoadSourceProbe | None = None
+    initial_run_registration: InitialRunRegistration | None = None
 
 
 def assemble_workspace_core(
@@ -483,6 +486,16 @@ def assemble_workspace_core(
                 root, writer_epoch=workspace.identity["writer_epoch"]
             ),
         )
+        assert dependencies.source_analysis is not None
+        initial_run_registration = InitialRunRegistration(
+            unit=unit_of_work,
+            reader=reader,
+            records=cast(RecordRepository, unit_of_work.repo),
+            workspace_id=workspace.workspace_id,
+            source_analysis=dependencies.source_analysis,
+            approvals=approvals,
+            controlled_writes=controlled_writes,
+        )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
@@ -594,6 +607,7 @@ def assemble_workspace_core(
         model_provider=model_provider,
         snapshot_store=snapshot_store,
         source_probe=source_probe,
+        initial_run_registration=initial_run_registration,
     )
 
 

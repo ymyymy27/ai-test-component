@@ -128,7 +128,7 @@ def _require_text(value: str, name: str) -> None:
         raise ValueError(f"{name} must not be empty")
 
 
-def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
+def preparation_payload(inputs: PreparationInputs | PreparedRun) -> dict[str, object]:
     """参与业务输入摘要的字段：**请求要什么**。
 
     摘要只覆盖**业务意图**与**人工选择**，键集合与 `PAYLOAD_FIELDS` 严格一致

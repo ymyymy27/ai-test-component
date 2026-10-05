@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
-from aitest.application.ports import RecordRepository, StageableWorkspaceUnitOfWork
+from aitest.application.ports import (
+    BasisConfirmationProof,
+    ControlledWriteProof,
+    RecordRepository,
+    StageableWorkspaceUnitOfWork,
+)
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.planning.plans import Plan
 from aitest.domain.planning.runtime_revision import RuntimeRevisionRequest
@@ -12,9 +17,18 @@ from aitest.domain.planning.runtime_revision import RuntimeRevisionRequest
 class RuntimeRevisionService:
     """An internal component; trusted UI action registration is a separate boundary."""
 
-    def __init__(self, *, unit: StageableWorkspaceUnitOfWork, records: RecordRepository) -> None:
+    def __init__(
+        self,
+        *,
+        unit: StageableWorkspaceUnitOfWork,
+        records: RecordRepository,
+        approvals: BasisConfirmationProof | None = None,
+        controlled_writes: ControlledWriteProof | None = None,
+    ) -> None:
         self.unit = unit
-        self.coordinator = ExecutionCommitCoordinator(unit, records=records)
+        self.coordinator = ExecutionCommitCoordinator(
+            unit, records=records, approvals=approvals, controlled_writes=controlled_writes
+        )
 
     def apply(
         self,

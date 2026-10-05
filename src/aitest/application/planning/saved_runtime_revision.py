@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from aitest.application.planning.draft import text_digest
-from aitest.application.planning.publish import payload_digest, plan_publication_digest
+from aitest.application.planning.publish import _plan_payload, payload_digest
 from aitest.application.planning.run_mode import request_runtime_revision
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
@@ -21,6 +21,7 @@ from aitest.application.planning.serialization import (
 from aitest.application.planning.substrate import AggregateKind
 from aitest.application.ports import (
     BasisConfirmationProof,
+    ControlledWriteProof,
     RevisionRecordReader,
     RuntimeExecutionReader,
     RuntimeRevisionBasisReader,
@@ -38,6 +39,7 @@ class SavedRuntimeRevisionAssessment:
     execution: RuntimeExecutionReader
     runtime_basis: RuntimeRevisionBasisReader | None = None
     approvals: BasisConfirmationProof | None = None
+    controlled_writes: ControlledWriteProof | None = None
 
     def assess(
         self,
@@ -100,7 +102,31 @@ class SavedRuntimeRevisionAssessment:
             ordered.append(case)
         if len(ordered) != len(cases) or len({case.case_id for case in ordered}) != len(cases):
             raise ValueError("saved plan case summaries must cover its unique frozen cases")
-        if plan_publication_digest(plan, ordered, project_id=project_id) != ref.digest:
+        business_body = _plan_payload(plan, ordered, project_id=project_id)
+        if self.controlled_writes is not None:
+            self.controlled_writes.validate_saved_write(
+                project_id=project_id,
+                action="publish_plan",
+                aggregate_kind="plan",
+                record_id=ref.revision_id,
+                record_revision=ref.revision_no,
+                payload=saved,
+            )
+            for rule in plan.rule_revisions:
+                raw_rule = self._read(project_id, "rule_version", rule.rule_id, rule.revision)
+                if payload_digest(raw_rule) != rule.digest:
+                    raise ValueError("saved runtime rule differs from the frozen digest")
+                self.controlled_writes.validate_saved_write(
+                    project_id=project_id,
+                    action="publish_rules",
+                    aggregate_kind="rule_version",
+                    record_id=rule.rule_id,
+                    record_revision=rule.revision,
+                    payload=raw_rule,
+                )
+        elif set(saved) != set(business_body):
+            raise ValueError("controlled runtime publication requires its exact proof port")
+        if {key: saved.get(key) for key in business_body} != business_body:
             raise ValueError("plan view differs from the complete saved plan content")
         if (
             set(facts.run.required_scope) != scope.required_case_ids
@@ -153,7 +179,7 @@ class SavedRuntimeRevisionAssessment:
             raise ValueError("runtime basis requires an exact positive repository revision")
         record = self.reader.read(aggregate_kind=kind, record_id=record_id, revision=revision)
         identity = (record.aggregate_kind, record.record_id, record.revision)
-        if identity != (kind, record_id, revision):
+        if identity != (kind, record_id, revision) or type(record.revision) is not int:
             raise ValueError("runtime basis reader returned another record identity")
         if (
             not isinstance(record.payload, Mapping)
@@ -197,6 +223,8 @@ class SavedRuntimeRevisionAssessment:
             raw = self._read(project_id, "case_link", identity, 1)
             if self.approvals is not None:
                 self.approvals.validate_basis_confirmation(project_id=project_id, payload=raw)
+            elif "approval_confirmation_id" in raw:
+                raise ValueError("controlled runtime basis confirmation requires its proof port")
             confirmation = confirmation_from_payload(raw)
             case_revision = raw.get("case_revision")
             intent = raw.get("intent_id")

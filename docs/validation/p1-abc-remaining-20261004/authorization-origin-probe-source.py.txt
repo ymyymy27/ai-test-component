@@ -1,0 +1,14 @@
+import pytest
+from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.runner import SerialRunner
+from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.unit.test_serial_runner import FakeExecutionPort, _attempt, _request
+
+def test_persistent_execution_requires_original_unused_authorization(tmp_path):
+    unit=FileUnitOfWork(tmp_path/'workspace')
+    port=FakeExecutionPort()
+    runner=SerialRunner(port,commit_coordinator=ExecutionCommitCoordinator(unit))
+    with pytest.raises(ValueError,match='authoriz|authority|proof'):
+        runner.start_attempt(_attempt(),_request())
+    assert port.started==[]
+    assert unit.current_commit_sequence()==0

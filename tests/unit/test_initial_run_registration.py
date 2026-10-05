@@ -5,28 +5,13 @@ from dataclasses import replace
 import pytest
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
-from aitest.application.planning.substrate_adapter import PortsRecordReader
-from aitest.application.project.source_analysis import SourceAnalysisService
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 
 
 def service(core):
-    from aitest.application.execution.registration import InitialRunRegistration
-
-    reader = PortsRecordReader(core.unit_of_work.repo)
-    return InitialRunRegistration(
-        unit=core.unit_of_work,
-        reader=reader,
-        records=core.unit_of_work.repo,
-        workspace_id=core.workspace.workspace_id,
-        source_analysis=SourceAnalysisService(
-            reader=reader,
-            unit_of_work=core.unit_of_work,
-            snapshots=core.snapshot_store,
-            source_control=None,
-        ),
-    )
+    assert core.initial_run_registration is not None
+    return core.initial_run_registration
 
 
 def register(core, prepared, *, request="register-request", intent="register-intent", project=None):

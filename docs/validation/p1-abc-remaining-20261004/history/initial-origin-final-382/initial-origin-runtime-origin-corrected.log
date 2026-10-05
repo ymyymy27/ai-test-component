@@ -1,0 +1,10 @@
+......                                                                   [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_runtime_publication_origin.py::test_controlled_runtime_plan_requires_its_proof_port
+PASSED tests/unit/test_runtime_publication_origin.py::test_lost_publication_origin_never_publishes_a_runtime_change[receipt]
+PASSED tests/unit/test_runtime_publication_origin.py::test_lost_publication_origin_never_publishes_a_runtime_change[core_confirmation]
+PASSED tests/unit/test_runtime_publication_origin.py::test_lost_publication_origin_never_publishes_a_runtime_change[boolean_revision]
+PASSED tests/unit/test_runtime_publication_origin.py::test_original_runtime_result_survives_lost_origin_but_new_change_is_blocked
+PASSED tests/unit/test_saved_runtime_revision.py::test_saved_plan_body_version_seven_is_read_at_repository_revision_two
+6 passed in 491.91s (0:08:11)

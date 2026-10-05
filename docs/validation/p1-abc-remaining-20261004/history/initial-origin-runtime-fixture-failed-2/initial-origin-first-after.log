@@ -1,0 +1,7 @@
+...                                                                      [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_initial_run_registration.py::test_initial_run_step_and_current_snapshot_publish_once_without_attempt
+PASSED tests/unit/test_initial_registration_origin.py::test_lost_origin_receipt_blocks_new_initial_registration[publish_plan]
+PASSED tests/unit/test_initial_registration_origin.py::test_lost_origin_receipt_blocks_new_initial_registration[save_binding]
+3 passed, 12 deselected in 95.08s (0:01:35)

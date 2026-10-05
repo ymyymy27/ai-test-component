@@ -10,8 +10,17 @@ from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.facts import ExecutionFactsAssembler, ExecutionFactsAssembly
 from aitest.application.execution.step_content import freeze_initial_step_contents
 from aitest.application.planning.basis_validation import validate_prepared_material
+from aitest.application.planning.preparation_origin import (
+    load_saved_preparation,
+    validate_preparation_origin,
+)
 from aitest.application.planning.substrate import RecordReader
-from aitest.application.ports import RecordRepository, StageableWorkspaceUnitOfWork
+from aitest.application.ports import (
+    BasisConfirmationProof,
+    ControlledWriteProof,
+    RecordRepository,
+    StageableWorkspaceUnitOfWork,
+)
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.contracts.execution_facts import (
     CoverageSummary,
@@ -51,28 +60,31 @@ class InitialRunRegistration:
         records: RecordRepository,
         workspace_id: str,
         source_analysis: SourceAnalysisService,
+        approvals: BasisConfirmationProof | None = None,
+        controlled_writes: ControlledWriteProof | None = None,
     ) -> None:
         self.unit, self.reader = unit, reader
         self.workspace_id, self.source_analysis = workspace_id, source_analysis
+        self.approvals, self.controlled_writes = approvals, controlled_writes
         self.coordinator = ExecutionCommitCoordinator(unit, records=records)
 
     def register(
         self, *, project_id: str, prepared_run_id: str, request_id: str, intent_id: str
     ) -> ExecutionFacts:
-        saved = self.reader.read(
-            aggregate_kind="prepared_run", record_id=prepared_run_id, revision=1
+        prepared, fingerprint = load_saved_preparation(
+            reader=self.reader,
+            project_id=project_id,
+            workspace_id=self.workspace_id,
+            prepared_run_id=prepared_run_id,
         )
-        prepared = PreparedRun.model_validate_json(json.dumps(dict(saved.payload)))
-        if (prepared.project_id, prepared.workspace_id, prepared.prepared_run_id) != (
-            project_id,
-            self.workspace_id,
-            prepared_run_id,
-        ):
-            raise ValueError("saved preparation project/workspace/identity cannot be verified")
-        fingerprint = "sha256:" + _digest(dict(saved.payload))
         run_id = "run-" + _digest([project_id, intent_id])
         original = self.coordinator.recall_initial_run(
-            run_id=run_id, project_id=project_id, fingerprint=fingerprint
+            run_id=run_id,
+            project_id=project_id,
+            fingerprint=fingerprint,
+            intent_id=intent_id,
+            prepared_run_id=prepared_run_id,
+            workspace_id=self.workspace_id,
         )
         if original is not None:
             return original
@@ -130,15 +142,30 @@ class InitialRunRegistration:
         self.unit.begin(request_id, project_id, intent_id=intent_id)
         try:
             original = self.coordinator.recall_initial_run(
-                run_id=run_id, project_id=project_id, fingerprint=fingerprint
+                run_id=run_id,
+                project_id=project_id,
+                fingerprint=fingerprint,
+                intent_id=intent_id,
+                prepared_run_id=prepared_run_id,
+                workspace_id=self.workspace_id,
             )
             if original is not None:
                 self.unit.rollback(request_id)
                 return original
+            if load_saved_preparation(
+                reader=self.reader,
+                project_id=project_id,
+                workspace_id=self.workspace_id,
+                prepared_run_id=prepared_run_id,
+            ) != (prepared, fingerprint):
+                raise ValueError("saved preparation changed before initial registration")
             self._validate(prepared)
-            if freeze_initial_step_contents(
-                prepared=prepared, run=run, steps=steps, reader=self.reader
-            ) != material:
+            if (
+                freeze_initial_step_contents(
+                    prepared=prepared, run=run, steps=steps, reader=self.reader
+                )
+                != material
+            ):
                 raise ValueError("frozen step content changed before initial publication")
             for item in material:
                 self.unit.stage_record(
@@ -167,10 +194,17 @@ class InitialRunRegistration:
         return registered
 
     def _validate(self, prepared: PreparedRun) -> None:
+        if self.approvals is None or self.controlled_writes is None:
+            raise ValueError("initial registration requires exact saved confirmation proof ports")
         if prepared.status is not PreparedRunStatusFact.PREPARED or prepared.blocking_reasons:
             raise ValueError("saved preparation is blocked or requires re-preparation")
+        validate_preparation_origin(prepared, reader=self.reader)
         problems = validate_prepared_material(
-            prepared, reader=self.reader, workspace_id=self.workspace_id
+            prepared,
+            reader=self.reader,
+            workspace_id=self.workspace_id,
+            approvals=self.approvals,
+            controlled_writes=self.controlled_writes,
         )
         if problems:
             raise ValueError(

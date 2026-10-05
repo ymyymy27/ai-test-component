@@ -1,0 +1,130 @@
+........F......................................F                         [100%]
+================================== FAILURES ===================================
+_ test_lost_publication_origin_never_publishes_a_runtime_change[core_confirmation] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000023D7CF29D50>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-670/test_lost_publication_origin_n1/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000023D7CF2B250>
+damage = 'core_confirmation'
+
+    @pytest.mark.parametrize("damage", ["receipt", "core_confirmation", "boolean_revision"])
+    def test_lost_publication_origin_never_publishes_a_runtime_change(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        plan, cases, before = initial_basis(core, inputs)
+        next_case = saved_next_case(core, inputs, replace(cases[0], revision=2))
+        sequence = core.unit_of_work.current_commit_sequence()
+        read = core.unit_of_work.repo.read
+    
+        def changed(**kwargs):
+            saved = read(**kwargs)
+            if saved.payload.get("action") == "publish_plan" and damage == "receipt":
+                raise KeyError("original publication effect receipt lost")
+            if saved.aggregate_kind == "confirmation" and damage == "core_confirmation":
+                raise KeyError("original core confirmation lost")
+            if saved.aggregate_kind == "plan" and damage == "boolean_revision":
+                return replace(saved, revision=True)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", changed)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_runtime_publication_origin.py:56: Failed
+____ test_saved_plan_body_version_seven_is_read_at_repository_revision_two ____
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000023D7CFA8050>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-670/test_saved_plan_body_version_s0/tested"))
+
+    def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(authoritative):
+        from aitest.contracts.prepared_run import PlanRevisionRef as PreparedPlanRef
+        from tests.unit.test_default_source_analysis import dispatch
+    
+        core, inputs, _ = authoritative
+        reader = PortsRecordReader(core.unit_of_work.repo)
+        original = reader.read(
+            aggregate_kind="plan", record_id=inputs.plan_revision.revision_id, revision=1
+        ).payload
+        scope_record = reader.read(
+            aggregate_kind="acceptance_scope",
+            record_id=original["scope_id"],
+            revision=original["scope_revision"],
+        )
+        cases = tuple(
+            case_from_payload(
+                reader.read(
+                    aggregate_kind="case", record_id=ref["case_id"], revision=ref["revision"]
+                ).payload
+            )
+            for ref in original["case_revisions"]
+        )
+        response = dispatch(
+            core,
+            "publish_plan",
+            project=inputs.project_id,
+            expected=1,
+            request="publish-body-seven",
+            intent="publish-body-seven-intent",
+            parameters={
+                "plan_id": inputs.plan_revision.revision_id,
+                "revision": 7,
+                "scope": dict(scope_record.payload),
+                "cases": [case_to_payload(case, project_id=inputs.project_id) for case in cases],
+            },
+        )
+>       assert response.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='AWAITING_USER_CONFIRMATION', message='a controlled interactive user ...False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='publish-body-seven', intent_id='publish-body-seven-intent') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='AWAITING_USER_CONFIRMATION', message='a controlled interactive user ...False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='publish-body-seven', intent_id='publish-body-seven-intent') = Response(protocol_version='aitest.local/2.0', request_id='publish-body-seven', instance_id='authoritative-core', works...alse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='publish-body-seven', intent_id='publish-body-seven-intent')).error
+
+tests\unit\test_saved_runtime_revision.py:668: AssertionError
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_persisted_runtime_revision.py::test_successive_revisions_reject_version_replay_and_survive_restart
+PASSED tests/unit/test_persisted_runtime_revision.py::test_runtime_revision_stage_failures_leave_original_pointer_and_content
+PASSED tests/unit/test_persisted_runtime_revision.py::test_committed_runtime_response_loss_recalls_original_result
+PASSED tests/unit/test_runtime_revision_saved_material.py::test_missing_unaffected_initial_content_blocks_first_revision_atomically
+PASSED tests/unit/test_runtime_revision_saved_material.py::test_exact_saved_lineage_and_current_basis_cannot_be_substituted
+PASSED tests/unit/test_runtime_revision_saved_material.py::test_stale_snapshot_and_changed_layout_never_append_a_revision
+PASSED tests/unit/test_runtime_publication_origin.py::test_controlled_runtime_plan_requires_its_proof_port
+PASSED tests/unit/test_runtime_publication_origin.py::test_lost_publication_origin_never_publishes_a_runtime_change[receipt]
+PASSED tests/unit/test_runtime_publication_origin.py::test_lost_publication_origin_never_publishes_a_runtime_change[boolean_revision]
+PASSED tests/unit/test_runtime_publication_origin.py::test_original_runtime_result_survives_lost_origin_but_new_change_is_blocked
+PASSED tests/unit/test_saved_runtime_revision.py::test_saved_assessment_is_read_only_and_freezes_the_exact_snapshot
+PASSED tests/unit/test_saved_runtime_revision.py::test_actual_frozen_content_prevents_client_body_substitution[independent]
+PASSED tests/unit/test_saved_runtime_revision.py::test_actual_frozen_content_prevents_client_body_substitution[mandatory_link]
+PASSED tests/unit/test_saved_runtime_revision.py::test_plan_view_cannot_change_saved_material[record_revision]
+PASSED tests/unit/test_saved_runtime_revision.py::test_plan_view_cannot_change_saved_material[body_revision]
+PASSED tests/unit/test_saved_runtime_revision.py::test_plan_view_cannot_change_saved_material[scope]
+PASSED tests/unit/test_saved_runtime_revision.py::test_plan_view_cannot_change_saved_material[case_digest]
+PASSED tests/unit/test_saved_runtime_revision.py::test_legacy_plan_view_without_record_revision_does_not_prove_repository_read
+PASSED tests/unit/test_saved_runtime_revision.py::test_newer_case_and_plan_records_do_not_replace_frozen_history
+PASSED tests/unit/test_saved_runtime_revision.py::test_reader_cannot_substitute_the_frozen_case[content]
+PASSED tests/unit/test_saved_runtime_revision.py::test_reader_cannot_substitute_the_frozen_case[owner]
+PASSED tests/unit/test_saved_runtime_revision.py::test_reader_cannot_substitute_the_frozen_case[envelope]
+PASSED tests/unit/test_saved_runtime_revision.py::test_reader_cannot_substitute_the_frozen_case[missing]
+PASSED tests/unit/test_saved_runtime_revision.py::test_stale_cursor_returns_whole_decision_refusal
+PASSED tests/unit/test_saved_runtime_revision.py::test_unreadable_saved_runtime_revision_sequence_is_blocked
+PASSED tests/unit/test_saved_runtime_revision.py::test_snapshot_change_while_reading_material_is_rejected
+PASSED tests/unit/test_saved_runtime_revision.py::test_proposed_assertion_digest_cannot_be_self_reported
+PASSED tests/unit/test_saved_runtime_revision.py::test_saved_exact_new_basis_confirmation_changes_only_confirmation_requirement
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[project_id]
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[intent_id]
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[input_digest]
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[case_revision]
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[basis_revision]
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[basis_text_digest]
+PASSED tests/unit/test_saved_runtime_revision.py::test_confirmation_reference_requires_saved_exact_provenance[confirmation_id]
+PASSED tests/unit/test_saved_runtime_revision.py::test_unknown_run_and_foreign_project_cannot_use_saved_authority
+PASSED tests/unit/test_saved_runtime_revision.py::test_saved_active_attempt_overrides_a_lagging_pending_step
+PASSED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[missing]
+PASSED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[owner]
+PASSED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[state]
+PASSED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[input]
+PASSED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[plan]
+PASSED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[missing_plan]
+PASSED tests/unit/test_saved_runtime_revision.py::test_snapshot_change_during_checkpoint_read_is_rejected
+PASSED tests/unit/test_saved_runtime_revision.py::test_frozen_run_basis_cannot_change_even_when_current_attempt_change_is_allowed
+PASSED tests/unit/test_saved_runtime_revision.py::test_frozen_step_edits_leave_the_actual_current_snapshot_unchanged
+FAILED tests/unit/test_runtime_publication_origin.py::test_lost_publication_origin_never_publishes_a_runtime_change[core_confirmation]
+FAILED tests/unit/test_saved_runtime_revision.py::test_saved_plan_body_version_seven_is_read_at_repository_revision_two
+2 failed, 46 passed in 4043.83s (1:07:23)

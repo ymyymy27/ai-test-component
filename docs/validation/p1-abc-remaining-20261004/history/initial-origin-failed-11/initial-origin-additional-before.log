@@ -1,0 +1,383 @@
+FFFFFFFFF                                                                [100%]
+================================== FAILURES ===================================
+______ test_preparation_receipt_is_consumed_with_the_saved_dto[missing] _______
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025469681E80>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_preparation_receipt_is_co0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025469639350>
+damage = 'missing'
+
+    @pytest.mark.parametrize("damage", ["missing", "cancelled", "input_digest"])
+    def test_preparation_receipt_is_consumed_with_the_saved_dto(authoritative, monkeypatch, damage):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "preparation_record":
+                if damage == "missing":
+                    raise KeyError("exact preparation receipt is missing")
+                payload = dict(saved.payload)
+                payload["cancelled" if damage == "cancelled" else "payload_hash"] = (
+                    True if damage == "cancelled" else "sha256:different-input"
+                )
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+>       expect_no_registration(core, prepared)
+
+tests\unit\test_initial_registration_origin.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025469681E80>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025469680C20>)
+prepared = {'schema_version': 'aitest.prepared-run/1.0', 'prepared_run_id': 'prepared-1accaf884dacfd962726b72f1451d82c10241a94', 'project_id': 'project-ticket', 'project_revision': 1, ...}
+
+    def expect_no_registration(core, prepared):
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="prepar|basis|confirmation|origin|proof|registration"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:17: Failed
+_____ test_preparation_receipt_is_consumed_with_the_saved_dto[cancelled] ______
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025469627D90>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_preparation_receipt_is_co1/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025469639CD0>
+damage = 'cancelled'
+
+    @pytest.mark.parametrize("damage", ["missing", "cancelled", "input_digest"])
+    def test_preparation_receipt_is_consumed_with_the_saved_dto(authoritative, monkeypatch, damage):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "preparation_record":
+                if damage == "missing":
+                    raise KeyError("exact preparation receipt is missing")
+                payload = dict(saved.payload)
+                payload["cancelled" if damage == "cancelled" else "payload_hash"] = (
+                    True if damage == "cancelled" else "sha256:different-input"
+                )
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+>       expect_no_registration(core, prepared)
+
+tests\unit\test_initial_registration_origin.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025469627D90>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025469626E90>)
+prepared = {'schema_version': 'aitest.prepared-run/1.0', 'prepared_run_id': 'prepared-1accaf884dacfd962726b72f1451d82c10241a94', 'project_id': 'project-ticket', 'project_revision': 1, ...}
+
+    def expect_no_registration(core, prepared):
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="prepar|basis|confirmation|origin|proof|registration"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:17: Failed
+____ test_preparation_receipt_is_consumed_with_the_saved_dto[input_digest] ____
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002546978C410>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_preparation_receipt_is_co2/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000254697B1D90>
+damage = 'input_digest'
+
+    @pytest.mark.parametrize("damage", ["missing", "cancelled", "input_digest"])
+    def test_preparation_receipt_is_consumed_with_the_saved_dto(authoritative, monkeypatch, damage):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "preparation_record":
+                if damage == "missing":
+                    raise KeyError("exact preparation receipt is missing")
+                payload = dict(saved.payload)
+                payload["cancelled" if damage == "cancelled" else "payload_hash"] = (
+                    True if damage == "cancelled" else "sha256:different-input"
+                )
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+>       expect_no_registration(core, prepared)
+
+tests\unit\test_initial_registration_origin.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002546978C410>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025469626710>)
+prepared = {'schema_version': 'aitest.prepared-run/1.0', 'prepared_run_id': 'prepared-1accaf884dacfd962726b72f1451d82c10241a94', 'project_id': 'project-ticket', 'project_revision': 1, ...}
+
+    def expect_no_registration(core, prepared):
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="prepar|basis|confirmation|origin|proof|registration"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:17: Failed
+_ test_saved_dto_must_be_reread_and_approval_rechecked_after_actual_source[saved_dto] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002546963B950>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_saved_dto_must_be_reread_0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025469603460>
+damage = 'saved_dto'
+
+    @pytest.mark.parametrize("damage", ["saved_dto", "plan_origin"])
+    def test_saved_dto_must_be_reread_and_approval_rechecked_after_actual_source(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        original_check, read = SourceAnalysisService.check, core.unit_of_work.repo.read
+    
+        def checked(self, **kwargs):
+            result = original_check(self, **kwargs)
+    
+            def damaged(**read_kwargs):
+                saved = read(**read_kwargs)
+                if damage == "saved_dto" and saved.aggregate_kind == "prepared_run":
+                    return replace(saved, payload=dict(saved.payload) | {"created_at_commit": "999999"})
+                if damage == "plan_origin" and (
+                    saved.payload.get("schema_version"),
+                    saved.payload.get("action"),
+                ) == ("aitest.controlled-write-intent/1.0", "publish_plan"):
+                    raise KeyError("plan origin was lost during actual source reading")
+                return saved
+    
+            monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+            return result
+    
+        monkeypatch.setattr(SourceAnalysisService, "check", checked)
+>       expect_no_registration(core, prepared)
+
+tests\unit\test_initial_registration_origin.py:136: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002546963B950>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000002546963AD70>)
+prepared = {'schema_version': 'aitest.prepared-run/1.0', 'prepared_run_id': 'prepared-1accaf884dacfd962726b72f1451d82c10241a94', 'project_id': 'project-ticket', 'project_revision': 1, ...}
+
+    def expect_no_registration(core, prepared):
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="prepar|basis|confirmation|origin|proof|registration"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:17: Failed
+_ test_saved_dto_must_be_reread_and_approval_rechecked_after_actual_source[plan_origin] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025468DE0050>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_saved_dto_must_be_reread_1/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025469601E10>
+damage = 'plan_origin'
+
+    @pytest.mark.parametrize("damage", ["saved_dto", "plan_origin"])
+    def test_saved_dto_must_be_reread_and_approval_rechecked_after_actual_source(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        original_check, read = SourceAnalysisService.check, core.unit_of_work.repo.read
+    
+        def checked(self, **kwargs):
+            result = original_check(self, **kwargs)
+    
+            def damaged(**read_kwargs):
+                saved = read(**read_kwargs)
+                if damage == "saved_dto" and saved.aggregate_kind == "prepared_run":
+                    return replace(saved, payload=dict(saved.payload) | {"created_at_commit": "999999"})
+                if damage == "plan_origin" and (
+                    saved.payload.get("schema_version"),
+                    saved.payload.get("action"),
+                ) == ("aitest.controlled-write-intent/1.0", "publish_plan"):
+                    raise KeyError("plan origin was lost during actual source reading")
+                return saved
+    
+            monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+            return result
+    
+        monkeypatch.setattr(SourceAnalysisService, "check", checked)
+>       expect_no_registration(core, prepared)
+
+tests\unit\test_initial_registration_origin.py:136: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025468DE0050>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025469639940>)
+prepared = {'schema_version': 'aitest.prepared-run/1.0', 'prepared_run_id': 'prepared-1accaf884dacfd962726b72f1451d82c10241a94', 'project_id': 'project-ticket', 'project_revision': 1, ...}
+
+    def expect_no_registration(core, prepared):
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="prepar|basis|confirmation|origin|proof|registration"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:17: Failed
+_ test_original_registration_receipt_has_exact_intent_preparation_and_envelope[intent] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025468E08EF0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_original_registration_rec0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002546971C350>
+damage = 'intent'
+
+    @pytest.mark.parametrize("damage", ["intent", "prepared_run", "boolean_revision", "envelope"])
+    def test_original_registration_receipt_has_exact_intent_preparation_and_envelope(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        original = register(core, prepared)
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "execution_intent" and saved.payload.get("schema_version") == (
+                "aitest.run-registration-intent/1.0"
+            ):
+                if damage == "envelope":
+                    return replace(saved, record_id="another-original-intent")
+                payload = dict(saved.payload)
+                key, value = {
+                    "intent": ("intent_id", "another-registration-intent"),
+                    "prepared_run": ("prepared_run_id", "another-prepared-run"),
+                    "boolean_revision": ("snapshot_revision", True),
+                }[damage]
+                payload[key] = value
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="registration|original|envelope"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:167: Failed
+_ test_original_registration_receipt_has_exact_intent_preparation_and_envelope[prepared_run] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025469730270>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_original_registration_rec1/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002546971D250>
+damage = 'prepared_run'
+
+    @pytest.mark.parametrize("damage", ["intent", "prepared_run", "boolean_revision", "envelope"])
+    def test_original_registration_receipt_has_exact_intent_preparation_and_envelope(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        original = register(core, prepared)
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "execution_intent" and saved.payload.get("schema_version") == (
+                "aitest.run-registration-intent/1.0"
+            ):
+                if damage == "envelope":
+                    return replace(saved, record_id="another-original-intent")
+                payload = dict(saved.payload)
+                key, value = {
+                    "intent": ("intent_id", "another-registration-intent"),
+                    "prepared_run": ("prepared_run_id", "another-prepared-run"),
+                    "boolean_revision": ("snapshot_revision", True),
+                }[damage]
+                payload[key] = value
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="registration|original|envelope"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:167: Failed
+_ test_original_registration_receipt_has_exact_intent_preparation_and_envelope[boolean_revision] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025469730490>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_original_registration_rec2/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000254696646E0>
+damage = 'boolean_revision'
+
+    @pytest.mark.parametrize("damage", ["intent", "prepared_run", "boolean_revision", "envelope"])
+    def test_original_registration_receipt_has_exact_intent_preparation_and_envelope(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        original = register(core, prepared)
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "execution_intent" and saved.payload.get("schema_version") == (
+                "aitest.run-registration-intent/1.0"
+            ):
+                if damage == "envelope":
+                    return replace(saved, record_id="another-original-intent")
+                payload = dict(saved.payload)
+                key, value = {
+                    "intent": ("intent_id", "another-registration-intent"),
+                    "prepared_run": ("prepared_run_id", "another-prepared-run"),
+                    "boolean_revision": ("snapshot_revision", True),
+                }[damage]
+                payload[key] = value
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="registration|original|envelope"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:167: Failed
+_ test_original_registration_receipt_has_exact_intent_preparation_and_envelope[envelope] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002546971E150>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-664/test_original_registration_rec3/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000254696667B0>
+damage = 'envelope'
+
+    @pytest.mark.parametrize("damage", ["intent", "prepared_run", "boolean_revision", "envelope"])
+    def test_original_registration_receipt_has_exact_intent_preparation_and_envelope(
+        authoritative, monkeypatch, damage
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        original = register(core, prepared)
+        read = core.unit_of_work.repo.read
+    
+        def damaged(**kwargs):
+            saved = read(**kwargs)
+            if saved.aggregate_kind == "execution_intent" and saved.payload.get("schema_version") == (
+                "aitest.run-registration-intent/1.0"
+            ):
+                if damage == "envelope":
+                    return replace(saved, record_id="another-original-intent")
+                payload = dict(saved.payload)
+                key, value = {
+                    "intent": ("intent_id", "another-registration-intent"),
+                    "prepared_run": ("prepared_run_id", "another-prepared-run"),
+                    "boolean_revision": ("snapshot_revision", True),
+                }[damage]
+                payload[key] = value
+                return replace(saved, payload=payload)
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, "read", damaged)
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match="registration|original|envelope"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_initial_registration_origin.py:167: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_initial_registration_origin.py::test_preparation_receipt_is_consumed_with_the_saved_dto[missing]
+FAILED tests/unit/test_initial_registration_origin.py::test_preparation_receipt_is_consumed_with_the_saved_dto[cancelled]
+FAILED tests/unit/test_initial_registration_origin.py::test_preparation_receipt_is_consumed_with_the_saved_dto[input_digest]
+FAILED tests/unit/test_initial_registration_origin.py::test_saved_dto_must_be_reread_and_approval_rechecked_after_actual_source[saved_dto]
+FAILED tests/unit/test_initial_registration_origin.py::test_saved_dto_must_be_reread_and_approval_rechecked_after_actual_source[plan_origin]
+FAILED tests/unit/test_initial_registration_origin.py::test_original_registration_receipt_has_exact_intent_preparation_and_envelope[intent]
+FAILED tests/unit/test_initial_registration_origin.py::test_original_registration_receipt_has_exact_intent_preparation_and_envelope[prepared_run]
+FAILED tests/unit/test_initial_registration_origin.py::test_original_registration_receipt_has_exact_intent_preparation_and_envelope[boolean_revision]
+FAILED tests/unit/test_initial_registration_origin.py::test_original_registration_receipt_has_exact_intent_preparation_and_envelope[envelope]
+9 failed, 5 deselected in 315.01s (0:05:15)

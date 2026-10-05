@@ -7,7 +7,6 @@ from pydantic import TypeAdapter
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator, _run_pointer_id
 from aitest.application.execution.facts import project_attempt_fact
-from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.draft import text_digest
 from aitest.application.planning.plan_builder import build_plan
 from aitest.application.planning.publish import payload_digest
@@ -31,9 +30,10 @@ from aitest.domain.execution.runs import (
 )
 from aitest.domain.planning.plans import PlanPublicationStatus, RunDriver
 from aitest.domain.planning.runtime_revision import CaseRuntimeChange, RuntimeRevisionRequest
+from tests.support.controlled_confirmation import basis_command, controlled_basis_confirm
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
-from tests.unit.test_initial_run_registration import register
+from tests.unit.test_initial_run_registration import register, service
 
 
 def publish_snapshot(core, coordinator, facts, request="assessment-controlled-snapshot"):
@@ -108,7 +108,13 @@ def runtime(authoritative):
         operator_ref="controlled-test-operator",
         requested_driver=RunDriver.STEPWISE,
     )
-    assessment = SavedRuntimeRevisionAssessment(reader=reader, execution=coordinator)
+    origin = service(core)
+    assessment = SavedRuntimeRevisionAssessment(
+        reader=reader,
+        execution=coordinator,
+        approvals=origin.approvals,
+        controlled_writes=origin.controlled_writes,
+    )
     return core, assessment, plan, cases, facts, request
 
 
@@ -360,16 +366,22 @@ def save_next_basis_and_confirm(runtime):
         payload=case_to_payload(next_case, project_id=facts.project_id),
     )
     core.unit_of_work.commit("save-next-case")
-    confirmation = BasisConfirmationService(reader=service.reader, unit=core.unit_of_work).confirm(
-        request_id="confirm-next-case",
-        intent_id="confirm-next-basis-intent",
-        project_id=facts.project_id,
-        case_id=next_case.case_id,
-        case_revision=2,
-        basis_revision=2,
-        basis_text_digest=basis.text_digest,
+    response = controlled_basis_confirm(
+        core,
+        basis_command(
+            facts.project_id,
+            {
+                "case_id": next_case.case_id,
+                "case_revision": 2,
+                "basis_revision": 2,
+                "basis_text_digest": basis.text_digest,
+            },
+            request="confirm-next-case",
+            intent="confirm-next-basis-intent",
+        ),
     )
-    return replace(request, case_changes=(CaseRuntimeChange(next_case),)), confirmation[
+    assert response.error is None, response.error
+    return replace(request, case_changes=(CaseRuntimeChange(next_case),)), response.result[
         "confirmation_id"
     ]
 
@@ -619,7 +631,7 @@ def test_frozen_step_edits_leave_the_actual_current_snapshot_unchanged(runtime):
 
 def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(authoritative):
     from aitest.contracts.prepared_run import PlanRevisionRef as PreparedPlanRef
-    from tests.unit.test_default_source_analysis import dispatch
+    from tests.support.controlled_publication import controlled_publication_save
 
     core, inputs, _ = authoritative
     reader = PortsRecordReader(core.unit_of_work.repo)
@@ -639,7 +651,7 @@ def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(author
         )
         for ref in original["case_revisions"]
     )
-    response = dispatch(
+    response = controlled_publication_save(
         core,
         "publish_plan",
         project=inputs.project_id,
@@ -703,7 +715,14 @@ def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(author
         reason="准确仓储版本",
         operator_ref="controlled-test",
     )
-    service = SavedRuntimeRevisionAssessment(reader=reader, execution=coordinator)
+    origin = core.initial_run_registration
+    assert origin is not None
+    service = SavedRuntimeRevisionAssessment(
+        reader=reader,
+        execution=coordinator,
+        approvals=origin.approvals,
+        controlled_writes=origin.controlled_writes,
+    )
     sequence = core.unit_of_work.current_commit_sequence()
     correct = service.assess(
         project_id=inputs.project_id, run_id=facts.run_id, plan=plan, request=request
