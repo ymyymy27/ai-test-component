@@ -32,8 +32,8 @@
 | D-09 P1/代码已修复待入口验收 | 空 full 范围错误通过已由 `reports.py` 的 selected/required 非空门禁消除，单元反例通过。仍需真实入口、报告和 DTO 同口径验证，不能仅凭单元测试关闭。 | 一期功能第3/14节；FR07/14/17，AC18/21/22/24/27。继续验证空/未知输入 fail closed、显式全不适用、空执行、全合法复用、actual failure 和 quick/on_demand。 |
 | D-02 接入缺口（已部分推进） | ExecutionFacts→DecisionFacts 唯一适配器、七类夹具、当前 Attempt/证据/来源/依赖守卫和 F⊆H 已合并；D 侧业务 AssertionOutcomeFact 的生产来源与 C-01—C-13 后的真实对拍仍缺。 | AC19/21/24/27；补断言结果生产输入，按 A 同一提交读取/发布 S/M 整用例集合和 H，禁止旧继承+部分新执行拼集合。 |
 | D-04 高风险/接入缺口 | IssueClosureEvidence需显式入参，但真实新回归/当前Attempt/已保存证据等仍由调用方布尔自报，应用未查询权威记录或接UOW；ReportExport仍接收自给ref/digest，exports.py占位 | AC11/14/16/29/33/35；查同提交当前新实际回归和有效核验，保存不可变修复/复测/报告；经A制品端口真实生成安全摘要/相对路径包，完整校验后登记成功，LocalReview不改正文 |
-| D-05 接入缺口 | selected/required 汇总、H 引用和快照元数据已进入 DTO；公开 `CoverageDTO`、所有入口统一形状、真实来源/游标读取链仍未闭合。 | AC21/24/27/34；统一核心、报告、面板、CLI、MCP 的同修订输出，未知不得补 0/false，Schema 仍由 A 主责。 |
-| D-06 阻断交付 | CLI/MCP/面板/Trae 没有同核心业务动作；LocalAPI 对人工动作只做 client_kind 限制，缺真实动作摘要/来源会话/输入与目标修订的受控挑战；扩展无业务消息桥 | AC26/31/33/34；D 实现用户动作与角色边界，A 校验会话/实例，B/C 校验范围/输入/授权修订；MCP 禁止人工确认，不能接受参数自报身份。列表走摘要索引，迟到响应和断线按原项目/运行处理 |
+| D-05 接入缺口 | selected/required 汇总、H 引用、快照元数据和 issues.list 14 掩码/OPEN/ALL/游标 DTO 已实现；公开 `CoverageDTO`、所有入口统一形状、真实来源/游标读取链仍未闭合。 | AC21/24/27/34；统一核心、报告、面板、CLI、MCP 的同修订输出，未知不得补 0/false，Schema 仍由 A 主责。 |
+| D-06 阻断交付 | `issues.list` 业务过滤/游标语义和 DTO 已完成，但 CLI/MCP/面板/Trae 尚无同核心业务桥、受控动作摘要和会话/修订挑战。 | AC26/31/33/34；D 接统一入口，A 校验会话/实例，B/C 校验范围/输入/授权修订；MCP 禁止人工确认。列表必须走 A 的物理索引。 |
 | D-07 未验证 | 信息区三段、动作导航、主失败去向、复制修复说明、键盘/旧报告精确筛选、隐藏/折叠、事件重放/重复、portable 导出均无真实产品证据 | D 牵头 16 项仍 untested；现有静态导航测试和打包不能替代真实 Trae 生命周期与业务流程验收 |
 | D-08 自动化待运行 | 阶段卡选择器已改为精确定位 `article.phase`，`npm run build` 与 `playwright --list` 通过；当前沙箱禁止 Playwright 子进程，完整导航/窄屏运行仍需 CI 或正常 Windows 环境。 | AC26 静态验证；执行完整测试后登记命令、输入、预期/实际和日志，不能把 `--list` 当作运行通过或真实 Trae 验收。 |
 

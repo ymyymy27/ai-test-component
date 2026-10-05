@@ -16,6 +16,15 @@ from aitest.domain.review.defects import (
     IssueSeverity,
     IssueStatus,
 )
+from aitest.domain.review.issue_queries import (
+    IssueBlockingState,
+    IssueFilterMask,
+    IssueListCursor,
+    IssueListPage,
+    IssueListProjection,
+    IssueListScope,
+    IssueReviewState,
+)
 from aitest.domain.review.reports import (
     BusinessOutcome,
     Coverage,
@@ -191,6 +200,80 @@ def report_summary_dto(value: ReportSnapshot) -> ReportSummaryDTO:
         evidence_grade=value.evidence_grade,
         primary_gap=ReviewGapDTO.from_domain(value.primary_gap),
         created_at=value.created_at,
+    )
+
+
+class IssueListCursorDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    commit_id: str
+    condition_fingerprint: str
+    last_updated_sequence: int
+    last_issue_id: str
+
+    @classmethod
+    def from_domain(cls, value: IssueListCursor | None) -> "IssueListCursorDTO | None":
+        if value is None:
+            return None
+        return cls(
+            commit_id=value.commit_id,
+            condition_fingerprint=value.condition_fingerprint,
+            last_updated_sequence=value.last_updated_sequence,
+            last_issue_id=value.last_issue_id,
+        )
+
+
+class IssueListRowDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    issue_id: str
+    content_revision: int
+    module_ids: tuple[str, ...]
+    layers: tuple[str, ...]
+    severity: IssueSeverity | None
+    workflow_state: IssueStatus | None
+    review_state: IssueReviewState
+    disposition: IssueDisposition | None
+    blocking: IssueBlockingState
+    canonical_issue_id: str | None
+    updated_sequence: int
+    gap_reason: str | None = None
+
+
+def issue_list_row_dto(value: IssueListProjection) -> IssueListRowDTO:
+    return IssueListRowDTO(
+        issue_id=value.issue_id,
+        content_revision=value.content_revision,
+        module_ids=tuple(sorted(value.module_ids)),
+        layers=tuple(sorted(value.layers)),
+        severity=value.severity,
+        workflow_state=value.workflow_state,
+        review_state=value.review_state,
+        disposition=value.disposition,
+        blocking=value.blocking,
+        canonical_issue_id=value.canonical_issue_id,
+        updated_sequence=value.updated_sequence,
+        gap_reason=value.gap_reason,
+    )
+
+
+class IssueListPageDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    query_spec_version: str
+    scope: IssueListScope
+    mask: IssueFilterMask
+    items: tuple[IssueListRowDTO, ...]
+    next_cursor: IssueListCursorDTO | None
+
+
+def issue_list_page_dto(value: IssueListPage) -> IssueListPageDTO:
+    return IssueListPageDTO(
+        query_spec_version=value.query_spec_version,
+        scope=value.scope,
+        mask=value.mask,
+        items=tuple(issue_list_row_dto(item) for item in value.items),
+        next_cursor=IssueListCursorDTO.from_domain(value.next_cursor),
     )
 
 
