@@ -92,6 +92,13 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
     if len(attempts) != len(facts.attempts):
         raise ValueError("execution facts contain duplicate attempt ids")
 
+    history_by_step: dict[str, list[AttemptRuntimeState]] = {}
+    for historical in facts.attempts:
+        if not historical.is_current:
+            history_by_step.setdefault(historical.step_id, []).append(
+                AttemptRuntimeState(historical.state.value)
+            )
+
     steps: list[StepRuntimeFacts] = []
     for step in facts.steps:
         mapped_attempt_id = facts.current_attempt_by_step.get(step.step_id)
@@ -111,6 +118,8 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
                 )
             if attempt.step_id != step.step_id:
                 raise ValueError("current execution attempt belongs to another step")
+            if attempt.step_revision_ref != step.step_revision_ref:
+                raise ValueError("current attempt does not use the exact current step revision")
             attempt_state = AttemptRuntimeState(attempt.state.value)
         steps.append(
             StepRuntimeFacts(
@@ -122,6 +131,7 @@ def runtime_facts_from_execution_facts(facts: ExecutionFacts) -> RunRuntimeFacts
                 current_attempt_state=attempt_state,
                 invalidated=step.invalidated,
                 step_revision_no=step.step_revision,
+                historical_attempt_states=tuple(history_by_step.get(step.step_id, ())),
             )
         )
 

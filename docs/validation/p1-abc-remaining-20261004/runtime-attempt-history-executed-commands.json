@@ -1,0 +1,45 @@
+{
+  "scope": "exact final executed arguments; companion record, not part of the earlier immutable manifest",
+  "source_archive": "history/runtime-attempt-history-final-394/manifest.json",
+  "runs": [
+    {
+      "log": "runtime-attempt-history-final-component-corrected.log",
+      "argv": [
+        ".venv/Scripts/python.exe",
+        "-u",
+        "-m",
+        "pytest",
+        "tests/unit/test_runtime_revision_attempt_history.py",
+        "tests/unit/test_runtime_revision_history_authority.py",
+        "tests/unit/test_runtime_revision.py",
+        "tests/unit/test_runtime_facts_identity.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--tb=short",
+        "-ra"
+      ]
+    },
+    {
+      "log": "runtime-attempt-history-final-contracts.log",
+      "argv": [
+        ".venv/Scripts/python.exe",
+        "-u",
+        "-m",
+        "pytest",
+        "tests/contracts",
+        "tests/architecture",
+        "tests/unit/test_execution_commit.py",
+        "tests/unit/test_current_execution_snapshot.py",
+        "tests/unit/test_saved_runtime_revision.py",
+        "-k",
+        "not test_actual_frozen_content_prevents_client_body_substitution and not test_plan_view_cannot_change_saved_material and not test_legacy_plan_view_without_record_revision_does_not_prove_repository_read and not test_newer_case_and_plan_records_do_not_replace_frozen_history and not test_reader_cannot_substitute_the_frozen_case and not test_snapshot_change_while_reading_material_is_rejected and not test_proposed_assertion_digest_cannot_be_self_reported and not test_saved_exact_new_basis_confirmation_changes_only_confirmation_requirement and not test_confirmation_reference_requires_saved_exact_provenance and not test_unknown_run_and_foreign_project_cannot_use_saved_authority",
+        "-o",
+        "addopts=",
+        "-q",
+        "--tb=short",
+        "-ra"
+      ]
+    }
+  ]
+}

@@ -2,12 +2,14 @@
 
 import copy
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from aitest.application.planning.run_mode import runtime_facts_from_execution_facts
 from aitest.contracts.execution_facts import ExecutionFacts
+from aitest.domain.planning.runtime_revision import AttemptRuntimeState
 
 FIXTURES = (
     Path(__file__).resolve().parents[2]
@@ -115,7 +117,12 @@ def test_history_can_remain_without_becoming_current_or_changing_active_progress
     body["run"]["runtime_revision_refs"] = ["revision-1", "revision-2"]
     body["runtime_revision_refs"] = ["revision-1", "revision-2"]
     view = runtime_facts_from_execution_facts(ExecutionFacts.model_validate(body))
-    assert view.steps == baseline.steps
+    for before, after in zip(baseline.steps, view.steps, strict=True):
+        # Retaining history enriches the view, without changing any current field.
+        assert replace(after, historical_attempt_states=()) == before
+        assert after.progress() is before.progress()
+    assert view.steps[0].historical_attempt_states == (AttemptRuntimeState.COMPLETED,)
+    assert view.steps[1].historical_attempt_states == ()
     assert view.runtime_revision_count == 2
 
 

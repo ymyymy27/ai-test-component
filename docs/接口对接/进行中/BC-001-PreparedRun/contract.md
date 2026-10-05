@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.15"
+contract_version: "0.16"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.15（2026-10-05 普通快照受控变更与范围守卫，验证记录另行登记）
+版本：0.16（2026-10-05 运行修订保留已产生 Attempt 的步骤内容，验证记录另行登记）
 日期：2026-09-26
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -718,7 +718,7 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 
 沿用第16、18、19节，一期功能第10.6/15节与架构01第4节。新增应用组件 `SavedRuntimeRevisionAssessment`，只返回绑定当前快照的评估结果，不产生修订、执行授权或通过结论；原纯值 `request_runtime_revision` 保留，不能独立作为产品权威入口。
 
-1. C 提供 `RuntimeExecutionReader.read_runtime_revision_facts(project_id, run_id)`（协议声明归 `application/ports.py`）。从已保存的准确当前引用读取事实，并逐项读取当前 Attempt 的权威检查点，核对完整投影；缺失、跨项目、状态/依据/消费关系/输出不同均拒绝。检查点的 expected_plan_revision_ref 不在公开投影中，须单独与 Run 冻结引用逐项核对；缺失或不同均拒绝，不能按投影相等推定一致。读取后再核对当前快照未变化，不把仅自洽的调用方 DTO 当作活动来源。
+1. C 提供 `RuntimeExecutionReader.read_runtime_revision_facts(project_id, run_id)`（协议声明归 `application/ports.py`）。从已保存的准确当前引用读取事实，并逐项读取评估消费的当前及历史 Attempt 的权威检查点，核对完整投影；缺失、跨项目、状态/依据/消费关系/输出不同均拒绝。检查点的 expected_plan_revision_ref 不在公开投影中，须单独与 Run 冻结引用逐项核对；缺失或不同均拒绝，不能按投影相等推定一致。读取后再核对当前快照未变化，不把仅自洽的调用方 DTO 当作活动来源。
 2. B 从该事实冻结的 `plan_revision` 按准确仓储修订读取计划正文，先核对归属与正文摘要。传入的 Plan 是待核对视图，必须附准确 `record_revision`，正文版本、完整计划内容及 Scope 正文与仓储材料一致。Case 从计划准确引用读取，逐项核对 ID、正文/仓储修订配对、规范内容摘要和断言文本摘要。不能用“同 ID/修订”的替代正文绕过独立核验或必测关联门禁，也不以最新记录替换冻结旧记录。
 3. 已冻结 M、S、档位与保存计划核对。确认只接受引用 ID，按 `case_link@1` 回读受控保存记录；核对项目、准确用例/依据、正文摘要、持久意图派生 ID 与输入摘要。请求写 `confirmed` 或自报确认对象不替代仓储事实；旧确认仅按原纯规则匹配新依据，不会因引用存在就有效。
 4. 尚无可读运行中修订序列记录的旧快照，若 `runtime_revision_refs` 非空，显式阻塞；不按字符串条数自签下一修订。材料读取后再次核对当前 C 事实完整相等，变化拒绝。评估结果仍可能在返回后过期，后续保存必须在同一短事务内重读并重新评估，不能凭预览结果直接执行。
@@ -726,3 +726,14 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 6. 当前事实的后续发布不能改写初始冻结 PlanRevisionRef、环境引用/隔离方式、规则引用及按档位派生的结论上限；与既有 workspace/intent/tier/M 一起逐项核对。运行中修订追加序列、保留初始计划引用；换环境、规则或不兼容依据须新建运行。拒绝发生在当前指针/快照暂存前；`allow_current_change` 仅支持原子认领新 Attempt，不能绕过冻结依据守卫。
 7. 普通状态/证据发布与新Attempt认领也不能增删冻结步骤或改写其case_id、ordinal、required_for_case、level、dependency_step_ids、registered_entry_ref、assertion_refs、evidence_requirement_ids和StepRevisionRef；这些属于冻结执行内容。运行修订需新的受控保存/应用入口核对可读权威序列，不能用普通发布或allow_current_change布尔值替代。当前仅保持状态、当前Attempt、失效及缺口等执行进度字段的合法更新路径；不把此守卫算作运行修订应用已经完成。
 8. 普通发布与新Attempt认领同时保留已保存的driver、selected_scope、source_binding_digest及准确runtime_revision_refs序列，包括未核实源码的空值。驱动收窄须有受控DriverChange记录，运行修订须有可读序列和步骤边界应用，源码从待核实升级须有准确保存的来源核验；不能直接修改事实字段替代这些动作。Run的M/S与coverage的M/S分别保留原集合，序列顶层与Run内逐项同序一致、引用非空且唯一。进度、缺口和当前执行计数仍可合法改变；本条守卫不表示上述受控持久动作已完成。
+
+### 20.1 已产生尝试的内容保留与活动优先级
+
+沿用一期功能第4节、架构01第4节和AC20，不新增公开DTO或状态。运行修订的“尚未执行”不能只由Step状态标签证明：
+
+- 当前或历史Attempt仍在`intent_recorded / starting / running / stop_requested / collecting`时，所属步骤在修订评估中视为正在执行，拒绝修改；改为非当前不能证明外部执行已停止。
+- 当前或历史Attempt已完成、取消、待核实、执行错误、失效或结果未知时，已有事实和原执行内容继续保留；即使Step投影滞后为pending、ready、blocked或invalidated，也不能重新列入可修改步骤。Unknown不证明未执行，失效不抹除曾经执行。
+- 仅Step为既有可修改状态且没有任何Attempt事实时，才按尚未执行处理。未执行的同用例步骤仍可修改；依据变化时已有事实的步骤进入preserved/invalidated_basis清单并要求暂停，不把历史结果改成新执行。
+- 当前Attempt的StepRevisionRef必须与当前Step逐字段相等（ID、仓储修订、摘要、继承及基础引用），不能只核对所属步骤ID。历史Attempt保留原引用，不要求它跟随当前步骤内容变化。
+
+应用翻译完整消费同快照中的当前/历史尝试，领域只计算一次修订进度。该增量仍是评估守卫；不代替真实停止核实、持久RunPlanRevision、runner步骤边界应用或真实半程验收。旧公开材料保持可读，无法证明依据的请求明确拒绝。合同状态继续reviewing/partial/not_run，不替代双方确认。

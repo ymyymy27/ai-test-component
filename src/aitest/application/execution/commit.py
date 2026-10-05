@@ -312,11 +312,11 @@ class ExecutionCommitCoordinator:
             raise ValueError("runtime revision requires a registered current run")
         frozen_plan = PlanRevisionRef(**facts.plan_revision.model_dump())
         for fact in facts.attempts:
-            if fact.is_current:
-                saved = self.read_checkpoint(project_id=project_id, attempt_id=fact.attempt_id)
-                if saved.attempt.expected_plan_revision_ref != frozen_plan:
-                    raise ValueError("current checkpoint does not use the exact frozen run plan")
-                _validate_attempt_projection(saved.attempt, fact)
+            # Historical activity also constrains edits; it requires the same authority.
+            saved = self.read_checkpoint(project_id=project_id, attempt_id=fact.attempt_id)
+            if saved.attempt.expected_plan_revision_ref != frozen_plan:
+                raise ValueError("runtime checkpoint does not use the exact frozen run plan")
+            _validate_attempt_projection(saved.attempt, fact)
         if self.read_current_facts(project_id=project_id, run_id=run_id) != facts:
             raise ValueError("current execution snapshot changed during runtime assessment")
         return facts

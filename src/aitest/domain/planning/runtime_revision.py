@@ -145,23 +145,30 @@ class StepRuntimeProgress(StrEnum):
 
 
 def step_runtime_progress(
-    state: StepRuntimeState, *, current_attempt_state: AttemptRuntimeState | None
+    state: StepRuntimeState,
+    *,
+    current_attempt_state: AttemptRuntimeState | None,
+    historical_attempt_states: tuple[AttemptRuntimeState, ...] = (),
 ) -> StepRuntimeProgress:
     """按 C 的事实派生步骤进度。
 
     | 事实 | 分类 | 对运行中修订的含义 |
     | --- | --- | --- |
-    | 当前尝试在 `intent_recorded`…`collecting`，或步骤 `running` | `EXECUTING` | **拒绝修改** |
-    | 步骤 `pending` / `ready` / `blocked` / `invalidated` | `NOT_STARTED` | 修订可以作用 |
-    | 步骤已停在待核实／完成／取消／执行错误 | `FACTS_RECORDED` | 绑定原修订，不回改 |
+    | 任一尝试在 `intent_recorded`…`collecting`，或步骤 `running` | `EXECUTING` | **拒绝修改** |
+    | 存在其他尝试事实，或步骤已停在待核实／完成／取消／执行错误 | `FACTS_RECORDED` | 原内容不回改 |
+    | 无尝试且步骤 `pending` / `ready` / `blocked` / `invalidated` | `NOT_STARTED` | 可修改 |
 
-    `invalidated` 归入"尚未执行"：C 已判定该步骤需要重跑，它不再是历史事实。
-    尝试状态优先于步骤状态——步骤状态滞后时不能让一个仍在跑的尝试被改写。
+    失效的是依据，已有Attempt事实不能因Step投影滞后或失效而成为未执行内容。
+    历史尝试的活动状态也不能由当前引用替换证明已经停止；本分类不改变当前身份或结论。
     """
     if current_attempt_state is not None and current_attempt_state in ACTIVE_ATTEMPT_STATES:
         return StepRuntimeProgress.EXECUTING
+    if any(state in ACTIVE_ATTEMPT_STATES for state in historical_attempt_states):
+        return StepRuntimeProgress.EXECUTING
     if state is StepRuntimeState.RUNNING:
         return StepRuntimeProgress.EXECUTING
+    if current_attempt_state is not None or historical_attempt_states:
+        return StepRuntimeProgress.FACTS_RECORDED
     if state in _UNSTARTED_STEP_STATES:
         return StepRuntimeProgress.NOT_STARTED
     return StepRuntimeProgress.FACTS_RECORDED
@@ -179,6 +186,7 @@ class StepRuntimeFacts:
     current_attempt_state: AttemptRuntimeState | None = None
     invalidated: bool = False
     step_revision_no: int = 1
+    historical_attempt_states: tuple[AttemptRuntimeState, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.step_id, "step_id")
@@ -190,7 +198,9 @@ class StepRuntimeFacts:
 
     def progress(self) -> StepRuntimeProgress:
         return step_runtime_progress(
-            self.state, current_attempt_state=self.current_attempt_state
+            self.state,
+            current_attempt_state=self.current_attempt_state,
+            historical_attempt_states=self.historical_attempt_states,
         )
 
 

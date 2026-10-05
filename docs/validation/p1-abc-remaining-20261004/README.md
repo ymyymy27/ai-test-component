@@ -84,3 +84,20 @@ uv build
 ```
 
 后续源码变化后旧档案仅核对自身，不能将旧完整结果作为新源码已全部通过证明。
+
+
+## 运行修订保留尝试历史与权威回读（2026-10-05）
+
+[详细根因/源码/命令](../../修改日志/袁/2026-10-05-运行修订保留尝试历史与权威回读.md)。
+
+- [修前37项](history/runtime-attempt-history-failed-37/manifest.json)：37失败/9通过；363文件/7符号/3记录，原漏夹具导入的3错误单独保留。
+- [历史权威修前5项](history/runtime-attempt-history-authority-failed-5/manifest.json)：5失败/1通过；364文件/40符号/6记录。已有前两项修补，历史检查点仍被跳过。
+- [旧视图断言失败](history/runtime-attempt-history-view-fixture-failed-121/manifest.json)：最终组件121通过/1失败；全部新52节点通过，旧内部全等断言尚未新增历史值核对；364文件/73符号/16记录。
+- [最终394项](history/runtime-attempt-history-final-394/manifest.json)：122 passed in 231.95s加272 passed/23 deselected in 394.38s，互不重叠共394；364文件/78符号/27记录，ZIP SHA256 `771d20fb04601624a26396c000ffce7aaa04165f0145bc66fec4aa39faa5258f`。Ruff/Mypy166、Schema/版本、构建/隔离wheel、三模块制品及现有VSIX共享面板通过；24份原档案完整性通过，159处同名源码锚点已刷新，未覆写历史结果。
+
+```powershell
+.venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/runtime-attempt-history-final-394/manifest.json --against-checkout
+.venv/Scripts/python.exe -m pytest tests/unit/test_runtime_revision_attempt_history.py tests/unit/test_runtime_revision_history_authority.py -o addopts='' -q --tb=short
+```
+
+2393仅收集，未重跑完整Python，2336/2完整结果仍只属于4396824；真实AC和22项产品条件保持开放，持久修订/实际C/D消费继续按整改计划实施。后续源码变化后旧档案只核对自身。

@@ -71,3 +71,5 @@ A-02锁组件补修跨工作空间事务独立结束时误清其他活动归属�
 完整回归最终登记（2026-10-05）：普通快照冻结守卫与准确当前引用拒绝优先级的最终完整Python为**2336 passed, 2 skipped in 2253.18s (0:37:33)**；两项Windows符号链接权限跳过，不计通过。Ruff/Mypy166、Schema/0.4.0、最终构建/隔离wheel及制品字节核对通过，未重建VSIX；[最终准确源码](validation/p1-abc-remaining-20261004/history/frozen-run-full-final-2336/manifest.json)与原始日志已封存。历史失败及局部数字仍只归属各自源码；本包具体剩余完成条件、22项ABC产品任务和真实35项AC状态不改变。
 
 跨线程析构归属后续修复（2026-10-05）：已准确清理原取得锁线程的归属并保留其他活动工作空间；外线程业务commit/rollback/stage继续拒绝，主线程可靠提交/回读通过。最新**310 passed in 77.69s (0:01:17)**及Ruff/Mypy166、最新构建/隔离wheel和制品字节核对通过，见[准确当前工程](validation/p1-abc-remaining-20261004/history/frozen-run-foreign-cleanup-310/manifest.json)。此后续修补未再跑完整Python，2336/2完整结果只属于4396824，当前2341节点仅收集成功；不借旧全量证明新源码全绿。下一步仍补持久运行修订/可读步骤内容、受控来源/驱动与实际C/D消费，22项产品条件和真实AC保持开放。
+
+运行修订尝试历史后续修复（2026-10-05）：已补已有Attempt内容保留、当前StepRevisionRef逐字段核对和当前/历史权威检查点回读，原37项及5项反例已修。最终受影响回归为122+272共**394 passed**（272组另23 deselected），Ruff/Mypy166、Schema/0.4.0版本、构建/隔离wheel与制品字节核对通过；见[根因与逐项源码](修改日志/袁/2026-10-05-运行修订保留尝试历史与权威回读.md)及[准确工程](validation/p1-abc-remaining-20261004/history/runtime-attempt-history-final-394/manifest.json)。本轮未再跑完整Python，2393仅收集，旧2336/2仍只属4396824；22项产品条件、持久运行修订/实际C/D消费及真实AC继续开放。

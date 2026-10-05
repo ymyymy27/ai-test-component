@@ -1,0 +1,961 @@
+{
+  "status": "passed",
+  "scope": "same symbols only; no historical result rewriting",
+  "updated": 159,
+  "references": [
+    {
+      "label": "seal_inflight_outputs",
+      "old": 217,
+      "current": 379,
+      "path": "src/aitest/infrastructure/file_store/recovery.py"
+    },
+    {
+      "label": "SystemProcessLauncher.start",
+      "old": 570,
+      "current": 594,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "SystemProcessLauncher._create_child",
+      "old": 621,
+      "current": 645,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "SystemProcessLauncher._process_fact",
+      "old": 727,
+      "current": 751,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "SystemProcessLauncher._record_exit",
+      "old": 736,
+      "current": 760,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "SystemProcessLauncher.observe_start",
+      "old": 747,
+      "current": 771,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "await_core_launch_claim",
+      "old": 779,
+      "current": 803,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "make_pipe_connector",
+      "old": 813,
+      "current": 837,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "shutdown_endpoint",
+      "old": 931,
+      "current": 957,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "acquire_endpoint",
+      "old": 903,
+      "current": 928,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "test_failed_creation_does_not_publish_discovery",
+      "old": 82,
+      "current": 83,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_repeated_claim_preserves_first_child_and_discovery",
+      "old": 92,
+      "current": 93,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_live_child_is_reused_across_launcher_instances",
+      "old": 113,
+      "current": 114,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_two_hosts_cannot_create_children_during_one_claim",
+      "old": 121,
+      "current": 122,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_absent_discovery_does_not_bypass_existing_os_writer_lock",
+      "old": 159,
+      "current": 160,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_stopping_core_is_waited_until_verified_exit_before_replacement",
+      "old": 172,
+      "current": 173,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_stopping_timeout_preserves_living_core_instead_of_declaring_exit",
+      "old": 183,
+      "current": 184,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_uncertain_creation_blocks_respawn_and_preserves_facts",
+      "old": 194,
+      "current": 195,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_legacy_unresponsive_pointer_does_not_authorize_new_child",
+      "old": 209,
+      "current": 210,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_live_core_cannot_be_reassigned_to_another_endpoint",
+      "old": 218,
+      "current": 219,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_unqueryable_existing_process_is_not_presumed_dead",
+      "old": 226,
+      "current": 227,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_verified_exit_or_reused_pid_permits_new_claim_without_killing_foreign_process",
+      "old": 235,
+      "current": 236,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_publication_failure_stops_only_owned_child_and_preserves_old_pointer",
+      "old": 253,
+      "current": 254,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_unverified_birth_retains_uncertain_state_after_stopping_owned_child",
+      "old": 284,
+      "current": 285,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_failed_owned_termination_keeps_uncertain_creation_and_blocks_new_child",
+      "old": 295,
+      "current": 296,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_exact_early_exit_is_persisted_and_host_does_not_wait_full_timeout",
+      "old": 323,
+      "current": 324,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_malformed_startup_fact_blocks_spawn_without_rewriting",
+      "old": 359,
+      "current": 360,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_duplicate_and_oversized_startup_facts_are_rejected",
+      "old": 371,
+      "current": 372,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_known_credentials_block_before_any_startup_history_write",
+      "old": 383,
+      "current": 384,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_junction_ancestor_is_rejected_before_claim_or_spawn",
+      "old": 400,
+      "current": 401,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_pointer_filename_cannot_escape_workspace",
+      "old": 413,
+      "current": 414,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_child_gate_waits_for_matching_creation_and_pointer",
+      "old": 419,
+      "current": 420,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_child_gate_rejects_foreign_or_dead_claim_before_assembly",
+      "old": 444,
+      "current": 445,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_worker_refuses_business_assembly_when_launch_gate_fails",
+      "old": 451,
+      "current": 452,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_discovery_checks_actual_pipe_pid_and_birth",
+      "old": 483,
+      "current": 484,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_client_rejects_unverified_server_and_closes_handle",
+      "old": 517,
+      "current": 518,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_windows_probe_distinguishes_signaled_exit_259_from_living_process",
+      "old": 557,
+      "current": 558,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_real_worker_reports_blocked_recovery_exit_to_host",
+      "old": 572,
+      "current": 573,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_default_venv_launch_binds_actual_core_pid_and_preserves_dependencies",
+      "old": 598,
+      "current": 602,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_direct_interpreter_preserves_venv_package_loading_and_has_no_redirector",
+      "old": 630,
+      "current": 634,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_client_completes_partial_writes_without_duplicating_frame",
+      "old": 654,
+      "current": 658,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_client_failed_writes_cannot_claim_complete_command",
+      "old": 672,
+      "current": 676,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_client_rejects_oversized_response_before_allocating_or_reading_body",
+      "old": 684,
+      "current": 688,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "test_client_failed_reads_do_not_accept_partial_or_false_success",
+      "old": 701,
+      "current": 705,
+      "path": "tests/unit/test_core_startup_integrity.py"
+    },
+    {
+      "label": "query_spec",
+      "old": 1197,
+      "current": 1204,
+      "path": "src/aitest/infrastructure/file_store/index.py"
+    },
+    {
+      "label": "assemble_workspace_core",
+      "old": 238,
+      "current": 244,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "FileQueryIndex._snapshot",
+      "old": 652,
+      "current": 659,
+      "path": "src/aitest/infrastructure/file_store/index.py"
+    },
+    {
+      "label": "FileQueryIndex._publish_latest_replacements",
+      "old": 1031,
+      "current": 1038,
+      "path": "src/aitest/infrastructure/file_store/index.py"
+    },
+    {
+      "label": "migrate_query_layout",
+      "old": 1311,
+      "current": 1318,
+      "path": "src/aitest/infrastructure/file_store/index.py"
+    },
+    {
+      "label": "rollback_query_layout",
+      "old": 1395,
+      "current": 1402,
+      "path": "src/aitest/infrastructure/file_store/index.py"
+    },
+    {
+      "label": "RecordQuery.__post_init__",
+      "old": 181,
+      "current": 183,
+      "path": "src/aitest/application/planning/substrate.py"
+    },
+    {
+      "label": "FileQueryIndex._validate_rows",
+      "old": 900,
+      "current": 907,
+      "path": "src/aitest/infrastructure/file_store/index.py"
+    },
+    {
+      "label": "FileCommitStore.read_current",
+      "old": 129,
+      "current": 135,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore.verify_material",
+      "old": 347,
+      "current": 359,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore._verify_business",
+      "old": 396,
+      "current": 424,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore.prepare",
+      "old": 499,
+      "current": 529,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore.publish",
+      "old": 520,
+      "current": 550,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileRecordRepository._publish_shared_commit",
+      "old": 865,
+      "current": 884,
+      "path": "src/aitest/infrastructure/file_store/records.py"
+    },
+    {
+      "label": "FileEventJournal._merge_staging_after_crash",
+      "old": 476,
+      "current": 595,
+      "path": "src/aitest/infrastructure/file_store/events.py"
+    },
+    {
+      "label": "writer_lock",
+      "old": 59,
+      "current": 72,
+      "path": "src/aitest/infrastructure/file_store/locking.py"
+    },
+    {
+      "label": "Workspace._advance_epoch",
+      "old": 54,
+      "current": 95,
+      "path": "src/aitest/infrastructure/file_store/workspace.py"
+    },
+    {
+      "label": "FileCommitStore.current_pointer",
+      "old": 179,
+      "current": 185,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore._decode",
+      "old": 95,
+      "current": 101,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore.upgrade_current_pointer",
+      "old": 192,
+      "current": 198,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileUnitOfWork._resolve_uncertain",
+      "old": 227,
+      "current": 267,
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py"
+    },
+    {
+      "label": "FileCommitStore.validate",
+      "old": 223,
+      "current": 229,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore._publish_locked",
+      "old": 527,
+      "current": 557,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "FileCommitStore.verify_material",
+      "old": 347,
+      "current": 359,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "RecoveryOrchestrator.run",
+      "old": 70,
+      "current": 111,
+      "path": "src/aitest/infrastructure/file_store/recovery.py"
+    },
+    {
+      "label": "_chain_has_symlink",
+      "old": 101,
+      "current": 102,
+      "path": "src/aitest/infrastructure/file_store/backup.py"
+    },
+    {
+      "label": "FileBackupStore.create",
+      "old": 191,
+      "current": 192,
+      "path": "src/aitest/infrastructure/file_store/backup.py"
+    },
+    {
+      "label": "FileBackupStore._copy_safe_file",
+      "old": 171,
+      "current": 172,
+      "path": "src/aitest/infrastructure/file_store/backup.py"
+    },
+    {
+      "label": "FileBackupStore.restore",
+      "old": 300,
+      "current": 301,
+      "path": "src/aitest/infrastructure/file_store/backup.py"
+    },
+    {
+      "label": "test_backup_refuses_junction_parent_before_any_restore_write",
+      "old": 779,
+      "current": 782,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "FileSourceSnapshotStore.read_pinned",
+      "old": 225,
+      "current": 234,
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py"
+    },
+    {
+      "label": "FileSourceSnapshotStore.materialize",
+      "old": 286,
+      "current": 246,
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py"
+    },
+    {
+      "label": "FileSourceSnapshotStore.detect_changes",
+      "old": 371,
+      "current": 331,
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py"
+    },
+    {
+      "label": "test_digest_alone_never_proves_runtime_load_source",
+      "old": 884,
+      "current": 887,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_source_mismatch_overrides_probe_passed",
+      "old": 896,
+      "current": 899,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "FileUnitOfWork.stage_record",
+      "old": 124,
+      "current": 154,
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py"
+    },
+    {
+      "label": "FileSourceSnapshotStore._copy_safe_stream",
+      "old": 486,
+      "current": 446,
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py"
+    },
+    {
+      "label": "FileSourceSnapshotStore._store_blob",
+      "old": 419,
+      "current": 379,
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py"
+    },
+    {
+      "label": "FileBackupStore._safe_json_bytes",
+      "old": 151,
+      "current": 152,
+      "path": "src/aitest/infrastructure/file_store/backup.py"
+    },
+    {
+      "label": "LocalAPI._safe_error_text",
+      "old": 427,
+      "current": 435,
+      "path": "src/aitest/interfaces/local/api.py"
+    },
+    {
+      "label": "LocalAPI.safe_projection",
+      "old": 330,
+      "current": 338,
+      "path": "src/aitest/interfaces/local/api.py"
+    },
+    {
+      "label": "assemble_workspace_core",
+      "old": 238,
+      "current": 244,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "LocalAPI._gate_denial",
+      "old": 439,
+      "current": 447,
+      "path": "src/aitest/interfaces/local/api.py"
+    },
+    {
+      "label": "LocalAPI._connect",
+      "old": 343,
+      "current": 351,
+      "path": "src/aitest/interfaces/local/api.py"
+    },
+    {
+      "label": "test_gate_failure_never_executes_the_guarded_handler",
+      "old": 861,
+      "current": 864,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "FileRecordRepository._verify_ownership",
+      "old": 89,
+      "current": 91,
+      "path": "src/aitest/infrastructure/file_store/records.py"
+    },
+    {
+      "label": "FileMigrationManager.apply",
+      "old": 323,
+      "current": 332,
+      "path": "src/aitest/infrastructure/file_store/migrations.py"
+    },
+    {
+      "label": "FileMigrationManager.rollback",
+      "old": 428,
+      "current": 437,
+      "path": "src/aitest/infrastructure/file_store/migrations.py"
+    },
+    {
+      "label": "FileMigrationManager._ensure_backup",
+      "old": 530,
+      "current": 539,
+      "path": "src/aitest/infrastructure/file_store/migrations.py"
+    },
+    {
+      "label": "FileMigrationManager._records_watermark",
+      "old": 608,
+      "current": 617,
+      "path": "src/aitest/infrastructure/file_store/migrations.py"
+    },
+    {
+      "label": "FileMigrationManager._read_field",
+      "old": 595,
+      "current": 604,
+      "path": "src/aitest/infrastructure/file_store/migrations.py"
+    },
+    {
+      "label": "FileCommitStore.upgrade_current_pointer",
+      "old": 192,
+      "current": 198,
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py"
+    },
+    {
+      "label": "build_b_use_case_registry",
+      "old": 899,
+      "current": 914,
+      "path": "src/aitest/application/usecase_registry.py"
+    },
+    {
+      "label": "assemble_workspace_core",
+      "old": 238,
+      "current": 244,
+      "path": "src/aitest/bootstrap.py"
+    },
+    {
+      "label": "request_model_draft",
+      "old": 444,
+      "current": 447,
+      "path": "src/aitest/application/planning/model_orchestration.py"
+    },
+    {
+      "label": "check_frozen_basis",
+      "old": 125,
+      "current": 168,
+      "path": "src/aitest/application/planning/drift.py"
+    },
+    {
+      "label": "test_arbitrary_rule_body_is_lossless_in_markdown",
+      "old": 918,
+      "current": 921,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "_recall_existing_draft",
+      "old": 285,
+      "current": 288,
+      "path": "src/aitest/application/planning/model_orchestration.py"
+    },
+    {
+      "label": "request_model_draft",
+      "old": 444,
+      "current": 447,
+      "path": "src/aitest/application/planning/model_orchestration.py"
+    },
+    {
+      "label": "current_record",
+      "old": 424,
+      "current": 426,
+      "path": "src/aitest/application/planning/substrate.py"
+    },
+    {
+      "label": "test_unreadable_successful_model_draft_does_not_call_provider_again",
+      "old": 947,
+      "current": 950,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_two_file_uows_claim_one_model_generation_without_repeating_the_call",
+      "old": 972,
+      "current": 975,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "handle_save_context",
+      "old": 902,
+      "current": 967,
+      "path": "src/aitest/application/usecase_registry.py"
+    },
+    {
+      "label": "handle_save_binding",
+      "old": 925,
+      "current": 990,
+      "path": "src/aitest/application/usecase_registry.py"
+    },
+    {
+      "label": "_rule_versions_for",
+      "old": 443,
+      "current": 453,
+      "path": "src/aitest/application/usecase_registry.py"
+    },
+    {
+      "label": "test_public_b_entry_refuses_payload_from_another_project",
+      "old": 819,
+      "current": 822,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_missing_task_cannot_be_saved_as_delivery",
+      "old": 800,
+      "current": 803,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_matching_request_and_wrong_plan_cannot_override_execution_facts_plan",
+      "old": 850,
+      "current": 853,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_legacy_graph_remains_unverified_and_keeps_history_payload_unchanged",
+      "old": 841,
+      "current": 844,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "SerialRunner._revoke_reuse_for_new_attempt",
+      "old": 524,
+      "current": 584,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator._prepare_current_start",
+      "old": 372,
+      "current": 506,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "SerialRunner.recover_pending",
+      "old": 450,
+      "current": 510,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "test_start_updates_current_and_transitive_consumers_before_external_effect",
+      "old": 142,
+      "current": 144,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write",
+      "old": 204,
+      "current": 206,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_new_start_rejects_unverified_or_invalidated_input_before_occupancy",
+      "old": 324,
+      "current": 326,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_saved_active_handle_without_a_terminal_fact_blocks_even_a_terminal_label",
+      "old": 354,
+      "current": 356,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_new_attempt_cannot_consume_a_superseded_or_outdated_upstream",
+      "old": 374,
+      "current": 376,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed",
+      "old": 424,
+      "current": 426,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_outdated_live_execution_cannot_become_a_valid_basis_during_recovery",
+      "old": 450,
+      "current": 452,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator.claim_start",
+      "old": 240,
+      "current": 374,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "SerialRunner.start_attempt",
+      "old": 343,
+      "current": 403,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "_start_fingerprint",
+      "old": 748,
+      "current": 808,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator.claim_start",
+      "old": 240,
+      "current": 374,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy",
+      "old": 224,
+      "current": 226,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effect",
+      "old": 249,
+      "current": 251,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_a_dependency_without_a_registered_run_is_blocked_before_any_effect",
+      "old": 412,
+      "current": 414,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_external_import_identity_includes_all_decisive_inputs",
+      "old": 924,
+      "current": 927,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_digest_alone_never_proves_runtime_load_source",
+      "old": 884,
+      "current": 887,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "test_source_mismatch_overrides_probe_passed",
+      "old": 896,
+      "current": 899,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator.commit_checkpoint",
+      "old": 628,
+      "current": 759,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator._stage_with_facts",
+      "old": 466,
+      "current": 600,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator.read_current_facts",
+      "old": 146,
+      "current": 264,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator._validate_checkpoint_update",
+      "old": 119,
+      "current": 237,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "_validate_current_facts",
+      "old": 742,
+      "current": 873,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "_validate_attempt_projection",
+      "old": 786,
+      "current": 976,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator._stage_snapshot",
+      "old": 548,
+      "current": 684,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "_validate_publication_current",
+      "old": 775,
+      "current": 965,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "ExecutionCommitCoordinator.read_checkpoint",
+      "old": 179,
+      "current": 297,
+      "path": "src/aitest/application/execution/commit.py"
+    },
+    {
+      "label": "test_current_reference_and_snapshot_share_the_actual_boundary_and_preserve_old_revision",
+      "old": 153,
+      "current": 156,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item",
+      "old": 173,
+      "current": 176,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_current_snapshot正文_digest_is_verified_after_exact_revision_read",
+      "old": 193,
+      "current": 196,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_failed_snapshot_staging_cannot_publish_the_preceding_pointer_or_checkpoint",
+      "old": 209,
+      "current": 212,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_inconsistent_current_attempt_facts_are_rejected_before_any_publication",
+      "old": 235,
+      "current": 238,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_current_reference_rejects_rebinding_the_frozen_run_intent",
+      "old": 255,
+      "current": 258,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_caller_cannot_publish_completion_or_bytes_absent_from_the_real_checkpoint",
+      "old": 45,
+      "current": 46,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_another_current_step_needs_a_saved_exact_checkpoint",
+      "old": 106,
+      "current": 107,
+      "path": "tests/unit/test_current_execution_snapshot.py"
+    },
+    {
+      "label": "test_checkpoint_progress_and_current_snapshot_share_the_same_commit",
+      "old": 284,
+      "current": 286,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_publisher_cannot_restore_a_superseded_current_attempt",
+      "old": 273,
+      "current": 275,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_publisher_cannot_drop_a_registered_current_step",
+      "old": 397,
+      "current": 399,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_outdated_checkpoint_cannot_restore_validity_without_a_new_attempt",
+      "old": 311,
+      "current": 313,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "test_projection_checkpoint_without_authority_cannot_be_promoted_during_recovery",
+      "old": 465,
+      "current": 467,
+      "path": "tests/unit/test_current_attempt_transition_integrity.py"
+    },
+    {
+      "label": "SerialRunner.request_stop",
+      "old": 447,
+      "current": 507,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "SerialRunner.execute_attempt",
+      "old": 191,
+      "current": 251,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "SerialRunner.recover_pending",
+      "old": 450,
+      "current": 510,
+      "path": "src/aitest/application/execution/runner.py"
+    },
+    {
+      "label": "test_launch_failure_releases_all_spool_leases_without_erasing_uncertain_handle",
+      "old": 753,
+      "current": 756,
+      "path": "tests/unit/test_abc_root_cause_regressions.py"
+    }
+  ]
+}
