@@ -1,0 +1,82 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [  9%]
+........................................................................ [ 12%]
+...............................................s................s....... [ 15%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 33%]
+........................................................................ [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+........................................................................ [ 55%]
+........................................................................ [ 58%]
+........................................................................ [ 61%]
+........................................................................ [ 64%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 74%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+........................................................................ [ 83%]
+........................................................................ [ 86%]
+.....................................................FE..........E...... [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 95%]
+........................................................................ [ 98%]
+..............................                                           [100%]
+=================================== ERRORS ====================================
+_ ERROR at teardown of test_unreadable_saved_runtime_revision_sequence_is_blocked _
+tests\unit\test_authoritative_preparation.py:169: in authoritative
+    core.lifetime_lock.release()
+src\aitest\infrastructure\file_store\locking.py:158: in release
+    raise WorkspaceInUse("cannot release a writer with an active transaction")
+E   aitest.application.errors.WorkspaceInUse: cannot release a writer with an active transaction
+_ ERROR at setup of test_unknown_run_and_foreign_project_cannot_use_saved_authority _
+tests\unit\test_saved_runtime_revision.py:50: in runtime
+    initial = register(core, prepared)
+              ^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_initial_run_registration.py:33: in register
+    return service(core).register(
+src\aitest\application\execution\registration.py:142: in register
+    self.unit.commit(request_id)
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:801: in commit_transaction
+    return self._publish_shared_commit(
+src\aitest\infrastructure\file_store\records.py:996: in _publish_shared_commit
+    store.publish(store.prepare(manifest))
+src\aitest\infrastructure\file_store\commit_manifest.py:554: in publish
+    with writer_lock(self.root / "writer.lock", reentrant=True):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:91: in writer_lock
+    raise WorkspaceInUse("workspace writer queue is busy; retry the same intent")
+E   aitest.application.errors.WorkspaceInUse: workspace writer queue is busy; retry the same intent
+================================== FAILURES ===================================
+_________ test_unreadable_saved_runtime_revision_sequence_is_blocked __________
+tests\unit\test_saved_runtime_revision.py:254: in test_unreadable_saved_runtime_revision_sequence_is_blocked
+    publish_snapshot(core, service.execution, later, "opaque-revision-sequence")
+tests\unit\test_saved_runtime_revision.py:41: in publish_snapshot
+    _, saved = coordinator._stage_snapshot(facts)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:708: in _stage_snapshot
+    _validate_frozen_run_basis(previous, facts)
+src\aitest\application\execution\commit.py:957: in _validate_frozen_run_basis
+    raise ValueError("publication cannot rewrite the frozen run identity or runtime revision")
+E   ValueError: publication cannot rewrite the frozen run identity or runtime revision
+=========================== short test summary info ===========================
+SKIPPED [1] tests\unit\test_a_a06_reference_closure.py:99: ��ǰ�Ự��Ȩ������������
+SKIPPED [1] tests\unit\test_a_a06_reference_closure.py:299: ��ǰ�Ự��Ȩ������������
+ERROR tests/unit/test_saved_runtime_revision.py::test_unreadable_saved_runtime_revision_sequence_is_blocked
+ERROR tests/unit/test_saved_runtime_revision.py::test_unknown_run_and_foreign_project_cannot_use_saved_authority
+FAILED tests/unit/test_saved_runtime_revision.py::test_unreadable_saved_runtime_revision_sequence_is_blocked
+1 failed, 2329 passed, 2 skipped, 2 errors in 2273.98s (0:37:53)

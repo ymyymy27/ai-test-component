@@ -92,22 +92,23 @@ def writer_lock(path: Path, *, reentrant: bool = False) -> Iterator[None]:
             with _registry_guard:
                 if _admissions.get(key) is not admission or not admission.ready:
                     raise WorkspaceInUse("workspace writer admission is no longer available")
-            _held.paths = owned | {key}
+            _held.paths = getattr(_held, "paths", set()) | {key}
             try:
                 yield
             finally:
-                _held.paths = owned
+                # Independent workspaces can finish outside their acquisition order.
+                _held.paths = getattr(_held, "paths", set()) - {key}
         finally:
             if acquired:
                 admission.serial.release()
             admission.queue.release()
         return
     lock = _open_os_lock(path)
-    _held.paths = owned | {key}
+    _held.paths = getattr(_held, "paths", set()) | {key}
     try:
         yield
     finally:
-        _held.paths = owned
+        _held.paths = getattr(_held, "paths", set()) - {key}
         lock.release()
 
 

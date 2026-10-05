@@ -1,0 +1,56 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+_________ test_invalid_progress_cannot_change_saved_authority[driver] _________
+tests\unit\test_frozen_run_authority.py:28: in test_invalid_progress_cannot_change_saved_authority
+    with pytest.raises(ValueError, match="frozen run|runtime revision|frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_frozen_run_authority.py:33: in test_invalid_progress_cannot_change_saved_authority
+    core.unit_of_work.rollback("reject-frozen-edit")
+src\aitest\infrastructure\file_store\unit_of_work.py:244: in rollback
+    raise RuntimeError("request_id does not own transaction")
+E   RuntimeError: request_id does not own transaction
+_________ test_invalid_progress_cannot_change_saved_authority[source] _________
+tests\unit\test_frozen_run_authority.py:28: in test_invalid_progress_cannot_change_saved_authority
+    with pytest.raises(ValueError, match="frozen run|runtime revision|frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_frozen_run_authority.py:33: in test_invalid_progress_cannot_change_saved_authority
+    core.unit_of_work.rollback("reject-frozen-edit")
+src\aitest\infrastructure\file_store\unit_of_work.py:244: in rollback
+    raise RuntimeError("request_id does not own transaction")
+E   RuntimeError: request_id does not own transaction
+________ test_invalid_progress_cannot_change_saved_authority[runtime] _________
+tests\unit\test_frozen_run_authority.py:28: in test_invalid_progress_cannot_change_saved_authority
+    with pytest.raises(ValueError, match="frozen run|runtime revision|frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_frozen_run_authority.py:33: in test_invalid_progress_cannot_change_saved_authority
+    core.unit_of_work.rollback("reject-frozen-edit")
+src\aitest\infrastructure\file_store\unit_of_work.py:244: in rollback
+    raise RuntimeError("request_id does not own transaction")
+E   RuntimeError: request_id does not own transaction
+________ test_invalid_progress_cannot_change_saved_authority[coverage] ________
+tests\unit\test_frozen_run_authority.py:28: in test_invalid_progress_cannot_change_saved_authority
+    with pytest.raises(ValueError, match="frozen run|runtime revision|frozen.*scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_frozen_run_authority.py:33: in test_invalid_progress_cannot_change_saved_authority
+    core.unit_of_work.rollback("reject-frozen-edit")
+src\aitest\infrastructure\file_store\unit_of_work.py:244: in rollback
+    raise RuntimeError("request_id does not own transaction")
+E   RuntimeError: request_id does not own transaction
+=========================== short test summary info ===========================
+FAILED tests/unit/test_frozen_run_authority.py::test_invalid_progress_cannot_change_saved_authority[driver]
+FAILED tests/unit/test_frozen_run_authority.py::test_invalid_progress_cannot_change_saved_authority[source]
+FAILED tests/unit/test_frozen_run_authority.py::test_invalid_progress_cannot_change_saved_authority[runtime]
+FAILED tests/unit/test_frozen_run_authority.py::test_invalid_progress_cannot_change_saved_authority[coverage]
+4 failed in 126.76s (0:02:06)

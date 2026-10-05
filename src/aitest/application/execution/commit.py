@@ -609,9 +609,9 @@ class ExecutionCommitCoordinator:
             raise ValueError("checkpoint requires an attempt_id")
         previous = self.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
         if previous is not None:
+            _validate_publication_current(previous, facts)
             _validate_frozen_run_basis(previous, facts)
             _validate_frozen_step_basis(previous, facts)
-            _validate_publication_current(previous, facts)
 
         attempt = batch.checkpoint.attempt
         self._validate_checkpoint_update(facts.project_id, batch.checkpoint)

@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from pydantic import TypeAdapter
 
-from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.commit import ExecutionCommitCoordinator, _run_pointer_id
 from aitest.application.execution.facts import project_attempt_fact
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.draft import text_digest
@@ -38,9 +38,13 @@ from tests.unit.test_initial_run_registration import register
 
 def publish_snapshot(core, coordinator, facts, request="assessment-controlled-snapshot"):
     core.unit_of_work.begin(request, facts.project_id, intent_id=request + "-intent")
-    _, saved = coordinator._stage_snapshot(facts)
-    core.unit_of_work.commit(request)
-    return saved
+    try:
+        _, saved = coordinator._stage_snapshot(facts)
+        core.unit_of_work.commit(request)
+        return saved
+    except BaseException:
+        core.unit_of_work.rollback()
+        raise
 
 
 @pytest.fixture
@@ -251,7 +255,55 @@ def test_unreadable_saved_runtime_revision_sequence_is_blocked(runtime):
             "run": facts.run.model_copy(update={"runtime_revision_refs": ("unreadable-revision",)}),
         }
     )
-    publish_snapshot(core, service.execution, later, "opaque-revision-sequence")
+    sequence = core.unit_of_work.current_commit_sequence()
+    with pytest.raises(ValueError, match="frozen run"):
+        publish_snapshot(core, service.execution, later, "opaque-revision-sequence")
+    assert core.unit_of_work.current_commit_sequence() == sequence
+    assert (
+        service.execution.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+        == facts
+    )
+
+    # Seed exact legacy material through storage, never through ordinary business publication.
+    unit = core.unit_of_work
+    request = "legacy-opaque-sequence"
+    unit.begin(request, facts.project_id, intent_id=request + "-intent")
+    try:
+        cursor = int(unit.next_commit_seq()) + 1
+        later = later.model_copy(
+            update={"snapshot_commit_id": f"commit-{cursor}", "snapshot_cursor": cursor}
+        )
+        pointer = _run_pointer_id(facts.project_id, facts.run_id)
+        unit.stage_record(
+            aggregate_kind="execution_facts_current",
+            record_id=pointer,
+            expected_revision=unit.current_revision(
+                aggregate_kind="execution_facts_current", record_id=pointer
+            ),
+            payload={
+                "schema_version": "aitest.execution-facts-reference/1.0",
+                "project_id": facts.project_id,
+                "run_id": facts.run_id,
+                "snapshot_commit_id": later.snapshot_commit_id,
+                "snapshot_revision": 1,
+                "digest": payload_digest(later.model_dump(mode="json")),
+                "previous_snapshot_commit_id": facts.snapshot_commit_id,
+            },
+        )
+        unit.stage_record(
+            aggregate_kind="execution_facts",
+            record_id=later.snapshot_commit_id,
+            expected_revision=0,
+            payload=later.model_dump(mode="json"),
+        )
+        unit.commit(request)
+    except BaseException:
+        unit.rollback()
+        raise
+    assert (
+        service.execution.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+        == later
+    )
     with pytest.raises(ValueError, match="sequence is not yet readable"):
         assess(runtime)
 

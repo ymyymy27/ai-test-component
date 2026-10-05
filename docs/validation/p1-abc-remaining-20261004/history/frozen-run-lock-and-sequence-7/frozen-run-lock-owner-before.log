@@ -1,0 +1,99 @@
+FF..F                                                                    [100%]
+================================== FAILURES ===================================
+________ test_closing_one_workspace_preserves_the_other_owner[0-False] ________
+.venv\Lib\site-packages\portalocker\portalocker.py:223: in lock
+    msvcrt.locking(  # type: ignore[attr-defined]
+E   PermissionError: [Errno 13] Permission denied
+
+The above exception was the direct cause of the following exception:
+src\aitest\infrastructure\file_store\locking.py:65: in _open_os_lock
+    lock.acquire()
+.venv\Lib\site-packages\portalocker\utils.py:307: in acquire
+    raise exception
+.venv\Lib\site-packages\portalocker\utils.py:284: in acquire
+    fh = self._get_lock(fh)
+         ^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\portalocker\utils.py:341: in _get_lock
+    portalocker.lock(fh, self.flags)
+.venv\Lib\site-packages\portalocker\portalocker.py:316: in lock
+    locker(file, flags)
+.venv\Lib\site-packages\portalocker\portalocker.py:230: in lock
+    raise exceptions.AlreadyLocked(
+E   portalocker.exceptions.AlreadyLocked: (1, '[Errno 13] Permission denied')
+
+The above exception was the direct cause of the following exception:
+tests\unit\test_workspace_lock_ownership.py:55: in test_closing_one_workspace_preserves_the_other_owner
+    executor.submit(exercise).result()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_workspace_lock_ownership.py:34: in exercise
+    with writer_lock(paths[remaining], reentrant=True):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:105: in writer_lock
+    lock = _open_os_lock(path)
+           ^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:67: in _open_os_lock
+    raise WorkspaceInUse("workspace already has a writer") from error
+E   aitest.application.errors.WorkspaceInUse: workspace already has a writer
+________ test_closing_one_workspace_preserves_the_other_owner[0-True] _________
+tests\unit\test_workspace_lock_ownership.py:55: in test_closing_one_workspace_preserves_the_other_owner
+    executor.submit(exercise).result()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_workspace_lock_ownership.py:34: in exercise
+    with writer_lock(paths[remaining], reentrant=True):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:91: in writer_lock
+    raise WorkspaceInUse("workspace writer queue is busy; retry the same intent")
+E   aitest.application.errors.WorkspaceInUse: workspace writer queue is busy; retry the same intent
+________ test_two_real_units_can_finish_in_independent_workspace_order ________
+tests\unit\test_workspace_lock_ownership.py:88: in test_two_real_units_can_finish_in_independent_workspace_order
+    executor.submit(exercise).result()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_workspace_lock_ownership.py:78: in exercise
+    second.commit("second-request")
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:801: in commit_transaction
+    return self._publish_shared_commit(
+src\aitest\infrastructure\file_store\records.py:996: in _publish_shared_commit
+    store.publish(store.prepare(manifest))
+src\aitest\infrastructure\file_store\commit_manifest.py:554: in publish
+    with writer_lock(self.root / "writer.lock", reentrant=True):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:91: in writer_lock
+    raise WorkspaceInUse("workspace writer queue is busy; retry the same intent")
+E   aitest.application.errors.WorkspaceInUse: workspace writer queue is busy; retry the same intent
+=========================== short test summary info ===========================
+FAILED tests/unit/test_workspace_lock_ownership.py::test_closing_one_workspace_preserves_the_other_owner[0-False]
+FAILED tests/unit/test_workspace_lock_ownership.py::test_closing_one_workspace_preserves_the_other_owner[0-True]
+FAILED tests/unit/test_workspace_lock_ownership.py::test_two_real_units_can_finish_in_independent_workspace_order
+3 failed, 2 passed in 7.26s
