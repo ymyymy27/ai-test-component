@@ -1,0 +1,25 @@
+E501 Line too long (106 > 100)
+   --> tests\unit\test_saved_runtime_revision.py:262:101
+    |
+260 |         publish_snapshot(core, service.execution, later, "opaque-revision-sequence")
+261 |     assert core.unit_of_work.current_commit_sequence() == sequence
+262 |     assert service.execution.read_current_facts(project_id=facts.project_id, run_id=facts.run_id) == facts
+    |                                                                                                     ^^^^^^
+263 |
+264 |     # Seed exact legacy material through storage, never through ordinary business publication.
+    |
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+  --> tests\unit\test_workspace_lock_ownership.py:36:13
+   |
+34 |               with writer_lock(paths[remaining], reentrant=True):
+35 |                   pass
+36 | /             with pytest.raises(WorkspaceInUse, match="already has a writer in this thread"):
+37 | |                 with writer_lock(paths[remaining]):
+   | |___________________________________________________^
+38 |                       pytest.fail("ordinary duplicate acquisition was accepted")
+39 |               if with_lifetime:
+   |
+help: Combine `with` statements
+
+Found 2 errors.

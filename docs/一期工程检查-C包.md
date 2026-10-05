@@ -55,3 +55,5 @@
 2026-10-05补登记后续阶段：本轮完整Python为2177 passed、2 skipped（1298.72秒），包括全部27个新增补登记节点。Ruff、Mypy165文件、Schema/0.4.0版本、wheel/sdist、隔离wheel冒烟及现有VSIX面板字节核对通过。准确源码见[2177项阶段清单](validation/p1-abc-remaining-20261004/history/model-response-resolution-2177/manifest.json)。原阶段档案不改写，真实AC仍0/35，22项产品完成条件未整项关闭。
 
 完整回归最终登记（2026-10-05）：普通快照冻结守卫与准确当前引用拒绝优先级的最终完整Python为**2336 passed, 2 skipped in 2253.18s (0:37:33)**；两项Windows符号链接权限跳过，不计通过。Ruff/Mypy166、Schema/0.4.0、最终构建/隔离wheel及制品字节核对通过，未重建VSIX；[最终准确源码](validation/p1-abc-remaining-20261004/history/frozen-run-full-final-2336/manifest.json)与原始日志已封存。历史失败及局部数字仍只归属各自源码；本包具体剩余完成条件、22项ABC产品任务和真实35项AC状态不改变。
+
+跨线程析构归属后续修复（2026-10-05）：已准确清理原取得锁线程的归属并保留其他活动工作空间；外线程业务commit/rollback/stage继续拒绝，主线程可靠提交/回读通过。最新**310 passed in 77.69s (0:01:17)**及Ruff/Mypy166、最新构建/隔离wheel和制品字节核对通过，见[准确当前工程](validation/p1-abc-remaining-20261004/history/frozen-run-foreign-cleanup-310/manifest.json)。此后续修补未再跑完整Python，2336/2完整结果只属于4396824，当前2341节点仅收集成功；不借旧全量证明新源码全绿。下一步仍补持久运行修订/可读步骤内容、受控来源/驱动与实际C/D消费，22项产品条件和真实AC保持开放。

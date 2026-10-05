@@ -91,3 +91,82 @@ def test_two_real_units_can_finish_in_independent_workspace_order(tmp_path: Path
     finally:
         for core in reversed(cores):
             core.lifetime_lock.release()
+
+
+@pytest.mark.parametrize("with_lifetime", [False, True])
+def test_foreign_thread_finalization_clears_the_actual_owner(
+    tmp_path: Path, with_lifetime: bool
+) -> None:
+    path = tmp_path / "writer.lock"
+    lifetime = LifetimeWriterLock(path) if with_lifetime else None
+    if lifetime is not None:
+        lifetime.acquire()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+
+        def acquire_and_collect() -> None:
+            holder = [writer_lock(path)]
+            holder[0].__enter__()
+            # Last-reference destruction runs the generator cleanup on the other thread.
+            executor.submit(holder.clear).result(timeout=10)
+            with writer_lock(path):
+                pass
+            if lifetime is not None:
+                lifetime.release()
+                lifetime.acquire()
+                with writer_lock(path):
+                    pass
+
+        try:
+            executor.submit(acquire_and_collect).result(timeout=20)
+        finally:
+            if lifetime is not None:
+                lifetime.release()
+
+
+def test_foreign_cleanup_does_not_authorize_foreign_business_mutation(tmp_path: Path) -> None:
+    core = assemble_workspace_core(tmp_path, instance_id="thread-guard-core")
+    unit = core.unit_of_work
+    request = "owner-request"
+    unit.begin(request, "project", intent_id="owner-intent")
+    unit.stage_record(
+        aggregate_kind="project",
+        record_id="project",
+        expected_revision=0,
+        payload={"project_id": "project", "value": "owner"},
+    )
+    sequence = unit.current_commit_sequence()
+    cleanup_path = tmp_path / "cleanup-workspace" / "writer.lock"
+    cleanup_holder = [writer_lock(cleanup_path)]
+    cleanup_holder[0].__enter__()
+
+    def unauthorized() -> None:
+        cleanup_holder.clear()
+        for action in (
+            lambda: unit.commit(request),
+            lambda: unit.rollback(request),
+            lambda: unit.stage_record(
+                aggregate_kind="project",
+                record_id="foreign",
+                expected_revision=0,
+                payload={"project_id": "project", "value": "foreign"},
+            ),
+        ):
+            with pytest.raises(WorkspaceInUse, match="owning core thread"):
+                action()
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(unauthorized).result(timeout=10)
+        assert unit.current_commit_sequence() == sequence
+        assert len(unit.pending) == 1
+        with writer_lock(cleanup_path):
+            pass
+        unit.commit(request)
+        assert unit.repo.read(aggregate_kind="project", record_id="project", revision=1).payload[
+            "value"
+        ] == "owner"
+    finally:
+        cleanup_holder.clear()
+        unit.rollback()
+        core.lifetime_lock.release()

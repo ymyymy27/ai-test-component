@@ -71,3 +71,16 @@ uv build
 ```
 
 后续源码修改后，旧阶段只能检查不可变档案自身，不把旧全量作为新工程已通过证明。
+
+## 跨线程析构归属后续修复（2026-10-05）
+
+- [frozen-run-foreign-cleanup-310/manifest.json](history/frozen-run-foreign-cleanup-310/manifest.json)：最新受影响回归**310 passed in 77.69s (0:01:17)**，包括全部合同/架构和八个锁/业务守卫节点；362文件/21符号/64记录，ZIP SHA256 `122da32bf6ff3098a8c4bfcb7f3a9e5ce1be16cdd7c483fe4874b87eb78e8229`，档案/当前工程核对通过。Ruff/Mypy166、最新wheel/sdist、隔离Python3.13.13及制品模块/共享面板字节核对通过，未重建VSIX。
+- 首轮309 passed/1 failed为新测试误用repo.pending，准确原测试源与失败日志保存，改为unit.pending后整组重跑。原外部2项反例属于4396824完整源码，后续正式测试已进入310项；原探针由拒绝重取变为正常取得/释放。
+- 本后续修补未再跑完整Python；当前2341节点仅收集成功，2336/2完整结果仍只属于4396824。既有20份档案自身完整性通过；真实AC和22项产品条件未改。
+
+```powershell
+.venv/Scripts/python.exe scripts/verify_abc_phase_evidence.py docs/validation/p1-abc-remaining-20261004/history/frozen-run-foreign-cleanup-310/manifest.json --against-checkout
+.venv/Scripts/python.exe -m pytest tests/unit/test_workspace_lock_ownership.py -o addopts='' -q --tb=short
+```
+
+后续源码变化后旧档案仅核对自身，不能将旧完整结果作为新源码已全部通过证明。
