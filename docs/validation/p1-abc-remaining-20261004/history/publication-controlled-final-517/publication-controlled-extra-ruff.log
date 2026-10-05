@@ -1,0 +1,23 @@
+E501 Line too long (106 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:389:101
+    |
+387 |     assert published_plan.error is None,published_plan.error
+388 |     repo = core.unit_of_work.repo
+389 |     rule_payload = repo.read(aggregate_kind="rule_version",record_id="controlled-rule",revision=1).payload
+    |                                                                                                     ^^^^^^
+390 |     plan_payload = repo.read(aggregate_kind="plan",record_id="controlled-plan",revision=1).payload
+391 |     candidate = replace(inputs,prepare_request_id="controlled-rule-plan-prepare",
+    |
+
+E501 Line too long (120 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:395:101
+    |
+393 |         rule_versions=(RuleVersionRef(rule_id="controlled-rule",revision=1,digest=payload_digest(rule_payload)),),
+394 |         input_revisions=replace(inputs.input_revisions,plan_revision=1,rules_revision=1))
+395 |     prepared = prepare(core,candidate,request="controlled-plan-prepare-request",intent="controlled-plan-prepare-intent")
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^
+396 |     assert prepared.error is None and prepared.result["status"] == "prepared",prepared
+397 |     read = repo.read
+    |
+
+Found 3 errors (1 fixed, 2 remaining).

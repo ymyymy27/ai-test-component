@@ -1,0 +1,55 @@
+E501 Line too long (106 > 100)
+  --> src\aitest\application\controlled_write.py:42:101
+   |
+40 |     """Only registered business adapters define canonical input and record identity."""
+41 |     if action in {"publish_rules","publish_plan"}:
+42 |         project_revision,expected = parameters.get("project_revision"),parameters.get("expected_revision")
+   |                                                                                                     ^^^^^^
+43 |         if (type(project_revision) is not int or project_revision < 1
+44 |             or type(expected) is not int or expected < 0):
+   |
+
+E501 Line too long (103 > 100)
+  --> src\aitest\application\controlled_write.py:96:101
+   |
+94 |         self.proof: ControlledWriteProof | None = None
+95 |
+96 |     def normalize(self, action: str, project: str, parameters: Mapping[str,object]) -> ControlledWrite:
+   |                                                                                                     ^^^
+97 |         return controlled_write(action,project,parameters,self.records,self.workspace_id)
+   |
+
+E501 Line too long (103 > 100)
+   --> src\aitest\application\controlled_write.py:401:101
+    |
+399 |         if write.expected_revision:
+400 |             expected_refs.add((kind, identity, write.expected_revision))
+401 |         expected_refs.update((r.aggregate_kind,r.record_id,r.record_revision) for r in write.materials)
+    |                                                                                                     ^^^
+402 |         if (
+403 |             receipt is None
+    |
+
+E501 Line too long (114 > 100)
+   --> src\aitest\application\planning\controlled_publication.py:133:101
+    |
+131 |         materials.append(ApprovalMaterialRef("rule_version",identity,record_revision,_digest(saved)))
+132 |     template_refs = _refs(parameters.get("template_versions"),"template_id","version")
+133 |     tier,driver = RunTier(parameters.get("run_tier","full")),RunDriver(parameters.get("initial_driver","planned"))
+    |                                                                                                     ^^^^^^^^^^^^^^
+134 |     plan = build_plan(plan_id=plan_id,revision=revision,scope=scope,cases=cases,project_id=project,
+135 |         rule_versions=rules,template_refs=[TemplateRef(str(r["template_id"]),str(r["version"]))
+    |
+
+E501 Line too long (101 > 100)
+   --> src\aitest\application\planning\controlled_publication.py:136:101
+    |
+134 |     plan = build_plan(plan_id=plan_id,revision=revision,scope=scope,cases=cases,project_id=project,
+135 |         rule_versions=rules,template_refs=[TemplateRef(str(r["template_id"]),str(r["version"]))
+136 |                                          for r in template_refs],run_tier=tier,initial_driver=driver)
+    |                                                                                                     ^
+137 |     validate_plan_publication(plan,cases)
+138 |     canonical = {key:parameters[key] for key in controls}|{
+    |
+
+Found 7 errors (2 fixed, 5 remaining).

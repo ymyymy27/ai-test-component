@@ -18,7 +18,18 @@ from .workspace import Workspace
 
 def _has_content_fingerprint(value: object) -> bool:
     if isinstance(value, Mapping):
-        if any(key in value for key in ("content_digest", "projection_digest", "digest")):
+        if any(
+            key in value
+            for key in (
+                "content_digest",
+                "projection_digest",
+                "digest",
+                "input_digest",
+                "record_digest",
+                "policy_record_digest",
+                "approval_confirmation_id",
+            )
+        ):
             return True
         return any(_has_content_fingerprint(item) for item in value.values())
     if isinstance(value, (list, tuple)):

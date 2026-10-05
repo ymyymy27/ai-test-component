@@ -1,0 +1,81 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_______ test_a_bare_human_label_and_draft_boolean_cannot_publish_rules ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-653/test_a_bare_human_label_and_dr0")
+
+    def test_a_bare_human_label_and_draft_boolean_cannot_publish_rules(tmp_path):
+        core, _ = make_core(tmp_path)
+        try:
+            before = core.unit_of_work.current_commit_sequence()
+            result = core.api.dispatch(
+                Command(
+                    action="publish_rules",
+                    project_id="project",
+                    request_id="raw-rule-publication",
+                    intent_id="raw-rule-intent",
+                    expected_revision=0,
+                    parameters={
+                        "project_revision": 1,
+                        "expected_revision": 0,
+                        "draft": {
+                            "rule_id": "rule",
+                            "revision": 7,
+                            "scope": "project",
+                            "text": "assert exact output",
+                            "source": "manual",
+                            "steps": ["compare output"],
+                            "evidence_requirements": ["actual output"],
+                            "confirmed": True,
+                        },
+                    },
+                ),
+                HUMAN,
+            )
+>           assert result.error is not None and result.error.code == "AWAITING_USER_CONFIRMATION"
+E           AssertionError: assert (None is not None)
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='raw-rule-publication', instance_id='binding-origin-core', wo...': 'rule', 'digest': 'sha256:31a5522c56c69a7e0975c6b4113df48946794942dc9415a935e24d7009af161f'}, page=None, error=None).error
+
+tests\unit\test_publication_controlled_origin.py:36: AssertionError
+_________________ test_a_bare_human_label_cannot_publish_plan _________________
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000284E5894A50>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-653/test_a_bare_human_label_cannot0/tested"))
+
+    def test_a_bare_human_label_cannot_publish_plan(authoritative):
+        core, inputs, _ = authoritative
+        repo = core.unit_of_work.repo
+        scope = repo.read(
+            aggregate_kind="acceptance_scope", record_id=inputs.scope_id, revision=1
+        ).payload
+        cases = [
+            dict(repo.read(aggregate_kind="case", record_id=ref.case_id, revision=ref.revision).payload)
+            for ref in inputs.case_revisions
+        ]
+        before = core.unit_of_work.current_commit_sequence()
+        result = core.api.dispatch(
+            Command(
+                action="publish_plan",
+                project_id=inputs.project_id,
+                request_id="raw-plan-publication",
+                intent_id="raw-plan-intent",
+                expected_revision=0,
+                parameters={
+                    "project_revision": 1,
+                    "expected_revision": 0,
+                    "plan_id": "untrusted-plan",
+                    "revision": 7,
+                    "scope": dict(scope),
+                    "cases": cases,
+                },
+            ),
+            HUMAN,
+        )
+>       assert result.error is not None and result.error.code == "AWAITING_USER_CONFIRMATION"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='raw-plan-publication', instance_id='authoritative-core', wor...a114e9de89c3dd46757bcf03abdef425280e10d3e0bb'}], 'rule_revisions': [], 'template_versions': []}, page=None, error=None).error
+
+tests\unit\test_publication_controlled_origin.py:72: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_publication_controlled_origin.py::test_a_bare_human_label_and_draft_boolean_cannot_publish_rules
+FAILED tests/unit/test_publication_controlled_origin.py::test_a_bare_human_label_cannot_publish_plan
+2 failed in 24.45s

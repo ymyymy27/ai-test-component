@@ -1,0 +1,6 @@
+..                                                                       [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_publication_controlled_origin.py::test_a_bare_human_label_and_draft_boolean_cannot_publish_rules
+PASSED tests/unit/test_publication_controlled_origin.py::test_a_bare_human_label_cannot_publish_plan
+2 passed in 20.46s

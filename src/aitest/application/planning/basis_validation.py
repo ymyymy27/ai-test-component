@@ -64,6 +64,24 @@ def _verify_links(
         return dict(stored.payload)
 
     plan = read("plan", prepared.plan_revision.revision_id, prepared.plan_revision.revision_no)
+    if controlled_writes is not None:
+        controlled_writes.validate_saved_write(
+            project_id=prepared.project_id,
+            action="publish_plan",
+            aggregate_kind="plan",
+            record_id=prepared.plan_revision.revision_id,
+            record_revision=prepared.plan_revision.revision_no,
+            payload=plan,
+        )
+        for rule in prepared.rule_versions:
+            controlled_writes.validate_saved_write(
+                project_id=prepared.project_id,
+                action="publish_rules",
+                aggregate_kind="rule_version",
+                record_id=rule.rule_id,
+                record_revision=rule.revision,
+                payload=read("rule_version", rule.rule_id, rule.revision),
+            )
     scope = acceptance_scope_from_payload(
         read("acceptance_scope", prepared.scope_id or "missing", prepared.acceptance_scope_revision)
     )

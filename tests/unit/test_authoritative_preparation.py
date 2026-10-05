@@ -22,6 +22,7 @@ from aitest.domain.planning.plans import AssertionBasisState
 from aitest.domain.project.context import BindingForm, LocalProjectBinding
 from tests.contracts.test_prepare_run_entrypoint import _parameters
 from tests.support.controlled_binding import controlled_binding_save
+from tests.support.controlled_publication import controlled_publication_save
 from tests.support.prepared_run_factory import build_scenario
 from tests.unit.test_default_source_analysis import dispatch
 
@@ -99,7 +100,7 @@ def authoritative(tmp_path):
         },
     )
     unit.commit("fixture-material-request")
-    published = dispatch(
+    published = controlled_publication_save(
         core,
         "publish_plan",
         project=project.project_id,

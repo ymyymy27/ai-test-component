@@ -5,7 +5,13 @@ from dataclasses import dataclass
 
 from aitest.application.approval_service import ApprovalService, _digest
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
-from aitest.application.ports import ApprovalRecords, StageableWorkspaceUnitOfWork
+from aitest.application.planning.controlled_publication import publication_content
+from aitest.application.planning.publish import payload_digest
+from aitest.application.ports import (
+    ApprovalRecords,
+    ControlledWriteProof,
+    StageableWorkspaceUnitOfWork,
+)
 from aitest.application.project.serialization import binding_from_payload, binding_to_payload
 from aitest.domain.approvals import (
     ActionBasis,
@@ -24,12 +30,43 @@ class ControlledWrite:
     payload: Mapping[str, object]
     project_revision: int
     expected_revision: int
+    materials: tuple[ApprovalMaterialRef, ...] = ()
 
 
 def controlled_write(
-    action: str, project_id: str, parameters: Mapping[str, object]
+    action: str,
+    project_id: str,
+    parameters: Mapping[str, object],
+    records: ApprovalRecords | None = None,
+    workspace_id: str = "",
 ) -> ControlledWrite:
     """Only registered business adapters define canonical input and record identity."""
+    if action in {"publish_rules", "publish_plan"}:
+        project_revision, expected = (
+            parameters.get("project_revision"),
+            parameters.get("expected_revision"),
+        )
+        if (
+            type(project_revision) is not int
+            or project_revision < 1
+            or type(expected) is not int
+            or expected < 0
+        ):
+            raise ApprovalRequired("publication needs exact owner and warehouse revisions")
+        try:
+            publication = publication_content(action, project_id, parameters, records, workspace_id)
+        except (ValueError, TypeError, KeyError, OSError) as error:
+            raise ApprovalRequired("publication input or saved basis cannot be verified") from error
+        return ControlledWrite(
+            action,
+            publication.aggregate_kind,
+            publication.record_id,
+            publication.parameters,
+            publication.payload,
+            project_revision,
+            expected,
+            publication.materials,
+        )
     if action != "save_binding":
         raise ApprovalRequired("this action has no controlled record write adapter")
     if set(parameters) != {"project_revision", "expected_revision", "binding"}:
@@ -67,11 +104,17 @@ def controlled_write(
 
 
 class SavedControlledWriteResolver:
-    actions = frozenset({"save_binding"})
+    actions = frozenset({"save_binding", "publish_rules", "publish_plan"})
 
     def __init__(self, records: ApprovalRecords, workspace_id: str) -> None:
         self.records, self.workspace_id = records, workspace_id
         self.materials = SavedBasisApprovalResolver(records, workspace_id)
+        self.proof: ControlledWriteProof | None = None
+
+    def normalize(
+        self, action: str, project: str, parameters: Mapping[str, object]
+    ) -> ControlledWrite:
+        return controlled_write(action, project, parameters, self.records, self.workspace_id)
 
     def resolve(
         self,
@@ -82,7 +125,7 @@ class SavedControlledWriteResolver:
         target: str,
         parameters: Mapping[str, object],
     ) -> ActionBasis:
-        write = controlled_write(action, project_id, parameters)
+        write = self.normalize(action, project_id, parameters)
         if target != write.record_id:
             raise ApprovalRequired("controlled write target differs from its business record")
         try:
@@ -110,6 +153,25 @@ class SavedControlledWriteResolver:
                         write.aggregate_kind, write.record_id, current, _digest(previous)
                     )
                 )
+            for reference in write.materials:
+                if reference.aggregate_kind == "rule_version":
+                    if self.proof is None:
+                        raise ApprovalRequired("published rule confirmation reader is unavailable")
+                    raw = self.materials._read(
+                        reference.aggregate_kind,
+                        reference.record_id,
+                        reference.record_revision,
+                        project_id,
+                    )
+                    self.proof.validate_saved_write(
+                        project_id=project_id,
+                        action="publish_rules",
+                        aggregate_kind="rule_version",
+                        record_id=reference.record_id,
+                        record_revision=reference.record_revision,
+                        payload=raw,
+                    )
+                references.append(reference)
         except (ValueError, OSError, TypeError, KeyError) as error:
             raise ApprovalRequired("controlled write's saved basis is unavailable") from error
         return ActionBasis(
@@ -147,6 +209,34 @@ class ControlledWriteService:
         return "controlled-write-" + _digest([self.approvals.workspace_id, project, intent])[7:]
 
     def _result(self, write: ControlledWrite, revision: int) -> Mapping[str, object]:
+        if write.action in {"publish_rules", "publish_plan"}:
+            payload = self.resolver.materials._read(
+                write.aggregate_kind, write.record_id, revision, str(write.payload["project_id"])
+            )
+            result = {
+                "published": True,
+                "kind": write.aggregate_kind,
+                "revision": payload["revision"],
+                "record_revision": revision,
+                "confirmation_id": payload["approval_commit_seq"],
+            }
+            if write.action == "publish_rules":
+                result.update(rule_id=write.record_id, digest=payload_digest(payload))
+            else:
+                result.update(
+                    {
+                        key: payload[key]
+                        for key in (
+                            "plan_id",
+                            "scope_id",
+                            "scope_revision",
+                            "case_revisions",
+                            "rule_revisions",
+                            "template_versions",
+                        )
+                    }
+                )
+            return result
         return {
             "aggregate_kind": write.aggregate_kind,
             "record_id": write.record_id,
@@ -165,7 +255,7 @@ class ControlledWriteService:
         challenge_id: str | None,
     ) -> Mapping[str, object]:
         self.approvals.require_actor(project_id)
-        write = controlled_write(action, project_id, parameters)
+        write = self.resolver.normalize(action, project_id, parameters)
         if type(expected_revision) is not int or expected_revision != write.expected_revision:
             raise ApprovalRequired("command warehouse revision differs from reviewed input")
         original = self._original(project_id, intent_id, write)
@@ -204,6 +294,8 @@ class ControlledWriteService:
                 "approval_expected_revision": write.expected_revision,
                 "approval_commit_seq": confirmation.confirmed_at_commit,
             }
+            if action in {"publish_rules", "publish_plan"}:
+                payload["approval_parameters"] = dict(write.parameters)
             revision = self.unit.stage_record(
                 aggregate_kind=write.aggregate_kind,
                 record_id=write.record_id,
@@ -304,23 +396,29 @@ class ControlledWriteService:
         revision: int,
         payload: Mapping[str, object],
     ) -> None:
-        write = controlled_write(
-            action,
-            project,
-            {
+        origin_fields = _ORIGIN_FIELDS
+        if action in {"publish_rules", "publish_plan"}:
+            origin_fields = origin_fields | {"approval_parameters"}
+            parameters = payload.get("approval_parameters")
+            if not isinstance(parameters, Mapping):
+                raise ApprovalRequired("publication has no exact frozen input")
+        else:
+            parameters = {
                 "project_revision": payload.get("approval_project_revision"),
                 "expected_revision": payload.get("approval_expected_revision"),
                 "binding": {
                     key: value for key, value in payload.items() if key not in _ORIGIN_FIELDS
                 },
-            },
-        )
+            }
+        write = self.resolver.normalize(action, project, parameters)
         intent, confirmation_id = (
             payload.get("approval_intent_id"),
             payload.get("approval_confirmation_id"),
         )
         if (
-            set(payload) != set(write.payload) | _ORIGIN_FIELDS
+            set(payload) != set(write.payload) | origin_fields
+            or {key: value for key, value in payload.items() if key not in origin_fields}
+            != dict(write.payload)
             or (kind, identity) != (write.aggregate_kind, write.record_id)
             or type(revision) is not int
             or revision != write.expected_revision + 1
@@ -344,6 +442,9 @@ class ControlledWriteService:
         expected_refs = {("project", project, write.project_revision)}
         if write.expected_revision:
             expected_refs.add((kind, identity, write.expected_revision))
+        expected_refs.update(
+            (r.aggregate_kind, r.record_id, r.record_revision) for r in write.materials
+        )
         if (
             receipt is None
             or receipt.get("schema_version") != "aitest.controlled-write-intent/1.0"

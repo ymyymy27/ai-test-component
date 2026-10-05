@@ -454,6 +454,7 @@ def assemble_workspace_core(
             unit_of_work, approvals, policy_resolver
         )
         controlled_writes = ControlledWriteService(unit_of_work, approvals, write_resolver)
+        write_resolver.proof = controlled_writes
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
             reader=reader,

@@ -1,0 +1,5 @@
+src\aitest\application\planning\controlled_publication.py:167: error: Incompatible types in assignment (expression has type "object", variable has type "str")  [assignment]
+src\aitest\application\planning\controlled_publication.py:167: error: Incompatible types in assignment (expression has type "object", variable has type "int")  [assignment]
+src\aitest\application\planning\controlled_publication.py:195: error: Argument 1 to "RunTier" has incompatible type "object"; expected "str"  [arg-type]
+src\aitest\application\planning\controlled_publication.py:196: error: Argument 1 to "RunDriver" has incompatible type "object"; expected "str"  [arg-type]
+Found 4 errors in 1 file (checked 161 source files)

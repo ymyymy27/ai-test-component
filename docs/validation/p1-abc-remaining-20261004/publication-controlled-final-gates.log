@@ -1,0 +1,39 @@
+...................................                                      [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_publication_controlled_origin.py::test_a_bare_human_label_and_draft_boolean_cannot_publish_rules
+PASSED tests/unit/test_publication_controlled_origin.py::test_a_bare_human_label_cannot_publish_plan
+PASSED tests/unit/test_publication_controlled_origin.py::test_controlled_publication_preserves_domain_version_and_six_record_origin[publish_rules]
+PASSED tests/unit/test_publication_controlled_origin.py::test_controlled_publication_preserves_domain_version_and_six_record_origin[publish_plan]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-1]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-2]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-3]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-4]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-5]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-6]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_rules-before_commit]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-1]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-2]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-3]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-4]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-5]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-6]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_fault_keeps_original_challenge_and_effect_unpublished[publish_plan-before_commit]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_lost_reply_is_readable_without_second_event[publish_rules]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_lost_reply_is_readable_without_second_event[publish_plan]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_rules-origin]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_rules-body]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_rules-parameters]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_rules-receipt]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_plan-origin]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_plan-body]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_plan-parameters]
+PASSED tests/unit/test_publication_controlled_origin.py::test_publication_replay_rejects_damage_to_exact_saved_proof[publish_plan-receipt]
+PASSED tests/unit/test_publication_controlled_origin.py::test_plan_challenge_rejects_client_case_body_with_same_saved_reference
+PASSED tests/unit/test_publication_controlled_origin.py::test_default_prepare_rejects_plan_with_missing_publication_origin
+PASSED tests/unit/test_publication_controlled_origin.py::test_plan_cannot_consume_legacy_rule_without_its_own_controlled_publication
+PASSED tests/unit/test_publication_controlled_origin.py::test_controlled_plan_and_rule_prepare_with_warehouse_refs_then_missing_rule_proof_blocks
+PASSED tests/unit/test_publication_controlled_origin.py::test_required_context_gap_cannot_be_relabeled_nonblocking[publish_rules]
+PASSED tests/unit/test_publication_controlled_origin.py::test_required_context_gap_cannot_be_relabeled_nonblocking[publish_plan]
+PASSED tests/unit/test_publication_controlled_origin.py::test_filtered_controlled_rule_cannot_publish_a_different_frozen_body
+35 passed in 618.87s (0:10:18)

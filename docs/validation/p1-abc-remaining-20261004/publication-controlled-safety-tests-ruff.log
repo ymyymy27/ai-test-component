@@ -1,0 +1,12 @@
+E501 Line too long (107 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:470:101
+    |
+468 |         assert core.unit_of_work.repo.current_revision("rule_version","controlled-rule") == 0
+469 |         assert core.unit_of_work.current_commit_sequence() == before
+470 |         assert core.unit_of_work.repo.current_revision("approval_challenge",challenge["challenge_id"]) == 1
+    |                                                                                                     ^^^^^^^
+471 |     finally:
+472 |         core.lifetime_lock.release()
+    |
+
+Found 1 error.

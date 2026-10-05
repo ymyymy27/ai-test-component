@@ -1459,6 +1459,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_publish_plan(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
+        if deps.controlled_writes is not None:
+            return controlled_publication(command)
         plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
         revision = _revision_of(_required(parameters, "revision"), "revision")
         scope_payload = _as_mapping(_required(parameters, "scope"), "scope")
@@ -1591,6 +1593,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_publish_rules(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
+        if deps.controlled_writes is not None:
+            return controlled_publication(command)
         draft = _rule_draft_of(_as_mapping(_required(parameters, "draft"), "draft"))
         result = publish_rules(
             draft,
@@ -1604,6 +1608,22 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             context_gaps=_gaps_of(parameters.get("context_gaps"), "context_gaps"),
         )
         return _publication_result(result, published_kind="rule_version")
+
+    def controlled_publication(command: object) -> Mapping[str, object]:
+        assert deps.controlled_writes is not None
+        parameters = dict(_command_parameters(command))
+        challenge = parameters.pop("approval_challenge_id", None)
+        return deps.controlled_writes.save(
+            project_id=_command_project_id(command),
+            action=_as_text(getattr(command, "action", None), "action"),
+            request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+            intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+            expected_revision=_int_of(
+                getattr(command, "expected_revision", None), "expected_revision"
+            ),
+            parameters=parameters,
+            challenge_id=_optional_text(challenge, "approval_challenge_id"),
+        )
 
     def handle_model_policy(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
