@@ -1,0 +1,17 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collected 1 item
+
+tests\unit\test_verification_request_scope.py F                          [100%]
+
+================================== FAILURES ===================================
+_ test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref] _
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref]
+============================== 1 failed in 0.41s ==============================
