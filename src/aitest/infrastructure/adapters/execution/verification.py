@@ -22,7 +22,11 @@ from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
 )
-from aitest.domain.execution.assertions import compare_expected_fields
+from aitest.domain.execution.assertions import (
+    compare_expected_fields,
+    freeze_json_value,
+    json_equal,
+)
 
 _HASH_BLOCK = 64 * 1024
 
@@ -98,7 +102,19 @@ class BusinessVerificationAdapter:
         *,
         expected_facts: Mapping[str, object] | None = None,
     ) -> Verification:
-        expected = expected_facts if expected_facts is not None else request.expected_facts
+        try:
+            expected = freeze_json_value(request.expected_facts)
+            override = freeze_json_value(expected_facts) if expected_facts is not None else expected
+            if not isinstance(expected, dict):
+                raise ValueError("business expected facts require an object")
+        except (TypeError, ValueError, RecursionError, RuntimeError):
+            return self._fact(
+                request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_invalid",)
+            )
+        if not json_equal(override, expected):
+            return self._fact(
+                request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_conflict",)
+            )
         if not expected:
             return self._fact(
                 request,
@@ -128,15 +144,17 @@ class BusinessVerificationAdapter:
             ):
                 raise ValueError("business observation requires JSON fields")
             # Freeze the same exact JSON material for comparison and its evidence digest.
-            observed = json.loads(json.dumps(dict(observed), allow_nan=False))
-            actual_ref = _mapping_digest(observed)
-        except (TypeError, ValueError):
+            frozen_observed = freeze_json_value(observed)
+            if not isinstance(frozen_observed, dict):
+                raise ValueError("business observation requires an object")
+            actual_ref = _mapping_digest(frozen_observed)
+        except (TypeError, ValueError, RecursionError, RuntimeError):
             return self._fact(
                 request,
                 VerificationObservation.QUERY_ERROR,
                 gap_ids=("independent_query_material_invalid",),
             )
-        missing, mismatched = compare_expected_fields(observed, expected)
+        missing, mismatched = compare_expected_fields(frozen_observed, expected)
         return self._fact(
             request,
             (

@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
 
 
 class HttpAssertionOperator(StrEnum):
@@ -72,3 +73,20 @@ def compare_expected_fields(
         )
     )
     return missing, mismatched
+
+
+def freeze_json_value(value: object) -> object:
+    """Detach JSON comparison material before crossing an external I/O boundary."""
+    if value is None or type(value) in {str, bool, int}:
+        return value
+    if type(value) is float:
+        if not isfinite(value):
+            raise ValueError("JSON comparison material contains a nonfinite number")
+        return value
+    if isinstance(value, Mapping):
+        if any(not isinstance(key, str) for key in value):
+            raise ValueError("JSON comparison material requires string keys")
+        return {key: freeze_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [freeze_json_value(item) for item in value]
+    raise ValueError("JSON comparison material has an unsupported value")

@@ -1,0 +1,24 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collected 2 items
+
+tests\unit\test_verification_basis_freeze.py FF                          [100%]
+
+================================== FAILURES ===================================
+_________ test_business_query_cannot_mutate_the_frozen_expected_value _________
+tests\unit\test_verification_basis_freeze.py:31: in test_business_query_cannot_mutate_the_frozen_expected_value
+    assert result.observation is VerificationObservation.MISMATCHED
+E   AssertionError: assert <VerificationObservation.MATCHED: 'matched'> is <VerificationObservation.MISMATCHED: 'mismatched'>
+E    +  where <VerificationObservation.MATCHED: 'matched'> = Verification(verification_id='verification:check:object', verification_of='check', business_object_id='object', query_...bcf6f23a92c', key_trace_link_refs=(), covers_critical_chain_item_ids=(), evidence_refs=(), gap_ids=(), created_at=None).observation
+E    +  and   <VerificationObservation.MISMATCHED: 'mismatched'> = VerificationObservation.MISMATCHED
+_______ test_http_response_cannot_replace_the_original_nested_assertion _______
+tests\unit\test_verification_basis_freeze.py:88: in test_http_response_cannot_replace_the_original_nested_assertion
+    assert result.assertion_results[0].matched is False
+E   AssertionError: assert True is False
+E    +  where True = HttpAssertionResult(assertion_id='paid', matched=True, actual={'paid': False}, value_available=True).matched
+=========================== short test summary info ===========================
+FAILED tests/unit/test_verification_basis_freeze.py::test_business_query_cannot_mutate_the_frozen_expected_value
+FAILED tests/unit/test_verification_basis_freeze.py::test_http_response_cannot_replace_the_original_nested_assertion
+============================== 2 failed in 0.58s ==============================

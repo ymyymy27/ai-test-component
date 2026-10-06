@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -16,6 +16,7 @@ from aitest.domain.execution.assertions import (
 )
 from aitest.domain.execution.assertions import (
     evaluate_http_assertion,
+    freeze_json_value,
 )
 
 _MISSING = object()
@@ -72,6 +73,22 @@ class HttpAdapter:
     def execute(self, spec: HttpRequestSpec) -> HttpExchangeResult:
         method = spec.method.upper()
         started = time.monotonic()
+        try:
+            spec = replace(
+                spec,
+                assertions=tuple(
+                    replace(assertion, expected=freeze_json_value(assertion.expected))
+                    for assertion in spec.assertions
+                ),
+            )
+        except (TypeError, ValueError, RecursionError, RuntimeError):
+            return HttpExchangeResult(
+                request_id=spec.request_id,
+                method=method,
+                url=spec.url,
+                status=None,
+                error_class="assertion_input_invalid",
+            )
         request = Request(
             spec.url,
             data=spec.body,
@@ -125,10 +142,7 @@ class HttpAdapter:
         spec: HttpRequestSpec,
     ) -> HttpExchangeResult:
         payload = _json_payload(result.body)
-        observations = {
-            name: _json_path(payload, path)
-            for name, path in spec.extract_paths
-        }
+        observations = {name: _json_path(payload, path) for name, path in spec.extract_paths}
         extracted = {
             name: None if value is _MISSING else value for name, value in observations.items()
         }
@@ -136,14 +150,18 @@ class HttpAdapter:
         for assertion in spec.assertions:
             actual = _json_path(payload, assertion.json_path)
             available = actual is not _MISSING
-            assertions.append(HttpAssertionResult(
-                assertion_id=assertion.assertion_id,
-                matched=evaluate_http_assertion(
-                    actual, assertion, value_available=available,
-                ),
-                actual=actual if available else None,
-                value_available=available,
-            ))
+            assertions.append(
+                HttpAssertionResult(
+                    assertion_id=assertion.assertion_id,
+                    matched=evaluate_http_assertion(
+                        actual,
+                        assertion,
+                        value_available=available,
+                    ),
+                    actual=actual if available else None,
+                    value_available=available,
+                )
+            )
         return HttpExchangeResult(
             request_id=result.request_id,
             method=result.method,
@@ -159,10 +177,7 @@ class HttpAdapter:
             missing_extractions=tuple(
                 name for name, value in observations.items() if value is _MISSING
             ),
-            request_log_ref=(
-                result.request_log_ref
-                or f"http-request:{result.request_id}"
-            ),
+            request_log_ref=(result.request_log_ref or f"http-request:{result.request_id}"),
         )
 
 
