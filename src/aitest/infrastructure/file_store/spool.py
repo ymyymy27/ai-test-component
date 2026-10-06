@@ -85,7 +85,7 @@ class _FileSpoolStreamWriter:
         redaction_summary_id: str | None,
         registry: KnownSecretRegistry,
     ) -> None:
-        if block_size < 1:
+        if type(block_size) is not int or block_size < 1:
             raise ValueError("block_size must be positive")
         self._store = store
         self._run_id = run_id
@@ -101,19 +101,23 @@ class _FileSpoolStreamWriter:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._capture_lock = store._capture_lock(attempt_id, stream_name)
         self._capture_lock.acquire()
+        opened = None
         try:
+            manifest = store.read_manifest(attempt_id)
+            self._offset = store._stream_boundary(attempt_id, stream_name, manifest)
+            self._block_start = self._offset
+            self._block_length = 0
+            self._hasher = hashlib.sha256()
+            self._block_index = store._next_block_index(attempt_id, stream_name)
+            self._filter = StreamSecretFilter(registry)
             store._capture_state(attempt_id, stream_name, "active")
-            self._handle = self._path.open("ab")
+            opened = self._path.open("ab")
+            self._handle = opened
         except BaseException:
+            if opened is not None:
+                opened.close()
             self._capture_lock.release()
             raise
-        self._offset = self._path.stat().st_size
-        self._block_start = self._offset
-        self._block_length = 0
-        self._hasher = hashlib.sha256()
-        self._block_index = store._next_block_index(attempt_id, stream_name)
-        # A-09：跨块凭据过滤的未决尾部只存在内存；落盘的一律是过滤后字节。
-        self._filter = StreamSecretFilter(registry)
 
     def append(self, content: bytes) -> tuple[OutputBlockRef, ...]:
         if not content:
@@ -237,6 +241,8 @@ class FileSpoolStore:
         block_size: int = 64 * 1024,
         redaction_summary_id: str | None = None,
     ) -> _FileSpoolStreamWriter:
+        if type(block_size) is not int or block_size < 1:
+            raise ValueError("block_size must be a positive integer")
         safe_run = _safe_component(run_id, "run_id")
         safe_step = _safe_component(step_id, "step_id")
         safe_attempt = _safe_component(attempt_id, "attempt_id")
@@ -271,8 +277,12 @@ class FileSpoolStore:
         cursors: list[OutputCursor] = []
         # 先对全部密封块做落盘前检查，任何一块不洁则整批拒绝（无孤儿字节）。
         for block in batch:
-            if not block.complete:
+            if block.complete is not True:
                 raise ValueError("only sealed blocks may be persisted")
+            if type(block.offset) is not int or type(block.block_index) is not int:
+                raise ValueError("spool block offsets and indexes must be exact integers")
+            if not isinstance(block.content, bytes):
+                raise ValueError("sealed spool content must be immutable bytes")
             if (block.attempt_id, block.run_id, block.step_id) != (attempt_id, run_id, step_id):
                 raise ValueError("all spool blocks must share run_id, step_id and attempt_id")
             _guarded, dirty = guard_bytes(block.content, self._registry)
@@ -286,6 +296,8 @@ class FileSpoolStore:
         with ExitStack() as leases:
             for stream in sorted({block.stream_name for block in batch}):
                 leases.enter_context(self._capture_lock(attempt_id, stream))  # type: ignore[arg-type]
+            self._ensure_manifest(attempt_id, run_id, step_id)
+            self._preflight_blocks(batch, self.read_manifest(attempt_id))
             for block in batch:
                 ref = OutputBlockRef(
                     block_id=f"{attempt_id}:{block.stream_name.value}:{block.block_index}",
@@ -519,20 +531,91 @@ class FileSpoolStore:
             )
         return self.read_manifest(safe_attempt)
 
+    def _stream_boundary(
+        self, attempt_id: str, stream: OutputStreamName, manifest: SpoolManifest
+    ) -> int:
+        blocks = sorted(
+            (item for item in manifest.blocks if item.stream_name is stream),
+            key=lambda item: item.block_index,
+        )
+        end = 0
+        for index, block in enumerate(blocks):
+            if block.block_index != index or block.offset != end:
+                raise ValueError("spool stream metadata has no contiguous boundary")
+            end += block.length
+        cursor = next((item for item in manifest.cursors if item.stream_name is stream), None)
+        if cursor is not None:
+            cursor_block = next(
+                (item for item in blocks if item.block_index == cursor.last_block_index), None
+            )
+            if cursor_block is None or (cursor.offset, cursor.last_committed_digest) != (
+                cursor_block.offset + cursor_block.length,
+                cursor_block.digest,
+            ):
+                raise ValueError("spool cursor does not match the saved stream boundary")
+        path = self._stream_path(attempt_id, stream)
+        size = path.stat().st_size if path.exists() else 0
+        if size != end:
+            raise ValueError("spool stream boundary requires recovery before capture")
+        return size
+
+    def _preflight_blocks(
+        self, batch: tuple[CapturedOutputBlock, ...], manifest: SpoolManifest
+    ) -> None:
+        """Validate the whole append before the first byte, under all stream leases."""
+        streams = {item.stream_name for item in batch}
+        ends = {
+            stream: self._stream_boundary(manifest.attempt_id, stream, manifest)
+            for stream in streams
+        }
+        existing = {(item.stream_name, item.block_index): item for item in manifest.blocks}
+        planned: dict[tuple[OutputStreamName, int], CapturedOutputBlock] = {}
+        indexes = {
+            stream: sum(item.stream_name is stream for item in manifest.blocks)
+            for stream in streams
+        }
+        for block in batch:
+            key = (block.stream_name, block.block_index)
+            prior = existing.get(key)
+            if prior is not None:
+                if (
+                    prior.offset != block.offset
+                    or prior.length != block.length
+                    or prior.digest != block.digest
+                    or prior.complete is not block.complete
+                    or prior.capture_source != block.capture_source
+                    or prior.redaction_summary_id != block.redaction_summary_id
+                    or self.read_block(prior) != block.content
+                ):
+                    raise ValueError("spool block conflicts with existing metadata or bytes")
+                continue
+            duplicate = planned.get(key)
+            if duplicate is not None:
+                if duplicate != block:
+                    raise ValueError("spool batch contains conflicting blocks")
+                continue
+            if (
+                block.offset != ends[block.stream_name]
+                or block.block_index != indexes[block.stream_name]
+            ):
+                raise ValueError("spool block offsets and indexes must be contiguous")
+            planned[key] = block
+            ends[block.stream_name] += block.length
+            indexes[block.stream_name] += 1
+
     def _write_block(self, ref: OutputBlockRef, content: bytes) -> None:
         path = self._stream_path(ref.attempt_id, ref.stream_name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.exists():
-            existing_size = path.stat().st_size
-            if ref.offset < existing_size:
-                with path.open("rb") as handle:
-                    handle.seek(ref.offset)
-                    existing = handle.read(ref.length)
-                if len(existing) == ref.length and existing == content:
-                    return
-                raise ValueError("stream block conflicts with existing bytes")
-            if ref.offset != existing_size:
-                raise ValueError("stream block offset must be contiguous")
+        existing_size = path.stat().st_size if path.exists() else 0
+        if path.exists() and ref.offset < existing_size:
+            with path.open("rb") as handle:
+                handle.seek(ref.offset)
+                existing = handle.read(ref.length)
+            if len(existing) == ref.length and existing == content:
+                return
+            raise ValueError("stream block conflicts with existing bytes")
+        if ref.offset != existing_size:
+            raise ValueError("stream block offset must be contiguous")
         with path.open("ab") as handle:
             handle.write(content)
             handle.flush()
@@ -542,7 +625,7 @@ class FileSpoolStore:
         with self._manifest_lock:
             path = self._manifest_path(attempt_id)
             if path.exists():
-                existing = self._manifest_from_json(json.loads(path.read_text(encoding="utf-8")))
+                existing = self.read_manifest(attempt_id)
                 if (existing.run_id, existing.step_id) != (run_id, step_id):
                     raise ValueError("spool manifest identity does not match")
                 return
@@ -561,7 +644,7 @@ class FileSpoolStore:
         with self._manifest_lock:
             path = self._manifest_path(attempt_id)
             if path.exists():
-                manifest = self._manifest_from_json(json.loads(path.read_text(encoding="utf-8")))
+                manifest = self.read_manifest(attempt_id)
                 if (manifest.run_id, manifest.step_id) != (run_id, step_id):
                     raise ValueError("spool manifest identity does not match")
             else:
@@ -574,6 +657,14 @@ class FileSpoolStore:
                 blocks[(block.stream_name, block.block_index)] = block
             cursors = {cursor.stream_name: cursor for cursor in manifest.cursors}
             for cursor in new_cursors:
+                previous_cursor = cursors.get(cursor.stream_name)
+                if previous_cursor is not None and (
+                    cursor.offset < previous_cursor.offset
+                    or cursor.last_block_index < previous_cursor.last_block_index
+                ):
+                    # Replaying an older sealed block is idempotent; it cannot rewind
+                    # the already committed capture cursor.
+                    continue
                 cursors[cursor.stream_name] = cursor
             ordered_blocks = tuple(
                 blocks[key] for key in sorted(blocks, key=lambda item: (item[0].value, item[1]))
