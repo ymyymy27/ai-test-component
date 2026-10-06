@@ -1,0 +1,8 @@
+scripts\validate_deepseek.py:95: error: Function is missing a return type annotation  [no-untyped-def]
+scripts\validate_deepseek.py:107: error: Function is missing a type annotation  [no-untyped-def]
+scripts\validate_deepseek.py:123: error: Call to untyped function "dispatch" in typed context  [no-untyped-call]
+scripts\validate_deepseek.py:130: error: Call to untyped function "dispatch" in typed context  [no-untyped-call]
+scripts\validate_deepseek.py:153: error: Call to untyped function "dispatch" in typed context  [no-untyped-call]
+scripts\validate_deepseek.py:154: error: Call to untyped function "dispatch" in typed context  [no-untyped-call]
+scripts\validate_deepseek.py:168: error: Call to untyped function "dispatch" in typed context  [no-untyped-call]
+Found 7 errors in 1 file (checked 174 source files)

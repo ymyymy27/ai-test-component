@@ -53,7 +53,9 @@ from aitest.contracts.verification import VerificationFact
 from aitest.domain.approvals import ActionBasis, TrustedActor
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
 from aitest.domain.evidence.evidence import StoredObjectRef, Verification
+from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
+    Attempt,
     CapturedOutputBlock,
     ExecutionCollectionResult,
     ExecutionHandle,
@@ -62,7 +64,9 @@ from aitest.domain.execution.runs import (
     OutputBlockRef,
     OutputCursor,
     OutputStreamName,
+    Run,
     SpoolManifest,
+    Step,
     StopRequestResult,
 )
 from aitest.domain.planning.model_outbound import MaterialKind
@@ -81,6 +85,32 @@ class EnvironmentResolver(Protocol):
     """Probe only a core-registered tested carrier, outside the business UOW."""
 
     def resolve(self, request: EnvironmentResolutionRequest) -> EnvironmentRefFact: ...
+
+
+class ExecutionActionResolver(Protocol):
+    """Trusted assembly only; resolve actual single-step input outside a transaction."""
+
+    def resolve(
+        self,
+        *,
+        run: Run,
+        step: Step,
+        intent_id: str,
+        prepared: Mapping[str, object],
+        step_content: Mapping[str, object],
+    ) -> ResolvedExecutionAction: ...
+
+
+class ExecutionAuthorizationProof(Protocol):
+    """Read original authority and occupy it inside the coordinator's transaction."""
+
+    def validate_new(self, *, project_id: str, attempt: Attempt) -> None: ...
+
+    def stage_occupation(self, *, project_id: str, attempt: Attempt) -> Mapping[str, object]: ...
+
+    def validate_occupation(
+        self, *, project_id: str, attempt: Attempt, proof: Mapping[str, object]
+    ) -> None: ...
 
 
 class TransactionPort(Protocol):

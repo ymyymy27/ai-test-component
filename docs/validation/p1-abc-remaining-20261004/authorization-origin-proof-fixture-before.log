@@ -1,0 +1,64 @@
+FFFFFF                                                                   [100%]
+================================== FAILURES ===================================
+_ test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change0] _
+tests\unit\test_execution_authorization_origin.py:287: in test_occupation_proof_requires_exact_integer_revisions_and_closed_fields
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:7: in __init__
+    ???
+src\aitest\domain\execution\authorization.py:74: in __post_init__
+    raise ValueError("resolved execution action has inconsistent or already used input")
+E   ValueError: resolved execution action has inconsistent or already used input
+_ test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change1] _
+tests\unit\test_execution_authorization_origin.py:287: in test_occupation_proof_requires_exact_integer_revisions_and_closed_fields
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:7: in __init__
+    ???
+src\aitest\domain\execution\authorization.py:74: in __post_init__
+    raise ValueError("resolved execution action has inconsistent or already used input")
+E   ValueError: resolved execution action has inconsistent or already used input
+_ test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change2] _
+tests\unit\test_execution_authorization_origin.py:287: in test_occupation_proof_requires_exact_integer_revisions_and_closed_fields
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:7: in __init__
+    ???
+src\aitest\domain\execution\authorization.py:74: in __post_init__
+    raise ValueError("resolved execution action has inconsistent or already used input")
+E   ValueError: resolved execution action has inconsistent or already used input
+_ test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change3] _
+tests\unit\test_execution_authorization_origin.py:287: in test_occupation_proof_requires_exact_integer_revisions_and_closed_fields
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:7: in __init__
+    ???
+src\aitest\domain\execution\authorization.py:74: in __post_init__
+    raise ValueError("resolved execution action has inconsistent or already used input")
+E   ValueError: resolved execution action has inconsistent or already used input
+_ test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change4] _
+tests\unit\test_execution_authorization_origin.py:287: in test_occupation_proof_requires_exact_integer_revisions_and_closed_fields
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:7: in __init__
+    ???
+src\aitest\domain\execution\authorization.py:74: in __post_init__
+    raise ValueError("resolved execution action has inconsistent or already used input")
+E   ValueError: resolved execution action has inconsistent or already used input
+_ test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change5] _
+tests\unit\test_execution_authorization_origin.py:287: in test_occupation_proof_requires_exact_integer_revisions_and_closed_fields
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:7: in __init__
+    ???
+src\aitest\domain\execution\authorization.py:74: in __post_init__
+    raise ValueError("resolved execution action has inconsistent or already used input")
+E   ValueError: resolved execution action has inconsistent or already used input
+=========================== short test summary info ===========================
+FAILED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change0]
+FAILED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change1]
+FAILED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change2]
+FAILED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change3]
+FAILED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change4]
+FAILED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change5]
+6 failed, 10 deselected in 0.68s

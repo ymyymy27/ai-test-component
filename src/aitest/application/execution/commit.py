@@ -33,6 +33,7 @@ from aitest.application.execution.facts import (
     validate_frozen_run_basis,
     validate_frozen_step_basis,
 )
+from aitest.application.execution.run_record import read_run_record, run_record_payload
 from aitest.application.execution.runtime_revision import (
     RunRevisionRecord,
     RuntimePlanningRecordReader,
@@ -194,10 +195,9 @@ class ExecutionCommitCoordinator:
             raise ValueError("original run registration belongs to another project/run")
         _validate_current_facts(facts)
         raw_run = self._registration_payload("run", run_id, project_id)
-        run = TypeAdapter(Run).validate_json(json.dumps(dict(raw_run)), strict=True)
+        run = read_run_record(raw_run)
         if (
-            dict(raw_run) != _json_payload(TypeAdapter(Run), run)
-            or (run.run_id, run.project_id, run.origin_workspace_id)
+            (run.run_id, run.project_id, run.origin_workspace_id)
             != (run_id, project_id, workspace_id)
             or run.frozen_input_refs
             != (InputRef(prepared_run_id, f"prepared_run:{prepared_run_id}@1", fingerprint, True),)
@@ -305,7 +305,7 @@ class ExecutionCommitCoordinator:
             aggregate_kind="run",
             record_id=run.run_id,
             expected_revision=0,
-            payload={"project_id": run.project_id, **_json_payload(TypeAdapter(Run), run)},
+            payload=run_record_payload(run),
         )
         for step in steps:
             self._uow.stage_record(

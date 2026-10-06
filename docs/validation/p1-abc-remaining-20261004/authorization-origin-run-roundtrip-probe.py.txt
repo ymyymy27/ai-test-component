@@ -1,0 +1,22 @@
+import json
+import os
+from pathlib import Path
+from pydantic import TypeAdapter
+from aitest.domain.execution.runs import Run
+from aitest.infrastructure.file_store.records import FileRecordRepository
+
+base = Path(os.environ['LOCALAPPDATA']) / 'Temp' / "pytest-of-y'm'y"
+paths = sorted(base.glob('pytest-*/test_original_grant_is_saved_w*/workspace'),
+               key=lambda p: p.stat().st_mtime, reverse=True)
+root = paths[0]
+repo = FileRecordRepository(root)
+from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+created = FileCommitStore(root).read_current()['manifest']['created']
+identity = next(row['record_id'] for row in created if row['aggregate_kind'] == 'run')
+raw = dict(repo.read(aggregate_kind='run', record_id=identity, revision=1).payload)
+run = TypeAdapter(Run).validate_json(json.dumps(raw), strict=True)
+again = TypeAdapter(Run).dump_python(run, mode='json')
+print(json.dumps({'root':str(root), 'differences':{
+    key: {'saved':raw.get(key), 'roundtrip':again.get(key)}
+    for key in set(raw) | set(again) if raw.get(key) != again.get(key)
+}},ensure_ascii=False,indent=2))

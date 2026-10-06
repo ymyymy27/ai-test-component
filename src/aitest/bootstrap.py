@@ -30,6 +30,10 @@ from uuid import uuid4
 from aitest.application.approval_service import ApprovalService
 from aitest.application.controlled_write import ControlledWriteService, SavedControlledWriteResolver
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.execution.authorization import (
+    ExecutionAuthorizationService,
+    SavedExecutionAuthorizationResolver,
+)
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
@@ -42,7 +46,7 @@ from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
 )
-from aitest.application.ports import EnvironmentResolver, RecordRepository
+from aitest.application.ports import EnvironmentResolver, ExecutionActionResolver, RecordRepository
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
@@ -256,6 +260,7 @@ class CoreAssembly:
     source_probe: PythonLoadSourceProbe | None = None
     initial_run_registration: InitialRunRegistration | None = None
     environment_resolution: EnvironmentResolutionService | None = None
+    execution_authorizations: ExecutionAuthorizationService | None = None
 
 
 def assemble_workspace_core(
@@ -270,6 +275,7 @@ def assemble_workspace_core(
     secret_manager: SecretManager | None = None,
     extra_action_dependencies: Mapping[str, tuple[str, ...]] | None = None,
     environment_resolver: EnvironmentResolver | None = None,
+    execution_action_resolver: ExecutionActionResolver | None = None,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -444,6 +450,9 @@ def assemble_workspace_core(
             ),
         )
         write_resolver = SavedControlledWriteResolver(unit_of_work.repo, workspace.workspace_id)
+        execution_resolver = SavedExecutionAuthorizationResolver(
+            cast(RecordRepository, unit_of_work.repo), workspace.workspace_id
+        )
         approvals = ApprovalService(
             unit=unit_of_work,
             records=unit_of_work.repo,
@@ -452,6 +461,7 @@ def assemble_workspace_core(
                 SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
                 policy_resolver,
                 write_resolver,
+                execution_resolver,
             ),
             identities=ApprovalIdentity(),
             clock=SystemClock(),
@@ -507,6 +517,19 @@ def assemble_workspace_core(
             environment_resolution=environment_resolution,
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
+        assert dependencies.source_analysis is not None
+        execution_authorizations = ExecutionAuthorizationService(
+            unit=unit_of_work,
+            records=cast(RecordRepository, unit_of_work.repo),
+            reader=reader,
+            workspace_id=workspace.workspace_id,
+            resolver=execution_resolver,
+            approvals=approvals,
+            source=dependencies.source_analysis,
+            environment=environment_resolution,
+            action_resolver=execution_action_resolver,
+            controlled_writes=controlled_writes,
+        )
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
             values = command.parameters
@@ -619,6 +642,7 @@ def assemble_workspace_core(
         source_probe=source_probe,
         initial_run_registration=initial_run_registration,
         environment_resolution=environment_resolution,
+        execution_authorizations=execution_authorizations,
     )
 
 

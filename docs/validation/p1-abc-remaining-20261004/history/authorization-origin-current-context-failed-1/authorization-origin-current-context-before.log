@@ -1,0 +1,23 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state ERROR [100%]
+
+=================================== ERRORS ====================================
+_ ERROR at setup of test_original_grant_is_saved_with_exact_confirmation_and_unused_state _
+tests\unit\test_execution_authorization_origin.py:70: in resolved
+    parameters = service.prepare(
+src\aitest\application\execution\authorization.py:380: in prepare
+    run, step, prepared, references = self._context(project_id, run_id, step_id)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\authorization.py:233: in _context
+    raise ApprovalRequired("execution requires the exact registered current run and step")
+E   aitest.domain.approvals.ApprovalRequired: execution requires the exact registered current run and step
+=========================== short test summary info ===========================
+ERROR tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state - aitest.domain.approvals.ApprovalRequired: execution requires the exact registered current run and step
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+========================= 1 error in 97.18s (0:01:37) =========================

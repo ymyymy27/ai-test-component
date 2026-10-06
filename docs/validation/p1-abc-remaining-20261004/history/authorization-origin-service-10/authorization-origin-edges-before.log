@@ -1,0 +1,26 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_______ test_detached_confirmation_does_not_allow_a_later_partial_grant _______
+.git\p1-abc-fix-20261003\probe_authorization_edges.py:23: in test_detached_confirmation_does_not_allow_a_later_partial_grant
+    with pytest.raises(ValueError, match="atomic|commit|batch"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_boolean_revision_cannot_stand_for_the_original_grant_revision ______
+.git\p1-abc-fix-20261003\probe_authorization_edges.py:37: in test_boolean_revision_cannot_stand_for_the_original_grant_revision
+    with pytest.raises(ValueError, match="revision|occupation"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_registered_progress_can_resolve_an_independent_next_step ________
+.git\p1-abc-fix-20261003\probe_authorization_edges.py:55: in test_registered_progress_can_resolve_an_independent_next_step
+    result = service.prepare(
+src\aitest\application\execution\authorization.py:282: in prepare
+    run, step, prepared, references = self._context(project_id, run_id, step_id)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\authorization.py:216: in _context
+    raise ApprovalRequired("execution requires the exact registered current run and step")
+E   aitest.domain.approvals.ApprovalRequired: execution requires the exact registered current run and step
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_detached_confirmation_does_not_allow_a_later_partial_grant
+FAILED .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_boolean_revision_cannot_stand_for_the_original_grant_revision
+FAILED .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_registered_progress_can_resolve_an_independent_next_step
+3 failed in 422.23s (0:07:02)

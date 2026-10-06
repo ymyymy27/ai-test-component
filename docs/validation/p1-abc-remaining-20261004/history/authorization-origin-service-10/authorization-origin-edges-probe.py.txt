@@ -1,0 +1,59 @@
+import pytest
+
+from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.runner import SerialRunner
+from tests.unit.test_execution_authorization_origin import resolved as resolved
+from tests.unit.test_execution_authorization_origin import review, save, started
+from tests.unit.test_authoritative_preparation import authoritative as authoritative
+from tests.unit.test_serial_runner import FakeExecutionPort
+
+
+def test_detached_confirmation_does_not_allow_a_later_partial_grant(resolved):
+    core, inputs, _, service, parameters, action = resolved
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    with service.approvals.actors.bind(actor):
+        service.approvals.confirm(
+            project_id=inputs.project_id,
+            challenge_id=challenge.challenge_id,
+            confirmation_intent_id=action.request.intent_id,
+            request_id="detached-confirmation",
+            parameters=parameters,
+        )
+    before = core.unit_of_work.current_commit_sequence()
+    with pytest.raises(ValueError, match="atomic|commit|batch"):
+        save(service, inputs.project_id, action, parameters, actor, challenge)
+    assert core.unit_of_work.current_commit_sequence() == before
+    assert service._revision(action.request.authorization_ref.authorization_id) == 0
+
+
+def test_boolean_revision_cannot_stand_for_the_original_grant_revision(resolved):
+    core, inputs, _, service, parameters, action = resolved
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    save(service, inputs.project_id, action, parameters, actor, challenge)
+    attempt = started(action)
+    core.unit_of_work.begin("occupy", inputs.project_id)
+    proof = service.stage_occupation(project_id=inputs.project_id, attempt=attempt)
+    core.unit_of_work.commit("occupy")
+    with pytest.raises(ValueError, match="revision|occupation"):
+        service.validate_occupation(
+            project_id=inputs.project_id, attempt=attempt,
+            proof=dict(proof) | {"grant_revision": True},
+        )
+
+
+def test_registered_progress_can_resolve_an_independent_next_step(resolved):
+    core, inputs, _, service, parameters, action = resolved
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    save(service, inputs.project_id, action, parameters, actor, challenge)
+    coordinator = ExecutionCommitCoordinator(core.unit_of_work, records=core.unit_of_work.repo)
+    # Legacy start remains exposed during this component stage; no real business call.
+    SerialRunner(FakeExecutionPort(), commit_coordinator=coordinator).start_attempt(
+        action.attempt, action.request
+    )
+    current = coordinator.read_current_facts(project_id=inputs.project_id, run_id=action.request.run_id)
+    next_step = next(step for step in current.steps if step.step_id != action.request.step_id)
+    result = service.prepare(
+        project_id=inputs.project_id, run_id=action.request.run_id,
+        step_id=next_step.step_id, intent_id="next-execution-intent", request_id="next-action",
+    )
+    assert result["record_revision"] == 1

@@ -10,7 +10,11 @@ from aitest.application.approval_service import ApprovalService, _digest
 from aitest.application.controlled_write import SavedControlledWriteResolver
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.model_orchestration import policy_record_id
-from aitest.application.ports import ApprovalRecords, StageableWorkspaceUnitOfWork
+from aitest.application.ports import (
+    ApprovalActionResolver,
+    ApprovalRecords,
+    StageableWorkspaceUnitOfWork,
+)
 from aitest.domain.approvals import (
     ActionBasis,
     ActionConfirmation,
@@ -136,9 +140,11 @@ class SavedHumanActionResolver:
         basis: SavedBasisApprovalResolver,
         policies: SavedModelPolicyApprovalResolver,
         writes: SavedControlledWriteResolver,
+        execution: ApprovalActionResolver | None = None,
     ) -> None:
         self.basis, self.policies = basis, policies
         self.writes = writes
+        self.execution = execution
 
     def resolve(
         self,
@@ -150,7 +156,9 @@ class SavedHumanActionResolver:
         parameters: Mapping[str, object],
     ) -> ActionBasis:
         resolver = (
-            self.writes
+            self.execution
+            if action == "authorize_step" and self.execution is not None
+            else self.writes
             if action in self.writes.actions
             else self.policies
             if action == "save_model_outbound_policy"

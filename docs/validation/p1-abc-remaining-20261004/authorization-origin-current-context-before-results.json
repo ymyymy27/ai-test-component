@@ -1,0 +1,9 @@
+{
+  "current_context_setup_errors": 1,
+  "seconds": 97.18,
+  "interrupted_19_nodes": "stopped_after_first_setup_error_not_a_complete_result",
+  "log_files": [
+    "authorization-origin-current-context-before.log",
+    "authorization-origin-final-19.log"
+  ]
+}

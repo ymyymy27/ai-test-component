@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.18"
+contract_version: "1.19"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.18
+版本：1.19
 日期：2026-10-06
 状态：草案，待B/C/D确认  
 
@@ -262,3 +262,7 @@ save_environment在非默认隔离或明确挑战输入时复用第13节受控�
 ## 15 可信环境解析端口与装配边界（2026-10-06）
 
 EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事实见BC-001 0.21 §24。外部解析属于基础设施、配置由核心可信装配注入，公开Command不接收可执行文件登记。默认缺登记明确阻塞准备，自动能力不得回退核心解释器。探测/扫描在事务外，工作单元只回读准确EnvironmentRef/Binding并消费冻结观察事实。核心公开动作集合不变；真实宿主配置登记、每步执行守卫与动态数据/远端身份仍按证据登记未完成。
+
+## 16 执行授权原始来源端口
+
+1.19新增ExecutionActionResolver与ExecutionAuthorizationProof端口，唯一语义引用BC-001 0.22第25节。前者只由可信装配注入，事务外解析准确保存的单步骤输入；后者在短事务中验证并占用原始未用授权及核对历史消费。execution_authorization类别内区分不可变动作依据、原始授权、状态和意图回执，列表不恢复全扫。缺端口/来源明确阻塞，客户端AuthorizationRef不能自签；实际执行在可靠提交后发生。默认C/D、每步真实加载和真实AC继续partial/not_run。

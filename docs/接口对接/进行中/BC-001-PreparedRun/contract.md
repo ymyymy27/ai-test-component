@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.21"
+contract_version: "0.22"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.21（2026-10-06 冻结可信环境解析与初始登记重探，实施与验证记录另行登记）
+版本：0.22（2026-10-06 补独立未用执行授权、准确原始来源与占用合同，实施与验证记录另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -780,3 +780,15 @@ B 侧据此替换自行派生的部分（第 16.4 节第 3 条）。
 引用AB-001 1.26的EnvironmentResolver主责合同。EnvironmentRefFact新增可选resolution，供读取旧记录；新默认准备必须由核心解析端口生成。resolution保存载体身份、实际解释器路径/版本/内容摘要、基础解释器身份、配置摘要、依赖根与内容摘要及探测策略，content_identity规范摘要覆盖全体字段。客户端不能直接提交可信证明。外层interpreter_identity与dependency_set_digest由该事实派生。
 
 PreparationRecord增加observed_environment_content_identity，与原记录单独比对；旧缺值、同声明修订下文件变化均要求重新准备，历史材料保留。C新初始登记必须具有冻结证明，并在事务外重解析比较，事务内只校验准确保存来源；准确历史回读不执行新探测也不产生新许可。实际Step启动与持续复用仍需接通每步环境守卫，不以初始登记或本轮组件测试声称已经完成。公共schema由模型生成；真实Trae/环境AC状态不升级。
+
+## 25 独立执行授权来源与占用
+
+主责一期架构02第6/10/14节及05第9节，FR07、AC19/25/30。ActionAuthorization是核心逐项保存的未用授权，既有execution_authorization消费记录不能反推原授权。字段沿AuthorizationRef，不另定义计划/Step/实际输入身份；授权必须引用准确核心ActionConfirmation及原已消费ApprovalChallenge。绑定intent_id、准确Run/Step内容与准备来源、实际已解析输入、登记入口/参数、目标、凭据用途范围、计划/Step修订、副作用类别及真实执行来源。计划发布、依据确认、环境声明或来源固定均不能替代执行授权。
+
+核心通过明确装配的ExecutionActionResolver在事务外解析单步实际动作。输入是准确已保存Run、Step、完整StepContent及PreparedRun，不接受公开参数给出可执行路径/任意授权正文；端口未配置或无法证明实际输入/入口/环境时阻塞。解析结果暂存为不可变单动作依据，采用execution_authorization类别内稳定前缀，不新增任意文件写入入口。prepare_approval仅以准确依据记录引用冻结待确认内容；授权保存再次核对当前材料，核心人工确认与授权原文、unused状态及原意图回执同次提交，故障不得部分消费挑战。模型、relay及非交互入口不能造人工授权。
+
+原始授权@1不可改写；unused/occupied/revoked控制状态独立追加保存。首次新Attempt必须回读准确原文、确认/挑战/交互及依据引用，重新核对当前实际输入/来源，锁内核对保存依据及unused状态。占用与执行intent、首检查点、当前Attempt替换、受影响依赖失效和整用例旧复用失效同工作单元；目标/输入/作用范围变动和新副作用Attempt不得继承原许可。受影响未用授权显式撤销或在准确依据再读时阻塞，不扫描历史猜测最新授权。
+
+合法原请求恢复回原Attempt，仍核对原授权和消费的准确绑定；occupied仅允许其保存的Attempt/intent。历史回读不依赖当前环境的新启动许可，不改授权/业务记录，无法证明原消费或未知副作用时保持待核实。失联先查原号/句柄、inspect/collect，不盲重放。授权撤销须准确原号与持久意图，同意图异输入冲突；原文和占用事实永久保留。
+
+旧消费记录缺原始来源时只供诊断历史，不许可新启动或自动恢复执行业务。本轮新增内部组件不等于默认start_run、真实宿主交互或实际业务加载已接通；公开授权动作须按能力协商，在执行解析未配置时明确阻塞。单元、合同和故障注入验证与真实AC分开登记。
