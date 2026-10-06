@@ -32,6 +32,7 @@ from aitest.domain.execution.runs import (
     ExecutionRequest,
     OutputBlockRef,
     OutputCursor,
+    OutputStreamName,
     PlanRevisionRef,
     RecoveryCheckpoint,
     SpoolManifest,
@@ -697,6 +698,7 @@ class SerialRunner:
             attempt.output_block_refs,
             collection.output_blocks,
         )
+        self._require_saved_output_material(attempt, output_blocks)
         output_cursors = self._merge_output_cursors(
             attempt.output_cursors, collection.output_cursors
         )
@@ -735,6 +737,7 @@ class SerialRunner:
             )
             output_blocks = self._merge_output_blocks(output_blocks, manifest.blocks)
             output_cursors = self._merge_output_cursors(attempt.output_cursors, manifest.cursors)
+            self._require_saved_output_material(attempt, output_blocks)
 
         state = self._attempt_state_for(attempt, inspection, collection)
         result = replace(
@@ -774,6 +777,43 @@ class SerialRunner:
                     unknown_reason_ref=result.unknown_reason_ref or reason,
                 )
         return result
+
+    def _require_saved_output_material(
+        self, attempt: Attempt, blocks: tuple[OutputBlockRef, ...]
+    ) -> None:
+        if not blocks:
+            return
+        if self._spool_store is None:
+            raise _ExecutionObservationMismatch("output_material_reader_unavailable")
+        try:
+            manifest = self._spool_store.read_manifest(attempt.attempt_id)
+            if not isinstance(manifest, SpoolManifest) or (
+                manifest.run_id,
+                manifest.step_id,
+                manifest.attempt_id,
+                manifest.schema_version,
+            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
+                raise ValueError("spool ownership differs from the original attempt")
+            for block in blocks:
+                if (
+                    not isinstance(block.stream_name, OutputStreamName)
+                    or any(
+                        type(value) is not int
+                        for value in (block.block_index, block.offset, block.length)
+                    )
+                    or type(block.complete) is not bool
+                    or block not in manifest.blocks
+                ):
+                    raise ValueError("output reference differs from saved material")
+                content = self._spool_store.read_block(block)
+                if (
+                    type(content) is not bytes
+                    or len(content) != block.length
+                    or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
+                ):
+                    raise ValueError("saved output content differs from its reference")
+        except (OSError, ValueError) as error:
+            raise _ExecutionObservationMismatch("output_material_unverified") from error
 
     def _complete_material_is_readable(self, attempt: Attempt) -> bool:
         if self._spool_store is None:

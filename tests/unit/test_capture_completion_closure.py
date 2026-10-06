@@ -141,9 +141,8 @@ def test_damaged_persisted_bytes_do_not_remain_complete(tmp_path):
     manifest = store.persist_blocks(collection.captured_blocks)
     (tmp_path / "spool/attempt-1/stdout.log").write_bytes(b"corrupted")
     collection = replace(collection, captured_blocks=(), output_blocks=manifest.blocks)
-    result = SerialRunner(Mock(), store)._apply_collection(attempt, inspection, collection)
-    assert result.capture_completeness is not CaptureCompleteness.COMPLETE
-    assert result.unknown_reason_ref
+    with pytest.raises(ValueError, match="output_material_unverified"):
+        SerialRunner(Mock(), store)._apply_collection(attempt, inspection, collection)
 
 
 def test_nonempty_references_without_a_material_reader_do_not_prove_complete_capture():
@@ -162,10 +161,10 @@ def test_nonempty_references_without_a_material_reader_do_not_prove_complete_cap
         )
         for b in collection.captured_blocks
     )
-    result = SerialRunner(Mock())._apply_collection(
-        attempt, inspection, replace(collection, captured_blocks=(), output_blocks=refs)
-    )
-    assert result.capture_completeness is not CaptureCompleteness.COMPLETE
+    with pytest.raises(ValueError, match="output_material_reader_unavailable"):
+        SerialRunner(Mock())._apply_collection(
+            attempt, inspection, replace(collection, captured_blocks=(), output_blocks=refs)
+        )
 
 
 def test_conflicting_repeated_block_is_rejected_before_any_new_spool_write(tmp_path):
