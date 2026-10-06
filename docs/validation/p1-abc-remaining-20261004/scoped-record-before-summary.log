@@ -1,0 +1,25 @@
+修前结果节选；完整原日志保留于.git/p1-abc-fix-20261003。
+SHA-256: 5094deb3daca2c474a0f5224acd29e7be24eedccafc365435540757c5fd30a25
+tests\unit\test_scoped_record_identity.py:86: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[kind-task]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[kind-case]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[id-task]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[id-case]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[revision-task]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[revision-case]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[bool_revision-task]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[bool_revision-case]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[body_id-task]
+FAILED tests/unit/test_scoped_record_identity.py::test_exact_load_rejects_another_record_even_with_the_same_project[body_id-case]
+FAILED tests/unit/test_scoped_record_identity.py::test_planning_record_with_unknown_project_is_blocked
+FAILED tests/unit/test_scoped_record_identity.py::test_current_revision_is_not_coerced_to_a_valid_warehouse_revision[True]
+FAILED tests/unit/test_scoped_record_identity.py::test_current_revision_is_not_coerced_to_a_valid_warehouse_revision[1]
+FAILED tests/unit/test_scoped_record_identity.py::test_current_revision_is_not_coerced_to_a_valid_warehouse_revision[1.5]
+FAILED tests/unit/test_scoped_record_identity.py::test_current_revision_is_not_coerced_to_a_valid_warehouse_revision[-1]
+FAILED tests/unit/test_scoped_record_identity.py::test_current_read_checks_the_returned_exact_record
+FAILED tests/unit/test_scoped_record_identity.py::test_legacy_current_query_cannot_substitute_a_foreign_or_unknown_row[kind]
+FAILED tests/unit/test_scoped_record_identity.py::test_legacy_current_query_cannot_substitute_a_foreign_or_unknown_row[id]
+FAILED tests/unit/test_scoped_record_identity.py::test_legacy_current_query_cannot_substitute_a_foreign_or_unknown_row[owner]
+FAILED tests/unit/test_scoped_record_identity.py::test_legacy_current_query_cannot_substitute_a_foreign_or_unknown_row[bool_revision]
+20 failed, 1 passed in 0.64s

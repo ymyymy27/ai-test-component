@@ -34,6 +34,7 @@ from aitest.application.planning.substrate import (
     RecordReader,
     StagedRevision,
     UnitOfWork,
+    read_scoped_record,
     transaction,
 )
 from aitest.application.project.serialization import (
@@ -121,8 +122,12 @@ def _load_payload(
     record_id: str,
     revision: int,
 ) -> dict[str, object]:
-    record = reader.read(
-        aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
+    record = read_scoped_record(
+        reader,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+        revision=revision,
     )
     payload = dict(record.payload)
     _verify_payload_project(
@@ -306,9 +311,7 @@ def load_source_snapshot(
     return manifest
 
 
-def load_project(
-    reader: RecordReader, *, project_id: str, revision: int
-) -> LocalProject:
+def load_project(reader: RecordReader, *, project_id: str, revision: int) -> LocalProject:
     """按**准确修订**读回项目；没有"读最新"入口（实施方案第 3 节）。
 
     记录标识与 `create_project()` 写入时一致（`local_project_id = project_id`）；
@@ -420,15 +423,20 @@ def save_delivery(
     # 准确任务修订与交付写入处于同一短事务，不查询另一项目或猜一个任务。
     with transaction(unit_of_work, project_id) as tx:
         task = load_task(
-            reader, project_id=project_id, task_id=delivery.task_id, revision=task_revision,
+            reader,
+            project_id=project_id,
+            task_id=delivery.task_id,
+            revision=task_revision,
         )
         if task.project_id != project_id:
             raise ValueError("delivery task belongs to another project")
         payload = delivery_to_payload(delivery, project_id=project_id)
         payload["task_revision"] = task_revision
         staged = tx.stage_record(
-            aggregate_kind="delivery", record_id=delivery.delivery_id,
-            expected_revision=expected_revision, payload=payload,
+            aggregate_kind="delivery",
+            record_id=delivery.delivery_id,
+            expected_revision=expected_revision,
+            payload=payload,
         )
         tx.commit()
         return staged

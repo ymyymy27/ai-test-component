@@ -423,20 +423,98 @@ class RecordReader(Protocol):
     def find_preparation_by_intent(self, *, intent_id: str) -> PreparationRecord | None: ...
 
 
+_RECORD_BODY_IDENTITIES: Mapping[str, str] = {
+    "project": "local_project_id",
+    "binding": "binding_id",
+    "environment": "environment_id",
+    "source_snapshot": "snapshot_id",
+    "task": "task_id",
+    "delivery": "delivery_id",
+    "case": "case_id",
+    "acceptance_scope": "scope_id",
+    "rule_draft": "rule_id",
+}
+
+
+def require_scoped_record(
+    record: CommittedRecord,
+    *,
+    project_id: str,
+    aggregate_kind: AggregateKind,
+    record_id: str,
+    revision: int,
+) -> None:
+    """Prove warehouse identity and owning project before consuming a saved body."""
+    if type(revision) is not int or revision < 1:
+        raise ValueError("record requires an exact positive warehouse revision")
+    if (
+        getattr(record, "aggregate_kind", None),
+        getattr(record, "record_id", None),
+        getattr(record, "revision", None),
+    ) != (
+        aggregate_kind,
+        record_id,
+        revision,
+    ) or type(record.revision) is not int:
+        raise ValueError("record reader returned another warehouse identity")
+    if not isinstance(record.payload, Mapping):
+        raise ValueError("saved record payload is not an object")
+    owner = record.payload.get("project_id")
+    if owner is None and aggregate_kind == "project":
+        owner = record.payload.get("local_project_id")
+    if owner is None:
+        raise ValueError("saved record carries no project_id; owning project is unknown")
+    if owner != project_id:
+        raise ValueError("record belongs to another project")
+    body_key = _RECORD_BODY_IDENTITIES.get(aggregate_kind)
+    if body_key is not None and record.payload.get(body_key) != record_id:
+        raise ValueError("saved body identity differs from its warehouse record")
+
+
+def read_scoped_record(
+    reader: RecordReader,
+    *,
+    project_id: str,
+    aggregate_kind: AggregateKind,
+    record_id: str,
+    revision: int,
+) -> CommittedRecord:
+    if any(
+        not isinstance(value, str) or not value.strip()
+        for value in (project_id, aggregate_kind, record_id)
+    ):
+        raise ValueError("record lookup requires nonempty project, kind and identity")
+    if type(revision) is not int or revision < 1:
+        raise ValueError("record requires an exact positive warehouse revision")
+    record = reader.read(aggregate_kind=aggregate_kind, record_id=record_id, revision=revision)
+    require_scoped_record(
+        record,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+        revision=revision,
+    )
+    return record
+
+
 def current_record(
     reader: RecordReader, *, project_id: str, aggregate_kind: AggregateKind, record_id: str
 ) -> CommittedRecord | None:
     """定位权威当前修订后准确读回；旧端口逐页查询，不能取首分页冒充最新。"""
     current = getattr(reader, "current_revision", None)
     if callable(current):
-        revision = int(current(aggregate_kind=aggregate_kind, record_id=record_id))
+        revision = current(aggregate_kind=aggregate_kind, record_id=record_id)
+        if type(revision) is not int or revision < 0:
+            raise ValueError("current warehouse revision cannot be verified")
         if revision == 0:
             return None
-        record = reader.read(aggregate_kind=aggregate_kind, record_id=record_id, revision=revision)
-        owner = record.payload.get("project_id", record.payload.get("local_project_id"))
-        if owner != project_id:
-            raise ValueError("record belongs to another project or ownership is unverified")
-        return record
+        return read_scoped_record(
+            reader,
+            project_id=project_id,
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            revision=revision,
+        )
     latest: CommittedRecord | None = None
     cursor: str | None = None
     seen: set[str] = set()
@@ -450,6 +528,15 @@ def current_record(
             )
         )
         for item in page.items:
+            require_scoped_record(
+                item,
+                project_id=project_id,
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                revision=item.revision,
+            )
+            if latest is not None and item.revision == latest.revision and item != latest:
+                raise ValueError("query returned conflicting bodies for the same revision")
             if latest is None or item.revision > latest.revision:
                 latest = item
         cursor = page.next_cursor
@@ -477,4 +564,6 @@ __all__ = [
     "UnitOfWork",
     "transaction",
     "current_record",
+    "read_scoped_record",
+    "require_scoped_record",
 ]

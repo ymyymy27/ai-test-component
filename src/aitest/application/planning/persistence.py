@@ -45,6 +45,7 @@ from aitest.application.planning.substrate import (
     RecordReader,
     StagedRevision,
     UnitOfWork,
+    read_scoped_record,
     transaction,
 )
 from aitest.domain.planning.plans import (
@@ -142,14 +143,14 @@ def _load_payload(
     record_id: str,
     revision: int,
 ) -> dict[str, object]:
-    record = reader.read(
-        aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
+    record = read_scoped_record(
+        reader,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+        revision=revision,
     )
     payload = dict(record.payload)
-    # 项目校验：跨项目的记录不得被当成同一条读到。
-    stored_project = payload.get("project_id")
-    if stored_project is not None and stored_project != project_id:
-        raise ValueError(f"{aggregate_kind} {record_id} belongs to another project")
     return payload
 
 
@@ -179,9 +180,7 @@ def save_case(
     )
 
 
-def load_case(
-    reader: RecordReader, *, project_id: str, case_id: str, revision: int
-) -> Case:
+def load_case(reader: RecordReader, *, project_id: str, case_id: str, revision: int) -> Case:
     """按**准确修订**读回用例；没有"读最新"入口。"""
     payload = _load_payload(
         reader,
