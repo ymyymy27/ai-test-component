@@ -104,10 +104,17 @@ def project_current_update(
         "coverage_summary": None,
         "ended_at": None,
     }
-    if attempt.state.value in {"intent_recorded", "starting", "running", "collecting"}:
-        run_update["control_state"] = RunControlStateFact.RUNNING
-    if attempt.state.value in {"pending_verification", "unknown"}:
-        run_update["control_state"] = RunControlStateFact.PENDING_VERIFICATION
+    # A checkpoint is an execution observation, not permission to resume. Saved
+    # pause/cancel/recovery decisions and terminal states need an explicit control
+    # transition; one active or completed Attempt cannot confirm a run-wide boundary.
+    if previous.run.control_state in {
+        RunControlStateFact.NOT_STARTED,
+        RunControlStateFact.RUNNING,
+    }:
+        if attempt.state.value in {"intent_recorded", "starting", "running", "collecting"}:
+            run_update["control_state"] = RunControlStateFact.RUNNING
+        if attempt.state.value in {"pending_verification", "unknown"}:
+            run_update["control_state"] = RunControlStateFact.PENDING_VERIFICATION
     return previous.model_copy(
         update={
             "facts_id": f"execution-update:{attempt.attempt_id}:{revision}",
