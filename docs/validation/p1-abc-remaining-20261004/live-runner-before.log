@@ -1,0 +1,23 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short .git\p1-abc-fix-20261003\probe_live_runner.py
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_ test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_running[False] _
+.git\p1-abc-fix-20261003\probe_live_runner.py:27: in test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_running
+    assert result.output_block_refs==manifest.blocks
+E   AssertionError: assert () == (OutputBlockR...ary_id=None),)
+E     
+E     Right contains one more item: OutputBlockRef(block_id='attempt-1:stdout:0', attempt_id='attempt-1', stream_name=<OutputStreamName.STDOUT: 'stdout'>,...3facf743962d3997f2e7d70088ef257de472d6a258049832e', complete=True, capture_source='adapter', redaction_summary_id=None)
+E     Use -v to get more diff
+_ test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_running[True] _
+.git\p1-abc-fix-20261003\probe_live_runner.py:24: in test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_running
+    assert result.state.value=="pending_verification"
+E   AssertionError: assert 'running' == 'pending_verification'
+E     
+E     - pending_verification
+E     + running
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_live_runner.py::test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_running[False]
+FAILED .git/p1-abc-fix-20261003/probe_live_runner.py::test_running_collection_is_saved_and_invalid_progress_does_not_revert_to_running[True]
+2 failed in 3.01s
+
+EXIT: 1

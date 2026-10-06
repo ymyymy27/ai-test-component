@@ -1,0 +1,13 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short -x tests/unit/test_live_command_capture.py tests/unit/test_default_live_output.py tests/unit/test_command_adapter.py tests/unit/test_partial_capture_cursors.py tests/unit/test_capture_completion_closure.py tests/unit/test_confirmed_stop_partial_recovery.py tests/unit/test_persisted_execution_receipts.py
+.......F
+================================== FAILURES ===================================
+_____ test_default_active_large_output_stays_running_and_preserves_pause ______
+tests\unit\test_default_live_output.py:61: in test_default_active_large_output_stays_running_and_preserves_pause
+    assert attempt["output_blocks"] and attempt["output_cursors"]
+E   assert ([])
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_live_output.py::test_default_active_large_output_stays_running_and_preserves_pause
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 7 passed in 161.33s (0:02:41)
+
+EXIT: 1

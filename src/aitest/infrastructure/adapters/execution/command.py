@@ -357,10 +357,23 @@ class CommandAdapter:
         self._hydrate_stop(runtime)
         return_code = runtime.process.poll()
         if return_code is None:
+            # The cursor and its bytes must come from the same saved snapshot.
+            # Runtime caches can lag the spool and caller positions are not observations.
+            manifest = (
+                self._spool_store.read_manifest(runtime.request.attempt_id)
+                if self._spool_store is not None
+                else None
+            )
+            blocks = manifest.blocks if manifest is not None else ()
             return ExecutionCollectionResult(
                 attempt_id=runtime.request.attempt_id,
-                output_cursors=tuple(runtime.output_cursors.values()) or (cursors or ()),
-                capture_completeness=CaptureCompleteness.GAP,
+                output_blocks=blocks,
+                output_cursors=manifest.cursors if manifest is not None else (),
+                capture_completeness=(
+                    CaptureCompleteness.PARTIAL
+                    if blocks and not runtime.read_errors
+                    else CaptureCompleteness.GAP
+                ),
                 complete=False,
             )
 
@@ -393,7 +406,7 @@ class CommandAdapter:
                 attempt_id=runtime.request.attempt_id,
                 output_blocks=output_blocks,
                 captured_blocks=captured_blocks,
-                output_cursors=output_cursors or (cursors or ()),
+                output_cursors=output_cursors,
                 capture_completeness=completeness,
                 complete=False,
             )
@@ -724,7 +737,6 @@ class CommandAdapter:
         if self._spool_store is None:
             return ExecutionCollectionResult(
                 attempt_id=persisted.attempt_id,
-                output_cursors=cursors or (),
                 exit_fact_ref=stopped_exit(CaptureCompleteness.GAP),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
@@ -734,7 +746,6 @@ class CommandAdapter:
         except FileNotFoundError:
             return ExecutionCollectionResult(
                 attempt_id=persisted.attempt_id,
-                output_cursors=cursors or (),
                 exit_fact_ref=stopped_exit(CaptureCompleteness.GAP),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
@@ -743,7 +754,7 @@ class CommandAdapter:
         return ExecutionCollectionResult(
             attempt_id=persisted.attempt_id,
             output_blocks=manifest.blocks,
-            output_cursors=manifest.cursors or (cursors or ()),
+            output_cursors=manifest.cursors,
             exit_fact_ref=stopped_exit(completeness),
             capture_completeness=completeness,
             complete=False,

@@ -281,16 +281,6 @@ class SerialRunner:
         while max_polls is None or polls < max_polls:
             polls += 1
             inspection = self.inspect_attempt(current)
-            if inspection.state is ExecutionInspectionState.RUNNING:
-                if polls % 100 == 0:
-                    self._persist_checkpoint(
-                        current,
-                        stage="running",
-                        project_id=request.project_id,
-                    )
-                if self._poll_interval_seconds:
-                    time.sleep(self._poll_interval_seconds)
-                continue
             try:
                 collection = self.collect_attempt(current, current.output_cursors or None)
                 completed = self._apply_collection(current, inspection, collection)
@@ -301,12 +291,21 @@ class SerialRunner:
                     capture_completeness=CaptureCompleteness.GAP,
                     unknown_reason_ref=error.reason,
                 )
-            self._persist_checkpoint(
-                completed,
-                stage=completed.state.value,
-                project_id=request.project_id,
-            )
+            if completed != current or inspection.state is not ExecutionInspectionState.RUNNING:
+                self._persist_checkpoint(
+                    completed,
+                    stage=completed.state.value,
+                    project_id=request.project_id,
+                )
             self._intent_claims[(request.project_id, request.intent_id)] = completed
+            if (
+                inspection.state is ExecutionInspectionState.RUNNING
+                and completed.state is AttemptState.RUNNING
+            ):
+                current = completed
+                if self._poll_interval_seconds:
+                    time.sleep(self._poll_interval_seconds)
+                continue
             return completed
         pending = replace(
             current,
@@ -551,8 +550,6 @@ class SerialRunner:
                 identity_matches=False,
                 stop_confirmed=False,
             )
-        if inspection.state is ExecutionInspectionState.RUNNING:
-            return saved
         try:
             collection = self.collect_attempt(saved, saved.output_cursors or None)
             updated = self._apply_collection(saved, inspection, collection)
