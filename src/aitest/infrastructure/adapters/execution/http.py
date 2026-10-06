@@ -185,9 +185,18 @@ def _json_payload(body: bytes) -> object:
     if not body:
         return _MISSING
     try:
-        return json.loads(body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        return freeze_json_value(json.loads(body.decode("utf-8"), object_pairs_hook=_unique_fields))
+    except (UnicodeDecodeError, ValueError, RecursionError):
         return _MISSING
+
+
+def _unique_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("HTTP response contains duplicate JSON fields")
+        result[key] = value
+    return result
 
 
 def _json_path(payload: object, path: str) -> object:
