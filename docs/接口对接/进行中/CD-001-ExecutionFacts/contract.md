@@ -206,4 +206,8 @@ AttemptFact.output_cursors为数组，每个元素对应一个OutputStreamName�
 确认：[x] C包 赵    日期：2026-09-27  
 确认：[x] D包 郭    日期：2026-10-02  
 
+## 11 HTTP Assertion 映射确认
+
+2026-10-06 双方确认：HTTP assertion result 统一转换为现有 `VerificationFact`，**不新增原始 HTTP assertion 字段，不提升主版本**。映射和证据引用边界见 [`review-D-http.md`](review-D-http.md)。
+
 双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；D 侧适配与测试进度由 `delivery-D.md` 跟踪，C-01—C-13 修复后仍需重放和真实对拍。

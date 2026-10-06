@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from aitest.domain.evidence.evidence import Verification, VerificationObservation
 
 
 class HttpAssertionOperator(StrEnum):
@@ -126,10 +129,7 @@ class HttpAdapter:
         spec: HttpRequestSpec,
     ) -> HttpExchangeResult:
         payload = _json_payload(result.body)
-        extracted = {
-            name: _json_path(payload, path)
-            for name, path in spec.extract_paths
-        }
+        extracted = {name: _json_path(payload, path) for name, path in spec.extract_paths}
         assertions = tuple(
             HttpAssertionResult(
                 assertion_id=assertion.assertion_id,
@@ -153,11 +153,71 @@ class HttpAdapter:
             elapsed_ms=result.elapsed_ms,
             extracted=extracted,
             assertion_results=assertions,
-            request_log_ref=(
-                result.request_log_ref
-                or f"http-request:{result.request_id}"
+            request_log_ref=(result.request_log_ref or f"http-request:{result.request_id}"),
+        )
+
+
+def http_assertion_verifications(
+    exchange: HttpExchangeResult,
+    *,
+    business_object_id: str,
+    evidence_refs: tuple[str, ...] = (),
+    covers_critical_chain_item_ids: tuple[str, ...] = (),
+    gap_ids_by_assertion: dict[str, tuple[str, ...]] | None = None,
+    created_at: datetime | None = None,
+) -> tuple[Verification, ...]:
+    """Convert HTTP assertion results into the existing Verification contract.
+
+    Raw expected/actual HTTP values are not added to ExecutionFacts. A matched
+    or mismatched assertion becomes a Verification; any raw response needed for
+    traceability is referenced through evidence/request-log refs and gaps.
+    """
+
+    if not business_object_id.strip():
+        raise ValueError("business_object_id must not be empty")
+    observed_at = created_at or datetime.now(UTC)
+    gaps_by_id = gap_ids_by_assertion or {}
+    if not exchange.assertion_results:
+        if exchange.error_class is None:
+            return ()
+        return (
+            Verification(
+                verification_id=f"http-request:{exchange.request_id}",
+                verification_of="http_request",
+                business_object_id=business_object_id,
+                query_method="http",
+                observation=VerificationObservation.QUERY_ERROR,
+                actual_result_ref=exchange.request_log_ref,
+                evidence_refs=evidence_refs,
+                gap_ids=(f"http_{exchange.error_class}",),
+                created_at=observed_at,
             ),
         )
+
+    verifications: list[Verification] = []
+    for assertion in exchange.assertion_results:
+        gaps = gaps_by_id.get(assertion.assertion_id, ())
+        if not evidence_refs and not exchange.request_log_ref:
+            gaps = (*gaps, "http_assertion_evidence_missing")
+        verifications.append(
+            Verification(
+                verification_id=f"http:{exchange.request_id}:{assertion.assertion_id}",
+                verification_of=f"http_assertion:{assertion.assertion_id}",
+                business_object_id=business_object_id,
+                query_method="http_assertion",
+                observation=(
+                    VerificationObservation.MATCHED
+                    if assertion.matched
+                    else VerificationObservation.MISMATCHED
+                ),
+                actual_result_ref=exchange.request_log_ref,
+                covers_critical_chain_item_ids=covers_critical_chain_item_ids,
+                evidence_refs=evidence_refs,
+                gap_ids=gaps,
+                created_at=observed_at,
+            )
+        )
+    return tuple(verifications)
 
 
 def _json_payload(body: bytes) -> object:
@@ -212,4 +272,5 @@ __all__ = [
     "HttpAssertionResult",
     "HttpExchangeResult",
     "HttpRequestSpec",
+    "http_assertion_verifications",
 ]

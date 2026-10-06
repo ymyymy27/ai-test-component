@@ -14,10 +14,10 @@
 ## C 包
 
 - C-D-01：完成 C-01—C-13 修复提交。
-- C-D-02：明确业务断言结果的正式生产来源，生成 PASSED/FAILED/UNKNOWN。
+- C-D-02：HTTP assertion→VerificationFact 已确认；仍需保证 Python/HTTP/Agent/人工/外部导入/独立核验的期望业务断言都能生成可消费的 Verification。
 - C-D-03：提供结构化 `error_ref` 目录或读取入口。
 - C-D-04：提供一致快照和对象引用读取链路。
-- C-D-05：提供 timeout、非 UTF-8、多流游标的新夹具。
+- C-D-05：更新七类夹具内容，补 source_check_results、verifications、authorization_ref、business_failure、no_result/query_error 和 timeout 核验/缺口；不提升 Schema 主版本。
 
 ## B 包
 
