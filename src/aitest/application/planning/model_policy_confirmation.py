@@ -141,10 +141,12 @@ class SavedHumanActionResolver:
         policies: SavedModelPolicyApprovalResolver,
         writes: SavedControlledWriteResolver,
         execution: ApprovalActionResolver | None = None,
+        runtime: ApprovalActionResolver | None = None,
     ) -> None:
         self.basis, self.policies = basis, policies
         self.writes = writes
         self.execution = execution
+        self.runtime = runtime
 
     def resolve(
         self,
@@ -156,7 +158,9 @@ class SavedHumanActionResolver:
         parameters: Mapping[str, object],
     ) -> ActionBasis:
         resolver = (
-            self.execution
+            self.runtime
+            if action in {"revise_pending_steps", "narrow_driver"} and self.runtime is not None
+            else self.execution
             if action == "authorize_step" and self.execution is not None
             else self.writes
             if action in self.writes.actions

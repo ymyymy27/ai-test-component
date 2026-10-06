@@ -16,6 +16,7 @@ from aitest.domain.execution.dependencies import (
     invalidate_downstream_attempts,
     invalidate_reuse_bases,
 )
+from aitest.domain.execution.output import require_saved_output_cursors
 from aitest.domain.execution.runs import (
     Attempt,
     AttemptState,
@@ -219,6 +220,12 @@ def _recovery_material(
     salvage: bool = False,
 ) -> tuple[tuple[OutputBlockRef, ...], tuple[OutputCursor, ...], list[str]]:
     gaps: list[str] = []
+    require_saved_output_cursors(
+        attempt.attempt_id, attempt.output_cursors, attempt.output_block_refs
+    )
+    require_saved_output_cursors(
+        attempt.attempt_id, checkpoint.output_cursors, checkpoint.output_block_refs
+    )
     try:
         manifest = store.read_manifest(attempt.attempt_id)
     except FileNotFoundError:
@@ -260,17 +267,12 @@ def _verify_material(
     by_key = {(item.stream_name, item.block_index): item for item in blocks}
     if len(by_key) != len(blocks) or len({item.stream_name for item in cursors}) != len(cursors):
         raise ValueError("recovery material has duplicate block or cursor identities")
-    for cursor in cursors:
-        block = by_key.get((cursor.stream_name, cursor.last_block_index))
-        if block is None or (cursor.offset, cursor.last_committed_digest) != (
-            block.offset + block.length,
-            block.digest,
-        ):
-            raise ValueError("recovery cursor does not match its verified block")
+    require_saved_output_cursors(attempt.attempt_id, cursors, blocks)
     for block in blocks:
         content = store.read_block(block)
         if (
-            len(content) != block.length
+            type(content) is not bytes
+            or len(content) != block.length
             or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
         ):
             raise ValueError("recovery block content failed verification")

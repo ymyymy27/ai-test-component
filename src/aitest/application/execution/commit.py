@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
@@ -1037,6 +1037,7 @@ class ExecutionCommitCoordinator:
         request: RuntimeRevisionRequest,
         intent_id: str,
         confirmation_ids: tuple[str, ...] = (),
+        on_revision_staged: Callable[[RunRevisionRecord], None] | None = None,
     ) -> tuple[ExecutionFacts, bool]:
         """Reassess and derive one exact revision in the caller's short transaction.
 
@@ -1220,7 +1221,15 @@ class ExecutionCommitCoordinator:
             before=before,
             superseded_attempt_ids=tuple(sorted(affected_attempts)),
             changed_step_ids=tuple(
-                sorted(affected_steps | {item.step_id for item in step_changes})
+                sorted(
+                    affected_steps
+                    | {item.step_id for item in step_changes}
+                    | (
+                        {step.step_id for step in before.steps}
+                        if decision.effective_driver.value != before.run.driver.value
+                        else set()
+                    )
+                )
             ),
         )
         next_steps = [
@@ -1393,12 +1402,15 @@ class ExecutionCommitCoordinator:
         )
         if int(self._uow.next_commit_seq()) + 1 != sequence:
             raise ValueError("runtime revision result does not match its reserved commit boundary")
-        return self._stage_snapshot_records(
+        result = self._stage_snapshot_records(
             facts,
             previous=before,
             pointer_id=_run_pointer_id(project_id, run_id),
             expected_revisions={},
-        )[1], True
+        )[1]
+        if on_revision_staged is not None:
+            on_revision_staged(record)
+        return result, True
 
     def _stage_snapshot(
         self,

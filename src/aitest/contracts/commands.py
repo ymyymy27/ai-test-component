@@ -10,6 +10,8 @@ PROTOCOL_VERSION: Literal["aitest.local/2.0"] = "aitest.local/2.0"
 HUMAN_ACTIONS = frozenset(
     {
         "authorize_step",
+        "revise_pending_steps",
+        "narrow_driver",
         "publish_plan",
         "publish_rules",
         "record_local_review",

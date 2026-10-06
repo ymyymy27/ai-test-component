@@ -334,8 +334,10 @@ class RuntimeRevisionRequest:
             raise ValueError("observed_snapshot_cursor must be >= 0")
         _require_text(self.reason, "reason")
         _require_text(self.operator_ref, "operator_ref")
-        if not self.case_changes:
-            raise ValueError("a runtime revision must change at least one case")
+        if not self.case_changes and self.requested_driver is None:
+            raise ValueError(
+                "a runtime revision must change at least one case or request a driver change"
+            )
         _require_unique([change.next_case.case_id for change in self.case_changes], "case_id")
 
 

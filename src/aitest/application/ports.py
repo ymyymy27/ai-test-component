@@ -407,6 +407,12 @@ class RuntimeRevisionBasisReader(Protocol):
     ) -> tuple[Case, ...]: ...
 
 
+class RuntimeRevisionOriginProof(Protocol):
+    """Verify original controlled consent for every default runtime revision."""
+
+    def validate_runtime_origins(self, facts: ExecutionFacts) -> None: ...
+
+
 class RevisionRecordReader(Protocol):
     """Only exact B material reads, without query or preparation lookup capabilities."""
 

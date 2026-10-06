@@ -21,6 +21,7 @@ from aitest.application.execution.recovery import (
 )
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.ports import ExecutionPort, SpoolStore
+from aitest.domain.execution.output import require_saved_output_cursors
 from aitest.domain.execution.runs import (
     Attempt,
     AttemptState,
@@ -702,6 +703,9 @@ class SerialRunner:
         output_cursors = self._merge_output_cursors(
             attempt.output_cursors, collection.output_cursors
         )
+        self._require_saved_output_cursors(attempt, attempt.output_cursors, output_blocks)
+        if not collection.captured_blocks:
+            self._require_saved_output_cursors(attempt, output_cursors, output_blocks)
         by_key = {(block.stream_name, block.block_index): block for block in output_blocks}
         for captured in collection.captured_blocks:
             prior = by_key.get((captured.stream_name, captured.block_index))
@@ -738,6 +742,7 @@ class SerialRunner:
             output_blocks = self._merge_output_blocks(output_blocks, manifest.blocks)
             output_cursors = self._merge_output_cursors(attempt.output_cursors, manifest.cursors)
             self._require_saved_output_material(attempt, output_blocks)
+            self._require_saved_output_cursors(attempt, output_cursors, output_blocks)
 
         state = self._attempt_state_for(attempt, inspection, collection)
         result = replace(
@@ -814,6 +819,15 @@ class SerialRunner:
                     raise ValueError("saved output content differs from its reference")
         except (OSError, ValueError) as error:
             raise _ExecutionObservationMismatch("output_material_unverified") from error
+
+    @staticmethod
+    def _require_saved_output_cursors(
+        attempt: Attempt, cursors: tuple[OutputCursor, ...], blocks: tuple[OutputBlockRef, ...]
+    ) -> None:
+        try:
+            require_saved_output_cursors(attempt.attempt_id, cursors, blocks)
+        except ValueError as error:
+            raise _ExecutionObservationMismatch("output_cursor_material_unverified") from error
 
     def _complete_material_is_readable(self, attempt: Attempt) -> bool:
         if self._spool_store is None:

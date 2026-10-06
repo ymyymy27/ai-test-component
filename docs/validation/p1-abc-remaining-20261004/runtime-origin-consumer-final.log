@@ -1,0 +1,16 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short -x tests/unit/test_default_runtime_actions.py::test_default_successive_revision_history_and_restart tests/unit/test_default_runtime_actions.py::test_old_internal_revision_cannot_gain_default_consent
+..                                                                       [100%]
+2 passed in 237.93s (0:03:57)
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check src tests
+All checks passed!
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 189 source files
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe scripts/generate_schemas.py
+
+EXIT: 0

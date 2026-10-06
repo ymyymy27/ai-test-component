@@ -37,6 +37,7 @@ from aitest.application.execution.authorization import (
 from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.registration import InitialRunRegistration
+from aitest.application.execution.runtime_actions import SavedRuntimeRevisionActions
 from aitest.application.execution.saved_control import SavedRunControl
 from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
@@ -274,6 +275,7 @@ class CoreAssembly:
     execution_coordinator: ExecutionCommitCoordinator | None = None
     step_execution: SavedStepExecution | None = None
     run_control: SavedRunControl | None = None
+    runtime_actions: SavedRuntimeRevisionActions | None = None
     model_policy_proof: ModelPolicyConfirmationService | None = None
 
 
@@ -468,16 +470,17 @@ def assemble_workspace_core(
         execution_resolver = SavedExecutionAuthorizationResolver(
             cast(RecordRepository, unit_of_work.repo), workspace.workspace_id
         )
+        human_resolver = SavedHumanActionResolver(
+            SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
+            policy_resolver,
+            write_resolver,
+            execution_resolver,
+        )
         approvals = ApprovalService(
             unit=unit_of_work,
             records=unit_of_work.repo,
             actors=actors,
-            resolver=SavedHumanActionResolver(
-                SavedBasisApprovalResolver(unit_of_work.repo, workspace.workspace_id),
-                policy_resolver,
-                write_resolver,
-                execution_resolver,
-            ),
+            resolver=human_resolver,
             identities=ApprovalIdentity(),
             clock=SystemClock(),
             workspace_id=workspace.workspace_id,
@@ -560,6 +563,9 @@ def assemble_workspace_core(
             execution_authorizations, initial_run_registration, step_execution
         )
         run_control = SavedRunControl(execution_coordinator, step_execution, workspace.workspace_id)
+        runtime_actions = SavedRuntimeRevisionActions(execution_coordinator, approvals)
+        human_resolver.runtime = runtime_actions
+        execution_authorizations.runtime_origins = runtime_actions
         handlers.update(
             register_run=execution_commands.register,
             prepare_execution=execution_commands.prepare,
@@ -568,6 +574,8 @@ def assemble_workspace_core(
             pause_run=run_control.apply,
             resume_run=run_control.apply,
             cancel_run=run_control.apply,
+            revise_pending_steps=runtime_actions.apply,
+            narrow_driver=runtime_actions.apply,
         )
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
@@ -685,6 +693,7 @@ def assemble_workspace_core(
         execution_coordinator=execution_coordinator,
         step_execution=step_execution,
         run_control=run_control,
+        runtime_actions=runtime_actions,
         model_policy_proof=policy_confirmations,
     )
 

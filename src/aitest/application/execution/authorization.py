@@ -36,6 +36,7 @@ from aitest.application.ports import (
     ControlledWriteProof,
     ExecutionActionResolver,
     RecordRepository,
+    RuntimeRevisionOriginProof,
     StageableWorkspaceUnitOfWork,
 )
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
@@ -192,12 +193,14 @@ class ExecutionAuthorizationService:
         environment: EnvironmentResolutionService,
         action_resolver: ExecutionActionResolver | None,
         controlled_writes: ControlledWriteProof,
+        runtime_origins: RuntimeRevisionOriginProof | None = None,
     ) -> None:
         self.unit, self.records, self.workspace_id = unit, records, workspace_id
         self.reader = reader
         self.resolver, self.approvals = resolver, approvals
         self.source, self.environment, self.action_resolver = source, environment, action_resolver
         self.controlled_writes = controlled_writes
+        self.runtime_origins = runtime_origins
 
     def _revision(self, identity: str) -> int:
         result = self.records.current_revision(
@@ -244,6 +247,8 @@ class ExecutionAuthorizationService:
         ):
             raise ApprovalRequired("execution requires the exact registered current run and step")
         content = StepContentReader(self.records).read(run=run, step=step)
+        if self.runtime_origins is not None:
+            self.runtime_origins.validate_runtime_origins(current)
         prepared, _ = load_saved_preparation(
             reader=self.reader,
             project_id=project,
