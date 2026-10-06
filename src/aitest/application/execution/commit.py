@@ -50,7 +50,12 @@ from aitest.application.execution.step_content import StepContentReader
 from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.saved_runtime_revision import SavedRuntimeRevisionAssessment
 from aitest.application.planning.serialization import case_content_digest, case_to_payload
-from aitest.application.ports import BasisConfirmationProof, ControlledWriteProof, RecordRepository
+from aitest.application.ports import (
+    BasisConfirmationProof,
+    ControlledWriteProof,
+    ExecutionAuthorizationProof,
+    RecordRepository,
+)
 from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
 from aitest.contracts.execution_facts import (
     AttemptFact,
@@ -118,18 +123,26 @@ class ExecutionCommitCoordinator:
         records: RecordRepository | None = None,
         approvals: BasisConfirmationProof | None = None,
         controlled_writes: ControlledWriteProof | None = None,
+        execution_authorizations: ExecutionAuthorizationProof | None = None,
     ) -> None:
         self._uow = unit_of_work
         self._checkpoint_store = checkpoint_store
         self._records = records
         self._approvals, self._controlled_writes = approvals, controlled_writes
+        self._execution_authorizations = execution_authorizations
 
     def _revision(self, kind: str, record_id: str, expected: int | None = None) -> int | None:
         reader = self._records or self._uow
         current_revision = getattr(reader, "current_revision", None)
         if not callable(current_revision):
             return expected
-        current = int(current_revision(aggregate_kind=kind, record_id=record_id))
+        current = current_revision(aggregate_kind=kind, record_id=record_id)
+        if (
+            type(current) is not int
+            or current < 0
+            or (expected is not None and (type(expected) is not int or expected < 0))
+        ):
+            raise ValueError("warehouse revision requires an exact nonnegative integer")
         if expected is not None and expected != current:
             raise ValueError("revision conflict")
         return current
@@ -393,6 +406,7 @@ class ExecutionCommitCoordinator:
             pointer.get("schema_version") != "aitest.execution-facts-reference/1.0"
             or pointer.get("project_id") != project_id
             or pointer.get("run_id") != run_id
+            or type(pointer.get("snapshot_revision")) is not int
             or pointer.get("snapshot_revision") != 1
         ):
             raise ValueError("current execution snapshot reference cannot be verified")
@@ -450,6 +464,15 @@ class ExecutionCommitCoordinator:
             payload = self._read_payload("execution_intent", f"{project_id}:{intent_id}")
         if payload is None:
             return None
+        intent_key = _intent_record_id(project_id, intent_id)
+        if not self._revision("execution_intent", intent_key):
+            intent_key = f"{project_id}:{intent_id}"
+        if self._revision("execution_intent", intent_key) != 1:
+            raise ValueError("saved execution intent must remain immutable at revision 1")
+        if set(payload) != {"project_id", "intent_id", "fingerprint", "attempt_id"} or (
+            payload.get("intent_id") != intent_id
+        ):
+            raise ValueError("execution intent has unknown fields or identity")
         if payload.get("project_id") != project_id or payload.get("fingerprint") != fingerprint:
             raise ValueError("execution intent conflicts with different input")
         attempt_id = payload.get("attempt_id")
@@ -483,15 +506,47 @@ class ExecutionCommitCoordinator:
             )
         ):
             raise ValueError("saved authorization consumption cannot be verified")
-        if claim.get("schema_version") != "aitest.execution-authorization-claim/1.0":
-            raise ValueError("saved authorization claim schema cannot be verified")
-        saved_authorization = TypeAdapter(AuthorizationRef).validate_python(
-            claim.get("authorization_ref")
+        if claim.get("schema_version") != "aitest.execution-authorization-claim/1.1":
+            raise ValueError("legacy authorization claim has no original proof; inspect history")
+        if (
+            set(claim)
+            != {
+                "schema_version",
+                "project_id",
+                "run_id",
+                "step_id",
+                "attempt_id",
+                "intent_id",
+                "fingerprint",
+                "authorization_id",
+                "authorization_ref",
+                "original_grant_proof",
+            }
+            or self._revision(
+                "execution_authorization", _authorization_record_id(authorization.authorization_id)
+            )
+            != 1
+        ):
+            raise ValueError(
+                "saved original authorization claim is not immutable or has extra fields"
+            )
+        saved_authorization = TypeAdapter(AuthorizationRef).validate_json(
+            json.dumps(claim.get("authorization_ref")), strict=True
         )
+        if claim["authorization_ref"] != _json_payload(
+            TypeAdapter(AuthorizationRef), saved_authorization
+        ):
+            raise ValueError("saved authorization reference has unknown fields")
         if authorization_action_basis(saved_authorization) != authorization_action_basis(
             authorization
         ):
             raise ValueError("saved authorization basis cannot be verified")
+        proof = claim.get("original_grant_proof")
+        if self._execution_authorizations is None or not isinstance(proof, Mapping):
+            raise ValueError("saved original authorization proof is unavailable")
+        self._execution_authorizations.validate_occupation(
+            project_id=project_id, attempt=attempt, proof=proof
+        )
         return attempt
 
     def claim_start(
@@ -503,6 +558,26 @@ class ExecutionCommitCoordinator:
         checkpoint: RecoveryRecord,
     ) -> Attempt | None:
         """在同一短事务中认领意图和检查点；外部启动只允许新认领者执行。"""
+        previous = self.find_start(
+            project_id=project_id, intent_id=intent_id, fingerprint=fingerprint
+        )
+        if previous is not None:
+            return previous
+        if self._execution_authorizations is None:
+            raise ValueError("new execution requires original authorization proof")
+        # Source/environment checks are outside the start transaction. A concurrent
+        # original publication is recovered, never converted into another execution.
+        try:
+            self._execution_authorizations.validate_new(
+                project_id=project_id, attempt=checkpoint.attempt
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            previous = self.find_start(
+                project_id=project_id, intent_id=intent_id, fingerprint=fingerprint
+            )
+            if previous is None:
+                raise
+            return previous
         begin = getattr(self._uow, "begin", None)
         if callable(begin):
             begin(f"execution-{uuid4().hex}", project_id)
@@ -522,6 +597,11 @@ class ExecutionCommitCoordinator:
                     "attempt already exists without this verified intent; inspect it first"
                 )
             current, invalidations = self._prepare_current_start(project_id, checkpoint.attempt)
+            if current is None or current.run.control_state not in {
+                RunControlStateFact.NOT_STARTED,
+                RunControlStateFact.RUNNING,
+            }:
+                raise ValueError("new execution requires an admitted current run control state")
             attempt = checkpoint.attempt
             if (
                 checkpoint.project_id not in (None, project_id)
@@ -549,12 +629,15 @@ class ExecutionCommitCoordinator:
             claim_id = _authorization_record_id(authorization.authorization_id)
             if self._revision("execution_authorization", claim_id):
                 raise ValueError("authorization is already consumed; inspect the original attempt")
+            original_grant_proof = self._execution_authorizations.stage_occupation(
+                project_id=project_id, attempt=attempt
+            )
             self._uow.stage_record(
                 aggregate_kind="execution_authorization",
                 record_id=claim_id,
                 expected_revision=self._revision("execution_authorization", claim_id),
                 payload={
-                    "schema_version": "aitest.execution-authorization-claim/1.0",
+                    "schema_version": "aitest.execution-authorization-claim/1.1",
                     "project_id": project_id,
                     "run_id": attempt.run_id,
                     "step_id": attempt.step_id,
@@ -565,6 +648,7 @@ class ExecutionCommitCoordinator:
                     "authorization_ref": _json_payload(
                         TypeAdapter(type(authorization)), authorization
                     ),
+                    "original_grant_proof": dict(original_grant_proof),
                 },
             )
             if callable(getattr(self._records or self._uow, "current_revision", None)):

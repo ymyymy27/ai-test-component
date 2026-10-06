@@ -21,13 +21,16 @@ from aitest.domain.execution.runs import (
 )
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.execution_authority import fixture_coordinator
 from tests.unit.test_serial_runner import FakeExecutionPort, _attempt, _request
 
 
 def _runner(root, port=None, unit=None):
     return SerialRunner(
         port or FakeExecutionPort(),
-        commit_coordinator=ExecutionCommitCoordinator(unit or FileUnitOfWork(root)),
+        commit_coordinator=fixture_coordinator(
+            unit or FileUnitOfWork(root), ((_attempt(), _request()),)
+        ),
     )
 
 
@@ -63,24 +66,41 @@ def test_authorization_must_bind_the_exact_step_revision(tmp_path, legacy):
     request = replace(
         request, authorization_ref=replace(request.authorization_ref, step_revision_ref=revision)
     )
+    runner = _runner(tmp_path, port)
+    before = FileUnitOfWork(tmp_path).current_commit_sequence()
     with pytest.raises(ValueError, match="step revision"):
-        _runner(tmp_path, port).start_attempt(_attempt(), request)
+        runner.start_attempt(_attempt(), request)
     assert port.started == []
-    assert not (tmp_path / "records.json").exists()
+    assert FileUnitOfWork(tmp_path).current_commit_sequence() == before
+    assert FileUnitOfWork(tmp_path).current_revision(
+        aggregate_kind="execution_checkpoint", record_id=_attempt().attempt_id
+    ) == 0
 
 
-@pytest.mark.parametrize("persistent", [False, True])
-def test_new_attempt_cannot_reuse_an_occupied_authorization(tmp_path, persistent):
+@pytest.mark.parametrize("sidecar", [False, True])
+def test_new_attempt_cannot_reuse_an_occupied_authorization(tmp_path, sidecar):
     port = FakeExecutionPort()
-    if persistent:
+    if not sidecar:
         runner = _runner(tmp_path, port)
     else:
-        runner = SerialRunner(port, checkpoint_store=FileCheckpointStore(tmp_path))
+        runner = SerialRunner(
+            port,
+            checkpoint_store=FileCheckpointStore(tmp_path),
+            commit_coordinator=fixture_coordinator(
+                FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+            ),
+        )
     runner.start_attempt(_attempt(), _request())
-    if persistent:
+    if not sidecar:
         runner = _runner(tmp_path, port)
     else:
-        runner = SerialRunner(port, checkpoint_store=FileCheckpointStore(tmp_path))
+        runner = SerialRunner(
+            port,
+            checkpoint_store=FileCheckpointStore(tmp_path),
+            commit_coordinator=fixture_coordinator(
+                FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+            ),
+        )
     request = replace(
         _request(),
         attempt_id="attempt-2",
@@ -88,7 +108,7 @@ def test_new_attempt_cannot_reuse_an_occupied_authorization(tmp_path, persistent
         authorization_ref=replace(_request().authorization_ref, intent_id="intent-2"),
     )
     attempt = replace(_attempt(), attempt_id="attempt-2", intent_id="intent-2", attempt_index=2)
-    with pytest.raises(ValueError, match="authorization is already consumed"):
+    with pytest.raises(ValueError, match="authorization.*(consumed|different input)"):
         runner.start_attempt(attempt, request)
     assert len(port.started) == 1
     assert not FileUnitOfWork(tmp_path).current_revision(
@@ -106,7 +126,9 @@ def test_authorization_intent_and_checkpoint_are_visible_together_before_externa
         record = unit.read(aggregate_kind="execution_checkpoint", record_id="attempt-1", revision=1)
         attempt = TypeAdapter(RecoveryRecord).validate_python(record.payload).attempt
         # This lookup verifies both the intent and the occupied authorization, not just the cursor.
-        recovered = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).find_start(
+        recovered = fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+        ).find_start(
             project_id=request.project_id,
             intent_id=request.intent_id,
             fingerprint=attempt.intent_digest,
@@ -116,8 +138,10 @@ def test_authorization_intent_and_checkpoint_are_visible_together_before_externa
         return original(request)
 
     port.start = start
-    _runner(tmp_path, port, unit).start_attempt(_attempt(), _request())
-    assert observed == [3]
+    runner = _runner(tmp_path, port, unit)
+    before = unit.current_commit_sequence()
+    runner.start_attempt(_attempt(), _request())
+    assert observed == [before + 6]
 
 
 def test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_retry(
@@ -135,15 +159,16 @@ def test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_ret
     port = FakeExecutionPort()
     runner = SerialRunner(
         port,
-        commit_coordinator=ExecutionCommitCoordinator(unit),
+        commit_coordinator=fixture_coordinator(unit, ((_attempt(), _request()),)),
         reuse_bases=(CaseReuseBasis("case-1", ("old",)),),
         previous_attempt_ids_by_step={"step-1": ("old",)},
     )
+    before = unit.current_commit_sequence()
     with pytest.raises(OSError, match="injected"):
         runner.start_attempt(_attempt(), _request())
     assert runner.reuse_invalidations == ()
     assert port.started == []
-    assert unit.current_commit_sequence() == 0
+    assert unit.current_commit_sequence() == before
     monkeypatch.setattr(unit, "stage_record", original)
     runner.start_attempt(_attempt(), _request())
     assert len(port.started) == 1
@@ -152,6 +177,8 @@ def test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_ret
 
 def test_lost_reply_after_publishing_claim_never_replays_external_start(tmp_path, monkeypatch):
     unit = FileUnitOfWork(tmp_path)
+    fixture_coordinator(unit, ((_attempt(), _request()),))
+    before = unit.current_commit_sequence()
     original = unit.commit
 
     def lost_reply():
@@ -166,7 +193,7 @@ def test_lost_reply_after_publishing_claim_never_replays_external_start(tmp_path
     assert recovered.state is AttemptState.PENDING_VERIFICATION
     assert recovered.execution_handle_ref is None
     assert port.started == []
-    assert FileUnitOfWork(tmp_path).current_commit_sequence() == 3
+    assert FileUnitOfWork(tmp_path).current_commit_sequence() == before + 6
 
 
 def test_two_cores_share_one_saved_start_even_before_the_first_handle_is_returned(tmp_path):
@@ -281,7 +308,7 @@ def test_auth_claim_is_project_bound_and_cannot_be_rebound_by_a_foreign_request(
         attempt_id="foreign-attempt",
     )
     attempt = replace(_attempt(), run_id="foreign-run", attempt_id="foreign-attempt")
-    with pytest.raises(ValueError, match="authorization is already consumed"):
+    with pytest.raises(ValueError, match="authorization.*(consumed|different input)"):
         _runner(tmp_path, port).start_attempt(attempt, request)
     assert len(port.started) == 1
     key = "execution-authorization:" + hashlib.sha256(b"authorization-1").hexdigest()

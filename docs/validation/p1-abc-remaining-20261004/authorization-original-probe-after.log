@@ -1,0 +1,13 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\.codex\worktrees\authorization-consumption\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+::test_persistent_execution_requires_original_unused_authorization <- ..\..\..\..\Desktop\ai-test-component\.git\p1-abc-fix-20261003\probe_authorization_origin.py PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED ::test_persistent_execution_requires_original_unused_authorization
+============================== 1 passed in 1.77s ==============================

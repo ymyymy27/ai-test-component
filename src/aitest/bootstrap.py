@@ -34,6 +34,7 @@ from aitest.application.execution.authorization import (
     ExecutionAuthorizationService,
     SavedExecutionAuthorizationResolver,
 )
+from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
@@ -261,6 +262,7 @@ class CoreAssembly:
     initial_run_registration: InitialRunRegistration | None = None
     environment_resolution: EnvironmentResolutionService | None = None
     execution_authorizations: ExecutionAuthorizationService | None = None
+    execution_coordinator: ExecutionCommitCoordinator | None = None
 
 
 def assemble_workspace_core(
@@ -530,6 +532,13 @@ def assemble_workspace_core(
             action_resolver=execution_action_resolver,
             controlled_writes=controlled_writes,
         )
+        execution_coordinator = ExecutionCommitCoordinator(
+            unit_of_work,
+            records=cast(RecordRepository, unit_of_work.repo),
+            approvals=approvals,
+            controlled_writes=controlled_writes,
+            execution_authorizations=execution_authorizations,
+        )
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
             values = command.parameters
@@ -643,6 +652,7 @@ def assemble_workspace_core(
         initial_run_registration=initial_run_registration,
         environment_resolution=environment_resolution,
         execution_authorizations=execution_authorizations,
+        execution_coordinator=execution_coordinator,
     )
 
 

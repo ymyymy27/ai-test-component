@@ -1,0 +1,14 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\.codex\worktrees\authorization-consumption\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 11 items
+
+tests/unit/test_execution_original_authority_consumer.py::test_caller_authorization_ref_cannot_start_without_original_proof[False] PASSED [  9%]
+tests/unit/test_execution_original_authority_consumer.py::test_caller_authorization_ref_cannot_start_without_original_proof[True] PASSED [ 18%]
+tests/unit/test_execution_original_authority_consumer.py::test_warehouse_revision_cannot_be_coerced_to_an_integer[True] PASSED [ 27%]
+tests/unit/test_execution_original_authority_consumer.py::test_warehouse_revision_cannot_be_coerced_to_an_integer[1.0] PASSED [ 36%]
+tests/unit/test_execution_original_authority_consumer.py::test_warehouse_revision_cannot_be_coerced_to_an_integer[1] PASSED [ 45%]
+tests/unit/test_execution_original_authority_consumer.py::test_warehouse_revision_cannot_be_coerced_to_an_integer[-1] PASSED [ 54%]
+tests/unit/test_execution_original_authority_consumer.py::test_original_authority_is_consumed_atomically_and_replays_after_source_change PASSED [ 63%]

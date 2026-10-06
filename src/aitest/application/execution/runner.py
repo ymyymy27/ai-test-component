@@ -1,13 +1,9 @@
 """Serial execution loop and dependency dispatch skeleton."""
 
-import hashlib
-import json
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
-
-from pydantic import TypeAdapter
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.recovery import (
@@ -20,6 +16,7 @@ from aitest.application.execution.recovery import (
     invalidate_reuse_bases,
     recover_attempt,
 )
+from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.ports import ExecutionPort, SpoolStore
 from aitest.domain.execution.runs import (
     Attempt,
@@ -402,6 +399,8 @@ class SerialRunner:
 
     def start_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
         prepared = self._prepare_attempt(attempt, request)
+        if self._commit_coordinator is None:
+            raise ValueError("new start or replay requires a persistent authorization coordinator")
         fingerprint = _start_fingerprint(prepared, request)
         prepared = replace(prepared, intent_digest=fingerprint)
         key = (request.project_id, request.intent_id)
@@ -806,29 +805,7 @@ class SerialRunner:
 
 
 def _start_fingerprint(attempt: Attempt, request: ExecutionRequest) -> str:
-    request_payload = TypeAdapter(ExecutionRequest).dump_python(request, mode="json")
-    # Consumption is a saved fact; it does not change the original authorized action.
-    request_payload["authorization_ref"].pop("consumed_by_attempt_id", None)
-    attempt_payload = TypeAdapter(Attempt).dump_python(attempt, mode="json")
-    payload = {
-        "fingerprint_version": "aitest.execution-start/2.0",
-        "request": request_payload,
-        "attempt_basis": {
-            name: attempt_payload[name]
-            for name in (
-                "attempt_index",
-                "step_revision_ref",
-                "consumed_outputs",
-                "consumed_conditions",
-                "adapter_version",
-                "business_idempotency_key_ref",
-                "expected_plan_revision_ref",
-            )
-        },
-    }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    ).hexdigest()
+    return execution_start_fingerprint(attempt, request)
 
 
 __all__ = [

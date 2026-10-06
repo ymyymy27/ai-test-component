@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.19"
+contract_version: "1.21"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.19
+版本：1.21
 日期：2026-10-06
 状态：草案，待B/C/D确认  
 
@@ -266,3 +266,7 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 ## 16 执行授权原始来源端口
 
 1.19新增ExecutionActionResolver与ExecutionAuthorizationProof端口，唯一语义引用BC-001 0.22第25节。前者只由可信装配注入，事务外解析准确保存的单步骤输入；后者在短事务中验证并占用原始未用授权及核对历史消费。execution_authorization类别内区分不可变动作依据、原始授权、状态和意图回执，列表不恢复全扫。缺端口/来源明确阻塞，客户端AuthorizationRef不能自签；实际执行在可靠提交后发生。默认C/D、每步真实加载和真实AC继续partial/not_run。
+
+1.20按BC-001 0.23第25.1节区分解析时全局当前指针的历史来源与动作当前有效依据；无关步骤推进不作废独立预授权。授予、首次执行校验和事务内占用均须核对动作当前Step/准备/冻结计划、Attempt顺序及实际依赖，历史来源仍按准确修订与摘要读取。组件边界修正不升级真实验收状态。
+
+1.21引用BC-001 0.24第25.2节，将原始授权证明注入默认内部执行协调器；新执行缺证明或准确当前Run时阻塞，占用与意图/检查点/当前事实同提交，恢复只核对原消费。无持久协调器的Runner不再新增执行；既有专门inspect/collect及诊断材料继续保留。默认公开调度、受影响未用许可撤销、整用例复用及真实AC仍分别实施和登记。

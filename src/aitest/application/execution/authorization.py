@@ -149,7 +149,10 @@ class SavedExecutionAuthorizationResolver:
             )
             if (
                 type(revision) is not int
-                or revision != ref.record_revision
+                or (
+                    ref.aggregate_kind != "execution_facts_current"
+                    and revision != ref.record_revision
+                )
                 or _digest(body) != ref.digest
             ):
                 raise ApprovalRequired("execution basis changed; resolve and review a new action")
@@ -290,6 +293,10 @@ class ExecutionAuthorizationService:
                     "template_versions": plan_raw["template_versions"],
                     "run_tier": plan_raw["run_tier"],
                     "initial_driver": plan_raw["initial_driver"],
+                    # The record has no domain status field. Its exact controlled
+                    # publish_plan origin was verified above, before projecting it.
+                    "status": "published",
+                    "confirmation_id": plan_raw["approval_commit_seq"],
                 }
             ),
             strict=True,
@@ -346,6 +353,33 @@ class ExecutionAuthorizationService:
             raw = self.resolver.materials._read(kind, identity, revision, project)
             references.append(ApprovalMaterialRef(kind, identity, revision, _digest(raw)))
         return run, step, prepared, tuple(references)
+
+    def _current_action(
+        self, project: str, raw: Mapping[str, Any], action: ResolvedExecutionAction
+    ) -> PreparedRun:
+        """Retain exact historical provenance; recheck this action's live basis."""
+        run, step, prepared, current_refs = self._context(
+            project, action.request.run_id, action.request.step_id
+        )
+        original_refs = TypeAdapter(tuple[ApprovalMaterialRef, ...]).validate_json(
+            json.dumps(raw["materials"]), strict=True
+        )
+
+        def action_refs(refs: tuple[ApprovalMaterialRef, ...]) -> tuple[ApprovalMaterialRef, ...]:
+            return tuple(ref for ref in refs if ref.aggregate_kind != "execution_facts_current")
+
+        if (
+            action_refs(current_refs) != action_refs(original_refs)
+            or step.step_revision_ref != action.attempt.step_revision_ref
+            or run.plan_revision_ref != action.attempt.expected_plan_revision_ref
+        ):
+            raise ApprovalRequired("authorized action no longer uses its exact current material")
+        current, _ = ExecutionCommitCoordinator(
+            self.unit, records=self.records
+        )._prepare_current_start(project, action.attempt)
+        if current is None:
+            raise ApprovalRequired("authorized action requires a registered current run")
+        return prepared
 
     def _actual(self, prepared: PreparedRun) -> None:
         self.environment.validate_current(prepared)
@@ -488,7 +522,7 @@ class ExecutionAuthorizationService:
             if original["parameters"] != dict(parameters):
                 raise ApprovalConflict("authorization intent has different saved input")
             return _payload(action.request.authorization_ref)
-        self._actual(self._context(project_id, action.request.run_id, action.request.step_id)[2])
+        self._actual(self._current_action(project_id, raw, action))
         self.unit.begin(request_id, project_id)
         try:
             if self._revision(identity):
@@ -502,7 +536,7 @@ class ExecutionAuthorizationService:
                 target=action.request.step_id,
                 parameters=parameters,
             )
-            self._context(project_id, action.request.run_id, action.request.step_id)
+            self._current_action(project_id, raw, action)
             confirmation = self.approvals.stage_confirmation(
                 project_id=project_id,
                 challenge_id=challenge_id,
@@ -656,10 +690,9 @@ class ExecutionAuthorizationService:
             raise ApprovalRequired("execution attempt differs from its original authorized action")
         _, state, occupied = self._state(project_id, attempt.authorization_ref.authorization_id)
         require_unused(state, occupied)
+        action_id = _identity("execution-action-", self.workspace_id, project_id, attempt.intent_id)
         parameters = {
-            "execution_action_id": _identity(
-                "execution-action-", self.workspace_id, project_id, attempt.intent_id
-            ),
+            "execution_action_id": action_id,
             "record_revision": 1,
         }
         self.resolver.resolve(
@@ -669,7 +702,8 @@ class ExecutionAuthorizationService:
             target=attempt.step_id,
             parameters=parameters,
         )
-        prepared = self._context(project_id, attempt.run_id, attempt.step_id)[2]
+        raw, _ = self.resolver.read(project_id, action_id)
+        prepared = self._current_action(project_id, raw, action)
         self._actual(prepared)
 
     def stage_occupation(self, *, project_id: str, attempt: Attempt) -> Mapping[str, object]:
@@ -691,7 +725,8 @@ class ExecutionAuthorizationService:
             target=attempt.step_id,
             parameters=grant["parameters"],
         )
-        self._context(project_id, attempt.run_id, attempt.step_id)
+        raw, _ = self.resolver.read(project_id, grant["parameters"]["execution_action_id"])
+        self._current_action(project_id, raw, action)
         self.unit.stage_record(
             aggregate_kind="execution_authorization",
             record_id="authorization-state:" + identity,

@@ -1,0 +1,27 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\.codex\worktrees\authorization-consumption\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 3 items
+
+tests/unit/test_authorization_current_action.py::test_current_attempt_replacement_blocks_grant_and_occupation PASSED [ 33%]
+tests/unit/test_authorization_current_action.py::test_saved_step_revision_change_cannot_consume_prepared_challenge FAILED [ 66%]
+tests/unit/test_authorization_current_action.py::test_actual_source_change_blocks_new_grant_without_consuming_challenge PASSED [100%]
+
+================================== FAILURES ===================================
+______ test_saved_step_revision_change_cannot_consume_prepared_challenge ______
+tests\unit\test_authorization_current_action.py:58: in test_saved_step_revision_change_cannot_consume_prepared_challenge
+    with pytest.raises(ValueError, match="exact current material"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'exact current material'
+E     Actual message: 'saved runtime revision no longer proves its guarded change'
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_authorization_current_action.py::test_current_attempt_replacement_blocks_grant_and_occupation
+PASSED tests/unit/test_authorization_current_action.py::test_actual_source_change_blocks_new_grant_without_consuming_challenge
+FAILED tests/unit/test_authorization_current_action.py::test_saved_step_revision_change_cannot_consume_prepared_challenge - AssertionError: Regex pattern did not match.
+  Expected regex: 'exact current material'
+  Actual message: 'saved runtime revision no longer proves its guarded change'
+=================== 1 failed, 2 passed in 501.72s (0:08:21) ===================
