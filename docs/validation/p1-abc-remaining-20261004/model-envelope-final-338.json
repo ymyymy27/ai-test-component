@@ -1,0 +1,69 @@
+{
+  "source_base": "4ac73f6bdd5fc8e9cb46a9e7158fb20c8c160c09",
+  "distinct_passed": 338,
+  "groups": [
+    {
+      "raw_output": ".git/p1-abc-fix-20261003/execution-envelope-final.log",
+      "passed": 75,
+      "seconds": 74.38,
+      "sha256": "fbfa921e0e252c5cb729257c6f6ab59474f7cd63422b9f86249bfdba68a56c13"
+    },
+    {
+      "raw_output": ".git/p1-abc-fix-20261003/model-envelope-contracts-final.log",
+      "passed": 225,
+      "seconds": 12.48,
+      "sha256": "08ddd9775d87103fcbc13f598c92e37887cddd75b7f0c8634ce59ed99f30d9d5"
+    },
+    {
+      "raw_output": ".git/p1-abc-fix-20261003/live-model-guard-final-38.log",
+      "passed": 38,
+      "seconds": 230.09,
+      "sha256": "9a8b5cf27f80bdc618ff7648dd8d2213a6330b29defb8ee42bcc5cdb966d8d4c"
+    }
+  ],
+  "source_proofs": [
+    {
+      "path": "scripts/validate_deepseek.py",
+      "normalized_sha256": "5ccc2b5339c0af650afb054e8f82fe85b1062b0048e022d09794fe4b8261389e"
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "normalized_sha256": "88f5c462eac3d923970946b7c9bde312c8831cadbe6b12adbc34f015fc4f5ff8"
+    },
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "normalized_sha256": "f56c0fbe6b283cd6ef849b62e22e1aefac1d62cf1ff98ac7e55bebe73546250c"
+    },
+    {
+      "path": "tests/unit/test_live_model_validation_guard.py",
+      "normalized_sha256": "beb24fed835cdc50298b60c58f8213db0c5b78831a54b8b993e3352f646a03be"
+    },
+    {
+      "path": "tests/unit/test_execution_record_envelope.py",
+      "normalized_sha256": "d85921bbd408f20dd3b7c8a6ca3d006f2553c885e9b857d4ce84247fd5aa61f8"
+    }
+  ],
+  "interrupted_previous_group": {
+    "collected": 37,
+    "recorded_passes": 36,
+    "final_summary": false,
+    "counted_in_total": false
+  },
+  "standalone_integration_counted_twice": false,
+  "mypy_files": 169,
+  "full_python_rerun": false,
+  "whole_issues_closed": 0,
+  "remaining": {
+    "A": 7,
+    "B": 8,
+    "C": 7,
+    "total": 22
+  },
+  "real_p1": {
+    "verified": 0,
+    "not_verified": 7,
+    "blocked": 1,
+    "untested": 27
+  },
+  "supplier_network_called": false
+}

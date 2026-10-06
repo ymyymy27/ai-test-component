@@ -117,6 +117,15 @@ def _validate_original_grant_proof(proof: object, authorization: AuthorizationRe
         raise ValueError("original authorization proof has invalid identity, revision or digest")
 
 
+def _require_record_envelope(record: object, kind: str, identity: str, revision: int) -> None:
+    if type(getattr(record, "revision", None)) is not int or (
+        getattr(record, "aggregate_kind", None),
+        getattr(record, "record_id", None),
+        getattr(record, "revision", None),
+    ) != (kind, identity, revision):
+        raise ValueError("saved execution record envelope cannot be verified")
+
+
 class CheckpointPayloadCodec(Protocol):
     def to_payload(self, record: RecoveryRecord) -> dict[str, object]: ...
 
@@ -389,6 +398,7 @@ class ExecutionCommitCoordinator:
         if not callable(read):
             raise RuntimeError("committed execution records cannot be read")
         record = read(aggregate_kind=kind, record_id=record_id, revision=current)
+        _require_record_envelope(record, kind, record_id, current)
         payload = getattr(record, "payload", None)
         if not isinstance(payload, Mapping):
             raise ValueError("committed execution payload is invalid")
@@ -427,7 +437,17 @@ class ExecutionCommitCoordinator:
         if pointer is None:
             return None
         if (
-            pointer.get("schema_version") != "aitest.execution-facts-reference/1.0"
+            set(pointer)
+            != {
+                "schema_version",
+                "project_id",
+                "run_id",
+                "snapshot_commit_id",
+                "snapshot_revision",
+                "digest",
+                "previous_snapshot_commit_id",
+            }
+            or pointer.get("schema_version") != "aitest.execution-facts-reference/1.0"
             or pointer.get("project_id") != project_id
             or pointer.get("run_id") != run_id
             or type(pointer.get("snapshot_revision")) is not int
@@ -437,10 +457,18 @@ class ExecutionCommitCoordinator:
         snapshot_id = pointer.get("snapshot_commit_id")
         if not isinstance(snapshot_id, str) or not snapshot_id:
             raise ValueError("current execution snapshot reference lacks an identity")
+        previous = pointer.get("previous_snapshot_commit_id")
+        if previous is not None and (
+            not isinstance(previous, str) or not previous.strip() or previous == snapshot_id
+        ):
+            raise ValueError("current execution snapshot reference has invalid history identity")
+        if self._revision("execution_facts", snapshot_id) != 1:
+            raise ValueError("current execution snapshot must remain immutable at revision 1")
         read = getattr(self._records or self._uow, "read", None)
         if not callable(read):
             raise RuntimeError("current execution snapshot cannot be read")
         record = read(aggregate_kind="execution_facts", record_id=snapshot_id, revision=1)
+        _require_record_envelope(record, "execution_facts", snapshot_id, 1)
         payload = getattr(record, "payload", None)
         if not isinstance(payload, Mapping) or _payload_digest(payload) != pointer.get("digest"):
             raise ValueError("current execution snapshot digest cannot be verified")

@@ -263,6 +263,7 @@ class CoreAssembly:
     environment_resolution: EnvironmentResolutionService | None = None
     execution_authorizations: ExecutionAuthorizationService | None = None
     execution_coordinator: ExecutionCommitCoordinator | None = None
+    model_policy_proof: ModelPolicyConfirmationService | None = None
 
 
 def assemble_workspace_core(
@@ -653,6 +654,7 @@ def assemble_workspace_core(
         environment_resolution=environment_resolution,
         execution_authorizations=execution_authorizations,
         execution_coordinator=execution_coordinator,
+        model_policy_proof=policy_confirmations,
     )
 
 

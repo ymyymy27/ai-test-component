@@ -185,7 +185,12 @@ def test_unverifiable_current_reference_never_falls_back_to_a_successful_history
         if kwargs["aggregate_kind"] == "execution_facts_current":
             payload = dict(record.payload)
             payload[field] = "unverifiable"
-            return SimpleNamespace(payload=payload)
+            return SimpleNamespace(
+                payload=payload,
+                aggregate_kind=record.aggregate_kind,
+                record_id=record.record_id,
+                revision=record.revision,
+            )
         return record
 
     monkeypatch.setattr(unit, "read", wrong_reference)
@@ -201,7 +206,12 @@ def test_current_snapshot正文_digest_is_verified_after_exact_revision_read(tmp
     def wrong_bytes(**kwargs):
         record = original(**kwargs)
         if kwargs["aggregate_kind"] == "execution_facts":
-            return SimpleNamespace(payload={**record.payload, "facts_id": "altered"})
+            return SimpleNamespace(
+                payload={**record.payload, "facts_id": "altered"},
+                aggregate_kind=record.aggregate_kind,
+                record_id=record.record_id,
+                revision=record.revision,
+            )
         return record
 
     monkeypatch.setattr(unit, "read", wrong_bytes)

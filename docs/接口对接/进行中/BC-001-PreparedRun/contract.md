@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.25"
+contract_version: "0.26"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.25（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
+版本：0.26（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -813,3 +813,8 @@ PreparationRecord增加observed_environment_content_identity，与原记录单�
 取消回执必须对应准确当前ExecutionHandle，stop_confirmed严格为true且observed_state为stopped，才有已取消依据；其他句柄、仍活动、未知、失联或仅自然退出保持取消中/待核实，继续准确检查与采集。暂停遇到UNKNOWN/PENDING_VERIFICATION或有句柄但无可靠终止事实的Attempt保持暂停中并要求核实，不能凭终态标签宣称已达到步骤边界。默认持久控制入口与真实停止验收仍需另外接通，本增量不补造取消意图或执行事实。
 
 执行观察同样按准确句柄/Attempt归属消费：inspection须证明原句柄身份；采集结果、块与游标归属原Attempt，捕获块还须对应Run/Step，退出事实须对应原进程启动身份。任一不符先拒绝，不写入spool或挂接到当前Attempt；循环保存pending_verification/gap并保留原句柄和历史可读材料，同意图回读不新启动。未知termination_reason即使标为完整也不产生执行完成依据。此守卫不代替适配器的实际加载/业务核验与恢复抢救合同。
+
+
+### 25.4 准确记录封套与当前指针（0.26）
+
+沿用记录仓储与不可变ExecutionFacts合同。C按准确类别/ID/仓储修订消费记录时，须核对返回封套，不用正文中的相同项目或摘要代替仓储身份；revision严格为非布尔整数。当前指针严格闭合既有七字段，previous_snapshot_commit_id只能是空值或有效且不同于自身的历史身份；指向的不可变快照仓储修订保持1，并核对准确封套/内容摘要。异常保留原材料并阻塞，不回退历史绿灯，不开放新字段或重算判定。

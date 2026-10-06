@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.22"
+contract_version: "1.23"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.22
+版本：1.23
 日期：2026-10-06
 状态：草案，待B/C/D确认  
 
@@ -273,3 +273,6 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 
 
 1.22引用BC-001 0.25第25.3节：启动消费凭证在发布前与原回读处闭合校验，格式错误回滚占用；控制观察按准确句柄与可靠终止事实保留未知，不以适配器成功标签推进终态。默认持久控制与真实AC仍保留原状态。
+
+
+1.23引用BC-001 0.26第25.4节的准确仓储封套/不可变快照读取；默认内部装配另公开同一ModelPolicyConfirmationProof引用供验收载体消费，仍执行AB-001现有策略来源合同，不创建自签确认或人工会话，不改变公开协议/生成Schema。
