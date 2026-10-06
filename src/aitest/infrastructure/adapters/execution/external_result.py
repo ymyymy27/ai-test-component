@@ -1,4 +1,4 @@
-"""Validated external-result import with idempotency and recomputation."""
+"""External JSON recomputation; transient duplicate detection is not persistence."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
 )
-from aitest.domain.execution.assertions import compare_expected_fields
+from aitest.domain.execution.assertions import compare_expected_fields, freeze_json_value
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +45,7 @@ class ExternalValidationResult:
 
 
 class ExternalResultAdapter:
-    """Validate format/source/digest/idempotency and recompute assertions."""
+    """Compare actual direct JSON fields; applications own durable import identities."""
 
     def __init__(self) -> None:
         self._seen: dict[str, str] = {}
@@ -60,32 +60,41 @@ class ExternalResultAdapter:
     ) -> ExternalValidationResult:
         if payload.external_schema != expected_schema:
             raise ValueError("external result schema does not match")
-        digest = _content_digest(payload.content)
+        try:
+            expected = freeze_json_value(expected_assertions)
+            content = freeze_json_value(payload.content)
+            declared = freeze_json_value(payload.assertion_values)
+        except (RecursionError, RuntimeError) as error:
+            raise ValueError("external result JSON material cannot be frozen") from error
+        if (
+            not isinstance(expected, dict)
+            or not isinstance(content, dict)
+            or not isinstance(declared, dict)
+        ):
+            raise ValueError("external result comparison material requires JSON objects")
+        digest = _content_digest(content)
         fingerprint = _content_digest(
             {
                 "schema": payload.external_schema,
                 "source_instance_id": payload.source_instance_id,
                 "source_record_id": payload.source_record_id,
-                "content": dict(payload.content),
-                "assertion_values": dict(payload.assertion_values),
+                "content": content,
+                "assertion_values": declared,
                 "attachment_refs": payload.attachment_refs,
-                "expected_assertions": dict(expected_assertions),
+                "expected_assertions": expected,
             }
         )
         previous = self._seen.get(payload.import_id)
         if previous is not None and previous != fingerprint:
             raise ValueError("external import id conflicts with different content")
         idempotency_state = "duplicate" if previous is not None else "new"
-        self._seen[payload.import_id] = fingerprint
 
         gap_ids: tuple[str, ...]
-        if not expected_assertions:
+        if not expected:
             observation = VerificationObservation.NO_RESULT
             gap_ids = ("expected_assertions_missing",)
         else:
-            missing, mismatched = compare_expected_fields(
-                payload.assertion_values, expected_assertions
-            )
+            missing, mismatched = compare_expected_fields(content, expected)
             observation = (
                 VerificationObservation.MATCHED
                 if not missing and not mismatched
@@ -114,10 +123,12 @@ class ExternalResultAdapter:
             actual_result_ref=digest,
             gap_ids=gap_ids,
         )
-        return ExternalValidationResult(
+        result = ExternalValidationResult(
             import_ref=import_ref,
             verification=verification,
         )
+        self._seen[payload.import_id] = fingerprint
+        return result
 
 
 def _content_digest(content: Mapping[str, object]) -> str:
