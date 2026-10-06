@@ -436,15 +436,14 @@ _RECORD_BODY_IDENTITIES: Mapping[str, str] = {
 }
 
 
-def require_scoped_record(
+def require_record_identity(
     record: CommittedRecord,
     *,
-    project_id: str,
-    aggregate_kind: AggregateKind,
+    aggregate_kind: str,
     record_id: str,
     revision: int,
 ) -> None:
-    """Prove warehouse identity and owning project before consuming a saved body."""
+    """Validate an exact immutable warehouse envelope without interpreting its body."""
     if type(revision) is not int or revision < 1:
         raise ValueError("record requires an exact positive warehouse revision")
     if (
@@ -459,6 +458,20 @@ def require_scoped_record(
         raise ValueError("record reader returned another warehouse identity")
     if not isinstance(record.payload, Mapping):
         raise ValueError("saved record payload is not an object")
+
+
+def require_scoped_record(
+    record: CommittedRecord,
+    *,
+    project_id: str,
+    aggregate_kind: AggregateKind,
+    record_id: str,
+    revision: int,
+) -> None:
+    """Prove warehouse identity and owning project before consuming a saved body."""
+    require_record_identity(
+        record, aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
+    )
     owner = record.payload.get("project_id")
     if owner is None and aggregate_kind == "project":
         owner = record.payload.get("local_project_id")
@@ -566,4 +579,5 @@ __all__ = [
     "current_record",
     "read_scoped_record",
     "require_scoped_record",
+    "require_record_identity",
 ]

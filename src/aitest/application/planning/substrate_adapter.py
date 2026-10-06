@@ -69,6 +69,7 @@ from uuid import uuid4
 from aitest.application.planning.preparation import (
     PREPARATION_AGGREGATE_KIND,
     PreparationRecord,
+    preparation_intent_id,
     preparation_record_from_payload,
     preparation_record_id,
     preparation_record_payload,
@@ -86,6 +87,7 @@ from aitest.application.planning.substrate import (
     RecordQuery,
     StagedRevision,
     SubstrateContractError,
+    require_record_identity,
 )
 
 #: AB-001 中记录本模块所需端口签名的小节。
@@ -121,9 +123,7 @@ class WorkspacePorts(Protocol):
 class RecordRepositoryPorts(Protocol):
     """装配点注入的**只读侧**最小能力面。"""
 
-    def read(
-        self, *, aggregate_kind: str, record_id: str, revision: int
-    ) -> CommittedRecord: ...
+    def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> CommittedRecord: ...
 
     def query(self, query: RecordQuery) -> object: ...
 
@@ -167,12 +167,18 @@ def _latest_committed(
     新工作空间还没有索引文件，经索引会把"第一条记录"误报成"索引缺失"。
     """
     _require(repository, "current_revision")
-    current = int(repository.current_revision(aggregate_kind, record_id))
-    if current < 1:
+    current = repository.current_revision(aggregate_kind, record_id)
+    if type(current) is not int or current < 0:
+        raise SubstrateContractError(
+            "current_revision exact integer", owner=_PORT_OWNER, request=_PORT_REQUEST
+        )
+    if current == 0:
         return None
-    return repository.read(
-        aggregate_kind=aggregate_kind, record_id=record_id, revision=current
+    record = repository.read(aggregate_kind=aggregate_kind, record_id=record_id, revision=current)
+    require_record_identity(
+        record, aggregate_kind=aggregate_kind, record_id=record_id, revision=current
     )
+    return record
 
 
 def _preparation_entry(
@@ -191,7 +197,20 @@ def _preparation_entry(
     )
     if committed is None:
         return None
-    return preparation_record_from_payload(committed.payload)
+    record = preparation_record_from_payload(committed.payload)
+    _require_preparation_identity(record, expected_intent_id=intent_id)
+    return record
+
+
+def _require_preparation_identity(record: PreparationRecord, *, expected_intent_id: str) -> None:
+    request = record.request
+    derived = preparation_intent_id(
+        project_id=request.project_id,
+        client_id=request.client_id,
+        prepare_request_id=request.prepare_request_id,
+    )
+    if record.intent_id != expected_intent_id or derived != expected_intent_id:
+        raise ValueError("preparation receipt has a different original namespace or intent")
 
 
 # ------------------------------------------------------------------ 只读侧
@@ -206,12 +225,23 @@ class PortsRecordReader:
     def read(
         self, *, aggregate_kind: AggregateKind, record_id: str, revision: int
     ) -> CommittedRecord:
-        return self._repository.read(
+        if type(revision) is not int or revision < 1:
+            raise ValueError("record requires an exact positive warehouse revision")
+        record = self._repository.read(
             aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
         )
+        require_record_identity(
+            record, aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
+        )
+        return record
 
     def current_revision(self, *, aggregate_kind: str, record_id: str) -> int:
-        return self._repository.current_revision(aggregate_kind, record_id)
+        revision = self._repository.current_revision(aggregate_kind, record_id)
+        if type(revision) is not int or revision < 0:
+            raise SubstrateContractError(
+                "current_revision exact integer", owner=_PORT_OWNER, request=_PORT_REQUEST
+            )
+        return revision
 
     def query(self, query: RecordQuery) -> RecordPage:
         _require(self._repository, "query")
@@ -256,7 +286,14 @@ class PortsRecordReader:
         )
         if committed is None:
             return None
-        return preparation_record_from_payload(committed.payload)
+        record = preparation_record_from_payload(committed.payload)
+        _require_preparation_identity(
+            record,
+            expected_intent_id=preparation_intent_id(
+                project_id=project_id, client_id=client_id, prepare_request_id=prepare_request_id
+            ),
+        )
+        return record
 
     def find_preparation_by_intent(self, *, intent_id: str) -> PreparationRecord | None:
         _require(self._repository, "current_revision")
@@ -291,12 +328,11 @@ class PortsUnitOfWork:
         self._request_id: str | None = None
         self._project_id: str | None = None
         self._pending = 0
+        self._staged: list[StagedRevision] = []
         #: 当前事务的请求号，供 GC 兜底回调读取。**回调不能引用 `self`**
         #: （见 `_release_on_collection`），所以请求号另放一份在可变字典里。
         self._live: dict[str, str] = {}
-        self._finalizer = weakref.finalize(
-            self, _release_on_collection, ports, self._live
-        )
+        self._finalizer = weakref.finalize(self, _release_on_collection, ports, self._live)
 
     # ---------------------------------------------------------- 内部
 
@@ -307,7 +343,12 @@ class PortsUnitOfWork:
             raise SubstrateContractError(
                 "commit_seq/next_commit_seq", owner=_PORT_OWNER, request=_PORT_REQUEST
             )
-        return int(self._sequence.current_commit_sequence())
+        sequence = self._sequence.current_commit_sequence()
+        if type(sequence) is not int or sequence < 0:
+            raise SubstrateContractError(
+                "current_commit_sequence exact integer", owner=_PORT_OWNER, request=_PORT_REQUEST
+            )
+        return sequence
 
     def _require_open(self) -> str:
         if self._project_id is None or self._request_id is None:
@@ -318,6 +359,7 @@ class PortsUnitOfWork:
         self._request_id = None
         self._project_id = None
         self._pending = 0
+        self._staged.clear()
         self._live.pop("request_id", None)
 
     def _abandon(self) -> None:
@@ -343,6 +385,7 @@ class PortsUnitOfWork:
         self._request_id = request_id
         self._project_id = project_id
         self._pending = 0
+        self._staged.clear()
         self._live["request_id"] = request_id
 
     def commit_seq(self) -> str:
@@ -390,7 +433,15 @@ class PortsUnitOfWork:
         if not record_id.strip():
             raise ValueError("record_id must not be empty")
 
-        current = int(self._repository.current_revision(aggregate_kind, record_id))
+        current = self._repository.current_revision(aggregate_kind, record_id)
+        if type(current) is not int or current < 0:
+            raise SubstrateContractError(
+                "current_revision exact integer", owner=_PORT_OWNER, request=_PORT_REQUEST
+            )
+        if expected_revision is not None and (
+            type(expected_revision) is not int or expected_revision < 0
+        ):
+            raise ValueError("expected_revision requires an exact nonnegative integer")
         if current != (expected_revision or 0):
             raise ConcurrentEditError(
                 aggregate_kind=aggregate_kind,
@@ -405,12 +456,18 @@ class PortsUnitOfWork:
             expected_revision=expected_revision,
             payload=dict(payload),
         )
+        if type(revision) is not int or revision != current + 1:
+            raise SubstrateContractError(
+                "stage_record exact assigned revision", owner=_PORT_OWNER, request=_PORT_REQUEST
+            )
         self._pending += 1
-        return StagedRevision(
+        staged = StagedRevision(
             aggregate_kind=aggregate_kind,
             record_id=record_id,
-            revision=int(revision),
+            revision=revision,
         )
+        self._staged.append(staged)
+        return staged
 
     def stage_preparation(self, *, record: PreparationRecord) -> StagedRevision:
         """登记准备记录；同键同摘要复用，同键异摘要冲突（**不覆盖**）。
@@ -418,17 +475,25 @@ class PortsUnitOfWork:
         落盘 payload **由身份合同唯一决定**，因此不接受调用方另给一份。
         """
         project_id = self._require_open()
-        if record.request.project_id != project_id:
-            raise ValueError(
-                "preparation record belongs to another project than the open transaction"
-            )
         try:
+            if record.request.project_id != project_id:
+                raise ValueError(
+                    "preparation record belongs to another project than the open transaction"
+                )
             return self._stage_preparation(record)
         except BaseException:
             self._abandon()
             raise
 
     def _stage_preparation(self, record: PreparationRecord) -> StagedRevision:
+        _require_preparation_identity(
+            record,
+            expected_intent_id=preparation_intent_id(
+                project_id=record.request.project_id,
+                client_id=record.request.client_id,
+                prepare_request_id=record.request.prepare_request_id,
+            ),
+        )
         _require(self._repository, "current_revision")
         record_id = preparation_record_id(
             project_id=record.request.project_id,
@@ -442,6 +507,7 @@ class PortsUnitOfWork:
         )
         if committed is not None:
             existing = preparation_record_from_payload(committed.payload)
+            _require_preparation_identity(existing, expected_intent_id=record.intent_id)
             if existing.request.payload_hash != record.request.payload_hash:
                 raise PreparationConflictError(
                     project_id=record.request.project_id,
@@ -466,25 +532,34 @@ class PortsUnitOfWork:
 
     def commit(self) -> CommitResult:
         self._require_open()
-        if self._pending < 1:
-            raise ValueError("nothing staged in this transaction")
-        _require(self._ports, "commit")
         request_id = self._request_id
         try:
+            if self._pending < 1:
+                raise ValueError("nothing staged in this transaction")
+            _require(self._ports, "commit")
             result = self._ports.commit(request_id=request_id)
+            if not isinstance(result, Mapping):
+                raise SubstrateContractError(
+                    "commit receipt object", owner=_PORT_OWNER, request=_PORT_REQUEST
+                )
+            created = tuple(
+                StagedRevision(aggregate_kind=kind, record_id=record_id, revision=revision)
+                for kind, record_id, revision in _created_rows(result)
+            )
+            if not set(self._staged).issubset(created):
+                raise SubstrateContractError(
+                    "commit().created does not prove the staged records",
+                    owner=_PORT_OWNER,
+                    request=_PORT_REQUEST,
+                )
+            commit_sequence = result.get("commit_sequence")
+            if type(commit_sequence) is not int or commit_sequence < 1:
+                raise SubstrateContractError(
+                    "commit().commit_sequence", owner=_PORT_OWNER, request=_PORT_REQUEST
+                )
         except BaseException:
             self._abandon()
             raise
-        created = tuple(
-            StagedRevision(aggregate_kind=kind, record_id=record_id, revision=revision)
-            for kind, record_id, revision in _created_rows(result)
-        )
-        commit_sequence = result.get("commit_sequence")
-        if commit_sequence is None:
-            self._abandon()
-            raise SubstrateContractError(
-                "commit().commit_sequence", owner=_PORT_OWNER, request=_PORT_REQUEST
-            )
         self._reset()
         return CommitResult(commit_seq=str(commit_sequence), created=created)
 
@@ -519,30 +594,34 @@ def _created_rows(
     """
     raw = result.get("created")
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-        raise SubstrateContractError(
-            "commit().created", owner=_PORT_OWNER, request=_PORT_REQUEST
-        )
+        raise SubstrateContractError("commit().created", owner=_PORT_OWNER, request=_PORT_REQUEST)
     rows: list[tuple[AggregateKind, str, int]] = []
+    seen: set[tuple[AggregateKind, str, int]] = set()
     for entry in raw:
-        if (
-            not isinstance(entry, Sequence)
-            or isinstance(entry, (str, bytes))
-            or len(entry) != 3
-        ):
+        if not isinstance(entry, Sequence) or isinstance(entry, (str, bytes)) or len(entry) != 3:
             raise SubstrateContractError(
                 "commit().created entries", owner=_PORT_OWNER, request=_PORT_REQUEST
             )
         kind, record_id, revision = entry
         if (
             not isinstance(kind, str)
+            or not kind.strip()
             or not isinstance(record_id, str)
+            or not record_id.strip()
             or not isinstance(revision, int)
             or isinstance(revision, bool)
+            or revision < 1
         ):
             raise SubstrateContractError(
                 "commit().created entries", owner=_PORT_OWNER, request=_PORT_REQUEST
             )
-        rows.append((cast(AggregateKind, kind), record_id, revision))
+        row = (cast(AggregateKind, kind), record_id, revision)
+        if row in seen:
+            raise SubstrateContractError(
+                "commit().created duplicate identity", owner=_PORT_OWNER, request=_PORT_REQUEST
+            )
+        seen.add(row)
+        rows.append(row)
     return tuple(rows)
 
 
