@@ -1,0 +1,9 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q tests/unit/test_b_saved_identity_consumers.py tests/unit/test_scoped_record_identity.py tests/unit/test_substrate_metadata_integrity.py tests/unit/test_frozen_basis_drift.py tests/unit/test_frozen_basis_content.py tests/unit/test_a_a11_ownership.py tests/unit/test_public_nested_ownership.py tests/unit/test_task_and_delivery_persistence.py tests/unit/test_publish_orchestration.py tests/architecture/test_boundaries.py tests/contracts/test_b_use_case_registration.py tests/unit/test_default_source_analysis.py::test_default_plain_pin_saved_identity_matches_actual_byte_digest tests/unit/test_default_basis_confirmation.py::test_default_confirmation_freezes_exact_basis_and_preserves_plan_and_case tests/unit/test_environment_resolution_flow.py::test_client_fact_and_nested_resolution_are_replaced_by_trusted_core_observation tests/unit/test_model_basis_authority.py::test_actual_source_change_during_model_call_saves_only_original_history tests/unit/test_model_response_resolution.py::test_pending_response_can_commit_without_provider_reissue tests/unit/test_saved_runtime_revision.py::test_saved_assessment_is_read_only_and_freezes_the_exact_snapshot
+........................................................................ [ 36%]
+........................................................................ [ 72%]
+........................................................                 [100%]
+200 passed in 183.72s (0:03:03)
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check .
+All checks passed!
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 184 source files

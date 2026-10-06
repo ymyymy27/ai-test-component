@@ -433,17 +433,27 @@ _RECORD_BODY_IDENTITIES: Mapping[str, str] = {
     "case": "case_id",
     "acceptance_scope": "scope_id",
     "rule_draft": "rule_id",
+    "rule_version": "rule_id",
+    "plan": "plan_id",
+    "case_link": "confirmation_id",
+    "generated_content": "generated_content_id",
+    "prepared_run": "prepared_run_id",
+    "model_outbound_request": "request_id",
 }
 
 
 def require_record_identity(
-    record: CommittedRecord,
+    record: object,
     *,
     aggregate_kind: str,
     record_id: str,
     revision: int,
 ) -> None:
     """Validate an exact immutable warehouse envelope without interpreting its body."""
+    if any(
+        not isinstance(value, str) or not value.strip() for value in (aggregate_kind, record_id)
+    ):
+        raise ValueError("record identity requires nonempty kind and record_id")
     if type(revision) is not int or revision < 1:
         raise ValueError("record requires an exact positive warehouse revision")
     if (
@@ -454,33 +464,38 @@ def require_record_identity(
         aggregate_kind,
         record_id,
         revision,
-    ) or type(record.revision) is not int:
+    ) or type(getattr(record, "revision", None)) is not int:
         raise ValueError("record reader returned another warehouse identity")
-    if not isinstance(record.payload, Mapping):
+    if not isinstance(getattr(record, "payload", None), Mapping):
         raise ValueError("saved record payload is not an object")
 
 
 def require_scoped_record(
-    record: CommittedRecord,
+    record: object,
     *,
     project_id: str,
-    aggregate_kind: AggregateKind,
+    aggregate_kind: str,
     record_id: str,
     revision: int,
 ) -> None:
     """Prove warehouse identity and owning project before consuming a saved body."""
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("record scope requires a nonempty project_id")
     require_record_identity(
         record, aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
     )
-    owner = record.payload.get("project_id")
+    payload = getattr(record, "payload", None)
+    if not isinstance(payload, Mapping):
+        raise ValueError("saved record payload is not an object")
+    owner = payload.get("project_id")
     if owner is None and aggregate_kind == "project":
-        owner = record.payload.get("local_project_id")
+        owner = payload.get("local_project_id")
     if owner is None:
         raise ValueError("saved record carries no project_id; owning project is unknown")
     if owner != project_id:
         raise ValueError("record belongs to another project")
     body_key = _RECORD_BODY_IDENTITIES.get(aggregate_kind)
-    if body_key is not None and record.payload.get(body_key) != record_id:
+    if body_key is not None and payload.get(body_key) != record_id:
         raise ValueError("saved body identity differs from its warehouse record")
 
 

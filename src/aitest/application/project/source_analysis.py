@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from aitest.application.errors import CapabilityUnavailable
-from aitest.application.planning.substrate import RecordReader, current_record
+from aitest.application.planning.substrate import RecordReader, current_record, read_scoped_record
 from aitest.application.ports import (
     ControlledWriteProof,
     SourceControlPort,
@@ -330,8 +330,12 @@ class SourceAnalysisService:
             raise SourceAnalysisError("saved source material cannot be verified") from error
 
     def _check(self, *, project_id: str, snapshot_id: str, revision: int) -> Mapping[str, object]:
-        saved = self.reader.read(
-            aggregate_kind="source_snapshot", record_id=snapshot_id, revision=revision
+        saved = read_scoped_record(
+            self.reader,
+            project_id=project_id,
+            aggregate_kind="source_snapshot",
+            record_id=snapshot_id,
+            revision=revision,
         )
         if saved.payload.get("project_id") != project_id:
             raise SourceAnalysisError("source snapshot belongs to another project")
@@ -339,8 +343,12 @@ class SourceAnalysisService:
         binding_revision = saved.payload.get("binding_revision")
         if not isinstance(binding_id, str) or type(binding_revision) is not int:
             raise SourceAnalysisError("source binding reference is unverified")
-        bound = self.reader.read(
-            aggregate_kind="binding", record_id=binding_id, revision=binding_revision
+        bound = read_scoped_record(
+            self.reader,
+            project_id=project_id,
+            aggregate_kind="binding",
+            record_id=binding_id,
+            revision=binding_revision,
         )
         self._verify_binding(project_id, binding_id, binding_revision, bound.payload)
         technical_id = saved.payload.get("pinned_snapshot_id")

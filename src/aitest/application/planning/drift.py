@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from aitest.application.planning.substrate import RecordReader
+from aitest.application.planning.substrate import (
+    RecordReader,
+    read_scoped_record,
+    require_scoped_record,
+)
 from aitest.contracts.prepared_run import PreparedRun
 
 
@@ -74,7 +78,9 @@ def _readable(
 ) -> bool:
     """按准确修订读回；读不到只表示**这条依据不可核**，不表示"项目没有它"。"""
     try:
-        record = reader.read(
+        record = read_scoped_record(
+            reader,
+            project_id=project_id,
             aggregate_kind=aggregate_kind,  # type: ignore[arg-type]
             record_id=record_id,
             revision=revision,
@@ -135,6 +141,13 @@ def _snapshot_identity_check(
     from aitest.domain.project.context import source_content_identity
 
     try:
+        require_scoped_record(
+            record,
+            project_id=project_id,
+            aggregate_kind="source_snapshot",
+            record_id=snapshot_id,
+            revision=record_revision,
+        )
         manifest = source_manifest_from_payload(record.payload)
         actual = source_content_identity(manifest)
     except (ValueError, TypeError, KeyError):

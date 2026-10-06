@@ -13,7 +13,7 @@ from aitest.application.planning.preparation import (
     record_id_for_intent_id,
 )
 from aitest.application.planning.prepare_run import preparation_payload
-from aitest.application.planning.substrate import AggregateKind, RecordReader
+from aitest.application.planning.substrate import AggregateKind, RecordReader, require_scoped_record
 from aitest.contracts.prepared_run import PreparedRun
 
 
@@ -31,6 +31,9 @@ def _exact_payload(
         or saved.payload.get("project_id") != project
     ):
         raise ValueError("saved preparation origin envelope or project differs")
+    require_scoped_record(
+        saved, project_id=project, aggregate_kind=kind, record_id=identity, revision=1
+    )
     return dict(saved.payload)
 
 

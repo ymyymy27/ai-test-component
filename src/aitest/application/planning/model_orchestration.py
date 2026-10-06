@@ -64,6 +64,7 @@ from aitest.application.planning.substrate import (
     RecordReader,
     UnitOfWork,
     current_record,
+    read_scoped_record,
     transaction,
 )
 from aitest.application.ports import Clock, ModelResponseStore
@@ -296,10 +297,12 @@ def _recall_existing_draft(
     if not isinstance(generated_content_id, str) or not generated_content_id.strip():
         return None
     revision = payload.get("generated_content_revision")
-    if not isinstance(revision, int):
+    if type(revision) is not int or revision < 1:
         return None
     try:
-        record = reader.read(
+        record = read_scoped_record(
+            reader,
+            project_id=project_id,
             aggregate_kind=GENERATED_CONTENT_AGGREGATE,  # type: ignore[arg-type]
             record_id=generated_content_id,
             revision=revision,

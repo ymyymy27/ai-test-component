@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from aitest.application.planning.publish import payload_digest
-from aitest.application.planning.substrate import AggregateKind, RecordReader
+from aitest.application.planning.substrate import AggregateKind, RecordReader, require_scoped_record
 from aitest.application.ports import EnvironmentResolutionRequest, EnvironmentResolver
 from aitest.application.project.serialization import binding_from_payload, environment_from_payload
 from aitest.contracts.prepared_run import EnvironmentRefFact, PreparedRun
@@ -25,6 +25,9 @@ class EnvironmentResolutionService:
             or saved.payload.get("project_id") != project
         ):
             raise ValueError("environment resolution input envelope or project differs")
+        require_scoped_record(
+            saved, project_id=project, aggregate_kind=kind, record_id=identity, revision=revision
+        )
         return dict(saved.payload)
 
     def resolve(

@@ -20,7 +20,12 @@ from aitest.application.planning.model_orchestration import (
     policy_record_id,
 )
 from aitest.application.planning.model_ports import ModelCallResult, ModelCallStatus
-from aitest.application.planning.substrate import RecordReader, UnitOfWork, current_record
+from aitest.application.planning.substrate import (
+    RecordReader,
+    UnitOfWork,
+    current_record,
+    read_scoped_record,
+)
 from aitest.application.ports import ModelResponseStore
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.domain.planning.model_outbound import MaterialKind, ModelTaskType, ResponseCurrency
@@ -150,8 +155,12 @@ def resolve_model_response(
 ) -> OutboundOutcome:
     if type(expected_revision) is not int or expected_revision != 1:
         raise ValueError("response reconciliation requires original intent revision 1")
-    original = reader.read(
-        aggregate_kind="model_outbound_request", record_id=request_id, revision=1
+    original = read_scoped_record(
+        reader,
+        project_id=project_id,
+        aggregate_kind="model_outbound_request",
+        record_id=request_id,
+        revision=1,
     )
     request = _request(original.payload, project_id, request_id)
 

@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping
 
 from aitest.application.planning.draft import text_digest
-from aitest.application.planning.substrate import RecordReader, current_record
+from aitest.application.planning.substrate import RecordReader, current_record, read_scoped_record
 from aitest.application.project.persistence import load_source_snapshot
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.contracts.prepared_run import SnapshotRef
@@ -65,7 +65,9 @@ class ModelGenerationBasis:
             ref = SnapshotRef.model_validate(source_ref)
             if ref.record_revision != source_revision or ref.purpose not in {"analysis", "prepare"}:
                 raise ValueError("model source reference revision/purpose differs")
-            saved = reader.read(
+            saved = read_scoped_record(
+                reader,
+                project_id=project_id,
                 aggregate_kind="source_snapshot",
                 record_id=ref.source_snapshot_id,
                 revision=ref.record_revision,
@@ -96,8 +98,12 @@ class ModelGenerationBasis:
                 or binding_revision < 1
             ):
                 raise ValueError("model source binding cannot be verified")
-            bound = reader.read(
-                aggregate_kind="binding", record_id=binding_id, revision=binding_revision
+            bound = read_scoped_record(
+                reader,
+                project_id=project_id,
+                aggregate_kind="binding",
+                record_id=binding_id,
+                revision=binding_revision,
             )
             if bound.payload.get("project_id") != project_id:
                 raise ValueError("model source binding belongs to another project")
@@ -130,8 +136,12 @@ class ModelGenerationBasis:
                 if manual_ref.get("content_digest") is not None:
                     raise ValueError("an absent manual basis cannot have a content digest")
             else:
-                saved_manual = reader.read(
-                    aggregate_kind="generated_content", record_id=record_id, revision=revision
+                saved_manual = read_scoped_record(
+                    reader,
+                    project_id=project_id,
+                    aggregate_kind="generated_content",
+                    record_id=record_id,
+                    revision=revision,
                 )
                 text = saved_manual.payload.get("draft_text")
                 if (

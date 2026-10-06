@@ -13,7 +13,7 @@ from aitest.application.planning.serialization import (
     confirmation_from_payload,
     confirmation_to_payload,
 )
-from aitest.application.planning.substrate import RecordReader, current_record
+from aitest.application.planning.substrate import RecordReader, current_record, read_scoped_record
 from aitest.application.ports import StageableWorkspaceUnitOfWork
 from aitest.domain.approvals import ApprovalRequired
 from aitest.domain.planning.plans import AssertionBasisState, ConfirmationRecord
@@ -60,8 +60,12 @@ class BasisConfirmationService:
             if original is not None:
                 self.unit.rollback(request_id)
                 return original
-            saved = self.reader.read(
-                aggregate_kind="case", record_id=case_id, revision=case_revision
+            saved = read_scoped_record(
+                self.reader,
+                project_id=project_id,
+                aggregate_kind="case",
+                record_id=case_id,
+                revision=case_revision,
             )
             if saved.payload.get("project_id") != project_id:
                 raise BasisConfirmationError("case belongs to another or unknown project")

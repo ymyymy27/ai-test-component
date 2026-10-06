@@ -6,6 +6,7 @@ from aitest.application.approval_service import _digest
 from aitest.application.planning.basis_confirmation import BasisConfirmationError
 from aitest.application.planning.draft import text_digest
 from aitest.application.planning.serialization import case_from_payload
+from aitest.application.planning.substrate import require_scoped_record
 from aitest.application.ports import ApprovalRecords
 from aitest.domain.approvals import ActionBasis, ApprovalMaterialRef, ApprovalRequired
 from aitest.domain.planning.plans import AssertionBasisState
@@ -86,4 +87,14 @@ class SavedBasisApprovalResolver:
             or payload.get("project_id", payload.get("local_project_id")) != project
         ):
             raise ApprovalRequired("saved approval material envelope/owner differs")
+        try:
+            require_scoped_record(
+                record,
+                project_id=project,
+                aggregate_kind=kind,
+                record_id=identity,
+                revision=revision,
+            )
+        except ValueError as error:
+            raise ApprovalRequired("saved approval material body identity differs") from error
         return dict(payload)

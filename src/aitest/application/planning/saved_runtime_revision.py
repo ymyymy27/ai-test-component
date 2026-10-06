@@ -18,7 +18,7 @@ from aitest.application.planning.serialization import (
     case_from_payload,
     confirmation_from_payload,
 )
-from aitest.application.planning.substrate import AggregateKind
+from aitest.application.planning.substrate import AggregateKind, require_scoped_record
 from aitest.application.ports import (
     BasisConfirmationProof,
     ControlledWriteProof,
@@ -215,6 +215,13 @@ class SavedRuntimeRevisionAssessment:
             or record.payload.get("project_id") != project_id
         ):
             raise ValueError("runtime basis belongs to another or unknown project")
+        require_scoped_record(
+            record,
+            project_id=project_id,
+            aggregate_kind=kind,
+            record_id=record_id,
+            revision=revision,
+        )
         return record.payload
 
     def _cases(self, project_id: str, plan: Plan) -> tuple[Case, ...]:

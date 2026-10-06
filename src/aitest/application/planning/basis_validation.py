@@ -12,7 +12,7 @@ from aitest.application.planning.serialization import (
     case_from_payload,
     confirmation_from_payload,
 )
-from aitest.application.planning.substrate import AggregateKind, RecordReader
+from aitest.application.planning.substrate import AggregateKind, RecordReader, read_scoped_record
 from aitest.application.ports import BasisConfirmationProof, ControlledWriteProof
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.contracts.prepared_run import BlockingReason, PreparedRun
@@ -61,7 +61,9 @@ def _verify_links(
     controlled_writes: ControlledWriteProof | None = None,
 ) -> None:
     def read(kind: AggregateKind, record: str, revision: int) -> dict[str, Any]:
-        stored = reader.read(
+        stored = read_scoped_record(
+            reader,
+            project_id=prepared.project_id,
             aggregate_kind=kind,
             record_id=record,
             revision=revision,

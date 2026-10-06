@@ -124,6 +124,7 @@ from aitest.application.planning.substrate import (
     RecordReader,
     UnitOfWork,
     current_record,
+    read_scoped_record,
     transaction,
 )
 from aitest.application.ports import (
@@ -481,8 +482,12 @@ def _rule_versions_for(
         rule_id = _as_text(_required(entry, "rule_id"), f"rule_revisions[{index}].rule_id")
         revision = _revision_of(_required(entry, "revision"), f"rule_revisions[{index}].revision")
         try:
-            record = deps.reader.read(
-                aggregate_kind="rule_version", record_id=rule_id, revision=revision
+            record = read_scoped_record(
+                deps.reader,
+                project_id=project_id,
+                aggregate_kind="rule_version",
+                record_id=rule_id,
+                revision=revision,
             )
         except Exception as error:
             raise BUseCaseError(
@@ -491,6 +496,8 @@ def _rule_versions_for(
             ) from error
         if record.payload.get("project_id") != project_id:
             raise BUseCaseError("B_INVALID_PARAMETER", "rule version belongs to another project")
+        if record.payload.get("status") != "published":
+            raise BUseCaseError("B_INVALID_PARAMETER", "rule version has not been published")
         versions.append(_rule_version_from_payload(record.payload, record_revision=record.revision))
     return tuple(versions)
 
@@ -1267,7 +1274,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 prepare_request_id=inputs.prepare_request_id,
             )
             try:
-                saved = deps.reader.read(
+                saved = read_scoped_record(
+                    deps.reader,
+                    project_id=inputs.project_id,
                     aggregate_kind="prepared_run",
                     record_id=snapshot_id,
                     revision=1,
@@ -1746,7 +1755,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             raise BUseCaseError("B_INVALID_PARAMETER", "saved project is unavailable") from error
         revision = _revision_of(_required(parameters, "policy_revision"), "policy_revision")
         try:
-            record = deps.reader.read(
+            record = read_scoped_record(
+                deps.reader,
+                project_id=project_id,
                 aggregate_kind="model_outbound_policy",
                 record_id=policy_record_id(project_id),
                 revision=revision,
