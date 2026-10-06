@@ -7,6 +7,8 @@ import pytest
 from aitest.application.execution.runner import SerialExecutionItem, SerialRunner
 from aitest.domain.execution.runs import AttemptState, StepState
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
+from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.execution_authority import fixture_coordinator
 from tests.support.fake_execution import FakeExecutionPort, FakeExecutionSpec
 from tests.unit.test_serial_execution_loop import _attempt, _request, _step
 
@@ -24,6 +26,14 @@ def items():
     )
 
 
+def coordinator(root):
+    return fixture_coordinator(
+        FileUnitOfWork(root),
+        tuple((item.attempt, item.request) for item in items()),
+        steps=tuple(item.step for item in items()),
+    )
+
+
 def test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent(tmp_path):
     port = FakeExecutionPort()
     port.register(
@@ -33,7 +43,12 @@ def test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent(tmp_p
         FakeExecutionSpec("attempt-2", "run-1", "step-2", running_observations_before_exit=0)
     )
     checkpoint = FileCheckpointStore(tmp_path)
-    runner = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+    runner = SerialRunner(
+        port,
+        checkpoint_store=checkpoint,
+        poll_interval_seconds=0,
+        commit_coordinator=coordinator(tmp_path),
+    )
     first = runner.execute_attempt(items()[0].attempt, items()[0].request, max_polls=1)
     assert first.state is AttemptState.RUNNING
     active_items = (
@@ -44,7 +59,12 @@ def test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent(tmp_p
         ),
         items()[1],
     )
-    restarted = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+    restarted = SerialRunner(
+        port,
+        checkpoint_store=checkpoint,
+        poll_interval_seconds=0,
+        commit_coordinator=coordinator(tmp_path),
+    )
     result = restarted.run_serial(active_items)
     assert [step.state for step in result.steps] == [StepState.COMPLETED, StepState.COMPLETED]
     assert port.execution_order == ["attempt-1", "attempt-2"]
@@ -57,7 +77,10 @@ def test_default_slice_does_not_wait_for_all_long_running_observations(tmp_path)
     )
     port.register(FakeExecutionSpec("attempt-2", "run-1", "step-2"))
     runner = SerialRunner(
-        port, checkpoint_store=FileCheckpointStore(tmp_path), poll_interval_seconds=0
+        port,
+        checkpoint_store=FileCheckpointStore(tmp_path),
+        poll_interval_seconds=0,
+        commit_coordinator=coordinator(tmp_path),
     )
     result = runner.run_serial(items())
     assert result.steps[0].state is StepState.RUNNING
@@ -74,6 +97,7 @@ def test_control_gate_stops_new_dispatch_without_consuming_intent(tmp_path):
         checkpoint_store=FileCheckpointStore(tmp_path),
         dispatch_allowed=lambda request: False,
         poll_interval_seconds=0,
+        commit_coordinator=coordinator(tmp_path),
     )
     result = runner.run_serial(items())
     assert not result.attempts
@@ -87,7 +111,12 @@ def test_saved_active_intent_can_be_collected_when_new_start_validation_is_unava
         FakeExecutionSpec("attempt-1", "run-1", "step-1", running_observations_before_exit=1)
     )
     checkpoint = FileCheckpointStore(tmp_path)
-    first = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+    first = SerialRunner(
+        port,
+        checkpoint_store=checkpoint,
+        poll_interval_seconds=0,
+        commit_coordinator=coordinator(tmp_path),
+    )
     running = first.execute_attempt(items()[0].attempt, items()[0].request, max_polls=1)
 
     class UnavailableNewStart:
@@ -99,6 +128,7 @@ def test_saved_active_intent_can_be_collected_when_new_start_validation_is_unava
         checkpoint_store=checkpoint,
         start_validator=UnavailableNewStart(),
         poll_interval_seconds=0,
+        commit_coordinator=coordinator(tmp_path),
     )
     complete = restarted.execute_attempt(running, items()[0].request, max_polls=2)
     assert complete.state is AttemptState.COMPLETED

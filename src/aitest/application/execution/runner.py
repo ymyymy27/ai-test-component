@@ -55,6 +55,12 @@ _BLOCKING_UPSTREAM_STATES = frozenset(
 )
 
 
+class _ExecutionObservationMismatch(ValueError):
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__("execution observation cannot be verified: " + reason)
+
+
 @dataclass(frozen=True, slots=True)
 class DispatchPlan:
     ready_step_ids: tuple[str, ...] = ()
@@ -276,8 +282,16 @@ class SerialRunner:
                 if self._poll_interval_seconds:
                     time.sleep(self._poll_interval_seconds)
                 continue
-            collection = self.collect_attempt(current, current.output_cursors or None)
-            completed = self._apply_collection(current, inspection, collection)
+            try:
+                collection = self.collect_attempt(current, current.output_cursors or None)
+                completed = self._apply_collection(current, inspection, collection)
+            except _ExecutionObservationMismatch as error:
+                completed = replace(
+                    current,
+                    state=AttemptState.PENDING_VERIFICATION,
+                    capture_completeness=CaptureCompleteness.GAP,
+                    unknown_reason_ref=error.reason,
+                )
             self._persist_checkpoint(
                 completed,
                 stage=completed.state.value,
@@ -401,6 +415,7 @@ class SerialRunner:
         prepared = self._prepare_attempt(attempt, request)
         if self._commit_coordinator is None:
             raise ValueError("new start or replay requires a persistent authorization coordinator")
+        coordinator = self._commit_coordinator
         fingerprint = _start_fingerprint(prepared, request)
         prepared = replace(prepared, intent_digest=fingerprint)
         key = (request.project_id, request.intent_id)
@@ -408,16 +423,15 @@ class SerialRunner:
         if previous_fingerprint is not None and previous_fingerprint != fingerprint:
             raise ValueError("execution intent conflicts with different input")
         existing = self._find_intent_claim(request.intent_id, request.project_id)
-        if self._commit_coordinator is not None:
-            authoritative = self._commit_coordinator.find_start(
-                project_id=request.project_id,
-                intent_id=request.intent_id,
-                fingerprint=fingerprint,
-            )
-            if authoritative is not None:
-                existing = authoritative
-            elif existing is not None:
-                raise ValueError("checkpoint has no authoritative start claim; inspect it first")
+        authoritative = coordinator.find_start(
+            project_id=request.project_id,
+            intent_id=request.intent_id,
+            fingerprint=fingerprint,
+        )
+        if authoritative is not None:
+            existing = authoritative
+        elif existing is not None:
+            raise ValueError("checkpoint has no authoritative start claim; inspect it first")
         if existing is not None:
             self._prepare_attempt(existing, request)
             if existing.attempt_id != prepared.attempt_id:
@@ -445,26 +459,20 @@ class SerialRunner:
             prepared.attempt_id,
         ):
             raise ValueError("authorization is already consumed by another attempt")
-        if self._commit_coordinator is not None:
-            existing = self._commit_coordinator.claim_start(
-                project_id=request.project_id,
-                intent_id=request.intent_id,
-                fingerprint=fingerprint,
-                checkpoint=self._checkpoint_record(prepared, stage="intent_recorded"),
-            )
-            if existing is not None:
-                if existing.execution_handle_ref is None:
-                    return replace(
-                        existing,
-                        state=AttemptState.PENDING_VERIFICATION,
-                        unknown_reason_ref="start_intent_without_confirmed_handle",
-                    )
-                return existing
-        else:
-            self._verify_checkpoint_authorization(prepared, request)
-            self._persist_checkpoint(
-                prepared, stage="intent_recorded", project_id=request.project_id
-            )
+        existing = coordinator.claim_start(
+            project_id=request.project_id,
+            intent_id=request.intent_id,
+            fingerprint=fingerprint,
+            checkpoint=self._checkpoint_record(prepared, stage="intent_recorded"),
+        )
+        if existing is not None:
+            if existing.execution_handle_ref is None:
+                return replace(
+                    existing,
+                    state=AttemptState.PENDING_VERIFICATION,
+                    unknown_reason_ref="start_intent_without_confirmed_handle",
+                )
+            return existing
         self._authorization_claims[authorization_id] = (request.project_id, prepared.attempt_id)
         self._revoke_reuse_for_new_attempt(prepared)
         self._intent_claims[key] = prepared
@@ -479,29 +487,28 @@ class SerialRunner:
         self._persist_checkpoint(started, stage="started", project_id=request.project_id)
         return started
 
-    def _verify_checkpoint_authorization(self, attempt: Attempt, request: ExecutionRequest) -> None:
-        if self._checkpoint_store is None:
-            return
-        for record in self._checkpoint_store.scan():
-            authorization = record.attempt.authorization_ref
-            if authorization is None or (
-                authorization.authorization_id != request.authorization_ref.authorization_id
-            ):
-                continue
-            if record.project_id != request.project_id or (
-                record.attempt.attempt_id != attempt.attempt_id
-            ):
-                raise ValueError("authorization is already consumed by another attempt")
-
     def inspect_attempt(self, attempt: Attempt) -> ExecutionInspectionResult:
-        return self._execution_port.inspect(self._require_handle(attempt))
+        handle = self._require_handle(attempt)
+        result = self._execution_port.inspect(handle)
+        if result.handle_id != handle.handle_id or result.identity_matches is not True:
+            return replace(
+                result,
+                handle_id=handle.handle_id,
+                state=ExecutionInspectionState.UNKNOWN,
+                identity_matches=False,
+                stop_confirmed=False,
+                unknown_reason=result.unknown_reason or "inspection_identity_unverified",
+            )
+        return result
 
     def collect_attempt(
         self,
         attempt: Attempt,
         cursors: tuple[OutputCursor, ...] | None = None,
     ) -> ExecutionCollectionResult:
-        return self._execution_port.collect(self._require_handle(attempt), cursors)
+        result = self._execution_port.collect(self._require_handle(attempt), cursors)
+        _validate_collection_identity(attempt, result)
+        return result
 
     def request_stop(self, attempt: Attempt) -> StopRequestResult:
         return self._execution_port.request_stop(self._require_handle(attempt))
@@ -628,6 +635,10 @@ class SerialRunner:
         inspection: ExecutionInspectionResult,
         collection: ExecutionCollectionResult,
     ) -> Attempt:
+        handle = self._require_handle(attempt)
+        if inspection.handle_id != handle.handle_id or inspection.identity_matches is not True:
+            raise _ExecutionObservationMismatch("inspection_identity_unverified")
+        _validate_collection_identity(attempt, collection)
         output_blocks = self._merge_output_blocks(
             attempt.output_block_refs,
             collection.output_blocks,
@@ -681,6 +692,8 @@ class SerialRunner:
             )
         if inspection.state is ExecutionInspectionState.EXITED:
             if collection.exit_fact_ref is None or not collection.complete:
+                return AttemptState.PENDING_VERIFICATION
+            if collection.exit_fact_ref.termination_reason.value == "unknown":
                 return AttemptState.PENDING_VERIFICATION
             if collection.exit_fact_ref.timed_out:
                 return AttemptState.PENDING_VERIFICATION
@@ -802,6 +815,28 @@ class SerialRunner:
             or attempt.step_id != request.step_id
         ):
             raise ValueError("attempt and execution request identity must match")
+
+
+def _validate_collection_identity(attempt: Attempt, result: ExecutionCollectionResult) -> None:
+    handle = attempt.execution_handle_ref
+    if (
+        result.attempt_id != attempt.attempt_id
+        or any(item.attempt_id != attempt.attempt_id for item in result.output_blocks)
+        or any(item.attempt_id != attempt.attempt_id for item in result.output_cursors)
+        or any(
+            (item.run_id, item.step_id, item.attempt_id)
+            != (attempt.run_id, attempt.step_id, attempt.attempt_id)
+            for item in result.captured_blocks
+        )
+    ):
+        raise _ExecutionObservationMismatch("collection_identity_unverified")
+    exit_fact = result.exit_fact_ref
+    if exit_fact is not None and (
+        handle is None
+        or exit_fact.attempt_id != attempt.attempt_id
+        or exit_fact.process_start_identity != handle.process_start_identity
+    ):
+        raise _ExecutionObservationMismatch("exit_identity_unverified")
 
 
 def _start_fingerprint(attempt: Attempt, request: ExecutionRequest) -> str:

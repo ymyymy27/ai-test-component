@@ -2,7 +2,6 @@ from dataclasses import replace
 
 import pytest
 
-from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.recovery import CaseReuseBasis, RecoveryRecord
 from aitest.application.execution.runner import SerialRunner
 from aitest.domain.execution.runs import (
@@ -29,6 +28,8 @@ from aitest.domain.execution.runs import (
     StopRequestResult,
 )
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
+from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.execution_authority import fixture_coordinator, fixture_runner
 from tests.support.fake_execution import (
     FakeExecutionPort as DeterministicFakeExecutionPort,
 )
@@ -194,9 +195,9 @@ def _step(step_id: str, state: StepState, dependencies: tuple[str, ...] = ()) ->
     )
 
 
-def test_start_attempt_records_real_handle() -> None:
+def test_start_attempt_records_real_handle(tmp_path) -> None:
     port = FakeExecutionPort()
-    runner = SerialRunner(port)
+    runner = fixture_runner(tmp_path, port, ((_attempt(), _request()),))
     started = runner.start_attempt(_attempt(), _request())
     assert port.started == [_request()]
     assert started.state is AttemptState.RUNNING
@@ -220,12 +221,17 @@ def test_execute_attempt_persists_intent_checkpoint_before_start(tmp_path) -> No
 
     def start(request: ExecutionRequest) -> ExecutionHandle:
         nonlocal port_started_after_checkpoint
-        port_started_after_checkpoint = checkpoint_path.exists()
+        saved = runner._commit_coordinator.read_checkpoint(
+            project_id=request.project_id, attempt_id=request.attempt_id
+        )
+        port_started_after_checkpoint = saved.attempt.state is AttemptState.INTENT_RECORDED
         return original_start(request)
 
     port.start = start  # type: ignore[method-assign]
-    runner = SerialRunner(
+    runner = fixture_runner(
+        tmp_path,
         port,
+        ((_attempt(), _request()),),
         checkpoint_store=FileCheckpointStore(tmp_path),
     )
 
@@ -233,11 +239,12 @@ def test_execute_attempt_persists_intent_checkpoint_before_start(tmp_path) -> No
 
     assert result.state is AttemptState.COMPLETED
     assert port_started_after_checkpoint is True
+    assert checkpoint_path.exists()
 
 
-def test_execute_attempt_rejects_mismatched_authorization_before_start() -> None:
+def test_execute_attempt_rejects_mismatched_authorization_before_start(tmp_path) -> None:
     port = FakeExecutionPort()
-    runner = SerialRunner(port)
+    runner = fixture_runner(tmp_path, port, ((_attempt(), _request()),))
     request = _request()
     request = replace(
         request,
@@ -277,8 +284,10 @@ def test_repeated_same_intent_does_not_start_second_execution(tmp_path) -> None:
             running_observations_before_exit=0,
         )
     )
-    runner = SerialRunner(
+    runner = fixture_runner(
+        tmp_path,
         port,
+        ((_attempt(), _request()),),
         checkpoint_store=FileCheckpointStore(tmp_path),
     )
 
@@ -290,7 +299,7 @@ def test_repeated_same_intent_does_not_start_second_execution(tmp_path) -> None:
     assert port.execution_order == ["attempt-1"]
 
 
-def test_start_intent_without_confirmed_handle_stays_pending(tmp_path) -> None:
+def test_sidecar_intent_without_original_authority_cannot_start(tmp_path) -> None:
     store = FileCheckpointStore(tmp_path)
     attempt = _attempt()
     store.persist(
@@ -308,10 +317,8 @@ def test_start_intent_without_confirmed_handle_stays_pending(tmp_path) -> None:
     port = DeterministicFakeExecutionPort()
     runner = SerialRunner(port, checkpoint_store=store)
 
-    result = runner.execute_attempt(attempt, _request())
-
-    assert result.state is AttemptState.PENDING_VERIFICATION
-    assert result.unknown_reason_ref == "start_intent_without_confirmed_handle"
+    with pytest.raises(ValueError, match="persistent authorization"):
+        runner.execute_attempt(attempt, _request())
     assert port.execution_order == []
 
 
@@ -375,7 +382,7 @@ def test_missing_handle_cannot_be_inspected() -> None:
         runner.inspect_attempt(_attempt())
 
 
-def test_start_intent_is_committed_to_uow_before_execution_port_start() -> None:
+def test_start_intent_is_committed_to_uow_before_execution_port_start(tmp_path) -> None:
     port = DeterministicFakeExecutionPort()
     port.register(
         FakeExecutionSpec(
@@ -385,13 +392,26 @@ def test_start_intent_is_committed_to_uow_before_execution_port_start() -> None:
             running_observations_before_exit=0,
         )
     )
-    unit = _RecordingUnitOfWork()
-    coordinator = ExecutionCommitCoordinator(unit)
+    unit = FileUnitOfWork(tmp_path)
+    coordinator = fixture_coordinator(unit, ((_attempt(), _request()),))
+    before = unit.current_commit_sequence()
     commits_at_start: list[int] = []
     original_start = port.start
 
     def start(request: ExecutionRequest) -> ExecutionHandle:
-        commits_at_start.append(unit.commits)
+        commits_at_start.append(unit.current_commit_sequence())
+        assert (
+            coordinator.read_checkpoint(
+                project_id=request.project_id, attempt_id=request.attempt_id
+            ).attempt.state
+            is AttemptState.INTENT_RECORDED
+        )
+        assert (
+            coordinator.read_current_facts(
+                project_id=request.project_id, run_id=request.run_id
+            ).current_attempt_by_step[request.step_id]
+            == request.attempt_id
+        )
         return original_start(request)
 
     port.start = start  # type: ignore[method-assign]
@@ -400,11 +420,10 @@ def test_start_intent_is_committed_to_uow_before_execution_port_start() -> None:
     result = runner.execute_attempt(_attempt(), _request())
 
     assert result.state is AttemptState.COMPLETED
-    assert commits_at_start and commits_at_start[0] >= 1
-    assert any(kind == "execution_checkpoint" for kind, _, _ in unit.staged)
+    assert commits_at_start == [before + 6]
 
 
-def test_new_attempt_revokes_old_case_reuse_basis_in_runner_path() -> None:
+def test_new_attempt_revokes_old_case_reuse_basis_in_runner_path(tmp_path) -> None:
     port = DeterministicFakeExecutionPort()
     port.register(
         FakeExecutionSpec(
@@ -414,8 +433,10 @@ def test_new_attempt_revokes_old_case_reuse_basis_in_runner_path() -> None:
             running_observations_before_exit=0,
         )
     )
-    runner = SerialRunner(
+    runner = fixture_runner(
+        tmp_path,
         port,
+        ((_attempt(), _request()),),
         reuse_bases=(
             CaseReuseBasis(
                 case_id="case-1",

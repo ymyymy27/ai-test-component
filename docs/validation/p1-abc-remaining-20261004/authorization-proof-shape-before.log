@@ -1,0 +1,11 @@
+F
+================================== FAILURES ===================================
+_____ test_bad_occupation_proof_rolls_back_before_external_start[missing] _____
+tests\unit\test_execution_authorization_claim_shape.py:46: in test_bad_occupation_proof_rolls_back_before_external_start
+    with pytest.raises(ValueError, match="original authorization proof"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[missing]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 10.61s

@@ -62,6 +62,7 @@ from aitest.infrastructure.security import (
     UnsafeMaterialError,
 )
 from aitest.interfaces.local.api import EntryKind, Session
+from tests.support.execution_authority import fixture_coordinator
 from tests.support.fake_execution import FakeExecutionPort, FakeExecutionSpec
 from tests.unit.test_a_a16_migration_rollback import _workspace
 from tests.unit.test_command_adapter import _request as command_request
@@ -202,10 +203,6 @@ def test_runner_keeps_the_same_intent_namespaced_by_project(tmp_path: Path) -> N
     port = FakeExecutionPort()
     port.register(FakeExecutionSpec("attempt-1", "run-1", "step-1"))
     port.register(FakeExecutionSpec("attempt-2", "run-2", "step-2"))
-    runner = SerialRunner(
-        port, commit_coordinator=ExecutionCommitCoordinator(FileUnitOfWork(tmp_path))
-    )
-    runner.execute_attempt(_attempt(), _request())
     second = replace(
         _request(),
         project_id="project-2",
@@ -217,6 +214,13 @@ def test_runner_keeps_the_same_intent_namespaced_by_project(tmp_path: Path) -> N
         ),
     )
     attempt = replace(_attempt(), run_id="run-2", step_id="step-2", attempt_id="attempt-2")
+    runner = SerialRunner(
+        port,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()), (attempt, second))
+        ),
+    )
+    runner.execute_attempt(_attempt(), _request())
     assert runner.execute_attempt(attempt, second).state is AttemptState.COMPLETED
     assert port.execution_order == ["attempt-1", "attempt-2"]
 
@@ -413,7 +417,9 @@ def test_real_uow_runner_can_complete_then_recall_without_restarting(tmp_path: P
     )
     for _ in range(2):
         unit = FileUnitOfWork(tmp_path)
-        runner = SerialRunner(port, commit_coordinator=ExecutionCommitCoordinator(unit))
+        runner = SerialRunner(
+            port, commit_coordinator=fixture_coordinator(unit, ((_attempt(), _request()),))
+        )
         result = runner.execute_attempt(_attempt(), _request())
         assert result.state is AttemptState.COMPLETED
     assert port.execution_order == ["attempt-1"]
@@ -425,12 +431,18 @@ def test_poll_slice_continues_same_execution_after_runner_restart(tmp_path: Path
         FakeExecutionSpec("attempt-1", "run-1", "step-1", running_observations_before_exit=1)
     )
     runner = SerialRunner(
-        port, commit_coordinator=ExecutionCommitCoordinator(FileUnitOfWork(tmp_path))
+        port,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+        ),
     )
     yielded = runner.execute_attempt(_attempt(), _request(), max_polls=1)
     assert yielded.state is AttemptState.RUNNING
     resumed = SerialRunner(
-        port, commit_coordinator=ExecutionCommitCoordinator(FileUnitOfWork(tmp_path))
+        port,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+        ),
     )
     assert (
         resumed.execute_attempt(_attempt(), _request(), max_polls=1).state is AttemptState.COMPLETED
@@ -442,7 +454,10 @@ def test_execution_intent_conflict_checks_actual_entry_arguments(tmp_path: Path)
     port = FakeExecutionPort()
     port.register(FakeExecutionSpec("attempt-1", "run-1", "step-1"))
     runner = SerialRunner(
-        port, commit_coordinator=ExecutionCommitCoordinator(FileUnitOfWork(tmp_path))
+        port,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+        ),
     )
     runner.execute_attempt(_attempt(), _request(), max_polls=1)
     request = _request()
@@ -450,7 +465,10 @@ def test_execution_intent_conflict_checks_actual_entry_arguments(tmp_path: Path)
         request, registered_entry=replace(request.registered_entry, arguments=("changed",))
     )
     restarted = SerialRunner(
-        port, commit_coordinator=ExecutionCommitCoordinator(FileUnitOfWork(tmp_path))
+        port,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()),)
+        ),
     )
     with pytest.raises(ValueError, match="different input"):
         restarted.execute_attempt(_attempt(), changed)

@@ -19,6 +19,7 @@ from aitest.domain.execution.cases import (
 from aitest.domain.execution.runs import (
     Attempt,
     AttemptState,
+    ExecutionInspectionState,
     PlanRevisionRef,
     Run,
     RunControlState,
@@ -66,10 +67,17 @@ class RunControlService:
             raise ValueError("only a running run can be paused")
         state = (
             RunControlState.PAUSE_REQUESTED
-            if any(attempt.state in _ACTIVE_ATTEMPT_STATES for attempt in attempts)
+            if any(
+                attempt.state in _ACTIVE_ATTEMPT_STATES or _requires_boundary_verification(attempt)
+                for attempt in attempts
+            )
             else RunControlState.PAUSED
         )
-        return RunControlDecision(action=RunControlAction.PAUSE, run_state=state)
+        return RunControlDecision(
+            action=RunControlAction.PAUSE,
+            run_state=state,
+            requires_verification=any(_requires_boundary_verification(a) for a in attempts),
+        )
 
     def resume(self, run: Run) -> RunControlDecision:
         if run.control_state not in {
@@ -93,7 +101,11 @@ class RunControlService:
                 gaps=("execution_handle_missing",),
             )
         stopped = self._execution_port.request_stop(attempt.execution_handle_ref)
-        if stopped.stop_confirmed:
+        if (
+            stopped.handle_id == attempt.execution_handle_ref.handle_id
+            and stopped.stop_confirmed is True
+            and stopped.observed_state is ExecutionInspectionState.STOPPED
+        ):
             return RunControlDecision(
                 action=RunControlAction.CANCEL,
                 run_state=RunControlState.CANCELLED,
@@ -106,7 +118,11 @@ class RunControlService:
             attempt_state=AttemptState.PENDING_VERIFICATION,
             stop_confirmed=False,
             requires_verification=True,
-            gaps=("stop_confirmation_unavailable",),
+            gaps=(
+                "stop_handle_identity_mismatch"
+                if stopped.handle_id != attempt.execution_handle_ref.handle_id
+                else "stop_confirmation_unavailable",
+            ),
         )
 
     def return_for_rework(
@@ -126,9 +142,7 @@ class RunControlService:
         return RunControlDecision(
             action=RunControlAction.RETURN_FOR_REWORK,
             run_state=RunControlState.PAUSED,
-            invalidated_attempt_ids=tuple(
-                item.attempt.attempt_id for item in invalidations
-            ),
+            invalidated_attempt_ids=tuple(item.attempt.attempt_id for item in invalidations),
             rerun_step_ids=tuple(item.attempt.step_id for item in invalidations),
             requires_verification=bool(invalidations),
         )
@@ -170,3 +184,13 @@ __all__ = [
     "StepExecutionBasis",
     "aggregate_case_execution",
 ]
+
+
+def _requires_boundary_verification(attempt: Attempt) -> bool:
+    return attempt.state in {AttemptState.UNKNOWN, AttemptState.PENDING_VERIFICATION} or (
+        attempt.execution_handle_ref is not None
+        and (
+            attempt.exit_fact_ref is None
+            or attempt.exit_fact_ref.termination_reason.value == "unknown"
+        )
+    )

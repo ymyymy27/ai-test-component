@@ -1,6 +1,7 @@
 """A new Attempt and its actual dependency closure share one authority boundary."""
 
 from dataclasses import replace
+from unittest.mock import Mock
 
 import pytest
 
@@ -8,7 +9,7 @@ from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.facts import project_attempt_fact
 from aitest.application.execution.recovery import RecoveryAction, recover_attempt
 from aitest.application.execution.runner import SerialRunner
-from aitest.contracts.execution_facts import StepRevisionRefFact, StepStateFact
+from aitest.contracts.execution_facts import RunControlStateFact, StepRevisionRefFact, StepStateFact
 from aitest.domain.execution.runs import (
     AttemptState,
     CaptureCompleteness,
@@ -21,6 +22,7 @@ from aitest.domain.execution.runs import (
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.execution_authority import SavedFixtureExecutionAuthority, fixture_coordinator
 from tests.support.persistent_evidence_fixture import OUTPUT_DIGEST, save_fixture_bytes
 from tests.unit.test_current_execution_snapshot import _batch, _publish
 from tests.unit.test_serial_runner import FakeExecutionPort, _request
@@ -106,6 +108,9 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED, *, historical_middle
     )
     facts = batch.facts.model_copy(
         update={
+            "run": batch.facts.run.model_copy(
+                update={"control_state": RunControlStateFact.RUNNING}
+            ),
             "steps": steps,
             "attempts": tuple(
                 project_attempt_fact(
@@ -126,6 +131,9 @@ def _saved_graph(root, middle_state=AttemptState.COMPLETED, *, historical_middle
         }
     )
     published = _publish(unit, replace(batch, checkpoint=_record(first), facts=facts))
+    coordinator = fixture_coordinator(
+        unit, (_replacement_pair(domain[0]), _replacement_pair(domain[3]))
+    )
     return unit, coordinator, published, domain
 
 
@@ -158,7 +166,7 @@ def test_historical_consumption_bridge_invalidates_current_descendant_before_sta
     )
 
 
-def _new_start(first, port, coordinator):
+def _replacement_pair(first):
     replacement_id = "replacement" if first.step_id == "step-1" else f"replacement-{first.step_id}"
     attempt = replace(
         first,
@@ -175,12 +183,17 @@ def _new_start(first, port, coordinator):
         intent_id=attempt.intent_id,
         authorization_ref=replace(
             _request().authorization_ref,
-            authorization_id="replacement-authorization",
+            authorization_id=f"replacement-authorization-{first.step_id}",
             intent_id=attempt.intent_id,
             step_id=first.step_id,
             step_revision_ref=first.step_revision_ref,
         ),
     )
+    return attempt, request
+
+
+def _new_start(first, port, coordinator):
+    attempt, request = _replacement_pair(first)
     return SerialRunner(port, commit_coordinator=coordinator), attempt, request
 
 
@@ -315,7 +328,10 @@ def test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effec
     runner, attempt, request = _new_start(domain[0], port, coordinator)
     with pytest.raises(OSError, match="after replacement"):
         runner.start_attempt(attempt, request)
-    rebuilt = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path))
+    rebuilt_unit = FileUnitOfWork(tmp_path)
+    rebuilt = ExecutionCommitCoordinator(
+        rebuilt_unit, execution_authorizations=SavedFixtureExecutionAuthority(rebuilt_unit)
+    )
     current = rebuilt.read_current_facts(project_id="project-1", run_id="run-1")
     assert current.current_attempt_by_step["step-1"] == "replacement"
     assert set(current.coverage.invalidated_step_ids) == {"step-2", "step-3"}
@@ -432,16 +448,26 @@ def test_new_attempt_cannot_consume_a_superseded_or_outdated_upstream(tmp_path):
     for upstream_id in ("attempt-1", "attempt-2", "foreign-missing"):
         port = FakeExecutionPort()
         runner, attempt, request = _new_start(domain[3], port, coordinator)
-        request = replace(
-            request,
-            authorization_ref=replace(
-                request.authorization_ref, authorization_id="another-authorization"
-            ),
-        )
         attempt = replace(
             attempt,
             consumed_conditions=(ConsumedCondition(upstream_id, "condition:old", "sha256:old"),),
+            attempt_id="invalid-consumer-" + upstream_id,
+            intent_id="invalid-consumer-intent-" + upstream_id,
         )
+        request = replace(
+            request,
+            attempt_id=attempt.attempt_id,
+            intent_id=attempt.intent_id,
+            authorization_ref=replace(
+                request.authorization_ref,
+                authorization_id="invalid-consumer-grant-" + upstream_id,
+                intent_id=attempt.intent_id,
+            ),
+        )
+        # This test intentionally authorizes the exact input. The consumer must
+        # still reject its superseded/missing dependency before any external effect.
+        coordinator = fixture_coordinator(unit, ((attempt, request),))
+        runner = SerialRunner(port, commit_coordinator=coordinator)
         before = unit.current_commit_sequence()
         with pytest.raises(ValueError, match="valid current upstream"):
             runner.start_attempt(attempt, request)
@@ -467,7 +493,9 @@ def test_a_dependency_without_a_registered_run_is_blocked_before_any_effect(tmp_
     unit = FileUnitOfWork(tmp_path)
     port = FakeExecutionPort()
     runner, attempt, request = _new_start(
-        _batch().checkpoint.attempt, port, ExecutionCommitCoordinator(unit)
+        _batch().checkpoint.attempt,
+        port,
+        ExecutionCommitCoordinator(unit, execution_authorizations=Mock()),
     )
     attempt = replace(attempt, consumed_outputs=(ConsumedOutput("unknown", "sha256:x", "value:x"),))
     with pytest.raises(ValueError, match="registered current run"):

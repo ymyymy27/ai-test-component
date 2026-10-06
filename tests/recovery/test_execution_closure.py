@@ -39,6 +39,8 @@ from aitest.infrastructure.adapters.execution.command import (
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
+from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.execution_authority import fixture_coordinator
 from tests.support.fake_unit_of_work import FakeUnitOfWork
 
 
@@ -160,6 +162,9 @@ def test_execution_to_spool_evidence_and_execution_facts_closure(tmp_path: Path)
         adapter,
         spool_store,
         checkpoint_store=checkpoint_store,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path), ((_attempt(), _request()),), steps=(_step(),)
+        ),
         poll_interval_seconds=0.01,
     )
     serial_result = runner.run_serial(

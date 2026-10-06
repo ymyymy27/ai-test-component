@@ -93,6 +93,30 @@ _CHECKPOINT_ADAPTER = TypeAdapter(RecoveryRecord)
 _EVIDENCE_ADAPTER = TypeAdapter(EvidenceRef)
 
 
+def _validate_original_grant_proof(proof: object, authorization: AuthorizationRef) -> None:
+    """Reject unreadable consumer receipts before publishing an external start."""
+    if not isinstance(proof, Mapping) or set(proof) != {
+        "grant_id",
+        "grant_revision",
+        "grant_digest",
+        "state_revision",
+    }:
+        raise ValueError("original authorization proof has missing or unknown fields")
+    digest = proof["grant_digest"]
+    if (
+        proof["grant_id"] != authorization.authorization_id
+        or type(proof["grant_revision"]) is not int
+        or proof["grant_revision"] != 1
+        or type(proof["state_revision"]) is not int
+        or proof["state_revision"] != 2
+        or not isinstance(digest, str)
+        or not digest.startswith("sha256:")
+        or len(digest) != 71
+        or any(char not in "0123456789abcdef" for char in digest[7:])
+    ):
+        raise ValueError("original authorization proof has invalid identity, revision or digest")
+
+
 class CheckpointPayloadCodec(Protocol):
     def to_payload(self, record: RecoveryRecord) -> dict[str, object]: ...
 
@@ -544,6 +568,7 @@ class ExecutionCommitCoordinator:
         proof = claim.get("original_grant_proof")
         if self._execution_authorizations is None or not isinstance(proof, Mapping):
             raise ValueError("saved original authorization proof is unavailable")
+        _validate_original_grant_proof(proof, authorization)
         self._execution_authorizations.validate_occupation(
             project_id=project_id, attempt=attempt, proof=proof
         )
@@ -632,6 +657,7 @@ class ExecutionCommitCoordinator:
             original_grant_proof = self._execution_authorizations.stage_occupation(
                 project_id=project_id, attempt=attempt
             )
+            _validate_original_grant_proof(original_grant_proof, authorization)
             self._uow.stage_record(
                 aggregate_kind="execution_authorization",
                 record_id=claim_id,

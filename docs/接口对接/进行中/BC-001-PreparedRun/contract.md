@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.24"
+contract_version: "0.25"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.24（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
+版本：0.25（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -804,3 +804,12 @@ PreparationRecord增加observed_environment_content_identity，与原记录单�
 启动协调器显式注入同一核心ExecutionAuthorizationProof；缺端口或原始许可阻塞新执行，SerialRunner没有持久协调器时只保留规划和专门检查/抢救能力，不再通过内存/检查点旁录创建新执行。原请求先查准确已保存意图；新启动事务外验证原许可及实际来源，锁内再次回读unused并占用，与消费记录、业务意图、首检查点、当前Attempt替换和受影响依赖失效同次提交。新启动必须有准确当前Run，且其控制状态允许调度。
 
 消费记录使用`aitest.execution-authorization-claim/1.1`，保留原有动作绑定字段并增加`original_grant_proof`（准确grant_id/grant_revision/grant_digest/state_revision）。该记录与业务意图不可变@1，闭合字段与整数修订严格读取，不能通过bool/float/string转换获得修订身份。恢复同时核对原授权/核心确认/占用状态与准确Attempt绑定，不再做当前来源探测或新增执行；发布后丢响应但尚无已确认句柄时保留pending_verification，不能推断没执行。旧1.0材料保留历史诊断及按已知句柄的专门inspect/collect/抢救路径，不能作为原授权来源或自动重放许可。
+
+
+### 25.3 消费回执与控制观察的闭合校验（0.25）
+
+沿用25.2的1.1内部消费记录。协调器在暂存原许可占用后、发布启动事务前核对原证明闭合四字段、准确授权ID、grant_revision=1/state_revision=2（均非布尔整数）及规范SHA-256摘要；异常整体回滚，不调用外部执行。原意图回读也做同一结构校验，再委托原来源证明端口，不能把端口返回成功替代可准确读取的凭证。
+
+取消回执必须对应准确当前ExecutionHandle，stop_confirmed严格为true且observed_state为stopped，才有已取消依据；其他句柄、仍活动、未知、失联或仅自然退出保持取消中/待核实，继续准确检查与采集。暂停遇到UNKNOWN/PENDING_VERIFICATION或有句柄但无可靠终止事实的Attempt保持暂停中并要求核实，不能凭终态标签宣称已达到步骤边界。默认持久控制入口与真实停止验收仍需另外接通，本增量不补造取消意图或执行事实。
+
+执行观察同样按准确句柄/Attempt归属消费：inspection须证明原句柄身份；采集结果、块与游标归属原Attempt，捕获块还须对应Run/Step，退出事实须对应原进程启动身份。任一不符先拒绝，不写入spool或挂接到当前Attempt；循环保存pending_verification/gap并保留原句柄和历史可读材料，同意图回读不新启动。未知termination_reason即使标为完整也不产生执行完成依据。此守卫不代替适配器的实际加载/业务核验与恢复抢救合同。

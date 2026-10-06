@@ -29,6 +29,8 @@ from aitest.infrastructure.adapters.execution.command import (
     CommandRegistration,
 )
 from aitest.infrastructure.file_store.spool import FileSpoolStore
+from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
+from tests.support.execution_authority import fixture_coordinator
 from tests.support.fake_execution import FakeExecutionPort, FakeExecutionSpec
 
 
@@ -139,7 +141,18 @@ def test_serial_execution_persists_spool_and_respects_dependencies(tmp_path: Pat
             captures=(_capture("step-2", "attempt-2", b"two"),),
         )
     )
-    runner = SerialRunner(port, FileSpoolStore(tmp_path))
+    runner = SerialRunner(
+        port,
+        FileSpoolStore(tmp_path),
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path),
+            tuple(
+                (_attempt(f"step-{i}", f"attempt-{i}"), _request(f"step-{i}", f"attempt-{i}"))
+                for i in (1, 2)
+            ),
+            steps=(_step("step-1", 1), _step("step-2", 2, "step-1")),
+        ),
+    )
     result = runner.run_serial(
         (
             SerialExecutionItem(
@@ -183,7 +196,18 @@ def test_execution_error_blocks_dependent_step(tmp_path: Path) -> None:
             ),
         )
     )
-    runner = SerialRunner(port, FileSpoolStore(tmp_path))
+    runner = SerialRunner(
+        port,
+        FileSpoolStore(tmp_path),
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path),
+            tuple(
+                (_attempt(f"step-{i}", f"attempt-{i}"), _request(f"step-{i}", f"attempt-{i}"))
+                for i in (1, 2)
+            ),
+            steps=(_step("step-1", 1), _step("step-2", 2, "step-1")),
+        ),
+    )
     result = runner.run_serial(
         (
             SerialExecutionItem(
@@ -242,7 +266,16 @@ def test_real_command_adapter_runs_serially_and_spools_redacted_output(tmp_path:
             arguments=("-c", "print('token=' + 'secret-' + 'value')"),
         ),
     )
-    runner = SerialRunner(adapter, FileSpoolStore(tmp_path), poll_interval_seconds=0.01)
+    runner = SerialRunner(
+        adapter,
+        FileSpoolStore(tmp_path),
+        poll_interval_seconds=0.01,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path),
+            ((attempt, request),),
+            steps=(step,),
+        ),
+    )
     result = runner.run_serial((SerialExecutionItem(step=step, attempt=attempt, request=request),))
 
     assert result.steps[0].state is StepState.COMPLETED
@@ -276,6 +309,11 @@ def test_command_timeout_becomes_pending_verification(tmp_path: Path) -> None:
         adapter,
         FileSpoolStore(tmp_path),
         poll_interval_seconds=0.01,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path),
+            ((_attempt("step-1", "attempt-1"), request),),
+            steps=(_step("step-1", 1),),
+        ),
     )
     result = runner.run_serial(
         (
@@ -317,6 +355,11 @@ def test_long_running_command_finishes_without_poll_budget_pending(
         adapter,
         FileSpoolStore(tmp_path),
         poll_interval_seconds=0.01,
+        commit_coordinator=fixture_coordinator(
+            FileUnitOfWork(tmp_path),
+            ((_attempt("step-1", "attempt-1"), request),),
+            steps=(_step("step-1", 1),),
+        ),
     )
 
     result = runner.run_serial(
