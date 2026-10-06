@@ -69,7 +69,7 @@ class RunControlService:
         state = (
             RunControlState.PAUSE_REQUESTED
             if any(
-                attempt.state in _ACTIVE_ATTEMPT_STATES or _requires_boundary_verification(attempt)
+                boundary_pending(attempt)
                 for attempt in attempts
             )
             else RunControlState.PAUSED
@@ -188,6 +188,9 @@ __all__ = [
 
 
 def _requires_boundary_verification(attempt: Attempt) -> bool:
-    return attempt.state in {AttemptState.UNKNOWN, AttemptState.PENDING_VERIFICATION} or (
-        attempt.execution_handle_ref is not None and not has_verified_exit(attempt)
-    )
+    return not has_verified_exit(attempt)
+
+
+def boundary_pending(attempt: Attempt) -> bool:
+    """A known process exit and unfinished business verification are separate facts."""
+    return attempt.state in _ACTIVE_ATTEMPT_STATES or _requires_boundary_verification(attempt)

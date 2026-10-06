@@ -1,0 +1,5 @@
+基线fix/25fea85，读取Git中的原控制规则在独立命名空间运行，不修改工作区源码。
+completed: 原规则未要求核实（False），预期必须核实；反例确认。
+cancelled: 原规则未要求核实（False），预期必须核实；反例确认。
+invalidated: 原规则未要求核实（False），预期必须核实；反例确认。
+同原进程已核对退出但业务核验待完成：原规则为pause_requested，预期paused并保留原业务待完成；反例确认。

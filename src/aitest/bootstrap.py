@@ -37,6 +37,7 @@ from aitest.application.execution.authorization import (
 from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.registration import InitialRunRegistration
+from aitest.application.execution.saved_control import SavedRunControl
 from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
@@ -272,6 +273,7 @@ class CoreAssembly:
     execution_authorizations: ExecutionAuthorizationService | None = None
     execution_coordinator: ExecutionCommitCoordinator | None = None
     step_execution: SavedStepExecution | None = None
+    run_control: SavedRunControl | None = None
     model_policy_proof: ModelPolicyConfirmationService | None = None
 
 
@@ -557,11 +559,15 @@ def assemble_workspace_core(
         execution_commands = ExecutionCommands(
             execution_authorizations, initial_run_registration, step_execution
         )
+        run_control = SavedRunControl(execution_coordinator, step_execution, workspace.workspace_id)
         handlers.update(
             register_run=execution_commands.register,
             prepare_execution=execution_commands.prepare,
             authorize_step=execution_commands.grant,
             execute_step=execution_commands.execute,
+            pause_run=run_control.apply,
+            resume_run=run_control.apply,
+            cancel_run=run_control.apply,
         )
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
@@ -678,6 +684,7 @@ def assemble_workspace_core(
         execution_authorizations=execution_authorizations,
         execution_coordinator=execution_coordinator,
         step_execution=step_execution,
+        run_control=run_control,
         model_policy_proof=policy_confirmations,
     )
 

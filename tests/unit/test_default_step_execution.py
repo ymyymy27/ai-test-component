@@ -254,5 +254,42 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
         assert recalled.result == result.result
         assert restarted.unit_of_work.current_commit_sequence() == before
         assert restarted.step_execution.execution_port is None
+        current = recalled.result["execution_facts"]
+        controls = []
+        for name, state in (
+            ("pause_run", "paused"),
+            ("resume_run", "running"),
+            ("cancel_run", "cancelled"),
+        ):
+            control = Command(
+                action=name,
+                project_id=inputs.project_id,
+                request_id="public-" + name,
+                intent_id="control-" + name,
+                target=current["run_id"],
+                expected_revision=0,
+                parameters={
+                    "run_id": current["run_id"],
+                    "base_snapshot_commit_id": current["snapshot_commit_id"],
+                },
+            )
+            response = restarted.api.dispatch(control, RELAY)
+            assert response.error is None, response.error
+            current = response.result
+            assert current["run"]["control_state"] == state
+            assert not current["verifications"] and current["run"]["result_ref"] is None
+            controls.append((control, current))
+        before = restarted.unit_of_work.current_commit_sequence()
+        replay = restarted.api.dispatch(
+            controls[0][0].model_copy(update={"request_id": "old-public-pause"}), RELAY
+        )
+        assert replay.result == controls[0][1]
+        assert restarted.unit_of_work.current_commit_sequence() == before
+        assert (
+            restarted.execution_coordinator.read_current_facts(
+                project_id=inputs.project_id, run_id=current["run_id"]
+            ).run.control_state.value
+            == "cancelled"
+        )
     finally:
         restarted.lifetime_lock.release()

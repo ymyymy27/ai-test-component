@@ -520,6 +520,53 @@ class SerialRunner:
     def request_stop(self, attempt: Attempt) -> StopRequestResult:
         return self._execution_port.request_stop(self._require_handle(attempt))
 
+    def observe_saved_attempt(
+        self,
+        attempt: Attempt,
+        *,
+        project_id: str,
+        inspection: ExecutionInspectionResult | None = None,
+    ) -> Attempt:
+        """Advance one original observation; never start or replay tested business."""
+        if self._commit_coordinator is None:
+            raise ValueError("saved observation requires an authoritative coordinator")
+        saved = self._commit_coordinator.find_start(
+            project_id=project_id, intent_id=attempt.intent_id, fingerprint=attempt.intent_digest
+        )
+        if saved != attempt:
+            raise ValueError("observation target differs from its original saved execution")
+        if has_reliable_terminal_fact(saved) or saved.execution_handle_ref is None:
+            return saved
+        inspection = inspection or self.inspect_attempt(saved)
+        if (
+            inspection.handle_id != saved.execution_handle_ref.handle_id
+            or inspection.identity_matches is not True
+        ):
+            inspection = replace(
+                inspection,
+                handle_id=saved.execution_handle_ref.handle_id,
+                state=ExecutionInspectionState.UNKNOWN,
+                identity_matches=False,
+                stop_confirmed=False,
+            )
+        if inspection.state is ExecutionInspectionState.RUNNING:
+            return saved
+        try:
+            collection = self.collect_attempt(saved, saved.output_cursors or None)
+            updated = self._apply_collection(saved, inspection, collection)
+        except _ExecutionObservationMismatch as error:
+            updated = replace(
+                saved,
+                state=AttemptState.PENDING_VERIFICATION,
+                capture_completeness=CaptureCompleteness.GAP,
+                unknown_reason_ref=error.reason,
+            )
+        if saved.state is AttemptState.INVALIDATED:
+            updated = replace(updated, state=AttemptState.INVALIDATED)
+        if updated != saved:
+            self._persist_checkpoint(updated, stage=updated.state.value, project_id=project_id)
+        return updated
+
     def recover_pending(self) -> tuple[RecoveryResult, ...]:
         if self._checkpoint_store is None or self._spool_store is None:
             return ()
