@@ -69,6 +69,10 @@ def _identity(prefix: str, *values: object) -> str:
     return prefix + _digest(list(values))[7:]
 
 
+class ExecutionResolutionUnavailable(ApprovalRequired):
+    code = "CAPABILITY_UNAVAILABLE"
+
+
 class SavedExecutionAuthorizationResolver:
     """Confirmation accepts saved action references, never an executable or grant body."""
 
@@ -419,7 +423,9 @@ class ExecutionAuthorizationService:
                 raise ApprovalConflict("execution resolution intent has different run or step")
             return {"execution_action_id": identity, "record_revision": 1}
         if self.action_resolver is None:
-            raise ApprovalRequired("a trusted actual execution resolver is not configured")
+            raise ExecutionResolutionUnavailable(
+                "a trusted actual execution resolver is not configured"
+            )
         run, step, prepared, references = self._context(project_id, run_id, step_id)
         self._actual(prepared)
         content = StepContentReader(self.records).read(run=run, step=step)
@@ -523,17 +529,14 @@ class ExecutionAuthorizationService:
         if intent_id != action.request.intent_id:
             raise ApprovalRequired("grant business intent differs from its resolved action")
         if self._revision(identity):
-            original, _ = self._origin(project_id, identity)
-            if original["parameters"] != dict(parameters):
-                raise ApprovalConflict("authorization intent has different saved input")
-            return _payload(action.request.authorization_ref)
+            return self._recall_grant(project_id, identity, parameters, challenge_id)
         self._actual(self._current_action(project_id, raw, action))
         self.unit.begin(request_id, project_id)
         try:
             if self._revision(identity):
-                self._origin(project_id, identity)
+                recalled = self._recall_grant(project_id, identity, parameters, challenge_id)
                 self.unit.rollback(request_id)
-                return _payload(action.request.authorization_ref)
+                return recalled
             basis = self.resolver.resolve(
                 project_id=project_id,
                 intent_id=intent_id,
@@ -594,6 +597,17 @@ class ExecutionAuthorizationService:
         except BaseException:
             self.unit.rollback(request_id)
             raise
+        return _payload(action.request.authorization_ref)
+
+    def _recall_grant(
+        self, project: str, identity: str, parameters: Mapping[str, object], challenge_id: str
+    ) -> Mapping[str, object]:
+        original, action = self._origin(project, identity)
+        confirmation = self.approvals.read_confirmation(
+            project_id=project, confirmation_id=original["confirmation_id"]
+        )
+        if original["parameters"] != dict(parameters) or confirmation.challenge_id != challenge_id:
+            raise ApprovalConflict("authorization intent has different saved input or challenge")
         return _payload(action.request.authorization_ref)
 
     def _origin(

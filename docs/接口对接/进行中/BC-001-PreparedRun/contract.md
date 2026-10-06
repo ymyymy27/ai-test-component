@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.27"
+contract_version: "0.28"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.27（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
+版本：0.28（2026-10-07 补默认执行准备与授权入口；实施与验证另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -827,3 +827,19 @@ PreparationRecord增加observed_environment_content_identity，与原记录单�
 确认批次新增集合记录，固定为7条（4条确认来源、原授权、unused状态、当前集合），confirmed_at_commit对应同一批次最后边界；调用方不能传入布局或授权集合。原授权@1和状态unused@1→occupied/revoked@2语义保持，原来源及历史不会覆盖。
 
 启动事务同时占用本授权、按准确旧Attempt及消费闭包撤销受影响的未用授权、更新集合，并保存启动认领、当前引用和失效下游。建立新Attempt使同Step的其他未用授权依据过期；实际消费被取代/失效Attempt的输出或条件的授权同样撤销，无关分支保留。运行修订按准确变更Step及失效Attempt定向撤销，与正文/步骤引用/当前快照同事务；缺消费端口但已有待撤销集合时阻塞。任何失败整体回滚；原意图重放不再次撤销、不新执行业务。该内部保存合同不新增公开执行动作或真实宿主验收结论。
+
+### 25.6 默认执行准备与授权入口（0.28）
+
+一期本地协议按 `doctor.supported_actions` 增量协商三个动作，共用既有初始登记、第25节原始来源与第25.5节七记录保存合同，不另建授权规则。
+
+| 动作 | 唯一参数 | 返回与边界 |
+| --- | --- | --- |
+| `register_run` | `prepared_run_id`、严格整数 `record_revision=1` | 原子保存准确准备的初始Run/Step/内容/当前事实及原意图，返回ExecutionFacts；状态NOT_STARTED，E/R/V为空，无Attempt或许可 |
+| `prepare_execution` | `run_id`、`step_id`，均为非空已保存身份 | 返回准确不可变 `execution_action_id` 与 `record_revision=1`；只解析冻结动作，不授予许可、不启动或制造Attempt事实 |
+| `authorize_step` | `execution_action_id`、严格整数 `record_revision=1`、非空 `approval_challenge_id` | 实际受控事件消费准确挑战后返回原 `AuthorizationRef`；许可仍为unused，实际执行另经启动认领 |
+
+三动作要求非空project_id/intent_id、独立request_id、`expected_revision=0`；0表示创建不可变登记/动作/原许可，不表示改写Run、Step或状态修订。register_run的target等于prepared_run_id；其他两动作的target必须为准确Step身份，准备时与step_id相同，授权时与已保存动作相同；授权的intent_id必须等于动作的执行意图。所有执行输入、入口、环境、源码及许可ID只从可信解析器和准确冻结记录取得，参数不接受命令、客户端许可正文、角色/点击/确认标签或其他未知字段。外围binding_revision不能替代冻结材料及实际来源核对。
+
+`register_run`和`prepare_execution`允许relay登记未执行运行及准备待确认依据；`authorize_step`仍属于HUMAN_ACTIONS，relay及非交互入口不能授权。prepare_approval沿现有合同冻结该动作的两字段引用，实际事件沿核心入口上下文提供。未知字段、目标或CAS形状错误返回INVALID_REQUEST；无法核对登记材料返回RUN_REGISTRATION_BLOCKED；缺可信执行解析器返回CAPABILITY_UNAVAILABLE；过期来源/无实际确认按现有AWAITING_USER_CONFIRMATION，执行动作/授权意图异材料按INTENT_CONFLICT。失败不得保存许可或消费挑战。
+
+同一业务意图的不同传输请求及换核心返回原准确记录；回读不重复解析、确认或执行，不当作新的启动许可。缺新启动配置仍可读原结果。默认装配禁止extra_handlers覆盖这三个核心动作；CLI、MCP与宿主调用同一API，真实宿主事件、默认start/control/业务核验与AC仍须单独验收。本增量不修改公开DTO字段或手工生成Schema。

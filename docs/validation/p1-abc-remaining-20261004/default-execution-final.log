@@ -1,0 +1,16 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short tests/unit/test_default_execution_authorization.py tests/contracts/test_local_api.py tests/contracts/test_identity.py tests/contracts/test_b_use_case_registration.py tests/architecture tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state
+......................................................                   [100%]
+54 passed in 204.54s (0:03:24)
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check src tests
+All checks passed!
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 185 source files
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe scripts/generate_schemas.py
+
+EXIT: 0

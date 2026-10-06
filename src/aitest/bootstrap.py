@@ -34,6 +34,7 @@ from aitest.application.execution.authorization import (
     ExecutionAuthorizationService,
     SavedExecutionAuthorizationResolver,
 )
+from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
@@ -539,6 +540,12 @@ def assemble_workspace_core(
             approvals=approvals,
             controlled_writes=controlled_writes,
             execution_authorizations=execution_authorizations,
+        )
+        execution_commands = ExecutionCommands(execution_authorizations, initial_run_registration)
+        handlers.update(
+            register_run=execution_commands.register,
+            prepare_execution=execution_commands.prepare,
+            authorize_step=execution_commands.grant,
         )
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
