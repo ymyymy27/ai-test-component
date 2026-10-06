@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import TypeAdapter
 
@@ -13,6 +15,7 @@ from aitest.domain.execution.runs import (
     AdapterKind,
     ExecutionCollectionResult,
     ExecutionHandle,
+    ExecutionInspectionState,
     StopRequestResult,
 )
 
@@ -61,10 +64,14 @@ class FileExecutionHandleStore:
         return path
 
     def save_collection(self, handle: ExecutionHandle, result: ExecutionCollectionResult) -> None:
+        result = _strict_result(
+            TypeAdapter(ExecutionCollectionResult),
+            json.loads(json.dumps(asdict(result), default=_json_scalar, allow_nan=False)),
+        )
         original = self.load(handle.handle_id)
         if original.handle != handle or result.attempt_id != original.attempt_id:
             raise ValueError("execution collection identity mismatch")
-        if not result.complete or result.exit_fact_ref is None:
+        if result.complete is not True or result.exit_fact_ref is None:
             raise ValueError("only a confirmed exit collection may be frozen")
         if (
             result.exit_fact_ref.startup_token != original.startup_token
@@ -90,17 +97,18 @@ class FileExecutionHandleStore:
         if not path.exists():
             return None
         record = self.load(handle.handle_id)
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = _read_json(path)
         if (
-            raw.get("schema_version") != "aitest.execution-collection/1.0"
+            set(raw) != {"schema_version", "startup_token", "result"}
+            or raw.get("schema_version") != "aitest.execution-collection/1.0"
             or raw.get("startup_token") != record.startup_token
             or record.handle != handle
         ):
             raise ValueError("confirmed execution collection identity mismatch")
-        result = TypeAdapter(ExecutionCollectionResult).validate_python(raw["result"])
+        result = _strict_result(TypeAdapter(ExecutionCollectionResult), raw["result"])
         if (
             result.attempt_id != record.attempt_id
-            or not result.complete
+            or result.complete is not True
             or result.exit_fact_ref is None
             or result.exit_fact_ref.startup_token != record.startup_token
             or result.exit_fact_ref.process_start_identity != handle.process_start_identity
@@ -113,11 +121,16 @@ class FileExecutionHandleStore:
         return path.with_name(path.stem + "-result.json")
 
     def save_stop(self, handle: ExecutionHandle, result: StopRequestResult) -> None:
+        result = _strict_result(
+            TypeAdapter(StopRequestResult),
+            json.loads(json.dumps(asdict(result), default=_json_scalar, allow_nan=False)),
+        )
         record = self.load(handle.handle_id)
         if (
             record.handle != handle
             or result.handle_id != handle.handle_id
-            or not result.stop_confirmed
+            or result.stop_confirmed is not True
+            or result.observed_state is not ExecutionInspectionState.STOPPED
         ):
             raise ValueError("only an owned confirmed group stop can be frozen")
         previous = self.load_stop(handle)
@@ -139,15 +152,20 @@ class FileExecutionHandleStore:
         if not path.exists():
             return None
         record = self.load(handle.handle_id)
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = _read_json(path)
         if (
-            record.handle != handle
+            set(raw) != {"schema_version", "startup_token", "result"}
+            or record.handle != handle
             or raw.get("schema_version") != "aitest.execution-stop/1.0"
             or raw.get("startup_token") != record.startup_token
         ):
             raise ValueError("confirmed stop identity mismatch")
-        result = TypeAdapter(StopRequestResult).validate_python(raw["result"])
-        if result.handle_id != handle.handle_id or not result.stop_confirmed:
+        result = _strict_result(TypeAdapter(StopRequestResult), raw["result"])
+        if (
+            result.handle_id != handle.handle_id
+            or result.stop_confirmed is not True
+            or result.observed_state is not ExecutionInspectionState.STOPPED
+        ):
             raise ValueError("confirmed stop fact is invalid")
         return result
 
@@ -156,14 +174,25 @@ class FileExecutionHandleStore:
         return path.with_name(path.stem + "-stop.json")
 
     def load(self, handle_id: str) -> PersistedExecutionHandle:
-        payload: object = json.loads(self._path(handle_id).read_text(encoding="utf-8"))
+        payload: object = _read_json(self._path(handle_id))
         if not isinstance(payload, dict):
             raise ValueError("execution handle payload must be an object")
-        if payload.get("schema_version") != _SCHEMA_VERSION:
+        if set(payload) != {"schema_version", "attempt_id", "startup_token", "handle"} or (
+            payload.get("schema_version") != _SCHEMA_VERSION
+        ):
             raise ValueError("unsupported execution handle schema")
         raw_handle = payload.get("handle")
         if not isinstance(raw_handle, dict):
             raise ValueError("execution handle payload requires handle")
+        if set(raw_handle) != {
+            "handle_id",
+            "adapter_kind",
+            "adapter_version",
+            "real_execution_id",
+            "process_start_identity",
+            "workdir_ref",
+        }:
+            raise ValueError("execution handle has unknown or missing fields")
         handle = ExecutionHandle(
             handle_id=_text(raw_handle.get("handle_id"), "handle_id"),
             adapter_kind=AdapterKind(_text(raw_handle.get("adapter_kind"), "adapter_kind")),
@@ -190,7 +219,7 @@ class FileExecutionHandleStore:
         for path in sorted(directory.glob("*.json")):
             if path.stem.endswith(("-result", "-stop")):
                 continue
-            payload: object = json.loads(path.read_text(encoding="utf-8"))
+            payload: object = _read_json(path)
             if not isinstance(payload, dict):
                 continue
             if payload.get("attempt_id") == attempt_id:
@@ -213,6 +242,41 @@ def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")
     return value
+
+
+def _strict_result[T](adapter: TypeAdapter[T], raw: object) -> T:
+    result = adapter.validate_json(json.dumps(raw, allow_nan=False), strict=True)
+    if adapter.dump_python(result, mode="json") != raw:
+        raise ValueError("execution receipt has unknown or noncanonical fields")
+    return result
+
+
+def _json_scalar(value: object) -> object:
+    if isinstance(value, datetime):
+        return TypeAdapter(datetime).dump_python(value, mode="json")
+    if isinstance(value, bytes):
+        return TypeAdapter(bytes).dump_python(value, mode="json")
+    raise TypeError("execution receipt contains a non-JSON value")
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("execution receipt has duplicate fields")
+            value[key] = item
+        return value
+
+    def nonfinite(value: str) -> object:
+        raise ValueError("execution receipt has a nonfinite value")
+
+    raw = json.loads(
+        path.read_text(encoding="utf-8"), object_pairs_hook=unique, parse_constant=nonfinite
+    )
+    if not isinstance(raw, dict):
+        raise ValueError("execution receipt must be an object")
+    return raw
 
 
 __all__ = ["FileExecutionHandleStore", "PersistedExecutionHandle"]

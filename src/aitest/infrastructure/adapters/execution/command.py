@@ -649,12 +649,30 @@ class CommandAdapter:
 
     def _inspect_persisted(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
         persisted = self._persisted_for(handle)
-        if self._saved_collection(handle) is not None:
+        collection = self._saved_collection(handle)
+        if collection is not None:
+            fact = collection.exit_fact_ref
+            stopped = fact is not None and (
+                fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+                and not fact.timed_out
+            )
             return ExecutionInspectionResult(
                 handle_id=handle.handle_id,
-                state=ExecutionInspectionState.EXITED,
+                state=ExecutionInspectionState.STOPPED
+                if stopped
+                else ExecutionInspectionState.EXITED,
                 process_reachable=False,
                 identity_matches=True,
+                stop_confirmed=stopped,
+                unknown_reason="command_timeout" if fact is not None and fact.timed_out else None,
+            )
+        if self._saved_stop(handle) is not None:
+            return ExecutionInspectionResult(
+                handle_id=handle.handle_id,
+                state=ExecutionInspectionState.STOPPED,
+                process_reachable=False,
+                identity_matches=True,
+                stop_confirmed=True,
             )
         pid = _real_pid(handle)
         if not _process_is_alive(pid):

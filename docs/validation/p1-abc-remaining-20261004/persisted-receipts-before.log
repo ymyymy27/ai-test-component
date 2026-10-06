@@ -1,0 +1,149 @@
+FFFFFFFFFFFFFFFFFFFF.F                                                   [100%]
+================================== FAILURES ===================================
+____ test_saving_stop_requires_exact_boolean_and_stopped_state[1-stopped] _____
+tests\unit\test_persisted_execution_receipts.py:44: in test_saving_stop_requires_exact_boolean_and_stopped_state
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_saving_stop_requires_exact_boolean_and_stopped_state[true-stopped] ___
+tests\unit\test_persisted_execution_receipts.py:44: in test_saving_stop_requires_exact_boolean_and_stopped_state
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_saving_stop_requires_exact_boolean_and_stopped_state[True-running] ___
+tests\unit\test_persisted_execution_receipts.py:44: in test_saving_stop_requires_exact_boolean_and_stopped_state
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_saving_stop_requires_exact_boolean_and_stopped_state[True-unknown] ___
+tests\unit\test_persisted_execution_receipts.py:44: in test_saving_stop_requires_exact_boolean_and_stopped_state
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_saving_stop_requires_exact_boolean_and_stopped_state[True-lost] _____
+tests\unit\test_persisted_execution_receipts.py:44: in test_saving_stop_requires_exact_boolean_and_stopped_state
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_saving_stop_requires_exact_boolean_and_stopped_state[True-exited] ____
+tests\unit\test_persisted_execution_receipts.py:44: in test_saving_stop_requires_exact_boolean_and_stopped_state
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_reading_stop_does_not_coerce_or_ignore_material[number] _________
+tests\unit\test_persisted_execution_receipts.py:80: in test_reading_stop_does_not_coerce_or_ignore_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_reading_stop_does_not_coerce_or_ignore_material[string] _________
+tests\unit\test_persisted_execution_receipts.py:80: in test_reading_stop_does_not_coerce_or_ignore_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_reading_stop_does_not_coerce_or_ignore_material[running] ________
+tests\unit\test_persisted_execution_receipts.py:80: in test_reading_stop_does_not_coerce_or_ignore_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_________ test_reading_stop_does_not_coerce_or_ignore_material[extra] _________
+tests\unit\test_persisted_execution_receipts.py:80: in test_reading_stop_does_not_coerce_or_ignore_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_reading_stop_does_not_coerce_or_ignore_material[nested_extra] ______
+tests\unit\test_persisted_execution_receipts.py:80: in test_reading_stop_does_not_coerce_or_ignore_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_reading_stop_does_not_coerce_or_ignore_material[duplicate] _______
+tests\unit\test_persisted_execution_receipts.py:76: in test_reading_stop_does_not_coerce_or_ignore_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_reading_collection_keeps_exact_completion_and_exit_material[complete_number] _
+tests\unit\test_persisted_execution_receipts.py:112: in test_reading_collection_keeps_exact_completion_and_exit_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_reading_collection_keeps_exact_completion_and_exit_material[complete_string] _
+tests\unit\test_persisted_execution_receipts.py:112: in test_reading_collection_keeps_exact_completion_and_exit_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_reading_collection_keeps_exact_completion_and_exit_material[exit_boolean] _
+tests\unit\test_persisted_execution_receipts.py:112: in test_reading_collection_keeps_exact_completion_and_exit_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_reading_collection_keeps_exact_completion_and_exit_material[extra] ___
+tests\unit\test_persisted_execution_receipts.py:112: in test_reading_collection_keeps_exact_completion_and_exit_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_reading_collection_keeps_exact_completion_and_exit_material[nested_extra] _
+tests\unit\test_persisted_execution_receipts.py:112: in test_reading_collection_keeps_exact_completion_and_exit_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_reading_collection_keeps_exact_completion_and_exit_material[duplicate] _
+tests\unit\test_persisted_execution_receipts.py:108: in test_reading_collection_keeps_exact_completion_and_exit_material
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_invalid_collection_is_rejected_before_persistence[complete_number] ___
+tests\unit\test_persisted_execution_receipts.py:125: in test_invalid_collection_is_rejected_before_persistence
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_invalid_collection_is_rejected_before_persistence[exit_boolean] _____
+tests\unit\test_persisted_execution_receipts.py:125: in test_invalid_collection_is_rejected_before_persistence
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+__ test_confirmed_inspection_without_exit_fact_cannot_make_attempt_cancelled __
+tests\unit\test_persisted_execution_receipts.py:142: in test_confirmed_inspection_without_exit_fact_cannot_make_attempt_cancelled
+    assert (
+E   AssertionError: assert <AttemptState.CANCELLED: 'cancelled'> is <AttemptState.PENDING_VERIFICATION: 'pending_verification'>
+E    +  where <AttemptState.CANCELLED: 'cancelled'> = <function SerialRunner._attempt_state_for at 0x0000028CE1DE7EC0>(Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...eCompleteness.UNKNOWN: 'unknown'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0), ExecutionInspectionResult(handle_id='handle-1', state=<ExecutionInspectionState.STOPPED: 'stopped'>, process_reachable=False, identity_matches=True, stop_confirmed=True, observed_at=None, unknown_reason=None), ExecutionCollectionResult(attempt_id='attempt-1', output_blocks=(), captured_blocks=(), output_cursors=(), exit_fact_r...tured_result_ref=None, capture_completeness=<CaptureCompleteness.COMPLETE: 'complete'>, error_ref=None, complete=False))
+E    +    where <function SerialRunner._attempt_state_for at 0x0000028CE1DE7EC0> = SerialRunner._attempt_state_for
+E    +  and   <AttemptState.PENDING_VERIFICATION: 'pending_verification'> = AttemptState.PENDING_VERIFICATION
+============================== warnings summary ===============================
+tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[1-stopped]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\type_adapter.py:607: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='stop_confirmed', input_value=1, input_type=int])
+    return self.serializer.to_python(
+
+tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[true-stopped]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\type_adapter.py:607: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='stop_confirmed', input_value='true', input_type=str])
+    return self.serializer.to_python(
+
+tests/unit/test_persisted_execution_receipts.py::test_invalid_collection_is_rejected_before_persistence[complete_number]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\type_adapter.py:607: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='complete', input_value=1, input_type=int])
+    return self.serializer.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[1-stopped]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[true-stopped]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[True-running]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[True-unknown]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[True-lost]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_saving_stop_requires_exact_boolean_and_stopped_state[True-exited]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_stop_does_not_coerce_or_ignore_material[number]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_stop_does_not_coerce_or_ignore_material[string]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_stop_does_not_coerce_or_ignore_material[running]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_stop_does_not_coerce_or_ignore_material[extra]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_stop_does_not_coerce_or_ignore_material[nested_extra]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_stop_does_not_coerce_or_ignore_material[duplicate]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_collection_keeps_exact_completion_and_exit_material[complete_number]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_collection_keeps_exact_completion_and_exit_material[complete_string]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_collection_keeps_exact_completion_and_exit_material[exit_boolean]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_collection_keeps_exact_completion_and_exit_material[extra]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_collection_keeps_exact_completion_and_exit_material[nested_extra]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_reading_collection_keeps_exact_completion_and_exit_material[duplicate]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_invalid_collection_is_rejected_before_persistence[complete_number]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_invalid_collection_is_rejected_before_persistence[exit_boolean]
+FAILED tests/unit/test_persisted_execution_receipts.py::test_confirmed_inspection_without_exit_fact_cannot_make_attempt_cancelled
+21 failed, 1 passed, 3 warnings in 0.81s

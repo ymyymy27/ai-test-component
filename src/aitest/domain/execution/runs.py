@@ -664,7 +664,8 @@ def is_verified_exit_fact(
         and type(fact.timed_out) is bool
         and (
             type(fact.real_exit_code) is int
-            or fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+            or fact.real_exit_code is None
+            and fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
         )
     )
 

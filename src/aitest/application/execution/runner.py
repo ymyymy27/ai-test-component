@@ -823,6 +823,13 @@ class SerialRunner:
             return (
                 AttemptState.CANCELLED
                 if inspection.stop_confirmed is True
+                and has_reliable_terminal_fact(
+                    replace(
+                        attempt,
+                        state=AttemptState.CANCELLED,
+                        exit_fact_ref=collection.exit_fact_ref,
+                    )
+                )
                 else AttemptState.PENDING_VERIFICATION
             )
         if inspection.state is ExecutionInspectionState.EXITED:
