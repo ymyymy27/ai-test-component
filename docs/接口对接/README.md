@@ -194,7 +194,7 @@ next_action: 补齐字段映射并请求 C 评审
 | [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing` | A `partial`；B `partial`（用例已可经统一入口运行，见第 8.10、8.11 节；B 侧交付说明见 [`delivery-B.md`](进行中/AB-001-端口与保存/delivery-B.md)） | B 侧真实文件存储集成测试通过（`tests/unit/test_substrate_adapter.py`）；统一入口合同测试通过；双方对拍**未做**。**2026-10-03 实测**：B 的三个只读方法已在 `ports.py` 冻结，A 的三个模型端口已有签名与适配器，类型经 `ports.py` 与 B **共用同一套**（见第 8.16.1 节） | **待 A 逐条确认**：①把 `ProjectionPort`／`ModelProvider`／凭据解析**注入默认装配**（`bootstrap` 现只注入 `unit_of_work`/`reader`/`clock`）；②模型与运行修订动作由谁接统一入口与能力声明；③**凭据解析形状冲突**（B 只传 `purpose`、只要状态；A 的 `SecretPort.resolve(reference, *, purpose) -> ResolvedSecret` 要求 `reference` 且返回受控对象）按候选甲/乙收敛；④**第 8.18 节内联摘要清单**（修 A-06：`integrity.py` 的 `_iter_digest_refs()` 只看值形状，把 8 个内联摘要字段误当对象引用，实测会把核心重启置为 blocked）。详见第 8.16／8.18 节 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `partial` | 静态设计已确认，真实入口未接 | D 已回复第 8 节五项：[`review-D.md`](进行中/BD-001-计划与依据展示/review-D.md)；后续接入动作桥并增加冲突/未知/人工确认展示测试 |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `agreed` | C `done`；D `partial` | `fixture_passed` | D 已提交适配器、七类夹具和 A 真实存储往返测试；待 C-01—C-13 修复后重放并登记真实对拍，见 [`delivery-D.md`](进行中/CD-001-ExecutionFacts/delivery-D.md) |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `agreed` | C `done`；D `partial` | `fixture_passed` | D 已提交适配器、七类夹具、A 真实存储往返测试；HTTP assertion 已确认统一转换为 VerificationFact、不提升主版本，见 [`review-D-http.md`](进行中/CD-001-ExecutionFacts/review-D-http.md)；待 C-01—C-13 修复后重放并登记真实对拍 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 
