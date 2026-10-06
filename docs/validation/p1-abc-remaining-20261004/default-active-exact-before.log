@@ -1,0 +1,12 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code _
+tests\unit\test_default_active_control.py:149: in test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code
+    assert cancelled.result["run"]["control_state"] == "cancelled"
+E   AssertionError: assert 'cancelling' == 'cancelled'
+E     
+E     - cancelled
+E     + cancelling
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_active_control.py::test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code
+1 failed in 138.65s (0:02:18)

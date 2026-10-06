@@ -705,10 +705,27 @@ class CommandAdapter:
         confirmed = self._saved_collection(handle)
         if confirmed is not None:
             return confirmed
+        stopped = self._saved_stop(handle)
+
+        def stopped_exit(completeness: CaptureCompleteness) -> ExitFact | None:
+            if stopped is None:
+                return None
+            # This observation is grounded in the original owned group-stop receipt.
+            # The vanished process's exit code and unread output cannot be reconstructed.
+            return ExitFact(
+                attempt_id=persisted.attempt_id,
+                startup_token=persisted.startup_token,
+                process_start_identity=handle.process_start_identity,
+                real_exit_code=None,
+                capture_completeness=completeness,
+                termination_reason=ProcessTerminationReason.CONFIRMED_STOP,
+            )
+
         if self._spool_store is None:
             return ExecutionCollectionResult(
                 attempt_id=persisted.attempt_id,
                 output_cursors=cursors or (),
+                exit_fact_ref=stopped_exit(CaptureCompleteness.GAP),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
             )
@@ -718,20 +735,17 @@ class CommandAdapter:
             return ExecutionCollectionResult(
                 attempt_id=persisted.attempt_id,
                 output_cursors=cursors or (),
+                exit_fact_ref=stopped_exit(CaptureCompleteness.GAP),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
             )
+        completeness = CaptureCompleteness.PARTIAL if manifest.blocks else CaptureCompleteness.GAP
         return ExecutionCollectionResult(
             attempt_id=persisted.attempt_id,
             output_blocks=manifest.blocks,
             output_cursors=manifest.cursors or (cursors or ()),
-            capture_completeness=(
-                CaptureCompleteness.COMPLETE
-                if manifest.blocks and all(block.complete for block in manifest.blocks)
-                else CaptureCompleteness.PARTIAL
-                if manifest.blocks
-                else CaptureCompleteness.GAP
-            ),
+            exit_fact_ref=stopped_exit(completeness),
+            capture_completeness=completeness,
             complete=False,
         )
 

@@ -198,8 +198,9 @@ def test_restored_inspection_retains_confirmed_stop_and_missing_material(
     assert inspection.stop_confirmed is True and inspection.identity_matches is True
     collected = adapter.collect(handle)
     if not saved_collection:
-        assert collected.exit_fact_ref is None and collected.complete is False
+        assert collected.exit_fact_ref.real_exit_code is None and collected.complete is False
+        assert collected.capture_completeness.value == "gap"
         assert (
             SerialRunner._attempt_state_for(attempt, inspection, collected)
-            is AttemptState.PENDING_VERIFICATION
+            is AttemptState.CANCELLED
         )
