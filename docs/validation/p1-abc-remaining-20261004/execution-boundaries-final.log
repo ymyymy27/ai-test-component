@@ -1,0 +1,237 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 113 items
+
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[handle] PASSED [  0%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[identity] PASSED [  1%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[attempt] PASSED [  2%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[exit_attempt] PASSED [  3%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[process] PASSED [  4%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[cursor] PASSED [  5%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[run] PASSED [  6%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[step] PASSED [  7%]
+tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[block] PASSED [  7%]
+tests/unit/test_execution_observation_identity.py::test_verified_matching_terminal_fact_remains_usable PASSED [  8%]
+tests/unit/test_execution_observation_identity.py::test_unverified_running_identity_does_not_keep_polling_as_running PASSED [  9%]
+tests/unit/test_execution_observation_identity.py::test_unknown_exit_reason_cannot_be_completed PASSED [ 10%]
+tests/unit/test_execution_observation_identity.py::test_bad_adapter_observation_is_saved_as_pending_without_restarting[inspection] PASSED [ 11%]
+tests/unit/test_execution_observation_identity.py::test_bad_adapter_observation_is_saved_as_pending_without_restarting[collection] PASSED [ 12%]
+tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[foreign-handle-stopped-True] PASSED [ 13%]
+tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-running-True] PASSED [ 14%]
+tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-unknown-True] PASSED [ 15%]
+tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-lost-True] PASSED [ 15%]
+tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-exited-True] PASSED [ 16%]
+tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-stopped-1] PASSED [ 17%]
+tests/unit/test_execution_control_identity.py::test_exact_stopped_handle_can_be_cancelled PASSED [ 18%]
+tests/unit/test_execution_control_identity.py::test_pause_waits_for_unknown_execution_boundary[unknown] PASSED [ 19%]
+tests/unit/test_execution_control_identity.py::test_pause_waits_for_unknown_execution_boundary[pending_verification] PASSED [ 20%]
+tests/unit/test_execution_control_identity.py::test_pause_does_not_trust_terminal_label_without_exit_fact PASSED [ 21%]
+tests/unit/test_execution_control.py::test_cancel_keeps_unconfirmed_stop_in_pending_verification PASSED [ 22%]
+tests/unit/test_execution_control.py::test_mixed_current_and_inherited_steps_cannot_count_e_r_v PASSED [ 23%]
+tests/unit/test_execution_control.py::test_decisive_failure_remains_visible_without_counting_pass PASSED [ 23%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[missing] PASSED [ 24%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[extra] PASSED [ 25%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[bool_grant] PASSED [ 26%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[bool_state] PASSED [ 27%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[foreign] PASSED [ 28%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[digest] PASSED [ 29%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[state] PASSED [ 30%]
+tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[list] PASSED [ 30%]
+tests/unit/test_execution_authorization_claim_shape.py::test_saved_proof_shape_is_checked_even_when_provider_validation_is_incomplete PASSED [ 31%]
+tests/unit/test_serial_runner.py::test_start_attempt_records_real_handle PASSED [ 32%]
+tests/unit/test_serial_runner.py::test_execute_attempt_persists_intent_checkpoint_before_start PASSED [ 33%]
+tests/unit/test_serial_runner.py::test_execute_attempt_rejects_mismatched_authorization_before_start PASSED [ 34%]
+tests/unit/test_serial_runner.py::test_execute_attempt_rejects_frozen_input_mismatch_before_start PASSED [ 35%]
+tests/unit/test_serial_runner.py::test_repeated_same_intent_does_not_start_second_execution PASSED [ 36%]
+tests/unit/test_serial_runner.py::test_sidecar_intent_without_original_authority_cannot_start PASSED [ 37%]
+tests/unit/test_serial_runner.py::test_runner_rejects_attempt_request_identity_mismatch PASSED [ 38%]
+tests/unit/test_serial_runner.py::test_completed_dependency_makes_downstream_ready PASSED [ 38%]
+tests/unit/test_serial_runner.py::test_execution_error_blocks_only_dependents PASSED [ 39%]
+tests/unit/test_serial_runner.py::test_pending_verification_waits_instead_of_blocking PASSED [ 40%]
+tests/unit/test_serial_runner.py::test_missing_handle_cannot_be_inspected PASSED [ 41%]
+tests/unit/test_serial_runner.py::test_start_intent_is_committed_to_uow_before_execution_port_start PASSED [ 42%]
+tests/unit/test_serial_runner.py::test_new_attempt_revokes_old_case_reuse_basis_in_runner_path PASSED [ 43%]
+tests/unit/test_serial_execution_loop.py::test_serial_execution_persists_spool_and_respects_dependencies PASSED [ 44%]
+tests/unit/test_serial_execution_loop.py::test_execution_error_blocks_dependent_step PASSED [ 45%]
+tests/unit/test_serial_execution_loop.py::test_serial_item_rejects_mismatched_identity PASSED [ 46%]
+tests/unit/test_serial_execution_loop.py::test_real_command_adapter_runs_serially_and_spools_redacted_output PASSED [ 46%]
+tests/unit/test_serial_execution_loop.py::test_command_timeout_becomes_pending_verification PASSED [ 47%]
+tests/unit/test_serial_execution_loop.py::test_long_running_command_finishes_without_poll_budget_pending PASSED [ 48%]
+tests/unit/test_serial_execution_slices.py::test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent PASSED [ 49%]
+tests/unit/test_serial_execution_slices.py::test_default_slice_does_not_wait_for_all_long_running_observations PASSED [ 50%]
+tests/unit/test_serial_execution_slices.py::test_control_gate_stops_new_dispatch_without_consuming_intent PASSED [ 51%]
+tests/unit/test_serial_execution_slices.py::test_saved_active_intent_can_be_collected_when_new_start_validation_is_unavailable PASSED [ 52%]
+tests/unit/test_serial_execution_slices.py::test_active_step_without_published_claim_cannot_be_started_again PASSED [ 53%]
+tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[0] PASSED [ 53%]
+tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[-1] PASSED [ 54%]
+tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[True] PASSED [ 55%]
+tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[1.5] PASSED [ 56%]
+tests/recovery/test_execution_closure.py::test_execution_to_spool_evidence_and_execution_facts_closure PASSED [ 57%]
+tests/unit/test_abc_root_cause_regressions.py::test_registered_short_credentials_are_filtered_at_every_stream_split[1234] PASSED [ 58%]
+tests/unit/test_abc_root_cause_regressions.py::test_registered_short_credentials_are_filtered_at_every_stream_split[\u77ed\u51ed\u636e] PASSED [ 59%]
+tests/unit/test_abc_root_cause_regressions.py::test_registered_short_credentials_are_filtered_at_every_stream_split[x] PASSED [ 60%]
+tests/unit/test_abc_root_cause_regressions.py::test_batch_spool_cannot_bypass_another_instances_live_capture PASSED [ 61%]
+tests/unit/test_abc_root_cause_regressions.py::test_confirmed_collection_rejects_corrupted_output_bytes PASSED [ 61%]
+tests/unit/test_abc_root_cause_regressions.py::test_model_identity_includes_the_frozen_template_reference PASSED [ 62%]
+tests/unit/test_abc_root_cause_regressions.py::test_model_late_response_is_history_and_never_a_current_draft PASSED [ 63%]
+tests/unit/test_abc_root_cause_regressions.py::test_corrupt_migration_cycle_cannot_select_another_backup PASSED [ 64%]
+tests/unit/test_abc_root_cause_regressions.py::test_runner_keeps_the_same_intent_namespaced_by_project PASSED [ 65%]
+tests/unit/test_abc_root_cause_regressions.py::test_uow_refuses_rewriting_a_previously_fingerprinted_body PASSED [ 66%]
+tests/unit/test_abc_root_cause_regressions.py::test_ownerless_checkpoint_cannot_be_taken_over_by_another_project PASSED [ 67%]
+tests/unit/test_abc_root_cause_regressions.py::test_migration_retains_first_prestate_after_forward_then_registry_failure[True] PASSED [ 68%]
+tests/unit/test_abc_root_cause_regressions.py::test_migration_retains_first_prestate_after_forward_then_registry_failure[False] PASSED [ 69%]
+tests/unit/test_abc_root_cause_regressions.py::test_capture_lease_blocks_maintenance_and_foreign_instance_salvage PASSED [ 69%]
+tests/unit/test_abc_root_cause_regressions.py::test_salvage_filters_only_unclaimed_tail_without_overwriting_sealed_prefix PASSED [ 70%]
+tests/unit/test_abc_root_cause_regressions.py::test_query_deep_pages_read_only_shards_after_the_last_key PASSED [ 71%]
+tests/unit/test_abc_root_cause_regressions.py::test_report_cursor_preserves_replaced_revision_in_original_root PASSED [ 72%]
+tests/unit/test_abc_root_cause_regressions.py::test_real_uow_runner_can_complete_then_recall_without_restarting PASSED [ 73%]
+tests/unit/test_abc_root_cause_regressions.py::test_poll_slice_continues_same_execution_after_runner_restart PASSED [ 74%]
+tests/unit/test_abc_root_cause_regressions.py::test_execution_intent_conflict_checks_actual_entry_arguments PASSED [ 75%]
+tests/unit/test_abc_root_cause_regressions.py::test_repeated_real_command_collection_preserves_exit_fact PASSED [ 76%]
+tests/unit/test_abc_root_cause_regressions.py::test_rollback_can_repeat_after_reverse_write_then_registry_failure PASSED [ 76%]
+tests/unit/test_abc_root_cause_regressions.py::test_migration_new_cycle_resume_keeps_its_own_backup PASSED [ 77%]
+tests/unit/test_abc_root_cause_regressions.py::test_sealed_spool_does_not_make_a_live_execution_safe_for_maintenance PASSED [ 78%]
+tests/unit/test_abc_root_cause_regressions.py::test_reader_metadata_failure_cannot_be_published_as_complete PASSED [ 79%]
+tests/unit/test_abc_root_cause_regressions.py::test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent PASSED [ 80%]
+tests/unit/test_abc_root_cause_regressions.py::test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary PASSED [ 81%]
+tests/unit/test_abc_root_cause_regressions.py::test_launch_failure_releases_all_spool_leases_without_erasing_uncertain_handle PASSED [ 82%]
+tests/unit/test_abc_root_cause_regressions.py::test_backup_refuses_junction_parent_before_any_restore_write PASSED [ 83%]
+tests/unit/test_abc_root_cause_regressions.py::test_missing_task_cannot_be_saved_as_delivery PASSED [ 84%]
+tests/unit/test_abc_root_cause_regressions.py::test_public_b_entry_refuses_payload_from_another_project[save_context-project] PASSED [ 84%]
+tests/unit/test_abc_root_cause_regressions.py::test_public_b_entry_refuses_payload_from_another_project[save_binding-binding] PASSED [ 85%]
+tests/unit/test_abc_root_cause_regressions.py::test_legacy_graph_remains_unverified_and_keeps_history_payload_unchanged PASSED [ 86%]
+tests/unit/test_abc_root_cause_regressions.py::test_matching_request_and_wrong_plan_cannot_override_execution_facts_plan PASSED [ 87%]
+tests/unit/test_abc_root_cause_regressions.py::test_gate_failure_never_executes_the_guarded_handler PASSED [ 88%]
+tests/unit/test_abc_root_cause_regressions.py::test_digest_alone_never_proves_runtime_load_source PASSED [ 89%]
+tests/unit/test_abc_root_cause_regressions.py::test_source_mismatch_overrides_probe_passed PASSED [ 90%]
+tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[## detail\nbody] PASSED [ 91%]
+tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[## \u6b65\u9aa4\nbody] PASSED [ 92%]
+tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[\nbody\n] PASSED [ 92%]
+tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[```python\n## heading\n```] PASSED [ 93%]
+tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[~~~\n## heading\n~~~] PASSED [ 94%]
+tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[assertions] PASSED [ 95%]
+tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[source] PASSED [ 96%]
+tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[attachments] PASSED [ 97%]
+tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[expected] PASSED [ 98%]
+tests/unit/test_abc_root_cause_regressions.py::test_unreadable_successful_model_draft_does_not_call_provider_again PASSED [ 99%]
+tests/unit/test_abc_root_cause_regressions.py::test_two_file_uows_claim_one_model_generation_without_repeating_the_call PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[handle]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[identity]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[attempt]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[exit_attempt]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[process]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[cursor]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[run]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[step]
+PASSED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[block]
+PASSED tests/unit/test_execution_observation_identity.py::test_verified_matching_terminal_fact_remains_usable
+PASSED tests/unit/test_execution_observation_identity.py::test_unverified_running_identity_does_not_keep_polling_as_running
+PASSED tests/unit/test_execution_observation_identity.py::test_unknown_exit_reason_cannot_be_completed
+PASSED tests/unit/test_execution_observation_identity.py::test_bad_adapter_observation_is_saved_as_pending_without_restarting[inspection]
+PASSED tests/unit/test_execution_observation_identity.py::test_bad_adapter_observation_is_saved_as_pending_without_restarting[collection]
+PASSED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[foreign-handle-stopped-True]
+PASSED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-running-True]
+PASSED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-unknown-True]
+PASSED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-lost-True]
+PASSED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-exited-True]
+PASSED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[handle-1-stopped-1]
+PASSED tests/unit/test_execution_control_identity.py::test_exact_stopped_handle_can_be_cancelled
+PASSED tests/unit/test_execution_control_identity.py::test_pause_waits_for_unknown_execution_boundary[unknown]
+PASSED tests/unit/test_execution_control_identity.py::test_pause_waits_for_unknown_execution_boundary[pending_verification]
+PASSED tests/unit/test_execution_control_identity.py::test_pause_does_not_trust_terminal_label_without_exit_fact
+PASSED tests/unit/test_execution_control.py::test_cancel_keeps_unconfirmed_stop_in_pending_verification
+PASSED tests/unit/test_execution_control.py::test_mixed_current_and_inherited_steps_cannot_count_e_r_v
+PASSED tests/unit/test_execution_control.py::test_decisive_failure_remains_visible_without_counting_pass
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[missing]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[extra]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[bool_grant]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[bool_state]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[foreign]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[digest]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[state]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_bad_occupation_proof_rolls_back_before_external_start[list]
+PASSED tests/unit/test_execution_authorization_claim_shape.py::test_saved_proof_shape_is_checked_even_when_provider_validation_is_incomplete
+PASSED tests/unit/test_serial_runner.py::test_start_attempt_records_real_handle
+PASSED tests/unit/test_serial_runner.py::test_execute_attempt_persists_intent_checkpoint_before_start
+PASSED tests/unit/test_serial_runner.py::test_execute_attempt_rejects_mismatched_authorization_before_start
+PASSED tests/unit/test_serial_runner.py::test_execute_attempt_rejects_frozen_input_mismatch_before_start
+PASSED tests/unit/test_serial_runner.py::test_repeated_same_intent_does_not_start_second_execution
+PASSED tests/unit/test_serial_runner.py::test_sidecar_intent_without_original_authority_cannot_start
+PASSED tests/unit/test_serial_runner.py::test_runner_rejects_attempt_request_identity_mismatch
+PASSED tests/unit/test_serial_runner.py::test_completed_dependency_makes_downstream_ready
+PASSED tests/unit/test_serial_runner.py::test_execution_error_blocks_only_dependents
+PASSED tests/unit/test_serial_runner.py::test_pending_verification_waits_instead_of_blocking
+PASSED tests/unit/test_serial_runner.py::test_missing_handle_cannot_be_inspected
+PASSED tests/unit/test_serial_runner.py::test_start_intent_is_committed_to_uow_before_execution_port_start
+PASSED tests/unit/test_serial_runner.py::test_new_attempt_revokes_old_case_reuse_basis_in_runner_path
+PASSED tests/unit/test_serial_execution_loop.py::test_serial_execution_persists_spool_and_respects_dependencies
+PASSED tests/unit/test_serial_execution_loop.py::test_execution_error_blocks_dependent_step
+PASSED tests/unit/test_serial_execution_loop.py::test_serial_item_rejects_mismatched_identity
+PASSED tests/unit/test_serial_execution_loop.py::test_real_command_adapter_runs_serially_and_spools_redacted_output
+PASSED tests/unit/test_serial_execution_loop.py::test_command_timeout_becomes_pending_verification
+PASSED tests/unit/test_serial_execution_loop.py::test_long_running_command_finishes_without_poll_budget_pending
+PASSED tests/unit/test_serial_execution_slices.py::test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent
+PASSED tests/unit/test_serial_execution_slices.py::test_default_slice_does_not_wait_for_all_long_running_observations
+PASSED tests/unit/test_serial_execution_slices.py::test_control_gate_stops_new_dispatch_without_consuming_intent
+PASSED tests/unit/test_serial_execution_slices.py::test_saved_active_intent_can_be_collected_when_new_start_validation_is_unavailable
+PASSED tests/unit/test_serial_execution_slices.py::test_active_step_without_published_claim_cannot_be_started_again
+PASSED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[0]
+PASSED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[-1]
+PASSED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[True]
+PASSED tests/unit/test_serial_execution_slices.py::test_slice_budget_is_a_positive_bounded_integer[1.5]
+PASSED tests/recovery/test_execution_closure.py::test_execution_to_spool_evidence_and_execution_facts_closure
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_registered_short_credentials_are_filtered_at_every_stream_split[1234]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_registered_short_credentials_are_filtered_at_every_stream_split[\u77ed\u51ed\u636e]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_registered_short_credentials_are_filtered_at_every_stream_split[x]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_batch_spool_cannot_bypass_another_instances_live_capture
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_confirmed_collection_rejects_corrupted_output_bytes
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_model_identity_includes_the_frozen_template_reference
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_model_late_response_is_history_and_never_a_current_draft
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_corrupt_migration_cycle_cannot_select_another_backup
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_runner_keeps_the_same_intent_namespaced_by_project
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_uow_refuses_rewriting_a_previously_fingerprinted_body
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_ownerless_checkpoint_cannot_be_taken_over_by_another_project
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_migration_retains_first_prestate_after_forward_then_registry_failure[True]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_migration_retains_first_prestate_after_forward_then_registry_failure[False]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_capture_lease_blocks_maintenance_and_foreign_instance_salvage
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_salvage_filters_only_unclaimed_tail_without_overwriting_sealed_prefix
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_query_deep_pages_read_only_shards_after_the_last_key
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_report_cursor_preserves_replaced_revision_in_original_root
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_real_uow_runner_can_complete_then_recall_without_restarting
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_poll_slice_continues_same_execution_after_runner_restart
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_execution_intent_conflict_checks_actual_entry_arguments
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_repeated_real_command_collection_preserves_exit_fact
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_rollback_can_repeat_after_reverse_write_then_registry_failure
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_migration_new_cycle_resume_keeps_its_own_backup
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_sealed_spool_does_not_make_a_live_execution_safe_for_maintenance
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_reader_metadata_failure_cannot_be_published_as_complete
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_launch_failure_releases_all_spool_leases_without_erasing_uncertain_handle
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_backup_refuses_junction_parent_before_any_restore_write
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_missing_task_cannot_be_saved_as_delivery
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_public_b_entry_refuses_payload_from_another_project[save_context-project]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_public_b_entry_refuses_payload_from_another_project[save_binding-binding]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_legacy_graph_remains_unverified_and_keeps_history_payload_unchanged
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_matching_request_and_wrong_plan_cannot_override_execution_facts_plan
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_gate_failure_never_executes_the_guarded_handler
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_digest_alone_never_proves_runtime_load_source
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_source_mismatch_overrides_probe_passed
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[## detail\nbody]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[## \u6b65\u9aa4\nbody]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[\nbody\n]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[```python\n## heading\n```]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_arbitrary_rule_body_is_lossless_in_markdown[~~~\n## heading\n~~~]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[assertions]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[source]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[attachments]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_external_import_identity_includes_all_decisive_inputs[expected]
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_unreadable_successful_model_draft_does_not_call_provider_again
+PASSED tests/unit/test_abc_root_cause_regressions.py::test_two_file_uows_claim_one_model_generation_without_repeating_the_call
+======================= 113 passed in 486.52s (0:08:06) =======================
