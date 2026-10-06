@@ -322,10 +322,22 @@ class FileSpoolStore:
 
     def read_manifest(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
+
+        def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+            fields: dict[str, object] = {}
+            for key, value in pairs:
+                if key in fields:
+                    raise ValueError("duplicate field in spool manifest: " + key)
+                fields[key] = value
+            return fields
+
         with self._manifest_lock:
             path = self._manifest_path(safe_attempt)
-            raw: object = json.loads(path.read_text(encoding="utf-8"))
-            return self._manifest_from_json(raw)
+            raw: object = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique)
+            manifest = self._manifest_from_json(raw)
+            if manifest.attempt_id != safe_attempt:
+                raise ValueError("spool manifest identity differs from the requested attempt")
+            return manifest
 
     def read_block(self, ref: OutputBlockRef) -> bytes:
         safe_attempt = _safe_component(ref.attempt_id, "attempt_id")

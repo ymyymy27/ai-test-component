@@ -23,6 +23,7 @@ from aitest.domain.execution.runs import (
     PlanRevisionRef,
     Run,
     RunControlState,
+    has_verified_exit,
 )
 
 _ACTIVE_ATTEMPT_STATES = frozenset(
@@ -188,9 +189,5 @@ __all__ = [
 
 def _requires_boundary_verification(attempt: Attempt) -> bool:
     return attempt.state in {AttemptState.UNKNOWN, AttemptState.PENDING_VERIFICATION} or (
-        attempt.execution_handle_ref is not None
-        and (
-            attempt.exit_fact_ref is None
-            or attempt.exit_fact_ref.termination_reason.value == "unknown"
-        )
+        attempt.execution_handle_ref is not None and not has_verified_exit(attempt)
     )

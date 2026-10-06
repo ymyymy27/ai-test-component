@@ -10,11 +10,13 @@ from aitest.application.execution.recovery import (
     CaseReuseBasis,
     CaseReuseInvalidation,
     CheckpointStore,
+    RecoveryAction,
     RecoveryRecord,
     RecoveryResult,
     invalidate_downstream_attempts,
     invalidate_reuse_bases,
     recover_attempt,
+    restore_checkpoint_attempt,
 )
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.ports import ExecutionPort, SpoolStore
@@ -35,6 +37,8 @@ from aitest.domain.execution.runs import (
     StepState,
     StopRequestResult,
     authorization_action_basis,
+    has_reliable_terminal_fact,
+    has_verified_exit,
 )
 
 _TERMINAL_STEP_STATES = frozenset(
@@ -248,7 +252,7 @@ class SerialRunner:
                 AttemptState.UNKNOWN,
             }
             or attempt.state is AttemptState.PENDING_VERIFICATION
-            and attempt.exit_fact_ref is None
+            and not has_verified_exit(attempt)
         )
 
     def execute_attempt(
@@ -526,19 +530,12 @@ class SerialRunner:
                     project_id=record.project_id,
                     attempt_id=record.attempt.attempt_id,
                 )
-            reliable_terminal = (
-                record.attempt.state
-                in {
-                    AttemptState.COMPLETED,
-                    AttemptState.CANCELLED,
-                    AttemptState.INVALIDATED,
-                }
-                and record.attempt.exit_fact_ref is not None
-            )
+            recovered_attempt = restore_checkpoint_attempt(record.checkpoint, record.attempt)
+            reliable_terminal = has_reliable_terminal_fact(recovered_attempt)
             inspection = None
-            if not reliable_terminal and record.attempt.execution_handle_ref is not None:
+            if not reliable_terminal and recovered_attempt.execution_handle_ref is not None:
                 try:
-                    inspection = self.inspect_attempt(record.attempt)
+                    inspection = self.inspect_attempt(recovered_attempt)
                 except (KeyError, ValueError):
                     inspection = None
             result = recover_attempt(
@@ -548,6 +545,13 @@ class SerialRunner:
                 inspection=inspection,
             )
             results.append(result)
+            if (
+                result.action is RecoveryAction.TERMINAL_PRESERVED
+                and result.attempt == record.attempt
+            ):
+                # Re-reading reliable history is not a business mutation. Republishing
+                # an unchanged checkpoint would clear its saved run result/grade.
+                continue
             self._persist_checkpoint(
                 result.attempt, stage=result.action.value, project_id=record.project_id
             )
@@ -687,15 +691,17 @@ class SerialRunner:
         if inspection.state is ExecutionInspectionState.STOPPED:
             return (
                 AttemptState.CANCELLED
-                if inspection.stop_confirmed
+                if inspection.stop_confirmed is True
                 else AttemptState.PENDING_VERIFICATION
             )
         if inspection.state is ExecutionInspectionState.EXITED:
-            if collection.exit_fact_ref is None or not collection.complete:
-                return AttemptState.PENDING_VERIFICATION
-            if collection.exit_fact_ref.termination_reason.value == "unknown":
-                return AttemptState.PENDING_VERIFICATION
-            if collection.exit_fact_ref.timed_out:
+            if collection.complete is not True or not has_reliable_terminal_fact(
+                replace(
+                    attempt,
+                    state=AttemptState.COMPLETED,
+                    exit_fact_ref=collection.exit_fact_ref,
+                )
+            ):
                 return AttemptState.PENDING_VERIFICATION
             return AttemptState.COMPLETED
         return attempt.state

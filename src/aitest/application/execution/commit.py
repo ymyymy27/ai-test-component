@@ -86,6 +86,7 @@ from aitest.domain.execution.runs import (
     StepState,
     attempt_start_basis,
     authorization_action_basis,
+    has_verified_exit,
 )
 from aitest.domain.planning.plans import Plan
 from aitest.domain.planning.runtime_revision import RuntimeRevisionRefused, RuntimeRevisionRequest
@@ -883,13 +884,7 @@ class ExecutionCommitCoordinator:
         ):
             raise ValueError("affected execution may be active; stop and verify before replacement")
         if any(
-            item.execution_handle_ref is not None
-            and (
-                item.exit_fact_ref is None
-                or item.exit_fact_ref.attempt_id != item.attempt_id
-                or item.exit_fact_ref.process_start_identity
-                != item.execution_handle_ref.process_start_identity
-            )
+            item.execution_handle_ref is not None and not has_verified_exit(item)
             for item in affected
         ):
             raise ValueError(

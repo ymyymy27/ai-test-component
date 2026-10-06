@@ -644,6 +644,59 @@ def attempt_start_basis(attempt: Attempt) -> tuple[object, ...]:
     )
 
 
+def is_verified_exit_fact(
+    attempt_id: str, process_start_identity: str | None, fact: ExitFact | None
+) -> bool:
+    """Validate the same exit identity for saved domain facts and DTO projections."""
+    return (
+        process_start_identity is not None
+        and fact is not None
+        and fact.attempt_id == attempt_id
+        and fact.process_start_identity == process_start_identity
+        and isinstance(fact.termination_reason, ProcessTerminationReason)
+        and fact.termination_reason
+        in {
+            ProcessTerminationReason.NATURAL_EXIT,
+            ProcessTerminationReason.CONFIRMED_STOP,
+            ProcessTerminationReason.TIMEOUT,
+            ProcessTerminationReason.CAPTURE_FAILURE,
+        }
+        and type(fact.timed_out) is bool
+        and (
+            type(fact.real_exit_code) is int
+            or fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+        )
+    )
+
+
+def has_verified_exit(attempt: Attempt) -> bool:
+    """A saved exit belongs to this actual process and proves its termination."""
+    handle = attempt.execution_handle_ref
+    return is_verified_exit_fact(
+        attempt.attempt_id,
+        handle.process_start_identity if handle is not None else None,
+        attempt.exit_fact_ref,
+    )
+
+
+def has_reliable_terminal_fact(attempt: Attempt) -> bool:
+    """Preserve only a terminal state supported by the original process exit."""
+    if not has_verified_exit(attempt):
+        return False
+    fact = attempt.exit_fact_ref
+    assert fact is not None
+    if attempt.state is AttemptState.COMPLETED:
+        return (
+            fact.termination_reason is ProcessTerminationReason.NATURAL_EXIT and not fact.timed_out
+        )
+    if attempt.state is AttemptState.CANCELLED:
+        return (
+            fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+            and not fact.timed_out
+        )
+    return attempt.state in {AttemptState.EXECUTION_ERROR, AttemptState.INVALIDATED}
+
+
 @dataclass(frozen=True, slots=True)
 class RecoveryRecord:
     checkpoint: RecoveryCheckpoint

@@ -37,7 +37,15 @@ from aitest.contracts.execution_facts import (
 )
 from aitest.contracts.prepared_run import CaseRevisionRef, PlanRevisionRef, RunDriverFact
 from aitest.domain.execution.dependencies import downstream_consumers
-from aitest.domain.execution.runs import Run, Step, StepLevel, StepRevisionRef
+from aitest.domain.execution.runs import (
+    ExitFact,
+    ProcessTerminationReason,
+    Run,
+    Step,
+    StepLevel,
+    StepRevisionRef,
+    is_verified_exit_fact,
+)
 from aitest.domain.planning.plans import Case, Plan, RunDriver
 from aitest.domain.planning.plans import CaseRevisionRef as DomainCaseRevisionRef
 from aitest.domain.planning.runtime_revision import CaseRuntimeChange, RuntimeRevisionRequest
@@ -211,8 +219,21 @@ def require_runtime_boundary(facts: ExecutionFacts) -> None:
         }
         or (
             attempt.handle is not None
-            and (
-                attempt.exit_fact is None or attempt.exit_fact.termination_reason.value == "unknown"
+            and not is_verified_exit_fact(
+                attempt.attempt_id,
+                attempt.handle.process_start_identity,
+                ExitFact(
+                    attempt_id=attempt.exit_fact.attempt_id,
+                    startup_token=attempt.exit_fact.startup_token,
+                    process_start_identity=attempt.exit_fact.process_start_identity,
+                    real_exit_code=attempt.exit_fact.real_exit_code,
+                    termination_reason=ProcessTerminationReason(
+                        attempt.exit_fact.termination_reason.value
+                    ),
+                    timed_out=attempt.exit_fact.timed_out,
+                )
+                if attempt.exit_fact is not None
+                else None,
             )
         )
         for attempt in facts.attempts
