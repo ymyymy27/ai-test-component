@@ -1,5 +1,6 @@
 """Pure JSON assertion rules; unavailable observations remain unknown."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -56,3 +57,18 @@ def evaluate_http_assertion(
     if isinstance(actual, dict):
         return isinstance(assertion.expected, str) and assertion.expected in actual
     return False
+
+
+def compare_expected_fields(
+    observed: Mapping[str, object], expected: Mapping[str, object]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Distinguish absent data from JSON null; report known mismatches separately."""
+    missing = tuple(sorted(key for key in expected if key not in observed))
+    mismatched = tuple(
+        sorted(
+            key
+            for key, value in expected.items()
+            if key in observed and not json_equal(observed[key], value)
+        )
+    )
+    return missing, mismatched

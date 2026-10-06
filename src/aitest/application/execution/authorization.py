@@ -10,6 +10,11 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from aitest.application.approval_service import ApprovalService, _digest, _payload
+from aitest.application.execution.authorization_index import (
+    authorization_index_id,
+    read_authorization_index,
+    stage_authorization_index,
+)
 from aitest.application.execution.commit import ExecutionCommitCoordinator, _run_pointer_id
 from aitest.application.execution.facts import _run_fact, _step_fact
 from aitest.application.execution.run_record import read_run_record
@@ -537,23 +542,28 @@ class ExecutionAuthorizationService:
                 parameters=parameters,
             )
             self._current_action(project_id, raw, action)
+            index_revision, unused = read_authorization_index(
+                self.records, self.workspace_id, project_id, action.request.run_id
+            )
+            if identity in unused:
+                raise ApprovalRequired("unused authority already exists without its original grant")
             confirmation = self.approvals.stage_confirmation(
                 project_id=project_id,
                 challenge_id=challenge_id,
                 confirmation_intent_id=intent_id,
                 parameters=parameters,
-                trailing_records=2,
+                trailing_records=3,
             )
             if confirmation.basis != basis:
                 raise ApprovalRequired("execution confirmation differs from its saved origin")
-            if str(int(self.unit.next_commit_seq()) + 1) != confirmation.confirmed_at_commit:
+            if str(int(self.unit.next_commit_seq()) + 2) != confirmation.confirmed_at_commit:
                 raise ApprovalRequired("execution confirmation must belong to this atomic batch")
             self.unit.stage_record(
                 aggregate_kind="execution_authorization",
                 record_id=identity,
                 expected_revision=0,
                 payload={
-                    "schema_version": "aitest.action-authorization/1.0",
+                    "schema_version": "aitest.action-authorization/1.1",
                     "project_id": project_id,
                     "workspace_id": self.workspace_id,
                     "parameters": dict(parameters),
@@ -561,6 +571,9 @@ class ExecutionAuthorizationService:
                     "confirmation_id": confirmation.confirmation_id,
                     "confirmed_at_commit": confirmation.confirmed_at_commit,
                     "input_digest": _digest(raw),
+                    "authorization_index_id": authorization_index_id(
+                        self.workspace_id, project_id, action.request.run_id
+                    ),
                 },
             )
             self.unit.stage_record(
@@ -568,6 +581,14 @@ class ExecutionAuthorizationService:
                 record_id="authorization-state:" + identity,
                 expected_revision=0,
                 payload=self._state_payload(project_id, identity, AuthorizationState.UNUSED, None),
+            )
+            stage_authorization_index(
+                self.unit,
+                self.workspace_id,
+                project_id,
+                action.request.run_id,
+                index_revision,
+                tuple(sorted((*unused, identity))),
             )
             self.unit.commit(request_id)
         except BaseException:
@@ -581,20 +602,20 @@ class ExecutionAuthorizationService:
         if self._revision(identity) != 1:
             raise ApprovalRequired("original immutable execution authorization is unavailable")
         grant = self._read(project, identity, 1)
-        if (
-            set(grant)
-            != {
-                "schema_version",
-                "project_id",
-                "workspace_id",
-                "parameters",
-                "authorization_ref",
-                "confirmation_id",
-                "confirmed_at_commit",
-                "input_digest",
-            }
-            or grant["schema_version"] != "aitest.action-authorization/1.0"
-        ):
+        indexed = grant.get("schema_version") == "aitest.action-authorization/1.1"
+        if set(grant) != {
+            "schema_version",
+            "project_id",
+            "workspace_id",
+            "parameters",
+            "authorization_ref",
+            "confirmation_id",
+            "confirmed_at_commit",
+            "input_digest",
+        } | ({"authorization_index_id"} if indexed else set()) or grant["schema_version"] not in {
+            "aitest.action-authorization/1.0",
+            "aitest.action-authorization/1.1",
+        }:
             raise ApprovalRequired("original execution authorization has unknown fields")
         parameters = grant["parameters"]
         if (
@@ -635,6 +656,11 @@ class ExecutionAuthorizationService:
             or confirmation.basis != expected
             or confirmation.confirmation_intent_id != action.request.intent_id
             or confirmation.confirmed_at_commit != grant["confirmed_at_commit"]
+            or (
+                indexed
+                and grant["authorization_index_id"]
+                != authorization_index_id(self.workspace_id, project, action.request.run_id)
+            )
         ):
             raise ApprovalRequired("original grant differs from its exact core user confirmation")
         for ref in references:
@@ -683,13 +709,14 @@ class ExecutionAuthorizationService:
     def validate_new(self, *, project_id: str, attempt: Attempt) -> None:
         if attempt.authorization_ref is None:
             raise ApprovalRequired("new execution needs original authorization")
-        _, action = self._origin(project_id, attempt.authorization_ref.authorization_id)
+        grant, action = self._origin(project_id, attempt.authorization_ref.authorization_id)
         if attempt_start_basis(replace(attempt, intent_digest="")) != attempt_start_basis(
             action.attempt
         ) or attempt.intent_digest != execution_start_fingerprint(action.attempt, action.request):
             raise ApprovalRequired("execution attempt differs from its original authorized action")
         _, state, occupied = self._state(project_id, attempt.authorization_ref.authorization_id)
         require_unused(state, occupied)
+        self._require_indexed(project_id, grant, action)
         action_id = _identity("execution-action-", self.workspace_id, project_id, attempt.intent_id)
         parameters = {
             "execution_action_id": action_id,
@@ -706,12 +733,20 @@ class ExecutionAuthorizationService:
         prepared = self._current_action(project_id, raw, action)
         self._actual(prepared)
 
-    def stage_occupation(self, *, project_id: str, attempt: Attempt) -> Mapping[str, object]:
+    def stage_occupation(
+        self,
+        *,
+        project_id: str,
+        attempt: Attempt,
+        superseded_attempt_ids: tuple[str, ...] = (),
+        changed_step_ids: tuple[str, ...] = (),
+    ) -> Mapping[str, object]:
         """Saved reads only; caller owns the start transaction and external checks."""
         if attempt.authorization_ref is None:
             raise ApprovalRequired("original authorization is unavailable")
         identity = attempt.authorization_ref.authorization_id
         grant, action = self._origin(project_id, identity)
+        index_revision, unused = self._require_indexed(project_id, grant, action)
         if attempt_start_basis(replace(attempt, intent_digest="")) != attempt_start_basis(
             action.attempt
         ) or attempt.intent_digest != execution_start_fingerprint(action.attempt, action.request):
@@ -727,6 +762,14 @@ class ExecutionAuthorizationService:
         )
         raw, _ = self.resolver.read(project_id, grant["parameters"]["execution_action_id"])
         self._current_action(project_id, raw, action)
+        removed = self._stage_revocations(
+            project_id=project_id,
+            run_id=attempt.run_id,
+            unused=unused,
+            superseded_attempt_ids=superseded_attempt_ids,
+            changed_step_ids=tuple(sorted({attempt.step_id, *changed_step_ids})),
+            except_id=identity,
+        )
         self.unit.stage_record(
             aggregate_kind="execution_authorization",
             record_id="authorization-state:" + identity,
@@ -735,12 +778,98 @@ class ExecutionAuthorizationService:
                 project_id, identity, AuthorizationState.OCCUPIED, attempt.attempt_id
             ),
         )
+        stage_authorization_index(
+            self.unit,
+            self.workspace_id,
+            project_id,
+            attempt.run_id,
+            index_revision,
+            tuple(value for value in unused if value not in removed and value != identity),
+        )
         return {
             "grant_id": identity,
             "grant_revision": 1,
             "grant_digest": _digest(grant),
             "state_revision": revision + 1,
         }
+
+    def _require_indexed(
+        self, project: str, grant: Mapping[str, Any], action: ResolvedExecutionAction
+    ) -> tuple[int, tuple[str, ...]]:
+        if grant.get("schema_version") != "aitest.action-authorization/1.1":
+            raise ApprovalRequired("legacy authorization requires new resolution and consent")
+        revision, unused = read_authorization_index(
+            self.records, self.workspace_id, project, action.request.run_id, required=True
+        )
+        if action.request.authorization_ref.authorization_id not in unused:
+            raise ApprovalRequired("authorization is absent from its exact unused index")
+        return revision, unused
+
+    def _stage_revocations(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        unused: tuple[str, ...],
+        superseded_attempt_ids: tuple[str, ...],
+        changed_step_ids: tuple[str, ...],
+        except_id: str | None = None,
+    ) -> set[str]:
+        removed: set[str] = set()
+        for identity in unused:
+            if identity == except_id:
+                continue
+            grant, action = self._origin(project_id, identity)
+            if action.request.run_id != run_id or grant.get(
+                "authorization_index_id"
+            ) != authorization_index_id(self.workspace_id, project_id, run_id):
+                raise ApprovalRequired("unused index contains foreign or legacy authorization")
+            revision, state, occupied = self._state(project_id, identity)
+            require_unused(state, occupied)
+            consumed = {value.upstream_attempt_id for value in action.attempt.consumed_outputs} | {
+                value.upstream_attempt_id for value in action.attempt.consumed_conditions
+            }
+            if action.request.step_id in changed_step_ids or consumed.intersection(
+                superseded_attempt_ids
+            ):
+                self.unit.stage_record(
+                    aggregate_kind="execution_authorization",
+                    record_id="authorization-state:" + identity,
+                    expected_revision=revision,
+                    payload=self._state_payload(
+                        project_id, identity, AuthorizationState.REVOKED, None
+                    ),
+                )
+                removed.add(identity)
+        return removed
+
+    def stage_revoke_affected(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        superseded_attempt_ids: tuple[str, ...],
+        changed_step_ids: tuple[str, ...],
+    ) -> None:
+        revision, unused = read_authorization_index(
+            self.records, self.workspace_id, project_id, run_id
+        )
+        removed = self._stage_revocations(
+            project_id=project_id,
+            run_id=run_id,
+            unused=unused,
+            superseded_attempt_ids=superseded_attempt_ids,
+            changed_step_ids=changed_step_ids,
+        )
+        if removed:
+            stage_authorization_index(
+                self.unit,
+                self.workspace_id,
+                project_id,
+                run_id,
+                revision,
+                tuple(value for value in unused if value not in removed),
+            )
 
     def validate_occupation(
         self, *, project_id: str, attempt: Attempt, proof: Mapping[str, object]
@@ -790,7 +919,12 @@ class ExecutionAuthorizationService:
                     raise ApprovalConflict("authorization revocation intent has different input")
                 self.unit.rollback(request_id)
                 return
-            self._origin(project_id, authorization_id)
+            grant, action = self._origin(project_id, authorization_id)
+            index = (
+                self._require_indexed(project_id, grant, action)
+                if grant["schema_version"] == "aitest.action-authorization/1.1"
+                else None
+            )
             revision, state, occupied = self._state(project_id, authorization_id)
             require_unused(state, occupied)
             self.unit.stage_record(
@@ -813,6 +947,16 @@ class ExecutionAuthorizationService:
                     "intent_id": intent_id,
                 },
             )
+            if index is not None:
+                revision, unused = index
+                stage_authorization_index(
+                    self.unit,
+                    self.workspace_id,
+                    project_id,
+                    action.request.run_id,
+                    revision,
+                    tuple(value for value in unused if value != authorization_id),
+                )
             self.unit.commit(request_id)
         except BaseException:
             self.unit.rollback(request_id)

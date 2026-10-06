@@ -6,6 +6,7 @@ from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.ports import (
     BasisConfirmationProof,
     ControlledWriteProof,
+    ExecutionAuthorizationProof,
     RecordRepository,
     StageableWorkspaceUnitOfWork,
 )
@@ -24,10 +25,15 @@ class RuntimeRevisionService:
         records: RecordRepository,
         approvals: BasisConfirmationProof | None = None,
         controlled_writes: ControlledWriteProof | None = None,
+        execution_authorizations: ExecutionAuthorizationProof | None = None,
     ) -> None:
         self.unit = unit
         self.coordinator = ExecutionCommitCoordinator(
-            unit, records=records, approvals=approvals, controlled_writes=controlled_writes
+            unit,
+            records=records,
+            approvals=approvals,
+            controlled_writes=controlled_writes,
+            execution_authorizations=execution_authorizations,
         )
 
     def apply(

@@ -139,7 +139,7 @@ def test_original_grant_is_saved_with_exact_confirmation_and_unused_state(resolv
     actor, challenge = review(service, inputs.project_id, action, parameters)
     before = core.unit_of_work.current_commit_sequence()
     original = save(service, inputs.project_id, action, parameters, actor, challenge)
-    assert core.unit_of_work.current_commit_sequence() == before + 6
+    assert core.unit_of_work.current_commit_sequence() == before + 7
     identity = action.request.authorization_ref.authorization_id
     assert original["authorization_id"] == identity
     assert service._state(inputs.project_id, identity) == (1, AuthorizationState.UNUSED, None)
@@ -148,7 +148,7 @@ def test_original_grant_is_saved_with_exact_confirmation_and_unused_state(resolv
     proof = service.approvals.read_confirmation(
         project_id=inputs.project_id, confirmation_id=grant["confirmation_id"]
     )
-    assert int(proof.confirmed_at_commit) == before + 6
+    assert int(proof.confirmed_at_commit) == before + 7
     assert proof.basis.target == action.request.step_id
     assert proof.basis.credential_scope_ref == action.request.authorization_ref.credential_scope_ref
     assert (
@@ -157,11 +157,11 @@ def test_original_grant_is_saved_with_exact_confirmation_and_unused_state(resolv
         )
         == original
     )
-    assert core.unit_of_work.current_commit_sequence() == before + 6
+    assert core.unit_of_work.current_commit_sequence() == before + 7
     service.validate_new(project_id=inputs.project_id, attempt=started(action))
 
 
-@pytest.mark.parametrize("failure", range(1, 7))
+@pytest.mark.parametrize("failure", range(1, 8))
 def test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant(
     resolved, monkeypatch, failure
 ):

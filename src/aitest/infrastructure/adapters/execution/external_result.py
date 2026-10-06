@@ -12,6 +12,7 @@ from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
 )
+from aitest.domain.execution.assertions import compare_expected_fields
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,15 +61,17 @@ class ExternalResultAdapter:
         if payload.external_schema != expected_schema:
             raise ValueError("external result schema does not match")
         digest = _content_digest(payload.content)
-        fingerprint = _content_digest({
-            "schema": payload.external_schema,
-            "source_instance_id": payload.source_instance_id,
-            "source_record_id": payload.source_record_id,
-            "content": dict(payload.content),
-            "assertion_values": dict(payload.assertion_values),
-            "attachment_refs": payload.attachment_refs,
-            "expected_assertions": dict(expected_assertions),
-        })
+        fingerprint = _content_digest(
+            {
+                "schema": payload.external_schema,
+                "source_instance_id": payload.source_instance_id,
+                "source_record_id": payload.source_record_id,
+                "content": dict(payload.content),
+                "assertion_values": dict(payload.assertion_values),
+                "attachment_refs": payload.attachment_refs,
+                "expected_assertions": dict(expected_assertions),
+            }
+        )
         previous = self._seen.get(payload.import_id)
         if previous is not None and previous != fingerprint:
             raise ValueError("external import id conflicts with different content")
@@ -80,17 +83,19 @@ class ExternalResultAdapter:
             observation = VerificationObservation.NO_RESULT
             gap_ids = ("expected_assertions_missing",)
         else:
-            mismatched = sorted(
-                key
-                for key, expected in expected_assertions.items()
-                if payload.assertion_values.get(key) != expected
+            missing, mismatched = compare_expected_fields(
+                payload.assertion_values, expected_assertions
             )
             observation = (
                 VerificationObservation.MATCHED
-                if not mismatched
+                if not missing and not mismatched
                 else VerificationObservation.MISMATCHED
+                if mismatched
+                else VerificationObservation.NO_RESULT
             )
-            gap_ids = tuple(f"assertion_mismatch:{key}" for key in mismatched)
+            gap_ids = tuple(f"assertion_missing:{key}" for key in missing) + tuple(
+                f"assertion_mismatch:{key}" for key in mismatched
+            )
         import_ref = ExternalImportRef(
             import_id=payload.import_id,
             external_schema=payload.external_schema,

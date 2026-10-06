@@ -21,6 +21,7 @@ from aitest.application.evidence.publication import (
     EvidencePublicationContext,
     EvidencePublisher,
 )
+from aitest.application.execution.authorization_index import read_authorization_index
 from aitest.application.execution.current import project_current_update
 from aitest.application.execution.facts import (
     ExecutionFactsAssembler,
@@ -682,8 +683,25 @@ class ExecutionCommitCoordinator:
             claim_id = _authorization_record_id(authorization.authorization_id)
             if self._revision("execution_authorization", claim_id):
                 raise ValueError("authorization is already consumed; inspect the original attempt")
+            superseded = {item.attempt.attempt_id for item in invalidations}
+            previous_attempt_id = current.current_attempt_by_step[attempt.step_id]
+            if previous_attempt_id is not None:
+                superseded.add(previous_attempt_id)
             original_grant_proof = self._execution_authorizations.stage_occupation(
-                project_id=project_id, attempt=attempt
+                project_id=project_id,
+                attempt=attempt,
+                superseded_attempt_ids=tuple(sorted(superseded)),
+                changed_step_ids=tuple(
+                    sorted(
+                        {attempt.step_id}
+                        | {
+                            item.attempt.step_id
+                            for item in invalidations
+                            if current.current_attempt_by_step.get(item.attempt.step_id)
+                            == item.attempt.attempt_id
+                        }
+                    )
+                ),
             )
             _validate_original_grant_proof(original_grant_proof, authorization)
             self._uow.stage_record(
@@ -763,6 +781,32 @@ class ExecutionCommitCoordinator:
         except BaseException:
             self._uow.rollback()
             raise
+
+    def _stage_authorization_revocations(
+        self,
+        *,
+        before: ExecutionFacts,
+        superseded_attempt_ids: tuple[str, ...],
+        changed_step_ids: tuple[str, ...],
+    ) -> None:
+        if not superseded_attempt_ids and not changed_step_ids:
+            return
+        if self._execution_authorizations is None:
+            _revision, unused = read_authorization_index(
+                cast(RecordRepository, self._records or self._uow),
+                before.run.origin_workspace_id,
+                before.project_id,
+                before.run_id,
+            )
+            if unused:
+                raise ValueError("runtime revision needs the unused authorization consumer")
+            return
+        self._execution_authorizations.stage_revoke_affected(
+            project_id=before.project_id,
+            run_id=before.run_id,
+            superseded_attempt_ids=superseded_attempt_ids,
+            changed_step_ids=changed_step_ids,
+        )
 
     def _prepare_current_start(
         self,
@@ -1132,6 +1176,13 @@ class ExecutionCommitCoordinator:
             for item in consumers
             if before.current_attempt_by_step.get(item.attempt.step_id) == item.attempt.attempt_id
         }
+        self._stage_authorization_revocations(
+            before=before,
+            superseded_attempt_ids=tuple(sorted(affected_attempts)),
+            changed_step_ids=tuple(
+                sorted(affected_steps | {item.step_id for item in step_changes})
+            ),
+        )
         next_steps = [
             step.model_copy(
                 update={

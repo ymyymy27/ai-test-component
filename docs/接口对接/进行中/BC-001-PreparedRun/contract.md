@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.26"
+contract_version: "0.27"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.26（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
+版本：0.27（2026-10-06 补逐项授权作用域及启动协调器强制原始来源消费，实施与验证另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -818,3 +818,12 @@ PreparationRecord增加observed_environment_content_identity，与原记录单�
 ### 25.4 准确记录封套与当前指针（0.26）
 
 沿用记录仓储与不可变ExecutionFacts合同。C按准确类别/ID/仓储修订消费记录时，须核对返回封套，不用正文中的相同项目或摘要代替仓储身份；revision严格为非布尔整数。当前指针严格闭合既有七字段，previous_snapshot_commit_id只能是空值或有效且不同于自身的历史身份；指向的不可变快照仓储修订保持1，并核对准确封套/内容摘要。异常保留原材料并阻塞，不回退历史绿灯，不开放新字段或重算判定。
+
+
+### 25.5 未使用授权的当前集合与定向撤销（0.27）
+
+新增内部`aitest.action-authorization/1.1`，沿用原授权字段并增加`authorization_index_id`，绑定工作空间/项目/Run的稳定当前集合身份。集合存储于既有execution_authorization类别，schema为`aitest.unused-authorizations/1.0`，闭合字段schema_version/workspace_id/project_id/run_id/authorization_ids；ID按规范排序且不重复，只含可用的未占用授权。读取按稳定身份与准确仓储修订进行，不扫描全仓历史。首个1.1授权可从无集合创建；该增量尚未产生许可的旧Run可无集合，但不能新执行旧1.0许可。凡1.1许可引用的集合缺失或损坏均阻塞，不能当作空集合；旧1.0原授权只作准确历史读取、撤销或已占用原Attempt恢复，新执行须新意图重新解析并确认，不能从旧记录推定集合完整。
+
+确认批次新增集合记录，固定为7条（4条确认来源、原授权、unused状态、当前集合），confirmed_at_commit对应同一批次最后边界；调用方不能传入布局或授权集合。原授权@1和状态unused@1→occupied/revoked@2语义保持，原来源及历史不会覆盖。
+
+启动事务同时占用本授权、按准确旧Attempt及消费闭包撤销受影响的未用授权、更新集合，并保存启动认领、当前引用和失效下游。建立新Attempt使同Step的其他未用授权依据过期；实际消费被取代/失效Attempt的输出或条件的授权同样撤销，无关分支保留。运行修订按准确变更Step及失效Attempt定向撤销，与正文/步骤引用/当前快照同事务；缺消费端口但已有待撤销集合时阻塞。任何失败整体回滚；原意图重放不再次撤销、不新执行业务。该内部保存合同不新增公开执行动作或真实宿主验收结论。

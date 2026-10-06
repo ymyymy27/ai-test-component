@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.23"
+contract_version: "1.24"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.23
+版本：1.24
 日期：2026-10-06
 状态：草案，待B/C/D确认  
 
@@ -276,3 +276,6 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 
 
 1.23引用BC-001 0.26第25.4节的准确仓储封套/不可变快照读取；默认内部装配另公开同一ModelPolicyConfirmationProof引用供验收载体消费，仍执行AB-001现有策略来源合同，不创建自签确认或人工会话，不改变公开协议/生成Schema。
+
+
+1.24引用BC-001 0.27第25.5节：C经共享UOW维护准确Run的未用授权当前集合，7记录确认批次及启动/运行修订的原子定向撤销；原许可、占用与历史各自独立。旧原许可可读但不能推定新执行授权集合，缺记录或端口明确阻塞，不扫描历史猜集合。无新增公开动作/Schema，真实验收仍未完成。

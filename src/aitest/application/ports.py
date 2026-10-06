@@ -106,7 +106,23 @@ class ExecutionAuthorizationProof(Protocol):
 
     def validate_new(self, *, project_id: str, attempt: Attempt) -> None: ...
 
-    def stage_occupation(self, *, project_id: str, attempt: Attempt) -> Mapping[str, object]: ...
+    def stage_occupation(
+        self,
+        *,
+        project_id: str,
+        attempt: Attempt,
+        superseded_attempt_ids: tuple[str, ...] = (),
+        changed_step_ids: tuple[str, ...] = (),
+    ) -> Mapping[str, object]: ...
+
+    def stage_revoke_affected(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        superseded_attempt_ids: tuple[str, ...],
+        changed_step_ids: tuple[str, ...],
+    ) -> None: ...
 
     def validate_occupation(
         self, *, project_id: str, attempt: Attempt, proof: Mapping[str, object]

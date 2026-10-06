@@ -80,7 +80,9 @@ class SavedFixtureExecutionAuthority:
         ):
             raise ValueError("fixture original authorization is already consumed or foreign")
 
-    def stage_occupation(self, *, project_id, attempt):
+    def stage_occupation(
+        self, *, project_id, attempt, superseded_attempt_ids=(), changed_step_ids=()
+    ):
         self.validate_new(project_id=project_id, attempt=attempt)
         identity, raw = self.read(attempt)
         self.unit.stage_record(
@@ -113,6 +115,11 @@ class SavedFixtureExecutionAuthority:
             }
         ):
             raise ValueError("fixture original authorization occupation differs")
+
+    def stage_revoke_affected(
+        self, *, project_id, run_id, superseded_attempt_ids, changed_step_ids
+    ):
+        raise ValueError("fixture authority does not implement runtime authorization revocation")
 
 
 def fixture_coordinator(unit, authorized, *, steps=(), checkpoint_store=None):

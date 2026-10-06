@@ -1,0 +1,89 @@
+{
+  "source_base": "df2bec80e785d5bd2e285613f73c0835b408f99a",
+  "distinct_passed": 335,
+  "groups": [
+    {
+      "log": "unused-authorization-consumers-final.log",
+      "passed": 291,
+      "seconds": 107.16,
+      "sha256": "3a58dd71707f9c945e2f74d07ea168ee689812149ad58d0575395f3717bc9d4a"
+    },
+    {
+      "log": "unused-authorization-final-14.log",
+      "passed": 14,
+      "seconds": 7.18,
+      "sha256": "c27d8b6c9a6728ccf44b97f464631b35c9d569efb637213c0379f99786b7bd3f"
+    },
+    {
+      "log": "unused-authorization-actual-consumer-final.log",
+      "passed": 2,
+      "seconds": 402.04,
+      "sha256": "32b629a01e836398d4abb4c57abaabf0dd78f6d71f79added223afec53d200ca"
+    },
+    {
+      "log": "unused-authorization-producer-focused-final.log",
+      "passed": 3,
+      "seconds": 495.21,
+      "sha256": "7e4ca93739e6b48028526be22c7f104e9e7abd1de52bf41a8b1feb238696e9cb"
+    },
+    {
+      "log": "verification-json-final.log",
+      "passed": 25,
+      "seconds": 0.53,
+      "sha256": "92115482d7b52e2cd7c30e37c4e81120362d6f5321e09b8c4b3e437dd0a62db2"
+    }
+  ],
+  "repeated_contracts_passed": 225,
+  "count_repeated_contracts_twice": false,
+  "expanded_producer_group": {
+    "collected": 28,
+    "recorded_passes": 2,
+    "interrupted_for_focused_validation": true,
+    "counted_in_total": false
+  },
+  "source_proofs": [
+    {
+      "path": "src/aitest/application/execution/authorization.py",
+      "normalized_sha256": "2eb114e6d45205dfb67e2263e19a6edfde38d07bb68fcd94bdd33985c403a624"
+    },
+    {
+      "path": "src/aitest/application/execution/authorization_index.py",
+      "normalized_sha256": "b39346b5fbce3cfae9d7c4334c0ad16975f9e313557f33eb91e87a16a074a42d"
+    },
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "normalized_sha256": "ca9dea9a67e167f68a16dd57691cb3ee3b2444fbed4c93df1e1ee0577f3c8d3c"
+    },
+    {
+      "path": "src/aitest/application/execution/runtime_revision_service.py",
+      "normalized_sha256": "637e0e5cb8b9cb92b41dc73fa9b948654dd5a0279d589ef97f01ae3a2e19937e"
+    },
+    {
+      "path": "src/aitest/application/ports.py",
+      "normalized_sha256": "8be1a5473e5a50f7dbbeaf7b8eb7b9c6813a601a2f72cb3279c4ee63392c7a8d"
+    },
+    {
+      "path": "src/aitest/domain/execution/assertions.py",
+      "normalized_sha256": "b2fc1bc6d4a73d320e2b688eec705e44d016c90eed2dd446b472d1152c63e3f4"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/external_result.py",
+      "normalized_sha256": "26d4f5dde42f50da1db918181a968daf699f74d22f2f76b77dafc9ef1a64b739"
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/verification.py",
+      "normalized_sha256": "b8f94f3955a31d1f72d1bbd8d6783c0fc7c560b2cca2ec5ea4fe0f6e1868c326"
+    }
+  ],
+  "mypy_files": 170,
+  "full_python_rerun": false,
+  "whole_issues_closed": 0,
+  "remaining": {
+    "A": 7,
+    "B": 8,
+    "C": 7,
+    "total": 22
+  },
+  "real_ac_verified": 0,
+  "verification_scope": "file component, synthetic controlled gestures and execution; no real Trae or supplier acceptance"
+}

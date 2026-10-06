@@ -1,0 +1,48 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/unit/test_unused_authorization_invalidation.py::test_new_attempt_revokes_other_unused_authority_for_the_same_step FAILED [100%]
+
+================================== FAILURES ===================================
+______ test_new_attempt_revokes_other_unused_authority_for_the_same_step ______
+tests\unit\test_unused_authorization_invalidation.py:118: in test_new_attempt_revokes_other_unused_authority_for_the_same_step
+    assert service._state("project-1", "alternate") == (2, AuthorizationState.REVOKED, None)
+E   AssertionError: assert (1, <AuthorizationState.UNUSED: 'unused'>, None) == (2, <AuthorizationState.REVOKED: 'revoked'>, None)
+E     
+E     At index 0 diff: 1 != 2
+E     
+E     Full diff:
+E       (
+E     -     2,
+E     ?     ^
+E     +     1,
+E     ?     ^
+E     -     <AuthorizationState.REVOKED: 'revoked'>,
+E     ?                         ^^^^^     ^^^^^
+E     +     <AuthorizationState.UNUSED: 'unused'>,
+E     ?                         ^^^^     ^^^^
+E           None,
+E       )
+=========================== short test summary info ===========================
+FAILED tests/unit/test_unused_authorization_invalidation.py::test_new_attempt_revokes_other_unused_authority_for_the_same_step - AssertionError: assert (1, <AuthorizationState.UNUSED: 'unused'>, None) == (2, <AuthorizationState.REVOKED: 'revoked'>, None)
+  
+  At index 0 diff: 1 != 2
+  
+  Full diff:
+    (
+  -     2,
+  ?     ^
+  +     1,
+  ?     ^
+  -     <AuthorizationState.REVOKED: 'revoked'>,
+  ?                         ^^^^^     ^^^^^
+  +     <AuthorizationState.UNUSED: 'unused'>,
+  ?                         ^^^^     ^^^^
+        None,
+    )
+============================== 1 failed in 2.36s ==============================
+Expected baseline failure reproduced: other saved same-step authority remained unused.

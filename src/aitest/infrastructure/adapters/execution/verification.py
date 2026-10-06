@@ -22,6 +22,7 @@ from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
 )
+from aitest.domain.execution.assertions import compare_expected_fields
 
 _HASH_BLOCK = 64 * 1024
 
@@ -121,22 +122,33 @@ class BusinessVerificationAdapter:
                 VerificationObservation.NO_RESULT,
                 gap_ids=("business_object_not_found",),
             )
-        mismatched = tuple(
-            sorted(
-                key
-                for key, expected_value in expected.items()
-                if observed.get(key) != expected_value
+        try:
+            if not isinstance(observed, Mapping) or any(
+                not isinstance(key, str) for key in observed
+            ):
+                raise ValueError("business observation requires JSON fields")
+            # Freeze the same exact JSON material for comparison and its evidence digest.
+            observed = json.loads(json.dumps(dict(observed), allow_nan=False))
+            actual_ref = _mapping_digest(observed)
+        except (TypeError, ValueError):
+            return self._fact(
+                request,
+                VerificationObservation.QUERY_ERROR,
+                gap_ids=("independent_query_material_invalid",),
             )
-        )
+        missing, mismatched = compare_expected_fields(observed, expected)
         return self._fact(
             request,
             (
                 VerificationObservation.MISMATCHED
                 if mismatched
+                else VerificationObservation.NO_RESULT
+                if missing
                 else VerificationObservation.MATCHED
             ),
-            actual_result_ref=_mapping_digest(observed),
-            gap_ids=tuple(f"business_fact_mismatch:{key}" for key in mismatched),
+            actual_result_ref=actual_ref,
+            gap_ids=tuple(f"business_fact_missing:{key}" for key in missing)
+            + tuple(f"business_fact_mismatch:{key}" for key in mismatched),
         )
 
     @staticmethod
@@ -165,7 +177,7 @@ class BusinessVerificationAdapter:
 
 
 def _mapping_digest(value: Mapping[str, object]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    encoded = json.dumps(dict(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
     return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
