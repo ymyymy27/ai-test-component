@@ -1,0 +1,90 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 29 items
+
+tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state PASSED [  3%]
+tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[1] PASSED [  6%]
+tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[2] PASSED [ 10%]
+tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[3] PASSED [ 13%]
+tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[4] PASSED [ 17%]
+tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[5] PASSED [ 20%]
+tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[6] PASSED [ 24%]
+tests/unit/test_execution_authorization_origin.py::test_exact_occupation_is_atomic_and_history_does_not_probe_changed_source PASSED [ 27%]
+tests/unit/test_execution_authorization_origin.py::test_revocation_keeps_original_grant_and_conflicts_on_changed_intent_input PASSED [ 31%]
+tests/unit/test_execution_authorization_origin.py::test_caller_ref_alone_and_forged_start_fingerprint_have_no_original_authority PASSED [ 34%]
+tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change0] PASSED [ 37%]
+tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change1] PASSED [ 41%]
+tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change2] PASSED [ 44%]
+tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change3] PASSED [ 48%]
+tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change4] PASSED [ 51%]
+tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change5] PASSED [ 55%]
+tests/unit/test_run_record_scopes.py::test_saved_scope_order_is_canonical_and_legacy_order_remains_readable PASSED [ 58%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value0-required_scope] PASSED [ 62%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value0-selected_scope] PASSED [ 65%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value1-required_scope] PASSED [ 68%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value1-selected_scope] PASSED [ 72%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value2-required_scope] PASSED [ 75%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value2-selected_scope] PASSED [ 79%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[None-required_scope] PASSED [ 82%]
+tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[None-selected_scope] PASSED [ 86%]
+tests/unit/test_run_record_scopes.py::test_unknown_fields_do_not_gain_authority_via_dataclass_deserialization PASSED [ 89%]
+.git/p1-abc-fix-20261003/probe_authorization_edges.py::test_detached_confirmation_does_not_allow_a_later_partial_grant PASSED [ 93%]
+.git/p1-abc-fix-20261003/probe_authorization_edges.py::test_boolean_revision_cannot_stand_for_the_original_grant_revision PASSED [ 96%]
+.git/p1-abc-fix-20261003/probe_authorization_edges.py::test_registered_progress_can_resolve_an_independent_next_step PASSED [100%]
+
+=================================== PASSES ====================================
+============================ slowest 20 durations =============================
+229.90s setup    tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[2]
+146.75s setup    tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state
+139.05s setup    tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[6]
+127.32s setup    tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[3]
+122.08s setup    tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[5]
+117.93s call     tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[1]
+114.90s call     tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[2]
+113.94s call     tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[5]
+110.27s setup    tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[1]
+104.72s call     tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[4]
+95.06s setup    tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[4]
+87.20s setup    tests/unit/test_execution_authorization_origin.py::test_exact_occupation_is_atomic_and_history_does_not_probe_changed_source
+85.00s call     tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[3]
+83.72s setup    tests/unit/test_execution_authorization_origin.py::test_caller_ref_alone_and_forged_start_fingerprint_have_no_original_authority
+83.06s setup    .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_registered_progress_can_resolve_an_independent_next_step
+81.16s setup    tests/unit/test_execution_authorization_origin.py::test_revocation_keeps_original_grant_and_conflicts_on_changed_intent_input
+81.03s setup    .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_detached_confirmation_does_not_allow_a_later_partial_grant
+80.44s setup    .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_boolean_revision_cannot_stand_for_the_original_grant_revision
+79.16s call     tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state
+76.06s call     tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[6]
+=========================== short test summary info ===========================
+PASSED tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state
+PASSED tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[1]
+PASSED tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[2]
+PASSED tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[3]
+PASSED tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[4]
+PASSED tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[5]
+PASSED tests/unit/test_execution_authorization_origin.py::test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant[6]
+PASSED tests/unit/test_execution_authorization_origin.py::test_exact_occupation_is_atomic_and_history_does_not_probe_changed_source
+PASSED tests/unit/test_execution_authorization_origin.py::test_revocation_keeps_original_grant_and_conflicts_on_changed_intent_input
+PASSED tests/unit/test_execution_authorization_origin.py::test_caller_ref_alone_and_forged_start_fingerprint_have_no_original_authority
+PASSED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change0]
+PASSED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change1]
+PASSED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change2]
+PASSED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change3]
+PASSED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change4]
+PASSED tests/unit/test_execution_authorization_origin.py::test_occupation_proof_requires_exact_integer_revisions_and_closed_fields[change5]
+PASSED tests/unit/test_run_record_scopes.py::test_saved_scope_order_is_canonical_and_legacy_order_remains_readable
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value0-required_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value0-selected_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value1-required_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value1-selected_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value2-required_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[value2-selected_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[None-required_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_duplicate_or_malformed_saved_scope_cannot_be_normalized_away[None-selected_scope]
+PASSED tests/unit/test_run_record_scopes.py::test_unknown_fields_do_not_gain_authority_via_dataclass_deserialization
+PASSED .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_detached_confirmation_does_not_allow_a_later_partial_grant
+PASSED .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_boolean_revision_cannot_stand_for_the_original_grant_revision
+PASSED .git/p1-abc-fix-20261003/probe_authorization_edges.py::test_registered_progress_can_resolve_an_independent_next_step
+======================= 29 passed in 2467.11s (0:41:07) =======================

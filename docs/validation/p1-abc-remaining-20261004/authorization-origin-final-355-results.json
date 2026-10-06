@@ -1,0 +1,49 @@
+{
+  "phase": "authorization_foundation_final",
+  "tested_product_commit": "21e8e46231973f1261fb0d10959e8c1530238263",
+  "completed_groups": [
+    {
+      "log": "authorization-origin-final-29.log",
+      "nodes": 29,
+      "summary": "29 passed in 2467.11s"
+    },
+    {
+      "log": "authorization-origin-final-registration-risk.log",
+      "nodes": 103,
+      "summary": "103 passed in 1568.92s"
+    },
+    {
+      "log": "authorization-origin-current-contracts.log",
+      "nodes": 223,
+      "summary": "223 passed in 17.88s"
+    }
+  ],
+  "distinct_completed_nodes": 355,
+  "duplicate_gate_nodes_not_added": 16,
+  "original_three_edge_probes": "passed_in_the_29_group",
+  "new_independent_pregranted_probe": "failed_separate_phase_not_closed",
+  "legacy_runner_original_authority_consumption": "not_implemented",
+  "real_ac_verified": 0,
+  "progress": {
+    "issues_closed": 0,
+    "remaining_A": 7,
+    "remaining_B": 8,
+    "remaining_C": 7,
+    "remaining_total": 22
+  },
+  "log_files": [
+    "authorization-origin-final-29.log",
+    "authorization-origin-final-registration-risk.log",
+    "authorization-origin-current-contracts.log",
+    "authorization-origin-current-scopes.log",
+    "authorization-origin-current-scopes-mypy.log",
+    "authorization-origin-current-ruff.log",
+    "authorization-origin-current-schemas.log",
+    "authorization-origin-current-version.log",
+    "authorization-origin-current-build.log",
+    "authorization-origin-current-package.log",
+    "authorization-origin-current-links.log",
+    "authorization-origin-final-29-collection.log",
+    "authorization-origin-registration-risk-collection.log"
+  ]
+}
