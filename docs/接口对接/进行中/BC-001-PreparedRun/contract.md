@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.36"
+contract_version: "0.37"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.36（2026-10-07 补活动命令的已保存输出前缀；实施与验证另行登记）
+版本：0.37（2026-10-07 补失效尝试后续观察；实施与验证另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -903,3 +903,7 @@ partial/gap/unknown的游标同样必须绑定准确Attempt/流和已可靠保�
 实际进程仍运行时，collect须从一次准确spool清单返回已保存块与其可靠游标，保持complete=false且无退出事实；有已保存前缀标partial，原采集错误继续gap。不能只返回位置却省略对应材料，不能回显调用方游标作为新观察，也不能把已保存前缀冒充完整输出。原Attempt可经同一原意图续采、暂停/取消，字节和控制事实按原流程保存；无spool的内存活动输出尚无永久位置，不能附加为durable进度。
 
 Runner在inspect=running时同样collect并按25.13校验/保存实际前缀，不能等进程退出才推进权威检查点；有界切片与原句柄观察共用该路径。只有实际材料变更才追加进度，非法观察保存待核实/缺口并立即返回，不得在轮询额度耗尽时改回running。此推进保持暂停/取消控制及历史失效，不新启动、不产生退出或有效执行。
+
+### 25.15 已失效尝试的后续观察（0.37）
+
+原Attempt失效不能由自然退出、确认停止或采集错误解除；实际退出/输出/错误可以按准确原身份补存，但state仍为invalidated，不恢复E/R/V或当前复用资格。采集状态映射的所有入口共用此规则；保存层仍拒绝普通更新恢复旧依据，不能用放宽保存守卫解决状态映射冲突。

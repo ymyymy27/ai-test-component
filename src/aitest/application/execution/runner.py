@@ -560,8 +560,6 @@ class SerialRunner:
                 capture_completeness=CaptureCompleteness.GAP,
                 unknown_reason_ref=error.reason,
             )
-        if saved.state is AttemptState.INVALIDATED:
-            updated = replace(updated, state=AttemptState.INVALIDATED)
         if updated != saved:
             self._persist_checkpoint(updated, stage=updated.state.value, project_id=project_id)
         return updated
@@ -863,6 +861,8 @@ class SerialRunner:
         inspection: ExecutionInspectionResult,
         collection: ExecutionCollectionResult,
     ) -> AttemptState:
+        if attempt.state is AttemptState.INVALIDATED:
+            return AttemptState.INVALIDATED
         if collection.error_ref is not None:
             return AttemptState.EXECUTION_ERROR
         if inspection.state in {
