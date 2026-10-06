@@ -415,6 +415,12 @@ class RevisionRecordReader(Protocol):
     ) -> CommittedRecord: ...
 
 
+class EvidenceReferenceValidator(Protocol):
+    """Reference availability only; it cannot establish a business observation."""
+
+    def exists(self, evidence_ref: str) -> bool: ...
+
+
 class EvidenceObjectStore(Protocol):
     """Project-owned immutable bytes, reference and digest validation."""
 

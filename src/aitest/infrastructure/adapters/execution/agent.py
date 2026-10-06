@@ -1,11 +1,11 @@
-"""Agent tool-call capture and evidence-backed evaluation adapter."""
+"""Agent reference capture; model claims require independent business verification."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
 
+from aitest.application.ports import EvidenceReferenceValidator as EvidenceReferenceValidator
 from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
@@ -25,8 +25,11 @@ class AgentToolCall:
 
     def __post_init__(self) -> None:
         for name in ("call_id", "tool_name", "arguments_digest", "result_digest"):
-            if not getattr(self, name).strip():
+            if not isinstance(getattr(self, name), str) or not getattr(self, name).strip():
                 raise ValueError(f"{name} must not be empty")
+        if type(self.success) is not bool:
+            raise ValueError("tool success metadata must be a boolean")
+        _require_references(self.evidence_refs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,17 +44,26 @@ class AgentEvaluation:
     created_at: datetime | None = None
 
     def __post_init__(self) -> None:
-        for name in ("verification_id", "verification_of", "business_object_id"):
-            if not getattr(self, name).strip():
+        for name in ("verification_id", "verification_of", "business_object_id", "query_method"):
+            if not isinstance(getattr(self, name), str) or not getattr(self, name).strip():
                 raise ValueError(f"{name} must not be empty")
+        if not isinstance(self.observation, VerificationObservation):
+            raise ValueError("agent observation claim is unknown")
+        _require_references(self.tool_call_ids)
+        _require_references(self.evidence_refs)
+        if len(set(self.tool_call_ids)) != len(self.tool_call_ids):
+            raise ValueError("agent tool call identities must be unique")
 
 
-class EvidenceReferenceValidator(Protocol):
-    def exists(self, evidence_ref: str) -> bool: ...
+def _require_references(values: tuple[str, ...]) -> None:
+    if not isinstance(values, tuple) or any(
+        not isinstance(value, str) or not value.strip() for value in values
+    ):
+        raise ValueError("agent references require an immutable nonempty-string tuple")
 
 
 class AgentAdapter:
-    """Persist actual calls and reject text-only self-report as evidence."""
+    """Capture claim references; independent business verification is a separate fact."""
 
     def __init__(
         self,
@@ -69,11 +81,7 @@ class AgentAdapter:
     def evaluate(self, evaluation: AgentEvaluation) -> Verification:
         if not evaluation.tool_call_ids and not evaluation.evidence_refs:
             raise ValueError("agent text self-report requires an actual tool call or evidence")
-        missing = [
-            call_id
-            for call_id in evaluation.tool_call_ids
-            if call_id not in self._calls
-        ]
+        missing = [call_id for call_id in evaluation.tool_call_ids if call_id not in self._calls]
         if missing:
             raise ValueError(f"unknown agent tool calls: {missing}")
         call_evidence = tuple(
@@ -89,9 +97,11 @@ class AgentAdapter:
             verification_of=evaluation.verification_of,
             business_object_id=evaluation.business_object_id,
             query_method=evaluation.query_method,
-            observation=evaluation.observation,
+            # Available material and a captured tool call cannot prove a model's verdict.
+            observation=VerificationObservation.NO_RESULT,
             evidence_refs=evidence_refs,
-            gap_ids=() if evidence_refs else ("agent_evidence_missing",),
+            gap_ids=("agent_independent_verification_missing",)
+            + (() if evidence_refs else ("agent_evidence_missing",)),
             created_at=evaluation.created_at,
         )
 
@@ -103,7 +113,7 @@ class AgentAdapter:
         missing = [
             evidence_ref
             for evidence_ref in evidence_refs
-            if not self._evidence_validator.exists(evidence_ref)
+            if self._evidence_validator.exists(evidence_ref) is not True
         ]
         if missing:
             raise ValueError(f"unknown agent evidence refs: {missing}")
