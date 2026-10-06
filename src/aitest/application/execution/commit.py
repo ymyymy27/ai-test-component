@@ -86,6 +86,8 @@ from aitest.domain.execution.runs import (
     StepState,
     attempt_start_basis,
     authorization_action_basis,
+    has_complete_capture,
+    has_reliable_terminal_fact,
     has_verified_exit,
 )
 from aitest.domain.planning.plans import Plan
@@ -159,12 +161,14 @@ class ExecutionCommitCoordinator:
         approvals: BasisConfirmationProof | None = None,
         controlled_writes: ControlledWriteProof | None = None,
         execution_authorizations: ExecutionAuthorizationProof | None = None,
+        serial_execution: bool = False,
     ) -> None:
         self._uow = unit_of_work
         self._checkpoint_store = checkpoint_store
         self._records = records
         self._approvals, self._controlled_writes = approvals, controlled_writes
         self._execution_authorizations = execution_authorizations
+        self._serial_execution = serial_execution
 
     def _revision(self, kind: str, record_id: str, expected: int | None = None) -> int | None:
         reader = self._records or self._uow
@@ -837,6 +841,8 @@ class ExecutionCommitCoordinator:
             saved = _CHECKPOINT_ADAPTER.validate_python(payload).attempt
             _validate_attempt_projection(saved, fact)
             domain.append(saved)
+        if self._serial_execution:
+            self._require_serial_start(current, attempt, tuple(domain))
         previous_id = current.current_attempt_by_step[attempt.step_id]
         old = next((item for item in domain if item.attempt_id == previous_id), None)
         expected_index = old.attempt_index + 1 if old is not None else 1
@@ -891,6 +897,45 @@ class ExecutionCommitCoordinator:
                 "affected handle termination is uncertain; stop and verify before replacement"
             )
         return current, invalidations
+
+    @staticmethod
+    def _require_serial_start(
+        current: ExecutionFacts, attempt: Attempt, saved: tuple[Attempt, ...]
+    ) -> None:
+        """Called under the start transaction after exact checkpoint projection checks."""
+        terminal = {
+            AttemptState.COMPLETED,
+            AttemptState.CANCELLED,
+            AttemptState.EXECUTION_ERROR,
+            AttemptState.INVALIDATED,
+        }
+        for old in saved:
+            if (
+                old.state not in terminal
+                and not (old.state is AttemptState.PENDING_VERIFICATION and has_verified_exit(old))
+            ) or (old.execution_handle_ref is not None and not has_verified_exit(old)):
+                raise ValueError("serial execution has an active or unverified prior attempt")
+        step = next(item for item in current.steps if item.step_id == attempt.step_id)
+        by_step = {item.step_id: item for item in current.steps}
+        by_attempt = {item.attempt_id: item for item in saved}
+        for identity in step.dependency_step_ids:
+            upstream = by_step.get(identity)
+            basis = (
+                by_attempt.get(upstream.current_attempt_id)
+                if upstream is not None and upstream.current_attempt_id is not None
+                else None
+            )
+            if (
+                upstream is None
+                or upstream.state is not StepStateFact.COMPLETED
+                or basis is None
+                or basis.state is not AttemptState.COMPLETED
+                or not has_reliable_terminal_fact(basis)
+                or not has_complete_capture(basis)
+            ):
+                raise ValueError(
+                    "serial execution requires completed, captured current dependencies"
+                )
 
     def stage(
         self,

@@ -37,6 +37,7 @@ from aitest.application.execution.authorization import (
 from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.registration import InitialRunRegistration
+from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.model_policy_confirmation import (
@@ -48,7 +49,12 @@ from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
 )
-from aitest.application.ports import EnvironmentResolver, ExecutionActionResolver, RecordRepository
+from aitest.application.ports import (
+    EnvironmentResolver,
+    ExecutionActionResolver,
+    ExecutionPort,
+    RecordRepository,
+)
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.usecase_registry import BUseCaseDependencies
@@ -92,6 +98,7 @@ from aitest.infrastructure.file_store.recovery import (
     RecoveryState,
     seal_inflight_outputs,
 )
+from aitest.infrastructure.file_store.spool import FileSpoolStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.infrastructure.projections import SafeMaterialProjector
@@ -264,6 +271,7 @@ class CoreAssembly:
     environment_resolution: EnvironmentResolutionService | None = None
     execution_authorizations: ExecutionAuthorizationService | None = None
     execution_coordinator: ExecutionCommitCoordinator | None = None
+    step_execution: SavedStepExecution | None = None
     model_policy_proof: ModelPolicyConfirmationService | None = None
 
 
@@ -280,6 +288,7 @@ def assemble_workspace_core(
     extra_action_dependencies: Mapping[str, tuple[str, ...]] | None = None,
     environment_resolver: EnvironmentResolver | None = None,
     execution_action_resolver: ExecutionActionResolver | None = None,
+    execution_port: ExecutionPort | None = None,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -540,12 +549,19 @@ def assemble_workspace_core(
             approvals=approvals,
             controlled_writes=controlled_writes,
             execution_authorizations=execution_authorizations,
+            serial_execution=True,
         )
-        execution_commands = ExecutionCommands(execution_authorizations, initial_run_registration)
+        step_execution = SavedStepExecution(
+            execution_authorizations, execution_coordinator, FileSpoolStore(root), execution_port
+        )
+        execution_commands = ExecutionCommands(
+            execution_authorizations, initial_run_registration, step_execution
+        )
         handlers.update(
             register_run=execution_commands.register,
             prepare_execution=execution_commands.prepare,
             authorize_step=execution_commands.grant,
+            execute_step=execution_commands.execute,
         )
 
         def prepare_approval(command: Command) -> Mapping[str, object]:
@@ -661,6 +677,7 @@ def assemble_workspace_core(
         environment_resolution=environment_resolution,
         execution_authorizations=execution_authorizations,
         execution_coordinator=execution_coordinator,
+        step_execution=step_execution,
         model_policy_proof=policy_confirmations,
     )
 

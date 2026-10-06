@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.28"
+contract_version: "0.29"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.28（2026-10-07 补默认执行准备与授权入口；实施与验证另行登记）
+版本：0.29（2026-10-07 补默认单步执行与原意图续采；实施与验证另行登记）
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -843,3 +843,13 @@ PreparationRecord增加observed_environment_content_identity，与原记录单�
 `register_run`和`prepare_execution`允许relay登记未执行运行及准备待确认依据；`authorize_step`仍属于HUMAN_ACTIONS，relay及非交互入口不能授权。prepare_approval沿现有合同冻结该动作的两字段引用，实际事件沿核心入口上下文提供。未知字段、目标或CAS形状错误返回INVALID_REQUEST；无法核对登记材料返回RUN_REGISTRATION_BLOCKED；缺可信执行解析器返回CAPABILITY_UNAVAILABLE；过期来源/无实际确认按现有AWAITING_USER_CONFIRMATION，执行动作/授权意图异材料按INTENT_CONFLICT。失败不得保存许可或消费挑战。
 
 同一业务意图的不同传输请求及换核心返回原准确记录；回读不重复解析、确认或执行，不当作新的启动许可。缺新启动配置仍可读原结果。默认装配禁止extra_handlers覆盖这三个核心动作；CLI、MCP与宿主调用同一API，真实宿主事件、默认start/control/业务核验与AC仍须单独验收。本增量不修改公开DTO字段或手工生成Schema。
+
+### 25.7 默认有界单步执行（0.29）
+
+新增execute_step，沿25.6非空项目/意图、target=准确Step、expected_revision=0和两字段execution_action_id/record_revision=1引用；intent必须是该冻结动作原执行意图。只消费准确原未用许可，不接客户端命令/许可/Attempt正文。原占用、意图、当前Attempt替换、依赖失效及首检查点可靠同提交后，才在事务外调用可信装配ExecutionPort。返回准确原Attempt投影与当前ExecutionFacts，二者分别标明原Attempt是否仍当前；采集推进可以更新原Attempt，不能生成第二次执行。
+
+默认协调器按Run实行串行准入，锁内核对全部已保存Attempt和实际终止事实；其他活动或未知副作用阻止新动作，准确当前依赖步骤须完成且上游检查点具有完整采集/可靠退出。不能只在入口预览检查，不能用已结束状态标签代替实际退出。原意图inspect/collect不受新启动状态或当前环境配置阻塞，暂停/取消不放行新执行。
+
+每次默认推进最多100次inspect，额度耗尽保留原活动句柄/检查点；命令适配器实际超时仍独立生效。未知启动、失联、停止未确认保持待核实，不自动重放。缺可信ExecutionPort时新执行和活动续采明确CAPABILITY_UNAVAILABLE；准确可靠终态原结果仍可读，不依赖新启动配置。配置只能来自可信装配，不由Command登记执行器。
+
+动作通过doctor协商，允许relay调用已有核心许可；它是单步推进，不冒充完整start_run调度、独立核验、整用例复用或真实AC。CLI/宿主实际通道、默认整Run控制、实际业务加载与真实验收继续实施；Schema字段不变。

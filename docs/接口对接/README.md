@@ -1,6 +1,6 @@
 # 跨包接口对接规则与总台账
 
-版本：2.19
+版本：2.20
 
 更新日期：2026-10-07
 
@@ -190,9 +190,9 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing`，1.25 | A `partial`；B/C/D `partial` | 初始登记/续行、权威修订评估及受控变更/范围发布守卫有组件证据；未登记统一产品对拍 | A/B/C接持久修订/权威授权/环境/实际执行与控制；B/C/D确认完整消费语义 |
+| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共事务、存储与查询接口 | A → B/C/D | `reviewing`，1.26 | A `partial`；B/C/D `partial` | 初始登记/续行、权威修订评估及受控变更/范围发布守卫有组件证据；未登记统一产品对拍 | A/B/C接持久修订/权威授权/环境/实际执行与控制；B/C/D确认完整消费语义 |
 | [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存语义 | A ↔ B | `reviewing`，1.26 | A `partial`；B `partial`（默认22动作；实际来源、准备/确认、模型/安全端口已注入） | 完整清单v2/0007迁移、对象/固定源码及准备/运行消费引用、业务稀疏索引、实际实例/epoch与有界启动有组件验证；新增模型准确依据、迟到响应及安全旁录414项专项通过，完整验证另记；见[本轮证据](../ABC剩余问题修复证据-2026-10-04.md)。双方产品对拍及真实AC未通过 | 补登记与响应索引备份有受控证据；继续完整实际依赖、可信人工会话、未使用授权/整用例复用、初始运行与C/D默认入口及真实验收；不能据组件通过移入已完成 |
-| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | reviewing，0.28 | B partial；C partial | 内部持久序列/步骤内容、锁内重评估、准确前后快照与保存消费闭包已实现；历史分支/脱敏详情反例修复，真实AC未改变 | 接默认可信人工、runner实际边界/来源与授权、布局/入口重登记、D双序列及真实半程验收；旧签署历史保留 |
+| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | reviewing，0.29 | B partial；C partial | 内部持久序列/步骤内容、锁内重评估、准确前后快照与保存消费闭包已实现；历史分支/脱敏详情反例修复，真实AC未改变 | 接默认可信人工、runner实际边界/来源与授权、布局/入口重登记、D双序列及真实半程验收；旧签署历史保留 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing` | A `partial`；C `partial` | 未完成双方真实适配对拍 | C 回复 5 项确认问题 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复第 5 节展示与查询五项问题，以及**第 8 节**（2026-10-03 新增）动作与状态的三项变化与排期：发布第二次起必须声明 `expected_revision`（不符报 `B_REVISION_CONFLICT`）、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作（动作表 17 → 19） |
 | [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `agreed` | C `done`；D `partial` | `fixture_passed` | D 完成 ExecutionFacts→DecisionFacts 适配、Run 级证据等级派生和夹具对拍；见 [`review-D.md`](进行中/CD-001-ExecutionFacts/review-D.md) |
@@ -299,3 +299,7 @@ DEC-004／005／006 三项已裁定，结论已回写本节与各合同，实现
 2026-10-07：BC-001 0.28第25.6节与CORE-001 1.25冻结默认register_run/prepare_execution/authorize_step入口；准确Step目标、不可变创建CAS、原挑战回读及错误边界，实施/验证另记，默认start与真实AC仍未完成。
 
 上述三个默认动作已实施，54项组件/合同检查通过，精简源码与验证见[修改日志](../修改日志/袁/2026-10-07-默认运行登记与执行授权入口.md)。合同仍reviewing/partial/not_run，真实验收不变。
+
+2026-10-07：BC-001 0.29/CORE-001 1.26新增有界execute_step，默认原许可消费、锁内串行/依赖准入及历史终态回读；实施和组件证据另记，真实AC不改变。
+
+默认单步执行已实施，81项受影响检查通过；[精简源码/验证](../修改日志/袁/2026-10-07-默认单步执行与串行原子准入.md)。合同保持reviewing/partial/not_run，整项和真实AC不变。

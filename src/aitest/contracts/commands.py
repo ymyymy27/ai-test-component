@@ -45,6 +45,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "prepare_run",
         "register_run",
         "prepare_execution",
+        "execute_step",
         "start_run",
         "revise_pending_steps",
         "narrow_driver",

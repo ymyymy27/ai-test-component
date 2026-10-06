@@ -4,6 +4,7 @@ from collections.abc import Mapping
 
 from aitest.application.execution.authorization import ExecutionAuthorizationService
 from aitest.application.execution.registration import InitialRunRegistration
+from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.contracts.commands import Command
 
 
@@ -20,9 +21,11 @@ class ExecutionCommands:
         self,
         service: ExecutionAuthorizationService,
         registration: InitialRunRegistration | None = None,
+        execution: SavedStepExecution | None = None,
     ) -> None:
         self.service = service
         self.registration = registration
+        self.execution = execution
 
     @staticmethod
     def _identity(command: Command) -> tuple[str, str]:
@@ -114,4 +117,25 @@ class ExecutionCommands:
             request_id=command.request_id,
             parameters={"execution_action_id": identity, "record_revision": 1},
             challenge_id=challenge,
+        )
+
+    def execute(self, command: Command) -> Mapping[str, object]:
+        project, intent = self._identity(command)
+        values = command.parameters
+        identity = values.get("execution_action_id")
+        if (
+            set(values) != {"execution_action_id", "record_revision"}
+            or not isinstance(identity, str)
+            or not identity.strip()
+            or type(values.get("record_revision")) is not int
+            or values["record_revision"] != 1
+        ):
+            raise InvalidExecutionCommand("execution requires only an exact saved action reference")
+        if self.execution is None:
+            from aitest.application.errors import CapabilityUnavailable
+
+            raise CapabilityUnavailable("saved step execution is not configured")
+        assert command.target is not None
+        return self.execution.execute(
+            project_id=project, intent_id=intent, action_id=identity, step_id=command.target
         )
