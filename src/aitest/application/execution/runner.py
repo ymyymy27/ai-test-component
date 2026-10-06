@@ -203,10 +203,18 @@ class SerialRunner:
         # Resume the already published current attempt before admitting another
         # serial action. A running Step is not a reason to ignore its checkpoint.
         for step in steps:
-            if step.state is StepState.RUNNING or (
-                step.state is StepState.PENDING_VERIFICATION and step.current_attempt_id is not None
+            item = items_by_step[step.step_id]
+            if (
+                step.state is StepState.RUNNING
+                or (
+                    step.state is StepState.PENDING_VERIFICATION
+                    and step.current_attempt_id is not None
+                )
+                or (
+                    item.attempt.execution_handle_ref is not None
+                    and not has_verified_exit(item.attempt)
+                )
             ):
-                item = items_by_step[step.step_id]
                 if step.current_attempt_id != item.attempt.attempt_id:
                     raise ValueError("active serial step does not name its current attempt")
                 prepared = self._prepare_attempt(item.attempt, item.request)
@@ -247,7 +255,9 @@ class SerialRunner:
     @staticmethod
     def _blocks_serial_progress(attempt: Attempt) -> bool:
         return (
-            attempt.state
+            attempt.execution_handle_ref is not None
+            and not has_verified_exit(attempt)
+            or attempt.state
             in {
                 AttemptState.INTENT_RECORDED,
                 AttemptState.STARTING,
@@ -271,11 +281,7 @@ class SerialRunner:
             raise ValueError("max_polls must be positive")
         prepared = self._prepare_attempt(attempt, request)
         current = self.start_attempt(prepared, request)
-        if current.execution_handle_ref is None or current.state in {
-            AttemptState.COMPLETED,
-            AttemptState.CANCELLED,
-            AttemptState.EXECUTION_ERROR,
-        }:
+        if current.execution_handle_ref is None or has_reliable_terminal_fact(current):
             return current
         polls = 0
         while max_polls is None or polls < max_polls:
@@ -285,12 +291,7 @@ class SerialRunner:
                 collection = self.collect_attempt(current, current.output_cursors or None)
                 completed = self._apply_collection(current, inspection, collection)
             except _ExecutionObservationMismatch as error:
-                completed = replace(
-                    current,
-                    state=AttemptState.PENDING_VERIFICATION,
-                    capture_completeness=CaptureCompleteness.GAP,
-                    unknown_reason_ref=error.reason,
-                )
+                completed = self._observation_gap(current, error.reason)
             if completed != current or inspection.state is not ExecutionInspectionState.RUNNING:
                 self._persist_checkpoint(
                     completed,
@@ -554,15 +555,21 @@ class SerialRunner:
             collection = self.collect_attempt(saved, saved.output_cursors or None)
             updated = self._apply_collection(saved, inspection, collection)
         except _ExecutionObservationMismatch as error:
-            updated = replace(
-                saved,
-                state=AttemptState.PENDING_VERIFICATION,
-                capture_completeness=CaptureCompleteness.GAP,
-                unknown_reason_ref=error.reason,
-            )
+            updated = self._observation_gap(saved, error.reason)
         if updated != saved:
             self._persist_checkpoint(updated, stage=updated.state.value, project_id=project_id)
         return updated
+
+    @staticmethod
+    def _observation_gap(attempt: Attempt, reason: str) -> Attempt:
+        return replace(
+            attempt,
+            state=AttemptState.INVALIDATED
+            if attempt.state is AttemptState.INVALIDATED
+            else AttemptState.PENDING_VERIFICATION,
+            capture_completeness=CaptureCompleteness.GAP,
+            unknown_reason_ref=reason,
+        )
 
     def recover_pending(self) -> tuple[RecoveryResult, ...]:
         if self._checkpoint_store is None or self._spool_store is None:
@@ -893,6 +900,12 @@ class SerialRunner:
             ):
                 return AttemptState.PENDING_VERIFICATION
             return AttemptState.COMPLETED
+        if attempt.state in {
+            AttemptState.COMPLETED,
+            AttemptState.CANCELLED,
+            AttemptState.EXECUTION_ERROR,
+        } and not has_reliable_terminal_fact(attempt):
+            return AttemptState.PENDING_VERIFICATION
         return attempt.state
 
     @staticmethod

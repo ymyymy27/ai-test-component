@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.34"
+contract_version: "1.35"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -20,7 +20,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.34
+版本：1.35
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 
@@ -299,3 +299,5 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 1.33引用BC-001 0.36第25.14节：活动命令返回同一spool清单的已保存前缀和可靠位置，仍不产生退出/完整采集。协议正文、前置元数据与总台账版本同步；真实整Run/宿主/掉电仍未验收。
 
 1.34引用BC-001 0.37第25.15节：后续采集补存实际事实但保留Attempt失效；保存层仍拒绝恢复旧依据。
+
+1.35引用BC-001 0.38第25.16节：无可靠退出的终态标签继续准确观察；有未核实终止句柄的串行切片阻止新动作，原可靠终态回读不要求适配器。

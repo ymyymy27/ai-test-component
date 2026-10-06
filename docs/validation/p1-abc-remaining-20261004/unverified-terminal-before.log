@@ -1,0 +1,22 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_saved_terminal_label_without_exit_still_observes_original_process[completed] _
+.git\p1-abc-fix-20261003\unverified_terminal_counter.py:26: in test_saved_terminal_label_without_exit_still_observes_original_process
+    assert result.exit_fact_ref is not None and result.exit_fact_ref.real_exit_code == 0
+E   AssertionError: assert (None is not None)
+E    +  where None = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...=<CaptureCompleteness.GAP: 'gap'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).exit_fact_ref
+_ test_saved_terminal_label_without_exit_still_observes_original_process[cancelled] _
+.git\p1-abc-fix-20261003\unverified_terminal_counter.py:26: in test_saved_terminal_label_without_exit_still_observes_original_process
+    assert result.exit_fact_ref is not None and result.exit_fact_ref.real_exit_code == 0
+E   AssertionError: assert (None is not None)
+E    +  where None = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...=<CaptureCompleteness.GAP: 'gap'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).exit_fact_ref
+_ test_saved_terminal_label_without_exit_still_observes_original_process[execution_error] _
+.git\p1-abc-fix-20261003\unverified_terminal_counter.py:26: in test_saved_terminal_label_without_exit_still_observes_original_process
+    assert result.exit_fact_ref is not None and result.exit_fact_ref.real_exit_code == 0
+E   AssertionError: assert (None is not None)
+E    +  where None = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...=<CaptureCompleteness.GAP: 'gap'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).exit_fact_ref
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/unverified_terminal_counter.py::test_saved_terminal_label_without_exit_still_observes_original_process[completed]
+FAILED .git/p1-abc-fix-20261003/unverified_terminal_counter.py::test_saved_terminal_label_without_exit_still_observes_original_process[cancelled]
+FAILED .git/p1-abc-fix-20261003/unverified_terminal_counter.py::test_saved_terminal_label_without_exit_still_observes_original_process[execution_error]
+3 failed in 4.64s

@@ -139,3 +139,9 @@ uv build
 2026-10-07：活动命令现返回准确已保存前缀，默认有界执行/原句柄观察同步采集，非法位置不回running；126项检查通过，包含真实大输出长命令的默认API暂停续采/取消，ABC仍21项。见[根因/源码/精简证据](../../修改日志/袁/2026-10-07-活动输出前缀与默认续采.md)。
 
 2026-10-07：失效Attempt后续自然退出/停止/采集错误保持invalidated，准确材料仍可保存；107项回归通过，ABC仍21项。见[根因/源码/精简证据](../../修改日志/袁/2026-10-07-失效尝试后续采集不恢复旧依据.md)。
+
+2026-10-07：无可靠退出的旧终态继续原观察，错误/失效活动步骤下个切片可恢复且阻止新调度；异常失效同样保存准确gap，不恢复旧依据。当前93项及独立默认API1项共94项通过；默认入口补存退出仍保留采集错误/gap，可靠终态不要求执行器；ABC仍21项。见[根因/源码/精简证据](../../修改日志/袁/2026-10-07-无可靠退出标签的原观察与串行边界.md)。
+
+最终93项命令：pytest tests/unit/test_invalidated_observation_gap.py tests/unit/test_unverified_terminal_observation.py tests/unit/test_invalidated_capture_state.py tests/unit/test_serial_execution_slices.py tests/unit/test_serial_execution_loop.py tests/unit/test_serial_runner.py tests/unit/test_execution_observation_identity.py tests/unit/test_capture_completion_closure.py tests/unit/test_execution_control.py -k "not default_error_without_exit" -o addopts="" -q --tb=short -x；解释器为项目.venv Python3.13.13。
+
+默认API最终独立命令：pytest tests/unit/test_unverified_terminal_observation.py::test_default_error_without_exit_continues_original_collection_and_keeps_gap -o addopts="" -q --tb=short；1 passed in 128.06s。与上列93项不重叠，共94项。
