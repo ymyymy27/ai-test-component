@@ -679,6 +679,91 @@ def has_verified_exit(attempt: Attempt) -> bool:
     )
 
 
+def has_complete_capture(attempt: Attempt) -> bool:
+    """Complete capture has contiguous saved blocks and matching durable exit totals.
+
+    Physical byte verification belongs to the material reader. A real exit by
+    itself, sealed individual blocks, or an adapter's completeness flag cannot
+    establish this closure. Empty output is valid when every stream map is empty.
+    """
+    fact = attempt.exit_fact_ref
+    if (
+        attempt.capture_completeness is not CaptureCompleteness.COMPLETE
+        or not has_verified_exit(attempt)
+        or fact is None
+        or fact.capture_completeness is not CaptureCompleteness.COMPLETE
+    ):
+        return False
+    indexes = _capture_counts(fact.last_block_index_by_stream)
+    sizes = _capture_counts(fact.saved_bytes_by_stream)
+    if indexes is None or sizes is None:
+        return False
+    streams: dict[OutputStreamName, list[OutputBlockRef]] = {}
+    for block in attempt.output_block_refs:
+        if (
+            block.attempt_id != attempt.attempt_id
+            or not isinstance(block.stream_name, OutputStreamName)
+            or block.complete is not True
+            or any(
+                type(value) is not int or value < 0
+                for value in (block.block_index, block.offset, block.length)
+            )
+        ):
+            return False
+        streams.setdefault(block.stream_name, []).append(block)
+    cursors = {cursor.stream_name: cursor for cursor in attempt.output_cursors}
+    if (
+        len(cursors) != len(attempt.output_cursors)
+        or set(streams) != set(cursors)
+        or set(streams) != set(indexes)
+        or set(streams) != set(sizes)
+    ):
+        return False
+    for stream, blocks in streams.items():
+        ordered = sorted(blocks, key=lambda block: block.block_index)
+        offset = 0
+        for index, block in enumerate(ordered):
+            if block.block_index != index or block.offset != offset:
+                return False
+            offset += block.length
+        last = ordered[-1]
+        cursor = cursors[stream]
+        if (
+            cursor.attempt_id != attempt.attempt_id
+            or not isinstance(cursor.stream_name, OutputStreamName)
+            or type(cursor.offset) is not int
+            or type(cursor.last_block_index) is not int
+            or cursor.durable is not True
+            or (cursor.offset, cursor.last_block_index, cursor.last_committed_digest)
+            != (offset, last.block_index, last.digest)
+            or indexes[stream] != last.block_index
+            or sizes[stream] != offset
+        ):
+            return False
+    return True
+
+
+def _capture_counts(
+    entries: tuple[tuple[OutputStreamName, int], ...],
+) -> dict[OutputStreamName, int] | None:
+    if type(entries) is not tuple:
+        return None
+    result: dict[OutputStreamName, int] = {}
+    for entry in entries:
+        if type(entry) is not tuple or len(entry) != 2:
+            return None
+        stream, count = entry
+        if (
+            not isinstance(stream, OutputStreamName)
+            or stream in result
+            or type(count) is not int
+            or count < 0
+        ):
+            return None
+        result[stream] = count
+    return result
+
+
 def has_reliable_terminal_fact(attempt: Attempt) -> bool:
     """Preserve only a terminal state supported by the original process exit."""
     if not has_verified_exit(attempt):
@@ -786,6 +871,7 @@ __all__ = [
     "ExecutionStatus",
     "ExitFact",
     "FailureClass",
+    "has_complete_capture",
     "InputRef",
     "OutputStreamName",
     "OutputBlockRef",

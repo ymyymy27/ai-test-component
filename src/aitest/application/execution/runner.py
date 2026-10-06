@@ -1,5 +1,6 @@
 """Serial execution loop and dependency dispatch skeleton."""
 
+import hashlib
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -33,10 +34,12 @@ from aitest.domain.execution.runs import (
     OutputCursor,
     PlanRevisionRef,
     RecoveryCheckpoint,
+    SpoolManifest,
     Step,
     StepState,
     StopRequestResult,
     authorization_action_basis,
+    has_complete_capture,
     has_reliable_terminal_fact,
     has_verified_exit,
 )
@@ -647,33 +650,114 @@ class SerialRunner:
             attempt.output_block_refs,
             collection.output_blocks,
         )
+        output_cursors = self._merge_output_cursors(
+            attempt.output_cursors, collection.output_cursors
+        )
+        by_key = {(block.stream_name, block.block_index): block for block in output_blocks}
+        for captured in collection.captured_blocks:
+            prior = by_key.get((captured.stream_name, captured.block_index))
+            if prior is not None and (
+                prior.offset,
+                prior.length,
+                prior.digest,
+                prior.complete,
+                prior.capture_source,
+                prior.redaction_summary_id,
+            ) != (
+                captured.offset,
+                captured.length,
+                captured.digest,
+                captured.complete,
+                captured.capture_source,
+                captured.redaction_summary_id,
+            ):
+                raise _ExecutionObservationMismatch("output_block_conflict")
         if collection.captured_blocks:
             if self._spool_store is None:
                 raise ValueError("captured blocks require a SpoolStore")
             manifest = self._spool_store.persist_blocks(collection.captured_blocks)
+            if (manifest.run_id, manifest.step_id, manifest.attempt_id) != (
+                attempt.run_id,
+                attempt.step_id,
+                attempt.attempt_id,
+            ) or manifest.schema_version != "aitest.spool/1.0":
+                raise _ExecutionObservationMismatch("spool_identity_unverified")
+            _validate_collection_identity(
+                attempt,
+                replace(collection, output_blocks=manifest.blocks, output_cursors=manifest.cursors),
+            )
             output_blocks = self._merge_output_blocks(output_blocks, manifest.blocks)
+            output_cursors = self._merge_output_cursors(attempt.output_cursors, manifest.cursors)
 
         state = self._attempt_state_for(attempt, inspection, collection)
-        capture_completeness = (
-            attempt.capture_completeness
-            if collection.capture_completeness is CaptureCompleteness.UNKNOWN
-            else collection.capture_completeness
-        )
-        return replace(
+        result = replace(
             attempt,
             state=state,
             output_block_refs=output_blocks,
-            output_cursors=self._merge_output_cursors(
-                attempt.output_cursors,
-                collection.output_cursors,
-            ),
+            output_cursors=output_cursors,
             structured_result_ref=collection.structured_result_ref,
             exit_fact_ref=collection.exit_fact_ref,
-            capture_completeness=capture_completeness,
+            capture_completeness=collection.capture_completeness,
             timed_out=bool(collection.exit_fact_ref and collection.exit_fact_ref.timed_out),
             error_ref=collection.error_ref,
             unknown_reason_ref=self._unknown_reason_for(inspection, collection, state),
         )
+        if result.capture_completeness is CaptureCompleteness.COMPLETE:
+            # Verify the reported final cursors as well as the saved ones. Persisting
+            # captured bytes must not silently repair a false adapter completeness claim.
+            reported_cursors = tuple(
+                replace(cursor, durable=True)
+                if collection.captured_blocks and type(cursor.durable) is bool
+                else cursor
+                for cursor in collection.output_cursors
+            )
+            # Memory capture reports non-durable positions. Only the actual spool
+            # manifest above establishes durability after these bytes are saved.
+            reason = None
+            if not has_complete_capture(result) or not has_complete_capture(
+                replace(result, output_cursors=reported_cursors)
+            ):
+                reason = "capture_totals_unverified"
+            elif not self._complete_material_is_readable(result):
+                reason = "capture_material_unverified"
+            if reason is not None:
+                result = replace(
+                    result,
+                    capture_completeness=CaptureCompleteness.GAP,
+                    unknown_reason_ref=result.unknown_reason_ref or reason,
+                )
+        return result
+
+    def _complete_material_is_readable(self, attempt: Attempt) -> bool:
+        if self._spool_store is None:
+            return not attempt.output_block_refs
+        try:
+            manifest = self._spool_store.read_manifest(attempt.attempt_id)
+            if not isinstance(manifest, SpoolManifest) or (
+                manifest.run_id,
+                manifest.step_id,
+                manifest.attempt_id,
+                manifest.schema_version,
+            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
+                return False
+            if set(manifest.blocks) != set(attempt.output_block_refs):
+                return False
+            if set(manifest.cursors) != set(attempt.output_cursors):
+                return False
+            for block in attempt.output_block_refs:
+                content = self._spool_store.read_block(block)
+                if (
+                    type(content) is not bytes
+                    or len(content) != block.length
+                    or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
+                ):
+                    return False
+        except FileNotFoundError:
+            # An output-free memory execution need not create a spool manifest.
+            return not attempt.output_block_refs
+        except (OSError, ValueError):
+            return False
+        return True
 
     @staticmethod
     def _attempt_state_for(
@@ -736,6 +820,23 @@ class SerialRunner:
     ) -> tuple[OutputCursor, ...]:
         merged = {cursor.stream_name: cursor for cursor in existing}
         for cursor in incoming:
+            prior = merged.get(cursor.stream_name)
+            if prior is not None:
+                if (
+                    cursor.last_block_index < prior.last_block_index
+                    and cursor.offset <= prior.offset
+                ):
+                    continue
+                if (
+                    cursor.last_block_index < prior.last_block_index
+                    or cursor.offset < prior.offset
+                    or cursor.last_block_index == prior.last_block_index
+                    and (cursor.attempt_id, cursor.offset, cursor.last_committed_digest)
+                    != (prior.attempt_id, prior.offset, prior.last_committed_digest)
+                ):
+                    raise _ExecutionObservationMismatch("output_cursor_conflict")
+                if cursor.last_block_index == prior.last_block_index and prior.durable is True:
+                    continue
             merged[cursor.stream_name] = cursor
         return tuple(merged[stream] for stream in sorted(merged, key=lambda item: item.value))
 
@@ -744,15 +845,13 @@ class SerialRunner:
         existing: tuple[OutputBlockRef, ...],
         incoming: tuple[OutputBlockRef, ...],
     ) -> tuple[OutputBlockRef, ...]:
-        merged = list(existing)
-        keys = {(block.stream_name, block.block_index) for block in existing}
-        for block in incoming:
+        merged: dict[tuple[object, int], OutputBlockRef] = {}
+        for block in (*existing, *incoming):
             key = (block.stream_name, block.block_index)
-            if key in keys:
-                continue
-            merged.append(block)
-            keys.add(key)
-        return tuple(merged)
+            if key in merged and merged[key] != block:
+                raise _ExecutionObservationMismatch("output_block_conflict")
+            merged[key] = block
+        return tuple(merged.values())
 
     @staticmethod
     def _step_state_for_attempt(state: AttemptState) -> StepState:

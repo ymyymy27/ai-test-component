@@ -12,7 +12,7 @@ from aitest.contracts.execution_facts import (
     StepStateFact,
 )
 from aitest.domain.execution.dependencies import AttemptInvalidation
-from aitest.domain.execution.runs import Attempt
+from aitest.domain.execution.runs import Attempt, has_complete_capture, has_reliable_terminal_fact
 
 
 def project_current_update(
@@ -93,6 +93,8 @@ def project_current_update(
         and item.state is AttemptStateFact.COMPLETED
         and item.capture_completeness.value == "complete"
     }
+    if not has_complete_capture(attempt) or not has_reliable_terminal_fact(attempt):
+        eligible.discard(attempt.attempt_id)
     executed = set(previous.coverage.executed_attempt_ids) & eligible
     if attempt.attempt_id in eligible:
         executed.add(attempt.attempt_id)

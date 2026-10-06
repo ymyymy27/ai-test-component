@@ -1,0 +1,9 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q tests/unit/test_capture_completion_closure.py tests/unit/test_execution_observation_identity.py tests/unit/test_serial_runner.py tests/unit/test_serial_execution_loop.py tests/unit/test_serial_execution_slices.py tests/unit/test_fake_execution_adapter.py tests/unit/test_command_adapter.py tests/unit/test_command_handle_reattach.py tests/unit/test_execution_control_projection.py tests/unit/test_recovery_observation_integrity.py tests/recovery/test_execution_closure.py tests/architecture/test_boundaries.py
+........................................................................ [ 40%]
+........................................................................ [ 81%]
+................................                                         [100%]
+176 passed in 47.27s
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check .
+All checks passed!
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 184 source files
