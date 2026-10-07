@@ -203,3 +203,5 @@ uv build
 2026-10-08 来源检查错误：source-failure-identity-before为7失败/6正确拒绝，final为最终241通过；mypy209/ruff-first、build及wheel-smoke记录最终模块与安装16项。来源verified与检查失败分开，未知/不匹配仍如实保存。见[精简根因](../../修改日志/袁/2026-10-08-源码检查失败与来源身份分离.md)。
 
 2026-10-08 准确检查点引用：checkpoint-refs-before保留旧协调器反例1失败；scoped为265通过；execution为较宽组265通过/3旧夹具与计数失败，fixtures-final46及final-extra42通过，最终final-exact315通过（29.18秒）。canonical-final为Windows完整清单发布前失败/发布后丢回执2通过，wheel-final准确安装字节及44节点通过；mypy210/ruff-exact/schemas/build-exact对应本批来源。runtime较大回归仍进行中，不计为通过。见[根因与范围](../../修改日志/袁/2026-10-08-执行快照准确检查点引用同提交.md)。
+
+2026-10-08 源码探针协议：probe-protocol-before为实际模块stdout伪造导致旧verified反例；before-pytest为24失败/8通过，after43通过，final为最终284（12.29秒）。mypy210/ruff/build-exact及wheel-smoke对应准确源码与安装43节点；没有把进程内自报、Trae或AC升级为通过。见[根因与范围](../../修改日志/袁/2026-10-08-源码探针不可信协议与准确事实类型.md)。

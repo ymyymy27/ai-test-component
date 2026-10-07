@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.58"
+contract_version: "1.59"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.59 实际 Python 加载探针的 stdout 同样是不可信输入。取证仅接受一套完整、独立行的 BEGIN/END 边界；缺失、重复、反序、非UTF-8、重复JSON字段及非JSON数字均拒绝，不能取被测模块先打印的一套伪造协议充当实际来源。顶层字段、解释器/版本/路径、模块名及file/sha256/error按真实类型读取，不用str转换或把非法值置null；实际模块集合必须等于本次登记集合，且不允许重复登记。合法无文件模块仍为未知来源，不伪造文件；协议拒绝不证明源码不匹配或业务失败，保留待核实。该增量只修协议材料的歧义和类型守卫，不保证被测代码运行时自报事实可信，不代替冻结字节/入口/解释器核对、进程与输出预算、默认业务加载消费或真实AC。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变。
 
 1.58 执行快照检查点引用沿用 CD-001 1.3 的唯一正文：`execution_checkpoint_refs` 是同提交不可变业务记录，按正常提交清单、准确记录索引和备份保存，分类为 business；不进入上传白名单或公开列表查询类别。实际 `stage_record` 返回的正整数仓储修订与完整正文摘要构成准确检查点引用，不能以 Attempt 正文版本或预计提交序号替代。表、当前指针和非空 Attempt 快照原子发布，初始空快照保持原提交数量；失败不发布半套引用。旧快照缺表仍可展示，复用阻塞，不自动迁移历史。FR/AC及reviewing/partial/not_run不变。
 
@@ -56,7 +58,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.58
+版本：1.59
 日期：2026-10-08
 状态：草案，待B/C/D确认  
 

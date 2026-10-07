@@ -1,0 +1,158 @@
+FF.F..FFFFF.FFF...FFFFFFFFF.FFFF                                         [100%]
+================================== FAILURES ===================================
+____ test_real_module_stdout_cannot_replace_the_actual_source_observation _____
+tests\unit\test_source_probe_protocol.py:41: in test_real_module_stdout_cannot_replace_the_actual_source_observation
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+___ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[two_frames] ____
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+__ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[duplicate_end] __
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_____ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[inline] ______
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+__ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[invalid_utf8] ___
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[duplicate_json] __
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+____ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[nonfinite] ____
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+____ test_invalid_or_ambiguous_frames_never_yield_a_source_fact[surrogate] ____
+tests\unit\test_source_probe_protocol.py:77: in test_invalid_or_ambiguous_frames_never_yield_a_source_fact
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[executable] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[version] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[prefix] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[missing_field] _
+tests\unit\test_source_probe_protocol.py:119: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=("module",))
+src\aitest\infrastructure\adapters\execution\python_checks.py:254: in probe
+    executable=str(parsed["executable"]),
+                   ^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'executable'
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[unknown_field] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_file] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_hash] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_error] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_missing] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_unknown] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[unknown_module_field] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+_ test_malformed_observation_is_not_coerced_or_silently_changed_to_null[missing_module_field] _
+tests\unit\test_source_probe_protocol.py:118: in test_malformed_observation_is_not_coerced_or_silently_changed_to_null
+    with pytest.raises(PythonSourceProbeError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE PythonSourceProbeError
+________ test_invalid_or_duplicate_registration_never_launches[module] ________
+tests\unit\test_source_probe_protocol.py:144: in test_invalid_or_duplicate_registration_never_launches
+    PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=modules)
+src\aitest\infrastructure\adapters\execution\python_checks.py:209: in probe
+    if completed.returncode != 0:
+       ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'returncode'
+_______ test_invalid_or_duplicate_registration_never_launches[modules1] _______
+tests\unit\test_source_probe_protocol.py:144: in test_invalid_or_duplicate_registration_never_launches
+    PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=modules)
+src\aitest\infrastructure\adapters\execution\python_checks.py:209: in probe
+    if completed.returncode != 0:
+       ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'returncode'
+_______ test_invalid_or_duplicate_registration_never_launches[modules2] _______
+tests\unit\test_source_probe_protocol.py:144: in test_invalid_or_duplicate_registration_never_launches
+    PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=modules)
+src\aitest\infrastructure\adapters\execution\python_checks.py:184: in probe
+    if not _MODULE_NAME_RE.fullmatch(name):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: expected string or bytes-like object, got 'int'
+_______ test_invalid_or_duplicate_registration_never_launches[modules3] _______
+tests\unit\test_source_probe_protocol.py:144: in test_invalid_or_duplicate_registration_never_launches
+    PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=modules)
+src\aitest\infrastructure\adapters\execution\python_checks.py:184: in probe
+    if not _MODULE_NAME_RE.fullmatch(name):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: expected string or bytes-like object, got 'NoneType'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_source_probe_protocol.py::test_real_module_stdout_cannot_replace_the_actual_source_observation
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[two_frames]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[duplicate_end]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[inline]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[invalid_utf8]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[duplicate_json]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[nonfinite]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_ambiguous_frames_never_yield_a_source_fact[surrogate]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[executable]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[version]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[prefix]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[missing_field]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[unknown_field]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_file]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_hash]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_error]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_missing]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[module_unknown]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[unknown_module_field]
+FAILED tests/unit/test_source_probe_protocol.py::test_malformed_observation_is_not_coerced_or_silently_changed_to_null[missing_module_field]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_duplicate_registration_never_launches[module]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_duplicate_registration_never_launches[modules1]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_duplicate_registration_never_launches[modules2]
+FAILED tests/unit/test_source_probe_protocol.py::test_invalid_or_duplicate_registration_never_launches[modules3]
+24 failed, 8 passed in 0.84s
