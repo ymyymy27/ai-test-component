@@ -1,0 +1,12 @@
+E501 Line too long (102 > 100)
+   --> src\aitest\infrastructure\adapters\execution\command.py:231:101
+    |
+229 |                 raise RuntimeError("original Windows process handle is unavailable")
+230 |             owned_process_handle = (
+231 |                 int(retained_handle) if os.name == "nt" and isinstance(retained_handle, int) else None
+    |                                                                                                     ^^
+232 |             )
+233 |             identity = (
+    |
+
+Found 1 error.

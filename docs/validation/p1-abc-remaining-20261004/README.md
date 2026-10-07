@@ -183,3 +183,5 @@ uv build
 2026-10-07 CLI与客户端阶段：client-entry-before.txt保留8失败/1警告，IO修后34项；after为51通过/1错误回执失败、real-first为同缺口单项、final-first为303通过/1真实编码失败，final为最终354 passed（64.17秒）。静态/生成物/版本、build与wheel-smoke同前缀单独留存；失败不覆写。源码与具体边界见[精简日志](../../修改日志/袁/2026-10-07-既有工作空间CLI转发与客户端可取消IO.md)。
 
 2026-10-07 MCP只读阶段：mcp-read-final-first.txt保留326通过/1真实输出预算失败；corrected为33通过/1查绑定命令选择夹具失败；final为最终329 passed（65.35秒）。静态/生成物/版本/build另存；wheel-sdk-smoke为实际安装两模块字节核对与官方SDK 2.3.0 stdio握手/list/call；探针源码与外部依赖版本同前缀留存，不改项目锁。见[精简日志](../../修改日志/袁/2026-10-07-stdio-MCP只读同核心与冻结上下文.md)。真实AC不代填。
+
+2026-10-07命令启动阶段：command-launch-before.txt为真实8失败/2通过；after为20通过/2旧threads夹具失败，corrected为36通过，final-exact为最终336 passed（27.47秒）。各静态失败/修正记录保留；build-exact和wheel-smoke对应最终安装字节与实际Windows验证，初次构建不借用于最终源。见[精简根因与边界](../../修改日志/袁/2026-10-07-命令全启动阶段清理与原进程句柄.md)。真实AC不代填。

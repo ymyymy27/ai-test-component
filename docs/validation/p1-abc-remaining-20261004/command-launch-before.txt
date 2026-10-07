@@ -1,0 +1,83 @@
+FFF.FF.FFF                                                               [100%]
+================================== FAILURES ===================================
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[identity] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[job] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[runtime] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[reader_first] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[reader_second] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[timer_construct] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_ test_actual_launch_failure_reaps_original_process_and_closes_resources[timer_start] _
+tests\unit\test_command_launch_resources.py:68: in test_actual_launch_failure_reaps_original_process_and_closes_resources
+    assert process.poll() is not None, "startup failure left a live child"
+E   AssertionError: startup failure left a live child
+E   assert None is not None
+E    +  where None = poll()
+E    +    where poll = <Popen: returncode: None args: ["C:\\Users\\y'm'y\\Desktop\\ai-test-componen...>.poll
+_______ test_actual_success_never_reopens_a_pid_for_birth_job_or_resume _______
+tests\unit\test_command_launch_resources.py:106: in test_actual_success_never_reopens_a_pid_for_birth_job_or_resume
+    handle = adapter.start(_request("python", ("-c", "import time; time.sleep(30)")))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\command.py:232: in start
+    process_start_identity=_process_start_identity(process.pid),
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\command.py:1168: in _process_start_identity
+    return _windows_process_start_identity(pid)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\command.py:1211: in _windows_process_start_identity
+    handle = kernel32.OpenProcess(0x1000, False, pid)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1169: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1173: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1234: in _execute_mock_call
+    raise effect
+E   AssertionError: launch must use owned Popen handle
+=========================== short test summary info ===========================
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[identity]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[job]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[runtime]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[reader_first]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[reader_second]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[timer_construct]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_launch_failure_reaps_original_process_and_closes_resources[timer_start]
+FAILED tests/unit/test_command_launch_resources.py::test_actual_success_never_reopens_a_pid_for_birth_job_or_resume
+8 failed, 2 passed in 0.94s

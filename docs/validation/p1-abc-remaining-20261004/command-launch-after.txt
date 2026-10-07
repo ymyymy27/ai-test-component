@@ -1,0 +1,20 @@
+............FF........                                                   [100%]
+================================== FAILURES ===================================
+______________ test_live_windows_stop_never_targets_a_pid[abort] ______________
+tests\unit\test_live_command_stop_ownership.py:53: in test_live_windows_stop_never_targets_a_pid
+    adapter._abort_launch(runtime)
+src\aitest\infrastructure\adapters\execution\command.py:318: in _abort_launch
+    for thread in runtime.threads:
+                  ^^^^^^^^^^^^^^^
+E   AttributeError: 'types.SimpleNamespace' object has no attribute 'threads'
+_______ test_unassigned_suspended_launch_uses_the_original_popen_handle _______
+tests\unit\test_live_command_stop_ownership.py:62: in test_unassigned_suspended_launch_uses_the_original_popen_handle
+    adapter._abort_launch(runtime)
+src\aitest\infrastructure\adapters\execution\command.py:318: in _abort_launch
+    for thread in runtime.threads:
+                  ^^^^^^^^^^^^^^^
+E   AttributeError: 'types.SimpleNamespace' object has no attribute 'threads'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_live_command_stop_ownership.py::test_live_windows_stop_never_targets_a_pid[abort]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_unassigned_suspended_launch_uses_the_original_popen_handle
+2 failed, 20 passed in 0.94s

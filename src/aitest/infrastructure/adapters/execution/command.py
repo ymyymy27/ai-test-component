@@ -218,80 +218,152 @@ class CommandAdapter:
                 start_new_session=True,
             )
 
-        if process.stdout is None or process.stderr is None:
-            # Popen retains the exact process handle; a PID can be reused after exit.
-            process.terminate()
-            process.wait(timeout=self._force_kill_timeout_seconds)
-            raise RuntimeError("command process streams are unavailable")
-
-        handle = ExecutionHandle(
-            handle_id=f"command-handle:{request.attempt_id}",
-            adapter_kind=AdapterKind.COMMAND,
-            adapter_version=self.adapter_version,
-            real_execution_id=str(process.pid),
-            process_start_identity=_process_start_identity(process.pid),
-            workdir_ref=str(registration.cwd),
-        )
-        startup_token = str(uuid4())
-        runtime = _CommandRuntime(
-            request=request,
-            registration=registration,
-            handle=handle,
-            process=process,
-            startup_token=startup_token,
-            captured_buffers={
-                OutputStreamName.STDOUT: bytearray(),
-                OutputStreamName.STDERR: bytearray(),
-            },
-            job_handle=_assign_windows_job(process.pid, startup_token) if os.name == "nt" else None,
-        )
-        self._runtimes[handle.handle_id] = runtime
+        runtime: _CommandRuntime | None = None
+        job_handle: int | None = None
         try:
-            if os.name == "nt" and runtime.job_handle is None:
-                raise RuntimeError("exclusive Windows execution job could not be established")
+            if process.stdout is None or process.stderr is None:
+                raise RuntimeError("command process streams are unavailable")
+            # CPython 3.13 Popen retains CreateProcess's handle in _handle.
+            owned_process_handle: int | None = None
+            if os.name == "nt":
+                retained_handle = getattr(process, "_handle", None)
+                if not isinstance(retained_handle, int):
+                    raise RuntimeError("original Windows process handle is unavailable")
+                owned_process_handle = int(retained_handle)
+            identity = (
+                _windows_handle_identity(owned_process_handle, process.pid)
+                if owned_process_handle is not None
+                else _process_start_identity(process.pid)
+            )
+            if os.name == "nt" and ":created:" not in identity:
+                raise RuntimeError("original process birth identity could not be verified")
+            handle = ExecutionHandle(
+                handle_id=handle_id,
+                adapter_kind=AdapterKind.COMMAND,
+                adapter_version=self.adapter_version,
+                real_execution_id=str(process.pid),
+                process_start_identity=identity,
+                workdir_ref=str(registration.cwd),
+            )
+            startup_token = str(uuid4())
+            if owned_process_handle is not None:
+                job_handle = _assign_windows_job(owned_process_handle, startup_token)
+                if job_handle is None:
+                    raise RuntimeError("exclusive Windows execution job could not be established")
+            runtime = _CommandRuntime(
+                request=request,
+                registration=registration,
+                handle=handle,
+                process=process,
+                startup_token=startup_token,
+                captured_buffers={
+                    OutputStreamName.STDOUT: bytearray(),
+                    OutputStreamName.STDERR: bytearray(),
+                },
+                job_handle=job_handle,
+            )
+            self._runtimes[handle.handle_id] = runtime
             self._persist_handle(runtime)
-        except BaseException:
-            self._abort_launch(runtime)
-            raise
-
-        try:
             self._open_spool_writers(runtime)
-            if os.name == "nt":
-                _resume_windows_process(process.pid)
-        except BaseException:
-            self._abort_launch(runtime)
+            # A failed reader startup must not activate a suspended Windows command.
+            self._start_reader(runtime, OutputStreamName.STDOUT, process.stdout, secrets)
+            self._start_reader(runtime, OutputStreamName.STDERR, process.stderr, secrets)
+            if request.timeout_ms is not None:
+                timer = threading.Timer(
+                    request.timeout_ms / 1000, self._timeout_runtime, (runtime,)
+                )
+                timer.daemon = True
+                runtime.timeout_timer = timer
+            if owned_process_handle is not None:
+                _resume_windows_process(owned_process_handle)
+            if runtime.timeout_timer is not None:
+                runtime.timeout_timer.start()
+            return handle
+        except BaseException as error:
+            try:
+                if runtime is None:
+                    self._abort_untracked_launch(process, job_handle)
+                else:
+                    self._abort_launch(runtime)
+            except BaseException as cleanup_error:
+                # Preserve the actual startup cause while exposing failed cleanup.
+                raise error from cleanup_error
             raise
 
-        self._start_reader(runtime, OutputStreamName.STDOUT, process.stdout, secrets)
-        self._start_reader(runtime, OutputStreamName.STDERR, process.stderr, secrets)
-        if request.timeout_ms is not None:
-            timer = threading.Timer(request.timeout_ms / 1000, self._timeout_runtime, (runtime,))
-            timer.daemon = True
-            runtime.timeout_timer = timer
-            timer.start()
-        return handle
-
-    def _abort_launch(self, runtime: _CommandRuntime) -> None:
-        """清理只归本次 Popen 所有的资源；保留启动已发生的持久事实。"""
+    def _abort_untracked_launch(
+        self, process: subprocess.Popen[bytes], job_handle: int | None
+    ) -> None:
+        """Popen exists even when business/runtime identity cannot be constructed."""
+        errors: list[BaseException] = []
         try:
             if os.name == "nt":
-                if runtime.job_handle is not None:
-                    self._cleanup_group(runtime)
-                else:
-                    # Windows launches are suspended until their Job is assigned.
-                    runtime.process.terminate()
+                if job_handle is not None:
+                    _terminate_and_wait_windows_job(
+                        job_handle, timeout_seconds=self._force_kill_timeout_seconds
+                    )
+                elif process.poll() is None:
+                    process.terminate()
             else:
-                self._terminate_group(runtime.process.pid, force=True)
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
-        finally:
-            _close_job(runtime.job_handle)
-            runtime.job_handle = None
-            for writer in runtime.writers.values():
-                writer.abort()
-            for stream in (runtime.process.stdout, runtime.process.stderr):
+                self._terminate_group(process.pid, force=True)
+            process.wait(timeout=self._force_kill_timeout_seconds)
+        except BaseException as error:
+            errors.append(error)
+        try:
+            _close_job(job_handle)
+        except BaseException as error:
+            errors.append(error)
+        self._close_failed_process_streams(process, errors)
+        if errors:
+            raise errors[0]
+
+    @staticmethod
+    def _close_failed_process_streams(
+        process: subprocess.Popen[bytes], errors: list[BaseException]
+    ) -> None:
+        for stream in (process.stdout, process.stderr):
+            try:
                 if stream is not None:
                     stream.close()
-            self._runtimes.pop(runtime.handle.handle_id, None)
+            except BaseException as error:
+                errors.append(error)
+
+    def _abort_launch(self, runtime: _CommandRuntime) -> None:
+        """Release this launch only; keep already persisted startup facts immutable."""
+        self._cancel_timeout(runtime)
+        errors: list[BaseException] = []
+        with runtime.collection_lock:
+            try:
+                if os.name == "nt" and runtime.job_handle is not None:
+                    self._cleanup_group(runtime)
+                    runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+                else:
+                    self._abort_untracked_launch(runtime.process, runtime.job_handle)
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                try:
+                    _close_job(runtime.job_handle)
+                except BaseException as error:
+                    errors.append(error)
+                runtime.job_handle = None
+        # Readers own spool writes. Let them finish before aborting any remainder.
+        for thread in runtime.threads:
+            try:
+                if thread.ident is not None:
+                    thread.join(timeout=self._force_kill_timeout_seconds)
+                    if thread.is_alive():
+                        raise RuntimeError("failed launch reader remains unresolved")
+            except BaseException as error:
+                errors.append(error)
+        self._close_failed_process_streams(runtime.process, errors)
+        for writer in runtime.writers.values():
+            try:
+                writer.abort()
+            except BaseException as error:
+                errors.append(error)
+        self._runtimes.pop(runtime.handle.handle_id, None)
+        if errors:
+            raise errors[0]
 
     def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
         runtime = self._runtimes.get(handle.handle_id)
@@ -462,9 +534,7 @@ class CommandAdapter:
         with runtime.collection_lock:
             return self._stop_runtime(runtime, handle)
 
-    def _stop_runtime(
-        self, runtime: _CommandRuntime, handle: ExecutionHandle
-    ) -> StopRequestResult:
+    def _stop_runtime(self, runtime: _CommandRuntime, handle: ExecutionHandle) -> StopRequestResult:
         saved_stop = self._saved_stop(handle)
         if saved_stop is not None:
             self._hydrate_stop(runtime)
@@ -993,81 +1063,69 @@ def _job_name(startup_token: str) -> str:
     return "Local\\aitest-" + hashlib.sha256(startup_token.encode("utf-8")).hexdigest()
 
 
-def _resume_windows_process(pid: int) -> None:
-    kernel = _kernel32()
-    handle = kernel.OpenProcess(0x0800, False, pid)
-    if not handle:
-        raise RuntimeError("suspended execution process could not be opened")
-    try:
-        resume = ctypes.WinDLL("ntdll", use_last_error=True).NtResumeProcess
-        resume.argtypes = [ctypes.c_void_p]
-        resume.restype = ctypes.c_long
-        if resume(handle) != 0:
-            raise RuntimeError("suspended execution process could not be resumed")
-    finally:
-        kernel.CloseHandle(handle)
+def _resume_windows_process(process_handle: int) -> None:
+    resume = ctypes.WinDLL("ntdll", use_last_error=True).NtResumeProcess
+    resume.argtypes = [ctypes.c_void_p]
+    resume.restype = ctypes.c_long
+    if resume(ctypes.c_void_p(process_handle)) != 0:
+        raise RuntimeError("suspended execution process could not be resumed")
 
 
-def _assign_windows_job(pid: int, startup_token: str) -> int | None:
+def _assign_windows_job(process_handle: int, startup_token: str) -> int | None:
     if os.name != "nt":
         return None
     kernel32 = _kernel32()
-    create_job = kernel32.CreateJobObjectW
-    create_job.restype = ctypes.c_void_p
-    job = create_job(None, _job_name(startup_token))
+    job = kernel32.CreateJobObjectW(None, _job_name(startup_token))
     if not job:
         return None
-
-    class _IoCounters(ctypes.Structure):
-        _fields_ = [
-            ("ReadOperationCount", ctypes.c_ulonglong),
-            ("WriteOperationCount", ctypes.c_ulonglong),
-            ("OtherOperationCount", ctypes.c_ulonglong),
-            ("ReadTransferCount", ctypes.c_ulonglong),
-            ("WriteTransferCount", ctypes.c_ulonglong),
-            ("OtherTransferCount", ctypes.c_ulonglong),
-        ]
-
-    class _BasicLimit(ctypes.Structure):
-        _fields_ = [
-            ("PerProcessUserTimeLimit", ctypes.c_longlong),
-            ("PerJobUserTimeLimit", ctypes.c_longlong),
-            ("LimitFlags", ctypes.c_uint32),
-            ("MinimumWorkingSetSize", ctypes.c_size_t),
-            ("MaximumWorkingSetSize", ctypes.c_size_t),
-            ("ActiveProcessLimit", ctypes.c_uint32),
-            ("Affinity", ctypes.c_size_t),
-            ("PriorityClass", ctypes.c_uint32),
-            ("SchedulingClass", ctypes.c_uint32),
-        ]
-
-    class _ExtendedLimit(ctypes.Structure):
-        _fields_ = [
-            ("BasicLimitInformation", _BasicLimit),
-            ("IoInfo", _IoCounters),
-            ("ProcessMemoryLimit", ctypes.c_size_t),
-            ("JobMemoryLimit", ctypes.c_size_t),
-            ("PeakProcessMemoryUsed", ctypes.c_size_t),
-            ("PeakJobMemoryUsed", ctypes.c_size_t),
-        ]
-
-    info = _ExtendedLimit()
-    info.BasicLimitInformation.LimitFlags = 0x2000
-    set_info = kernel32.SetInformationJobObject
-    if not set_info(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
-        kernel32.CloseHandle(job)
-        return None
-    process_handle = kernel32.OpenProcess(_WINDOWS_JOB_PROCESS_ACCESS, False, pid)
-    if not process_handle:
-        kernel32.CloseHandle(job)
-        return None
+    transferred = False
     try:
-        if not kernel32.AssignProcessToJobObject(job, process_handle):
-            kernel32.CloseHandle(job)
+
+        class _IoCounters(ctypes.Structure):
+            _fields_ = [
+                ("ReadOperationCount", ctypes.c_ulonglong),
+                ("WriteOperationCount", ctypes.c_ulonglong),
+                ("OtherOperationCount", ctypes.c_ulonglong),
+                ("ReadTransferCount", ctypes.c_ulonglong),
+                ("WriteTransferCount", ctypes.c_ulonglong),
+                ("OtherTransferCount", ctypes.c_ulonglong),
+            ]
+
+        class _BasicLimit(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", ctypes.c_longlong),
+                ("PerJobUserTimeLimit", ctypes.c_longlong),
+                ("LimitFlags", ctypes.c_uint32),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", ctypes.c_uint32),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", ctypes.c_uint32),
+                ("SchedulingClass", ctypes.c_uint32),
+            ]
+
+        class _ExtendedLimit(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", _BasicLimit),
+                ("IoInfo", _IoCounters),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        info = _ExtendedLimit()
+        info.BasicLimitInformation.LimitFlags = 0x2000
+        if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
             return None
+        if not kernel32.AssignProcessToJobObject(job, ctypes.c_void_p(process_handle)):
+            return None
+        result = int(job)
+        transferred = True
+        return result
     finally:
-        kernel32.CloseHandle(process_handle)
-    return int(job)
+        if not transferred:
+            kernel32.CloseHandle(job)
 
 
 def _close_job(job_handle: int | None) -> None:

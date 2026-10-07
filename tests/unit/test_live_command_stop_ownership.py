@@ -29,6 +29,7 @@ def runtime_fixture():
         stop_requested=False,
         group_stopped=False,
         writers={},
+        threads=[],
         request=request,
         collection=None,
     )
