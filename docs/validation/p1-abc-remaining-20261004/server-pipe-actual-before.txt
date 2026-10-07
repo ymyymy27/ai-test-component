@@ -1,0 +1,2 @@
+Original 20754b2 actual Windows server blocks without a client frame; after 300ms still pending.
+Owned original pipe released only after client close; no process or pipe left running.

@@ -1,0 +1,45 @@
+........................................................................ [ 20%]
+.......................F................................................ [ 41%]
+........................................................................ [ 62%]
+........................................................................ [ 83%]
+..........................................................               [100%]
+================================== FAILURES ===================================
+________ test_partial_response_obeys_one_deadline_for_header_and_body _________
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="actual Windows partial pipe frame")
+    def test_partial_response_obeys_one_deadline_for_header_and_body():
+        workspace, instance = "deadline" + uuid4().hex[:12], "core"
+        ready, close = threading.Event(), threading.Event()
+        errors = []
+    
+        def serve():
+            server = NamedPipeServer(workspace, instance_id=instance)
+            try:
+                server.start()
+                ready.set()
+                server.wait_for_client()
+                server.validate_peer()
+                server._write_all(b"\x00\x00\x00\x02x")
+                close.wait(2)
+            except Exception as error:
+                errors.append(error)
+            finally:
+                server.close()
+    
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        assert ready.wait(2)
+        client = NamedPipeClient(workspace, instance_id=instance)
+        client.connect()
+        try:
+            started = time.monotonic()
+>           with pytest.raises(PipeUnavailable, match="��ʱ"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E             Expected regex: '��ʱ'
+E             Actual message: '������Ӧ��ȡʧ�ܣ��������ʵ'
+
+tests\unit\test_core_exit_admission.py:324: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_exit_admission.py::test_partial_response_obeys_one_deadline_for_header_and_body
+1 failed, 345 passed in 63.43s (0:01:03)

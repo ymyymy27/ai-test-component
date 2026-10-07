@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             try:
                 if coordinator is not None:
-                    coordinator.bind_accept(server.close)
+                    coordinator.bind_accept(server.cancel_wait)
                 try:
                     server.wait_for_client()
                     server.validate_peer()

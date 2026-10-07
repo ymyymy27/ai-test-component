@@ -1,0 +1,3 @@
+aitest/interfaces/local/pipe.py c15c7a4a66ce6eef07175b39c853c1643e0940f5add0635c98c5377f19404b65
+aitest/interfaces/local/core_worker.py 94e1a0d8aa6f5e6ba03fc1d5c9e1949a1ecbb9ea4b8bded871a069b343306b28
+Installed wheel actual Windows partial reads/backpressure/cross-thread cancellation/framing passed.

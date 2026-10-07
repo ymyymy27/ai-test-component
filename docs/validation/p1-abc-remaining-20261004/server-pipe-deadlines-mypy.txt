@@ -1,0 +1,3 @@
+src\aitest\interfaces\local\pipe.py:478: error: Cannot infer type of lambda  [misc]
+src\aitest\interfaces\local\pipe.py:497: error: Cannot infer type of lambda  [misc]
+Found 2 errors in 1 file (checked 200 source files)
