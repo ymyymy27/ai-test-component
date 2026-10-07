@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.50"
+contract_version: "1.51"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.51 收紧HTTP框架请求与取值语义：执行前验证明确HTTP/HTTPS地址、无内嵌凭据/片段、合法端口、HTTP token方法/字段名、无歧义重复请求头、明确字节正文及有限正数且不超过本地TIMEOUT_MAX的超时（拒绝bool/NaN/Infinity/超大整数）；畸形配置不发请求。提取名/断言编号须唯一。既有点分路径及单个非负数组索引只按完整语法取值，空路径仍为JSON根；缺括号、额外括号/尾部、空段、多个索引等不支持语法保持不可用，不截取成另一个可通过的路径。没有新增业务通过、请求持久来源或五类生产配置；网络整请求截止、完整采集/字节上限、实际目标核验及宿主验收继续独立补齐。FR/AC、reviewing/partial/not_run不变。
 
 1.50 收紧Windows原活动执行的停止归属：原适配器取消、超时、收尾及启动失败清理只能操作本次Popen实际进程句柄或本次持有的命名Job；不再以taskkill/PID代替归属。取消/超时与采集共用同一运行互斥边界，终止核实和Job关闭不得并发复用操作系统句柄；停止与进程退出仍分别核实，未核实组停止不登记confirmed。已有跨核心停止继续核对准确创建时间、原启动token及Job归属，历史材料/字段/截止设置不改变；超时、组停止或技术采集均不证明业务回滚或通过。FR/AC不变，reviewing/partial/not_run及真实宿主验收边界保留。
 
@@ -44,7 +46,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.50
+版本：1.51
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 

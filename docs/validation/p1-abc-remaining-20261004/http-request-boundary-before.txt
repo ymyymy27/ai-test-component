@@ -1,0 +1,146 @@
+FFFFFFFFFFFFFFFFFFFFF.F....                                              [100%]
+================================== FAILURES ===================================
+________ test_invalid_http_request_is_rejected_before_any_io[changes0] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes1] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes2] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes3] ________
+tests\unit\test_http_request_boundary.py:47: in test_invalid_http_request_is_rejected_before_any_io
+    replace(spec, **changes)
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\dataclasses.py:1630: in _replace
+    return self.__class__(**changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+<string>:11: in __init__
+    ???
+src\aitest\infrastructure\adapters\execution\http.py:49: in __post_init__
+    if self.timeout_seconds <= 0:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: '<=' not supported between instances of 'str' and 'int'
+________ test_invalid_http_request_is_rejected_before_any_io[changes4] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes5] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes6] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes7] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes8] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_invalid_http_request_is_rejected_before_any_io[changes9] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes10] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes11] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes12] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes13] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes14] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes15] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes16] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes17] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_http_request_is_rejected_before_any_io[changes18] ________
+tests\unit\test_http_request_boundary.py:46: in test_invalid_http_request_is_rejected_before_any_io
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_invalid_paths_never_select_another_value_and_pass[value[0] _______
+tests\unit\test_http_request_boundary.py:55: in test_invalid_paths_never_select_another_value_and_pass
+    assert result.assertion_results[0].matched is None
+E   AssertionError: assert True is None
+E    +  where True = HttpAssertionResult(assertion_id='assertion', matched=True, actual=True, value_available=True).matched
+_____ test_invalid_paths_never_select_another_value_and_pass[value[0]]]] ______
+tests\unit\test_http_request_boundary.py:55: in test_invalid_paths_never_select_another_value_and_pass
+    assert result.assertion_results[0].matched is None
+E   AssertionError: assert True is None
+E    +  where True = HttpAssertionResult(assertion_id='assertion', matched=True, actual=True, value_available=True).matched
+____ test_invalid_paths_never_select_another_value_and_pass[value..child] _____
+tests\unit\test_http_request_boundary.py:55: in test_invalid_paths_never_select_another_value_and_pass
+    assert result.assertion_results[0].matched is None
+E   AssertionError: assert True is None
+E    +  where True = HttpAssertionResult(assertion_id='assertion', matched=True, actual=True, value_available=True).matched
+=========================== short test summary info ===========================
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes0]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes1]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes2]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes3]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes4]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes5]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes6]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes7]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes8]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes9]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes10]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes11]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes12]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes13]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes14]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes15]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes16]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes17]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_http_request_is_rejected_before_any_io[changes18]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_paths_never_select_another_value_and_pass[value[0]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_paths_never_select_another_value_and_pass[value[0]]]]
+FAILED tests/unit/test_http_request_boundary.py::test_invalid_paths_never_select_another_value_and_pass[value..child]
+22 failed, 5 passed in 0.33s

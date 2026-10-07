@@ -1,5 +1,6 @@
 """Pure JSON assertion rules; unavailable observations remain unknown."""
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -73,6 +74,38 @@ def compare_expected_fields(
         )
     )
     return missing, mismatched
+
+
+_PATH_PART = re.compile(r"(?P<name>[^.\[\]]*)(?:\[(?P<index>0|[1-9][0-9]*)\])?\Z")
+
+
+def read_json_path(payload: object, path: str) -> tuple[bool, object]:
+    """Read only the complete supported dotted path, never a permissive prefix."""
+    if not isinstance(path, str):
+        return False, None
+    if path == "":
+        return True, payload
+    parts = []
+    for part in path.split("."):
+        match = _PATH_PART.fullmatch(part)
+        if match is None or not part:
+            return False, None
+        parts.append((match["name"], match["index"]))
+    current = payload
+    for name, index in parts:
+        if name:
+            if not isinstance(current, dict) or name not in current:
+                return False, None
+            current = current[name]
+        if index is not None:
+            # Compare decimal text before int() to bound adversarial integer parsing.
+            if not isinstance(current, list) or len(index) > len(str(len(current))):
+                return False, None
+            position = int(index)
+            if position >= len(current):
+                return False, None
+            current = current[position]
+    return True, current
 
 
 def freeze_json_value(value: object) -> object:

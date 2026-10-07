@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import math
+import re
+import threading
 import time
 from dataclasses import dataclass, field, replace
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from aitest.domain.execution.assertions import (
@@ -17,9 +21,11 @@ from aitest.domain.execution.assertions import (
 from aitest.domain.execution.assertions import (
     evaluate_http_assertion,
     freeze_json_value,
+    read_json_path,
 )
 
 _MISSING = object()
+_HTTP_TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,12 +48,74 @@ class HttpRequestSpec:
     assertions: tuple[HttpAssertion, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.request_id.strip() or not self.url.strip():
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in (self.request_id, self.url, self.method)
+        ):
             raise ValueError("HTTP request requires request_id and url")
-        if not self.method.strip():
-            raise ValueError("HTTP method must not be empty")
-        if self.timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive")
+        if not _HTTP_TOKEN.fullmatch(self.method):
+            raise ValueError("HTTP method requires its complete token")
+        try:
+            valid_timeout = (
+                type(self.timeout_seconds) in {int, float}
+                and math.isfinite(self.timeout_seconds)
+                and 0 < self.timeout_seconds <= threading.TIMEOUT_MAX
+            )
+        except OverflowError:
+            valid_timeout = False
+        if not valid_timeout:
+            raise ValueError("timeout_seconds must be a finite positive supported duration")
+        if any(ord(character) <= 32 or ord(character) == 127 for character in self.url):
+            raise ValueError("HTTP URL must not contain whitespace or control characters")
+        target = urlsplit(self.url)
+        if (
+            target.scheme not in {"http", "https"}
+            or not target.hostname
+            or target.username is not None
+            or target.password is not None
+            or "#" in self.url
+            or (target.port is not None and not 1 <= target.port <= 65535)
+        ):
+            raise ValueError("HTTP target requires an explicit address without inline credentials")
+        if self.body is not None and not isinstance(self.body, bytes):
+            raise ValueError("HTTP request body requires explicit bytes")
+        seen_headers: set[str] = set()
+        if not isinstance(self.headers, tuple):
+            raise ValueError("HTTP headers require an immutable list of complete fields")
+        for item in self.headers:
+            if (
+                not isinstance(item, tuple)
+                or len(item) != 2
+                or not all(isinstance(value, str) for value in item)
+            ):
+                raise ValueError("HTTP headers require complete text fields")
+            name, value = item
+            if (
+                not _HTTP_TOKEN.fullmatch(name)
+                or name.lower() in seen_headers
+                or any((ord(char) < 32 and char != "\t") or ord(char) == 127 for char in value)
+            ):
+                raise ValueError("HTTP headers have an invalid name/value or duplicate field")
+            seen_headers.add(name.lower())
+        if not isinstance(self.extract_paths, tuple):
+            raise ValueError("HTTP extractions require immutable named paths")
+        names: set[str] = set()
+        for item in self.extract_paths:
+            if (
+                not isinstance(item, tuple)
+                or len(item) != 2
+                or not all(isinstance(value, str) for value in item)
+                or not item[0].strip()
+                or item[0] in names
+            ):
+                raise ValueError("HTTP extraction names must be complete and unique")
+            names.add(item[0])
+        if (
+            not isinstance(self.assertions, tuple)
+            or any(not isinstance(item, HttpAssertion) for item in self.assertions)
+            or len({item.assertion_id for item in self.assertions}) != len(self.assertions)
+        ):
+            raise ValueError("HTTP assertions require complete unique identities")
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,24 +268,8 @@ def _unique_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 def _json_path(payload: object, path: str) -> object:
-    if not path:
-        return payload
-    current = payload
-    for part in path.split("."):
-        name, _, index_text = part.partition("[")
-        if name:
-            if not isinstance(current, dict) or name not in current:
-                return _MISSING
-            current = current[name]
-        if index_text:
-            try:
-                index = int(index_text.rstrip("]"))
-            except ValueError:
-                return _MISSING
-            if not isinstance(current, list) or not 0 <= index < len(current):
-                return _MISSING
-            current = current[index]
-    return current
+    available, value = read_json_path(payload, path)
+    return value if available else _MISSING
 
 
 __all__ = [
