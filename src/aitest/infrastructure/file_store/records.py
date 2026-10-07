@@ -20,6 +20,7 @@ from .commit_manifest import FileCommitStore, canonical_bytes
 from .continuations import active_catalog, update_catalog
 from .events import FileEventJournal, derive_event_id
 from .index import FileQueryIndex, build_index_row
+from .material_json import decode_material
 from .ordered_events import OrderedEventStore
 from .references import verify_record_objects
 from .sharded_records import (
@@ -71,16 +72,21 @@ class FileRecordRepository:
             return open_authority(self.root, current["manifest"]["record_header"])
         if not self.path.exists():
             return {"records": {}, "commit": 0}
-        data = cast(
-            dict[str, Any],
-            json.loads(self.path.read_text(encoding="utf-8")),
-        )
+        data = decode_material(self.path.read_bytes())
+        if not isinstance(data, dict):
+            raise ValueError("legacy authority root cannot be verified")
         return open_authority(self.root, data) if data.get("schema") == SCHEMA else data
 
     def _save(self, data: dict[str, Any]) -> None:
         if FileCommitStore(self.root).read_current() is not None:
             raise ValueError("record publication must use the shared commit unit")
-        atomic.write_json(self.path, authority_header(data) if "_tree" in data else data)
+        publication = authority_header(data) if "_tree" in data else data
+        safe, changed = guard_value(publication)
+        raw = canonical_bytes(publication)
+        guarded, raw_changed = guard_bytes(raw)
+        if changed or safe != publication or raw_changed or guarded != raw:
+            raise ValueError("legacy authority cannot be safely published")
+        atomic.write_json(self.path, publication)
 
     @staticmethod
     def _row_project(row: object) -> str | None:
@@ -288,16 +294,57 @@ class FileRecordRepository:
         payload: Mapping[str, object],
     ) -> int:
         exact_counter(expected_revision)
+        if any(
+            type(value) is not str or not 1 <= len(value) <= 128 or not value.strip()
+            for value in (intent_id, kind, record_id)
+        ) or not isinstance(payload, Mapping):
+            raise ValueError("intent requires exact business identities and a JSON body")
+        project = self._row_project(payload)
+        if "project_id" in payload and (
+            type(payload["project_id"]) is not str
+            or project is None
+            or len(project) > 128
+            or not project.strip()
+        ):
+            raise ValueError("intent project cannot be verified")
+        subject = {
+            "kind": kind,
+            "record_id": record_id,
+            "project_id": project,
+            "payload": dict(payload),
+        }
+        safe, changed = guard_value(subject)
+        raw = canonical_bytes(subject)
+        guarded, raw_changed = guard_bytes(raw)
+        if changed or safe != subject or raw_changed or guarded != raw:
+            raise ValueError("intent input cannot be safely preserved")
+        fingerprint = json.dumps(subject, sort_keys=True, ensure_ascii=False, allow_nan=False)
         data = self._load()
+        exact_counter(data.get("commit"))
         intents = data.setdefault("intents", {})
-        fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
+        if not isinstance(intents, Mapping):
+            raise ValueError("saved intent directory cannot be verified")
         if intent_id in intents:
             previous = intents[intent_id]
-            if previous["fingerprint"] != fingerprint:
+            if (
+                not isinstance(previous, Mapping)
+                or set(previous)
+                != {"schema", "kind", "record_id", "project_id", "fingerprint", "revision"}
+                or previous["schema"] != "aitest.legacy-record-intent/1"
+            ):
+                raise ValueError("saved intent identity cannot be verified")
+            if previous["fingerprint"] != fingerprint or (
+                previous["kind"],
+                previous["record_id"],
+                previous["project_id"],
+            ) != (kind, record_id, project):
                 raise ValueError("intent conflict")
             revision = exact_counter(previous.get("revision"))
             if revision < 1:
                 raise ValueError("saved intent revision must be positive")
+            original = self.read(aggregate_kind=kind, record_id=record_id, revision=revision)
+            if canonical_bytes(original.payload) != canonical_bytes(payload):
+                raise ValueError("saved intent differs from its exact original record")
             return revision
         rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
         current = len(rows)
@@ -315,6 +362,10 @@ class FileRecordRepository:
         revision = current + 1
         data["commit"] += 1
         data.setdefault("intents", {})[intent_id] = {
+            "schema": "aitest.legacy-record-intent/1",
+            "kind": kind,
+            "record_id": record_id,
+            "project_id": project,
             "fingerprint": fingerprint,
             "revision": revision,
         }

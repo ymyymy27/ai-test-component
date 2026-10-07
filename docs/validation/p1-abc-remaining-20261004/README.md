@@ -169,3 +169,5 @@ uv build
 2026-10-07服务端管道阶段：server-pipe-*.txt保留实际旧阻塞、新夹具修正、私有兼容修复前失败及最终347项结果；源码与边界见[日志](../../修改日志/袁/2026-10-07-核心服务端可取消IO与整帧截止.md)。
 
 2026-10-07活动库存阶段：background-work-boundary-final-corrected.txt（31）、background-work-affected-corrected.txt（391）、background-work-control-final.txt（19）、background-work-schedule-rules.txt（24）与background-work-default-chain-final.txt（1，850.02秒）分别覆盖库存/引用/控制/主线程、存储/运输/合同/架构、控制、调度与默认重启链；初轮环境夹具失败、架构失败和worker等待夹具中断文件保留。Ruff/Mypy204、生成物/版本、最新构建及安装制品核对另记，真实AC保持0/35。见[精简根因与边界](../../修改日志/袁/2026-10-07-持久活动库存与核心主线程续行.md)。
+
+2026-10-07旧仓储阶段：legacy-intent-before.txt保留21 failed/2 passed，legacy-intent-final.txt为最终433 passed（64.80秒）；overflow-before-corrected复現指数溢出，错误引号命令另留。构建与安装制品冒烟见legacy-intent-build.txt / legacy-intent-wheel-smoke.txt；源码与边界见[日志](../../修改日志/袁/2026-10-07-旧仓储原意图身份与准确材料回读.md)。

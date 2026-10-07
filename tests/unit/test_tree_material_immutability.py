@@ -51,7 +51,14 @@ def test_read_result_cannot_mutate_a_cached_immutable_record(tmp_path, tree_kind
 @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
 @pytest.mark.parametrize(
     "raw_value",
-    ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'],
+    [
+        '{"fact":false,"fact":true}',
+        '{"fact":NaN}',
+        '{"fact":Infinity}',
+        '{"fact":-Infinity}',
+        '{"fact":1e999}',
+        '{"fact":-1e999}',
+    ],
 )
 def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
     if tree_kind == "authority":

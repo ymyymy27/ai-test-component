@@ -1,0 +1,2 @@
+2 installed modules match source; original identity/material retry across shard migration/restart and strict finite JSON passed.
+Standalone legacy fixture, not actual Trae/business acceptance.

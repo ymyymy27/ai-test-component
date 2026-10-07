@@ -1,0 +1,4 @@
+  File "<string>", line 1
+    from aitest.infrastructure.file_store.material_json import decode_material; from math import isfinite; print('overflow accepted:', not isfinite(decode_material(b'{\
+                                                                                                                                                                    ^
+SyntaxError: unterminated string literal (detected at line 1)
