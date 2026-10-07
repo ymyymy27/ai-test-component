@@ -1,0 +1,3 @@
+src\aitest\domain\execution\cases.py:85: error: Incompatible types in assignment (expression has type "StepExecutionBasis | None", variable has type "StepExecutionBasis")  [assignment]
+src\aitest\domain\execution\cases.py:132: error: Incompatible types in assignment (expression has type "StepExecutionBasis | None", variable has type "StepExecutionBasis")  [assignment]
+Found 2 errors in 1 file (checked 207 source files)

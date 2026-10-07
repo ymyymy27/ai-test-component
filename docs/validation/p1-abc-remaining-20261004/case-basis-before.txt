@@ -1,0 +1,150 @@
+FFFFFFFFFFFFFFFFFFFFFFF.                                                 [100%]
+================================== FAILURES ===================================
+________ test_one_attempt_cannot_fill_two_steps_of_the_same_case[True] ________
+tests\unit\test_case_basis_identity.py:16: in test_one_attempt_cannot_fill_two_steps_of_the_same_case
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_one_attempt_cannot_fill_two_steps_of_the_same_case[False] ________
+tests\unit\test_case_basis_identity.py:16: in test_one_attempt_cannot_fill_two_steps_of_the_same_case
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_fact_types_are_rejected_before_any_aggregate[from_current_run-false] _
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_fact_types_are_rejected_before_any_aggregate[from_current_run-1] _
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_fact_types_are_rejected_before_any_aggregate[verification_valid-false] _
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_fact_types_are_rejected_before_any_aggregate[verification_valid-1] _
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_fact_types_are_rejected_before_any_aggregate[state-completed] __
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_fact_types_are_rejected_before_any_aggregate[capture_completeness-complete] _
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_invalid_fact_types_are_rejected_before_any_aggregate[step_id-1] _____
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_invalid_fact_types_are_rejected_before_any_aggregate[attempt_id-1] ___
+tests\unit\test_case_basis_identity.py:22: in test_invalid_fact_types_are_rejected_before_any_aggregate
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_case_or_required_identity_is_not_a_countable_scope[-required0] _
+tests\unit\test_case_basis_identity.py:28: in test_invalid_case_or_required_identity_is_not_a_countable_scope
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_case_or_required_identity_is_not_a_countable_scope[case-required1] _
+tests\unit\test_case_basis_identity.py:28: in test_invalid_case_or_required_identity_is_not_a_countable_scope
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_case_or_required_identity_is_not_a_countable_scope[case-required2] _
+tests\unit\test_case_basis_identity.py:28: in test_invalid_case_or_required_identity_is_not_a_countable_scope
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_case_or_required_identity_is_not_a_countable_scope[case-required3] _
+tests\unit\test_case_basis_identity.py:28: in test_invalid_case_or_required_identity_is_not_a_countable_scope
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_noncountable_execution_still_lists_the_required_step[change0] ______
+tests\unit\test_case_basis_identity.py:36: in test_noncountable_execution_still_lists_the_required_step
+    assert result.pending_step_ids==("s1",)
+E   AssertionError: assert () == ('s1',)
+E     
+E     Right contains one more item: 's1'
+E     Use -v to get more diff
+_____ test_noncountable_execution_still_lists_the_required_step[change1] ______
+tests\unit\test_case_basis_identity.py:36: in test_noncountable_execution_still_lists_the_required_step
+    assert result.pending_step_ids==("s1",)
+E   AssertionError: assert () == ('s1',)
+E     
+E     Right contains one more item: 's1'
+E     Use -v to get more diff
+_____ test_noncountable_execution_still_lists_the_required_step[change2] ______
+tests\unit\test_case_basis_identity.py:35: in test_noncountable_execution_still_lists_the_required_step
+    assert not result.can_count_execution and not result.can_count_verification
+E   AssertionError: assert (not True)
+E    +  where True = CaseExecutionAggregate(case_id='case', can_count_execution=True, can_count_reuse=False, can_count_verification=True, has_decisive_failure=False, mixed_inheritance=False, pending_step_ids=(), invalidated_step_ids=()).can_count_execution
+_____ test_noncountable_execution_still_lists_the_required_step[change3] ______
+tests\unit\test_case_basis_identity.py:36: in test_noncountable_execution_still_lists_the_required_step
+    assert result.pending_step_ids==("s1",)
+E   AssertionError: assert () == ('s1',)
+E     
+E     Right contains one more item: 's1'
+E     Use -v to get more diff
+_____ test_noncountable_execution_still_lists_the_required_step[change4] ______
+tests\unit\test_case_basis_identity.py:36: in test_noncountable_execution_still_lists_the_required_step
+    assert result.pending_step_ids==("s1",)
+E   AssertionError: assert () == ('s1',)
+E     
+E     Right contains one more item: 's1'
+E     Use -v to get more diff
+_ test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts0] _
+tests\unit\test_case_basis_identity.py:42: in test_failure_selector_cannot_create_a_failure_without_valid_actual_step
+    assert not result.has_decisive_failure
+E   AssertionError: assert not True
+E    +  where True = CaseExecutionAggregate(case_id='case', can_count_execution=False, can_count_reuse=False, can_count_verification=False, has_decisive_failure=True, mixed_inheritance=False, pending_step_ids=('s1',), invalidated_step_ids=()).has_decisive_failure
+_ test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts1] _
+tests\unit\test_case_basis_identity.py:42: in test_failure_selector_cannot_create_a_failure_without_valid_actual_step
+    assert not result.has_decisive_failure
+E   AssertionError: assert not True
+E    +  where True = CaseExecutionAggregate(case_id='case', can_count_execution=False, can_count_reuse=False, can_count_verification=False, has_decisive_failure=True, mixed_inheritance=False, pending_step_ids=(), invalidated_step_ids=()).has_decisive_failure
+_ test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts2] _
+tests\unit\test_case_basis_identity.py:42: in test_failure_selector_cannot_create_a_failure_without_valid_actual_step
+    assert not result.has_decisive_failure
+E   AssertionError: assert not True
+E    +  where True = CaseExecutionAggregate(case_id='case', can_count_execution=False, can_count_reuse=False, can_count_verification=False, has_decisive_failure=True, mixed_inheritance=False, pending_step_ids=('s1',), invalidated_step_ids=('s1',)).has_decisive_failure
+_ test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts3] _
+tests\unit\test_case_basis_identity.py:42: in test_failure_selector_cannot_create_a_failure_without_valid_actual_step
+    assert not result.has_decisive_failure
+E   AssertionError: assert not True
+E    +  where True = CaseExecutionAggregate(case_id='case', can_count_execution=True, can_count_reuse=False, can_count_verification=False, has_decisive_failure=True, mixed_inheritance=False, pending_step_ids=(), invalidated_step_ids=()).has_decisive_failure
+=========================== short test summary info ===========================
+FAILED tests/unit/test_case_basis_identity.py::test_one_attempt_cannot_fill_two_steps_of_the_same_case[True]
+FAILED tests/unit/test_case_basis_identity.py::test_one_attempt_cannot_fill_two_steps_of_the_same_case[False]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[from_current_run-false]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[from_current_run-1]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[verification_valid-false]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[verification_valid-1]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[state-completed]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[capture_completeness-complete]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[step_id-1]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_fact_types_are_rejected_before_any_aggregate[attempt_id-1]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_case_or_required_identity_is_not_a_countable_scope[-required0]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_case_or_required_identity_is_not_a_countable_scope[case-required1]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_case_or_required_identity_is_not_a_countable_scope[case-required2]
+FAILED tests/unit/test_case_basis_identity.py::test_invalid_case_or_required_identity_is_not_a_countable_scope[case-required3]
+FAILED tests/unit/test_case_basis_identity.py::test_noncountable_execution_still_lists_the_required_step[change0]
+FAILED tests/unit/test_case_basis_identity.py::test_noncountable_execution_still_lists_the_required_step[change1]
+FAILED tests/unit/test_case_basis_identity.py::test_noncountable_execution_still_lists_the_required_step[change2]
+FAILED tests/unit/test_case_basis_identity.py::test_noncountable_execution_still_lists_the_required_step[change3]
+FAILED tests/unit/test_case_basis_identity.py::test_noncountable_execution_still_lists_the_required_step[change4]
+FAILED tests/unit/test_case_basis_identity.py::test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts0]
+FAILED tests/unit/test_case_basis_identity.py::test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts1]
+FAILED tests/unit/test_case_basis_identity.py::test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts2]
+FAILED tests/unit/test_case_basis_identity.py::test_failure_selector_cannot_create_a_failure_without_valid_actual_step[facts3]
+23 failed, 1 passed in 0.26s
