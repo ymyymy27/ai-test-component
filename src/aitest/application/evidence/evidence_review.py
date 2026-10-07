@@ -26,7 +26,7 @@ def freeze_verification_request(request: VerificationRequest) -> VerificationReq
         not isinstance(ref, str) or not ref.strip() for ref in request.evidence_refs
     ):
         raise ValueError("verification request evidence references are invalid")
-    expected = freeze_json_value(request.expected_facts)
+    expected = _freeze_query_fields(request)
     if not isinstance(expected, dict):
         raise ValueError("verification request expected facts require a JSON object")
     return replace(request, expected_facts=expected)
@@ -80,6 +80,15 @@ class EvidenceReviewService:
         } and not (result.actual_result_ref or result.evidence_refs):
             raise ValueError("verification observation lacks a material reference")
         return result
+
+
+def _freeze_query_fields(request: VerificationRequest) -> object:
+    """Validate exact field values without copying arbitrary objects via asdict."""
+    values = {name: getattr(request, name) for name in VerificationRequest.__dataclass_fields__}
+    values["evidence_refs"] = list(request.evidence_refs)
+    frozen = freeze_json_value(values)
+    assert isinstance(frozen, dict)
+    return frozen["expected_facts"]
 
 
 __all__ = [

@@ -1,0 +1,203 @@
+...................FFFFFFF......FFFFFFFFFFF........                      [100%]
+================================== FAILURES ===================================
+_ test_frozen_query_identity_refuses_surrogates_before_provider[verification_of] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_frozen_query_identity_refuses_surrogates_before_provider[business_object_id] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_frozen_query_identity_refuses_surrogates_before_provider[query_method] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_frozen_query_identity_refuses_surrogates_before_provider[deadline_condition] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_frozen_query_identity_refuses_surrogates_before_provider[target_deployment_ref] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_frozen_query_identity_refuses_surrogates_before_provider[query_interval] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_frozen_query_identity_refuses_surrogates_before_provider[evidence_refs] _
+tests\unit\test_json_unicode_boundaries.py:108: in test_frozen_query_identity_refuses_surrogates_before_provider
+    EvidenceReviewService(provider).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_other_scope_cannot_be_attached_to_the_requested_object[verification_of] _
+tests\unit\test_verification_request_scope.py:55: in test_other_scope_cannot_be_attached_to_the_requested_object
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_other_scope_cannot_be_attached_to_the_requested_object[business_object_id] _
+tests\unit\test_verification_request_scope.py:55: in test_other_scope_cannot_be_attached_to_the_requested_object
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref] _
+tests\unit\test_verification_request_scope.py:55: in test_other_scope_cannot_be_attached_to_the_requested_object
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+__ test_other_scope_cannot_be_attached_to_the_requested_object[query_method] __
+tests\unit\test_verification_request_scope.py:55: in test_other_scope_cannot_be_attached_to_the_requested_object
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_other_scope_cannot_be_attached_to_the_requested_object[query_interval] _
+tests\unit\test_verification_request_scope.py:55: in test_other_scope_cannot_be_attached_to_the_requested_object
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_ test_other_scope_cannot_be_attached_to_the_requested_object[deadline_condition] _
+tests\unit\test_verification_request_scope.py:55: in test_other_scope_cannot_be_attached_to_the_requested_object
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_______ test_expected_evidence_cannot_be_dropped_from_the_returned_fact _______
+tests\unit\test_verification_request_scope.py:64: in test_expected_evidence_cannot_be_dropped_from_the_returned_fact
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+__________ test_invalid_verification_shape_remains_unverified[shape] __________
+tests\unit\test_verification_request_scope.py:80: in test_invalid_verification_shape_remains_unverified
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+_______ test_invalid_verification_shape_remains_unverified[observation] _______
+tests\unit\test_verification_request_scope.py:80: in test_invalid_verification_shape_remains_unverified
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+____ test_invalid_verification_shape_remains_unverified[actual_reference] _____
+tests\unit\test_verification_request_scope.py:80: in test_invalid_verification_shape_remains_unverified
+    EvidenceReviewService(verifier).review(request)
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+____ test_matching_result_retains_added_evidence_and_unknown_query_outcome ____
+tests\unit\test_verification_request_scope.py:89: in test_matching_result_retains_added_evidence_and_unknown_query_outcome
+    assert EvidenceReviewService(verifier).review(request) == verifier.verify.return_value
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = freeze_json_value(vars(request))
+                                 ^^^^^^^^^^^^^
+E   TypeError: vars() argument must have __dict__ attribute
+=========================== short test summary info ===========================
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[verification_of]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[business_object_id]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[query_method]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[deadline_condition]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[target_deployment_ref]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[query_interval]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[evidence_refs]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[verification_of]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[business_object_id]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_method]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_interval]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[deadline_condition]
+FAILED tests/unit/test_verification_request_scope.py::test_expected_evidence_cannot_be_dropped_from_the_returned_fact
+FAILED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[shape]
+FAILED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[observation]
+FAILED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[actual_reference]
+FAILED tests/unit/test_verification_request_scope.py::test_matching_result_retains_added_evidence_and_unknown_query_outcome
+18 failed, 33 passed in 6.28s

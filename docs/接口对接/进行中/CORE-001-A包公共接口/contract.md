@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.54"
+contract_version: "1.55"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -52,7 +52,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.54
+版本：1.55
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 
@@ -347,3 +347,6 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 1.41同批标识新source_pin_intent为aitest.source-pin-intent/1.0，规范inputs与摘要同存；A按新schema核对原快照/绑定/内容身份及准确本意图来源指针，并纳入实际固定清单/blob闭包，即使同字节未新增source_snapshot也不能省略。新schema缺输入/引用/摘要时拒绝发布。旧无schema的已存意图/清单保持原字节与历史分类，回读仍核对实际材料，不重新固定或回写旧记录。
 
 新source_pin_intent用aitest.source-pin-intent/1.0标识冻结inputs；同字节复用也须将原快照实际清单/blob带入本提交闭包。提交前核对本批快照/指针时只建只读候选视图，不提前添加权威节点；原持久事务意图重传核对原已提交视图与准确材料，不因旧expected_revision重复新增或误拒绝。旧无Schema记录按原闭包兼容读取，不追写历史。
+
+
+2026-10-07（1.55）：命令/回执/MCP和永久JSON明确只接受UTF-8字节，不使用JSON库的UTF-16/32自动探测。字符串值、键和核验冻结范围须为可严格UTF-8编码的Unicode字符；未配对代理字符拒绝，不替换或丢弃来修饰原依据，合法转义代理对解码为对应字符后保持可用。拒绝在实际查询/派发及登记之前，错误回包使用静态安全身份，后续合法帧仍可处理。既有冻结JSON比较语义与DTO不变，旧不合格材料保留并阻塞，不悄悄转换编码；此项不增加执行、验证或AC通过事实。

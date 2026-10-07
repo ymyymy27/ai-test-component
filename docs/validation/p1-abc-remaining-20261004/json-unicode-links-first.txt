@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\.git\p1-abc-fix-20261003\check_consumer_changed_links.py", line 42, in <module>
+    assert not errors, '\n'.join(errors)
+           ^^^^^^^^^^
+AssertionError: docs\�޸���־\Ԭ\2026-10-07-����ҵ���ѯ�־ò�����ԭ��ͼ�ض�.md: source symbol does not start at ../../../src/aitest/application/evidence/evidence_review.py#L41

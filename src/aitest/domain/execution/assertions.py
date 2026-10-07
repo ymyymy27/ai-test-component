@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
 
+from aitest.domain.json_material import require_json_text
+
 
 class HttpAssertionOperator(StrEnum):
     EQUALS = "equals"
@@ -110,7 +112,10 @@ def read_json_path(payload: object, path: str) -> tuple[bool, object]:
 
 def freeze_json_value(value: object) -> object:
     """Detach JSON comparison material before crossing an external I/O boundary."""
-    if value is None or type(value) in {str, bool, int}:
+    if type(value) is str:
+        require_json_text(value)
+        return value
+    if value is None or type(value) in {bool, int}:
         return value
     if type(value) is float:
         if not isfinite(value):
@@ -119,6 +124,8 @@ def freeze_json_value(value: object) -> object:
     if isinstance(value, Mapping):
         if any(not isinstance(key, str) for key in value):
             raise ValueError("JSON comparison material requires string keys")
+        for key in value:
+            require_json_text(key)
         return {key: freeze_json_value(item) for key, item in value.items()}
     if isinstance(value, list):
         return [freeze_json_value(item) for item in value]

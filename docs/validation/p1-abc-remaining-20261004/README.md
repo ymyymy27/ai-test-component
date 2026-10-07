@@ -185,3 +185,5 @@ uv build
 2026-10-07 MCP只读阶段：mcp-read-final-first.txt保留326通过/1真实输出预算失败；corrected为33通过/1查绑定命令选择夹具失败；final为最终329 passed（65.35秒）。静态/生成物/版本/build另存；wheel-sdk-smoke为实际安装两模块字节核对与官方SDK 2.3.0 stdio握手/list/call；探针源码与外部依赖版本同前缀留存，不改项目锁。见[精简日志](../../修改日志/袁/2026-10-07-stdio-MCP只读同核心与冻结上下文.md)。真实AC不代填。
 
 2026-10-07命令启动阶段：command-launch-before.txt为真实8失败/2通过；after为20通过/2旧threads夹具失败，corrected为36通过，final-exact为最终336 passed（27.47秒）。各静态失败/修正记录保留；build-exact和wheel-smoke对应最终安装字节与实际Windows验证，初次构建不借用于最终源。见[精简根因与边界](../../修改日志/袁/2026-10-07-命令全启动阶段清理与原进程句柄.md)。真实AC不代填。
+
+2026-10-07 UTF/Unicode阶段：json-unicode-before-corrected.txt为30失败/1合法通过，after为31通过；final-first是命令误填不存在文件，未运行，不记通过；旧final387通过仅属首版。两次scope-refined/scope-final保留18/11个重构错误，final-exact为最终387 passed（273.02秒），最终安装current-smoke为51通过，build-current与mypy/ruff-current对应最终源码。见[精简根因与边界](../../修改日志/袁/2026-10-07-UTF8与Unicode核验依据前置校验.md)。项目文档及他人未提交字节不改，真实AC不代填。

@@ -1,0 +1,199 @@
+FFFFFFFFFFFF.FFFFFFFFFFFFFFFFFF                                          [100%]
+================================== FAILURES ===================================
+__________ test_json_material_and_cli_reject_other_encodings[utf-16] __________
+tests\unit\test_json_unicode_boundaries.py:26: in test_json_material_and_cli_reject_other_encodings
+    with pytest.raises(ValueError): decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_json_material_and_cli_reject_other_encodings[utf-16-le] _________
+tests\unit\test_json_unicode_boundaries.py:26: in test_json_material_and_cli_reject_other_encodings
+    with pytest.raises(ValueError): decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_json_material_and_cli_reject_other_encodings[utf-16-be] _________
+tests\unit\test_json_unicode_boundaries.py:26: in test_json_material_and_cli_reject_other_encodings
+    with pytest.raises(ValueError): decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+__________ test_json_material_and_cli_reject_other_encodings[utf-32] __________
+tests\unit\test_json_unicode_boundaries.py:26: in test_json_material_and_cli_reject_other_encodings
+    with pytest.raises(ValueError): decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_json_material_and_cli_reject_other_encodings[utf-32-le] _________
+tests\unit\test_json_unicode_boundaries.py:26: in test_json_material_and_cli_reject_other_encodings
+    with pytest.raises(ValueError): decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_json_material_and_cli_reject_other_encodings[utf-32-be] _________
+tests\unit\test_json_unicode_boundaries.py:26: in test_json_material_and_cli_reject_other_encodings
+    with pytest.raises(ValueError): decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___________ test_decoded_json_refuses_unpaired_surrogates["\ud800"] ___________
+tests\unit\test_json_unicode_boundaries.py:32: in test_decoded_json_refuses_unpaired_surrogates
+    with pytest.raises(ValueError):decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_________ test_decoded_json_refuses_unpaired_surrogates[{"\udfff":1}] _________
+tests\unit\test_json_unicode_boundaries.py:32: in test_decoded_json_refuses_unpaired_surrogates
+    with pytest.raises(ValueError):decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_decoded_json_refuses_unpaired_surrogates[{"nested":["\udc00"]}] _____
+tests\unit\test_json_unicode_boundaries.py:32: in test_decoded_json_refuses_unpaired_surrogates
+    with pytest.raises(ValueError):decode_json(raw)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_comparison_material_cannot_preserve_unserializable_text[\ud800] _____
+tests\unit\test_json_unicode_boundaries.py:37: in test_comparison_material_cannot_preserve_unserializable_text
+    with pytest.raises(ValueError):freeze_json_value(value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_comparison_material_cannot_preserve_unserializable_text[value1] _____
+tests\unit\test_json_unicode_boundaries.py:37: in test_comparison_material_cannot_preserve_unserializable_text
+    with pytest.raises(ValueError):freeze_json_value(value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_comparison_material_cannot_preserve_unserializable_text[value2] _____
+tests\unit\test_json_unicode_boundaries.py:37: in test_comparison_material_cannot_preserve_unserializable_text
+    with pytest.raises(ValueError):freeze_json_value(value)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_independent_query_does_not_match_or_query_invalid_material[value0-expected] _
+tests\unit\test_json_unicode_boundaries.py:54: in test_independent_query_does_not_match_or_query_invalid_material
+    assert result.actual_fields is None and result.verification.actual_result_ref is None
+E   AssertionError: assert ({'value': 'normal'} is None)
+E    +  where {'value': 'normal'} = CapturedBusinessVerification(verification=Verification(verification_id='verification:attempt:object', verification_of=...s=(), evidence_refs=(), gap_ids=('business_fact_mismatch:value',), created_at=None), actual_fields={'value': 'normal'}).actual_fields
+_ test_independent_query_does_not_match_or_query_invalid_material[value0-observed] _
+tests\unit\test_json_unicode_boundaries.py:54: in test_independent_query_does_not_match_or_query_invalid_material
+    assert result.actual_fields is None and result.verification.actual_result_ref is None
+E   AssertionError: assert ({'value': '\ud800'} is None)
+E    +  where {'value': '\ud800'} = CapturedBusinessVerification(verification=Verification(verification_id='verification:attempt:object', verification_of=...s=(), evidence_refs=(), gap_ids=('business_fact_mismatch:value',), created_at=None), actual_fields={'value': '\ud800'}).actual_fields
+_ test_independent_query_does_not_match_or_query_invalid_material[value1-expected] _
+tests\unit\test_json_unicode_boundaries.py:54: in test_independent_query_does_not_match_or_query_invalid_material
+    assert result.actual_fields is None and result.verification.actual_result_ref is None
+E   AssertionError: assert ({'value': 'normal'} is None)
+E    +  where {'value': 'normal'} = CapturedBusinessVerification(verification=Verification(verification_id='verification:attempt:object', verification_of=...s=(), evidence_refs=(), gap_ids=('business_fact_missing:\udfff',), created_at=None), actual_fields={'value': 'normal'}).actual_fields
+_ test_independent_query_does_not_match_or_query_invalid_material[value1-observed] _
+tests\unit\test_json_unicode_boundaries.py:54: in test_independent_query_does_not_match_or_query_invalid_material
+    assert result.actual_fields is None and result.verification.actual_result_ref is None
+E   AssertionError: assert ({'\udfff': 1} is None)
+E    +  where {'\udfff': 1} = CapturedBusinessVerification(verification=Verification(verification_id='verification:attempt:object', verification_of=...item_ids=(), evidence_refs=(), gap_ids=('business_fact_missing:value',), created_at=None), actual_fields={'\udfff': 1}).actual_fields
+_ test_independent_query_does_not_match_or_query_invalid_material[value2-expected] _
+tests\unit\test_json_unicode_boundaries.py:54: in test_independent_query_does_not_match_or_query_invalid_material
+    assert result.actual_fields is None and result.verification.actual_result_ref is None
+E   AssertionError: assert ({'value': 'normal'} is None)
+E    +  where {'value': 'normal'} = CapturedBusinessVerification(verification=Verification(verification_id='verification:attempt:object', verification_of=...s=(), evidence_refs=(), gap_ids=('business_fact_mismatch:value',), created_at=None), actual_fields={'value': 'normal'}).actual_fields
+_ test_independent_query_does_not_match_or_query_invalid_material[value2-observed] _
+tests\unit\test_json_unicode_boundaries.py:54: in test_independent_query_does_not_match_or_query_invalid_material
+    assert result.actual_fields is None and result.verification.actual_result_ref is None
+E   AssertionError: assert ({'value': {'nested': ['\udc00']}} is None)
+E    +  where {'value': {'nested': ['\udc00']}} = CapturedBusinessVerification(verification=Verification(verification_id='verification:attempt:object', verification_of=..._refs=(), gap_ids=('business_fact_mismatch:value',), created_at=None), actual_fields={'value': {'nested': ['\udc00']}}).actual_fields
+_ test_frozen_query_identity_refuses_surrogates_before_provider[verification_of] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='\ud800', business_object_id='object', query_method='readonly', deadline_condition='immediate', target_deployment_ref='deployment', query_interval='configured', evidence_refs=(), expected_facts={'paid': True}))].
+_ test_frozen_query_identity_refuses_surrogates_before_provider[business_object_id] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='attempt', business_object_id='\ud800', query_method='readonly', deadline_condition='immediate', target_deployment_ref='deployment', query_interval='configured', evidence_refs=(), expected_facts={'paid': True}))].
+_ test_frozen_query_identity_refuses_surrogates_before_provider[query_method] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='attempt', business_object_id='object', query_method='\ud800', deadline_condition='immediate', target_deployment_ref='deployment', query_interval='configured', evidence_refs=(), expected_facts={'paid': True}))].
+_ test_frozen_query_identity_refuses_surrogates_before_provider[deadline_condition] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='attempt', business_object_id='object', query_method='readonly', deadline_condition='\ud800', target_deployment_ref='deployment', query_interval='configured', evidence_refs=(), expected_facts={'paid': True}))].
+_ test_frozen_query_identity_refuses_surrogates_before_provider[target_deployment_ref] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='attempt', business_object_id='object', query_method='readonly', deadline_condition='immediate', target_deployment_ref='\ud800', query_interval='configured', evidence_refs=(), expected_facts={'paid': True}))].
+_ test_frozen_query_identity_refuses_surrogates_before_provider[query_interval] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='attempt', business_object_id='object', query_method='readonly', deadline_condition='immediate', target_deployment_ref='deployment', query_interval='\ud800', evidence_refs=(), expected_facts={'paid': True}))].
+_ test_frozen_query_identity_refuses_surrogates_before_provider[evidence_refs] _
+tests\unit\test_json_unicode_boundaries.py:65: in test_frozen_query_identity_refuses_surrogates_before_provider
+    provider.verify.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'verify' to not have been called. Called 1 times.
+E   Calls: [call(VerificationRequest(verification_of='attempt', business_object_id='object', query_method='readonly', deadline_condition='immediate', target_deployment_ref='deployment', query_interval='configured', evidence_refs=('\ud800',), expected_facts={'paid': True}))].
+_ test_unverified_reply_encoding_closes_connection_and_is_not_retried[utf-16-be] _
+tests\unit\test_json_unicode_boundaries.py:74: in test_unverified_reply_encoding_closes_connection_and_is_not_retried
+    with pytest.raises(CoreResultUnverified):client.send(command)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE CoreResultUnverified
+_ test_unverified_reply_encoding_closes_connection_and_is_not_retried[utf-32-le] _
+tests\unit\test_json_unicode_boundaries.py:74: in test_unverified_reply_encoding_closes_connection_and_is_not_retried
+    with pytest.raises(CoreResultUnverified):client.send(command)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE CoreResultUnverified
+__ test_mcp_bad_unicode_identity_emits_static_error_then_handles_valid_frame __
+tests\unit\test_json_unicode_boundaries.py:83: in test_mcp_bad_unicode_identity_emits_static_error_then_handles_valid_frame
+    instance.serve(io.BytesIO(bad+encode(rpc("good","ping"))+b"\n"),sink)
+src\aitest\interfaces\tools\agent_relay.py:284: in serve
+    encoded = json.dumps(response, ensure_ascii=False, allow_nan=False).encode("utf-8")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'utf-8' codec can't encode character '\ud800' in position 26: surrogates not allowed
+__________ test_mcp_utf16_be_frame_is_rejected_without_core_dispatch __________
+tests\unit\test_json_unicode_boundaries.py:93: in test_mcp_utf16_be_frame_is_rejected_without_core_dispatch
+    assert response["id"] is None and response["error"]["code"]==-32700
+E   assert (7 is None)
+___ test_http_invalid_unicode_body_keeps_actual_bytes_and_unknown_assertion ___
+tests\unit\test_json_unicode_boundaries.py:102: in test_http_invalid_unicode_body_keeps_actual_bytes_and_unknown_assertion
+    assert result.assertion_results[0].matched is None
+E   AssertionError: assert False is None
+E    +  where False = HttpAssertionResult(assertion_id='value', matched=False, actual='\ud800', value_available=True).matched
+=========================== short test summary info ===========================
+FAILED tests/unit/test_json_unicode_boundaries.py::test_json_material_and_cli_reject_other_encodings[utf-16]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_json_material_and_cli_reject_other_encodings[utf-16-le]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_json_material_and_cli_reject_other_encodings[utf-16-be]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_json_material_and_cli_reject_other_encodings[utf-32]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_json_material_and_cli_reject_other_encodings[utf-32-le]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_json_material_and_cli_reject_other_encodings[utf-32-be]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_decoded_json_refuses_unpaired_surrogates["\ud800"]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_decoded_json_refuses_unpaired_surrogates[{"\udfff":1}]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_decoded_json_refuses_unpaired_surrogates[{"nested":["\udc00"]}]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_comparison_material_cannot_preserve_unserializable_text[\ud800]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_comparison_material_cannot_preserve_unserializable_text[value1]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_comparison_material_cannot_preserve_unserializable_text[value2]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_independent_query_does_not_match_or_query_invalid_material[value0-expected]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_independent_query_does_not_match_or_query_invalid_material[value0-observed]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_independent_query_does_not_match_or_query_invalid_material[value1-expected]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_independent_query_does_not_match_or_query_invalid_material[value1-observed]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_independent_query_does_not_match_or_query_invalid_material[value2-expected]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_independent_query_does_not_match_or_query_invalid_material[value2-observed]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[verification_of]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[business_object_id]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[query_method]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[deadline_condition]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[target_deployment_ref]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[query_interval]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_frozen_query_identity_refuses_surrogates_before_provider[evidence_refs]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_unverified_reply_encoding_closes_connection_and_is_not_retried[utf-16-be]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_unverified_reply_encoding_closes_connection_and_is_not_retried[utf-32-le]
+FAILED tests/unit/test_json_unicode_boundaries.py::test_mcp_bad_unicode_identity_emits_static_error_then_handles_valid_frame
+FAILED tests/unit/test_json_unicode_boundaries.py::test_mcp_utf16_be_frame_is_rejected_without_core_dispatch
+FAILED tests/unit/test_json_unicode_boundaries.py::test_http_invalid_unicode_body_keeps_actual_bytes_and_unknown_assertion
+30 failed, 1 passed in 0.94s
