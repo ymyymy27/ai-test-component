@@ -1,0 +1,2 @@
+src\aitest\infrastructure\adapters\execution\http_transport.py:103: error: Argument 1 to "set_result" of "Future" has incompatible type "list[tuple[AddressFamily, SocketKind, int, str, tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes]]]"; expected "list[tuple[AddressFamily, SocketKind, int, str, tuple[str, int] | tuple[str, int, int, int]]]"  [arg-type]
+Found 1 error in 1 file (checked 206 source files)

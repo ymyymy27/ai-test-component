@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.51"
+contract_version: "1.52"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.52 HTTP框架的timeout_seconds改为同一次请求的总截止（包含域名解析、连接、TLS、发送、响应头和正文），使用单调时钟及本次持有socket的截止中止；截止后不新连接、不重试或重放。解析仅做DNS，逾期返回不得触发请求，未完成DNS线程数量有界。请求只直连冻结HTTP/HTTPS目标，不读取隐式系统代理、不跟随重定向；HTTPS保持系统信任与主机名校验。新增框架max_response_bytes（实际正整数，默认4MiB、最高64MiB）与body_complete事实；正常/HTTP错误响应共用有限分块采集，长度未达、非法/歧义消息定界、超限、超时及协议错误保留实际已读前缀/已知状态，body_complete=false，所有JSON提取及断言值不可用。只在合法消息定界与EOF/声明长度/完整chunked结束均核对后记完整。发送前还拒绝自定义Transfer-Encoding、与冻结字节不等的Content-Length及无法按HTTP线格式编码的路径/头；错误细节使用固定类别，避免认证或原文被异常消息回显；这不是落盘过滤或业务真实性证明。框架字段不加入公开业务DTO/Schema，不代替执行授权、持久意图与真实业务核验；旧记录不重算，FR/AC与reviewing/partial/not_run不变。
 
 1.51 收紧HTTP框架请求与取值语义：执行前验证明确HTTP/HTTPS地址、无内嵌凭据/片段、合法端口、HTTP token方法/字段名、无歧义重复请求头、明确字节正文及有限正数且不超过本地TIMEOUT_MAX的超时（拒绝bool/NaN/Infinity/超大整数）；畸形配置不发请求。提取名/断言编号须唯一。既有点分路径及单个非负数组索引只按完整语法取值，空路径仍为JSON根；缺括号、额外括号/尾部、空段、多个索引等不支持语法保持不可用，不截取成另一个可通过的路径。没有新增业务通过、请求持久来源或五类生产配置；网络整请求截止、完整采集/字节上限、实际目标核验及宿主验收继续独立补齐。FR/AC、reviewing/partial/not_run不变。
 
@@ -46,7 +48,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.51
+版本：1.52
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 

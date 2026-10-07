@@ -1,6 +1,5 @@
 """I/O callbacks cannot replace the comparison basis after a request starts."""
 
-from io import BytesIO
 from unittest.mock import Mock
 
 import pytest
@@ -65,18 +64,15 @@ def test_equal_override_keeps_the_request_basis():
 
 def test_http_response_cannot_replace_the_original_nested_assertion(monkeypatch):
     from aitest.infrastructure.adapters.execution import http
+    from aitest.infrastructure.adapters.execution.http_transport import NetworkExchange
 
     expected = {"paid": True}
 
-    class Response(BytesIO):
-        status = 200
-        headers = {}
-
     def fetch(*args, **kwargs):
         expected["paid"] = False
-        return Response(b'{"payment":{"paid":false}}')
+        return NetworkExchange(status=200, body=b'{"payment":{"paid":false}}', body_complete=True)
 
-    monkeypatch.setattr(http, "urlopen", fetch)
+    monkeypatch.setattr(http, "exchange", fetch)
     result = HttpAdapter().execute(
         HttpRequestSpec(
             "frozen-http",
@@ -92,7 +88,7 @@ def test_invalid_http_assertion_stops_before_transport(monkeypatch):
     from aitest.infrastructure.adapters.execution import http
 
     fetch = Mock()
-    monkeypatch.setattr(http, "urlopen", fetch)
+    monkeypatch.setattr(http, "exchange", fetch)
     result = HttpAdapter().execute(
         HttpRequestSpec(
             "invalid-http",

@@ -1,0 +1,2 @@
+2 installed transport modules match final source. Actual outbound HTTP deadline, partial capture, byte budget and TLS certificate/hostname checks passed.
+Synthetic loopback fixture only; no production business, Trae or human acceptance claimed.

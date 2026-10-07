@@ -8,9 +8,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field, replace
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
 
 from aitest.domain.execution.assertions import (
     HttpAssertion as HttpAssertion,
@@ -23,6 +21,8 @@ from aitest.domain.execution.assertions import (
     freeze_json_value,
     read_json_path,
 )
+
+from .http_transport import exchange
 
 _MISSING = object()
 _HTTP_TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
@@ -46,6 +46,7 @@ class HttpRequestSpec:
     timeout_seconds: float = 10.0
     extract_paths: tuple[tuple[str, str], ...] = ()
     assertions: tuple[HttpAssertion, ...] = ()
+    max_response_bytes: int = 4 * 1024 * 1024
 
     def __post_init__(self) -> None:
         if any(
@@ -79,6 +80,11 @@ class HttpRequestSpec:
             raise ValueError("HTTP target requires an explicit address without inline credentials")
         if self.body is not None and not isinstance(self.body, bytes):
             raise ValueError("HTTP request body requires explicit bytes")
+        if (
+            type(self.max_response_bytes) is not int
+            or not 0 < self.max_response_bytes <= 64 * 1024 * 1024
+        ):
+            raise ValueError("HTTP response budget requires a positive integer up to 64MiB")
         seen_headers: set[str] = set()
         if not isinstance(self.headers, tuple):
             raise ValueError("HTTP headers require an immutable list of complete fields")
@@ -97,6 +103,19 @@ class HttpRequestSpec:
             ):
                 raise ValueError("HTTP headers have an invalid name/value or duplicate field")
             seen_headers.add(name.lower())
+        header_values = {name.lower(): value for name, value in self.headers}
+        if "transfer-encoding" in header_values:
+            raise ValueError("HTTP byte requests do not accept caller transfer framing")
+        length = header_values.get("content-length")
+        if length is not None and length != str(len(self.body or b"")):
+            raise ValueError("HTTP content-length must match the frozen byte body")
+        try:
+            (target.path + target.query).encode("ascii")
+            target.hostname.encode("idna")
+            for _, value in self.headers:
+                value.encode("latin-1")
+        except UnicodeError as error:
+            raise ValueError("HTTP request requires wire-encodable target and headers") from error
         if not isinstance(self.extract_paths, tuple):
             raise ValueError("HTTP extractions require immutable named paths")
         names: set[str] = set()
@@ -133,10 +152,11 @@ class HttpExchangeResult:
     assertion_results: tuple[HttpAssertionResult, ...] = ()
     request_log_ref: str | None = None
     missing_extractions: tuple[str, ...] = ()
+    body_complete: bool = True
 
 
 class HttpAdapter:
-    """Minimal non-secret HTTP boundary; variable extraction remains a later slice."""
+    """Bounded direct HTTP observations; assertions consume complete JSON only."""
 
     def execute(self, spec: HttpRequestSpec) -> HttpExchangeResult:
         method = spec.method.upper()
@@ -157,59 +177,25 @@ class HttpAdapter:
                 status=None,
                 error_class="assertion_input_invalid",
             )
-        request = Request(
-            spec.url,
-            data=spec.body,
-            headers=dict(spec.headers),
-            method=method,
+        observed = exchange(
+            method=method, url=spec.url, headers=spec.headers, body=spec.body,
+            expires=started + spec.timeout_seconds, max_response_bytes=spec.max_response_bytes,
         )
-        try:
-            with urlopen(request, timeout=spec.timeout_seconds) as response:
-                body = response.read()
-                result = HttpExchangeResult(
-                    request_id=spec.request_id,
-                    method=method,
-                    url=spec.url,
-                    status=int(response.status),
-                    headers=tuple(response.headers.items()),
-                    body=body,
-                    elapsed_ms=int((time.monotonic() - started) * 1000),
-                    request_log_ref=f"http-request:{spec.request_id}",
-                )
-                return self._enrich(result, spec)
-        except HTTPError as error:
-            body = error.read()
-            result = HttpExchangeResult(
-                request_id=spec.request_id,
-                method=method,
-                url=spec.url,
-                status=int(error.code),
-                headers=tuple(error.headers.items()),
-                body=body,
-                error_class="http_status",
-                error_detail=str(error.code),
-                elapsed_ms=int((time.monotonic() - started) * 1000),
-                request_log_ref=f"http-request:{spec.request_id}",
-            )
-            return self._enrich(result, spec)
-        except (URLError, OSError) as error:
-            return HttpExchangeResult(
-                request_id=spec.request_id,
-                method=method,
-                url=spec.url,
-                status=None,
-                error_class="network",
-                error_detail=str(error),
-                elapsed_ms=int((time.monotonic() - started) * 1000),
-                request_log_ref=f"http-request:{spec.request_id}",
-            )
+        return self._enrich(HttpExchangeResult(
+            request_id=spec.request_id, method=method, url=spec.url,
+            status=observed.status, headers=observed.headers, body=observed.body,
+            body_complete=observed.body_complete, error_class=observed.error_class,
+            error_detail=observed.error_detail,
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            request_log_ref=f"http-request:{spec.request_id}",
+        ), spec)
 
     @staticmethod
     def _enrich(
         result: HttpExchangeResult,
         spec: HttpRequestSpec,
     ) -> HttpExchangeResult:
-        payload = _json_payload(result.body)
+        payload = _json_payload(result.body) if result.body_complete is True else _MISSING
         observations = {name: _json_path(payload, path) for name, path in spec.extract_paths}
         extracted = {
             name: None if value is _MISSING else value for name, value in observations.items()
@@ -237,6 +223,7 @@ class HttpAdapter:
             status=result.status,
             headers=result.headers,
             body=result.body,
+            body_complete=result.body_complete,
             error_class=result.error_class,
             error_detail=result.error_detail,
             elapsed_ms=result.elapsed_ms,
