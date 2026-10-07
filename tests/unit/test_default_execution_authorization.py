@@ -38,6 +38,7 @@ def test_default_capabilities_and_missing_resolver_are_honest(tmp_path):
             doctor.result["supported_actions"]
         )
         assert "start_run" in doctor.result["supported_actions"]
+        assert "verify_pending" in doctor.result["supported_actions"]
         before = core.unit_of_work.current_commit_sequence()
         result = core.api.dispatch(
             command("prepare_execution", parameters={"run_id": "run", "step_id": "step"}),

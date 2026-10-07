@@ -11,9 +11,12 @@ import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Protocol
 
-from aitest.application.ports import VerificationRequest
+from aitest.application.ports import (
+    CapturedBusinessVerification,
+    ReadOnlyBusinessQueryPort,
+    VerificationRequest,
+)
 from aitest.contracts.verification import (
     VerificationFact,
     VerificationState,
@@ -22,8 +25,8 @@ from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
 )
+from aitest.domain.evidence.verification import compare_business_fields
 from aitest.domain.execution.assertions import (
-    compare_expected_fields,
     freeze_json_value,
     json_equal,
 )
@@ -79,15 +82,6 @@ class IndependentFileVerifier:
         )
 
 
-class ReadOnlyBusinessQueryPort(Protocol):
-    def read_business_object(
-        self,
-        *,
-        business_object_id: str,
-        target_deployment_ref: str,
-    ) -> Mapping[str, object] | None: ...
-
-
 class BusinessVerificationAdapter:
     """Independently read the same business object and compare key facts."""
 
@@ -102,24 +96,38 @@ class BusinessVerificationAdapter:
         *,
         expected_facts: Mapping[str, object] | None = None,
     ) -> Verification:
+        return self.capture(request, expected_facts=expected_facts).verification
+
+    def capture(
+        self,
+        request: VerificationRequest,
+        *,
+        expected_facts: Mapping[str, object] | None = None,
+    ) -> CapturedBusinessVerification:
         try:
             expected = freeze_json_value(request.expected_facts)
             override = freeze_json_value(expected_facts) if expected_facts is not None else expected
             if not isinstance(expected, dict):
                 raise ValueError("business expected facts require an object")
         except (TypeError, ValueError, RecursionError, RuntimeError):
-            return self._fact(
-                request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_invalid",)
+            return CapturedBusinessVerification(
+                self._fact(
+                    request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_invalid",)
+                )
             )
         if not json_equal(override, expected):
-            return self._fact(
-                request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_conflict",)
+            return CapturedBusinessVerification(
+                self._fact(
+                    request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_conflict",)
+                )
             )
         if not expected:
-            return self._fact(
-                request,
-                VerificationObservation.NO_RESULT,
-                gap_ids=("expected_facts_missing",),
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.NO_RESULT,
+                    gap_ids=("expected_facts_missing",),
+                )
             )
         try:
             observed = self._query_port.read_business_object(
@@ -127,16 +135,20 @@ class BusinessVerificationAdapter:
                 target_deployment_ref=request.target_deployment_ref,
             )
         except Exception:  # noqa: BLE001
-            return self._fact(
-                request,
-                VerificationObservation.QUERY_ERROR,
-                gap_ids=("independent_query_error",),
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.QUERY_ERROR,
+                    gap_ids=("independent_query_error",),
+                )
             )
         if observed is None:
-            return self._fact(
-                request,
-                VerificationObservation.NO_RESULT,
-                gap_ids=("business_object_not_found",),
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.NO_RESULT,
+                    gap_ids=("business_object_not_found",),
+                )
             )
         try:
             if not isinstance(observed, Mapping) or any(
@@ -149,24 +161,22 @@ class BusinessVerificationAdapter:
                 raise ValueError("business observation requires an object")
             actual_ref = _mapping_digest(frozen_observed)
         except (TypeError, ValueError, RecursionError, RuntimeError):
-            return self._fact(
-                request,
-                VerificationObservation.QUERY_ERROR,
-                gap_ids=("independent_query_material_invalid",),
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.QUERY_ERROR,
+                    gap_ids=("independent_query_material_invalid",),
+                )
             )
-        missing, mismatched = compare_expected_fields(frozen_observed, expected)
-        return self._fact(
-            request,
-            (
-                VerificationObservation.MISMATCHED
-                if mismatched
-                else VerificationObservation.NO_RESULT
-                if missing
-                else VerificationObservation.MATCHED
+        observation, gaps = compare_business_fields(frozen_observed, expected)
+        return CapturedBusinessVerification(
+            self._fact(
+                request,
+                observation,
+                actual_result_ref=actual_ref,
+                gap_ids=gaps,
             ),
-            actual_result_ref=actual_ref,
-            gap_ids=tuple(f"business_fact_missing:{key}" for key in missing)
-            + tuple(f"business_fact_mismatch:{key}" for key in mismatched),
+            frozen_observed,
         )
 
     @staticmethod

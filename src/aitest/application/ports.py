@@ -597,6 +597,34 @@ class BusinessVerificationPort(Protocol):
     def verify(self, request: VerificationRequest) -> Verification: ...
 
 
+class ReadOnlyBusinessQueryPort(Protocol):
+    """Independent business read; adapters implement this application-owned port."""
+
+    def read_business_object(
+        self, *, business_object_id: str, target_deployment_ref: str
+    ) -> Mapping[str, object] | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CapturedBusinessVerification:
+    """Transient actual material; no digest alone proves that it was saved."""
+
+    verification: Verification
+    actual_fields: Mapping[str, object] | None = None
+
+
+class BusinessVerificationCapturePort(Protocol):
+    def capture(self, request: VerificationRequest) -> CapturedBusinessVerification: ...
+
+
+class BusinessVerificationResolver(Protocol):
+    """Resolve the original operation/object and published query/expected basis."""
+
+    def resolve(
+        self, *, facts: ExecutionFacts, step_id: str, attempt_id: str
+    ) -> VerificationRequest: ...
+
+
 class ModelProvider(Protocol):
     """Normalized response/errors for policy-approved projected input."""
 

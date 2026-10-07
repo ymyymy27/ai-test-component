@@ -206,13 +206,17 @@ def _guard(value: Any, registry: KnownSecretRegistry) -> tuple[Any, bool]:
         changed_any = False
         result: dict[str, Any] = {}
         for key, item in value.items():
+            safe_key, key_changed = scrub_text(str(key), registry)
+            if safe_key in result:
+                raise UnsafeMaterialError("credential filtering creates ambiguous field names")
+            changed_any = changed_any or key_changed
             normalized = str(key).lower().replace("-", "_")
             if {str(key).lower(), normalized} & SENSITIVE_KEYS:
-                result[str(key)] = _REDACTION
+                result[safe_key] = _REDACTION
                 changed_any = changed_any or item != _REDACTION
                 continue
             guarded, changed = _guard(item, registry)
-            result[str(key)] = guarded
+            result[safe_key] = guarded
             changed_any = changed_any or changed
         return result, changed_any
     if isinstance(value, (list, tuple)):
