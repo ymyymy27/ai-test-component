@@ -398,6 +398,9 @@ class _ShardDirectory:
     def _read_shard(self, info: dict[str, Any]) -> list[dict[str, Any]]:
         tree = OrderedIndexTree(self.dir, _key_cmp, leaf_size=1024)
         entries: list[dict[str, Any]] = tree.read(info)["entries"]
+        if self.name in _ALL_FAMILIES:
+            for entry in entries:
+                FileQueryIndex._validate_query_entry(self.name, tuple(entry["k"]), entry["v"])
         return entries
 
     def _publish(self, tree: OrderedIndexTree, generation: int, commit_id: int) -> dict[str, Any]:
@@ -628,7 +631,9 @@ class FileQueryIndex:
                     from .canonical_manifest import complete_manifest
 
                     manifest = complete_manifest(
-                        self.root, manifest, instance_id="index-maintenance-" + uuid.uuid4().hex,
+                        self.root,
+                        manifest,
+                        instance_id="index-maintenance-" + uuid.uuid4().hex,
                         business_root=manifest["business_change_index_root"],
                     )
                 store.publish(store.prepare(manifest))
@@ -904,12 +909,13 @@ class FileQueryIndex:
     # ----- 发布：全量构建 / 维护重建 / 增量发布 ------------------------
 
     @staticmethod
-    def _validate_rows(rows: list[dict[str, Any]], commit_sequence: int) -> None:
+    def _validate_rows(rows: list[dict[str, Any]], commit_sequence: object) -> None:
         if type(commit_sequence) is not int or commit_sequence < 0:
             raise IndexMissing("invalid query publication boundary")
         for row in rows:
             if (
-                type(row.get("commit_sequence")) is not int
+                not isinstance(row, dict)
+                or type(row.get("commit_sequence")) is not int
                 or not 0 <= row["commit_sequence"] <= commit_sequence
                 or type(row.get("revision")) is not int
                 or row["revision"] < 1
@@ -919,6 +925,44 @@ class FileQueryIndex:
                 )
             ):
                 raise IndexMissing("index row does not belong to the publication boundary")
+            for field in ("published_sequence", "updated_sequence", "content_revision"):
+                if field in row and (type(row[field]) is not int or row[field] < 0):
+                    raise IndexMissing("index summary has an invalid ordering counter")
+            for field in ("report_id", "run_id"):
+                if field in row and (not isinstance(row[field], str) or not row[field]):
+                    raise IndexMissing("index summary has an invalid business identity")
+            if "issue_index_entries" in row:
+                entries = row["issue_index_entries"]
+                if not isinstance(entries, list) or any(
+                    not isinstance(entry, dict)
+                    or entry.get("view") not in ("OPEN", "ALL")
+                    or type(entry.get("mask")) is not int
+                    or not 0 <= entry["mask"] <= 13
+                    or any(
+                        field in entry
+                        and entry[field] is not None
+                        and (not isinstance(entry[field], str) or not entry[field])
+                        for field in ("facet_value", "severity")
+                    )
+                    for entry in entries
+                ):
+                    raise IndexMissing("index summary has an invalid issue facet")
+
+    @staticmethod
+    def _validate_query_entry(family: str, key: Key, row: dict[str, Any]) -> None:
+        FileQueryIndex._validate_rows([row], row.get("commit_sequence"))
+        if family in (_REPORT_FAMILY, _REPORT_BY_ID_FAMILY):
+            if row["aggregate_kind"] != "report" or not FileQueryIndex._is_report_row(row):
+                raise IndexMissing("report directory contains a different record type")
+            keys = FileQueryIndex._report_physical_keys(row)
+        elif family == _ISSUE_FAMILY:
+            if row["aggregate_kind"] != "issue":
+                raise IndexMissing("issue directory contains a different record type")
+            keys = FileQueryIndex._issue_physical_keys(row)
+        else:
+            keys = FileQueryIndex._generic_family_keys(row)
+        if (family, key) not in keys:
+            raise IndexMissing("query key differs from its exact summary identity")
 
     def _build_all(
         self,
@@ -1167,7 +1211,7 @@ class FileQueryIndex:
         if spec.record_id is not None and spec.aggregate_kind is not None:
 
             def _point_extra(row: dict[str, Any], revision: int | None = spec.revision) -> bool:
-                return revision is None or int(row["revision"]) == revision
+                return revision is None or row["revision"] == revision
 
             return _QueryPlan(
                 _POINT_FAMILY,
@@ -1195,9 +1239,9 @@ class FileQueryIndex:
             record_id: str | None = spec.record_id,
             revision: int | None = spec.revision,
         ) -> bool:
-            if record_id is not None and str(row.get("record_id")) != record_id:
+            if record_id is not None and row.get("record_id") != record_id:
                 return False
-            return not (revision is not None and int(row["revision"]) != revision)
+            return not (revision is not None and row["revision"] != revision)
 
         return _QueryPlan(family, generic_prefix, spec.descending, _generic_extra)
 
@@ -1260,8 +1304,7 @@ class FileQueryIndex:
             snapshot_meta = snapshot["families"][plan.family]
 
             def _accept(row: dict[str, Any]) -> bool:
-                if int(row["commit_sequence"]) > bound:
-                    return False
+                self._validate_rows([row], bound)
                 return plan.extra(row)
 
             rows, last_key, has_more = self._directory(plan.family).page(

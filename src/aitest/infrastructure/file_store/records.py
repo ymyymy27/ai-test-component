@@ -331,28 +331,74 @@ class FileRecordRepository:
                 cursor=query.cursor,
             )
         )
-        if result.status in ("maintenance_required", "invalid_cursor"):
+        if result.status != "ok":
             return RecordQueryResult(status=result.status)
         # 列表只读取摘要索引；整页载荷一次性从权威边界水合，避免每条记录
         # 都整读一次 records.json。
-        data = self._load()["records"]
         items: list[CommittedRecord] = []
-        for row in result.items:
-            kind = str(row["aggregate_kind"])
-            record_id = str(row["record_id"])
-            revision = int(row["revision"])
-            payload = data.get(kind, {}).get(record_id, [])
-            if revision < 1 or revision > len(payload):
-                # 索引指向了权威边界中不存在的修订：索引已损坏，显式维护。
-                return RecordQueryResult(status="maintenance_required")
-            items.append(
-                CommittedRecord(
-                    aggregate_kind=cast(Any, kind),
+        try:
+            data = self._load()
+            for row in result.items:
+                FileQueryIndex._validate_rows([row], result.commit_id)
+                kind, record_id, revision = row["aggregate_kind"], row["record_id"], row["revision"]
+                if (
+                    row["project_id"] != query.project_id
+                    or query.aggregate_kind is not None
+                    and kind != query.aggregate_kind
+                    or query.record_id is not None
+                    and record_id != query.record_id
+                ):
+                    raise ValueError("query row differs from requested identity")
+                rows = data["records"].get(kind, {}).get(record_id, [])
+                if revision > len(rows):
+                    raise ValueError("query revision is absent from authority")
+                payload = rows[revision - 1]
+                if not isinstance(payload, dict):
+                    raise ValueError("query authority material is not an object")
+                if isinstance(rows, ShardedRows):
+                    owners = {rows.metadata.get("project_id")}
+                else:
+                    # Explicit legacy path only: the old authority is already
+                    # loaded in full. Migrated queries use one identity lookup.
+                    owners = {
+                        entry.get("project_id")
+                        for entry in data.get("commits", [])
+                        if any(
+                            item
+                            == {
+                                "aggregate_kind": kind,
+                                "record_id": record_id,
+                                "revision": revision,
+                            }
+                            for item in entry.get("created", [])
+                        )
+                    }
+                    if (owner := self._row_project(payload)) is not None:
+                        owners.add(owner)
+                if owners != {query.project_id} or (
+                    "project_id" in payload and payload["project_id"] != query.project_id
+                ):
+                    raise ValueError("query authority material has a different project")
+                expected = build_index_row(
+                    project_id=query.project_id,
+                    aggregate_kind=kind,
                     record_id=record_id,
                     revision=revision,
-                    payload=payload[revision - 1],
+                    commit_sequence=row["commit_sequence"],
+                    payload=payload,
                 )
-            )
+                if canonical_bytes(expected) != canonical_bytes(row):
+                    raise ValueError("query summary differs from its exact authority material")
+                items.append(
+                    CommittedRecord(
+                        aggregate_kind=cast(Any, kind),
+                        record_id=record_id,
+                        revision=revision,
+                        payload=payload,
+                    )
+                )
+        except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
+            return RecordQueryResult(status="maintenance_required")
         return RecordQueryResult(status="ok", items=tuple(items), next_cursor=result.next_cursor)
 
     def _summary_rows_from_authority(
