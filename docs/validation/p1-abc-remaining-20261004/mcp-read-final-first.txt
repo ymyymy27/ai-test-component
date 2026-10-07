@@ -1,0 +1,14 @@
+............................F........................................... [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+........................................................................ [ 88%]
+.......................................                                  [100%]
+================================== FAILURES ===================================
+__________ test_stdio_oversized_line_and_large_response_are_bounded ___________
+tests\unit\test_mcp_stdio_read.py:302: in test_stdio_oversized_line_and_large_response_are_bounded
+    assert json.loads(sink.getvalue())["error"]["code"] == -32000
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'error'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_mcp_stdio_read.py::test_stdio_oversized_line_and_large_response_are_bounded
+1 failed, 326 passed in 58.99s

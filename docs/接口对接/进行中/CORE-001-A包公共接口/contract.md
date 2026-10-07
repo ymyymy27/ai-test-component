@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.53"
+contract_version: "1.54"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.54 stdio MCP读取切片：mcp-relay --binding保留原入口，并须显式给--workspace（既有用户数据）及--project；缺上下文仍明确不可用，不从编号/当前目录猜测。先经同一已核实核心的有限query准确核对binding记录属于所选项目，冻结其仓储修订，读前/读后核对漂移，不返回读取期间变更的混合结果；这不是绑定确认/源码/运行许可。协议固定支持2024-11-05、2025-03-26、2025-06-18、2025-11-25，initialize协商后需notifications/initialized，stdio为有界UTF-8单行JSON-RPC，stdout仅协议、诊断stderr。只暴露固定aitest_doctor及aitest_query（现有项目有限列表的aggregate_kind/record_id/limit/cursor），工具与输入由核心能力及现行QuerySpec派生；项目/绑定不可由arguments覆盖，不暴露写入/人工动作、任意文件读取、事务或新判定。准确Command/Response复用1.53客户端，读取切片逐次取得核实连接并finally关闭，不在stdio等输入期间占住唯一管道或依赖连接保活；原未知结果不自动重发；坏帧/重复RPC编号/未知方法/非法参数不派发，notification不回Response，EOF不请求核心停机/取消运行。MCP取消通知不当业务取消，写入/真实宿主/交互仍未接入。输入和输出各限制同一本地消息字节上限，最多4096请求编号；超大未终止输入不无限排空，保留材料并要求新会话。公开业务Schema/FR/AC不变，继续reviewing/partial/not_run。
 
 1.53 CLI转发前置边界：客户端与服务端复用可取消重叠IO及整帧截止，客户端读写默认10秒，关闭仅取消本句柄并等完成后释放操作材料；超时/部分发送不自动重传，业务结果待核实。新增doctor --workspace和dispatch --workspace标准输入命令入口，只打开既有workspace.json，不创建或猜测当前目录的数据工作空间；bootstrap核对原身份后发现/连接同一排他核心。CLI stdout/stderr明确使用UTF-8，不依赖Windows控制台代码页；命令用唯一严格JSON/Command合同读取，有界输入不得携带控制帧或自报人工来源；回执须核对协议、原请求、实例、工作空间、项目及绑定修订，失败关闭连接，不把错误来源材料交给调用方。CLI经实际Python进程仍按agent_relay归类，人工动作必须走受控用户入口，不因命令名或TTY标签升级；无workspace的旧离线doctor/模板仍保留。统一API成功响应补原intent_id，错误补workspace_id，连接成功补项目/绑定/意图，不能放宽客户端核对来掩盖漏字段。stdio MCP与交互CLI人工来源继续接入，不把本批转发等同真实宿主验收。公开DTO/Schema及FR/AC不变，保持reviewing/partial/not_run。
 
@@ -50,7 +52,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.53
+版本：1.54
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 

@@ -28,8 +28,12 @@ def main() -> int:
     dispatch = sub.add_parser("dispatch", help="Forward one complete JSON Command on stdin")
     dispatch.add_argument("--workspace", required=True, type=Path)
     sub.add_parser("templates", help="List installed draft template versions")
-    relay = sub.add_parser("mcp-relay", help="Reserved stdio relay; not available yet")
+    relay = sub.add_parser(
+        "mcp-relay", help="stdio diagnostics and finite queries through the verified core"
+    )
     relay.add_argument("--binding", required=True)
+    relay.add_argument("--workspace", type=Path)
+    relay.add_argument("--project")
     args = parser.parse_args()
     if args.command == "templates":
         packs = []
@@ -79,9 +83,11 @@ def main() -> int:
         return 0
     if args.command == "mcp-relay":
         try:
-            run(args.binding)
-        except CapabilityUnavailable as error:
-            print(json.dumps({"code": error.code, "message": str(error)}), file=sys.stderr)
+            run(args.binding, workspace_root=args.workspace, project_id=args.project)
+            return 0
+        except Exception as error:
+            code = getattr(error, "code", CapabilityUnavailable.code)
+            print(json.dumps({"code": code, "message": "MCP上下文或核心不可用"}), file=sys.stderr)
             return 2
     response = create_api().dispatch(
         Command(request_id=str(uuid4()), action="doctor"),

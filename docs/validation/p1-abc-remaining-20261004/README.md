@@ -181,3 +181,5 @@ uv build
 2026-10-07 HTTP执行边界阶段：http-transport-before.txt为29失败（具体性质见日志），after为36通过/1夹具失败，final-first为346通过/1真实超时分类失败；tls为39专项通过，final为最终350 passed（15.97秒）。Ruff/Mypy206/生成物/版本、build与wheel-smoke另存同前缀文件，原失败保留且不借后续数字覆盖。见[根因、源码与剩余边界](../../修改日志/袁/2026-10-07-HTTP总截止有界正文与目标冻结.md)。
 
 2026-10-07 CLI与客户端阶段：client-entry-before.txt保留8失败/1警告，IO修后34项；after为51通过/1错误回执失败、real-first为同缺口单项、final-first为303通过/1真实编码失败，final为最终354 passed（64.17秒）。静态/生成物/版本、build与wheel-smoke同前缀单独留存；失败不覆写。源码与具体边界见[精简日志](../../修改日志/袁/2026-10-07-既有工作空间CLI转发与客户端可取消IO.md)。
+
+2026-10-07 MCP只读阶段：mcp-read-final-first.txt保留326通过/1真实输出预算失败；corrected为33通过/1查绑定命令选择夹具失败；final为最终329 passed（65.35秒）。静态/生成物/版本/build另存；wheel-sdk-smoke为实际安装两模块字节核对与官方SDK 2.3.0 stdio握手/list/call；探针源码与外部依赖版本同前缀留存，不改项目锁。见[精简日志](../../修改日志/袁/2026-10-07-stdio-MCP只读同核心与冻结上下文.md)。真实AC不代填。

@@ -178,7 +178,7 @@ uv run aitest mcp-relay --binding example
 - `templates`：列出六个已打包模板及其当前状态。
 - `doctor`：未指定workspace时仍为离线诊断（NOT_READY/退出2）；指定既有用户数据工作空间后核对并连接同一核心，READY退出0。路径缺失或身份无法核实返回错误，不把当前目录创建成数据工作空间。
 - `dispatch --workspace`：从stdin读取一份有界UTF-8 Command JSON，保留原request/intent/准确修订，核对原核心回执。退出0仅表示收到成功回执；人工动作需受控用户入口，Python CLI不会自签确认。
-- `mcp-relay`：预留命令；当前明确返回不可用，不向 stdout 伪造 MCP 消息。
+- `mcp-relay --workspace <用户数据工作空间> --project <项目ID> --binding <绑定ID>`：提供同核心只读doctor/有限query，冻结绑定修订并核对变更；stdin/stdout为UTF-8逐行MCP，缺上下文返回不可用。完整业务动作仍需接通。
 
 ## 验证与验收
 
@@ -190,7 +190,7 @@ uv run aitest mcp-relay --binding example
 
 CI普通develop/PR范围为Windows/Python版本、静态、Schema和pytest；面板/VSIX/wheel/制品smoke只在tag路径运行。底层Windows凭据、管道和本地Git集成不替代真实Trae、模型、业务核验和掉电验收。
 
-2026年10月7日继续修复后，ABC整项剩余 **21条（A7/B7/C7）**，B-12已闭合；本批CLI转发/客户端IO与准确回执354项通过，真实一期仍0/35。当前剩余范围见[整改计划](docs/ABC剩余问题整改计划-2026-10-04.md)。
+2026年10月7日继续修复后，ABC整项剩余 **21条（A7/B7/C7）**，B-12已闭合；最新stdio MCP只读329项及安装制品官方SDK握手/读取通过，真实一期仍0/35。当前剩余范围见[整改计划](docs/ABC剩余问题整改计划-2026-10-04.md)。
 
 ## 文档导航
 

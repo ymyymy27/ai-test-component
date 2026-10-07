@@ -1,0 +1,2 @@
+Official mcp SDK 2.3.0 actual stdio handshake/list/call: 2025-11-25 ; one verified Windows core, project/binding exact.
+Installed two changed modules match final source. Synthetic selected binding metadata only; not real Trae/confirmed source/AC.
