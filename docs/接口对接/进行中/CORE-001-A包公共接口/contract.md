@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.48"
+contract_version: "1.49"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.49 本地命令/控制帧与停机回执在业务/停机派发前执行同一严格JSON检查：编码保持UTF-8，每个层级字段唯一，数字必须可有限表示；超过解析深度或歧义/非法JSON返回MALFORMED_MESSAGE并保留核心连接/材料，不从歧义身份挑一个request_id。停机回执同样拒绝重复请求/实例/工作空间或状态字段，未经准确核实不登记stopping。合法既有DTO及控制形状、帧长度/截止、唯一写入者、FR/AC和reviewing/partial/not_run不变；此检查不产生授权、业务判定或真实宿主验收。
 
 1.48 显式旧仓储append_intent也须核对完整业务身份与原结果材料：新旁录冻结schema、原kind/record_id/项目、正文指纹及准确修订；期望修订只用于首次CAS，重传不写新版本。相同正文换类别/记录/项目仍是意图冲突；返回前点读原准确修订并核对原正文，缺失、损坏、未知形状或仅正文的旧旁录明确阻塞且保留材料，不猜测补身份、不自动迁移。新身份严格字符串，计数严格整数；旧JSON读取同样拒绝重复字段、非JSON数值及非对象根；共享解码器还拒绝指数溢出变成Infinity的数值，不把它缓存成可读事实，未知旧材料保留并阻塞。写旧根前核对安全值及字节，已知凭据不得进入临时JSON/旁录。旧历史字节保持，默认业务仍使用共同UOW而不恢复独立写入路径。该增量不增加公开动作、不改变一期FR/AC或reviewing/partial/not_run。
 
@@ -40,7 +42,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.48
+版本：1.49
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 

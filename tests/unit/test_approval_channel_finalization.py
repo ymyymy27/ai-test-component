@@ -39,7 +39,9 @@ def test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit(kind, e
                 raise OSError("peer disappeared during reply")
             super().write_message(payload)
 
-    outcome = serve_connection(Server(frames), api, connection_no=1, entry_kind=kind)
+    outcome = serve_connection(
+        Server(frames), api, connection_no=1, entry_kind=kind, shutdown_blocker=lambda: None
+    )
     assert outcome == ("shutdown" if ending == "shutdown" else "disconnected")
     assert len(observed) == len(closed) == 1
     assert observed[0].session_id == closed[0].session_id

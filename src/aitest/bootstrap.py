@@ -1277,9 +1277,13 @@ def shutdown_endpoint(
     try:
         client.write_message(shutdown_frame())
         from aitest.contracts.responses import Response
+        from aitest.domain.json_material import decode_json
 
-        acknowledgement = Response.model_validate_json(
-            client.read_message(timeout_ms=max(1, int((deadline - time.monotonic()) * 1000)))
+        raw_acknowledgement = client.read_message(
+            timeout_ms=max(1, int((deadline - time.monotonic()) * 1000))
+        )
+        acknowledgement = Response.model_validate(
+            decode_json(raw_acknowledgement.decode("utf-8"))
         )
         if (
             acknowledgement.error is not None

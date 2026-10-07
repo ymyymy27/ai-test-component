@@ -252,7 +252,20 @@ def test_parent_loss_before_listener_binding_still_cancels_the_new_wait():
 
 @pytest.mark.parametrize(
     "problem",
-    ["denied", "lost", "instance", "workspace", "request", "wrong_status", "malformed", "good"],
+    [
+        "denied",
+        "lost",
+        "instance",
+        "workspace",
+        "request",
+        "wrong_status",
+        "malformed",
+        "good",
+        "duplicate_request",
+        "duplicate_instance",
+        "duplicate_workspace",
+        "duplicate_status",
+    ],
 )
 def test_shutdown_caller_marks_stopping_only_after_exact_acknowledgement(
     tmp_path, monkeypatch, problem
@@ -281,7 +294,15 @@ def test_shutdown_caller_marks_stopping_only_after_exact_acknowledgement(
         assert 0 < timeout_ms <= 2000
         if problem == "lost":
             raise PipeUnavailable("unknown receipt")
-        return b"{" if problem == "malformed" else response.model_dump_json().encode()
+        raw = response.model_dump_json().encode()
+        if problem in {"duplicate_request", "duplicate_instance", "duplicate_workspace"}:
+            field = problem.removeprefix("duplicate_") + "_id"
+            raw = b'{"' + field.encode() + b'":"foreign",' + raw[1:]
+        elif problem == "duplicate_status":
+            raw = raw.replace(
+                b'"status":"shutting_down"', b'"status":"running","status":"shutting_down"'
+            )
+        return b"{" if problem == "malformed" else raw
 
     client = SimpleNamespace(write_message=Mock(), read_message=read, close=Mock())
     monkeypatch.setattr(

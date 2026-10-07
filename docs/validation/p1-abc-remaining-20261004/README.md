@@ -171,3 +171,5 @@ uv build
 2026-10-07活动库存阶段：background-work-boundary-final-corrected.txt（31）、background-work-affected-corrected.txt（391）、background-work-control-final.txt（19）、background-work-schedule-rules.txt（24）与background-work-default-chain-final.txt（1，850.02秒）分别覆盖库存/引用/控制/主线程、存储/运输/合同/架构、控制、调度与默认重启链；初轮环境夹具失败、架构失败和worker等待夹具中断文件保留。Ruff/Mypy204、生成物/版本、最新构建及安装制品核对另记，真实AC保持0/35。见[精简根因与边界](../../修改日志/袁/2026-10-07-持久活动库存与核心主线程续行.md)。
 
 2026-10-07旧仓储阶段：legacy-intent-before.txt保留21 failed/2 passed，legacy-intent-final.txt为最终433 passed（64.80秒）；overflow-before-corrected复現指数溢出，错误引号命令另留。构建与安装制品冒烟见legacy-intent-build.txt / legacy-intent-wheel-smoke.txt；源码与边界见[日志](../../修改日志/袁/2026-10-07-旧仓储原意图身份与准确材料回读.md)。
+
+2026-10-07本地帧阶段：wire-json-identity-before.txt保留13个拒绝缺口及1个深度断言问题，修后另有明确解析耗尽注入；wire-json-final.txt为347通过/3失败，wire-json-final-corrected.txt为最终350 passed（56.03秒），失败与修正原因不混写。最终构建见wire-json-build-current.txt，隔离安装4模块字节及真实Windows核心同连接拒绝后doctor/停机见wire-json-wheel-current-smoke.txt；旧版构建/冒烟独立保留，真实AC不代填。见[源码与边界](../../修改日志/袁/2026-10-07-本地帧与停机回执严格JSON身份.md)。

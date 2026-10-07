@@ -1,0 +1,131 @@
+........................................................................ [ 20%]
+....................FF...............................F.................. [ 41%]
+........................................................................ [ 61%]
+........................................................................ [ 82%]
+..............................................................           [100%]
+================================== FAILURES ===================================
+_ test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[shutdown-human_ui] _
+
+kind = <EntryKind.HUMAN_UI: 'human_ui'>, ending = 'shutdown'
+
+    @pytest.mark.parametrize("kind", [EntryKind.HUMAN_UI, EntryKind.AGENT_RELAY])
+    @pytest.mark.parametrize("ending", ["read_failure", "write_failure", "shutdown"])
+    def test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit(kind, ending):
+        actors, observed, closed = CoreActorContext(), [], []
+    
+        def handler(command):
+            observed.append(actors.current())
+            return {"status": "read"}
+    
+        api = LocalAPI(
+            "instance",
+            "workspace",
+            handlers={"fixture_read": handler},
+            actors=actors,
+            session_finalizer=closed.append,
+        )
+        frames = [
+            Command(action="fixture_read", request_id="read-request", project_id="project")
+            .model_dump_json()
+            .encode()
+        ]
+        if ending == "shutdown":
+            frames.append(shutdown_frame())
+    
+        class Server(_FakeServer):
+            def write_message(self, payload):
+                if ending == "write_failure":
+                    raise OSError("peer disappeared during reply")
+                super().write_message(payload)
+    
+        outcome = serve_connection(Server(frames), api, connection_no=1, entry_kind=kind)
+>       assert outcome == ("shutdown" if ending == "shutdown" else "disconnected")
+E       AssertionError: assert 'disconnected' == 'shutdown'
+E         
+E         - shutdown
+E         + disconnected
+
+tests\unit\test_approval_channel_finalization.py:43: AssertionError
+_ test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[shutdown-agent_relay] _
+
+kind = <EntryKind.AGENT_RELAY: 'agent_relay'>, ending = 'shutdown'
+
+    @pytest.mark.parametrize("kind", [EntryKind.HUMAN_UI, EntryKind.AGENT_RELAY])
+    @pytest.mark.parametrize("ending", ["read_failure", "write_failure", "shutdown"])
+    def test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit(kind, ending):
+        actors, observed, closed = CoreActorContext(), [], []
+    
+        def handler(command):
+            observed.append(actors.current())
+            return {"status": "read"}
+    
+        api = LocalAPI(
+            "instance",
+            "workspace",
+            handlers={"fixture_read": handler},
+            actors=actors,
+            session_finalizer=closed.append,
+        )
+        frames = [
+            Command(action="fixture_read", request_id="read-request", project_id="project")
+            .model_dump_json()
+            .encode()
+        ]
+        if ending == "shutdown":
+            frames.append(shutdown_frame())
+    
+        class Server(_FakeServer):
+            def write_message(self, payload):
+                if ending == "write_failure":
+                    raise OSError("peer disappeared during reply")
+                super().write_message(payload)
+    
+        outcome = serve_connection(Server(frames), api, connection_no=1, entry_kind=kind)
+>       assert outcome == ("shutdown" if ending == "shutdown" else "disconnected")
+E       AssertionError: assert 'disconnected' == 'shutdown'
+E         
+E         - shutdown
+E         + disconnected
+
+tests\unit\test_approval_channel_finalization.py:43: AssertionError
+__________________________ test_dependency_direction __________________________
+
+    def test_dependency_direction() -> None:
+        for path in ROOT.rglob("*.py"):
+            relative = path.relative_to(ROOT)
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                imports = (
+                    [node.module or ""]
+                    if isinstance(node, ast.ImportFrom)
+                    else [alias.name for alias in node.names]
+                    if isinstance(node, ast.Import)
+                    else []
+                )
+                for name in imports:
+                    if relative.parts[0] == "domain":
+                        assert not name.startswith(
+                            (
+                                "aitest.application",
+                                "aitest.infrastructure",
+                                "aitest.interfaces",
+                                "aitest.contracts",
+                                "pydantic",
+                            )
+                        )
+                    if relative.parts[0] == "application":
+                        assert not name.startswith(("aitest.infrastructure", "aitest.interfaces"))
+                    if relative.parts[0] == "infrastructure" and name.startswith("aitest.application"):
+                        assert name in {"aitest.application.ports", "aitest.application.errors"}
+                    if relative.parts[0] == "interfaces":
+>                       assert not name.startswith("aitest.infrastructure")
+E                       AssertionError: assert not True
+E                        +  where True = <built-in method startswith of str object at 0x000001FB07BF0330>('aitest.infrastructure')
+E                        +    where <built-in method startswith of str object at 0x000001FB07BF0330> = 'aitest.infrastructure.file_store.material_json'.startswith
+
+tests\architecture\test_boundaries.py:35: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[shutdown-human_ui]
+FAILED tests/unit/test_approval_channel_finalization.py::test_pipe_allocates_context_and_finalizes_exact_origin_on_every_exit[shutdown-agent_relay]
+FAILED tests/architecture/test_boundaries.py::test_dependency_direction - Ass...
+3 failed, 347 passed in 55.90s

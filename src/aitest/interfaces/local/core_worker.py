@@ -42,6 +42,7 @@ from aitest.application.errors import WorkspaceInUse
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.responses import Response
+from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
 #: 停机控制键；不出现在 ``contracts.commands`` 的业务 Command 中
@@ -108,8 +109,8 @@ def dispatch_frame(api: LocalAPI, session: Session, payload: bytes) -> Response 
     - 正常帧交 ``api.dispatch``，业务幂等与错误归一在该层完成。
     """
     try:
-        obj: object = json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        obj: object = decode_json(payload.decode("utf-8"))
+    except ValueError:
         return _protocol_error(
             api, _FALLBACK_REQUEST_ID, "MALFORMED_MESSAGE", "帧不是合法 UTF-8 JSON"
         )
