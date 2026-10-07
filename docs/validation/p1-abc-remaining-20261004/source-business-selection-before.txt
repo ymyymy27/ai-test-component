@@ -1,0 +1,33 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_selected_file_order_and_duplicates_do_not_create_false_material_mismatch _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001AF77B69A90>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-875/test_selected_file_order_and_d0/workspace"))
+
+    def test_selected_file_order_and_duplicates_do_not_create_false_material_mismatch(stack):
+        core, source, _root = stack
+        (source / "helper.py").write_text("HELPER = 1\n", encoding="utf-8")
+        seed(core, source)
+        parameters = {
+            "binding_id": "binding-project",
+            "purpose": "prepare",
+            "source_scope": ".",
+            "selected_paths": ["main.py", "helper.py"],
+        }
+        first = dispatch(
+            core,
+            "analyze_project",
+            intent="selected-source",
+            request="selected-request",
+            binding_revision=1,
+            parameters=parameters,
+        )
+>       assert first.error is None, first.error
+E       AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be v..., retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='selected-request', intent_id='selected-source')
+E       assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be v..., retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='selected-request', intent_id='selected-source') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be v..., retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='selected-request', intent_id='selected-source') = Response(protocol_version='aitest.local/2.0', request_id='selected-request', instance_id='source-core', workspace_id=N... retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='selected-request', intent_id='selected-source')).error
+
+tests\unit\test_source_business_snapshot_identity.py:88: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_source_business_snapshot_identity.py::test_selected_file_order_and_duplicates_do_not_create_false_material_mismatch
+1 failed in 22.97s

@@ -282,6 +282,8 @@ def source_record_files(
             result.get("record_revision"),
             project_id,
         )
+        exclusions = inputs.get("exclusion_rules")
+        saved_exclusions = source.get("exclusion_rules")
         if (
             any(
                 source.get(key) != result.get(key)
@@ -302,6 +304,18 @@ def source_record_files(
             or type(inputs.get("binding_revision")) is not int
             or inputs.get("binding_revision") != result.get("binding_revision")
             or inputs.get("purpose") != result.get("purpose")
+            or inputs.get("source_scope") != source.get("source_scope")
+            or inputs.get("refetch_scope") != source.get("refetch_scope")
+            or not isinstance(exclusions, (list, tuple))
+            or not isinstance(saved_exclusions, (list, tuple))
+            or any(not isinstance(item, str) for item in (*exclusions, *saved_exclusions))
+            or not set(exclusions) <= set(saved_exclusions)
+            or any(
+                not isinstance(inputs.get(field), (list, tuple))
+                or not isinstance(source.get(field), (list, tuple))
+                or tuple(inputs[field]) != tuple(source[field])
+                for field in ("selected_paths", "refetch_dependencies")
+            )
         ):
             raise SourceMaterialError("source intent result differs from exact source")
         reference = result.get("source_current_ref")

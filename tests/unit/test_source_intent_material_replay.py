@@ -283,6 +283,11 @@ def test_candidate_source_uses_exact_lazy_reads_without_membership_or_enumeratio
         "missing_inputs",
         "input_digest",
         "input_binding",
+        "input_scope",
+        "input_dependencies",
+        "input_refetch_scope",
+        "input_selection",
+        "input_exclusions",
         "pointer_alias",
         "boolean_pointer",
         "content",
@@ -297,6 +302,22 @@ def test_new_schema_source_intent_cannot_publish_an_unverified_reference(replay,
         intent["digest"] = "wrong-input"
     elif damage == "input_binding":
         intent["inputs"]["binding_id"] = "another-binding"
+        intent["digest"] = _digest(intent["inputs"])
+    elif damage in {
+        "input_scope",
+        "input_dependencies",
+        "input_refetch_scope",
+        "input_selection",
+        "input_exclusions",
+    }:
+        field, value = {
+            "input_scope": ("source_scope", "another-scope"),
+            "input_dependencies": ("refetch_dependencies", ["another-dependency"]),
+            "input_refetch_scope": ("refetch_scope", "another-scope"),
+            "input_selection": ("selected_paths", ["another.py"]),
+            "input_exclusions": ("exclusion_rules", ["must-be-excluded.py"]),
+        }[damage]
+        intent["inputs"][field] = value
         intent["digest"] = _digest(intent["inputs"])
     elif damage == "pointer_alias":
         intent["result"]["source_current_ref"]["record_id"] = "another-pointer"

@@ -24,6 +24,7 @@ from aitest.domain.project.context import (
     SourceForm,
     SourceManifest,
 )
+from aitest.domain.project.source_identity import source_snapshot_record_identity
 
 from .persistence import load_source_snapshot
 from .serialization import binding_from_payload, source_manifest_to_payload
@@ -90,7 +91,8 @@ class SourceAnalysisService:
     ) -> Mapping[str, object]:
         if purpose not in {"analysis", "prepare"} or not source_scope:
             raise SourceAnalysisError("source purpose or scope is invalid")
-        selection, exclusions = _strings(selected_paths), _strings(exclusion_rules)
+        selection = tuple(sorted(set(_strings(selected_paths))))
+        exclusions = _strings(exclusion_rules)
         dependencies = _strings(refetch_dependencies)
         inputs = {
             "project_id": project_id,
@@ -187,11 +189,8 @@ class SourceAnalysisService:
             refetch_dependencies=dependencies,
             refetch_scope=refetch_scope,
         )
-        snapshot_id = (
-            "source-" + _digest([project_id, binding_id, binding_revision, technical_id])[7:]
-        )
         payload = source_manifest_to_payload(
-            manifest, project_id=project_id, snapshot_id=snapshot_id, purpose=purpose
+            manifest, project_id=project_id, snapshot_id="pending", purpose=purpose
         )
         payload.update(
             binding_id=binding_id,
@@ -200,6 +199,8 @@ class SourceAnalysisService:
             pinned_manifest_digest=_digest(pinned),
             selected_paths=list(selection),
         )
+        snapshot_id = source_snapshot_record_identity(payload)
+        payload["snapshot_id"] = snapshot_id
         result = {
             "snapshot_id": snapshot_id,
             "record_revision": 1,
