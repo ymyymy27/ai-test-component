@@ -1234,6 +1234,12 @@ def acquire_endpoint(
     return host.acquire(workspace_id)
 
 
+def acquire_existing_endpoint(workspace_root: Path) -> CoreEndpoint:
+    """CLI/relay read an existing identity; missing paths must never become workspaces."""
+    identity = Workspace(workspace_root, create=False)
+    return acquire_endpoint(identity.root, workspace_id=identity.workspace_id)
+
+
 def shutdown_endpoint(
     workspace_root: Path,
     *,
@@ -1361,6 +1367,7 @@ __all__ = [
     "SystemProcessLauncher",
     "UseCaseRegistry",
     "acquire_endpoint",
+    "acquire_existing_endpoint",
     "assemble_workspace_core",
     "create_api",
     "make_editor_host",

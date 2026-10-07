@@ -14,15 +14,18 @@ from .locking import LifetimeWriterLock, admitted_writer_epoch, writer_lock
 
 
 class Workspace:
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, create: bool = True) -> None:
         FileCommitStore.reject_links(root)
         self.root = root.resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+        if create:
+            self.root.mkdir(parents=True, exist_ok=True)
         self.identity_path = self.root / "workspace.json"
         FileCommitStore.reject_links(self.identity_path)
         if self.identity_path.exists():
             self.identity: dict[str, Any] = self._load_identity()
         else:
+            if not create:
+                raise ValueError("existing workspace identity is required")
             self.identity = {
                 "workspace_id": str(uuid.uuid4()),
                 "schema_version": "1.0",

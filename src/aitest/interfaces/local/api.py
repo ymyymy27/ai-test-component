@@ -166,6 +166,7 @@ class LocalAPI:
                 result = self.safe_projection(result)
                 response = Response(
                     request_id=command.request_id,
+                    intent_id=command.intent_id,
                     instance_id=self.instance_id,
                     workspace_id=self.workspace_id,
                     project_id=command.project_id,
@@ -272,6 +273,7 @@ class LocalAPI:
         return Response(
             request_id=command.request_id,
             instance_id=self.instance_id,
+            workspace_id=self.workspace_id,
             project_id=command.project_id,
             binding_revision=command.binding_revision,
             intent_id=command.intent_id,
@@ -504,6 +506,9 @@ class LocalAPI:
                     request_id=command.request_id,
                     instance_id=self.instance_id,
                     workspace_id=self.workspace_id,
+                    project_id=command.project_id,
+                    binding_revision=command.binding_revision,
+                    intent_id=command.intent_id,
                     result={
                         "connected": True,
                         "attempts": retries_completed + 1,

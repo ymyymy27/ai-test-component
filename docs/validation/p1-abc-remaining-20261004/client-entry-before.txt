@@ -1,0 +1,68 @@
+FFFFFFFF                                                                 [100%]
+================================== FAILURES ===================================
+_______________ test_client_request_backpressure_has_a_deadline _______________
+tests\unit\test_client_pipe_deadlines.py:22: in test_client_request_backpressure_has_a_deadline
+    client.write_message(b"x"*MAX_MESSAGE_BYTES, timeout_ms=80)
+E   TypeError: NamedPipeClient.write_message() got an unexpected keyword argument 'timeout_ms'
+______________ test_client_close_cancels_owned_pending_io[read] _______________
+tests\unit\test_client_pipe_deadlines.py:53: in test_client_close_cancels_owned_pending_io
+    assert client._pending_io
+           ^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+______________ test_client_close_cancels_owned_pending_io[write] ______________
+tests\unit\test_client_pipe_deadlines.py:53: in test_client_close_cancels_owned_pending_io
+    assert client._pending_io
+           ^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+______ test_client_write_rejects_invalid_deadline_before_native_io[True] ______
+tests\unit\test_client_pipe_deadlines.py:69: in test_client_write_rejects_invalid_deadline_before_native_io
+    client.write_message(b"{}", timeout_ms=timeout)
+E   TypeError: NamedPipeClient.write_message() got an unexpected keyword argument 'timeout_ms'
+_______ test_client_write_rejects_invalid_deadline_before_native_io[-1] _______
+tests\unit\test_client_pipe_deadlines.py:69: in test_client_write_rejects_invalid_deadline_before_native_io
+    client.write_message(b"{}", timeout_ms=timeout)
+E   TypeError: NamedPipeClient.write_message() got an unexpected keyword argument 'timeout_ms'
+______ test_client_write_rejects_invalid_deadline_before_native_io[1.2] _______
+tests\unit\test_client_pipe_deadlines.py:69: in test_client_write_rejects_invalid_deadline_before_native_io
+    client.write_message(b"{}", timeout_ms=timeout)
+E   TypeError: NamedPipeClient.write_message() got an unexpected keyword argument 'timeout_ms'
+_______ test_client_write_rejects_invalid_deadline_before_native_io[1] ________
+tests\unit\test_client_pipe_deadlines.py:69: in test_client_write_rejects_invalid_deadline_before_native_io
+    client.write_message(b"{}", timeout_ms=timeout)
+E   TypeError: NamedPipeClient.write_message() got an unexpected keyword argument 'timeout_ms'
+_________ test_client_overlapped_frame_keeps_the_partial_write_offset _________
+tests\unit\test_client_pipe_deadlines.py:80: in test_client_overlapped_frame_keeps_the_partial_write_offset
+    original = client._operation
+               ^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_operation'
+============================== warnings summary ===============================
+tests/unit/test_client_pipe_deadlines.py::test_client_close_cancels_owned_pending_io[write]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-2 (work)
+  
+  Traceback (most recent call last):
+    File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\threading.py", line 1044, in _bootstrap_inner
+      self.run()
+      ~~~~~~~~^^
+    File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\threading.py", line 995, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_client_pipe_deadlines.py", line 42, in work
+      client.write_message(b"x"*MAX_MESSAGE_BYTES, timeout_ms=2000)
+      ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  TypeError: NamedPipeClient.write_message() got an unexpected keyword argument 'timeout_ms'
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_request_backpressure_has_a_deadline
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_close_cancels_owned_pending_io[read]
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_close_cancels_owned_pending_io[write]
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_write_rejects_invalid_deadline_before_native_io[True]
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_write_rejects_invalid_deadline_before_native_io[-1]
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_write_rejects_invalid_deadline_before_native_io[1.2]
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_write_rejects_invalid_deadline_before_native_io[1]
+FAILED tests/unit/test_client_pipe_deadlines.py::test_client_overlapped_frame_keeps_the_partial_write_offset
+8 failed, 1 warning in 1.23s

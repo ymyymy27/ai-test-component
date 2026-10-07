@@ -1,7 +1,7 @@
 """Windows 当前用户及会话命名管道、对端及实例校验；不监听 TCP。
 
 字节管道 + 4 字节大端长度前缀的 JSON 消息帧；服务端使用可取消重叠IO，
-读/写各共享整帧截止，客户端保留同步入口。管道名编码工作空间
+两端读/写各共享整帧截止，API保留同步入口。管道名编码工作空间
 与会话；接受连接后用 ``GetNamedPipeClientProcessId/SessionId`` 及进程
 令牌 SID 校验对端必须是同会话同用户。不使用 TCP、不引入第三方依赖。
 
@@ -248,49 +248,23 @@ class _TokenUser(ctypes.Structure):
     ]
 
 
-class NamedPipeServer:
-    """唯一核心的服务端管道；同名管道已被占用即失败。"""
+class _PipeIO:
+    """Shared owned-handle IO; cancellation completion precedes storage release."""
 
-    def __init__(self, workspace_id: str, *, instance_id: str) -> None:
-        if not sys.platform.startswith("win"):
-            raise PipeUnavailable("命名管道仅支持 Windows")
-        validate_workspace_id(workspace_id)
-        self._kernel = _Kernel()
-        self._session_id = self._current_session()
-        self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{self._session_id}/{instance_id}"
+    _kernel: _Kernel
+
+    def _init_io(self) -> None:
         self._handle: int | None = None
         self._io_guard = threading.RLock()
         self._pending_io: dict[int, _Overlapped] = {}
         self._closing = False
-
-    @property
-    def name(self) -> str:
-        return self._pipe_name
-
-    def start(self) -> None:
-        if self._handle is not None:
-            raise PipeUnavailable("管道已启动")
-        self._closing = False
-        handle = self._kernel.kernel32.CreateNamedPipeW(
-            self._pipe_name,
-            _PIPE_ACCESS_DUPLEX | _FILE_FLAG_OVERLAPPED,
-            _PIPE_TYPE_BYTE | _PIPE_WAIT,
-            _PIPE_MAX_ONE_INSTANCE,
-            MAX_MESSAGE_BYTES,
-            MAX_MESSAGE_BYTES,
-            0,
-            None,
-        )
-        if handle == _INVALID_HANDLE:
-            # 同名管道被他人持有/拒绝访问：唯一核心语义
-            raise PipeUnavailable("管道已被占用，工作空间存在活动核心")
-        self._handle = handle
 
     @staticmethod
     def _deadline(timeout_ms: int | None) -> float | None:
         if timeout_ms is not None and (type(timeout_ms) is not int or timeout_ms < 0):
             raise ValueError("IO timeout must be a nonnegative integer")
         return None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
+
 
     def _operation(
         self,
@@ -366,6 +340,111 @@ class NamedPipeServer:
                     kernel.CloseHandle(self._handle)
                     self._handle = None
 
+
+    def close(self) -> None:
+        with self._io_guard:
+            self._closing = True
+            if self._handle is not None:
+                self._kernel.kernel32.CancelIoEx(self._handle, None)
+                if not self._pending_io:
+                    self._kernel.kernel32.CloseHandle(self._handle)
+                    self._handle = None
+
+
+    def _read_exact(
+        self, size: int, *, deadline: float | None = None, on_wait: Callable[[], None] | None = None
+    ) -> bytes:
+        chunks = bytearray()
+        while len(chunks) < size:
+            buffer = (wintypes.BYTE * (size - len(chunks)))()
+
+            def begin_read(
+                handle: int, overlap: _Overlapped, buffer: ctypes.Array[wintypes.BYTE] = buffer
+            ) -> int:
+                return int(
+                    self._kernel.kernel32.ReadFile(
+                        handle, buffer, len(buffer), None, ctypes.byref(overlap)
+                    )
+                )
+
+            read = self._operation(
+                begin_read,
+                deadline=deadline,
+                on_wait=on_wait,
+            )
+            if not 0 < read <= len(buffer):
+                raise PipeUnavailable("管道读取失败或对端关闭")
+            chunks.extend(bytes(buffer[:read]))
+        return bytes(chunks)
+
+
+    def _write_all(
+        self,
+        data: bytes,
+        *,
+        deadline: float | None = None,
+        on_wait: Callable[[], None] | None = None,
+    ) -> None:
+        offset = 0
+        while offset < len(data):
+            chunk = data[offset:]
+            buffer = (wintypes.BYTE * len(chunk)).from_buffer_copy(chunk)
+
+            def begin_write(
+                handle: int, overlap: _Overlapped, buffer: ctypes.Array[wintypes.BYTE] = buffer
+            ) -> int:
+                return int(
+                    self._kernel.kernel32.WriteFile(
+                        handle, buffer, len(buffer), None, ctypes.byref(overlap)
+                    )
+                )
+
+            written = self._operation(
+                begin_write,
+                deadline=deadline,
+                on_wait=on_wait,
+            )
+            if not 0 < written <= len(chunk):
+                raise PipeUnavailable("管道写入失败")
+            offset += written
+
+
+class NamedPipeServer(_PipeIO):
+    """唯一核心的服务端管道；同名管道已被占用即失败。"""
+
+    def __init__(self, workspace_id: str, *, instance_id: str) -> None:
+        if not sys.platform.startswith("win"):
+            raise PipeUnavailable("命名管道仅支持 Windows")
+        validate_workspace_id(workspace_id)
+        self._kernel = _Kernel()
+        self._session_id = self._current_session()
+        self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{self._session_id}/{instance_id}"
+        self._init_io()
+
+    @property
+    def name(self) -> str:
+        return self._pipe_name
+
+    def start(self) -> None:
+        if self._handle is not None:
+            raise PipeUnavailable("管道已启动")
+        self._closing = False
+        handle = self._kernel.kernel32.CreateNamedPipeW(
+            self._pipe_name,
+            _PIPE_ACCESS_DUPLEX | _FILE_FLAG_OVERLAPPED,
+            _PIPE_TYPE_BYTE | _PIPE_WAIT,
+            _PIPE_MAX_ONE_INSTANCE,
+            MAX_MESSAGE_BYTES,
+            MAX_MESSAGE_BYTES,
+            0,
+            None,
+        )
+        if handle == _INVALID_HANDLE:
+            # 同名管道被他人持有/拒绝访问：唯一核心语义
+            raise PipeUnavailable("管道已被占用，工作空间存在活动核心")
+        self._handle = handle
+
+
     def wait_for_client(
         self, *, timeout_ms: int | None = None, on_wait: Callable[[], None] | None = None
     ) -> None:
@@ -440,14 +519,6 @@ class NamedPipeServer:
         frame = len(payload).to_bytes(4, "big") + payload
         self._write_all(frame, deadline=deadline, on_wait=on_wait)
 
-    def close(self) -> None:
-        with self._io_guard:
-            self._closing = True
-            if self._handle is not None:
-                self._kernel.kernel32.CancelIoEx(self._handle, None)
-                if not self._pending_io:
-                    self._kernel.kernel32.CloseHandle(self._handle)
-                    self._handle = None
 
     # ----- 内部 -------------------------------------------------------
 
@@ -469,64 +540,8 @@ class NamedPipeServer:
             raise PeerRejected(f"无法核实客户端进程用户身份: {process_id}")
         return sid
 
-    def _read_exact(
-        self, size: int, *, deadline: float | None = None, on_wait: Callable[[], None] | None = None
-    ) -> bytes:
-        chunks = bytearray()
-        while len(chunks) < size:
-            buffer = (wintypes.BYTE * (size - len(chunks)))()
 
-            def begin_read(
-                handle: int, overlap: _Overlapped, buffer: ctypes.Array[wintypes.BYTE] = buffer
-            ) -> int:
-                return int(
-                    self._kernel.kernel32.ReadFile(
-                        handle, buffer, len(buffer), None, ctypes.byref(overlap)
-                    )
-                )
-
-            read = self._operation(
-                begin_read,
-                deadline=deadline,
-                on_wait=on_wait,
-            )
-            if not 0 < read <= len(buffer):
-                raise PipeUnavailable("管道读取失败或对端关闭")
-            chunks.extend(bytes(buffer[:read]))
-        return bytes(chunks)
-
-    def _write_all(
-        self,
-        data: bytes,
-        *,
-        deadline: float | None = None,
-        on_wait: Callable[[], None] | None = None,
-    ) -> None:
-        offset = 0
-        while offset < len(data):
-            chunk = data[offset:]
-            buffer = (wintypes.BYTE * len(chunk)).from_buffer_copy(chunk)
-
-            def begin_write(
-                handle: int, overlap: _Overlapped, buffer: ctypes.Array[wintypes.BYTE] = buffer
-            ) -> int:
-                return int(
-                    self._kernel.kernel32.WriteFile(
-                        handle, buffer, len(buffer), None, ctypes.byref(overlap)
-                    )
-                )
-
-            written = self._operation(
-                begin_write,
-                deadline=deadline,
-                on_wait=on_wait,
-            )
-            if not 0 < written <= len(chunk):
-                raise PipeUnavailable("管道写入失败")
-            offset += written
-
-
-class NamedPipeClient:
+class NamedPipeClient(_PipeIO):
     """连接唯一核心的客户端。"""
 
     def __init__(self, workspace_id: str, *, instance_id: str) -> None:
@@ -537,7 +552,7 @@ class NamedPipeClient:
         session = self._current_session()
         self._session_id = session
         self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{session}/{instance_id}"
-        self._handle: int | None = None
+        self._init_io()
         self._peer_pid: int | None = None
 
     def connect(self, *, timeout_ms: int = 2000) -> None:
@@ -546,6 +561,9 @@ class NamedPipeClient:
         原实现遇 ``ERROR_PIPE_BUSY`` 后递归调用自身，并发场景会
         ``RecursionError``。改为基于 ``time.monotonic`` 的有限循环。
         """
+        if self._handle is not None or self._pending_io:
+            raise PipeUnavailable("客户端已有活动连接")
+        self._closing = False
         kernel32 = self._kernel.kernel32
         deadline = time.monotonic() + max(0, timeout_ms) / 1000.0
         while True:
@@ -555,7 +573,7 @@ class NamedPipeClient:
                 0,
                 None,
                 _OPEN_EXISTING,
-                0,
+                _FILE_FLAG_OVERLAPPED,
                 None,
             )
             if handle != _INVALID_HANDLE:
@@ -596,43 +614,24 @@ class NamedPipeClient:
         """Actual connected server PID, available only after same-user/session verification."""
         return self._peer_pid
 
-    def write_message(self, payload: bytes) -> None:
-        if self._handle is None:
-            raise PipeUnavailable("未连接")
+    def write_message(
+        self, payload: bytes, *, timeout_ms: int | None = _SERVER_FRAME_TIMEOUT_MS,
+    ) -> None:
+        deadline = self._deadline(timeout_ms)
         if len(payload) > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("消息超过上限")
-        frame = len(payload).to_bytes(4, "big") + payload
-        offset = 0
-        while offset < len(frame):
-            chunk = frame[offset:]
-            buffer = (wintypes.BYTE * len(chunk)).from_buffer_copy(chunk)
-            written = wintypes.DWORD()
-            ok = self._kernel.kernel32.WriteFile(
-                self._handle,
-                buffer,
-                len(chunk),
-                ctypes.byref(written),
-                None,
-            )
-            if not ok or not 0 < written.value <= len(chunk):
-                raise PipeUnavailable("核心管道写入失败，提交结果待核实")
-            offset += written.value
+        self._write_all(len(payload).to_bytes(4, "big") + payload,
+                        deadline=deadline, on_wait=None)
 
-    def read_message(self, *, timeout_ms: int | None = None) -> bytes:
-        if self._handle is None:
-            raise PipeUnavailable("未连接")
-        if timeout_ms is not None and (type(timeout_ms) is not int or timeout_ms < 0):
-            raise ValueError("read timeout must be a nonnegative integer")
-        deadline = None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
+    def read_message(self, *, timeout_ms: int | None = _SERVER_FRAME_TIMEOUT_MS) -> bytes:
+        deadline = self._deadline(timeout_ms)
         length = int.from_bytes(self._read_exact(4, deadline=deadline), "big")
         if length > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("核心响应消息超过上限")
         return self._read_exact(length, deadline=deadline)
 
     def close(self) -> None:
-        if self._handle is not None:
-            self._kernel.kernel32.CloseHandle(self._handle)
-            self._handle = None
+        super().close()
         self._peer_pid = None
 
     def _current_session(self) -> int:
@@ -641,32 +640,6 @@ class NamedPipeClient:
         if not self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session)):
             raise PipeUnavailable("无法核实当前登录会话")
         return session.value
-
-    def _read_exact(self, size: int, *, deadline: float | None = None) -> bytes:
-        chunks = bytearray()
-        while len(chunks) < size:
-            amount = size - len(chunks)
-            if deadline is not None:
-                available = wintypes.DWORD(0)
-                if not self._kernel.kernel32.PeekNamedPipe(
-                    self._handle, None, 0, None, ctypes.byref(available), None
-                ):
-                    raise PipeUnavailable("核心响应读取失败，结果待核实")
-                if time.monotonic() >= deadline:
-                    raise PipeUnavailable("核心响应读取超时，结果待核实")
-                if not available.value:
-                    time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
-                    continue
-                amount = min(amount, available.value)
-            buffer = (wintypes.BYTE * amount)()
-            read = wintypes.DWORD(0)
-            ok = self._kernel.kernel32.ReadFile(
-                self._handle, buffer, len(buffer), ctypes.byref(read), None
-            )
-            if not ok or not 0 < read.value <= len(buffer):
-                raise PipeUnavailable("对端关闭")
-            chunks.extend(bytes(buffer[: read.value]))
-        return bytes(chunks)
 
 
 #: 进程内共享的 kernel32/advapi32 签名容器，避免重复加载与声明。

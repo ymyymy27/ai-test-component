@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "schema_count": 7,
+  "functional_fixture_count": 4,
+  "files": {
+    "src\\aitest\\contracts\\schemas\\Command.json": "5beb567170d49fcc19c2594d52bfa50a143bc1b0c9c32906e7db29bf811a68d7",
+    "src\\aitest\\contracts\\schemas\\CoverageDTO.json": "fc7843597773034df6c7278a64b8f1ec12a2742b53689dbd9f7432fb303b011a",
+    "src\\aitest\\contracts\\schemas\\Event.json": "270d7550351e7ceaecf52d0334fe43951a36d94648e765743727c868638bbb82",
+    "src\\aitest\\contracts\\schemas\\ExecutionFacts.json": "bb30abd738ce0af6e559421ce93ec72d6f90a5129de6c45d828321c8433771e8",
+    "src\\aitest\\contracts\\schemas\\PreparedRun.json": "86a63519ae1a638959e38c5956e5d88e4a2f22412b7e325943bf4528873e8617",
+    "src\\aitest\\contracts\\schemas\\Response.json": "fb0b4fa9400f6920a074bd7226f45dfa165ed216c71bdf0e10780554546736fc",
+    "src\\aitest\\contracts\\schemas\\TemplatePack.json": "1ce3651553340ad5ff06ad82af9eaf97866ddf438fe1028c0523efbfc78df0a6",
+    "tests\\contracts\\fixtures\\prepared_run_functional\\blocked.json": "42920f171f321ad0f788c780839de2444a177c5e4c187915b1349ee651be9aae",
+    "tests\\contracts\\fixtures\\prepared_run_functional\\git.json": "0525ca0bed88dce0e684d0c8fcab4871f023a6c5793e848612f4f7aa1f72e505",
+    "tests\\contracts\\fixtures\\prepared_run_functional\\needs_reprepare.json": "a7c75e5354eef2fd5e967f2f586afcb27938d70ef69affa17b48b5d09a7d6959",
+    "tests\\contracts\\fixtures\\prepared_run_functional\\plain.json": "0fb38824b072cfaa114e45b8dd5f2736ef5b2e5f146cd0398ad3f28c19964f1b"
+  }
+}

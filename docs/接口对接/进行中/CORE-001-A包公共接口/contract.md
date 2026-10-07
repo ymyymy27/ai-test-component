@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.52"
+contract_version: "1.53"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.53 CLI转发前置边界：客户端与服务端复用可取消重叠IO及整帧截止，客户端读写默认10秒，关闭仅取消本句柄并等完成后释放操作材料；超时/部分发送不自动重传，业务结果待核实。新增doctor --workspace和dispatch --workspace标准输入命令入口，只打开既有workspace.json，不创建或猜测当前目录的数据工作空间；bootstrap核对原身份后发现/连接同一排他核心。CLI stdout/stderr明确使用UTF-8，不依赖Windows控制台代码页；命令用唯一严格JSON/Command合同读取，有界输入不得携带控制帧或自报人工来源；回执须核对协议、原请求、实例、工作空间、项目及绑定修订，失败关闭连接，不把错误来源材料交给调用方。CLI经实际Python进程仍按agent_relay归类，人工动作必须走受控用户入口，不因命令名或TTY标签升级；无workspace的旧离线doctor/模板仍保留。统一API成功响应补原intent_id，错误补workspace_id，连接成功补项目/绑定/意图，不能放宽客户端核对来掩盖漏字段。stdio MCP与交互CLI人工来源继续接入，不把本批转发等同真实宿主验收。公开DTO/Schema及FR/AC不变，保持reviewing/partial/not_run。
 
 1.52 HTTP框架的timeout_seconds改为同一次请求的总截止（包含域名解析、连接、TLS、发送、响应头和正文），使用单调时钟及本次持有socket的截止中止；截止后不新连接、不重试或重放。解析仅做DNS，逾期返回不得触发请求，未完成DNS线程数量有界。请求只直连冻结HTTP/HTTPS目标，不读取隐式系统代理、不跟随重定向；HTTPS保持系统信任与主机名校验。新增框架max_response_bytes（实际正整数，默认4MiB、最高64MiB）与body_complete事实；正常/HTTP错误响应共用有限分块采集，长度未达、非法/歧义消息定界、超限、超时及协议错误保留实际已读前缀/已知状态，body_complete=false，所有JSON提取及断言值不可用。只在合法消息定界与EOF/声明长度/完整chunked结束均核对后记完整。发送前还拒绝自定义Transfer-Encoding、与冻结字节不等的Content-Length及无法按HTTP线格式编码的路径/头；错误细节使用固定类别，避免认证或原文被异常消息回显；这不是落盘过滤或业务真实性证明。框架字段不加入公开业务DTO/Schema，不代替执行授权、持久意图与真实业务核验；旧记录不重算，FR/AC与reviewing/partial/not_run不变。
 
@@ -48,7 +50,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.52
+版本：1.53
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 

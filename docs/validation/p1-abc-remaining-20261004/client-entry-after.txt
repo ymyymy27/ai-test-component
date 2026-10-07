@@ -1,0 +1,18 @@
+.................F..................................                     [100%]
+================================== FAILURES ===================================
+_________ test_actual_cli_doctor_and_dispatch_share_the_verified_core _________
+tests\unit\test_cli_core_forwarding.py:150: in test_actual_cli_doctor_and_dispatch_share_the_verified_core
+    assert json.loads(denied.stdout)["error"]["code"] == "AWAITING_USER_CONFIRMATION"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\decoder.py:363: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+=========================== short test summary info ===========================
+FAILED tests/unit/test_cli_core_forwarding.py::test_actual_cli_doctor_and_dispatch_share_the_verified_core
+1 failed, 51 passed in 18.44s

@@ -26,12 +26,7 @@ def connected_pair():
 
 
 def write_raw(client, data):
-    buffer = (wintypes.BYTE * len(data)).from_buffer_copy(data)
-    written = wintypes.DWORD(0)
-    if not client._kernel.kernel32.WriteFile(
-        client._handle, buffer, len(buffer), ctypes.byref(written), None
-    ) or written.value != len(data):
-        raise PipeUnavailable("test raw write failed")
+    client._write_all(data, deadline=client._deadline(2000), on_wait=None)
 
 
 @pytest.mark.parametrize("prefix", [b"", b"\x00", (10).to_bytes(4, "big") + b"short"])

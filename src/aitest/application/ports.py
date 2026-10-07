@@ -728,3 +728,13 @@ class MaintenancePort(Protocol):
         workspace_id: str,
         revisions: Sequence[str] = (),
     ) -> Response: ...
+
+
+class CoreMessagePort(Protocol):
+    """A verified local message channel, with finite owned-frame IO."""
+
+    def write_message(self, payload: bytes, *, timeout_ms: int | None = 10000) -> None: ...
+
+    def read_message(self, *, timeout_ms: int | None = 10000) -> bytes: ...
+
+    def close(self) -> None: ...

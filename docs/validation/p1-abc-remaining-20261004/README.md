@@ -179,3 +179,5 @@ uv build
 2026-10-07 HTTP输入阶段：http-request-boundary-before.txt为22 failed/5 passed，其中含时长TypeError及3条非法路径错误通过，已有正确拒绝单独保留；after为304 passed，final为最终311 passed（8.18秒）。build与wheel-smoke记录最终wheel/sdist及隔离安装2模块字节/拒绝/路径语义核对；复跑范围见[精简日志](../../修改日志/袁/2026-10-07-HTTP请求准确输入与完整取值路径.md)。真实AC不代填。
 
 2026-10-07 HTTP执行边界阶段：http-transport-before.txt为29失败（具体性质见日志），after为36通过/1夹具失败，final-first为346通过/1真实超时分类失败；tls为39专项通过，final为最终350 passed（15.97秒）。Ruff/Mypy206/生成物/版本、build与wheel-smoke另存同前缀文件，原失败保留且不借后续数字覆盖。见[根因、源码与剩余边界](../../修改日志/袁/2026-10-07-HTTP总截止有界正文与目标冻结.md)。
+
+2026-10-07 CLI与客户端阶段：client-entry-before.txt保留8失败/1警告，IO修后34项；after为51通过/1错误回执失败、real-first为同缺口单项、final-first为303通过/1真实编码失败，final为最终354 passed（64.17秒）。静态/生成物/版本、build与wheel-smoke同前缀单独留存；失败不覆写。源码与具体边界见[精简日志](../../修改日志/袁/2026-10-07-既有工作空间CLI转发与客户端可取消IO.md)。

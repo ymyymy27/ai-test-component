@@ -169,11 +169,15 @@ npm --prefix integrations/trae run package
 ```powershell
 uv run aitest templates
 uv run aitest doctor
+uv run aitest doctor --workspace "C:\本地用户数据\aitest"
+# dispatch从标准输入读取一份完整Command JSON（EOF结束）
+uv run aitest dispatch --workspace "C:\本地用户数据\aitest"
 uv run aitest mcp-relay --binding example
 ```
 
 - `templates`：列出六个已打包模板及其当前状态。
-- `doctor`：执行离线骨架诊断；当前不会打开业务工作空间，返回 `NOT_READY` 和退出码 2。
+- `doctor`：未指定workspace时仍为离线诊断（NOT_READY/退出2）；指定既有用户数据工作空间后核对并连接同一核心，READY退出0。路径缺失或身份无法核实返回错误，不把当前目录创建成数据工作空间。
+- `dispatch --workspace`：从stdin读取一份有界UTF-8 Command JSON，保留原request/intent/准确修订，核对原核心回执。退出0仅表示收到成功回执；人工动作需受控用户入口，Python CLI不会自签确认。
 - `mcp-relay`：预留命令；当前明确返回不可用，不向 stdout 伪造 MCP 消息。
 
 ## 验证与验收
@@ -182,9 +186,11 @@ uv run aitest mcp-relay --binding example
 
 截至2026年10月4日，在develop **7dbc5a4**基线上实施A/B/C根因整改：pytest **1967 passed、2 skipped**，Ruff/mypy138文件、7份Schema/4份功能夹具一致性、wheel/sdist构建及制品字节/隔离wheel冒烟通过；面板/VSIX沿用未改来源的历史日志。真实一期仍 **0/35 verified**，证据路径未代填；doctor/MCP尚不可用；真实DeepSeek草稿及持久回读组件实测通过，前轮面板Playwright定位失败仍保留。
 
-本轮关闭A-11/A-16/B-10/B-17/C-14共5条代码问题；当前 **29条（A7/B8/C7/D7）**，其中A/B/C剩22条。详见[逐项源码/测试证据](docs/ABC包问题修复证据清单-2026-10-03.md)、[整体分析](docs/当前代码分析与一期工程对比.md)、[执行记录](docs/validation/p1-abc-fix-20261003/validation-results.json)及四包[A](docs/一期工程检查-A包.md)/[B](docs/一期工程检查-B包.md)/[C](docs/一期工程检查-C包.md)/[D](docs/一期工程检查-D包.md)。[前轮复核](docs/一期修复复核-2026-10-03.md)保留原历史反例及数字。
+2026年10月4日阶段关闭A-11/A-16/B-10/B-17/C-14共5条代码问题；当时 **29条（A7/B8/C7/D7）**，其中A/B/C剩22条。详见[逐项源码/测试证据](docs/ABC包问题修复证据清单-2026-10-03.md)、[整体分析](docs/当前代码分析与一期工程对比.md)、[执行记录](docs/validation/p1-abc-fix-20261003/validation-results.json)及四包[A](docs/一期工程检查-A包.md)/[B](docs/一期工程检查-B包.md)/[C](docs/一期工程检查-C包.md)/[D](docs/一期工程检查-D包.md)。[前轮复核](docs/一期修复复核-2026-10-03.md)保留原历史反例及数字。
 
 CI普通develop/PR范围为Windows/Python版本、静态、Schema和pytest；面板/VSIX/wheel/制品smoke只在tag路径运行。底层Windows凭据、管道和本地Git集成不替代真实Trae、模型、业务核验和掉电验收。
+
+2026年10月7日继续修复后，ABC整项剩余 **21条（A7/B7/C7）**，B-12已闭合；本批CLI转发/客户端IO与准确回执354项通过，真实一期仍0/35。当前剩余范围见[整改计划](docs/ABC剩余问题整改计划-2026-10-04.md)。
 
 ## 文档导航
 
