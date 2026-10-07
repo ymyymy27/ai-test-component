@@ -219,7 +219,9 @@ class CommandAdapter:
             )
 
         if process.stdout is None or process.stderr is None:
-            self._terminate_group(process.pid, force=True)
+            # Popen retains the exact process handle; a PID can be reused after exit.
+            process.terminate()
+            process.wait(timeout=self._force_kill_timeout_seconds)
             raise RuntimeError("command process streams are unavailable")
 
         handle = ExecutionHandle(
@@ -272,7 +274,14 @@ class CommandAdapter:
     def _abort_launch(self, runtime: _CommandRuntime) -> None:
         """清理只归本次 Popen 所有的资源；保留启动已发生的持久事实。"""
         try:
-            self._terminate_group(runtime.process.pid, force=True)
+            if os.name == "nt":
+                if runtime.job_handle is not None:
+                    self._cleanup_group(runtime)
+                else:
+                    # Windows launches are suspended until their Job is assigned.
+                    runtime.process.terminate()
+            else:
+                self._terminate_group(runtime.process.pid, force=True)
             runtime.process.wait(timeout=self._force_kill_timeout_seconds)
         finally:
             _close_job(runtime.job_handle)
@@ -449,6 +458,13 @@ class CommandAdapter:
             return self._stop_persisted(handle)
         if runtime.handle != handle:
             raise ValueError("execution handle identity mismatch")
+        # The timeout callback and collection own the same Job lifecycle.
+        with runtime.collection_lock:
+            return self._stop_runtime(runtime, handle)
+
+    def _stop_runtime(
+        self, runtime: _CommandRuntime, handle: ExecutionHandle
+    ) -> StopRequestResult:
         saved_stop = self._saved_stop(handle)
         if saved_stop is not None:
             self._hydrate_stop(runtime)
@@ -465,13 +481,21 @@ class CommandAdapter:
             )
         runtime.stop_requested = True
         self._cancel_timeout(runtime)
-        self._terminate_group(runtime.process.pid, force=False)
-        try:
-            runtime.process.wait(timeout=self._graceful_stop_timeout_seconds)
-        except subprocess.TimeoutExpired:
-            self._terminate_group(runtime.process.pid, force=True)
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
-        group_stopped = self._cleanup_group(runtime)
+        if os.name == "nt":
+            group_stopped = self._cleanup_group(runtime)
+            if group_stopped:
+                try:
+                    runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    group_stopped = False
+        else:
+            self._terminate_group(runtime.process.pid, force=False)
+            try:
+                runtime.process.wait(timeout=self._graceful_stop_timeout_seconds)
+            except subprocess.TimeoutExpired:
+                self._terminate_group(runtime.process.pid, force=True)
+                runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+            group_stopped = self._cleanup_group(runtime)
         result = StopRequestResult(
             handle_id=handle.handle_id,
             stop_confirmed=group_stopped,
@@ -486,15 +510,20 @@ class CommandAdapter:
         return result
 
     def _timeout_runtime(self, runtime: _CommandRuntime) -> None:
-        if runtime.process.poll() is not None:
-            return
-        runtime.timed_out = True
-        self._terminate_group(runtime.process.pid, force=True)
-        try:
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
-        except subprocess.TimeoutExpired:
-            runtime.process.kill()
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+        with runtime.collection_lock:
+            if runtime.process.poll() is not None or runtime.stop_requested:
+                return
+            runtime.timed_out = True
+            if os.name == "nt":
+                # Never substitute taskkill/PID for the Job retained at actual launch.
+                self._cleanup_group(runtime)
+                return
+            self._terminate_group(runtime.process.pid, force=True)
+            try:
+                runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+            except subprocess.TimeoutExpired:
+                runtime.process.kill()
+                runtime.process.wait(timeout=self._force_kill_timeout_seconds)
 
     def _open_spool_writers(self, runtime: _CommandRuntime) -> None:
         if self._spool_store is None:

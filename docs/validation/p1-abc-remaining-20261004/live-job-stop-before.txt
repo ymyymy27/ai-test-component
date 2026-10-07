@@ -1,0 +1,85 @@
+FFFFFFFFF                                                                [100%]
+================================== FAILURES ===================================
+_____________ test_live_windows_stop_never_targets_a_pid[cancel] ______________
+tests\unit\test_live_command_stop_ownership.py:54: in test_live_windows_stop_never_targets_a_pid
+    adapter._terminate_group.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to not have been called. Called 1 times.
+E   Calls: [call(123, force=False)].
+_____________ test_live_windows_stop_never_targets_a_pid[timeout] _____________
+tests\unit\test_live_command_stop_ownership.py:54: in test_live_windows_stop_never_targets_a_pid
+    adapter._terminate_group.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to not have been called. Called 1 times.
+E   Calls: [call(123, force=True)].
+______________ test_live_windows_stop_never_targets_a_pid[abort] ______________
+tests\unit\test_live_command_stop_ownership.py:54: in test_live_windows_stop_never_targets_a_pid
+    adapter._terminate_group.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to not have been called. Called 1 times.
+E   Calls: [call(123, force=True)].
+_______ test_unassigned_suspended_launch_uses_the_original_popen_handle _______
+tests\unit\test_live_command_stop_ownership.py:63: in test_unassigned_suspended_launch_uses_the_original_popen_handle
+    adapter._terminate_group.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to not have been called. Called 1 times.
+E   Calls: [call(123, force=True)].
+_______ test_stop_and_timeout_take_the_collection_lifetime_lock[cancel] _______
+tests\unit\test_live_command_stop_ownership.py:85: in test_stop_and_timeout_take_the_collection_lifetime_lock
+    assert not reached_while_collection_held
+E   assert not True
+______ test_stop_and_timeout_take_the_collection_lifetime_lock[timeout] _______
+tests\unit\test_live_command_stop_ownership.py:85: in test_stop_and_timeout_take_the_collection_lifetime_lock
+    assert not reached_while_collection_held
+E   assert not True
+_________ test_group_stop_failure_stays_unknown_without_pid_fallback __________
+tests\unit\test_live_command_stop_ownership.py:97: in test_group_stop_failure_stays_unknown_without_pid_fallback
+    adapter._terminate_group.assert_not_called()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:940: in assert_not_called
+    raise AssertionError(msg)
+E   AssertionError: Expected 'mock' to not have been called. Called 1 times.
+E   Calls: [call(123, force=False)].
+________ test_real_job_stops_original_command_without_taskkill[cancel] ________
+tests\unit\test_live_command_stop_ownership.py:115: in test_real_job_stops_original_command_without_taskkill
+    result = adapter.request_stop(handle)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\command.py:468: in request_stop
+    self._terminate_group(runtime.process.pid, force=False)
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1169: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1173: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1234: in _execute_mock_call
+    raise effect
+E   AssertionError: PID stop is forbidden
+_______ test_real_job_stops_original_command_without_taskkill[timeout] ________
+tests\unit\test_live_command_stop_ownership.py:118: in test_real_job_stops_original_command_without_taskkill
+    adapter._timeout_runtime(runtime)
+src\aitest\infrastructure\adapters\execution\command.py:492: in _timeout_runtime
+    self._terminate_group(runtime.process.pid, force=True)
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1169: in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1173: in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:1234: in _execute_mock_call
+    raise effect
+E   AssertionError: PID stop is forbidden
+=========================== short test summary info ===========================
+FAILED tests/unit/test_live_command_stop_ownership.py::test_live_windows_stop_never_targets_a_pid[cancel]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_live_windows_stop_never_targets_a_pid[timeout]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_live_windows_stop_never_targets_a_pid[abort]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_unassigned_suspended_launch_uses_the_original_popen_handle
+FAILED tests/unit/test_live_command_stop_ownership.py::test_stop_and_timeout_take_the_collection_lifetime_lock[cancel]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_stop_and_timeout_take_the_collection_lifetime_lock[timeout]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_group_stop_failure_stays_unknown_without_pid_fallback
+FAILED tests/unit/test_live_command_stop_ownership.py::test_real_job_stops_original_command_without_taskkill[cancel]
+FAILED tests/unit/test_live_command_stop_ownership.py::test_real_job_stops_original_command_without_taskkill[timeout]
+9 failed in 0.77s

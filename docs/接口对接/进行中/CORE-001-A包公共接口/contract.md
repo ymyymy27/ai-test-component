@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.49"
+contract_version: "1.50"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.50 收紧Windows原活动执行的停止归属：原适配器取消、超时、收尾及启动失败清理只能操作本次Popen实际进程句柄或本次持有的命名Job；不再以taskkill/PID代替归属。取消/超时与采集共用同一运行互斥边界，终止核实和Job关闭不得并发复用操作系统句柄；停止与进程退出仍分别核实，未核实组停止不登记confirmed。已有跨核心停止继续核对准确创建时间、原启动token及Job归属，历史材料/字段/截止设置不改变；超时、组停止或技术采集均不证明业务回滚或通过。FR/AC不变，reviewing/partial/not_run及真实宿主验收边界保留。
 
 1.49 本地命令/控制帧与停机回执在业务/停机派发前执行同一严格JSON检查：编码保持UTF-8，每个层级字段唯一，数字必须可有限表示；超过解析深度或歧义/非法JSON返回MALFORMED_MESSAGE并保留核心连接/材料，不从歧义身份挑一个request_id。停机回执同样拒绝重复请求/实例/工作空间或状态字段，未经准确核实不登记stopping。合法既有DTO及控制形状、帧长度/截止、唯一写入者、FR/AC和reviewing/partial/not_run不变；此检查不产生授权、业务判定或真实宿主验收。
 
@@ -42,7 +44,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.49
+版本：1.50
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 
