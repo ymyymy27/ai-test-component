@@ -17,6 +17,7 @@ from aitest.infrastructure.security import guard_bytes, guard_value
 
 from . import atomic
 from .commit_manifest import FileCommitStore, canonical_bytes
+from .continuations import active_catalog, update_catalog
 from .events import FileEventJournal, derive_event_id
 from .index import FileQueryIndex, build_index_row
 from .ordered_events import OrderedEventStore
@@ -319,6 +320,18 @@ class FileRecordRepository:
         }
         self._save(data)
         return revision
+
+    def active_execution_schedules(self, *, workspace_id: str) -> tuple[Mapping[str, object], ...]:
+        current = FileCommitStore(self.root).read_current()
+        if current is None or current["manifest"]["workspace_id"] != workspace_id:
+            raise ValueError("continuation inventory requires the exact shared workspace root")
+        data = open_authority(self.root, current["manifest"]["record_header"])
+        required = (
+            "execution_schedule"
+            in current["manifest"].get("business_change_index_root", {"types": {}})["types"]
+        )
+        entries = active_catalog(data["_tree"], workspace_id, required=required)
+        return tuple(entries[key] for key in sorted(entries))
 
     def query(self, query: RecordQuery) -> RecordQueryResult:
         index = FileQueryIndex(self.root, journal=self._journal)
@@ -821,6 +834,22 @@ class FileRecordRepository:
                 payload=payload,
                 commits=data.get("commits", []),
             )
+            if kind == "execution_schedule":
+                if "_tree" not in data or workspace_id is None:
+                    raise ValueError("continuation publication requires shared sharded authority")
+                update_catalog(
+                    data["_tree"],
+                    workspace=workspace_id,
+                    project=project_id,
+                    identity=record_id,
+                    revision=current + 1,
+                    payload=payload,
+                    required=current_root is not None
+                    and "execution_schedule"
+                    in current_root["manifest"].get("business_change_index_root", {"types": {}})[
+                        "types"
+                    ],
+                )
             rows.append(dict(payload))
             commit_sequence += 1
             revision = current + 1

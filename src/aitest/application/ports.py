@@ -247,6 +247,14 @@ class LocalProtocolPort(Protocol):
     def error(self, error: ErrorDTO) -> Response: ...
 
 
+class BackgroundWorkDirectory(Protocol):
+    """Finite workspace inventory, containing identities rather than history."""
+
+    def active_execution_schedules(
+        self, *, workspace_id: str
+    ) -> tuple[Mapping[str, object], ...]: ...
+
+
 class Clock(Protocol):
     def now(self) -> datetime: ...
 

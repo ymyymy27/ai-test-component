@@ -7,15 +7,22 @@ from uuid import uuid4
 from aitest.application.execution.authorization_index import read_authorization_index
 from aitest.application.execution.commands import ExecutionCommands, InvalidExecutionCommand
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.continuation import (
+    read_continuation,
+    stage_continuation,
+    stage_existing_activity,
+)
 from aitest.application.execution.control import boundary_pending
 from aitest.application.execution.facts import execution_payload_digest
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.execution.step_execution import SavedStepExecution
+from aitest.application.ports import BackgroundWorkDirectory
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import ExecutionFacts, RunControlStateFact, StepStateFact
 from aitest.contracts.prepared_run import RunDriverFact
 from aitest.domain.approvals import ApprovalConflict
 from aitest.domain.execution.authorization import AuthorizationState, ResolvedExecutionAction
+from aitest.domain.execution.continuation import RunContinuation
 from aitest.domain.execution.runs import (
     Attempt,
     DependencyEdge,
@@ -70,9 +77,12 @@ class SavedRunSchedule:
         coordinator: ExecutionCommitCoordinator,
         execution: SavedStepExecution,
         workspace_id: str,
+        directory: BackgroundWorkDirectory | None = None,
     ) -> None:
         self.coordinator, self.execution, self.workspace_id = coordinator, execution, workspace_id
         self.unit = coordinator._uow
+        self.directory = directory
+        self._last_work_id = ""
 
     def _identity(self, project: str, intent: str) -> str:
         return (
@@ -133,11 +143,19 @@ class SavedRunSchedule:
     def _admit(self, command: Command, project: str, run: str, intent: str, base: str) -> str:
         identity = self._identity(project, intent)
         if self._recall(identity, project, run, intent, base):
+            self._register_existing(project, run, intent, base, identity)
             return identity
         self.unit.begin(command.request_id, project)
         try:
             if self._recall(identity, project, run, intent, base):
-                self.unit.rollback()
+                if (
+                    self.directory is not None
+                    and read_continuation(self.coordinator, self.workspace_id, project, run) is None
+                ):
+                    self._stage_work(project, run, intent, base, identity)
+                    self.unit.commit()
+                else:
+                    self.unit.rollback()
                 return identity
             facts = self._current(project, run)
             if facts.snapshot_commit_id != base:
@@ -160,8 +178,49 @@ class SavedRunSchedule:
                     "snapshot_digest": execution_payload_digest(facts.model_dump(mode="json")),
                 },
             )
+            self._stage_work(project, run, intent, base, identity)
             self.unit.commit()
             return identity
+        except BaseException:
+            self.unit.rollback()
+            raise
+
+    def _stage_work(self, project: str, run: str, intent: str, base: str, identity: str) -> None:
+        if self.directory is None:
+            return
+        if read_continuation(self.coordinator, self.workspace_id, project, run) is not None:
+            # Later schedule admissions never replace the Run's original basis.
+            return
+        stage_continuation(
+            self.coordinator,
+            RunContinuation(
+                self.workspace_id,
+                project,
+                run,
+                identity,
+                intent,
+                base,
+                True,
+            ),
+        )
+
+    def _register_existing(
+        self, project: str, run: str, intent: str, base: str, identity: str
+    ) -> None:
+        if self.directory is None:
+            return
+        current = read_continuation(self.coordinator, self.workspace_id, project, run)
+        if current is not None:
+            # A completed/paused work record must not be rearmed by an old start.
+            return
+        self.unit.begin("schedule-registration-" + uuid4().hex, project)
+        try:
+            if read_continuation(self.coordinator, self.workspace_id, project, run) is None:
+                self._recall(identity, project, run, intent, base)
+                self._stage_work(project, run, intent, base, identity)
+                self.unit.commit()
+            else:
+                self.unit.rollback()
         except BaseException:
             self.unit.rollback()
             raise
@@ -249,6 +308,10 @@ class SavedRunSchedule:
                 }
             )
             _, saved = self.coordinator._stage_snapshot(completed)
+            if self.directory is not None:
+                stage_existing_activity(
+                    self.coordinator, self.workspace_id, previous.project_id, previous.run_id, False
+                )
             self.unit.commit()
             return saved
         except BaseException:
@@ -278,11 +341,13 @@ class SavedRunSchedule:
             result.append(basis)
         return tuple(result)
 
-    def _advance(self, project: str, run: str, identity: str) -> Mapping[str, object]:
+    def _advance(
+        self, project: str, run: str, identity: str, *, budget: int | None = None
+    ) -> Mapping[str, object]:
         observed: list[str] = []
         dispatched: list[str] = []
         status = "slice_exhausted"
-        for _ in range(_SLICE_BUDGET):
+        for _ in range(_SLICE_BUDGET if budget is None else budget):
             facts = self._current(project, run)
             attempts = self._attempts(facts)
             if facts.run.control_state is RunControlStateFact.COMPLETED:
@@ -381,6 +446,123 @@ class SavedRunSchedule:
             "waiting_step_ids": list(plan.waiting_step_ids),
             "execution_facts": facts.model_dump(mode="json"),
         }
+
+    def tick(self, control: object) -> Mapping[str, object] | None:
+        """One saved run per turn; no new admission, consent or history discovery."""
+        if self.directory is None:
+            return None
+        entries = self.directory.active_execution_schedules(workspace_id=self.workspace_id)
+        if not entries:
+            return None
+        if len(entries) > 64 or any(
+            set(item) != {"record_id", "workspace_id", "project_id", "run_id", "revision"}
+            or any(
+                type(item[key]) is not str or not item[key]
+                for key in ("record_id", "workspace_id", "project_id", "run_id")
+            )
+            or item["workspace_id"] != self.workspace_id
+            or type(item["revision"]) is not int
+            or item["revision"] < 1
+            for item in entries
+        ):
+            raise RunScheduleBlocked("active inventory shape, scope or budget differs")
+        entry = next(
+            (item for item in entries if str(item["record_id"]) > self._last_work_id), entries[0]
+        )
+        identity = str(entry["record_id"])
+        # Advance the fairness marker before doing any external operation: a bad
+        # saved entry cannot monopolize every subsequent tick.
+        self._last_work_id = identity
+        project, run = str(entry["project_id"]), str(entry["run_id"])
+        work = read_continuation(self.coordinator, self.workspace_id, project, run)
+        if (
+            work is None
+            or not work.active
+            or work.record_id != identity
+            or self.coordinator._revision("execution_schedule", identity) != entry["revision"]
+            or not self._recall(
+                work.schedule_intent_id, project, run, work.intent_id, work.base_snapshot_commit_id
+            )
+        ):
+            raise RunScheduleBlocked("active inventory differs from its original admission")
+        facts = self._current(project, run)
+        if facts.run.control_state in {
+            RunControlStateFact.PAUSE_REQUESTED,
+            RunControlStateFact.CANCELLING,
+        }:
+            from aitest.application.execution.saved_control import SavedRunControl
+
+            if not isinstance(control, SavedRunControl):
+                raise RunScheduleBlocked("saved control continuation is unavailable")
+            control.advance_current(project, run, max_inspections=1)
+            result: Mapping[str, object] = {"status": "controlled"}
+        elif facts.run.driver is RunDriverFact.STEPWISE:
+            active = next(
+                (
+                    item
+                    for item in self._attempts(facts)
+                    if boundary_pending(item) and item.execution_handle_ref is not None
+                ),
+                None,
+            )
+            if active is not None:
+                action_id, action = self._original_action(project, active)
+                self.execution.execute(
+                    project_id=project,
+                    intent_id=action.request.intent_id,
+                    action_id=action_id,
+                    step_id=action.request.step_id,
+                    max_polls=1,
+                )
+            result = {"status": "controlled"}
+        else:
+            result = self._advance(project, run, work.schedule_intent_id, budget=1)
+        self._retire_quiescent(work)
+        return result
+
+    def _retire_quiescent(self, work: RunContinuation) -> None:
+        from dataclasses import replace
+
+        facts = self._current(work.project_id, work.run_id)
+        if (
+            facts.run.control_state
+            not in {
+                RunControlStateFact.PAUSED,
+                RunControlStateFact.CANCELLED,
+                RunControlStateFact.COMPLETED,
+            }
+            and facts.run.driver is not RunDriverFact.STEPWISE
+        ):
+            return
+        self.unit.begin("schedule-retirement-" + uuid4().hex, work.project_id)
+        try:
+            latest = read_continuation(
+                self.coordinator, self.workspace_id, work.project_id, work.run_id
+            )
+            facts = self._current(work.project_id, work.run_id)
+            attempts = self._attempts(facts)
+            inactive = (
+                facts.run.control_state
+                in {
+                    RunControlStateFact.PAUSED,
+                    RunControlStateFact.CANCELLED,
+                }
+                or facts.run.driver is RunDriverFact.STEPWISE
+            )
+            if facts.run.control_state is RunControlStateFact.COMPLETED:
+                basis = self._completion_basis(facts, attempts)
+                if basis is not None:
+                    for item in basis:
+                        self._original_action(work.project_id, item)
+                    inactive = True
+            if latest != work or not inactive or any(boundary_pending(item) for item in attempts):
+                self.unit.rollback()
+                return
+            stage_continuation(self.coordinator, replace(work, active=False))
+            self.unit.commit()
+        except BaseException:
+            self.unit.rollback()
+            raise
 
     def apply(self, command: Command) -> Mapping[str, object]:
         project, intent = ExecutionCommands._identity(command)

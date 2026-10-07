@@ -1,0 +1,42 @@
+........................................................................ [ 18%]
+........................................................................ [ 36%]
+......................F................................................. [ 55%]
+........................................................................ [ 73%]
+........................................................................ [ 92%]
+...............................                                          [100%]
+================================== FAILURES ===================================
+__________________________ test_dependency_direction __________________________
+
+    def test_dependency_direction() -> None:
+        for path in ROOT.rglob("*.py"):
+            relative = path.relative_to(ROOT)
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                imports = (
+                    [node.module or ""]
+                    if isinstance(node, ast.ImportFrom)
+                    else [alias.name for alias in node.names]
+                    if isinstance(node, ast.Import)
+                    else []
+                )
+                for name in imports:
+                    if relative.parts[0] == "domain":
+                        assert not name.startswith(
+                            (
+                                "aitest.application",
+                                "aitest.infrastructure",
+                                "aitest.interfaces",
+                                "aitest.contracts",
+                                "pydantic",
+                            )
+                        )
+                    if relative.parts[0] == "application":
+                        assert not name.startswith(("aitest.infrastructure", "aitest.interfaces"))
+                    if relative.parts[0] == "infrastructure" and name.startswith("aitest.application"):
+>                       assert name in {"aitest.application.ports", "aitest.application.errors"}
+E                       AssertionError: assert 'aitest.application.execution.facts' in {'aitest.application.errors', 'aitest.application.ports'}
+
+tests\architecture\test_boundaries.py:33: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/architecture/test_boundaries.py::test_dependency_direction - Ass...
+1 failed, 390 passed in 196.08s (0:03:16)

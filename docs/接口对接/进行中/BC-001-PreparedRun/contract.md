@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.39"
+contract_version: "0.40"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -11,12 +11,12 @@ verification_status: not_run
 last_verified_commit: null
 blockers: []
 next_owner: C
-next_action: 补后台保活、实际加载与业务核验/复用，完成真实环境验收；默认登记/单步/控制/修订/有界整Run调度已接通，DEC-007/008/009 已裁定。
+next_action: 补实际加载与业务核验/复用及真实宿主后台验收，完成真实环境验收；默认登记/单步/控制/修订/有界整Run调度已接通，DEC-007/008/009 已裁定。
 ---
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.39（2026-10-07 补默认整运行的持久有界调度；实施与验证另行登记）
+版本：0.40（2026-10-07 补持久活动库存与核心主线程续行；实施与验证另行登记）
 日期：2026-10-07
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -925,3 +925,9 @@ Runner在inspect=running时同样collect并按25.13校验/保存实际前缀，�
 先核实所有当前/历史未核对终止的原Attempt，按原许可和句柄观察，不重放业务；任一边界仍未知则不派发后续步骤。单次最多32次推进，每次至多一次inspect/collect切片；授权索引超过100份本轮明确阻塞，不扫描仓储历史。每次推进后回读当前，暂停、取消、恢复中或驱动收窄立即停止新动作；旧调度重传不解除控制。pending_verification仅观察原事实，不自动改成running。
 
 全部当前步骤确实completed、对应原Attempt可靠结束且完整采集、历史无未核实活动，才在短事务确认执行completed；空步骤、错误/失效/缺口不推定完成。该状态不产生独立核验、V、业务passed、证据等级或报告。返回实际保存的ExecutionFacts与调度等待/阻塞原因；准确终态回读不要求新执行适配器。doctor按已注册动作协商start_run，可信执行解析或适配器缺失如实阻塞。后台保活/自动唤醒、真实宿主、业务加载和35条真实AC继续单独验收，FR/AC及公开DTO不变。
+
+### 25.18 持久库存与原意图自动续行（0.40）
+
+引用CORE-001 1.47的唯一活动库存合同：新调度准入与execution_schedule/目录同根保存，固定原意图与准入快照，不是新执行许可；同一Run后来的调度请求不能替换该原引用。最多64项，满额拒绝新登记而保留历史，正常续行点读目录，不全扫业务历史。新核心在连接/半帧等待及命令间隔由唯一业务主线程每次推进一个运行的一次观察或调度；只回读原准入、控制、原动作授权与准确当前事实，继续遵守25.17。
+
+暂停/取消待处理时续核实原控制意图，可靠边界完成后同提交退出库存；resume同控制提交重启库存。STEPWISE只采原活动，不派发新步骤；可靠执行完成才移出。原材料不可核对时保留并阻塞，不重放未知副作用、不代填V/业务结论。旧无库存记录只在显式重传原start_run时核对登记；环境/执行解析端口须由可信装配重新注入，库存不把失效或缺失环境注册转换成授权。FR/AC、公开DTO和reviewing/partial/not_run不变，真实Trae后台运行/恢复和业务验收仍待实测。

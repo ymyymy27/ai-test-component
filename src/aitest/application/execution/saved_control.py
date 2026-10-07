@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.continuation import stage_existing_activity
 from aitest.application.execution.control import boundary_pending
 from aitest.application.execution.facts import execution_payload_digest
 from aitest.application.execution.runner import SerialRunner
@@ -227,6 +228,18 @@ class SavedRunControl:
                 payload={"project_id": project, "run_id": run, "control_intent_id": identity},
             )
             _, facts = self.coordinator._stage_snapshot(self._transition(current, next_state))
+            if next_state in {
+                RunControlStateFact.RUNNING,
+                RunControlStateFact.PAUSED,
+                RunControlStateFact.CANCELLED,
+            }:
+                stage_existing_activity(
+                    self.coordinator,
+                    self.workspace_id,
+                    project,
+                    run,
+                    next_state is RunControlStateFact.RUNNING,
+                )
             raw: dict[str, object] = {
                 "schema_version": "aitest.run-control-intent/1.0",
                 "workspace_id": self.workspace_id,
@@ -263,8 +276,43 @@ class SavedRunControl:
             raise RunControlBlocked("current control reference cannot be verified")
         return pointer["control_intent_id"] == identity
 
+    def advance_current(
+        self, project: str, run: str, *, max_inspections: int = 1
+    ) -> ExecutionFacts:
+        if type(max_inspections) is not int or not 1 <= max_inspections <= 100:
+            raise RunControlBlocked("control observation budget must be between one and 100")
+        pointer = self._read("run_control_current", self._pointer(project, run), project)
+        if pointer is None or type(pointer.get("control_intent_id")) is not str:
+            raise RunControlBlocked("pending run has no exact saved control")
+        identity = str(pointer["control_intent_id"])
+        raw = self._read("run_control_intent", identity, project)
+        if raw is None or not self._owns(identity, project, run):
+            raise RunControlBlocked("original pending control is unavailable")
+        if raw.get("action") not in {"pause_run", "cancel_run"} or any(
+            type(raw.get(key)) is not str or not raw[key]
+            for key in ("intent_id", "action", "base_snapshot_commit_id")
+        ):
+            raise RunControlBlocked("pending control input cannot be verified")
+        verified = self._recall(
+            identity,
+            project,
+            run,
+            str(raw.get("intent_id")),
+            str(raw.get("action")),
+            str(raw.get("base_snapshot_commit_id")),
+        )
+        if verified is None:
+            raise RunControlBlocked("original pending control cannot be verified")
+        return self._advance(verified, identity, project, run, max_inspections=max_inspections)
+
     def _advance(
-        self, raw: Mapping[str, object], identity: str, project: str, run: str
+        self,
+        raw: Mapping[str, object],
+        identity: str,
+        project: str,
+        run: str,
+        *,
+        max_inspections: int = 100,
     ) -> ExecutionFacts:
         result = self._read("run_control_result", identity, project)
         if result is not None:
@@ -311,7 +359,7 @@ class SavedRunControl:
         port = self.execution.execution_port
         if port is not None:
             runner = SerialRunner(port, self.execution.spool, commit_coordinator=self.coordinator)
-            remaining = 100
+            remaining = max_inspections
             for attempt in self._attempts(current):
                 if not boundary_pending(attempt) or attempt.execution_handle_ref is None:
                     continue
@@ -346,6 +394,10 @@ class SavedRunControl:
                 self.unit.rollback()
                 return self._facts(raw, project, run)
             current = self.coordinator.read_runtime_revision_facts(project_id=project, run_id=run)
+            if current.run.control_state is not pending_state or {
+                item.attempt_id for item in current.attempts
+            } != {item.attempt_id for item in original.attempts}:
+                raise RunControlBlocked("pending control changed during external observation")
             if any(boundary_pending(item) for item in self._attempts(current)):
                 self.unit.rollback()
                 return current
@@ -355,6 +407,7 @@ class SavedRunControl:
                 else RunControlStateFact.CANCELLED
             )
             _, facts = self.coordinator._stage_snapshot(self._transition(current, state))
+            stage_existing_activity(self.coordinator, self.workspace_id, project, run, False)
             self.unit.stage_record(
                 aggregate_kind="run_control_result",
                 record_id=identity,

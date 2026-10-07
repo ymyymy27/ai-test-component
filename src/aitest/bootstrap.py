@@ -283,6 +283,7 @@ class CoreAssembly:
     execution_coordinator: ExecutionCommitCoordinator | None = None
     step_execution: SavedStepExecution | None = None
     run_schedule: SavedRunSchedule | None = None
+    continue_work: Callable[[], object] | None = None
     business_verification: SavedBusinessVerification | None = None
     external_imports: SavedExternalResultImport | None = None
     shutdown_blocker: Callable[[], str | None] | None = None
@@ -579,7 +580,7 @@ def assemble_workspace_core(
         )
         run_control = SavedRunControl(execution_coordinator, step_execution, workspace.workspace_id)
         run_schedule = SavedRunSchedule(
-            execution_coordinator, step_execution, workspace.workspace_id
+            execution_coordinator, step_execution, workspace.workspace_id, unit_of_work.repo
         )
         business_verification = SavedBusinessVerification(
             execution_coordinator,
@@ -740,6 +741,7 @@ def assemble_workspace_core(
         execution_coordinator=execution_coordinator,
         step_execution=step_execution,
         run_schedule=run_schedule,
+        continue_work=lambda: run_schedule.tick(run_control),
         business_verification=business_verification,
         external_imports=external_imports,
         run_control=run_control,

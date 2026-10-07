@@ -140,7 +140,17 @@ def required_files(root: Path, value: dict[str, Any]) -> set[str]:
     data = open_authority(root, value["record_header"])
     for ref in value["created"]:
         rows = data["records"].get(ref["aggregate_kind"], {}).get(ref["record_id"], [])
-        rows[ref["revision"] - 1]
+        body = rows[ref["revision"] - 1]
+        if ref["aggregate_kind"] == "execution_schedule" and ref["revision"] == len(rows):
+            from .continuations import verify_catalog_record
+
+            verify_catalog_record(
+                data["_tree"],
+                workspace=value["workspace_id"],
+                identity=ref["record_id"],
+                revision=ref["revision"],
+                payload=body,
+            )
     if value["operation"] == "business":
         find_commit(
             data["_tree"],

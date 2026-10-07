@@ -12,6 +12,7 @@ from aitest.contracts.execution_facts import RunControlStateFact, StepStateFact
 from aitest.contracts.prepared_run import RunDriverFact
 from aitest.domain.execution.authorization import AuthorizationState
 from aitest.domain.execution.runs import AttemptState
+from tests.support.environment_resolution import FixtureEnvironmentResolver
 from tests.support.fake_execution import FakeExecutionPort, FakeExecutionSpec
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
@@ -418,8 +419,17 @@ def test_default_schedule_resumes_original_activity_and_completes_without_busine
     assert controlled.result["status"] == "controlled"
     assert core.unit_of_work.current_commit_sequence() == before
     assert len(port.execution_order) == 1
+    core.continue_work()
+    current = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+    assert current.run.control_state is RunControlStateFact.PAUSED
+    assert not core.unit_of_work.repo.active_execution_schedules(
+        workspace_id=core.workspace.workspace_id
+    )
+    assert len(port.execution_order) == 1
     current = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
     resumed = core.api.dispatch(
+        # The original pause is first settled through the worker's main-thread
+        # hook; its active inventory must disappear without another start.
         Command(
             action="resume_run",
             project_id=facts.project_id,
@@ -436,9 +446,35 @@ def test_default_schedule_resumes_original_activity_and_completes_without_busine
     )
     assert resumed.error is None, resumed.error
     assert resumed.result["run"]["control_state"] == "running"
-    completed = core.api.dispatch(value.model_copy(update={"request_id": "resumed-slice"}), RELAY)
-    assert completed.error is None, completed.error
-    assert completed.result["status"] == "execution_completed"
+    assert (
+        len(
+            core.unit_of_work.repo.active_execution_schedules(
+                workspace_id=core.workspace.workspace_id
+            )
+        )
+        == 1
+    )
+    core.lifetime_lock.release()
+    core = assemble_workspace_core(
+        core.workspace.root,
+        instance_id="schedule-continued",
+        execution_port=port,
+        environment_resolver=FixtureEnvironmentResolver(),
+    )
+    core.execution_authorizations.action_resolver = Resolver(core.unit_of_work)
+    coordinator = core.execution_coordinator
+    for _ in range(len(actions) * 3 + 5):
+        previous_count = len(port.execution_order)
+        core.continue_work()
+        assert len(port.execution_order) <= previous_count + 1
+        latest = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+        if latest.run.control_state is RunControlStateFact.COMPLETED:
+            break
+    else:
+        pytest.fail("bounded original-work ticks did not complete the saved Run")
+    assert not core.unit_of_work.repo.active_execution_schedules(
+        workspace_id=core.workspace.workspace_id
+    )
     assert port.execution_order == [action.attempt.attempt_id for action in actions]
     final = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
     assert final.run.control_state is RunControlStateFact.COMPLETED

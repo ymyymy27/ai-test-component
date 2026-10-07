@@ -172,6 +172,7 @@ def serve_connection(
     connection_no: int,
     entry_kind: EntryKind = EntryKind.AGENT_RELAY,
     shutdown_blocker: Callable[[], str | None] | None = None,
+    on_wait: Callable[[], None] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -188,7 +189,10 @@ def serve_connection(
     try:
         while True:
             try:
-                payload = server.read_message()  # type: ignore[attr-defined]
+                if on_wait is not None:
+                    payload = server.read_message(on_wait=on_wait)  # type: ignore[attr-defined]
+                else:
+                    payload = server.read_message()  # type: ignore[attr-defined]
             except Exception:
                 # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
                 return "disconnected"
@@ -211,6 +215,8 @@ def serve_connection(
                     server.write_message(serialize_response(ack))  # type: ignore[attr-defined]
                 return "shutdown"
             try:
+                if on_wait is not None:
+                    on_wait()
                 server.write_message(  # type: ignore[attr-defined]
                     serialize_response(outcome)
                 )
@@ -394,6 +400,22 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         return 5
     api = assembly.api
+    next_work_tick = 0.0
+    next_work_warning = 0.0
+
+    def continue_work() -> None:
+        nonlocal next_work_tick, next_work_warning
+        now = time.monotonic()
+        if now < next_work_tick:
+            return
+        next_work_tick = now + 0.25
+        if assembly.continue_work is not None:
+            try:
+                assembly.continue_work()
+            except Exception:
+                if now >= next_work_warning:
+                    next_work_warning = now + 60.0
+                    print("已登记运行续行受阻，原材料与活动状态保留", file=sys.stderr)
 
     coordinator: ShutdownCoordinator | None = None
     if args.parent_pid:
@@ -437,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
                 if coordinator is not None:
                     coordinator.bind_accept(server.cancel_wait)
                 try:
-                    server.wait_for_client()
+                    server.wait_for_client(on_wait=continue_work)
                     server.validate_peer()
                 except PeerRejected:
                     # 拒绝对端不致命，关闭本管道后继续接受下一连接；
@@ -463,6 +485,7 @@ def main(argv: list[str] | None = None) -> int:
                     connection_no=connection_no,
                     entry_kind=entry_kind,
                     shutdown_blocker=shutdown_blocker,
+                    on_wait=continue_work,
                 )
                 served += 1
                 if outcome == "shutdown":

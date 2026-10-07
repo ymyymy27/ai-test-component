@@ -1,0 +1,263 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_default_schedule_resumes_original_activity_and_completes_without_business_pass _
+
+self = <aitest.application.execution.step_execution.SavedStepExecution object at 0x000001C5940F9D10>
+project_id = 'project-ticket', intent_id = 'run-step-1'
+action_id = 'execution-action-0b3521149729ebe6943f2afdeb66bb6fcb7e559d42cbdbfb67328e9e3e9c0079'
+step_id = 'step-d06280359c8dffe4299b5c12eec7d19922b19b612c3e856429a9272435052357'
+max_polls = 1
+
+    def execute(
+        self, *, project_id: str, intent_id: str, action_id: str, step_id: str, max_polls: int = 100
+    ) -> Mapping[str, object]:
+        _, action = self.authorizations.resolver.read(project_id, action_id)
+        if (intent_id, step_id) != (action.request.intent_id, action.request.step_id):
+            raise ApprovalRequired("execution intent or target differs from its frozen action")
+        # Both new execution and recovery must prove the original core consent.
+        self.authorizations._origin(project_id, action.request.authorization_ref.authorization_id)
+        try:
+            saved = self.coordinator.find_start(
+                project_id=project_id,
+                intent_id=intent_id,
+                fingerprint=execution_start_fingerprint(action.attempt, action.request),
+            )
+            if saved is not None and has_reliable_terminal_fact(saved):
+                attempt = saved
+            else:
+                if self.execution_port is None:
+                    raise CapabilityUnavailable("a trusted execution adapter is not configured")
+                attempt = SerialRunner(
+                    self.execution_port,
+                    self.spool,
+                    commit_coordinator=self.coordinator,
+>               ).execute_attempt(saved or action.attempt, action.request, max_polls=max_polls)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\aitest\application\execution\step_execution.py:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\runner.py:229: in execute_attempt
+    current = self.start_attempt(prepared, request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\runner.py:417: in start_attempt
+    existing = coordinator.claim_start(
+src\aitest\application\execution\commit.py:630: in claim_start
+    self._execution_authorizations.validate_new(
+src\aitest\application\execution\authorization.py:753: in validate_new
+    self._actual(prepared)
+src\aitest\application\execution\authorization.py:399: in _actual
+    self.environment.validate_current(prepared)
+src\aitest\application\project\environment_resolution.py:141: in validate_current
+    observed = self.resolve(
+src\aitest\application\project\environment_resolution.py:52: in resolve
+    observed = self.resolver.resolve(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.python_environment.RegisteredPythonEnvironmentResolver object at 0x000001C5930101A0>
+request = EnvironmentResolutionRequest(project_id='project-ticket', environment_id='env-local', isolation_mode='venv', interpreter_requirement='Python 3.13')
+
+    def resolve(self, request: EnvironmentResolutionRequest) -> EnvironmentRefFact:
+        carrier = self.carriers.get((request.project_id, request.environment_id))
+        if carrier is None or carrier.isolation_mode != request.isolation_mode:
+>           raise ValueError("tested environment carrier is not registered for this project/mode")
+E           ValueError: tested environment carrier is not registered for this project/mode
+
+src\aitest\infrastructure\python_environment.py:262: ValueError
+
+The above exception was the direct cause of the following exception:
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001C5930138C0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-904/test_default_schedule_resumes_0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C592FC1220>
+
+    def test_default_schedule_resumes_original_activity_and_completes_without_business_pass(
+        authoritative, monkeypatch
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        facts = register(core, prepared)
+        core.execution_authorizations.action_resolver = Resolver(core.unit_of_work)
+        port = FakeExecutionPort()
+        core.step_execution.execution_port = port
+        coordinator = core.execution_coordinator
+        value = schedule_command(facts)
+    
+        empty = core.api.dispatch(value, RELAY)
+        assert empty.error is None, empty.error
+        assert empty.result["status"] == "waiting_authorization"
+        assert not empty.result["execution_facts"]["attempts"] and not port.execution_order
+        admission_id = empty.result["schedule_intent_id"]
+        assert (
+            core.unit_of_work.repo.current_revision(
+                aggregate_kind="execution_intent", record_id=admission_id
+            )
+            == 1
+        )
+        before = core.unit_of_work.current_commit_sequence()
+        conflict = core.api.dispatch(
+            value.model_copy(
+                update={
+                    "request_id": "changed-base",
+                    "parameters": {"run_id": facts.run_id, "base_snapshot_commit_id": "foreign"},
+                }
+            ),
+            RELAY,
+        )
+        assert conflict.error.code == "INTENT_CONFLICT"
+        assert core.unit_of_work.current_commit_sequence() == before
+    
+        actions = [
+            grant_step(
+                core, facts, step, intent="run-step-" + str(index), running=2 if index == 0 else 0
+            )
+            for index, step in enumerate(facts.steps)
+        ]
+        original_start = port.start
+    
+        def start(request):
+            assert core.unit_of_work.project is None
+            assert (
+                core.execution_authorizations._state(
+                    facts.project_id, request.authorization_ref.authorization_id
+                )[1]
+                is AuthorizationState.OCCUPIED
+            )
+            return original_start(request)
+    
+        monkeypatch.setattr(port, "start", start)
+        first = core.api.dispatch(value.model_copy(update={"request_id": "first-slice"}), RELAY)
+        assert first.error is None, first.error
+        assert first.result["status"] == "active"
+        assert port.execution_order == [actions[0].attempt.attempt_id]
+        current = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+        pause = core.api.dispatch(
+            Command(
+                action="pause_run",
+                project_id=facts.project_id,
+                intent_id="pause-schedule",
+                request_id="pause-schedule-request",
+                expected_revision=0,
+                target=facts.run_id,
+                parameters={
+                    "run_id": facts.run_id,
+                    "base_snapshot_commit_id": current.snapshot_commit_id,
+                },
+            ),
+            RELAY,
+        )
+        assert pause.error is None, pause.error
+        assert pause.result["run"]["control_state"] == "pause_requested"
+        before = core.unit_of_work.current_commit_sequence()
+        controlled = core.api.dispatch(value.model_copy(update={"request_id": "paused-slice"}), RELAY)
+        assert controlled.error is None, controlled.error
+        assert controlled.result["status"] == "controlled"
+        assert core.unit_of_work.current_commit_sequence() == before
+        assert len(port.execution_order) == 1
+        core.continue_work()
+        current = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+        assert current.run.control_state is RunControlStateFact.PAUSED
+        assert not core.unit_of_work.repo.active_execution_schedules(
+            workspace_id=core.workspace.workspace_id
+        )
+        assert len(port.execution_order) == 1
+        current = coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+        resumed = core.api.dispatch(
+            # The original pause is first settled through the worker's main-thread
+            # hook; its active inventory must disappear without another start.
+            Command(
+                action="resume_run",
+                project_id=facts.project_id,
+                intent_id="resume-schedule",
+                request_id="resume-schedule-request",
+                expected_revision=0,
+                target=facts.run_id,
+                parameters={
+                    "run_id": facts.run_id,
+                    "base_snapshot_commit_id": current.snapshot_commit_id,
+                },
+            ),
+            RELAY,
+        )
+        assert resumed.error is None, resumed.error
+        assert resumed.result["run"]["control_state"] == "running"
+        assert (
+            len(
+                core.unit_of_work.repo.active_execution_schedules(
+                    workspace_id=core.workspace.workspace_id
+                )
+            )
+            == 1
+        )
+        core.lifetime_lock.release()
+        core = assemble_workspace_core(
+            core.workspace.root, instance_id="schedule-continued", execution_port=port
+        )
+        core.execution_authorizations.action_resolver = Resolver(core.unit_of_work)
+        coordinator = core.execution_coordinator
+        for _ in range(len(actions) * 3 + 5):
+            previous_count = len(port.execution_order)
+>           core.continue_work()
+
+tests\unit\test_saved_run_schedule.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\bootstrap.py:744: in <lambda>
+    continue_work=lambda: run_schedule.tick(run_control),
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\run_schedule.py:516: in tick
+    result = self._advance(project, run, work.schedule_intent_id, budget=1)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\run_schedule.py:425: in _advance
+    self.execution.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.application.execution.step_execution.SavedStepExecution object at 0x000001C5940F9D10>
+project_id = 'project-ticket', intent_id = 'run-step-1'
+action_id = 'execution-action-0b3521149729ebe6943f2afdeb66bb6fcb7e559d42cbdbfb67328e9e3e9c0079'
+step_id = 'step-d06280359c8dffe4299b5c12eec7d19922b19b612c3e856429a9272435052357'
+max_polls = 1
+
+    def execute(
+        self, *, project_id: str, intent_id: str, action_id: str, step_id: str, max_polls: int = 100
+    ) -> Mapping[str, object]:
+        _, action = self.authorizations.resolver.read(project_id, action_id)
+        if (intent_id, step_id) != (action.request.intent_id, action.request.step_id):
+            raise ApprovalRequired("execution intent or target differs from its frozen action")
+        # Both new execution and recovery must prove the original core consent.
+        self.authorizations._origin(project_id, action.request.authorization_ref.authorization_id)
+        try:
+            saved = self.coordinator.find_start(
+                project_id=project_id,
+                intent_id=intent_id,
+                fingerprint=execution_start_fingerprint(action.attempt, action.request),
+            )
+            if saved is not None and has_reliable_terminal_fact(saved):
+                attempt = saved
+            else:
+                if self.execution_port is None:
+                    raise CapabilityUnavailable("a trusted execution adapter is not configured")
+                attempt = SerialRunner(
+                    self.execution_port,
+                    self.spool,
+                    commit_coordinator=self.coordinator,
+                ).execute_attempt(saved or action.attempt, action.request, max_polls=max_polls)
+            current = self.coordinator.read_current_facts(
+                project_id=project_id, run_id=action.request.run_id
+            )
+            if current is None:
+                raise StepExecutionBlocked("the registered current execution facts are unavailable")
+            return {
+                "attempt": project_attempt_fact(
+                    attempt,
+                    is_current=current.current_attempt_by_step.get(step_id) == attempt.attempt_id,
+                ).model_dump(mode="json"),
+                "execution_facts": current.model_dump(mode="json"),
+            }
+        except ValueError as error:
+            if getattr(error, "code", None):
+                raise
+>           raise StepExecutionBlocked(str(error)) from error
+E           aitest.application.execution.step_execution.StepExecutionBlocked: tested environment carrier is not registered for this project/mode
+
+src\aitest\application\execution\step_execution.py:70: StepExecutionBlocked
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_run_schedule.py::test_default_schedule_resumes_original_activity_and_completes_without_business_pass
+1 failed in 438.86s (0:07:18)

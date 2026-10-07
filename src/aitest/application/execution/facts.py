@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -66,16 +64,14 @@ from aitest.domain.evidence.evidence import (
     RedactionSummary,
     Verification,
 )
+from aitest.domain.execution.payload_identity import execution_payload_digest as _payload_digest
 from aitest.domain.execution.runs import Attempt, PlanRevisionRef, Run, Step
 from aitest.domain.execution.sources import ExecutionSourceVerification, SourceCheckResult
 
 
 def execution_payload_digest(payload: Mapping[str, object]) -> str:
     """The existing canonical C snapshot bytes, shared by pointers and lineage."""
-    encoded = json.dumps(
-        dict(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    return _payload_digest(payload)
 
 
 def project_attempt_update(
