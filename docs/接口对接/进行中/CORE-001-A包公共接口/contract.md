@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.56"
+contract_version: "1.57"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -54,7 +54,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.56
+版本：1.57
 日期：2026-10-08
 状态：草案，待B/C/D确认  
 
@@ -352,3 +352,5 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 
 
 2026-10-07（1.55）：命令/回执/MCP和永久JSON明确只接受UTF-8字节，不使用JSON库的UTF-16/32自动探测。字符串值、键和核验冻结范围须为可严格UTF-8编码的Unicode字符；未配对代理字符拒绝，不替换或丢弃来修饰原依据，合法转义代理对解码为对应字符后保持可用。拒绝在实际查询/派发及登记之前，错误回包使用静态安全身份，后续合法帧仍可处理。既有冻结JSON比较语义与DTO不变，旧不合格材料保留并阻塞，不悄悄转换编码；此项不增加执行、验证或AC通过事实。
+
+2026-10-08（1.57）：canonical current读取对同一准确manifest摘要只做一次既有结构/目录路径校验，再按完整规范JSON字节比较指针与该manifest派生的唯一预期指针；bool/float不得靠Python等号冒充int，未知/缺字段、根/摘要/游标不一致仍拒绝。不能用改写index_root的清单副本重复遍历全部业务类型目录来验证别名。manifest读取摘要、工作空间身份、原路径链接检查及verify_material的完整材料验证保持，不改变保存格式或恢复条件。

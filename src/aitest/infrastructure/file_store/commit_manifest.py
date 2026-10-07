@@ -169,10 +169,13 @@ class FileCommitStore:
                     and manifest["workspace_id"] == pointer["workspace_id"]
                 )
             else:
-                self.validate({**manifest, "index_root": pointer["index_root"]})
-                valid = _integer(pointer["commit_id"]) and pointer == self.current_pointer(
-                    manifest, pointer["manifest_digest"]
-                )
+                # read_manifest already verified this exact immutable material.
+                # Strict canonical bytes reject bool/float aliases without a second
+                # walk through every business directory of a modified manifest copy.
+                expected = self.current_pointer(manifest, pointer["manifest_digest"])
+                valid = _integer(pointer["commit_id"]) and canonical_bytes(
+                    pointer
+                ) == canonical_bytes(expected)
             if not valid or manifest["workspace_id"] != self._workspace_id():
                 raise CommitMaterialError("current commit identity does not match its material")
             if verify_material:

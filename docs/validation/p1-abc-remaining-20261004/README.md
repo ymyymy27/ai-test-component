@@ -190,6 +190,8 @@ uv build
 
 2026-10-07整用例聚合阶段：case-basis-before.txt为23失败/1通过；after为276通过/1错误优先级失败，final为最终277 passed（17.00秒）。mypy-final/ruff-final、生成物/版本、build-current与wheel-smoke对应最终源；初次输出独立保留。见[精简源码与边界](../../修改日志/袁/2026-10-07-整用例聚合身份与待完成失败边界.md)。仅纯规则/控制，不宣称持久R或真实AC完成。
 
-2026-10-08 保存事实复用否决：saved-reuse-denial-before.txt首次16失败；after69通过、runner-final62通过；current-isolated为原副本恢复26通过/1失败；sidecar-after原失败修后1通过。recovery-final的328通过/2失败及sidecar-first两失败是新增夹具把缺可靠退出/输出的completed当终态，已修正夹具，生产守卫保持。final-corrected最终302 passed；mypy-final/ruff-final/links记录静态检查。saved-reuse-denial-broad-in-progress.txt为较大调度/修订回归当前输出快照，原运行仍在继续，不登记为已通过。详见[源码记录](../../修改日志/袁/2026-10-08-保存事实复用撤销与恢复副本同步.md)。完整R及真实AC仍未完成。
+2026-10-08 保存事实复用否决：saved-reuse-denial-before.txt首次16失败；after69通过、runner-final62通过；current-isolated为原副本恢复26通过/1失败；sidecar-after原失败修后1通过。recovery-final的328通过/2失败及sidecar-first两失败是新增夹具把缺可靠退出/输出的completed当终态，已修正夹具，生产守卫保持。final-corrected最终302 passed；mypy-final/ruff-final/links记录静态检查。saved-reuse-denial-broad-in-progress.txt保留当时快照；saved-reuse-denial-final.txt为该修复前加载阶段最终408 passed/1 failed（3430.77秒），唯一失败为已修的陈旧副本同步，最终302项及原失败单项另列，不改写旧结果。详见[源码记录](../../修改日志/袁/2026-10-08-保存事实复用撤销与恢复副本同步.md)。完整R及真实AC仍未完成。
 
 2026-10-08 宿主连接：host-ownership-before.txt为25失败/1通过，after35通过，final为13旧IO夹具失败/333通过；补重叠IO初始化和实际回执假设后final-corrected最终354通过，含实际原核心CLI重连及客户端原句柄取消。mypy-final207/ruff-final通过。[根因与源码](../../修改日志/袁/2026-10-08-宿主拒绝连接释放与有限等待.md)。真实Trae/P1 AC不升级。
+
+2026-10-08 当前指针核对：pointer-proof-before-original-store.txt为真正旧Store单项失败/7通过，重复目录核对；final-corrected最终388通过；mypy-final207/ruff-final、build及wheel-smoke记录最终源与安装制品8项。最初发布标记夹具错误和未生效旧类替换探针留在私有工程日志，不作为反例。见[简要根因](../../修改日志/袁/2026-10-08-当前指针一次清单核对.md)。

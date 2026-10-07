@@ -1,0 +1,12 @@
+F.......                                                                 [100%]
+================================== FAILURES ===================================
+__________ test_one_current_read_checks_each_business_directory_once __________
+tests\unit\test_current_pointer_proof_budget.py:30: in test_one_current_read_checks_each_business_directory_once
+    assert checked == list(expected["manifest"]["business_change_index_root"]["types"])
+E   AssertionError: assert ['case', 'pla...plan', 'task'] == ['case', 'plan', 'task']
+E     
+E     Left contains 3 more items, first extra item: 'case'
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/unit/test_current_pointer_proof_budget.py::test_one_current_read_checks_each_business_directory_once
+1 failed, 7 passed in 29.45s

@@ -1,0 +1,3 @@
+........                                                                 [100%]
+8 passed in 56.45s
+Installed commit manifest bytes exact; actual Windows pointer publication and all 8 proof checks passed.
