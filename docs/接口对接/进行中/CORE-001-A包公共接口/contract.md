@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.55"
+contract_version: "1.56"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.56 宿主连接资源边界（2026-10-08）：EditorHost发现/启动/连接共用一次单调时钟等待窗口；等待与轮询值必须为实际int/float且在(0,60]秒，构造时拒绝bool、非有限值及非法类型，不先连接或启动。每次等待仅睡剩余窗口，连接器/启动器仍各自承担内部有界I/O，宿主不能强行中断它们。已取得连接却因启动实例不符或返回时截止已过而拒绝时，关闭该原连接；仅关闭本句柄，不请求核心停机或操作别的进程。关闭失败保留原WORKSPACE_IN_USE并串联原因，已核实连接成功转交调用方持有。截止前探测无结果且已耗尽窗口不再启动；迟到启动事实保留，由后续请求核对同一核心。公开DTO/Schema及FR/AC不变，reviewing/partial/not_run保持。
 
 1.54 stdio MCP读取切片：mcp-relay --binding保留原入口，并须显式给--workspace（既有用户数据）及--project；缺上下文仍明确不可用，不从编号/当前目录猜测。先经同一已核实核心的有限query准确核对binding记录属于所选项目，冻结其仓储修订，读前/读后核对漂移，不返回读取期间变更的混合结果；这不是绑定确认/源码/运行许可。协议固定支持2024-11-05、2025-03-26、2025-06-18、2025-11-25，initialize协商后需notifications/initialized，stdio为有界UTF-8单行JSON-RPC，stdout仅协议、诊断stderr。只暴露固定aitest_doctor及aitest_query（现有项目有限列表的aggregate_kind/record_id/limit/cursor），工具与输入由核心能力及现行QuerySpec派生；项目/绑定不可由arguments覆盖，不暴露写入/人工动作、任意文件读取、事务或新判定。准确Command/Response复用1.53客户端，读取切片逐次取得核实连接并finally关闭，不在stdio等输入期间占住唯一管道或依赖连接保活；原未知结果不自动重发；坏帧/重复RPC编号/未知方法/非法参数不派发，notification不回Response，EOF不请求核心停机/取消运行。MCP取消通知不当业务取消，写入/真实宿主/交互仍未接入。输入和输出各限制同一本地消息字节上限，最多4096请求编号；超大未终止输入不无限排空，保留材料并要求新会话。公开业务Schema/FR/AC不变，继续reviewing/partial/not_run。
 
@@ -52,8 +54,8 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.55
-日期：2026-10-07
+版本：1.56
+日期：2026-10-08
 状态：草案，待B/C/D确认  
 
 1.39 冻结核心退出准入：父进程消亡、工作空间停机和有限客户端退出均须先核实原工作空间的权威执行检查点与未收尾材料；到达命令边界不证明执行终止。存在活动/未知执行、不可读权威依据、尚未保存的输出时保留唯一核心与写锁继续服务，不终止全部执行、不伪造取消、不密封仍被采集的输出。显式停机拒绝返回CORE_DRAINING；客户端仅在同一已核对管道收到准确实例/持久工作空间/请求号的shutting_down回执后登记stopping，超时/丢回执/拒绝保持结果未核实。父进程丢失时解除本次退出请求而继续接受重连；核实收尾后可再次明确停机。退出核对是显式维护检查，不用于列表刷新，后续有界活动目录及后台续行仍需接入。本合同不把保存终态、未知副作用或停机回执当作业务通过/有效验证，也不新增集合停止授权。

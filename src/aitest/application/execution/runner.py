@@ -101,10 +101,8 @@ class SerialRunner:
         self._start_validator = start_validator
         self._commit_coordinator = commit_coordinator
         self._reuse_bases = tuple(reuse_bases)
-        self._previous_attempt_ids_by_step = {
-            step_id: tuple(attempt_ids)
-            for step_id, attempt_ids in (previous_attempt_ids_by_step or {}).items()
-        }
+        # Keep the legacy constructor keyword; do not read its hints as authority.
+        self._reuse_context: tuple[str, str] | None = None
         self._reuse_invalidations: list[CaseReuseInvalidation] = []
         self._intent_claims: dict[tuple[str, str], Attempt] = {}
         self._intent_fingerprints: dict[tuple[str, str], str] = {}
@@ -367,6 +365,11 @@ class SerialRunner:
         return next(iter(unique.values()), None)
 
     def start_attempt(self, attempt: Attempt, request: ExecutionRequest) -> Attempt:
+        if self._reuse_bases:
+            context = (request.project_id, request.run_id)
+            if self._reuse_context is not None and self._reuse_context != context:
+                raise ValueError("reuse candidates belong to one project/run context")
+            self._reuse_context = context
         prepared = self._prepare_attempt(attempt, request)
         if self._commit_coordinator is None:
             raise ValueError("new start or replay requires a persistent authorization coordinator")
@@ -388,6 +391,7 @@ class SerialRunner:
         elif existing is not None:
             raise ValueError("checkpoint has no authoritative start claim; inspect it first")
         if existing is not None:
+            self._refresh_reuse_invalidations(request.project_id, request.run_id)
             self._prepare_attempt(existing, request)
             if existing.attempt_id != prepared.attempt_id:
                 raise ValueError("intent_id is already claimed by another attempt")
@@ -421,6 +425,7 @@ class SerialRunner:
             checkpoint=self._checkpoint_record(prepared, stage="intent_recorded"),
         )
         if existing is not None:
+            self._refresh_reuse_invalidations(request.project_id, request.run_id)
             if existing.execution_handle_ref is None:
                 return replace(
                     existing,
@@ -429,7 +434,7 @@ class SerialRunner:
                 )
             return existing
         self._authorization_claims[authorization_id] = (request.project_id, prepared.attempt_id)
-        self._revoke_reuse_for_new_attempt(prepared)
+        self._refresh_reuse_invalidations(request.project_id, request.run_id)
         self._intent_claims[key] = prepared
         self._intent_fingerprints[key] = fingerprint
         handle = self._execution_port.start(request)
@@ -522,6 +527,7 @@ class SerialRunner:
             return ()
         results: list[RecoveryResult] = []
         for record in self._checkpoint_store.scan():
+            projection = record
             if self._commit_coordinator is not None and record.project_id is None:
                 raise ValueError("legacy checkpoint project must be verified before recovery")
             if self._commit_coordinator is not None:
@@ -551,6 +557,9 @@ class SerialRunner:
             ):
                 # Re-reading reliable history is not a business mutation. Republishing
                 # an unchanged checkpoint would clear its saved run result/grade.
+                # The sidecar may still differ: repair only that projection.
+                if projection != record:
+                    self._checkpoint_store.persist(record)
                 continue
             self._persist_checkpoint(
                 result.attempt, stage=result.action.value, project_id=record.project_id
@@ -591,13 +600,15 @@ class SerialRunner:
     def reuse_invalidations(self) -> tuple[CaseReuseInvalidation, ...]:
         return tuple(self._reuse_invalidations)
 
-    def _revoke_reuse_for_new_attempt(self, attempt: Attempt) -> None:
-        previous = self._previous_attempt_ids_by_step.get(attempt.step_id, ())
-        if not previous or not self._reuse_bases:
+    def _refresh_reuse_invalidations(self, project_id: str, run_id: str) -> None:
+        if not self._reuse_bases:
             return
-        invalidations = invalidate_reuse_bases(
-            self._reuse_bases,
-            affected_upstream_attempt_ids=previous,
+        if self._commit_coordinator is None:
+            raise ValueError("reuse denial needs saved execution authority")
+        invalidations = self._commit_coordinator.read_reuse_invalidations(
+            project_id=project_id,
+            run_id=run_id,
+            bases=self._reuse_bases,
         )
         known = {item.case_id for item in self._reuse_invalidations}
         self._reuse_invalidations.extend(

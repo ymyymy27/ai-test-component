@@ -1,0 +1,136 @@
+........................................................................ [ 20%]
+..............FFFFF....FFFFFFFF......................................... [ 41%]
+........................................................................ [ 62%]
+........................................................................ [ 83%]
+..........................................................               [100%]
+================================== FAILURES ===================================
+________ test_client_rejects_unverified_server_and_closes_handle[pid] _________
+tests\unit\test_core_startup_integrity.py:553: in test_client_rejects_unverified_server_and_closes_handle
+    client.connect()
+src\aitest\interfaces\local\pipe.py:564: in connect
+    if self._handle is not None or self._pending_io:
+                                   ^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+______ test_client_rejects_unverified_server_and_closes_handle[session] _______
+tests\unit\test_core_startup_integrity.py:553: in test_client_rejects_unverified_server_and_closes_handle
+    client.connect()
+src\aitest\interfaces\local\pipe.py:564: in connect
+    if self._handle is not None or self._pending_io:
+                                   ^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+__ test_client_rejects_unverified_server_and_closes_handle[foreign_session] ___
+tests\unit\test_core_startup_integrity.py:553: in test_client_rejects_unverified_server_and_closes_handle
+    client.connect()
+src\aitest\interfaces\local\pipe.py:564: in connect
+    if self._handle is not None or self._pending_io:
+                                   ^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+____ test_client_rejects_unverified_server_and_closes_handle[foreign_user] ____
+tests\unit\test_core_startup_integrity.py:553: in test_client_rejects_unverified_server_and_closes_handle
+    client.connect()
+src\aitest\interfaces\local\pipe.py:564: in connect
+    if self._handle is not None or self._pending_io:
+                                   ^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+_____ test_client_rejects_unverified_server_and_closes_handle[empty_sid] ______
+tests\unit\test_core_startup_integrity.py:553: in test_client_rejects_unverified_server_and_closes_handle
+    client.connect()
+src\aitest\interfaces\local\pipe.py:564: in connect
+    if self._handle is not None or self._pending_io:
+                                   ^^^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_pending_io'
+_______ test_client_completes_partial_writes_without_duplicating_frame ________
+tests\unit\test_core_startup_integrity.py:671: in test_client_completes_partial_writes_without_duplicating_frame
+    client.write_message(payload)
+src\aitest\interfaces\local\pipe.py:623: in write_message
+    self._write_all(len(payload).to_bytes(4, "big") + payload,
+src\aitest\interfaces\local\pipe.py:402: in _write_all
+    written = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+______ test_client_failed_writes_cannot_claim_complete_command[False-2] _______
+tests\unit\test_core_startup_integrity.py:685: in test_client_failed_writes_cannot_claim_complete_command
+    client.write_message(b"query")
+src\aitest\interfaces\local\pipe.py:623: in write_message
+    self._write_all(len(payload).to_bytes(4, "big") + payload,
+src\aitest\interfaces\local\pipe.py:402: in _write_all
+    written = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+_______ test_client_failed_writes_cannot_claim_complete_command[True-0] _______
+tests\unit\test_core_startup_integrity.py:685: in test_client_failed_writes_cannot_claim_complete_command
+    client.write_message(b"query")
+src\aitest\interfaces\local\pipe.py:623: in write_message
+    self._write_all(len(payload).to_bytes(4, "big") + payload,
+src\aitest\interfaces\local\pipe.py:402: in _write_all
+    written = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+______ test_client_failed_writes_cannot_claim_complete_command[True-999] ______
+tests\unit\test_core_startup_integrity.py:685: in test_client_failed_writes_cannot_claim_complete_command
+    client.write_message(b"query")
+src\aitest\interfaces\local\pipe.py:623: in write_message
+    self._write_all(len(payload).to_bytes(4, "big") + payload,
+src\aitest\interfaces\local\pipe.py:402: in _write_all
+    written = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+__ test_client_rejects_oversized_response_before_allocating_or_reading_body ___
+tests\unit\test_core_startup_integrity.py:701: in test_client_rejects_oversized_response_before_allocating_or_reading_body
+    client.read_message()
+src\aitest\interfaces\local\pipe.py:628: in read_message
+    length = int.from_bytes(self._read_exact(4, deadline=deadline), "big")
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_core_startup_integrity.py:694: in read
+    assert deadline is None
+E   assert 99906.8960308 is None
+__ test_client_failed_reads_do_not_accept_partial_or_false_success[False-2] ___
+tests\unit\test_core_startup_integrity.py:715: in test_client_failed_reads_do_not_accept_partial_or_false_success
+    client._read_exact(4)
+src\aitest\interfaces\local\pipe.py:370: in _read_exact
+    read = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+___ test_client_failed_reads_do_not_accept_partial_or_false_success[True-0] ___
+tests\unit\test_core_startup_integrity.py:715: in test_client_failed_reads_do_not_accept_partial_or_false_success
+    client._read_exact(4)
+src\aitest\interfaces\local\pipe.py:370: in _read_exact
+    read = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+__ test_client_failed_reads_do_not_accept_partial_or_false_success[True-999] __
+tests\unit\test_core_startup_integrity.py:715: in test_client_failed_reads_do_not_accept_partial_or_false_success
+    client._read_exact(4)
+src\aitest\interfaces\local\pipe.py:370: in _read_exact
+    read = self._operation(
+src\aitest\interfaces\local\pipe.py:279: in _operation
+    with self._io_guard:
+         ^^^^^^^^^^^^^^
+E   AttributeError: 'NamedPipeClient' object has no attribute '_io_guard'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_unverified_server_and_closes_handle[pid]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_unverified_server_and_closes_handle[session]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_unverified_server_and_closes_handle[foreign_session]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_unverified_server_and_closes_handle[foreign_user]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_unverified_server_and_closes_handle[empty_sid]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_completes_partial_writes_without_duplicating_frame
+FAILED tests/unit/test_core_startup_integrity.py::test_client_failed_writes_cannot_claim_complete_command[False-2]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_failed_writes_cannot_claim_complete_command[True-0]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_failed_writes_cannot_claim_complete_command[True-999]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_oversized_response_before_allocating_or_reading_body
+FAILED tests/unit/test_core_startup_integrity.py::test_client_failed_reads_do_not_accept_partial_or_false_success[False-2]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_failed_reads_do_not_accept_partial_or_false_success[True-0]
+FAILED tests/unit/test_core_startup_integrity.py::test_client_failed_reads_do_not_accept_partial_or_false_success[True-999]
+13 failed, 333 passed in 26.66s

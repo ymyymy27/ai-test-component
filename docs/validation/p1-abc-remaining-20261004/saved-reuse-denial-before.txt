@@ -1,0 +1,108 @@
+FFFFFFFFFFFFFFFF                                                         [100%]
+================================== FAILURES ===================================
+_ test_first_new_attempt_revokes_whole_case_without_a_local_previous_attempt[False] _
+tests\unit\test_saved_reuse_revocation.py:36: in test_first_new_attempt_revokes_whole_case_without_a_local_previous_attempt
+    assert [item.case_id for item in runner.reuse_invalidations] == ["case-1"]
+E   AssertionError: assert [] == ['case-1']
+E     
+E     Right contains one more item: 'case-1'
+E     Use -v to get more diff
+_ test_first_new_attempt_revokes_whole_case_without_a_local_previous_attempt[True] _
+tests\unit\test_saved_reuse_revocation.py:36: in test_first_new_attempt_revokes_whole_case_without_a_local_previous_attempt
+    assert [item.case_id for item in runner.reuse_invalidations] == ["case-1"]
+E   AssertionError: assert [] == ['case-1']
+E     
+E     Right contains one more item: 'case-1'
+E     Use -v to get more diff
+_ test_restart_and_original_intent_replay_rederive_denial_without_memory[False] _
+tests\unit\test_saved_reuse_revocation.py:51: in test_restart_and_original_intent_replay_rederive_denial_without_memory
+    assert [item.case_id for item in recovered.reuse_invalidations] == ["case-1"]
+E   AssertionError: assert [] == ['case-1']
+E     
+E     Right contains one more item: 'case-1'
+E     Use -v to get more diff
+_ test_restart_and_original_intent_replay_rederive_denial_without_memory[True] _
+tests\unit\test_saved_reuse_revocation.py:51: in test_restart_and_original_intent_replay_rederive_denial_without_memory
+    assert [item.case_id for item in recovered.reuse_invalidations] == ["case-1"]
+E   AssertionError: assert [] == ['case-1']
+E     
+E     Right contains one more item: 'case-1'
+E     Use -v to get more diff
+_ test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[cancelled] _
+tests\unit\test_saved_reuse_revocation.py:64: in test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate
+    denied = restarted.read_reuse_invalidations(project_id="project-1", run_id="run-1", bases=BASES)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[execution_error] _
+tests\unit\test_saved_reuse_revocation.py:64: in test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate
+    denied = restarted.read_reuse_invalidations(project_id="project-1", run_id="run-1", bases=BASES)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[pending_verification] _
+tests\unit\test_saved_reuse_revocation.py:64: in test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate
+    denied = restarted.read_reuse_invalidations(project_id="project-1", run_id="run-1", bases=BASES)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[unknown] _
+tests\unit\test_saved_reuse_revocation.py:64: in test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate
+    denied = restarted.read_reuse_invalidations(project_id="project-1", run_id="run-1", bases=BASES)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_________ test_actual_start_failure_keeps_the_committed_intent_denial _________
+tests\unit\test_saved_reuse_revocation.py:77: in test_actual_start_failure_keeps_the_committed_intent_denial
+    denied = restarted.read_reuse_invalidations(project_id="project-1", run_id="run-1", bases=BASES)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_____________ test_unpublished_claim_does_not_create_reuse_denial _____________
+tests\unit\test_saved_reuse_revocation.py:92: in test_unpublished_claim_does_not_create_reuse_denial
+    assert coordinator.read_reuse_invalidations(project_id="project-1", run_id="run-1",
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_reply_loss_is_recovered_from_the_published_claim_before_external_start _
+tests\unit\test_saved_reuse_revocation.py:111: in test_reply_loss_is_recovered_from_the_published_claim_before_external_start
+    assert len(recovered.reuse_invalidations) == 1
+E   assert 0 == 1
+E    +  where 0 = len(())
+E    +    where () = <aitest.application.execution.runner.SerialRunner object at 0x0000022C971DB150>.reuse_invalidations
+___ test_bad_saved_reference_cannot_fall_back_to_unrevoked_history[digest] ____
+tests\unit\test_saved_reuse_revocation.py:131: in test_bad_saved_reference_cannot_fall_back_to_unrevoked_history
+    ExecutionCommitCoordinator(unit).read_reuse_invalidations(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_bad_saved_reference_cannot_fall_back_to_unrevoked_history[project_id] __
+tests\unit\test_saved_reuse_revocation.py:131: in test_bad_saved_reference_cannot_fall_back_to_unrevoked_history
+    ExecutionCommitCoordinator(unit).read_reuse_invalidations(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_bad_saved_reference_cannot_fall_back_to_unrevoked_history[snapshot_commit_id] _
+tests\unit\test_saved_reuse_revocation.py:131: in test_bad_saved_reference_cannot_fall_back_to_unrevoked_history
+    ExecutionCommitCoordinator(unit).read_reuse_invalidations(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+____________ test_missing_registered_run_is_unknown_not_no_denial _____________
+tests\unit\test_saved_reuse_revocation.py:137: in test_missing_registered_run_is_unknown_not_no_denial
+    ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_reuse_invalidations(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ExecutionCommitCoordinator' object has no attribute 'read_reuse_invalidations'
+_ test_whole_case_new_attempt_and_actual_source_closure_have_distinct_reasons _
+tests\unit\test_saved_reuse_revocation.py:143: in test_whole_case_new_attempt_and_actual_source_closure_have_distinct_reasons
+    result = invalidate_reuse_bases(bases, affected_upstream_attempt_ids=("invalidated-middle",),
+E   TypeError: invalidate_reuse_bases() got an unexpected keyword argument 'started_case_ids'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_reuse_revocation.py::test_first_new_attempt_revokes_whole_case_without_a_local_previous_attempt[False]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_first_new_attempt_revokes_whole_case_without_a_local_previous_attempt[True]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_restart_and_original_intent_replay_rederive_denial_without_memory[False]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_restart_and_original_intent_replay_rederive_denial_without_memory[True]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[cancelled]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[execution_error]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[pending_verification]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_failed_or_unknown_start_never_restores_a_saved_reuse_candidate[unknown]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_actual_start_failure_keeps_the_committed_intent_denial
+FAILED tests/unit/test_saved_reuse_revocation.py::test_unpublished_claim_does_not_create_reuse_denial
+FAILED tests/unit/test_saved_reuse_revocation.py::test_reply_loss_is_recovered_from_the_published_claim_before_external_start
+FAILED tests/unit/test_saved_reuse_revocation.py::test_bad_saved_reference_cannot_fall_back_to_unrevoked_history[digest]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_bad_saved_reference_cannot_fall_back_to_unrevoked_history[project_id]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_bad_saved_reference_cannot_fall_back_to_unrevoked_history[snapshot_commit_id]
+FAILED tests/unit/test_saved_reuse_revocation.py::test_missing_registered_run_is_unknown_not_no_denial
+FAILED tests/unit/test_saved_reuse_revocation.py::test_whole_case_new_attempt_and_actual_source_closure_have_distinct_reasons
+16 failed in 17.87s

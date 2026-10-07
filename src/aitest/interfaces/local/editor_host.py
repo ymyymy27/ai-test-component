@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal, NoReturn, Protocol, cast
 
 from aitest.application.errors import WorkspaceInUse
 
@@ -60,26 +60,32 @@ class EditorHost:
         wait_timeout_seconds: float = 5.0,
         poll_interval_seconds: float = 0.05,
     ) -> None:
+        self._timeout = _wait_seconds(wait_timeout_seconds)
+        self._poll = _wait_seconds(poll_interval_seconds)
         self._connect = connector
         self._launcher = launcher
-        self._timeout = wait_timeout_seconds
-        self._poll = poll_interval_seconds
 
     def acquire(self, workspace_id: str) -> CoreEndpoint:
+        deadline = time.monotonic() + self._timeout
         existing = self._connect(workspace_id)
         if existing is not None:
             connection, instance_id = existing
+            if time.monotonic() >= deadline:
+                _reject_connection(connection, "核心连接返回时已超过限定时间")
             return CoreEndpoint(workspace_id, instance_id, connection)
+        if time.monotonic() >= deadline:
+            raise WorkspaceInUse("核心发现已超过限定时间")
 
         expected_instance = self._launcher.start(workspace_id)
 
-        deadline = time.monotonic() + self._timeout
         while time.monotonic() < deadline:
             connected = self._connect(workspace_id)
             if connected is not None:
                 connection, instance_id = connected
                 if instance_id != expected_instance:
-                    raise WorkspaceInUse("核心实例身份与启动事实不一致")
+                    _reject_connection(connection, "核心实例身份与启动事实不一致")
+                if time.monotonic() >= deadline:
+                    _reject_connection(connection, "核心连接返回时已超过限定时间")
                 return CoreEndpoint(workspace_id, instance_id, connection)
             observe = getattr(self._launcher, "observe_start", None)
             if callable(observe):
@@ -90,9 +96,32 @@ class EditorHost:
                         raise WorkspaceInUse(f"核心已退出，exit_code={code}")
                     if fact.state == "unknown":
                         raise WorkspaceInUse("核心启动进程身份无法核实，保留现场待恢复")
-            time.sleep(self._poll)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(self._poll, remaining))
 
         raise WorkspaceInUse("核心启动后在限定时间内不可连接")
+
+
+def _wait_seconds(value: object) -> float:
+    if type(value) not in (int, float):
+        raise ValueError("host wait policy requires a finite number in (0, 60] seconds")
+    number = cast(int | float, value)
+    if not 0 < number <= 60:
+        raise ValueError("host wait policy requires a finite number in (0, 60] seconds")
+    return float(number)
+
+
+def _reject_connection(connection: object, reason: str) -> NoReturn:
+    error = WorkspaceInUse(reason)
+    try:
+        close = getattr(connection, "close", None)
+        if callable(close):
+            close()
+    except Exception as close_error:
+        raise error from close_error
+    raise error
 
 
 __all__ = [

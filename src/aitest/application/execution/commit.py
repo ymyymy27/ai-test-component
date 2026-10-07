@@ -70,7 +70,13 @@ from aitest.contracts.execution_facts import (
 from aitest.contracts.prepared_run import CaseRevisionRef, FrozenCaseStep, RunDriverFact
 from aitest.contracts.prepared_run import PlanRevisionRef as PlanContentRef
 from aitest.domain.evidence.evidence import EvidenceRef
-from aitest.domain.execution.dependencies import AttemptInvalidation, invalidate_downstream_attempts
+from aitest.domain.execution.dependencies import (
+    AttemptInvalidation,
+    CaseReuseBasis,
+    CaseReuseInvalidation,
+    invalidate_downstream_attempts,
+    invalidate_reuse_bases,
+)
 from aitest.domain.execution.runs import (
     Attempt,
     AttemptState,
@@ -1586,6 +1592,36 @@ class ExecutionCommitCoordinator:
         except BaseException:
             self._uow.rollback()
             raise
+
+    def read_reuse_invalidations(
+        self, *, project_id: str, run_id: str, bases: tuple[CaseReuseBasis, ...]
+    ) -> tuple[CaseReuseInvalidation, ...]:
+        """Rebuild denial from one saved boundary, never from volatile hints.
+
+        The existing start transaction already retains all Attempts and the
+        actual consumer closure. Even the first optional-step start denies R
+        for its whole case; failure, cancellation and restart cannot undo it.
+        This read does not qualify or grant any candidate for reuse.
+        """
+        facts = self.read_current_facts(project_id=project_id, run_id=run_id)
+        if facts is None:
+            raise ValueError("reuse denial requires a registered current run")
+        cases = {step.step_id: step.case_id for step in facts.steps}
+        started_cases = tuple(sorted({cases[item.step_id] for item in facts.attempts}))
+        affected = {
+            item.attempt_id
+            for item in facts.attempts
+            if not item.is_current or item.state.value == "invalidated"
+        } | {
+            item.affected_attempt_id
+            for item in facts.dependency_invalidations
+            if item.affected_attempt_id is not None
+        }
+        return invalidate_reuse_bases(
+            bases,
+            affected_upstream_attempt_ids=tuple(sorted(affected)),
+            started_case_ids=started_cases,
+        )
 
 
 def _json_payload(adapter: TypeAdapter[Any], value: Any) -> dict[str, object]:

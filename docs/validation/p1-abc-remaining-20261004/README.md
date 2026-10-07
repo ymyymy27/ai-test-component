@@ -189,3 +189,7 @@ uv build
 2026-10-07 UTF/Unicode阶段：json-unicode-before-corrected.txt为30失败/1合法通过，after为31通过；final-first是命令误填不存在文件，未运行，不记通过；旧final387通过仅属首版。两次scope-refined/scope-final保留18/11个重构错误，final-exact为最终387 passed（273.02秒），最终安装current-smoke为51通过，build-current与mypy/ruff-current对应最终源码。见[精简根因与边界](../../修改日志/袁/2026-10-07-UTF8与Unicode核验依据前置校验.md)。项目文档及他人未提交字节不改，真实AC不代填。
 
 2026-10-07整用例聚合阶段：case-basis-before.txt为23失败/1通过；after为276通过/1错误优先级失败，final为最终277 passed（17.00秒）。mypy-final/ruff-final、生成物/版本、build-current与wheel-smoke对应最终源；初次输出独立保留。见[精简源码与边界](../../修改日志/袁/2026-10-07-整用例聚合身份与待完成失败边界.md)。仅纯规则/控制，不宣称持久R或真实AC完成。
+
+2026-10-08 保存事实复用否决：saved-reuse-denial-before.txt首次16失败；after69通过、runner-final62通过；current-isolated为原副本恢复26通过/1失败；sidecar-after原失败修后1通过。recovery-final的328通过/2失败及sidecar-first两失败是新增夹具把缺可靠退出/输出的completed当终态，已修正夹具，生产守卫保持。final-corrected最终302 passed；mypy-final/ruff-final/links记录静态检查。saved-reuse-denial-broad-in-progress.txt为较大调度/修订回归当前输出快照，原运行仍在继续，不登记为已通过。详见[源码记录](../../修改日志/袁/2026-10-08-保存事实复用撤销与恢复副本同步.md)。完整R及真实AC仍未完成。
+
+2026-10-08 宿主连接：host-ownership-before.txt为25失败/1通过，after35通过，final为13旧IO夹具失败/333通过；补重叠IO初始化和实际回执假设后final-corrected最终354通过，含实际原核心CLI重连及客户端原句柄取消。mypy-final207/ruff-final通过。[根因与源码](../../修改日志/袁/2026-10-08-宿主拒绝连接释放与有限等待.md)。真实Trae/P1 AC不升级。

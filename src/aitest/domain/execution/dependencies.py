@@ -100,17 +100,28 @@ def invalidate_reuse_bases(
     bases: Sequence[CaseReuseBasis],
     *,
     affected_upstream_attempt_ids: Sequence[str],
+    started_case_ids: Sequence[str] = (),
 ) -> tuple[CaseReuseInvalidation, ...]:
-    """Revoke whole-case reuse when its precise source execution basis changes."""
+    """Deny candidates after a whole-case start or an actual source invalidation.
+
+    Absence from this result establishes no positive reuse eligibility.
+    """
     if len({basis.case_id for basis in bases}) != len(bases):
         raise ValueError("reuse bases must have unique case identities")
     affected = frozenset(affected_upstream_attempt_ids)
+    started = frozenset(started_case_ids)
     return tuple(
         CaseReuseInvalidation(
             case_id=basis.case_id,
-            source_attempt_ids=tuple(sorted(set(basis.source_attempt_ids) & affected)),
-            reason="reuse_basis_invalidated",
+            source_attempt_ids=tuple(
+                sorted(
+                    set(basis.source_attempt_ids)
+                    if basis.case_id in started
+                    else set(basis.source_attempt_ids) & affected
+                )
+            ),
+            reason="case_new_attempt" if basis.case_id in started else "reuse_basis_invalidated",
         )
         for basis in bases
-        if set(basis.source_attempt_ids) & affected
+        if basis.case_id in started or set(basis.source_attempt_ids) & affected
     )

@@ -535,9 +535,11 @@ def test_client_rejects_unverified_server_and_closes_handle(monkeypatch, fault):
             GetNamedPipeServerSessionId=session,
             GetCurrentProcessId=lambda: 67890,
             CloseHandle=lambda handle: closed.append(handle),
+            CancelIoEx=lambda *args: True,
         )
     )
     client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+    client._init_io()
     client._kernel, client._handle, client._peer_pid = kernel, None, None
     client._session_id, client._pipe_name = 1, "controlled-pipe"
 
@@ -655,18 +657,39 @@ def test_direct_interpreter_preserves_venv_package_loading_and_has_no_redirector
         assert Path(result["dependency"]).resolve() == Path(portalocker.__file__).resolve()
 
 
-def test_client_completes_partial_writes_without_duplicating_frame():
-    captured = bytearray()
-
-    def write(handle, buffer, size, output, overlap):
-        count = min(size, 3)
-        captured.extend(bytes(buffer[:count]))
-        ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+def _immediate_client(begin, transferred):
+    def result(handle, overlap, output, wait):
+        assert overlap is not None
+        ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = transferred()
         return True
 
     client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
+    client._init_io()
     client._handle = 99
-    client._kernel = SimpleNamespace(kernel32=SimpleNamespace(WriteFile=write))
+    client._kernel = SimpleNamespace(
+        kernel32=SimpleNamespace(
+            CreateEventW=lambda *args: 77,
+            CloseHandle=lambda *args: True,
+            CancelIoEx=lambda *args: True,
+            GetOverlappedResult=result,
+            WriteFile=begin,
+            ReadFile=begin,
+        )
+    )
+    return client
+
+
+def test_client_completes_partial_writes_without_duplicating_frame():
+    captured = bytearray()
+    transferred = [0]
+
+    def write(handle, buffer, size, output, overlap):
+        assert output is None and overlap is not None
+        transferred[0] = min(size, 3)
+        captured.extend(bytes(buffer[: transferred[0]]))
+        return True
+
+    client = _immediate_client(write, lambda: transferred[0])
     payload = b'{"action":"query"}'
     client.write_message(payload)
     assert captured == len(payload).to_bytes(4, "big") + payload
@@ -675,12 +698,11 @@ def test_client_completes_partial_writes_without_duplicating_frame():
 @pytest.mark.parametrize("success,count", [(False, 2), (True, 0), (True, 999)])
 def test_client_failed_writes_cannot_claim_complete_command(success, count):
     def write(handle, buffer, size, output, overlap):
-        ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+        assert output is None and overlap is not None
+        ctypes.set_last_error(5 if not success else 0)
         return success
 
-    client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
-    client._handle = 99
-    client._kernel = SimpleNamespace(kernel32=SimpleNamespace(WriteFile=write))
+    client = _immediate_client(write, lambda: count)
     with pytest.raises(pipe.PipeUnavailable):
         client.write_message(b"query")
 
@@ -690,8 +712,8 @@ def test_client_rejects_oversized_response_before_allocating_or_reading_body():
     client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
     client._handle = 99
 
-    def read(size, *, deadline=None):
-        assert deadline is None
+    def read(size, *, deadline=None, on_wait=None):
+        assert deadline is not None
         calls.append(size)
         assert size == 4
         return (pipe.MAX_MESSAGE_BYTES + 1).to_bytes(4, "big")
@@ -705,11 +727,10 @@ def test_client_rejects_oversized_response_before_allocating_or_reading_body():
 @pytest.mark.parametrize("success,count", [(False, 2), (True, 0), (True, 999)])
 def test_client_failed_reads_do_not_accept_partial_or_false_success(success, count):
     def read(handle, buffer, size, output, overlap):
-        ctypes.cast(output, ctypes.POINTER(ctypes.c_ulong)).contents.value = count
+        assert output is None and overlap is not None
+        ctypes.set_last_error(5 if not success else 0)
         return success
 
-    client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
-    client._handle = 99
-    client._kernel = SimpleNamespace(kernel32=SimpleNamespace(ReadFile=read))
+    client = _immediate_client(read, lambda: count)
     with pytest.raises(pipe.PipeUnavailable):
         client._read_exact(4)
