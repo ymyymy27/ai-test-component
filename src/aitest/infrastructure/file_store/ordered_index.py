@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Iterator
+from copy import deepcopy
 from functools import cmp_to_key
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from typing import Any
 from aitest.infrastructure.security import guard_value
 
 from . import atomic
+from .material_json import decode_material, read_material_bytes
 
 Key = tuple[Any, ...]
 Ref = dict[str, Any]
@@ -80,12 +82,10 @@ class OrderedIndexTree:
         if file not in self._cache:
             path = self.directory / file
             self._reject_links(path)
-            if path.stat().st_size > _MAX_BYTES:
-                raise ValueError("ordered index node exceeds bounded size")
-            raw = path.read_bytes()
+            raw = read_material_bytes(path, _MAX_BYTES)
             if hashlib.sha256(raw).hexdigest() != file[:-5]:
                 raise ValueError("ordered index node digest mismatch")
-            value = json.loads(raw)
+            value = decode_material(raw)
             if not isinstance(value, dict) or set(value) not in ({"entries"}, {"children"}):
                 raise ValueError("invalid ordered index node shape")
             self._cache[file] = value
@@ -134,27 +134,28 @@ class OrderedIndexTree:
             first, last = children[0]["first"], children[-1]["last"]
         if (count, first, last) != (ref["count"], ref["first"], ref["last"]):
             raise ValueError("ordered index reference does not match node")
-        return node
+        return deepcopy(node)
 
     def _write(self, node: dict[str, Any], level: int) -> Ref:
         if not 0 <= level <= _MAX_HEIGHT:
             raise ValueError("ordered index exceeded maximum height")
-        safe, changed = guard_value(node)
-        if changed or safe != node:
-            raise ValueError("unsafe index material cannot preserve its key identity")
         raw = (
             json.dumps(node, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
         ).encode("utf-8")
         if len(raw) > _MAX_BYTES:
             raise ValueError("ordered index node exceeds bounded size")
+        material = decode_material(raw)
+        safe, changed = guard_value(material)
+        if changed or safe != material:
+            raise ValueError("unsafe index material cannot preserve its key identity")
         file = hashlib.sha256(raw).hexdigest() + ".json"
         path = self.directory / file
         self._reject_links(path)
         if not path.exists():
-            atomic.write_json(path, node)
-        elif path.read_bytes() != raw:
+            atomic.write_json(path, material)
+        elif read_material_bytes(path, _MAX_BYTES) != raw:
             raise ValueError("immutable ordered index node was modified")
-        self._cache[file] = node
+        self._cache[file] = material
         if level == 0:
             entries = node["entries"]
             return dict(

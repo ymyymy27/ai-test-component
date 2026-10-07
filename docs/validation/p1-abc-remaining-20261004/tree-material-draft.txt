@@ -1,0 +1,59 @@
+.........................................FF............................. [ 66%]
+.....................................                                    [100%]
+================================== FAILURES ===================================
+__________ test_current_identity_update_reads_only_its_paths[report] __________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-894/test_current_identity_update_r0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B89AD2CB00>
+kind = 'report'
+
+    @pytest.mark.parametrize("kind", ["report", "issue"])
+    def test_current_identity_update_reads_only_its_paths(tmp_path, monkeypatch, kind):
+        index = FileQueryIndex(tmp_path, shard_size=8)
+        index.rebuild([_row(i, kind=kind) for i in range(256)])
+        reads = []
+        original = Path.read_bytes
+    
+        def read_bytes(path, *args, **kwargs):
+            if path.is_relative_to(tmp_path / "indexes"):
+                reads.append((path, path.stat().st_size))
+            return original(path, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, "read_bytes", read_bytes)
+        index.publish([_row(130, kind=kind, revision=2, sequence=300)], commit_sequence=300)
+        ledger_reads = [size for path, size in reads if path.parent.name == "latest-keys"]
+>       assert 1 <= len(ledger_reads) <= 8
+E       assert 1 <= 0
+E        +  where 0 = len([])
+
+tests\unit\test_bounded_query_directory.py:123: AssertionError
+__________ test_current_identity_update_reads_only_its_paths[issue] ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-894/test_current_identity_update_r1")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B89AEF4170>
+kind = 'issue'
+
+    @pytest.mark.parametrize("kind", ["report", "issue"])
+    def test_current_identity_update_reads_only_its_paths(tmp_path, monkeypatch, kind):
+        index = FileQueryIndex(tmp_path, shard_size=8)
+        index.rebuild([_row(i, kind=kind) for i in range(256)])
+        reads = []
+        original = Path.read_bytes
+    
+        def read_bytes(path, *args, **kwargs):
+            if path.is_relative_to(tmp_path / "indexes"):
+                reads.append((path, path.stat().st_size))
+            return original(path, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, "read_bytes", read_bytes)
+        index.publish([_row(130, kind=kind, revision=2, sequence=300)], commit_sequence=300)
+        ledger_reads = [size for path, size in reads if path.parent.name == "latest-keys"]
+>       assert 1 <= len(ledger_reads) <= 8
+E       assert 1 <= 0
+E        +  where 0 = len([])
+
+tests\unit\test_bounded_query_directory.py:123: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_bounded_query_directory.py::test_current_identity_update_reads_only_its_paths[report]
+FAILED tests/unit/test_bounded_query_directory.py::test_current_identity_update_reads_only_its_paths[issue]
+2 failed, 107 passed in 62.44s (0:01:02)

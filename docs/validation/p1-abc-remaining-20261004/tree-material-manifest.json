@@ -1,0 +1,37 @@
+{
+  "base_commit": "e4abc9d44ffa4f841851d034121c5aa3acab274a",
+  "branch": "fix",
+  "remaining_total": 21,
+  "real_ac_verified": 0,
+  "affected_passed": 424,
+  "source_sha256": {
+    "src/aitest/infrastructure/file_store/material_json.py": "da9e5959c0f637c38288ea462cfe1ecffc1018476896956407be0e6e93bc3b7d",
+    "src/aitest/infrastructure/file_store/sharded_records.py": "ba842a98483e052d9353ad164f81f26e3795484123a869c6499603d7526a5338",
+    "src/aitest/infrastructure/file_store/ordered_index.py": "a38410f36360167ab887610fe1b766cea8e57d335041be233e5782ef5356c09e"
+  },
+  "source_symbols": {
+    "src/aitest/infrastructure/file_store/material_json.py": {
+      "decode_material": 21,
+      "read_material_bytes": 28
+    },
+    "src/aitest/infrastructure/file_store/sharded_records.py": {
+      "AuthorityTree._read": 44,
+      "AuthorityTree._write": 78
+    },
+    "src/aitest/infrastructure/file_store/ordered_index.py": {
+      "OrderedIndexTree.read": 79,
+      "OrderedIndexTree._write": 139
+    }
+  },
+  "test_sha256": {
+    "tests/unit/test_tree_material_immutability.py": "d51ee9ecd40e4e80249ac71ecd45d5ca9785688a61754d24ac2e4523b93f8973",
+    "tests/unit/test_bounded_query_directory.py": "6812c4c805bb0c6c3f92ee3c11ea85be616c644c88a856a8097a7ccaf1fa43c0"
+  },
+  "wheel_sha256": "ea81d219b98969d7246cc041073b24cdbd2764d226d04ebf61fe9d3c620032b0",
+  "unverified": [
+    "full Python suite",
+    "VSIX rebuild",
+    "real user/Trae/DeepSeek/physical power loss",
+    "production configuration and background continuation"
+  ]
+}

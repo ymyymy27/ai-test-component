@@ -10,16 +10,19 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterator
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from aitest.infrastructure.security import guard_bytes, guard_value
 
 from . import atomic
+from .material_json import decode_material, read_material_bytes
 
 SCHEMA = "aitest.records/2.0"
 _LEAF_LIMIT = 32
 _MISSING = object()
+_MAX_NODE_BYTES = 16 * 1024 * 1024
 
 
 def _key(*parts: object) -> str:
@@ -44,10 +47,10 @@ class AuthorityTree:
         if pointer not in self._cache:
             path = self.directory / f"{pointer}.json"
             self._reject_links(path)
-            raw = path.read_bytes()
+            raw = read_material_bytes(path, _MAX_NODE_BYTES)
             if hashlib.sha256(raw).hexdigest() != pointer:
                 raise ValueError("authority node digest mismatch")
-            value = json.loads(raw)
+            value = decode_material(raw)
             if not isinstance(value, dict):
                 raise ValueError("invalid authority node")
             if set(value) not in ({"value"}, {"entries"}, {"children"}):
@@ -58,6 +61,10 @@ class AuthorityTree:
                 references = value[field]
                 if not isinstance(references, dict) or len(references) > maximum:
                     raise ValueError("invalid authority node references")
+                if field == "children" and any(
+                    len(key) != 1 or key not in "0123456789abcdef" for key in references
+                ):
+                    raise ValueError("invalid authority hash path")
                 if any(
                     not isinstance(ref, str)
                     or len(ref) != 64
@@ -66,24 +73,27 @@ class AuthorityTree:
                 ):
                     raise ValueError("invalid authority node reference")
             self._cache[pointer] = value
-        return self._cache[pointer]
+        return deepcopy(self._cache[pointer])
 
     def _write(self, node: dict[str, Any]) -> str:
         raw = (
             json.dumps(node, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
         ).encode("utf-8")
-        safe, changed = guard_value(node)
+        if len(raw) > _MAX_NODE_BYTES:
+            raise ValueError("immutable material exceeds its byte limit")
+        material = decode_material(raw)
+        safe, changed = guard_value(material)
         guarded, raw_changed = guard_bytes(raw)
-        if changed or safe != node or raw_changed or guarded != raw:
+        if changed or safe != material or raw_changed or guarded != raw:
             raise ValueError("unsafe authority material cannot preserve its identity")
         pointer = hashlib.sha256(raw).hexdigest()
         path = self.directory / f"{pointer}.json"
         self._reject_links(path)
         if not path.exists():
-            atomic.write_json(path, node)
-        elif path.read_bytes() != raw:
+            atomic.write_json(path, material)
+        elif read_material_bytes(path, _MAX_NODE_BYTES) != raw:
             raise ValueError("immutable authority node was modified")
-        self._cache[pointer] = node
+        self._cache[pointer] = material
         return pointer
 
     @staticmethod
@@ -107,6 +117,8 @@ class AuthorityTree:
                 return material["value"]
             if depth >= len(digest):
                 raise ValueError("authority tree exceeded maximum depth")
+            if "children" not in node:
+                raise ValueError("authority path does not reference a tree directory")
             pointer = node["children"].get(digest[depth])
             depth += 1
         return default
@@ -124,6 +136,8 @@ class AuthorityTree:
                 return split(entries, depth)
             if depth >= len(digest):
                 raise ValueError("authority hash collision cannot be split")
+            if "children" not in node:
+                raise ValueError("authority path does not reference a tree directory")
             children = dict(node["children"])
             children[digest[depth]] = update(children.get(digest[depth]), depth + 1)
             return self._write({"children": children})
@@ -154,8 +168,13 @@ class AuthorityTree:
             node = self._read(pointer)
             if "entries" in node:
                 for key, value in node["entries"].items():
-                    yield key, self._read(value)["value"]
+                    material = self._read(value)
+                    if set(material) != {"value"}:
+                        raise ValueError("authority value reference points to a directory")
+                    yield key, material["value"]
             else:
+                if "children" not in node:
+                    raise ValueError("authority path does not reference a tree directory")
                 for child in node["children"].values():
                     yield from walk(child, depth + 1)
 

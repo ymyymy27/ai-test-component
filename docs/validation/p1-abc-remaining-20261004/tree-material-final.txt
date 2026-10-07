@@ -1,0 +1,84 @@
+..............FF........................................................ [ 16%]
+........................................................................ [ 33%]
+........................................................................ [ 50%]
+........................................................................ [ 67%]
+........................................................................ [ 84%]
+................................................................         [100%]
+================================== FAILURES ===================================
+_________ test_cache_uses_the_actual_json_container_shape[authority] __________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-895/test_cache_uses_the_actual_jso0")
+tree_kind = 'authority'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    def test_cache_uses_the_actual_json_container_shape(tmp_path, tree_kind):
+        original = {"arguments": ("one", "two")}
+        if tree_kind == "authority":
+            tree = AuthorityTree(tmp_path)
+>           tree.put("key", original)
+
+tests\unit\test_tree_material_immutability.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\sharded_records.py:127: in put
+    value_pointer = self._write({"value": value})
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.sharded_records.AuthorityTree object at 0x000001F90EDAB050>
+node = {'value': {'arguments': ('one', 'two')}}
+
+    def _write(self, node: dict[str, Any]) -> str:
+        raw = (
+            json.dumps(node, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+        ).encode("utf-8")
+        if len(raw) > _MAX_NODE_BYTES:
+            raise ValueError("immutable material exceeds its byte limit")
+        safe, changed = guard_value(node)
+        guarded, raw_changed = guard_bytes(raw)
+        if changed or safe != node or raw_changed or guarded != raw:
+>           raise ValueError("unsafe authority material cannot preserve its identity")
+E           ValueError: unsafe authority material cannot preserve its identity
+
+src\aitest\infrastructure\file_store\sharded_records.py:87: ValueError
+__________ test_cache_uses_the_actual_json_container_shape[ordered] ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-895/test_cache_uses_the_actual_jso1")
+tree_kind = 'ordered'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    def test_cache_uses_the_actual_json_container_shape(tmp_path, tree_kind):
+        original = {"arguments": ("one", "two")}
+        if tree_kind == "authority":
+            tree = AuthorityTree(tmp_path)
+            tree.put("key", original)
+            result = tree.get("key")
+        else:
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+>           tree.bulk_build([(("key",), original)])
+
+tests\unit\test_tree_material_immutability.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\ordered_index.py:199: in bulk_build
+    refs = self._leaves(entries)
+           ^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\ordered_index.py:174: in _leaves
+    self._write({"entries": entries[i : i + self.leaf_size]}, 0)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.ordered_index.OrderedIndexTree object at 0x000001F90EDAB250>
+node = {'entries': [{'k': ['key'], 'v': {'arguments': ('one', 'two')}}]}
+level = 0
+
+    def _write(self, node: dict[str, Any], level: int) -> Ref:
+        if not 0 <= level <= _MAX_HEIGHT:
+            raise ValueError("ordered index exceeded maximum height")
+        safe, changed = guard_value(node)
+        if changed or safe != node:
+>           raise ValueError("unsafe index material cannot preserve its key identity")
+E           ValueError: unsafe index material cannot preserve its key identity
+
+src\aitest\infrastructure\file_store\ordered_index.py:144: ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_tree_material_immutability.py::test_cache_uses_the_actual_json_container_shape[authority]
+FAILED tests/unit/test_tree_material_immutability.py::test_cache_uses_the_actual_json_container_shape[ordered]
+2 failed, 422 passed in 122.76s (0:02:02)

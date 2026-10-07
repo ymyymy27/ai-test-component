@@ -1,0 +1,297 @@
+FF..FFFFFFFFFF                                                           [100%]
+================================== FAILURES ===================================
+___ test_saved_material_cannot_change_through_its_original_input[authority] ___
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_saved_material_cannot_cha0")
+tree_kind = 'authority'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    def test_saved_material_cannot_change_through_its_original_input(tmp_path, tree_kind):
+        payload = {"nested": {"value": "original"}}
+        if tree_kind == "authority":
+            tree = AuthorityTree(tmp_path)
+            tree.put("key", payload)
+            pointer = tree.pointer
+        else:
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+            tree.bulk_build([(("key",), payload)])
+            pointer = tree.root
+        payload["nested"]["value"] = "caller-mutation"
+        if tree_kind == "authority":
+>           assert tree.get("key") == {"nested": {"value": "original"}}
+E           AssertionError: assert {'nested': {'...er-mutation'}} == {'nested': {'...: 'original'}}
+E             
+E             Differing items:
+E             {'nested': {'value': 'caller-mutation'}} != {'nested': {'value': 'original'}}
+E             Use -v to get more diff
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:25: AssertionError
+____ test_saved_material_cannot_change_through_its_original_input[ordered] ____
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_saved_material_cannot_cha1")
+tree_kind = 'ordered'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    def test_saved_material_cannot_change_through_its_original_input(tmp_path, tree_kind):
+        payload = {"nested": {"value": "original"}}
+        if tree_kind == "authority":
+            tree = AuthorityTree(tmp_path)
+            tree.put("key", payload)
+            pointer = tree.pointer
+        else:
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+            tree.bulk_build([(("key",), payload)])
+            pointer = tree.root
+        payload["nested"]["value"] = "caller-mutation"
+        if tree_kind == "authority":
+            assert tree.get("key") == {"nested": {"value": "original"}}
+            assert AuthorityTree(tmp_path, pointer).get("key") == tree.get("key")
+        else:
+>           assert tree.get(("key",)) == {"nested": {"value": "original"}}
+E           AssertionError: assert {'nested': {'...er-mutation'}} == {'nested': {'...: 'original'}}
+E             
+E             Differing items:
+E             {'nested': {'value': 'caller-mutation'}} != {'nested': {'value': 'original'}}
+E             Use -v to get more diff
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:28: AssertionError
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":false,"fact":true}-authority] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso0")
+tree_kind = 'authority', raw_value = '{"fact":false,"fact":true}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:57: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":false,"fact":true}-ordered] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso1")
+tree_kind = 'ordered', raw_value = '{"fact":false,"fact":true}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+            with pytest.raises(ValueError):
+                tree._read(digest)
+        else:
+            raw = ('{"entries":[{"k":["key"],"v":' + raw_value + '}]}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            (tmp_path / (digest + '.json')).write_bytes(raw)
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+            ref = dict(file=digest + '.json', count=1, first=['key'], last=['key'], level=0)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:65: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":NaN}-authority] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso2")
+tree_kind = 'authority', raw_value = '{"fact":NaN}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:57: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":NaN}-ordered] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso3")
+tree_kind = 'ordered', raw_value = '{"fact":NaN}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+            with pytest.raises(ValueError):
+                tree._read(digest)
+        else:
+            raw = ('{"entries":[{"k":["key"],"v":' + raw_value + '}]}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            (tmp_path / (digest + '.json')).write_bytes(raw)
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+            ref = dict(file=digest + '.json', count=1, first=['key'], last=['key'], level=0)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:65: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":Infinity}-authority] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso4")
+tree_kind = 'authority', raw_value = '{"fact":Infinity}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:57: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":Infinity}-ordered] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso5")
+tree_kind = 'ordered', raw_value = '{"fact":Infinity}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+            with pytest.raises(ValueError):
+                tree._read(digest)
+        else:
+            raw = ('{"entries":[{"k":["key"],"v":' + raw_value + '}]}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            (tmp_path / (digest + '.json')).write_bytes(raw)
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+            ref = dict(file=digest + '.json', count=1, first=['key'], last=['key'], level=0)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:65: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":-Infinity}-authority] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso6")
+tree_kind = 'authority', raw_value = '{"fact":-Infinity}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:57: Failed
+_ test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":-Infinity}-ordered] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_self_hashed_ambiguous_jso7")
+tree_kind = 'ordered', raw_value = '{"fact":-Infinity}'
+
+    @pytest.mark.parametrize("tree_kind", ["authority", "ordered"])
+    @pytest.mark.parametrize("raw_value", ['{"fact":false,"fact":true}', '{"fact":NaN}', '{"fact":Infinity}', '{"fact":-Infinity}'])
+    def test_self_hashed_ambiguous_json_is_not_verified_material(tmp_path, tree_kind, raw_value):
+        if tree_kind == "authority":
+            raw = ('{"value":' + raw_value + '}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            directory = tmp_path / 'record-store'
+            directory.mkdir()
+            (directory / (digest + '.json')).write_bytes(raw)
+            tree = AuthorityTree(tmp_path)
+            with pytest.raises(ValueError):
+                tree._read(digest)
+        else:
+            raw = ('{"entries":[{"k":["key"],"v":' + raw_value + '}]}').encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            (tmp_path / (digest + '.json')).write_bytes(raw)
+            tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+            ref = dict(file=digest + '.json', count=1, first=['key'], last=['key'], level=0)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:65: Failed
+_____________ test_public_scan_cannot_mutate_the_next_cached_read _____________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_public_scan_cannot_mutate0")
+
+    def test_public_scan_cannot_mutate_the_next_cached_read(tmp_path):
+        tree = OrderedIndexTree(tmp_path, _key_cmp, leaf_size=8)
+        tree.bulk_build([(("key",), {"nested": {"value": "original"}})])
+        _, result = next(tree.scan(lower=("key",), upper=("key",), after=None, descending=False))
+        result["nested"]["value"] = 'changed'
+>       assert tree.get(("key",)) == {"nested": {"value": "original"}}
+E       AssertionError: assert {'nested': {'...': 'changed'}} == {'nested': {'...: 'original'}}
+E         
+E         Differing items:
+E         {'nested': {'value': 'changed'}} != {'nested': {'value': 'original'}}
+E         Use -v to get more diff
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:74: AssertionError
+___________ test_authority_items_cannot_mutate_the_next_cached_read ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-891/test_authority_items_cannot_mu0")
+
+    def test_authority_items_cannot_mutate_the_next_cached_read(tmp_path):
+        tree = AuthorityTree(tmp_path)
+        tree.put("key", {"nested": {"value": "original"}})
+        _, result = next(tree.items())
+        result["nested"]["value"] = 'changed'
+>       assert tree.get("key") == {"nested": {"value": "original"}}
+E       AssertionError: assert {'nested': {'...': 'changed'}} == {'nested': {'...: 'original'}}
+E         
+E         Differing items:
+E         {'nested': {'value': 'changed'}} != {'nested': {'value': 'original'}}
+E         Use -v to get more diff
+
+.git\p1-abc-fix-20261003\test_tree_cached_material.py:82: AssertionError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_saved_material_cannot_change_through_its_original_input[authority]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_saved_material_cannot_change_through_its_original_input[ordered]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":false,"fact":true}-authority]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":false,"fact":true}-ordered]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":NaN}-authority]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":NaN}-ordered]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":Infinity}-authority]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":Infinity}-ordered]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":-Infinity}-authority]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_self_hashed_ambiguous_json_is_not_verified_material[{"fact":-Infinity}-ordered]
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_public_scan_cannot_mutate_the_next_cached_read
+FAILED .git/p1-abc-fix-20261003/test_tree_cached_material.py::test_authority_items_cannot_mutate_the_next_cached_read
+12 failed, 2 passed in 0.80s

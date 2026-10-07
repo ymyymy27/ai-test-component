@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from aitest.contracts.queries import QuerySpec
-from aitest.infrastructure.file_store import atomic
+from aitest.infrastructure.file_store import atomic, ordered_index
 from aitest.infrastructure.file_store.index import (
     _ALL_FAMILIES,
     _POINT_FAMILY,
@@ -71,6 +71,15 @@ def test_page_and_commit_do_not_read_whole_directory_history(tmp_path, monkeypat
 
     monkeypatch.setattr(Path, "read_text", read_text)
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    original_material = ordered_index.read_material_bytes
+
+    def read_material(path, maximum):
+        raw = original_material(path, maximum)
+        if path.is_relative_to(tmp_path):
+            reads.append((path, len(raw)))
+        return raw
+
+    monkeypatch.setattr(ordered_index, "read_material_bytes", read_material)
     monkeypatch.setattr(atomic, "write_json", write_json)
     page = index.query_spec(QuerySpec(project_id="p", limit=5))
     assert page.status == "ok" and len(page.items) == 5
@@ -118,6 +127,15 @@ def test_current_identity_update_reads_only_its_paths(tmp_path, monkeypatch, kin
         return original(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    original_material = ordered_index.read_material_bytes
+
+    def read_material(path, maximum):
+        raw = original_material(path, maximum)
+        if path.is_relative_to(tmp_path / "indexes"):
+            reads.append((path, len(raw)))
+        return raw
+
+    monkeypatch.setattr(ordered_index, "read_material_bytes", read_material)
     index.publish([_row(130, kind=kind, revision=2, sequence=300)], commit_sequence=300)
     ledger_reads = [size for path, size in reads if path.parent.name == "latest-keys"]
     assert 1 <= len(ledger_reads) <= 8
