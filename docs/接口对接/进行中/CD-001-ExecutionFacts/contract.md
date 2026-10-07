@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.1"
+contract_version: "1.2"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,9 +16,9 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.1
+版本：1.2
 日期：2026-10-08
-状态：1.0历史确认保留；1.1增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1/1.2增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -213,3 +213,9 @@ AttemptFact.output_cursors为数组，每个元素对应一个OutputStreamName�
 跨运行复用或修订核对使用准确 `snapshot_commit_id`、`snapshot_cursor`、原正文摘要及明确的project/run，读取不可变 `execution_facts@1`；不能拿最新current或run_revision代替仓储修订。原正文和记录信封、快照自身身份及Step/Attempt当前引用必须一致；整数、布尔等JSON类型严格校验，不以类型转换修饰已保存材料。缺失、损坏、另存修订或错误归属拒绝，没有历史扫描或回退到另一份成功快照。
 
 current回读与冻结来源回读共用同一事实校验。可读历史仅证明该快照的原事实，不证明当前复用资格；来源/环境动态状态、准确用例/依据确认、必要核验/证据、依赖有效性和目标无新Attempt均须另核对。旧缺证明仍可按原合同展示历史，不能自动增加R/V，也不能为复用创建空Attempt。1.1不改变公开DTO/Schema字段或1.0已确认的业务词汇，完整持久选择和D消费继续实施。
+
+## 12 整用例准确来源映射（1.2增量）
+
+C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回执，按源Case的每个本地步骤位置核对完整冻结正文、准确StepRevisionRef和原稳定步骤身份，返回该源快照的Step→当前Attempt映射。源Run的物理step_id与其他Run不同，本地冻结step_id与case_step_index用于对照；不能把其他Run的物理ID当作本轮步骤或拼接多个快照。
+
+缺原准备/信封/摘要、未知Case、遗漏/重复位置、正文修订混合、原步骤身份或必需标记被替换均拒绝。原准备及记录只按准确引用读取，不回填缺失证明。未执行源步骤的Attempt保持null；可读源映射不等于有效整用例复用、不增加R/V，也不制造本轮Attempt。实际动态环境、规则/输入、确认/核验/证据、源当前有效性、持久选择及新Attempt撤销仍由后续完整守卫核对。公开ExecutionFacts/Schema在此阶段不增加字段。

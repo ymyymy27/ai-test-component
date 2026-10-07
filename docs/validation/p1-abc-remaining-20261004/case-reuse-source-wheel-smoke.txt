@@ -1,0 +1,3 @@
+..                                                                       [100%]
+2 passed in 148.62s (0:02:28)
+Installed source mapping bytes exact; saved preparation, whole layout, original scope/environment, restart mapping and rejected substitutions verified. No eligibility/R/real AC claimed.
