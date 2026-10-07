@@ -1,0 +1,10 @@
+.............F..............                                             [100%]
+================================== FAILURES ===================================
+___ test_actual_completed_sidecar_without_core_authority_cannot_allow_exit ____
+tests\unit\test_core_exit_admission.py:191: in test_actual_completed_sidecar_without_core_authority_cannot_allow_exit
+    assert result.complete is True
+E   AssertionError: assert False is True
+E    +  where False = ExecutionCollectionResult(attempt_id='attempt-1', output_blocks=(), captured_blocks=(), output_cursors=(), exit_fact_r...one, structured_result_ref=None, capture_completeness=<CaptureCompleteness.GAP: 'gap'>, error_ref=None, complete=False).complete
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_exit_admission.py::test_actual_completed_sidecar_without_core_authority_cannot_allow_exit
+1 failed, 27 passed in 8.23s

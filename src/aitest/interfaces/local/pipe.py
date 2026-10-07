@@ -137,6 +137,14 @@ class _Kernel:
             ctypes.POINTER(wintypes.DWORD),
             ctypes.c_void_p,
         ]
+        kernel32.PeekNamedPipe.argtypes = [
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.c_void_p,
+        ]
         kernel32.CreateFileW.restype = wintypes.HANDLE
         kernel32.CreateFileW.argtypes = [
             wintypes.LPCWSTR,
@@ -437,13 +445,16 @@ class NamedPipeClient:
                 raise PipeUnavailable("核心管道写入失败，提交结果待核实")
             offset += written.value
 
-    def read_message(self) -> bytes:
+    def read_message(self, *, timeout_ms: int | None = None) -> bytes:
         if self._handle is None:
             raise PipeUnavailable("未连接")
-        length = int.from_bytes(self._read_exact(4), "big")
+        if timeout_ms is not None and (type(timeout_ms) is not int or timeout_ms < 0):
+            raise ValueError("read timeout must be a nonnegative integer")
+        deadline = None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
+        length = int.from_bytes(self._read_exact(4, deadline=deadline), "big")
         if length > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("核心响应消息超过上限")
-        return self._read_exact(length)
+        return self._read_exact(length, deadline=deadline)
 
     def close(self) -> None:
         if self._handle is not None:
@@ -458,10 +469,23 @@ class NamedPipeClient:
             raise PipeUnavailable("无法核实当前登录会话")
         return session.value
 
-    def _read_exact(self, size: int) -> bytes:
+    def _read_exact(self, size: int, *, deadline: float | None = None) -> bytes:
         chunks = bytearray()
         while len(chunks) < size:
-            buffer = (wintypes.BYTE * (size - len(chunks)))()
+            amount = size - len(chunks)
+            if deadline is not None:
+                available = wintypes.DWORD(0)
+                if not self._kernel.kernel32.PeekNamedPipe(
+                    self._handle, None, 0, None, ctypes.byref(available), None
+                ):
+                    raise PipeUnavailable("核心响应读取失败，结果待核实")
+                if time.monotonic() >= deadline:
+                    raise PipeUnavailable("核心响应读取超时，结果待核实")
+                if not available.value:
+                    time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+                    continue
+                amount = min(amount, available.value)
+            buffer = (wintypes.BYTE * amount)()
             read = wintypes.DWORD(0)
             ok = self._kernel.kernel32.ReadFile(
                 self._handle, buffer, len(buffer), ctypes.byref(read), None

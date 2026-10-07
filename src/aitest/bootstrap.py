@@ -38,6 +38,7 @@ from aitest.application.execution.authorization import (
 )
 from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.output_material import require_saved_output_material
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.execution.run_schedule import SavedRunSchedule
 from aitest.application.execution.runtime_actions import SavedRuntimeRevisionActions
@@ -89,6 +90,7 @@ from aitest.infrastructure.connections import (
 )
 from aitest.infrastructure.credentials import SecretManager
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+from aitest.infrastructure.file_store.core_exit import FileCoreExitGuard
 from aitest.infrastructure.file_store.core_launch import (
     FileCoreLaunchStore,
     ProcessFact,
@@ -283,6 +285,7 @@ class CoreAssembly:
     run_schedule: SavedRunSchedule | None = None
     business_verification: SavedBusinessVerification | None = None
     external_imports: SavedExternalResultImport | None = None
+    shutdown_blocker: Callable[[], str | None] | None = None
     run_control: SavedRunControl | None = None
     runtime_actions: SavedRuntimeRevisionActions | None = None
     model_policy_proof: ModelPolicyConfirmationService | None = None
@@ -593,6 +596,15 @@ def assemble_workspace_core(
             workspace.workspace_id,
             lambda value: cast(Mapping[str, object], guard_value(value)[0]),
         )
+        exit_guard = FileCoreExitGuard(
+            root,
+            lambda project, attempt: execution_coordinator.read_checkpoint(
+                project_id=project, attempt_id=attempt
+            ),
+            lambda attempt: require_saved_output_material(
+                FileSpoolStore(root), attempt, attempt.output_block_refs
+            ),
+        )
         runtime_actions = SavedRuntimeRevisionActions(execution_coordinator, approvals)
         human_resolver.runtime = runtime_actions
         execution_authorizations.runtime_origins = runtime_actions
@@ -715,6 +727,7 @@ def assemble_workspace_core(
         recovery=recovery,
         lifetime_lock=lifetime_lock,
         seal_inflight=lambda: seal_inflight_outputs(root),
+        shutdown_blocker=exit_guard.blocker,
         gate=gate,
         secret_manager=secret_manager,
         model_provider=model_provider,
@@ -1260,7 +1273,20 @@ def shutdown_endpoint(
     instance_id = connected[1]
     try:
         client.write_message(shutdown_frame())
-    except PipeUnavailable:
+        from aitest.contracts.responses import Response
+
+        acknowledgement = Response.model_validate_json(
+            client.read_message(timeout_ms=max(1, int((deadline - time.monotonic()) * 1000)))
+        )
+        if (
+            acknowledgement.error is not None
+            or acknowledgement.request_id != "core-shutdown"
+            or acknowledgement.instance_id != instance_id
+            or acknowledgement.workspace_id != Workspace(root).workspace_id
+            or acknowledgement.result != {"status": "shutting_down"}
+        ):
+            return False
+    except (PipeUnavailable, ValueError, OSError):
         return False
     finally:
         client.close()

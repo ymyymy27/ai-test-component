@@ -272,7 +272,7 @@ def test_serve_connection_dispatches_multiple_frames_and_acks_shutdown(
             shutdown_frame(),
         ]
     )
-    result = serve_connection(server, api, connection_no=1)
+    result = serve_connection(server, api, connection_no=1, shutdown_blocker=lambda: None)
     assert result == "shutdown"
     assert len(server.written) == 3
     ack = Response.model_validate_json(server.written[2])

@@ -690,7 +690,8 @@ def test_client_rejects_oversized_response_before_allocating_or_reading_body():
     client = pipe.NamedPipeClient.__new__(pipe.NamedPipeClient)
     client._handle = 99
 
-    def read(size):
+    def read(size, *, deadline=None):
+        assert deadline is None
         calls.append(size)
         assert size == 4
         return (pipe.MAX_MESSAGE_BYTES + 1).to_bytes(4, "big")

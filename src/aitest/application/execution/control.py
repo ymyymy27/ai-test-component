@@ -23,17 +23,8 @@ from aitest.domain.execution.runs import (
     PlanRevisionRef,
     Run,
     RunControlState,
+    execution_boundary_pending,
     has_verified_exit,
-)
-
-_ACTIVE_ATTEMPT_STATES = frozenset(
-    {
-        AttemptState.INTENT_RECORDED,
-        AttemptState.STARTING,
-        AttemptState.RUNNING,
-        AttemptState.STOP_REQUESTED,
-        AttemptState.COLLECTING,
-    }
 )
 
 
@@ -68,10 +59,7 @@ class RunControlService:
             raise ValueError("only a running run can be paused")
         state = (
             RunControlState.PAUSE_REQUESTED
-            if any(
-                boundary_pending(attempt)
-                for attempt in attempts
-            )
+            if any(boundary_pending(attempt) for attempt in attempts)
             else RunControlState.PAUSED
         )
         return RunControlDecision(
@@ -193,4 +181,4 @@ def _requires_boundary_verification(attempt: Attempt) -> bool:
 
 def boundary_pending(attempt: Attempt) -> bool:
     """A known process exit and unfinished business verification are separate facts."""
-    return attempt.state in _ACTIVE_ATTEMPT_STATES or _requires_boundary_verification(attempt)
+    return execution_boundary_pending(attempt)

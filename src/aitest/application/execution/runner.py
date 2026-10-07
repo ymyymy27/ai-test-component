@@ -7,6 +7,10 @@ from dataclasses import dataclass, replace
 from typing import Protocol
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.output_material import (
+    SavedOutputMaterialError,
+    require_saved_output_material,
+)
 from aitest.application.execution.recovery import (
     CaseReuseBasis,
     CaseReuseInvalidation,
@@ -33,7 +37,6 @@ from aitest.domain.execution.runs import (
     ExecutionRequest,
     OutputBlockRef,
     OutputCursor,
-    OutputStreamName,
     PlanRevisionRef,
     RecoveryCheckpoint,
     SpoolManifest,
@@ -731,39 +734,10 @@ class SerialRunner:
     def _require_saved_output_material(
         self, attempt: Attempt, blocks: tuple[OutputBlockRef, ...]
     ) -> None:
-        if not blocks:
-            return
-        if self._spool_store is None:
-            raise _ExecutionObservationMismatch("output_material_reader_unavailable")
         try:
-            manifest = self._spool_store.read_manifest(attempt.attempt_id)
-            if not isinstance(manifest, SpoolManifest) or (
-                manifest.run_id,
-                manifest.step_id,
-                manifest.attempt_id,
-                manifest.schema_version,
-            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
-                raise ValueError("spool ownership differs from the original attempt")
-            for block in blocks:
-                if (
-                    not isinstance(block.stream_name, OutputStreamName)
-                    or any(
-                        type(value) is not int
-                        for value in (block.block_index, block.offset, block.length)
-                    )
-                    or type(block.complete) is not bool
-                    or block not in manifest.blocks
-                ):
-                    raise ValueError("output reference differs from saved material")
-                content = self._spool_store.read_block(block)
-                if (
-                    type(content) is not bytes
-                    or len(content) != block.length
-                    or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
-                ):
-                    raise ValueError("saved output content differs from its reference")
-        except (OSError, ValueError) as error:
-            raise _ExecutionObservationMismatch("output_material_unverified") from error
+            require_saved_output_material(self._spool_store, attempt, blocks)
+        except SavedOutputMaterialError as error:
+            raise _ExecutionObservationMismatch(error.reason) from error
 
     @staticmethod
     def _require_saved_output_cursors(

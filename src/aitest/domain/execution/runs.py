@@ -680,6 +680,17 @@ def has_verified_exit(attempt: Attempt) -> bool:
     )
 
 
+def execution_boundary_pending(attempt: Attempt) -> bool:
+    """Active collection and an unknown execution exit both keep the core alive."""
+    return attempt.state in {
+        AttemptState.INTENT_RECORDED,
+        AttemptState.STARTING,
+        AttemptState.RUNNING,
+        AttemptState.STOP_REQUESTED,
+        AttemptState.COLLECTING,
+    } or not has_verified_exit(attempt)
+
+
 def has_complete_capture(attempt: Attempt) -> bool:
     """Complete capture has contiguous saved blocks and matching durable exit totals.
 

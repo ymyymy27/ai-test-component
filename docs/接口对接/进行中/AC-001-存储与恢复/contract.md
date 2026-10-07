@@ -3,7 +3,7 @@ contract_id: AC-001
 title: ExecutionFacts 存储与恢复
 provider: A
 consumer: C
-contract_version: "1.3"
+contract_version: "1.4"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,13 +16,15 @@ next_action: 回复 A 评审列出的五项确认事项并安排真实适配对�
 
 # A包C包存储恢复公共接口约定
 
-版本：1.3
+版本：1.4
 日期：2026-10-07
 状态：A/C 跨包存储与恢复接口对齐（草案）  
 提供方：A包（本地核心底座）  
 调用方：C包（执行编排）  
 协议版本：`aitest.local/2.0`  
 合同源码：`src/aitest/application/ports.py`、`src/aitest/contracts/execution_facts.py`、`src/aitest/infrastructure/file_store/`
+
+1.4 按CORE-001 1.39补退出准入：执行句柄/输出侧录只是检查线索，退出前还须回读权威execution_checkpoint的准确项目/Attempt/当前修订与保存的真实退出事实。缺句柄但已有启动意图同样保留待核实，不能因无活动标记或假终态侧录允许退出。检查失败保留核心与材料；只有已核实执行终止且必要材料保存后方可退出。该维护核对不执行新业务、不自动补查/重试、不改运行或业务结论。
 
 1.3 按CORE-001 1.38增加外部结果保存。`external_import`不可变记录包含准确项目/工作空间、外部身份、安全文档完整对象引用及安全附件引用、来源缺口；`execution_intent`回执绑定原意图、文档摘要和准确导入@1。同来源/内容返回原记录，改变任何决定性安全材料（层级/源码/运行尝试/实际输出/自述/Mock/附件）冲突，提交失败不占位。回读须实际校验原文及全部附件项目/大小/摘要与规范JSON，未知来源不升级为内部采集或业务验证；普通导入既不启动业务也不改ExecutionFacts。附件无可核对安全材料时阻塞，不落未过滤字节。通过现有对象/记录端口及UOW实现，不另建文件写入服务或旁路索引。
 

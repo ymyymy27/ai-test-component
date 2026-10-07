@@ -1,0 +1,25 @@
+......F...F.........                                                     [100%]
+================================== FAILURES ===================================
+_ test_saved_exact_terminal_attempt_allows_exit_without_recomputing_business __
+tests\unit\test_core_exit_admission.py:93: in test_saved_exact_terminal_attempt_allows_exit_without_recomputing_business
+    exit_fact_ref=ExitFact(
+<string>:13: in __init__
+    ???
+src\aitest\domain\execution\runs.py:450: in __post_init__
+    _require_text(self.process_start_identity, "process_start_identity")
+src\aitest\domain\execution\runs.py:18: in _require_text
+    if not value.strip():
+           ^^^^^^^^^^^
+E   AttributeError: 'int' object has no attribute 'strip'
+_ test_shutdown_caller_marks_stopping_only_after_exact_acknowledgement[denied] _
+tests\unit\test_core_exit_admission.py:177: in test_shutdown_caller_marks_stopping_only_after_exact_acknowledgement
+    update={"result": None, "error": ErrorDTO(code="CORE_DRAINING", message="pending")}
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for ErrorDTO
+E   next_step
+E     Field required [type=missing, input_value={'code': 'CORE_DRAINING', 'message': 'pending'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.13/v/missing
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_exit_admission.py::test_saved_exact_terminal_attempt_allows_exit_without_recomputing_business
+FAILED tests/unit/test_core_exit_admission.py::test_shutdown_caller_marks_stopping_only_after_exact_acknowledgement[denied]
+2 failed, 18 passed in 3.02s
