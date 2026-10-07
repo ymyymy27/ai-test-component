@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.40"
+contract_version: "1.41"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -14,6 +14,8 @@ next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
 
+1.41 源码原意图回读须核对原source_pin_intent的准确项目/意图与输入摘要、结果字段、准确业务快照、受控绑定及实际固定清单/全部blob；有source_current_ref时只读取本意图准确指针修订，不能以最新指针代替。新意图同时保存规范冻结inputs并核对其摘要，旧意图缺inputs/source_current_ref时仍按原已存快照验证材料，不补猜字段或重新固定今天的目录。结果/归属/修订/内容身份/固定范围或字节缺失损坏时返回B_SOURCE_UNVERIFIED，不返回仅元数据的reused成功、不产生新提交。旧SRC暂停不阻断原已保存材料读取，但新固定仍按具体能力阻塞。原快照范围、选择、排除、目的与绑定路径须能同实际固定清单核对，固定字节不证明当前源码/环境/加载/业务通过。FR/AC、公开协议与PreparedRun字段不变，继续reviewing/partial/not_run。
+
 1.40 新增协商动作 `submit_delivery`（人工动作）：保存独立、不可变的 `delivery_submission@1`，原 `save_delivery` 仍为草稿。参数严格为 project_revision、expected_revision=0、submission_id、delivery_ref{delivery_id,record_revision}、source_ref{snapshot_id,record_revision}，命令目标为submission_id。准确任务仓储修订从已保存草稿的task_revision读取；源码须核对业务content_identity、技术固定清单/全部blob与准确受控绑定来源。版本文字只作交付标签，不替代源码身份；固定源码不证明当前目录、环境、加载、执行或验证一致。挑战冻结准确项目、草稿、任务、快照、绑定修订与摘要，确认前核对这些材料仍为当前修订；四份核心确认事实、正式提交和原意图回执同一六记录短事务。新正式提交拒绝历史自填verified_in_scope；所有验收项初始仍未验证，不从自述推导结论。原意图回读准确正式提交及来源，不再确认、不改写后续草稿/绑定，不要求当前源码相同；异输入冲突，丢响应不得重复提交。未知/跨项目/损坏/无准确任务或固定来源的草稿不得自动升级。新增记录登记到现有记录/摘要索引与业务变更台账，业务变更分类暂保留unclassified；启用专用业务变更查询前须显式索引迁移，不能更改历史分类或自动提升未知旧记录。交付记录查询仍只用有限QuerySpec；这不是三期上传授权，也不扩大平台白名单。实际新执行与独立核验的交付验证投影、面板及真实宿主验收仍待接通。FR/AC数量不变，保持reviewing/partial/not_run。
 
 # A包对外接口文档 LU
@@ -22,7 +24,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.40
+版本：1.41
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 
@@ -313,3 +315,7 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 1.36引用BC-001 0.39第25.17节：默认start_run保存准确基线的不可变调度准入，原活动观察优先，按原逐动作授权有界派发，完成执行边界不产生业务判定；适配器调用在事务外，暂停/取消/收窄不被旧调度解除。后台保活与真实验收另记。
 
 1.40同批补正式交付的发布引用闭包：A按准确snapshot_id/snapshot_record_revision回读项目源码，核对content_identity与绑定引用，再核对实际固定清单/全部blob，并将这些路径及摘要纳入本次完整清单。审批后至发布前损坏或丢失不得发布current/消费确认；应用层先前的读取成功不能替代发布前核对。
+
+1.41同批标识新source_pin_intent为aitest.source-pin-intent/1.0，规范inputs与摘要同存；A按新schema核对原快照/绑定/内容身份及准确本意图来源指针，并纳入实际固定清单/blob闭包，即使同字节未新增source_snapshot也不能省略。新schema缺输入/引用/摘要时拒绝发布。旧无schema的已存意图/清单保持原字节与历史分类，回读仍核对实际材料，不重新固定或回写旧记录。
+
+新source_pin_intent用aitest.source-pin-intent/1.0标识冻结inputs；同字节复用也须将原快照实际清单/blob带入本提交闭包。提交前核对本批快照/指针时只建只读候选视图，不提前添加权威节点；原持久事务意图重传核对原已提交视图与准确材料，不因旧expected_revision重复新增或误拒绝。旧无Schema记录按原闭包兼容读取，不追写历史。

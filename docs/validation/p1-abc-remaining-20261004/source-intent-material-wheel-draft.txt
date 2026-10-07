@@ -1,0 +1,20 @@
+Using CPython 3.13.13 interpreter at: .venv\Scripts\python.exe
+Resolved 8 packages in 5.95s
+Prepared 1 package in 318ms
+Installed 8 packages in 1.22s
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component/.git/p1-abc-fix-20261003/source-intent-material-dist-final/ai_test_component-0.4.0-py3-none-any.whl)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+aitest/application/project/source_analysis.py fdbdb2d50260fe28f5fa17f2cf7e46407fe19af1abc55d193a6118db4aab4791
+aitest/infrastructure/file_store/source_material.py 08e8778e0fc507d7f8e89cfcf20ee5ecd15c219aecde570fd839e143cb39d2f7
+aitest/infrastructure/file_store/records.py 512ad1e635373d546ec85789680f04d00b0f471443a5cfb2fcf065b97c138783
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\.git\p1-abc-fix-20261003\source_intent_wheel_smoke.py", line 48, in <module>
+    assert second.error is None, second.error
+           ^^^^^^^^^^^^^^^^^^^^
+AssertionError: schema_version='aitest.error/2.0' code='COMMIT_MATERIAL_UNVERIFIED' message='frozen source record reference is unavailable' retryable=False next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��' request_id='same-byte-request' intent_id='same-byte-intent'

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,63 @@ class SourceMaterialError(ValueError):
     """No byte-identity or safety claim can be made for this material."""
 
     code = "COMMIT_MATERIAL_UNVERIFIED"
+
+
+class _PendingSourceRows:
+    """A read-only source view; staged additions are never inserted into authority."""
+
+    def __init__(self, original: Any, project_id: str) -> None:
+        self.original = original
+        self.added: list[dict[str, Any]] = []
+        self.metadata = getattr(original, "metadata", {"project_id": project_id})
+
+    def __len__(self) -> int:
+        return len(self.original) + len(self.added)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        if index < len(self.original):
+            value: dict[str, Any] = self.original[index]
+            return value
+        return self.added[index - len(self.original)]
+
+
+class _PendingSourceLookup:
+    """Delegate exact .get reads, including lazy stores whose dict cache is empty."""
+
+    def __init__(self, original: Any, added: Mapping[str, Any]) -> None:
+        self.original, self.added = original, added
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.added[key] if key in self.added else self.original.get(key, default)
+
+
+def prospective_source_authority(
+    authority: Mapping[str, Any],
+    pending: Sequence[tuple[str, str, int | None, Mapping[str, object]]],
+    project_id: str,
+) -> dict[str, Any]:
+    """Overlay only this batch's snapshot/pointer rows, without scanning unrelated history."""
+    additions: dict[str, dict[str, _PendingSourceRows]] = {}
+    records = authority["records"]
+    for kind, identity, expected, payload in pending:
+        if kind not in {"source_snapshot", "source_binding_current"}:
+            continue
+        changed = additions.setdefault(kind, {})
+        if identity not in changed:
+            changed[identity] = _PendingSourceRows(
+                records.get(kind, {}).get(identity, []), project_id
+            )
+        rows = changed[identity]
+        if type(expected) is not int or expected != len(rows):
+            raise SourceMaterialError("pending source warehouse revision conflicts")
+        if payload.get("project_id") != project_id:
+            raise SourceMaterialError("pending source belongs to another project")
+        rows.added.append(dict(payload))
+    overlay = {
+        kind: _PendingSourceLookup(records.get(kind, {}), changed)
+        for kind, changed in additions.items()
+    }
+    return {**authority, "records": _PendingSourceLookup(records, overlay)}
 
 
 def reject_links(path: Path) -> None:
@@ -208,6 +265,68 @@ def source_record_files(
     if kind == "source_snapshot":
         # Domain-only legacy snapshots may be stored, but cannot prove a new preparation.
         return verify_source_reference(root, body, project_id)
+    if kind == "source_pin_intent" and body.get("schema_version") == "aitest.source-pin-intent/1.0":
+        inputs, result = body.get("inputs"), body.get("result")
+        if (
+            not isinstance(inputs, Mapping)
+            or not isinstance(result, Mapping)
+            or body.get("project_id") != project_id
+            or inputs.get("project_id") != project_id
+            or _body_digest(inputs) != body.get("digest")
+        ):
+            raise SourceMaterialError("source intent frozen input/owner/digest is unverified")
+        source = _owned_record(
+            authority,
+            "source_snapshot",
+            result.get("snapshot_id"),
+            result.get("record_revision"),
+            project_id,
+        )
+        if (
+            any(
+                source.get(key) != result.get(key)
+                for key in (
+                    "snapshot_id",
+                    "content_identity",
+                    "pinned_snapshot_id",
+                    "purpose",
+                    "binding_id",
+                )
+            )
+            or type(source.get("binding_revision")) is not int
+            or type(result.get("binding_revision")) is not int
+            or source.get("binding_revision") != result.get("binding_revision")
+            or not isinstance(result.get("binding_id"), str)
+            or not result.get("binding_id")
+            or inputs.get("binding_id") != result.get("binding_id")
+            or type(inputs.get("binding_revision")) is not int
+            or inputs.get("binding_revision") != result.get("binding_revision")
+            or inputs.get("purpose") != result.get("purpose")
+        ):
+            raise SourceMaterialError("source intent result differs from exact source")
+        reference = result.get("source_current_ref")
+        expected = inputs.get("expected_revision")
+        if (
+            not isinstance(reference, Mapping)
+            or set(reference) != {"record_id", "record_revision"}
+            or type(expected) is not int
+            or expected < 0
+            or type(reference.get("record_revision")) is not int
+            or reference.get("record_revision") != expected + 1
+            or reference.get("record_id")
+            != "source-current-" + _body_digest([project_id, result["binding_id"]])[7:]
+        ):
+            raise SourceMaterialError("source intent original pointer is missing")
+        pointer = _owned_record(
+            authority,
+            "source_binding_current",
+            reference.get("record_id"),
+            reference.get("record_revision"),
+            project_id,
+        )
+        if pointer != {"project_id": project_id, **result}:
+            raise SourceMaterialError("source intent original pointer differs from its result")
+        return verify_source_reference(root, source, project_id, require_verified=True)
     if kind == "delivery_submission":
         if (
             body.get("schema_version") != "aitest.delivery-submission/1.0"
@@ -323,7 +442,7 @@ def source_record_files(
     return verify_source_reference(root, source, project_id, require_verified=require_verified)
 
 
-def _body_digest(body: Mapping[str, object]) -> str:
+def _body_digest(body: object) -> str:
     return (
         "sha256:"
         + hashlib.sha256(

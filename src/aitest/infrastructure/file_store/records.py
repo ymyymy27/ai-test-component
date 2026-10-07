@@ -28,7 +28,7 @@ from .sharded_records import (
     find_commit,
     open_authority,
 )
-from .source_material import source_record_files
+from .source_material import prospective_source_authority, source_record_files
 
 #: 待提交业务记录：(聚合类型, 记录 ID, 期望修订（None 表示新建）, 业务载荷)。
 #: 使用 Sequence + Mapping 而非 list/dict，保证 list 不变性与 dict→Mapping
@@ -687,9 +687,23 @@ class FileRecordRepository:
 
         # A readable record body does not prove that its permanent attachments
         # exist. Validate before adding even uncommitted authority/intent nodes.
+        stored_intent = data.get("intents", {}).get(intent_id) if intent_id is not None else None
+        if isinstance(stored_intent, dict):
+            if stored_intent.get("fingerprint") != self._intent_fingerprint(pending, project_id):
+                raise ValueError("intent conflict")
+            source_candidate = data
+        else:
+            source_candidate = prospective_source_authority(data, pending, project_id)
         for _kind, _record, _expected, body in pending:
             verify_record_objects(self.root, body, project_id)
-            source_record_files(self.root, _kind, body, project_id, data, require_verified=True)
+            source_record_files(
+                self.root,
+                _kind,
+                body,
+                project_id,
+                source_candidate if _kind == "source_pin_intent" else data,
+                require_verified=True,
+            )
 
         # 持久意图幂等：同意图 + 同业务输入（跨入口/重启）直接返回原提交结果，
         # 不生成第二个修订；业务输入不同则意图冲突。重跑须建立新意图。
@@ -699,18 +713,13 @@ class FileRecordRepository:
             # A readable post-switch root is not an acknowledgement of a failed
             # flush. This check also precedes returning a saved intent result.
             FilePublicationBackend(self.root).confirm_current()
-        if intent_id is not None:
-            stored_intent = data.get("intents", {}).get(intent_id)
-            if isinstance(stored_intent, dict):
-                fingerprint = self._intent_fingerprint(pending, project_id)
-                if stored_intent.get("fingerprint") != fingerprint:
-                    raise ValueError("intent conflict")
-                original_created = [
-                    (str(item[0]), str(item[1]), int(item[2]))
-                    for item in stored_intent.get("created", [])
-                    if isinstance(item, (list, tuple)) and len(item) == 3
-                ]
-                return original_created, int(stored_intent["commit_sequence"])
+        if isinstance(stored_intent, dict):
+            original_created = [
+                (str(item[0]), str(item[1]), int(item[2]))
+                for item in stored_intent.get("created", [])
+                if isinstance(item, (list, tuple)) and len(item) == 3
+            ]
+            return original_created, int(stored_intent["commit_sequence"])
 
         commits = data["commits"] if "_tree" in data else self._load_commits()
         events = self._load_events() if self._journal is None else []

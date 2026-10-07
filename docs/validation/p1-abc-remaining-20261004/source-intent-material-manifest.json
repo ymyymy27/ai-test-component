@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-07",
+  "base_commit": "9a270bff669dde3187ea0755135bb7a959475171",
+  "passed_unique_nodes": 122,
+  "real_p1_acceptance": "0 verified / 7 not_verified / 1 blocked / 27 untested",
+  "abc_remaining": 21,
+  "files": {
+    "src/aitest/application/project/source_analysis.py": "fdbdb2d50260fe28f5fa17f2cf7e46407fe19af1abc55d193a6118db4aab4791",
+    "src/aitest/infrastructure/file_store/records.py": "512ad1e635373d546ec85789680f04d00b0f471443a5cfb2fcf065b97c138783",
+    "src/aitest/infrastructure/file_store/source_material.py": "e9a39afac35c007bf0f02fe833c4d501a3a6356eefcdf1ac42f84bfb3648d616",
+    "tests/unit/test_default_source_analysis.py": "3b4ab24226b3eea287bedb9adb1d03a214003c7227487fa4b1fdc6a3cf905aba",
+    "tests/unit/test_source_intent_material_replay.py": "aa5130ec2304e449e8c543080b58f57ea737287a2b4cd1243425abf61ef9a281"
+  },
+  "wheel_sha256": "153ba52745f3386107d269ea977f85eb260da92c3890c48a5137dbc00a719bf8"
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os.path
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -105,7 +106,7 @@ class SourceAnalysisService:
         }
         fingerprint = _digest(inputs)
         operation_id = "source-intent-" + _digest([project_id, intent_id])[7:]
-        previous = self._original(project_id, operation_id, fingerprint)
+        previous = self._original(project_id, operation_id, fingerprint, inputs)
         if previous is not None:
             return previous
         if type(expected_revision) is not int or expected_revision < 0:
@@ -214,7 +215,7 @@ class SourceAnalysisService:
         }
         self.unit.begin(request_id, project_id, intent_id=intent_id)
         try:
-            previous = self._original(project_id, operation_id, fingerprint)
+            previous = self._original(project_id, operation_id, fingerprint, inputs)
             if previous is not None:
                 self.unit.rollback(request_id)
                 return previous
@@ -261,10 +262,12 @@ class SourceAnalysisService:
                 record_id=operation_id,
                 expected_revision=0,
                 payload={
+                    "schema_version": "aitest.source-pin-intent/1.0",
                     "project_id": project_id,
                     "digest": fingerprint,
                     "request_id": request_id,
                     "intent_id": intent_id,
+                    "inputs": inputs,
                     "result": result,
                 },
             )
@@ -279,6 +282,17 @@ class SourceAnalysisService:
         project_id: str,
         record_id: str,
         fingerprint: str,
+        inputs: Mapping[str, object],
+    ) -> Mapping[str, object] | None:
+        try:
+            return self._read_original(project_id, record_id, fingerprint, inputs)
+        except SourceAnalysisError:
+            raise
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError) as error:
+            raise SourceAnalysisError("original source material cannot be verified") from error
+
+    def _read_original(
+        self, project_id: str, record_id: str, fingerprint: str, inputs: Mapping[str, object]
     ) -> Mapping[str, object] | None:
         saved = current_record(
             self.reader,
@@ -288,11 +302,94 @@ class SourceAnalysisService:
         )
         if saved is None:
             return None
-        if saved.revision != 1 or saved.payload.get("digest") != fingerprint:
+        if saved.revision != 1:
+            raise SourceAnalysisError("original source intent revision cannot be verified")
+        schema = saved.payload.get("schema_version")
+        if schema is not None and (
+            schema != "aitest.source-pin-intent/1.0" or "inputs" not in saved.payload
+        ):
+            raise SourceAnalysisError("original source intent schema/input cannot be verified")
+        if saved.payload.get("digest") != fingerprint:
             raise SourceIntentConflict("source intent has different frozen input")
+        original_intent = saved.payload.get("intent_id")
+        if (
+            not isinstance(original_intent, str)
+            or "source-intent-" + _digest([project_id, original_intent])[7:] != record_id
+            or not isinstance(saved.payload.get("request_id"), str)
+            or not saved.payload["request_id"]
+        ):
+            raise SourceAnalysisError("original source intent identity cannot be verified")
+        if "inputs" in saved.payload and (
+            not isinstance(saved.payload["inputs"], Mapping)
+            or _digest(dict(saved.payload["inputs"])) != fingerprint
+        ):
+            raise SourceAnalysisError("original source input differs from its frozen digest")
         result = saved.payload.get("result")
-        if not isinstance(result, Mapping):
+        required = {
+            "snapshot_id",
+            "record_revision",
+            "content_identity",
+            "pinned_snapshot_id",
+            "binding_id",
+            "binding_revision",
+            "purpose",
+        }
+        if (
+            not isinstance(result, Mapping)
+            or not required <= set(result) <= required | {"source_current_ref"}
+            or any(
+                not isinstance(result[key], str) or not result[key]
+                for key in required - {"record_revision", "binding_revision"}
+            )
+            or type(result["record_revision"]) is not int
+            or result["record_revision"] < 1
+            or type(result["binding_revision"]) is not int
+            or result["binding_revision"] < 1
+        ):
             raise SourceAnalysisError("original source intent result is unreadable")
+        snapshot_id, revision = result["snapshot_id"], result["record_revision"]
+        assert isinstance(snapshot_id, str) and type(revision) is int
+        source = self.verify_saved(
+            project_id=project_id, snapshot_id=snapshot_id, revision=revision
+        )
+        if (
+            any(source.get(key) != result[key] for key in required - {"record_revision"})
+            or result["binding_id"] != inputs["binding_id"]
+            or result["binding_revision"] != inputs["binding_revision"]
+            or result["purpose"] != inputs["purpose"]
+            or source.get("source_scope") != inputs["source_scope"]
+            or _metadata_strings(source.get("selected_paths")) != inputs["selected_paths"]
+            or _metadata_strings(source.get("refetch_dependencies"))
+            != inputs["refetch_dependencies"]
+            or source.get("refetch_scope") != inputs["refetch_scope"]
+            or not set(_metadata_strings(inputs["exclusion_rules"]))
+            <= set(_metadata_strings(source.get("exclusion_rules")))
+        ):
+            raise SourceAnalysisError(
+                "original source result differs from its frozen input/material"
+            )
+        if "source_current_ref" in result:
+            reference = result["source_current_ref"]
+            current_id = "source-current-" + _digest([project_id, result["binding_id"]])[7:]
+            expected = inputs["expected_revision"]
+            if (
+                not isinstance(reference, Mapping)
+                or set(reference) != {"record_id", "record_revision"}
+                or reference["record_id"] != current_id
+                or type(reference["record_revision"]) is not int
+                or type(expected) is not int
+                or reference["record_revision"] != expected + 1
+            ):
+                raise SourceAnalysisError("original source pointer reference cannot be verified")
+            pointer = read_scoped_record(
+                self.reader,
+                project_id=project_id,
+                aggregate_kind="source_binding_current",
+                record_id=current_id,
+                revision=reference["record_revision"],
+            )
+            if dict(pointer.payload) != {"project_id": project_id, **result}:
+                raise SourceAnalysisError("original source pointer differs from its frozen result")
         return {**result, "reused": True}
 
     def _git_identity(self, binding: LocalProjectBinding) -> Mapping[str, Any] | None:
@@ -440,6 +537,18 @@ class SourceAnalysisService:
             raise SourceAnalysisError("business source manifest differs from actual pinned bytes")
         if bound.payload.get("project_id") != project_id:
             raise SourceAnalysisError("source binding belongs to another project")
+        binding = binding_from_payload(bound.payload)
+        pinned_path = pinned.get("canonical_path")
+        if (
+            not isinstance(pinned_path, str)
+            or os.path.normcase(os.path.normpath(pinned_path))
+            != os.path.normcase(os.path.normpath(binding.canonical_path))
+            or pinned.get("purpose") != saved.payload.get("purpose")
+            or _metadata_strings(pinned.get("selected_paths"))
+            != _metadata_strings(saved.payload.get("selected_paths"))
+            or _metadata_strings(pinned.get("exclusion_rules")) != manifest.exclusion_rules
+        ):
+            raise SourceAnalysisError("original source scope/path differs from its fixed manifest")
         return dict(saved.payload)
 
     def _verify_binding(

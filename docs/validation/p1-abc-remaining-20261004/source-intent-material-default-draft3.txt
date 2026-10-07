@@ -1,0 +1,45 @@
+.................................F.F.................................... [ 60%]
+...............................................                          [100%]
+================================== FAILURES ===================================
+____ test_source_pause_blocks_new_pin_but_original_intent_remains_readable ____
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001BAFB16E750>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-869/test_source_pause_blocks_new_p0/workspace"))
+
+    def test_source_pause_blocks_new_pin_but_original_intent_remains_readable(stack):
+        from aitest.infrastructure.capabilities import SOURCE
+    
+        core, source, _root = stack
+        seed(core, source)
+        first = analyze(core)
+        assert first.error is None
+        core.gate.degrade(SOURCE, "fixture manual pause")
+        original = analyze(core, request="recall-transport")
+        assert original.error is None and original.result["reused"] is True
+        fresh = analyze(core, request="fresh-request", intent="fresh-intent", expected=1)
+        assert fresh.error.code == "CAPABILITY_UNAVAILABLE"
+        core.gate.restore(SOURCE)
+        restored = analyze(core, request="restored-request", intent="fresh-intent", expected=1)
+>       assert restored.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='frozen source record reference...le', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='restored-request', intent_id='fresh-intent') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='frozen source record reference...le', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='restored-request', intent_id='fresh-intent') = Response(protocol_version='aitest.local/2.0', request_id='restored-request', instance_id='source-core', workspace_id=N...e', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='restored-request', intent_id='fresh-intent')).error
+
+tests\unit\test_default_source_analysis.py:316: AssertionError
+_ test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001BAFB134910>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-869/test_same_bytes_new_intent_clo0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001BAFC9ED470>
+
+    def test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original(
+        stack, monkeypatch
+    ):
+        from copy import deepcopy
+    
+>       from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ModuleNotFoundError: No module named 'aitest.infrastructure.file_store.commit'
+
+tests\unit\test_default_source_analysis.py:375: ModuleNotFoundError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_source_analysis.py::test_source_pause_blocks_new_pin_but_original_intent_remains_readable
+FAILED tests/unit/test_default_source_analysis.py::test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original
+2 failed, 117 passed in 359.11s (0:05:59)

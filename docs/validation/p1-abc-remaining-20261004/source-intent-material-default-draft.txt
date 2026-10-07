@@ -1,0 +1,74 @@
+.........F.........................................                      [100%]
+================================== FAILURES ===================================
+____ test_original_source_material_gap_blocks_after_restart_without_repin _____
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000019A1CEBD4F0>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-864/test_original_source_material_0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019A1D95AE00>
+
+>   ???
+
+tests\unit\test_default_source_analysis.py:336: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+workspace_root = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-864/test_original_source_material_0/workspace")
+instance_id = 'source-material-gap-core', workspace_id = None
+extra_handlers = None, connection_endpoint = None, model_endpoint = None
+model_secret_reference = None, secret_manager = None
+extra_action_dependencies = None, environment_resolver = None
+execution_action_resolver = None, execution_port = None
+business_verification_resolver = None, business_verification_port = None
+
+    def assemble_workspace_core(
+        workspace_root: Path,
+        *,
+        instance_id: str,
+        workspace_id: str | None = None,
+        extra_handlers: Mapping[str, Handler] | None = None,
+        connection_endpoint: str | None = None,
+        model_endpoint: str | None = None,
+        model_secret_reference: tuple[str, str] | None = None,
+        secret_manager: SecretManager | None = None,
+        extra_action_dependencies: Mapping[str, tuple[str, ...]] | None = None,
+        environment_resolver: EnvironmentResolver | None = None,
+        execution_action_resolver: ExecutionActionResolver | None = None,
+        execution_port: ExecutionPort | None = None,
+        business_verification_resolver: BusinessVerificationResolver | None = None,
+        business_verification_port: BusinessVerificationCapturePort | None = None,
+    ) -> CoreAssembly:
+        """װ��Ψһ���ģ������ָ� �� �ļ����� �� B �����Զ����� �� ע������ӡ�
+    
+        A-02����ǰ ``CoreBootstrap.create`` ֻ�� :class:`FileUnitOfWork` ����
+        ``LocalAPI(transaction_port=...)``��ע��� handler �ò���������Ԫ��ֻ��
+        �ִ�������̵� ``core_worker`` �ӽ��̸���ȫ�½��̣�ע���Ϊ���Ҳ��ɷ�
+        Command���������� A ���е�**Ψһװ��·��**��
+    
+        - ����ǰ���� :class:`RecoveryOrchestrator`���պ���һ���ı��������Ļ
+          ��������ͶӰ��``blocked`` ʱ�� :class:`CoreAssemblyBlocked`������������
+        - B �������� ``substrate_adapter`` խת��ͷ�հ�**�������ռ�**��
+          ``FileUnitOfWork`` / ``FileRecordRepository``���ύ���ȡ A-01 �����
+          ��ʽ����������������÷��ֹ�ע�룻
+        - C/D ���������� :class:`UseCaseRegistry`���� ``extra_handlers`` ���ӣ�
+          ��Ĭ�϶���ͬ��ʱ�ܾ�����������Ψһ����
+        """
+        FileCommitStore.reject_links(workspace_root)
+        root = workspace_root.resolve()
+        workspace = Workspace(root)
+        if workspace_id is not None:
+            workspace.validate(workspace_id)
+        # ȫ��������Ψһд���ߣ�A-02������ȡ������д�����ָܻ������װ�䣬
+        # ͬ����/����̵�ͬ���ڶ������ڴ˱��ܾ����ָ� blocked ʱ�ͷ����˳���
+        lifetime_lock = workspace.admit_lifetime()
+        try:
+            try:
+                journal = FileEventJournal(root, instance_id=instance_id)
+                recovery = RecoveryOrchestrator(root, instance_id=instance_id).run(startup=True)
+            except (OSError, ValueError) as error:
+                raise CoreAssemblyBlocked("�ύ��ָ������޷���ʵ�����ľܾ�����") from error
+            if recovery.state == "blocked":
+>               raise CoreAssemblyBlocked(f"�����ռ�ָ� blocked�����ľܾ�����: {recovery.actions}")
+E               aitest.bootstrap.CoreAssemblyBlocked: �����ռ�ָ� blocked�����ľܾ�����: ('д��׼����Ҫ�ָ������޷���ʵ������ԭ�ֽڲ������ָ�д��',)
+
+src\aitest\bootstrap.py:341: CoreAssemblyBlocked
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_source_analysis.py::test_original_source_material_gap_blocks_after_restart_without_repin
+1 failed, 50 passed in 328.74s (0:05:28)

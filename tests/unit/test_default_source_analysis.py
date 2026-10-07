@@ -314,3 +314,114 @@ def test_source_pause_blocks_new_pin_but_original_intent_remains_readable(stack)
     core.gate.restore(SOURCE)
     restored = analyze(core, request="restored-request", intent="fresh-intent", expected=1)
     assert restored.error is None
+
+
+def test_original_source_material_gap_blocks_after_restart_without_repin(stack, monkeypatch):
+    from aitest.application.project.source_analysis import _digest
+    from aitest.infrastructure.capabilities import SOURCE
+
+    core, source, root = stack
+    seed(core, source)
+    first = analyze(core)
+    assert first.error is None
+    identity = "source-intent-" + _digest(["project", "pin-intent"])[7:]
+    saved = core.unit_of_work.repo.read(
+        aggregate_kind="source_pin_intent", record_id=identity, revision=1
+    ).payload
+    assert _digest(saved["inputs"]) == saved["digest"]
+    # Advance the current boundary with unrelated valid business data. The old source
+    # still belongs to history, so incremental startup must not be our byte-gap oracle.
+    from aitest.application.project.serialization import task_to_payload
+    from aitest.domain.project.context import AcceptanceItem, Task
+
+    task = Task(
+        "task-after-source", "project", "goal", "scope", (AcceptanceItem("a", "observable"),)
+    )
+    advanced = dispatch(
+        core,
+        "save_task",
+        request="task-after-source-request",
+        intent="task-after-source-intent",
+        parameters={"task": task_to_payload(task)},
+    )
+    assert advanced.error is None
+    pinned = core.snapshot_store.verify_pinned(first.result["pinned_snapshot_id"])
+    missing = root / "snapshots/blobs" / pinned["files"][0]["sha256"]
+    missing.unlink()
+    core.lifetime_lock.release()
+    restarted = assemble_workspace_core(root, instance_id="source-material-gap-core")
+    try:
+        restarted.gate.degrade(SOURCE, "fixture source pause")
+
+        def no_repin(*args, **kwargs):
+            pytest.fail("a lost original material must not repin today's changed source")
+
+        monkeypatch.setattr(FileSourceSnapshotStore, "pin", no_repin)
+        monkeypatch.setattr(FileSourceSnapshotStore, "detect_changes", no_repin)
+        before = restarted.unit_of_work.current_commit_sequence()
+        repeated = analyze(restarted, request="read-broken-original")
+        assert repeated.error is not None and repeated.error.code == "B_SOURCE_UNVERIFIED"
+        assert restarted.unit_of_work.current_commit_sequence() == before
+        assert not missing.exists()
+    finally:
+        restarted.lifetime_lock.release()
+
+
+def test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original(
+    stack, monkeypatch
+):
+    from copy import deepcopy
+
+    from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+
+    core, source, root = stack
+    seed(core, source)
+    first = analyze(core)
+    assert first.error is None
+    repo = core.unit_of_work.repo
+    original_commit = repo.commit_transaction
+    captured = {}
+
+    def capture(pending, **kwargs):
+        captured.update(pending=deepcopy(pending), kwargs=dict(kwargs))
+        return original_commit(pending, **kwargs)
+
+    monkeypatch.setattr(repo, "commit_transaction", capture)
+    second = analyze(core, intent="same-byte-intent", request="same-byte-request", expected=1)
+    assert second.error is None
+    assert second.result["snapshot_id"] == first.result["snapshot_id"]
+    assert second.result["source_current_ref"]["record_revision"] == 2
+    assert all(kind != "source_snapshot" for kind, *_ in captured["pending"])
+    store = FileCommitStore(root)
+    current = store.read_current(verify_material=True)
+    before = deepcopy(current["pointer"])
+    pinned = core.snapshot_store.verify_pinned(second.result["pinned_snapshot_id"])
+    assert set(current["manifest"]["source_material_files"]) == {
+        "snapshots/" + pinned["snapshot_id"] + ".json",
+        *("snapshots/blobs/" + f["sha256"] for f in pinned["files"]),
+    }
+    kwargs = captured["kwargs"] | {"request_id": "raw-a-transport-retry"}
+    created, boundary = original_commit(captured["pending"], **kwargs)
+    assert len(created) == 2 and boundary == current["manifest"]["commit_sequence"]
+    assert store.read_current()["pointer"] == before
+
+    blob = root / "snapshots/blobs" / pinned["files"][0]["sha256"]
+    raw = blob.read_bytes()
+
+    def damage_after_pin(pending, **kwargs):
+        blob.write_bytes(b"damaged after source pin, before publish")
+        return original_commit(pending, **kwargs)
+
+    monkeypatch.setattr(repo, "commit_transaction", damage_after_pin)
+    try:
+        rejected = analyze(core, intent="damaged-new-intent", request="damage-request", expected=2)
+        assert rejected.error is not None
+        assert store.read_current()["pointer"] == before
+        assert (
+            repo.current_revision(
+                "source_binding_current", second.result["source_current_ref"]["record_id"]
+            )
+            == 2
+        )
+    finally:
+        blob.write_bytes(raw)
