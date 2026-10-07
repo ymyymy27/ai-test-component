@@ -1,4 +1,4 @@
-"""Bounded stdio MCP diagnostics/queries through the same verified core; never a writer."""
+"""Bounded MCP commands forward original business intents to the same verified core."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from uuid import uuid4
 from aitest import __version__
 from aitest.application.errors import CapabilityUnavailable
 from aitest.bootstrap import acquire_existing_endpoint
-from aitest.contracts.commands import Command
+from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.queries import QuerySpec
 from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
@@ -21,6 +21,12 @@ from aitest.interfaces.local.core_client import MAX_COMMAND_BYTES, CoreClient
 _VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
 _QUERY_FIELDS = {"aggregate_kind", "record_id", "limit", "cursor"}
 _MAX_REQUESTS = 4096
+_WRITE_FIELDS = {"action", "intent_id", "expected_revision", "target", "parameters"}
+_WRITE_ACTIONS = frozenset({
+    "save_context", "save_environment", "save_dependency_graph", "save_case",
+    "save_acceptance", "save_task", "save_delivery",
+}) - HUMAN_ACTIONS
+_WRITE_CONTRACT = "aitest.record-write-intent/1.0"
 
 
 class _RpcError(ValueError):
@@ -54,6 +60,19 @@ class McpRelay:
         actions = (health.result or {}).get("supported_actions")
         if health.error is not None or not isinstance(actions, list) or "query" not in actions:
             raise CapabilityUnavailable("Core diagnostics or finite query capability unavailable")
+        if (len(actions) > 256 or any(not isinstance(action, str) or not action.strip()
+                                     or len(action) > 128 or any(ord(c) < 32 for c in action)
+                                     for action in actions)
+                or len(set(actions)) != len(actions)):
+            raise CapabilityUnavailable("Core action catalog cannot be verified")
+        contracts = (health.result or {}).get("intent_contracts", {})
+        if not isinstance(contracts, dict):
+            # A missing/unknown write contract cannot disable the independent read tools.
+            contracts = {}
+        self._write_actions = tuple(sorted(
+            action for action in _WRITE_ACTIONS & set(actions)
+            if contracts.get(action) == _WRITE_CONTRACT
+        ))
         self.binding_revision = self._binding_revision()
         self._client_factory = client_factory
         if client_factory is not None:
@@ -71,6 +90,9 @@ class McpRelay:
                 "parameters": parameters,
             }
         )
+        return self._send_command(command)
+
+    def _send_command(self, command: Command) -> Response:
         client = self.client if self._client_factory is None else self._client_factory()
         try:
             if client.endpoint.workspace_id != self.client.endpoint.workspace_id:
@@ -111,7 +133,7 @@ class McpRelay:
         }
         query.pop("required", None)
         query.pop("$defs", None)
-        return [
+        tools: list[dict[str, object]] = [
             {
                 "name": "aitest_doctor",
                 "description": "读取同一核心诊断；READY不表示业务通过",
@@ -125,6 +147,27 @@ class McpRelay:
                 "annotations": {"readOnlyHint": True},
             },
         ]
+        if self._write_actions:
+            command = Command.model_json_schema()
+            command["properties"] = {
+                name: value for name, value in command["properties"].items()
+                if name in _WRITE_FIELDS
+            }
+            command["properties"]["action"]["enum"] = list(self._write_actions)
+            for name in ("intent_id", "expected_revision"):
+                field = command["properties"][name]
+                field.pop("default", None)
+                field["anyOf"] = [choice for choice in field["anyOf"]
+                                   if choice.get("type") != "null"]
+            command["required"] = ["action", "intent_id", "expected_revision"]
+            tools.append({
+                "name": "aitest_dispatch",
+                "description": "保存所选项目业务材料；保留原意图重传，回执未知先核实原意图",
+                "inputSchema": command,
+                "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                                "idempotentHint": True},
+            })
+        return tools
 
     @staticmethod
     def _valid_id(value: object) -> bool:
@@ -219,6 +262,8 @@ class McpRelay:
         name, arguments = params.get("name"), params.get("arguments", {})
         if not isinstance(arguments, dict):
             raise _RpcError(-32602, "Tool arguments require an object")
+        if name == "aitest_dispatch":
+            return self._dispatch(arguments)
         if not isinstance(name, str) or name not in {"aitest_doctor", "aitest_query"}:
             raise _RpcError(-32602, "Tool unavailable")
         if (
@@ -247,10 +292,48 @@ class McpRelay:
                 )
         except Exception:
             return self._tool_error("CORE_RESULT_UNVERIFIED", "核心结果无法核实，不自动重传")
+        return self._response_result(response)
+
+    def _response_result(self, response: Response) -> dict[str, object]:
         content = [{"type": "text", "text": response.model_dump_json()}]
         result: dict[str, object] = {"content": content, "isError": response.error is not None}
         if self.version != "2024-11-05":
             result["structuredContent"] = response.model_dump(mode="json")
+        return result
+
+    def _dispatch(self, arguments: dict[str, object]) -> dict[str, object]:
+        if (set(arguments) - _WRITE_FIELDS or arguments.get("action") not in self._write_actions
+                or arguments.get("intent_id") is None
+                or type(arguments.get("expected_revision")) is not int):
+            raise _RpcError(-32602, "Unsupported write or overridden/missing business identity")
+        try:
+            command = Command.model_validate({
+                **arguments, "request_id": "mcp-" + uuid4().hex,
+                "project_id": self.project_id, "binding_revision": self.binding_revision,
+            })
+        except ValueError as error:
+            raise _RpcError(-32602, "Invalid business command arguments") from error
+        response: Response | None = None
+        try:
+            if self._binding_revision() != self.binding_revision:
+                return self._tool_error("B_REPREPARE_REQUIRED", "绑定修订已变化，请重选MCP上下文")
+            response = self._send_command(command)
+            if self._binding_revision() == self.binding_revision:
+                return self._response_result(response)
+        except Exception:
+            if response is None:
+                return self._tool_error("CORE_RESULT_UNVERIFIED", "原意图结果无法核实，不自动重传")
+        # The send returned an exactly verified Response. Later context checks cannot
+        # erase a saved business fact or turn it into a claim that nothing happened.
+        result = self._response_result(response)
+        result["_meta"] = {"aitest/context": {"state": "reselect_required"}}
+        result["content"] = [
+            {"type": "text", "text": response.model_dump_json()},
+            {"type": "text", "text": (
+                "原核心回执已核实；绑定已变化或无法核实，"
+                "请重选上下文并核对原意图。"
+            )},
+        ]
         return result
 
     @staticmethod

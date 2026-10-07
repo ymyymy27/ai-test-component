@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.60"
+contract_version: "1.61"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.61 MCP普通业务保存入口（2026-10-08）：doctor新增由可信装配声明的intent_contracts动作→合同版本映射；只有支持动作与准确aitest.record-write-intent/1.0合同同时可核实时，stdio新增aitest_dispatch。当前仅1.60的七类普通保存，旧/未知合同继续只读；不将“注册动作”当持久保障或当前可用状态。工具输入从Command派生，保留原intent_id/expected_revision/parameters及可选target，request_id由relay单独分配，项目/绑定修订/工作空间和入口来源固定，拒绝参数覆盖或人工/事务/任意动作。四个既有B保存名补入一期传输写身份目录，沿现有非空意图、修订及request_id≠intent_id规则，不新增业务字段或FR/AC。各次派发仍由实际agent_relay核心会话与原能力门/人工合同核对；非默认隔离不能靠MCP自行确认。发送前绑定漂移拒绝派发；收到准确核心回执后若绑定变化或核对失败，必须保留该原Response并附上下文重选提示，不能丢失已保存结果或伪装未执行。回执未知时不自动重传/换意图；同意图重传沿共同核心读原结果。现有有限读取、唯一核心、逐次连接关闭、协议/字节预算及EOF语义保持。工具/stdio组件测试不等于真实Trae接入与人工验收，其他执行/模型/准备动作继续沿各自合同补入口，reviewing/partial/not_run保持。
 
 1.60 普通保存动作的持久意图（2026-10-08）：save_context、默认隔离的save_environment、save_dependency_graph、save_case、save_acceptance、save_task、save_delivery须将准确业务记录与内部record_write_intent@1同一短事务发布。普通命令经ports.py声明的可选RecordIntentOpening.open_for_intent(project_id,intent_id)传入共同底座begin，不以传输号代替；旧内部transaction/open无意图调用保持兼容，缺该扩展的普通命令写入明确阻塞。原意图稳定标识由项目与intent_id派生，冻结动作、项目、绑定修订、目标、期望仓储修订和完整参数摘要；传输request_id不参与业务摘要。换传输号、换入口或重启后，同意图同输入准确回读原修订及正文摘要，不读取后来最新版本、不再次写入；同意图异输入/动作冲突。旧记录缺原意图不猜测补登记；回执、封套或原材料缺失/异常保持阻塞，不以存在记录代替证明。普通业务正文经ports.py声明的可选ExactRecordStaging.stage_record_exact能力保存；落盘前再次发现需过滤的字节时拒绝整个批次，不能先过滤正文却保存旧摘要，也不向用例/项目正文添加会干扰冻结对拍的指纹字段。旧内部stage_record的既有安全处理保持兼容；缺准确暂存能力的普通命令写入阻塞。输入及业务正文在计算摘要前经既有安全投影核对；需过滤的内容拒绝本次保存，不落下过滤前字节或伪造可重传摘要。回执列入永久business记录、正常清单/索引/备份；不扩大公开查询或上传白名单。人工绑定/发布/隔离豁免继续走原确认合同，其他模型、准备、执行动作沿各自持久合同，不能凭此增量开放全部MCP写入。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变。
 
@@ -60,7 +62,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.60
+版本：1.61
 日期：2026-10-08
 状态：草案，待B/C/D确认  
 

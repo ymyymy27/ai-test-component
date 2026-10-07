@@ -207,3 +207,5 @@ uv build
 2026-10-08 源码探针协议：probe-protocol-before为实际模块stdout伪造导致旧verified反例；before-pytest为24失败/8通过，after43通过，final为最终284（12.29秒）。mypy210/ruff/build-exact及wheel-smoke对应准确源码与安装43节点；没有把进程内自报、Trae或AC升级为通过。见[根因与范围](../../修改日志/袁/2026-10-08-源码探针不可信协议与准确事实类型.md)。
 
 - 普通保存持久意图：record-write-before.txt为旧代码七实际反例；record-write-exact-final.txt为准确暂存端口版433通过，其余同前缀文件为检查/构建输出。checkpoint-refs-runtime.txt为上一执行引用批次103通过，后续普通保存改动不计入该进程结果。真实AC未新增。
+
+- MCP普通保存入口：mcp-write-before.txt为旧入口两反例，mcp-write-final.txt为最终351通过，mcp-write-real-final.txt为真实Windows stdio/CLI/重启与拒绝自签人工环境节点；同前缀文件保存检查/构建输出，真实Trae/AC未新增。

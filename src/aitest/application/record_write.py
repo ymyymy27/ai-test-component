@@ -39,6 +39,7 @@ _RESULT_IDENTITIES = {
     "save_task": ("task", "task_id"),
     "save_delivery": ("delivery", "delivery_id"),
 }
+ORDINARY_WRITE_ACTIONS = frozenset(_KINDS)
 _FIELDS = {
     "schema_version",
     "workspace_id",

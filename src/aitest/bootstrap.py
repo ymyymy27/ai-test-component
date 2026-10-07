@@ -65,6 +65,8 @@ from aitest.application.ports import (
 )
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
+from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
 from aitest.application.usecase_registry import BUseCaseDependencies
 from aitest.contracts.commands import Command
 from aitest.domain.approvals import TrustedActor
@@ -719,6 +721,7 @@ def assemble_workspace_core(
             credential_projector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
             actors=actors,
             session_finalizer=close_approval_session,
+            intent_contracts={action: RECORD_WRITE_SCHEMA for action in ORDINARY_WRITE_ACTIONS},
         )
     except BaseException:
         lifetime_lock.release()

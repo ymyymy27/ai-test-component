@@ -30,6 +30,10 @@ PHASE_ONE_ACTIONS = frozenset(
     {
         "bind_project",
         "save_context",
+        "save_environment",
+        "save_dependency_graph",
+        "save_case",
+        "save_task",
         "save_delivery",
         "submit_delivery",
         "save_acceptance",

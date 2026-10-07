@@ -77,6 +77,7 @@ class LocalAPI:
         capability_gate: object | None = None,
         actors: CoreActorContext | None = None,
         session_finalizer: Callable[[Session], None] | None = None,
+        intent_contracts: Mapping[str, str] | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -110,6 +111,7 @@ class LocalAPI:
         self.capability_gate = capability_gate
         self.actors = actors
         self._session_finalizer = session_finalizer
+        self._intent_contracts = dict(intent_contracts or {})
         if connection_persistence is not None:
             try:
                 recovered = connection_persistence.load()  # type: ignore[attr-defined]
@@ -187,6 +189,11 @@ class LocalAPI:
                 "supported_actions": cast(list[JsonValue], sorted(set(self.handlers) | {"doctor"})),
                 "phase": 1,
             }
+            if self._intent_contracts:
+                doctor_result["intent_contracts"] = cast(JsonValue, {
+                    action: version for action, version in self._intent_contracts.items()
+                    if action in self.handlers
+                })
             if self.capability_gate is not None:
                 # A-10：显式报告各项外部能力条件与动作依赖，调用方据此做
                 # 动作级降级判断，而不是把单个适配器故障当成整体不可用。
