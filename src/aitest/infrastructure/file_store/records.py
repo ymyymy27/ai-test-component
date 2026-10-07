@@ -25,6 +25,7 @@ from .sharded_records import (
     SCHEMA,
     ShardedRows,
     authority_header,
+    exact_counter,
     find_commit,
     open_authority,
 )
@@ -206,9 +207,11 @@ class FileRecordRepository:
         来源，未开事务也可读。计数按**记录**递增，一次多条记录的提交
         会跨多个序号，提交结果取其中最后一个序号。
         """
-        return int(self._load().get("commit", 0))
+        return exact_counter(self._load().get("commit", 0))
 
     def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> CommittedRecord:
+        if type(revision) is not int or revision < 1:
+            raise ValueError("unknown revision")
         rows = self._load()["records"].get(aggregate_kind, {}).get(record_id, [])
         if revision < 1 or revision > len(rows):
             raise ValueError("unknown revision")
@@ -226,6 +229,7 @@ class FileRecordRepository:
         expected_revision: int | None,
         payload: Mapping[str, object],
     ) -> int:
+        exact_counter(expected_revision)
         data = self._load()
         rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
         current = len(rows)
@@ -248,6 +252,8 @@ class FileRecordRepository:
         self,
         pending: Sequence[PendingRecordEntry],
     ) -> list[tuple[str, str, int]]:
+        for _kind, _record_id, expected_revision, _payload in pending:
+            exact_counter(expected_revision)
         data = self._load()
         created: list[tuple[str, str, int]] = []
         for kind, record_id, expected_revision, payload in pending:
@@ -280,6 +286,7 @@ class FileRecordRepository:
         expected_revision: int | None,
         payload: Mapping[str, object],
     ) -> int:
+        exact_counter(expected_revision)
         data = self._load()
         intents = data.setdefault("intents", {})
         fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
@@ -287,7 +294,10 @@ class FileRecordRepository:
             previous = intents[intent_id]
             if previous["fingerprint"] != fingerprint:
                 raise ValueError("intent conflict")
-            return int(previous["revision"])
+            revision = exact_counter(previous.get("revision"))
+            if revision < 1:
+                raise ValueError("saved intent revision must be positive")
+            return revision
         rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
         current = len(rows)
         if expected_revision != current:
@@ -664,6 +674,8 @@ class FileRecordRepository:
           旧版 ``events.json`` 不再写入。
         - 未注入时保持旧路径写 ``events.json``（迁移过渡期使用）。
         """
+        for _kind, _record_id, expected_revision, _payload in pending:
+            exact_counter(expected_revision)
         store = FileCommitStore(self.root)
         current_root = store.read_current()
         data = (
@@ -714,12 +726,30 @@ class FileRecordRepository:
             # flush. This check also precedes returning a saved intent result.
             FilePublicationBackend(self.root).confirm_current()
         if isinstance(stored_intent, dict):
-            original_created = [
-                (str(item[0]), str(item[1]), int(item[2]))
-                for item in stored_intent.get("created", [])
-                if isinstance(item, (list, tuple)) and len(item) == 3
-            ]
-            return original_created, int(stored_intent["commit_sequence"])
+            saved_created = stored_intent.get("created")
+            if not isinstance(saved_created, list) or len(saved_created) != len(pending):
+                raise ValueError("saved intent record references are invalid")
+            original_created = []
+            for item, (kind, record_id, _expected, _payload) in zip(
+                saved_created, pending, strict=True
+            ):
+                if (
+                    not isinstance(item, (list, tuple))
+                    or len(item) != 3
+                    or tuple(item[:2]) != (kind, record_id)
+                    or exact_counter(item[2]) < 1
+                ):
+                    raise ValueError("saved intent record reference is invalid")
+                rows = data["records"].get(kind, {}).get(record_id, [])
+                if item[2] > len(rows) or canonical_bytes(rows[item[2] - 1]) != canonical_bytes(
+                    dict(_payload)
+                ):
+                    raise ValueError("saved intent record material differs from original input")
+                original_created.append((kind, record_id, item[2]))
+            sequence = exact_counter(stored_intent.get("commit_sequence"))
+            if sequence < len(original_created) or sequence > exact_counter(data.get("commit")):
+                raise ValueError("saved intent commit sequence is outside authority")
+            return original_created, sequence
 
         commits = data["commits"] if "_tree" in data else self._load_commits()
         events = self._load_events() if self._journal is None else []

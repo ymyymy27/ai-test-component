@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.42"
+contract_version: "1.43"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.43 仓储准确修订与权威元数据只接受实际整数：记录revision/expected_revision、权威提交水位与账本计数不得由布尔、文本或小数转换取得。真正不存在的身份可返回0；已存在但缺字段、非对象或错误类型的元数据必须显式材料无法核实，不伪装不存在。分片记录/台账读取核对对象形状，目录引用不能充当value记录。公开准确读取修订须为正整数，写入期望须为非负整数，暂存前拒绝错误值；原持久意图回执的修订/序号及created引用也须逐项保持原实际类型，不丢弃坏引用或将其int转换成功。权威头Schema/提交水位须与实际树一致，包括类型一致。新身份登记归属时明确初始化revision=0，随后正常追加；已存在有效元数据/历史未知附加字段原样保留，不迁移或改义历史。损坏权威状态仍保留材料并阻塞恢复/执行，拒绝本身不代表已恢复业务。公开字段、记录格式和FR/AC不变，继续reviewing/partial/not_run。
 
 1.42 冻结业务源码快照身份：技术固定ID和content_identity继续证明原固定内容，业务snapshot_id以新命名空间aitest.business-source-snapshot/2.0对完整冻结源码正文（排除snapshot_id自身）生成。项目/绑定准确仓储修订、目的、形态/Git/plain身份、逻辑范围、选择、排除、复取依赖/范围、技术清单引用均参与业务身份；同字节但冻结合同不同须独立保存，不覆盖旧snapshot@1，不能误报不可变身份冲突。相同规范材料的新意图仍复用同一业务快照，指针按准确CAS独立递增。所选路径在应用层排序去重后交给技术端口并冻结/摘要，与实际清单保持一致且不改变所选范围，不能因界面顺序误拒绝；这不改变依赖和排除正文的语义。原历史编号/Schema/意图按准确引用回读，不迁移、重新编号或根据今天的目录重算。A新意图闭包同时核对冻结范围/选择/复取字段与实际保存快照，不用仅绑定/目的匹配冒充完整合同。DEC-009的content_identity口径、公开协议/Schema/PreparedRun字段、FR/AC不变，保持reviewing/partial/not_run。
 
@@ -26,7 +28,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.42
+版本：1.43
 日期：2026-10-07
 状态：草案，待B/C/D确认  
 

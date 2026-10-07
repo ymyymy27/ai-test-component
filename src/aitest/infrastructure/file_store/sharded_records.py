@@ -19,10 +19,17 @@ from . import atomic
 
 SCHEMA = "aitest.records/2.0"
 _LEAF_LIMIT = 32
+_MISSING = object()
 
 
 def _key(*parts: object) -> str:
     return json.dumps(parts, separators=(",", ":"), ensure_ascii=True)
+
+
+def exact_counter(value: object) -> int:
+    if type(value) is not int or value < 0:
+        raise ValueError("authority counter must be a nonnegative integer")
+    return value
 
 
 class AuthorityTree:
@@ -92,7 +99,12 @@ class AuthorityTree:
             node = self._read(pointer)
             if "entries" in node:
                 value = node["entries"].get(key)
-                return default if value is None else self._read(value)["value"]
+                if value is None:
+                    return default
+                material = self._read(value)
+                if set(material) != {"value"}:
+                    raise ValueError("authority value reference points to a directory")
+                return material["value"]
             if depth >= len(digest):
                 raise ValueError("authority tree exceeded maximum depth")
             pointer = node["children"].get(digest[depth])
@@ -157,19 +169,29 @@ class ShardedRows(list[Any]):
 
     @property
     def metadata(self) -> dict[str, Any]:
-        return dict(self.tree.get(_key("identity", self.kind, self.record_id), {}))
+        value = self.tree.get(_key("identity", self.kind, self.record_id), _MISSING)
+        if value is _MISSING:
+            return {}
+        if not isinstance(value, dict) or "revision" not in value:
+            raise ValueError("authority identity metadata is invalid")
+        exact_counter(value["revision"])
+        return dict(value)
 
     def __len__(self) -> int:
-        return int(self.metadata.get("revision", 0))
+        return exact_counter(self.metadata.get("revision", 0))
 
     def __getitem__(self, index: Any) -> Any:
-        if not isinstance(index, int):
+        if type(index) is not int:
             raise TypeError("authority revisions require an exact integer index")
         if index < 0:
             index += len(self)
-        value = self.tree.get(_key("record", self.kind, self.record_id, index + 1))
-        if value is None:
+        if not 0 <= index < len(self):
             raise IndexError("unknown authority revision")
+        value = self.tree.get(_key("record", self.kind, self.record_id, index + 1), _MISSING)
+        if value is _MISSING:
+            raise IndexError("unknown authority revision")
+        if not isinstance(value, dict):
+            raise ValueError("authority record is not an object")
         return dict(value)
 
     def __iter__(self) -> Iterator[Any]:
@@ -178,7 +200,8 @@ class ShardedRows(list[Any]):
 
     def set_owner(self, owner: str | None) -> None:
         self.tree.put(
-            _key("identity", self.kind, self.record_id), {**self.metadata, "project_id": owner}
+            _key("identity", self.kind, self.record_id),
+            {**self.metadata, "revision": len(self), "project_id": owner},
         )
 
     def append(self, payload: Any) -> None:
@@ -258,14 +281,14 @@ class ShardedCommits(list[Any]):
         self.tree = tree
 
     def __len__(self) -> int:
-        return int(self.tree.get(_key("ledger_count"), 0))
+        return exact_counter(self.tree.get(_key("ledger_count"), 0))
 
     def __iter__(self) -> Iterator[Any]:
         for index in range(len(self)):
             yield self[index]
 
     def __getitem__(self, index: Any) -> Any:
-        if not isinstance(index, int):
+        if type(index) is not int:
             raise TypeError("commit lookup requires an integer index")
         if index < 0:
             index += len(self)
@@ -289,11 +312,11 @@ def open_authority(root: Path, header: dict[str, Any]) -> dict[str, Any]:
     pointer = header.get("root")
     sequence = header.get("commit")
     if (
-        not isinstance(pointer, str)
+        header.get("schema") != SCHEMA
+        or not isinstance(pointer, str)
         or len(pointer) != 64
         or any(c not in "0123456789abcdef" for c in pointer)
-        or isinstance(sequence, bool)
-        or not isinstance(sequence, int)
+        or type(sequence) is not int
         or sequence < 0
     ):
         raise ValueError("invalid authority root header")
@@ -301,7 +324,8 @@ def open_authority(root: Path, header: dict[str, Any]) -> dict[str, Any]:
     node = tree._read(pointer)
     if "entries" not in node and "children" not in node:
         raise ValueError("authority root must reference a tree node")
-    if tree.get(_key("authority_commit")) != sequence:
+    stored_sequence = tree.get(_key("authority_commit"))
+    if type(stored_sequence) is not int or stored_sequence < 0 or stored_sequence != sequence:
         raise ValueError("authority root commit watermark mismatch")
     return {
         "records": ShardedKinds(tree),

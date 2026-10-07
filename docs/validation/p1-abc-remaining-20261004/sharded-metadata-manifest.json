@@ -1,0 +1,26 @@
+{
+  "base_commit": "e41f3f06eea55b7c0e357b9bb2ea2e8b3960a09e",
+  "branch": "fix",
+  "remaining": {
+    "A": 7,
+    "B": 7,
+    "C": 7,
+    "total": 21
+  },
+  "real_ac_verified": 0,
+  "affected_unique_passed": 166,
+  "source_sha256": {
+    "src/aitest/infrastructure/file_store/records.py": "59452cd9fb1865ca149e69837970afdcf34cef92a197bde8aa6f51396e194bd3",
+    "src/aitest/infrastructure/file_store/sharded_records.py": "0cd5eaea417b64209827ec6c51122274f0530d4ace6fe41e1127f85fd0dfd728"
+  },
+  "test_sha256": {
+    "tests/unit/test_sharded_metadata_integrity.py": "1c0396e3cfbe0c9a7960e199d918940c82136903f20908bd3d61aa779c09ad3a"
+  },
+  "wheel_sha256": "36356e8de9b3adb846518dc9fdf8b15da824e93e24c4267828234e074c3809c3",
+  "unverified": [
+    "full Python suite after this change",
+    "VSIX rebuild",
+    "real Trae/DeepSeek/physical power loss",
+    "full original ledger provenance audit"
+  ]
+}
