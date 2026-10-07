@@ -74,6 +74,47 @@ def execution_payload_digest(payload: Mapping[str, object]) -> str:
     return _payload_digest(payload)
 
 
+def validate_execution_facts(facts: ExecutionFacts) -> None:
+    """The current flags describe this exact snapshot, including historical reads."""
+    if facts.run.run_id != facts.run_id or facts.run.run_revision != facts.run_revision:
+        raise ValueError("execution snapshot run identity is inconsistent")
+    if facts.plan_revision != facts.run.plan_revision:
+        raise ValueError("execution snapshot plan identity is inconsistent")
+    refs = facts.runtime_revision_refs
+    if (
+        refs != facts.run.runtime_revision_refs
+        or any(not ref.strip() for ref in refs)
+        or len(refs) != len(set(refs))
+    ):
+        raise ValueError("execution snapshot runtime revision sequence is inconsistent")
+    steps = {step.step_id: step for step in facts.steps}
+    attempts = {attempt.attempt_id: attempt for attempt in facts.attempts}
+    if len(steps) != len(facts.steps) or len(attempts) != len(facts.attempts):
+        raise ValueError("execution snapshot identities must be unique")
+    if set(facts.current_attempt_by_step) != set(steps):
+        raise ValueError("execution snapshot current references must cover exactly its steps")
+    for step in facts.steps:
+        current_id = facts.current_attempt_by_step[step.step_id]
+        if step.run_id != facts.run_id or step.current_attempt_id != current_id:
+            raise ValueError("execution snapshot step/current attempt identity is inconsistent")
+        if current_id is not None:
+            current = attempts.get(current_id)
+            if current is None or (current.run_id, current.step_id) != (facts.run_id, step.step_id):
+                raise ValueError("execution snapshot current attempt is unavailable or foreign")
+            if current.step_revision_ref != step.step_revision_ref:
+                raise ValueError("current attempt does not use the exact current step revision")
+    for attempt in facts.attempts:
+        if (
+            attempt.run_id != facts.run_id
+            or attempt.step_id not in steps
+            or (
+                attempt.is_current
+                != (facts.current_attempt_by_step[attempt.step_id] == attempt.attempt_id)
+            )
+        ):
+            raise ValueError("execution snapshot attempt/current flag is inconsistent")
+
+
 def project_attempt_update(
     attempt: Attempt, previous: AttemptFact, *, is_current: bool
 ) -> AttemptFact:
@@ -645,4 +686,5 @@ __all__ = [
     "execution_payload_digest",
     "validate_frozen_run_basis",
     "validate_frozen_step_basis",
+    "validate_execution_facts",
 ]

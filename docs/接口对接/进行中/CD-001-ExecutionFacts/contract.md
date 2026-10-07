@@ -3,22 +3,22 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.0"
-contract_status: agreed
-provider_implementation: done
+contract_version: "1.1"
+contract_status: reviewing
+provider_implementation: partial
 consumer_implementation: partial
-verification_status: fixture_passed
+verification_status: not_run
 last_verified_commit: 8d9883c
 blockers: []
-next_owner: D
-next_action: D 完成 ExecutionFacts 消费适配、Run 级证据等级派生和真实夹具对拍
+next_owner: C/D
+next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格与保存选择；真实对拍另记
 ---
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.0  
-日期：2026-09-27  
-状态：双方已确认；待消费方接入和真实夹具对拍  
+版本：1.1
+日期：2026-10-08
+状态：1.0历史确认保留；1.1增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -207,3 +207,9 @@ AttemptFact.output_cursors为数组，每个元素对应一个OutputStreamName�
 确认：[x] D包 郭    日期：2026-10-02  
 
 双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；消费方接入和真实夹具对拍由 `review-D.md` 跟踪。
+
+## 11 准确冻结来源读取（1.1增量）
+
+跨运行复用或修订核对使用准确 `snapshot_commit_id`、`snapshot_cursor`、原正文摘要及明确的project/run，读取不可变 `execution_facts@1`；不能拿最新current或run_revision代替仓储修订。原正文和记录信封、快照自身身份及Step/Attempt当前引用必须一致；整数、布尔等JSON类型严格校验，不以类型转换修饰已保存材料。缺失、损坏、另存修订或错误归属拒绝，没有历史扫描或回退到另一份成功快照。
+
+current回读与冻结来源回读共用同一事实校验。可读历史仅证明该快照的原事实，不证明当前复用资格；来源/环境动态状态、准确用例/依据确认、必要核验/证据、依赖有效性和目标无新Attempt均须另核对。旧缺证明仍可按原合同展示历史，不能自动增加R/V，也不能为复用创建空Attempt。1.1不改变公开DTO/Schema字段或1.0已确认的业务词汇，完整持久选择和D消费继续实施。

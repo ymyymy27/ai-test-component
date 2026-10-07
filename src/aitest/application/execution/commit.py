@@ -31,6 +31,7 @@ from aitest.application.execution.facts import (
     execution_payload_digest,
     project_attempt_fact,
     project_attempt_update,
+    validate_execution_facts,
     validate_frozen_run_basis,
     validate_frozen_step_basis,
 )
@@ -47,6 +48,7 @@ from aitest.application.execution.runtime_revision import (
     revision_record_id,
     revision_request_payload,
 )
+from aitest.application.execution.snapshots import read_execution_snapshot
 from aitest.application.execution.step_content import StepContentReader
 from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.saved_runtime_revision import SavedRuntimeRevisionAssessment
@@ -474,26 +476,11 @@ class ExecutionCommitCoordinator:
             not isinstance(previous, str) or not previous.strip() or previous == snapshot_id
         ):
             raise ValueError("current execution snapshot reference has invalid history identity")
-        if self._revision("execution_facts", snapshot_id) != 1:
-            raise ValueError("current execution snapshot must remain immutable at revision 1")
-        read = getattr(self._records or self._uow, "read", None)
-        if not callable(read):
-            raise RuntimeError("current execution snapshot cannot be read")
-        record = read(aggregate_kind="execution_facts", record_id=snapshot_id, revision=1)
-        _require_record_envelope(record, "execution_facts", snapshot_id, 1)
-        payload = getattr(record, "payload", None)
-        if not isinstance(payload, Mapping) or _payload_digest(payload) != pointer.get("digest"):
-            raise ValueError("current execution snapshot digest cannot be verified")
-        facts = ExecutionFacts.model_validate(payload)
-        if (facts.project_id, facts.run_id, facts.snapshot_commit_id, facts.snapshot_revision) != (
-            project_id,
-            run_id,
-            snapshot_id,
-            1,
-        ):
-            raise ValueError("current execution snapshot identity cannot be verified")
-        _validate_current_facts(facts)
-        return facts
+        return read_execution_snapshot(
+            cast(RecordRepository, self._records or self._uow),
+            project_id=project_id, run_id=run_id, snapshot_id=snapshot_id,
+            digest=cast(str, pointer.get("digest")),
+        )
 
     def read_checkpoint(self, *, project_id: str, attempt_id: str) -> RecoveryRecord:
         """Recovery sidecars are projections; load the saved authority before using them."""
@@ -1651,43 +1638,7 @@ def _payload_digest(payload: Mapping[str, object]) -> str:
 
 
 def _validate_current_facts(facts: ExecutionFacts) -> None:
-    if facts.run.run_id != facts.run_id or facts.run.run_revision != facts.run_revision:
-        raise ValueError("execution snapshot run identity is inconsistent")
-    if facts.plan_revision != facts.run.plan_revision:
-        raise ValueError("execution snapshot plan identity is inconsistent")
-    refs = facts.runtime_revision_refs
-    if (
-        refs != facts.run.runtime_revision_refs
-        or any(not ref.strip() for ref in refs)
-        or len(refs) != len(set(refs))
-    ):
-        raise ValueError("execution snapshot runtime revision sequence is inconsistent")
-    steps = {step.step_id: step for step in facts.steps}
-    attempts = {attempt.attempt_id: attempt for attempt in facts.attempts}
-    if len(steps) != len(facts.steps) or len(attempts) != len(facts.attempts):
-        raise ValueError("execution snapshot identities must be unique")
-    if set(facts.current_attempt_by_step) != set(steps):
-        raise ValueError("execution snapshot current references must cover exactly its steps")
-    for step in facts.steps:
-        current_id = facts.current_attempt_by_step[step.step_id]
-        if step.run_id != facts.run_id or step.current_attempt_id != current_id:
-            raise ValueError("execution snapshot step/current attempt identity is inconsistent")
-        if current_id is not None:
-            current = attempts.get(current_id)
-            if current is None or (current.run_id, current.step_id) != (facts.run_id, step.step_id):
-                raise ValueError("execution snapshot current attempt is unavailable or foreign")
-            if current.step_revision_ref != step.step_revision_ref:
-                raise ValueError("current attempt does not use the exact current step revision")
-    for attempt in facts.attempts:
-        if (
-            attempt.run_id != facts.run_id
-            or attempt.step_id not in steps
-            or (
-                attempt.is_current
-                != (facts.current_attempt_by_step[attempt.step_id] == attempt.attempt_id)
-            )
-        ):
-            raise ValueError("execution snapshot attempt/current flag is inconsistent")
+    validate_execution_facts(facts)
 
 
 def _validate_frozen_step_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:

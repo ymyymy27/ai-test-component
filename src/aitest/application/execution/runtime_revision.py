@@ -16,6 +16,7 @@ from aitest.application.execution.facts import (
     validate_frozen_run_basis,
     validate_frozen_step_basis,
 )
+from aitest.application.execution.snapshots import read_execution_snapshot
 from aitest.application.execution.step_content import StepContentReader
 from aitest.application.planning.draft import text_digest
 from aitest.application.planning.publish import payload_digest
@@ -293,11 +294,11 @@ class SavedRuntimeRevisionReader:
     def read_snapshot(
         self, *, project_id: str, run_id: str, reference: SnapshotContentRef
     ) -> ExecutionFacts:
-        raw = self._read("execution_facts", reference.snapshot_commit_id, 1, project_id)
-        facts = ExecutionFacts.model_validate_json(json.dumps(raw), strict=True)
-        if facts.run_id != run_id or SnapshotContentRef.of(facts) != reference:
-            raise ValueError("runtime revision snapshot cannot be verified")
-        return facts
+        return read_execution_snapshot(
+            self.records, project_id=project_id, run_id=run_id,
+            snapshot_id=reference.snapshot_commit_id, digest=reference.digest,
+            snapshot_cursor=reference.snapshot_cursor,
+        )
 
     def read_effective_cases(
         self, *, facts: ExecutionFacts, plan: Plan, initial_cases: tuple[Case, ...]

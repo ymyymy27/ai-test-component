@@ -195,3 +195,5 @@ uv build
 2026-10-08 宿主连接：host-ownership-before.txt为25失败/1通过，after35通过，final为13旧IO夹具失败/333通过；补重叠IO初始化和实际回执假设后final-corrected最终354通过，含实际原核心CLI重连及客户端原句柄取消。mypy-final207/ruff-final通过。[根因与源码](../../修改日志/袁/2026-10-08-宿主拒绝连接释放与有限等待.md)。真实Trae/P1 AC不升级。
 
 2026-10-08 当前指针核对：pointer-proof-before-original-store.txt为真正旧Store单项失败/7通过，重复目录核对；final-corrected最终388通过；mypy-final207/ruff-final、build及wheel-smoke记录最终源与安装制品8项。最初发布标记夹具错误和未生效旧类替换探针留在私有工程日志，不作为反例。见[简要根因](../../修改日志/袁/2026-10-08-当前指针一次清单核对.md)。
+
+2026-10-08 冻结执行快照：frozen-snapshot-before.txt为13失败/1合法通过，after为319通过；final-scoped为最终334通过（29专项），mypy-final208/ruff-final、build与wheel-smoke分别记录最终源码静态/构建和四模块安装字节、29项隔离验证。扩大保存运行修订组尚未完成，不计通过。见[精简根因](../../修改日志/袁/2026-10-08-执行事实准确冻结回读.md)。
