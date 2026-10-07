@@ -1,0 +1,13 @@
+Original 5f7fbf3 coordinator, actual file transactions and current reader; no old map guessed.
+F                                                                        [100%]
+================================== FAILURES ===================================
+__ test_body_counter_never_substitutes_for_warehouse_revision_after_restart ___
+tests\unit\test_execution_checkpoint_refs.py:40: in test_body_counter_never_substitutes_for_warehouse_revision_after_restart
+    refs1, refs2 = read_checkpoint_refs(repo, one), read_checkpoint_refs(repo, two)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\checkpoint_refs.py:90: in read_checkpoint_refs
+    raise ValueError("checkpoint reference map is missing or is not immutable at revision 1")
+E   ValueError: checkpoint reference map is missing or is not immutable at revision 1
+=========================== short test summary info ===========================
+FAILED tests/unit/test_execution_checkpoint_refs.py::test_body_counter_never_substitutes_for_warehouse_revision_after_restart
+1 failed in 2.95s

@@ -22,6 +22,14 @@ from aitest.application.evidence.publication import (
     EvidencePublisher,
 )
 from aitest.application.execution.authorization_index import read_authorization_index
+from aitest.application.execution.checkpoint_refs import (
+    KIND as CHECKPOINT_REFS_KIND,
+)
+from aitest.application.execution.checkpoint_refs import (
+    StagedCheckpoints,
+    build_checkpoint_map,
+    checkpoint_map_id,
+)
 from aitest.application.execution.current import project_current_update
 from aitest.application.execution.facts import (
     ExecutionFactsAssembler,
@@ -34,6 +42,9 @@ from aitest.application.execution.facts import (
     validate_execution_facts,
     validate_frozen_run_basis,
     validate_frozen_step_basis,
+)
+from aitest.application.execution.facts import (
+    validate_attempt_projection as _validate_attempt_projection,
 )
 from aitest.application.execution.run_record import read_run_record, run_record_payload
 from aitest.application.execution.runtime_revision import (
@@ -61,7 +72,6 @@ from aitest.application.ports import (
 )
 from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
 from aitest.contracts.execution_facts import (
-    AttemptFact,
     DependencyInvalidationFact,
     ExecutionFacts,
     FactCompleteness,
@@ -733,7 +743,9 @@ class ExecutionCommitCoordinator:
                         "attempt_id": checkpoint.attempt.attempt_id,
                     },
                 )
-            self._uow.stage_record(
+            checkpoint_refs: dict[str, tuple[object, Mapping[str, object]]] = {}
+            self._stage_checkpoint_payload(
+                checkpoint_refs=checkpoint_refs,
                 aggregate_kind="execution_checkpoint",
                 record_id=checkpoint.attempt.attempt_id,
                 expected_revision=self._revision(
@@ -756,7 +768,8 @@ class ExecutionCommitCoordinator:
                     attempt=invalidation.attempt,
                     project_id=project_id,
                 )
-                self._uow.stage_record(
+                self._stage_checkpoint_payload(
+                    checkpoint_refs=checkpoint_refs,
                     aggregate_kind="execution_checkpoint",
                     record_id=invalidation.attempt.attempt_id,
                     expected_revision=self._revision(
@@ -773,6 +786,7 @@ class ExecutionCommitCoordinator:
                         committed_at=datetime.now(UTC),
                     ),
                     allow_current_change=True,
+                    checkpoint_refs=checkpoint_refs,
                 )
             self._uow.commit()
             return None
@@ -981,8 +995,10 @@ class ExecutionCommitCoordinator:
                 raise ValueError("evidence and checkpoint must share project/run/step/attempt")
 
         staged: list[object] = []
+        checkpoint_refs: dict[str, tuple[object, Mapping[str, object]]] = {}
         staged.append(
-            self._uow.stage_record(
+            self._stage_checkpoint_payload(
+                checkpoint_refs=checkpoint_refs,
                 aggregate_kind="execution_checkpoint",
                 record_id=batch.checkpoint.attempt.attempt_id,
                 expected_revision=self._revision(
@@ -1016,7 +1032,7 @@ class ExecutionCommitCoordinator:
                 )
             )
         snapshot_records, facts = self._stage_snapshot(
-            facts, expected_revisions=batch.expected_revisions
+            facts, expected_revisions=batch.expected_revisions, checkpoint_refs=checkpoint_refs
         )
         staged.extend(snapshot_records)
         return tuple(staged), facts
@@ -1180,6 +1196,7 @@ class ExecutionCommitCoordinator:
         )
         affected_attempts = seeds | {item.attempt.attempt_id for item in consumers}
         next_attempts = []
+        checkpoint_refs: dict[str, tuple[object, Mapping[str, object]]] = {}
         for attempt_fact in before.attempts:
             if attempt_fact.attempt_id not in affected_attempts:
                 next_attempts.append(attempt_fact)
@@ -1193,7 +1210,8 @@ class ExecutionCommitCoordinator:
             )
             checkpoint = replace(old, attempt=attempt)
             self._validate_checkpoint_update(project_id, checkpoint)
-            self._uow.stage_record(
+            self._stage_checkpoint_payload(
+                checkpoint_refs=checkpoint_refs,
                 aggregate_kind="execution_checkpoint",
                 record_id=attempt_fact.attempt_id,
                 expected_revision=self._revision("execution_checkpoint", attempt_fact.attempt_id),
@@ -1345,7 +1363,7 @@ class ExecutionCommitCoordinator:
                 expected_revision=0,
                 payload=body.model_dump(mode="json"),
             )
-        sequence = int(self._uow.next_commit_seq()) + 2
+        sequence = int(self._uow.next_commit_seq()) + 2 + bool(facts.attempts)
         facts = facts.model_copy(
             update={
                 "snapshot_commit_id": f"commit-{sequence}",
@@ -1393,17 +1411,30 @@ class ExecutionCommitCoordinator:
             expected_revision=0,
             payload=record.model_dump(mode="json"),
         )
-        if int(self._uow.next_commit_seq()) + 1 != sequence:
+        if int(self._uow.next_commit_seq()) + 1 + bool(facts.attempts) != sequence:
             raise ValueError("runtime revision result does not match its reserved commit boundary")
         result = self._stage_snapshot_records(
             facts,
             previous=before,
             pointer_id=_run_pointer_id(project_id, run_id),
             expected_revisions={},
+            checkpoint_refs=checkpoint_refs,
         )[1]
         if on_revision_staged is not None:
             on_revision_staged(record)
         return result, True
+
+    def _stage_checkpoint_payload(
+        self, *, aggregate_kind: str, record_id: str, expected_revision: int | None,
+        payload: Mapping[str, object],
+        checkpoint_refs: dict[str, tuple[object, Mapping[str, object]]],
+    ) -> object:
+        revision = self._uow.stage_record(
+            aggregate_kind=aggregate_kind, record_id=record_id,
+            expected_revision=expected_revision, payload=payload,
+        )
+        checkpoint_refs[record_id] = (revision, payload)
+        return revision
 
     def _stage_snapshot(
         self,
@@ -1411,6 +1442,7 @@ class ExecutionCommitCoordinator:
         *,
         expected_revisions: Mapping[str, int] | None = None,
         allow_current_change: bool = False,
+        checkpoint_refs: StagedCheckpoints | None = None,
     ) -> tuple[tuple[object, ...], ExecutionFacts]:
         _validate_current_facts(facts)
         expected_revisions = expected_revisions or {}
@@ -1418,8 +1450,8 @@ class ExecutionCommitCoordinator:
         pointer_id = None
         next_sequence = getattr(self._uow, "next_commit_seq", None)
         if callable(next_sequence):
-            # The pointer is staged first; the snapshot remains the final publication record.
-            sequence = int(next_sequence()) + 1
+            # A nonempty snapshot also freezes exact checkpoint warehouse references.
+            sequence = int(next_sequence()) + 1 + bool(facts.attempts)
             facts = facts.model_copy(
                 update={
                     "snapshot_commit_id": f"commit-{sequence}",
@@ -1435,7 +1467,8 @@ class ExecutionCommitCoordinator:
             if previous is not None and not allow_current_change:
                 _validate_publication_current(previous, facts)
         return self._stage_snapshot_records(
-            facts, previous=previous, pointer_id=pointer_id, expected_revisions=expected_revisions
+            facts, previous=previous, pointer_id=pointer_id, expected_revisions=expected_revisions,
+            checkpoint_refs=checkpoint_refs,
         )
 
     def _stage_snapshot_records(
@@ -1445,9 +1478,20 @@ class ExecutionCommitCoordinator:
         previous: ExecutionFacts | None,
         pointer_id: str | None,
         expected_revisions: Mapping[str, int],
+        checkpoint_refs: StagedCheckpoints | None = None,
     ) -> tuple[tuple[object, ...], ExecutionFacts]:
         """Shared serialization, called after the specific admission rules pass."""
         staged: list[object] = []
+        if pointer_id is not None and facts.attempts:
+            staged.append(self._uow.stage_record(
+                aggregate_kind=CHECKPOINT_REFS_KIND,
+                record_id=checkpoint_map_id(facts),
+                expected_revision=0,
+                payload=build_checkpoint_map(
+                    cast(RecordRepository, self._records or self._uow), facts, previous,
+                    checkpoint_refs or {},
+                ),
+            ))
         if pointer_id is not None:
             staged.append(
                 self._uow.stage_record(
@@ -1514,7 +1558,9 @@ class ExecutionCommitCoordinator:
             current = self.read_current_facts(
                 project_id=project_id, run_id=checkpoint.attempt.run_id
             )
-            staged = self._uow.stage_record(
+            checkpoint_refs: dict[str, tuple[object, Mapping[str, object]]] = {}
+            staged = self._stage_checkpoint_payload(
+                checkpoint_refs=checkpoint_refs,
                 aggregate_kind="execution_checkpoint",
                 record_id=checkpoint.attempt.attempt_id,
                 expected_revision=self._revision(
@@ -1543,7 +1589,8 @@ class ExecutionCommitCoordinator:
                         current,
                         checkpoint.attempt,
                         committed_at=datetime.now(UTC),
-                    )
+                    ),
+                    checkpoint_refs=checkpoint_refs,
                 )
                 records.extend(snapshot_records)
             committed = self._uow.commit()
@@ -1658,18 +1705,6 @@ def _validate_publication_current(previous: ExecutionFacts, facts: ExecutionFact
         raise ValueError(
             "publication cannot replace or remove a current attempt; claim a new attempt"
         )
-
-
-def _validate_attempt_projection(attempt: Attempt, fact: AttemptFact) -> None:
-    actual = project_attempt_fact(attempt, is_current=fact.is_current).model_dump(mode="json")
-    published = fact.model_dump(mode="json")
-    # Redaction summaries have their own EvidencePublisher provenance. All byte
-    # identities, offsets, completion flags and capture facts must still match.
-    for payload in (actual, published):
-        for block in payload["output_blocks"]:
-            block.pop("redaction_summary", None)
-    if actual != published:
-        raise ValueError("ExecutionFacts do not match the authoritative checkpoint projection")
 
 
 __all__ = [

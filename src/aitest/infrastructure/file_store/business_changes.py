@@ -43,6 +43,7 @@ BUSINESS_TYPES = frozenset(
         "execution_authorization",
         "execution_intent",
         "execution_checkpoint",
+        "execution_checkpoint_refs",
         "execution_facts",
         "execution_facts_current",
         "evidence",

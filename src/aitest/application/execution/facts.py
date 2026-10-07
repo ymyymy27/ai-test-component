@@ -74,6 +74,18 @@ def execution_payload_digest(payload: Mapping[str, object]) -> str:
     return _payload_digest(payload)
 
 
+def validate_attempt_projection(attempt: Attempt, fact: AttemptFact) -> None:
+    actual = project_attempt_fact(attempt, is_current=fact.is_current).model_dump(mode="json")
+    published = fact.model_dump(mode="json")
+    # Redaction summaries have their own EvidencePublisher provenance. All byte
+    # identities, offsets, completion flags and capture facts must still match.
+    for payload in (actual, published):
+        for block in payload["output_blocks"]:
+            block.pop("redaction_summary", None)
+    if actual != published:
+        raise ValueError("ExecutionFacts do not match the authoritative checkpoint projection")
+
+
 def validate_execution_facts(facts: ExecutionFacts) -> None:
     """The current flags describe this exact snapshot, including historical reads."""
     if facts.run.run_id != facts.run_id or facts.run.run_revision != facts.run_revision:

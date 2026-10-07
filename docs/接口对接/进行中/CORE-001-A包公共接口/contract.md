@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.57"
+contract_version: "1.58"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.58 执行快照检查点引用沿用 CD-001 1.3 的唯一正文：`execution_checkpoint_refs` 是同提交不可变业务记录，按正常提交清单、准确记录索引和备份保存，分类为 business；不进入上传白名单或公开列表查询类别。实际 `stage_record` 返回的正整数仓储修订与完整正文摘要构成准确检查点引用，不能以 Attempt 正文版本或预计提交序号替代。表、当前指针和非空 Attempt 快照原子发布，初始空快照保持原提交数量；失败不发布半套引用。旧快照缺表仍可展示，复用阻塞，不自动迁移历史。FR/AC及reviewing/partial/not_run不变。
 
 1.56 宿主连接资源边界（2026-10-08）：EditorHost发现/启动/连接共用一次单调时钟等待窗口；等待与轮询值必须为实际int/float且在(0,60]秒，构造时拒绝bool、非有限值及非法类型，不先连接或启动。每次等待仅睡剩余窗口，连接器/启动器仍各自承担内部有界I/O，宿主不能强行中断它们。已取得连接却因启动实例不符或返回时截止已过而拒绝时，关闭该原连接；仅关闭本句柄，不请求核心停机或操作别的进程。关闭失败保留原WORKSPACE_IN_USE并串联原因，已核实连接成功转交调用方持有。截止前探测无结果且已耗尽窗口不再启动；迟到启动事实保留，由后续请求核对同一核心。公开DTO/Schema及FR/AC不变，reviewing/partial/not_run保持。
 
@@ -54,7 +56,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.57
+版本：1.58
 日期：2026-10-08
 状态：草案，待B/C/D确认  
 

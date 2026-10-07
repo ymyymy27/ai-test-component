@@ -1,36 +1,47 @@
 """Execution progress never silently edits the frozen execution graph."""
 
-from pathlib import Path
+from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
+from pydantic import TypeAdapter
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.contracts.execution_facts import ExecutionFacts
+from aitest.domain.execution.runs import AttemptState, RecoveryRecord
+from tests.unit.test_current_execution_snapshot import _batch
 
 
 class RecordingUnit:
-    def __init__(self):
+    def __init__(self, checkpoint):
         self.staged = []
+        self.checkpoint = replace(checkpoint, project_id="project-1")
 
     def next_commit_seq(self):
         return "100"
 
     def current_revision(self, **kwargs):
-        return 0
+        return int(kwargs["aggregate_kind"] == "execution_checkpoint")
+
+    def read(self, *, aggregate_kind, record_id, revision):
+        assert (aggregate_kind, record_id, revision) == (
+            "execution_checkpoint", self.checkpoint.attempt.attempt_id, 1,
+        )
+        return SimpleNamespace(
+            aggregate_kind=aggregate_kind, record_id=record_id, revision=revision,
+            payload=TypeAdapter(RecoveryRecord).dump_python(self.checkpoint, mode="json"),
+        )
 
     def stage_record(self, **kwargs):
         self.staged.append(kwargs)
-        return 1
+        return kwargs["expected_revision"] + 1
 
 
 @pytest.fixture
 def publication(monkeypatch):
-    facts = ExecutionFacts.model_validate_json(
-        (
-            Path(__file__).parents[1] / "contracts" / "fixtures/execution_facts/success.json"
-        ).read_text(encoding="utf-8")
-    )
-    unit = RecordingUnit()
+    batch = _batch()
+    facts = batch.facts
+    unit = RecordingUnit(batch.checkpoint)
     coordinator = ExecutionCommitCoordinator(unit)
     monkeypatch.setattr(coordinator, "read_current_facts", lambda **kwargs: facts)
     return coordinator, unit, facts
@@ -101,7 +112,18 @@ def test_execution_progress_fields_remain_publishable(publication):
         gap_ids=["basis-outdated"],
     )
     raw["attempts"][0]["state"] = "invalidated"
-    staged, published = coordinator._stage_snapshot(ExecutionFacts.model_validate(raw))
-    assert len(staged) == len(unit.staged) == 2
+    checkpoint = replace(
+        unit.checkpoint, attempt=replace(unit.checkpoint.attempt, state=AttemptState.INVALIDATED)
+    )
+    payload = TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json")
+    revision = unit.stage_record(
+        aggregate_kind="execution_checkpoint", record_id=checkpoint.attempt.attempt_id,
+        expected_revision=1, payload=payload,
+    )
+    staged, published = coordinator._stage_snapshot(
+        ExecutionFacts.model_validate(raw),
+        checkpoint_refs={checkpoint.attempt.attempt_id: (revision, payload)},
+    )
+    assert len(staged) == 3 and len(unit.staged) == 4
     assert published.steps[0].invalidated
     assert published.steps[0].case_id == facts.steps[0].case_id

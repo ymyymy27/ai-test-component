@@ -420,7 +420,8 @@ def test_start_intent_is_committed_to_uow_before_execution_port_start(tmp_path) 
     result = runner.execute_attempt(_attempt(), _request())
 
     assert result.state is AttemptState.COMPLETED
-    assert commits_at_start == [before + 6]
+    # Exact checkpoint refs, pointer and snapshot join the original four intent records.
+    assert commits_at_start == [before + 7]
 
 
 def test_new_attempt_revokes_old_case_reuse_basis_in_runner_path(tmp_path) -> None:

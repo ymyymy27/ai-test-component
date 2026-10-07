@@ -1,0 +1,39 @@
+.........................................................F.............. [ 26%]
+.....F.................................................................. [ 53%]
+.............................F.......................................... [ 80%]
+....................................................                     [100%]
+================================== FAILURES ===================================
+____________ test_unchanged_controlled_fields_allow_real_progress _____________
+tests\unit\test_frozen_run_publication.py:131: in test_unchanged_controlled_fields_allow_real_progress
+    staged, published = coordinator._stage_snapshot(changed)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:1469: in _stage_snapshot
+    return self._stage_snapshot_records(
+src\aitest\application\execution\commit.py:1490: in _stage_snapshot_records
+    payload=build_checkpoint_map(
+src\aitest\application\execution\checkpoint_refs.py:186: in build_checkpoint_map
+    raise ValueError("checkpoint reference has no saved warehouse revision")
+E   ValueError: checkpoint reference has no saved warehouse revision
+______________ test_execution_progress_fields_remain_publishable ______________
+tests\unit\test_frozen_step_publication.py:104: in test_execution_progress_fields_remain_publishable
+    staged, published = coordinator._stage_snapshot(ExecutionFacts.model_validate(raw))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:1469: in _stage_snapshot
+    return self._stage_snapshot_records(
+src\aitest\application\execution\commit.py:1490: in _stage_snapshot_records
+    payload=build_checkpoint_map(
+src\aitest\application\execution\checkpoint_refs.py:186: in build_checkpoint_map
+    raise ValueError("checkpoint reference has no saved warehouse revision")
+E   ValueError: checkpoint reference has no saved warehouse revision
+______ test_start_intent_is_committed_to_uow_before_execution_port_start ______
+tests\unit\test_serial_runner.py:423: in test_start_intent_is_committed_to_uow_before_execution_port_start
+    assert commits_at_start == [before + 6]
+E   assert [11] == [10]
+E     
+E     At index 0 diff: 11 != 10
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/unit/test_frozen_run_publication.py::test_unchanged_controlled_fields_allow_real_progress
+FAILED tests/unit/test_frozen_step_publication.py::test_execution_progress_fields_remain_publishable
+FAILED tests/unit/test_serial_runner.py::test_start_intent_is_committed_to_uow_before_execution_port_start
+3 failed, 265 passed in 156.97s (0:02:36)

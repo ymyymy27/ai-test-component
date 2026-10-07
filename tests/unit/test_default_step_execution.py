@@ -7,11 +7,15 @@ from unittest.mock import Mock
 
 import pytest
 
+from aitest.application.execution.checkpoint_refs import KIND, read_checkpoint_refs
 from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.reuse_sources import CaseReuseSourceReader
+from aitest.application.execution.runtime_revision import SnapshotContentRef
+from aitest.application.planning.substrate_adapter import PortsRecordReader
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.commands import Command
-from aitest.contracts.execution_facts import StepStateFact
+from aitest.contracts.execution_facts import ExecutionFacts, StepStateFact
 from aitest.domain.execution.authorization import AuthorizationState
 from aitest.domain.execution.runs import (
     AdapterKind,
@@ -255,6 +259,32 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
         assert restarted.unit_of_work.current_commit_sequence() == before
         assert restarted.step_execution.execution_port is None
         current = recalled.result["execution_facts"]
+        saved_facts = ExecutionFacts.model_validate(current)
+        repo = restarted.unit_of_work.repo
+        reuse_reader = CaseReuseSourceReader(repo, PortsRecordReader(repo))
+        source_proof = reuse_reader.read(
+            project_id=inputs.project_id, run_id=saved_facts.run_id,
+            case_id=saved_facts.steps[0].case_id, reference=SnapshotContentRef.of(saved_facts),
+        )
+        assert source_proof.facts == saved_facts
+        assert source_proof.steps[0].attempt.attempt_id == action.attempt.attempt_id
+        refs = read_checkpoint_refs(repo, saved_facts)
+        assert refs[action.attempt.attempt_id].revision >= 1
+        original_revision = repo.current_revision
+        with monkeypatch.context() as patch:
+            patch.setattr(repo, "current_revision", lambda **kwargs: 0 if (
+                kwargs["aggregate_kind"] == KIND
+            ) else original_revision(**kwargs))
+            with pytest.raises(ValueError, match="checkpoint reference map"):
+                reuse_reader.read(
+                    project_id=inputs.project_id, run_id=saved_facts.run_id,
+                    case_id=saved_facts.steps[0].case_id,
+                    reference=SnapshotContentRef.of(saved_facts),
+                )
+            assert restarted.execution_coordinator.read_current_facts(
+                project_id=inputs.project_id, run_id=saved_facts.run_id,
+            ) == saved_facts
+        assert restarted.unit_of_work.current_commit_sequence() == before
         controls = []
         for name, state in (
             ("pause_run", "paused"),

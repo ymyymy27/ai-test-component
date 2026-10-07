@@ -140,15 +140,18 @@ def test_saved_checkpoint_overrides_lagging_step_without_any_new_execution(runti
     unit = core.unit_of_work
     unit.begin(request_id, facts.project_id, intent_id=request_id + "-intent")
     try:
-        unit.stage_record(
+        payload = TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json")
+        revision = unit.stage_record(
             aggregate_kind="execution_checkpoint",
             record_id=fact.attempt_id,
             expected_revision=unit.current_revision(
                 aggregate_kind="execution_checkpoint", record_id=fact.attempt_id
             ),
-            payload=TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json"),
+            payload=payload,
         )
-        _, saved = service.execution._stage_snapshot(changed)
+        _, saved = service.execution._stage_snapshot(
+            changed, checkpoint_refs={fact.attempt_id: (revision, payload)},
+        )
         unit.commit(request_id)
     except BaseException:
         unit.rollback()

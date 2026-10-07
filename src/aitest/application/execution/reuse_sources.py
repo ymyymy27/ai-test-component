@@ -3,6 +3,10 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from aitest.application.execution.checkpoint_refs import (
+    read_checkpoint_refs,
+    read_referenced_checkpoint,
+)
 from aitest.application.execution.facts import _run_fact
 from aitest.application.execution.registration import _initial_domain
 from aitest.application.execution.run_record import read_run_record
@@ -101,9 +105,15 @@ class CaseReuseSourceReader:
             raise ValueError("case reuse source does not contain the complete original step layout")
         frozen = next(case for case in prepared.frozen_cases if case.case_id == case_id)
         attempts = {attempt.attempt_id: attempt for attempt in facts.attempts}
+        checkpoint_refs = read_checkpoint_refs(self.records, facts) if facts.attempts else {}
         contents = StepContentReader(self.records)
         result = []
         for fact in selected:
+            if fact.current_attempt_id is not None:
+                read_referenced_checkpoint(
+                    self.records, checkpoint_refs[fact.current_attempt_id],
+                    attempts[fact.current_attempt_id], facts,
+                )
             original = originals[fact.step_id]
             if (fact.ordinal, fact.required_for_case) != (
                 original.ordinal, original.required_for_case,

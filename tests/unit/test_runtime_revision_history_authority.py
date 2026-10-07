@@ -16,6 +16,7 @@ from aitest.domain.execution.runs import (
     SideEffectClass,
     StepRevisionRef,
 )
+from tests.support.legacy_execution_snapshot import stage_legacy_snapshot
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_saved_runtime_revision import runtime as runtime
 
@@ -67,14 +68,20 @@ def save_history(runtime, *, damage=None):
     unit = core.unit_of_work
     unit.begin("controlled-history", facts.project_id, intent_id="controlled-history-intent")
     try:
+        checkpoint_refs = {}
         if damage != "missing":
-            unit.stage_record(
+            payload = TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json")
+            revision = unit.stage_record(
                 aggregate_kind="execution_checkpoint",
                 record_id=attempt.attempt_id,
                 expected_revision=0,
-                payload=TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json"),
+                payload=payload,
             )
-        _, saved = service.execution._stage_snapshot(snapshot)
+            checkpoint_refs[attempt.attempt_id] = (revision, payload)
+        if damage in {"missing", "state", "input", "plan"}:
+            saved = stage_legacy_snapshot(unit, snapshot, facts)
+        else:
+            _, saved = service.execution._stage_snapshot(snapshot, checkpoint_refs=checkpoint_refs)
         unit.commit("controlled-history")
     except BaseException:
         unit.rollback()

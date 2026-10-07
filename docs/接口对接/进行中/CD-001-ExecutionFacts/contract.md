@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.2"
+contract_version: "1.3"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,15 +16,19 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.2
+版本：1.3
 日期：2026-10-08
-状态：1.0历史确认保留；1.1/1.2增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.3增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
 Schema版本：aitest.execution-facts/1.0  
 合同源码：src/aitest/contracts/execution_facts.py  
 生成Schema：src/aitest/contracts/schemas/ExecutionFacts.json
+
+1.3 准确检查点来源：非空 Attempt 快照与不可变 `execution_checkpoint_refs@1`、当前指针在同一工作单元提交，快照仍为最后发布记录。引用表 Schema 为 `aitest.execution-checkpoint-refs/1.0`，身份由项目、运行、快照编号规范摘要生成，冻结 workspace、snapshot_cursor、snapshot_revision=1、snapshot_digest，以及完整 Attempt 身份到 `{record_id, revision, digest}` 的映射。revision 是实际 `stage_record` 返回的检查点仓储修订，不能由 Attempt 正文版本推算；digest 核对完整保存检查点正文。未改变的历史 Attempt 可保留上一快照准确检查点，当前事实变更须核对相应暂存或准确保存检查点投影。仓储修订必须为实际正整数，检查点项目/运行/步骤/Attempt及正文投影均须与快照一致。
+
+历史复用消费只按表中准确修订读取，不回退最新检查点。缺表、表或引用错位、缺失正文、摘要或投影不符时阻塞复用；旧快照仍可按原 DTO 展示，但不能补猜可复用来源。空 Attempt 初始快照不创建空表，也不产生复用资格。新增内部伴随记录不改变 ExecutionFacts DTO、Schema及旧快照摘要；只证明检查点来源，R 资格、选择持久化、证据和独立核验仍另行核对。该记录随 A 原提交清单、索引与备份保存；不得写成恢复旁录或上传许可。FR/AC不变，reviewing/partial/not_run不变。
 
 ## 1 目的
 

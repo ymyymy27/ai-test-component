@@ -1,22 +1,18 @@
 """A progress snapshot cannot stand in for an authorized runtime change."""
 
-from pathlib import Path
-
 import pytest
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.contracts.execution_facts import ExecutionFacts
+from tests.unit.test_current_execution_snapshot import _batch
 from tests.unit.test_frozen_step_publication import RecordingUnit
 
 
 @pytest.fixture
 def publication(monkeypatch):
-    facts = ExecutionFacts.model_validate_json(
-        (Path(__file__).parents[1] / "contracts/fixtures/execution_facts/success.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    unit = RecordingUnit()
+    batch = _batch()
+    facts = batch.facts
+    unit = RecordingUnit(batch.checkpoint)
     coordinator = ExecutionCommitCoordinator(unit)
     monkeypatch.setattr(coordinator, "read_current_facts", lambda **kwargs: facts)
     return coordinator, unit, facts
@@ -129,6 +125,6 @@ def test_unchanged_controlled_fields_allow_real_progress(publication):
         update={"coverage": facts.coverage.model_copy(update={"evidence_gap_count": 5})}
     )
     staged, published = coordinator._stage_snapshot(changed)
-    assert len(staged) == len(unit.staged) == 2
+    assert len(staged) == len(unit.staged) == 3
     assert published.coverage.evidence_gap_count == 5
     assert published.run.driver == facts.run.driver

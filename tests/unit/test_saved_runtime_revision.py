@@ -31,6 +31,7 @@ from aitest.domain.execution.runs import (
 from aitest.domain.planning.plans import PlanPublicationStatus, RunDriver
 from aitest.domain.planning.runtime_revision import CaseRuntimeChange, RuntimeRevisionRequest
 from tests.support.controlled_confirmation import basis_command, controlled_basis_confirm
+from tests.support.legacy_execution_snapshot import stage_legacy_snapshot
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_initial_run_registration import register, service
@@ -479,6 +480,7 @@ def save_current_attempt(runtime, *, checkpoint_change=None):
     core.unit_of_work.begin(
         "controlled-attempt", facts.project_id, intent_id="controlled-attempt-intent"
     )
+    checkpoint_refs = {}
     if checkpoint_change != "missing":
         if checkpoint_change == "state":
             checkpoint = replace(checkpoint, attempt=replace(attempt, state=AttemptState.COMPLETED))
@@ -498,13 +500,21 @@ def save_current_attempt(runtime, *, checkpoint_change=None):
             checkpoint = replace(
                 checkpoint, attempt=replace(attempt, expected_plan_revision_ref=None)
             )
-        core.unit_of_work.stage_record(
+        payload = TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json")
+        revision = core.unit_of_work.stage_record(
             aggregate_kind="execution_checkpoint",
             record_id=attempt.attempt_id,
             expected_revision=0,
-            payload=TypeAdapter(RecoveryRecord).dump_python(checkpoint, mode="json"),
+            payload=payload,
         )
-    _, saved = service.execution._stage_snapshot(snapshot, allow_current_change=True)
+        checkpoint_refs[attempt.attempt_id] = (revision, payload)
+    if checkpoint_change in {"missing", "state", "input", "plan", "missing_plan"}:
+        # Malformed legacy material is a reader fixture, not new publisher admission.
+        saved = stage_legacy_snapshot(core.unit_of_work, snapshot, facts)
+    else:
+        _, saved = service.execution._stage_snapshot(
+            snapshot, allow_current_change=True, checkpoint_refs=checkpoint_refs,
+        )
     core.unit_of_work.commit("controlled-attempt")
     return replace(request, observed_snapshot_cursor=saved.snapshot_cursor), saved
 
