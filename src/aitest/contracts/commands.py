@@ -57,6 +57,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "cancel_run",
         "retry_step",
         "attach_evidence",
+        "import_external_result",
         "verify_pending",
         "return_stage",
         "update_issue",

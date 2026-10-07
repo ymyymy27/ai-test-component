@@ -3,7 +3,7 @@ contract_id: AC-001
 title: ExecutionFacts 存储与恢复
 provider: A
 consumer: C
-contract_version: "1.2"
+contract_version: "1.3"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,13 +16,15 @@ next_action: 回复 A 评审列出的五项确认事项并安排真实适配对�
 
 # A包C包存储恢复公共接口约定
 
-版本：1.2
+版本：1.3
 日期：2026-10-07
 状态：A/C 跨包存储与恢复接口对齐（草案）  
 提供方：A包（本地核心底座）  
 调用方：C包（执行编排）  
 协议版本：`aitest.local/2.0`  
 合同源码：`src/aitest/application/ports.py`、`src/aitest/contracts/execution_facts.py`、`src/aitest/infrastructure/file_store/`
+
+1.3 按CORE-001 1.38增加外部结果保存。`external_import`不可变记录包含准确项目/工作空间、外部身份、安全文档完整对象引用及安全附件引用、来源缺口；`execution_intent`回执绑定原意图、文档摘要和准确导入@1。同来源/内容返回原记录，改变任何决定性安全材料（层级/源码/运行尝试/实际输出/自述/Mock/附件）冲突，提交失败不占位。回读须实际校验原文及全部附件项目/大小/摘要与规范JSON，未知来源不升级为内部采集或业务验证；普通导入既不启动业务也不改ExecutionFacts。附件无可核对安全材料时阻塞，不落未过滤字节。通过现有对象/记录端口及UOW实现，不另建文件写入服务或旁路索引。
 
 1.2 按CORE-001 1.37补独立业务查询材料的保存边界。业务查询端口属于`application/ports.py`；采集端口返回独立查询实际JSON和事实，适配器不直接写业务记录。应用用例冻结预期与实际JSON，凭据过滤在对象发布前完成，所有摘要描述安全字节。`execution_intent`中的不可变核验登记绑定项目/工作空间/Run/Step/Attempt/原快照与请求摘要；`verification`记录保存完整对象引用、证据/核验事实、准确结果快照及幂等回执。对象、引用与快照同一权威提交可核对，回读重算同一领域比较规则，不把外部matched声明或技术hash核验升级为业务通过。已登记而结果未可靠保存不自动重查，历史结果不覆盖新Attempt。旧瞬时`verify`继续作为组件事实接口，不提供持久材料或默认验收证明；新增`capture`和可信解析端口仅用于上述保存链。
 

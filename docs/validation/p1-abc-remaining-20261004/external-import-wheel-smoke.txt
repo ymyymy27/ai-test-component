@@ -1,0 +1,4 @@
+aitest/application/evidence/external_imports.py f2093a0f9291bf48d66e4fd550c0eb95cd0e632bf8a9187402bb7f2d1b284527
+aitest/bootstrap.py cdd2be825313b59f6e024358787f4b109ed1ab764286def780a9803fba81cea7
+aitest/contracts/commands.py 681114e8067285743f1b7c76f8596e4b95f7d47feb241d7e1db8bb76a3bc5ea2
+Installed wheel: isolated source, negotiated default import, malformed material rejection and exact three-module bytes passed.

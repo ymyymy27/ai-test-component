@@ -30,6 +30,7 @@ from uuid import uuid4
 from aitest.application.approval_service import ApprovalService
 from aitest.application.controlled_write import ControlledWriteService, SavedControlledWriteResolver
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.evidence.external_imports import SavedExternalResultImport
 from aitest.application.evidence.saved_verification import SavedBusinessVerification
 from aitest.application.execution.authorization import (
     ExecutionAuthorizationService,
@@ -281,6 +282,7 @@ class CoreAssembly:
     step_execution: SavedStepExecution | None = None
     run_schedule: SavedRunSchedule | None = None
     business_verification: SavedBusinessVerification | None = None
+    external_imports: SavedExternalResultImport | None = None
     run_control: SavedRunControl | None = None
     runtime_actions: SavedRuntimeRevisionActions | None = None
     model_policy_proof: ModelPolicyConfirmationService | None = None
@@ -585,6 +587,12 @@ def assemble_workspace_core(
             verifier=business_verification_port,
             protector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
         )
+        external_imports = SavedExternalResultImport(
+            execution_coordinator,
+            FileObjectStore(root),
+            workspace.workspace_id,
+            lambda value: cast(Mapping[str, object], guard_value(value)[0]),
+        )
         runtime_actions = SavedRuntimeRevisionActions(execution_coordinator, approvals)
         human_resolver.runtime = runtime_actions
         execution_authorizations.runtime_origins = runtime_actions
@@ -595,6 +603,7 @@ def assemble_workspace_core(
             execute_step=execution_commands.execute,
             start_run=run_schedule.apply,
             verify_pending=business_verification.apply,
+            import_external_result=external_imports.apply,
             pause_run=run_control.apply,
             resume_run=run_control.apply,
             cancel_run=run_control.apply,
@@ -718,6 +727,7 @@ def assemble_workspace_core(
         step_execution=step_execution,
         run_schedule=run_schedule,
         business_verification=business_verification,
+        external_imports=external_imports,
         run_control=run_control,
         runtime_actions=runtime_actions,
         model_policy_proof=policy_confirmations,
