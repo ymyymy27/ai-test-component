@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.26"
+contract_version: "1.27"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -14,9 +14,11 @@ next_owner: A
 next_action: 默认来源、准备快照与受控依据确认已有组件证据；未发布响应补登记已有受控证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
 ---
 
+1.27 新增协商动作 `submit_delivery`（人工动作）：保存独立、不可变的 `delivery_submission@1`，原 `save_delivery` 仍为草稿。参数严格为 project_revision、expected_revision=0、submission_id、delivery_ref{delivery_id,record_revision}、source_ref{snapshot_id,record_revision}，命令目标为submission_id。准确任务仓储修订从已保存草稿的task_revision读取；源码须核对业务content_identity、技术固定清单/全部blob与准确受控绑定来源。版本文字只作交付标签，不替代源码身份；固定源码不证明当前目录、环境、加载、执行或验证一致。挑战冻结准确项目、草稿、任务、快照、绑定修订与摘要，确认前核对这些材料仍为当前修订；四份核心确认事实、正式提交和原意图回执同一六记录短事务。新正式提交拒绝历史自填verified_in_scope；所有验收项初始仍未验证，不从自述推导结论。原意图回读准确正式提交及来源，不再确认、不改写后续草稿/绑定，不要求当前源码相同；异输入冲突，丢响应不得重复提交。未知/跨项目/损坏/无准确任务或固定来源的草稿不得自动升级。新增记录登记到现有记录/摘要索引与业务变更台账，业务变更分类暂保留unclassified；启用专用业务变更查询前须显式索引迁移，不能更改历史分类或自动提升未知旧记录。交付记录查询仍只用有限QuerySpec；这不是三期上传授权，也不扩大平台白名单。实际新执行与独立核验的交付验证投影、面板及真实宿主验收仍待接通。FR/AC数量不变，保持reviewing/partial/not_run。
+
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.26
+版本：1.27
 日期：2026-10-06
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
@@ -1271,3 +1273,7 @@ prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料
 核心覆盖客户端的解析观察值并冻结可读resolution事实；客户端自报身份/依赖摘要只作兼容输入，不作为证明。原EnvironmentRef、Binding准确仓储修订与正文摘要在短提交边界再次核对。环境内容身份作为PreparationRecord观察事实独立比较，变化或旧记录缺证明时needs_reprepare；不把它混入人工请求摘要、不覆盖原意图。
 
 启动前核对venv.cfg home解析到登记基础解释器，非venv载体不忽略活动venv.cfg。只读版本探测直接使用显式登记的基础解释器以避开Windows venv启动器子进程，不默用核心解释器；载体文件/配置观察与基础解释器进程观察分开，不声称业务通过载体启动器已执行。可靠停止后临时目录清理失败不覆盖原超限/超时诊断，未确认停止的业务材料不按此路径回收。
+
+1.27同批补analyze_project新响应的source_current_ref{record_id,record_revision}，表示本意图准确保存的绑定来源指针修订；source_snapshot.record_revision仍是不可变快照读取修订，不借其恒为1判断源码变化或猜下一次指针CAS。新操作在实际固定前及锁内两次核对指针expected_revision；旧意图缺该可选引用只回历史事实，不补猜当前值。此补充不改变content_identity和PreparedRun字段。
+
+1.27同批补正式交付的发布引用闭包：A按准确snapshot_id/snapshot_record_revision回读项目源码，核对content_identity与绑定引用，再核对实际固定清单/全部blob，并将这些路径及摘要纳入本次完整清单。审批后至发布前损坏或丢失不得发布current/消费确认；应用层先前的读取成功不能替代发布前核对。

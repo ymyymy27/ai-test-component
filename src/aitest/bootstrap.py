@@ -538,6 +538,7 @@ def assemble_workspace_core(
             ),
         )
         assert dependencies.source_analysis is not None
+        write_resolver.sources = dependencies.source_analysis
         initial_run_registration = InitialRunRegistration(
             unit=unit_of_work,
             reader=reader,

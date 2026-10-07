@@ -12,12 +12,14 @@ from aitest.application.ports import (
     ControlledWriteProof,
     StageableWorkspaceUnitOfWork,
 )
+from aitest.application.project.delivery_submission import submission_content
 from aitest.application.project.serialization import (
     binding_from_payload,
     binding_to_payload,
     environment_from_payload,
     environment_to_payload,
 )
+from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.domain.approvals import (
     ActionBasis,
     ApprovalConflict,
@@ -118,16 +120,51 @@ def controlled_write(
 
 
 class SavedControlledWriteResolver:
-    actions = frozenset({"save_binding", "save_environment", "publish_rules", "publish_plan"})
+    actions = frozenset(
+        {"save_binding", "save_environment", "publish_rules", "publish_plan", "submit_delivery"}
+    )
 
     def __init__(self, records: ApprovalRecords, workspace_id: str) -> None:
         self.records, self.workspace_id = records, workspace_id
         self.materials = SavedBasisApprovalResolver(records, workspace_id)
         self.proof: ControlledWriteProof | None = None
+        self.sources: SourceAnalysisService | None = None
 
     def normalize(
         self, action: str, project: str, parameters: Mapping[str, object]
     ) -> ControlledWrite:
+        if action == "submit_delivery":
+            project_revision = parameters.get("project_revision")
+            if type(project_revision) is not int or project_revision < 1:
+                raise ApprovalRequired("submission needs its exact project warehouse revision")
+            try:
+                payload, materials = submission_content(
+                    project, parameters, self.records, self.workspace_id, self.proof, self.sources
+                )
+            except (ValueError, TypeError, KeyError, OSError, RuntimeError) as error:
+                raise ApprovalRequired("saved delivery/task/source cannot be verified") from error
+            return ControlledWrite(
+                action,
+                "delivery_submission",
+                str(payload["submission_id"]),
+                {
+                    "project_revision": project_revision,
+                    "expected_revision": 0,
+                    "submission_id": payload["submission_id"],
+                    "delivery_ref": {
+                        "delivery_id": payload["delivery_id"],
+                        "record_revision": payload["delivery_record_revision"],
+                    },
+                    "source_ref": {
+                        "snapshot_id": payload["snapshot_id"],
+                        "record_revision": payload["snapshot_record_revision"],
+                    },
+                },
+                payload,
+                project_revision,
+                0,
+                materials,
+            )
         return controlled_write(action, project, parameters, self.records, self.workspace_id)
 
     def resolve(
@@ -168,6 +205,14 @@ class SavedControlledWriteResolver:
                     )
                 )
             for reference in write.materials:
+                if (
+                    action == "submit_delivery"
+                    and self.records.current_revision(
+                        aggregate_kind=reference.aggregate_kind, record_id=reference.record_id
+                    )
+                    != reference.record_revision
+                ):
+                    raise ApprovalRequired("delivery/task/source/binding changed; review again")
                 if reference.aggregate_kind == "rule_version":
                     if self.proof is None:
                         raise ApprovalRequired("published rule confirmation reader is unavailable")
@@ -223,6 +268,18 @@ class ControlledWriteService:
         return "controlled-write-" + _digest([self.approvals.workspace_id, project, intent])[7:]
 
     def _result(self, write: ControlledWrite, revision: int) -> Mapping[str, object]:
+        if write.action == "submit_delivery":
+            return {
+                "aggregate_kind": write.aggregate_kind,
+                "record_id": write.record_id,
+                "revision": revision,
+                "status": "submitted",
+                "version": write.payload["version"],
+                "content_identity": write.payload["content_identity"],
+                "verification_state": "unverified",
+                "verified_in_scope": [],
+                "unverified_scope": write.payload["acceptance_item_ids"],
+            }
         if write.action in {"publish_rules", "publish_plan"}:
             payload = self.resolver.materials._read(
                 write.aggregate_kind, write.record_id, revision, str(write.payload["project_id"])
@@ -308,7 +365,7 @@ class ControlledWriteService:
                 "approval_expected_revision": write.expected_revision,
                 "approval_commit_seq": confirmation.confirmed_at_commit,
             }
-            if action in {"publish_rules", "publish_plan"}:
+            if action in {"publish_rules", "publish_plan", "submit_delivery"}:
                 payload["approval_parameters"] = dict(write.parameters)
             revision = self.unit.stage_record(
                 aggregate_kind=write.aggregate_kind,
@@ -411,7 +468,7 @@ class ControlledWriteService:
         payload: Mapping[str, object],
     ) -> None:
         origin_fields = _ORIGIN_FIELDS
-        if action in {"publish_rules", "publish_plan"}:
+        if action in {"publish_rules", "publish_plan", "submit_delivery"}:
             origin_fields = origin_fields | {"approval_parameters"}
             parameters = payload.get("approval_parameters")
             if not isinstance(parameters, Mapping):

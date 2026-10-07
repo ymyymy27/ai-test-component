@@ -202,6 +202,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_case",
         "save_task",
         "save_delivery",
+        "submit_delivery",
         "generate_draft",
         "resolve_model_response",
         "save_model_outbound_policy",
@@ -227,6 +228,7 @@ _AGGREGATE_KINDS: frozenset[str] = frozenset(
         "dependency_set",
         "task",
         "delivery",
+        "delivery_submission",
         "acceptance_item",
         "environment",
         "source_snapshot",
@@ -1660,7 +1662,14 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         return _publication_result(result, published_kind="rule_version")
 
     def controlled_publication(command: object) -> Mapping[str, object]:
-        assert deps.controlled_writes is not None
+        if deps.controlled_writes is None:
+            raise BUseCaseError("CAPABILITY_UNAVAILABLE", "controlled record write is unavailable")
+        if getattr(command, "action", None) == "submit_delivery" and (
+            getattr(command, "target", None) != _command_parameters(command).get("submission_id")
+        ):
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "submission target differs from its identity"
+            )
         parameters = dict(_command_parameters(command))
         challenge = parameters.pop("approval_challenge_id", None)
         return deps.controlled_writes.save(
@@ -1914,6 +1923,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_case": _guard(handle_save_case),
         "save_task": _guard(handle_save_task),
         "save_delivery": _guard(handle_save_delivery),
+        "submit_delivery": _guard(controlled_publication),
         "generate_draft": _guard(handle_generate_draft),
         "resolve_model_response": _guard(handle_resolve_model_response),
         "save_model_outbound_policy": _guard(handle_model_policy),

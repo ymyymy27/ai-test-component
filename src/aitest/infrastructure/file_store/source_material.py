@@ -208,6 +208,30 @@ def source_record_files(
     if kind == "source_snapshot":
         # Domain-only legacy snapshots may be stored, but cannot prove a new preparation.
         return verify_source_reference(root, body, project_id)
+    if kind == "delivery_submission":
+        if (
+            body.get("schema_version") != "aitest.delivery-submission/1.0"
+            or body.get("status") != "submitted"
+            or body.get("project_id") != project_id
+        ):
+            raise SourceMaterialError("formal delivery source owner/schema is unverified")
+        source = _owned_record(
+            authority,
+            "source_snapshot",
+            body.get("snapshot_id"),
+            body.get("snapshot_record_revision"),
+            project_id,
+        )
+        if (
+            source.get("snapshot_id") != body.get("snapshot_id")
+            or source.get("content_identity") != body.get("content_identity")
+            or source.get("binding_id") != body.get("binding_id")
+            or type(body.get("binding_record_revision")) is not int
+            or type(source.get("binding_revision")) is not int
+            or source.get("binding_revision") != body.get("binding_record_revision")
+        ):
+            raise SourceMaterialError("formal delivery differs from its exact frozen source")
+        return verify_source_reference(root, source, project_id, require_verified=True)
     model_basis = body.get("generation_basis") if kind == "generated_content" else None
     if kind == "model_outbound_request":
         generation = body.get("generation_identity")

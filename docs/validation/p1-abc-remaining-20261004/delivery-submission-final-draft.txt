@@ -1,0 +1,23 @@
+....................F                                                    [100%]
+================================== FAILURES ===================================
+_ test_same_version_text_does_not_mean_same_source_and_fixed_corruption_blocks _
+
+delivery_core = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001F3A0AC0120>, workspace=<aitest.infrastructur...e)), inputs=(), outputs=(), preconditions=(), owner=None, acceptor=None, schema_version='aitest.task/2.0', revision=1))
+
+            project="other" if invalid == "foreign_delivery" else "project",
+        )
+        params["delivery_ref"] = {"delivery_id": "legacy", "record_revision": 1}
+    bad = base.model_copy(update={"parameters": params})
+    if invalid == "wrong_target":
+        bad = bad.model_copy(update={"target": "another-submission"})
+        assert core.api.dispatch(bad, HUMAN).error is not None
+        return
+>   before = core.unit_of_work.current_commit_sequence()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='current source pointer revision changed', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='new-source', intent_id='new-source-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='current source pointer revision changed', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='new-source', intent_id='new-source-intent') = Response(protocol_version='aitest.local/2.0', request_id='new-source', instance_id='binding-origin-core', workspace_id...ed', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='new-source', intent_id='new-source-intent')).error
+
+tests\unit\test_delivery_submission_origin.py:352: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_delivery_submission_origin.py::test_same_version_text_does_not_mean_same_source_and_fixed_corruption_blocks
+1 failed, 20 passed in 599.47s (0:09:59)
