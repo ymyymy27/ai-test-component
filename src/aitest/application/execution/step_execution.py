@@ -29,7 +29,7 @@ class SavedStepExecution:
         self.spool, self.execution_port = spool, execution_port
 
     def execute(
-        self, *, project_id: str, intent_id: str, action_id: str, step_id: str
+        self, *, project_id: str, intent_id: str, action_id: str, step_id: str, max_polls: int = 100
     ) -> Mapping[str, object]:
         _, action = self.authorizations.resolver.read(project_id, action_id)
         if (intent_id, step_id) != (action.request.intent_id, action.request.step_id):
@@ -51,7 +51,7 @@ class SavedStepExecution:
                     self.execution_port,
                     self.spool,
                     commit_coordinator=self.coordinator,
-                ).execute_attempt(saved or action.attempt, action.request, max_polls=100)
+                ).execute_attempt(saved or action.attempt, action.request, max_polls=max_polls)
             current = self.coordinator.read_current_facts(
                 project_id=project_id, run_id=action.request.run_id
             )

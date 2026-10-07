@@ -45,37 +45,13 @@ from aitest.domain.execution.runs import (
     has_reliable_terminal_fact,
     has_verified_exit,
 )
-
-_TERMINAL_STEP_STATES = frozenset(
-    {
-        StepState.COMPLETED,
-        StepState.CANCELLED,
-        StepState.INVALIDATED,
-        StepState.EXECUTION_ERROR,
-    }
-)
-_BLOCKING_UPSTREAM_STATES = frozenset(
-    {
-        StepState.BLOCKED,
-        StepState.CANCELLED,
-        StepState.INVALIDATED,
-        StepState.EXECUTION_ERROR,
-    }
-)
+from aitest.domain.execution.scheduling import DispatchPlan, plan_serial_dispatch
 
 
 class _ExecutionObservationMismatch(ValueError):
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__("execution observation cannot be verified: " + reason)
-
-
-@dataclass(frozen=True, slots=True)
-class DispatchPlan:
-    ready_step_ids: tuple[str, ...] = ()
-    blocked_step_ids: tuple[str, ...] = ()
-    waiting_step_ids: tuple[str, ...] = ()
-    terminal_step_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,40 +109,7 @@ class SerialRunner:
         self._dispatch_allowed = dispatch_allowed
 
     def plan_dispatch(self, steps: Sequence[Step]) -> DispatchPlan:
-        states = self._state_by_step_id(steps)
-        ready: list[str] = []
-        blocked: list[str] = []
-        waiting: list[str] = []
-        terminal: list[str] = []
-
-        for step in steps:
-            if step.state in _TERMINAL_STEP_STATES:
-                terminal.append(step.step_id)
-                continue
-            if step.state is StepState.BLOCKED:
-                blocked.append(step.step_id)
-                continue
-            if step.state not in {StepState.PENDING, StepState.READY}:
-                waiting.append(step.step_id)
-                continue
-
-            dependencies = self._required_dependency_ids(step)
-            dependency_states = [states.get(step_id) for step_id in dependencies]
-            if any(state is None for state in dependency_states):
-                waiting.append(step.step_id)
-            elif any(state in _BLOCKING_UPSTREAM_STATES for state in dependency_states):
-                blocked.append(step.step_id)
-            elif all(state is StepState.COMPLETED for state in dependency_states):
-                ready.append(step.step_id)
-            else:
-                waiting.append(step.step_id)
-
-        return DispatchPlan(
-            ready_step_ids=tuple(ready),
-            blocked_step_ids=tuple(blocked),
-            waiting_step_ids=tuple(waiting),
-            terminal_step_ids=tuple(terminal),
-        )
+        return plan_serial_dispatch(steps)
 
     def run_serial(
         self,
@@ -1015,14 +958,6 @@ class SerialRunner:
                 raise ValueError(f"duplicate step_id: {step.step_id}")
             states[step.step_id] = step.state
         return states
-
-    @staticmethod
-    def _required_dependency_ids(step: Step) -> tuple[str, ...]:
-        return tuple(
-            edge.upstream_step_id
-            for edge in step.dependency_edges
-            if edge.downstream_step_id == step.step_id and edge.required
-        )
 
     @staticmethod
     def _require_handle(attempt: Attempt) -> ExecutionHandle:

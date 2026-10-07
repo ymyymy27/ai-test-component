@@ -145,3 +145,5 @@ uv build
 最终93项命令：pytest tests/unit/test_invalidated_observation_gap.py tests/unit/test_unverified_terminal_observation.py tests/unit/test_invalidated_capture_state.py tests/unit/test_serial_execution_slices.py tests/unit/test_serial_execution_loop.py tests/unit/test_serial_runner.py tests/unit/test_execution_observation_identity.py tests/unit/test_capture_completion_closure.py tests/unit/test_execution_control.py -k "not default_error_without_exit" -o addopts="" -q --tb=short -x；解释器为项目.venv Python3.13.13。
 
 默认API最终独立命令：pytest tests/unit/test_unverified_terminal_observation.py::test_default_error_without_exit_continues_original_collection_and_keeps_gap -o addopts="" -q --tb=short；1 passed in 128.06s。与上列93项不重叠，共94项。
+
+2026-10-07：默认start_run持久有界调度已接通，按原逐动作授权及共享领域依赖规则续行，保留原活动与控制；completed标签另核对可靠退出/完整采集/历史边界。当前88项互不重叠检查及wheel/sdist、隔离制品冒烟通过，后台保活/业务核验/复用与真实AC继续；ABC仍21项。见[根因/源码/精简证据](../../修改日志/袁/2026-10-07-默认整运行持久有界调度.md)。

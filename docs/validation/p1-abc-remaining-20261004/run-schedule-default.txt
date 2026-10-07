@@ -1,0 +1,108 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_default_schedule_resumes_original_activity_and_completes_without_business_pass _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002C98B106CF0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-827/test_default_schedule_resumes_0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002C98A043230>
+
+        assert service._advance(facts.project_id, facts.run_id, "original")["status"] == "controlled"
+        assert not service.execution.mock_calls
+    
+    
+    def test_default_schedule_resumes_original_activity_and_completes_without_business_pass(
+        authoritative, monkeypatch
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        facts = register(core, prepared)
+        core.execution_authorizations.action_resolver = Resolver(core.unit_of_work)
+        port = FakeExecutionPort()
+        core.step_execution.execution_port = port
+        coordinator = core.execution_coordinator
+        value = schedule_command(facts)
+    
+        empty = core.api.dispatch(value, RELAY)
+        assert empty.error is None, empty.error
+        assert empty.result["status"] == "waiting_authorization"
+        assert not empty.result["execution_facts"]["attempts"] and not port.execution_order
+        admission_id = empty.result["schedule_intent_id"]
+        assert (
+            core.unit_of_work.repo.current_revision(
+                aggregate_kind="execution_intent", record_id=admission_id
+            )
+            == 1
+        )
+        before = core.unit_of_work.current_commit_sequence()
+        conflict = core.api.dispatch(
+            value.model_copy(
+                update={
+                    "request_id": "changed-base",
+                    "parameters": {"run_id": facts.run_id, "base_snapshot_commit_id": "foreign"},
+                }
+            ),
+            RELAY,
+        )
+>       assert conflict.error.code == "INTENT_CONFLICT"
+
+tests\unit\test_saved_run_schedule.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_saved_run_schedule.py:56: in grant_step
+    save(service, facts.project_id, action, parameters, actor, challenge, request="grant-" + intent)
+tests\unit\test_execution_authorization_origin.py:109: in save
+    return service.grant(
+src\aitest\application\execution\authorization.py:558: in grant
+    confirmation = self.approvals.stage_confirmation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.application.approval_service.ApprovalService object at 0x000002C98B1056A0>
+project_id = 'project-ticket'
+challenge_id = 'approval-challenge-723f42b8c0194fd8ab68c926ac9fbded'
+confirmation_intent_id = 'run-step-1'
+parameters = {'execution_action_id': 'execution-action-d0c3cf2816022da52f10e9a434eeea26e51eac36135e6791371b3b21e7b6bc7b', 'record_revision': 1}
+trailing_records = 3
+
+    def stage_confirmation(
+        self,
+        *,
+        project_id: str,
+        challenge_id: str,
+        confirmation_intent_id: str,
+        parameters: Mapping[str, object],
+        trailing_records: int = 0,
+    ) -> ActionConfirmation:
+        """Stage inside the caller's owned transaction, before its atomic effect.
+    
+        ``trailing_records`` is the caller's fixed batch layout, never a command
+        parameter. The basis-confirmation use case appends exactly one record.
+        Authorization requires its own effect adapter and is not exposed by the
+        current saved-basis resolver.
+        """
+        if type(trailing_records) is not int or trailing_records < 0:
+            raise ValueError("the atomic confirmation layout must be exact")
+        actor = self.actors.current()
+        self.require_actor(project_id)
+        identity, fingerprint = self._confirmation_identity(
+            project_id, confirmation_intent_id, challenge_id, parameters
+        )
+        original = self._confirmed(project_id, identity, fingerprint)
+        if original is not None:
+            return original
+        challenge = self.read_challenge(project_id=project_id, challenge_id=challenge_id)
+        basis = self.resolver.resolve(
+            project_id=project_id,
+            intent_id=challenge.basis.intent_id,
+            action=challenge.basis.action,
+            target=challenge.basis.target,
+            parameters=parameters,
+        )
+        interaction = require_challenge_confirmation(challenge, actor, basis)
+        interaction_id = self._interaction_identity(
+            project_id, actor.session_id, interaction.interaction_id
+        )
+        if self._current("approval_interaction", interaction_id, project_id) is not None:
+>           raise ApprovalConflict("this user interaction already confirmed another action")
+E           aitest.domain.approvals.ApprovalConflict: this user interaction already confirmed another action
+
+src\aitest\application\approval_service.py:416: ApprovalConflict
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_run_schedule.py::test_default_schedule_resumes_original_activity_and_completes_without_business_pass

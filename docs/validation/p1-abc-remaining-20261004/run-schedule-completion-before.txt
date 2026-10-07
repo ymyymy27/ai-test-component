@@ -1,0 +1,28 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_completed_run_label_requires_reliable_current_and_historical_boundary[no_exit] _
+tests\unit\test_saved_run_schedule.py:301: in test_completed_run_label_requires_reliable_current_and_historical_boundary
+    assert result["status"] == "unverified_completion"
+E   AssertionError: assert 'execution_completed' == 'unverified_completion'
+E     
+E     - unverified_completion
+E     + execution_completed
+_ test_completed_run_label_requires_reliable_current_and_historical_boundary[gap] _
+tests\unit\test_saved_run_schedule.py:301: in test_completed_run_label_requires_reliable_current_and_historical_boundary
+    assert result["status"] == "unverified_completion"
+E   AssertionError: assert 'execution_completed' == 'unverified_completion'
+E     
+E     - unverified_completion
+E     + execution_completed
+_ test_completed_run_label_requires_reliable_current_and_historical_boundary[history_active] _
+tests\unit\test_saved_run_schedule.py:301: in test_completed_run_label_requires_reliable_current_and_historical_boundary
+    assert result["status"] == "unverified_completion"
+E   AssertionError: assert 'execution_completed' == 'unverified_completion'
+E     
+E     - unverified_completion
+E     + execution_completed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_run_schedule.py::test_completed_run_label_requires_reliable_current_and_historical_boundary[no_exit]
+FAILED tests/unit/test_saved_run_schedule.py::test_completed_run_label_requires_reliable_current_and_historical_boundary[gap]
+FAILED tests/unit/test_saved_run_schedule.py::test_completed_run_label_requires_reliable_current_and_historical_boundary[history_active]
+3 failed, 21 deselected in 0.58s

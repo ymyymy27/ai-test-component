@@ -37,7 +37,7 @@ def test_default_capabilities_and_missing_resolver_are_honest(tmp_path):
         assert {"register_run", "prepare_execution", "authorize_step"} <= set(
             doctor.result["supported_actions"]
         )
-        assert "start_run" not in doctor.result["supported_actions"]
+        assert "start_run" in doctor.result["supported_actions"]
         before = core.unit_of_work.current_commit_sequence()
         result = core.api.dispatch(
             command("prepare_execution", parameters={"run_id": "run", "step_id": "step"}),

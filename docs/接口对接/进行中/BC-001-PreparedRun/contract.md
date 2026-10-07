@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.38"
+contract_version: "0.39"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -11,12 +11,12 @@ verification_status: not_run
 last_verified_commit: null
 blockers: []
 next_owner: C
-next_action: 接通权威准备与 C 默认启动/运行中修订链，完成真实环境验收；DEC-007/008/009 已由负责人裁定。
+next_action: 补后台保活、实际加载与业务核验/复用，完成真实环境验收；默认登记/单步/控制/修订/有界整Run调度已接通，DEC-007/008/009 已裁定。
 ---
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.38（2026-10-07 补无可靠退出标签的观察与串行边界；实施与验证另行登记）
+版本：0.39（2026-10-07 补默认整运行的持久有界调度；实施与验证另行登记）
 日期：2026-10-07
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
@@ -915,3 +915,13 @@ Runner在inspect=running时同样collect并按25.13校验/保存实际前缀，�
 串行切片同样以原句柄可靠退出判断是否可推进；包括invalidated在内的任何标签，只要仍有未核实终止的句柄就阻止下一动作。锁内原子准入守卫继续独立执行，不以循环错误或第二步异常代替此边界。可靠终态原结果继续可回读，不要求新适配器/新授权；无句柄或缺原启动证明仍按既有待核实合同。未增加公开字段或动作，真实宿主恢复仍待验收。
 
 已发布错误或失效步骤仍有未核实终止句柄时，下个串行切片继续原观察。观察身份/材料冲突共用缺口收尾，失效Attempt保持invalidated，其余Attempt为pending_verification；保存准确原因和历史材料，不能因异常分支恢复失效状态或令保存守卫拒绝缺口记录。
+
+### 25.17 默认整运行的持久有界调度（0.39）
+
+依据一期执行架构02的串行调度、逐动作授权和控制边界，start_run只接收准确run_id/base_snapshot_commit_id，target为run_id，expected_revision严格为0，业务intent_id与传输request_id分开。首次锁内核对当前基线、工作空间及权威检查点，保存不可变调度准入（既有execution_intent类别，aitest.run-schedule-intent/1.0）；同意图改Run/基线冲突。重传核对原准入快照摘要后推进当前事实，不能用旧基线覆盖后来进度或创建新Run/Attempt。
+
+准入只面向planned驱动且not_started/running，不是集合授权。每次派发按当前未用授权索引找准确原动作，核对原确认、输入、计划、来源及实际依赖；同一步多个未用许可明确等待选择，不任意执行。没有许可或运行时输入尚未确定则等待，不猜测命令、不自动授权或新尝试。单步与整运行调度共用领域串行依赖规则，锁内执行准入仍独立核对真正完成且完整采集的上游。
+
+先核实所有当前/历史未核对终止的原Attempt，按原许可和句柄观察，不重放业务；任一边界仍未知则不派发后续步骤。单次最多32次推进，每次至多一次inspect/collect切片；授权索引超过100份本轮明确阻塞，不扫描仓储历史。每次推进后回读当前，暂停、取消、恢复中或驱动收窄立即停止新动作；旧调度重传不解除控制。pending_verification仅观察原事实，不自动改成running。
+
+全部当前步骤确实completed、对应原Attempt可靠结束且完整采集、历史无未核实活动，才在短事务确认执行completed；空步骤、错误/失效/缺口不推定完成。该状态不产生独立核验、V、业务passed、证据等级或报告。返回实际保存的ExecutionFacts与调度等待/阻塞原因；准确终态回读不要求新执行适配器。doctor按已注册动作协商start_run，可信执行解析或适配器缺失如实阻塞。后台保活/自动唤醒、真实宿主、业务加载和35条真实AC继续单独验收，FR/AC及公开DTO不变。
