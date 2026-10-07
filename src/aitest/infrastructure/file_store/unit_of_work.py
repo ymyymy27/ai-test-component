@@ -170,6 +170,24 @@ class FileUnitOfWork:
         expected_revision: int | None,
         payload: Mapping[str, object],
     ) -> int:
+        return self._stage_record(
+            aggregate_kind=aggregate_kind, record_id=record_id,
+            expected_revision=expected_revision, payload=payload, require_unchanged=False,
+        )
+
+    def stage_record_exact(
+        self, *, aggregate_kind: str, record_id: str,
+        expected_revision: int | None, payload: Mapping[str, object],
+    ) -> int:
+        return self._stage_record(
+            aggregate_kind=aggregate_kind, record_id=record_id,
+            expected_revision=expected_revision, payload=payload, require_unchanged=True,
+        )
+
+    def _stage_record(
+        self, *, aggregate_kind: str, record_id: str,
+        expected_revision: int | None, payload: Mapping[str, object], require_unchanged: bool,
+    ) -> int:
         self._check_transaction_thread()
         if self.project is None:
             raise RuntimeError("no open transaction")
@@ -181,7 +199,7 @@ class FileUnitOfWork:
         # A-09 落盘前底线：业务记录 payload 经结构+已知凭据过滤后再暂存，
         # records.json 中不得出现凭据原文（后续投影/备份/导出只读安全副本）。
         safe_payload, changed = guard_value(dict(payload), self._registry)
-        if changed and _has_content_fingerprint(payload):
+        if changed and (require_unchanged or _has_content_fingerprint(payload)):
             raise UnsafeMaterialError(
                 "fingerprinted record requires filtering before computing its digest"
             )

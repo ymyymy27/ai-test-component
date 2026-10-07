@@ -48,6 +48,7 @@ from aitest.application.planning.substrate import (
     read_scoped_record,
     transaction,
 )
+from aitest.application.record_write import RecordWriteIntent
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     Case,
@@ -71,6 +72,7 @@ def _stage_and_commit(
     payload: dict[str, object],
     unit_of_work: UnitOfWork,
     revision_carrying_key: str | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """一次短事务：在**事务上下文**里暂存并提交。
 
@@ -83,7 +85,16 @@ def _stage_and_commit(
     核对放在事务**内部**、`stage_record` **之前**：这样底座的并发校验先生效，
     本核对只处理"修订号本身的错配"。
     """
-    with transaction(unit_of_work, project_id) as tx:
+    if record_intent is not None:
+        payload = record_intent.prepare_payload(payload)
+    with transaction(
+        unit_of_work, project_id,
+        intent_id=record_intent.intent_id if record_intent is not None else None,
+    ) as tx:
+        if record_intent is not None:
+            original = record_intent.original()
+            if original is not None:
+                return original
         if revision_carrying_key is not None:
             _require_revision_matches_assignment(
                 aggregate_kind=aggregate_kind,
@@ -97,7 +108,10 @@ def _stage_and_commit(
             record_id=record_id,
             expected_revision=expected_revision,
             payload=payload,
+            require_unchanged=record_intent is not None,
         )
+        if record_intent is not None:
+            record_intent.stage(tx, staged, payload)
         tx.commit()
     return staged
 
@@ -163,6 +177,7 @@ def save_case(
     project_id: str,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存一条用例的某个修订。
 
@@ -176,6 +191,7 @@ def save_case(
         expected_revision=expected_revision,
         payload=case_to_payload(case, project_id=project_id),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
         revision_carrying_key="revision",
     )
 
@@ -201,6 +217,7 @@ def save_acceptance_scope(
     project_id: str,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存一个验收范围的某个修订。
 
@@ -214,6 +231,7 @@ def save_acceptance_scope(
         expected_revision=expected_revision,
         payload=acceptance_scope_to_payload(scope, project_id=project_id),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
         revision_carrying_key="revision",
     )
 

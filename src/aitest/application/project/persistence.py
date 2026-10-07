@@ -53,6 +53,7 @@ from aitest.application.project.serialization import (
     task_from_payload,
     task_to_payload,
 )
+from aitest.application.record_write import RecordWriteIntent
 from aitest.domain.project.context import (
     Delivery,
     EnvironmentRef,
@@ -86,6 +87,7 @@ def _stage_and_commit(
     expected_revision: int | None,
     payload: dict[str, object],
     unit_of_work: UnitOfWork,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """一次短事务：在**事务上下文**里暂存并提交。
 
@@ -103,13 +105,25 @@ def _stage_and_commit(
         aggregate_kind=aggregate_kind,
         record_id=record_id,
     )
-    with transaction(unit_of_work, project_id) as tx:
+    if record_intent is not None:
+        payload = record_intent.prepare_payload(payload)
+    with transaction(
+        unit_of_work, project_id,
+        intent_id=record_intent.intent_id if record_intent is not None else None,
+    ) as tx:
+        if record_intent is not None:
+            original = record_intent.original()
+            if original is not None:
+                return original
         staged = tx.stage_record(
             aggregate_kind=aggregate_kind,
             record_id=record_id,
             expected_revision=expected_revision,
             payload=payload,
+            require_unchanged=record_intent is not None,
         )
+        if record_intent is not None:
+            record_intent.stage(tx, staged, payload)
         tx.commit()
     return staged
 
@@ -174,6 +188,7 @@ def save_project(
     *,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存项目（模块随项目一起落盘）。"""
     return _stage_and_commit(
@@ -183,6 +198,7 @@ def save_project(
         expected_revision=expected_revision,
         payload=project_to_payload(project),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
     )
 
 
@@ -209,6 +225,7 @@ def save_environment(
     project_id: str,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存环境引用。
 
@@ -223,6 +240,7 @@ def save_environment(
         expected_revision=expected_revision,
         payload=environment_to_payload(environment, project_id=project_id),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
     )
 
 
@@ -231,6 +249,7 @@ def save_dependency_graph(
     *,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存模块依赖图（一个项目一份当前图，修订随变更递增）。"""
     return _stage_and_commit(
@@ -240,6 +259,7 @@ def save_dependency_graph(
         expected_revision=expected_revision,
         payload=dependency_graph_to_payload(graph),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
     )
 
 
@@ -374,6 +394,7 @@ def save_task(
     *,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存一个任务的某个修订。
 
@@ -387,6 +408,7 @@ def save_task(
         expected_revision=expected_revision,
         payload=task_to_payload(task),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
     )
 
 
@@ -398,6 +420,7 @@ def save_delivery(
     expected_revision: int | None = None,
     reader: RecordReader | None = None,
     task_revision: int = 1,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存一份交付说明的某个修订。
 
@@ -421,7 +444,14 @@ def save_delivery(
     if reader is None:
         raise ValueError("delivery requires an authoritative task reader")
     # 准确任务修订与交付写入处于同一短事务，不查询另一项目或猜一个任务。
-    with transaction(unit_of_work, project_id) as tx:
+    with transaction(
+        unit_of_work, project_id,
+        intent_id=record_intent.intent_id if record_intent is not None else None,
+    ) as tx:
+        if record_intent is not None:
+            original = record_intent.original()
+            if original is not None:
+                return original
         task = load_task(
             reader,
             project_id=project_id,
@@ -432,12 +462,17 @@ def save_delivery(
             raise ValueError("delivery task belongs to another project")
         payload = delivery_to_payload(delivery, project_id=project_id)
         payload["task_revision"] = task_revision
+        if record_intent is not None:
+            payload = record_intent.prepare_payload(payload)
         staged = tx.stage_record(
             aggregate_kind="delivery",
             record_id=delivery.delivery_id,
             expected_revision=expected_revision,
             payload=payload,
+            require_unchanged=record_intent is not None,
         )
+        if record_intent is not None:
+            record_intent.stage(tx, staged, payload)
         tx.commit()
         return staged
 

@@ -29,7 +29,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from contextlib import AbstractContextManager, suppress
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol, cast
+
+if TYPE_CHECKING:
+    from aitest.application.ports import RecordIntentOpening
 
 from aitest.application.planning.preparation import PreparationRecord
 from aitest.contracts.queries import QueryUnsupportedFilter
@@ -47,6 +50,7 @@ AggregateKind = Literal[
     "environment",
     "source_snapshot",
     "source_pin_intent",
+    "record_write_intent",
     "source_binding_current",
     "template_ref",
     "generated_content",
@@ -314,12 +318,15 @@ class Transaction(AbstractContextManager["Transaction"]):
     "提交时刻"必须由用例显式给出。
     """
 
-    __slots__ = ("_owns_transaction", "_project_id", "_unit_of_work")
+    __slots__ = ("_owns_transaction", "_project_id", "_unit_of_work", "_intent_id")
 
-    def __init__(self, unit_of_work: UnitOfWork, project_id: str) -> None:
+    def __init__(
+        self, unit_of_work: UnitOfWork, project_id: str, *, intent_id: str | None = None
+    ) -> None:
         if not project_id.strip():
             raise ValueError("project_id must not be empty")
         self._unit_of_work = unit_of_work
+        self._intent_id = intent_id
         self._project_id = project_id
         #: 只有**确实开启成功**才为真；未开启时不持有任何资源，也不得回滚别人的事务。
         self._owns_transaction = False
@@ -329,7 +336,15 @@ class Transaction(AbstractContextManager["Transaction"]):
     def __enter__(self) -> Transaction:
         # 先 open，成功后才认领；`open()` 抛错（例如排他锁取不到）时本对象不认领，
         # 因此 `__exit__` / `__del__` 不会去回滚一个不属于自己的事务。
-        self._unit_of_work.open(self._project_id)
+        if self._intent_id is None:
+            self._unit_of_work.open(self._project_id)
+        else:
+            opener = getattr(self._unit_of_work, "open_for_intent", None)
+            if not callable(opener):
+                raise ValueError("business write requires the declared intent opening port")
+            cast("RecordIntentOpening", self._unit_of_work).open_for_intent(
+                self._project_id, self._intent_id
+            )
         self._owns_transaction = True
         return self
 
@@ -369,7 +384,16 @@ class Transaction(AbstractContextManager["Transaction"]):
         record_id: str,
         expected_revision: int | None,
         payload: Mapping[str, object],
+        require_unchanged: bool = False,
     ) -> StagedRevision:
+        if require_unchanged:
+            exact = getattr(self._unit_of_work, "stage_record_exact", None)
+            if not callable(exact):
+                raise ValueError("business write requires the exact record staging capability")
+            return cast(StagedRevision, exact(
+                aggregate_kind=aggregate_kind, record_id=record_id,
+                expected_revision=expected_revision, payload=payload,
+            ))
         return self._unit_of_work.stage_record(
             aggregate_kind=aggregate_kind,
             record_id=record_id,
@@ -391,13 +415,15 @@ class Transaction(AbstractContextManager["Transaction"]):
         self._owns_transaction = False
 
 
-def transaction(unit_of_work: UnitOfWork, project_id: str) -> Transaction:
+def transaction(
+    unit_of_work: UnitOfWork, project_id: str, *, intent_id: str | None = None
+) -> Transaction:
     """开启一个**事务作用域**；B 的应用用例统一经它写入，不直接调 `open()`。
 
     返回的是**对象**而不是上下文装饰器：锁由该对象持有，因此可以用它暂存与提交，
     它的生命周期就是事务的生命周期（见 `Transaction`）。
     """
-    return Transaction(unit_of_work, project_id)
+    return Transaction(unit_of_work, project_id, intent_id=intent_id)
 
 
 class RecordReader(Protocol):

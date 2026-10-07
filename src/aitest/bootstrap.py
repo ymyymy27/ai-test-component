@@ -517,6 +517,7 @@ def assemble_workspace_core(
             model_credentials=model_credentials,
             material_projector=SafeMaterialProjector(),
             workspace_id=workspace.workspace_id,
+            record_protector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
             source_analysis=SourceAnalysisService(
                 reader=reader,
                 unit_of_work=unit_of_work,

@@ -133,6 +133,7 @@ from aitest.application.ports import (
     ControlledWriteProof,
     ModelPolicyConfirmationProof,
     ModelResponseStore,
+    RecordValueProtector,
 )
 from aitest.application.project.context import ContextGap
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
@@ -155,6 +156,8 @@ from aitest.application.project.serialization import (
     task_from_payload,
 )
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.record_write import RecordWriteIntent
+from aitest.contracts.commands import Command
 from aitest.contracts.prepared_run import (
     AssertionBasisEntry,
     AuthorizationRequirement,
@@ -913,6 +916,7 @@ class BUseCaseDependencies:
     controlled_writes: ControlledWriteService | None = None
     controlled_write_proof: ControlledWriteProof | None = None
     environment_resolution: EnvironmentResolutionService | None = None
+    record_protector: RecordValueProtector | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -937,6 +941,14 @@ class BUseCaseRegistry:
 
 def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     """按依赖构造 B 的动作表；每个 handler 都闭包了 `deps`。"""
+
+    def ordinary_intent(command: object) -> RecordWriteIntent:
+        if not isinstance(command, Command):
+            raise BUseCaseError("B_INVALID_PARAMETER", "record writes require the command contract")
+        return RecordWriteIntent.from_command(
+            command, reader=deps.reader, workspace_id=deps.workspace_id,
+            protector=deps.record_protector,
+        )
 
     def handle_analyze_project(command: object) -> Mapping[str, object]:
         if deps.source_analysis is None:
@@ -992,6 +1004,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_context(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         project_id = _command_project_id(command)
         raw = _command_parameters(command).get("project")
         payload = _as_mapping(raw, "project")
@@ -1006,6 +1023,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         staged = save_project(
             project,
             unit_of_work=deps.unit_of_work,
+            record_intent=record_intent,
             expected_revision=_command_expected_revision(command),
         )
         return _stage_result(
@@ -1050,6 +1068,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_environment(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         project_id = _command_project_id(command)
         raw = _command_parameters(command).get("environment")
         payload = _as_mapping(raw, "environment")
@@ -1084,6 +1107,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             environment,
             project_id=project_id,
             unit_of_work=deps.unit_of_work,
+            record_intent=record_intent,
             expected_revision=_command_expected_revision(command),
         )
         return _stage_result(
@@ -1093,6 +1117,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_dependency_graph(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         project_id = _command_project_id(command)
         raw = _command_parameters(command).get("dependency_graph")
         payload = _as_mapping(raw, "dependency_graph")
@@ -1110,6 +1139,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         staged = save_dependency_graph(
             graph,
             unit_of_work=deps.unit_of_work,
+            record_intent=record_intent,
             expected_revision=_command_expected_revision(command),
         )
         return _stage_result(
@@ -1119,6 +1149,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_acceptance(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
         raw = _required(parameters, "acceptance_scope")
@@ -1136,6 +1171,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             scope,
             project_id=project_id,
             unit_of_work=deps.unit_of_work,
+            record_intent=record_intent,
             expected_revision=_command_expected_revision(command),
         )
         return _stage_result(
@@ -1145,6 +1181,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_case(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "case"), "case")
@@ -1157,6 +1198,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             case,
             project_id=project_id,
             unit_of_work=deps.unit_of_work,
+            record_intent=record_intent,
             expected_revision=_command_expected_revision(command),
         )
         return _stage_result(
@@ -1166,6 +1208,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_task(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         _command_project_id(command)  # 写动作必须带项目范围
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "task"), "task")
@@ -1178,6 +1225,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         staged = save_task(
             task,
             unit_of_work=deps.unit_of_work,
+            record_intent=record_intent,
             expected_revision=_payload_revision_or_none(
                 command,
                 default=task.revision,
@@ -1191,6 +1239,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_save_delivery(command: object) -> Mapping[str, object]:
+        record_intent = ordinary_intent(command)
+        original = record_intent.original()
+        if original is not None:
+            return _stage_result(aggregate_kind=original.aggregate_kind,
+                                 record_id=original.record_id, revision=original.revision)
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
         payload = _as_mapping(_required(parameters, "delivery"), "delivery")
@@ -1208,6 +1261,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 delivery,
                 project_id=project_id,
                 unit_of_work=deps.unit_of_work,
+                record_intent=record_intent,
                 reader=deps.reader,
                 task_revision=_revision_of(parameters.get("task_revision", 1), "task_revision"),
                 expected_revision=_payload_revision_or_none(

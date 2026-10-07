@@ -129,6 +129,27 @@ class ExecutionAuthorizationProof(Protocol):
     ) -> None: ...
 
 
+class RecordIntentOpening(Protocol):
+    """Optional extension for narrow B transactions carrying a persistent business intent."""
+
+    def open_for_intent(self, project_id: str, intent_id: str) -> None: ...
+
+
+class ExactRecordStaging(Protocol):
+    """Stage frozen safe bytes; credential filtering that changes them rejects the write."""
+
+    def stage_record_exact(
+        self, *, aggregate_kind: str, record_id: str,
+        expected_revision: int | None, payload: Mapping[str, object],
+    ) -> int: ...
+
+
+class RecordValueProtector(Protocol):
+    """Apply the core's known credential guard before freezing record fingerprints."""
+
+    def __call__(self, value: Mapping[str, object]) -> Mapping[str, object]: ...
+
+
 class TransactionPort(Protocol):
     def begin(
         self,

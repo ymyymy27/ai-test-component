@@ -1,0 +1,53 @@
+FFFFFFF                                                                  [100%]
+================================== FAILURES ===================================
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_context] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='project project-registry: expected re...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='project project-registry: expected re...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='project project-registry: expected re...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_environment] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='environment env-local: expected revis...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='environment env-local: expected revis...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='environment env-local: expected revis...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_dependency_graph] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='dependency_set graph:project-registry...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='dependency_set graph:project-registry...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='dependency_set graph:project-registry...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_case] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='case case-1: expected revision 0 but ...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='case case-1: expected revision 0 but ...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='case case-1: expected revision 0 but ...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_acceptance] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='acceptance_scope scope-1: expected re...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='acceptance_scope scope-1: expected re...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='acceptance_scope scope-1: expected re...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_task] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='task task-1: expected revision None b...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='task task-1: expected revision None b...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='task task-1: expected revision None b...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+_ test_same_intent_new_request_and_restarted_entry_returns_original[save_delivery] _
+tests\unit\test_record_write_intents.py:63: in test_same_intent_new_request_and_restarted_entry_returns_original
+    assert replay.error is None, replay.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='delivery delivery-1: expected revisio...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='delivery delivery-1: expected revisio...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_REVISION_CONFLICT', message='delivery delivery-1: expected revisio...nt is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first') = Response(protocol_version='aitest.local/2.0', request_id='reconnected', instance_id='core-registry', workspace_id='ws-...t is 1', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='reconnected', intent_id='intent-first')).error
+=========================== short test summary info ===========================
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_context]
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_environment]
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_dependency_graph]
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_case]
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_acceptance]
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_task]
+FAILED tests/unit/test_record_write_intents.py::test_same_intent_new_request_and_restarted_entry_returns_original[save_delivery]
+7 failed in 2.06s

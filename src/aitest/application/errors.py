@@ -7,3 +7,7 @@ class CapabilityUnavailable(RuntimeError):
 
 class WorkspaceInUse(RuntimeError):
     code = "WORKSPACE_IN_USE"
+
+
+class PersistentIntentConflict(ValueError):
+    code = "INTENT_CONFLICT"

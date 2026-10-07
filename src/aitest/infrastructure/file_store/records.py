@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from aitest.application.errors import PersistentIntentConflict
 from aitest.application.ports import CommittedRecord, RecordQuery
 from aitest.contracts.events import Event
 from aitest.contracts.queries import QuerySpec
@@ -338,7 +339,7 @@ class FileRecordRepository:
                 previous["record_id"],
                 previous["project_id"],
             ) != (kind, record_id, project):
-                raise ValueError("intent conflict")
+                raise PersistentIntentConflict("intent conflict")
             revision = exact_counter(previous.get("revision"))
             if revision < 1:
                 raise ValueError("saved intent revision must be positive")
@@ -812,7 +813,7 @@ class FileRecordRepository:
         stored_intent = data.get("intents", {}).get(intent_id) if intent_id is not None else None
         if isinstance(stored_intent, dict):
             if stored_intent.get("fingerprint") != self._intent_fingerprint(pending, project_id):
-                raise ValueError("intent conflict")
+                raise PersistentIntentConflict("intent conflict")
             source_candidate = data
         else:
             source_candidate = prospective_source_authority(data, pending, project_id)

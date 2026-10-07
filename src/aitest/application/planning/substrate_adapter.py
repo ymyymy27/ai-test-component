@@ -104,7 +104,9 @@ _PAGE_LIMIT = 500
 class WorkspacePorts(Protocol):
     """装配点注入的**事务侧**最小能力面。"""
 
-    def begin(self, request_id: str, project_id: str) -> object: ...
+    def begin(
+        self, request_id: str, project_id: str, *, intent_id: str | None = None
+    ) -> object: ...
 
     def stage_record(
         self,
@@ -375,13 +377,24 @@ class PortsUnitOfWork:
     # ---------------------------------------------------------- 协议
 
     def open(self, project_id: str) -> None:
+        self._open(project_id, intent_id=None)
+
+    def open_for_intent(self, project_id: str, intent_id: str) -> None:
+        if not isinstance(intent_id, str) or not intent_id.strip():
+            raise ValueError("business intent requires a nonempty identity")
+        self._open(project_id, intent_id=intent_id)
+
+    def _open(self, project_id: str, *, intent_id: str | None) -> None:
         if self._project_id is not None:
             raise RuntimeError("transaction already open")
         if not project_id.strip():
             raise ValueError("project_id must not be empty")
         _require(self._ports, "begin")
         request_id = f"uow-{uuid4().hex}"
-        self._ports.begin(request_id, project_id)
+        if intent_id is None:
+            self._ports.begin(request_id, project_id)
+        else:
+            self._ports.begin(request_id, project_id, intent_id=intent_id)
         self._request_id = request_id
         self._project_id = project_id
         self._pending = 0
@@ -422,6 +435,19 @@ class PortsUnitOfWork:
             self._abandon()
             raise
 
+    def stage_record_exact(
+        self, *, aggregate_kind: AggregateKind, record_id: str,
+        expected_revision: int | None, payload: Mapping[str, object],
+    ) -> StagedRevision:
+        self._require_open()
+        try:
+            return self._stage(aggregate_kind=aggregate_kind, record_id=record_id,
+                               expected_revision=expected_revision, payload=payload,
+                               require_unchanged=True)
+        except BaseException:
+            self._abandon()
+            raise
+
     def _stage(
         self,
         *,
@@ -429,6 +455,7 @@ class PortsUnitOfWork:
         record_id: str,
         expected_revision: int | None,
         payload: Mapping[str, object],
+        require_unchanged: bool = False,
     ) -> StagedRevision:
         if not record_id.strip():
             raise ValueError("record_id must not be empty")
@@ -450,12 +477,18 @@ class PortsUnitOfWork:
                 current_revision=current,
             )
 
-        revision = self._ports.stage_record(
-            aggregate_kind=aggregate_kind,
-            record_id=record_id,
-            expected_revision=expected_revision,
-            payload=dict(payload),
-        )
+        if require_unchanged:
+            exact = getattr(self._ports, "stage_record_exact", None)
+            if not callable(exact):
+                raise SubstrateContractError("stage_record_exact", owner=_PORT_OWNER,
+                                             request=_PORT_REQUEST)
+            revision = exact(aggregate_kind=aggregate_kind, record_id=record_id,
+                             expected_revision=expected_revision, payload=dict(payload))
+        else:
+            revision = self._ports.stage_record(
+                aggregate_kind=aggregate_kind, record_id=record_id,
+                expected_revision=expected_revision, payload=dict(payload),
+            )
         if type(revision) is not int or revision != current + 1:
             raise SubstrateContractError(
                 "stage_record exact assigned revision", owner=_PORT_OWNER, request=_PORT_REQUEST

@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.59"
+contract_version: "1.60"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.60 普通保存动作的持久意图（2026-10-08）：save_context、默认隔离的save_environment、save_dependency_graph、save_case、save_acceptance、save_task、save_delivery须将准确业务记录与内部record_write_intent@1同一短事务发布。普通命令经ports.py声明的可选RecordIntentOpening.open_for_intent(project_id,intent_id)传入共同底座begin，不以传输号代替；旧内部transaction/open无意图调用保持兼容，缺该扩展的普通命令写入明确阻塞。原意图稳定标识由项目与intent_id派生，冻结动作、项目、绑定修订、目标、期望仓储修订和完整参数摘要；传输request_id不参与业务摘要。换传输号、换入口或重启后，同意图同输入准确回读原修订及正文摘要，不读取后来最新版本、不再次写入；同意图异输入/动作冲突。旧记录缺原意图不猜测补登记；回执、封套或原材料缺失/异常保持阻塞，不以存在记录代替证明。普通业务正文经ports.py声明的可选ExactRecordStaging.stage_record_exact能力保存；落盘前再次发现需过滤的字节时拒绝整个批次，不能先过滤正文却保存旧摘要，也不向用例/项目正文添加会干扰冻结对拍的指纹字段。旧内部stage_record的既有安全处理保持兼容；缺准确暂存能力的普通命令写入阻塞。输入及业务正文在计算摘要前经既有安全投影核对；需过滤的内容拒绝本次保存，不落下过滤前字节或伪造可重传摘要。回执列入永久business记录、正常清单/索引/备份；不扩大公开查询或上传白名单。人工绑定/发布/隔离豁免继续走原确认合同，其他模型、准备、执行动作沿各自持久合同，不能凭此增量开放全部MCP写入。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变。
 
 1.59 实际 Python 加载探针的 stdout 同样是不可信输入。取证仅接受一套完整、独立行的 BEGIN/END 边界；缺失、重复、反序、非UTF-8、重复JSON字段及非JSON数字均拒绝，不能取被测模块先打印的一套伪造协议充当实际来源。顶层字段、解释器/版本/路径、模块名及file/sha256/error按真实类型读取，不用str转换或把非法值置null；实际模块集合必须等于本次登记集合，且不允许重复登记。合法无文件模块仍为未知来源，不伪造文件；协议拒绝不证明源码不匹配或业务失败，保留待核实。该增量只修协议材料的歧义和类型守卫，不保证被测代码运行时自报事实可信，不代替冻结字节/入口/解释器核对、进程与输出预算、默认业务加载消费或真实AC。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变。
 
@@ -58,7 +60,7 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.59
+版本：1.60
 日期：2026-10-08
 状态：草案，待B/C/D确认  
 
