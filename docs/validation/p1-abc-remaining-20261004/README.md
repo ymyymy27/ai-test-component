@@ -196,6 +196,8 @@ uv build
 
 2026-10-08 当前指针核对：pointer-proof-before-original-store.txt为真正旧Store单项失败/7通过，重复目录核对；final-corrected最终388通过；mypy-final207/ruff-final、build及wheel-smoke记录最终源与安装制品8项。最初发布标记夹具错误和未生效旧类替换探针留在私有工程日志，不作为反例。见[简要根因](../../修改日志/袁/2026-10-08-当前指针一次清单核对.md)。
 
-2026-10-08 冻结执行快照：frozen-snapshot-before.txt为13失败/1合法通过，after为319通过；final-scoped为最终334通过（29专项），mypy-final208/ruff-final、build与wheel-smoke分别记录最终源码静态/构建和四模块安装字节、29项隔离验证。扩大保存运行修订组尚未完成，不计通过。见[精简根因](../../修改日志/袁/2026-10-08-执行事实准确冻结回读.md)。
+2026-10-08 冻结执行快照：frozen-snapshot-before.txt为13失败/1合法通过，after为319通过；final-scoped为最终334通过（29专项），mypy-final208/ruff-final、build与wheel-smoke分别记录最终源码静态/构建和四模块安装字节、29项隔离验证。扩大组frozen-snapshot-final.txt已完成371 passed（2282.64秒），与334重叠不相加。见[精简根因](../../修改日志/袁/2026-10-08-执行事实准确冻结回读.md)。
 
 2026-10-08 整用例来源组件：case-reuse-source-after为首组2通过，final为初版227；final-exact为最终227（160.40秒），增加原冻结环境/M/S及十种替换拒绝。mypy-exact209/ruff-exact、build-exact和wheel-smoke核对最终源码、安装新模块字节与两节点；早期类型/闭包绑定静态问题留私有日志。来源读取不授予R。见[根因与范围](../../修改日志/袁/2026-10-08-整用例准确来源映射.md)。
+
+2026-10-08 来源检查错误：source-failure-identity-before为7失败/6正确拒绝，final为最终241通过；mypy209/ruff-first、build及wheel-smoke记录最终模块与安装16项。来源verified与检查失败分开，未知/不匹配仍如实保存。见[精简根因](../../修改日志/袁/2026-10-08-源码检查失败与来源身份分离.md)。

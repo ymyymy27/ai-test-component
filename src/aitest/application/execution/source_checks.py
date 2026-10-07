@@ -170,9 +170,9 @@ def _derive_state(
         FailureClass.ENVIRONMENT_UNREACHABLE,
     }:
         return SourceVerificationState.BLOCKED, ("environment_unreachable",)
-    if observation.failure_class is FailureClass.SOURCE_ERROR:
-        return SourceVerificationState.MISMATCH, ("source_error",)
-    if observation.failure_class not in {None, FailureClass.PASSED}:
+    if observation.failure_class not in {
+        None, FailureClass.PASSED, FailureClass.SOURCE_ERROR,
+    }:
         return SourceVerificationState.UNKNOWN, ("tool_failure",)
     if not observation.observed_source_digest.strip():
         return SourceVerificationState.UNVERIFIED, ("source_digest_missing",)

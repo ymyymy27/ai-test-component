@@ -1,0 +1,60 @@
+FFFFFFF......                                                            [100%]
+================================== FAILURES ===================================
+_ test_actual_code_failure_cannot_invent_a_different_source_identity[syntax] __
+tests\unit\test_source_failure_identity.py:37: in test_actual_code_failure_cannot_invent_a_different_source_identity
+    assert result.verification.state is SourceVerificationState.VERIFIED
+E   assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.VERIFIED: 'verified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 584665, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 584665, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...\\materialized\\module.py", argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.VERIFIED: 'verified'> = SourceVerificationState.VERIFIED
+_ test_actual_code_failure_cannot_invent_a_different_source_identity[applicable_build] _
+tests\unit\test_source_failure_identity.py:37: in test_actual_code_failure_cannot_invent_a_different_source_identity
+    assert result.verification.state is SourceVerificationState.VERIFIED
+E   assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.VERIFIED: 'verified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 683224, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 683224, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...\\materialized\\module.py", argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.VERIFIED: 'verified'> = SourceVerificationState.VERIFIED
+__ test_actual_code_failure_cannot_invent_a_different_source_identity[load] ___
+tests\unit\test_source_failure_identity.py:37: in test_actual_code_failure_cannot_invent_a_different_source_identity
+    assert result.verification.state is SourceVerificationState.VERIFIED
+E   assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.VERIFIED: 'verified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 687568, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 687568, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...\\materialized\\module.py", argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.VERIFIED: 'verified'> = SourceVerificationState.VERIFIED
+_ test_actual_code_failure_cannot_invent_a_different_source_identity[minimal_start] _
+tests\unit\test_source_failure_identity.py:37: in test_actual_code_failure_cannot_invent_a_different_source_identity
+    assert result.verification.state is SourceVerificationState.VERIFIED
+E   assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.VERIFIED: 'verified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 692025, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 692025, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...\\materialized\\module.py", argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.VERIFIED: 'verified'> = SourceVerificationState.VERIFIED
+_ test_code_failure_does_not_hide_missing_actual_source_proof[observed_entry_ref] _
+tests\unit\test_source_failure_identity.py:49: in test_code_failure_does_not_hide_missing_actual_source_proof
+    assert result.verification.state is SourceVerificationState.UNVERIFIED
+E   AssertionError: assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.UNVERIFIED: 'unverified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 696110, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 696110, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...n_checks'>, entry_ref=None, argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.UNVERIFIED: 'unverified'> = SourceVerificationState.UNVERIFIED
+_ test_code_failure_does_not_hide_missing_actual_source_proof[observed_interpreter_ref] _
+tests\unit\test_source_failure_identity.py:49: in test_code_failure_does_not_hide_missing_actual_source_proof
+    assert result.verification.state is SourceVerificationState.UNVERIFIED
+E   assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.UNVERIFIED: 'unverified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 700446, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 700446, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...\\materialized\\module.py", argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.UNVERIFIED: 'unverified'> = SourceVerificationState.UNVERIFIED
+_ test_code_failure_does_not_hide_missing_actual_source_proof[observed_import_ref] _
+tests\unit\test_source_failure_identity.py:49: in test_code_failure_does_not_hide_missing_actual_source_proof
+    assert result.verification.state is SourceVerificationState.UNVERIFIED
+E   assert <SourceVerificationState.MISMATCH: 'mismatch'> is <SourceVerificationState.UNVERIFIED: 'unverified'>
+E    +  where <SourceVerificationState.MISMATCH: 'mismatch'> = ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 705490, tzinfo=datetime.timezone.utc)).state
+E    +    where ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_revision_ref=PlanRevisionRef(revi...riginal-syntax-output',), verified_at=datetime.datetime(2026, 10, 7, 19, 47, 28, 705490, tzinfo=datetime.timezone.utc)) = SourceCheckOutcome(verification=ExecutionSourceVerification(verification_id='verify-1', project_id='project-1', plan_r...\\materialized\\module.py", argument_refs=(), raw_output_evidence_ref=None, evidence_refs=('original-syntax-output',))).verification
+E    +  and   <SourceVerificationState.UNVERIFIED: 'unverified'> = SourceVerificationState.UNVERIFIED
+=========================== short test summary info ===========================
+FAILED tests/unit/test_source_failure_identity.py::test_actual_code_failure_cannot_invent_a_different_source_identity[syntax]
+FAILED tests/unit/test_source_failure_identity.py::test_actual_code_failure_cannot_invent_a_different_source_identity[applicable_build]
+FAILED tests/unit/test_source_failure_identity.py::test_actual_code_failure_cannot_invent_a_different_source_identity[load]
+FAILED tests/unit/test_source_failure_identity.py::test_actual_code_failure_cannot_invent_a_different_source_identity[minimal_start]
+FAILED tests/unit/test_source_failure_identity.py::test_code_failure_does_not_hide_missing_actual_source_proof[observed_entry_ref]
+FAILED tests/unit/test_source_failure_identity.py::test_code_failure_does_not_hide_missing_actual_source_proof[observed_interpreter_ref]
+FAILED tests/unit/test_source_failure_identity.py::test_code_failure_does_not_hide_missing_actual_source_proof[observed_import_ref]
+7 failed, 6 passed in 23.32s

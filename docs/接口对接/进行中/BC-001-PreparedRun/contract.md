@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.43"
+contract_version: "0.44"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,11 +16,11 @@ next_action: 补实际加载与业务核验/复用及真实宿主后台验收，
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.43（2026-10-08 补准确保存事实派生复用撤销；实施与验证另行登记）
+版本：0.44（2026-10-08 区分实际来源对应与源码检查失败；实施与验证另行登记）
 日期：2026-10-08
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
-状态：**旧版签署与交接历史保留；本次新增合同已由负责人裁定，默认消费与真实环境验收仍在进行**
+状态：**既有签署与裁定历史保留；0.44增量评审中，实现与真实环境验收分开登记**
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`；B 侧本轮分支 `feature/contract-b-c-isolation-mode`
 
@@ -956,3 +956,5 @@ R资格仍由领域规则唯一判断，来源选择与完整资格尚需后续�
 同一runner的复用候选只能绑定一个project/run，不能串用到另一运行；旧previous_attempt_ids_by_step关键字保留兼容，但其提示不能制造独立来源失效。返回的CaseReuseInvalidation只是撤销依据，未出现撤销不等于资格通过；CaseReuseBasis仍只表示候选。跨运行来源目录、准确历史快照/输入/源码/环境动态状态/规则/确认/证据的完整资格与R选择持久化仍为后续工作。
 
 终态恢复回读权威记录后，若恢复结果与权威终态完全相同但检查点副本陈旧，只修复副本；不重复提交权威记录或清空原Run结果/等级。副本保存失败明确传播，重试仍读原权威材料，不执行新业务。
+
+2026-10-08（0.44）：ExecutionSourceVerification只说明已观察范围的实际来源与冻结绑定是否对应。源码检查返回source_error仍保留原失败、原输出与证据；不凭该失败标签推断来源mismatch。只有摘要/实际路径或解释器不符才形成mismatch；缺实际入口/解释器/必要加载证明仍unverified，工具/环境不可核对仍unknown/blocked。来源verified本身不增加E/V/R或业务通过；SourceCheckResult.failure_class=source_error仍保留检查失败，有效失败按既有领域合同计算，不能从这一标签单独重算统计或宣称完整验收。
