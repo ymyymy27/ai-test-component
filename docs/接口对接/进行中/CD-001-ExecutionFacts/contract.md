@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.11"
+contract_version: "1.12"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -18,7 +18,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 版本：1.7
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.11增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.12增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -247,3 +247,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.10 复用依据确认预览（2026-10-08）：准确受控确认消费及aitest.case-reuse-inspection/1.1字段唯一引用CORE-001 1.71。D可展示两侧派生确认状态及匹配准确引用；准备/冻结confirmed标签不能作为依据，旧无受控来源仍待核实。已确认仍不代表独立核验、业务通过或R/V；公开ExecutionFacts/Schema不变，完整选择/D消费和真实对拍继续，reviewing/partial/not_run保持。
 
 1.11 stdio MCP只读核对（2026-10-08）：aitest_inspect_case_reuse沿用CORE-001 1.72所选项目/绑定、准确引用及漂移/待核实守卫，原样转交核心核对DTO，不产生新的ExecutionFacts、R/V或选择。D完整资格/选择消费及真实宿主对拍继续；公开DTO/生成Schema及reviewing/partial/not_run不变。
+
+1.12 历史规范独立查询来源（2026-10-08）：按CORE-001 1.73共同只读材料派生核对business-query-*的准入、准确原/结果快照、对象与证据引用；inline核验及证据须与原材料一致，源码身份绑定准确准备，全部引证属于原Attempt。缺证明/错观察/错误归属阻塞该来源，不以可读对象授予R/V；不重新查询或改写历史。公开DTO/生成Schema、FR/AC和reviewing/partial/not_run保持，完整资格/选择及D实际消费继续。

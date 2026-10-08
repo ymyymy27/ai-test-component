@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.72"
+contract_version: "1.73"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.73 历史独立查询准确证明（2026-10-08）：规范business-query-*来源除可读对象外，须经同一只读SavedBusinessQueryReader核对稳定项目/工作空间/意图编号、准入@1、准确原快照、查询结果@1、实际JSON字节、派生观察及evidence_ref@1；原意图回读与历史来源不得各算一套观察。选定源Attempt的VerificationFact和查询EvidenceFact须与原保存投影逐项一致，原源码身份绑定其准确准备，核验所引证据在该源快照中完整。缺证明/错投影/错归属/丢失材料阻塞规范来源读取，不能因对象存在升级。读取不持事务、不要求模型或查询适配器、不重新查询；只证明原观察可核对，不证明当前动态资格、必要核验覆盖或R/V，未纳入该规范的旧/外部来源仍保留原展示及资格缺口，不猜修订或迁移。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变。
 
 1.72 stdio MCP复用核对读入口（2026-10-08）：核心协商支持inspect_case_reuse时，所选项目/绑定上下文新增只读工具aitest_inspect_case_reuse。输入严格为case_id、source_run_id/source_snapshot、target_run_id/target_snapshot，引用沿用SnapshotContentRef，不允许覆盖project/binding、资格声明或其他字段；核心命令target固定case_id，每次核对生成新request，无业务intent/授权。绑定读取前后均须保持准确修订；漂移/回执失联保留待核实，不自动重传或派生成功。工具原样返回同一核心1.71核对结果，旧协议保留text回执，支持structuredContent的版本追加同一DTO，不重算确认/结论，不创建Attempt/R/V/选择。缺该动作协商时不暴露/派发，既有读/保存工具独立保留。公开Command/Response及生成Schema不变，真实Trae/D选择与完整资格继续，FR/AC及reviewing/partial/not_run保持。
 

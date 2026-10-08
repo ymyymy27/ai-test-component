@@ -1,0 +1,12 @@
+{
+  "baseline_commit": "d56ddb7",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/application/evidence/query_materials.py": "854eefa77b62daa874ea57ff1902c160f614c3876baf03e7f9e255faec470ff7",
+    "src/aitest/application/evidence/saved_verification.py": "ab0417d3c5d9c57db3de0eb4ed9cbc0d32d89d95b97bf5729c1ece40556a260f",
+    "src/aitest/application/execution/reuse_material.py": "92f62536201b23801acecf8c515ad2bda98db4a9de8b028653e5c36340c2da41",
+    "tests/unit/test_reuse_business_query_provenance.py": "9c1c8bacc0b2a1c58ef363de5b05d1ca829dc623236be9bd370166f0bfe23cce",
+    "tests/unit/test_default_business_verification.py": "8bfc956b3e59979ea685486f0022cdb1310c636813eb690c1ebe2959b5fc6bb1"
+  },
+  "scope": "Actual default Python/file-query/history chain; synthetic authority/source fixture. No real Trae AC or current R."
+}

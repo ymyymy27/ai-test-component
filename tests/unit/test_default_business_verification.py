@@ -4,6 +4,9 @@ import json
 import sys
 from dataclasses import replace
 
+from aitest.application.execution.reuse_sources import CaseReuseSourceReader
+from aitest.application.execution.runtime_revision import SnapshotContentRef
+from aitest.application.planning.substrate_adapter import PortsRecordReader
 from aitest.application.ports import VerificationRequest
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.execution_facts import ExecutionFacts
@@ -11,6 +14,7 @@ from aitest.domain.execution.runs import SideEffectClass
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.adapters.execution.verification import BusinessVerificationAdapter
 from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
+from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
@@ -121,6 +125,19 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
     assert second.error is None, second.error
     assert second.result["verification"]["observation"] == "mismatched" and query.calls == 2
     assert len(second.result["execution_facts"]["verifications"]) == 2
+    # Both actual independent observations are readable through the whole-case
+    # historic source path, without another query or changes to execution facts.
+    source_facts = ExecutionFacts.model_validate(second.result["execution_facts"])
+    selected_case = next(item.case_id for item in source_facts.steps
+                         if item.step_id == action.attempt.step_id)
+    sequence = core.unit_of_work.current_commit_sequence()
+    selected = CaseReuseSourceReader(
+        core.unit_of_work.repo, PortsRecordReader(core.unit_of_work.repo),
+        objects=FileObjectStore(core.workspace.root), spool=FileSpoolStore(core.workspace.root),
+    ).read(project_id=inputs.project_id, run_id=source_facts.run_id, case_id=selected_case,
+           reference=SnapshotContentRef.of(source_facts))
+    assert selected.facts == source_facts and query.calls == 2
+    assert core.unit_of_work.current_commit_sequence() == sequence
     root = core.workspace.root
     core.lifetime_lock.release()
     reopened = assemble_workspace_core(root, instance_id="query-reopened-core")
