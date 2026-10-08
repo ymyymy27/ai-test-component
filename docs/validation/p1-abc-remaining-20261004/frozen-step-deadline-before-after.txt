@@ -1,0 +1,45 @@
+Frozen environment step deadline — C-12 admission guard
+=======================================================
+
+Baseline: d7b821b (branch fix). Changed source:
+  src/aitest/application/execution/authorization.py
+    _frozen_step_deadline_ms / _require_frozen_step_deadline, called from prepare()
+New regression in tests/unit/test_execution_authorization_origin.py:
+  test_resolved_execution_with_the_frozen_deadline_is_accepted
+  test_resolved_execution_cannot_use_an_unfrozen_step_deadline[None|1|30000|999000]
+Fixture correction: the shared `authoritative` environment record now declares
+step_timeout_seconds=120 and FixtureActionResolver sets attempt/request timeout_ms=120000
+(ResolvedExecutionAction requires attempt.timeout_ms == request.timeout_ms).
+
+Why full access: assembling a real workspace (migration/canonical publication) fails under the
+session sandbox with PermissionError [WinError 5]; these suites only run with the real user
+token. No session shim was used in these runs.
+
+A. Counterexample and fix (command: pytest tests/unit/test_execution_authorization_origin.py
+   -o addopts= -q --tb=line -p no:cacheprovider -k "frozen or unfrozen")
+
+   baseline source (byte-exact pre-change copy in .runtime/baseline-src, run with
+   PYTHONPATH=<baseline>/src and -o pythonpath=):
+       4 failed, 1 passed, 17 deselected in 580.23s
+       every failure: "Failed: DID NOT RAISE ApprovalRequired"
+       -> prepare() accepted an execution request whose deadline did not come from the frozen
+          environment (None, 1 ms, 30 s, 999 s vs the declared 120 s)
+   changed source:
+       5 passed, 17 deselected in 483.82s
+
+B. Regression suite (5 files: test_authoritative_preparation, test_execution_authorization_origin,
+   test_default_execution_authorization, test_initial_run_registration,
+   test_unused_authorization_invalidation) was started under full access but did not finish
+   within 50 minutes (the real file-transaction suites are very slow on this host and the run
+   was unbuffered), so it was cancelled. No pass number is reported for it and it is not
+   substituted by older results. What is verified instead:
+   - no test in the two fixture-edited files asserts on the environment payload content or
+     digest; FixtureEnvironmentResolver's resolved EnvironmentRefFact does not depend on
+     step_timeout_seconds, so the added declaration cannot change resolved identities;
+   - ruff check src tests -> All checks passed; mypy -> no issues in 223 source files.
+
+C. Boundary: production assembly still injects no trusted ExecutionActionResolver
+   (bootstrap.assemble_workspace_core execution_action_resolver=None), so this guard is only
+   active on paths that configure a resolver. The default real step deadline, real host
+   interaction and long-step acceptance remain unimplemented; C-12 stays open and the 35 AC
+   remain unverified.

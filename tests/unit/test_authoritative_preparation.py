@@ -104,6 +104,7 @@ def authoritative(tmp_path):
             "isolation_mode": "venv",
             "interpreter_requirement": "Python 3.13",
             "dependency_declaration": "synthetic-fixture-dependencies",
+            "step_timeout_seconds": 120,
         },
     )
     unit.commit("fixture-material-request")

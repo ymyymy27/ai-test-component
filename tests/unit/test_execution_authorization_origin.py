@@ -42,6 +42,8 @@ class FixtureActionResolver:
             expected_plan_revision_ref=run.plan_revision_ref,
             environment_ref=run.environment_ref,
             materialized_snapshot_ref=prepared["snapshot"]["source_snapshot_id"],
+            # 冻结环境声明 step_timeout_seconds=120，解析出的请求必须使用同一截止。
+            timeout_ms=120_000,
         )
         attempt = replace(
             _attempt(),
@@ -51,6 +53,7 @@ class FixtureActionResolver:
             step_revision_ref=step.step_revision_ref,
             authorization_ref=authorization,
             expected_plan_revision_ref=run.plan_revision_ref,
+            timeout_ms=120_000,
         )
         from aitest.contracts.prepared_run import EnvironmentResolutionFact
 
@@ -322,3 +325,51 @@ def test_occupation_proof_requires_exact_integer_revisions_and_closed_fields(cha
             attempt=attempt,
             proof=proof | change,
         )
+
+
+# ------------------------------- C-12：冻结环境的步骤截止必须被执行请求使用
+
+
+class _DeadlineResolver(FixtureActionResolver):
+    """显式返回未冻结截止的解析器，用于证明准入点不再接受它。"""
+
+    def __init__(self, unit, timeout_ms):
+        super().__init__(unit)
+        self._timeout_ms = timeout_ms
+
+    def resolve(self, **kwargs):
+        action = super().resolve(**kwargs)
+        return replace(
+            action,
+            attempt=replace(action.attempt, timeout_ms=self._timeout_ms),
+            request=replace(action.request, timeout_ms=self._timeout_ms),
+        )
+
+
+def test_resolved_execution_with_the_frozen_deadline_is_accepted(resolved):
+    """冻结环境声明 step_timeout_seconds=120 ⇒ 请求使用 120000ms 并成功解析。"""
+    _, _, _, service, parameters, action = resolved
+    assert action.request.timeout_ms == 120_000
+    assert parameters["record_revision"] == 1
+    assert service.action_resolver.calls == 1
+
+
+@pytest.mark.parametrize("unfrozen", [None, 1, 30_000, 999_000])
+def test_resolved_execution_cannot_use_an_unfrozen_step_deadline(authoritative, unfrozen):
+    """环境已冻结步骤截止时，解析器不能自报另一个（或没有）截止。"""
+    from aitest.domain.approvals import ApprovalRequired
+
+    core, inputs, _ = authoritative
+    facts = register(core, prepare(core, inputs).result)
+    service = core.execution_authorizations
+    service.action_resolver = _DeadlineResolver(core.unit_of_work, unfrozen)
+    with pytest.raises(ApprovalRequired, match="frozen step timeout"):
+        service.prepare(
+            project_id=inputs.project_id,
+            run_id=facts.run_id,
+            step_id=facts.steps[0].step_id,
+            intent_id="unfrozen-deadline-" + str(unfrozen),
+            request_id="resolve-action",
+        )
+    assert service.action_resolver.calls == 1
+

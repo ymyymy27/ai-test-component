@@ -206,6 +206,43 @@ class ExecutionAuthorizationService:
             raise ApprovalRequired("authorization warehouse revision cannot be verified")
         return result
 
+    def _frozen_step_deadline_ms(self, prepared: PreparedRun) -> int | None:
+        """冻结环境声明的步骤截止（毫秒）；声明缺失是可读历史，但不是新的执行依据。"""
+        environment = prepared.environment
+        try:
+            record = self.records.read(
+                aggregate_kind="environment",
+                record_id=environment.environment_id,
+                revision=environment.revision,
+            )
+        except (OSError, ValueError, KeyError) as error:
+            raise ApprovalRequired("frozen environment record is unreadable") from error
+        payload = getattr(record, "payload", None)
+        if (
+            getattr(record, "aggregate_kind", None),
+            getattr(record, "record_id", None),
+            getattr(record, "revision", None),
+        ) != ("environment", environment.environment_id, environment.revision) or not isinstance(
+            payload, Mapping
+        ):
+            raise ApprovalRequired("frozen environment record envelope differs")
+        declared = payload.get("step_timeout_seconds")
+        if declared is None:
+            return None
+        if type(declared) is not int or declared <= 0:
+            raise ApprovalRequired("frozen environment step timeout cannot be verified")
+        return declared * 1000
+
+    def _require_frozen_step_deadline(
+        self, prepared: PreparedRun, resolved: ResolvedExecutionAction
+    ) -> None:
+        """执行请求必须使用冻结环境声明的步骤截止，不能自报未冻结的截止。"""
+        deadline = self._frozen_step_deadline_ms(prepared)
+        if resolved.request.timeout_ms != deadline:
+            raise ApprovalRequired(
+                "resolved execution must use the frozen step timeout, not an unfrozen deadline"
+            )
+
     def _read(self, project: str, identity: str, revision: int) -> dict[str, Any]:
         raw = self.resolver.materials._read("execution_authorization", identity, revision, project)
         if raw.get("workspace_id") != self.workspace_id:
@@ -420,6 +457,7 @@ class ExecutionAuthorizationService:
             or resolved.attempt.expected_plan_revision_ref != run.plan_revision_ref
         ):
             raise ApprovalRequired("registered resolver returned another frozen execution basis")
+        self._require_frozen_step_deadline(prepared, resolved)
         authorization = replace(
             resolved.request.authorization_ref,
             authorization_id=_identity(
