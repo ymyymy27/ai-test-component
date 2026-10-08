@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.76"
+contract_version: "1.77"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.77 模型端口实际截止（2026-10-08）：沿AB-0011.33的唯一传输/响应合同，默认模型适配器复用已有直接HTTP总截止和有界framing读取；仅完整、准确200与严格JSON草稿作为OK，凭据逐次复核、错误材料仍落盘前过滤。草稿不产生业务结论；默认/历史响应保存与原意图回读规则保持，真实供应方/Trae验收另记。
 
 1.76 HTTP单次独立核验兼容（2026-10-08）：HttpBusinessQueryReader同时实现既有ReadOnlyBusinessQueryPort和DeadlineBusinessQueryPort。可信冻结spec的single_query_timeout_ms为真实正整数毫秒，默认10000、上限沿1.74领域常量；immediate调用仅进行一次独立GET，转换为该实际单调截止后复用同一URL/凭据/完整JSON/同对象守卫，不重试。轮询仍完全使用原请求传来的总截止，不被单次配置重置或替换。单次超时返回既有query_error缺口，不能编造轮询时间线或升级验证；保存/重启仍回原1.0材料。公开DTO/Schema/FR/AC及reviewing/partial/not_run保持。
 

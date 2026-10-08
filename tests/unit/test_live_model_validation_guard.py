@@ -16,9 +16,29 @@ from aitest.infrastructure.adapters.model import HttpResponse
 from aitest.infrastructure.credentials import EnvironmentSecretProvider, SecretManager
 from scripts.validate_deepseek import ValidationBlocked, _revision, _saved_policy, run
 from tests.support.controlled_model_policy import controlled_policy_confirm
+from tests.unit.test_http_transport_limits import server
 from tests.unit.test_model_orchestration import PROJECT_ID, _policy
 from tests.unit.test_model_policy_approval import HUMAN, policy_command
 from tests.unit.test_model_policy_approval import policy_core as policy_core
+
+
+@pytest.fixture(params=["stub", "actual_http"])
+def model_http_target(request):
+    if request.param == "stub":
+        yield None, []
+        return
+
+    def reply(connection, stopped):
+        body = json.dumps({
+            "id": "actual-local-model-response",
+            "choices": [{"message": {"content": "合成草稿 synthetic-live-model-guard-secret"}}],
+        }).encode()
+        connection.sendall(
+            f"HTTP/1.1 200 OK\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body
+        )
+
+    with server(reply) as value:
+        yield value
 
 
 def test_fresh_harness_cannot_create_confirmation_workspace_or_transport(monkeypatch):
@@ -68,8 +88,9 @@ def test_legacy_self_signed_policy_cannot_pass_harness_preflight(policy_core):
 
 
 def test_existing_controlled_workspace_sends_once_then_replays_without_transport(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, model_http_target
 ):
+    url, actual_calls = model_http_target
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.setenv("AITEST_LIVE_GUARD_FIXTURE", "synthetic-live-model-guard-secret")
     root = tmp_path / "aitest" / "validation" / "saved-guard"
@@ -108,6 +129,8 @@ def test_existing_controlled_workspace_sends_once_then_replays_without_transport
         )
         assert saved.error is None
         policy = replace(_policy(), project_id=project_id)
+        if url is not None:
+            policy = replace(policy, endpoint=replace(policy.endpoint, address=url.rstrip("/")))
         command = Command(
             request_id="live-guard-policy",
             intent_id="live-guard-policy-intent",
@@ -135,11 +158,23 @@ def test_existing_controlled_workspace_sends_once_then_replays_without_transport
             ).encode(),
         )
 
-    monkeypatch.setattr("scripts.validate_deepseek.UrllibTransport.post", post)
+    if url is None:
+        monkeypatch.setattr("scripts.validate_deepseek.UrllibTransport.post", post)
     first = run("AITEST_LIVE_GUARD_FIXTURE", root)
     assert first["status"] == "passed", first
     assert len(first["calls_this_invocation"]) == 1
+    if url is not None:
+        assert len(actual_calls) == 1
+        assert actual_calls[0].startswith(b"POST /chat/completions ")
+        bodies.append(json.loads(actual_calls[0].partition(b"\r\n\r\n")[2]))
     assert bodies[0]["model"] == policy.endpoint.model_id
     second = run("AITEST_LIVE_GUARD_FIXTURE", root)
     assert second["status"] == "passed" and second["calls_this_invocation"] == []
     assert first["draft"] == second["draft"] and len(bodies) == 1
+    if url is not None:
+        assert len(actual_calls) == 1
+        assert "synthetic-live-model-guard-secret" not in json.dumps(first)
+        assert all(
+            b"synthetic-live-model-guard-secret" not in path.read_bytes()
+            for path in root.rglob("*") if path.is_file()
+        )

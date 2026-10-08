@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.32"
+contract_version: "1.33"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A
 next_action: 默认来源、准备快照与受控依据确认已有组件证据；未发布响应补登记已有受控证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
 ---
+
+1.33 模型传输总截止与完整响应（2026-10-08）：默认ModelProvider沿一次显式端点POST的实际单调总截止，覆盖DNS、连接、TLS、发送、响应头及正文；不使用隐式代理、不重试、不跳转。响应默认最多4MiB，可信传输装配可冻结不超过4MiB的更小预算，成功/错误状态都不得无界读取。既有HttpResponse(status, body)构造兼容，新增body_complete/error_class只记录实际传输完整性；截断、超限、慢响应及歧义framing不能成为有效草稿。只有完整200及严格UTF-8/唯一字段/有限JSON数值、准确choices[0].message.content字符串和可选非空字符串id才返回草稿；其他状态保留失败分类，不回显过滤前材料。逐次发送复核model用途、准确凭据引用、未清空及头字段安全；失败仍保留原响应/意图编排语义，不重发或改结论。公共ModelCall/Result签名和Schema、FR/AC不变；真实供应方故障及人工产品验收仍须另验，reviewing/partial/not_run保持。
 
 1.32 不可变材料的缓存与实际JSON字节保持一致：写入缓存采用规范落盘字节的解码结果，不能保留调用方原嵌套对象/tuple等与落盘数组不同的形态；读取/遍历的返回值不得暴露可修改内部缓存的引用。修改原输入、准确读取结果或遍历结果不应改变同一内容身份的历史事实，重开读取须得到同样材料。权威/有序树节点读取拒绝任意层级重复JSON字段及NaN/Infinity/-Infinity，不能取最后字段或非JSON数值充当成功事实。权威节点沿用完整清单单文件16MiB上限，有序节点沿用2MiB上限；读取至多上限加一字节判超限，写入及已有文件核对也遵守同预算，不能只在stat后无界read_bytes。摘要/路径/节点形状与业务字段守卫继续分别核对，不以缓存隔离代替实际来源或全历史巡检。合法旧JSON、命名、Schema、索引/仓储格式不迁移；格式等价的Python容器以实际JSON语义回读。FR/AC、reviewing/partial/not_run不变。
 

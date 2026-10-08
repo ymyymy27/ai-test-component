@@ -1,6 +1,6 @@
 """模型响应和错误归一，不重试或决定通过。
 
-通过可替换的传输层（默认 urllib HTTPS）发送 OpenAI 兼容的
+通过可替换的传输层（默认有界直接 HTTP）发送 OpenAI 兼容的
 ``/chat/completions`` 请求：
 
 - 请求体只含**已投影**材料，凭据只放在 Authorization 头；
@@ -12,8 +12,8 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
@@ -27,7 +27,17 @@ from aitest.application.ports import (
 )
 from aitest.contracts.redaction import scrub_secret_text
 from aitest.contracts.secrets import ResolvedSecret
-from aitest.infrastructure.security import KnownSecretRegistry, scrub_text
+from aitest.domain.json_material import decode_json
+from aitest.infrastructure.adapters.execution.http import HttpRequestSpec
+from aitest.infrastructure.adapters.execution.http_transport import exchange
+from aitest.infrastructure.security import (
+    KnownSecretRegistry,
+    UnsafeMaterialError,
+    guard_value,
+    scrub_text,
+)
+
+_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
 
 class ModelAdapterError(RuntimeError):
@@ -60,6 +70,8 @@ class ModelCredentialResolver:
 class HttpResponse:
     status: int
     body: bytes
+    body_complete: bool = True
+    error_class: str | None = None
 
 
 class HttpTransport(Protocol):
@@ -68,33 +80,37 @@ class HttpTransport(Protocol):
     ) -> HttpResponse: ...
 
 
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """拒绝一切自动重定向。
-
-    默认 HTTPRedirectHandler 会跟随 3xx 并把 Authorization 头转发到未确认
-    的另一域（A-13）。返回 None 后 urllib 对 3xx 直接抛 HTTPError，由上层
-    归类；需要重定向时必须重新确认 endpoint 后发起新请求。
-    """
-
-    def redirect_request(self, *args: object, **kwargs: object) -> None:
-        return None
-
-
 class UrllibTransport:
-    """urllib 传输；网络错误以原始异常抛出，由上层归类。"""
+    """兼容既有装配名；直接 POST，实际总截止且完整/有界读取。"""
 
-    def __init__(self) -> None:
-        self._opener = urllib.request.build_opener(_NoRedirectHandler())
+    def __init__(self, *, max_response_bytes: int = _MAX_RESPONSE_BYTES) -> None:
+        # Reuse the transport's one wire/budget validator, including actual scalar types.
+        HttpRequestSpec(
+            "model-budget", "POST", "https://example.invalid",
+            max_response_bytes=max_response_bytes,
+        )
+        if max_response_bytes > _MAX_RESPONSE_BYTES:
+            raise ValueError("model response budget cannot exceed 4MiB")
+        self._max_response_bytes = max_response_bytes
 
     def post(
         self, url: str, *, headers: dict[str, str], body: bytes, timeout_seconds: float
     ) -> HttpResponse:
-        request = urllib.request.Request(url, data=body, headers=headers, method="POST")
-        try:
-            with self._opener.open(request, timeout=timeout_seconds) as response:  # noqa: S310
-                return HttpResponse(status=response.status, body=response.read())
-        except urllib.error.HTTPError as error:
-            return HttpResponse(status=error.code, body=error.read())
+        request = HttpRequestSpec(
+            "model-request", "POST", url,
+            headers=tuple(headers.items()), body=body, timeout_seconds=timeout_seconds,
+            max_response_bytes=self._max_response_bytes,
+        )
+        result = exchange(
+            method=request.method, url=request.url, headers=request.headers, body=request.body,
+            expires=time.monotonic() + request.timeout_seconds,
+            max_response_bytes=request.max_response_bytes,
+        )
+        # Complete HTTP error/redirect responses keep their existing status classification.
+        error_class = result.error_class
+        if result.body_complete and error_class in {"http_status", "redirect_blocked"}:
+            error_class = None
+        return HttpResponse(result.status or 0, result.body, result.body_complete, error_class)
 
 
 def _joined_prompt(request: ModelCall) -> str:
@@ -117,6 +133,7 @@ class HttpModelProvider:
         self._endpoint = endpoint.rstrip("/")
         self._transport = transport or UrllibTransport()
         self._secret = secret
+        self._secret_reference = secret.reference if secret is not None else None
         self._on_result = on_result
         self._registry = KnownSecretRegistry()
         if secret is not None:
@@ -140,6 +157,17 @@ class HttpModelProvider:
                 error_kind="endpoint_mismatch",
                 error_detail=("策略确认端点与已配置提供方端点不一致，已拒绝发送请求"),
             )
+        if (
+            self._secret.purpose != "model"
+            or not self._secret_reference
+            or self._secret.reference != self._secret_reference
+            or not self._secret.reveal()
+        ):
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind="auth",
+                error_detail="模型凭据用途、引用或可用状态无法核对",
+            )
+        self._registry.register(self._secret.reveal())
         url = confirmed_endpoint + self._CHAT_PATH
         body = json.dumps(
             {
@@ -152,6 +180,16 @@ class HttpModelProvider:
             "Accept": "application/json",
             "Authorization": f"Bearer {self._secret.reveal()}",
         }
+        try:
+            HttpRequestSpec(
+                "model-request", "POST", url, headers=tuple(headers.items()), body=body,
+                timeout_seconds=request.timeout_seconds, max_response_bytes=_MAX_RESPONSE_BYTES,
+            )
+        except (ValueError, UnicodeError):
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind="request_invalid",
+                error_detail="模型请求目标、头字段或时限不合法，已拒绝发送",
+            )
         try:
             response = self._transport.post(
                 url,
@@ -166,6 +204,35 @@ class HttpModelProvider:
                 error_detail=self._safe_detail(str(error)),
             )
 
+        if (
+            type(response.status) is not int
+            or not isinstance(response.body, bytes)
+            or type(response.body_complete) is not bool
+        ):
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind="structure",
+                error_detail="模型传输未提供准确响应事实",
+            )
+        if not response.body_complete or response.error_class is not None:
+            kind = "structure"
+            if response.error_class in {"timeout", "network"}:
+                kind = "connectivity"
+            elif response.error_class == "response_too_large":
+                kind = "response_limit"
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind=kind,
+                error_detail="模型响应未在预算和总截止内完整取得",
+            )
+        if not 100 <= response.status <= 599:
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind="structure",
+                error_detail="模型响应状态不是有效HTTP状态码",
+            )
+        if len(response.body) > _MAX_RESPONSE_BYTES:
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind="response_limit",
+                error_detail="模型响应超出正文预算",
+            )
         if response.status in {401, 403}:
             return self._failed("auth", response)
         if response.status == 429:
@@ -177,10 +244,12 @@ class HttpModelProvider:
             return self._failed("input_limit", response)
         if response.status >= 400:
             return self._failed("provider_error", response)
+        if response.status != 200:
+            return self._failed("provider_error", response)
 
         try:
-            payload = json.loads(response.body.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = decode_json(response.body)
+        except ValueError:
             return ModelCallResult(
                 status=ModelCallStatus.FAILED,
                 error_kind="structure",
@@ -194,10 +263,17 @@ class HttpModelProvider:
                 error_detail="成功正文缺少 choices[0].message.content 字符串",
             )
         provider_id = payload.get("id") if isinstance(payload, dict) else None
+        if isinstance(payload, dict) and "id" in payload and (
+            not isinstance(provider_id, str) or not provider_id.strip()
+        ):
+            return ModelCallResult(
+                status=ModelCallStatus.FAILED, error_kind="structure",
+                error_detail="供应方请求号不是非空字符串",
+            )
         return ModelCallResult(
             status=ModelCallStatus.OK,
             draft_text=self._safe_detail(draft, limit=None),
-            provider_request_id=self._safe_detail(str(provider_id)) if provider_id else None,
+            provider_request_id=self._safe_detail(provider_id) if provider_id else None,
         )
 
     @staticmethod
@@ -220,7 +296,13 @@ class HttpModelProvider:
         return content
 
     def _failed(self, kind: str, response: HttpResponse) -> ModelCallResult:
-        detail = self._safe_detail(response.body[:512].decode("utf-8", errors="replace"))
+        try:
+            value = decode_json(response.body)
+            value, _ = guard_value(value, self._registry)
+            value, _ = guard_value(value)
+            detail = self._safe_detail(json.dumps(value, ensure_ascii=False))
+        except (ValueError, RecursionError, UnsafeMaterialError):
+            detail = f"供应方返回HTTP {response.status}，正文无法安全解析"
         return ModelCallResult(
             status=ModelCallStatus.FAILED,
             error_kind=kind,
