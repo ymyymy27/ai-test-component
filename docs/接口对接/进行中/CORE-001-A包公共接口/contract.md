@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.65"
+contract_version: "1.66"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.66 旧输出元数据补正（2026-10-08）：已永久发布的每个输出块须核对准确原EvidenceRef、完整来源/字节依据、实际对象摘要/长度及原完整性。只有全组依据一致且完整性不变时，安全缺口/无摘要not_required→unknown补正可使用已保存永久字节，不依赖回收后的spool、不重新发布对象或执行。正文身份/类型/代码/归属/字节改变仍拒绝；完整性变化、新块或未发布块仍须实际spool核对。永久对象缺失/损坏不得回退临时材料伪装原引用可靠；原记录/快照保持，补正追加准确引用修订，同批发布一次，后续重传只读。此增量不猜测旧脱敏正文、不制造完整采集/统计/业务结果，FR/AC、公开Schema及reviewing/partial/not_run保持。
 
 1.65 永久脱敏材料（2026-10-08）：默认命令仅在准确检查点具有可靠终态时，认领已保存的逐流RedactionSummary；可选SpoolRedactionSummaryReader缺能力/材料时保留provenance_unverified，不猜测正文。安全摘要以不可变对象保存，内部execution_redaction_summary@1冻结准确项目/工作空间/Run/Step/Attempt/流、代码身份、该流完整块依据和摘要正文/对象引用；稳定号沿用redaction:Attempt:stream，不得追加覆盖修订或取最新正文。记录、EvidenceRef、检查点、快照及引用表同一短事务准确暂存；发布前核对对象真实字节，失败不发布半套材料。对象保存不能偷偷过滤元数据后沿用旧摘要；安全守卫改变正文时整个批次拒绝。永久材料可在事务外先成为未引用对象。
 

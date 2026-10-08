@@ -1,0 +1,26 @@
+{
+  "baseline": "437f41f",
+  "sources": {
+    "src/aitest/application/evidence/execution_outputs.py": "59468821aeeeab80b766fd28e14be59b307405be14cc897bbd9fff76d6f987f7",
+    "tests/unit/test_saved_output_repair_without_spool.py": "19ee8d4279063b26b35df62534f052c340de8ec675cda14ccf7155010de47e23"
+  },
+  "reports": {
+    "permanent-output-repair-before.txt": "71f6f95e65100e52bad3db1f6b129ac247d83af6893f9c88000567790b9cd428",
+    "permanent-output-repair-final.txt": "ce85005f627822e366666d21c63ec23f92a84c96cd99506c7dac004217584609",
+    "permanent-output-repair-new-final.txt": "d30f9fe7e66079d6319bb7d4c25e1d4eae347b0e211fb4ef09761b283562661e",
+    "permanent-output-repair-wheel-final.txt": "4b1a9534deca9b4df6f262a9abcaf95aeba5e55bcff88e5110dd29839214384f",
+    "permanent-output-repair-ruff-final.txt": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "permanent-output-repair-mypy-final.txt": "02972dc3a34c18da2c10a609e50f5c3836e50b9af0af9559b1a4ad39ac8cd5fb",
+    "permanent-output-repair-build-final.txt": "f468380442976a2b1c802a7ffbd5cd70b41cfe64f363462a9805016268f05eeb"
+  },
+  "reproduce": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-o",
+    "addopts=",
+    "tests/unit/test_saved_output_repair_without_spool.py"
+  ],
+  "limits": "Real files/permanent objects and atomic UOW; synthetic source/execution authority. Counts overlap, not unique total. No real Trae/human/power-loss AC."
+}

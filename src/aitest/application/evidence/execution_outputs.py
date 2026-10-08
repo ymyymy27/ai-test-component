@@ -171,12 +171,28 @@ class SavedExecutionEvidence:
         if not attempt.output_block_refs:
             return ()
         context = self._context(project_id, checkpoint)
-        require_saved_output_material(self.spool, attempt, attempt.output_block_refs)
         materials = self._materials(project_id, checkpoint, saved_only=False, context=context)
+        desired = tuple(self._summary_gaps(
+            self.publisher.reference_for_block(context, block), materials,
+        ) for block in attempt.output_block_refs)
+        saved = {ref.evidence_id: self._saved(ref.evidence_id) for ref in desired}
+        use_permanent = all(
+            (old := saved[ref.evidence_id]) is not None
+            and ref.integrity == old.integrity
+            and self._same_saved_basis(ref, old)
+            for ref in desired
+        )
+        if use_permanent:
+            self.validate(tuple(ref for ref in saved.values() if ref is not None))
+            collected = desired
+        else:
+            require_saved_output_material(self.spool, attempt, attempt.output_block_refs)
+            collected = tuple(self._summary_gaps(ref, materials) for ref in (
+                self.publisher.publish_blocks(context, attempt.output_block_refs)
+            ))
         result = []
-        for ref in self.publisher.publish_blocks(context, attempt.output_block_refs):
-            ref = self._summary_gaps(ref, materials)
-            old = self._saved(ref.evidence_id)
+        for ref in collected:
+            old = saved[ref.evidence_id]
             if old is not None:
                 ref = replace(
                     ref, source_instance_id=old.source_instance_id, created_at=old.created_at,
@@ -184,21 +200,28 @@ class SavedExecutionEvidence:
                 if replace(ref, evidence_revision=old.evidence_revision) == old:
                     result.append(old)
                     continue
-                allowed = replace(
-                    ref, evidence_revision=old.evidence_revision,
-                    integrity=old.integrity, gap_ids=old.gap_ids,
-                )
-                if (
-                    ref.redaction_summary_ref is None and old.redaction_summary_ref is None
-                    and old.redaction_state is RedactionState.NOT_REQUIRED
-                    and ref.redaction_state is RedactionState.UNKNOWN
-                ):
-                    allowed = replace(allowed, redaction_state=old.redaction_state)
-                if allowed != old:
+                if not self._same_saved_basis(ref, old):
                     raise ValueError("output evidence identity or saved byte basis conflicts")
                 ref = replace(ref, evidence_revision=old.evidence_revision + 1)
             result.append(ref)
         return tuple(result)
+
+    @staticmethod
+    def _same_saved_basis(ref: EvidenceRef, old: EvidenceRef | None) -> bool:
+        if old is None:
+            return False
+        allowed = replace(
+            ref, evidence_revision=old.evidence_revision,
+            source_instance_id=old.source_instance_id, created_at=old.created_at,
+            integrity=old.integrity, gap_ids=old.gap_ids,
+        )
+        if (
+            ref.redaction_summary_ref is None and old.redaction_summary_ref is None
+            and old.redaction_state is RedactionState.NOT_REQUIRED
+            and ref.redaction_state is RedactionState.UNKNOWN
+        ):
+            allowed = replace(allowed, redaction_state=old.redaction_state)
+        return allowed == old
 
     def existing(
         self, project_id: str, checkpoint: RecoveryRecord,
