@@ -1,5 +1,6 @@
 """Save independent business reads before publishing their verification facts."""
 
+import hashlib
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict
@@ -18,12 +19,14 @@ from aitest.application.execution.authorization import ExecutionAuthorizationSer
 from aitest.application.execution.commands import ExecutionCommands, InvalidExecutionCommand
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.facts import execution_payload_digest
+from aitest.application.execution.snapshots import read_execution_snapshot
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.ports import (
     BusinessVerificationCapturePort,
     BusinessVerificationResolver,
     CapturedBusinessVerification,
     EvidenceObjectStore,
+    RecordRepository,
     VerificationRequest,
 )
 from aitest.contracts.commands import Command
@@ -129,6 +132,7 @@ class SavedBusinessVerification:
         self.workspace_id, self.instance_id = workspace_id, instance_id
         self.resolver, self.verifier, self.protector = resolver, verifier, protector
         self.unit = coordinator._uow
+        self.records = cast(RecordRepository, coordinator._records or self.unit)
 
     def _safe(self, material: Mapping[str, object]) -> dict[str, object]:
         value = freeze_json_value(self.protector(material))
@@ -137,20 +141,33 @@ class SavedBusinessVerification:
         return value
 
     def _unchanged_safe(self, material: Mapping[str, object]) -> None:
-        if not json_equal(self._safe(material), dict(material)):
+        if _bytes(self._safe(material)) != _bytes(material):
             raise BusinessVerificationBlocked("verification identity or expected basis is unsafe")
 
     def _read(self, kind: str, identity: str) -> Mapping[str, object] | None:
-        raw = self.coordinator._read_payload(kind, identity)
-        if raw is not None and self.coordinator._revision(kind, identity) != 1:
+        revision = self.records.current_revision(aggregate_kind=kind, record_id=identity)
+        if type(revision) is not int or revision not in (0, 1):
             raise BusinessVerificationBlocked("verification material is not an immutable revision")
+        if revision == 0:
+            return None
+        record = self.records.read(aggregate_kind=kind, record_id=identity, revision=1)
+        if (
+            getattr(record, "aggregate_kind", None), getattr(record, "record_id", None),
+            getattr(record, "revision", None),
+        ) != (kind, identity, 1) or type(getattr(record, "revision", None)) is not int:
+            raise BusinessVerificationBlocked("verification material envelope cannot be verified")
+        raw = getattr(record, "payload", None)
+        if not isinstance(raw, Mapping):
+            raise BusinessVerificationBlocked("verification material body cannot be verified")
         return raw
 
     def _base(self, admission: Mapping[str, object]) -> ExecutionFacts:
-        raw = self._read("execution_facts", str(admission["base_snapshot_commit_id"]))
-        if raw is None or execution_payload_digest(raw) != admission["snapshot_digest"]:
-            raise BusinessVerificationBlocked("original verification snapshot cannot be verified")
-        facts = ExecutionFacts.model_validate(raw)
+        facts = read_execution_snapshot(
+            self.records, project_id=cast(str, admission["project_id"]),
+            run_id=cast(str, admission["run_id"]),
+            snapshot_id=cast(str, admission["base_snapshot_commit_id"]),
+            digest=cast(str, admission["snapshot_digest"]),
+        )
         if (
             (
                 facts.project_id,
@@ -183,6 +200,12 @@ class SavedBusinessVerification:
         if (
             set(raw) != _ADMISSION_FIELDS
             or raw["schema_version"] != "aitest.business-query-intent/1.0"
+            or any(not isinstance(value, str) or not value.strip() for value in (
+                raw[key] for key in (
+                    "workspace_id", "project_id", "run_id", "step_id", "attempt_id", "intent_id",
+                    "base_snapshot_commit_id", "snapshot_digest", "source_instance_id",
+                )
+            ))
         ):
             raise BusinessVerificationBlocked("unknown saved verification admission")
         if any(raw[key] != value for key, value in scope.items()):
@@ -194,7 +217,7 @@ class SavedBusinessVerification:
         request = _request(raw["request"])
         if request.verification_of != raw["attempt_id"]:
             raise BusinessVerificationBlocked("verification request points at a different attempt")
-        CodeIdentityFact.model_validate(raw["code_identity"])
+        CodeIdentityFact.model_validate_json(json.dumps(raw["code_identity"]), strict=True)
         return raw
 
     def _evidence_inputs(self, request: VerificationRequest, facts: ExecutionFacts) -> None:
@@ -434,7 +457,9 @@ class SavedBusinessVerification:
             attempt_id=str(admission["attempt_id"]),
             evidence_kind=EvidenceKindFact.VERIFICATION,
             capture_source=EvidenceCaptureSourceFact.PLUGIN_RUNTIME,
-            code_identity=CodeIdentityFact.model_validate(admission["code_identity"]),
+            code_identity=CodeIdentityFact.model_validate_json(
+                json.dumps(admission["code_identity"]), strict=True,
+            ),
             object_digest=ref.digest,
             object_size=ref.size,
             media_type=ref.media_type,
@@ -481,7 +506,9 @@ class SavedBusinessVerification:
         ref_raw = raw["object_ref"]
         if not isinstance(ref_raw, dict) or set(ref_raw) != set(
             StoredObjectRef.__dataclass_fields__
-        ):
+        ) or any(not isinstance(ref_raw[key], str) or not ref_raw[key].strip() for key in (
+            "project_id", "digest", "media_type", "relative_path",
+        )):
             raise BusinessVerificationBlocked("saved actual query object reference is invalid")
         ref = StoredObjectRef(**ref_raw)
         if type(ref.size) is not int or not 0 < ref.size <= _MAX_MATERIAL_BYTES:
@@ -489,40 +516,62 @@ class SavedBusinessVerification:
         if ref.project_id != admission["project_id"] or ref.media_type != "application/json":
             raise BusinessVerificationBlocked("saved actual query object belongs to another scope")
         content = self.objects.read_bytes(ref)
+        if (
+            type(content) is not bytes or len(content) != ref.size
+            or "sha256:" + hashlib.sha256(content).hexdigest() != ref.digest
+        ):
+            raise BusinessVerificationBlocked(
+                "saved actual query bytes differ from their reference",
+            )
         material = json.loads(content)
         if not isinstance(material, dict) or _bytes(material) != content:
             raise BusinessVerificationBlocked(
                 "saved query object is not its canonical JSON material"
             )
         evidence, verification = self._derive(identity, admission, material, ref)
-        if raw["evidence"] != evidence.model_dump(mode="json") or raw[
-            "verification"
-        ] != verification.model_dump(mode="json"):
+        if any(
+            not isinstance(raw[key], Mapping)
+            or execution_payload_digest(cast(Mapping[str, object], raw[key])) != (
+                execution_payload_digest(expected)
+            )
+            for key, expected in (
+                ("evidence", evidence.model_dump(mode="json")),
+                ("verification", verification.model_dump(mode="json")),
+            )
+        ):
             raise BusinessVerificationBlocked(
                 "saved verification differs from its actual query material"
             )
-        if self._read("evidence_ref", evidence.evidence_id) != _evidence_record(evidence):
+        saved_evidence = self._read("evidence_ref", evidence.evidence_id)
+        if saved_evidence is None or execution_payload_digest(saved_evidence) != (
+            execution_payload_digest(_evidence_record(evidence))
+        ):
             raise BusinessVerificationBlocked(
                 "saved query evidence record is unavailable or different"
             )
         snapshot_raw = None
         if raw["status"] == "attached":
-            snapshot_raw = self._read("execution_facts", str(raw["result_snapshot"]))
+            snapshot = read_execution_snapshot(
+                self.records, project_id=admission["project_id"],
+                run_id=cast(str, admission["run_id"]),
+                snapshot_id=cast(str, raw["result_snapshot"]),
+                digest=cast(str, raw["result_snapshot_digest"]),
+            )
+            base = self._base(admission)
+            unchanged = {"facts_id", "committed_at", "snapshot_commit_id", "snapshot_cursor",
+                         "evidence_refs", "verifications"}
             if (
-                snapshot_raw is None
-                or execution_payload_digest(snapshot_raw) != raw["result_snapshot_digest"]
+                execution_payload_digest(snapshot.model_dump(mode="json", exclude=unchanged))
+                != execution_payload_digest(base.model_dump(mode="json", exclude=unchanged))
+                or snapshot.evidence_refs != (*base.evidence_refs, evidence)
+                or snapshot.verifications != (*base.verifications, verification)
+                or snapshot.snapshot_cursor <= base.snapshot_cursor
+                or snapshot.snapshot_commit_id == base.snapshot_commit_id
             ):
                 raise BusinessVerificationBlocked(
-                    "original verification result snapshot is unavailable"
+                    "original result snapshot rewrote its query basis",
                 )
-            snapshot = ExecutionFacts.model_validate(snapshot_raw)
-            if (
-                (snapshot.project_id, snapshot.run_id)
-                != (admission["project_id"], admission["run_id"])
-                or evidence not in snapshot.evidence_refs
-                or verification not in snapshot.verifications
-            ):
-                raise BusinessVerificationBlocked("original result snapshot dropped query facts")
+            snapshot_raw = snapshot.model_dump(mode="json")
         elif (
             raw["status"] != "historical_only"
             or raw["result_snapshot"] is not None

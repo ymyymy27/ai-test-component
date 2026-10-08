@@ -1,0 +1,3 @@
+.......................................                                  [100%]
+39 passed in 68.59s (0:01:08)
+Installed exact query reader has exact source-byte parity. Synthetic business/grant fixtures; no Trae or production business AC.

@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.69"
+contract_version: "1.70"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.70 独立核验准确回读（2026-10-08）：verify_pending原意图及结果只点读不可变仓储修订1，先核对实际修订和信封，不取最新正文后再猜修订。原准入快照和attached结果快照统一经准确快照读取合同核对项目/运行/自身编号、原摘要、严格JSON类型及内部Step/Attempt/current归属；结果仍绑定原工作空间。attached只允许在原准入事实之上追加该次准确EvidenceFact/VerificationFact及提交元数据，不改写运行结果、范围、执行/来源/未知/依赖等事实，不夹带其他新增证据或核验。核验回执和准确evidence_ref投影使用保留JSON类型的比较，bool/整数/浮点不得混同；实际对象逐项核对真实字节、长度与摘要后重新派生观察。损坏/旧缺证明阻塞原意图回读，不查询重试、不回退当前快照；later current变化不影响合法原快照回读。公开命令/DTO/Schema不变，不增加业务通过、V/R或真实AC，reviewing/partial/not_run保持。
 
 1.69 只读整用例复用核对（2026-10-08）：新增可协商读动作inspect_case_reuse，经同一核心接收准确project/case、不同的source_run_id/target_run_id及各自SnapshotContentRef（三字段）；target须为读取时的准确current。只读固定材料并按1.68核对两侧来源，读取前后以完整快照摘要检查source/target current漂移；漂移或缺准确材料要求重新核对，不回退最新来源。输出aitest.case-reuse-inspection/1.0、两侧冻结ReuseIdentity、准确快照、按完整逻辑位置/ID对拍的物理步骤与源Attempt映射及denial_reasons；布局不同不拼映射，目标用例任何历史/可选新Attempt均列target_case_already_started。冻结范围、入口/用例输入、规则/模板、适配器、正文/断言依据摘要由核心读取派生，范围集合采用已有规范序列化；空/缺标识按领域唯一比较保留unverified，不靠null相等或标签证明一致。
 
