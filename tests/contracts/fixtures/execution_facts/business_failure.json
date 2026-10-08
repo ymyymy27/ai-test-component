@@ -1,6 +1,6 @@
 {
   "schema_version": "aitest.execution-facts/1.0",
-  "facts_id": "facts-multistream",
+  "facts_id": "facts-business_failure",
   "project_id": "project-1",
   "run_id": "run-1",
   "snapshot_commit_id": "commit-1",
@@ -108,17 +108,9 @@
         {
           "attempt_id": "attempt-1",
           "stream_name": "stdout",
-          "offset": 19,
+          "offset": 26,
           "last_block_index": 0,
-          "last_committed_digest": "sha256:eb85cc2e788958b9b1e4bd424c0a71bf9ccd2e7e4748c0401ceab7a8efef5c48",
-          "durable": true
-        },
-        {
-          "attempt_id": "attempt-1",
-          "stream_name": "stderr",
-          "offset": 19,
-          "last_block_index": 0,
-          "last_committed_digest": "sha256:3b9771b5eedc2a711ecdbe4eaf819cd63282ff5ecdcf3ade6a0960adec37e7c7",
+          "last_committed_digest": "sha256:d61f5dddfa71257b958fdbc42c85b185be1ae85a1e50954db7a90304c573b068",
           "durable": true
         }
       ],
@@ -129,19 +121,8 @@
           "stream_name": "stdout",
           "block_index": 0,
           "offset": 0,
-          "length": 19,
-          "digest": "sha256:eb85cc2e788958b9b1e4bd424c0a71bf9ccd2e7e4748c0401ceab7a8efef5c48",
-          "complete": true,
-          "capture_source": "command"
-        },
-        {
-          "block_id": "attempt-1:stderr:0",
-          "attempt_id": "attempt-1",
-          "stream_name": "stderr",
-          "block_index": 0,
-          "offset": 0,
-          "length": 19,
-          "digest": "sha256:3b9771b5eedc2a711ecdbe4eaf819cd63282ff5ecdcf3ade6a0960adec37e7c7",
+          "length": 26,
+          "digest": "sha256:d61f5dddfa71257b958fdbc42c85b185be1ae85a1e50954db7a90304c573b068",
           "complete": true,
           "capture_source": "command"
         }
@@ -152,12 +133,10 @@
         "process_start_identity": "start-1",
         "real_exit_code": 0,
         "last_block_index_by_stream": {
-          "stdout": 0,
-          "stderr": 0
+          "stdout": 0
         },
         "saved_bytes_by_stream": {
-          "stdout": 19,
-          "stderr": 19
+          "stdout": 26
         },
         "capture_completeness": "complete",
         "termination_reason": "natural_exit",
@@ -188,31 +167,8 @@
         "workspace_ref": "ws-1",
         "commit_id": "abc123"
       },
-      "object_digest": "sha256:eb85cc2e788958b9b1e4bd424c0a71bf9ccd2e7e4748c0401ceab7a8efef5c48",
-      "object_size": 19,
-      "integrity": "complete",
-      "redaction_state": "not_required",
-      "projection_state": "displayable",
-      "evidence_level": "full_link",
-      "gap_ids": []
-    },
-    {
-      "evidence_id": "evidence-stderr",
-      "evidence_revision": 1,
-      "project_id": "project-1",
-      "source_instance_id": "run-1",
-      "run_id": "run-1",
-      "step_id": "step-1",
-      "attempt_id": "attempt-1",
-      "evidence_kind": "command_output",
-      "capture_source": "plugin_runtime",
-      "code_identity": {
-        "binding_kind": "git",
-        "workspace_ref": "ws-1",
-        "commit_id": "abc123"
-      },
-      "object_digest": "sha256:3b9771b5eedc2a711ecdbe4eaf819cd63282ff5ecdcf3ade6a0960adec37e7c7",
-      "object_size": 19,
+      "object_digest": "sha256:d61f5dddfa71257b958fdbc42c85b185be1ae85a1e50954db7a90304c573b068",
+      "object_size": 26,
       "integrity": "complete",
       "redaction_state": "not_required",
       "projection_state": "displayable",
@@ -233,8 +189,7 @@
       "failure_class": "passed",
       "raw_output_evidence_ref": "evidence-stdout",
       "evidence_refs": [
-        "evidence-stdout",
-        "evidence-stderr"
+        "evidence-stdout"
       ]
     }
   ],
@@ -254,8 +209,7 @@
       "observed_entry_ref": "entry-1",
       "gap_ids": [],
       "evidence_refs": [
-        "evidence-stdout",
-        "evidence-stderr"
+        "evidence-stdout"
       ],
       "verified_at": "2026-10-07T10:01:00Z"
     }
@@ -266,7 +220,7 @@
       "verification_of": "business_assertion",
       "business_object_id": "order-1",
       "query_method": "independent_read_only",
-      "observation": "matched",
+      "observation": "mismatched",
       "query_interval": "configured",
       "deadline_condition": "immediate",
       "target_deployment_ref": "deployment-1",
@@ -274,8 +228,7 @@
       "key_trace_link_refs": [],
       "covers_critical_chain_item_ids": [],
       "evidence_refs": [
-        "evidence-stdout",
-        "evidence-stderr"
+        "evidence-stdout"
       ],
       "gap_ids": [],
       "verified_at": "2026-10-07T10:01:00Z"

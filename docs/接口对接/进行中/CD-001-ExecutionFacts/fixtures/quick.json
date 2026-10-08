@@ -1,21 +1,24 @@
 {
+  "schema_version": "aitest.execution-facts/1.0",
   "facts_id": "facts-quick",
   "project_id": "project-1",
   "run_id": "run-1",
-  "snapshot_commit_id": "commit-quick",
+  "snapshot_commit_id": "commit-1",
   "snapshot_cursor": 10,
   "snapshot_revision": 1,
-  "committed_at": "2026-09-24T10:01:00+08:00",
-  "run_revision": 1,
+  "committed_at": "2026-10-07T10:01:00Z",
+  "run_revision": 0,
   "plan_revision": {
     "revision_id": "plan-1",
     "revision_no": 1,
     "digest": "sha256:plan-1"
   },
+  "runtime_revision_refs": [],
   "run": {
     "run_id": "run-1",
-    "run_revision": 1,
+    "run_revision": 0,
     "origin_workspace_id": "ws-1",
+    "intent_id": "intent-1",
     "tier": "quick",
     "driver": "planned",
     "conclusion_ceiling": "partial",
@@ -25,8 +28,11 @@
       "digest": "sha256:plan-1"
     },
     "environment_ref": "env-1",
+    "environment_isolation_mode": "unmanaged",
     "rules_revision": "rules-1",
     "control_state": "completed",
+    "primary_gap_ids": [],
+    "runtime_revision_refs": [],
     "required_scope": [
       "case-1"
     ],
@@ -34,11 +40,8 @@
       "case-1"
     ],
     "source_binding_digest": "sha256:source-1",
-    "started_at": "2026-09-24T10:00:00+08:00",
-    "evidence_level": null,
-    "intent_id": "intent-1",
-    "coverage_summary": "quick run does not derive evidence level",
-    "environment_isolation_mode": "unmanaged"
+    "started_at": "2026-10-07T10:01:00Z",
+    "ended_at": "2026-10-07T10:01:00Z"
   },
   "steps": [
     {
@@ -56,7 +59,12 @@
       "required_for_case": true,
       "level": "L2",
       "state": "completed",
-      "current_attempt_id": "attempt-1"
+      "dependency_step_ids": [],
+      "assertion_refs": [],
+      "evidence_requirement_ids": [],
+      "current_attempt_id": "attempt-1",
+      "invalidated": false,
+      "gap_ids": []
     }
   ],
   "attempts": [
@@ -64,7 +72,7 @@
       "attempt_id": "attempt-1",
       "run_id": "run-1",
       "step_id": "step-1",
-      "attempt_revision": 1,
+      "attempt_revision": 0,
       "attempt_index": 1,
       "retry_count": 0,
       "state": "completed",
@@ -79,10 +87,14 @@
         "inherited": false
       },
       "source_binding_digest": "sha256:source-1",
+      "consumed_outputs": [],
+      "consumed_conditions": [],
       "side_effect_class": "read_only",
+      "transport_retry_count": 0,
+      "authorization_ref": "authorization-1",
       "adapter_kind": "command",
       "adapter_version": "1.0",
-      "capture_completeness": "complete",
+      "timed_out": false,
       "handle": {
         "handle_id": "handle-1",
         "adapter_kind": "command",
@@ -91,17 +103,27 @@
         "process_start_identity": "start-1",
         "workdir_ref": "ws-1"
       },
+      "output_cursors": [
+        {
+          "attempt_id": "attempt-1",
+          "stream_name": "stdout",
+          "offset": 14,
+          "last_block_index": 0,
+          "last_committed_digest": "sha256:a05afb896b07cdb4a7a229855982545c8121e7c44f04926e71f33bda88f49a02",
+          "durable": true
+        }
+      ],
       "output_blocks": [
         {
-          "block_id": "block-1",
+          "block_id": "attempt-1:stdout:0",
           "attempt_id": "attempt-1",
           "stream_name": "stdout",
           "block_index": 0,
           "offset": 0,
-          "length": 12,
-          "digest": "sha256:block-1",
+          "length": 14,
+          "digest": "sha256:a05afb896b07cdb4a7a229855982545c8121e7c44f04926e71f33bda88f49a02",
           "complete": true,
-          "capture_source": "wrapper"
+          "capture_source": "command"
         }
       ],
       "exit_fact": {
@@ -113,22 +135,16 @@
           "stdout": 0
         },
         "saved_bytes_by_stream": {
-          "stdout": 12
+          "stdout": 14
         },
         "capture_completeness": "complete",
         "termination_reason": "natural_exit",
         "timed_out": false
       },
-      "output_cursors": [
-        {
-          "attempt_id": "attempt-1",
-          "stream_name": "stdout",
-          "offset": 12,
-          "last_block_index": 0,
-          "last_committed_digest": "sha256:block-1",
-          "durable": true
-        }
-      ]
+      "capture_completeness": "complete",
+      "unknown_reason_ids": [],
+      "started_at": "2026-10-07T10:01:00Z",
+      "ended_at": "2026-10-07T10:01:00Z"
     }
   ],
   "current_attempt_by_step": {
@@ -136,7 +152,7 @@
   },
   "evidence_refs": [
     {
-      "evidence_id": "evidence-1",
+      "evidence_id": "evidence-stdout",
       "evidence_revision": 1,
       "project_id": "project-1",
       "source_instance_id": "run-1",
@@ -150,13 +166,30 @@
         "workspace_ref": "ws-1",
         "commit_id": "abc123"
       },
-      "object_digest": "sha256:block-1",
-      "object_size": 12,
-      "media_type": "text/plain",
+      "object_digest": "sha256:a05afb896b07cdb4a7a229855982545c8121e7c44f04926e71f33bda88f49a02",
+      "object_size": 14,
       "integrity": "complete",
-      "redaction_state": "redacted",
+      "redaction_state": "not_required",
       "projection_state": "displayable",
-      "evidence_level": "full_link"
+      "evidence_level": "full_link",
+      "gap_ids": []
+    }
+  ],
+  "source_check_results": [
+    {
+      "check_result_id": "check-1",
+      "attempt_id": "attempt-1",
+      "check_type": "load",
+      "scope": "module",
+      "source_snapshot_ref": "snapshot-1",
+      "environment_ref": "environment-1",
+      "rules_revision": "rules-1",
+      "adapter_version": "python-checks/1.0",
+      "failure_class": "passed",
+      "raw_output_evidence_ref": "evidence-stdout",
+      "evidence_refs": [
+        "evidence-stdout"
+      ]
     }
   ],
   "source_verifications": [
@@ -172,9 +205,38 @@
       "materialized_snapshot_ref": "snapshot-1",
       "observed_source_digest": "sha256:source-1",
       "state": "verified",
-      "observed_entry_ref": "entry-1"
+      "observed_entry_ref": "entry-1",
+      "gap_ids": [],
+      "evidence_refs": [
+        "evidence-stdout"
+      ],
+      "verified_at": "2026-10-07T10:01:00Z"
     }
   ],
+  "verifications": [
+    {
+      "verification_id": "business-verify-1",
+      "verification_of": "business_assertion",
+      "business_object_id": "order-1",
+      "query_method": "independent_read_only",
+      "observation": "matched",
+      "query_interval": "configured",
+      "deadline_condition": "immediate",
+      "target_deployment_ref": "deployment-1",
+      "actual_result_ref": "evidence-stdout",
+      "key_trace_link_refs": [],
+      "covers_critical_chain_item_ids": [],
+      "evidence_refs": [
+        "evidence-stdout"
+      ],
+      "gap_ids": [],
+      "verified_at": "2026-10-07T10:01:00Z"
+    }
+  ],
+  "mock_declarations": [],
+  "dependency_invalidations": [],
+  "unknowns": [],
+  "gaps": [],
   "coverage": {
     "mandatory_case_ids": [
       "case-1"
@@ -184,7 +246,12 @@
     ],
     "executed_attempt_ids": [
       "attempt-1"
-    ]
+    ],
+    "blocked_step_ids": [],
+    "invalidated_step_ids": [],
+    "unknown_step_ids": [],
+    "evidence_gap_count": 0,
+    "critical_gap_count": 0
   },
   "completeness": "complete"
 }

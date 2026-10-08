@@ -16,6 +16,10 @@ FIXTURES = Path(__file__).parent / "fixtures/execution_facts"
         ("failure.json", "partial", "venv"),
         ("unknown.json", "unknown", "none"),
         ("quick.json", "complete", "unmanaged"),
+        ("timeout.json", "partial", "venv"),
+        ("multistream.json", "complete", "venv"),
+        ("non_utf8.json", "complete", "venv"),
+        ("business_failure.json", "complete", "venv"),
     ],
 )
 def test_execution_facts_fixtures_validate(
@@ -75,3 +79,46 @@ def test_success_fixture_has_independent_stream_cursors() -> None:
     assert set(cursors) == {"stdout", "stderr"}
     assert cursors["stdout"].offset == 12
     assert cursors["stderr"].offset == 8
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    [
+        "success.json",
+        "failure.json",
+        "unknown.json",
+        "quick.json",
+        "timeout.json",
+        "multistream.json",
+        "non_utf8.json",
+        "business_failure.json",
+    ],
+)
+def test_fixtures_include_source_check_and_start_authorization(
+    fixture_name: str,
+) -> None:
+    payload = json.loads((FIXTURES / fixture_name).read_text(encoding="utf-8"))
+    facts = ExecutionFacts.model_validate(payload)
+    assert facts.source_check_results
+    assert all(attempt.authorization_ref for attempt in facts.attempts)
+
+
+def test_business_failure_uses_mismatched_verification() -> None:
+    payload = json.loads((FIXTURES / "business_failure.json").read_text(encoding="utf-8"))
+    facts = ExecutionFacts.model_validate(payload)
+    assert facts.attempts[0].state == "completed"
+    assert facts.verifications[0].observation == "mismatched"
+    assert facts.completeness == "complete"
+
+
+def test_failure_remains_execution_error_and_unknown_has_no_matched_result() -> None:
+    failure = ExecutionFacts.model_validate(
+        json.loads((FIXTURES / "failure.json").read_text(encoding="utf-8"))
+    )
+    unknown = ExecutionFacts.model_validate(
+        json.loads((FIXTURES / "unknown.json").read_text(encoding="utf-8"))
+    )
+    assert failure.attempts[0].state == "execution_error"
+    assert all(item.observation != "mismatched" for item in failure.verifications)
+    assert unknown.verifications[0].observation in {"no_result", "query_error"}
+    assert unknown.completeness == "unknown"
