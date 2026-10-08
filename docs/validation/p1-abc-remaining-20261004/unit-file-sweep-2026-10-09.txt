@@ -39,5 +39,22 @@ Batch-1 failures, all accounted for:
 Remaining files (42) for the next sweep round were written to
 `.runtime/remaining-{0,2,4,5}.txt`; they are the tails of the four cancelled batches.
 
+Completion of those tails (same day, three round-robin batches, same command shape):
+
+  rbatch 0   232 passed            (711.60 s)
+  rbatch 1   200 passed            (1130.55 s)
+  rbatch 2   197 passed            (204.03 s)
+  -> 629 passed, 0 failed
+
+Combined picture for tests/unit on this source: every unit file has now been executed at
+least once in this session. The only non-pass outcomes anywhere in the sweep were:
+
+  - the 3 git-precondition skips caused by the unwritable TEMP falling back to the checkout
+    (doc: 2026-10-09-临时根不可写导致的Git来源误判与诚实跳过),
+  - the 2 pre-existing symlink-permission skips,
+  - 2 load-induced WorkspaceInUse timeouts in test_mcp_stdio_read (34 passed when run alone),
+  - the 2 stale authorization fixtures fixed in fa8008c,
+  - and the 3 long-step fixtures fixed in c5c96f4 (3 passed in 1261.91 s after the fix).
+
 Not substituted: the historical "2336 passed / 2 skipped" belongs to an earlier, smaller
 collection (2341 nodes) and is not used as evidence for this source.
