@@ -65,6 +65,14 @@ def _hash_file(path: Path) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
+def _materialized_mapping_digest(paths: list[dict[str, object]]) -> str:
+    """AB-001 1.34：期望→实际路径映射的规范字节摘要（供 C 计算 source_binding_digest）。"""
+    encoded = json.dumps(
+        paths, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
 def _fsync_file(handle: IO[bytes]) -> None:
     """显式落盘文件数据；失败必须上抛，禁止在无耐久保证时声称发布成功。"""
     handle.flush()
@@ -320,12 +328,25 @@ class FileSourceSnapshotStore:
                 mismatches.append(str(item["relative_path"]))
         if mismatches:
             raise SnapshotError(f"物化后核对失败: {mismatches}")
+        # AB-001 1.34：成功时返回期望→实际路径映射与内容摘要（既有键不变）；
+        # 该摘要供 C 在 start 生成 source_binding_digest 使用。
+        paths = [
+            {
+                "relative_path": str(item["relative_path"]),
+                "actual_path": destination_path.as_posix(),
+                "sha256": str(item["sha256"]),
+                "size": item["size"],
+            }
+            for item, _blob_path, destination_path in planned
+        ]
         return {
             "snapshot_id": snapshot_id,
             "destination": target.as_posix(),
             "materialized": copied,
             "verified": True,
             "state": "materialized",
+            "paths": paths,
+            "content_digest": _materialized_mapping_digest(paths),
         }
 
     def detect_changes(self, snapshot_id: str) -> dict[str, object]:
