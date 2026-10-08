@@ -10,6 +10,10 @@
 
 ### 2026-10-09
 
+- start来源绑定解析补三处强化：冻结期望必须被映射**恰好覆盖**（缺/多/重复/空白拒绝）、物化**自述workdir**必须等于请求的固定workdir、`materialize`拒绝分支反例（保持`refused`且不返回映射摘要）；相关回归18项通过，Ruff/Mypy225文件通过，ABC仍21整项。见[记录](docs/修改日志/袁/2026-10-09-start来源绑定解析与映射摘要.md)。
+
+- 验证与打包证据：两轮汇总回归418→**447 passed**（HEAD `40b8ef3`），`uv build` 产出0.4.0 wheel 729363 B/sdist 593691 B，隔离wheel冒烟通过（需把TEMP/TMP指向工作区内）；非真实Trae/供应方/掉电/35项AC。见[汇总回归](docs/validation/p1-abc-remaining-20261004/session-consolidated-regression-2026-10-09.txt)与[构建记录](docs/validation/p1-abc-remaining-20261004/build-and-wheel-smoke-2026-10-09.txt)。
+
 - 新增C侧start来源绑定解析：由物化映射独立重算并核对`source_binding_digest`（越界/字节不符/摘要不符均拒绝）；16项新回归与受影响98项通过，Ruff/Mypy225文件通过，ABC仍21整项。见[记录](docs/修改日志/袁/2026-10-09-start来源绑定解析与映射摘要.md)。
 
 - 合同先行澄清并实现`materialize`返回期望→实际路径映射`paths`与映射摘要`content_digest`（AB-001 1.34，既有键不变）；59项受影响检查与Ruff/Mypy224文件通过，ABC仍21整项。见[记录](docs/修改日志/袁/2026-10-09-接口合同澄清materialize返回路径映射与摘要.md)。
