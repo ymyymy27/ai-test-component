@@ -222,6 +222,35 @@ def test_missing_start_inputs_are_refused(snapshot_id: object, destination: obje
         resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
 
 
+def test_re_resolution_must_match_a_saved_binding_digest(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """跨入口重传读取同一冻结结果：重新解析的映射摘要必须与已保存一致。"""
+    pinned = store.pin(canonical_path=str(source), purpose="prepare")
+    snapshot_id = str(pinned["snapshot_id"])
+    destination = tmp_path / "workdir-a"
+    # 一次真实物化后，用同一物化事实重放（跨入口重传不二次物化）。
+    materialized = store.materialize(snapshot_id, str(destination))
+    replay = StartSourceBindingResolver(_Stub(materialized))  # type: ignore[arg-type]
+    first = replay.resolve(snapshot_id=snapshot_id, destination=str(destination))
+    saved = str(first["source_binding_digest"])
+
+    same = replay.resolve(
+        snapshot_id=snapshot_id,
+        destination=str(tmp_path / "workdir-a"),
+        expected_source_binding_digest=saved,
+    )
+    assert same["source_binding_digest"] == saved
+
+    for expected in ("sha256:" + "b" * 64, "sha256:short", ""):
+        with pytest.raises(SourceBindingUnverified):
+            replay.resolve(
+                snapshot_id=snapshot_id,
+                destination=str(tmp_path / "workdir-a"),
+                expected_source_binding_digest=expected,
+            )
+
+
 def test_two_expected_paths_must_not_share_one_actual_file(tmp_path: Path) -> None:
     """两个期望来源不能解析到同一个实际文件（同一文件不能充当两个来源）。"""
     actual = tmp_path / "main.py"

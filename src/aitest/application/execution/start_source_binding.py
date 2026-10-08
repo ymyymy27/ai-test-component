@@ -42,6 +42,7 @@ class StartSourceBindingResolver:
         snapshot_id: str,
         destination: str,
         expected_relative_paths: Sequence[str] | None = None,
+        expected_source_binding_digest: str | None = None,
     ) -> Mapping[str, object]:
         if not isinstance(snapshot_id, str) or not snapshot_id.strip():
             raise SourceBindingUnverified("start source binding requires a saved snapshot identity")
@@ -86,6 +87,18 @@ class StartSourceBindingResolver:
             _verify_file(actual, digest, size)
         if expected_relative_paths is not None:
             _require_exact_coverage(entries, expected_relative_paths)
+        if expected_source_binding_digest is not None:
+            if (
+                not isinstance(expected_source_binding_digest, str)
+                or not _is_digest(expected_source_binding_digest)
+            ):
+                raise SourceBindingUnverified(
+                    "a saved source binding digest must be an exact sha256 digest"
+                )
+            if expected_source_binding_digest != recomputed:
+                raise SourceBindingUnverified(
+                    "re-resolved mapping differs from the saved source binding digest"
+                )
         return {
             "snapshot_id": snapshot_id,
             "workdir": root.as_posix(),
