@@ -191,9 +191,14 @@ def _outputs(
                 durable=True,
             )
         )
+        evidence_id = (
+            "evidence-1"
+            if stream_name is OutputStreamName.STDOUT
+            else f"evidence-{stream_name.value}"
+        )
         evidence.append(
             EvidenceRef(
-                evidence_id=f"evidence-{stream_name.value}",
+                evidence_id=evidence_id,
                 project_id=PROJECT_ID,
                 source_instance_id=RUN_ID,
                 run_id=RUN_ID,
