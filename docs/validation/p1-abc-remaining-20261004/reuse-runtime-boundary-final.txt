@@ -1,0 +1,9 @@
+.....................                                                    [100%]
+============================== warnings summary ===============================
+tests/unit/test_case_reuse_runtime_provenance.py::test_source_rejects_unproved_driver_and_revision_labels
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='driver', input_value='stepwise', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+21 passed, 1 warning in 394.38s (0:06:34)

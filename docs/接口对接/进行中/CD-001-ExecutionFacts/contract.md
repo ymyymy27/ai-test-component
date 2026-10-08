@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.7"
+contract_version: "1.8"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -18,7 +18,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 版本：1.7
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.7增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.8增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -239,3 +239,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.6 永久脱敏摘要投影（2026-10-08）：准确execution_redaction_summary@1的冻结正文与对象遵循CORE-001 1.65；默认收集核心在同一工作单元将实际摘要投影到EvidenceFact，不能只放摘要号占位。来源不可核对与统计不完整为不同缺口；后者保留真实unknown/gap/partial和原原因。终态重传对拍完整EvidenceFact（含摘要），缺投影时仅补原材料；历史Attempt不成为当前。整用例历史来源消费时，承诺已保存摘要的命令输出须逐项核对固定@1、准确归属/块依据、对象字节与冻结inline摘要；旧缺证明材料保留缺口，不能以临时目录或后来最新摘要替代。DTO/Schema及复用资格口径不变，真实AC未验证。
 
 1.7 默认命令引用来源（2026-10-08）：CORE-001 1.67要求冻结EvidenceFact与准确evidence_ref仓储正文逐项核对，摘要号与原检查点块核对；实际对象和永久摘要单独校验。不使用最新引用，也不凭inline标记证明完整资格。正文与仓储对齐仅沿1.62默认命令合同，旧/其他类别缺证明继续保留缺口。准确材料可读仍不授予本轮R/V，不改变DTO/Schema。
+
+1.8 历史运行修订来源（2026-10-08）：整Case读取沿CORE-001 1.68共用冻结计划/范围/初始用例材料，再核对准确run_plan_revision链派生的有效正文与实际步骤映射。无链的新内容/driver、伪造标签、缺失/错位的初始正文或修订链拒绝；合法修订与原历史快照独立回读。不得以可读来源代替当前动态资格、保存选择或R/V；公开ExecutionFacts/Schema不变，reviewing/partial/not_run与真实对拍边界保持。

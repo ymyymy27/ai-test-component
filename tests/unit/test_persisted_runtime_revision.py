@@ -98,7 +98,7 @@ def saved_next_case(core, inputs, case, *, expected=None):
         core,
         "save_case",
         project=inputs.project_id,
-        request=f"save-{case.case_id}-{case.revision}",
+        request=f"save-{case.case_id}-{case.revision}-request",
         intent=f"save-{case.case_id}-{case.revision}",
         expected=case.revision - 1 if expected is None else expected,
         parameters={"case": case_to_payload(case, project_id=inputs.project_id)},

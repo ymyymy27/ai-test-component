@@ -17,6 +17,7 @@ from aitest.application.execution.authorization_index import (
 )
 from aitest.application.execution.commit import ExecutionCommitCoordinator, _run_pointer_id
 from aitest.application.execution.facts import _run_fact, _step_fact
+from aitest.application.execution.frozen_plan import FrozenRunPlanReader
 from aitest.application.execution.run_record import read_run_record
 from aitest.application.execution.runtime_revision import SavedRuntimeRevisionReader
 from aitest.application.execution.start_identity import execution_start_fingerprint
@@ -26,10 +27,6 @@ from aitest.application.planning.basis_validation import validate_prepared_mater
 from aitest.application.planning.preparation_origin import (
     load_saved_preparation,
     validate_preparation_origin,
-)
-from aitest.application.planning.serialization import (
-    acceptance_scope_from_payload,
-    case_from_payload,
 )
 from aitest.application.planning.substrate import RecordReader
 from aitest.application.ports import (
@@ -63,7 +60,6 @@ from aitest.domain.execution.runs import (
     StepState,
     attempt_start_basis,
 )
-from aitest.domain.planning.plans import Plan
 
 
 def _identity(prefix: str, *values: object) -> str:
@@ -286,45 +282,11 @@ class ExecutionAuthorizationService:
             != _step_fact(step)
         ):
             raise ApprovalRequired("initial run and step differ from their registration proof")
-        plan_raw = self.resolver.materials._read(
-            "plan", prepared.plan_revision.revision_id, prepared.plan_revision.revision_no, project
-        )
-        scope_raw = self.resolver.materials._read(
-            "acceptance_scope",
-            prepared.scope_id or "missing",
-            prepared.acceptance_scope_revision,
-            project,
-        )
-        plan = TypeAdapter(Plan).validate_json(
-            json.dumps(
-                {
-                    "plan_id": prepared.plan_revision.revision_id,
-                    "revision": plan_raw["revision"],
-                    "record_revision": prepared.plan_revision.revision_no,
-                    "scope": _payload(acceptance_scope_from_payload(scope_raw)),
-                    "case_revisions": plan_raw["case_revisions"],
-                    "rule_revisions": plan_raw["rule_revisions"],
-                    "template_versions": plan_raw["template_versions"],
-                    "run_tier": plan_raw["run_tier"],
-                    "initial_driver": plan_raw["initial_driver"],
-                    # The record has no domain status field. Its exact controlled
-                    # publish_plan origin was verified above, before projecting it.
-                    "status": "published",
-                    "confirmation_id": plan_raw["approval_commit_seq"],
-                }
-            ),
-            strict=True,
-        )
-        cases = tuple(
-            case_from_payload(
-                self.resolver.materials._read("case", ref.case_id, ref.revision, project)
-            )
-            for ref in prepared.case_revisions
-        )
+        frozen_plan = FrozenRunPlanReader(self.records).read(prepared)
         # Current progress is mutable; every change to frozen content or driver must
         # instead have the already-defined, independently readable revision chain.
         SavedRuntimeRevisionReader(self.records).read_effective_cases(
-            facts=current, plan=plan, initial_cases=cases
+            facts=current, plan=frozen_plan.plan, initial_cases=frozen_plan.cases
         )
         fact = next(item for item in current.steps if item.step_id == step_id)
         run = replace(

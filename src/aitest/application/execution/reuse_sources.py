@@ -8,6 +8,7 @@ from aitest.application.execution.checkpoint_refs import (
     read_referenced_checkpoint,
 )
 from aitest.application.execution.facts import _run_fact
+from aitest.application.execution.frozen_plan import FrozenRunPlanReader
 from aitest.application.execution.registration import _initial_domain
 from aitest.application.execution.reuse_material import validate_source_material
 from aitest.application.execution.run_record import read_run_record
@@ -106,6 +107,11 @@ class CaseReuseSourceReader:
             or tuple(sorted(facts.coverage.mandatory_case_ids)) != origin_fact.required_scope
         ):
             raise ValueError("case reuse snapshot differs from its original frozen run basis")
+        frozen_plan = FrozenRunPlanReader(self.records).read(prepared)
+        effective_cases = SavedRuntimeRevisionReader(self.records).read_effective_cases(
+            facts=facts, plan=frozen_plan.plan, initial_cases=frozen_plan.cases,
+        )
+        effective = next(case for case in effective_cases if case.case_id == case_id)
         originals = {step.step_id: step for step in initial_steps if step.case_id == case_id}
         positions = {identity: index for index, identity in enumerate(originals)}
         selected = tuple(step for step in facts.steps if step.case_id == case_id)
@@ -154,6 +160,7 @@ class CaseReuseSourceReader:
         if (
             [item.content.case_step_index for item in result] != list(range(len(frozen.steps)))
             or len(result) != len(first.checked_case().steps)
+            or first.checked_case() != effective
             or any(
                 item.content.case_revision_ref != first.case_revision_ref
                 or item.content.case_content != first.case_content

@@ -1,0 +1,35 @@
+{
+  "baseline": "771e7df",
+  "source_sha256": {
+    "src/aitest/application/execution/frozen_plan.py": "cd96e7c3f57d1c29602e3528b4a8cfdfa35fc0a388ebfb8bb1d3b6552a418f25",
+    "src/aitest/application/execution/reuse_sources.py": "90875d081ac0a913dbf16248562e6cac34aca6098467e01e8e1c24847da9a4ef",
+    "src/aitest/application/execution/authorization.py": "9aff3be2082b67f0cf61fbe6c45743c03ded0dd058371a73973965751ff80a2f",
+    "tests/unit/test_case_reuse_runtime_provenance.py": "6d1ab9b85665605f13a05c2d3d61920f692fb1fbba7c6375ad15089aae7eb973",
+    "tests/unit/test_frozen_run_plan.py": "060a0990d7acf8f62f895a72bb4f8f865ea9b32f5849344980048ed8d8f3f340",
+    "tests/unit/test_persisted_runtime_revision.py": "6c95db76d0e7072d006ad41b1e22fa2a9bacdaf75f70bad7238c6a2994a59172"
+  },
+  "report_sha256": {
+    "reuse-runtime-baseline-verified.txt": "aa278a9ef3fa73b3f3a94821ecdeff3e9590a0cf30affb824634c03327036fc3",
+    "reuse-runtime-boundary-final.txt": "f89fc48a081f333acfd5bc70d71034782964adc8ec24c6bf8ab64c0a2fcdaed4",
+    "reuse-runtime-regression-final.txt": "0b6e07a207332329d8d49cee93c2c12915dec07a537ee93119556e85f028989f",
+    "reuse-runtime-wheel-final.txt": "86a060a43719384def3dfe26460af0bcce365e54306876ed0bea6d1c48e5c0b3",
+    "reuse-runtime-ruff-final.txt": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "reuse-runtime-mypy-final.txt": "01e63b97549e66b23a1a0c18ea1b66c8348a2c75797589d7154ecd9e04930708",
+    "reuse-runtime-build-final.txt": "f468380442976a2b1c802a7ffbd5cd70b41cfe64f363462a9805016268f05eeb",
+    "reuse-runtime-expanded-summary.txt": "ef91142508e5ccb4a6c1d815a798f63e2a9fb8833f8356b6270d03374d2365a9"
+  },
+  "reproduce": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-o",
+    "addopts=",
+    "tests/unit/test_case_reuse_runtime_provenance.py",
+    "tests/unit/test_frozen_run_plan.py",
+    "tests/unit/test_default_runtime_actions.py",
+    "tests/unit/test_runtime_revision_saved_material.py"
+  ],
+  "baseline_method": "Execute git-show 771e7df reuse_sources.py in the isolated test process before pytest; production files unchanged.",
+  "limits": "Real saved files/UOW and restart reads; synthetic source/authority. No current reuse grant, saved selection, real Trae/human/power-loss AC."
+}
