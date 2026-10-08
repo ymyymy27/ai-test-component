@@ -34,6 +34,7 @@ from aitest.application.execution.current import project_current_update
 from aitest.application.execution.facts import (
     ExecutionFactsAssembler,
     ExecutionFactsAssembly,
+    _evidence_fact,
     _run_fact,
     _step_fact,
     execution_payload_digest,
@@ -67,12 +68,15 @@ from aitest.application.planning.serialization import case_content_digest, case_
 from aitest.application.ports import (
     BasisConfirmationProof,
     ControlledWriteProof,
+    ExactRecordStaging,
     ExecutionAuthorizationProof,
+    ExecutionEvidenceCollector,
     RecordRepository,
 )
 from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
 from aitest.contracts.execution_facts import (
     DependencyInvalidationFact,
+    EvidenceFact,
     ExecutionFacts,
     FactCompleteness,
     RunControlStateFact,
@@ -180,6 +184,7 @@ class ExecutionCommitCoordinator:
         controlled_writes: ControlledWriteProof | None = None,
         execution_authorizations: ExecutionAuthorizationProof | None = None,
         serial_execution: bool = False,
+        evidence_collector: ExecutionEvidenceCollector | None = None,
     ) -> None:
         self._uow = unit_of_work
         self._checkpoint_store = checkpoint_store
@@ -187,6 +192,7 @@ class ExecutionCommitCoordinator:
         self._approvals, self._controlled_writes = approvals, controlled_writes
         self._execution_authorizations = execution_authorizations
         self._serial_execution = serial_execution
+        self._evidence_collector = evidence_collector
 
     def _revision(self, kind: str, record_id: str, expected: int | None = None) -> int | None:
         reader = self._records or self._uow
@@ -1548,6 +1554,10 @@ class ExecutionCommitCoordinator:
         expected_revision: int | None = None,
     ) -> ExecutionCommitResult:
         """Commit one start/control intent before any external side effect."""
+        references = (
+            self._evidence_collector.collect(project_id, checkpoint)
+            if self._evidence_collector is not None and checkpoint.attempt.output_block_refs else ()
+        )
         begin = getattr(self._uow, "begin", None)
         if callable(begin):
             begin(f"execution-{uuid4().hex}", project_id)
@@ -1558,6 +1568,10 @@ class ExecutionCommitCoordinator:
             current = self.read_current_facts(
                 project_id=project_id, run_id=checkpoint.attempt.run_id
             )
+            if references and (current is None or not any(
+                fact.attempt_id == checkpoint.attempt.attempt_id for fact in current.attempts
+            )):
+                raise ValueError("output evidence requires its saved execution snapshot")
             checkpoint_refs: dict[str, tuple[object, Mapping[str, object]]] = {}
             staged = self._stage_checkpoint_payload(
                 checkpoint_refs=checkpoint_refs,
@@ -1578,26 +1592,98 @@ class ExecutionCommitCoordinator:
                 },
             )
             records = [staged]
+            evidence_records, projected = self._stage_collected_evidence(
+                project_id, checkpoint, references,
+            )
+            records.extend(evidence_records)
             facts = None
-            if (
-                current is not None
-                and current.current_attempt_by_step.get(checkpoint.attempt.step_id)
-                == checkpoint.attempt.attempt_id
-            ):
-                snapshot_records, facts = self._stage_snapshot(
-                    project_current_update(
+            is_current = current is not None and current.current_attempt_by_step.get(
+                checkpoint.attempt.step_id
+            ) == checkpoint.attempt.attempt_id
+            if current is not None and (is_current or projected):
+                updated = current
+                if is_current:
+                    updated = project_current_update(
                         current,
                         checkpoint.attempt,
                         committed_at=datetime.now(UTC),
-                    ),
+                    )
+                by_id = {item.evidence_id: item for item in updated.evidence_refs}
+                for item in projected:
+                    old = by_id.get(item.evidence_id)
+                    if old is not None and old.model_dump(exclude={"redaction_summary"}) == (
+                        item.model_dump(exclude={"redaction_summary"})
+                    ):
+                        item = item.model_copy(update={"redaction_summary": old.redaction_summary})
+                    by_id[item.evidence_id] = item
+                updated = updated.model_copy(update={"evidence_refs": tuple(by_id.values())})
+                snapshot_records, facts = self._stage_snapshot(
+                    updated,
                     checkpoint_refs=checkpoint_refs,
                 )
                 records.extend(snapshot_records)
+            if self._evidence_collector is not None and references:
+                self._evidence_collector.validate(references)
             committed = self._uow.commit()
         except BaseException:
             self._uow.rollback()
             raise
         return ExecutionCommitResult(staged=tuple(records), committed=committed, facts=facts)
+
+    def _stage_collected_evidence(
+        self, project_id: str, checkpoint: RecoveryRecord, references: tuple[EvidenceRef, ...],
+    ) -> tuple[list[object], list[EvidenceFact]]:
+        records: list[object] = []
+        projected: list[EvidenceFact] = []
+        if len({ref.evidence_id for ref in references}) != len(references):
+            raise ValueError("collected output evidence has duplicate identities")
+        for ref in references:
+            if (ref.project_id, ref.run_id, ref.step_id, ref.attempt_id) != (
+                project_id, checkpoint.attempt.run_id, checkpoint.attempt.step_id,
+                checkpoint.attempt.attempt_id,
+            ):
+                raise ValueError("collected output evidence belongs to another execution")
+            current = self._revision("evidence_ref", ref.evidence_id)
+            raw = _json_payload(_EVIDENCE_ADAPTER, ref)
+            if current == ref.evidence_revision:
+                if _payload_digest(self._read_payload("evidence_ref", ref.evidence_id) or {}) != (
+                    _payload_digest(raw)
+                ):
+                    raise ValueError("collected output evidence differs from its saved revision")
+            elif current is not None and ref.evidence_revision == current + 1:
+                if not callable(getattr(self._uow, "stage_record_exact", None)):
+                    raise ValueError("output evidence requires exact record staging")
+                staged = cast(ExactRecordStaging, self._uow).stage_record_exact(
+                    aggregate_kind="evidence_ref", record_id=ref.evidence_id,
+                    expected_revision=current, payload=raw,
+                )
+                if type(staged) is not int or staged != ref.evidence_revision:
+                    raise ValueError("output evidence assigned revision cannot be verified")
+                records.append(staged)
+            else:
+                raise ValueError("output evidence warehouse revision changed")
+            projected.append(_evidence_fact(ref, {}))
+        return records, projected
+
+    def ensure_checkpoint_evidence(self, *, project_id: str, attempt: Attempt) -> None:
+        """Repair publication of the original terminal output without another execution."""
+        if self._evidence_collector is None or not attempt.output_block_refs:
+            return
+        checkpoint = self.read_checkpoint(project_id=project_id, attempt_id=attempt.attempt_id)
+        if checkpoint.attempt != attempt:
+            raise ValueError("original evidence checkpoint changed before publication")
+        references = self._evidence_collector.existing(project_id, checkpoint)
+        current = self.read_current_facts(project_id=project_id, run_id=attempt.run_id)
+        if references is not None and current is not None:
+            existing = {item.evidence_id: item for item in current.evidence_refs}
+            if all(
+                existing.get(ref.evidence_id) is not None
+                and existing[ref.evidence_id].model_dump(exclude={"redaction_summary"})
+                == _evidence_fact(ref, {}).model_dump(exclude={"redaction_summary"})
+                for ref in references
+            ):
+                return
+        self.commit_checkpoint(project_id=project_id, checkpoint=checkpoint)
 
     def publish_and_stage(
         self,

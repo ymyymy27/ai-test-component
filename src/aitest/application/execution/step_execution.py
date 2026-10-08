@@ -44,6 +44,7 @@ class SavedStepExecution:
             )
             if saved is not None and has_reliable_terminal_fact(saved):
                 attempt = saved
+                self.coordinator.ensure_checkpoint_evidence(project_id=project_id, attempt=attempt)
             else:
                 if self.execution_port is None:
                     raise CapabilityUnavailable("a trusted execution adapter is not configured")

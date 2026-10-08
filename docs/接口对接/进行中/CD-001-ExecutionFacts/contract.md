@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.4"
+contract_version: "1.5"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,9 +16,9 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.4
+版本：1.5
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.4增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.5增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -230,3 +230,8 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 整 Case 来源读取除准确快照、检查点及步骤正文外，须经 A spool 端口按准确检查点读取选定源 Attempt 的输出块，证据经对象端口读取；已有准确发布的COMMAND_OUTPUT证据须核对其稳定块编号、归属、摘要/长度及实际对象，允许从永久对象读取，不依赖已合法回收的spool，逐项核对项目、运行、Step/Attempt 归属、实际字节长度与 sha256，不以记录或文件存在代替可读性。材料非空但缺相应读取端口、缺失/损坏字节或错误归属时拒绝来源读取；空的初始历史仍可展示且不产生 R。对象核对证明可读性，不证明脱敏摘要来源、断言/独立核验或当前动态环境有效。
 
 纯聚合的 R 还须按 BC-001 0.45 消费完整资格依据；继承标记不能授予 R/V/H。实际环境/依赖核实、完整证据与脱敏来源闭包、持久选择及 D 默认接线仍开放，公开 ExecutionFacts/Schema 不变，原记录不迁移，reviewing/partial/not_run 和真实 AC 不变。
+
+
+### 默认输出证据同提交（1.5，2026-10-08）
+
+默认命令进度/采集保存除spool和检查点外，经CORE-001 1.62将准确输出对象、EvidenceRef及对应快照可靠保存；D不能把completed/完整spool当成永久证据已发布。复用同一投影函数，保留现有核验、来源缺口和历史证据，不计算业务通过/证据等级。可靠终态重传只核对准确引用及永久对象，材料齐全不依赖spool、不新增提交。旧未发布材料只补原证据及历史投影，不自动重执行、不更换当前Attempt；准确历史正文/仓储修订缺证明保持阻塞。完整脱敏来源、业务核验和真实AC继续，公开DTO/Schema不变。

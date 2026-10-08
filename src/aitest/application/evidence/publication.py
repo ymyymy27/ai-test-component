@@ -99,7 +99,7 @@ class EvidencePublisher:
             raise ValueError("spool block and publication context attempt_id must match")
         content = self._spool_store.read_block(block)
         if (
-            len(content) != block.length
+            type(content) is not bytes or len(content) != block.length
             or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
         ):
             raise ValueError("spool publication bytes do not match the frozen output block")
@@ -109,12 +109,21 @@ class EvidencePublisher:
             media_type=context.media_type,
         )
         if (
-            stored.project_id != context.project_id
+            type(stored.size) is not int or stored.project_id != context.project_id
             or stored.digest != block.digest
             or stored.size != block.length
             or self._object_store.read_bytes(stored) != content
         ):
             raise ValueError("published evidence does not preserve the verified output bytes")
+        return self.reference_for_block(context, block)
+
+    @staticmethod
+    def reference_for_block(
+        context: EvidencePublicationContext, block: OutputBlockRef,
+    ) -> EvidenceRef:
+        """Metadata only; callers must independently verify material availability."""
+        if block.attempt_id != context.attempt_id:
+            raise ValueError("output evidence metadata belongs to another attempt")
         integrity = EvidenceIntegrity.COMPLETE if block.complete else EvidenceIntegrity.PARTIAL
         return EvidenceRef(
             evidence_id=f"evidence:{context.attempt_id}:{block.stream_name.value}:{block.block_index}",
@@ -125,8 +134,8 @@ class EvidencePublisher:
             attempt_id=context.attempt_id,
             evidence_kind=EvidenceKind.COMMAND_OUTPUT,
             capture_source=context.capture_source,
-            object_digest=stored.digest,
-            object_size=stored.size,
+            object_digest=block.digest,
+            object_size=block.length,
             code_identity=context.code_identity,
             integrity=integrity,
             redaction_state=(

@@ -272,12 +272,12 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
         )
         assert source_proof.facts == saved_facts
         assert source_proof.steps[0].attempt.attempt_id == action.attempt.attempt_id
-        with pytest.raises(ValueError, match="output_material"):
+        with pytest.raises(ValueError, match="object reader"):
             CaseReuseSourceReader(repo, PortsRecordReader(repo)).read(
                 project_id=inputs.project_id, run_id=saved_facts.run_id,
                 case_id=saved_facts.steps[0].case_id, reference=SnapshotContentRef.of(saved_facts),
             )
-        # Corrupt actual temporary project bytes, retaining all saved metadata.
+        # Published objects remain authoritative when temporary spool bytes are gone or damaged.
         block = source_proof.steps[0].attempt.output_blocks[0]
         object_path = (
             restarted.workspace.root / "spool" / block.attempt_id
@@ -287,14 +287,30 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
         saved_bytes = object_path.read_bytes()
         try:
             object_path.write_bytes(b"corrupt saved source output")
-            with pytest.raises(ValueError, match="output_material"):
+            assert reuse_reader.read(
+                project_id=inputs.project_id, run_id=saved_facts.run_id,
+                case_id=saved_facts.steps[0].case_id,
+                reference=SnapshotContentRef.of(saved_facts),
+            ) == source_proof
+        finally:
+            object_path.write_bytes(saved_bytes)
+        ref = saved_facts.evidence_refs[0]
+        permanent_path = (
+            restarted.workspace.root / "objects" / inputs.project_id
+            / ref.object_digest.removeprefix("sha256:")
+        ).resolve()
+        assert permanent_path.is_relative_to(restarted.workspace.root.resolve())
+        permanent_bytes = permanent_path.read_bytes()
+        try:
+            permanent_path.write_bytes(b"corrupt permanent evidence")
+            with pytest.raises(ValueError, match="saved bytes"):
                 reuse_reader.read(
                     project_id=inputs.project_id, run_id=saved_facts.run_id,
                     case_id=saved_facts.steps[0].case_id,
                     reference=SnapshotContentRef.of(saved_facts),
                 )
         finally:
-            object_path.write_bytes(saved_bytes)
+            permanent_path.write_bytes(permanent_bytes)
         assert reuse_reader.read(
             project_id=inputs.project_id, run_id=saved_facts.run_id,
             case_id=saved_facts.steps[0].case_id, reference=SnapshotContentRef.of(saved_facts),

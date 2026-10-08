@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.61"
+contract_version: "1.62"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,10 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.62 默认命令证据发布（2026-10-08）：默认核心注入ExecutionEvidenceCollector，采集检查点有输出时，先在事务外按准确原Run/准备、冻结源码绑定和实际spool归属核对块并发布过滤后不可变对象；不能从退出码制造业务结论。事务内与准确检查点、EvidenceRef、执行快照及其检查点引用/当前指针同批保存，提交前再次核对对象字节。引用正文使用准确暂存，过滤改变元数据时拒绝整个批次。稳定证据号按Attempt/流/块编号，同内容/元数据不新增引用修订，保留首次来源实例；不同归属/摘要冲突拒绝，完整性变化追加准确修订。新默认路径正文evidence_revision与实际仓储修订逐次核对，旧不符不猜测迁移。部分捕获和缺失脱敏摘要保留缺口；当前来源/业务核验未知状态不升级。失败或丢回执不重跑已发生的执行，按原句柄/检查点继续采集；永久对象可以先发布成未引用材料，可靠业务提交前不发布成功事实。冻结材料可回读不等于实际加载已核实，真实宿主/人工/AC另验收。
+
+可靠终态重传先核对原检查点、已保存引用与永久对象；齐全时只读，不依赖已回收spool、不新增提交。旧终态尚未发布引用时，只补原材料与历史证据投影，不重新执行；历史Attempt不得因此变成当前Attempt。缺失或损坏永久对象不回成功。
 
 1.61 MCP普通业务保存入口（2026-10-08）：doctor新增由可信装配声明的intent_contracts动作→合同版本映射；只有支持动作与准确aitest.record-write-intent/1.0合同同时可核实时，stdio新增aitest_dispatch。当前仅1.60的七类普通保存，旧/未知合同继续只读；不将“注册动作”当持久保障或当前可用状态。工具输入从Command派生，保留原intent_id/expected_revision/parameters及可选target，request_id由relay单独分配，项目/绑定修订/工作空间和入口来源固定，拒绝参数覆盖或人工/事务/任意动作。四个既有B保存名补入一期传输写身份目录，沿现有非空意图、修订及request_id≠intent_id规则，不新增业务字段或FR/AC。各次派发仍由实际agent_relay核心会话与原能力门/人工合同核对；非默认隔离不能靠MCP自行确认。发送前绑定漂移拒绝派发；收到准确核心回执后若绑定变化或核对失败，必须保留该原Response并附上下文重选提示，不能丢失已保存结果或伪装未执行。回执未知时不自动重传/换意图；同意图重传沿共同核心读原结果。现有有限读取、唯一核心、逐次连接关闭、协议/字节预算及EOF语义保持。工具/stdio组件测试不等于真实Trae接入与人工验收，其他执行/模型/准备动作继续沿各自合同补入口，reviewing/partial/not_run保持。
 

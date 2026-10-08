@@ -51,8 +51,8 @@ from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.contracts.verification import VerificationFact
 from aitest.domain.approvals import ActionBasis, TrustedActor
+from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, Verification
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
-from aitest.domain.evidence.evidence import StoredObjectRef, Verification
 from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
     Attempt,
@@ -64,6 +64,7 @@ from aitest.domain.execution.runs import (
     OutputBlockRef,
     OutputCursor,
     OutputStreamName,
+    RecoveryRecord,
     Run,
     SpoolManifest,
     Step,
@@ -468,6 +469,18 @@ class EvidenceObjectStore(Protocol):
     ) -> StoredObjectRef: ...
 
     def read_bytes(self, ref: StoredObjectRef) -> bytes: ...
+
+
+class ExecutionEvidenceCollector(Protocol):
+    """Publish verified immutable bytes outside the business write transaction."""
+
+    def collect(self, project_id: str, checkpoint: RecoveryRecord) -> tuple[EvidenceRef, ...]: ...
+
+    def validate(self, references: tuple[EvidenceRef, ...]) -> None: ...
+
+    def existing(
+        self, project_id: str, checkpoint: RecoveryRecord,
+    ) -> tuple[EvidenceRef, ...] | None: ...
 
 
 class ModelResponseStore(Protocol):

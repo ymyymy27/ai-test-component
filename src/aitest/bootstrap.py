@@ -30,6 +30,7 @@ from uuid import uuid4
 from aitest.application.approval_service import ApprovalService
 from aitest.application.controlled_write import ControlledWriteService, SavedControlledWriteResolver
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.evidence.execution_outputs import SavedExecutionEvidence
 from aitest.application.evidence.external_imports import SavedExternalResultImport
 from aitest.application.evidence.saved_verification import SavedBusinessVerification
 from aitest.application.execution.authorization import (
@@ -574,6 +575,10 @@ def assemble_workspace_core(
             controlled_writes=controlled_writes,
             execution_authorizations=execution_authorizations,
             serial_execution=True,
+            evidence_collector=SavedExecutionEvidence(
+                cast(RecordRepository, unit_of_work.repo), reader, FileSpoolStore(root),
+                FileObjectStore(root), workspace_id=workspace.workspace_id, instance_id=instance_id,
+            ),
         )
         step_execution = SavedStepExecution(
             execution_authorizations, execution_coordinator, FileSpoolStore(root), execution_port
