@@ -92,4 +92,4 @@
 - 结论：PreparedRun 增加冻结的 scope_id；按 scope_id + acceptance_scope_revision 读取范围。旧记录缺标识时要求重新准备，不按项目猜测范围。
 - 判定日期：2026-10-03；确认人：袁（本次会话明确答复）。
 - 现行入口：[AB-001](../../进行中/AB-001-端口与保存/contract.md)、[BC-001](../../进行中/BC-001-PreparedRun/contract.md)。
-- 实现及验证：见 [ABC 修复证据清单](../../../ABC包问题修复证据清单-2026-10-03.md)；回归文件 `tests/unit/test_abc_decision_regressions.py`。此裁定不表示真实 Trae 或一期 AC 已验收。
+- 实现及验证：见 [ABC 修复证据清单](../../../一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)；回归文件 `tests/unit/test_abc_decision_regressions.py`。此裁定不表示真实 Trae 或一期 AC 已验收。

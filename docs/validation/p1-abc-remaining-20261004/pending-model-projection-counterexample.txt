@@ -1,0 +1,20 @@
+Baseline 2567bf99a50c70987151c1c560b83caefbb4ebf7.
+Handoff recheck 2026-10-08: pending, NOT FIXED.
+Command: .venv/Scripts/python.exe -m pytest docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py -o addopts= -q --tb=short
+Expected exit code: 1; observed: 14 failed, 1 passed.
+
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[unusual-local-key-value]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[unusual-local-key-key]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[unusual-local-key-nested]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[unusual-local-key-list]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[\u03ba\u03c1\u03c5\u03c6\u03cc-\u043a\u043e\u0434-value]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[\u03ba\u03c1\u03c5\u03c6\u03cc-\u043a\u043e\u0434-key]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[\u03ba\u03c1\u03c5\u03c6\u03cc-\u043a\u043e\u0434-nested]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_json_escape_does_not_hide_a_registered_credential[\u03ba\u03c1\u03c5\u03c6\u03cc-\u043a\u043e\u0434-list]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved[{"note":"first","note":"second"}]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved[{"note":NaN}]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved[{"note":1e9999}]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved[{"note":"\\ud800"}]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved[{"note":"\\u0066ixture-key",broken}]
+FAILED docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py::test_registry_filter_expansion_cannot_exceed_final_byte_budget
+14 failed, 1 passed in 4.21s

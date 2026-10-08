@@ -13,7 +13,7 @@
 | 真实DeepSeek组件 | 已提交草稿；原意图同进程/新核心回读一致且没有外调，117文件凭据检查通过 | [实测JSON](deepseek-live.json)、[验证脚本](../../../scripts/validate_deepseek.py) |
 | 隔离wheel冒烟 | 6模板；doctor NOT_READY/退出2；MCP CAPABILITY_UNAVAILABLE/退出2 | [输出](wheel-smoke.log) |
 
-精确命令、环境、输出SHA-256及未验证范围见[执行JSON](validation-results.json)；27条状态、源码/测试行号及文件SHA-256见[逐项JSON](issue-status.json)和[人读清单](../../ABC包问题修复证据清单-2026-10-03.md)。每个测试节点可按清单中的pytest命令独立运行。
+精确命令、环境、输出SHA-256及未验证范围见[执行JSON](validation-results.json)；27条状态、源码/测试行号及文件SHA-256见[逐项JSON](issue-status.json)和[人读清单](../../一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)。每个测试节点可按清单中的pytest命令独立运行。
 
 证据目录通过`.gitattributes`保留原始字节。逐项清单的`sha256`对应验证时工作文件和冻结ZIP中的原始字节；Git会按仓库配置规范化源码换行。[提交源码字节清单](git-source-bytes.json)同时记录80份引用文件的原始SHA-256、Git blob SHA-256及对象号，核对二者仅有CRLF/LF转换。跨系统检出时用Git blob摘要核对提交，用冻结ZIP核对原始验证材料。
 
