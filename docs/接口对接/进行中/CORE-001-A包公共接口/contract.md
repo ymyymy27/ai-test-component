@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.73"
+contract_version: "1.74"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.74 独立查询有界轮询（2026-10-08）：可信解析器在原VerificationRequest冻结`query_interval=poll_interval_ms:N`、`deadline_condition=poll_deadline_ms:N`的正整数毫秒策略，拒绝前导零、未知/混用格式、总时长超过60秒及超过64次的配置。现有immediate保留单次观察；本适配器不能解释的截止标签明确缺策略，不能记录标签却忽略。轮询只使用可接受单调截止的独立只读端口，每次新读取同业务对象/部署，传递同一总截止；缺截止能力不执行，绝不以遗留无界接口冒充有界查询。只有材料不足继续等待，明确不匹配及查询错误不自动重试或被后续成功覆盖；截止/迟到成功保留未确认，不能证明远端回滚。安全查询材料1.1保留实际每次开始/结束耗时、过滤后的JSON/缺字段/结构化错误及最终耗时，采样总量有界，所有观察在落盘前过滤。保存与历史回读共用纯领域时间线/字段规则，从实际材料派生状态，不接受客户端结论或修改原意图；旧1.0准确材料按旧观察回读且不补造轮询证明。公开DTO/生成Schema与FR/AC不变，配置解析/生产端口和真实验收另验，reviewing/partial/not_run保持。
 
 1.73 历史独立查询准确证明（2026-10-08）：规范business-query-*来源除可读对象外，须经同一只读SavedBusinessQueryReader核对稳定项目/工作空间/意图编号、准入@1、准确原快照、查询结果@1、实际JSON字节、派生观察及evidence_ref@1；原意图回读与历史来源不得各算一套观察。选定源Attempt的VerificationFact和查询EvidenceFact须与原保存投影逐项一致，原源码身份绑定其准确准备，核验所引证据在该源快照中完整。缺证明/错投影/错归属/丢失材料阻塞规范来源读取，不能因对象存在升级。读取不持事务、不要求模型或查询适配器、不重新查询；只证明原观察可核对，不证明当前动态资格、必要核验覆盖或R/V，未纳入该规范的旧/外部来源仍保留原展示及资格缺口，不猜修订或迁移。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变。
 

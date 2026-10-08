@@ -3,6 +3,8 @@
 import json
 import sys
 from dataclasses import replace
+from threading import Event, Thread
+from time import sleep
 
 from aitest.application.execution.reuse_sources import CaseReuseSourceReader
 from aitest.application.execution.runtime_revision import SnapshotContentRef
@@ -128,22 +130,88 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
     # Both actual independent observations are readable through the whole-case
     # historic source path, without another query or changes to execution facts.
     source_facts = ExecutionFacts.model_validate(second.result["execution_facts"])
-    selected_case = next(item.case_id for item in source_facts.steps
-                         if item.step_id == action.attempt.step_id)
+    selected_case = next(
+        item.case_id for item in source_facts.steps if item.step_id == action.attempt.step_id
+    )
     sequence = core.unit_of_work.current_commit_sequence()
     selected = CaseReuseSourceReader(
-        core.unit_of_work.repo, PortsRecordReader(core.unit_of_work.repo),
-        objects=FileObjectStore(core.workspace.root), spool=FileSpoolStore(core.workspace.root),
-    ).read(project_id=inputs.project_id, run_id=source_facts.run_id, case_id=selected_case,
-           reference=SnapshotContentRef.of(source_facts))
+        core.unit_of_work.repo,
+        PortsRecordReader(core.unit_of_work.repo),
+        objects=FileObjectStore(core.workspace.root),
+        spool=FileSpoolStore(core.workspace.root),
+    ).read(
+        project_id=inputs.project_id,
+        run_id=source_facts.run_id,
+        case_id=selected_case,
+        reference=SnapshotContentRef.of(source_facts),
+    )
     assert selected.facts == source_facts and query.calls == 2
     assert core.unit_of_work.current_commit_sequence() == sequence
+    # The actual independent object becomes visible after the first missing
+    # read; one real monotonic deadline and fresh file handles govern polling.
+    first_missing = Event()
+    business_file.unlink()
+
+    class PollingOrder(QueryOrder):
+        def read_business_object_before(self, *, deadline_monotonic, **kwargs):
+            try:
+                return self.read_business_object(**kwargs)
+            except FileNotFoundError:
+                if not first_missing.is_set():
+                    first_missing.set()
+                    publisher.start()
+                return None
+
+    class PollingResolver(ResolveOrder):
+        def resolve(self, **kwargs):
+            return replace(
+                super().resolve(**kwargs),
+                deadline_condition="poll_deadline_ms:2000",
+                query_interval="poll_interval_ms:50",
+            )
+
+    def publish_later():
+        sleep(0.06)
+        temporary = business_file.with_suffix(".next")
+        temporary.write_text('{"paid":true,"object_id":"order-1"}', encoding="utf-8")
+        temporary.replace(business_file)
+
+    publisher = Thread(target=publish_later)
+    polling = PollingOrder()
+    core.business_verification.resolver = PollingResolver()
+    core.business_verification.verifier = BusinessVerificationAdapter(polling)
+    polled_cmd = command(source_facts, request_id="polled-query", intent_id="polled-query-intent")
+    polled = core.api.dispatch(polled_cmd, RELAY)
+    publisher.join(3)
+    assert not publisher.is_alive()
+    assert polled.error is None, polled.error
+    assert polled.result["verification"]["observation"] == "matched" and polling.calls >= 2
+    polled_facts = ExecutionFacts.model_validate(polled.result["execution_facts"])
+    sequence = core.unit_of_work.current_commit_sequence()
+    assert (
+        CaseReuseSourceReader(
+            core.unit_of_work.repo,
+            PortsRecordReader(core.unit_of_work.repo),
+            objects=FileObjectStore(core.workspace.root),
+            spool=FileSpoolStore(core.workspace.root),
+        )
+        .read(
+            project_id=inputs.project_id,
+            run_id=polled_facts.run_id,
+            case_id=selected_case,
+            reference=SnapshotContentRef.of(polled_facts),
+        )
+        .facts
+        == polled_facts
+    )
+    assert core.unit_of_work.current_commit_sequence() == sequence
+    poll_count = polling.calls
     root = core.workspace.root
     core.lifetime_lock.release()
     reopened = assemble_workspace_core(root, instance_id="query-reopened-core")
     try:
         for index, (value, expected) in enumerate(
-            ((first_cmd, first.result), (second_cmd, second.result))
+            ((first_cmd, first.result), (second_cmd, second.result), (polled_cmd, polled.result))
         ):
             result = reopened.api.dispatch(
                 value.model_copy(update={"request_id": f"reopened-query-{index}"}), RELAY
@@ -151,5 +219,6 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
             assert result.error is None, result.error
             assert result.result == expected
         assert query.calls == 2
+        assert polling.calls == poll_count
     finally:
         reopened.lifetime_lock.release()

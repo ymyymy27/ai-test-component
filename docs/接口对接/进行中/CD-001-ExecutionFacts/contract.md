@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.12"
+contract_version: "1.13"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -18,7 +18,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 版本：1.7
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.12增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.13增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -249,3 +249,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.11 stdio MCP只读核对（2026-10-08）：aitest_inspect_case_reuse沿用CORE-001 1.72所选项目/绑定、准确引用及漂移/待核实守卫，原样转交核心核对DTO，不产生新的ExecutionFacts、R/V或选择。D完整资格/选择消费及真实宿主对拍继续；公开DTO/生成Schema及reviewing/partial/not_run不变。
 
 1.12 历史规范独立查询来源（2026-10-08）：按CORE-001 1.73共同只读材料派生核对business-query-*的准入、准确原/结果快照、对象与证据引用；inline核验及证据须与原材料一致，源码身份绑定准确准备，全部引证属于原Attempt。缺证明/错观察/错误归属阻塞该来源，不以可读对象授予R/V；不重新查询或改写历史。公开DTO/生成Schema、FR/AC和reviewing/partial/not_run保持，完整资格/选择及D实际消费继续。
+
+1.13 独立查询轮询材料（2026-10-08）：按CORE-001 1.74冻结毫秒策略及同一总截止，1.1安全对象保留实际逐次耗时/JSON/错误，落盘前过滤所有样本。VerificationFact沿原DTO派生，明确不匹配/查询错误不自动重试，迟到成功和截止材料不足保持未确认；D不得将deadline_reached解释为业务回滚。旧1.0不补造轮询，当前资格/完整选择及真实消费另验，公开Schema与reviewing/partial/not_run保持。

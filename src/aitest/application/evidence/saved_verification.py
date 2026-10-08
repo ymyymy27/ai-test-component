@@ -18,6 +18,7 @@ from aitest.application.evidence.query_materials import (
     SavedBusinessQueryReader,
     _bytes,
     _evidence_record,
+    _polling,
     _request,
     _request_payload,
 )
@@ -41,6 +42,7 @@ from aitest.contracts.execution_facts import (
     SourceBindingKindFact,
 )
 from aitest.domain.evidence.evidence import StoredObjectRef, VerificationObservation
+from aitest.domain.evidence.polling import derive_polled_query, query_polling_policy
 from aitest.domain.evidence.verification import compare_business_fields
 from aitest.domain.execution.assertions import freeze_json_value, json_equal
 
@@ -201,7 +203,9 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
             safe_actual = None
         else:
             observed, gaps = compare_business_fields(actual, request.expected_facts)
-            if result.observation != observed or result.gap_ids != gaps:
+            if not capture.query_observations and (
+                result.observation != observed or result.gap_ids != gaps
+            ):
                 raise BusinessVerificationBlocked(
                     "claimed observation disagrees with actual query JSON"
                 )
@@ -225,6 +229,55 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
             "unavailable_gap_ids": list(result.gap_ids) if actual is None else [],
             "captured_at": datetime.now(UTC).isoformat(),
         }
+        if capture.query_observations:
+            policy = query_polling_policy(request.query_interval, request.deadline_condition)
+            if policy is None or type(capture.query_elapsed_ms) is not int:
+                raise BusinessVerificationBlocked("query capture lacks its frozen polling policy")
+            observation, gaps = derive_polled_query(
+                policy,
+                capture.query_observations,
+                capture.query_elapsed_ms,
+                request.expected_facts,
+            )
+            if (
+                result.observation != observation
+                or result.gap_ids != gaps
+                or _bytes({"actual": capture.query_observations[-1].actual_fields})
+                != _bytes({"actual": actual})
+            ):
+                raise BusinessVerificationBlocked("query capture contradicts its actual timeline")
+            entries = []
+            for item in capture.query_observations:
+                fields = freeze_json_value(item.actual_fields)
+                safe = self._safe(fields) if isinstance(fields, dict) else None
+                redacted = not json_equal(fields, safe)
+                missing = sorted(
+                    key
+                    for key in request.expected_facts
+                    if isinstance(fields, dict)
+                    and key in fields
+                    and (safe is None or key not in safe or not json_equal(fields[key], safe[key]))
+                )
+                entries.append(
+                    {
+                        "started_after_ms": item.started_after_ms,
+                        "completed_after_ms": item.completed_after_ms,
+                        "actual_fields": safe,
+                        "error_code": item.error_code,
+                        "unavailable_fields": missing,
+                        "redacted": redacted,
+                    }
+                )
+            material["schema_version"] = "aitest.business-query-material/1.1"
+            material["polling"] = {"observations": entries, "elapsed_ms": capture.query_elapsed_ms}
+            material["redacted"] = any(item["redacted"] for item in entries)
+            # Validate the safe material with the same reader before publication.
+            policy, observations, elapsed = _polling(request, material["polling"])
+            derive_polled_query(policy, observations, elapsed, request.expected_facts)
+        elif capture.query_elapsed_ms is not None:
+            raise BusinessVerificationBlocked("query capture has timing but no observations")
+        elif actual is not None and request.deadline_condition.startswith("poll_deadline_ms:"):
+            raise BusinessVerificationBlocked("polled query lacks its actual observation timeline")
         self._unchanged_safe(material)
         return material
 

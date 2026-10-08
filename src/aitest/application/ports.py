@@ -53,6 +53,7 @@ from aitest.contracts.verification import VerificationFact
 from aitest.domain.approvals import ActionBasis, TrustedActor
 from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, Verification
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
+from aitest.domain.evidence.polling import BusinessQueryObservation as BusinessQueryObservation
 from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
     Attempt,
@@ -681,12 +682,23 @@ class ReadOnlyBusinessQueryPort(Protocol):
     ) -> Mapping[str, object] | None: ...
 
 
+class DeadlineBusinessQueryPort(Protocol):
+    """Optional independent reader honoring one absolute monotonic cutoff."""
+
+    def read_business_object_before(
+        self, *, business_object_id: str, target_deployment_ref: str,
+        deadline_monotonic: float,
+    ) -> Mapping[str, object] | None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class CapturedBusinessVerification:
     """Transient actual material; no digest alone proves that it was saved."""
 
     verification: Verification
     actual_fields: Mapping[str, object] | None = None
+    query_observations: tuple[BusinessQueryObservation, ...] = ()
+    query_elapsed_ms: int | None = None
 
 
 class BusinessVerificationCapturePort(Protocol):

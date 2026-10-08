@@ -27,6 +27,12 @@ from aitest.contracts.execution_facts import (
     VerificationObservationFact,
 )
 from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, VerificationObservation
+from aitest.domain.evidence.polling import (
+    BusinessQueryObservation,
+    QueryPollingPolicy,
+    derive_polled_query,
+    query_polling_policy,
+)
 from aitest.domain.evidence.verification import compare_business_fields
 from aitest.domain.execution.assertions import freeze_json_value
 
@@ -95,6 +101,48 @@ def _evidence_record(evidence: EvidenceFact) -> dict[str, object]:
     raw = evidence.model_dump(mode="json", exclude={"redaction_summary"})
     value = TypeAdapter(EvidenceRef).validate_json(json.dumps(raw), strict=True)
     return cast(dict[str, object], TypeAdapter(EvidenceRef).dump_python(value, mode="json"))
+
+
+def _polling(
+    request: VerificationRequest,
+    raw: object,
+) -> tuple[QueryPollingPolicy, tuple[BusinessQueryObservation, ...], int]:
+    policy = query_polling_policy(request.query_interval, request.deadline_condition)
+    if policy is None or not isinstance(raw, dict) or set(raw) != {"observations", "elapsed_ms"}:
+        raise BusinessVerificationBlocked("saved query polling scope is invalid")
+    elapsed = raw["elapsed_ms"]
+    entries = raw["observations"]
+    if type(elapsed) is not int or not isinstance(entries, list) or not 0 < len(entries) <= 64:
+        raise BusinessVerificationBlocked("saved query polling timeline is invalid")
+    observations = []
+    for entry in entries:
+        if (
+            not isinstance(entry, dict)
+            or set(entry)
+            != {
+                "started_after_ms",
+                "completed_after_ms",
+                "actual_fields",
+                "error_code",
+                "unavailable_fields",
+                "redacted",
+            }
+            or type(entry["redacted"]) is not bool
+            or not isinstance(entry["unavailable_fields"], list)
+            or (entry["unavailable_fields"] and not entry["redacted"])
+            or (entry["redacted"] and entry["actual_fields"] is None)
+        ):
+            raise BusinessVerificationBlocked("saved query polling observation is invalid")
+        observations.append(
+            BusinessQueryObservation(
+                entry["started_after_ms"],
+                entry["completed_after_ms"],
+                entry["actual_fields"],
+                entry["error_code"],
+                tuple(entry["unavailable_fields"]),
+            )
+        )
+    return policy, tuple(observations), elapsed
 
 
 class SavedBusinessQueryReader:
@@ -265,6 +313,7 @@ class SavedBusinessQueryReader:
         material: Mapping[str, object],
         ref: StoredObjectRef,
     ) -> tuple[EvidenceFact, VerificationFact]:
+        polled = material.get("schema_version") == "aitest.business-query-material/1.1"
         if (
             set(material)
             != {
@@ -277,7 +326,12 @@ class SavedBusinessQueryReader:
                 "unavailable_gap_ids",
                 "captured_at",
             }
-            or material["schema_version"] != "aitest.business-query-material/1.0"
+            | ({"polling"} if polled else set())
+            or material["schema_version"]
+            not in {
+                "aitest.business-query-material/1.0",
+                "aitest.business-query-material/1.1",
+            }
             or material["admission_digest"] != execution_payload_digest(admission)
             or ref.project_id != admission["project_id"]
             or ref.media_type != "application/json"
@@ -302,7 +356,7 @@ class SavedBusinessQueryReader:
             if (
                 observation in {VerificationObservation.MATCHED, VerificationObservation.MISMATCHED}
                 or unavailable
-                or material["redacted"]
+                or (material["redacted"] and not polled)
                 or not isinstance(raw_gaps, list)
                 or any(not isinstance(x, str) or not x for x in raw_gaps)
             ):
@@ -323,6 +377,30 @@ class SavedBusinessQueryReader:
             )
         else:
             raise BusinessVerificationBlocked("saved actual JSON is invalid")
+        if polled:
+            policy, observations, elapsed = _polling(request, material["polling"])
+            last = observations[-1]
+            if (
+                _bytes({"actual": last.actual_fields}) != _bytes({"actual": actual})
+                or list(last.unavailable_fields) != unavailable
+                or any(
+                    entry["redacted"]
+                    for entry in cast(
+                        list[dict[str, object]],
+                        cast(dict[str, object], material["polling"])["observations"],
+                    )
+                )
+                != material["redacted"]
+            ):
+                raise BusinessVerificationBlocked("saved query terminal material differs")
+            observation, gaps = derive_polled_query(
+                policy, observations, elapsed, request.expected_facts
+            )
+            if actual is None and (
+                material["unavailable_observation"] != observation.value
+                or material["unavailable_gap_ids"] != list(gaps)
+            ):
+                raise BusinessVerificationBlocked("saved query unavailable outcome differs")
         captured_at = datetime.fromisoformat(str(material["captured_at"]))
         if captured_at.tzinfo is None:
             raise BusinessVerificationBlocked("saved query time is not an aware capture fact")

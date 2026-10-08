@@ -1,0 +1,5 @@
+Baseline cd6059f: policy labels did not control execution.
+eventual_missing no_result legacy queries: 1
+no_deadline_capability matched legacy queries: 1
+unknown_policy matched legacy queries: 1
+Final tests refuse unknown/deadline-incapable queries, poll missing observations, preserve explicit mismatch, and reject late success.
