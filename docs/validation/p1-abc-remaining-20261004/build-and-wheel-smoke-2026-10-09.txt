@@ -1,0 +1,39 @@
+Build and isolated wheel smoke — 2026-10-09
+===========================================
+
+HEAD: 7eca87d (fix). Package version 0.4.0 (pyproject.toml unchanged this session).
+
+Build
+-----
+
+  $env:UV_CACHE_DIR = <workspace>\.runtime\.uv-cache
+  uv build --out-dir .runtime\build
+
+  Successfully built .runtime\build\ai_test_component-0.4.0.tar.gz
+  Successfully built .runtime\build\ai_test_component-0.4.0-py3-none-any.whl
+
+  wheel   729363 bytes
+  sdist   593691 bytes
+
+For comparison, the JSON-projection batch earlier in this session built 721602 B / 587176 B;
+the growth is the new modules added since (reuse reference contract, start source binding) plus
+the materialize mapping change. No packaging metadata, entry point or dependency changed.
+
+Isolated wheel smoke
+--------------------
+
+  TEMP/TMP pointed inside the workspace (host TEMP is not writable on this machine:
+  `os error 5` at C:\Users\...\AppData\Local\Temp\.tmpDhmDti when uv uses it directly)
+  $env:UV_CACHE_DIR = <workspace>\.runtime\.uv-cache
+  .venv\Scripts\python.exe scripts\smoke_wheel.py
+
+  Installed 8 packages (ai-test-component 0.4.0 from the built wheel + pydantic,
+  pydantic-core, annotated-types, typing-extensions, typing-inspection, portalocker, pywin32)
+  Isolated wheel smoke checks passed
+
+Boundary
+--------
+
+A successful build and an isolated wheel smoke are component/packaging evidence. They are not
+real Trae, real provider, physical power-loss or the 35 acceptance criteria; the real Phase-1
+state stays 0 verified / 35 empty evidence paths.
