@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.5"
+contract_version: "1.6"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,7 +16,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.5
+版本：1.6
 日期：2026-10-08
 状态：1.0历史确认保留；1.1—1.5增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
@@ -235,3 +235,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 ### 默认输出证据同提交（1.5，2026-10-08）
 
 默认命令进度/采集保存除spool和检查点外，经CORE-001 1.62将准确输出对象、EvidenceRef及对应快照可靠保存；D不能把completed/完整spool当成永久证据已发布。复用同一投影函数，保留现有核验、来源缺口和历史证据，不计算业务通过/证据等级。可靠终态重传只核对准确引用及永久对象，材料齐全不依赖spool、不新增提交。旧未发布材料只补原证据及历史投影，不自动重执行、不更换当前Attempt；准确历史正文/仓储修订缺证明保持阻塞。完整脱敏来源、业务核验和真实AC继续，公开DTO/Schema不变。
+
+1.6 永久脱敏摘要投影（2026-10-08）：准确execution_redaction_summary@1的冻结正文与对象遵循CORE-001 1.65；默认收集核心在同一工作单元将实际摘要投影到EvidenceFact，不能只放摘要号占位。来源不可核对与统计不完整为不同缺口；后者保留真实unknown/gap/partial和原原因。终态重传对拍完整EvidenceFact（含摘要），缺投影时仅补原材料；历史Attempt不成为当前。整用例历史来源消费时，承诺已保存摘要的命令输出须逐项核对固定@1、准确归属/块依据、对象字节与冻结inline摘要；旧缺证明材料保留缺口，不能以临时目录或后来最新摘要替代。DTO/Schema及复用资格口径不变，真实AC未验证。

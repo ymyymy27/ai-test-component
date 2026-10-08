@@ -483,6 +483,25 @@ class ExecutionEvidenceCollector(Protocol):
     ) -> tuple[EvidenceRef, ...] | None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class CollectedRedactionSummary:
+    summary_id: str
+    payload: Mapping[str, object]
+    summary: DomainRedactionSummary
+
+
+class ExecutionRedactionCollector(Protocol):
+    """Optional exact materials to save beside collected output references."""
+
+    def redaction_materials(
+        self, project_id: str, checkpoint: RecoveryRecord, references: tuple[EvidenceRef, ...],
+    ) -> tuple[CollectedRedactionSummary, ...]: ...
+
+    def validate_redaction_materials(
+        self, materials: tuple[CollectedRedactionSummary, ...],
+    ) -> None: ...
+
+
 class ModelResponseStore(Protocol):
     """Durable safe response material, independent of authority publication success."""
 
@@ -584,6 +603,14 @@ class SpoolRedactionInspection(Protocol):
 
     @property
     def redaction_changed(self) -> bool | None: ...
+
+
+class SpoolRedactionSummaryReader(Protocol):
+    """Optional reader for the actual sealed stream summary, not its identifier."""
+
+    def read_redaction_summary(
+        self, attempt_id: str, stream_name: OutputStreamName,
+    ) -> DomainRedactionSummary: ...
 
 
 class SpoolStore(Protocol):

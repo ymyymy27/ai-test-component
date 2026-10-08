@@ -4,10 +4,19 @@ import hashlib
 import re
 from typing import TYPE_CHECKING
 
+from aitest.application.evidence.redaction_materials import read_saved_redaction, summary_basis
+from aitest.application.execution.facts import _redaction_summary_fact
 from aitest.application.execution.output_material import require_saved_output_material
-from aitest.application.ports import EvidenceObjectStore, SpoolStore
+from aitest.application.planning.publish import payload_digest
+from aitest.application.ports import (
+    CollectedRedactionSummary,
+    EvidenceObjectStore,
+    RecordRepository,
+    SpoolStore,
+)
 from aitest.contracts.execution_facts import EvidenceFact, EvidenceKindFact
 from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.execution.runs import RecoveryRecord
 
 if TYPE_CHECKING:
     from aitest.application.execution.reuse_sources import CaseReuseSource
@@ -16,6 +25,7 @@ if TYPE_CHECKING:
 def validate_source_material(
     source: "CaseReuseSource", objects: EvidenceObjectStore | None,
     spool: SpoolStore | None = None,
+    records: RecordRepository | None = None,
 ) -> None:
     attempts = {item.attempt.attempt_id: item.attempt for item in source.steps if item.attempt}
     evidence = tuple(item for item in source.facts.evidence_refs if item.attempt_id in attempts)
@@ -26,6 +36,17 @@ def validate_source_material(
     project = source.facts.project_id
     run = source.facts.run_id
     checked: set[tuple[str, int]] = set()
+    redaction_checked: dict[str, CollectedRedactionSummary] = {}
+    checkpoints: dict[str, RecoveryRecord] = {}
+    for step in source.steps:
+        checkpoint = getattr(step, "checkpoint", None)
+        if step.attempt is not None and checkpoint is not None:
+            checkpoints[step.attempt.attempt_id] = checkpoint
+    published_blocks = {
+        f"evidence:{identity}:{block.stream_name.value}:{block.block_index}": block
+        for identity, checkpoint in checkpoints.items()
+        for block in checkpoint.attempt.output_block_refs
+    }
 
     def read(digest: str, size: int, media_type: str) -> None:
         if objects is None:
@@ -58,6 +79,39 @@ def validate_source_material(
         if (item.project_id, item.run_id, item.step_id) != (project, run, attempt.step_id):
             raise ValueError("case source evidence belongs to another project, run or step")
         read(item.object_digest, item.object_size, item.media_type or "application/octet-stream")
+        if (
+            getattr(item, "evidence_kind", None) is EvidenceKindFact.COMMAND_OUTPUT
+            and getattr(item, "redaction_summary", None) is not None
+            and "redaction_summary_provenance_unverified" not in getattr(item, "gap_ids", ())
+        ):
+            if records is None or objects is None:
+                raise ValueError("case source permanent redaction summary requires exact readers")
+            checkpoint = checkpoints.get(item.attempt_id)
+            if checkpoint is None:
+                raise ValueError("case source redaction summary lacks its exact checkpoint")
+            block = published_blocks.get(item.evidence_id)
+            if block is None or block.redaction_summary_id is None:
+                raise ValueError("case source redaction summary lacks its original output basis")
+            material = redaction_checked.get(block.redaction_summary_id)
+            if material is None:
+                basis = summary_basis(
+                    project_id=project, workspace_id=source.facts.run.origin_workspace_id,
+                    run_id=run, step_id=item.step_id, attempt_id=item.attempt_id,
+                    stream=block.stream_name,
+                    code_identity=item.code_identity.model_dump(mode="json"),
+                    blocks=checkpoint.attempt.output_block_refs,
+                )
+                material = read_saved_redaction(records, objects, basis)
+                if material is not None:
+                    redaction_checked[material.summary_id] = material
+            elif payload_digest(material.payload["code_identity"]) != payload_digest(
+                item.code_identity.model_dump(mode="json"),
+            ):
+                raise ValueError("case source redaction summary code identity conflicts")
+            if material is None or _redaction_summary_fact(
+                material.summary_id, {material.summary_id: material.summary},
+            ) != item.redaction_summary:
+                raise ValueError("case source redaction summary differs from its frozen projection")
 
     by_evidence = {item.evidence_id: item for item in evidence}
     for step_source in source.steps:

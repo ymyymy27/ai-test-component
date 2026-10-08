@@ -9,7 +9,7 @@ from pydantic import TypeAdapter
 
 from aitest.application.evidence.execution_outputs import SavedExecutionEvidence
 from aitest.application.execution.runner import SerialRunner
-from aitest.domain.evidence.evidence import EvidenceIntegrity, EvidenceRef
+from aitest.domain.evidence.evidence import EvidenceIntegrity, EvidenceRef, RedactionState
 from aitest.domain.execution.runs import (
     AttemptState,
     CaptureCompleteness,
@@ -81,6 +81,18 @@ def test_actual_bytes_are_published_and_core_restart_preserves_original_referenc
     assert records.current_revision(
         aggregate_kind="evidence_ref", record_id=one[0].evidence_id,
     ) == 1
+
+
+def test_missing_summary_cannot_mean_no_filtering_required(tmp_path):
+    collector, checkpoint, records = material(tmp_path)
+    ref = collector.collect("project-1", checkpoint)[0]
+    assert ref.redaction_state is RedactionState.UNKNOWN
+    assert "redaction_summary_unavailable" in ref.gap_ids
+    old = replace(ref, redaction_state=RedactionState.NOT_REQUIRED, gap_ids=())
+    records.save(old)
+    new = collector.collect("project-1", checkpoint)[0]
+    assert new.redaction_state is RedactionState.UNKNOWN and new.evidence_revision == 2
+    assert records.values[old.evidence_id][0]["redaction_state"] == "not_required"
 
 
 def test_block_completeness_appends_revision_instead_of_rewriting_history(tmp_path):

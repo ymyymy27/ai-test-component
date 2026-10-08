@@ -141,12 +141,18 @@ class EvidencePublisher:
             redaction_state=(
                 RedactionState.REDACTED
                 if block.redaction_summary_id is not None
-                else RedactionState.NOT_REQUIRED
+                else RedactionState.UNKNOWN
             ),
             projection_state=context.projection_state,
             redaction_summary_ref=block.redaction_summary_id,
             evidence_level=EvidenceLevel.UNKNOWN,
-            gap_ids=() if block.complete else ("partial_spool_block",),
+            gap_ids=(
+                (() if block.complete else ("partial_spool_block",))
+                + (
+                    () if block.redaction_summary_id is not None
+                    else ("redaction_summary_unavailable",)
+                )
+            ),
             media_type=context.media_type,
         )
 

@@ -179,5 +179,5 @@ class CaseReuseSourceReader:
             reference=reference, facts=facts, original_preparation=prepared,
             case_revision=first.case_revision_ref, steps=tuple(result),
         )
-        validate_source_material(source, self.objects, self.spool)
+        validate_source_material(source, self.objects, self.spool, self.records)
         return source

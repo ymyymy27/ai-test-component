@@ -4,6 +4,7 @@ import sys
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
+from aitest.infrastructure.file_store.spool import FileSpoolStore
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_default_execution_authorization import RELAY
@@ -24,7 +25,10 @@ def test_default_command_publishes_output_evidence_before_success_reply(authorit
     _, action = service.resolver.read(inputs.project_id, parameters['execution_action_id'])
     actor, challenge = review(service, inputs.project_id, action, parameters)
     save(service, inputs.project_id, action, parameters, actor, challenge)
-    port = CommandAdapter(handle_store=FileExecutionHandleStore(core.workspace.root))
+    port = CommandAdapter(
+        handle_store=FileExecutionHandleStore(core.workspace.root),
+        spool_store=FileSpoolStore(core.workspace.root),
+    )
     port.register(CommandRegistration('public-python', sys.executable, source))
     core.step_execution.execution_port = port
     response = core.api.dispatch(execution_command(inputs.project_id, action, parameters), RELAY)
@@ -33,3 +37,15 @@ def test_default_command_publishes_output_evidence_before_success_reply(authorit
     assert saved.attempts[0].state.value == 'completed'
     assert saved.attempts[0].output_blocks
     assert saved.evidence_refs, 'default command never published permanent evidence references'
+    for fact in saved.evidence_refs:
+        assert fact.redaction_summary.policy_version == 'aitest.redaction/1.0'
+        assert fact.redaction_summary.completeness == 'complete'
+        assert 'redaction_summary_provenance_unverified' not in fact.gap_ids
+    repo = core.unit_of_work.repo
+    checkpoint = core.execution_coordinator.read_checkpoint(
+        project_id=inputs.project_id, attempt_id=saved.attempts[0].attempt_id,
+    )
+    for block in checkpoint.attempt.output_block_refs:
+        raw = repo.read(aggregate_kind='execution_redaction_summary',
+                        record_id=block.redaction_summary_id, revision=1).payload
+        assert raw['summary']['policy_version'] == 'aitest.redaction/1.0'

@@ -1,0 +1,20 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____ test_default_publication_freezes_actual_summary_in_the_same_commit ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1047/test_default_publication_freez0")
+
+    def test_default_publication_freezes_actual_summary_in_the_same_commit(tmp_path):
+        _, coordinator, unit, _, checkpoint, summary = saved_summary(tmp_path)
+        result = coordinator.commit_checkpoint(project_id="project-1", checkpoint=checkpoint)
+        fact = result.facts.evidence_refs[0]
+>       assert fact.redaction_summary.policy_version == summary.policy_version
+E       AssertionError: assert 'redaction:attempt-1:stdout' == 'aitest.redaction/1.0'
+E         
+E         - aitest.redaction/1.0
+E         + redaction:attempt-1:stdout
+
+tests\unit\test_permanent_redaction_summary.py:48: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_permanent_redaction_summary.py::test_default_publication_freezes_actual_summary_in_the_same_commit
+1 failed in 2.36s

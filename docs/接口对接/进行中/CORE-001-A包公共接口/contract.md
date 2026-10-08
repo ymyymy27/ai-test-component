@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.64"
+contract_version: "1.65"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,12 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.65 永久脱敏材料（2026-10-08）：默认命令仅在准确检查点具有可靠终态时，认领已保存的逐流RedactionSummary；可选SpoolRedactionSummaryReader缺能力/材料时保留provenance_unverified，不猜测正文。安全摘要以不可变对象保存，内部execution_redaction_summary@1冻结准确项目/工作空间/Run/Step/Attempt/流、代码身份、该流完整块依据和摘要正文/对象引用；稳定号沿用redaction:Attempt:stream，不得追加覆盖修订或取最新正文。记录、EvidenceRef、检查点、快照及引用表同一短事务准确暂存；发布前核对对象真实字节，失败不发布半套材料。对象保存不能偷偷过滤元数据后沿用旧摘要；安全守卫改变正文时整个批次拒绝。永久材料可在事务外先成为未引用对象。
+
+命令输出缺摘要引用时redaction_state为unknown并附redaction_summary_unavailable，不能按not_required推定无需过滤。可靠旧终态补发布允许无摘要引用的not_required安全降级为unknown并追加准确修订；其他来源/字节/身份仍不可改变，历史正文保持。
+
+ExecutionRedactionCollector为可选应用端口，返回准确材料与实际摘要，供共同核心同提交保存和快照投影；旧收集器缺扩展保留原未知占位与缺口，不自动开放新的业务动作。永久材料可得仅撤销来源不可核对缺口；unknown/gap/partial统计原样保存并附redaction_summary_incomplete，不能提升证据等级或业务结论。原缺证明历史不迁移；可靠旧终态可核对原spool补认领一次，不重新执行、不替换当前Attempt、不改写历史快照。已永久保存材料回读不依赖spool，必须读取固定@1、准确封套、归属、块依据和对象字节；漂移/损坏拒绝成功，同意图重传无新修订。内部记录分类business并纳入清单/备份，不扩大公开QuerySpec、Schema或上传白名单。真实Trae/人工/掉电AC另验收，reviewing/partial/not_run保持。
 
 1.64 双层过滤统计（2026-10-08）：SpoolRedactionInspection是可选只读扩展，只在可靠封口且无过滤失败时报告redaction_changed的真实bool，其他情况返回null/缺能力。命令摘要须核对该层；真实false保持命令层已知统计，真实true保留secondary_filter_summary_unavailable，缺能力/非bool/读取失败保留secondary_filter_observation_unavailable。无采集错误时摘要completeness为unknown，不把命令层已知替换数当全部过滤统计；采集错误仍为gap并保留两类缺口。摘要未知不改写已可靠捕获的输出或真实退出，不重执行、不制造业务结论；未知观察不猜false。此扩展不代替永久摘要准确引用/来源闭包，公开DTO/Schema、FR/AC及reviewing/partial/not_run保持。
 

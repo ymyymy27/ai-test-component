@@ -67,10 +67,12 @@ from aitest.application.planning.saved_runtime_revision import SavedRuntimeRevis
 from aitest.application.planning.serialization import case_content_digest, case_to_payload
 from aitest.application.ports import (
     BasisConfirmationProof,
+    CollectedRedactionSummary,
     ControlledWriteProof,
     ExactRecordStaging,
     ExecutionAuthorizationProof,
     ExecutionEvidenceCollector,
+    ExecutionRedactionCollector,
     RecordRepository,
 )
 from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
@@ -1558,6 +1560,14 @@ class ExecutionCommitCoordinator:
             self._evidence_collector.collect(project_id, checkpoint)
             if self._evidence_collector is not None and checkpoint.attempt.output_block_refs else ()
         )
+        summary_collector = (
+            cast(ExecutionRedactionCollector, self._evidence_collector)
+            if callable(getattr(self._evidence_collector, "redaction_materials", None)) else None
+        )
+        materials = (
+            summary_collector.redaction_materials(project_id, checkpoint, references)
+            if summary_collector is not None and references else ()
+        )
         begin = getattr(self._uow, "begin", None)
         if callable(begin):
             begin(f"execution-{uuid4().hex}", project_id)
@@ -1593,7 +1603,7 @@ class ExecutionCommitCoordinator:
             )
             records = [staged]
             evidence_records, projected = self._stage_collected_evidence(
-                project_id, checkpoint, references,
+                project_id, checkpoint, references, materials,
             )
             records.extend(evidence_records)
             facts = None
@@ -1611,8 +1621,10 @@ class ExecutionCommitCoordinator:
                 by_id = {item.evidence_id: item for item in updated.evidence_refs}
                 for item in projected:
                     old = by_id.get(item.evidence_id)
-                    if old is not None and old.model_dump(exclude={"redaction_summary"}) == (
-                        item.model_dump(exclude={"redaction_summary"})
+                    if (
+                        not materials and old is not None
+                        and old.model_dump(exclude={"redaction_summary"})
+                        == item.model_dump(exclude={"redaction_summary"})
                     ):
                         item = item.model_copy(update={"redaction_summary": old.redaction_summary})
                     by_id[item.evidence_id] = item
@@ -1624,6 +1636,8 @@ class ExecutionCommitCoordinator:
                 records.extend(snapshot_records)
             if self._evidence_collector is not None and references:
                 self._evidence_collector.validate(references)
+            if summary_collector is not None and materials:
+                summary_collector.validate_redaction_materials(materials)
             committed = self._uow.commit()
         except BaseException:
             self._uow.rollback()
@@ -1632,11 +1646,43 @@ class ExecutionCommitCoordinator:
 
     def _stage_collected_evidence(
         self, project_id: str, checkpoint: RecoveryRecord, references: tuple[EvidenceRef, ...],
+        materials: tuple[CollectedRedactionSummary, ...] = (),
     ) -> tuple[list[object], list[EvidenceFact]]:
         records: list[object] = []
         projected: list[EvidenceFact] = []
         if len({ref.evidence_id for ref in references}) != len(references):
             raise ValueError("collected output evidence has duplicate identities")
+        summaries = {}
+        ids = {ref.redaction_summary_ref for ref in references}
+        for material in materials:
+            if material.summary_id in summaries or material.summary_id not in ids or (
+                material.payload.get("summary_id"), material.payload.get("project_id"),
+                material.payload.get("run_id"), material.payload.get("step_id"),
+                material.payload.get("attempt_id"),
+            ) != (
+                material.summary_id, project_id, checkpoint.attempt.run_id,
+                checkpoint.attempt.step_id, checkpoint.attempt.attempt_id,
+            ):
+                raise ValueError("collected redaction summary identity or ownership conflicts")
+            current = self._revision("execution_redaction_summary", material.summary_id)
+            if current == 1:
+                if _payload_digest(self._read_payload(
+                    "execution_redaction_summary", material.summary_id,
+                ) or {}) != _payload_digest(material.payload):
+                    raise ValueError("permanent redaction summary differs from its exact record")
+            elif current == 0:
+                if not callable(getattr(self._uow, "stage_record_exact", None)):
+                    raise ValueError("redaction summary requires exact record staging")
+                staged = cast(ExactRecordStaging, self._uow).stage_record_exact(
+                    aggregate_kind="execution_redaction_summary", record_id=material.summary_id,
+                    expected_revision=0, payload=material.payload,
+                )
+                if type(staged) is not int or staged != 1:
+                    raise ValueError("redaction summary exact revision cannot be verified")
+                records.append(staged)
+            else:
+                raise ValueError("permanent redaction summary is immutable at revision one")
+            summaries[material.summary_id] = material.summary
         for ref in references:
             if (ref.project_id, ref.run_id, ref.step_id, ref.attempt_id) != (
                 project_id, checkpoint.attempt.run_id, checkpoint.attempt.step_id,
@@ -1662,7 +1708,7 @@ class ExecutionCommitCoordinator:
                 records.append(staged)
             else:
                 raise ValueError("output evidence warehouse revision changed")
-            projected.append(_evidence_fact(ref, {}))
+            projected.append(_evidence_fact(ref, summaries))
         return records, projected
 
     def ensure_checkpoint_evidence(self, *, project_id: str, attempt: Attempt) -> None:
@@ -1676,10 +1722,12 @@ class ExecutionCommitCoordinator:
         current = self.read_current_facts(project_id=project_id, run_id=attempt.run_id)
         if references is not None and current is not None:
             existing = {item.evidence_id: item for item in current.evidence_refs}
+            reader = getattr(self._evidence_collector, "redaction_materials", None)
+            materials = reader(project_id, checkpoint, references) if callable(reader) else ()
+            summaries = {item.summary_id: item.summary for item in materials}
             if all(
                 existing.get(ref.evidence_id) is not None
-                and existing[ref.evidence_id].model_dump(exclude={"redaction_summary"})
-                == _evidence_fact(ref, {}).model_dump(exclude={"redaction_summary"})
+                and existing[ref.evidence_id] == _evidence_fact(ref, summaries)
                 for ref in references
             ):
                 return

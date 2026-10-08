@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import threading
 from collections.abc import Sequence
 from contextlib import ExitStack
@@ -14,6 +13,11 @@ from pathlib import Path
 import portalocker
 
 from aitest.domain.evidence.evidence import RedactionSummary
+from aitest.domain.evidence.redaction_material import (
+    MAX_SUMMARY_BYTES,
+    parse_redaction_summary,
+    redaction_summary_payload,
+)
 from aitest.domain.execution.runs import (
     CapturedOutputBlock,
     OutputBlockRef,
@@ -21,7 +25,7 @@ from aitest.domain.execution.runs import (
     OutputStreamName,
     SpoolManifest,
 )
-from aitest.domain.json_material import decode_json, require_json_text
+from aitest.domain.json_material import decode_json
 
 from ..security import (
     KnownSecretRegistry,
@@ -35,12 +39,7 @@ from . import atomic
 
 _INVALID_COMPONENT_CHARS = frozenset('\\/:*?"<>|')
 _MAX_PENDING_BYTES = 1024 * 1024
-_MAX_SUMMARY_BYTES = 64 * 1024
-_SUMMARY_FIELDS = frozenset({
-    "schema_version", "summary_id", "stream_name", "policy_version",
-    "applied_rule_categories", "filtered_streams", "filtered_ranges",
-    "replacement_count", "completeness", "gap_reasons",
-})
+
 
 
 def _safe_component(value: str, name: str) -> str:
@@ -81,50 +80,6 @@ def _require_optional_str(value: object, name: str) -> str | None:
     return _require_str(value, name)
 
 
-def _parse_redaction_summary(
-    raw: object, attempt_id: str, stream_name: OutputStreamName,
-) -> RedactionSummary:
-    if not isinstance(raw, dict) or set(raw) != _SUMMARY_FIELDS or (
-        raw.get("schema_version"), raw.get("summary_id"), raw.get("stream_name")
-    ) != ("aitest.redaction-summary/1.0", f"redaction:{attempt_id}:{stream_name.value}",
-          stream_name.value):
-        raise ValueError("redaction summary schema or ownership cannot be verified")
-
-    def text(value: object, name: str) -> str:
-        result = _require_str(value, name)
-        require_json_text(result)
-        if not result.strip():
-            raise ValueError("redaction summary text must not be blank")
-        return result
-
-    def values(name: str) -> tuple[str, ...]:
-        result = tuple(text(item, name) for item in _require_list(raw.get(name), name))
-        if len(set(result)) != len(result):
-            raise ValueError("redaction summary entries must be unique")
-        return result
-
-    result = RedactionSummary(
-        policy_version=text(raw.get("policy_version"), "policy_version"),
-        applied_rule_categories=values("applied_rule_categories"),
-        filtered_streams=values("filtered_streams"), filtered_ranges=values("filtered_ranges"),
-        replacement_count=_require_int(raw.get("replacement_count"), "replacement_count"),
-        completeness=text(raw.get("completeness"), "completeness"),
-        gap_reasons=values("gap_reasons"),
-    )
-    if result.filtered_streams != (stream_name.value,) or (
-        result.completeness not in {"complete", "partial", "gap", "unknown"}
-    ) or (result.completeness == "complete" and result.gap_reasons):
-        raise ValueError("redaction summary stream or completeness cannot be verified")
-    previous_end = 0
-    for value in result.filtered_ranges:
-        match = re.fullmatch(re.escape(stream_name.value) + r":([0-9]+)-([0-9]+)", value)
-        if match is None:
-            raise ValueError("redaction summary range belongs to another stream or is invalid")
-        start, end = map(int, match.groups())
-        if start < previous_end or end < start:
-            raise ValueError("redaction summary ranges overlap or are reversed")
-        previous_end = end
-    return result
 
 
 class _FileSpoolStreamWriter:
@@ -447,26 +402,14 @@ class FileSpoolStore:
     ) -> str:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
         summary_id = f"redaction:{safe_attempt}:{stream_name.value}"
-        payload = {
-            "schema_version": "aitest.redaction-summary/1.0",
-            "summary_id": summary_id,
-            "stream_name": stream_name.value,
-            "policy_version": summary.policy_version,
-            "applied_rule_categories": list(summary.applied_rule_categories),
-            "filtered_streams": list(summary.filtered_streams),
-            "filtered_ranges": list(summary.filtered_ranges),
-            "replacement_count": summary.replacement_count,
-            "completeness": summary.completeness,
-            "gap_reasons": list(summary.gap_reasons),
-        }
-        _parse_redaction_summary(payload, safe_attempt, stream_name)
+        payload = redaction_summary_payload(summary, safe_attempt, stream_name)
         _, changed = guard_value(payload, self._registry)
         if changed:
             raise UnsafeMaterialError("redaction summary metadata requires credential filtering")
         encoded = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
             "utf-8"
         )
-        if len(encoded) > _MAX_SUMMARY_BYTES:
+        if len(encoded) > MAX_SUMMARY_BYTES:
             raise ValueError("redaction summary exceeds metadata budget")
         atomic.write_json(
             self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json",
@@ -482,10 +425,10 @@ class FileSpoolStore:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
         path = self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json"
         with path.open("rb") as handle:
-            content = handle.read(_MAX_SUMMARY_BYTES + 1)
-        if len(content) > _MAX_SUMMARY_BYTES:
+            content = handle.read(MAX_SUMMARY_BYTES + 1)
+        if len(content) > MAX_SUMMARY_BYTES:
             raise ValueError("redaction summary exceeds metadata budget")
-        return _parse_redaction_summary(decode_json(content), safe_attempt, stream_name)
+        return parse_redaction_summary(decode_json(content), safe_attempt, stream_name)
 
     def salvage_streams(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")

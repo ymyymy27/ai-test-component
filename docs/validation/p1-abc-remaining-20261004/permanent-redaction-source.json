@@ -1,0 +1,48 @@
+{
+  "baseline": "bd989f1",
+  "python": "3.13.13",
+  "os": "Windows x64",
+  "sources": {
+    "src/aitest/application/evidence/execution_outputs.py": "4646a2e3f6a34441fbe7b5d6311ab462963300b64f22f6830949c5f4055cd038",
+    "src/aitest/application/evidence/publication.py": "ec74089b581174a6cfd5312d0a134f05e8794a485c0f12d2e8009912f46b2276",
+    "src/aitest/application/evidence/redaction_materials.py": "4073962f8f040530e366e59fd6330cf0b3e6bec46aadce47acc860808884af6e",
+    "src/aitest/application/execution/commit.py": "1edfe776cb2c0d264d04fd07d093108ef8fa4f2c3c413b6ff98a4bd6ed16f4e8",
+    "src/aitest/application/execution/reuse_material.py": "2bf19b460f293f4f07b303091dcbb082824fc295b52f2b4ca9bb88b11f908edd",
+    "src/aitest/application/execution/reuse_sources.py": "cbdddb24a7d685fd60b77c180cb376a25dee3128035c502546fbb7fe48be55a7",
+    "src/aitest/application/ports.py": "b495b0e363626f22b92897a76cd1c86ce6270a93c2ce715bc9adedd70155fb18",
+    "src/aitest/domain/evidence/redaction_material.py": "c652aaa883ddfe6ff76864eff3b3cef83fb59d269420076bb053a9932398b9f9",
+    "src/aitest/infrastructure/file_store/spool.py": "1a659057f3f62a75609b544a6268d42c582e40edec11c07c8925ee524e50c7e8",
+    "src/aitest/infrastructure/file_store/business_changes.py": "5988a4e13753fe6721046a58d1b8ab20187aedfa889412185a9afe5724dd4aee",
+    "tests/unit/test_permanent_redaction_summary.py": "85d0a24e7e3b7b18adbe627d23e97bc5c9caf6c557930de1e17635d842b726d1",
+    "tests/unit/test_default_evidence_publication.py": "e811153c6c52af0c6be19535de2f1534fe99588f67c56b30f6b845a03e1fdcc2",
+    "tests/unit/test_execution_output_evidence.py": "593d6f5de2a3687c3be16339e8ad0d1d2b2339ef49d010327f6fa3515a2cab60"
+  },
+  "reports": {
+    "permanent-redaction-before.txt": "3b27bbb17d1b74c0e9afe3de74bd9ad7e32ed721852d7b02945a57daa80e0ab2",
+    "permanent-redaction-final-verified.txt": "ba876187902621f6aa577c7a9485923530fc46664fe0d0fb3e2d6e0e35d2ac35",
+    "permanent-redaction-default-command-verified.txt": "a3a24858c90dc57c3d0e4cab6fea72952213c553e136985627e3a69d4a364398",
+    "permanent-redaction-wheel-final.txt": "d86d207172d66f8e36dffedf492dfa45b2b37c26747a6d59a4357cd4e38bffa1",
+    "permanent-redaction-ruff-final.txt": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "permanent-redaction-mypy-final.txt": "02972dc3a34c18da2c10a609e50f5c3836e50b9af0af9559b1a4ad39ac8cd5fb",
+    "permanent-redaction-build-final.txt": "f468380442976a2b1c802a7ffbd5cd70b41cfe64f363462a9805016268f05eeb"
+  },
+  "reproduce": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-o",
+    "addopts=",
+    "tests/architecture",
+    "tests/contracts",
+    "tests/recovery/test_spool_store.py",
+    "tests/unit/test_permanent_redaction_summary.py",
+    "tests/unit/test_execution_output_evidence.py",
+    "tests/unit/test_case_reuse_material.py",
+    "tests/unit/test_evidence_publication_integrity.py",
+    "tests/unit/test_redaction_material_guards.py",
+    "tests/unit/test_redaction.py",
+    "tests/unit/test_spool_write_preflight.py"
+  ],
+  "limits": "Actual files/UOW/Windows Python command. Source/authority are synthetic fixtures; no real Trae/DeepSeek/human/power-loss AC."
+}

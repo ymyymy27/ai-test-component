@@ -44,6 +44,7 @@ BUSINESS_TYPES = frozenset(
         "execution_intent",
         "execution_checkpoint",
         "execution_checkpoint_refs",
+        "execution_redaction_summary",
         "record_write_intent",
         "execution_facts",
         "execution_facts_current",

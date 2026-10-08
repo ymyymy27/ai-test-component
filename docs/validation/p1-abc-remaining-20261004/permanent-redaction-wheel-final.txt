@@ -1,0 +1,4 @@
+........................................................................ [ 86%]
+...........                                                              [100%]
+83 passed in 122.98s (0:02:02)
+10 exact installed modules; actual files and atomic UOW, synthetic source/authority. Not real Trae or power-loss AC.
