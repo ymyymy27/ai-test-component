@@ -6,6 +6,9 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from aitest.infrastructure.security import UnsafeMaterialError
+
+MAX_PENDING_BYTES = 1024 * 1024
 _REDACTED = b"[REDACTED]"
 _KV_PATTERN = re.compile(
     rb"(?i)(\b(?:password|passwd|pwd|token|access[_-]?token|refresh[_-]?token|"
@@ -38,7 +41,12 @@ class RedactionStats:
 class StreamingRedactor:
     """Redact complete lines while preserving secrets split across input chunks."""
 
-    def __init__(self, secrets: Iterable[str] = ()) -> None:
+    def __init__(
+        self, secrets: Iterable[str] = (), *, max_pending_bytes: int = MAX_PENDING_BYTES,
+    ) -> None:
+        if type(max_pending_bytes) is not int or not 0 < max_pending_bytes <= MAX_PENDING_BYTES:
+            raise ValueError("redaction pending budget must be a positive bounded integer")
+        self._max_pending_bytes = max_pending_bytes
         encoded = {secret.encode("utf-8") for secret in secrets if secret}
         self._secrets = tuple(sorted(encoded, key=len, reverse=True))
         self._pending = bytearray()
@@ -52,15 +60,27 @@ class StreamingRedactor:
         if self._closed:
             raise RuntimeError("redactor is already closed")
         self._input_bytes += len(data)
-        self._pending.extend(data)
+        # Validate before any redaction stats change or emissions from this feed.
+        offset = 0
+        while offset < len(data):
+            newline = data.find(b"\n", offset)
+            end = len(data) if newline < 0 else newline + 1
+            size = end - offset + (len(self._pending) if offset == 0 else 0)
+            if size > self._max_pending_bytes:
+                self._pending.clear()
+                self._closed = True
+                raise UnsafeMaterialError("command redaction unresolved line exceeds memory budget")
+            offset = end
         output = bytearray()
-        while True:
-            newline = self._pending.find(b"\n")
-            if newline < 0:
-                break
-            line = bytes(self._pending[: newline + 1])
-            del self._pending[: newline + 1]
-            output.extend(self._redact(line))
+        offset = 0
+        while offset < len(data):
+            newline = data.find(b"\n", offset)
+            end = len(data) if newline < 0 else newline + 1
+            self._pending.extend(data[offset:end])
+            if newline >= 0:
+                output.extend(self._redact(bytes(self._pending)))
+                self._pending.clear()
+            offset = end
         self._output_bytes += len(output)
         return bytes(output)
 

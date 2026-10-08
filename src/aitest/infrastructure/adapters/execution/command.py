@@ -36,6 +36,7 @@ from aitest.domain.execution.runs import (
     StopRequestResult,
 )
 from aitest.infrastructure.file_store.execution_handles import PersistedExecutionHandle
+from aitest.infrastructure.security import UnsafeMaterialError
 
 from .redaction import StreamingRedactor
 
@@ -131,7 +132,10 @@ class CommandAdapter:
         stream_block_size: int = 64 * 1024,
         graceful_stop_timeout_seconds: float = 3.0,
         force_kill_timeout_seconds: float = 3.0,
+        max_in_memory_bytes: int = 1024 * 1024,
     ) -> None:
+        if type(max_in_memory_bytes) is not int or not 0 < max_in_memory_bytes <= 1024 * 1024:
+            raise ValueError("command memory capture budget must be a positive bounded integer")
         if stream_block_size < 1:
             raise ValueError("stream_block_size must be positive")
         if graceful_stop_timeout_seconds < 0 or force_kill_timeout_seconds < 0:
@@ -144,6 +148,7 @@ class CommandAdapter:
         self._stream_block_size = stream_block_size
         self._graceful_stop_timeout_seconds = graceful_stop_timeout_seconds
         self._force_kill_timeout_seconds = force_kill_timeout_seconds
+        self._max_in_memory_bytes = max_in_memory_bytes
 
     def register(self, registration: CommandRegistration) -> None:
         if registration.entry_id in self._registrations:
@@ -687,8 +692,8 @@ class CommandAdapter:
         runtime.threads.append(thread)
         thread.start()
 
-    @staticmethod
     def _consume_filtered(
+        self,
         runtime: _CommandRuntime,
         stream_name: OutputStreamName,
         content: bytes,
@@ -699,6 +704,10 @@ class CommandAdapter:
             return
         if writer is None:
             with runtime.lock:
+                if sum(len(value) for value in runtime.captured_buffers.values()) + len(content) > (
+                    self._max_in_memory_bytes
+                ):
+                    raise UnsafeMaterialError("command filtered output exceeds memory budget")
                 memory_target.extend(content)
             return
         refs = writer.append(content)

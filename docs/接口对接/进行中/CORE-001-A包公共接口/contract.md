@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.62"
+contract_version: "1.63"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.63 采集脱敏守卫（2026-10-08）：命令逐流行缓冲与spool落盘前安全过滤的未决尾部分别限1MiB；无spool适配器的stdout/stderr已过滤内存总量也限1MiB，不能靠换行绕过未决上限。超限立即丢弃未决尾部并拒绝继续，不转储或伪装完整采集；已保存的安全spool前缀保留，命令沿原reader_error/gap处理，未保存内存不冒充永久证据。内部策略可配置更小正整数预算，客户端不授予更宽采集许可。脱敏摘要读取至多64KiB加一字节判超限，使用严格UTF-8/唯一字段JSON；只接受既有1.0字段及准确Attempt/stream/summary_id，范围/流/完整性和缺口语义须一致。保存复用同一守卫并在落盘前拒绝需过滤的摘要元数据，不覆盖原材料。旧缺归属/歧义/超限保持未核实，不迁移或猜测；这些守卫不证明永久脱敏来源闭包，FR/AC、公开DTO/Schema及reviewing/partial/not_run保持。
 
 1.62 默认命令证据发布（2026-10-08）：默认核心注入ExecutionEvidenceCollector，采集检查点有输出时，先在事务外按准确原Run/准备、冻结源码绑定和实际spool归属核对块并发布过滤后不可变对象；不能从退出码制造业务结论。事务内与准确检查点、EvidenceRef、执行快照及其检查点引用/当前指针同批保存，提交前再次核对对象字节。引用正文使用准确暂存，过滤改变元数据时拒绝整个批次。稳定证据号按Attempt/流/块编号，同内容/元数据不新增引用修订，保留首次来源实例；不同归属/摘要冲突拒绝，完整性变化追加准确修订。新默认路径正文evidence_revision与实际仓储修订逐次核对，旧不符不猜测迁移。部分捕获和缺失脱敏摘要保留缺口；当前来源/业务核验未知状态不升级。失败或丢回执不重跑已发生的执行，按原句柄/检查点继续采集；永久对象可以先发布成未引用材料，可靠业务提交前不发布成功事实。冻结材料可回读不等于实际加载已核实，真实宿主/人工/AC另验收。
 

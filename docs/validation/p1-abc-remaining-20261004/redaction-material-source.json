@@ -1,0 +1,26 @@
+{
+  "baseline": "005dfdb",
+  "date": "2026-10-08",
+  "branch": "fix",
+  "source_sha256": {
+    "src/aitest/infrastructure/adapters/execution/redaction.py": "81c79b4eb1407e970aaad1b1db9f84f02c389c96706496b2b7c8290fec052b5a",
+    "src/aitest/infrastructure/adapters/execution/command.py": "1e350d3cf831f6b93e8df771e91476d7d786fb25e7787cecbb23896d5cd6c167",
+    "src/aitest/infrastructure/file_store/spool.py": "dbaf92bdfa04e57a6a606ca7782d4b48199742ed8352251de10aaca0b79f4e67",
+    "tests/unit/test_redaction_material_guards.py": "5f7894651bfb54aebaf42fca57cc7da1d2e0530468fd30d9f55d7254f6d47133"
+  },
+  "checks": {
+    "regression": 347,
+    "installed_wheel": 36,
+    "ruff": "passed",
+    "mypy_source_files": 214,
+    "schema": "unchanged",
+    "wheel_sdist": "passed"
+  },
+  "limits": {
+    "unresolved_line_bytes": 1048576,
+    "spool_unresolved_bytes": 1048576,
+    "fallback_total_memory_bytes": 1048576,
+    "summary_bytes": 65536
+  },
+  "real_p1_acceptance": "unchanged; these are component checks, not real Trae AC"
+}

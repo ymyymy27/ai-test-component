@@ -1,0 +1,3 @@
+....................................                                     [100%]
+36 passed in 10.13s
+Three exact installed modules; actual Windows output limits and spool/metadata guards. Not real Trae AC or complete permanent summary provenance.

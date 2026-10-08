@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import threading
 from collections.abc import Sequence
 from contextlib import ExitStack
@@ -20,17 +21,26 @@ from aitest.domain.execution.runs import (
     OutputStreamName,
     SpoolManifest,
 )
+from aitest.domain.json_material import decode_json, require_json_text
 
 from ..security import (
     KnownSecretRegistry,
     StreamSecretFilter,
     UnsafeMaterialError,
     guard_bytes,
+    guard_value,
     known_secrets,
 )
 from . import atomic
 
 _INVALID_COMPONENT_CHARS = frozenset('\\/:*?"<>|')
+_MAX_PENDING_BYTES = 1024 * 1024
+_MAX_SUMMARY_BYTES = 64 * 1024
+_SUMMARY_FIELDS = frozenset({
+    "schema_version", "summary_id", "stream_name", "policy_version",
+    "applied_rule_categories", "filtered_streams", "filtered_ranges",
+    "replacement_count", "completeness", "gap_reasons",
+})
 
 
 def _safe_component(value: str, name: str) -> str:
@@ -71,6 +81,52 @@ def _require_optional_str(value: object, name: str) -> str | None:
     return _require_str(value, name)
 
 
+def _parse_redaction_summary(
+    raw: object, attempt_id: str, stream_name: OutputStreamName,
+) -> RedactionSummary:
+    if not isinstance(raw, dict) or set(raw) != _SUMMARY_FIELDS or (
+        raw.get("schema_version"), raw.get("summary_id"), raw.get("stream_name")
+    ) != ("aitest.redaction-summary/1.0", f"redaction:{attempt_id}:{stream_name.value}",
+          stream_name.value):
+        raise ValueError("redaction summary schema or ownership cannot be verified")
+
+    def text(value: object, name: str) -> str:
+        result = _require_str(value, name)
+        require_json_text(result)
+        if not result.strip():
+            raise ValueError("redaction summary text must not be blank")
+        return result
+
+    def values(name: str) -> tuple[str, ...]:
+        result = tuple(text(item, name) for item in _require_list(raw.get(name), name))
+        if len(set(result)) != len(result):
+            raise ValueError("redaction summary entries must be unique")
+        return result
+
+    result = RedactionSummary(
+        policy_version=text(raw.get("policy_version"), "policy_version"),
+        applied_rule_categories=values("applied_rule_categories"),
+        filtered_streams=values("filtered_streams"), filtered_ranges=values("filtered_ranges"),
+        replacement_count=_require_int(raw.get("replacement_count"), "replacement_count"),
+        completeness=text(raw.get("completeness"), "completeness"),
+        gap_reasons=values("gap_reasons"),
+    )
+    if result.filtered_streams != (stream_name.value,) or (
+        result.completeness not in {"complete", "partial", "gap", "unknown"}
+    ) or (result.completeness == "complete" and result.gap_reasons):
+        raise ValueError("redaction summary stream or completeness cannot be verified")
+    previous_end = 0
+    for value in result.filtered_ranges:
+        match = re.fullmatch(re.escape(stream_name.value) + r":([0-9]+)-([0-9]+)", value)
+        if match is None:
+            raise ValueError("redaction summary range belongs to another stream or is invalid")
+        start, end = map(int, match.groups())
+        if start < previous_end or end < start:
+            raise ValueError("redaction summary ranges overlap or are reversed")
+        previous_end = end
+    return result
+
+
 class _FileSpoolStreamWriter:
     def __init__(
         self,
@@ -84,6 +140,7 @@ class _FileSpoolStreamWriter:
         block_size: int,
         redaction_summary_id: str | None,
         registry: KnownSecretRegistry,
+        max_pending_bytes: int,
     ) -> None:
         if type(block_size) is not int or block_size < 1:
             raise ValueError("block_size must be positive")
@@ -97,6 +154,8 @@ class _FileSpoolStreamWriter:
         self._redaction_summary_id = redaction_summary_id
         self._lock = threading.Lock()
         self._closed = False
+        self._failed = False
+        self._max_pending_bytes = max_pending_bytes
         self._path = store._stream_path(attempt_id, stream_name)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._capture_lock = store._capture_lock(attempt_id, stream_name)
@@ -125,7 +184,13 @@ class _FileSpoolStreamWriter:
         with self._lock:
             if self._closed:
                 raise RuntimeError("spool stream writer is closed")
+            if self._failed:
+                raise UnsafeMaterialError("spool unresolved output exceeded memory budget")
             safe = self._filter.feed(content)
+            if self._filter.pending_bytes > self._max_pending_bytes:
+                self._filter.abort()
+                self._failed = True
+                raise UnsafeMaterialError("spool unresolved output exceeds memory budget")
             if not safe:
                 # 整块（或尾部）仍在未决窗口：尚未确认安全，不落盘。
                 return ()
@@ -154,7 +219,7 @@ class _FileSpoolStreamWriter:
                     self._hasher.update(tail)
                     self._block_length += len(tail)
                 if self._block_length:
-                    refs = (self._seal(complete=complete),)
+                    refs = (self._seal(complete=complete and not self._failed),)
                 self._store._capture_state(self._attempt_id, self._stream_name, "sealed")
             finally:
                 self._handle.close()
@@ -223,8 +288,12 @@ class FileSpoolStore:
         workspace_root: Path,
         *,
         registry: KnownSecretRegistry | None = None,
+        max_pending_bytes: int = _MAX_PENDING_BYTES,
     ) -> None:
+        if type(max_pending_bytes) is not int or not 0 < max_pending_bytes <= _MAX_PENDING_BYTES:
+            raise ValueError("spool pending budget must be a positive bounded integer")
         self._root = workspace_root.resolve()
+        self._max_pending_bytes = max_pending_bytes
         self._registry = registry if registry is not None else known_secrets()
         self._manifest_lock = threading.RLock()
         self._writer_lock = threading.Lock()
@@ -261,6 +330,7 @@ class FileSpoolStore:
                 block_size=block_size,
                 redaction_summary_id=redaction_summary_id,
                 registry=self._registry,
+                max_pending_bytes=self._max_pending_bytes,
             )
             self._open_writers.add(key)
             return writer
@@ -382,6 +452,15 @@ class FileSpoolStore:
             "completeness": summary.completeness,
             "gap_reasons": list(summary.gap_reasons),
         }
+        _parse_redaction_summary(payload, safe_attempt, stream_name)
+        _, changed = guard_value(payload, self._registry)
+        if changed:
+            raise UnsafeMaterialError("redaction summary metadata requires credential filtering")
+        encoded = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
+        if len(encoded) > _MAX_SUMMARY_BYTES:
+            raise ValueError("redaction summary exceeds metadata budget")
         atomic.write_json(
             self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json",
             payload,
@@ -394,39 +473,12 @@ class FileSpoolStore:
         stream_name: OutputStreamName,
     ) -> RedactionSummary:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
-        raw: object = json.loads(
-            (self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        if not isinstance(raw, dict):
-            raise ValueError("redaction summary must be an object")
-        if raw.get("schema_version") != "aitest.redaction-summary/1.0":
-            raise ValueError("unsupported redaction summary schema")
-        return RedactionSummary(
-            policy_version=_require_str(raw.get("policy_version"), "policy_version"),
-            applied_rule_categories=tuple(
-                _require_str(value, "applied_rule_category")
-                for value in _require_list(
-                    raw.get("applied_rule_categories"),
-                    "applied_rule_categories",
-                )
-            ),
-            filtered_streams=tuple(
-                _require_str(value, "filtered_stream")
-                for value in _require_list(raw.get("filtered_streams"), "filtered_streams")
-            ),
-            filtered_ranges=tuple(
-                _require_str(value, "filtered_range")
-                for value in _require_list(raw.get("filtered_ranges"), "filtered_ranges")
-            ),
-            replacement_count=_require_int(raw.get("replacement_count"), "replacement_count"),
-            completeness=_require_str(raw.get("completeness"), "completeness"),
-            gap_reasons=tuple(
-                _require_str(value, "gap_reason")
-                for value in _require_list(raw.get("gap_reasons"), "gap_reasons")
-            ),
-        )
+        path = self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json"
+        with path.open("rb") as handle:
+            content = handle.read(_MAX_SUMMARY_BYTES + 1)
+        if len(content) > _MAX_SUMMARY_BYTES:
+            raise ValueError("redaction summary exceeds metadata budget")
+        return _parse_redaction_summary(decode_json(content), safe_attempt, stream_name)
 
     def salvage_streams(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
