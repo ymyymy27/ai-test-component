@@ -52,6 +52,28 @@ src/aitest/contracts/redaction.py (quoted [REDACTED] idempotency).
   The clean full-suite result for this source, run under the real user token with no
   session shim, is recorded in section 3.
 
-3. Full-suite result under the real user token
+3. Full-suite result for this source
 
-  (pending; appended when the run completes)
+  A real-token (no session shim) full-suite run was started; at 19% after roughly 35 minutes
+  the remaining time was projected at well over an hour (the confined run failed fast, while
+  the real token actually executes the long host/publication scenarios), so it was cancelled
+  for this batch rather than reported as a partial number. It is NOT replaced by the
+  historical 2336 passed / 2 skipped, which belongs to an earlier commit.
+
+  Attribution of the confined full run (4720 collected, 215 failed / 4085 passed / 2 skipped /
+  418 errors), whole-log scan:
+  - 583 PermissionError and 8 AssertionError records; the log contains no mention of
+    guard_json_text, POLICY_REVISION, projections.py, redaction.py, scrub_secret_text or
+    UnsafeMaterialError anywhere.
+  - Baseline/current A/B on the ten most affected files: identical 106 failed / 98 passed /
+    64 errors on both sides (section 2).
+
+  Static, schema, version, build and artifact checks for exactly this source:
+  - .venv/Scripts/python.exe scripts/generate_schemas.py -> exit 0, no schema byte changed.
+  - .venv/Scripts/python.exe scripts/check_versions.py -> 0.4.0, exit 0.
+  - uv build --out-dir .runtime/build -> ai_test_component-0.4.0-py3-none-any.whl (721602
+    bytes) and .tar.gz (587176 bytes) built from this source; scripts/smoke_wheel.py ->
+    "Isolated wheel smoke checks passed", exit 0.
+  - ruff check src tests -> All checks passed; mypy -> no issues in 223 source files.
+
+  A clean real-token full-suite run for this source remains to be done in a later batch.
