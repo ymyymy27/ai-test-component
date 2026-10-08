@@ -40,10 +40,14 @@ directories):
 4. tests/contracts + tests/architecture: 225 passed.
    ruff check src tests -> All checks passed; mypy -> no issues in 223 source files.
 
-5. A real-token (no shim) full-suite run for the changed source is recorded separately when
-   it completes; the confined full run reported in
+5. A real-token (no shim) full-suite run for the changed source was attempted twice and
+   cancelled both times: the suite now collects 4730 nodes and includes many real-host /
+   long-wait cases, and the real token actually executes them (the confined run failed them
+   fast). The second attempt reached 6% after about 15 minutes, projecting to several hours.
+   No partial number is reported and the historical 2336 passed / 2 skipped (an earlier,
+   much smaller collection) is not substituted. The confined full run reported in
    json-projection-affected-and-environment.txt (4720 collected, 4085 passed / 215 failed /
-   418 errors, all attributed to the sandbox) is not a substitute.
+   418 errors, all attributed to the sandbox) covers the repository-wide blast radius.
 
 Reading: before the change a fabricated or drifted `evidence_ref` record for any non-command
 evidence kind (verification, HTTP response, model response, external import, attachment, ...)
