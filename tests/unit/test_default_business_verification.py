@@ -13,6 +13,10 @@ from aitest.application.ports import VerificationRequest
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.execution.runs import SideEffectClass
+from aitest.infrastructure.adapters.execution.business_query import (
+    HttpBusinessQueryReader,
+    HttpBusinessQuerySpec,
+)
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.adapters.execution.verification import BusinessVerificationAdapter
 from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
@@ -23,6 +27,7 @@ from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_default_execution_authorization import RELAY
 from tests.unit.test_default_step_execution import ActualCommandResolver, execution_command
 from tests.unit.test_execution_authorization_origin import review, save
+from tests.unit.test_http_transport_limits import server
 from tests.unit.test_initial_run_registration import register
 from tests.unit.test_saved_business_verification import command
 
@@ -187,6 +192,33 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
     assert polled.error is None, polled.error
     assert polled.result["verification"]["observation"] == "matched" and polling.calls >= 2
     polled_facts = ExecutionFacts.model_validate(polled.result["execution_facts"])
+
+    # The production deadline reader also reaches the same saved core via an
+    # actual independent GET, without using the command's output or its cache.
+    def http_read_order(connection, stopped):
+        body = business_file.read_bytes()
+        connection.sendall(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+            + f"Content-Length: {len(body)}\r\n\r\n".encode()
+            + body
+        )
+
+    http_cmd = command(
+        polled_facts, request_id="http-independent-query", intent_id="http-query-intent"
+    )
+    with server(http_read_order) as (url, http_calls):
+        core.business_verification.verifier = BusinessVerificationAdapter(
+            HttpBusinessQueryReader(
+                HttpBusinessQuerySpec(
+                    "fixture-business-deployment", url + "orders/{business_object_id}"
+                ),
+            )
+        )
+        http_result = core.api.dispatch(http_cmd, RELAY)
+        assert http_result.error is None, http_result.error
+        assert http_result.result["verification"]["observation"] == "matched"
+        assert len(http_calls) == 1 and http_calls[0].startswith(b"GET /orders/order-1 ")
+    polled_facts = ExecutionFacts.model_validate(http_result.result["execution_facts"])
     sequence = core.unit_of_work.current_commit_sequence()
     assert (
         CaseReuseSourceReader(
@@ -211,7 +243,12 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
     reopened = assemble_workspace_core(root, instance_id="query-reopened-core")
     try:
         for index, (value, expected) in enumerate(
-            ((first_cmd, first.result), (second_cmd, second.result), (polled_cmd, polled.result))
+            (
+                (first_cmd, first.result),
+                (second_cmd, second.result),
+                (polled_cmd, polled.result),
+                (http_cmd, http_result.result),
+            )
         ):
             result = reopened.api.dispatch(
                 value.model_copy(update={"request_id": f"reopened-query-{index}"}), RELAY

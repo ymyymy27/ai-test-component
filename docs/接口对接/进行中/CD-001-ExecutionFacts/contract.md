@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.13"
+contract_version: "1.14"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -18,7 +18,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 版本：1.7
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.13增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.14增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -251,3 +251,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.12 历史规范独立查询来源（2026-10-08）：按CORE-001 1.73共同只读材料派生核对business-query-*的准入、准确原/结果快照、对象与证据引用；inline核验及证据须与原材料一致，源码身份绑定准确准备，全部引证属于原Attempt。缺证明/错观察/错误归属阻塞该来源，不以可读对象授予R/V；不重新查询或改写历史。公开DTO/生成Schema、FR/AC和reviewing/partial/not_run保持，完整资格/选择及D实际消费继续。
 
 1.13 独立查询轮询材料（2026-10-08）：按CORE-001 1.74冻结毫秒策略及同一总截止，1.1安全对象保留实际逐次耗时/JSON/错误，落盘前过滤所有样本。VerificationFact沿原DTO派生，明确不匹配/查询错误不自动重试，迟到成功和截止材料不足保持未确认；D不得将deadline_reached解释为业务回滚。旧1.0不补造轮询，当前资格/完整选择及真实消费另验，公开Schema与reviewing/partial/not_run保持。
+
+1.14 HTTP独立核验端口（2026-10-08）：CORE-001 1.75实现同一截止下的独立GET及完整同对象JSON，供既有1.74轮询/安全保存派生VerificationFact。错误目标/对象/截断/异常状态不产生matched；404为未见对象，截止不证明回滚。D仍只消费共同核心准确材料，URL/凭据正文不扩入DTO/Schema或上传。默认配置/其他核验/当前资格及真实验收继续，reviewing/partial/not_run保持。

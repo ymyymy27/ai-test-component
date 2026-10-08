@@ -1,0 +1,12 @@
+{
+  "baseline_commit": "f923be6",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/infrastructure/adapters/execution/business_query.py": "c481230cac9119998ff6b0db7ee1c60b4acf873407395ff6936feac92060f606",
+    "src/aitest/domain/evidence/polling.py": "9f8eadfec950472f2bfaa8c1aa5ff72155977cc1d885329d0caf10da86ce00f6",
+    "src/aitest/infrastructure/adapters/execution/http_transport.py": "07cfcfc7fe9938d064f531e30e4d3e465976998b77334b7a575e7c63a8521ce5",
+    "tests/unit/test_http_business_query.py": "886ac371905d5e8a1195d2287d891ecdea087954a19dd1eb76ae27666a2b987a",
+    "tests/unit/test_default_business_verification.py": "5bda1371348d153c530335dcf211a406bba0651355891319bf4d625d78868a07"
+  },
+  "scope": "Actual local HTTP and default core/saved-history; synthetic source/authority/deployment, no real remote or Trae AC."
+}

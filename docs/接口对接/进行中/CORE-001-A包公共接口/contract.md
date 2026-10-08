@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.74"
+contract_version: "1.75"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.75 HTTP独立只读查询端口（2026-10-08）：可信装配冻结部署引用、唯一业务对象URL占位、对象编号字段、凭据引用与正文预算，不能由verify_pending参数覆盖。端口仅GET、无请求正文，使用同一实际socket/DNS/TLS总截止、不隐式跳转或重试，编码对象编号且保持冻结authority；规范200响应必须完整、有界、唯一JSON内容类型、严格UTF-8/唯一字段JSON对象及准确同对象编号，才返回字段供共同核心比较。404明确无该对象，其他状态/身份或JSON异常作为查询错误；完整JSON前缀不能替代完整HTTP正文。授权只使用准确http用途凭据引用的已解析内存Secret，带凭据要求HTTPS，不接受URL/配置正文内凭据；退出/清空凭据后不继续发送。该端口不证明服务端实现没有副作用或远端部署与源码对应，不从GET/200/对象可读推导R/V。端口与1.74轮询及1.1安全保存共用；默认项目配置解析、五类业务适配及真实远端/Trae验收继续，公开DTO/Schema及FR/AC、reviewing/partial/not_run保持。
 
 1.74 独立查询有界轮询（2026-10-08）：可信解析器在原VerificationRequest冻结`query_interval=poll_interval_ms:N`、`deadline_condition=poll_deadline_ms:N`的正整数毫秒策略，拒绝前导零、未知/混用格式、总时长超过60秒及超过64次的配置。现有immediate保留单次观察；本适配器不能解释的截止标签明确缺策略，不能记录标签却忽略。轮询只使用可接受单调截止的独立只读端口，每次新读取同业务对象/部署，传递同一总截止；缺截止能力不执行，绝不以遗留无界接口冒充有界查询。只有材料不足继续等待，明确不匹配及查询错误不自动重试或被后续成功覆盖；截止/迟到成功保留未确认，不能证明远端回滚。安全查询材料1.1保留实际每次开始/结束耗时、过滤后的JSON/缺字段/结构化错误及最终耗时，采样总量有界，所有观察在落盘前过滤。保存与历史回读共用纯领域时间线/字段规则，从实际材料派生状态，不接受客户端结论或修改原意图；旧1.0准确材料按旧观察回读且不补造轮询证明。公开DTO/生成Schema与FR/AC不变，配置解析/生产端口和真实验收另验，reviewing/partial/not_run保持。
 

@@ -8,6 +8,8 @@ from aitest.domain.evidence.evidence import VerificationObservation
 from aitest.domain.evidence.verification import compare_business_fields
 from aitest.domain.execution.assertions import freeze_json_value
 
+MAX_QUERY_DEADLINE_MS = 60_000
+
 
 @dataclass(frozen=True, slots=True)
 class QueryPollingPolicy:
@@ -18,7 +20,7 @@ class QueryPollingPolicy:
         if (
             type(self.interval_ms) is not int
             or type(self.deadline_ms) is not int
-            or not 0 < self.interval_ms <= self.deadline_ms <= 60_000
+            or not 0 < self.interval_ms <= self.deadline_ms <= MAX_QUERY_DEADLINE_MS
             or (self.deadline_ms - 1) // self.interval_ms + 1 > 64
         ):
             raise ValueError("query polling requires bounded integer timing")
