@@ -1,0 +1,53 @@
+Session consolidated regression — 2026-10-09
+============================================
+
+HEAD: 9f79dd8 (fix, == origin/fix at the time of the run). Python 3.13.13, no session shim,
+no environment overrides.
+
+Command:
+
+  .venv/Scripts/python.exe -u -m pytest \
+    tests/contracts tests/architecture tests/recovery tests/acceptance \
+    tests/unit/test_a_a09_projection_json_safety.py \
+    tests/unit/test_model_orchestration.py \
+    tests/unit/test_reuse_non_command_evidence_provenance.py \
+    tests/unit/test_frozen_step_deadline_guard.py \
+    tests/unit/test_reuse_reference_record.py \
+    tests/unit/test_execution_source_binding.py \
+    tests/unit/test_authorization_current_action.py \
+    tests/unit/test_default_active_control.py \
+    tests/unit/test_default_live_output.py \
+    -o addopts= -q --tb=short -p no:cacheprovider
+
+Result:
+
+  418 passed in 732.93s (0:12:12), exit 0
+
+What this run covers, i.e. every file touched or added by this session:
+
+  - 模型材料 JSON 投影（严格解码/编码变体过滤）与默认模型链路:
+    test_a_a09_projection_json_safety.py, test_model_orchestration.py
+  - 复用来源非命令证据准确引用: test_reuse_non_command_evidence_provenance.py
+  - 冻结步骤截止守卫（快速分支回归）: test_frozen_step_deadline_guard.py
+  - 复用引用记录形状/映射/未知登记: test_reuse_reference_record.py
+  - 冻结执行来源绑定形状校验: test_execution_source_binding.py
+  - 本次修正的陈旧夹具与长步骤夹具: test_authorization_current_action.py,
+    test_default_active_control.py, test_default_live_output.py
+  - 合同/架构/恢复/验收: tests/contracts, tests/architecture, tests/recovery,
+    tests/acceptance
+
+Related session evidence (not re-run here):
+
+  - tests/unit 全树分块回归: 927 + 861（已完成批次）与 629（剩余 42 文件三批），
+    除 3 项临时根前提 skip、2 项 symlink 权限 skip、2 项并发 WorkspaceInUse 超时
+    （单独重跑 34 passed）与已修夹具外无失败 — see unit-file-sweep-2026-10-09.txt.
+  - 模型材料 JSON 投影交接反例: pending-model-projection-json-safety-after.txt
+    (14 failed → 15 passed) and json-projection-affected-and-environment.txt.
+  - 冻结步骤截止正/反例: frozen-step-deadline-before-after.txt
+    (基线 4 failed DID NOT RAISE → 修后 5 passed).
+  - 复用来源非命令证据前后对照: reuse-non-command-reference-before-after.txt
+    (基线 7 failed/3 passed → 修后 10 passed).
+
+Boundary: this is component/contract verification on synthetic plus real local processes.
+It is not real Trae, real provider, physical power-loss or the 35 acceptance criteria;
+the real Phase-1 state stays 0 verified / 35 empty evidence paths.
