@@ -25,6 +25,7 @@ from aitest.domain.execution.runs import (
 )
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
+from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
@@ -261,13 +262,43 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
         current = recalled.result["execution_facts"]
         saved_facts = ExecutionFacts.model_validate(current)
         repo = restarted.unit_of_work.repo
-        reuse_reader = CaseReuseSourceReader(repo, PortsRecordReader(repo))
+        reuse_reader = CaseReuseSourceReader(
+            repo, PortsRecordReader(repo), objects=FileObjectStore(restarted.workspace.root),
+            spool=FileSpoolStore(restarted.workspace.root),
+        )
         source_proof = reuse_reader.read(
             project_id=inputs.project_id, run_id=saved_facts.run_id,
             case_id=saved_facts.steps[0].case_id, reference=SnapshotContentRef.of(saved_facts),
         )
         assert source_proof.facts == saved_facts
         assert source_proof.steps[0].attempt.attempt_id == action.attempt.attempt_id
+        with pytest.raises(ValueError, match="output_material"):
+            CaseReuseSourceReader(repo, PortsRecordReader(repo)).read(
+                project_id=inputs.project_id, run_id=saved_facts.run_id,
+                case_id=saved_facts.steps[0].case_id, reference=SnapshotContentRef.of(saved_facts),
+            )
+        # Corrupt actual temporary project bytes, retaining all saved metadata.
+        block = source_proof.steps[0].attempt.output_blocks[0]
+        object_path = (
+            restarted.workspace.root / "spool" / block.attempt_id
+            / (block.stream_name + ".log")
+        ).resolve()
+        assert object_path.is_relative_to(restarted.workspace.root.resolve())
+        saved_bytes = object_path.read_bytes()
+        try:
+            object_path.write_bytes(b"corrupt saved source output")
+            with pytest.raises(ValueError, match="output_material"):
+                reuse_reader.read(
+                    project_id=inputs.project_id, run_id=saved_facts.run_id,
+                    case_id=saved_facts.steps[0].case_id,
+                    reference=SnapshotContentRef.of(saved_facts),
+                )
+        finally:
+            object_path.write_bytes(saved_bytes)
+        assert reuse_reader.read(
+            project_id=inputs.project_id, run_id=saved_facts.run_id,
+            case_id=saved_facts.steps[0].case_id, reference=SnapshotContentRef.of(saved_facts),
+        ) == source_proof
         refs = read_checkpoint_refs(repo, saved_facts)
         assert refs[action.attempt.attempt_id].revision >= 1
         original_revision = repo.current_revision

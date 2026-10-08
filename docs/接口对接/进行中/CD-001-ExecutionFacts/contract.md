@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.3"
+contract_version: "1.4"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,9 +16,9 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.3
+版本：1.4
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.3增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.4增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -223,3 +223,10 @@ current回读与冻结来源回读共用同一事实校验。可读历史仅证�
 C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回执，按源Case的每个本地步骤位置核对完整冻结正文、准确StepRevisionRef和原稳定步骤身份，返回该源快照的Step→当前Attempt映射。源Run的物理step_id与其他Run不同，本地冻结step_id与case_step_index用于对照；不能把其他Run的物理ID当作本轮步骤或拼接多个快照。
 
 缺原准备/信封/摘要、未知Case、遗漏/重复位置、正文修订混合、原步骤身份或必需标记被替换均拒绝。原准备及记录只按准确引用读取，不回填缺失证明。未执行源步骤的Attempt保持null；可读源映射不等于有效整用例复用、不增加R/V，也不制造本轮Attempt。实际动态环境、规则/输入、确认/核验/证据、源当前有效性、持久选择及新Attempt撤销仍由后续完整守卫核对。公开ExecutionFacts/Schema在此阶段不增加字段。
+
+
+### 历史来源的实际输出与证据可读性（1.4，2026-10-08）
+
+整 Case 来源读取除准确快照、检查点及步骤正文外，须经 A spool 端口按准确检查点读取选定源 Attempt 的输出块，证据经对象端口读取；已有准确发布的COMMAND_OUTPUT证据须核对其稳定块编号、归属、摘要/长度及实际对象，允许从永久对象读取，不依赖已合法回收的spool，逐项核对项目、运行、Step/Attempt 归属、实际字节长度与 sha256，不以记录或文件存在代替可读性。材料非空但缺相应读取端口、缺失/损坏字节或错误归属时拒绝来源读取；空的初始历史仍可展示且不产生 R。对象核对证明可读性，不证明脱敏摘要来源、断言/独立核验或当前动态环境有效。
+
+纯聚合的 R 还须按 BC-001 0.45 消费完整资格依据；继承标记不能授予 R/V/H。实际环境/依赖核实、完整证据与脱敏来源闭包、持久选择及 D 默认接线仍开放，公开 ExecutionFacts/Schema 不变，原记录不迁移，reviewing/partial/not_run 和真实 AC 不变。

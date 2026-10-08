@@ -4,6 +4,7 @@ import pytest
 
 from aitest.domain.execution.cases import StepExecutionBasis, aggregate_case_execution
 from aitest.domain.execution.runs import AttemptState, CaptureCompleteness
+from tests.support.reuse_basis import verified_reuse_basis
 
 
 def completed(step_id="s1", current=True):
@@ -19,6 +20,7 @@ def test_valid_failed_case_retains_execution_or_reuse_and_verification(current) 
     result = aggregate_case_execution(
         case_id="case", required_step_ids=("s1",), steps=(completed(current=current),),
         decisive_failure_step_ids=("s1",),
+        reuse_basis=verified_reuse_basis() if not current else None,
     )
     assert result.has_decisive_failure
     assert result.can_count_execution == current

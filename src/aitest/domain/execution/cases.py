@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from aitest.domain.execution.reuse import WholeCaseReuseBasis
 from aitest.domain.execution.runs import AttemptState, CaptureCompleteness
 from aitest.domain.json_material import require_json_text
 
@@ -34,6 +35,7 @@ def aggregate_case_execution(
     required_step_ids: tuple[str, ...],
     steps: tuple[StepExecutionBasis, ...],
     decisive_failure_step_ids: tuple[str, ...] = (),
+    reuse_basis: WholeCaseReuseBasis | None = None,
 ) -> CaseExecutionAggregate:
     """Enforce E/R/V exclusivity across current-run and inherited steps."""
     if not isinstance(case_id, str) or not case_id.strip():
@@ -48,6 +50,8 @@ def aggregate_case_execution(
             require_json_text(identity)
     if not isinstance(steps, tuple):
         raise ValueError("case step facts require an immutable sequence")
+    if reuse_basis is not None and not isinstance(reuse_basis, WholeCaseReuseBasis):
+        raise ValueError("whole-case reuse requires a typed complete basis")
     for fact in steps:
         if (
             not isinstance(fact, StepExecutionBasis)
@@ -110,7 +114,13 @@ def aggregate_case_execution(
         )
     )
     can_reuse = (
-        not current_started
+        reuse_basis is not None
+        and not reuse_basis.denial_reasons
+        and reuse_basis.target.case_id == case_id
+        and dict(reuse_basis.source_attempt_by_step) == {
+            item.step_id: item.attempt_id for item in current if item is not None
+        }
+        and not current_started
         and bool(inherited)
         and not missing
         and all(

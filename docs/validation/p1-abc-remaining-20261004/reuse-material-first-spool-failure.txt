@@ -1,0 +1,27 @@
+F..                                                                      [100%]
+================================== FAILURES ===================================
+_ test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_port _
+src\aitest\application\execution\reuse_material.py:47: in read
+    content = objects.read_bytes(ref)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\objects.py:89: in read_bytes
+    with path.open("rb") as handle:
+         ^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_local.py:537: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\pytest-of-y'm'y\\pytest-1011\\test_saved_consent_is_consumed0\\workspace\\objects\\project-ticket\\6b19a5816713a1efc8660d2bbe3a8dca0529cf614895354e2635c41ce226acb1"
+
+The above exception was the direct cause of the following exception:
+tests\unit\test_default_step_execution.py:268: in test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_port
+    source_proof = reuse_reader.read(
+src\aitest\application\execution\reuse_sources.py:177: in read
+    validate_source_material(source, self.objects)
+src\aitest\application\execution\reuse_material.py:60: in validate_source_material
+    read(block.digest, block.length, "application/octet-stream")
+src\aitest\application\execution\reuse_material.py:49: in read
+    raise ValueError("case source saved bytes are unreadable") from exc
+E   ValueError: case source saved bytes are unreadable
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_step_execution.py::test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_port
+1 failed, 2 passed in 279.00s (0:04:38)

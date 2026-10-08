@@ -9,6 +9,7 @@ from aitest.application.execution.checkpoint_refs import (
 )
 from aitest.application.execution.facts import _run_fact
 from aitest.application.execution.registration import _initial_domain
+from aitest.application.execution.reuse_material import validate_source_material
 from aitest.application.execution.run_record import read_run_record
 from aitest.application.execution.runtime_revision import (
     SavedRuntimeRevisionReader,
@@ -21,10 +22,10 @@ from aitest.application.planning.preparation_origin import (
 )
 from aitest.application.planning.serialization import case_to_payload
 from aitest.application.planning.substrate import RecordReader
-from aitest.application.ports import RecordRepository
+from aitest.application.ports import EvidenceObjectStore, RecordRepository, SpoolStore
 from aitest.contracts.execution_facts import AttemptFact, ExecutionFacts, StepFact
 from aitest.contracts.prepared_run import CaseRevisionRef, PreparedRun
-from aitest.domain.execution.runs import Step, StepLevel, StepRevisionRef
+from aitest.domain.execution.runs import RecoveryRecord, Step, StepLevel, StepRevisionRef
 from aitest.domain.json_material import require_json_text
 
 
@@ -33,6 +34,7 @@ class CaseReuseStepSource:
     step: StepFact
     attempt: AttemptFact | None
     content: StepContent
+    checkpoint: RecoveryRecord | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,8 +47,14 @@ class CaseReuseSource:
 
 
 class CaseReuseSourceReader:
-    def __init__(self, records: RecordRepository, preparation_reader: RecordReader) -> None:
+    def __init__(
+        self, records: RecordRepository, preparation_reader: RecordReader,
+        *, objects: EvidenceObjectStore | None = None,
+        spool: SpoolStore | None = None,
+    ) -> None:
         self.records, self.preparations = records, preparation_reader
+        self.objects = objects
+        self.spool = spool
 
     def read(
         self, *, project_id: str, run_id: str, case_id: str, reference: SnapshotContentRef
@@ -109,8 +117,9 @@ class CaseReuseSourceReader:
         contents = StepContentReader(self.records)
         result = []
         for fact in selected:
+            checkpoint = None
             if fact.current_attempt_id is not None:
-                read_referenced_checkpoint(
+                checkpoint = read_referenced_checkpoint(
                     self.records, checkpoint_refs[fact.current_attempt_id],
                     attempts[fact.current_attempt_id], facts,
                 )
@@ -138,6 +147,7 @@ class CaseReuseSourceReader:
                 attempt=attempts[fact.current_attempt_id]
                 if fact.current_attempt_id is not None else None,
                 content=body,
+                checkpoint=checkpoint,
             ))
         result.sort(key=lambda item: item.content.case_step_index)
         first = result[0].content
@@ -165,7 +175,9 @@ class CaseReuseSourceReader:
             or dict(raw_case) != case_to_payload(first.checked_case(), project_id=project_id)
         ):
             raise ValueError("case reuse source differs from its exact saved case body")
-        return CaseReuseSource(
+        source = CaseReuseSource(
             reference=reference, facts=facts, original_preparation=prepared,
             case_revision=first.case_revision_ref, steps=tuple(result),
         )
+        validate_source_material(source, self.objects, self.spool)
+        return source

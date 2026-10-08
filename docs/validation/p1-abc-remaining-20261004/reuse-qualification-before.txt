@@ -1,0 +1,10 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_______ test_inherited_verification_without_full_guard_is_history_only ________
+tests\unit\test_reuse_qualification.py:12: in test_inherited_verification_without_full_guard_is_history_only
+    assert not result.can_count_reuse
+E   AssertionError: assert not True
+E    +  where True = CaseExecutionAggregate(case_id='case', can_count_execution=False, can_count_reuse=True, can_count_verification=True, has_decisive_failure=True, mixed_inheritance=False, pending_step_ids=(), invalidated_step_ids=()).can_count_reuse
+=========================== short test summary info ===========================
+FAILED tests/unit/test_reuse_qualification.py::test_inherited_verification_without_full_guard_is_history_only
+1 failed in 0.27s

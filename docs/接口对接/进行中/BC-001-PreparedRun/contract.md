@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.44"
+contract_version: "0.45"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,11 +16,11 @@ next_action: 补实际加载与业务核验/复用及真实宿主后台验收，
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.44（2026-10-08 区分实际来源对应与源码检查失败；实施与验证另行登记）
+版本：0.45（2026-10-08 完整复用资格与实际来源材料；实施与验证另行登记）
 日期：2026-10-08
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
-状态：**既有签署与裁定历史保留；0.44增量评审中，实现与真实环境验收分开登记**
+状态：**既有签署与裁定历史保留；0.45增量评审中，实现与真实环境验收分开登记**
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`；B 侧本轮分支 `feature/contract-b-c-isolation-mode`
 
@@ -958,3 +958,10 @@ R资格仍由领域规则唯一判断，来源选择与完整资格尚需后续�
 终态恢复回读权威记录后，若恢复结果与权威终态完全相同但检查点副本陈旧，只修复副本；不重复提交权威记录或清空原Run结果/等级。副本保存失败明确传播，重试仍读原权威材料，不执行新业务。
 
 2026-10-08（0.44）：ExecutionSourceVerification只说明已观察范围的实际来源与冻结绑定是否对应。源码检查返回source_error仍保留原失败、原输出与证据；不凭该失败标签推断来源mismatch。只有摘要/实际路径或解释器不符才形成mismatch；缺实际入口/解释器/必要加载证明仍unverified，工具/环境不可核对仍unknown/blocked。来源verified本身不增加E/V/R或业务通过；SourceCheckResult.failure_class=source_error仍保留检查失败，有效失败按既有领域合同计算，不能从这一标签单独重算统计或宣称完整验收。
+
+
+### 整用例复用资格与继承标记分离（0.45，2026-10-08）
+
+纯领域聚合不能仅凭 from_current_run=false 与 verification_valid=true 产生 R/V/H。复用须传入完整的不可变资格依据：同一来源快照与 Case、准确 Step→源 Attempt 映射，以及源和目标的源码 content_identity、动态环境状态、检查范围、入口/输入、规则、适配器、Case 正文与断言依据摘要。字段相同仍需当下的来源有效、实际来源对应、依赖有效、证据可读、依据确认和独立核验状态全部核实；任一缺失/未知/不一致阻塞 R。动态环境摘要不得以静态环境声明或初始准备代替。
+
+资格绑定完整必需步骤及准确源 Attempt，不能用于另一 Case、步骤映射或本轮新 Attempt。任何新 Attempt（含可选步骤）依然立即撤销整 Case 复用。核验有效包含有效通过与有效失败，不把资格判断变成业务通过；缺资格的继承步骤保留历史、列为待完成。新增内部领域输入不改变公开 DTO/Schema，旧调用缺资格时不得计 R。应用层的实际材料核实、持久选择及 D 默认消费继续实施；规则夹具不代替来源证明和真实验收。
