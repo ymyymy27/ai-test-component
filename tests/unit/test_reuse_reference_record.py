@@ -40,6 +40,7 @@ def reference(**overrides: object) -> ReuseReference:
         "source_run_id": "run-source",
         "source_step_id": "step-1",
         "source_attempt_id": "attempt-1",
+        "source_attempt_by_step": (("step-1", "attempt-1"),),
         "source_plan_revision_digest": _DIGEST_A,
         "source_content_identity": "sha256:" + "c" * 64,
         "environment_revision_digest": _DIGEST_B,
@@ -126,6 +127,24 @@ def test_identities_are_strict_nonempty_text(field: str) -> None:
     for value in ("", 1, None, "  "):
         with pytest.raises(ValidationError):
             reference(**{field: value})
+
+
+def test_step_mapping_must_be_exact_unique_pairs_with_its_anchor() -> None:
+    assert reference(
+        source_attempt_by_step=(("step-1", "attempt-1"), ("step-2", "attempt-2"))
+    ).source_attempt_by_step == (("step-1", "attempt-1"), ("step-2", "attempt-2"))
+    for mapping in (
+        (),
+        (("step-1", "attempt-1"), ("step-1", "attempt-2")),
+        (("step-1", "attempt-1"), ("step-2", "attempt-1")),
+        (("", "attempt-1"),),
+        (("step-1", ""),),
+        (["step-1", "attempt-1"],),
+        (("step-1",),),
+        (("step-2", "attempt-2"),),
+    ):
+        with pytest.raises(ValidationError):
+            reference(source_attempt_by_step=mapping)
 
 
 def test_payload_must_be_a_mapping() -> None:

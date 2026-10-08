@@ -40,6 +40,10 @@ class ReuseReference(BaseModel):
     source_run_id: str = Field(min_length=1)
     source_step_id: str = Field(min_length=1)
     source_attempt_id: str = Field(min_length=1)
+    #: 整用例来源映射（Step→Attempt）：记录被引用用例每个必需步骤的实际来源 Attempt，
+    #: 与 `WholeCaseReuseBasis.source_attempt_by_step` 同一形状；上面的 source_step_id/
+    #: source_attempt_id 是其中的锚点，必须命中该映射。
+    source_attempt_by_step: tuple[tuple[str, str], ...] = Field(min_length=1)
     #: 来源计划修订摘要（冻结计划正文的规范字节摘要）。
     source_plan_revision_digest: str
     #: 来源源码内容身份（快照 content_identity，不是仓储修订号）。
@@ -93,7 +97,30 @@ class ReuseReference(BaseModel):
             )
         _require_unique_text(self.evidence_refs, "evidence references")
         _require_unique_text(self.verification_basis, "verification basis entries")
+        _validate_step_map(self.source_attempt_by_step)
+        if (self.source_step_id, self.source_attempt_id) not in self.source_attempt_by_step:
+            raise ValueError("source anchor must be one exact entry of the step mapping")
         return self
+
+
+def _validate_step_map(mapping: tuple[tuple[str, str], ...]) -> None:
+    seen_steps: set[str] = set()
+    seen_attempts: set[str] = set()
+    for pair in mapping:
+        if type(pair) is not tuple or len(pair) != 2:
+            raise ValueError("source step mapping requires exact pairs")
+        step_id, attempt_id = pair
+        if (
+            not isinstance(step_id, str)
+            or not step_id.strip()
+            or not isinstance(attempt_id, str)
+            or not attempt_id.strip()
+        ):
+            raise ValueError("source step mapping requires nonempty text identities")
+        if step_id in seen_steps or attempt_id in seen_attempts:
+            raise ValueError("source Step and Attempt identities must be unique")
+        seen_steps.add(step_id)
+        seen_attempts.add(attempt_id)
 
 
 def _require_unique_text(values: tuple[str, ...], name: str) -> None:
