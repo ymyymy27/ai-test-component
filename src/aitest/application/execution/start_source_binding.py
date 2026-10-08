@@ -117,6 +117,7 @@ def _entries(raw: object) -> list[dict[str, object]]:
         raise SourceBindingUnverified("materialization lacks its expected-to-actual path mapping")
     entries: list[dict[str, object]] = []
     seen: set[str] = set()
+    actuals: set[str] = set()
     for item in raw:
         if not isinstance(item, Mapping):
             raise SourceBindingUnverified("mapping entries must be mappings")
@@ -140,10 +141,22 @@ def _entries(raw: object) -> list[dict[str, object]]:
         if relative in seen:
             raise SourceBindingUnverified("mapping entries must be unique per expected path")
         seen.add(relative)
+        actual_key = _actual_key(actual)
+        if actual_key in actuals:
+            raise SourceBindingUnverified(
+                "two expected source paths must not resolve to the same actual file"
+            )
+        actuals.add(actual_key)
         entries.append(
             {"relative_path": relative, "actual_path": actual, "sha256": digest, "size": size}
         )
     return entries
+
+
+def _actual_key(actual: str) -> str:
+    """实际路径的归属键；Windows 大小写不敏感，避免同一文件被当成两个来源。"""
+    text = Path(actual).as_posix()
+    return text.casefold() if os.name == "nt" else text
 
 
 def _verify_file(path: Path, digest: str, size: int) -> None:

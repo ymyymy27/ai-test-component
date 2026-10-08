@@ -222,6 +222,21 @@ def test_missing_start_inputs_are_refused(snapshot_id: object, destination: obje
         resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
 
 
+def test_two_expected_paths_must_not_share_one_actual_file(tmp_path: Path) -> None:
+    """两个期望来源不能解析到同一个实际文件（同一文件不能充当两个来源）。"""
+    actual = tmp_path / "main.py"
+    actual.write_bytes(b"x")
+    first = _entry(actual.as_posix(), b"x", "a.py")
+    second = _entry(actual.as_posix(), b"x", "b.py")
+    result = _materialized(
+        "s", str(tmp_path), paths=[first, second], content_digest=_claim([first, second])
+    )
+    with pytest.raises(SourceBindingUnverified):
+        StartSourceBindingResolver(_Stub(result)).resolve(  # type: ignore[arg-type]
+            snapshot_id="s", destination=str(tmp_path)
+        )
+
+
 def test_hard_linked_actual_file_is_refused(
     store: FileSourceSnapshotStore, source: Path, tmp_path: Path
 ) -> None:
