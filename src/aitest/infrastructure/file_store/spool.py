@@ -155,6 +155,7 @@ class _FileSpoolStreamWriter:
         self._lock = threading.Lock()
         self._closed = False
         self._failed = False
+        self._sealed = False
         self._max_pending_bytes = max_pending_bytes
         self._path = store._stream_path(attempt_id, stream_name)
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -177,6 +178,11 @@ class _FileSpoolStreamWriter:
                 opened.close()
             self._capture_lock.release()
             raise
+
+    @property
+    def redaction_changed(self) -> bool | None:
+        with self._lock:
+            return self._filter.changed if self._sealed and not self._failed else None
 
     def append(self, content: bytes) -> tuple[OutputBlockRef, ...]:
         if not content:
@@ -221,6 +227,7 @@ class _FileSpoolStreamWriter:
                 if self._block_length:
                     refs = (self._seal(complete=complete and not self._failed),)
                 self._store._capture_state(self._attempt_id, self._stream_name, "sealed")
+                self._sealed = True
             finally:
                 self._handle.close()
                 self._capture_lock.release()

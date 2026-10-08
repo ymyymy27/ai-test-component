@@ -579,6 +579,13 @@ class SpoolStreamWriter(Protocol):
     def close(self, *, complete: bool = True) -> tuple[OutputBlockRef, ...]: ...
 
 
+class SpoolRedactionInspection(Protocol):
+    """Optional trustworthy observation after a stream is reliably sealed."""
+
+    @property
+    def redaction_changed(self) -> bool | None: ...
+
+
 class SpoolStore(Protocol):
     """Persist sealed capture blocks and read their verified metadata."""
 

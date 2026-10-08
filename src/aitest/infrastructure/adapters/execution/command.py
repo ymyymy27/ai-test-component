@@ -666,6 +666,20 @@ class CommandAdapter:
                         writer.abort()
                 if self._spool_store is not None:
                     try:
+                        summary_completeness = "gap" if reader_error else "complete"
+                        summary_gaps: tuple[str, ...] = ("reader_error",) if reader_error else ()
+                        try:
+                            secondary_changed = getattr(writer, "redaction_changed", None)
+                        except Exception:  # A missing observation is not proof of no filtering.
+                            secondary_changed = None
+                        if secondary_changed is not False:
+                            summary_gaps += (
+                                "secondary_filter_summary_unavailable"
+                                if secondary_changed is True
+                                else "secondary_filter_observation_unavailable",
+                            )
+                            if not reader_error:
+                                summary_completeness = "unknown"
                         self._spool_store.persist_redaction_summary(
                             runtime.request.attempt_id,
                             stream_name,
@@ -679,8 +693,8 @@ class CommandAdapter:
                                 filtered_streams=(stream_name.value,),
                                 filtered_ranges=(f"{stream_name.value}:0-{stats.output_bytes}",),
                                 replacement_count=stats.replacement_count,
-                                completeness="gap" if reader_error else "complete",
-                                gap_reasons=("reader_error",) if reader_error else (),
+                                completeness=summary_completeness,
+                                gap_reasons=summary_gaps,
                             ),
                         )
                     except Exception as error:  # noqa: BLE001

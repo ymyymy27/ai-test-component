@@ -1,0 +1,20 @@
+{
+  "baseline": "c104fed",
+  "branch": "fix",
+  "date": "2026-10-08",
+  "source_sha256": {
+    "src/aitest/application/ports.py": "f61b50e80537b8eb6f3a8fcb76be31fd6b1a042777a7e274f4faf7d60dc15a4b",
+    "src/aitest/infrastructure/adapters/execution/command.py": "7361d3fe5d835f1c5a11d3c1ed7e5b889b8a29b637bb3e45d22e509ecc898e50",
+    "src/aitest/infrastructure/file_store/spool.py": "19e6c7a73f1597ca46b341a7bdfaea090b5a14e68dcb2956a59442eacd1e4fbc",
+    "tests/unit/test_redaction_material_guards.py": "0232e16d74878696aac4fb2b004a271170e7036c1400a9ca366d62dda404cafb"
+  },
+  "checks": {
+    "regression": 356,
+    "installed_wheel": 45,
+    "ruff": "passed",
+    "mypy_source_files": 214,
+    "schema": "unchanged",
+    "wheel_sdist": "passed"
+  },
+  "real_p1_acceptance": "unchanged; component checks only"
+}

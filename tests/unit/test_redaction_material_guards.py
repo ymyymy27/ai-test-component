@@ -191,3 +191,110 @@ def test_command_without_spool_cannot_accumulate_unbounded_complete_lines():
         assert not result.complete and result.exit_fact_ref is None
     finally:
         adapter.request_stop(handle)
+
+
+def test_secondary_filter_cannot_claim_complete_zero_replacement_summary(tmp_path):
+    registry = KnownSecretRegistry()
+    secret = "0123456789"  # Same length as [REDACTED]; byte totals cannot detect this change.
+    registry.register(secret)
+    store = FileSpoolStore(tmp_path, registry=registry)
+    adapter = _adapter(store)  # Only the spool policy knows this synthetic credential.
+    handle = adapter.start(_request("python", ("-c", "print('hello 0123456789')")))
+    try:
+        deadline = time.monotonic() + 10
+        while adapter.inspect(handle).process_reachable and time.monotonic() < deadline:
+            time.sleep(0.01)
+        result = adapter.collect(handle)
+        assert result.complete and result.capture_completeness is CaptureCompleteness.COMPLETE
+        manifest = store.read_manifest("attempt-1")
+        assert b"".join(
+            store.read_block(block) for block in manifest.blocks
+            if block.stream_name is OutputStreamName.STDOUT
+        ).rstrip(b"\r\n") == b"hello [REDACTED]"
+        actual = store.read_redaction_summary("attempt-1", OutputStreamName.STDOUT)
+        assert actual.completeness != "complete" or actual.replacement_count >= 1
+    finally:
+        adapter.request_stop(handle)
+
+
+def test_redaction_inspection_only_reports_after_reliable_sealing(tmp_path):
+    registry = KnownSecretRegistry()
+    registry.register("0123456789")
+    store = FileSpoolStore(tmp_path, registry=registry)
+    writer = store.open_stream(
+        run_id="run-1", step_id="step-1", attempt_id="attempt-1",
+        stream_name=OutputStreamName.STDOUT,
+    )
+    assert writer.redaction_changed is None
+    writer.append(b"hello 0123456789\n")
+    assert writer.redaction_changed is None
+    writer.close()
+    assert writer.redaction_changed is True
+    abandoned = store.open_stream(
+        run_id="run-1", step_id="step-1", attempt_id="attempt-2",
+        stream_name=OutputStreamName.STDOUT,
+    )
+    abandoned.append(b"unresolved")
+    abandoned.abort()
+    assert abandoned.redaction_changed is None
+
+
+def test_primary_statistics_remain_complete_when_secondary_layer_did_not_change_bytes(tmp_path):
+    store = FileSpoolStore(tmp_path, registry=KnownSecretRegistry())
+    adapter = _adapter(store)
+    handle = adapter.start(_request("python", ("-c", "print('hello secret-'+'value')")))
+    try:
+        deadline = time.monotonic() + 10
+        while adapter.inspect(handle).process_reachable and time.monotonic() < deadline:
+            time.sleep(0.01)
+        result = adapter.collect(handle)
+        assert result.complete
+        actual = store.read_redaction_summary("attempt-1", OutputStreamName.STDOUT)
+        assert actual.completeness == "complete" and actual.replacement_count == 1
+        assert actual.gap_reasons == ()
+    finally:
+        adapter.request_stop(handle)
+
+
+@pytest.mark.parametrize("observation", [None, 0, 1, "false", "missing", "error"])
+def test_missing_or_invalid_secondary_observation_is_unknown_not_false(
+    tmp_path, monkeypatch, observation,
+):
+    store = FileSpoolStore(tmp_path)
+    original = store.open_stream
+
+    class OldWriter:
+        def __init__(self, writer):
+            self.writer = writer
+
+        def append(self, content):
+            return self.writer.append(content)
+
+        def close(self, **kwargs):
+            return self.writer.close(**kwargs)
+
+        def abort(self):
+            self.writer.abort()
+
+        @property
+        def redaction_changed(self):
+            if observation == "missing":
+                raise AttributeError("legacy writer has no inspection")
+            if observation == "error":
+                raise OSError("synthetic unavailable observation")
+            return observation
+
+    monkeypatch.setattr(store, "open_stream", lambda **kw: OldWriter(original(**kw)))
+    adapter = _adapter(store)
+    handle = adapter.start(_request("python", ("-c", "print('safe output')")))
+    try:
+        deadline = time.monotonic() + 10
+        while adapter.inspect(handle).process_reachable and time.monotonic() < deadline:
+            time.sleep(0.01)
+        result = adapter.collect(handle)
+        assert result.complete and result.capture_completeness is CaptureCompleteness.COMPLETE
+        actual = store.read_redaction_summary("attempt-1", OutputStreamName.STDOUT)
+        assert actual.completeness == "unknown"
+        assert actual.gap_reasons == ("secondary_filter_observation_unavailable",)
+    finally:
+        adapter.request_stop(handle)
