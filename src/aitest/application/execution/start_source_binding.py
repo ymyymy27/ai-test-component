@@ -71,6 +71,10 @@ class StartSourceBindingResolver:
         if recomputed != recorded:
             raise SourceBindingUnverified("mapping digest differs from the materialization claim")
         root = Path(workdir)
+        if root != Path(destination).resolve():
+            raise SourceBindingUnverified(
+                "materialization workdir differs from the requested fixed workdir"
+            )
         for entry in entries:
             actual = Path(str(entry["actual_path"]))
             digest, size = entry["sha256"], entry["size"]

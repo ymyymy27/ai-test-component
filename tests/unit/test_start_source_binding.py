@@ -221,6 +221,22 @@ def test_missing_start_inputs_are_refused(snapshot_id: object, destination: obje
         resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
 
 
+def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
+    """物化声明的目标目录必须等于请求的固定 workdir，不能只凭自述。"""
+    actual = tmp_path / "main.py"
+    actual.write_bytes(b"x")
+    entry = _entry(actual.as_posix(), b"x")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    result = _materialized(
+        "s", elsewhere.as_posix(), paths=[entry], content_digest=_claim([entry])
+    )
+    with pytest.raises(SourceBindingUnverified):
+        StartSourceBindingResolver(_Stub(result)).resolve(  # type: ignore[arg-type]
+            snapshot_id="s", destination=str(tmp_path / "requested")
+        )
+
+
 def test_frozen_expected_paths_must_be_covered_exactly(
     store: FileSourceSnapshotStore, source: Path, tmp_path: Path
 ) -> None:
