@@ -30,7 +30,7 @@
 | 编号/类型 | 当前剩余问题及依据 | 影响/完成条件 |
 | --- | --- | --- |
 | D-09 P1/代码已修复待入口验收 | 空 full 范围错误通过已由 `reports.py` 的 selected/required 非空门禁消除，单元反例通过。仍需真实入口、报告和 DTO 同口径验证，不能仅凭单元测试关闭。 | 一期功能第3/14节；FR07/14/17，AC18/21/22/24/27。继续验证空/未知输入 fail closed、显式全不适用、空执行、全合法复用、actual failure 和 quick/on_demand。 |
-| D-02 接入缺口（已部分推进） | ExecutionFacts→DecisionFacts 适配、七类夹具、当前 Attempt/证据/来源/依赖守卫和 F⊆H 已合并；HTTP assertion→VerificationFact 映射已补齐。D 侧业务断言生产输入、C 夹具内容更新和 C-01—C-13 后的真实对拍仍缺。 | AC19/21/24/27；补所有断言适配器的 Verification 生产输入，按 A 同一提交读取/发布 S/M 整用例集合和 H，禁止旧继承+部分新执行拼集合。 |
+| D-02 接入缺口（已部分推进） | ExecutionFacts→DecisionFacts 适配、七类夹具、当前 Attempt/证据/来源/依赖守卫和 F⊆H 已合并；HTTP assertion→VerificationFact 映射口径已于 10 月 6 日确认，代码与链路测试于 10 月 8 日补齐。D 侧业务断言生产输入、C 夹具内容更新和 C-01—C-13 后的真实对拍仍缺。 | AC19/21/24/27；补所有断言适配器的 Verification 生产输入，按 A 同一提交读取/发布 S/M 整用例集合和 H，禁止旧继承+部分新执行拼集合。 |
 | D-04 高风险/接入缺口 | IssueClosureEvidence需显式入参，但真实新回归/当前Attempt/已保存证据等仍由调用方布尔自报，应用未查询权威记录或接UOW；ReportExport仍接收自给ref/digest，exports.py占位 | AC11/14/16/29/33/35；查同提交当前新实际回归和有效核验，保存不可变修复/复测/报告；经A制品端口真实生成安全摘要/相对路径包，完整校验后登记成功，LocalReview不改正文 |
 | D-05 接入缺口 | selected/required 汇总、H 引用、快照元数据和 issues.list 14 掩码/OPEN/ALL/游标 DTO 已实现；公开 `CoverageDTO`、所有入口统一形状、真实来源/游标读取链仍未闭合。 | AC21/24/27/34；统一核心、报告、面板、CLI、MCP 的同修订输出，未知不得补 0/false，Schema 仍由 A 主责。 |
 | D-06 阻断交付 | `issues.list` 业务过滤/游标语义和 DTO 已完成，但 CLI/MCP/面板/Trae 尚无同核心业务桥、受控动作摘要和会话/修订挑战。 | AC26/31/33/34；D 接统一入口，A 校验会话/实例，B/C 校验范围/输入/授权修订；MCP 禁止人工确认。列表必须走 A 的物理索引。 |
