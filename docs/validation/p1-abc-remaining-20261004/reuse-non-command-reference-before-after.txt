@@ -1,0 +1,53 @@
+Reuse source material — non-command evidence exact reference (C-01/C-05)
+=========================================================================
+
+Baseline source: bfe93b6/0048bb9 (src/aitest/application/execution/reuse_material.py
+unchanged between them), branch fix. Changed source: read_reference at
+src/aitest/application/execution/reuse_material.py:179 and read_evidence at :230.
+New regression: tests/unit/test_reuse_non_command_evidence_provenance.py
+
+Command shape (repository root, .venv/Scripts/python.exe, Python 3.13.13, confined run with
+the session-local 0o700 shim because this sandbox cannot open explicitly-restricted
+directories):
+
+1. New regression against the baseline source (byte-exact copy of the pre-change module in
+   .runtime/baseline-src/src, PYTHONPATH + -o pythonpath=):
+     7 failed, 3 passed
+   Failed (the gap):
+     test_non_command_evidence_cannot_hide_a_drifted_exact_reference[verification]
+     test_non_command_evidence_cannot_hide_a_drifted_exact_reference[http_response]
+     test_non_command_evidence_cannot_hide_a_drifted_exact_reference[model_response]
+     test_non_command_evidence_without_its_exact_reference_is_rejected
+     test_non_command_evidence_revision_cannot_be_swapped
+     test_non_stream_evidence_cannot_claim_a_redaction_summary
+     test_record_with_a_summary_reference_cannot_back_summary_free_evidence
+   Passed (positives must keep working): the three
+   test_non_command_evidence_with_its_exact_reference_is_accepted cases.
+
+2. Same regression against the changed source:
+     10 passed
+
+3. Reuse/closure affected suite (18 files matching reuse|source_closure|case_|redaction_summary,
+   including test_reuse_evidence_reference_provenance.py, test_case_reuse_material.py,
+   test_reuse_business_query_provenance.py, test_permanent_redaction_summary.py,
+   test_pinned_source_closure.py, test_consumed_source_closure.py, test_default_reuse_inspection.py,
+   test_mcp_reuse_inspection.py, test_mcp_default_reuse_inspection.py):
+     baseline: 351 passed, 26 errors
+     changed : 351 passed, 26 errors   (identical counts)
+   The 26 errors are environment-driven setup failures (PermissionError [WinError 5]) in the
+   confined sandbox and occur identically on both sides.
+
+4. tests/contracts + tests/architecture: 225 passed.
+   ruff check src tests -> All checks passed; mypy -> no issues in 223 source files.
+
+5. A real-token (no shim) full-suite run for the changed source is recorded separately when
+   it completes; the confined full run reported in
+   json-projection-affected-and-environment.txt (4720 collected, 4085 passed / 215 failed /
+   418 errors, all attributed to the sandbox) is not a substitute.
+
+Reading: before the change a fabricated or drifted `evidence_ref` record for any non-command
+evidence kind (verification, HTTP response, model response, external import, attachment, ...)
+was accepted as an exact historical source because only COMMAND_OUTPUT records were checked;
+after the change every evidence item must have its exact revision-1 record matching the frozen
+projection, and a non-stream item cannot claim a redaction summary (summaries are defined only
+over saved output blocks).
