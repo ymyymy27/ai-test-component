@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from aitest import __version__
 from aitest.application.errors import CapabilityUnavailable
+from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.bootstrap import acquire_existing_endpoint
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.queries import QuerySpec
@@ -27,6 +28,9 @@ _WRITE_ACTIONS = frozenset({
     "save_acceptance", "save_task", "save_delivery",
 }) - HUMAN_ACTIONS
 _WRITE_CONTRACT = "aitest.record-write-intent/1.0"
+_INSPECT_FIELDS = {
+    "case_id", "source_run_id", "source_snapshot", "target_run_id", "target_snapshot",
+}
 
 
 class _RpcError(ValueError):
@@ -73,13 +77,15 @@ class McpRelay:
             action for action in _WRITE_ACTIONS & set(actions)
             if contracts.get(action) == _WRITE_CONTRACT
         ))
+        self._reuse_inspection = "inspect_case_reuse" in actions
         self.binding_revision = self._binding_revision()
         self._client_factory = client_factory
         if client_factory is not None:
             client.close()
 
     def _send(
-        self, action: str, parameters: dict[str, object], *, binding: bool = False
+        self, action: str, parameters: dict[str, object], *, binding: bool = False,
+        target: str | None = None,
     ) -> Response:
         command = Command.model_validate(
             {
@@ -88,6 +94,7 @@ class McpRelay:
                 "project_id": self.project_id,
                 "binding_revision": self.binding_revision if binding else None,
                 "parameters": parameters,
+                "target": target,
             }
         )
         return self._send_command(command)
@@ -147,6 +154,24 @@ class McpRelay:
                 "annotations": {"readOnlyHint": True},
             },
         ]
+        if self._reuse_inspection:
+            tools.append({
+                "name": "aitest_inspect_case_reuse",
+                "description": "核对准确源/目标整用例材料与资格缺口；不授予复用或执行",
+                "inputSchema": {
+                    "type": "object", "additionalProperties": False,
+                    "required": sorted(_INSPECT_FIELDS),
+                    "properties": {
+                        **{name: {"type": "string", "minLength": 1} for name in (
+                            "case_id", "source_run_id", "target_run_id",
+                        )},
+                        **{name: SnapshotContentRef.model_json_schema() for name in (
+                            "source_snapshot", "target_snapshot",
+                        )},
+                    },
+                },
+                "annotations": {"readOnlyHint": True, "destructiveHint": False},
+            })
         if self._write_actions:
             command = Command.model_json_schema()
             command["properties"] = {
@@ -264,7 +289,10 @@ class McpRelay:
             raise _RpcError(-32602, "Tool arguments require an object")
         if name == "aitest_dispatch":
             return self._dispatch(arguments)
-        if not isinstance(name, str) or name not in {"aitest_doctor", "aitest_query"}:
+        inspection = name == "aitest_inspect_case_reuse" and self._reuse_inspection
+        if not isinstance(name, str) or (
+            name not in {"aitest_doctor", "aitest_query"} and not inspection
+        ):
             raise _RpcError(-32602, "Tool unavailable")
         if (
             name == "aitest_doctor"
@@ -278,13 +306,27 @@ class McpRelay:
                 QuerySpec.model_validate({"project_id": self.project_id, **arguments})
             except ValueError as error:
                 raise _RpcError(-32602, "Invalid finite query arguments") from error
+        if inspection:
+            if set(arguments) != _INSPECT_FIELDS or any(
+                not isinstance(arguments[key], str) or not arguments[key].strip()
+                for key in ("case_id", "source_run_id", "target_run_id")
+            ) or arguments["source_run_id"] == arguments["target_run_id"]:
+                raise _RpcError(-32602, "Exact distinct runs and case are required")
+            try:
+                for key in ("source_snapshot", "target_snapshot"):
+                    SnapshotContentRef.model_validate(arguments[key])
+            except ValueError as error:
+                raise _RpcError(-32602, "Invalid exact snapshot reference") from error
         try:
             if self._binding_revision() != self.binding_revision:
                 return self._tool_error(
                     "B_REPREPARE_REQUIRED", "绑定修订已变化，请重新选择MCP上下文"
                 )
             response = self._send(
-                "doctor" if name == "aitest_doctor" else "query", arguments, binding=True
+                "inspect_case_reuse" if inspection else (
+                    "doctor" if name == "aitest_doctor" else "query"
+                ), arguments, binding=True,
+                target=arguments["case_id"] if inspection else None,
             )
             if self._binding_revision() != self.binding_revision:
                 return self._tool_error(

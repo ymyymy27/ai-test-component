@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.71"
+contract_version: "1.72"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.72 stdio MCP复用核对读入口（2026-10-08）：核心协商支持inspect_case_reuse时，所选项目/绑定上下文新增只读工具aitest_inspect_case_reuse。输入严格为case_id、source_run_id/source_snapshot、target_run_id/target_snapshot，引用沿用SnapshotContentRef，不允许覆盖project/binding、资格声明或其他字段；核心命令target固定case_id，每次核对生成新request，无业务intent/授权。绑定读取前后均须保持准确修订；漂移/回执失联保留待核实，不自动重传或派生成功。工具原样返回同一核心1.71核对结果，旧协议保留text回执，支持structuredContent的版本追加同一DTO，不重算确认/结论，不创建Attempt/R/V/选择。缺该动作协商时不暴露/派发，既有读/保存工具独立保留。公开Command/Response及生成Schema不变，真实Trae/D选择与完整资格继续，FR/AC及reviewing/partial/not_run保持。
 
 1.71 复用核对的有效依据确认（2026-10-08）：inspect_case_reuse输出增加basis_confirmation并采用aitest.case-reuse-inspection/1.1；两侧状态从实际有效Case依据及准确受控ConfirmationRecord派生，不读冻结confirmed标签、不写回Case/Plan。候选确认仅来自两侧原PreparedRun准确confirmation_refs及已核对运行修订链的confirmation_ids，不扫描历史/取最新/接收调用方确认结论。case_link@1须核对实际信封、项目/稳定身份、完整严格字段、原输入摘要、准确Case正文修订及依据文本摘要，并由现有BasisConfirmationProof核对消耗的真实挑战/交互/确认链。准备引用的Case/依据修订/确认提交号逐项对拍；缺受控证明或材料损坏阻塞核对。有效确认绑定Case/依据修订/文本摘要，可用于两侧相同依据且不要求原Case正文修订相同；文本/依据改变不沿用，跨Case确认无效。输出每侧派生状态与匹配准确确认引用；两侧有效confirmed才移除basis_confirmed_unverified，其他动态来源/环境、依赖、独立核验/证据资格缺口继续，不增加R/V或保存选择。旧1.0调用形状兼容，客户端按输出schema识别新增字段；旧无受控来源确认不自动升级，FR/AC及reviewing/partial/not_run不变。
 
