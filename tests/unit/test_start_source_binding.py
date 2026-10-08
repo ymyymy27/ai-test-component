@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -219,6 +220,24 @@ def test_missing_start_inputs_are_refused(snapshot_id: object, destination: obje
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
     with pytest.raises(SourceBindingUnverified):
         resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
+
+
+def test_hard_linked_actual_file_is_refused(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """实际来源文件不能靠硬链接与 workdir 外共享字节。"""
+    pinned = store.pin(canonical_path=str(source), purpose="prepare")
+    destination = tmp_path / "workdir"
+    materialized = store.materialize(str(pinned["snapshot_id"]), str(destination))
+    outside = tmp_path / "outside.py"
+    try:
+        os.link(destination / "main.py", outside)
+    except OSError:  # 文件系统不支持硬链接：如实跳过，不当作通过
+        pytest.skip("hard links are not supported on this filesystem")
+    with pytest.raises(SourceBindingUnverified):
+        StartSourceBindingResolver(_Stub(materialized)).resolve(  # type: ignore[arg-type]
+            snapshot_id=str(pinned["snapshot_id"]), destination=str(destination)
+        )
 
 
 def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:

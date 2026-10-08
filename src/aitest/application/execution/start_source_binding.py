@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -150,6 +151,10 @@ def _verify_file(path: Path, digest: str, size: int) -> None:
     try:
         if not path.is_file() or path.is_symlink():
             raise SourceBindingUnverified("mapped actual path is not a regular file")
+        if os.stat(path).st_nlink != 1:
+            raise SourceBindingUnverified(
+                "mapped actual path shares its bytes with material outside the workdir"
+            )
         hasher = hashlib.sha256()
         read = 0
         with path.open("rb") as handle:
