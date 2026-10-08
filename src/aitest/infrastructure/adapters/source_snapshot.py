@@ -73,6 +73,12 @@ def _materialized_mapping_digest(paths: list[dict[str, object]]) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
+def _as_digest(value: object) -> str:
+    """清单内是裸十六进制摘要；对外统一为 `sha256:`+64 位小写形式。"""
+    text = str(value)
+    return text if text.startswith("sha256:") else "sha256:" + text
+
+
 def _fsync_file(handle: IO[bytes]) -> None:
     """显式落盘文件数据；失败必须上抛，禁止在无耐久保证时声称发布成功。"""
     handle.flush()
@@ -334,7 +340,7 @@ class FileSourceSnapshotStore:
             {
                 "relative_path": str(item["relative_path"]),
                 "actual_path": destination_path.as_posix(),
-                "sha256": str(item["sha256"]),
+                "sha256": _as_digest(item["sha256"]),
                 "size": item["size"],
             }
             for item, _blob_path, destination_path in planned

@@ -107,7 +107,7 @@ def test_materialize_returns_expected_to_actual_mapping_and_digest(
     assert {item["relative_path"] for item in paths} == set(manifest)
     for item in paths:
         pinned_item = manifest[item["relative_path"]]
-        assert item["sha256"] == pinned_item["sha256"]
+        assert item["sha256"] == "sha256:" + pinned_item["sha256"]
         assert item["size"] == pinned_item["size"]
         actual = Path(item["actual_path"])
         assert actual.is_file() and actual.is_relative_to(target)
