@@ -156,6 +156,7 @@ ProcessTerminationReason：
 - timeout.json：命令超时、ExitFact.timed_out=true、pending_verification。
 - multistream.json：stdout和stderr分别具有块和独立游标。
 - non_utf8.json：非UTF-8原始字节场景。
+- business_failure.json：执行完成但业务核验 observation=mismatched。
 - non_utf8.stdout.bin：stdout原始字节侧车。
 - non_utf8.stderr.bin：stderr原始字节侧车。
 
