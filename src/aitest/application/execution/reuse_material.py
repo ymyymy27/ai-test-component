@@ -2,10 +2,13 @@
 
 import hashlib
 import re
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from pydantic import TypeAdapter
+
 from aitest.application.evidence.redaction_materials import read_saved_redaction, summary_basis
-from aitest.application.execution.facts import _redaction_summary_fact
+from aitest.application.execution.facts import _evidence_fact, _redaction_summary_fact
 from aitest.application.execution.output_material import require_saved_output_material
 from aitest.application.planning.publish import payload_digest
 from aitest.application.ports import (
@@ -15,11 +18,13 @@ from aitest.application.ports import (
     SpoolStore,
 )
 from aitest.contracts.execution_facts import EvidenceFact, EvidenceKindFact
-from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef
 from aitest.domain.execution.runs import RecoveryRecord
 
 if TYPE_CHECKING:
     from aitest.application.execution.reuse_sources import CaseReuseSource
+
+_REFERENCE = TypeAdapter(EvidenceRef)
 
 
 def validate_source_material(
@@ -37,6 +42,7 @@ def validate_source_material(
     run = source.facts.run_id
     checked: set[tuple[str, int]] = set()
     redaction_checked: dict[str, CollectedRedactionSummary] = {}
+    reference_checked: set[tuple[str, int]] = set()
     checkpoints: dict[str, RecoveryRecord] = {}
     for step in source.steps:
         checkpoint = getattr(step, "checkpoint", None)
@@ -78,6 +84,51 @@ def validate_source_material(
         attempt = attempts[item.attempt_id]
         if (item.project_id, item.run_id, item.step_id) != (project, run, attempt.step_id):
             raise ValueError("case source evidence belongs to another project, run or step")
+        block = published_blocks.get(item.evidence_id)
+        if (
+            records is not None and block is None
+            and getattr(item, "evidence_kind", None) is EvidenceKindFact.COMMAND_OUTPUT
+            and item.evidence_id.startswith(f"evidence:{item.attempt_id}:")
+        ):
+            raise ValueError("case source evidence reference lacks its original output block")
+        if (
+            records is not None and block is not None
+            and getattr(item, "evidence_kind", None) is EvidenceKindFact.COMMAND_OUTPUT
+            and (item.evidence_id, item.evidence_revision) not in reference_checked
+        ):
+            revision = item.evidence_revision
+            if type(revision) is not int or revision < 1:
+                raise ValueError("case source evidence reference requires its exact revision")
+            try:
+                record = records.read(
+                    aggregate_kind="evidence_ref", record_id=item.evidence_id, revision=revision,
+                )
+            except (OSError, ValueError, KeyError) as error:
+                raise ValueError("case source evidence reference is unreadable") from error
+            if (
+                getattr(record, "aggregate_kind", None), getattr(record, "record_id", None),
+                getattr(record, "revision", None),
+            ) != ("evidence_ref", item.evidence_id, revision) or type(
+                getattr(record, "revision", None)
+            ) is not int:
+                raise ValueError("case source evidence reference exact envelope differs")
+            raw = getattr(record, "payload", None)
+            if not isinstance(raw, Mapping):
+                raise ValueError("case source evidence reference body cannot be verified")
+            try:
+                ref = _REFERENCE.validate_python(raw)
+            except ValueError as error:
+                raise ValueError("case source evidence reference body is unverified") from error
+            if (
+                payload_digest(raw) != payload_digest(_REFERENCE.dump_python(ref, mode="json"))
+                or ref.evidence_revision != revision
+                or ref.redaction_summary_ref != block.redaction_summary_id
+                or _evidence_fact(ref, {}).model_dump(exclude={"redaction_summary"})
+                != item.model_dump(exclude={"redaction_summary"})
+                or (ref.redaction_summary_ref is None) != (item.redaction_summary is None)
+            ):
+                raise ValueError("case source evidence reference differs from frozen projection")
+            reference_checked.add((item.evidence_id, revision))
         read(item.object_digest, item.object_size, item.media_type or "application/octet-stream")
         if (
             getattr(item, "evidence_kind", None) is EvidenceKindFact.COMMAND_OUTPUT

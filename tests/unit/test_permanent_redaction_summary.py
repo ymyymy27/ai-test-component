@@ -302,7 +302,7 @@ def test_historical_source_does_not_trust_only_inline_summary(tmp_path, damage):
     source = SimpleNamespace(facts=facts, steps=(SimpleNamespace(
         attempt=facts.attempts[0], checkpoint=checkpoint,
     ),))
-    with pytest.raises(ValueError, match="redaction summary|object digest"):
+    with pytest.raises(ValueError, match="evidence reference|redaction summary|object digest"):
         validate_source_material(source, collector.objects, collector.spool, reader)
 
 

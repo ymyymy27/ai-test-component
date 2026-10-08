@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.66"
+contract_version: "1.67"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.67 默认命令历史引用（2026-10-08）：规范evidence:Attempt:流:块编号的默认命令来源消费须逐项点读冻结EvidenceFact对应的evidence_ref准确仓储修订，并按1.62新路径合同核对正文evidence_revision与实际封套仓储修订一致。不得读取最新记录或只用快照inline元数据/对象摘要替代。记录未知字段、类型转换、归属/代码/引用/投影与冻结事实不符，或摘要引用与准确检查点块不符，均阻塞来源资格。实际字节与永久摘要仍分别核对；同一准确引用在一次来源读取中只读一次。其他类型或旧不具备该正文/仓储对齐合同的来源不推定该语义，保持原展示及资格缺口，后续独立补准确引用合同，不迁移或猜修订。FR/AC及公开Schema不变，reviewing/partial/not_run保持。
 
 1.66 旧输出元数据补正（2026-10-08）：已永久发布的每个输出块须核对准确原EvidenceRef、完整来源/字节依据、实际对象摘要/长度及原完整性。只有全组依据一致且完整性不变时，安全缺口/无摘要not_required→unknown补正可使用已保存永久字节，不依赖回收后的spool、不重新发布对象或执行。正文身份/类型/代码/归属/字节改变仍拒绝；完整性变化、新块或未发布块仍须实际spool核对。永久对象缺失/损坏不得回退临时材料伪装原引用可靠；原记录/快照保持，补正追加准确引用修订，同批发布一次，后续重传只读。此增量不猜测旧脱敏正文、不制造完整采集/统计/业务结果，FR/AC、公开Schema及reviewing/partial/not_run保持。
 
