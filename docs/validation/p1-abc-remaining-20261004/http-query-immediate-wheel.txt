@@ -1,0 +1,3 @@
+........................................................................ [100%]
+72 passed in 0.99s
+Installed deadline GET/JSON and polling run against actual local HTTP; source parity verified. No real deployment/Trae AC.

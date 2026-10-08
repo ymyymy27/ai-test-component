@@ -25,6 +25,7 @@ class HttpBusinessQuerySpec:
     object_id_field: str = "object_id"
     credential_reference: str | None = None
     max_response_bytes: int = 1024 * 1024
+    single_query_timeout_ms: int = 10_000
 
     def __post_init__(self) -> None:
         for value in (self.target_deployment_ref, self.url_template, self.object_id_field):
@@ -49,6 +50,8 @@ class HttpBusinessQuerySpec:
             or scrub_text(self.url_template)[1]
             or type(self.max_response_bytes) is not int
             or not 0 < self.max_response_bytes <= 1024 * 1024
+            or type(self.single_query_timeout_ms) is not int
+            or not 0 < self.single_query_timeout_ms <= MAX_QUERY_DEADLINE_MS
         ):
             raise ValueError("business query target, slot or budget is unsafe")
         HttpRequestSpec(
@@ -100,6 +103,18 @@ class HttpBusinessQueryReader:
         except ValueError:
             raise ValueError("business query credential is not wire safe") from None
         return headers
+
+    def read_business_object(
+        self,
+        *,
+        business_object_id: str,
+        target_deployment_ref: str,
+    ) -> Mapping[str, object] | None:
+        return self.read_business_object_before(
+            business_object_id=business_object_id,
+            target_deployment_ref=target_deployment_ref,
+            deadline_monotonic=time.monotonic() + self._spec.single_query_timeout_ms / 1000,
+        )
 
     def read_business_object_before(
         self,

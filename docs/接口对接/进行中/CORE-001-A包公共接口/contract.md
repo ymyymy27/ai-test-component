@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.75"
+contract_version: "1.76"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.76 HTTP单次独立核验兼容（2026-10-08）：HttpBusinessQueryReader同时实现既有ReadOnlyBusinessQueryPort和DeadlineBusinessQueryPort。可信冻结spec的single_query_timeout_ms为真实正整数毫秒，默认10000、上限沿1.74领域常量；immediate调用仅进行一次独立GET，转换为该实际单调截止后复用同一URL/凭据/完整JSON/同对象守卫，不重试。轮询仍完全使用原请求传来的总截止，不被单次配置重置或替换。单次超时返回既有query_error缺口，不能编造轮询时间线或升级验证；保存/重启仍回原1.0材料。公开DTO/Schema/FR/AC及reviewing/partial/not_run保持。
 
 1.75 HTTP独立只读查询端口（2026-10-08）：可信装配冻结部署引用、唯一业务对象URL占位、对象编号字段、凭据引用与正文预算，不能由verify_pending参数覆盖。端口仅GET、无请求正文，使用同一实际socket/DNS/TLS总截止、不隐式跳转或重试，编码对象编号且保持冻结authority；规范200响应必须完整、有界、唯一JSON内容类型、严格UTF-8/唯一字段JSON对象及准确同对象编号，才返回字段供共同核心比较。404明确无该对象，其他状态/身份或JSON异常作为查询错误；完整JSON前缀不能替代完整HTTP正文。授权只使用准确http用途凭据引用的已解析内存Secret，带凭据要求HTTPS，不接受URL/配置正文内凭据；退出/清空凭据后不继续发送。该端口不证明服务端实现没有副作用或远端部署与源码对应，不从GET/200/对象可读推导R/V。端口与1.74轮询及1.1安全保存共用；默认项目配置解析、五类业务适配及真实远端/Trae验收继续，公开DTO/Schema及FR/AC、reviewing/partial/not_run保持。
 

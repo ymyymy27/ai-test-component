@@ -207,6 +207,7 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
         polled_facts, request_id="http-independent-query", intent_id="http-query-intent"
     )
     with server(http_read_order) as (url, http_calls):
+        core.business_verification.resolver = ResolveOrder()
         core.business_verification.verifier = BusinessVerificationAdapter(
             HttpBusinessQueryReader(
                 HttpBusinessQuerySpec(
@@ -217,6 +218,7 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
         http_result = core.api.dispatch(http_cmd, RELAY)
         assert http_result.error is None, http_result.error
         assert http_result.result["verification"]["observation"] == "matched"
+        assert http_result.result["verification"]["deadline_condition"] == "immediate"
         assert len(http_calls) == 1 and http_calls[0].startswith(b"GET /orders/order-1 ")
     polled_facts = ExecutionFacts.model_validate(http_result.result["execution_facts"])
     sequence = core.unit_of_work.current_commit_sequence()

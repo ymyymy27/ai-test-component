@@ -70,6 +70,58 @@ def test_actual_independent_http_get_reads_complete_same_object_without_request_
         assert calls[0].endswith(b"\r\n\r\n")
 
 
+def test_existing_immediate_business_capture_can_use_production_http_reader():
+    with server(body_reply(b'{"object_id":"order-1","paid":true}')) as (url, calls):
+        result = BusinessVerificationAdapter(reader(url)).capture(
+            replace(
+                request(),
+                deadline_condition="immediate",
+                query_interval="configured",
+            )
+        )
+        assert result.verification.observation is VerificationObservation.MATCHED
+        assert len(calls) == 1 and not result.query_observations and result.query_elapsed_ms is None
+
+
+def test_immediate_http_query_has_actual_cutoff_and_does_not_retry():
+    def reply(connection, stopped):
+        stopped.wait(0.5)
+
+    with server(reply) as (url, calls):
+        began = time.monotonic()
+        result = BusinessVerificationAdapter(reader(url, single_query_timeout_ms=80)).capture(
+            replace(
+                request(),
+                deadline_condition="immediate",
+                query_interval="configured",
+            )
+        )
+        assert time.monotonic() - began < 0.5
+        assert result.verification.observation is VerificationObservation.QUERY_ERROR
+        assert result.actual_fields is None and len(calls) == 1
+
+
+@pytest.mark.parametrize("value", [True, 0, -1, 1.0, 60001])
+def test_single_query_duration_requires_bounded_actual_integer(value):
+    with pytest.raises(ValueError):
+        HttpBusinessQuerySpec(
+            "deployment-1", "http://localhost/{business_object_id}", single_query_timeout_ms=value
+        )
+
+
+def test_polling_absolute_cutoff_is_not_replaced_by_single_query_duration(monkeypatch):
+    value = reader("http://localhost/", single_query_timeout_ms=1)
+    fetch = Mock(
+        return_value=NetworkExchange(
+            200, (("Content-Type", "application/json"),), b'{"object_id":"order-1"}', True
+        )
+    )
+    monkeypatch.setattr(module, "exchange", fetch)
+    cutoff = time.monotonic() + 1
+    assert read(value, cutoff=cutoff) == {"object_id": "order-1"}
+    assert fetch.call_args.kwargs["expires"] == cutoff
+
+
 def test_actual_not_found_is_requeried_then_visible_under_same_cutoff():
     count = 0
 
