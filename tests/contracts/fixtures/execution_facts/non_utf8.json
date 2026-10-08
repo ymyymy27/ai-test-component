@@ -174,7 +174,7 @@
   },
   "evidence_refs": [
     {
-      "evidence_id": "evidence-1",
+      "evidence_id": "evidence-utf8-out",
       "evidence_revision": 1,
       "project_id": "project-1",
       "source_instance_id": "run-1",
@@ -197,7 +197,7 @@
       "gap_ids": []
     },
     {
-      "evidence_id": "evidence-stderr",
+      "evidence_id": "evidence-utf8-err",
       "evidence_revision": 1,
       "project_id": "project-1",
       "source_instance_id": "run-1",
@@ -231,10 +231,10 @@
       "rules_revision": "rules-1",
       "adapter_version": "python-checks/1.0",
       "failure_class": "passed",
-      "raw_output_evidence_ref": "evidence-1",
+      "raw_output_evidence_ref": "evidence-utf8-out",
       "evidence_refs": [
-        "evidence-1",
-        "evidence-stderr"
+        "evidence-utf8-out",
+        "evidence-utf8-err"
       ]
     }
   ],
@@ -254,8 +254,8 @@
       "observed_entry_ref": "entry-1",
       "gap_ids": [],
       "evidence_refs": [
-        "evidence-1",
-        "evidence-stderr"
+        "evidence-utf8-out",
+        "evidence-utf8-err"
       ],
       "verified_at": "2026-10-07T10:01:00Z"
     }
@@ -270,12 +270,12 @@
       "query_interval": "configured",
       "deadline_condition": "immediate",
       "target_deployment_ref": "deployment-1",
-      "actual_result_ref": "evidence-1",
+      "actual_result_ref": "evidence-utf8-out",
       "key_trace_link_refs": [],
       "covers_critical_chain_item_ids": [],
       "evidence_refs": [
-        "evidence-1",
-        "evidence-stderr"
+        "evidence-utf8-out",
+        "evidence-utf8-err"
       ],
       "gap_ids": [],
       "verified_at": "2026-10-07T10:01:00Z"

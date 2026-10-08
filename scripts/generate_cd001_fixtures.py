@@ -163,6 +163,8 @@ def _outputs(
     streams: dict[OutputStreamName, bytes],
     *,
     complete: bool,
+    stdout_evidence_id: str = "evidence-1",
+    stderr_evidence_id: str | None = None,
 ) -> tuple[tuple[OutputBlockRef, ...], tuple[OutputCursor, ...], tuple[EvidenceRef, ...]]:
     blocks: list[OutputBlockRef] = []
     cursors: list[OutputCursor] = []
@@ -192,9 +194,9 @@ def _outputs(
             )
         )
         evidence_id = (
-            "evidence-1"
+            stdout_evidence_id
             if stream_name is OutputStreamName.STDOUT
-            else f"evidence-{stream_name.value}"
+            else stderr_evidence_id or f"evidence-{stream_name.value}"
         )
         evidence.append(
             EvidenceRef(
@@ -237,11 +239,15 @@ def _attempt(
     termination: ProcessTerminationReason = ProcessTerminationReason.NATURAL_EXIT,
     with_exit: bool = True,
     unknown_reason: str | None = None,
+    stdout_evidence_id: str = "evidence-1",
+    stderr_evidence_id: str | None = None,
 ) -> tuple[Attempt, tuple[EvidenceRef, ...]]:
     blocks, cursors, evidence = _outputs(
         "attempt-1",
         streams,
         complete=capture is CaptureCompleteness.COMPLETE,
+        stdout_evidence_id=stdout_evidence_id,
+        stderr_evidence_id=stderr_evidence_id,
     )
     exit_fact = (
         ExitFact(
@@ -455,11 +461,15 @@ def _success_like(
     isolation: IsolationMode = IsolationMode.VENV,
     streams: dict[OutputStreamName, bytes] | None = None,
     evidence_level: str | None = "full_link",
+    stdout_evidence_id: str = "evidence-1",
+    stderr_evidence_id: str | None = None,
 ) -> ExecutionFactsAssembly:
     attempt, evidence = _attempt(
         state=AttemptState.COMPLETED,
         capture=CaptureCompleteness.COMPLETE,
         streams=streams or {OutputStreamName.STDOUT: b"hello success\n"},
+        stdout_evidence_id=stdout_evidence_id,
+        stderr_evidence_id=stderr_evidence_id,
     )
     return _assembly(
         name,
@@ -513,6 +523,8 @@ def _build(name: str) -> ExecutionFactsAssembly:
                 OutputStreamName.STDOUT: stdout,
                 OutputStreamName.STDERR: stderr,
             },
+            stdout_evidence_id="evidence-utf8-out",
+            stderr_evidence_id="evidence-utf8-err",
         )
     if name == "failure":
         attempt, evidence = _attempt(
