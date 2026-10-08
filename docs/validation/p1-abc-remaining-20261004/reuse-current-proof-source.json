@@ -1,0 +1,11 @@
+{
+  "baseline_commit": "3149961",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/application/execution/reuse_basis.py": "7c12d751b0f0ee7e6237d342bc039a6678a3d3539e28f7976cd3d3ebec6e6614",
+    "src/aitest/application/execution/reuse_inspection.py": "d93d793aaa768db9eb8b199e214d96a527cdda8752a31ec74664e2f781e5eb2e",
+    "tests/unit/test_case_reuse_inspection.py": "c77800c081161ca628e8d7e33e76ea166df026e6baca16a23718e1a3a2d18fc8",
+    "tests/unit/test_default_business_verification.py": "9933a99c2f6d995ed5b103df18e331b3b5b538ac51329543fb33fb1f4fd5499e"
+  },
+  "scope": "Current proof and ancestor fingerprints, actual command/file/HTTP historic query chain; synthetic source/authority, no complete R or Trae AC."
+}

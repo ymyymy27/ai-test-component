@@ -220,6 +220,7 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
         assert http_result.result["verification"]["observation"] == "matched"
         assert http_result.result["verification"]["deadline_condition"] == "immediate"
         assert len(http_calls) == 1 and http_calls[0].startswith(b"GET /orders/order-1 ")
+    previous_query_facts = polled_facts
     polled_facts = ExecutionFacts.model_validate(http_result.result["execution_facts"])
     sequence = core.unit_of_work.current_commit_sequence()
     assert (
@@ -237,6 +238,24 @@ def test_default_actual_business_read_is_saved_and_replayed_without_requery(
         )
         .facts
         == polled_facts
+    )
+    assert core.unit_of_work.current_commit_sequence() == sequence
+    from aitest.application.execution.reuse_basis import source_evidence_basis
+    from aitest.application.planning.publish import payload_digest
+
+    histories = CaseReuseSourceReader(
+        core.unit_of_work.repo, PortsRecordReader(core.unit_of_work.repo),
+        objects=FileObjectStore(core.workspace.root), spool=FileSpoolStore(core.workspace.root),
+    )
+    old_source, current_source = tuple(
+        histories.read(
+            project_id=inputs.project_id, run_id=value.run_id, case_id=selected_case,
+            reference=SnapshotContentRef.of(value),
+        ) for value in (previous_query_facts, polled_facts)
+    )
+    assert old_source.steps == current_source.steps
+    assert payload_digest(source_evidence_basis(old_source)) != payload_digest(
+        source_evidence_basis(current_source)
     )
     assert core.unit_of_work.current_commit_sequence() == sequence
     poll_count = polling.calls

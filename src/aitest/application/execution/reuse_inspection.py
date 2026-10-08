@@ -6,6 +6,10 @@ from dataclasses import asdict
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.frozen_plan import FrozenRunPlanReader
+from aitest.application.execution.reuse_basis import (
+    consumed_dependency_basis,
+    source_evidence_basis,
+)
 from aitest.application.execution.reuse_sources import CaseReuseSource, CaseReuseSourceReader
 from aitest.application.execution.runtime_revision import (
     SavedRuntimeRevisionReader,
@@ -224,8 +228,16 @@ class CaseReuseInspection:
             reasons.append("source_execution_incomplete")
         if tuple((x.step, x.attempt) for x in source.steps) != tuple(
             (x.step, x.attempt) for x in current_source.steps
+        ) or payload_digest(source_evidence_basis(source)) != payload_digest(
+            source_evidence_basis(current_source)
         ):
             reasons.append("source_case_basis_changed")
+        source_dependencies, original_current = consumed_dependency_basis(source)
+        current_dependencies, still_current = consumed_dependency_basis(current_source)
+        if payload_digest(source_dependencies) != payload_digest(current_dependencies):
+            reasons.append("source_dependency_basis_changed")
+        if not original_current or not still_current:
+            reasons.append("source_dependency_basis_unverified")
         if source.original_preparation.environment != target.original_preparation.environment:
             reasons.append("frozen_environment_basis_changed")
         basis = self._basis_confirmation(source, target)

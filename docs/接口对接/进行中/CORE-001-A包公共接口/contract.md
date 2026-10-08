@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.77"
+contract_version: "1.78"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.78 复用来源完整当前依据（2026-10-08）：源快照与源运行当前边界除Step/Attempt外，须核对所选当前Attempt的准确证据、业务核验、源码检查，以及运行共同来源核验、Mock、缺口/未知和材料完整性；追加/删除/改义均不能继续使用旧依据。实际consumed_outputs/conditions向上递归核对原来源Attempt事实和当前指针，缺失、过期、未完成或不完整保留不可核实；上游换Attempt或材料变化显示source_dependency_basis_changed，即使选中下游Step/Attempt尚未变化。集合重排不改义，无关其他用例的局部证据/核验不干扰；共同运行材料变化需重新请求当前边界。预览仍为incompatible/unverified、不授予R/V或生成Attempt，真实动态观察、引用实际字节、完整资格/选择及消费继续另验。公开Schema/FR/AC及reviewing/partial/not_run保持。
 
 1.77 模型端口实际截止（2026-10-08）：沿AB-0011.33的唯一传输/响应合同，默认模型适配器复用已有直接HTTP总截止和有界framing读取；仅完整、准确200与严格JSON草稿作为OK，凭据逐次复核、错误材料仍落盘前过滤。草稿不产生业务结论；默认/历史响应保存与原意图回读规则保持，真实供应方/Trae验收另记。
 

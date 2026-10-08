@@ -16,7 +16,11 @@ from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import (
     AttemptStateFact,
     CaptureCompletenessFact,
+    ConsumedConditionFact,
+    ConsumedOutputFact,
     StepLevelFact,
+    VerificationFact,
+    VerificationObservationFact,
 )
 from aitest.contracts.prepared_run import AssertionBasisStateFact, ConfirmationRef
 from aitest.domain.planning.plans import AssertionBasisState, ConfirmationRecord
@@ -330,3 +334,167 @@ print(json.dumps(result['source_identity'], sort_keys=True))
         )
         results.append(json.loads(run.stdout))
     assert results[0] == results[1] == results[2]
+
+
+def later_source(inspection):
+    service, command, sources, current, _, facts = inspection
+    original = sources["source-run"]
+    original.steps[0].attempt = SimpleNamespace(
+        attempt_id="selected-attempt", state=AttemptStateFact.COMPLETED,
+        capture_completeness=CaptureCompletenessFact.COMPLETE,
+        consumed_outputs=(), consumed_conditions=(),
+    )
+    later = deepcopy(original)
+    later.facts = facts("source-run", extra="later-source-boundary")
+    current["source-run"] = later.facts
+    read = service.sources.read
+
+    def selected(**kwargs):
+        if kwargs["run_id"] == "source-run" and kwargs["reference"] == (
+            SnapshotContentRef.of(later.facts)
+        ):
+            return later
+        return read(**kwargs)
+
+    service.sources = SimpleNamespace(read=selected)
+    return service, command, original, later
+
+
+def verification(identity="query-1", attempt="selected-attempt"):
+    return VerificationFact(
+        verification_id=identity, verification_of=attempt, business_object_id="same-object",
+        query_method="independent", observation=VerificationObservationFact.MATCHED,
+    )
+
+
+@pytest.mark.parametrize("field", [
+    "evidence_refs", "source_check_results", "verifications", "dependency_invalidations",
+    "source_verifications", "mock_declarations", "unknowns", "gaps",
+])
+def test_same_attempt_later_proof_invalidates_old_case_basis(inspection, field):
+    service, command, original, later = later_source(inspection)
+    proof = SimpleNamespace(
+        attempt_id="selected-attempt", verification_of="selected-attempt",
+        affected_attempt_id="selected-attempt", model_dump=lambda **_: {"proof": "late"},
+    )
+    setattr(original.facts, field, ())
+    setattr(later.facts, field, (proof,))
+    result = service.inspect(command)
+    assert result["status"] == "incompatible"
+    assert "source_case_basis_changed" in result["denial_reasons"]
+    assert original.steps == later.steps and not original.facts.attempts
+
+
+@pytest.mark.parametrize("change", ["delete", "observation", "reorder", "other_case"])
+def test_query_basis_compares_exact_content_and_scope_without_order_noise(inspection, change):
+    service, command, original, later = later_source(inspection)
+    first, second = verification(), verification("query-2")
+    original.facts.verifications = (first, second)
+    if change == "delete":
+        later.facts.verifications = (first,)
+    elif change == "observation":
+        later.facts.verifications = (first.model_copy(update={
+            "observation": VerificationObservationFact.MISMATCHED,
+        }), second)
+    elif change == "reorder":
+        later.facts.verifications = (second, first)
+    else:
+        later.facts.verifications = (first, second, verification("other", "other-case-attempt"))
+    result = service.inspect(command)
+    assert ("source_case_basis_changed" in result["denial_reasons"]) is (
+        change in {"delete", "observation"}
+    )
+
+
+@pytest.mark.parametrize("condition", [False, True])
+@pytest.mark.parametrize("change", ["pointer", "state", "capture", "missing", "unchanged"])
+def test_actual_consumed_ancestors_outside_case_are_checked(inspection, condition, change):
+    service, command, original, later = later_source(inspection)
+    field = "consumed_conditions" if condition else "consumed_outputs"
+    used = ConsumedConditionFact(
+        upstream_attempt_id="upstream", condition_fact_ref="condition", condition_digest="sha256:a",
+    ) if condition else ConsumedOutputFact(
+        upstream_attempt_id="upstream", output_object_digest="sha256:a", value_ref="value",
+    )
+    for source in (original, later):
+        setattr(source.steps[0].attempt, field, (used,))
+        source.facts.current_attempt_by_step = {"upstream-step": "upstream"}
+        source.facts.attempts = (SimpleNamespace(
+            attempt_id="upstream", step_id="upstream-step", is_current=True,
+            state=AttemptStateFact.COMPLETED, capture_completeness=CaptureCompletenessFact.COMPLETE,
+            consumed_outputs=(), consumed_conditions=(),
+            model_dump=lambda **_: {"upstream": "original"},
+        ),)
+    if change == "pointer":
+        later.facts.current_attempt_by_step["upstream-step"] = "new-upstream"
+    elif change == "state":
+        later.facts.attempts[0].state = AttemptStateFact.INVALIDATED
+        later.facts.attempts[0].model_dump = lambda **_: {"upstream": "invalidated"}
+    elif change == "capture":
+        later.facts.attempts[0].capture_completeness = CaptureCompletenessFact.PARTIAL
+        later.facts.attempts[0].model_dump = lambda **_: {"upstream": "partial"}
+    elif change == "missing":
+        later.facts.attempts = ()
+    result = service.inspect(command)
+    assert ("source_dependency_basis_changed" in result["denial_reasons"]) is (
+        change != "unchanged"
+    )
+    assert ("source_dependency_basis_unverified" in result["denial_reasons"]) is (
+        change != "unchanged"
+    )
+    assert "dependency_digest_unverified" in result["denial_reasons"]
+    assert "dependencies_valid_unverified" in result["denial_reasons"]
+
+
+def test_shared_completeness_change_is_a_current_basis_change(inspection):
+    service, command, original, later = later_source(inspection)
+    original.facts.completeness = "complete"
+    later.facts.completeness = "partial"
+    assert "source_case_basis_changed" in service.inspect(command)["denial_reasons"]
+
+
+def test_dependency_invalidation_without_attempt_id_still_belongs_to_selected_step(inspection):
+    service, command, original, later = later_source(inspection)
+    later.facts.dependency_invalidations = (SimpleNamespace(
+        affected_attempt_id=None, affected_step_id=original.steps[0].step.step_id,
+        model_dump=lambda **_: {"invalidation": "selected step"},
+    ),)
+    assert "source_case_basis_changed" in service.inspect(command)["denial_reasons"]
+
+
+@pytest.mark.parametrize("change", ["pointer", "missing", "unchanged"])
+def test_consumed_ancestors_follow_transitive_sources_outside_selected_case(inspection, change):
+    service, command, original, later = later_source(inspection)
+    for source in (original, later):
+        source.steps[0].attempt.consumed_outputs = (ConsumedOutputFact(
+            upstream_attempt_id="middle", output_object_digest="sha256:a", value_ref="middle",
+        ),)
+        middle = SimpleNamespace(
+            attempt_id="middle", step_id="middle-step", is_current=True,
+            state=AttemptStateFact.COMPLETED, capture_completeness=CaptureCompletenessFact.COMPLETE,
+            consumed_outputs=(), consumed_conditions=(ConsumedConditionFact(
+                upstream_attempt_id="grandparent", condition_fact_ref="condition",
+                condition_digest="sha256:a",
+            ),), model_dump=lambda **_: {"middle": "original"},
+        )
+        grandparent = SimpleNamespace(
+            attempt_id="grandparent", step_id="grandparent-step", is_current=True,
+            state=AttemptStateFact.COMPLETED, capture_completeness=CaptureCompletenessFact.COMPLETE,
+            consumed_outputs=(), consumed_conditions=(),
+            model_dump=lambda **_: {"grandparent": "original"},
+        )
+        source.facts.attempts = (middle, grandparent)
+        source.facts.current_attempt_by_step = {
+            "middle-step": "middle", "grandparent-step": "grandparent",
+        }
+    if change == "pointer":
+        later.facts.current_attempt_by_step["grandparent-step"] = "new-grandparent"
+    elif change == "missing":
+        later.facts.attempts = later.facts.attempts[:1]
+    result = service.inspect(command)
+    assert ("source_dependency_basis_changed" in result["denial_reasons"]) is (
+        change != "unchanged"
+    )
+    assert ("source_dependency_basis_unverified" in result["denial_reasons"]) is (
+        change != "unchanged"
+    )

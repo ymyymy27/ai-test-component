@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.15"
+contract_version: "1.16"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -18,7 +18,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 版本：1.7
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.15增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.16增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -255,3 +255,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.14 HTTP独立核验端口（2026-10-08）：CORE-001 1.75实现同一截止下的独立GET及完整同对象JSON，供既有1.74轮询/安全保存派生VerificationFact。错误目标/对象/截断/异常状态不产生matched；404为未见对象，截止不证明回滚。D仍只消费共同核心准确材料，URL/凭据正文不扩入DTO/Schema或上传。默认配置/其他核验/当前资格及真实验收继续，reviewing/partial/not_run保持。
 
 1.15 HTTP单次兼容（2026-10-08）：CORE-0011.76使现有immediate核验可调用生产HTTP reader，单次实际总截止且不重试，轮询绝对截止不变。单次超时保留query_error、不产生轮询时间线；既有保存及重启按1.0原材料回读。D仅消费共同核心准确事实，公开Schema及reviewing/partial/not_run保持。
+
+1.16复用当前材料（2026-10-08）：CORE-0011.78将同Attempt的后补核验/证据及实际消费祖先当前指针纳入旧源比对。改变为incompatible、缺材料保持unverified，不推导R/V；集合重排不改义，完整资格/选择及实际字节消费继续。D只消费共同核心准确结果，Schema及reviewing/partial/not_run保持。
