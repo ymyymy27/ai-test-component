@@ -41,6 +41,22 @@ def control() -> GitSourceControl:
     return GitSourceControl()
 
 
+def _require_plain_directory_outside_a_repository(
+    control: GitSourceControl, plain: Path
+) -> None:
+    """非仓库分支断言的前提：该目录不在任何 Git 工作树内。
+
+    受限环境里 TEMP 可能不可写，``tempfile`` 会回退到当前目录，于是 pytest 的
+    临时目录被放进被测仓库，普通目录事实上位于工作树内。此时如实跳过，不把
+    环境前提不成立记成产品失败；环境正常时断言照旧执行。
+    """
+    if control.is_repository(plain):
+        pytest.skip(
+            "pytest 临时目录位于某个 Git 工作树内（本机 TEMP 不可写，tempfile 回退到"
+            "检出目录），无法构造仓库外的普通目录"
+        )
+
+
 def test_is_available(control: GitSourceControl) -> None:
     assert control.is_available() is True
 
@@ -57,6 +73,7 @@ def test_is_repository(
 ) -> None:
     assert control.is_repository(repo) is True
     plain = tmp_path_factory.mktemp("plain")
+    _require_plain_directory_outside_a_repository(control, plain)
     assert control.is_repository(plain) is False
 
 
@@ -71,6 +88,7 @@ def test_describe(control: GitSourceControl, repo: Path) -> None:
 def test_describe_plain(control: GitSourceControl, tmp_path: Path) -> None:
     plain = tmp_path / "plain"
     plain.mkdir()
+    _require_plain_directory_outside_a_repository(control, plain)
     assert control.describe(plain) == {"is_repository": False}
 
 
