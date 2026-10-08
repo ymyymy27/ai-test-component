@@ -65,3 +65,21 @@ the extended source-snapshot mapping regressions (13). Supporting evidence for t
 build evidence and the isolated wheel smoke in build-and-wheel-smoke-2026-10-09.txt
 (wheel 729363 B / sdist 593691 B, smoke passed with TEMP/TMP inside the workspace).
 
+Third run — after the start-binding guard additions
+---------------------------------------------------
+
+HEAD: 4078b11. Focused command over the affected areas plus contracts and architecture:
+
+  pytest tests/unit/test_start_source_binding.py tests/unit/test_a_source_snapshot.py \
+    tests/unit/test_source_checks.py tests/unit/test_source_snapshot_integrity.py \
+    tests/unit/test_a_a08_snapshot_durability.py tests/unit/test_a_a08_load_source_probe.py \
+    tests/contracts tests/architecture -q --tb=line -p no:cacheprovider
+
+  309 passed in 13.25s
+
+This covers the six start-binding checks (exact frozen coverage, requested-workdir ownership,
+symlink/hard-link refusal, unique actual paths, bounded byte verification, cross-entry digest
+replay) with their 21 counterexample regressions, the snapshot adapters including the
+materialize mapping/digest and rejection branch, source checks and integrity, plus all
+contract and architecture checks. Boundary unchanged: component evidence only, not the 35 AC.
+
