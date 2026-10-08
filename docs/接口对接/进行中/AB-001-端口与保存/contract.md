@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.33"
+contract_version: "1.34"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A
 next_action: 默认来源、准备快照与受控依据确认已有组件证据；未发布响应补登记已有受控证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
 ---
+
+1.34 `SourceSnapshotPort.materialize` 返回实际路径映射与内容摘要（2026-10-09）：第 3.4 节一直要求 materialize"返回实际路径映射与内容摘要"，但未固定键名。本版澄清且**不改变现有键**：成功时除 `snapshot_id`/`destination`/`verified`/`state` 外返回 `paths`（按固定清单顺序，每项含 `relative_path` 期望来源路径、`actual_path` 在 workdir 内解析出的实际路径、`sha256`、`size`）与 `content_digest`（对该 `paths` 的规范 JSON 字节取 `sha256:` 摘要，证明本次物化出的实际来源字节集合）；拒绝时保持 `refused` 且不返回 `content_digest`。该摘要供 C 在 start 生成 `source_binding_digest`（BC-001 第 6 节：固定 workdir 的"期望→实际路径映射"摘要）时使用，不替代 `resolved_input_digest`（B 在 prepare 冻结）。A 侧实现与夹具随后对齐；B 侧忽略未知键即可接入。FR/AC、reviewing/partial/not_run 不变。
 
 1.33 模型传输总截止与完整响应（2026-10-08）：默认ModelProvider沿一次显式端点POST的实际单调总截止，覆盖DNS、连接、TLS、发送、响应头及正文；不使用隐式代理、不重试、不跳转。响应默认最多4MiB，可信传输装配可冻结不超过4MiB的更小预算，成功/错误状态都不得无界读取。既有HttpResponse(status, body)构造兼容，新增body_complete/error_class只记录实际传输完整性；截断、超限、慢响应及歧义framing不能成为有效草稿。只有完整200及严格UTF-8/唯一字段/有限JSON数值、准确choices[0].message.content字符串和可选非空字符串id才返回草稿；其他状态保留失败分类，不回显过滤前材料。逐次发送复核model用途、准确凭据引用、未清空及头字段安全；失败仍保留原响应/意图编排语义，不重发或改结论。公共ModelCall/Result签名和Schema、FR/AC不变；真实供应方故障及人工产品验收仍须另验，reviewing/partial/not_run保持。
 
@@ -591,7 +593,16 @@ class SourceSnapshotPort(Protocol):
         ...
 
     def materialize(self, snapshot_id: str, destination: str) -> Mapping[str, object]:
-        """把已固定内容物化到指定目录；返回实际路径映射与内容摘要。"""
+        """把已固定内容物化到指定目录；返回实际路径映射与内容摘要。
+
+        成功返回（1.34 澄清，不改变既有键）：
+        - `snapshot_id`、`destination`、`verified`、`state`；
+        - `paths`：按固定清单顺序，每项 `relative_path`（期望来源路径）、
+          `actual_path`（workdir 内解析出的实际路径）、`sha256`、`size`；
+        - `content_digest`：对 `paths` 的规范 JSON 字节取 `sha256:` 摘要，
+          证明本次物化出的实际来源字节集合。
+        拒绝时保持 `refused`，不返回 `content_digest`。
+        """
         ...
 
     def read_pinned(self, snapshot_id: str) -> Mapping[str, object]:
