@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.9"
+contract_version: "1.10"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -18,7 +18,7 @@ next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格
 
 版本：1.7
 日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.9增量评审中，待完整复用接入和真实夹具对拍
+状态：1.0历史确认保留；1.1—1.10增量评审中，待完整复用接入和真实夹具对拍
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
@@ -243,3 +243,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.8 历史运行修订来源（2026-10-08）：整Case读取沿CORE-001 1.68共用冻结计划/范围/初始用例材料，再核对准确run_plan_revision链派生的有效正文与实际步骤映射。无链的新内容/driver、伪造标签、缺失/错位的初始正文或修订链拒绝；合法修订与原历史快照独立回读。不得以可读来源代替当前动态资格、保存选择或R/V；公开ExecutionFacts/Schema不变，reviewing/partial/not_run与真实对拍边界保持。
 
 1.9 当前复用核对预览（2026-10-08）：inspect_case_reuse输入/输出及缺口口径唯一引用CORE-001 1.69；准确源/目标快照、两侧冻结身份、完整逻辑位置/ID核对后的物理Step/源Attempt映射可供D展示。状态只为incompatible/unverified；当前业务动态状态、依赖、加载、确认/核验及证据资格缺证明时保持缺口，不得把摘要一致或可读历史计入R/V，不生成空Attempt。目标任何已建Attempt、源用例依据变化或读中漂移继续按1.69守卫。该预览无保存选择/授予资格语义，D消费与完整持久选择及真实对拍继续；ExecutionFacts/Schema不变，reviewing/partial/not_run保持。
+
+1.10 复用依据确认预览（2026-10-08）：准确受控确认消费及aitest.case-reuse-inspection/1.1字段唯一引用CORE-001 1.71。D可展示两侧派生确认状态及匹配准确引用；准备/冻结confirmed标签不能作为依据，旧无受控来源仍待核实。已确认仍不代表独立核验、业务通过或R/V；公开ExecutionFacts/Schema不变，完整选择/D消费和真实对拍继续，reviewing/partial/not_run保持。

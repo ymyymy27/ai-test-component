@@ -7,11 +7,21 @@ from dataclasses import asdict
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.frozen_plan import FrozenRunPlanReader
 from aitest.application.execution.reuse_sources import CaseReuseSource, CaseReuseSourceReader
-from aitest.application.execution.runtime_revision import SnapshotContentRef
+from aitest.application.execution.runtime_revision import (
+    SavedRuntimeRevisionReader,
+    SnapshotContentRef,
+)
+from aitest.application.planning.basis_proof import SavedCaseBasisReader
+from aitest.application.planning.draft import text_digest
 from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.serialization import acceptance_scope_to_payload
 from aitest.application.planning.substrate import RecordReader
-from aitest.application.ports import EvidenceObjectStore, RecordRepository, SpoolStore
+from aitest.application.ports import (
+    BasisConfirmationProof,
+    EvidenceObjectStore,
+    RecordRepository,
+    SpoolStore,
+)
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import (
     AttemptStateFact,
@@ -19,6 +29,7 @@ from aitest.contracts.execution_facts import (
     ExecutionFacts,
 )
 from aitest.domain.execution.reuse import ReuseIdentity
+from aitest.domain.planning.plans import AssertionBasisState, effective_assertion_basis_state
 
 
 class CaseReuseUnverified(ValueError):
@@ -29,11 +40,13 @@ class CaseReuseInspection:
     def __init__(
         self, coordinator: ExecutionCommitCoordinator, records: RecordRepository,
         preparations: RecordReader, objects: EvidenceObjectStore, spool: SpoolStore,
+        *, basis_proof: BasisConfirmationProof | None = None,
     ) -> None:
         self.coordinator, self.records = coordinator, records
         self.sources = CaseReuseSourceReader(
             records, preparations, objects=objects, spool=spool,
         )
+        self.bases = SavedCaseBasisReader(records, basis_proof)
 
     def _current(self, project: str, run: str) -> ExecutionFacts:
         return self.coordinator.read_runtime_revision_facts(project_id=project, run_id=run)
@@ -84,6 +97,62 @@ class CaseReuseInspection:
             if isinstance(error, CaseReuseUnverified):
                 raise
             raise CaseReuseUnverified("exact case reuse material cannot be verified") from error
+
+    def _basis_confirmation(
+        self, source: CaseReuseSource, target: CaseReuseSource,
+    ) -> dict[str, dict[str, object]]:
+        case_id = source.steps[0].content.checked_case().case_id
+        candidates: dict[str, list[dict[str, object]]] = {}
+        for selected in (source, target):
+            for entry in selected.original_preparation.assertion_bases:
+                if entry.case_id == case_id:
+                    for ref in entry.confirmation_refs:
+                        candidates.setdefault(ref.confirmation_id, []).append(ref.model_dump(
+                            mode="json",
+                        ))
+            for reference in selected.facts.runtime_revision_refs:
+                record = SavedRuntimeRevisionReader(self.records).read_record(
+                    project_id=selected.facts.project_id, reference=reference,
+                )
+                if (record.run_id, record.origin_workspace_id) != (
+                    selected.facts.run_id, selected.facts.run.origin_workspace_id,
+                ):
+                    raise CaseReuseUnverified("basis confirmation runtime owner differs")
+                for identity in record.confirmation_ids:
+                    candidates.setdefault(identity, [])
+        confirmations = []
+        for identity, expected in candidates.items():
+            actual = self.bases.read(
+                project_id=source.original_preparation.project_id, confirmation_id=identity,
+            )
+            actual_ref = {
+                "confirmation_id": actual.confirmation_id, "case_id": actual.case_id,
+                "basis_revision": actual.basis_revision,
+                "confirmed_at_commit": actual.confirmed_at_commit,
+            }
+            if any(payload_digest(value) != payload_digest(actual_ref) for value in expected):
+                raise CaseReuseUnverified("basis confirmation differs from its frozen reference")
+            confirmations.append(actual)
+        result: dict[str, dict[str, object]] = {}
+        for side, selected in (("source", source), ("target", target)):
+            case = selected.steps[0].content.checked_case()
+            if case.assertion_basis.state is not AssertionBasisState.MISSING and (
+                text_digest(case.assertion_basis.text) != case.assertion_basis.text_digest
+            ):
+                raise CaseReuseUnverified("effective case basis text/digest differs")
+            result[side] = {
+                "state": effective_assertion_basis_state(
+                    case.assertion_basis, confirmations, case_id=case.case_id,
+                ).value,
+                "confirmation_refs": [{
+                    "confirmation_id": item.confirmation_id, "case_id": item.case_id,
+                    "basis_revision": item.basis_revision,
+                    "confirmed_at_commit": item.confirmed_at_commit,
+                } for item in confirmations if item.matches(
+                    case.assertion_basis, case_id=case.case_id,
+                )],
+            }
+        return result
 
     def _inspect(self, command: Command) -> Mapping[str, object]:
         values = command.parameters
@@ -159,8 +228,11 @@ class CaseReuseInspection:
             reasons.append("source_case_basis_changed")
         if source.original_preparation.environment != target.original_preparation.environment:
             reasons.append("frozen_environment_basis_changed")
+        basis = self._basis_confirmation(source, target)
+        if any(value["state"] != AssertionBasisState.CONFIRMED.value for value in basis.values()):
+            reasons.append("basis_confirmed_unverified")
         reasons.extend(("source_verified_unverified", "dependencies_valid_unverified",
-                        "basis_confirmed_unverified", "verification_valid_unverified",
+                        "verification_valid_unverified",
                         "evidence_qualification_unverified"))
         # Never return a mixed preview if either current pointer moved during
         # material/object reads; callers must request a fresh inspection.
@@ -169,7 +241,7 @@ class CaseReuseInspection:
         ):
             raise CaseReuseUnverified("run changed while inspecting reuse material")
         return {
-            "schema_version": "aitest.case-reuse-inspection/1.0",
+            "schema_version": "aitest.case-reuse-inspection/1.1",
             "project_id": project, "case_id": case,
             "source_run_id": source_run, "source_snapshot": source_ref.model_dump(mode="json"),
             "source_current_snapshot": source_current_ref.model_dump(mode="json"),
@@ -178,5 +250,6 @@ class CaseReuseInspection:
                 "target_case_already_started"
             ) for x in reasons) else "unverified",
             "source_identity": asdict(left), "target_identity": asdict(right),
+            "basis_confirmation": basis,
             "step_mapping": mapping, "denial_reasons": list(dict.fromkeys(reasons)),
         }

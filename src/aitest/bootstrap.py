@@ -589,7 +589,7 @@ def assemble_workspace_core(
         )
         reuse_inspection = CaseReuseInspection(
             execution_coordinator, cast(RecordRepository, unit_of_work.repo), reader,
-            FileObjectStore(root), FileSpoolStore(root),
+            FileObjectStore(root), FileSpoolStore(root), basis_proof=approvals,
         )
         run_control = SavedRunControl(execution_coordinator, step_execution, workspace.workspace_id)
         run_schedule = SavedRunSchedule(

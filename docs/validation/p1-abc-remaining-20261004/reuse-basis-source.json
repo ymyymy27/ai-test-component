@@ -1,0 +1,14 @@
+{
+  "baseline_commit": "979323c",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/application/planning/basis_proof.py": "113efe432717bfb169b466f716849f7f04a27534d1d62d3efa8c1e632ec3a88c",
+    "src/aitest/application/execution/reuse_inspection.py": "0d6839d1a467e2c18824a6521cf25689ff8e0f07bc70e9d5bf6838d383967858",
+    "src/aitest/bootstrap.py": "46ef8fd98f65547736d58b9a54d216d4db6c425e51e282561e49ac574237afcf",
+    "tests/unit/test_saved_case_basis_proof.py": "891578c2e3ce54a25930cc3dfa5ff35932e9b6b1bd34ae881e2ba1aacfd7e519",
+    "tests/unit/test_case_reuse_inspection.py": "06cc98fa0339b5d4aae20196ef7e6697e39b1ab70720ac666aac7ff350f2cd57",
+    "tests/unit/test_default_reuse_inspection.py": "2a1e2e575881d9214afe1554df9f29db96a72cfb25b35d019982652946ec0417",
+    "tests/unit/test_frozen_run_plan.py": "65c60f4b494aaa4a3792b299de9c16e21d97d9f157d4f2032323ad56aaa22951"
+  },
+  "scope": "Controlled origin fixture and actual default/file/restart integration; no R or real Trae AC"
+}

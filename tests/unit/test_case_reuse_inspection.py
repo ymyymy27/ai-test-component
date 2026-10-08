@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from copy import deepcopy
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,8 @@ from aitest.contracts.execution_facts import (
     CaptureCompletenessFact,
     StepLevelFact,
 )
+from aitest.contracts.prepared_run import AssertionBasisStateFact, ConfirmationRef
+from aitest.domain.planning.plans import AssertionBasisState, ConfirmationRecord
 from tests.unit.test_frozen_run_plan import saved as saved
 
 
@@ -33,6 +36,7 @@ def inspection(saved):
         raw = {"run": run, "extra": extra}
         return SimpleNamespace(
             snapshot_commit_id=run + "-snapshot", snapshot_cursor=5, attempts=(),
+            runtime_revision_refs=(),
             model_dump=lambda **_: deepcopy(raw),
         )
 
@@ -86,6 +90,130 @@ def test_matching_frozen_inputs_never_claim_dynamic_qualification(inspection):
                for x in result["step_mapping"])
     assert len(calls) == 2
     assert all(not source.facts.attempts for source in sources.values())
+
+
+def exact_basis(inspection):
+    service, command, sources, _, _, _ = inspection
+    case = sources["target-run"].steps[0].content.checked_case()
+    confirmation = ConfirmationRecord(
+        "known-confirmation", case.case_id, case.assertion_basis.revision,
+        case.assertion_basis.text_digest, "12",
+    )
+    ref = ConfirmationRef(
+        confirmation_id=confirmation.confirmation_id, case_id=case.case_id,
+        basis_revision=confirmation.basis_revision,
+        confirmed_at_commit=confirmation.confirmed_at_commit,
+    )
+    prepared = sources["target-run"].original_preparation
+    sources["target-run"].original_preparation = prepared.model_copy(update={
+        "assertion_bases": tuple(entry.model_copy(update={
+            "assertion_basis_state": AssertionBasisStateFact.CONFIRMED,
+            "confirmation_refs": (ref,),
+        }) if entry.case_id == case.case_id else entry for entry in prepared.assertion_bases),
+    })
+    # This fixture covers consumption; the exact reader/origin chain has separate tests.
+    service.bases = SimpleNamespace(read=lambda **kw: confirmation)
+    return service, command, sources, case, confirmation
+
+
+def test_later_target_confirmation_applies_to_identical_source_basis_without_freeze_rewrite(
+    inspection,
+):
+    service, command, sources, case, confirmation = exact_basis(inspection)
+    assert not sources["source-run"].original_preparation.assertion_bases[0].confirmation_refs
+    result = service.inspect(command)
+    assert result["schema_version"] == "aitest.case-reuse-inspection/1.1"
+    assert result["basis_confirmation"]["source"]["state"] == "confirmed"
+    assert result["basis_confirmation"]["target"]["state"] == "confirmed"
+    assert result["basis_confirmation"]["source"]["confirmation_refs"][0][
+        "confirmation_id"
+    ] == confirmation.confirmation_id
+    assert "basis_confirmed_unverified" not in result["denial_reasons"]
+    assert result["status"] == "unverified"
+    assert "verification_valid_unverified" in result["denial_reasons"]
+    assert case.assertion_basis.state is AssertionBasisState.PRESENT_UNCONFIRMED
+
+
+@pytest.mark.parametrize("changed", ["basis", "case", "reference", "proof", "frozen_label"])
+def test_confirmation_cannot_follow_changed_basis_or_fake_frozen_label(inspection, changed):
+    service, command, sources, case, confirmation = exact_basis(inspection)
+    if changed in ("basis", "case"):
+        new = replace(case, assertion_basis=replace(case.assertion_basis, revision=2)) if (
+            changed == "basis"
+        ) else replace(case, case_id="another-case")
+        for item in sources["source-run"].steps:
+            item.content.checked_case = lambda: new
+        result = service.inspect(command)
+        assert result["basis_confirmation"]["source"]["state"] == "present_unconfirmed"
+        assert result["basis_confirmation"]["source"]["confirmation_refs"] == []
+        assert "basis_confirmed_unverified" in result["denial_reasons"]
+    elif changed == "frozen_label":
+        for selected in sources.values():
+            prepared = selected.original_preparation
+            selected.original_preparation = prepared.model_copy(update={
+                "assertion_bases": tuple(entry.model_copy(update={"confirmation_refs": ()})
+                                         for entry in prepared.assertion_bases),
+            })
+        result = service.inspect(command)
+        assert result["basis_confirmation"]["source"]["state"] == "present_unconfirmed"
+        assert "basis_confirmed_unverified" in result["denial_reasons"]
+    else:
+        if changed == "reference":
+            service.bases = SimpleNamespace(read=lambda **kw: replace(
+                confirmation, confirmed_at_commit="other-commit",
+            ))
+        else:
+            def fail(**kw):
+                raise ValueError("missing controlled origin")
+            service.bases = SimpleNamespace(read=fail)
+        with pytest.raises(CaseReuseUnverified):
+            service.inspect(command)
+
+
+def test_basis_confirmation_is_independent_of_later_case_body_revision(inspection):
+    service, _, sources, case, _ = exact_basis(inspection)
+    later = replace(case, revision=2, objective="later case objective; same basis")
+    for item in sources["target-run"].steps:
+        item.content.checked_case = lambda: later
+    basis = service._basis_confirmation(sources["source-run"], sources["target-run"])
+    assert basis["source"]["state"] == basis["target"]["state"] == "confirmed"
+    assert case.revision == 1 and later.revision == 2
+
+
+@pytest.mark.parametrize("wrong_owner", [False, True])
+def test_runtime_confirmation_candidate_uses_known_exact_chain_and_owner(
+    inspection, monkeypatch, wrong_owner,
+):
+    service, _, sources, _, confirmation = exact_basis(inspection)
+    target = sources["target-run"]
+    target.original_preparation = target.original_preparation.model_copy(update={
+        "assertion_bases": (),
+    })
+    target.facts.runtime_revision_refs = ("known-runtime-reference",)
+    target.facts.project_id = target.original_preparation.project_id
+    target.facts.run_id = "target-run"
+    target.facts.run = SimpleNamespace(origin_workspace_id="workspace")
+    reads = []
+
+    def record(_, **kw):
+        reads.append(kw)
+        return SimpleNamespace(
+            run_id="another-run" if wrong_owner else "target-run", origin_workspace_id="workspace",
+            confirmation_ids=(confirmation.confirmation_id,),
+        )
+
+    monkeypatch.setattr(
+        "aitest.application.execution.reuse_inspection.SavedRuntimeRevisionReader.read_record",
+        record,
+    )
+    if wrong_owner:
+        with pytest.raises(CaseReuseUnverified, match="runtime owner"):
+            service._basis_confirmation(sources["source-run"], target)
+    else:
+        result = service._basis_confirmation(sources["source-run"], target)
+        assert result["target"]["state"] == "confirmed"
+    assert reads == [{"project_id": target.original_preparation.project_id,
+                      "reference": "known-runtime-reference"}]
 
 
 @pytest.mark.parametrize("change", ["case_content", "source_content", "entry", "adapter"])

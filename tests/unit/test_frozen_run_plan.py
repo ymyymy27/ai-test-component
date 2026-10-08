@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 
 from aitest.application.execution.frozen_plan import FrozenRunPlanReader
+from aitest.application.planning.draft import text_digest
 from aitest.application.planning.publish import _plan_payload, payload_digest
 from aitest.application.planning.serialization import (
     acceptance_scope_to_payload,
@@ -20,6 +21,9 @@ from tests.support.prepared_run_factory import build_scenario
 @pytest.fixture
 def saved():
     scenario = build_scenario("plain")
+    scenario = replace(scenario, cases=tuple(replace(case, assertion_basis=replace(
+        case.assertion_basis, text_digest=text_digest(case.assertion_basis.text),
+    )) for case in scenario.cases))
     project = scenario.prepared_run.project_id
     cases = {case.case_id: case for case in scenario.cases}
     plan = replace(scenario.plan, case_revisions=tuple(replace(
@@ -32,6 +36,9 @@ def saved():
         "case_revisions": tuple(CaseRevisionRef(
             case_id=ref.case_id, revision=ref.revision, digest=ref.digest,
         ) for ref in plan.case_revisions),
+        "assertion_bases": tuple(entry.model_copy(update={
+            "basis_text_digest": cases[entry.case_id].assertion_basis.text_digest,
+        }) for entry in scenario.prepared_run.assertion_bases),
         "plan_revision": scenario.prepared_run.plan_revision.model_copy(update={
             "revision_id": plan.plan_id, "revision_no": 1, "digest": payload_digest(raw),
         }),
