@@ -1,0 +1,19 @@
+﻿Baseline 2567bf9 (product code) / bfe93b6 (docs handoff), branch fix.
+Fixed 2026-10-08: model material JSON projection now strictly decodes and filters the
+decoded keys and values, so \uXXXX escapes cannot hide a registered credential.
+Original record (unchanged, 14 failed / 1 passed): pending-model-projection-counterexample.txt
+
+Command (repository root, project interpreter .venv/Scripts/python.exe, Python 3.13.13):
+.venv/Scripts/python.exe -m pytest docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py -o addopts= -q --tb=short -p no:cacheprovider
+
+Observed exit code: 0
+
+...............                                                          [100%]
+15 passed in 0.83s
+
+Environment note: this sandbox cannot open directories created with an explicit 0o700 mode
+(pytest tmp_path / tempfile.mkdtemp). The run used the session-local .git/dsh-session-env
+shim on PYTHONPATH plus PYTEST_DEBUG_TEMPROOT inside the workspace; the shim only drops that
+explicit mode and does not touch assertions, product bytes or the collected test set.
+Product source in this run: src/aitest/infrastructure/security.py guard_json_text,
+src/aitest/infrastructure/projections.py POLICY_REVISION=4, src/aitest/contracts/redaction.py.

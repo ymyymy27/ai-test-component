@@ -17,12 +17,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import threading
 from collections.abc import Mapping
 from typing import IO, Any
 
 from aitest.contracts.redaction import SENSITIVE_KEYS, scrub_secret_text
+from aitest.domain.json_material import decode_json
 
 _REDACTION = "[REDACTED]"
 
@@ -230,6 +232,54 @@ def _guard(value: Any, registry: KnownSecretRegistry) -> tuple[Any, bool]:
     if isinstance(value, str):
         return scrub_text(value, registry)
     return value, False
+
+
+#: 疑似结构化材料的起始字符；只有这两种前缀才按 JSON 严格解码。
+_JSON_STRUCTURE_PREFIXES = ("{", "[")
+
+
+def guard_json_text(
+    text: str,
+    registry: KnownSecretRegistry | None = None,
+) -> tuple[str, bool] | None:
+    """疑似结构化文本的**严格解码 + 解码后递归过滤**；非结构化返回 ``None``。
+
+    落盘前/出站前的已知凭据过滤必须覆盖**编码变体**（一期架构02第13节）：
+    JSON 键或值中的 ``\\uXXXX`` 转义会让同一凭据以不同字节出现，因此不能只在
+    原文本上匹配。本函数：
+
+    - 只有 ``{``/``[`` 开头的文本按结构化处理，其余返回 ``None``，由调用方
+      走纯文本底线；
+    - 疑似结构化但无法严格解码（重复键、NaN/Infinity/溢出数值、孤立代理字符、
+      破损结构、深度耗尽），或过滤后键名碰撞时抛
+      :class:`UnsafeMaterialError`：登记材料缺口，不得当作完整投影；
+    - 在**解码后的键与值**上应用 :func:`guard_value` 的同一底线（已登记精确值、
+      敏感键、明列模式），命中即重新序列化为安全文本并返回 ``(安全文本, True)``；
+    - 未命中时返回 ``(原文本, False)``，保留原始字节（含原转义、原空白），
+      不对合法未变材料制造新摘要。
+    """
+    stripped = text.strip()
+    if not stripped or stripped[0] not in _JSON_STRUCTURE_PREFIXES:
+        return None
+    target = registry if registry is not None else _GLOBAL_REGISTRY
+    try:
+        parsed = decode_json(text)
+    except (ValueError, RecursionError) as error:
+        raise UnsafeMaterialError(
+            "疑似结构化材料无法严格解码，登记材料缺口"
+        ) from error
+    if not isinstance(parsed, (dict, list)):
+        return None
+    try:
+        guarded, changed = _guard(parsed, target)
+        serialized = json.dumps(guarded, ensure_ascii=False) if changed else text
+    except (RecursionError, TypeError, ValueError, UnsafeMaterialError) as error:
+        raise UnsafeMaterialError(
+            "疑似结构化材料无法安全过滤（键名碰撞或结构超限），登记材料缺口"
+        ) from error
+    # 结构化过滤后再走一次文本底线：已登记值可能出现在 JSON 数字等非字符串位置。
+    safe, text_changed = scrub_text(serialized, target)
+    return safe, changed or text_changed
 
 
 #: 未决尾部的最小保留；默认 0：无已登记凭据时保留完全由尾部模式检查

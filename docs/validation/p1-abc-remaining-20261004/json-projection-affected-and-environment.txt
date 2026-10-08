@@ -1,0 +1,57 @@
+Model material JSON projection fix — affected checks and execution-environment boundary
+=====================================================================================
+
+Baseline: bfe93b6 (product code 2567bf9 plus the documentation handoff), branch fix.
+Date: 2026-10-08. Interpreter: .venv/Scripts/python.exe (Python 3.13.13).
+Source under test: src/aitest/infrastructure/security.py (guard_json_text),
+src/aitest/infrastructure/projections.py (POLICY_REVISION = 4),
+src/aitest/contracts/redaction.py (quoted [REDACTED] idempotency).
+
+1. Affected checks (current source, confined run, shim + workspace temp root)
+
+  A. Original pending counterexample script, 15 cases:
+     .venv/Scripts/python.exe -m pytest docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py -o addopts= -q --tb=short -p no:cacheprovider
+     exit 0; 15 passed. Baseline 2567bf9 recorded 14 failed / 1 passed (counterexample record unchanged).
+
+  B. Seven affected files (projections, A-09 projector safety, prefilter persistence,
+     redaction, model orchestration, redaction material guards, new JSON safety regression):
+     156 passed, 1 warning (pytest cache path only).
+
+  C. tests/contracts + tests/architecture + tests/recovery: 246 passed.
+
+  D. .venv/Scripts/python.exe -m ruff check src tests -> All checks passed.
+     .venv/Scripts/python.exe -m mypy -> Success: no issues found in 223 source files.
+
+2. Confined full-suite run and the A/B baseline comparison
+
+  The DSH Windows sandbox for this session denies opening directories created with an
+  explicit 0o700 mode and interferes with real file-sharing/handle/symlink scenarios.
+  A confined full run therefore reported 215 failed, 4085 passed, 2 skipped, 418 errors
+  (.runtime/logs/full-pytest-json-projection.log, kept outside the repository).
+
+  To separate that environment effect from this change, the same ten affected files were
+  run twice against (a) the pre-change source restored byte-exact from bfe93b6 into
+  .runtime/baseline-src and (b) the current source, with the same shim, temp root and
+  options (-o addopts= [-o pythonpath=] -q --tb=no -p no:cacheprovider):
+
+     baseline (POLICY_REVISION 3, no guard_json_text): 106 failed, 98 passed, 64 errors
+     current  (POLICY_REVISION 4, guard_json_text present): 106 failed, 98 passed, 64 errors
+
+  Identical counts: this batch changes none of those outcomes. Files compared:
+     tests/unit/test_windows_publication_integrity.py
+     tests/unit/test_workspace_lock_ownership.py
+     tests/unit/test_wire_json_identity.py
+     tests/unit/test_complete_commit_closure.py
+     tests/unit/test_recovery_marker_authority.py
+     tests/unit/test_a_a02_core_dispatch.py
+     tests/unit/test_saved_runtime_revision.py
+     tests/unit/test_model_response_resolution.py
+     tests/unit/test_connection_fact_integrity.py
+     tests/unit/test_a_a10_capability_gate.py
+
+  The clean full-suite result for this source, run under the real user token with no
+  session shim, is recorded in section 3.
+
+3. Full-suite result under the real user token
+
+  (pending; appended when the run completes)

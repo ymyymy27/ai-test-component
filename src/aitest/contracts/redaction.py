@@ -55,11 +55,17 @@ _SECRET_VALUE_PATTERNS = (
 )
 
 
+def _is_redaction_marker(value: str) -> bool:
+    """值位是否已经是脱敏标记；JSON/带引号的值（``"[REDACTED]"``）同样幂等。"""
+    return value.strip("\"'") == _REDACTED
+
+
 def scrub_secret_text(text: str) -> tuple[str, bool]:
     """替换字符串内已知凭据形态；返回（脱敏文本，是否发生替换）。
 
-    对已经脱敏的文本幂等：值位为 ``[REDACTED]`` 时不再计为命中，避免
-    重复过滤把安全材料误判为不洁（A-09 落盘底线复用本原语）。
+    对已经脱敏的文本幂等：值位为 ``[REDACTED]``（含带引号的 JSON 值
+    ``"[REDACTED]"``）时不再计为命中，避免重复过滤把安全材料误判为不洁，
+    也避免把结构化材料二次改写成非法 JSON（A-09 落盘底线复用本原语）。
     """
     redacted = text
     changed = False
@@ -68,7 +74,7 @@ def scrub_secret_text(text: str) -> tuple[str, bool]:
 
             def _replace(match: re.Match[str]) -> str:
                 nonlocal changed
-                if match.group(2) == _REDACTED:
+                if _is_redaction_marker(match.group(2)):
                     return match.group(0)
                 changed = True
                 return match.group(1) + _REDACTED

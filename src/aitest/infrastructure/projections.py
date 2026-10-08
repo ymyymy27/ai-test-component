@@ -4,9 +4,15 @@
 
 - ``source_snippet`` 类别受全局源码片段开关约束，关闭时整类排除（不允许
   通过其他字段夹带未授权源码）；
-- 命中已知凭据标记的整行丢弃；处理后为空则整项排除，绝不伪造完整；
-- 含非法控制字符（疑似二进制/非文本）或超过单项上限的材料排除；
-- 每项及整批摘要均为真实字节 SHA256，不使用长度占位。
+- 疑似结构化材料（``{``/``[`` 开头）先经严格 JSON 解码，再在**解码后的键与
+  值**上过滤已知凭据；转义（``\\uXXXX``）不能隐藏已登记凭据。无法严格解析
+  （重复键、NaN/溢出数值、孤立代理字符、破损结构、深度耗尽）或过滤造成键名
+  碰撞时整项排除并登记缺口；
+- 纯文本命中已知凭据标记的整行丢弃；处理后为空则整项排除，绝不伪造完整；
+- 含非法控制字符（疑似二进制/非文本）或超过单项上限的材料排除；上限按
+  **过滤与重序列化之后的最终 UTF-8 字节**复核，替换膨胀不能突破预算；
+- 每项及整批摘要均为真实字节 SHA256，不使用长度占位。未命中的合法结构化
+  材料保留原字节与摘要，不因解码重排而产生新投影。
 """
 
 from __future__ import annotations
@@ -21,15 +27,21 @@ from aitest.application.ports import (
     ProjectionStatus,
 )
 from aitest.contracts.redaction import (
-    redact_json_text,
     redact_structure,
     scrub_secret_text,
 )
 from aitest.domain.planning.model_outbound import MaterialKind
-from aitest.infrastructure.security import KnownSecretRegistry, scrub_text
+from aitest.infrastructure.security import (
+    KnownSecretRegistry,
+    UnsafeMaterialError,
+    guard_json_text,
+    scrub_text,
+)
 
 #: 投影策略版本；策略变化必须递增。
-POLICY_REVISION = 3
+#: 4：严格解码 + 解码后键值过滤（覆盖 JSON 转义编码变体），
+#: 无法严格解析/键名碰撞登记缺口，并按过滤后最终字节复核单项上限。
+POLICY_REVISION = 4
 #: 单项投影字节上限，防止误投超大材料（超出即排除并显示缺口）。
 ITEM_LIMIT_BYTES = 256 * 1024
 
@@ -54,6 +66,20 @@ def _looks_like_credential(line: str) -> bool:
 
 def _is_printable_text(text: str) -> bool:
     return all(ord(char) >= 32 or char in _ALLOWED_CONTROLS for char in text)
+
+
+def _utf8_size(text: str) -> int | None:
+    """最终 UTF-8 字节数；无法编码（如孤立代理字符）返回 ``None``。"""
+    try:
+        return len(text.encode("utf-8"))
+    except UnicodeError:
+        return None
+
+
+def _gap(excluded: list[tuple[MaterialKind, str]], kind: MaterialKind, path: str) -> None:
+    """登记材料缺口一次，重复原因不产生重复条目。"""
+    if (kind, path) not in excluded:
+        excluded.append((kind, path))
 
 
 def _safe_text(text: str) -> str:
@@ -85,27 +111,37 @@ class SafeMaterialProjector:
         for kind, text in material.items():
             field_path = f"material.{kind.value}"
             if kind is MaterialKind.SOURCE_SNIPPET and not source_snippets_enabled:
-                excluded.append((kind, field_path))
+                _gap(excluded, kind, field_path)
                 continue
-            if len(text.encode("utf-8")) > ITEM_LIMIT_BYTES or not _is_printable_text(text):
-                excluded.append((kind, field_path))
+            size = _utf8_size(text)
+            if size is None or size > ITEM_LIMIT_BYTES or not _is_printable_text(text):
+                _gap(excluded, kind, field_path)
                 continue
-            structured = redact_json_text(text)
+            try:
+                structured = guard_json_text(text, self._registry)
+            except UnsafeMaterialError:
+                # 疑似结构化但无法严格解析/安全过滤：整项登记缺口，不投影原文。
+                _gap(excluded, kind, field_path)
+                continue
             if structured is not None:
-                # 嵌套结构在原值位置脱敏：保留安全投影，但命中即登记缺口，
+                # 嵌套结构：保留安全投影，但命中即登记缺口，
                 # 不允许以 complete 名义夹带被排除材料。
-                safe, redacted = structured
-                if redacted:
-                    excluded.append((kind, field_path))
+                safe, changed = structured
+                if changed:
+                    _gap(excluded, kind, field_path)
             else:
-                safe = _safe_text(text)
                 if any(_looks_like_credential(line) for line in text.splitlines()):
-                    excluded.append((kind, field_path))
-            safe, changed = scrub_text(safe, self._registry)
-            if changed and (kind, field_path) not in excluded:
-                excluded.append((kind, field_path))
+                    _gap(excluded, kind, field_path)
+                safe, changed = scrub_text(_safe_text(text), self._registry)
+                if changed:
+                    _gap(excluded, kind, field_path)
+            final_size = _utf8_size(safe)
+            if final_size is None or final_size > ITEM_LIMIT_BYTES:
+                # 替换可能膨胀：最终字节超预算时排除，不投影超限材料。
+                _gap(excluded, kind, field_path)
+                continue
             if not safe.strip():
-                excluded.append((kind, field_path))
+                _gap(excluded, kind, field_path)
                 continue
             projected.append(
                 ProjectedMaterial(

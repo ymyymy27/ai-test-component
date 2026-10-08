@@ -27,6 +27,6 @@
 - 四份分包检查表继续放在 `docs/` 根目录，作为当前问题清单；本目录通过链接引用。
 - [修改日志](../修改日志/袁/)保留每批次根因、修改内容和验证；根目录 [CHANGELOG](../../CHANGELOG.md)只写精简摘要。
 - [前轮验证](../validation/p1-abc-fix-20261003/README.md)与[剩余问题验证](../validation/p1-abc-remaining-20261004/README.md)保留原位置。日志、源码快照、ZIP 和历史清单按各自基线读取，不能套用到新源码。
-- 下一待修问题的[反例脚本](../validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py)和[失败记录](../validation/p1-abc-remaining-20261004/pending-model-projection-counterexample.txt)明确为未修证据。
+- 模型材料JSON投影反例已修（`2567bf9` 基线14 failed/1 passed）：原[反例脚本](../validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py)与[失败记录](../validation/p1-abc-remaining-20261004/pending-model-projection-counterexample.txt)按原字节保留为未修证据，修后15 passed见[新记录](../validation/p1-abc-remaining-20261004/pending-model-projection-json-safety-after.txt)；根因、源码与本轮验证见[修改日志](../修改日志/袁/2026-10-08-模型材料JSON严格解码与编码变体过滤.md)。
 
 修复组件不等于整项闭合，自动化检查不等于真实一期验收。关闭问题须满足分包检查表的完整条件，并留下简短、可重复的源码与验证证据。
