@@ -179,6 +179,22 @@ class ExecutionSourceBinding(ContractModel):
     adapter_versions: dict[str, str] = Field(default_factory=dict)
     resolved_input_digest: str = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _binding_fields_are_exact(self) -> Self:
+        """冻结绑定本身必须形状明确：空白或重复项不能被当成来源约束。"""
+        for name in ("allowed_env_keys", "secret_refs"):
+            values = getattr(self, name)
+            if any(not isinstance(item, str) or not item.strip() for item in values):
+                raise ValueError(f"{name} must be nonempty text")
+            if len(set(values)) != len(values):
+                raise ValueError(f"{name} must be unique")
+        for key, value in self.adapter_versions.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("adapter version keys must be nonempty text")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("adapter version values must be nonempty text")
+        return self
+
 
 class PlanRevisionRef(ContractModel):
     revision_id: str = Field(min_length=1)
