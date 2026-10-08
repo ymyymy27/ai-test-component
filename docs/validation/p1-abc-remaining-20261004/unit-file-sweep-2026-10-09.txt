@@ -1,0 +1,43 @@
+tests/unit six-way file sweep — 2026-10-09
+==========================================
+
+Purpose: with the DSH sandbox restrictions lifted, sweep the whole unit suite in bounded
+parallel batches (a single full run cannot finish on this host: many real file-transaction
+tests need 30-110 s of setup each, and the suite collects 4749 nodes).
+
+Method: `tests/unit` has 260 test files; they were distributed round-robin into six batches
+(`.runtime/fbatch-{0..5}.txt`) and run concurrently with
+
+  .venv/Scripts/python.exe -u -m pytest (Get-Content .runtime/fbatch-N.txt) \
+      -o addopts= -v --tb=line -p no:cacheprovider > .runtime/logs/fbatch-N.log
+
+No session shim and no environment overrides were used. Results:
+
+  batch 3  completed   927 passed, 1 skipped                        (3419.95 s)
+  batch 1  completed   861 passed, 4 failed, 2 skipped              (4178.18 s)
+  batch 0  cancelled at 56%   no FAILED observed
+  batch 2  cancelled at 78%   no FAILED observed
+  batch 4  cancelled at 83%   no FAILED observed
+  batch 5  cancelled at 79%   no FAILED observed
+
+Batch-1 failures, all accounted for:
+
+  1. tests/unit/test_default_active_control.py::test_default_long_step_pause_resume_and_actual_cancel
+  2. tests/unit/test_default_active_control.py::test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code
+     -> both were the frozen-step-deadline fixture mismatch: LongCommandResolver used
+        timeout_ms=600000 while the shared environment declared step_timeout_seconds=120.
+        Fixed in c5c96f4 by declaring the timeout through the fixture
+        (authoritative_long_step = 600 s); after the fix the file passes
+        (3 passed in 1261.91 s together with test_default_live_output.py).
+  3. tests/unit/test_mcp_stdio_read.py::test_actual_stdio_wrong_project_has_no_tool_stream_or_new_writer_epoch
+  4. tests/unit/test_mcp_stdio_read.py::test_waiting_stdio_does_not_occupy_the_only_core_pipe
+     -> both failed with WorkspaceInUse (editor_host.py:104) under six-way parallelism.
+        Re-run alone while the other batches were still running:
+        `pytest tests/unit/test_mcp_stdio_read.py` -> 34 passed in 47.48 s.
+        Classified as load-induced timeouts, not product defects.
+
+Remaining files (42) for the next sweep round were written to
+`.runtime/remaining-{0,2,4,5}.txt`; they are the tails of the four cancelled batches.
+
+Not substituted: the historical "2336 passed / 2 skipped" belongs to an earlier, smaller
+collection (2341 nodes) and is not used as evidence for this source.
