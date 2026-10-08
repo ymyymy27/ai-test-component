@@ -51,3 +51,17 @@ Related session evidence (not re-run here):
 Boundary: this is component/contract verification on synthetic plus real local processes.
 It is not real Trae, real provider, physical power-loss or the 35 acceptance criteria;
 the real Phase-1 state stays 0 verified / 35 empty evidence paths.
+
+Second run — after the materialize mapping and C-side start binding changes
+--------------------------------------------------------------------------
+
+HEAD: 40b8ef3. Same command, plus the two new/changed files
+(tests/unit/test_start_source_binding.py, tests/unit/test_a_source_snapshot.py):
+
+  447 passed in 738.33s (0:12:18), exit 0
+
+The 29 extra passing nodes over the first run are the new start-binding regressions (16) and
+the extended source-snapshot mapping regressions (13). Supporting evidence for this stretch:
+build evidence and the isolated wheel smoke in build-and-wheel-smoke-2026-10-09.txt
+(wheel 729363 B / sdist 593691 B, smoke passed with TEMP/TMP inside the workspace).
+
