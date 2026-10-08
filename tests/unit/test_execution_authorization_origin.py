@@ -372,4 +372,3 @@ def test_resolved_execution_cannot_use_an_unfrozen_step_deadline(authoritative, 
             request_id="resolve-action",
         )
     assert service.action_resolver.calls == 1
-
