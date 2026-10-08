@@ -36,4 +36,4 @@
   1. 映射逐项与 pinned 清单一致、`actual_path` 指向目标目录内真实文件且字节摘要等于 pinned `sha256`、`content_digest` 等于对 `paths` 规范字节的独立重算；
   2. 同一快照物化到不同目录 ⇒ 映射摘要不同（摘要绑定实际 workdir），而相对路径序列一致。
 - 受影响套件 `test_a_source_snapshot`/`test_a_a08_snapshot_durability`/`test_source_snapshot_integrity`/`test_a_a08_load_source_probe` 共 **59 passed**；`ruff check src tests`、`mypy`（224 文件）通过。
-- 未验证边界：拒绝分支无摘要属代码路径未改（由既有拒绝测试继续覆盖），未新增专测；C 侧 start 物化→实际路径解析→`source_binding_digest` 仍未实现，A-08/C-12 整项不闭合。
+- 未验证边界：~~拒绝分支无摘要属代码路径未改（由既有拒绝测试继续覆盖），未新增专测~~ **已补**：新增"删除固定 blob 后物化被拒"的回归，断言 `state=rejected`、`refused==["main.py"]`、`materialized==[]` 且**不含** `content_digest`/`paths`（现共 14 项通过）；C 侧 start 物化→实际路径解析→`source_binding_digest` 已由 [start 来源绑定解析](2026-10-09-start来源绑定解析与映射摘要.md) 承接，A-08/C-12 整项仍不闭合。

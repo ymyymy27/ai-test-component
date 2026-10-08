@@ -134,6 +134,26 @@ def test_materialize_mapping_digest_changes_with_actual_destination(
     ]
 
 
+def test_materialize_rejection_keeps_refused_and_no_mapping_digest(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """AB-001 1.34：拒绝时保持 refused，且不返回 paths 的 content_digest。"""
+    pinned = store.pin(canonical_path=str(source), purpose="analysis")
+    record = store.read_pinned(str(pinned["snapshot_id"]))
+    victim = next(item for item in record["files"] if item["relative_path"] == "main.py")
+    blob = store._blobs / victim["sha256"]  # noqa: SLF001 - 直击固定字节缺失的真实场景
+    blob.unlink()
+
+    result = store.materialize(str(pinned["snapshot_id"]), str(tmp_path / "out-refused"))
+
+    assert result["state"] == "rejected"
+    assert result["verified"] is False
+    assert result["refused"] == ["main.py"]
+    assert result["materialized"] == []
+    assert "content_digest" not in result
+    assert "paths" not in result
+
+
 def test_materialize_refuses_non_empty(
     store: FileSourceSnapshotStore, source: Path, tmp_path: Path
 ) -> None:
