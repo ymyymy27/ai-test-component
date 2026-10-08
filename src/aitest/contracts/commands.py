@@ -52,6 +52,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "publish_plan",
         "prepare_run",
         "register_run",
+        "inspect_case_reuse",
         "prepare_execution",
         "execute_step",
         "start_run",
@@ -84,7 +85,8 @@ PHASE_ONE_ACTIONS = frozenset(
     }
 )
 READ_ACTIONS = frozenset(
-    {"query", "events", "doctor", "storage_usage", "copy_repair_brief", "check_source"}
+    {"query", "events", "doctor", "storage_usage", "copy_repair_brief", "check_source",
+     "inspect_case_reuse"}
 )
 
 

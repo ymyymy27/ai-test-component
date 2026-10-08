@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.68"
+contract_version: "1.69"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,10 @@ blockers: []
 next_owner: A/B/C/D
 next_action: A 冻结一期所需端口签名；B/C/D 逐项确认业务语义、错误码、日志和有限查询合同
 ---
+
+1.69 只读整用例复用核对（2026-10-08）：新增可协商读动作inspect_case_reuse，经同一核心接收准确project/case、不同的source_run_id/target_run_id及各自SnapshotContentRef（三字段）；target须为读取时的准确current。只读固定材料并按1.68核对两侧来源，读取前后以完整快照摘要检查source/target current漂移；漂移或缺准确材料要求重新核对，不回退最新来源。输出aitest.case-reuse-inspection/1.0、两侧冻结ReuseIdentity、准确快照、按完整逻辑位置/ID对拍的物理步骤与源Attempt映射及denial_reasons；布局不同不拼映射，目标用例任何历史/可选新Attempt均列target_case_already_started。冻结范围、入口/用例输入、规则/模板、适配器、正文/断言依据摘要由核心读取派生，范围集合采用已有规范序列化；空/缺标识按领域唯一比较保留unverified，不靠null相等或标签证明一致。
+
+status仅为incompatible/unverified：冻结环境/解释器与依赖摘要不证明业务动态条件仍一致，environment_dynamic_digest及目标实际依赖观察缺材料保持null；实际加载、依据确认、所需核验/证据资格缺口明确保留。该预览不产生WholeCaseReuseBasis、R/E/V、保存选择/授权、执行或空Attempt；客户端不能提交eligible/qualified/条件布尔。读取已存材料不依赖模型、网络或新来源固定许可，历史保留与QuerySpec不变。默认API及已协商CLI可调用，stdio MCP及D选择消费另接；既有Command/Response/ExecutionFacts Schema、FR/AC不变，保持reviewing/partial/not_run，真实AC独立验收。
 
 1.68 冻结计划与复用修订来源（2026-10-08）：历史整用例读取须从原PreparedRun的准确仓储引用核对发布计划正文摘要、原验收范围、全部初始用例正文与摘要，再沿既有run_plan_revision准确链验证快照的步骤内容、层级、driver及失效投影。无修订链时只能使用原登记的内容与driver；自洽的新正文/摘要或修订标签不能代替已保存的合法修订事实。步骤映射最后须逐项对应链派生的有效用例正文。执行授权与复用来源共用冻结计划读取，不另起计划/范围语义；只读、不取最新、不重新发布或自动执行。旧缺材料可继续原历史展示，但不用于复用。公开DTO/Schema、FR/AC及reviewing/partial/not_run不变；当前动态资格、保存选择与真实AC仍独立核对。
 

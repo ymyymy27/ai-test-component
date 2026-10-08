@@ -41,6 +41,7 @@ from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.output_material import require_saved_output_material
 from aitest.application.execution.registration import InitialRunRegistration
+from aitest.application.execution.reuse_inspection import CaseReuseInspection
 from aitest.application.execution.run_schedule import SavedRunSchedule
 from aitest.application.execution.runtime_actions import SavedRuntimeRevisionActions
 from aitest.application.execution.saved_control import SavedRunControl
@@ -586,6 +587,10 @@ def assemble_workspace_core(
         execution_commands = ExecutionCommands(
             execution_authorizations, initial_run_registration, step_execution
         )
+        reuse_inspection = CaseReuseInspection(
+            execution_coordinator, cast(RecordRepository, unit_of_work.repo), reader,
+            FileObjectStore(root), FileSpoolStore(root),
+        )
         run_control = SavedRunControl(execution_coordinator, step_execution, workspace.workspace_id)
         run_schedule = SavedRunSchedule(
             execution_coordinator, step_execution, workspace.workspace_id, unit_of_work.repo
@@ -620,6 +625,7 @@ def assemble_workspace_core(
         execution_authorizations.runtime_origins = runtime_actions
         handlers.update(
             register_run=execution_commands.register,
+            inspect_case_reuse=reuse_inspection.inspect,
             prepare_execution=execution_commands.prepare,
             authorize_step=execution_commands.grant,
             execute_step=execution_commands.execute,

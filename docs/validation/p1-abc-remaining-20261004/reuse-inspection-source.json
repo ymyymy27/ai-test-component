@@ -1,0 +1,31 @@
+{
+  "baseline": "c033a5a",
+  "source_sha256": {
+    "src/aitest/application/execution/reuse_inspection.py": "edce27af74a81e054ef08b893415250d9c933b8d01353195f1af59cc3d2f9d1f",
+    "src/aitest/domain/execution/reuse.py": "451b2adec293f68e23f6057fd9b76806d03f32f91375fe2a23384b6d52db47da",
+    "src/aitest/contracts/commands.py": "7a03db9bc0f47552c55e3079a3bf31577471c4e1257a400b63a3020ef3a17973",
+    "src/aitest/bootstrap.py": "ae4a3203d2bdab2647a9562acbf3858b3a9655fd12220f3e1007c7a8147196c7",
+    "tests/unit/test_case_reuse_inspection.py": "5350cc7035e5cb46f07f1ddb94615c3e82e4ee60711461719f2d81f87c588549",
+    "tests/unit/test_default_reuse_inspection.py": "dbb782923d1e7b4b6085dcff8eb0079133fc9bdc030afd87c7aca557aab4068f"
+  },
+  "report_sha256": {
+    "reuse-inspection-fast-final-verified.txt": "3ddb3b7c4864892faf31c9ec777ff05821be8706933e958b9d6ff2ed04485060",
+    "reuse-inspection-api-final-lifecycle.txt": "2f4ea0c8fbff8df949139f517cc1f824e741abca3d8345fb21f6b57bcd927d9c",
+    "reuse-inspection-wheel-final.txt": "ec08fb7e4d6bd316753bf0ea2203b7b8c64ee5491793f868c9f29a6c1dda0a87",
+    "reuse-inspection-ruff-final-complete.txt": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "reuse-inspection-mypy-final-verified.txt": "e7ef63f196129c7f69c1b7264a6ef640335e6b4c14cbc512acaa49fd9e6b31a8",
+    "reuse-inspection-build-final.txt": "f468380442976a2b1c802a7ffbd5cd70b41cfe64f363462a9805016268f05eeb"
+  },
+  "reproduce": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-o",
+    "addopts=",
+    "tests/unit/test_case_reuse_inspection.py",
+    "tests/unit/test_default_reuse_inspection.py",
+    "tests/unit/test_reuse_qualification.py"
+  ],
+  "limits": "Read inspection only. Actual API/files/lifetime-lock release and reassembly/source pause tested; source/authority synthetic. No qualified R, persistent choice, real Trae/human/power-loss AC."
+}

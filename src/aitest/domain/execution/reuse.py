@@ -39,6 +39,19 @@ class ReuseIdentity:
             if value is not None:
                 _text(value)
 
+    def comparison_denials(self, target: "ReuseIdentity") -> tuple[str, ...]:
+        """One identity comparison for inspections and complete reuse guards."""
+        if not isinstance(target, ReuseIdentity):
+            raise ValueError("reuse comparison requires a typed target identity")
+        reasons = []
+        for field in fields(ReuseIdentity):
+            source, other = getattr(self, field.name), getattr(target, field.name)
+            if source is None or other is None:
+                reasons.append(field.name + "_unverified")
+            elif source != other:
+                reasons.append(field.name + "_changed")
+        return tuple(reasons)
+
 
 class ReuseConditionKind(StrEnum):
     SOURCE_CURRENT = "source_current"
@@ -110,14 +123,7 @@ class WholeCaseReuseBasis:
     @property
     def denial_reasons(self) -> tuple[str, ...]:
         """Missing/unknown basis never becomes matching by None == None."""
-        reasons = []
-        for field in fields(ReuseIdentity):
-            source = getattr(self.source, field.name)
-            target = getattr(self.target, field.name)
-            if source is None or target is None:
-                reasons.append(field.name + "_unverified")
-            elif source != target:
-                reasons.append(field.name + "_changed")
+        reasons = list(self.source.comparison_denials(self.target))
         conditions = {item.kind: item.state for item in self.conditions}
         for kind in ReuseConditionKind:
             if conditions.get(kind) is not ReuseConditionState.VERIFIED:
