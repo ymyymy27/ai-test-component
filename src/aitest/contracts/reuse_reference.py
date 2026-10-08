@@ -10,6 +10,10 @@
 本模块只定义记录形状、规范字节与严格校验，**不授予复用资格**：R/V 仍由纯领域
 在读取整套当前材料后派生（`domain/execution/reuse.py`、`domain/execution/cases.py`），
 引用记录本身既不能产生 Attempt，也不能把未核实的条件变成通过。
+
+四类修订摘要（计划/环境/入口参数/规则）与适配器摘要允许为 ``None``：该来源修订
+**尚未观测或无法核实**时按未知显式登记，绝不补造摘要；记录里出现摘要只说明该项
+被登记，不说明资格已通过。
 """
 
 from __future__ import annotations
@@ -45,15 +49,16 @@ class ReuseReference(BaseModel):
     #: source_attempt_id 是其中的锚点，必须命中该映射。
     source_attempt_by_step: tuple[tuple[str, str], ...] = Field(min_length=1)
     #: 来源计划修订摘要（冻结计划正文的规范字节摘要）。
-    source_plan_revision_digest: str
-    #: 来源源码内容身份（快照 content_identity，不是仓储修订号）。
+    #: ``None`` == 该来源修订**尚未核实**：登记为未知，绝不补造摘要。
+    source_plan_revision_digest: str | None = None
+    #: 来源源码内容身份（快照 content_identity，不是仓储修订号）；始终可得。
     source_content_identity: str = Field(min_length=1)
-    #: 来源环境修订摘要（冻结环境记录的规范字节摘要）。
-    environment_revision_digest: str
-    #: 入口参数摘要（已登记入口与参数、输入解析结果）。
-    entry_input_digest: str
-    #: 规则与模板修订摘要。
-    rules_revision_digest: str
+    #: 来源环境修订摘要（冻结环境记录的规范字节摘要）；未知为 ``None``。
+    environment_revision_digest: str | None = None
+    #: 入口参数摘要（已登记入口与参数、输入解析结果）；未知为 ``None``。
+    entry_input_digest: str | None = None
+    #: 规则与模板修订摘要；未知为 ``None``。
+    rules_revision_digest: str | None = None
     #: 适配器版本摘要；没有适配器版本时显式为空。
     adapter_digest: str | None = None
     #: 引用到的证据身份（不可为空、不可重复）。
@@ -82,8 +87,9 @@ class ReuseReference(BaseModel):
             "entry_input_digest",
             "rules_revision_digest",
         ):
-            if not _DIGEST.fullmatch(getattr(self, name)):
-                raise ValueError(f"{name} must be an exact sha256 digest")
+            value = getattr(self, name)
+            if value is not None and not _DIGEST.fullmatch(value):
+                raise ValueError(f"{name} must be an exact sha256 digest or unknown")
         if self.adapter_digest is not None and not _DIGEST.fullmatch(self.adapter_digest):
             raise ValueError("adapter_digest must be an exact sha256 digest")
         commit = self.validity_checked_at_commit

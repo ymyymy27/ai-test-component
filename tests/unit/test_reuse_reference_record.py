@@ -87,12 +87,51 @@ def test_unknown_or_missing_fields_are_rejected() -> None:
         "rules_revision_digest",
     ],
 )
-@pytest.mark.parametrize("value", ["", "sha256:xyz", "sha256:" + "A" * 64, 42, None])
+@pytest.mark.parametrize("value", ["", "sha256:xyz", "sha256:" + "A" * 64, 42, True])
 def test_revision_digests_must_be_exact_sha256(field: str, value: object) -> None:
     payload = _payload()
     payload[field] = value
     with pytest.raises(ValidationError):
         parse_reuse_reference(payload)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "source_plan_revision_digest",
+        "environment_revision_digest",
+        "entry_input_digest",
+        "rules_revision_digest",
+    ],
+)
+def test_unobserved_revision_is_registered_as_unknown_not_fabricated(field: str) -> None:
+    """未观测的来源修订按未知登记（null），不补造摘要；记录仍可严格往返。"""
+    payload = _payload()
+    payload[field] = None
+    parsed = parse_reuse_reference(payload)
+    assert getattr(parsed, field) is None
+    assert parse_reuse_reference(parsed.model_dump(mode="json")) == parsed
+    assert b"null" in reuse_reference_payload(parsed)
+
+
+def test_record_with_every_unknown_basis_is_still_not_a_qualification() -> None:
+    unknown = reference(
+        source_plan_revision_digest=None,
+        environment_revision_digest=None,
+        entry_input_digest=None,
+        rules_revision_digest=None,
+        adapter_digest=None,
+    )
+    payload = unknown.model_dump(mode="json")
+    assert all(payload[field] is None for field in (
+        "source_plan_revision_digest",
+        "environment_revision_digest",
+        "entry_input_digest",
+        "rules_revision_digest",
+        "adapter_digest",
+    ))
+    assert unknown.source_content_identity.startswith("sha256:")
+    assert "grants_reuse" not in ReuseReference.model_fields
 
 
 def test_adapter_digest_is_optional_but_never_approximate() -> None:
