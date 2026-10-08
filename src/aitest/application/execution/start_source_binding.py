@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from aitest.application.ports import SourceSnapshotPort
@@ -35,7 +35,13 @@ class StartSourceBindingResolver:
     def __init__(self, snapshots: SourceSnapshotPort) -> None:
         self._snapshots = snapshots
 
-    def resolve(self, *, snapshot_id: str, destination: str) -> Mapping[str, object]:
+    def resolve(
+        self,
+        *,
+        snapshot_id: str,
+        destination: str,
+        expected_relative_paths: Sequence[str] | None = None,
+    ) -> Mapping[str, object]:
         if not isinstance(snapshot_id, str) or not snapshot_id.strip():
             raise SourceBindingUnverified("start source binding requires a saved snapshot identity")
         if not isinstance(destination, str) or not destination.strip():
@@ -73,12 +79,32 @@ class StartSourceBindingResolver:
             if not actual.is_absolute() or not actual.is_relative_to(root):
                 raise SourceBindingUnverified("mapped actual path escapes the fixed workdir")
             _verify_file(actual, digest, size)
+        if expected_relative_paths is not None:
+            _require_exact_coverage(entries, expected_relative_paths)
         return {
             "snapshot_id": snapshot_id,
             "workdir": root.as_posix(),
             "paths": entries,
             "source_binding_digest": recomputed,
         }
+
+
+def _require_exact_coverage(
+    entries: list[dict[str, object]], expected_relative_paths: Sequence[str]
+) -> None:
+    """调用方给出冻结期望时，映射必须**恰好**覆盖它：不缺项、不多项、不重复。"""
+    expected: list[str] = []
+    for item in expected_relative_paths:
+        if not isinstance(item, str) or not item.strip():
+            raise SourceBindingUnverified("expected relative paths must be nonempty text")
+        expected.append(item)
+    if len(set(expected)) != len(expected):
+        raise SourceBindingUnverified("expected relative paths must be unique")
+    actual = [str(entry["relative_path"]) for entry in entries]
+    if sorted(actual) != sorted(expected):
+        raise SourceBindingUnverified(
+            "resolved mapping does not cover the frozen expected source paths exactly"
+        )
 
 
 def _entries(raw: object) -> list[dict[str, object]]:

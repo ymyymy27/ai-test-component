@@ -219,3 +219,35 @@ def test_missing_start_inputs_are_refused(snapshot_id: object, destination: obje
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
     with pytest.raises(SourceBindingUnverified):
         resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
+
+
+def test_frozen_expected_paths_must_be_covered_exactly(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """给出冻结期望时，映射必须恰好覆盖：不缺项、不多项、不重复。"""
+    pinned = store.pin(canonical_path=str(source), purpose="prepare")
+    snapshot_id = str(pinned["snapshot_id"])
+    resolver = StartSourceBindingResolver(store)
+
+    covered = resolver.resolve(
+        snapshot_id=snapshot_id,
+        destination=str(tmp_path / "workdir-ok"),
+        expected_relative_paths=["main.py", "pkg/util.py"],
+    )
+    assert {item["relative_path"] for item in covered["paths"]} == {  # type: ignore[union-attr]
+        "main.py",
+        "pkg/util.py",
+    }
+
+    for expected, destination in (
+        (["main.py"], "workdir-missing"),
+        (["main.py", "pkg/util.py", "extra.py"], "workdir-extra"),
+        (["main.py", "main.py"], "workdir-duplicate"),
+        ([""], "workdir-blank"),
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.resolve(
+                snapshot_id=snapshot_id,
+                destination=str(tmp_path / destination),
+                expected_relative_paths=expected,
+            )
