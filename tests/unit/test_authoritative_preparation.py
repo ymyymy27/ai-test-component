@@ -1,5 +1,6 @@
 """Default prepare must not turn self-reported frozen inputs into saved authority."""
 
+from contextlib import contextmanager
 from dataclasses import replace
 
 import pytest
@@ -28,8 +29,9 @@ from tests.support.prepared_run_factory import build_scenario
 from tests.unit.test_default_source_analysis import dispatch
 
 
-@pytest.fixture
-def authoritative(tmp_path):
+@contextmanager
+def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
+    """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。"""
     core = assemble_workspace_core(
         tmp_path / "workspace",
         instance_id="authoritative-core",
@@ -104,7 +106,7 @@ def authoritative(tmp_path):
             "isolation_mode": "venv",
             "interpreter_requirement": "Python 3.13",
             "dependency_declaration": "synthetic-fixture-dependencies",
-            "step_timeout_seconds": 120,
+            "step_timeout_seconds": step_timeout_seconds,
         },
     )
     unit.commit("fixture-material-request")
@@ -176,6 +178,19 @@ def authoritative(tmp_path):
         yield core, inputs, source
     finally:
         core.lifetime_lock.release()
+
+
+@pytest.fixture
+def authoritative(tmp_path):
+    with _authoritative(tmp_path) as value:
+        yield value
+
+
+@pytest.fixture
+def authoritative_long_step(tmp_path):
+    """冻结 600 秒步骤截止：需要长步骤观察暂停/取消的用例与解析器一致。"""
+    with _authoritative(tmp_path, step_timeout_seconds=600) as value:
+        yield value
 
 
 def prepare(core, inputs, *, request="prepare-request", intent="prepare-intent"):

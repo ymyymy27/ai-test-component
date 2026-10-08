@@ -8,8 +8,15 @@ from aitest.contracts.commands import Command
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
-from tests.unit.test_authoritative_preparation import authoritative as authoritative
-from tests.unit.test_authoritative_preparation import prepare
+from tests.unit.test_authoritative_preparation import (
+    authoritative as authoritative,
+)
+from tests.unit.test_authoritative_preparation import (
+    authoritative_long_step as authoritative_long_step,
+)
+from tests.unit.test_authoritative_preparation import (
+    prepare,
+)
 from tests.unit.test_default_execution_authorization import RELAY
 from tests.unit.test_default_step_execution import ActualCommandResolver, execution_command
 from tests.unit.test_execution_authorization_origin import review, save
@@ -89,8 +96,8 @@ def control(core, current, action, intent):
     )
 
 
-def test_default_long_step_pause_resume_and_actual_cancel(authoritative):
-    core, inputs, _, action, value, port = configure(authoritative)
+def test_default_long_step_pause_resume_and_actual_cancel(authoritative_long_step):
+    core, inputs, _, action, value, port = configure(authoritative_long_step)
     started = core.api.dispatch(value, RELAY)
     assert started.error is None, started.error
     assert started.result["attempt"]["state"] == "running"
@@ -124,8 +131,10 @@ def test_default_long_step_pause_resume_and_actual_cancel(authoritative):
         port.request_stop(handle)
 
 
-def test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code(authoritative):
-    core, inputs, source, action, value, original_port = configure(authoritative)
+def test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code(
+    authoritative_long_step,
+):
+    core, inputs, source, action, value, original_port = configure(authoritative_long_step)
     started = core.api.dispatch(value, RELAY)
     assert started.error is None, started.error
     handle = core.execution_coordinator.read_checkpoint(

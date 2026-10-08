@@ -6,12 +6,17 @@ from unittest.mock import patch
 
 from aitest.domain.execution.runs import OutputStreamName
 from aitest.infrastructure.file_store.spool import FileSpoolStore
-from tests.unit.test_authoritative_preparation import authoritative as authoritative
+from tests.unit.test_authoritative_preparation import (
+    authoritative as authoritative,
+)
+from tests.unit.test_authoritative_preparation import (
+    authoritative_long_step as authoritative_long_step,
+)
 from tests.unit.test_default_active_control import LongCommandResolver, configure, control
 from tests.unit.test_default_execution_authorization import RELAY
 
 
-def test_default_active_large_output_stays_running_and_preserves_pause(authoritative):
+def test_default_active_large_output_stays_running_and_preserves_pause(authoritative_long_step):
     original = LongCommandResolver.resolve
 
     def large(self, **kwargs):
@@ -32,7 +37,7 @@ def test_default_active_large_output_stays_running_and_preserves_pause(authorita
         )
 
     with patch.object(LongCommandResolver, "resolve", large):
-        core, inputs, _, action, value, port = configure(authoritative)
+        core, inputs, _, action, value, port = configure(authoritative_long_step)
     started = core.api.dispatch(value, RELAY)
     handle = core.execution_coordinator.read_checkpoint(
         project_id=inputs.project_id, attempt_id=action.attempt.attempt_id
