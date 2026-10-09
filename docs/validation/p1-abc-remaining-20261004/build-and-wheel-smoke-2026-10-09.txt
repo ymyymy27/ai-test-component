@@ -37,3 +37,18 @@ Boundary
 A successful build and an isolated wheel smoke are component/packaging evidence. They are not
 real Trae, real provider, physical power-loss or the 35 acceptance criteria; the real Phase-1
 state stays 0 verified / 35 empty evidence paths.
+
+Re-run after the start-admission work
+-------------------------------------
+
+HEAD: a981598 (the first build above was at 7eca87d, before the C-side start binding module
+grew). Same commands, TEMP/TMP still pointed inside the workspace:
+
+  wheel  ai_test_component-0.4.0-py3-none-any.whl   733035 bytes
+  sdist  ai_test_component-0.4.0.tar.gz             597520 bytes
+  Isolated wheel smoke checks passed
+
+Growth over the earlier run (729363 / 593691 B) is the start-binding module and its tests;
+no packaging metadata, entry point or dependency changed (uv reported the same dependency
+set: pydantic, pydantic-core, annotated-types, typing-extensions, typing-inspection,
+portalocker, pywin32).
