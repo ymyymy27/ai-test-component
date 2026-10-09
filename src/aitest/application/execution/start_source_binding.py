@@ -54,6 +54,12 @@ _START_SOURCE_FAILURES: Final[frozenset[str]] = frozenset(
 
 
 class SourceBindingUnverified(ValueError):
+    """内部阻塞标识：**不是**已登记的协议错误码。
+
+    对外（LocalAPI/MCP/CLI 响应）暴露前，必须先在 AB-001/CD-001 登记错误码与 `next_step`
+    口径；在此之前本模块不接入任何入口，避免自造公开错误码。
+    """
+
     code = "SOURCE_BINDING_UNVERIFIED"
 
 
