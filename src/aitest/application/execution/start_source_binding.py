@@ -80,6 +80,35 @@ class StartSourceBindingResolver:
             )
         return candidate.as_posix()
 
+    def require_frozen_arguments(
+        self,
+        *,
+        frozen: Sequence[str],
+        actual: Sequence[str],
+        substitutions: Mapping[str, object] | None = None,
+    ) -> tuple[str, ...]:
+        """按裁定 2A：执行参数必须**逐字**取自冻结绑定，不接受任何代入或改写。
+
+        依据架构01 第12节（prepare 冻结"已登记入口与参数"，`resolved_input_digest` 覆盖）；
+        架构02 第7节把"模型正文决定新命令"列为禁止项。要换命令只能重新 prepare（新意图）。
+        """
+        if substitutions:
+            raise SourceBindingUnverified(
+                "entry arguments must not be substituted; a different command needs a new prepare"
+            )
+        if not isinstance(frozen, (list, tuple)) or not isinstance(actual, (list, tuple)):
+            raise SourceBindingUnverified("entry arguments must be exact string sequences")
+        for item in (*frozen, *actual):
+            if not isinstance(item, str):
+                raise SourceBindingUnverified(
+                    "entry arguments must be exact text, not coerced values"
+                )
+        if tuple(frozen) != tuple(actual):
+            raise SourceBindingUnverified(
+                "executed arguments differ from the frozen registered entry arguments"
+            )
+        return tuple(frozen)
+
     def resolve_adapter_kind(self, adapter_versions: Mapping[str, str]) -> str:
         """按裁定 3A：所选适配器由 `adapter_versions` 的**唯一键**决定。
 

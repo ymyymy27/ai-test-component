@@ -300,6 +300,28 @@ def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
         )
 
 
+def test_entry_arguments_are_taken_verbatim_from_the_frozen_binding(tmp_path: Path) -> None:
+    """裁定 2A：执行参数逐字取自冻结绑定，不接受代入或改写。"""
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    frozen = ("-m", "pytest", "tests/acceptance", "", "{input:name}")
+
+    assert resolver.require_frozen_arguments(frozen=frozen, actual=frozen) == frozen
+    # 空参数与花括号原样传递，不做占位符展开
+    assert resolver.require_frozen_arguments(
+        frozen=("{input:name}",), actual=("{input:name}",)
+    ) == ("{input:name}",)
+
+    for actual in (("-m", "pytest", "tests/other"), (frozen[0],), (*frozen, "--extra")):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.require_frozen_arguments(frozen=frozen, actual=actual)
+    with pytest.raises(SourceBindingUnverified):
+        resolver.require_frozen_arguments(
+            frozen=frozen, actual=frozen, substitutions={"name": "value"}
+        )
+    with pytest.raises(SourceBindingUnverified):
+        resolver.require_frozen_arguments(frozen=("-m", 1), actual=("-m", "1"))  # type: ignore[arg-type]
+
+
 def test_adapter_is_selected_by_the_single_version_key(tmp_path: Path) -> None:
     """裁定 3A：适配器由 adapter_versions 的唯一键决定。"""
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
