@@ -12,5 +12,6 @@
 | 汇总回归（四轮） | [session-consolidated-regression-2026-10-09.txt](session-consolidated-regression-2026-10-09.txt) | 418 → 447 → 463 passed / 1 skipped；逐轮列出新增节点与 skip 原因 |
 | 构建与隔离 wheel 冒烟 | [build-and-wheel-smoke-2026-10-09.txt](build-and-wheel-smoke-2026-10-09.txt) | wheel 729363 → 733035 B、sdist 593691 → 597520 B；隔离冒烟通过（需 `TEMP`/`TMP` 指向工作区内） |
 | C-12/A-07 相关套件复核（HEAD `843e8c5`） | 本文件同批记录 | `test_saved_run_control` + `test_unverified_terminal_observation` + `test_recovery_marker_authority` + `test_background_work`：**89 passed（423.68s）**，即"待核实控制处置/未知终态/恢复事实/后台续行"区域在本会话改动后仍全绿；仅组件证据，未覆盖项见检查表 C-12/A-07 |
+| 仓库一致性核对（HEAD `fe30965`） | 本文件同批记录 | `HEAD == origin/fix`；本会话新增/修改文档相对链接 **0 失效**；全仓剩余 12 处失效链接位于**他人文件与只读目录**（`docs/修改日志/LU/`、`docs/项目文档/README.md`、`docs/文档-feix-a/`），按"不改写他人成果/项目文档只读"保持未动；pytest 临时目录已清理 |
 
 配套文字记录：[修改日志](../../修改日志/袁/)（每批根因/源码/反例/修后）、[整改计划](../../一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md)、[交接说明-2026-10-09](../../一期工程整改/04-交接/交接说明-2026-10-09.md)、[裁定记录](../../一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)、[待裁定草案](../../一期工程整改/02-整改计划/待裁定项草案-2026-10-09.md)。
