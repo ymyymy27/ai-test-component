@@ -256,6 +256,6 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 
 1.15 HTTP单次兼容（2026-10-08）：CORE-0011.76使现有immediate核验可调用生产HTTP reader，单次实际总截止且不重试，轮询绝对截止不变。单次超时保留query_error、不产生轮询时间线；既有保存及重启按1.0原材料回读。D仅消费共同核心准确事实，公开Schema及reviewing/partial/not_run保持。
 
-1.17 来源核验期望侧字段改名（2026-10-09，**破坏性变更**）：按 [DEC-010](../../归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) 裁定，SourceVerificationFact.expected_source_binding_digest **改名为 expected_source_content_digest**——该字段表示“本次来源核验所比对的**来源内容期望摘要**”，**不得**与 BC-001 第 6 节定义的 source_binding_digest（映射摘要）混用；映射级比较归 start 准入。同步改动：C 内部 SourceCheckRequest/SourceProbeObservation、领域 ExecutionSourceVerification、acts.py 投影、	ests/contracts 与本合同 ixtures/*.json（5 份）；**生成 Schema 已重出**（不手工编辑）。迁移：旧 execution_facts@1 正文含旧字段名，读取方按新字段名解析或先迁移；D 侧消费方接入时按新名处理。FR/AC、reviewing/partial/not_run 不变。
+1.17 来源核验期望侧语义澄清（2026-10-09，**非破坏性**）：按 [DEC-010](../../归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) 裁定，SourceVerificationFact.expected_source_binding_digest 的**字段名与 aitest.execution-facts/1.0 冻结形状保持不变**；本合同澄清其含义是“本次来源核验所比对的**来源内容期望摘要**”，**不是** BC-001 第 6 节的 source_binding_digest（期望→实际路径映射摘要），二者不得混用；映射级比较归 start 准入。为消除歧义，C 侧**内部**类型（SourceCheckRequest、领域 ExecutionSourceVerification）的同名字段改名为 expected_source_content_digest，由 facts.py **显式映射**到冻结字段名；因此对外 DTO/Schema、生成 Schema 与已保存材料**均不迁移**，D 侧无需改动。FR/AC、reviewing/partial/not_run 不变。
 
 1.16复用当前材料（2026-10-08）：CORE-0011.78将同Attempt的后补核验/证据及实际消费祖先当前指针纳入旧源比对。改变为incompatible、缺材料保持unverified，不推导R/V；集合重排不改义，完整资格/选择及实际字节消费继续。D只消费共同核心准确结果，Schema及reviewing/partial/not_run保持。

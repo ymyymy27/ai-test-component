@@ -10,7 +10,7 @@
 
 ### 2026-10-09
 
-- DEC-010 实施完成：CD-001 升至1.17（破坏性变更），execution_facts@1 的 SourceVerificationFact.expected_source_binding_digest 改名 expected_source_content_digest（来源内容期望摘要，不得与BC-001第6节的映射摘要混用）；生成Schema重出、C内部/领域同名字段、facts投影与全部夹具同步；受影响回归274 passed/1 skipped，Ruff/Mypy225文件与check_versions(0.4.0)通过。
+- DEC-010 实施完成（非破坏性口径）：按接口规则"破坏性变更提升主版本"，改为不动冻结对外字段——CD-001 升1.17澄清条目（SourceVerificationFact.expected_source_binding_digest 字段名与 execution-facts/1.0 形状不变，含义为来源内容期望摘要、非BC-001第6节映射摘要），仅C内部类型改名 expected_source_content_digest 并由 facts.py 显式映射；对外Schema、已保存材料与D侧均不迁移；受影响回归274 passed/1 skipped，Ruff/Mypy225文件与check_versions(0.4.0)通过。
 
 - 接口待裁定 DEC-010/011/012 已由负责人授权代决并归档：AB-001 升至**1.36**（确认四项 start 侧语义、登记 `SOURCE_BINDING_UNVERIFIED`＋四类 `reason`、来源核验期望侧不得复用 `source_binding_digest`）；`CD-001` 的 `execution_facts@1` 字段改名属破坏性变更、实现未完成已转记下一动作；`待裁定/` 现无待裁定项。见[接口台账](docs/接口对接/README.md)与归档件。
 

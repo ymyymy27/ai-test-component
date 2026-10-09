@@ -1564,8 +1564,8 @@
         "plan_revision": {
           "$ref": "#/$defs/PlanRevisionRefFact"
         },
-        "expected_source_content_digest": {
-          "title": "Expected Source Content Digest",
+        "expected_source_binding_digest": {
+          "title": "Expected Source Binding Digest",
           "type": "string"
         },
         "materialized_snapshot_ref": {
@@ -1659,7 +1659,7 @@
         "verification_id",
         "project_id",
         "plan_revision",
-        "expected_source_content_digest",
+        "expected_source_binding_digest",
         "materialized_snapshot_ref",
         "observed_source_digest",
         "state"

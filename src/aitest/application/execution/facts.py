@@ -633,7 +633,7 @@ def _source_verification_fact(item: ExecutionSourceVerification) -> SourceVerifi
         verification_id=item.verification_id,
         project_id=item.project_id,
         plan_revision=_plan_revision(item.plan_revision_ref),
-        expected_source_content_digest=item.expected_source_content_digest,
+        expected_source_binding_digest=item.expected_source_content_digest,
         materialized_snapshot_ref=item.materialized_snapshot_ref,
         observed_source_digest=item.observed_source_digest,
         state=_enum(SourceVerificationStateFact, item.state.value),

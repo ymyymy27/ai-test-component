@@ -220,7 +220,7 @@ BC-001已回到进行中，见10.1台账；旧版签署记录保留于合同历�
 
 | ID | 事项 | 裁定结论 | 实现状态 |
 | --- | --- | --- | --- |
-| [DEC-010](归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) | 来源核验期望侧字段命名与口径 | **方案 A**：不得复用 `BC-001` 的 `source_binding_digest`（映射摘要），字段改为表达来源内容期望摘要 | **已完成**（2026-10-09）：`CD-001` 升至 **1.17**，改名 `expected_source_content_digest` ＋重出 Schema ＋ C 内部/夹具同步；274 passed / 1 skipped |
+| [DEC-010](归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) | 来源核验期望侧字段命名与口径 | **方案 A**：不得复用 `BC-001` 的 `source_binding_digest`（映射摘要），期望侧须表达来源内容期望摘要 | **已完成**（2026-10-09，**非破坏性**）：`CD-001` 升 **1.17** 澄清条目；冻结字段名与 `execution-facts/1.0` 形状不变，仅 C 内部类型改名并由 `facts.py` 显式映射；274 passed / 1 skipped |
 | [DEC-011](归档/裁定/DEC-011-AB-001四项start侧来源绑定语义.md) | `AB-001` 1.35 四项 start 侧语义 | **确认 1A/2A/3A/4A** | **已实现、未接线**（31 项回归；接线前提是可信动作解析器） |
 | [DEC-012](归档/裁定/DEC-012-start来源失败错误码与原因标识登记.md) | start 前四类失败的对外错误码与原因标识 | **方案 A**：一个不可重试错误码 `SOURCE_BINDING_UNVERIFIED` ＋ 结构化 `reason`（四类）＋ 既有 `source_unverified` 缺口 | **已实现、未接线**（登记完成，接线时直接使用） |
 
@@ -441,6 +441,6 @@ DEC-004／005／006 三项已裁定，结论已回写本节与各合同，实现
 
 2026-10-09：AB-001 1.35 澄清 start 侧来源绑定三项实现语义（**单方裁定待双方确认**）：`cwd_mapping` 取 `workdir:<安全相对路径>` 且拒绝穿越与链接逃逸；`entry_arguments` 逐字为最终参数、不接受代入；适配器由 `adapter_versions` 唯一键决定；start 前四类来源失败统一不可重试并登记 `source_unverified` 缺口（不依赖该动作的能力仍可用）。A 侧已实现为可测函数（31 项回归，含真实物化端到端与失败反例），尚未接入默认装配；C 侧失败分类沿用本裁定。合同保持 reviewing/partial/not_run，真实 AC 未改变。见[裁定记录](../一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)。
 
-2026-10-09：**DEC-010 实施完成** —— `CD-001` 升至 **1.17**（破坏性变更）：`execution_facts@1` 的 `SourceVerificationFact.expected_source_binding_digest` 改名 `expected_source_content_digest`（表示来源内容期望摘要，**不得**与 `BC-001` 第6节的映射摘要 `source_binding_digest` 混用）；生成 Schema 已重出、C 内部与领域同名字段、`facts.py` 投影、`tests/contracts` 与本合同 5 份 fixtures 同步；受影响回归 274 passed / 1 skipped，Ruff/Mypy（225 文件）与 `check_versions.py`（0.4.0）通过。§10.4 DEC-010 行与归档件状态同步为已完成。
+2026-10-09：**DEC-010 实施完成（非破坏性口径）** —— 依 `AGENTS.md` 第 5.5 条"破坏性变更提升主版本"，改为**不动冻结对外字段**：`CD-001` 升 **1.17** 澄清条目（`SourceVerificationFact.expected_source_binding_digest` 字段名与 `aitest.execution-facts/1.0` 形状不变，其含义为来源内容期望摘要、**不是** `BC-001` 第6节的映射摘要）；仅 C 内部类型（`SourceCheckRequest`、领域 `ExecutionSourceVerification`）改名 `expected_source_content_digest`，由 `facts.py` 显式映射到冻结字段名，故对外 Schema、已保存材料与 D 侧均不迁移。受影响回归 274 passed / 1 skipped，Ruff/Mypy（225 文件）与 `check_versions.py`（0.4.0）通过。
 
 2026-10-09：DEC-010/011/012 三项由**负责人授权代决并归档**（按项目文档择优选型），AB-001 升至 **1.36** 记录三项结论：DEC-011 确认 1A/2A/3A/4A（1.35 的"单方"标注作废，四项已实现 31 项回归但未接默认装配）；DEC-012 登记一个不可重试错误码 `SOURCE_BINDING_UNVERIFIED` + 四类结构化 `reason` + 既有 `source_unverified` 缺口；DEC-010 采用方案 A（来源核验期望侧不得复用 `BC-001` 的 `source_binding_digest`，`CD-001` 的 `execution_facts@1` 字段改名属破坏性变更，须升版本＋重出 Schema，**实现未完成已转记下一动作**）。§10.3/§10.4 与待裁定索引同步，裁定件移入 `归档/裁定/`。

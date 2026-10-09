@@ -425,7 +425,7 @@ class SourceVerificationFact(ContractModel):
     verification_id: str
     project_id: str
     plan_revision: PlanRevisionRefFact
-    expected_source_content_digest: str
+    expected_source_binding_digest: str
     materialized_snapshot_ref: str
     observed_source_digest: str
     state: SourceVerificationStateFact
