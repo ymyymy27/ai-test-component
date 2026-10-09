@@ -33,6 +33,7 @@ from aitest.application.errors import WorkspaceInUse
 from aitest.application.evidence.execution_outputs import SavedExecutionEvidence
 from aitest.application.evidence.external_imports import SavedExternalResultImport
 from aitest.application.evidence.saved_verification import SavedBusinessVerification
+from aitest.application.execution.action_resolver import build_saved_action_resolver
 from aitest.application.execution.authorization import (
     ExecutionAuthorizationService,
     SavedExecutionAuthorizationResolver,
@@ -566,7 +567,19 @@ def assemble_workspace_core(
             approvals=approvals,
             source=dependencies.source_analysis,
             environment=environment_resolution,
-            action_resolver=execution_action_resolver,
+            action_resolver=(
+                execution_action_resolver
+                if execution_action_resolver is not None
+                else build_saved_action_resolver(
+                    snapshots=snapshot_store,
+                    workspace_root=root,
+                    read_facts=lambda project, run: (
+                        execution_coordinator.read_runtime_revision_facts(
+                            project_id=project, run_id=run
+                        )
+                    ),
+                )
+            ),
             controlled_writes=controlled_writes,
         )
         execution_coordinator = ExecutionCommitCoordinator(

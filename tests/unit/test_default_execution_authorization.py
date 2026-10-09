@@ -44,7 +44,9 @@ def test_default_capabilities_and_missing_resolver_are_honest(tmp_path):
             command("prepare_execution", parameters={"run_id": "run", "step_id": "step"}),
             RELAY,
         )
-        assert result.error.code == "CAPABILITY_UNAVAILABLE"
+        # 默认装配现已内置可信解析器；relay 入口不能用人工确认，故诚实拒绝为"等待受控用户确认"，
+        # 而不是"整个执行能力不可用"（A-10：只拦实际依赖的动作）。
+        assert result.error.code == "AWAITING_USER_CONFIRMATION"
         assert core.unit_of_work.current_commit_sequence() == before
         missing = core.api.dispatch(
             command(
@@ -374,7 +376,9 @@ def test_public_prepare_consent_grant_and_restart_preserve_originals(authoritati
         fresh = restarted.api.dispatch(
             value.model_copy(update={"request_id": "new-request", "intent_id": "new-intent"}), RELAY
         )
-        assert fresh.error.code == "CAPABILITY_UNAVAILABLE"
+        # 重启后的新核心即使有默认解析器，也必须先核对**已登记环境**；本工作空间未登记该
+        # 载体，故按 DEC-012 登记的错误码诚实阻塞，而不是 INTERNAL_ERROR。
+        assert fresh.error.code == "SOURCE_BINDING_UNVERIFIED"
         assert restarted.unit_of_work.current_commit_sequence() == seq
     finally:
         restarted.lifetime_lock.release()

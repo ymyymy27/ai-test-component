@@ -11,6 +11,13 @@ from aitest.application.project.serialization import binding_from_payload, envir
 from aitest.contracts.prepared_run import EnvironmentRefFact, PreparedRun
 
 
+class EnvironmentResolutionBlocked(ValueError):
+    """环境未登记/探测不可用时**不可重试**阻塞（code 取 DEC-012 已登记值）。"""
+
+    code = "SOURCE_BINDING_UNVERIFIED"
+    reason = "environment_unregistered"
+
+
 class EnvironmentResolutionService:
     def __init__(self, *, reader: RecordReader, resolver: EnvironmentResolver) -> None:
         self.reader, self.resolver = reader, resolver
@@ -49,14 +56,19 @@ class EnvironmentResolutionService:
             raise ValueError("environment requires an exact confirmed binding")
         if environment.environment_id != environment_id:
             raise ValueError("environment declaration identity differs")
-        observed = self.resolver.resolve(
-            EnvironmentResolutionRequest(
-                project_id,
-                environment_id,
-                environment.isolation_mode.value,
-                environment.interpreter_requirement,
+        try:
+            observed = self.resolver.resolve(
+                EnvironmentResolutionRequest(
+                    project_id,
+                    environment_id,
+                    environment.isolation_mode.value,
+                    environment.interpreter_requirement,
+                )
             )
-        )
+        except ValueError as error:
+            # 载体未登记/探测不可用属"环境未登记"阻塞（DEC-012 已登记该错误码与 reason），
+            # 不能让没有 code 的 ValueError 经协议层显示为 INTERNAL_ERROR。
+            raise EnvironmentResolutionBlocked(str(error)) from error
         detail = observed.resolution
         if (
             detail is None
