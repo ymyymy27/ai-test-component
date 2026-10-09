@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.34"
+contract_version: "1.35"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,6 +13,8 @@ blockers: []
 next_owner: A
 next_action: 默认来源、准备快照与受控依据确认已有组件证据；未发布响应补登记已有受控证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
 ---
+
+1.35 start 侧来源绑定三项实现语义澄清（2026-10-09，**单方裁定待双方确认**）：据[裁定记录](../../../一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)（依据架构01第12节、架构02第7节、架构05第9节、需求P1-AC03/13/25）：(a) `ExecutionSourceBinding.cwd_mapping` 取 `workdir:<安全相对路径>`，解析结果必须落在固定 workdir 内，拒绝绝对路径/盘符/`..` 穿越/**链接逃逸**；(b) `entry_arguments` **逐字**为最终参数序列，不由用例正文或输入代入，提供代入即拒绝并要求重新 prepare；(c) 所选适配器由 `adapter_versions` 的**唯一键**决定，缺失或多键即拒绝，不新增字段。start 前四类来源失败（入口缺失/来源不符/环境未登记/物化失败）统一为不可重试阻塞并登记 `source_unverified` 缺口及对应 `next_step`；不依赖该动作的能力（登记/查询/模板/本地保存）不受影响。A 侧已实现为可测函数（`application/execution/start_source_binding.py`，25项回归），**尚未接入默认装配**；C 侧失败分类沿用本裁定。FR/AC、reviewing/partial/not_run 不变。
 
 1.34 `SourceSnapshotPort.materialize` 返回实际路径映射与内容摘要（2026-10-09）：第 3.4 节一直要求 materialize"返回实际路径映射与内容摘要"，但未固定键名。本版澄清且**不改变现有键**：成功时除 `snapshot_id`/`destination`/`verified`/`state` 外返回 `paths`（按固定清单顺序，每项含 `relative_path` 期望来源路径、`actual_path` 在 workdir 内解析出的实际路径、`sha256`、`size`）与 `content_digest`（对该 `paths` 的规范 JSON 字节取 `sha256:` 摘要，证明本次物化出的实际来源字节集合）；拒绝时保持 `refused` 且不返回 `content_digest`。该摘要供 C 在 start 生成 `source_binding_digest`（BC-001 第 6 节：固定 workdir 的"期望→实际路径映射"摘要）时使用，不替代 `resolved_input_digest`（B 在 prepare 冻结）。A 侧实现与夹具随后对齐；B 侧忽略未知键即可接入。FR/AC、reviewing/partial/not_run 不变。
 
