@@ -327,6 +327,33 @@ def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
     assert admitted["adapter_kind"] == "command"
     assert admitted["source_binding_digest"] == materialized["content_digest"]
 
+    with_entry = resolver.admit_start(
+        snapshot_id=snapshot_id,
+        destination=str(destination),
+        cwd_mapping="workdir:.",
+        frozen_arguments=arguments,
+        actual_arguments=arguments,
+        adapter_versions={"command": "1.0.0"},
+        frozen_entry="public-python",
+        observed_entry="public-python",
+    )
+    assert with_entry["registered_entry"] == "public-python"
+    for frozen_entry, observed_entry in (
+        ("public-python", "other-entry"),
+        ("public-python", ""),
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.admit_start(
+                snapshot_id=snapshot_id,
+                destination=str(destination),
+                cwd_mapping="workdir:.",
+                frozen_arguments=arguments,
+                actual_arguments=arguments,
+                adapter_versions={"command": "1.0.0"},
+                frozen_entry=frozen_entry,
+                observed_entry=observed_entry,
+            )
+
     for overrides in (
         {"cwd_mapping": "workdir:../outside"},
         {"actual_arguments": ("-m", "pytest", "tests/other")},

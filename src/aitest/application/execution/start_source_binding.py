@@ -73,6 +73,8 @@ class StartSourceBindingResolver:
         adapter_versions: Mapping[str, str],
         expected_relative_paths: Sequence[str] | None = None,
         expected_source_binding_digest: str | None = None,
+        frozen_entry: str | None = None,
+        observed_entry: str | None = None,
     ) -> Mapping[str, object]:
         """一次 start 准入：物化映射核对 + 裁定 1A/2A/3A；任一步失败即抛出来源阻塞。
 
@@ -86,7 +88,7 @@ class StartSourceBindingResolver:
             expected_source_binding_digest=expected_source_binding_digest,
         )
         workdir = str(resolved["workdir"])
-        return {
+        admitted: dict[str, object] = {
             "snapshot_id": resolved["snapshot_id"],
             "workdir": workdir,
             "paths": resolved["paths"],
@@ -97,6 +99,11 @@ class StartSourceBindingResolver:
             ),
             "adapter_kind": self.resolve_adapter_kind(adapter_versions),
         }
+        if frozen_entry is not None or observed_entry is not None:
+            admitted["registered_entry"] = self.require_registered_entry(
+                frozen_entry=str(frozen_entry), observed_entry=str(observed_entry)
+            )
+        return admitted
 
     def failure_receipt(self, reason: str) -> Mapping[str, object]:
         """按裁定 4A：start 前四类来源失败一律为不可重试阻塞，并登记来源证据缺口。
