@@ -10,6 +10,8 @@
 
 ### 2026-10-09
 
+- 装配工厂与真实链打通（仍未注入默认装配）：build_saved_action_resolver 一次装好物化准入（StartMaterializer）、事实尝试序号（FactsAttemptIndex，按步骤尝试数+1且失败关闭）、最严副作用类别（UNKNOWN）；真实链探针确认 workdirs/run-1 真实创建、映射摘要、冻结参数与 120 秒截止、attempt_index=1。探针另发现并修复物化结果缺 snapshot_id 导致准入误判的集成缺陷；组件回归22项通过。
+
 - 实现 start 物化组件（未接入默认装配）：StartMaterializer 把固定快照物化到 workdirs/<run_id>（拒绝空/`.`/`..`/含分隔符或盘符的 run 标识，并核对不越出 workdirs），期望清单取自 read_pinned 冻结清单并要求映射恰好覆盖，随后完成映射六处核对与 cwd 受限解析；**校验先于写盘**。测试暴露并修复"先落盘后拒绝"缺陷。5 项回归（真实物化/越界标识拒绝/非空目标拒绝/多适配器键先阻塞/未知快照拒绝），相关套件共 273 passed/1 skipped，Ruff/Mypy227文件通过。
 
 - 实现生产动作解析器（未接入默认装配）：SavedActionResolver 从冻结绑定/快照/环境构造 Attempt 与 ExecutionRequest，强制入口适配器等于 adapter_versions 唯一键、参数逐字一致，截止取冻结步骤毫秒，来源映射摘要来自 start 准入；attempt_index 与副作用类别由注入提供者给出；失败统一抛内部 ActionResolutionBlocked。14 项回归（1正13反）与相关套件共 271 passed/1 skipped，Ruff/Mypy226文件通过。接线与默认装配注入留待真实端到端一次完成，避免有准入无执行或伪造能力。

@@ -61,6 +61,7 @@ class StartMaterializer:
         )
         workdir = str(resolved["workdir"])
         return {
+            "snapshot_id": snapshot_id,
             "run_id": run_id,
             "workdir": workdir,
             "paths": resolved["paths"],

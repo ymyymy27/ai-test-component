@@ -17,11 +17,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from pathlib import Path
 
+from aitest.application.execution.start_materialization import StartMaterializer
 from aitest.application.execution.start_source_binding import (
     SourceBindingUnverified,
     StartSourceBindingResolver,
 )
+from aitest.application.ports import SourceSnapshotPort
 from aitest.contracts.prepared_run import EnvironmentResolutionFact, ExecutionSourceBinding
 from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
@@ -60,7 +63,7 @@ class SavedActionResolver:
         *,
         attempt_index: Callable[[Run, Step], int],
         side_effect_class: Callable[[Run, Step], SideEffectClass],
-        admission: Callable[[Run, Step], Mapping[str, object]] | None = None,
+        admission: Callable[..., Mapping[str, object]] | None = None,
     ) -> None:
         if not callable(attempt_index) or not callable(side_effect_class):
             raise ActionResolutionBlocked("attempt index and side effect providers are required")
@@ -91,7 +94,9 @@ class SavedActionResolver:
             raise ActionResolutionBlocked("the frozen step has no registered entry")
         adapter_kind = self._adapter_kind(binding, entry.adapter_kind)
         arguments = self._arguments(binding, entry)
-        source_binding_digest = _admission_digest(self._admission, run, step, snapshot_id)
+        source_binding_digest = _admission_digest(
+            self._admission, run, step, snapshot_id, binding
+        )
         index = self._attempt_index(run, step)
         if type(index) is not int or index < 1:
             raise ActionResolutionBlocked("attempt index must be a positive integer")
@@ -181,6 +186,48 @@ class SavedActionResolver:
             raise ActionResolutionBlocked(str(error)) from error
 
 
+def default_side_effect_class(run: Run, step: Step) -> SideEffectClass:
+    """副作用类别：冻结计划/步骤未声明时取 **UNKNOWN（最严）**，绝不假定为只读。
+
+    依据：领域既有取值 `SideEffectClass.UNKNOWN` 与项目"未知不得解释为安全/通过"的约定
+    （未知副作用不得自动重放，须走受控授权）。若后续合同把该类别冻结进计划/步骤，
+    装配应改为读取该字段。
+    """
+    return SideEffectClass.UNKNOWN
+
+
+class FactsAttemptIndex:
+    """从已保存运行事实派生下一尝试序号（`该步骤已有尝试数 + 1`）。
+
+    只读端口形状与 `ExecutionCommitCoordinator.read_runtime_revision_facts` 一致；不写记录、
+    不起进程。事实不可读或不一致时**失败关闭**（抛 `ActionResolutionBlocked`），不猜默认序号。
+    """
+
+    def __init__(self, read_facts: Callable[[str, str], object]) -> None:
+        self._read_facts = read_facts
+
+    def __call__(self, run: Run, step: Step) -> int:
+        try:
+            facts = self._read_facts(run.project_id, run.run_id)
+        except Exception as error:
+            raise ActionResolutionBlocked(f"saved run facts cannot be read: {error}") from error
+        attempts = getattr(facts, "attempts", None)
+        if attempts is None:
+            raise ActionResolutionBlocked("saved run facts expose no attempts")
+        ids: list[object] = []
+        for attempt in attempts:
+            attempt_step = getattr(attempt, "step_id", None)
+            if attempt_step is None:
+                raise ActionResolutionBlocked("a saved attempt lacks its step identity")
+            if attempt_step == step.step_id:
+                ids.append(getattr(attempt, "attempt_id", None))
+        if any(not isinstance(item, str) or not item.strip() for item in ids):
+            raise ActionResolutionBlocked("saved attempts lack exact identities")
+        if len(set(ids)) != len(ids):
+            raise ActionResolutionBlocked("saved attempts repeat an identity")
+        return len(ids) + 1
+
+
 def _binding(prepared: Mapping[str, object]) -> ExecutionSourceBinding:
     raw = prepared.get("execution_source")
     if not isinstance(raw, Mapping):
@@ -243,16 +290,17 @@ def _step_content_scope(step_content: Mapping[str, object], run: Run, step: Step
 
 
 def _admission_digest(
-    admission: Callable[[Run, Step], Mapping[str, object]] | None,
+    admission: Callable[..., Mapping[str, object]] | None,
     run: Run,
     step: Step,
     snapshot_id: str,
+    binding: ExecutionSourceBinding,
 ) -> str:
     if admission is None:
         raise ActionResolutionBlocked(
             "start admission is required to derive the source binding digest"
         )
-    admitted = admission(run, step)
+    admitted = admission(run, step, binding=binding, snapshot_id=snapshot_id)
     if not isinstance(admitted, Mapping):
         raise ActionResolutionBlocked("start admission must be a mapping")
     if admitted.get("snapshot_id") != snapshot_id:
@@ -263,4 +311,40 @@ def _admission_digest(
     return digest
 
 
-__all__ = ["ActionResolutionBlocked", "SavedActionResolver"]
+def build_saved_action_resolver(
+    *,
+    snapshots: SourceSnapshotPort,
+    workspace_root: Path,
+    read_facts: Callable[[str, str], object],
+) -> SavedActionResolver:
+    """装配用工厂：物化准入 + 事实尝试序号 + 最严副作用类别，一次装好。
+
+    仍未调用：默认装配是否注入由接线方决定（改默认执行语义的最后一步）。
+    """
+    materializer = StartMaterializer(snapshots, workspace_root=workspace_root)
+
+    def admission(
+        run: Run,
+        step: Step,
+        *,
+        binding: ExecutionSourceBinding,
+        snapshot_id: str,
+    ) -> Mapping[str, object]:
+        return materializer.materialize(
+            snapshot_id=snapshot_id, run_id=run.run_id, binding=binding
+        )
+
+    return SavedActionResolver(
+        attempt_index=FactsAttemptIndex(read_facts),
+        side_effect_class=default_side_effect_class,
+        admission=admission,
+    )
+
+
+__all__ = [
+    "ActionResolutionBlocked",
+    "build_saved_action_resolver",
+    "FactsAttemptIndex",
+    "SavedActionResolver",
+    "default_side_effect_class",
+]
