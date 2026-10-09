@@ -153,7 +153,7 @@ class StartSourceBindingResolver:
     def resolve_cwd(self, *, workdir: str, cwd_mapping: str) -> str:
         """按裁定 1A 解析冻结的工作目录映射（`workdir:<安全相对路径>`）。
 
-        依据[架构01 第12节](docs/项目文档/一期/架构文档/01-项目与计划.md)：物化始终在
+        依据架构01 第12节（`docs/项目文档/一期/架构文档/01-项目与计划.md`）：物化始终在
         固定 workdir 内，"拒绝路径穿越与链接逃逸"。解析结果必须是该 workdir 内的真实目录。
         """
         if not isinstance(cwd_mapping, str) or not cwd_mapping.startswith(_CWD_PREFIX):
