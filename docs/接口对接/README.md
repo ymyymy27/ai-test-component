@@ -195,7 +195,7 @@ next_action: 补齐字段映射并请求 C 评审
 | [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | reviewing，0.45 | B partial；C partial | 内部持久序列/步骤内容、锁内重评估、准确前后快照与保存消费闭包已实现；历史分支/脱敏详情反例修复，真实AC未改变 | 接默认可信人工、runner实际边界/来源与授权、布局/入口重登记、D双序列及真实半程验收；旧签署历史保留 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing`，1.4 | A `partial`；C `partial` | 独立查询材料/证据/事实同提交已有组件验证；未完成双方真实适配对拍 | 持久导入已补保存闭包；补准确关联重算、生产查询配置、最终一致性/人工与真实适配对拍 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复第 5 节展示与查询五项问题，以及**第 8 节**（2026-10-03 新增）动作与状态的三项变化与排期：发布第二次起必须声明 `expected_revision`（不符报 `B_REVISION_CONFLICT`）、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作（动作表 17 → 19） |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing`，1.17增量（含来源核验期望侧字段改名），1.0历史确认保留 | C `partial`；D `partial` | `not_run`，原1.0夹具记录保留 | C补完整资格/选择，准确来源/整Case映射及检查点引用同提交已有组件；D接保存选择和Run级派生；真实对拍另记 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing`，1.17增量（来源核验期望侧**语义澄清**：冻结字段名与 `execution-facts/1.0` 形状不变，仅 C 内部类型改名并由 `facts.py` 显式映射），1.0历史确认保留 | C `partial`；D `partial` | `not_run`，原1.0夹具记录保留 | C补完整资格/选择，准确来源/整Case映射及检查点引用同提交已有组件；D接保存选择和Run级派生；真实对拍另记 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 
