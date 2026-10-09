@@ -382,3 +382,22 @@ def test_public_prepare_consent_grant_and_restart_preserve_originals(authoritati
         assert restarted.unit_of_work.current_commit_sequence() == seq
     finally:
         restarted.lifetime_lock.release()
+
+
+def test_default_chain_degrades_honestly_without_execution_port(tmp_path):
+    """默认装配缺真实执行端口时，start_run / execute_step 必须是可识别拒绝，不能伪造成功。"""
+    core = assemble_workspace_core(tmp_path / "workspace", instance_id="default-honest-degrade")
+    try:
+        for action, parameters in (
+            ("start_run", {"run_id": "missing", "prepared_run_id": "missing", "record_revision": 1}),
+            ("execute_step", {"run_id": "missing", "step_id": "missing"}),
+        ):
+            before = core.unit_of_work.current_commit_sequence()
+            response = core.api.dispatch(
+                command(action, request=action + "-missing", parameters=parameters), RELAY
+            )
+            assert response.error is not None, (action, response.result)
+            assert response.error.code != "INTERNAL_ERROR", (action, response.error.code)
+            assert core.unit_of_work.current_commit_sequence() == before, action
+    finally:
+        core.unit_of_work.rollback()
