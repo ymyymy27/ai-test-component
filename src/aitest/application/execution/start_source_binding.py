@@ -80,6 +80,30 @@ class StartSourceBindingResolver:
             )
         return candidate.as_posix()
 
+    def resolve_adapter_kind(self, adapter_versions: Mapping[str, str]) -> str:
+        """按裁定 3A：所选适配器由 `adapter_versions` 的**唯一键**决定。
+
+        依据架构01 第12节（"依赖集合与适配器版本"属 prepare 冻结的来源约束）与架构05
+        第9节（能力协商含"执行入口类型"）：键缺失、多于一个或键值空白即拒绝，要求重新 prepare。
+        """
+        if not isinstance(adapter_versions, Mapping) or not adapter_versions:
+            raise SourceBindingUnverified("the frozen source binding lacks an adapter version")
+        keys = tuple(adapter_versions)
+        if len(keys) != 1:
+            raise SourceBindingUnverified(
+                "exactly one adapter version key must select the adapter"
+            )
+        key = keys[0]
+        value = adapter_versions[key]
+        if (
+            not isinstance(key, str)
+            or not key.strip()
+            or not isinstance(value, str)
+            or not value.strip()
+        ):
+            raise SourceBindingUnverified("adapter version key and value must be nonempty text")
+        return key
+
     def resolve(
         self,
         *,

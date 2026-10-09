@@ -300,6 +300,23 @@ def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
         )
 
 
+def test_adapter_is_selected_by_the_single_version_key(tmp_path: Path) -> None:
+    """裁定 3A：适配器由 adapter_versions 的唯一键决定。"""
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    assert resolver.resolve_adapter_kind({"command": "1.0.0"}) == "command"
+    for versions in (
+        {},
+        {"command": "1.0.0", "python": "1.0.0"},
+        {"": "1.0.0"},
+        {"  ": "1.0.0"},
+        {"command": ""},
+        {"command": "   "},
+        {"command": 1},
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.resolve_adapter_kind(versions)  # type: ignore[arg-type]
+
+
 def test_cwd_mapping_resolves_inside_the_fixed_workdir(tmp_path: Path) -> None:
     """裁定 1A：workdir:<相对路径> 必须落在固定 workdir 内的真实目录。"""
     workdir = tmp_path / "workdir"
