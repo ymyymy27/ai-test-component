@@ -24,7 +24,7 @@ def _request(materialized_root: Path) -> SourceCheckRequest:
             revision_no=1,
             digest="sha256:plan-1",
         ),
-        expected_source_binding_digest="sha256:source-1",
+        expected_source_content_digest="sha256:source-1",
         materialized_snapshot_ref=str(materialized_root),
         check_type=SourceCheckType.LOAD,
         scope="module",

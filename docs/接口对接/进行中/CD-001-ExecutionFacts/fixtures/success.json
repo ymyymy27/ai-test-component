@@ -167,7 +167,7 @@
         "revision_no": 1,
         "digest": "sha256:plan-1"
       },
-      "expected_source_binding_digest": "sha256:source-1",
+      "expected_source_content_digest": "sha256:source-1",
       "materialized_snapshot_ref": "snapshot-1",
       "observed_source_digest": "sha256:source-1",
       "state": "verified",

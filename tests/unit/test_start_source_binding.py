@@ -479,7 +479,7 @@ def verification_factory() -> Callable[[SourceVerificationState], ExecutionSourc
             plan_revision_ref=PlanRevisionRef(
                 revision_id="plan-1", revision_no=1, digest="sha256:" + "a" * 64
             ),
-            expected_source_binding_digest="sha256:" + "b" * 64,
+            expected_source_content_digest="sha256:" + "b" * 64,
             materialized_snapshot_ref="workdir",
             observed_source_digest="sha256:" + "c" * 64,
             state=state,

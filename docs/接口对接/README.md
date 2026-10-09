@@ -195,7 +195,7 @@ next_action: 补齐字段映射并请求 C 评审
 | [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun 与运行词汇表 | B → C | reviewing，0.45 | B partial；C partial | 内部持久序列/步骤内容、锁内重评估、准确前后快照与保存消费闭包已实现；历史分支/脱敏详情反例修复，真实AC未改变 | 接默认可信人工、runner实际边界/来源与授权、布局/入口重登记、D双序列及真实半程验收；旧签署历史保留 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | ExecutionFacts 存储与恢复 | A → C | `reviewing`，1.4 | A `partial`；C `partial` | 独立查询材料/证据/事实同提交已有组件验证；未完成双方真实适配对拍 | 持久导入已补保存闭包；补准确关联重算、生产查询配置、最终一致性/人工与真实适配对拍 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划、范围与依据展示 | B → D | `reviewing` | B `partial`；D `not_started` | `not_run` | D 回复第 5 节展示与查询五项问题，以及**第 8 节**（2026-10-03 新增）动作与状态的三项变化与排期：发布第二次起必须声明 `expected_revision`（不符报 `B_REVISION_CONFLICT`）、出站 `OUTBOUND_UNRESOLVED`、两个规则 Markdown 动作（动作表 17 → 19） |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing`，1.16增量，1.0历史确认保留 | C `partial`；D `partial` | `not_run`，原1.0夹具记录保留 | C补完整资格/选择，准确来源/整Case映射及检查点引用同提交已有组件；D接保存选择和Run级派生；真实对拍另记 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | `reviewing`，1.17增量（含来源核验期望侧字段改名），1.0历史确认保留 | C `partial`；D `partial` | `not_run`，原1.0夹具记录保留 | C补完整资格/选择，准确来源/整Case映射及检查点引用同提交已有组件；D接保存选择和Run级派生；真实对拍另记 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 
@@ -220,7 +220,7 @@ BC-001已回到进行中，见10.1台账；旧版签署记录保留于合同历�
 
 | ID | 事项 | 裁定结论 | 实现状态 |
 | --- | --- | --- | --- |
-| [DEC-010](归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) | 来源核验期望侧字段命名与口径 | **方案 A**：不得复用 `BC-001` 的 `source_binding_digest`（映射摘要），字段改为表达来源内容期望摘要 | **未完成**：`CD-001` 的 `execution_facts@1` 字段改名属破坏性变更（升版本＋重出 Schema＋C/D 同步），已转记下一动作 |
+| [DEC-010](归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) | 来源核验期望侧字段命名与口径 | **方案 A**：不得复用 `BC-001` 的 `source_binding_digest`（映射摘要），字段改为表达来源内容期望摘要 | **已完成**（2026-10-09）：`CD-001` 升至 **1.17**，改名 `expected_source_content_digest` ＋重出 Schema ＋ C 内部/夹具同步；274 passed / 1 skipped |
 | [DEC-011](归档/裁定/DEC-011-AB-001四项start侧来源绑定语义.md) | `AB-001` 1.35 四项 start 侧语义 | **确认 1A/2A/3A/4A** | **已实现、未接线**（31 项回归；接线前提是可信动作解析器） |
 | [DEC-012](归档/裁定/DEC-012-start来源失败错误码与原因标识登记.md) | start 前四类失败的对外错误码与原因标识 | **方案 A**：一个不可重试错误码 `SOURCE_BINDING_UNVERIFIED` ＋ 结构化 `reason`（四类）＋ 既有 `source_unverified` 缺口 | **已实现、未接线**（登记完成，接线时直接使用） |
 
@@ -440,5 +440,7 @@ DEC-004／005／006 三项已裁定，结论已回写本节与各合同，实现
 2026-10-09：AB-001 1.34 澄清[`SourceSnapshotPort.materialize`](进行中/AB-001-端口与保存/contract.md)的返回形状——成功时新增 `paths`（期望来源路径→workdir 实际路径，含逐项 `sha256`/`size`）与 `content_digest`（`paths` 规范 JSON 字节摘要），拒绝时保持 `refused` 且不返回摘要；**不改变既有键**。该摘要供 C 在 start 生成 `source_binding_digest`（BC-001 第6节：固定 workdir 的期望→实际路径映射摘要）使用，不替代 B 在 prepare 冻结的 `resolved_input_digest`。A 侧实现与夹具随后对齐，合同保持 reviewing/partial/not_run，真实 AC 未改变。
 
 2026-10-09：AB-001 1.35 澄清 start 侧来源绑定三项实现语义（**单方裁定待双方确认**）：`cwd_mapping` 取 `workdir:<安全相对路径>` 且拒绝穿越与链接逃逸；`entry_arguments` 逐字为最终参数、不接受代入；适配器由 `adapter_versions` 唯一键决定；start 前四类来源失败统一不可重试并登记 `source_unverified` 缺口（不依赖该动作的能力仍可用）。A 侧已实现为可测函数（31 项回归，含真实物化端到端与失败反例），尚未接入默认装配；C 侧失败分类沿用本裁定。合同保持 reviewing/partial/not_run，真实 AC 未改变。见[裁定记录](../一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)。
+
+2026-10-09：**DEC-010 实施完成** —— `CD-001` 升至 **1.17**（破坏性变更）：`execution_facts@1` 的 `SourceVerificationFact.expected_source_binding_digest` 改名 `expected_source_content_digest`（表示来源内容期望摘要，**不得**与 `BC-001` 第6节的映射摘要 `source_binding_digest` 混用）；生成 Schema 已重出、C 内部与领域同名字段、`facts.py` 投影、`tests/contracts` 与本合同 5 份 fixtures 同步；受影响回归 274 passed / 1 skipped，Ruff/Mypy（225 文件）与 `check_versions.py`（0.4.0）通过。§10.4 DEC-010 行与归档件状态同步为已完成。
 
 2026-10-09：DEC-010/011/012 三项由**负责人授权代决并归档**（按项目文档择优选型），AB-001 升至 **1.36** 记录三项结论：DEC-011 确认 1A/2A/3A/4A（1.35 的"单方"标注作废，四项已实现 31 项回归但未接默认装配）；DEC-012 登记一个不可重试错误码 `SOURCE_BINDING_UNVERIFIED` + 四类结构化 `reason` + 既有 `source_unverified` 缺口；DEC-010 采用方案 A（来源核验期望侧不得复用 `BC-001` 的 `source_binding_digest`，`CD-001` 的 `execution_facts@1` 字段改名属破坏性变更，须升版本＋重出 Schema，**实现未完成已转记下一动作**）。§10.3/§10.4 与待裁定索引同步，裁定件移入 `归档/裁定/`。

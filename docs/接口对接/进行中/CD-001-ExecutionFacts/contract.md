@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.16"
+contract_version: "1.17"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -255,5 +255,7 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.14 HTTP独立核验端口（2026-10-08）：CORE-001 1.75实现同一截止下的独立GET及完整同对象JSON，供既有1.74轮询/安全保存派生VerificationFact。错误目标/对象/截断/异常状态不产生matched；404为未见对象，截止不证明回滚。D仍只消费共同核心准确材料，URL/凭据正文不扩入DTO/Schema或上传。默认配置/其他核验/当前资格及真实验收继续，reviewing/partial/not_run保持。
 
 1.15 HTTP单次兼容（2026-10-08）：CORE-0011.76使现有immediate核验可调用生产HTTP reader，单次实际总截止且不重试，轮询绝对截止不变。单次超时保留query_error、不产生轮询时间线；既有保存及重启按1.0原材料回读。D仅消费共同核心准确事实，公开Schema及reviewing/partial/not_run保持。
+
+1.17 来源核验期望侧字段改名（2026-10-09，**破坏性变更**）：按 [DEC-010](../../归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) 裁定，SourceVerificationFact.expected_source_binding_digest **改名为 expected_source_content_digest**——该字段表示“本次来源核验所比对的**来源内容期望摘要**”，**不得**与 BC-001 第 6 节定义的 source_binding_digest（映射摘要）混用；映射级比较归 start 准入。同步改动：C 内部 SourceCheckRequest/SourceProbeObservation、领域 ExecutionSourceVerification、acts.py 投影、	ests/contracts 与本合同 ixtures/*.json（5 份）；**生成 Schema 已重出**（不手工编辑）。迁移：旧 execution_facts@1 正文含旧字段名，读取方按新字段名解析或先迁移；D 侧消费方接入时按新名处理。FR/AC、reviewing/partial/not_run 不变。
 
 1.16复用当前材料（2026-10-08）：CORE-0011.78将同Attempt的后补核验/证据及实际消费祖先当前指针纳入旧源比对。改变为incompatible、缺材料保持unverified，不推导R/V；集合重排不改义，完整资格/选择及实际字节消费继续。D只消费共同核心准确结果，Schema及reviewing/partial/not_run保持。

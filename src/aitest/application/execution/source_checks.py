@@ -31,7 +31,7 @@ class SourceCheckRequest:
     project_id: str
     attempt_id: str
     plan_revision_ref: PlanRevisionRef
-    expected_source_binding_digest: str
+    expected_source_content_digest: str
     materialized_snapshot_ref: str
     check_type: SourceCheckType
     scope: str
@@ -53,7 +53,7 @@ class SourceCheckRequest:
             "check_result_id",
             "project_id",
             "attempt_id",
-            "expected_source_binding_digest",
+            "expected_source_content_digest",
             "materialized_snapshot_ref",
             "scope",
             "source_snapshot_ref",
@@ -121,7 +121,7 @@ class SourceVerificationService:
             verification_id=request.verification_id,
             project_id=request.project_id,
             plan_revision_ref=request.plan_revision_ref,
-            expected_source_binding_digest=request.expected_source_binding_digest,
+            expected_source_content_digest=request.expected_source_content_digest,
             materialized_snapshot_ref=request.materialized_snapshot_ref,
             observed_source_digest=observation.observed_source_digest,
             state=state,
@@ -196,7 +196,7 @@ def _derive_state(
         gaps.append("import_outside_materialized_source")
     if gaps:
         return SourceVerificationState.MISMATCH, tuple(gaps)
-    if observation.observed_source_digest != request.expected_source_binding_digest:
+    if observation.observed_source_digest != request.expected_source_content_digest:
         return SourceVerificationState.MISMATCH, ("source_digest_mismatch",)
     base = Path(request.materialized_snapshot_ref)
     if not base.is_absolute() or not base.is_dir():

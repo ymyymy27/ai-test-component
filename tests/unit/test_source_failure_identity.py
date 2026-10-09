@@ -22,7 +22,7 @@ def source(tmp_path):
     entry.write_text("def broken(:\n", encoding="utf-8")
     request = _request(material)
     observation = SourceProbeObservation(
-        observed_source_digest=request.expected_source_binding_digest,
+        observed_source_digest=request.expected_source_content_digest,
         observed_entry_ref=str(entry), observed_import_ref=str(entry),
         observed_interpreter_ref=sys.executable, failure_class=FailureClass.SOURCE_ERROR,
         evidence_refs=("original-syntax-output",),

@@ -10,6 +10,8 @@
 
 ### 2026-10-09
 
+- DEC-010 实施完成：CD-001 升至1.17（破坏性变更），execution_facts@1 的 SourceVerificationFact.expected_source_binding_digest 改名 expected_source_content_digest（来源内容期望摘要，不得与BC-001第6节的映射摘要混用）；生成Schema重出、C内部/领域同名字段、facts投影与全部夹具同步；受影响回归274 passed/1 skipped，Ruff/Mypy225文件与check_versions(0.4.0)通过。
+
 - 接口待裁定 DEC-010/011/012 已由负责人授权代决并归档：AB-001 升至**1.36**（确认四项 start 侧语义、登记 `SOURCE_BINDING_UNVERIFIED`＋四类 `reason`、来源核验期望侧不得复用 `source_binding_digest`）；`CD-001` 的 `execution_facts@1` 字段改名属破坏性变更、实现未完成已转记下一动作；`待裁定/` 现无待裁定项。见[接口台账](docs/接口对接/README.md)与归档件。
 
 - 补充验证（覆盖前条旧数字）：汇总回归 418→447→**463 passed / 1 skipped**（HEAD `0c2b060`，827.91s）；C-12/A-07 相关套件（待核实控制处置/未知终态/恢复事实/后台续行）**89 passed**（`843e8c5`）；构建 wheel **733035 B** / sdist **597520 B** 且隔离 wheel 冒烟通过；仍非真实 Trae/供应方/掉电/35 项 AC。见[证据索引](docs/validation/p1-abc-remaining-20261004/INDEX-2026-10-09-session.md)。
