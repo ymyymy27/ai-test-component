@@ -300,6 +300,49 @@ def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
         )
 
 
+def test_cwd_mapping_resolves_inside_the_fixed_workdir(tmp_path: Path) -> None:
+    """裁定 1A：workdir:<相对路径> 必须落在固定 workdir 内的真实目录。"""
+    workdir = tmp_path / "workdir"
+    (workdir / "pkg" / "sub").mkdir(parents=True)
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+
+    assert resolver.resolve_cwd(workdir=str(workdir), cwd_mapping="workdir:.") == (
+        workdir.resolve().as_posix()
+    )
+    assert resolver.resolve_cwd(workdir=str(workdir), cwd_mapping="workdir:pkg/sub") == (
+        workdir / "pkg" / "sub"
+    ).resolve().as_posix()
+
+    for mapping in (
+        "pkg",
+        "workdir:",
+        "workdir: ",
+        "workdir:/etc",
+        "workdir:C:/outside",
+        "workdir:../outside",
+        "workdir:pkg/../../outside",
+        "workdir:missing-dir",
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.resolve_cwd(workdir=str(workdir), cwd_mapping=mapping)
+    with pytest.raises(SourceBindingUnverified):
+        resolver.resolve_cwd(workdir="", cwd_mapping="workdir:.")
+
+
+def test_cwd_mapping_must_not_traverse_links(tmp_path: Path) -> None:
+    workdir = tmp_path / "workdir"
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True)
+    workdir.mkdir()
+    try:
+        (workdir / "linked").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):  # 需要权限/文件系统支持：如实跳过
+        pytest.skip("directory symlinks are not available on this host")
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    with pytest.raises(SourceBindingUnverified):
+        resolver.resolve_cwd(workdir=str(workdir), cwd_mapping="workdir:linked")
+
+
 def test_frozen_expected_paths_must_be_covered_exactly(
     store: FileSourceSnapshotStore, source: Path, tmp_path: Path
 ) -> None:

@@ -17,13 +17,26 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from aitest.application.ports import SourceSnapshotPort
 
 _DIGEST_PREFIX = "sha256:"
+_CWD_PREFIX = "workdir:"
 _HASH_BLOCK = 1024 * 1024
+_DRIVE = re.compile(r"[A-Za-z]:")
+
+
+def _escapes_via_link(root: Path, candidate: Path) -> bool:
+    """从固定 workdir 到目标的每一段都不得是链接。"""
+    current = root
+    for part in candidate.relative_to(root).parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
 
 
 class SourceBindingUnverified(ValueError):
@@ -35,6 +48,37 @@ class StartSourceBindingResolver:
 
     def __init__(self, snapshots: SourceSnapshotPort) -> None:
         self._snapshots = snapshots
+
+    def resolve_cwd(self, *, workdir: str, cwd_mapping: str) -> str:
+        """按裁定 1A 解析冻结的工作目录映射（`workdir:<安全相对路径>`）。
+
+        依据[架构01 第12节](docs/项目文档/一期/架构文档/01-项目与计划.md)：物化始终在
+        固定 workdir 内，"拒绝路径穿越与链接逃逸"。解析结果必须是该 workdir 内的真实目录。
+        """
+        if not isinstance(cwd_mapping, str) or not cwd_mapping.startswith(_CWD_PREFIX):
+            raise SourceBindingUnverified("cwd mapping must use the fixed workdir prefix")
+        relative = cwd_mapping[len(_CWD_PREFIX) :]
+        if (
+            not relative.strip()
+            or relative.startswith(("/", "\\"))
+            or Path(relative).is_absolute()
+            or _DRIVE.fullmatch(relative[:2])
+            or ".." in Path(relative).parts
+        ):
+            raise SourceBindingUnverified("cwd mapping must be a safe relative path")
+        if not isinstance(workdir, str) or not workdir.strip():
+            raise SourceBindingUnverified("cwd mapping requires the fixed workdir")
+        root = Path(workdir).resolve()
+        candidate = (root / relative).resolve()
+        if not candidate.is_relative_to(root):
+            raise SourceBindingUnverified("cwd mapping escapes the fixed workdir")
+        if _escapes_via_link(root, candidate):
+            raise SourceBindingUnverified("cwd mapping must not traverse links")
+        if not candidate.is_dir():
+            raise SourceBindingUnverified(
+                "cwd mapping does not resolve to a directory inside the workdir"
+            )
+        return candidate.as_posix()
 
     def resolve(
         self,
