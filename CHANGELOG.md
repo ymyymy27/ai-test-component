@@ -10,7 +10,9 @@
 
 ### 2026-10-09
 
-- 放宽 Python 版本下限至 `>=3.11,<3.14`（一期验收仍以 3.13 为准）：`ruff`/`mypy` 目标 `py311`/`3.11`；把 7 处 PEP 695 类型参数（3.12+ 语法）改回既有 `TypeVar` 写法；新增 `infrastructure/path_compat.py` 统一 `Path.is_junction`（3.12+）的 3.11 等价实现（重解析点标签，非符号链接、POSIX 恒假），13 处源码调用与 6 处测试 monkeypatch 统一经该 seam；`ntpath.isreserved`（3.13+）的 3.11 回退按**同语义**实现（尾随空格/点号、非法字符、控制字符、备用数据流冒号、设备名；与 3.13 原生逐名对照 32 例 0 不一致）；`planning/draft.py` 双参数 `joinpath` 改逐段调用（3.11 的 `MultiplexedPath.joinpath` 只收一个参数）；解释器门禁改为按登记声明比对主.次（可选补丁）版本，POSIX `site-packages` 目录按实际解释器匹配。**真机 Python 3.11.9 验证**：首次全量真跑 4757 passed / 85 failed（失败四类已全部修复并复验：3.11 上 112 passed ＋环境 22 passed，3.13 上同批 150 passed；全量 3.11 复跑进行中）。一期验收范围不变。
+- **修复真实管道读取缺陷（3.11/3.12 崩溃级）**：`interfaces/local/pipe.py` 用 `bytes(buffer[:read])` 取 ctypes 数组切片，而 3.11/3.12 的 ctypes 切片返回**有符号**整数（≥0x80 变负），任何含高位的帧字节都会抛 `ValueError: bytes must be in range(0, 256)`（3.13 起返回无符号故未暴露）→ 改为 `memoryview(buffer)[:read]` 取原始字节。3.11 上该批真实管道/stdio/MCP/worker 测试由 16 项失败降至 3 项，3.13 上同批 215 passed 无回归。
+
+- 放宽 Python 版本下限至 `>=3.11,<3.14`（一期验收仍以 3.13 为准）：`ruff`/`mypy` 目标 `py311`/`3.11`；把 7 处 PEP 695 类型参数（3.12+ 语法）改回既有 `TypeVar` 写法；新增 `infrastructure/path_compat.py` 统一 `Path.is_junction`（3.12+）的 3.11 等价实现（重解析点标签，非符号链接、POSIX 恒假），13 处源码调用与 6 处测试 monkeypatch 统一经该 seam；`ntpath.isreserved`（3.13+）的 3.11 回退按**同语义**实现（尾随空格/点号、非法字符、控制字符、备用数据流冒号、设备名；与 3.13 原生逐名对照 32 例 0 不一致）；`planning/draft.py` 双参数 `joinpath` 改逐段调用（3.11 的 `MultiplexedPath.joinpath` 只收一个参数）；解释器门禁改为按登记声明比对主.次（可选补丁）版本，POSIX `site-packages` 目录按实际解释器匹配。**真机 Python 3.11.9 验证**：首次全量真跑 4757 passed / 85 failed（四类已修）；二次全量 4826 passed / 16 failed（管道缺陷修复后再降至 3 项待查：`test_model_policy_approval[boolean_revision]` 与 `test_execution_start_integrity` 两项提交计数）；3.13 上相关批次 150/215 passed 无回归。一期验收范围不变。
 
 - DEC-013 裁定并实现：副作用类别（side_effect_class）的冻结来源在一期分册中未定义，按最严口径统一取 unknown（不因缺字段放行受控确认、禁止由适配器反推只读/幂等），AB-001 升至1.38；同时把尝试序号的运行事实读取由鸭子类型改为 ExecutionFacts 合同类型（mypy 可校验字段），解析器17项回归通过。
 

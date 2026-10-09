@@ -374,7 +374,9 @@ class _PipeIO:
             )
             if not 0 < read <= len(buffer):
                 raise PipeUnavailable("管道读取失败或对端关闭")
-            chunks.extend(bytes(buffer[:read]))
+            # ctypes 数组切片在 3.11/3.12 返回**有符号**整数（>=0x80 会变负），3.13 起返回无符号；
+            # 统一经 memoryview 取原始字节，避免 `bytes(...)` 因负值报 "must be in range(0, 256)"。
+            chunks.extend(memoryview(buffer)[:read])
         return bytes(chunks)
 
 
