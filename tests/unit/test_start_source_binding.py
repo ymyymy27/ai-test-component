@@ -404,6 +404,28 @@ def test_admit_start_end_to_end_on_real_files(
         assert Path(item["actual_path"]).is_file()
 
 
+def test_observed_executable_must_equal_the_frozen_interpreter() -> None:
+    """A-08 实际解释器：与冻结身份不符即来源不符阻塞。"""
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    frozen = "python:" + "a" * 64
+
+    assert (
+        resolver.require_interpreter(frozen_interpreter=frozen, observed_executable=frozen)
+        == frozen
+    )
+    for frozen_value, observed in (
+        (frozen, "python:" + "b" * 64),
+        (frozen, ""),
+        ("", frozen),
+        ("   ", "   "),
+        (1, 1),
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.require_interpreter(  # type: ignore[arg-type]
+                frozen_interpreter=frozen_value, observed_executable=observed
+            )
+
+
 def test_observed_entry_must_equal_the_frozen_registered_entry() -> None:
     """需求 P1-AC13：启动前核对实际入口，与冻结的已登记入口不符即阻塞。"""
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]

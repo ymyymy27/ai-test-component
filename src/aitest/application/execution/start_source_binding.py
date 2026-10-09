@@ -154,6 +154,21 @@ class StartSourceBindingResolver:
             )
         return candidate.as_posix()
 
+    def require_interpreter(self, *, frozen_interpreter: str, observed_executable: str) -> str:
+        """冻结的解释器身份必须与实际可执行文件一致（A-08 的"实际解释器"核对）。
+
+        依据架构01 第12节（prepare 冻结"解释器/可执行文件身份"）与需求 P1-AC13；两侧都必须
+        是非空文本且逐字一致，不同即来源不符（不匹配不得启动）。
+        """
+        for value in (frozen_interpreter, observed_executable):
+            if not isinstance(value, str) or not value.strip():
+                raise SourceBindingUnverified("interpreter identity must be nonempty text")
+        if frozen_interpreter != observed_executable:
+            raise SourceBindingUnverified(
+                "observed executable differs from the frozen interpreter identity"
+            )
+        return frozen_interpreter
+
     def require_registered_entry(self, *, frozen_entry: str, observed_entry: str) -> str:
         """冻结的已登记入口必须与实际使用的入口一致。
 
