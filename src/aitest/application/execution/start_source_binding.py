@@ -147,6 +147,21 @@ class StartSourceBindingResolver:
             )
         return candidate.as_posix()
 
+    def require_registered_entry(self, *, frozen_entry: str, observed_entry: str) -> str:
+        """冻结的已登记入口必须与实际使用的入口一致。
+
+        依据架构01 第12节（prepare 冻结"已登记入口"）与需求 P1-AC13（"启动前核对实际来源，
+        不符则阻塞"）：两侧都必须是非空文本，且逐字一致；不同即来源不符。
+        """
+        for value in (frozen_entry, observed_entry):
+            if not isinstance(value, str) or not value.strip():
+                raise SourceBindingUnverified("registered entry identity must be nonempty text")
+        if frozen_entry != observed_entry:
+            raise SourceBindingUnverified(
+                "observed entry differs from the frozen registered entry"
+            )
+        return frozen_entry
+
     def require_frozen_arguments(
         self,
         *,

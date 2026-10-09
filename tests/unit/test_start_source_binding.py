@@ -377,6 +377,28 @@ def test_admit_start_end_to_end_on_real_files(
         assert Path(item["actual_path"]).is_file()
 
 
+def test_observed_entry_must_equal_the_frozen_registered_entry() -> None:
+    """需求 P1-AC13：启动前核对实际入口，与冻结的已登记入口不符即阻塞。"""
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    assert (
+        resolver.require_registered_entry(
+            frozen_entry="public-python", observed_entry="public-python"
+        )
+        == "public-python"
+    )
+    for frozen, observed in (
+        ("public-python", "other-entry"),
+        ("public-python", ""),
+        ("", "public-python"),
+        ("  ", "  "),
+        (1, 1),
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.require_registered_entry(  # type: ignore[arg-type]
+                frozen_entry=frozen, observed_entry=observed
+            )
+
+
 def test_admit_start_refuses_a_real_rejected_materialization(
     store: FileSourceSnapshotStore, source: Path, tmp_path: Path
 ) -> None:
