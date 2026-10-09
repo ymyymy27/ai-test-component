@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
@@ -18,6 +18,8 @@ from aitest.application.execution.start_source_binding import (
     SourceBindingUnverified,
     StartSourceBindingResolver,
 )
+from aitest.contracts.prepared_run import PlanRevisionRef
+from aitest.domain.execution.sources import ExecutionSourceVerification, SourceVerificationState
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
 from aitest.infrastructure.file_store.workspace import Workspace
 
@@ -424,6 +426,45 @@ def test_admit_start_end_to_end_on_real_files(
     assert str(admitted["source_binding_digest"]).startswith("sha256:")
     for item in admitted["paths"]:  # type: ignore[union-attr]
         assert Path(item["actual_path"]).is_file()
+
+
+@pytest.fixture
+def verification_factory() -> Callable[[SourceVerificationState], ExecutionSourceVerification]:
+    """构造既有 `source_checks` 形状的核验事实，避免在测试里重造缺口逻辑。"""
+
+    def build(state: SourceVerificationState) -> ExecutionSourceVerification:
+        return ExecutionSourceVerification(
+            verification_id="verify-1",
+            project_id="project-1",
+            plan_revision_ref=PlanRevisionRef(
+                revision_id="plan-1", revision_no=1, digest="sha256:" + "a" * 64
+            ),
+            expected_source_binding_digest="sha256:" + "b" * 64,
+            materialized_snapshot_ref="workdir",
+            observed_source_digest="sha256:" + "c" * 64,
+            state=state,
+            gap_ids=("materialized_source_unverified",),
+        )
+
+    return build
+
+
+def test_start_requires_a_verified_source_fact(verification_factory: object) -> None:
+    """start 准入只接受 verified；其余状态一律来源不符阻塞。"""
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    build = verification_factory  # type: ignore[operator]
+    verified = build(SourceVerificationState.VERIFIED)
+    assert resolver.require_verified_source(verified) is verified
+    for state in (
+        SourceVerificationState.MISMATCH,
+        SourceVerificationState.UNVERIFIED,
+        SourceVerificationState.BLOCKED,
+        SourceVerificationState.UNKNOWN,
+    ):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.require_verified_source(build(state))
+    with pytest.raises(SourceBindingUnverified):
+        resolver.require_verified_source("not-a-fact")  # type: ignore[arg-type]
 
 
 def test_observed_executable_must_equal_the_frozen_interpreter() -> None:

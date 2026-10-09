@@ -24,6 +24,7 @@ from typing import Final
 
 from aitest.application.ports import SourceSnapshotPort
 from aitest.domain.evidence.evidence import EvidenceGapKind
+from aitest.domain.execution.sources import ExecutionSourceVerification, SourceVerificationState
 
 _DIGEST_PREFIX = "sha256:"
 _CWD_PREFIX = "workdir:"
@@ -160,6 +161,23 @@ class StartSourceBindingResolver:
                 "cwd mapping does not resolve to a directory inside the workdir"
             )
         return candidate.as_posix()
+
+    def require_verified_source(
+        self, verification: ExecutionSourceVerification
+    ) -> ExecutionSourceVerification:
+        """start 准入要求来源核验为 `verified`；其余状态一律来源不符阻塞。
+
+        复用既有 [`source_checks`](source_checks.py) 产出的核验事实（不重复实现缺口判定）：
+        `mismatch`/`unverified`/`blocked`/`unknown` 都不得启动，并按 4A 给出阻塞。
+        """
+        if not isinstance(verification, ExecutionSourceVerification):
+            raise SourceBindingUnverified("a source verification fact is required")
+        if verification.state is not SourceVerificationState.VERIFIED:
+            gaps = ",".join(str(item) for item in verification.gap_ids)
+            raise SourceBindingUnverified(
+                f"source verification is {verification.state.value}: {gaps}"
+            )
+        return verification
 
     def require_interpreter(self, *, frozen_interpreter: str, observed_executable: str) -> str:
         """冻结的解释器身份必须与实际可执行文件一致（A-08 的"实际解释器"核对）。
