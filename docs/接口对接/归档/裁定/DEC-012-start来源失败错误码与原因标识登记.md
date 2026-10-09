@@ -1,16 +1,20 @@
 # DEC-012：start 前来源失败的对外错误码与原因标识登记
 
-状态：**待裁定**（对外标识未登记，当前不得暴露）
+状态：**已裁定并归档（2026-10-09）；对外标识已登记**
 
-提出日期：2026-10-09
+裁定方：项目负责人（本会话获授权代决，按项目文档择优选型）
 
-提出方：A 包（实现方）
+裁定日期：2026-10-09
+
+**裁定结论：采用方案 A** —— 登记**一个**不可重试错误码 `SOURCE_BINDING_UNVERIFIED`，四类原因作为**结构化字段** `reason ∈ {entry_missing, source_mismatch, environment_unregistered, materialization_failed}`（不各立错误码）；缺口名沿用领域既有 `EvidenceGapKind.SOURCE_UNVERIFIED`；`next_step` 文案固定为"核对冻结来源与实际物化材料；如需更换入口或参数，请重新 prepare"。依据 `AGENTS.md` 第 4 节"能力降级按**具体动作**的真实依赖判断"与接口合同"相同字段不得重复另起定义"的既有做法（错误码表不膨胀，细节放结构化字段）。已写入 `AB-001` 1.36。
+
+**实现状态：已实现、未接线** —— 回执由 `application/execution/start_source_binding.py` 给出（`code`/`retryable=False`/`gap`/`reason`/`next_step`，31 项回归覆盖四类原因与未知原因拒绝）；因 start 准入尚未接入任何入口，**当前不影响任何协议响应**；接线时按 1.36 的定义直接使用，无需再改标识。
 
 受影响方：A（协议错误码维护）、C（start 侧回执实现）、D（展示与查询）
 
-责任方：A（登记到 `AB-001`/`CD-001` 的错误码表）＋ C（消费）
+责任方：A（合同登记，已完成）＋ C（接线时消费）
 
-下一动作：确认对外错误码名、`next_step` 文案与缺口名；A 侧登记后，C 侧才可把回执接入 LocalAPI/MCP/CLI 响应
+下一动作：随 start 准入接线一并暴露；D 侧按 `CD-001` 引用本错误码，不另起定义
 
 阻塞影响：**start 准入的对外回执**（实现已给出 `code`/`retryable`/`gap`/`next_step`，但未接任何入口，因此当前不影响协议响应）
 
