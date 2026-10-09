@@ -25,6 +25,7 @@ from aitest.application.execution.start_source_binding import (
     StartSourceBindingResolver,
 )
 from aitest.application.ports import SourceSnapshotPort
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.prepared_run import EnvironmentResolutionFact, ExecutionSourceBinding
 from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
@@ -204,11 +205,11 @@ def default_side_effect_class(run: Run, step: Step) -> SideEffectClass:
 class FactsAttemptIndex:
     """从已保存运行事实派生下一尝试序号（`该步骤已有尝试数 + 1`）。
 
-    只读端口形状与 `ExecutionCommitCoordinator.read_runtime_revision_facts` 一致；不写记录、
-    不起进程。事实不可读或不一致时**失败关闭**（抛 `ActionResolutionBlocked`），不猜默认序号。
+    事实形状由 `ExecutionFacts` **类型**约束（不再是鸭子类型）；只读、不写记录、不起进程。
+    事实不可读或不一致时**失败关闭**（抛 `ActionResolutionBlocked`），不猜默认序号。
     """
 
-    def __init__(self, read_facts: Callable[[str, str], object]) -> None:
+    def __init__(self, read_facts: Callable[[str, str], ExecutionFacts]) -> None:
         self._read_facts = read_facts
 
     def __call__(self, run: Run, step: Step) -> int:
@@ -216,17 +217,14 @@ class FactsAttemptIndex:
             facts = self._read_facts(run.project_id, run.run_id)
         except Exception as error:
             raise ActionResolutionBlocked(f"saved run facts cannot be read: {error}") from error
-        attempts = getattr(facts, "attempts", None)
-        if attempts is None:
-            raise ActionResolutionBlocked("saved run facts expose no attempts")
-        ids: list[object] = []
-        for attempt in attempts:
-            attempt_step = getattr(attempt, "step_id", None)
-            if attempt_step is None:
-                raise ActionResolutionBlocked("a saved attempt lacks its step identity")
-            if attempt_step == step.step_id:
-                ids.append(getattr(attempt, "attempt_id", None))
-        if any(not isinstance(item, str) or not item.strip() for item in ids):
+        if not isinstance(facts, ExecutionFacts):
+            raise ActionResolutionBlocked(
+                "saved run facts do not match the execution facts contract"
+            )
+        ids = [
+            attempt.attempt_id for attempt in facts.attempts if attempt.step_id == step.step_id
+        ]
+        if any(not item.strip() for item in ids):
             raise ActionResolutionBlocked("saved attempts lack exact identities")
         if len(set(ids)) != len(ids):
             raise ActionResolutionBlocked("saved attempts repeat an identity")
@@ -320,7 +318,7 @@ def build_saved_action_resolver(
     *,
     snapshots: SourceSnapshotPort,
     workspace_root: Path,
-    read_facts: Callable[[str, str], object],
+    read_facts: Callable[[str, str], ExecutionFacts],
 ) -> SavedActionResolver:
     """装配用工厂：物化准入 + 事实尝试序号 + 最严副作用类别，一次装好。
 

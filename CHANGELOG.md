@@ -10,6 +10,8 @@
 
 ### 2026-10-09
 
+- DEC-013 裁定并实现：副作用类别（side_effect_class）的冻结来源在一期分册中未定义，按最严口径统一取 unknown（不因缺字段放行受控确认、禁止由适配器反推只读/幂等），AB-001 升至1.38；同时把尝试序号的运行事实读取由鸭子类型改为 ExecutionFacts 合同类型（mypy 可校验字段），解析器17项回归通过。
+
 - 默认装配注入可信动作解析器（AB-001 1.37）：assemble_workspace_core 未传解析器时默认装配 build_saved_action_resolver（物化准入到 workdirs/<run_id>、事实尝试序号、最严副作用类别 unknown）；relay 的 prepare_execution 由“能力不可用”改为 AWAITING_USER_CONFIRMATION，重启后未登记载体按 DEC-012 返回 SOURCE_BINDING_UNVERIFIED（不再 INTERNAL_ERROR）；默认授权套件 29 项、相关套件 51 项与默认步骤/业务核验套件 33 项通过，Ruff/Mypy227 文件通过。partial 与真实 AC 不变。
 
 - 装配工厂与真实链打通（仍未注入默认装配）：build_saved_action_resolver 一次装好物化准入（StartMaterializer）、事实尝试序号（FactsAttemptIndex，按步骤尝试数+1且失败关闭）、最严副作用类别（UNKNOWN）；真实链探针确认 workdirs/run-1 真实创建、映射摘要、冻结参数与 120 秒截止、attempt_index=1。探针另发现并修复物化结果缺 snapshot_id 导致准入误判的集成缺陷；组件回归22项通过。

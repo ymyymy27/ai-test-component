@@ -257,22 +257,21 @@ def test_default_side_effect_class_is_unknown_not_read_only() -> None:
     assert default_side_effect_class(_run(), _step()) is SideEffectClass.UNKNOWN
 
 
-class _Attempt:
-    def __init__(self, step_id: str, attempt_id: str) -> None:
-        self.step_id = step_id
-        self.attempt_id = attempt_id
+def _facts(*pairs: tuple[str, str]) -> object:
+    from aitest.contracts.execution_facts import AttemptFact, ExecutionFacts
 
-
-class _Facts:
-    def __init__(self, attempts: object) -> None:
-        self.attempts = attempts
+    attempts = tuple(
+        AttemptFact.model_construct(step_id=step_id, attempt_id=attempt_id)
+        for step_id, attempt_id in pairs
+    )
+    return ExecutionFacts.model_construct(attempts=attempts)
 
 
 def test_facts_attempt_index_counts_only_this_step() -> None:
     from aitest.application.execution.action_resolver import FactsAttemptIndex
 
     index = FactsAttemptIndex(
-        lambda project, run: _Facts([_Attempt("step-1", "a1"), _Attempt("step-2", "a2")])
+        lambda project, run: _facts(("step-1", "a1"), ("step-2", "a2"))
     )
     assert index(_run(), _step()) == 2
 
@@ -284,10 +283,10 @@ def test_facts_attempt_index_fails_closed() -> None:
         raise OSError("facts unavailable")
 
     for reader in (
-        lambda project, run: _Facts(None),
+        lambda project, run: object(),
         boom,
-        lambda project, run: _Facts([_Attempt("step-1", "")]),
-        lambda project, run: _Facts([_Attempt("step-1", "a"), _Attempt("step-1", "a")]),
+        lambda project, run: _facts(("step-1", "")),
+        lambda project, run: _facts(("step-1", "a"), ("step-1", "a")),
     ):
         with pytest.raises(ActionResolutionBlocked):
             FactsAttemptIndex(reader)(_run(), _step())
