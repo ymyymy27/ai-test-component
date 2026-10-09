@@ -83,3 +83,21 @@ replay) with their 21 counterexample regressions, the snapshot adapters includin
 materialize mapping/digest and rejection branch, source checks and integrity, plus all
 contract and architecture checks. Boundary unchanged: component evidence only, not the 35 AC.
 
+Fourth run — after the start-admission closure (rulings 1A/2A/3A/4A)
+-------------------------------------------------------------------
+
+HEAD: 0c2b060. Same command as the second run (the full touched-file set), plus the
+start-binding and snapshot files:
+
+  463 passed, 1 skipped in 827.91s (0:13:47), exit 0
+
+The 16 extra passing nodes over the 447-run are the start-admission regressions added while
+implementing the four rulings: cwd mapping inside the fixed workdir (absolute/drive/`..`/link
+escape refused), arguments taken verbatim from the frozen binding (substitution refused),
+adapter selected by the unique adapter-versions key, registered entry and interpreter identity
+equality, source verification must be `verified`, the four non-retryable failure receipts with
+the domain `source_unverified` gap, the composed `admit_start`, plus the real-materialization
+end-to-end case and the real rejected-materialization case (a missing pinned blob).
+The one skip is the directory-symlink precondition (host privilege), reported honestly and
+never counted as a pass.
+
