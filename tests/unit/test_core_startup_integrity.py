@@ -734,3 +734,15 @@ def test_client_failed_reads_do_not_accept_partial_or_false_success(success, cou
     client = _immediate_client(read, lambda: count)
     with pytest.raises(pipe.PipeUnavailable):
         client._read_exact(4)
+
+
+def test_valid_instance_filename_rejects_windows_device_names() -> None:
+    """实例文件名不得是 Windows 设备名（3.13 用 ntpath.isreserved，3.12 用等语义回退）。"""
+    from aitest.infrastructure.file_store.core_launch import valid_instance_filename
+
+    for name in ("CON", "con", "Con.txt", "NUL", "PRN", "AUX", "COM1", "lpt9", " aux "):
+        assert valid_instance_filename(name) is False, name
+    for name in ("instance", "con-instance", "console", "COM10", "workspace-1"):
+        assert valid_instance_filename(name) is True, name
+    for name in (".", "..", "a/b", "a\\b", "", "x" * 129):
+        assert valid_instance_filename(name) is False, name

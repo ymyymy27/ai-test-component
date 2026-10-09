@@ -11,7 +11,6 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
-from ntpath import isreserved
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -22,6 +21,26 @@ from aitest.application.errors import WorkspaceInUse
 from aitest.infrastructure.security import guard_bytes, guard_value
 
 from . import atomic
+
+if sys.version_info >= (3, 13):
+    from ntpath import isreserved as isreserved_name
+else:
+    # Python 3.12 无 `os.path.isreserved`；按同一语义最小实现：
+    # Windows 设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9），取首个点号前的基名、
+    # 大小写无关并忽略尾随空格与点号；含目录部分即非保留名。3.13 起用标准库实现。
+    _RESERVED_DEVICE_NAMES = frozenset(
+        ["CON", "PRN", "AUX", "NUL"]
+        + [f"COM{index}" for index in range(1, 10)]
+        + [f"LPT{index}" for index in range(1, 10)]
+    )
+
+    def isreserved_name(path: str) -> bool:
+        if not path:
+            raise ValueError("path must not be empty")
+        if os.path.dirname(path):
+            return False
+        stem = path.split(".")[0].rstrip(" .").upper()
+        return stem in _RESERVED_DEVICE_NAMES
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +57,7 @@ def valid_instance_filename(name: str) -> bool:
         and name not in {".", ".."}
         and Path(name).name == name
         and not any(c in name for c in "/\\")
-        and not isreserved(name)
+        and not isreserved_name(name)
     )
 
 

@@ -197,10 +197,12 @@ class RegisteredPythonEnvironmentResolver:
             not p.resolve().is_relative_to(root) for p in carrier.dependency_roots
         ):
             raise ValueError("registered venv paths escape the carrier")
-        actual_site = root / (
-            "Lib/site-packages" if os.name == "nt" else "lib/python3.13/site-packages"
+        actual_sites = (
+            {root / "Lib/site-packages"}
+            if os.name == "nt"
+            else {p.resolve() for p in root.glob("lib/python3.*/site-packages")}
         )
-        if {p.resolve() for p in carrier.dependency_roots} != {actual_site}:
+        if {p.resolve() for p in carrier.dependency_roots} != actual_sites:
             raise ValueError("registered roots do not match the venv dependency directory")
         return self._file_digest(config)
 
@@ -260,8 +262,11 @@ class RegisteredPythonEnvironmentResolver:
         carrier = self.carriers.get((request.project_id, request.environment_id))
         if carrier is None or carrier.isolation_mode != request.isolation_mode:
             raise ValueError("tested environment carrier is not registered for this project/mode")
+        # 允许的解释器范围由**登记的环境声明**给出（不再在代码里钉死 3.13）；
+        # 观测到的解释器必须与声明的主.次（及可选补丁）版本一致。
         version_requirement = re.fullmatch(
-            r"(?:Python\s+)?(3\.13)(?:\.(\d+))?", request.interpreter_requirement.strip()
+            r"(?:Python\s+)?(\d+)\.(\d+)(?:\.(\d+))?",
+            request.interpreter_requirement.strip(),
         )
         if version_requirement is None:
             raise ValueError("interpreter requirement needs a supported explicit Python version")
@@ -284,8 +289,9 @@ class RegisteredPythonEnvironmentResolver:
             not isinstance(version, list)
             or len(version) != 3
             or any(type(value) is not int or value < 0 for value in version)
-            or version[:2] != [3, 13]
-            or (version_requirement[2] is not None and version[2] != int(version_requirement[2]))
+            or version[0] != int(version_requirement[1])
+            or version[1] != int(version_requirement[2])
+            or (version_requirement[3] is not None and version[2] != int(version_requirement[3]))
             or probe.get("implementation") != "cpython"
             or probe.get("isolated") != 1
             or probe.get("no_site") != 1

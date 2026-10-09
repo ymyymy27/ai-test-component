@@ -10,6 +10,8 @@
 
 ### 2026-10-09
 
+- 放宽 Python 版本下限为 `>=3.12,<3.14`（一期验收仍以 3.13 为准）：解释器门禁改为按登记声明比对主.次（可选补丁）版本，不再硬编码 3.13；POSIX `site-packages` 目录按实际解释器匹配；3.13 专属 API `os.path.isreserved` 增加 3.12 等语义回退 `isreserved_name`；`ruff`/`mypy` 目标降至 `py312`/`3.12` 后全绿，并补 Windows 设备名回归用例。3.12 为**静态兼容**，未在真实 3.12 解释器上运行验收。
+
 - DEC-013 裁定并实现：副作用类别（side_effect_class）的冻结来源在一期分册中未定义，按最严口径统一取 unknown（不因缺字段放行受控确认、禁止由适配器反推只读/幂等），AB-001 升至1.38；同时把尝试序号的运行事实读取由鸭子类型改为 ExecutionFacts 合同类型（mypy 可校验字段），解析器17项回归通过。
 
 - 默认装配注入可信动作解析器（AB-001 1.37）：assemble_workspace_core 未传解析器时默认装配 build_saved_action_resolver（物化准入到 workdirs/<run_id>、事实尝试序号、最严副作用类别 unknown）；relay 的 prepare_execution 由“能力不可用”改为 AWAITING_USER_CONFIRMATION，重启后未登记载体按 DEC-012 返回 SOURCE_BINDING_UNVERIFIED（不再 INTERNAL_ERROR）；默认授权套件 29 项、相关套件 51 项与默认步骤/业务核验套件 33 项通过，Ruff/Mypy227 文件通过。partial 与真实 AC 不变。
