@@ -203,6 +203,11 @@ class StartSourceBindingResolver:
 
         依据架构01 第12节（prepare 冻结"解释器/可执行文件身份"）与需求 P1-AC13；两侧都必须
         是非空文本且逐字一致，不同即来源不符（不匹配不得启动）。
+
+        **待确认口径**（见 `docs/一期工程整改/02-整改计划/待裁定项草案-2026-10-09.md` 第 6 项）：
+        冻结侧应由环境记录的 `EnvironmentRefFact.resolution.executable_path` 提供，并且两侧使用
+        同一路径规范化口径（大小写/短长路径/分隔符）；合同未定义"身份"与"路径"的换算规则前，
+        本函数只用于**同口径路径逐字比较**，不用于比较摘要与路径。
         """
         for value in (frozen_interpreter, observed_executable):
             if not isinstance(value, str) or not value.strip():
