@@ -124,6 +124,11 @@ mentions the previous missing-resolver/default-execution behaviour was re-run:
   test_execution_authorization_origin.py + test_default_source_analysis.py
     + contracts/test_b_use_case_registration.py + contracts/test_local_api.py  51 passed  (1368 s)
   test_default_step_execution.py + test_saved_business_verification.py        33 passed  (163 s)
+  test_default_active_control.py + test_default_live_output.py
+    + test_saved_run_schedule.py                                             28 passed  (923 s)
+
+  -> 141 nodes passing across every suite that mentions the previous default behaviour; the heavy
+     group covers long-step real file transactions, pause/resume/cancel and a core-instance change.
 
 The two behaviour changes are honest improvements, not relaxations:
   - relay prepare_execution: CAPABILITY_UNAVAILABLE -> AWAITING_USER_CONFIRMATION (needs a controlled
