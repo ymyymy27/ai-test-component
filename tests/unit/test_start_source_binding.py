@@ -377,6 +377,33 @@ def test_admit_start_end_to_end_on_real_files(
         assert Path(item["actual_path"]).is_file()
 
 
+def test_admit_start_refuses_a_real_rejected_materialization(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """真实场景：固定 blob 缺失导致物化被拒时，start 准入必须拒绝且不产生其他写入。"""
+    pinned = store.pin(canonical_path=str(source), purpose="prepare")
+    snapshot_id = str(pinned["snapshot_id"])
+    record = store.read_pinned(snapshot_id)
+    victim = next(item for item in record["files"] if item["relative_path"] == "main.py")
+    (store._blobs / victim["sha256"]).unlink()  # noqa: SLF001 - 直击固定字节缺失
+    before = store.read_pinned(snapshot_id)
+
+    resolver = StartSourceBindingResolver(store)
+    with pytest.raises(SourceBindingUnverified):
+        resolver.admit_start(
+            snapshot_id=snapshot_id,
+            destination=str(tmp_path / "workdir-rejected"),
+            cwd_mapping="workdir:.",
+            frozen_arguments=("tests/acceptance",),
+            actual_arguments=("tests/acceptance",),
+            adapter_versions={"command": "1.0.0"},
+        )
+    # 拒绝不改变已固定材料，也不留下工作目录
+    assert store.read_pinned(snapshot_id) == before
+    assert not (tmp_path / "workdir-rejected").exists()
+    assert resolver.failure_receipt("materialization_failed")["retryable"] is False
+
+
 def test_start_failures_are_non_retryable_with_a_source_gap() -> None:
     """裁定 4A：四类 start 前失败一律不可重试阻塞并登记 source_unverified 缺口。"""
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
