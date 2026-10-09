@@ -84,14 +84,20 @@ def test_workdir_must_be_one_safe_segment_inside_workdirs(tmp_path: Path) -> Non
     assert materializer.workdir("run-1") == (tmp_path.resolve() / "workdirs" / "run-1")
 
 
-def test_existing_non_empty_workdir_is_refused(
+def test_materialization_is_idempotent_and_never_overwrites(
     store: FileSourceSnapshotStore, source: Path, tmp_path: Path
 ) -> None:
     pinned = store.pin(canonical_path=str(source), purpose="prepare")
     materializer = StartMaterializer(store, workspace_root=tmp_path)
     snapshot_id = str(pinned["snapshot_id"])
-    materializer.materialize(snapshot_id=snapshot_id, run_id="run-1", binding=_binding())
-    with pytest.raises(SnapshotError):  # 端口既有语义：物化目标非空拒绝覆盖
+    first = materializer.materialize(snapshot_id=snapshot_id, run_id="run-1", binding=_binding())
+    # 跨入口重传：同一快照读取同一冻结结果，不重复物化、不覆盖
+    second = materializer.materialize(snapshot_id=snapshot_id, run_id="run-1", binding=_binding())
+    assert second["source_binding_digest"] == first["source_binding_digest"]
+    assert second["paths"] == first["paths"]
+    # 目标字节被改动后不再匹配冻结清单：端口按既有语义拒绝覆盖
+    (tmp_path.resolve() / "workdirs" / "run-1" / "main.py").write_bytes(b"tampered")
+    with pytest.raises(SnapshotError):
         materializer.materialize(snapshot_id=snapshot_id, run_id="run-1", binding=_binding())
 
 

@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -54,10 +56,16 @@ class StartMaterializer:
         arguments = self._resolver.require_frozen_arguments(
             frozen=binding.entry_arguments, actual=binding.entry_arguments
         )
-        resolved = self._resolver.resolve(
-            snapshot_id=snapshot_id,
-            destination=str(destination),
-            expected_relative_paths=expected,
+        # 跨入口重传：同一 run/快照已物化且字节一致时**读取同一冻结结果**，不重复物化、不覆盖。
+        existing = self._existing(snapshot_id, destination)
+        resolved = (
+            existing
+            if existing is not None
+            else self._resolver.resolve(
+                snapshot_id=snapshot_id,
+                destination=str(destination),
+                expected_relative_paths=expected,
+            )
         )
         workdir = str(resolved["workdir"])
         return {
@@ -71,6 +79,48 @@ class StartMaterializer:
             ),
             "adapter_kind": adapter_kind,
             "arguments": arguments,
+        }
+
+    def _existing(self, snapshot_id: str, destination: Path) -> Mapping[str, object] | None:
+        """已物化的同一 run：逐文件核对字节后返回同一冻结映射；不一致则返回 None 走正常物化。"""
+        if not destination.is_dir():
+            return None
+        record = self._snapshots.read_pinned(snapshot_id)
+        raw = record.get("files") if isinstance(record, Mapping) else None
+        if not isinstance(raw, (list, tuple)) or not raw:
+            return None
+        entries: list[dict[str, object]] = []
+        for item in raw:
+            if not isinstance(item, Mapping):
+                return None
+            name, digest, size = item.get("relative_path"), item.get("sha256"), item.get("size")
+            if not isinstance(name, str) or not isinstance(digest, str) or type(size) is not int:
+                return None
+            actual = destination / name
+            try:
+                if not actual.is_file() or actual.stat().st_size != size:
+                    return None
+                content = actual.read_bytes()
+            except OSError:
+                return None
+            if hashlib.sha256(content).hexdigest() != digest:
+                return None
+            entries.append(
+                {
+                    "relative_path": name,
+                    "actual_path": actual.resolve().as_posix(),
+                    "sha256": "sha256:" + digest,
+                    "size": size,
+                }
+            )
+        encoded = json.dumps(
+            entries, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        return {
+            "snapshot_id": snapshot_id,
+            "workdir": destination.resolve().as_posix(),
+            "paths": entries,
+            "source_binding_digest": "sha256:" + hashlib.sha256(encoded).hexdigest(),
         }
 
     def workdir(self, run_id: str) -> Path:
