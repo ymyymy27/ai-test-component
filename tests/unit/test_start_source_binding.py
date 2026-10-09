@@ -338,6 +338,28 @@ def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
         observed_entry="public-python",
     )
     assert with_entry["registered_entry"] == "public-python"
+    with_interpreter = resolver.admit_start(
+        snapshot_id=snapshot_id,
+        destination=str(destination),
+        cwd_mapping="workdir:.",
+        frozen_arguments=arguments,
+        actual_arguments=arguments,
+        adapter_versions={"command": "1.0.0"},
+        frozen_interpreter="python:" + "a" * 64,
+        observed_executable="python:" + "a" * 64,
+    )
+    assert with_interpreter["interpreter"] == "python:" + "a" * 64
+    with pytest.raises(SourceBindingUnverified):
+        resolver.admit_start(
+            snapshot_id=snapshot_id,
+            destination=str(destination),
+            cwd_mapping="workdir:.",
+            frozen_arguments=arguments,
+            actual_arguments=arguments,
+            adapter_versions={"command": "1.0.0"},
+            frozen_interpreter="python:" + "a" * 64,
+            observed_executable="python:" + "b" * 64,
+        )
     for frozen_entry, observed_entry in (
         ("public-python", "other-entry"),
         ("public-python", ""),

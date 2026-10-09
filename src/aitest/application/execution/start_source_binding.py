@@ -75,6 +75,8 @@ class StartSourceBindingResolver:
         expected_source_binding_digest: str | None = None,
         frozen_entry: str | None = None,
         observed_entry: str | None = None,
+        frozen_interpreter: str | None = None,
+        observed_executable: str | None = None,
     ) -> Mapping[str, object]:
         """一次 start 准入：物化映射核对 + 裁定 1A/2A/3A；任一步失败即抛出来源阻塞。
 
@@ -102,6 +104,11 @@ class StartSourceBindingResolver:
         if frozen_entry is not None or observed_entry is not None:
             admitted["registered_entry"] = self.require_registered_entry(
                 frozen_entry=str(frozen_entry), observed_entry=str(observed_entry)
+            )
+        if frozen_interpreter is not None or observed_executable is not None:
+            admitted["interpreter"] = self.require_interpreter(
+                frozen_interpreter=str(frozen_interpreter),
+                observed_executable=str(observed_executable),
             )
         return admitted
 
