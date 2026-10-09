@@ -10,6 +10,8 @@
 
 ### 2026-10-09
 
+- 实现 start 物化组件（未接入默认装配）：StartMaterializer 把固定快照物化到 workdirs/<run_id>（拒绝空/`.`/`..`/含分隔符或盘符的 run 标识，并核对不越出 workdirs），期望清单取自 read_pinned 冻结清单并要求映射恰好覆盖，随后完成映射六处核对与 cwd 受限解析；**校验先于写盘**。测试暴露并修复"先落盘后拒绝"缺陷。5 项回归（真实物化/越界标识拒绝/非空目标拒绝/多适配器键先阻塞/未知快照拒绝），相关套件共 273 passed/1 skipped，Ruff/Mypy227文件通过。
+
 - 实现生产动作解析器（未接入默认装配）：SavedActionResolver 从冻结绑定/快照/环境构造 Attempt 与 ExecutionRequest，强制入口适配器等于 adapter_versions 唯一键、参数逐字一致，截止取冻结步骤毫秒，来源映射摘要来自 start 准入；attempt_index 与副作用类别由注入提供者给出；失败统一抛内部 ActionResolutionBlocked。14 项回归（1正13反）与相关套件共 271 passed/1 skipped，Ruff/Mypy226文件通过。接线与默认装配注入留待真实端到端一次完成，避免有准入无执行或伪造能力。
 
 - DEC-010 实施完成（非破坏性口径）：按接口规则"破坏性变更提升主版本"，改为不动冻结对外字段——CD-001 升1.17澄清条目（SourceVerificationFact.expected_source_binding_digest 字段名与 execution-facts/1.0 形状不变，含义为来源内容期望摘要、非BC-001第6节映射摘要），仅C内部类型改名 expected_source_content_digest 并由 facts.py 显式映射；对外Schema、已保存材料与D侧均不迁移；受影响回归274 passed/1 skipped，Ruff/Mypy225文件与check_versions(0.4.0)通过。
