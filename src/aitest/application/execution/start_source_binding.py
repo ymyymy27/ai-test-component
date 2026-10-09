@@ -78,6 +78,7 @@ class StartSourceBindingResolver:
         observed_entry: str | None = None,
         frozen_interpreter: str | None = None,
         observed_executable: str | None = None,
+        verification: ExecutionSourceVerification | None = None,
     ) -> Mapping[str, object]:
         """一次 start 准入：物化映射核对 + 裁定 1A/2A/3A；任一步失败即抛出来源阻塞。
 
@@ -111,6 +112,10 @@ class StartSourceBindingResolver:
                 frozen_interpreter=str(frozen_interpreter),
                 observed_executable=str(observed_executable),
             )
+        if verification is not None:
+            admitted["source_verification_state"] = self.require_verified_source(
+                verification
+            ).state.value
         return admitted
 
     def failure_receipt(self, reason: str) -> Mapping[str, object]:

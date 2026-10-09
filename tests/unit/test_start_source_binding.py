@@ -303,7 +303,10 @@ def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
 
 
 def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
-    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+    store: FileSourceSnapshotStore,
+    source: Path,
+    tmp_path: Path,
+    verification_factory: Callable[[SourceVerificationState], ExecutionSourceVerification],
 ) -> None:
     """一次 start 准入：六处核对 + 裁定 1A/2A/3A 全部通过才返回可用事实。"""
     pinned = store.pin(canonical_path=str(source), purpose="prepare")
@@ -351,6 +354,26 @@ def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
         observed_executable="python:" + "a" * 64,
     )
     assert with_interpreter["interpreter"] == "python:" + "a" * 64
+    with_verified = resolver.admit_start(
+        snapshot_id=snapshot_id,
+        destination=str(destination),
+        cwd_mapping="workdir:.",
+        frozen_arguments=arguments,
+        actual_arguments=arguments,
+        adapter_versions={"command": "1.0.0"},
+        verification=verification_factory(SourceVerificationState.VERIFIED),
+    )
+    assert with_verified["source_verification_state"] == "verified"
+    with pytest.raises(SourceBindingUnverified):
+        resolver.admit_start(
+            snapshot_id=snapshot_id,
+            destination=str(destination),
+            cwd_mapping="workdir:.",
+            frozen_arguments=arguments,
+            actual_arguments=arguments,
+            adapter_versions={"command": "1.0.0"},
+            verification=verification_factory(SourceVerificationState.MISMATCH),
+        )
     with pytest.raises(SourceBindingUnverified):
         resolver.admit_start(
             snapshot_id=snapshot_id,
