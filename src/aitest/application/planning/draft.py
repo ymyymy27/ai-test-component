@@ -69,8 +69,9 @@ def load_template(template_ref: TemplateRef) -> TemplatePack:
     当前发布布局是 `<template_id>/<version>.json` 单文件
     （架构文档第 3 节描述的 `manifest.json` + 子目录与仓库实际不一致，已登记为 D-01，以代码为准）。
     """
-    directory = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(
-        TEMPLATE_RESOURCE_DIR, template_ref.template_id
+    # 逐段 joinpath：3.11 的 `MultiplexedPath.joinpath` 只接受一个参数（多参数自 3.12 起）。
+    directory = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(TEMPLATE_RESOURCE_DIR).joinpath(
+        template_ref.template_id
     )
     source = directory.joinpath(f"{template_ref.version}.json")
     if not source.is_file():

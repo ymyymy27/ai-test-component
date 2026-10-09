@@ -5,6 +5,7 @@ import json
 import pytest
 
 from aitest.bootstrap import assemble_workspace_core
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.workspace import Workspace
 
 
@@ -53,8 +54,8 @@ def test_replaced_identity_with_duplicate_epoch_is_not_overwritten(tmp_path):
 def test_bootstrap_rejects_raw_root_junction_before_resolving(tmp_path, monkeypatch):
     root = tmp_path / "junction"
     root.mkdir()
-    original = type(root).is_junction
-    monkeypatch.setattr(type(root), "is_junction", lambda path: path == root or original(path))
+    original = compat.is_junction
+    monkeypatch.setattr(compat, "is_junction", lambda path: path == root or original(path))
     with pytest.raises(ValueError, match="link"):
         core = assemble_workspace_core(root, instance_id="junction-negative")
         core.lifetime_lock.release()

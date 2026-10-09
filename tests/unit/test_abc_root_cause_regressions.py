@@ -39,6 +39,7 @@ from aitest.domain.execution.runs import (
 )
 from aitest.domain.execution.sources import SourceVerificationState
 from aitest.domain.planning.model_outbound import ModelOutboundPolicy
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.adapters.execution.external_result import (
     ExternalResultAdapter,
@@ -817,7 +818,7 @@ def test_backup_refuses_junction_parent_before_any_restore_write(tmp_path: Path)
     outside.mkdir()
     link = tmp_path / "junction"
     _winapi.CreateJunction(str(outside), str(link))
-    assert link.is_junction()
+    assert compat.is_junction(link)
     with pytest.raises(BackupError, match="链接"):
         FileBackupStore(unit.workspace.root).restore(backup=backup, target=link / "new-target")
     assert not list(outside.iterdir())

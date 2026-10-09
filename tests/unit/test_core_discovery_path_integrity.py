@@ -8,6 +8,7 @@ import pytest
 
 import aitest.bootstrap as bootstrap
 from aitest.application.errors import WorkspaceInUse
+from aitest.infrastructure import path_compat as compat
 
 
 @pytest.mark.parametrize("entry", ["acquire", "shutdown"])
@@ -22,7 +23,7 @@ def test_public_entry_rejects_junction_before_any_host_or_target_access(
         ["cmd", "/c", "mklink", "/J", str(link), str(target)],
         capture_output=True,
     )
-    assert result.returncode == 0 and link.is_junction()
+    assert result.returncode == 0 and compat.is_junction(link)
     calls = []
     monkeypatch.setattr(
         bootstrap,
@@ -43,7 +44,7 @@ def test_public_entry_rejects_junction_before_any_host_or_target_access(
         assert calls == [] and list(target.rglob("*")) == []
     finally:
         # Remove the junction itself, never recursively delete its target.
-        assert link.is_junction() and target.is_dir()
+        assert compat.is_junction(link) and target.is_dir()
         link.rmdir()
 
 

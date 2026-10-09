@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore, SnapshotError
 from aitest.infrastructure.security import KnownSecretRegistry
 
@@ -74,7 +75,7 @@ def test_snapshot_rejects_real_junction_ancestors_before_writing(tmp_path, use):
     result = subprocess.run(
         ["cmd", "/c", "mklink", "/J", str(junction), str(source)], capture_output=True
     )
-    assert result.returncode == 0 and junction.is_junction()
+    assert result.returncode == 0 and compat.is_junction(junction)
     before = (source / "main.py").read_bytes()
     if use == "detect_changes":
         # Replace the original directory with a junction to identical bytes: it
@@ -84,7 +85,7 @@ def test_snapshot_rejects_real_junction_ancestors_before_writing(tmp_path, use):
         result = subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(source), str(original)], capture_output=True
         )
-        assert result.returncode == 0 and source.is_junction()
+        assert result.returncode == 0 and compat.is_junction(source)
         drift = store.detect_changes(pinned["snapshot_id"])
         assert drift["state"] == "unknown" and drift["changed"] is True
         assert (original / "main.py").read_bytes() == before

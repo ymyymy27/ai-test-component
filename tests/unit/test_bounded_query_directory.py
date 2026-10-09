@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from aitest.contracts.queries import QuerySpec
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store import atomic, ordered_index
 from aitest.infrastructure.file_store.index import (
     _ALL_FAMILIES,
@@ -479,7 +480,7 @@ def test_index_directory_link_is_rejected_before_any_tree_write(tmp_path, monkey
 
     directory = tmp_path / "indexes/records-kind"
     actual = Path.is_junction
-    monkeypatch.setattr(Path, "is_junction", lambda path: path == directory or actual(path))
+    monkeypatch.setattr(compat, "is_junction", lambda path: path == directory or actual(path))
     with pytest.raises(ValueError, match="filesystem link"):
         _ShardDirectory(tmp_path, "records-kind", 8).bulk_build(
             [(("p",), {"record_id": "a"})],

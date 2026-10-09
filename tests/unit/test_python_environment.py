@@ -26,7 +26,9 @@ def carrier(tmp_path):
     venv.EnvBuilder(with_pip=False, symlinks=False).create(root)
     executable = root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     dependencies = root / (
-        "Lib/site-packages" if os.name == "nt" else "lib/python3.13/site-packages"
+        "Lib/site-packages"
+        if os.name == "nt"
+        else f"lib/python{sys.version_info[0]}.{sys.version_info[1]}/site-packages"
     )
     base = Path(sys._base_executable).resolve()
     return PythonEnvironmentCarrier(
@@ -43,9 +45,9 @@ def carrier(tmp_path):
 
 
 def request(**changes):
-    return replace(
-        EnvironmentResolutionRequest("project", "environment", "venv", "Python 3.13"), **changes
-    )
+    # 声明**当前运行解释器**的版本：门禁按登记声明比对观测版本，故测试须随解释器版本变化。
+    running = f"Python {sys.version_info[0]}.{sys.version_info[1]}"
+    return replace(EnvironmentResolutionRequest("project", "environment", "venv", running), **changes)
 
 
 def test_actual_registered_python_proves_exact_version_executable_and_stable_dependencies(carrier):

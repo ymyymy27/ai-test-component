@@ -10,6 +10,7 @@ import pytest
 from aitest.application.evidence.publication import EvidencePublicationContext, EvidencePublisher
 from aitest.domain.evidence.evidence import CodeIdentity, SourceBindingKind
 from aitest.domain.execution.runs import CapturedOutputBlock, OutputBlockRef, OutputStreamName
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 from aitest.infrastructure.security import KnownSecretRegistry
@@ -136,7 +137,7 @@ def test_object_project_directory_cannot_alias_another_project(tmp_path):
     ref = objects.publish_bytes("project-1", b"safe\n")
     link = tmp_path / "objects/project-2"
     _winapi.CreateJunction(str(tmp_path / "objects/project-1"), str(link))
-    assert link.is_junction()
+    assert compat.is_junction(link)
     before = (tmp_path / ref.relative_path).read_bytes()
     with pytest.raises(ValueError, match="link"):
         objects.publish_bytes("project-2", b"other\n")
