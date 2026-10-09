@@ -101,3 +101,16 @@ end-to-end case and the real rejected-materialization case (a missing pinned blo
 The one skip is the directory-symlink precondition (host privilege), reported honestly and
 never counted as a pass.
 
+Fifth run — final certification at the end of the session
+---------------------------------------------------------
+
+HEAD: 7705301. Same full command as the second and fourth runs:
+
+  463 passed, 1 skipped in 856.16s (0:14:16), exit 0
+
+Identical node count to the fourth run (the later commits changed only the interpreter
+comparison to the existing `resolve()` convention, comments, checklists, handoff, CHANGELOG
+and evidence indexes, plus this run's own record). The one skip is again the host's missing
+directory-symlink privilege. Boundary unchanged: component/packaging evidence only; not real
+Trae, real provider, physical power-loss or the 35 acceptance criteria.
+
