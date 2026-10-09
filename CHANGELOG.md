@@ -10,6 +10,8 @@
 
 ### 2026-10-09
 
+- 按裁定实现 start 准入：`cwd_mapping` 受限相对前缀与链接逃逸拒绝、执行参数逐字取自冻结绑定、适配器由 `adapter_versions` 唯一键决定、四类来源失败不可重试并登记 `source_unverified` 缺口，并组合为 `admit_start`；AB-001 升至1.35（单方裁定待双方确认）。该文件26项通过/1项如实skip，Ruff与Mypy225文件通过；尚未接入默认装配，ABC仍21整项。见[裁定记录](docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)。
+
 - start来源绑定解析补三处强化：冻结期望必须被映射**恰好覆盖**（缺/多/重复/空白拒绝）、物化**自述workdir**必须等于请求的固定workdir、`materialize`拒绝分支反例（保持`refused`且不返回映射摘要）；相关回归18项通过，Ruff/Mypy225文件通过，ABC仍21整项。见[记录](docs/修改日志/袁/2026-10-09-start来源绑定解析与映射摘要.md)。
 
 - 验证与打包证据：两轮汇总回归418→**447 passed**（HEAD `40b8ef3`），`uv build` 产出0.4.0 wheel 729363 B/sdist 593691 B，隔离wheel冒烟通过（需把TEMP/TMP指向工作区内）；非真实Trae/供应方/掉电/35项AC。见[汇总回归](docs/validation/p1-abc-remaining-20261004/session-consolidated-regression-2026-10-09.txt)与[构建记录](docs/validation/p1-abc-remaining-20261004/build-and-wheel-smoke-2026-10-09.txt)。

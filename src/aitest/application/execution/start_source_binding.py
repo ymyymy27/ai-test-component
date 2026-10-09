@@ -62,6 +62,42 @@ class StartSourceBindingResolver:
     def __init__(self, snapshots: SourceSnapshotPort) -> None:
         self._snapshots = snapshots
 
+    def admit_start(
+        self,
+        *,
+        snapshot_id: str,
+        destination: str,
+        cwd_mapping: str,
+        frozen_arguments: Sequence[str],
+        actual_arguments: Sequence[str],
+        adapter_versions: Mapping[str, str],
+        expected_relative_paths: Sequence[str] | None = None,
+        expected_source_binding_digest: str | None = None,
+    ) -> Mapping[str, object]:
+        """一次 start 准入：物化映射核对 + 裁定 1A/2A/3A；任一步失败即抛出来源阻塞。
+
+        只在全部核对通过后返回可直接用于 start 的事实（workdir/cwd/参数/适配器/摘要）。
+        本方法不启动执行、不写运行事实；默认装配尚未注入。
+        """
+        resolved = self.resolve(
+            snapshot_id=snapshot_id,
+            destination=destination,
+            expected_relative_paths=expected_relative_paths,
+            expected_source_binding_digest=expected_source_binding_digest,
+        )
+        workdir = str(resolved["workdir"])
+        return {
+            "snapshot_id": resolved["snapshot_id"],
+            "workdir": workdir,
+            "paths": resolved["paths"],
+            "source_binding_digest": resolved["source_binding_digest"],
+            "cwd": self.resolve_cwd(workdir=workdir, cwd_mapping=cwd_mapping),
+            "arguments": self.require_frozen_arguments(
+                frozen=frozen_arguments, actual=actual_arguments
+            ),
+            "adapter_kind": self.resolve_adapter_kind(adapter_versions),
+        }
+
     def failure_receipt(self, reason: str) -> Mapping[str, object]:
         """按裁定 4A：start 前四类来源失败一律为不可重试阻塞，并登记来源证据缺口。
 

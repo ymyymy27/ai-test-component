@@ -300,6 +300,52 @@ def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
         )
 
 
+def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """一次 start 准入：六处核对 + 裁定 1A/2A/3A 全部通过才返回可用事实。"""
+    pinned = store.pin(canonical_path=str(source), purpose="prepare")
+    snapshot_id = str(pinned["snapshot_id"])
+    destination = tmp_path / "workdir"
+    materialized = store.materialize(snapshot_id, str(destination))
+    resolver = StartSourceBindingResolver(_Stub(materialized))  # type: ignore[arg-type]
+    arguments = ("-m", "pytest", "tests/acceptance")
+
+    admitted = resolver.admit_start(
+        snapshot_id=snapshot_id,
+        destination=str(destination),
+        cwd_mapping="workdir:.",
+        frozen_arguments=arguments,
+        actual_arguments=arguments,
+        adapter_versions={"command": "1.0.0"},
+        expected_relative_paths=["main.py", "pkg/util.py"],
+        expected_source_binding_digest=str(materialized["content_digest"]),
+    )
+    assert admitted["workdir"] == destination.resolve().as_posix()
+    assert admitted["cwd"] == destination.resolve().as_posix()
+    assert admitted["arguments"] == arguments
+    assert admitted["adapter_kind"] == "command"
+    assert admitted["source_binding_digest"] == materialized["content_digest"]
+
+    for overrides in (
+        {"cwd_mapping": "workdir:../outside"},
+        {"actual_arguments": ("-m", "pytest", "tests/other")},
+        {"adapter_versions": {"command": "1.0.0", "python": "1.0.0"}},
+        {"expected_relative_paths": ["main.py"]},
+        {"expected_source_binding_digest": "sha256:" + "b" * 64},
+    ):
+        call = {
+            "snapshot_id": snapshot_id,
+            "destination": str(destination),
+            "cwd_mapping": "workdir:.",
+            "frozen_arguments": arguments,
+            "actual_arguments": arguments,
+            "adapter_versions": {"command": "1.0.0"},
+        } | overrides
+        with pytest.raises(SourceBindingUnverified):
+            resolver.admit_start(**call)  # type: ignore[arg-type]
+
+
 def test_start_failures_are_non_retryable_with_a_source_gap() -> None:
     """裁定 4A：四类 start 前失败一律不可重试阻塞并登记 source_unverified 缺口。"""
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
