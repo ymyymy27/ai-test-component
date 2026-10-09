@@ -104,10 +104,18 @@ class StartSourceBindingResolver:
             "adapter_kind": self.resolve_adapter_kind(adapter_versions),
         }
         if frozen_entry is not None or observed_entry is not None:
+            if frozen_entry is None or observed_entry is None:
+                raise SourceBindingUnverified(
+                    "both the frozen and the observed registered entry are required"
+                )
             admitted["registered_entry"] = self.require_registered_entry(
                 frozen_entry=str(frozen_entry), observed_entry=str(observed_entry)
             )
         if frozen_interpreter is not None or observed_executable is not None:
+            if frozen_interpreter is None or observed_executable is None:
+                raise SourceBindingUnverified(
+                    "both the frozen interpreter and the observed executable are required"
+                )
             admitted["interpreter"] = self.require_interpreter(
                 frozen_interpreter=str(frozen_interpreter),
                 observed_executable=str(observed_executable),

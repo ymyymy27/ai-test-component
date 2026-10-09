@@ -385,6 +385,23 @@ def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
             frozen_interpreter="python:" + "a" * 64,
             observed_executable="python:" + "b" * 64,
         )
+    # 只给一侧身份时必须明确拒绝，不能拿 "None" 参与比较
+    for one_sided in (
+        {"frozen_entry": "public-python"},
+        {"observed_entry": "public-python"},
+        {"frozen_interpreter": "python:" + "a" * 64},
+        {"observed_executable": "python:" + "a" * 64},
+    ):
+        call = {
+            "snapshot_id": snapshot_id,
+            "destination": str(destination),
+            "cwd_mapping": "workdir:.",
+            "frozen_arguments": arguments,
+            "actual_arguments": arguments,
+            "adapter_versions": {"command": "1.0.0"},
+        } | one_sided
+        with pytest.raises(SourceBindingUnverified):
+            resolver.admit_start(**call)  # type: ignore[arg-type]
     for frozen_entry, observed_entry in (
         ("public-python", "other-entry"),
         ("public-python", ""),
