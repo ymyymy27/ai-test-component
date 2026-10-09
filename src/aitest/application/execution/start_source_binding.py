@@ -20,8 +20,10 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Final
 
 from aitest.application.ports import SourceSnapshotPort
+from aitest.domain.evidence.evidence import EvidenceGapKind
 
 _DIGEST_PREFIX = "sha256:"
 _CWD_PREFIX = "workdir:"
@@ -39,6 +41,17 @@ def _escapes_via_link(root: Path, candidate: Path) -> bool:
     return False
 
 
+#: 裁定 4A：start 前的四类来源失败。
+_START_SOURCE_FAILURES: Final[frozenset[str]] = frozenset(
+    {
+        "entry_missing",
+        "source_mismatch",
+        "environment_unregistered",
+        "materialization_failed",
+    }
+)
+
+
 class SourceBindingUnverified(ValueError):
     code = "SOURCE_BINDING_UNVERIFIED"
 
@@ -48,6 +61,24 @@ class StartSourceBindingResolver:
 
     def __init__(self, snapshots: SourceSnapshotPort) -> None:
         self._snapshots = snapshots
+
+    def failure_receipt(self, reason: str) -> Mapping[str, object]:
+        """按裁定 4A：start 前四类来源失败一律为不可重试阻塞，并登记来源证据缺口。
+
+        依据需求 P1-AC03/13/25（"来源无法证明不得声称该源码完整通过"、"启动前核对实际来源，
+        不符则阻塞"）与 AGENTS 第4节（按具体动作的真实依赖降级，不扩散为全部核心能力故障）：
+        回执只声明本次动作的来源不可核实，缺口取领域既有的 `source_unverified`；
+        登记、查询、模板与本地保存等不依赖该动作的能力不受影响。
+        """
+        if reason not in _START_SOURCE_FAILURES:
+            raise SourceBindingUnverified(f"unknown start source failure: {reason}")
+        return {
+            "code": SourceBindingUnverified.code,
+            "retryable": False,
+            "gap": str(EvidenceGapKind.SOURCE_UNVERIFIED),
+            "reason": reason,
+            "next_step": "核对冻结来源与实际物化材料；如需更换入口或参数，请重新 prepare",
+        }
 
     def resolve_cwd(self, *, workdir: str, cwd_mapping: str) -> str:
         """按裁定 1A 解析冻结的工作目录映射（`workdir:<安全相对路径>`）。

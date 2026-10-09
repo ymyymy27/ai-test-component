@@ -300,6 +300,26 @@ def test_workdir_must_be_the_requested_fixed_workdir(tmp_path: Path) -> None:
         )
 
 
+def test_start_failures_are_non_retryable_with_a_source_gap() -> None:
+    """裁定 4A：四类 start 前失败一律不可重试阻塞并登记 source_unverified 缺口。"""
+    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+    for reason in (
+        "entry_missing",
+        "source_mismatch",
+        "environment_unregistered",
+        "materialization_failed",
+    ):
+        receipt = resolver.failure_receipt(reason)
+        assert receipt["code"] == SourceBindingUnverified.code
+        assert receipt["retryable"] is False
+        assert receipt["gap"] == "source_unverified"
+        assert receipt["reason"] == reason
+        assert "重新 prepare" in str(receipt["next_step"])
+    for unknown in ("", "unknown", "network_down"):
+        with pytest.raises(SourceBindingUnverified):
+            resolver.failure_receipt(unknown)
+
+
 def test_entry_arguments_are_taken_verbatim_from_the_frozen_binding(tmp_path: Path) -> None:
     """裁定 2A：执行参数逐字取自冻结绑定，不接受代入或改写。"""
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
