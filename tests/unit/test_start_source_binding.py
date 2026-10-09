@@ -346,6 +346,37 @@ def test_admit_start_combines_mapping_cwd_arguments_and_adapter(
             resolver.admit_start(**call)  # type: ignore[arg-type]
 
 
+def test_admit_start_end_to_end_on_real_files(
+    store: FileSourceSnapshotStore, source: Path, tmp_path: Path
+) -> None:
+    """真实物化端到端：一次 admit_start 走真实适配器，落在真实文件与真实目录上。"""
+    pinned = store.pin(canonical_path=str(source), purpose="prepare")
+    snapshot_id = str(pinned["snapshot_id"])
+    manifest = [
+        item["relative_path"] for item in store.read_pinned(snapshot_id)["files"]
+    ]
+    destination = tmp_path / "workdir-e2e"
+
+    admitted = StartSourceBindingResolver(store).admit_start(
+        snapshot_id=snapshot_id,
+        destination=str(destination),
+        cwd_mapping="workdir:pkg",
+        frozen_arguments=("tests/acceptance",),
+        actual_arguments=("tests/acceptance",),
+        adapter_versions={"command": "1.0.0"},
+        expected_relative_paths=manifest,
+    )
+
+    assert admitted["workdir"] == destination.resolve().as_posix()
+    assert admitted["cwd"] == (destination / "pkg").resolve().as_posix()
+    assert Path(admitted["cwd"]).is_dir()
+    assert admitted["adapter_kind"] == "command"
+    assert admitted["arguments"] == ("tests/acceptance",)
+    assert str(admitted["source_binding_digest"]).startswith("sha256:")
+    for item in admitted["paths"]:  # type: ignore[union-attr]
+        assert Path(item["actual_path"]).is_file()
+
+
 def test_start_failures_are_non_retryable_with_a_source_gap() -> None:
     """裁定 4A：四类 start 前失败一律不可重试阻塞并登记 source_unverified 缺口。"""
     resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
