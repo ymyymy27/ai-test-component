@@ -10,7 +10,7 @@
 
 ### 2026-10-09
 
-- 放宽 Python 版本下限至 `>=3.11,<3.14`（一期验收仍以 3.13 为准）：`ruff`/`mypy` 目标 `py311`/`3.11`；把 7 处 PEP 695 类型参数（3.12+ 语法）改回既有 `TypeVar` 写法；新增 `infrastructure/path_compat.py` 统一 `Path.is_junction`（3.12+）的 3.11 等价实现（重解析点标签，非符号链接、POSIX 恒假），13 处调用改为经该 seam；`ntpath.isreserved`（3.13+）的 3.11 回退补齐两侧空格/点号处理；解释器门禁改为按登记声明比对主.次（可选补丁）版本，POSIX `site-packages` 目录按实际解释器匹配。**真实 Python 3.11.9 运行验证**：核心启动/解析器/架构 87 项通过，全量单元+合同+架构套件随附结果；3.13 上受影响套件 615 passed / 4 skipped。一期验收范围不变。
+- 放宽 Python 版本下限至 `>=3.11,<3.14`（一期验收仍以 3.13 为准）：`ruff`/`mypy` 目标 `py311`/`3.11`；把 7 处 PEP 695 类型参数（3.12+ 语法）改回既有 `TypeVar` 写法；新增 `infrastructure/path_compat.py` 统一 `Path.is_junction`（3.12+）的 3.11 等价实现（重解析点标签，非符号链接、POSIX 恒假），13 处源码调用与 6 处测试 monkeypatch 统一经该 seam；`ntpath.isreserved`（3.13+）的 3.11 回退按**同语义**实现（尾随空格/点号、非法字符、控制字符、备用数据流冒号、设备名；与 3.13 原生逐名对照 32 例 0 不一致）；`planning/draft.py` 双参数 `joinpath` 改逐段调用（3.11 的 `MultiplexedPath.joinpath` 只收一个参数）；解释器门禁改为按登记声明比对主.次（可选补丁）版本，POSIX `site-packages` 目录按实际解释器匹配。**真机 Python 3.11.9 验证**：首次全量真跑 4757 passed / 85 failed（失败四类已全部修复并复验：3.11 上 112 passed ＋环境 22 passed，3.13 上同批 150 passed；全量 3.11 复跑进行中）。一期验收范围不变。
 
 - DEC-013 裁定并实现：副作用类别（side_effect_class）的冻结来源在一期分册中未定义，按最严口径统一取 unknown（不因缺字段放行受控确认、禁止由适配器反推只读/幂等），AB-001 升至1.38；同时把尝试序号的运行事实读取由鸭子类型改为 ExecutionFacts 合同类型（mypy 可校验字段），解析器17项回归通过。
 
