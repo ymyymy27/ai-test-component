@@ -458,7 +458,7 @@ def _publication_result(result: PublicationResult, *, published_kind: str) -> Ma
     return header
 
 
-def _enum_or[E: StrEnum](enum: type[E], value: object, name: str, default: E) -> E:
+def _enum_or(enum: type[_StrEnumT], value: object, name: str, default: _StrEnumT) -> _StrEnumT:
     """可选枚举：缺省时用领域默认值，给了就必须合法。"""
     if value is None:
         return default
@@ -598,7 +598,7 @@ def _required(parameters: Mapping[str, object], name: str) -> object:
     return parameters[name]
 
 
-def _model_of[M: BaseModel](model: type[M], value: object, name: str) -> M:
+def _model_of(model: type[_ModelT], value: object, name: str) -> _ModelT:
     """按 `contracts` 的模型解析一个参数；失败时报**字段名**而不是堆栈。"""
     try:
         return model.model_validate(value)
@@ -608,7 +608,7 @@ def _model_of[M: BaseModel](model: type[M], value: object, name: str) -> M:
         ) from error
 
 
-def _models_of[M: BaseModel](model: type[M], value: object, name: str) -> tuple[M, ...]:
+def _models_of(model: type[_ModelT], value: object, name: str) -> tuple[_ModelT, ...]:
     if value is None:
         return ()
     if not isinstance(value, list):
@@ -627,7 +627,7 @@ def _text_list(value: object, name: str) -> tuple[str, ...]:
     return tuple(out)
 
 
-def _enum_of[E: StrEnum](enum: type[E], value: object, name: str) -> E:
+def _enum_of(enum: type[_StrEnumT], value: object, name: str) -> _StrEnumT:
     text = _as_text(value, name)
     try:
         return enum(text)

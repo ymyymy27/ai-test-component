@@ -29,6 +29,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import IO, Final
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.atomic import write_json
 from aitest.infrastructure.file_store.source_material import (
     MAX_METADATA_BYTES,
@@ -127,7 +128,7 @@ def _is_safe_relative(value: str) -> bool:
 
 
 def _has_link_ancestor(path: Path) -> bool:
-    return any(item.is_symlink() or item.is_junction() for item in (path, *path.parents))
+    return any(item.is_symlink() or compat.is_junction(item) for item in (path, *path.parents))
 
 
 def _files(record: dict[str, object]) -> list[dict[str, object]]:

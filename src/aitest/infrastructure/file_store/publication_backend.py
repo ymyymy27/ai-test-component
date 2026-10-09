@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import guard_bytes
 
 from . import atomic
@@ -38,7 +39,7 @@ def _canonical(value: object) -> bytes:
 
 
 def _reject_links(path: Path) -> None:
-    if any(p.is_symlink() or p.is_junction() for p in (path, *path.parents)):
+    if any(p.is_symlink() or compat.is_junction(p) for p in (path, *path.parents)):
         raise PublicationUncertainError("publication path contains a filesystem link")
 
 

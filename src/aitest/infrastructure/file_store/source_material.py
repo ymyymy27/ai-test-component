@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import (
     KnownSecretRegistry,
     UnsafeMaterialError,
@@ -85,7 +86,7 @@ def prospective_source_authority(
 
 
 def reject_links(path: Path) -> None:
-    if any(p.is_symlink() or p.is_junction() for p in (path, *path.parents)):
+    if any(p.is_symlink() or compat.is_junction(p) for p in (path, *path.parents)):
         raise SourceMaterialError("pinned source material path contains a filesystem link")
 
 

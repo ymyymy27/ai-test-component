@@ -10,6 +10,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.infrastructure import path_compat as compat
 
 from ..security import KnownSecretRegistry, guard_bytes, known_secrets
 
@@ -23,7 +24,7 @@ def _safe_component(value: str, name: str) -> str:
 
 
 def _reject_links(path: Path) -> None:
-    if any(item.is_symlink() or item.is_junction() for item in (path, *path.parents)):
+    if any(item.is_symlink() or compat.is_junction(item) for item in (path, *path.parents)):
         raise ValueError("object path cannot traverse a link")
 
 

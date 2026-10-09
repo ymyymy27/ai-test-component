@@ -22,6 +22,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from aitest.infrastructure import path_compat as compat
+
 
 class GitUnavailable(RuntimeError):
     """git CLI 不存在或无法执行。"""
@@ -277,7 +279,7 @@ class GitSourceControl:
                 or ".." in Path(name).parts
                 or not candidate.resolve().is_relative_to(root.resolve())
                 or any(
-                    part.is_symlink() or part.is_junction()
+                    part.is_symlink() or compat.is_junction(part)
                     for part in (candidate, *candidate.parents)
                 )
             ):

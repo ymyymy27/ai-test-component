@@ -7,7 +7,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import TypeAdapter
 
@@ -244,7 +244,10 @@ def _text(value: object, name: str) -> str:
     return value
 
 
-def _strict_result[T](adapter: TypeAdapter[T], raw: object) -> T:
+_StrictT = TypeVar("_StrictT")
+
+
+def _strict_result(adapter: TypeAdapter[_StrictT], raw: object) -> _StrictT:
     result = adapter.validate_json(json.dumps(raw, allow_nan=False), strict=True)
     if adapter.dump_python(result, mode="json") != raw:
         raise ValueError("execution receipt has unknown or noncanonical fields")

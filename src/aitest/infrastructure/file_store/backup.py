@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Final
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import (
     KnownSecretRegistry,
     UnsafeMaterialError,
@@ -107,7 +108,7 @@ def _chain_has_symlink(raw_target: Path) -> bool:
     最近的现存祖先，再根→叶逐层检查；不存在的层 lstat 失败返回 False。
     """
     return any(
-        path.is_symlink() or path.is_junction() for path in (raw_target, *raw_target.parents)
+        path.is_symlink() or compat.is_junction(path) for path in (raw_target, *raw_target.parents)
     )
 
 

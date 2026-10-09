@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import guard_bytes, guard_value
 
 from .canonical_manifest import FIELDS as COMPLETE_FIELDS
@@ -94,7 +95,7 @@ class FileCommitStore:
 
     @staticmethod
     def reject_links(path: Path) -> None:
-        if any(part.is_symlink() or part.is_junction() for part in (path, *path.parents)):
+        if any(part.is_symlink() or compat.is_junction(part) for part in (path, *path.parents)):
             raise CommitMaterialError("commit material path contains a filesystem link")
 
     @staticmethod

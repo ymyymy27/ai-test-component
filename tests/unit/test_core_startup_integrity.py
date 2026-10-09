@@ -15,6 +15,7 @@ import pytest
 import aitest.bootstrap as bootstrap
 from aitest.application.errors import WorkspaceInUse
 from aitest.bootstrap import SystemProcessLauncher, await_core_launch_claim, make_pipe_connector
+from aitest.infrastructure import path_compat
 from aitest.infrastructure.file_store import core_launch
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.core_launch import FileCoreLaunchStore, ProcessFact
@@ -399,8 +400,10 @@ def test_known_credentials_block_before_any_startup_history_write(tmp_path, secr
 
 
 def test_junction_ancestor_is_rejected_before_claim_or_spawn(tmp_path, monkeypatch):
-    original = Path.is_junction
-    monkeypatch.setattr(Path, "is_junction", lambda path: path == tmp_path or original(path))
+    original = path_compat.is_junction
+    monkeypatch.setattr(
+        path_compat, "is_junction", lambda path: Path(path) == tmp_path or original(path)
+    )
     children = []
     monkeypatch.setattr(
         bootstrap.subprocess, "Popen", lambda *args, **kwargs: children.append(args)

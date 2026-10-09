@@ -24,6 +24,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Protocol
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.atomic import write_json
 from aitest.infrastructure.security import guard_value
 
@@ -183,7 +184,8 @@ class FileCapabilityConditionStore:
 
     def _check_path(self) -> None:
         if any(
-            path.is_symlink() or path.is_junction() for path in (self._path, *self._path.parents)
+            path.is_symlink() or compat.is_junction(path)
+            for path in (self._path, *self._path.parents)
         ):
             raise ValueError("capability state cannot traverse a link")
 

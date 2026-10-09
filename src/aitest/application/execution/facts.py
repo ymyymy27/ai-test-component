@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from typing import TypeVar
 
 from aitest.contracts.execution_facts import (
     AdapterKindFact,
@@ -196,7 +197,10 @@ def validate_frozen_run_basis(previous: ExecutionFacts, facts: ExecutionFacts) -
             raise ValueError("publication cannot rewrite the frozen coverage scope")
 
 
-def _enum[EnumT: StrEnum](enum_type: type[EnumT], value: str) -> EnumT:
+_StrEnumT = TypeVar("_StrEnumT", bound=StrEnum)
+
+
+def _enum(enum_type: type[_StrEnumT], value: str) -> _StrEnumT:
     return enum_type(value)
 
 

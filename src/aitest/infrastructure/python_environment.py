@@ -18,6 +18,7 @@ from aitest.contracts.prepared_run import (
     EnvironmentRefFact,
     EnvironmentResolutionFact,
 )
+from aitest.infrastructure import path_compat as compat
 
 
 def _digest(value: object) -> str:
@@ -89,7 +90,7 @@ class RegisteredPythonEnvironmentResolver:
     @staticmethod
     def _no_links(path: Path) -> None:
         for part in (path, *path.parents):
-            if part.is_symlink() or part.is_junction():
+            if part.is_symlink() or compat.is_junction(part):
                 raise ValueError("environment path contains an unsupported link")
 
     def _file_digest(self, path: Path) -> str:

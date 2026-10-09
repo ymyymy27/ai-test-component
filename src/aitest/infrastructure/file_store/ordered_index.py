@@ -15,6 +15,7 @@ from functools import cmp_to_key
 from pathlib import Path
 from typing import Any
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import guard_value
 
 from . import atomic
@@ -46,7 +47,7 @@ class OrderedIndexTree:
 
     @staticmethod
     def _reject_links(path: Path) -> None:
-        if any(part.is_symlink() or part.is_junction() for part in (path, *path.parents)):
+        if any(part.is_symlink() or compat.is_junction(part) for part in (path, *path.parents)):
             raise ValueError("ordered index path contains a filesystem link")
 
     @staticmethod

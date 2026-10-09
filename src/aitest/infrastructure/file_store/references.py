@@ -6,6 +6,7 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import UnsafeMaterialError, copy_unchanged_safe_bytes
 
 OBJECT_REFERENCE_KEYS = frozenset({"object_digest", "output_object_digest", "artifact_digest"})
@@ -65,7 +66,7 @@ def verify_record_objects(root: Path, body: Mapping[str, object], project_id: st
         raise ValueError("permanent object reference project is not a safe path component")
     for digest, expected_size in references.items():
         path = root / "objects" / project_id / digest.removeprefix("sha256:")
-        if any(part.is_symlink() or part.is_junction() for part in (path, *path.parents)):
+        if any(part.is_symlink() or compat.is_junction(part) for part in (path, *path.parents)):
             raise ValueError("permanent object reference path contains a filesystem link")
         try:
             if expected_size is not None and path.stat().st_size != expected_size:

@@ -8,7 +8,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass, replace
 from hashlib import sha256
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import TypeAdapter
 
@@ -47,7 +47,10 @@ def _payload(value: object) -> dict[str, Any]:
     return dict(TypeAdapter(type(value)).dump_python(value, mode="json"))
 
 
-def _decode[RecordT](record_type: type[RecordT], raw: object) -> RecordT:
+_RecordT = TypeVar("_RecordT")
+
+
+def _decode(record_type: type[_RecordT], raw: object) -> _RecordT:
     try:
         if (
             not is_dataclass(record_type)

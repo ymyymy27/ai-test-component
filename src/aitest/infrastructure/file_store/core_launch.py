@@ -18,6 +18,7 @@ from uuid import uuid4
 import portalocker
 
 from aitest.application.errors import WorkspaceInUse
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import guard_bytes, guard_value
 
 from . import atomic
@@ -39,7 +40,7 @@ else:
             raise ValueError("path must not be empty")
         if os.path.dirname(path):
             return False
-        stem = path.split(".")[0].rstrip(" .").upper()
+        stem = path.split(".")[0].strip(" .").upper()
         return stem in _RESERVED_DEVICE_NAMES
 
 
@@ -134,7 +135,7 @@ class FileCoreLaunchStore:
 
     @staticmethod
     def reject_links(path: Path) -> None:
-        if any(part.is_symlink() or part.is_junction() for part in (path, *path.parents)):
+        if any(part.is_symlink() or compat.is_junction(part) for part in (path, *path.parents)):
             raise WorkspaceInUse("core startup path contains a filesystem link")
 
     @contextmanager
