@@ -26,22 +26,27 @@ from . import atomic
 if sys.version_info >= (3, 13):
     from ntpath import isreserved as isreserved_name
 else:
-    # Python 3.12 无 `os.path.isreserved`；按同一语义最小实现：
-    # Windows 设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9），取首个点号前的基名、
-    # 大小写无关并忽略尾随空格与点号；含目录部分即非保留名。3.13 起用标准库实现。
+    # Python 3.12 及以下没有 `os.path.isreserved`；按同一语义最小实现：
+    # Windows 保留设备名与**歧义名**——尾随空格/点号、非法字符（<>:"/\|?* 与控制字符）
+    # 均视为保留，含目录部分的路径返回假。3.13 起直接使用标准库实现。
     _RESERVED_DEVICE_NAMES = frozenset(
         ["CON", "PRN", "AUX", "NUL"]
         + [f"COM{index}" for index in range(1, 10)]
         + [f"LPT{index}" for index in range(1, 10)]
     )
+    _INVALID_NAME_CHARS = frozenset('<>:"/\\|?*')
 
     def isreserved_name(path: str) -> bool:
-        if not path:
-            raise ValueError("path must not be empty")
+        # 与 3.13 原生实现对齐：空串、"."、".." 返回假（调用方另有长度与点号检查）。
+        if not path or path in {".", ".."}:
+            return False
         if os.path.dirname(path):
             return False
-        stem = path.split(".")[0].strip(" .").upper()
-        return stem in _RESERVED_DEVICE_NAMES
+        if path[-1] in ". ":
+            return True
+        if any(char in _INVALID_NAME_CHARS or ord(char) < 32 for char in path):
+            return True
+        return path.split(".")[0].upper() in _RESERVED_DEVICE_NAMES
 
 
 @dataclass(frozen=True, slots=True)
