@@ -114,3 +114,22 @@ and evidence indexes, plus this run's own record). The one skip is again the hos
 directory-symlink privilege. Boundary unchanged: component/packaging evidence only; not real
 Trae, real provider, physical power-loss or the 35 acceptance criteria.
 
+Default execution wiring verification (HEAD 7f474e2)
+----------------------------------------------------
+
+After injecting the production action resolver into the default assembly (AB-001 1.37), every suite that
+mentions the previous missing-resolver/default-execution behaviour was re-run:
+
+  test_default_execution_authorization.py                                    29 passed  (112 s)
+  test_execution_authorization_origin.py + test_default_source_analysis.py
+    + contracts/test_b_use_case_registration.py + contracts/test_local_api.py  51 passed  (1368 s)
+  test_default_step_execution.py + test_saved_business_verification.py        33 passed  (163 s)
+
+The two behaviour changes are honest improvements, not relaxations:
+  - relay prepare_execution: CAPABILITY_UNAVAILABLE -> AWAITING_USER_CONFIRMATION (needs a controlled
+    user event; A-10 blocks only the action whose real dependency is missing);
+  - restart with an unregistered carrier: INTERNAL_ERROR -> SOURCE_BINDING_UNVERIFIED
+    (reason environment_unregistered, per DEC-012), instead of leaking a codeless ValueError.
+
+Still not verified: real process end-to-end for the whole default chain, real Trae, real provider
+failure, physical power loss and the 35 acceptance criteria.
