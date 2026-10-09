@@ -199,16 +199,21 @@ class StartSourceBindingResolver:
         return verification
 
     def require_interpreter(self, *, frozen_interpreter: str, observed_executable: str) -> str:
-        """冻结的解释器身份必须与实际可执行文件一致（A-08 的"实际解释器"核对）。
+        """冻结的解释器/可执行文件必须与实际一致（A-08 的"实际解释器"核对）。
 
-        依据架构01 第12节（prepare 冻结"解释器/可执行文件身份"）与需求 P1-AC13；两侧都必须
-        是非空文本且逐字一致，不同即来源不符（不匹配不得启动）。
-
-        **待确认口径**（见 `docs/一期工程整改/02-整改计划/待裁定项草案-2026-10-09.md` 第 6 项）：
-        冻结侧应由环境记录的 `EnvironmentRefFact.resolution.executable_path` 提供，并且两侧使用
-        同一路径规范化口径（大小写/短长路径/分隔符）；合同未定义"身份"与"路径"的换算规则前，
-        本函数只用于**同口径路径逐字比较**，不用于比较摘要与路径。
+        依据架构01 第12节（prepare 冻结"解释器/可执行文件身份"）与需求 P1-AC13。
+        **口径对齐既有实现**：[`source_checks._derive_state`](source_checks.py) 对解释器使用
+        `Path(...).resolve()` 比较（见其"actual_interpreter_mismatch"分支），本函数采用同一口径，
+        不自行发明"身份摘要"或字符串精确匹配。
         """
+        for value in (frozen_interpreter, observed_executable):
+            if not isinstance(value, str) or not value.strip():
+                raise SourceBindingUnverified("interpreter identity must be nonempty text")
+        if Path(frozen_interpreter).resolve() != Path(observed_executable).resolve():
+            raise SourceBindingUnverified(
+                "observed executable differs from the frozen interpreter identity"
+            )
+        return frozen_interpreter
         for value in (frozen_interpreter, observed_executable):
             if not isinstance(value, str) or not value.strip():
                 raise SourceBindingUnverified("interpreter identity must be nonempty text")
