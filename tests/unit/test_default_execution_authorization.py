@@ -389,7 +389,10 @@ def test_default_chain_degrades_honestly_without_execution_port(tmp_path):
     core = assemble_workspace_core(tmp_path / "workspace", instance_id="default-honest-degrade")
     try:
         for action, parameters in (
-            ("start_run", {"run_id": "missing", "prepared_run_id": "missing", "record_revision": 1}),
+            (
+                "start_run",
+                {"run_id": "missing", "prepared_run_id": "missing", "record_revision": 1},
+            ),
             ("execute_step", {"run_id": "missing", "step_id": "missing"}),
         ):
             before = core.unit_of_work.current_commit_sequence()
