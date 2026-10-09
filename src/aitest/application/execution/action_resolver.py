@@ -113,44 +113,49 @@ class SavedActionResolver:
             plan_revision_ref=run.plan_revision_ref,
             step_revision_ref=step.step_revision_ref,
         )
-        request = ExecutionRequest(
-            project_id=run.project_id,
-            run_id=run.run_id,
-            step_id=step.step_id,
-            attempt_id=_PENDING_ATTEMPT,  # prepare 替换
-            intent_id=intent_id,
-            resolved_input_digest=binding.resolved_input_digest,
-            registered_entry=RegisteredEntryRef(
-                entry_id=entry.entry_id,
+        try:
+            request = ExecutionRequest(
+                project_id=run.project_id,
+                run_id=run.run_id,
+                step_id=step.step_id,
+                attempt_id=_PENDING_ATTEMPT,  # prepare 替换
+                intent_id=intent_id,
+                resolved_input_digest=binding.resolved_input_digest,
+                registered_entry=RegisteredEntryRef(
+                    entry_id=entry.entry_id,
+                    adapter_kind=adapter_kind,
+                    entrypoint=entry.entrypoint,
+                    arguments=arguments,
+                ),
+                materialized_snapshot_ref=snapshot_id,
+                environment_ref=run.environment_ref,
+                source_binding_digest=source_binding_digest,
+                authorization_ref=authorization,
+                side_effect_class=side_effect_class,
+                timeout_ms=timeout_ms,
+                expected_plan_revision_ref=run.plan_revision_ref,
+            )
+            attempt = Attempt(
+                attempt_id=_PENDING_ATTEMPT,
+                run_id=run.run_id,
+                step_id=step.step_id,
+                attempt_index=index,
+                resolved_input_digest=binding.resolved_input_digest,
+                step_revision_ref=step.step_revision_ref,
+                source_binding_digest=source_binding_digest,
+                side_effect_class=side_effect_class,
                 adapter_kind=adapter_kind,
-                entrypoint=entry.entrypoint,
-                arguments=arguments,
-            ),
-            materialized_snapshot_ref=snapshot_id,
-            environment_ref=run.environment_ref,
-            source_binding_digest=source_binding_digest,
-            authorization_ref=authorization,
-            side_effect_class=side_effect_class,
-            timeout_ms=timeout_ms,
-            expected_plan_revision_ref=run.plan_revision_ref,
-        )
-        attempt = Attempt(
-            attempt_id=_PENDING_ATTEMPT,
-            run_id=run.run_id,
-            step_id=step.step_id,
-            attempt_index=index,
-            resolved_input_digest=binding.resolved_input_digest,
-            step_revision_ref=step.step_revision_ref,
-            source_binding_digest=source_binding_digest,
-            side_effect_class=side_effect_class,
-            adapter_kind=adapter_kind,
-            adapter_version=binding.adapter_versions[adapter_kind.value],
-            state=AttemptState.INTENT_RECORDED,
-            intent_id=intent_id,
-            expected_plan_revision_ref=run.plan_revision_ref,
-            authorization_ref=authorization,
-            timeout_ms=timeout_ms,
-        )
+                adapter_version=binding.adapter_versions[adapter_kind.value],
+                state=AttemptState.INTENT_RECORDED,
+                intent_id=intent_id,
+                expected_plan_revision_ref=run.plan_revision_ref,
+                authorization_ref=authorization,
+                timeout_ms=timeout_ms,
+            )
+        except ValueError as error:
+            raise ActionResolutionBlocked(
+                f"resolved action cannot be constructed: {error}"
+            ) from error
         try:
             return ResolvedExecutionAction(
                 attempt, request, environment_identity, source_identity
