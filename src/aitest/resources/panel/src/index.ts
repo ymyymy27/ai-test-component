@@ -153,12 +153,38 @@ class AITestPanel extends HTMLElement {
       this.phaseSection(),
       this.capabilitySection(),
       this.readOnlySection(),
+      this.resultSection(),
       this.aiSection(),
       this.actionSection(),
       this.nextSection(),
       this.detailSection(),
     );
     return fragment;
+  }
+
+  /** 最近一次回执的原始结果：**原样展示**，界面不重算任何业务结论。 */
+  private resultSection(): HTMLElement {
+    const section = document.createElement("section");
+    section.dataset.testid = "last-result";
+    const title = document.createElement("h2"); title.textContent = "最近回执";
+    const outcome = this.outcome;
+    if (outcome === null || outcome.response === undefined) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = outcome === null
+        ? "尚无回执。"
+        : `未取得结果：${outcome.code ?? outcome.status}`;
+      section.append(title, empty);
+      return section;
+    }
+    const body = document.createElement("pre");
+    body.dataset.testid = "last-result-body";
+    body.style.whiteSpace = "pre-wrap";
+    body.style.maxHeight = "240px";
+    body.style.overflow = "auto";
+    body.textContent = JSON.stringify(outcome.response, null, 2);
+    section.append(title, body);
+    return section;
   }
 
   /** 核心能力：只显示**真实回执**里的 supported_actions，不推断、不补造。 */
