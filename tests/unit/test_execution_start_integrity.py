@@ -24,6 +24,19 @@ from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from tests.support.execution_authority import fixture_coordinator
 from tests.unit.test_serial_runner import FakeExecutionPort, _attempt, _request
 
+# 一次启动在**同一个事务**里落地的记录数，按提交顺序：
+#   1. `execution_authorization…:state`（授权占用，由注入的授权适配器在同一事务内暂存）
+#   2. `execution_authorization`（本次启动的原子占用声明）
+#   3. `execution_intent`（原始意图，供重启后回读）
+#   4. `execution_checkpoint`（attempt-1）
+#   5. `execution_checkpoint_refs`（同提交检查点引用）
+#   6. `execution_facts_current`
+#   7. `execution_facts`
+# `9230929` 写下 `before + 6` 时还没有第 5 条；`f5074d9` 加入"同提交检查点引用"后
+# 事务变为 7 条记录，本文件的断言未同步。这里仍用精确计数，因为它要证明的正是
+# "外呼之前这些记录已在同一事务里可见"，放宽成 `>=` 会丢掉这条性质。
+_START_TRANSACTION_RECORDS = 7
+
 
 def _runner(root, port=None, unit=None):
     return SerialRunner(
@@ -141,7 +154,7 @@ def test_authorization_intent_and_checkpoint_are_visible_together_before_externa
     runner = _runner(tmp_path, port, unit)
     before = unit.current_commit_sequence()
     runner.start_attempt(_attempt(), _request())
-    assert observed == [before + 6]
+    assert observed == [before + _START_TRANSACTION_RECORDS]
 
 
 def test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_retry(
@@ -193,7 +206,9 @@ def test_lost_reply_after_publishing_claim_never_replays_external_start(tmp_path
     assert recovered.state is AttemptState.PENDING_VERIFICATION
     assert recovered.execution_handle_ref is None
     assert port.started == []
-    assert FileUnitOfWork(tmp_path).current_commit_sequence() == before + 6
+    assert FileUnitOfWork(tmp_path).current_commit_sequence() == (
+        before + _START_TRANSACTION_RECORDS
+    )
 
 
 def test_two_cores_share_one_saved_start_even_before_the_first_handle_is_returned(tmp_path):
