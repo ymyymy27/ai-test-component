@@ -4,6 +4,14 @@
 
 ## 开发日志汇总
 
+- 接通编辑器入口（第1步主干）：扩展新增 `core-bridge`，经**既有 CLI 与命名管道**向同一核心派发，不自实现协议、不自行核对身份与回执；只读白名单拦截写动作（`ENTRY_ACTION_NOT_ALLOWED`），未配置工作空间与不存在路径均结构化失败。真实进程验证：`doctor` 返回 READY 且可派发 **41** 个动作、`storage_usage` 返回全部 10 个字段、`publish_plan` 被拒。面板改为呈现回执里的 `supported_actions` 并可派发只读动作，业务动作按钮保持 disabled。见[修改日志](docs/修改日志/袁/2026-10-11-一期入口与执行链前置接通.md)。
+
+- 新增 `ensure-core` 宿主入口（架构 05 第 1 节的宿主职责）：先连既有核心、连不上再启动，回报已核对身份；路径缺失返回 `WORKSPACE_NOT_FOUND` 且**不创建**数据工作空间（与 `doctor` 既有口径一致）。扩展与面板同步接通。
+
+- 查询层接到完整 `QuerySpec`：`RecordQuery` 原只有 5 个字段，`business_outcome`/`report_id`/`run_id`/`view`/`facet`/`severity`/`sort`/`descending`/`revision` 到不了已实现的索引层，MCP relay 因此只广告 4 个字段。现经桥接可达，固定目录路由违例仍按已登记的 `QUERY_UNSUPPORTED_FILTER` 回执。另注册此前已实现却未接线的 `storage_usage`/`events`，默认可派发 39 → 41。
+
+- 执行链前置：接通已登记入口解析——`Step.registered_entry_ref` 在生产路径恒为 `None`（三处构造都不传），导致 `ExecutionRequest` 根本构造不出来；现从冻结绑定取入口身份与参数、从 `EnvironmentResolutionFact.executable_path` 取**核心观测**的可执行路径（不取客户端自述，不发明命令）。同批复核更正两处与源码矛盾的结论（默认准入范围、来源身份校验口径），并清理一处不可达死代码。`admit_start` 三项来源核对与默认执行端口仍未接入。真实 AC 仍 0/35。
+
 - 建立唯一现行状态页[docs/现状.md](docs/现状.md)，6 处重复的"现状复核 2026-10-10"正文收敛为指针，9 处引用改指该页；AGENTS.md 删去"当前目录是文档工作区"的错误前提并修正全部失效路径，新增第 5.5 条验收登记硬边界；.gitignore 补 `.runtime/` 与 `/pytest-of-*/`。见[修改日志](docs/修改日志/袁/2026-10-10-状态页收敛与陈旧断言修复.md)。
 
 - 更正"3.11 独有 3 项失败"：`test_model_policy_approval[boolean_revision]` 与 `test_execution_start_integrity` 两项在 **3.13 上同样失败**，与解释器无关。三处均为"改了代码、旧断言未同步"——`6951674` 的身份守卫拒绝布尔修订（按既定口径归一为 `B_INVALID_PARAMETER`，不以等待确认替代非法输入），`f5074d9` 给启动事务加入同提交检查点引用使事务由 6 条变 7 条。修后 3.13/3.11 各 57 passed；真实 AC 仍 0 verified。
