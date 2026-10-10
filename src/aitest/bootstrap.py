@@ -19,8 +19,9 @@ import sys
 import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
@@ -70,7 +71,7 @@ from aitest.application.project.environment_resolution import EnvironmentResolut
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
 from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
-from aitest.application.usecase_registry import BUseCaseDependencies
+from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseError
 from aitest.contracts.commands import Command
 from aitest.domain.approvals import TrustedActor
 from aitest.infrastructure.adapters.execution.python_checks import (
@@ -105,6 +106,7 @@ from aitest.infrastructure.file_store.core_launch import (
 )
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
+from aitest.infrastructure.file_store.maintenance import FileMaintenanceService
 from aitest.infrastructure.file_store.migrations import FileMigrationManager
 from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.objects import FileObjectStore
@@ -265,6 +267,27 @@ def _fsync_directory(path: Path) -> None:
     finally:
         if descriptor is not None:
             os.close(descriptor)
+
+
+def _json_value(value: object) -> object:
+    """把只读维护结果转成 JSON 可承载的普通值。
+
+    只做形状转换：模型走 `model_dump(mode="json")`，dataclass 逐字段递归，
+    枚举取 `.value`，序列展开为列表；**不补造、不猜测**未知值。
+    """
+
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        return dump(mode="json")
+    if isinstance(value, StrEnum):
+        return value.value
+    if is_dataclass(value) and not isinstance(value, type):
+        return {field.name: _json_value(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
+    if isinstance(value, Mapping):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -699,6 +722,44 @@ def assemble_workspace_core(
             return {"challenge_id": challenge.challenge_id, "state": challenge.state.value}
 
         handlers.update(prepare_approval=prepare_approval, revoke_approval=revoke_approval)
+
+        # 架构 05 第 3 节「查询/维护」组里的两个**只读**动作：实现早已存在
+        # （FileMaintenanceService / FileEventJournal），此前只是没有注册，
+        # 于是默认装配里 doctor 之外没有可用的查询/维护面。
+        def storage_usage(command: Command) -> Mapping[str, object]:
+            """只读空间诊断；工作空间级动作，不接受业务参数。"""
+            del command
+            return cast(
+                Mapping[str, object], _json_value(FileMaintenanceService(root).diagnose())
+            )
+
+        def read_events(command: Command) -> Mapping[str, object]:
+            """只读事件续读：游标非法由日志返回结构化状态，不猜测、不补造。"""
+            values = command.parameters
+            raw_limit = values.get("limit")
+            if raw_limit is None:
+                limit = 100
+            elif (
+                isinstance(raw_limit, bool)
+                or not isinstance(raw_limit, int)
+                or not 1 <= raw_limit <= 500
+            ):
+                raise BUseCaseError("B_INVALID_PARAMETER", "limit must be an integer in [1, 500]")
+            else:
+                limit = raw_limit
+            raw_cursor = values.get("cursor")
+            if raw_cursor is None:
+                cursor = None
+            elif isinstance(raw_cursor, str) and raw_cursor.strip():
+                cursor = raw_cursor
+            else:
+                raise BUseCaseError("B_INVALID_PARAMETER", "cursor must be a non-empty string")
+            return cast(
+                Mapping[str, object], _json_value(journal.read(cursor=cursor, limit=limit))
+            )
+
+        handlers.update(storage_usage=storage_usage, events=read_events)
+
         if extra_handlers:
             conflicts = sorted(handlers.keys() & extra_handlers.keys())
             if conflicts:

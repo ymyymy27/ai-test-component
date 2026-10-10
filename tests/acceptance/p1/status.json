@@ -1219,16 +1219,11 @@
         "description": null,
         "method": "permanence_and_backup_assertion"
       },
-      "unverified_reason": "永久保留的底座实现齐备（备份、维护、完整性巡检、迁移、事件日志都在，MaintenancePort 有 5 个方法），但 backup/migrate/storage_usage/events 四个动作**未注册为可派发动作**，面板也没有任何删除入口的呈现，无法在真实多轮历史上验证『界面无删除入口且不自动删除』。",
+      "unverified_reason": "永久保留的底座齐备（备份、维护、完整性巡检、迁移、事件日志），且 `storage_usage`／`events` 现已在默认装配中真实可派发。仍无法验收的原因是：`backup`／`migrate` 尚未接入默认动作面（需先裁定工作空间级维护写动作携带的 project/intent/revision），面板未接核心、无「界面不提供删除入口」的呈现，也没有多轮真实运行历史可供核对。",
       "blockers": [
         {
           "kind": "user_entry",
-          "detail": "backup/migrate/storage_usage/events 未注册；面板无产品路径，无法证明界面不提供删除入口。",
-          "resolved_by": "D"
-        },
-        {
-          "kind": "user_entry",
-          "detail": "真实产品入口未通：integrations/trae/src/extension.ts 仅 29 行、只注册 aitest.openPanel 创建 webview，无核心连接、无 onDidReceiveMessage、无业务动作转发；面板 resources/panel/src/index.ts 自述『静态原型·未连接核心』，所有按钮 disabled 且不发消息；CLI 只有 doctor/dispatch 且都要求核心已在运行，缺『发现或启动核心』的入口动作。",
+          "detail": "维护面已部分接通（2026-10-11）：`storage_usage` 与 `events` 已注册为默认可派发动作（FileMaintenanceService.diagnose / FileEventJournal.read），默认可派发动作由 39 增至 41。仍缺：`backup`／`migrate` 未注册（二者非只读动作，`Command` 要求 project_id/intent_id/expected_revision，工作空间级维护写动作该带什么身份尚未裁定）；面板没有任何删除入口的呈现。",
           "resolved_by": "D"
         }
       ],
