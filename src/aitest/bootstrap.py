@@ -73,6 +73,7 @@ from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
 from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
 from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseError
 from aitest.contracts.commands import Command
+from aitest.contracts.prepared_run import EnvironmentResolutionFact
 from aitest.domain.approvals import TrustedActor
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
@@ -320,6 +321,27 @@ class CoreAssembly:
     model_policy_proof: ModelPolicyConfirmationService | None = None
 
 
+def _interpreter_verifier() -> Callable[[str, EnvironmentResolutionFact], str]:
+    """装配层适配：把基础设施探针包成应用层可调用的「现场观测解释器」回调。
+
+    应用层不得导入 ``infrastructure``（依赖方向），故探针只能在此注入。探针以**冻结环境事实**
+    的解释器路径启动，交回该解释器**自报的 realpath**（``LoadSourceFact.executable``）——
+    这是独立观测，不是把配置值回读一遍。比较口径由应用层按
+    ``source_checks._derive_state``（解析后路径一致）执行。
+
+    空模块清单是刻意的：解释器身份核对不需要项目模块；模块加载来源核对属另一项，尚未接入。
+    """
+
+    def verify(workdir: str, environment: EnvironmentResolutionFact) -> str:
+        fact = PythonLoadSourceProbe(executable=environment.executable_path).probe(
+            materialized_root=workdir,
+            modules=(),
+        )
+        return fact.executable
+
+    return verify
+
+
 def assemble_workspace_core(
     workspace_root: Path,
     *,
@@ -336,6 +358,7 @@ def assemble_workspace_core(
     execution_port: ExecutionPort | None = None,
     business_verification_resolver: BusinessVerificationResolver | None = None,
     business_verification_port: BusinessVerificationCapturePort | None = None,
+    verify_start_interpreter: bool = False,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -600,6 +623,9 @@ def assemble_workspace_core(
                         execution_coordinator.read_runtime_revision_facts(
                             project_id=project, run_id=run
                         )
+                    ),
+                    interpreter_verifier=(
+                        _interpreter_verifier() if verify_start_interpreter else None
                     ),
                 )
             ),

@@ -65,12 +65,16 @@ class SavedActionResolver:
         attempt_index: Callable[[Run, Step], int],
         side_effect_class: Callable[[Run, Step], SideEffectClass],
         admission: Callable[..., Mapping[str, object]] | None = None,
+        interpreter_verifier: Callable[[str, EnvironmentResolutionFact], str] | None = None,
     ) -> None:
         if not callable(attempt_index) or not callable(side_effect_class):
             raise ActionResolutionBlocked("attempt index and side effect providers are required")
+        if interpreter_verifier is not None and not callable(interpreter_verifier):
+            raise ActionResolutionBlocked("interpreter verifier must be callable")
         self._attempt_index = attempt_index
         self._side_effect_class = side_effect_class
         self._admission = admission
+        self._interpreter_verifier = interpreter_verifier
 
     def resolve(
         self,
@@ -90,12 +94,14 @@ class SavedActionResolver:
         environment_identity = _environment_identity(prepared)
         timeout_ms = _frozen_timeout_ms(prepared)
         _step_content_scope(step_content, run, step)
-        entry = self._frozen_entry(step, binding, _environment_resolution(prepared))
+        environment_fact = _environment_resolution(prepared)
+        entry = self._frozen_entry(step, binding, environment_fact)
         adapter_kind = self._adapter_kind(binding, entry.adapter_kind)
         arguments = self._arguments(binding, entry)
-        source_binding_digest = _admission_digest(
+        source_binding_digest, workdir = _admission_digest(
             self._admission, run, step, snapshot_id, binding
         )
+        self._require_observed_interpreter(workdir, environment_fact)
         index = self._attempt_index(run, step)
         if type(index) is not int or index < 1:
             raise ActionResolutionBlocked("attempt index must be a positive integer")
@@ -201,6 +207,35 @@ class SavedActionResolver:
             entrypoint=executable,
             arguments=tuple(binding.entry_arguments),
         )
+
+    def _require_observed_interpreter(
+        self, workdir: str, environment: EnvironmentResolutionFact
+    ) -> None:
+        """可选的「实际解释器」核对（架构01 第12节 / P1-AC13 / A-08）。
+
+        注入方（`bootstrap`）提供 `interpreter_verifier`：给定物化 workdir 与冻结环境事实，
+        它去**现场探测**并把解释器自报的 realpath 交回来；比较口径以
+        `source_checks._derive_state` 第 182–186 行为准——**解析后的路径一致**，
+        不引入摘要比对。未注入时本核对**不执行**，也不声称已核对。
+
+        应用层不得导入 `infrastructure`（架构依赖方向），因此探针只能由装配层注入。
+        """
+
+        if self._interpreter_verifier is None:
+            return
+        try:
+            observed = self._interpreter_verifier(workdir, environment)
+        except SourceBindingUnverified as error:
+            raise ActionResolutionBlocked(str(error)) from error
+        if not isinstance(observed, str):
+            raise ActionResolutionBlocked("interpreter verifier must return an observed path")
+        try:
+            self._validators.require_interpreter(
+                frozen_interpreter=environment.executable_path,
+                observed_executable=observed,
+            )
+        except SourceBindingUnverified as error:
+            raise ActionResolutionBlocked(str(error)) from error
 
     def _adapter_kind(self, binding: ExecutionSourceBinding, frozen: AdapterKind) -> AdapterKind:
         try:
@@ -342,7 +377,7 @@ def _admission_digest(
     step: Step,
     snapshot_id: str,
     binding: ExecutionSourceBinding,
-) -> str:
+) -> tuple[str, str]:
     if admission is None:
         raise ActionResolutionBlocked(
             "start admission is required to derive the source binding digest"
@@ -355,7 +390,10 @@ def _admission_digest(
     digest = admitted.get("source_binding_digest")
     if not isinstance(digest, str) or not digest.startswith("sha256:") or len(digest) != 71:
         raise ActionResolutionBlocked("start admission lacks an exact mapping digest")
-    return digest
+    workdir = admitted.get("workdir")
+    if not isinstance(workdir, str) or not workdir.strip():
+        raise ActionResolutionBlocked("start admission lacks its fixed workdir")
+    return digest, workdir
 
 
 def build_saved_action_resolver(
@@ -363,6 +401,7 @@ def build_saved_action_resolver(
     snapshots: SourceSnapshotPort,
     workspace_root: Path,
     read_facts: Callable[[str, str], ExecutionFacts],
+    interpreter_verifier: Callable[[str, EnvironmentResolutionFact], str] | None = None,
 ) -> SavedActionResolver:
     """装配用工厂：物化准入 + 事实尝试序号 + 最严副作用类别，一次装好。
 
@@ -392,6 +431,7 @@ def build_saved_action_resolver(
         attempt_index=FactsAttemptIndex(read_facts),
         side_effect_class=default_side_effect_class,
         admission=admission,
+        interpreter_verifier=interpreter_verifier,
     )
 
 
