@@ -22,7 +22,7 @@
 | `application/ports.py` 中 B 需要的端口 | `WorkspaceUnitOfWork`(6 方法)、`RecordRepository`(3)、`SourceSnapshotPort`(**7**)、`ModelProvider`(1)、`ProjectionPort`(1)、`SecretPort`(2)——**均已有真实方法签名** |
 | `infrastructure/file_store/` | 真实实现约 9,500 行（`records.py` 1163、`index.py` 1462、`spool.py` 762、`commit_manifest.py` 562、`events.py` 677、`backup.py` 335 等） |
 | `domain/review/`、`application/review/` | `defects.py` 458 行、`reports.py` 801 行、`defect_management.py` 185 行、`reporting.py` 111 行；另有 `interfaces/dto.py` 227 行 DTO |
-| 真实产品入口 | **未通**：`integrations/trae/src/extension.ts` 仅 29 行、只创建 webview；面板是静态原型（按钮全 `disabled`、不读 DTO）；`infrastructure/exports.py` 是 4 行空壳 |
+| 真实产品入口 | **已部分接通**：扩展经 `core-bridge` 走既有 CLI/命名管道向同一核心派发只读动作（真实进程已验证 `doctor` 返回 READY、可派发 41 个动作、`storage_usage` 返回全部字段、写动作被白名单拒绝）；面板状态行由真实回执驱动。**未完成**：面板动作区未接线、缺「发现或启动核心」的入口动作、真实 Trae 未验证。`infrastructure/exports.py` 仍是 4 行空壳 |
 | 默认装配可派发动作 | **39** 个（一期动作表 54 个中 34 个 ＋ 5 个表外）；**20 个已声明动作不可派发** |
 | 默认执行链 | **未接**：`execution_port`／`business_verification_port` 默认 `None`，`execute_step` 必得 `CAPABILITY_UNAVAILABLE` |
 | 目标环境 | Windows 11 x64、Python 3.13 为一期验收版本；本机已安装 Trae CN |
