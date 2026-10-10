@@ -54,10 +54,11 @@ _START_SOURCE_FAILURES: Final[frozenset[str]] = frozenset(
 
 
 class SourceBindingUnverified(ValueError):
-    """内部阻塞标识：**不是**已登记的协议错误码。
+    """来源不符阻塞；错误码已按 DEC-012 登记为 `SOURCE_BINDING_UNVERIFIED`。
 
-    对外（LocalAPI/MCP/CLI 响应）暴露前，必须先在 AB-001/CD-001 登记错误码与 `next_step`
-    口径；在此之前本模块不接入任何入口，避免自造公开错误码。
+    四类 start 来源失败（物化映射不符、cwd 越界、参数被代入、适配器键不唯一／
+    来源核验非 verified）都归一到本异常；`action_resolver` 已捕获它并登记
+    `source_unverified` 缺口，因此它**会**经协议层如实暴露给调用方。
     """
 
     code = "SOURCE_BINDING_UNVERIFIED"
@@ -210,14 +211,6 @@ class StartSourceBindingResolver:
             if not isinstance(value, str) or not value.strip():
                 raise SourceBindingUnverified("interpreter identity must be nonempty text")
         if Path(frozen_interpreter).resolve() != Path(observed_executable).resolve():
-            raise SourceBindingUnverified(
-                "observed executable differs from the frozen interpreter identity"
-            )
-        return frozen_interpreter
-        for value in (frozen_interpreter, observed_executable):
-            if not isinstance(value, str) or not value.strip():
-                raise SourceBindingUnverified("interpreter identity must be nonempty text")
-        if frozen_interpreter != observed_executable:
             raise SourceBindingUnverified(
                 "observed executable differs from the frozen interpreter identity"
             )
