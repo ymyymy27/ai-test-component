@@ -9,6 +9,11 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
   await page.addScriptTag({ path: resolve("dist/index.js") });
 
   await expect(page.getByTestId("panel-status")).toContainText("未连接核心");
+  // 非宿主环境必须如实降级：不假装已连核心，也不让只读入口可点。
+  await expect(page.getByTestId("core-capability")).toContainText("核心未通过");
+  const readOnly = page.getByTestId("read-only-actions").getByRole("button");
+  await expect(readOnly).toHaveCount(2);
+  await expect(readOnly.first()).toBeDisabled();
   await expect(page.getByTestId("phase-summary").getByRole("heading")).toHaveCount(3);
   await expect(page.getByText("运行前", { exact: true })).toBeVisible();
   await expect(page.getByText("运行时", { exact: true })).toBeVisible();

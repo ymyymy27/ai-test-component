@@ -131,8 +131,73 @@ class AITestPanel extends HTMLElement {
 
   private currentView(): HTMLElement {
     const fragment = document.createElement("div");
-    fragment.append(this.phaseSection(), this.aiSection(), this.actionSection(), this.nextSection(), this.detailSection());
+    fragment.append(
+      this.phaseSection(),
+      this.capabilitySection(),
+      this.readOnlySection(),
+      this.aiSection(),
+      this.actionSection(),
+      this.nextSection(),
+      this.detailSection(),
+    );
     return fragment;
+  }
+
+  /** 核心能力：只显示**真实回执**里的 supported_actions，不推断、不补造。 */
+  private capabilitySection(): HTMLElement {
+    const section = document.createElement("section");
+    section.dataset.testid = "core-capability";
+    const title = document.createElement("h2"); title.textContent = "核心能力（真实回执）";
+    const outcome = this.outcome;
+    const line = document.createElement("p");
+    if (outcome === null) {
+      line.textContent = "尚未连接核心。";
+      section.append(title, line);
+      return section;
+    }
+    if (outcome.status === "ok") {
+      const result = outcome.response?.["result"] as Record<string, unknown> | undefined;
+      const supported = result?.["supported_actions"];
+      const actions = Array.isArray(supported) ? supported.map(String) : [];
+      const state = typeof result?.["status"] === "string" ? result["status"] : "OK";
+      line.textContent = `核心 ${state}，当前可派发 ${actions.length} 个动作。`;
+      const list = document.createElement("p");
+      list.className = "muted";
+      list.textContent = actions.join("、");
+      section.append(title, line, list);
+      return section;
+    }
+    line.textContent = `核心未通过：${outcome.code ?? outcome.status} — ${outcome.message ?? ""}`;
+    section.append(title, line);
+    return section;
+  }
+
+  /** 只读入口：可派发；写动作必须经受控用户入口，界面点击不等于确认。 */
+  private readOnlySection(): HTMLElement {
+    const section = document.createElement("section");
+    section.dataset.testid = "read-only-actions";
+    const title = document.createElement("h2"); title.textContent = "只读查询";
+    const actions = document.createElement("div"); actions.className = "actions";
+    const entries: ReadonlyArray<readonly [string, string]> = [
+      ["空间诊断", "storage_usage"],
+      ["事件续读", "events"],
+    ];
+    for (const [label, action] of entries) {
+      const button = document.createElement("button");
+      button.textContent = label;
+      button.dataset.action = action;
+      button.disabled = this.pending || this.host === null;
+      button.title = this.host === null ? "不在编辑器宿主中，面板未连接核心" : "";
+      button.onclick = () => {
+        this.dispatch(action, action === "events" ? { limit: 20 } : {});
+      };
+      actions.append(button);
+    }
+    const note = document.createElement("p"); note.className = "muted";
+    note.textContent =
+      "只读入口：写动作必须经受控用户入口并携带授权，界面点击不等于用户确认。";
+    section.append(title, actions, note);
+    return section;
   }
 
   private phaseSection(): HTMLElement {
@@ -217,7 +282,7 @@ class AITestPanel extends HTMLElement {
     const title = document.createElement("h1"); title.textContent = selected[1];
     const description = document.createElement("p"); description.textContent = selected[2];
     const note = document.createElement("p"); note.className = "muted";
-    note.textContent = "静态详情骨架，等待核心 DTO、事件和受控动作接入。";
+    note.textContent = "详情骨架：等待核心 DTO 与事件接入；本面板不计算业务结论。";
     section.append(back, title, description, note);
     return section;
   }
