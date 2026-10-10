@@ -177,13 +177,29 @@ class CommittedRecord:
 
 @dataclass(frozen=True, slots=True)
 class RecordQuery:
-    """有限查询：项目范围 + 可选类别 + 可选精确标识（存储与恢复第 13 节）。"""
+    """有限查询：项目范围 + 可选类别 + 可选精确标识（存储与恢复第 13 节）。
+
+    自 2026-10-11 起，本对象也承载 `contracts.queries.QuerySpec` 的**固定目录**
+    选择器（报告业务结果、报告/运行标识、问题 view/facet/severity、排序与修订）。
+    组合合法性由 `QuerySpec.ensure_finite_route()` 唯一判定；本对象只做类型与
+    非空的最前置检查，避免出现第二套路由规则。
+    """
 
     project_id: str
     aggregate_kind: AggregateKind | None = None
     record_id: str | None = None
     limit: int = 50
     cursor: str | None = None
+    revision: int | None = None
+    sort: str = "aggregate_kind"
+    descending: bool = False
+    business_outcome: str | None = None
+    run_id: str | None = None
+    report_id: str | None = None
+    view: str | None = None
+    facet: str = "NONE"
+    facet_value: str | None = None
+    severity: str | None = None
 
     def __post_init__(self) -> None:
         if not self.project_id.strip():
@@ -194,6 +210,19 @@ class RecordQuery:
             raise ValueError("query limit must be >= 1")
         if self.cursor is not None and not self.cursor.strip():
             raise ValueError("query cursor must not be blank when given")
+        if self.revision is not None and self.revision < 1:
+            raise ValueError("query revision must be >= 1")
+        for name in (
+            "business_outcome",
+            "run_id",
+            "report_id",
+            "view",
+            "facet_value",
+            "severity",
+        ):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"query {name} must be non-empty when given")
 
 
 @dataclass(frozen=True, slots=True)

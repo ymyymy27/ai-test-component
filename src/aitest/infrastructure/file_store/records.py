@@ -10,10 +10,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from pydantic import ValidationError
+
 from aitest.application.errors import PersistentIntentConflict
 from aitest.application.ports import CommittedRecord, RecordQuery
 from aitest.contracts.events import Event
-from aitest.contracts.queries import QuerySpec
+from aitest.contracts.queries import (
+    BusinessOutcomeFilter,
+    IssueFacet,
+    IssueView,
+    QuerySpec,
+    QueryUnsupportedFilter,
+    SortKey,
+)
 from aitest.infrastructure.security import guard_bytes, guard_value
 
 from . import atomic
@@ -387,15 +396,7 @@ class FileRecordRepository:
 
     def query(self, query: RecordQuery) -> RecordQueryResult:
         index = FileQueryIndex(self.root, journal=self._journal)
-        result = index.query_spec(
-            QuerySpec(
-                project_id=query.project_id,
-                aggregate_kind=query.aggregate_kind,
-                record_id=query.record_id,
-                limit=query.limit,
-                cursor=query.cursor,
-            )
-        )
+        result = index.query_spec(self._finite_query_spec(query))
         if result.status != "ok":
             return RecordQueryResult(status=result.status)
         # 列表只读取摘要索引；整页载荷一次性从权威边界水合，避免每条记录
@@ -465,6 +466,43 @@ class FileRecordRepository:
         except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
             return RecordQueryResult(status="maintenance_required")
         return RecordQueryResult(status="ok", items=tuple(items), next_cursor=result.next_cursor)
+
+    @staticmethod
+    def _finite_query_spec(query: RecordQuery) -> QuerySpec:
+        """把命令层的有限查询选成 `QuerySpec`，并还原已登记的路由错误码。
+
+        `RecordQuery` 用普通 `str` 承载选择器，取值合法性与固定目录组合由
+        `QuerySpec` 的 `Literal` 校验和 `ensure_finite_route()` **唯一**判定；
+        这里只做形状转换，不复制第二套取值表。pydantic 会把
+        `ensure_finite_route()` 抛出的 `QueryUnsupportedFilter` 包成
+        `ValidationError`，因此在这里把它还原出来，入口层才不会退化成通用参数错误。
+        """
+
+        try:
+            return QuerySpec(
+                project_id=query.project_id,
+                aggregate_kind=query.aggregate_kind,
+                record_id=query.record_id,
+                limit=query.limit,
+                cursor=query.cursor,
+                revision=query.revision,
+                sort=cast("SortKey", query.sort),
+                descending=query.descending,
+                business_outcome=cast("BusinessOutcomeFilter | None", query.business_outcome),
+                run_id=query.run_id,
+                report_id=query.report_id,
+                view=cast("IssueView | None", query.view),
+                facet=cast("IssueFacet", query.facet),
+                facet_value=query.facet_value,
+                severity=query.severity,
+            )
+        except ValidationError as error:
+            marker = f"{QueryUnsupportedFilter.code}: "
+            for item in error.errors():
+                message = str(item.get("msg", ""))
+                if marker in message:
+                    raise QueryUnsupportedFilter(message.split(marker, 1)[1]) from error
+            raise
 
     def _summary_rows_from_authority(
         self,

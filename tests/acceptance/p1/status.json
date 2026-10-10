@@ -1175,18 +1175,13 @@
       "evidence": {
         "path": null,
         "description": null,
-        "method": "query_projection_consistency_assertion"
+        "method": "real_query_spec_then_snapshot_cursor_assertion"
       },
-      "unverified_reason": "物理层齐备（reports/issues 目录、14 种 facet 掩码、游标绑定条件与查询 id、同提交 event_cursor），但命令层断链：RecordQuery 只有五个字段，business_outcome/report_id/run_id/view/facet/severity 没有任何到达 QuerySpec 的调用点；且面板未接核心，实时值与快照值的区分无产品路径。",
+      "unverified_reason": "入口侧的报告/问题查询现已支持固定目录选器（business_outcome/report_id/run_id/view/facet/severity/sort/descending/revision 都能到达 QuerySpec）；仍缺读取端与订阅面：面板不读 DTO、无实时值与快照值区分、无「从快照游标之后重放」的实现，因此『同来源修订口径一致』与『执行完成/有效验证分别读取核心计数』仍无法在真实入口上核对。",
       "blockers": [
         {
-          "kind": "protocol",
-          "detail": "有限查询的物理层齐备而命令层断链：contracts/queries.py 的 QuerySpec 有 business_outcome / report_id / run_id / view / facet / severity 等字段，index.py(1462 行) 也实现了 reports/issues 目录、facet 掩码与同提交游标；但 application/planning/substrate.py:179 的 RecordQuery 只有 project_id/aggregate_kind/record_id/limit/cursor 五个字段，usecase_registry.py:1282 handle_query 只拼这五个，前六个筛选字段没有任何到达 QuerySpec 的调用点。",
-          "resolved_by": "B"
-        },
-        {
           "kind": "user_entry",
-          "detail": "真实产品入口未通：integrations/trae/src/extension.ts 仅 29 行、只注册 aitest.openPanel 创建 webview，无核心连接、无 onDidReceiveMessage、无业务动作转发；面板 resources/panel/src/index.ts 自述『静态原型·未连接核心』，所有按钮 disabled 且不发消息；CLI 只有 doctor/dispatch 且都要求核心已在运行，缺『发现或启动核心』的入口动作。",
+          "detail": "查询层缺口已收窄（2026-10-11 修复）：`query` 动作现在承载完整 QuerySpec 选器（revision/sort/descending/business_outcome/run_id/report_id/view/facet/facet_value/severity），MCP relay 同步广告这些字段。剩余阻塞是读取端：面板与扩展不读任何 DTO，没有实时值/快照值区分与订阅面（契约层 events.py 只有 20 行）。",
           "resolved_by": "D"
         }
       ],
@@ -1502,17 +1497,17 @@
         "description": null,
         "method": "host_lifecycle_and_history_page_assertion"
       },
-      "unverified_reason": "核心保活与退出门已实现（活动未核实等一律保留核心继续服务），父进程消亡时按 blocker 保留活动，EditorHost 能发现或启动唯一核心；缺的是入口侧：没有运行列表/恢复动作、没有『关闭前常驻提示』的宿主实现、没有报告筛选/折叠/隐藏项目，历史页按钮也够不到完整 QuerySpec。",
+      "unverified_reason": "核心保活与退出门已实现，父进程消亡时按 blocker 保留活动；查询层现已支持按业务结果/报告编号/修订筛选（reports.latest/by_id/revisions 的选器已可达）。缺的仍是入口侧：没有运行列表/恢复动作、没有『关闭前常驻提示』的宿主实现、没有报告筛选/折叠/隐藏项目的界面，`save_project_view_preference` 仍未注册为可派发动作。",
       "blockers": [
         {
           "kind": "user_entry",
-          "detail": "真实产品入口未通：integrations/trae/src/extension.ts 仅 29 行、只注册 aitest.openPanel 创建 webview，无核心连接、无 onDidReceiveMessage、无业务动作转发；面板 resources/panel/src/index.ts 自述『静态原型·未连接核心』，所有按钮 disabled 且不发消息；CLI 只有 doctor/dispatch 且都要求核心已在运行，缺『发现或启动核心』的入口动作。",
+          "detail": "查询层缺口已收窄（2026-10-11 修复）：`query` 动作现在承载完整 QuerySpec 选器（revision/sort/descending/business_outcome/run_id/report_id/view/facet/facet_value/severity），MCP relay 同步广告这些字段。剩余阻塞是读取端：面板与扩展不读任何 DTO，没有实时值/快照值区分与订阅面（契约层 events.py 只有 20 行）。",
           "resolved_by": "D"
         },
         {
-          "kind": "protocol",
-          "detail": "有限查询的物理层齐备而命令层断链：contracts/queries.py 的 QuerySpec 有 business_outcome / report_id / run_id / view / facet / severity 等字段，index.py(1462 行) 也实现了 reports/issues 目录、facet 掩码与同提交游标；但 application/planning/substrate.py:179 的 RecordQuery 只有 project_id/aggregate_kind/record_id/limit/cursor 五个字段，usecase_registry.py:1282 handle_query 只拼这五个，前六个筛选字段没有任何到达 QuerySpec 的调用点。",
-          "resolved_by": "B"
+          "kind": "real_storage",
+          "detail": "多轮运行与报告修订的真实历史尚未产生（报告无仓储）。",
+          "resolved_by": "A"
         }
       ],
       "real_environment_verified": false,

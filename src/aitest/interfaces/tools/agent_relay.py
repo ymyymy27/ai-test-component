@@ -20,7 +20,22 @@ from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.core_client import MAX_COMMAND_BYTES, CoreClient
 
 _VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
-_QUERY_FIELDS = {"aggregate_kind", "record_id", "limit", "cursor"}
+_QUERY_FIELDS = {
+    "aggregate_kind",
+    "record_id",
+    "revision",
+    "limit",
+    "cursor",
+    "sort",
+    "descending",
+    "business_outcome",
+    "run_id",
+    "report_id",
+    "view",
+    "facet",
+    "facet_value",
+    "severity",
+}
 _MAX_REQUESTS = 4096
 _WRITE_FIELDS = {"action", "intent_id", "expected_revision", "target", "parameters"}
 _WRITE_ACTIONS = frozenset({

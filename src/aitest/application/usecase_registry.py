@@ -1289,15 +1289,41 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             if kind not in _AGGREGATE_KINDS:
                 raise BUseCaseError("B_INVALID_PARAMETER", f"unknown aggregate_kind: {kind}")
             aggregate_kind = kind  # type: ignore[assignment]
-        page = deps.reader.query(
-            RecordQuery(
+        revision = parameters.get("revision")
+        try:
+            record_query = RecordQuery(
                 project_id=project_id,
                 aggregate_kind=aggregate_kind,
                 record_id=_optional_text(parameters.get("record_id"), "record_id"),
                 limit=_as_limit(parameters.get("limit")),
                 cursor=_optional_text(parameters.get("cursor"), "cursor"),
+                revision=None if revision is None else _revision_of(revision, "revision"),
+                sort=_as_text(parameters.get("sort", "aggregate_kind"), "sort"),
+                descending=_bool_of(parameters.get("descending"), "descending"),
+                business_outcome=_optional_text(
+                    parameters.get("business_outcome"), "business_outcome"
+                ),
+                run_id=_optional_text(parameters.get("run_id"), "run_id"),
+                report_id=_optional_text(parameters.get("report_id"), "report_id"),
+                view=_optional_text(parameters.get("view"), "view"),
+                facet=_as_text(parameters.get("facet", "NONE"), "facet"),
+                facet_value=_optional_text(parameters.get("facet_value"), "facet_value"),
+                severity=_optional_text(parameters.get("severity"), "severity"),
             )
-        )
+        except ValueError as error:
+            # 已登记错误码（如 `QUERY_UNSUPPORTED_FILTER`）原样抛出；其余是参数问题。
+            if getattr(error, "code", None):
+                raise
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+        try:
+            page = deps.reader.query(record_query)
+        except ValueError as error:
+            # 固定目录组合的合法性由 `QuerySpec.ensure_finite_route()` 唯一判定；
+            # 它自带的 `QUERY_UNSUPPORTED_FILTER` 必须保留，其余落到参数问题，
+            # 不得变成 INTERNAL_ERROR。
+            if getattr(error, "code", None):
+                raise
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
         return {
             "items": [
                 {
