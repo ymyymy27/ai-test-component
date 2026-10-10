@@ -561,17 +561,12 @@
         "description": null,
         "method": "source_origin_blocking_assertion"
       },
-      "unverified_reason": "SourceSnapshotPort 现有 7 个方法签名，source_snapshot/source_control/python_checks/source_checks/start_source_binding 都是真实实现，SOURCE_BINDING_UNVERIFIED 已按 DEC-012 登记；但装配里构造的 source_probe 无人调用、SourceVerificationService 不参与装配，默认 admission 只做物化与映射摘要，不核对解释器/入口/实际加载来源。",
+      "unverified_reason": "来源核验链的规则与适配器都在，且默认准入已完成覆盖性、workdir 归属、逐文件摘要、映射摘要、cwd 受限解析与适配器唯一键核对；缺的是「实际入口／实际解释器／来源核验事实」这三个实际值的来源——source probe 在装配中无人调用、SourceVerificationService 不参与装配，所以「启动前核对实际来源、不符则阻塞」尚未接在默认启动路径上。",
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配不核对实际加载来源：bootstrap.py 构造的 source_probe 只放进 CoreAssembly.source_probe 无人调用，SourceVerificationService（application/execution/source_checks.py:99）在装配里不出现；默认注入的 admission 只做物化+映射摘要，不核对解释器/入口/实际加载来源。",
+          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实；bootstrap.py 构造的 PythonLoadSourceProbe 只放进 CoreAssembly.source_probe 无人调用，SourceVerificationService 不参与装配。",
           "resolved_by": "C"
-        },
-        {
-          "kind": "user_entry",
-          "detail": "真实产品入口未通：integrations/trae/src/extension.ts 仅 29 行、只注册 aitest.openPanel 创建 webview，无核心连接、无 onDidReceiveMessage、无业务动作转发；面板 resources/panel/src/index.ts 自述『静态原型·未连接核心』，所有按钮 disabled 且不发消息；CLI 只有 doctor/dispatch 且都要求核心已在运行，缺『发现或启动核心』的入口动作。",
-          "resolved_by": "D"
         }
       ],
       "real_environment_verified": false,
@@ -1307,17 +1302,12 @@
         "description": "待补：两个项目的分析输出、固定内容摘要、分析后源码变化的提示",
         "method": "analysis_then_source_change_assertion"
       },
-      "unverified_reason": "最小输入选择规则、无模型时人工建计划的路径、analyze_project/check_source 动作与真实快照实现都已具备；原登记的『SourceSnapshotPort 无方法签名』『源码读取与摘要计算无真实实现』已被源码推翻，B-Q01/C-Q08 亦已裁定。剩余缺口是源码读取未接入默认装配的核对链，以及真实入口。",
+      "unverified_reason": "快照实现、源码分析动作与受限 cwd/映射核对都已具备；缺的是把 source probe 与来源核验服务接进默认准入以产生「实际入口／实际解释器／核验事实」，以及真实入口。原登记里「SourceSnapshotPort 无方法签名」「源码读取与摘要计算无真实实现」已被源码推翻。",
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配不核对实际加载来源：bootstrap.py 构造的 source_probe 只放进 CoreAssembly.source_probe 无人调用，SourceVerificationService（application/execution/source_checks.py:99）在装配里不出现；默认注入的 admission 只做物化+映射摘要，不核对解释器/入口/实际加载来源。",
+          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实；bootstrap.py 构造的 PythonLoadSourceProbe 只放进 CoreAssembly.source_probe 无人调用，SourceVerificationService 不参与装配。",
           "resolved_by": "C"
-        },
-        {
-          "kind": "user_entry",
-          "detail": "真实产品入口未通：integrations/trae/src/extension.ts 仅 29 行、只注册 aitest.openPanel 创建 webview，无核心连接、无 onDidReceiveMessage、无业务动作转发；面板 resources/panel/src/index.ts 自述『静态原型·未连接核心』，所有按钮 disabled 且不发消息；CLI 只有 doctor/dispatch 且都要求核心已在运行，缺『发现或启动核心』的入口动作。",
-          "resolved_by": "D"
         }
       ],
       "real_environment_verified": false,

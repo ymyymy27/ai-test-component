@@ -322,7 +322,14 @@ def build_saved_action_resolver(
 ) -> SavedActionResolver:
     """装配用工厂：物化准入 + 事实尝试序号 + 最严副作用类别，一次装好。
 
-    仍未调用：默认装配是否注入由接线方决定（改默认执行语义的最后一步）。
+    准入覆盖范围（2026-10-11 明确，避免被误读为"只做物化 + 映射摘要"）：
+    `StartMaterializer.materialize` 委托 `StartSourceBindingResolver.resolve`，因此这里
+    **已经**完成物化结果必须 verified、快照身份一致、workdir 归属、逐文件摘要、映射摘要重算、
+    期望清单恰好覆盖、受限 cwd 解析、entry_arguments 逐字与 adapter_versions 唯一键。
+
+    **未覆盖**的是 `admit_start` 相对 `materialize` 多出的三项可选核对——实际已登记入口、
+    实际解释器/可执行文件、以及来源核验必须为 `verified`；它们需要 source probe 与真实环境
+    事实提供"实际值"。在接入这三项之前，默认装配不会声称启动前的实际来源已核对。
     """
     materializer = StartMaterializer(snapshots, workspace_root=workspace_root)
 
