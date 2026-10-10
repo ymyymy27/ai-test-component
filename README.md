@@ -170,6 +170,8 @@ npm --prefix integrations/trae run package
 uv run aitest templates
 uv run aitest doctor
 uv run aitest doctor --workspace "C:\本地用户数据\aitest"
+# ensure-core 供编辑器宿主使用：发现或启动该工作空间的唯一核心，只回报已核对的身份
+uv run aitest ensure-core --workspace "C:\本地用户数据\aitest"
 # dispatch从标准输入读取一份完整Command JSON（EOF结束）
 uv run aitest dispatch --workspace "C:\本地用户数据\aitest"
 uv run aitest mcp-relay --binding example
@@ -177,6 +179,7 @@ uv run aitest mcp-relay --binding example
 
 - `templates`：列出六个已打包模板及其当前状态。
 - `doctor`：未指定workspace时仍为离线诊断（NOT_READY/退出2）；指定既有用户数据工作空间后核对并连接同一核心，READY退出0。路径缺失或身份无法核实返回错误，不把当前目录创建成数据工作空间。
+- `ensure-core`：宿主入口——先连既有核心，连不上再启动一个，并回报已核对的 `workspace_id`/`instance_id`；**不派发业务动作、不写业务记录**。路径不存在或不是目录时结构化失败（`WORKSPACE_NOT_FOUND`/退出2），**不据此创建数据工作空间**。
 - `dispatch --workspace`：从stdin读取一份有界UTF-8 Command JSON，保留原request/intent/准确修订，核对原核心回执。退出0仅表示收到成功回执；人工动作需受控用户入口，Python CLI不会自签确认。
 - `mcp-relay --workspace <用户数据工作空间> --project <项目ID> --binding <绑定ID>`：提供同核心只读doctor/有限query，冻结绑定修订并核对变更；stdin/stdout为UTF-8逐行MCP，缺上下文返回不可用。完整业务动作仍需接通。
 
