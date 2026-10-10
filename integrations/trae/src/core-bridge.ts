@@ -149,6 +149,75 @@ function parseResponse(raw: string): Record<string, unknown> | null {
   }
 }
 
+/** 确保该工作空间有唯一核心在服务（宿主职责，架构 05 第 1 节）。
+ *
+ * 走 `aitest ensure-core`：先连既有核心，连不上再启动一个；身份由核心侧核对。
+ * 本调用**不派发业务动作**，也不写业务记录；路径缺失时核心侧结构化拒绝，
+ * 我们如实转述，不替代它做猜测。
+ */
+export async function ensureCore(
+  python: string,
+  workspaceRoot: string,
+  timeoutMs = 60_000,
+): Promise<DispatchOutcome> {
+  if (!workspaceRoot.trim()) {
+    return {
+      status: "unavailable",
+      code: "WORKSPACE_NOT_CONFIGURED",
+      message: "尚未配置 aitest.workspaceRoot（用户数据工作空间），入口不能猜测其位置",
+    };
+  }
+  return new Promise<DispatchOutcome>((resolve) => {
+    const child = spawn(
+      python,
+      ["-m", "aitest.interfaces.tools.cli", "ensure-core", "--workspace", workspaceRoot],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (outcome: DispatchOutcome): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolve(outcome);
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish({ status: "unavailable", code: "ENTRY_TIMEOUT", message: "启动核心在限定时间内未回报" });
+    }, timeoutMs);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error: Error) => {
+      finish({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: error.message });
+    });
+    child.on("close", (code: number | null) => {
+      const parsed = parseResponse(stdout);
+      if (code === 0 && parsed !== null && parsed["status"] === "READY") {
+        finish({ status: "ok", response: parsed });
+        return;
+      }
+      const refusal = parseResponse(stderr.trim().split("\n").pop() ?? "");
+      finish({
+        status: "refused",
+        code: typeof refusal?.["code"] === "string" ? refusal["code"] : "CORE_UNAVAILABLE",
+        message:
+          typeof refusal?.["message"] === "string"
+            ? refusal["message"]
+            : stderr.trim() || "核心未能在限定时间内核实并连接",
+      });
+    });
+  });
+}
+
 /**
  * 派发一份只读 Command 到唯一核心。
  *

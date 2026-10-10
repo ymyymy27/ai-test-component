@@ -118,6 +118,14 @@ class AITestPanel extends HTMLElement {
     status.dataset.testid = "panel-status";
     status.className = "muted";
     status.textContent = this.statusText();
+    const connect = document.createElement("button");
+    connect.textContent = "连接核心";
+    connect.dataset.action = "ensure-core";
+    connect.disabled = this.pending || this.host === null;
+    connect.title = this.host === null
+      ? "不在编辑器宿主中，面板未连接核心"
+      : "发现或启动该工作空间的唯一核心（宿主职责，不派发业务动作）";
+    connect.onclick = () => { this.ensureCore(); };
     const refresh = document.createElement("button");
     refresh.textContent = "刷新核心状态";
     refresh.dataset.action = "refresh-core";
@@ -125,8 +133,18 @@ class AITestPanel extends HTMLElement {
     refresh.onclick = () => { this.dispatch("doctor"); };
     const scope = document.createElement("p"); scope.className = "scope";
     scope.textContent = "当前项目：未选择 · 范围：尚未准备（一期只读入口）";
-    header.append(title, status, refresh, scope);
+    header.append(title, status, connect, refresh, scope);
     return header;
+  }
+
+  /** 宿主职责：发现或启动唯一核心；本动作不派发业务动作、不写业务记录。 */
+  private ensureCore(): void {
+    if (this.host === null) {
+      return;
+    }
+    this.pending = true;
+    this.host.postMessage({ kind: "ensureCore" });
+    this.render();
   }
 
   private currentView(): HTMLElement {

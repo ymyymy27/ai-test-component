@@ -7,7 +7,7 @@
 import * as vscode from "vscode";
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { dispatchReadOnly, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
+import { dispatchReadOnly, ensureCore, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
 
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
@@ -82,6 +82,19 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
     return;
   }
   const raw = message as Record<string, unknown>;
+  if (raw["kind"] === "ensureCore") {
+    const { python, workspaceRoot } = readSettings();
+    const ensured = await ensureCore(python, workspaceRoot);
+    post(panel, {
+      kind: "outcome",
+      action: "ensure-core",
+      status: ensured.status,
+      code: ensured.code,
+      message: ensured.message,
+      response: ensured.response,
+    });
+    return;
+  }
   if (raw["kind"] !== "dispatch") {
     return;
   }
