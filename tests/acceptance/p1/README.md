@@ -13,20 +13,27 @@
 
 ---
 
-## 1 全局事实（写于 2026-09-28，`develop` = `eaa315f`）
+## 1 全局事实（2026-10-11 复核，基线 `204445f`）
 
-| 项 | 实测结果 |
+> **以下为现行事实。** 2026-09-28（`eaa315f`）的旧表把已实现的能力记为「占位／无方法签名」，逐条已被源码推翻；旧表可用 `git show 204445f^:tests/acceptance/p1/README.md` 追溯。
+
+| 项 | 实测结果（2026-10-11） |
 | --- | --- |
-| `application/ports.py` 中 B 需要的端口 | `WorkspaceUnitOfWork`、`RecordRepository`、`SourceSnapshotPort`、`ModelProvider`、`ProjectionPort`、`SecretPort` **均只有文档字符串，无方法签名** |
-| `infrastructure/file_store/` | `unit_of_work.py`／`records.py`／`workspace.py` 仍是占位 |
-| `domain/review/`、`application/review/` | 仍是占位；`develop` 上没有 D 的提交 |
-| 目标环境 | Windows 11 x64、Python 3.13、选定 Trae 版本尚未确定 |
+| `application/ports.py` 中 B 需要的端口 | `WorkspaceUnitOfWork`(6 方法)、`RecordRepository`(3)、`SourceSnapshotPort`(**7**)、`ModelProvider`(1)、`ProjectionPort`(1)、`SecretPort`(2)——**均已有真实方法签名** |
+| `infrastructure/file_store/` | 真实实现约 9,500 行（`records.py` 1163、`index.py` 1462、`spool.py` 762、`commit_manifest.py` 562、`events.py` 677、`backup.py` 335 等） |
+| `domain/review/`、`application/review/` | `defects.py` 458 行、`reports.py` 801 行、`defect_management.py` 185 行、`reporting.py` 111 行；另有 `interfaces/dto.py` 227 行 DTO |
+| 真实产品入口 | **未通**：`integrations/trae/src/extension.ts` 仅 29 行、只创建 webview；面板是静态原型（按钮全 `disabled`、不读 DTO）；`infrastructure/exports.py` 是 4 行空壳 |
+| 默认装配可派发动作 | **39** 个（一期动作表 54 个中 34 个 ＋ 5 个表外）；**20 个已声明动作不可派发** |
+| 默认执行链 | **未接**：`execution_port`／`business_verification_port` 默认 `None`，`execute_step` 必得 `CAPABILITY_UNAVAILABLE` |
+| 目标环境 | Windows 11 x64、Python 3.13 为一期验收版本；本机已安装 Trae CN |
 
-因此 B 牵头 8 项**没有一项可以填 `verified`**：每项都至少需要真实存储、真实执行事实或真实入口之一。
+因此 B 牵头 8 项**没有一项可以填 `verified`**：每项都至少需要真实存储、真实执行事实或真实入口之一。原登记的阻塞理由（端口无方法签名、`file_store` 占位、B-Q01/C-Q08 待裁定、B-Q06 待裁定）**均已失效**——B-Q01/C-Q08 于 2026-09-30 裁定（BC-001 §14.3），B-Q06 于 2026-09-28 结案。
 
 ---
 
 ## 2 B 牵头 8 项的前置条件清单
+
+> **本节第 2 节的「现状」列是 2026-09-28 的快照**，其中的阻塞理由多已过期。**逐项现行结论以 `status.json` 的 `prerequisites`／`blockers`／`source_evidence` 为准。**
 
 每项的 `result`／`blockers` 以 `status.json` 为准，下表只给"要跑什么、缺什么"。
 
@@ -124,6 +131,10 @@
 
 ---
 
-## 3 其他牵头包的条目
+## 3 其他牵头包的条目（2026-10-11 已补齐）
 
-`status.json` 中非 B 牵头 27 项的 `prerequisites`／`artifact_versions`／`actual`／`evidence`／`unverified_reason`／`blockers` 均为 `null`，`result` 为 `untested`，等待各自牵头包填写。B 不代填结论。
+`status.json` 中 **35 项的 `prerequisites`／`artifact_versions`／`evidence.method`／`unverified_reason`／`blockers`／`source_evidence` 均已按当前源码填写完毕**（原为 8/35）：B 8 项重填并更正过期结论，C 10 项、D 16 项、A 1 项首次补全。`result` 一律保持原值，**没有任何一项因本次刷新变成 `verified`**。
+
+阻塞分布（35 项累计）：`user_entry` **36 次**、`execution_facts` 18 次、`package_port` 7 次、`protocol` 4 次、`real_storage` 3 次、`environment` 1 次；按解决方为 D 43 处、C 16 处、A 8 处、B 2 处。**入口未通是门控面最大的单项。**
+
+逐项结论的源码依据见 `status.json` 的 `source_evidence`；现行总状态见[项目现状](../../../docs/现状.md)。
