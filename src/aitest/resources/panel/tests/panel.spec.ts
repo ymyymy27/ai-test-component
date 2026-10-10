@@ -15,7 +15,8 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
   await expect(page.getByText("运行后", { exact: true })).toBeVisible();
   await expect(page.getByTestId("primary-actions").getByRole("button")).toHaveCount(3);
 
-  await page.getByRole("button", { name: "计划" }).click();
+  // 「计划」必须精确匹配：否则会同时命中 AI 区的「生成计划草稿」（strict mode 冲突）。
+  await page.getByRole("button", { name: "计划", exact: true }).click();
   await expect(page.getByTestId("detail-view").getByRole("heading", { name: "计划" })).toBeVisible();
   await page.getByRole("button", { name: "返回本次测试" }).click();
   await expect(page.getByText("当前测试", { exact: true })).toBeVisible();

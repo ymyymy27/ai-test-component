@@ -15,11 +15,70 @@ const phases: ReadonlyArray<readonly [string, string, string]> = [
   ["运行后", "暂无报告修订", "显示业务结论、证据等级、未验证范围和下一步。"],
 ];
 
+type Outcome = {
+  kind: "outcome";
+  action: string | null;
+  status: "ok" | "refused" | "unavailable";
+  code?: string;
+  message?: string;
+  response?: Record<string, unknown>;
+};
+
+interface HostApi { postMessage(message: unknown): void }
+
+function hostApi(): HostApi | null {
+  const acquire = (globalThis as { acquireVsCodeApi?: () => HostApi }).acquireVsCodeApi;
+  return typeof acquire === "function" ? acquire() : null;
+}
+
 class AITestPanel extends HTMLElement {
   private detail: Detail = "current";
   private readonly root = this.attachShadow({ mode: "open" });
+  private readonly host = hostApi();
+  private outcome: Outcome | null = null;
+  private pending = false;
 
-  connectedCallback(): void { this.render(); }
+  connectedCallback(): void {
+    window.addEventListener("message", (event: MessageEvent) => {
+      const data = event.data as Outcome | undefined;
+      if (!data || data.kind !== "outcome") { return; }
+      this.outcome = data;
+      this.pending = false;
+      this.render();
+    });
+    this.render();
+    this.dispatch("doctor");
+  }
+
+  /** 面板只发起**只读**查询；写动作由受控用户入口发起，界面点击不等于确认。 */
+  private dispatch(action: string, parameters?: Record<string, unknown>): void {
+    if (this.host === null) {
+      this.outcome = {
+        kind: "outcome", action, status: "unavailable",
+        message: "当前不在编辑器宿主中，面板未连接核心",
+      };
+      this.render();
+      return;
+    }
+    this.pending = true;
+    this.host.postMessage({ kind: "dispatch", action, parameters: parameters ?? {} });
+    this.render();
+  }
+
+  private statusText(): string {
+    if (this.pending) { return "已请求核心，等待回执…"; }
+    const outcome = this.outcome;
+    if (outcome === null) { return "尚未连接核心"; }
+    if (outcome.status === "ok") {
+      const result = outcome.response?.["result"] as Record<string, unknown> | undefined;
+      const status = typeof result?.["status"] === "string" ? result["status"] : "OK";
+      const actions = Array.isArray(result?.["supported_actions"])
+        ? (result["supported_actions"] as unknown[]).length : 0;
+      return `核心回执 · ${outcome.action} · ${status} · 可派发动作 ${actions}`;
+    }
+    const code = outcome.code ?? outcome.status;
+    return `核心未通过 · ${outcome.action ?? "-"} · ${code}：${outcome.message ?? ""}`;
+  }
 
   private render(): void {
     this.root.replaceChildren();
@@ -58,10 +117,15 @@ class AITestPanel extends HTMLElement {
     const status = document.createElement("p");
     status.dataset.testid = "panel-status";
     status.className = "muted";
-    status.textContent = "静态原型 · 使用固定展示夹具 · 未连接核心 · 非产品验收";
+    status.textContent = this.statusText();
+    const refresh = document.createElement("button");
+    refresh.textContent = "刷新核心状态";
+    refresh.dataset.action = "refresh-core";
+    refresh.disabled = this.pending;
+    refresh.onclick = () => { this.dispatch("doctor"); };
     const scope = document.createElement("p"); scope.className = "scope";
-    scope.textContent = "当前项目：示例项目 · 范围：尚未准备";
-    header.append(title, status, scope);
+    scope.textContent = "当前项目：未选择 · 范围：尚未准备（一期只读入口）";
+    header.append(title, status, refresh, scope);
     return header;
   }
 
