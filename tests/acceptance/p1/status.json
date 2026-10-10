@@ -565,7 +565,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实；bootstrap.py 构造的 PythonLoadSourceProbe 只放进 CoreAssembly.source_probe 无人调用，SourceVerificationService 不参与装配。",
+          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实。**其中解释器一项已于 2026-10-11 接通**：`SavedActionResolver` 接受装配层注入的 `interpreter_verifier`（`bootstrap._interpreter_verifier` 用 `PythonLoadSourceProbe` 以冻结环境事实的 executable_path 现场探测，交回解释器自报的 realpath），按 `source_checks._derive_state` 第 182–186 行的解析路径口径比对；`assemble_workspace_core` 的 `verify_start_interpreter` **默认开启**，全默认执行族 58 项在该默认下通过。**仍缺**：实际入口核对、来源核验事实（`SourceVerificationService` 仍不参与装配）与默认执行端口。",
           "resolved_by": "C"
         }
       ],
@@ -1308,7 +1308,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实；bootstrap.py 构造的 PythonLoadSourceProbe 只放进 CoreAssembly.source_probe 无人调用，SourceVerificationService 不参与装配。",
+          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实。**其中解释器一项已于 2026-10-11 接通**：`SavedActionResolver` 接受装配层注入的 `interpreter_verifier`（`bootstrap._interpreter_verifier` 用 `PythonLoadSourceProbe` 以冻结环境事实的 executable_path 现场探测，交回解释器自报的 realpath），按 `source_checks._derive_state` 第 182–186 行的解析路径口径比对；`assemble_workspace_core` 的 `verify_start_interpreter` **默认开启**，全默认执行族 58 项在该默认下通过。**仍缺**：实际入口核对、来源核验事实（`SourceVerificationService` 仍不参与装配）与默认执行端口。",
           "resolved_by": "C"
         }
       ],

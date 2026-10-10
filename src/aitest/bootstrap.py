@@ -358,7 +358,7 @@ def assemble_workspace_core(
     execution_port: ExecutionPort | None = None,
     business_verification_resolver: BusinessVerificationResolver | None = None,
     business_verification_port: BusinessVerificationCapturePort | None = None,
-    verify_start_interpreter: bool = False,
+    verify_start_interpreter: bool = True,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
