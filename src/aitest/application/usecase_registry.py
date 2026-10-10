@@ -198,6 +198,7 @@ _StrEnumT = TypeVar("_StrEnumT", bound=StrEnum)
 OWNED_ACTIONS: frozenset[str] = frozenset(
     {
         "save_context",
+        "bind_project",
         "save_binding",
         "save_environment",
         "save_dependency_graph",
@@ -1996,6 +1997,12 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
 
     actions: dict[str, Handler] = {
         "save_context": _guard(handle_save_context),
+        # 合同名优先（架构05 第3节动作表把「目录绑定：规范化当前目录、选择/建立稳定项目、
+        # 取得 binding_revision」定为 `bind_project`）。以合同名注册还有实际收益：
+        # `bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制
+        # project_id + intent_id + expected_revision；而表外的 `save_binding` 不受该写身份校验。
+        "bind_project": _guard(handle_save_binding),
+        # 兼容别名：既有调用方与测试仍可用，不广告为合同动作。
         "save_binding": _guard(handle_save_binding),
         "save_environment": _guard(handle_save_environment),
         "save_dependency_graph": _guard(handle_save_dependency_graph),
