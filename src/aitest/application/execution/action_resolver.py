@@ -90,9 +90,7 @@ class SavedActionResolver:
         environment_identity = _environment_identity(prepared)
         timeout_ms = _frozen_timeout_ms(prepared)
         _step_content_scope(step_content, run, step)
-        entry = step.registered_entry_ref
-        if not isinstance(entry, RegisteredEntryRef):
-            raise ActionResolutionBlocked("the frozen step has no registered entry")
+        entry = self._frozen_entry(step, binding, _environment_resolution(prepared))
         adapter_kind = self._adapter_kind(binding, entry.adapter_kind)
         arguments = self._arguments(binding, entry)
         source_binding_digest = _admission_digest(
@@ -163,6 +161,46 @@ class SavedActionResolver:
             )
         except ValueError as error:  # 领域不变量：构造成功即证明自洽
             raise ActionResolutionBlocked(f"resolved action is inconsistent: {error}") from error
+
+    def _frozen_entry(
+        self,
+        step: Step,
+        binding: ExecutionSourceBinding,
+        environment: EnvironmentResolutionFact,
+    ) -> RegisteredEntryRef:
+        """确定本次执行的**已登记入口**；两条来源都必须是冻结事实。
+
+        契约依据：
+        - 架构01 第12节：prepare 冻结「解释器/可执行文件身份、…、已登记入口与参数」到
+          `ExecutionSourceBinding`；`Step`（架构02 第1节）是该登记的逐步投影。
+        - `EnvironmentResolutionFact` 的自述：*Observed by a core-owned registered carrier,
+          never a client declaration* —— 可执行路径**只**能取核心观测事实。
+        - 架构02 第1/7节：命令使用登记入口及参数数组，禁止把模型或正文拼成 shell。
+        - 能力清单：用户登记解释器；**未登记入口不猜命令**。
+
+        因此这里不发明命令：入口身份与参数逐字取自冻结事实。步骤侧已携带入口时以其为准
+        （它是 prepare 写入的投影），未携带时（当前生产路径的现状）回落到冻结绑定。
+        """
+
+        declared = step.registered_entry_ref
+        if declared is not None:
+            return declared
+        entry_id = binding.registered_entry
+        if not isinstance(entry_id, str) or not entry_id.strip():
+            raise ActionResolutionBlocked("the frozen binding has no registered entry")
+        executable = environment.executable_path
+        if not isinstance(executable, str) or not executable.strip():
+            raise ActionResolutionBlocked("the observed carrier has no executable identity")
+        try:
+            kind = AdapterKind(self._validators.resolve_adapter_kind(binding.adapter_versions))
+        except (SourceBindingUnverified, ValueError) as error:
+            raise ActionResolutionBlocked(str(error)) from error
+        return RegisteredEntryRef(
+            entry_id=entry_id,
+            adapter_kind=kind,
+            entrypoint=executable,
+            arguments=tuple(binding.entry_arguments),
+        )
 
     def _adapter_kind(self, binding: ExecutionSourceBinding, frozen: AdapterKind) -> AdapterKind:
         try:
@@ -255,7 +293,9 @@ def _snapshot(prepared: Mapping[str, object]) -> tuple[str, str]:
     return snapshot_id, identity
 
 
-def _environment_identity(prepared: Mapping[str, object]) -> str:
+def _environment_resolution(prepared: Mapping[str, object]) -> EnvironmentResolutionFact:
+    """冻结环境事实：由**核心观测的登记载体**产生，不是客户端自述。"""
+
     raw = prepared.get("environment")
     if not isinstance(raw, Mapping):
         raise ActionResolutionBlocked("prepared run has no frozen environment")
@@ -263,11 +303,15 @@ def _environment_identity(prepared: Mapping[str, object]) -> str:
     if not isinstance(resolution, Mapping):
         raise ActionResolutionBlocked("frozen environment has no resolved carrier")
     try:
-        fact = EnvironmentResolutionFact.model_validate(dict(resolution))
+        return EnvironmentResolutionFact.model_validate(dict(resolution))
     except ValueError as error:
         raise ActionResolutionBlocked(
             f"frozen environment fact cannot be verified: {error}"
         ) from error
+
+
+def _environment_identity(prepared: Mapping[str, object]) -> str:
+    fact = _environment_resolution(prepared)
     if not fact.content_identity.strip():
         raise ActionResolutionBlocked("frozen environment resolution has no content identity")
     return fact.content_identity
