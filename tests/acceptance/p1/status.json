@@ -126,7 +126,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -171,7 +171,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -214,7 +214,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -520,7 +520,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -817,7 +817,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -865,7 +865,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -1002,7 +1002,7 @@
         },
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -1048,7 +1048,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -1093,7 +1093,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
@@ -1350,7 +1350,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。 更底层的一处断点（2026-10-11 发现）：`Step.registered_entry_ref` 在生产路径上**从未被填充**——全仓 src/ 只有 action_resolver.py:93 读取它、domain/execution/runs.py:544 声明它，而 registration.py:259、reuse_sources.py:137、run_schedule.py:57 三处 Step 构造**都不传该字段**，因此恒为 None，SavedActionResolver.resolve 必然在 action_resolver.py:94-95 抛 ActionResolutionBlocked（the frozen step has no registered entry）。也就是说生产路径连 ExecutionRequest 都构造不出来：冻结绑定的 registered_entry（形如 python -m pytest 的命令串）到 RegisteredEntryRef（entry_id + **绝对可执行路径** + 逐字参数）的受信解析没有实现。",
           "resolved_by": "C"
         },
         {
