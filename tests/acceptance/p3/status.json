@@ -1,0 +1,229 @@
+{
+  "version": "0.1",
+  "phase": 3,
+  "updated_at": "2026-10-10",
+  "baseline_commit": "3883cf119f275f382da74568bfcda565fd4eb87f",
+  "scope": "product_acceptance_not_scaffold_tests",
+  "update_rules": {
+    "owner_field": "三期牵头包拆分方案尚未建立，owner 一律 null；平台合同确定后由该方案填写，不得由单人推定。",
+    "scenario_expected": "scenario／expected／related_frs 逐字取自需求文档第 5 节，只在需求文档改动后同步，任何一方不得改写",
+    "verified_rule": "result=verified 必须同时满足 evidence.path 非空且 real_environment_verified=true",
+    "no_inference": "文档一致、单元与合同测试通过、夹具通过，均不得写成真实环境验收通过",
+    "skeleton_rule": "本文件是骨架：全部条目 result=untested、owner=null，只登记场景与预期，不声明任何能力已验收"
+  },
+  "results": [
+    {
+      "id": "P3-AC01",
+      "owner": null,
+      "result": "untested",
+      "scenario": "完成登录、会话刷新、退出与重新登录",
+      "expected": "各入口关联同一稳定账号（账号由平台给出）；退出后清除会话与缓存视图，原账号的待发送材料保留",
+      "related_frs": [
+        "P3-FR01"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC02",
+      "owner": null,
+      "result": "untested",
+      "scenario": "两账号含大小写差异、普通目录分别提交同一项目",
+      "expected": "账号与来源不串用；不按显示名推断身份；plain只选平台项目即可；目标按合同接收各自独立结果",
+      "related_frs": [
+        "P3-FR01",
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC03",
+      "owner": null,
+      "result": "untested",
+      "scenario": "断网重启、无会话、队列满、候选登记中断、上传状态反复写入、放弃后迟到回执及重新登录；已确认手动提交重启续传及备份恢复",
+      "expected": "本地保存和报告独立成功；候选保留，原身份核实后补交；候选与游标原子保存，重复扫描不重建，上传自身写入不产生候选；放弃只停止自动发送且材料永久保留，迟到回执保留真实接收状态，重新登录不恢复已放弃发送；不重跑业务；有效单份许可可在同一失败周期内续行，退出/暂停后的重登不复活许可；备份保留候选游标、旧提交/回执、唯一投影和控制决定，不丢历史；一条业务候选登记后空闲不再新增commit；稀疏索引跳过自身事件，空结果不写检查点；固定高水位及阻塞点连续前缀避免漏候选",
+      "related_frs": [
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC04",
+      "owner": null,
+      "result": "untested",
+      "scenario": "重复发送、回执丢失、同运行新内容修订、目标重绑、脱敏摘要核对；失败耗尽后重登、冲突后点击恢复",
+      "expected": "原提交先查；同号同内容幂等，同号异内容冲突；新修订/目标新建提交；回执核对冻结上传摘要；未知查询受同一有界重试策略约束；重登不重置失败次数；只有明确恢复且许可/暂停原因守卫满足才开新周期；认证恢复不解除摘要冲突或投影复核要求；反复HTTP成功但UNKNOWN/缺失集合不变且无可信块偏移增长也消耗无进展周期并最终暂停；正常分块偏移增长算进展，正常请求计划纳入总轮次；真实接收增加不重置总轮次；重启、重登保留两类计数",
+      "related_frs": [
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC05",
+      "owner": null,
+      "result": "untested",
+      "scenario": "上传成功、上传失败、上传被拒与回执不完整四种情形各注入一次",
+      "expected": "**上传不改变本地结论**：执行状态、断言结果、验收结论与问题状态都不因上传而改写；不自动确认缺陷、不关闭问题、不发布规则；回执不完整时本地显示\"未送达\"而不是\"已送达\"",
+      "related_frs": [
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC06",
+      "owner": null,
+      "result": "untested",
+      "scenario": "平台接口未就绪、平台不可用或凭据失效时执行一轮本地测试",
+      "expected": "本地测试、证据、报告与导出**完全不受影响**；已绑定材料按冻结账号保留、可稍后补交；无会话候选保持未关联，显式确认账号及目标后才能提交；插件不重试到阻塞本地、也不伪造上传成功",
+      "related_frs": [
+        "P3-FR01",
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC07",
+      "owner": null,
+      "result": "untested",
+      "scenario": "首次绑定、人工发送、显式开启运行结束/逐步同步、目标变更与关闭同步；manual手动送达、关闭同步后重授单份许可及仅查询一次；列表摘要与本人安全正文预览、预览期间切换账号",
+      "expected": "默认不自动发送；策略绑定账号/项目/目标/材料类别和修订；首次预览冻结脱敏投影后确认，自动同步只在明确允许范围内；变化重新核对，新提交不偷换旧目标；关闭同步禁止后续自动网络动作，保留候选和在途回执；手动确认只授权冻结提交有界送达，不发送其他候选；关闭同步撤销当时未完成许可，之后可明确重授一份；查询一次不自动补交；AI不能自确认策略或提交；预览核对冻结账号/清单，切账号使旧读取失效且不展示其他账号正文；查看安全正文不产生送达许可",
+      "related_frs": [
+        "P3-FR01",
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P3-AC08",
+      "owner": null,
+      "result": "untested",
+      "scenario": "截图因脱敏被排除但清单全部接收、预览后源记录变化",
+      "expected": "同时显示“提交已送达”和具体业务证据上传缺口，不把收齐清单等同完整业务证据；预览与发送字节同摘要，变化需新提交；关键投影缺口待人工确认不自动发送，源码正文始终禁传",
+      "related_frs": [
+        "P3-FR02"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（3 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    }
+  ],
+  "cases": [
+    {
+      "id": "P3-AC01",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC02",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC03",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC04",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC05",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC06",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC07",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P3-AC08",
+      "result": "untested",
+      "evidence_path": null
+    }
+  ]
+}
