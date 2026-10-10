@@ -4,6 +4,12 @@
 
 ## 开发日志汇总
 
+- 建立唯一现行状态页[docs/现状.md](docs/现状.md)，6 处重复的"现状复核 2026-10-10"正文收敛为指针，9 处引用改指该页；AGENTS.md 删去"当前目录是文档工作区"的错误前提并修正全部失效路径，新增第 5.5 条验收登记硬边界；.gitignore 补 `.runtime/` 与 `/pytest-of-*/`。见[修改日志](docs/修改日志/袁/2026-10-10-状态页收敛与陈旧断言修复.md)。
+
+- 更正"3.11 独有 3 项失败"：`test_model_policy_approval[boolean_revision]` 与 `test_execution_start_integrity` 两项在 **3.13 上同样失败**，与解释器无关。三处均为"改了代码、旧断言未同步"——`6951674` 的身份守卫拒绝布尔修订（按既定口径归一为 `B_INVALID_PARAMETER`，不以等待确认替代非法输入），`f5074d9` 给启动事务加入同提交检查点引用使事务由 6 条变 7 条。修后 3.13/3.11 各 57 passed；真实 AC 仍 0 verified。
+
+- 补齐二期/三期验收登记骨架：`tests/acceptance/p2|p3/status.json` 共 17 项全部 `untested`、`owner=null`，场景与预期逐字取自需求文档第 5 节；新增对账测试 `tests/unit/test_acceptance_status_phases.py`。验收仍一期 0 verified、二期/三期 0 verified。
+
 - CLI接通既有工作空间同核心转发，客户端补可取消IO、准确回执与UTF-8；354项及安装制品CLI冒烟通过，ABC仍21项。
 
 - HTTP执行统一整请求截止和响应上限，截断/超时材料不参与断言，禁止隐式跳转；350项检查及制品HTTP/TLS冒烟通过，ABC仍21项。
