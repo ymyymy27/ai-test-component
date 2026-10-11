@@ -57,6 +57,7 @@ from aitest.domain.planning.plans import (
 from aitest.infrastructure.capabilities import CapabilityState
 from aitest.infrastructure.credential_resolver import PurposeBoundCredentialResolver
 from aitest.infrastructure.file_store.index import FileQueryIndex
+from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from aitest.interfaces.local.b_registration import register_b_use_cases
@@ -117,6 +118,9 @@ def _deps(
         material_projector=material_projector,
         model_provider=model_provider,
         model_credentials=model_credentials,
+        # fix 的 `handle_model_draft` 还要求模型响应存储；缺它会如实返回
+        # `blocked/model_not_configured`，而不是把未配置当成可用。
+        model_responses=FileModelResponseStore(root, writer_epoch=1),
     )
 
 

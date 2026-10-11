@@ -232,6 +232,8 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "generate_draft",
         "resolve_model_response",
         "save_model_outbound_policy",
+        # AB-001 方案 2 的注册缺口收口：合同点名的三个动作由本注册表拥有。
+        "request_model_draft",
         "export_rules",
         "export_rules_markdown",
         "import_rules",
@@ -2310,6 +2312,10 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "generate_draft": _guard(handle_generate_draft),
         "resolve_model_response": _guard(handle_resolve_model_response),
         "save_model_outbound_policy": _guard(handle_model_policy),
+        # AB-001 方案 2：合同把 `request_model_draft`、`revise_pending_steps`、`narrow_driver`
+        # 记为「注册缺口」，要求由 B 提供 handler、A 装配。本处按**合同动作名**登记既有
+        # handler（`handle_model_draft` 此前只定义未登记）。
+        "request_model_draft": _guard(handle_model_draft),
         "export_rules": _guard(handle_export_rules),
         "export_rules_markdown": _guard(handle_export_rules_markdown),
         "import_rules": _guard(handle_import_rules),
