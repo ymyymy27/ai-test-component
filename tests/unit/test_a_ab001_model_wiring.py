@@ -102,9 +102,9 @@ def workspace_root() -> Iterator[Path]:
 def _deps(
     root: Path,
     *,
-    projector: MemoryProjector | None = None,
-    caller: MemoryModelCaller | None = None,
-    credentials: MemoryCredentialResolver | None = None,
+    material_projector: MemoryProjector | None = None,
+    model_provider: MemoryModelCaller | None = None,
+    model_credentials: MemoryCredentialResolver | None = None,
 ) -> BUseCaseDependencies:
     raw = FileUnitOfWork(root)
     # 新工作空间尚无查询索引；按既有合同测试约定先建空索引
@@ -114,9 +114,9 @@ def _deps(
         unit_of_work=PortsUnitOfWork(raw, repository=raw.repo),
         reader=PortsRecordReader(raw.repo),
         clock=_FixedClock(),
-        material_projector=projector,
-        model_provider=caller,
-        model_credentials=credentials,
+        material_projector=material_projector,
+        model_provider=model_provider,
+        model_credentials=model_credentials,
     )
 
 
