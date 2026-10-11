@@ -1,0 +1,12 @@
+{
+  "baseline_commit": "bc4e4e7",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/infrastructure/adapters/model.py": "423dbaf443f3177cf5a782ea893547f304b6df41e77bdcb41288bc5dbd682970",
+    "src/aitest/infrastructure/adapters/execution/http_transport.py": "07cfcfc7fe9938d064f531e30e4d3e465976998b77334b7a575e7c63a8521ce5",
+    "src/aitest/domain/json_material.py": "859962fb8c47ae0fb73a86d7078d5364e78ded2b3b56d06b622767de3a73c9b6",
+    "tests/unit/test_model_transport_limits.py": "f5d3d76977fd6d6c4e3da5a3b6b6803b1ce9ba3f870c32bebe2bf1b7c13eb262",
+    "tests/unit/test_live_model_validation_guard.py": "f84ba064a9e91d4a4cb158d4dd95683393934bdb651bb22d970e92243b0cddac"
+  },
+  "scope": "Actual local model POST and default safe persistence/restart; synthetic endpoint/policy/human fixture. No real supplier/Trae AC. Earlier broad run interrupted after source edits, excluded."
+}

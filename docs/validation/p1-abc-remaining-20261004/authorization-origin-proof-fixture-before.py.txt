@@ -1,0 +1,312 @@
+"""Saved consent and authorization state use real file transactions, synthetic gestures."""
+
+from dataclasses import replace
+from unittest.mock import Mock
+
+import pytest
+
+from aitest.application.execution.authorization import ExecutionAuthorizationService
+from aitest.application.execution.start_identity import execution_start_fingerprint
+from aitest.domain.approvals import EntryKind, TrustedActor, UserInteraction
+from aitest.domain.execution.authorization import AuthorizationState, ResolvedExecutionAction
+from tests.unit.test_authoritative_preparation import authoritative as authoritative
+from tests.unit.test_authoritative_preparation import prepare
+from tests.unit.test_initial_run_registration import register
+from tests.unit.test_serial_runner import _attempt, _request
+
+
+class FixtureActionResolver:
+    """Explicit fixed component action; no actual execution/loading or human acceptance."""
+
+    def __init__(self, unit):
+        self.unit, self.calls = unit, 0
+
+    def resolve(self, *, run, step, intent_id, prepared, step_content):
+        assert self.unit.project is None
+        self.calls += 1
+        template = _request()
+        authorization = replace(
+            template.authorization_ref,
+            intent_id=intent_id,
+            step_id=step.step_id,
+            step_revision_ref=step.step_revision_ref,
+            plan_revision_ref=run.plan_revision_ref,
+        )
+        request = replace(
+            template,
+            project_id=run.project_id,
+            run_id=run.run_id,
+            step_id=step.step_id,
+            intent_id=intent_id,
+            authorization_ref=authorization,
+            expected_plan_revision_ref=run.plan_revision_ref,
+            environment_ref=run.environment_ref,
+            materialized_snapshot_ref=prepared["snapshot"]["source_snapshot_id"],
+        )
+        attempt = replace(
+            _attempt(),
+            run_id=run.run_id,
+            step_id=step.step_id,
+            intent_id=intent_id,
+            step_revision_ref=step.step_revision_ref,
+            authorization_ref=authorization,
+            expected_plan_revision_ref=run.plan_revision_ref,
+        )
+        from aitest.contracts.prepared_run import EnvironmentResolutionFact
+
+        detail = EnvironmentResolutionFact.model_validate(prepared["environment"]["resolution"])
+        return ResolvedExecutionAction(
+            attempt, request, detail.content_identity, prepared["snapshot"]["content_identity"]
+        )
+
+
+@pytest.fixture
+def resolved(authoritative):
+    core, inputs, source = authoritative
+    facts = register(core, prepare(core, inputs).result)
+    service = core.execution_authorizations
+    assert service is not None
+    service.action_resolver = FixtureActionResolver(core.unit_of_work)
+    parameters = service.prepare(
+        project_id=inputs.project_id,
+        run_id=facts.run_id,
+        step_id=facts.steps[0].step_id,
+        intent_id="execution-intent",
+        request_id="resolve-action",
+    )
+    _, action = service.resolver.read(inputs.project_id, parameters["execution_action_id"])
+    return core, inputs, source, service, parameters, action
+
+
+def review(service, project, action, parameters):
+    actor = TrustedActor(
+        service.workspace_id, project, "authorization-fixture", EntryKind.HUMAN_UI, True
+    )
+    with service.approvals.actors.bind(actor):
+        challenge = service.approvals.prepare(
+            project_id=project,
+            action_intent_id=action.request.intent_id,
+            preparation_intent_id="review-" + action.request.intent_id,
+            request_id="review-action",
+            action="authorize_step",
+            target=action.request.step_id,
+            parameters=parameters,
+        )
+    actor = replace(
+        actor,
+        interaction=UserInteraction(
+            "gesture-fixture",
+            actor.session_id,
+            challenge.challenge_id,
+            challenge.basis.input_digest,
+        ),
+    )
+    return actor, challenge
+
+
+def save(service, project, action, parameters, actor, challenge, request="save-authorization"):
+    with service.approvals.actors.bind(actor):
+        return service.grant(
+            project_id=project,
+            intent_id=action.request.intent_id,
+            request_id=request,
+            parameters=parameters,
+            challenge_id=challenge.challenge_id,
+        )
+
+
+def started(action):
+    return replace(
+        action.attempt, intent_digest=execution_start_fingerprint(action.attempt, action.request)
+    )
+
+
+def test_original_grant_is_saved_with_exact_confirmation_and_unused_state(resolved):
+    core, inputs, _, service, parameters, action = resolved
+    configured = service.action_resolver
+    service.action_resolver = None
+    before = core.unit_of_work.current_commit_sequence()
+    with pytest.raises(ValueError, match="trusted actual execution resolver"):
+        service.prepare(
+            project_id=inputs.project_id,
+            run_id=action.request.run_id,
+            step_id=action.request.step_id,
+            intent_id="missing-resolver",
+            request_id="blocked",
+        )
+    assert core.unit_of_work.current_commit_sequence() == before
+    service.action_resolver = configured
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    before = core.unit_of_work.current_commit_sequence()
+    original = save(service, inputs.project_id, action, parameters, actor, challenge)
+    assert core.unit_of_work.current_commit_sequence() == before + 6
+    identity = action.request.authorization_ref.authorization_id
+    assert original["authorization_id"] == identity
+    assert service._state(inputs.project_id, identity) == (1, AuthorizationState.UNUSED, None)
+    grant, saved = service._origin(inputs.project_id, identity)
+    assert saved == action
+    proof = service.approvals.read_confirmation(
+        project_id=inputs.project_id, confirmation_id=grant["confirmation_id"]
+    )
+    assert int(proof.confirmed_at_commit) == before + 6
+    assert proof.basis.target == action.request.step_id
+    assert proof.basis.credential_scope_ref == action.request.authorization_ref.credential_scope_ref
+    assert (
+        save(
+            service, inputs.project_id, action, parameters, actor, challenge, request="reply-retry"
+        )
+        == original
+    )
+    assert core.unit_of_work.current_commit_sequence() == before + 6
+    service.validate_new(project_id=inputs.project_id, attempt=started(action))
+
+
+@pytest.mark.parametrize("failure", range(1, 7))
+def test_each_authorization_save_failure_preserves_unused_challenge_and_zero_partial_grant(
+    resolved, monkeypatch, failure
+):
+    core, inputs, _, service, parameters, action = resolved
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    before = core.unit_of_work.current_commit_sequence()
+    original_stage = core.unit_of_work.stage_record
+    calls = 0
+
+    def fail(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == failure:
+            raise OSError("injected authorization stage")
+        return original_stage(**kwargs)
+
+    monkeypatch.setattr(core.unit_of_work, "stage_record", fail)
+    with pytest.raises(OSError, match="injected"):
+        save(service, inputs.project_id, action, parameters, actor, challenge)
+    identity = action.request.authorization_ref.authorization_id
+    assert core.unit_of_work.current_commit_sequence() == before
+    assert service._revision(identity) == 0
+    assert service._revision("authorization-state:" + identity) == 0
+    assert (
+        service.approvals.read_challenge(
+            project_id=inputs.project_id, challenge_id=challenge.challenge_id
+        ).state.value
+        == "pending"
+    )
+    monkeypatch.setattr(core.unit_of_work, "stage_record", original_stage)
+    save(service, inputs.project_id, action, parameters, actor, challenge, request="retry-save")
+    service.validate_new(project_id=inputs.project_id, attempt=started(action))
+
+
+def test_exact_occupation_is_atomic_and_history_does_not_probe_changed_source(resolved):
+    core, inputs, source, service, parameters, action = resolved
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    save(service, inputs.project_id, action, parameters, actor, challenge)
+    attempt = started(action)
+    unit = core.unit_of_work
+    unit.begin("occupy", inputs.project_id)
+    proof = service.stage_occupation(project_id=inputs.project_id, attempt=attempt)
+    unit.commit("occupy")
+    assert service._state(inputs.project_id, action.request.authorization_ref.authorization_id) == (
+        2,
+        AuthorizationState.OCCUPIED,
+        attempt.attempt_id,
+    )
+    (source / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
+    service.validate_occupation(project_id=inputs.project_id, attempt=attempt, proof=proof)
+    with pytest.raises(ValueError, match="occupied"):
+        service.validate_new(project_id=inputs.project_id, attempt=attempt)
+    with pytest.raises(ValueError, match="occupation"):
+        service.validate_occupation(
+            project_id=inputs.project_id, attempt=replace(attempt, attempt_id="other"), proof=proof
+        )
+
+
+def test_revocation_keeps_original_grant_and_conflicts_on_changed_intent_input(resolved):
+    core, inputs, _, service, parameters, action = resolved
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    save(service, inputs.project_id, action, parameters, actor, challenge)
+    identity = action.request.authorization_ref.authorization_id
+    with service.approvals.actors.bind(actor):
+        service.revoke(
+            project_id=inputs.project_id,
+            authorization_id=identity,
+            intent_id="revoke",
+            request_id="revoke",
+        )
+        sequence = core.unit_of_work.current_commit_sequence()
+        service.revoke(
+            project_id=inputs.project_id,
+            authorization_id=identity,
+            intent_id="revoke",
+            request_id="retry-revoke",
+        )
+        assert core.unit_of_work.current_commit_sequence() == sequence
+        with pytest.raises(ValueError, match="different input"):
+            service.revoke(
+                project_id=inputs.project_id,
+                authorization_id="other",
+                intent_id="revoke",
+                request_id="conflict-revoke",
+            )
+    assert service._revision(identity) == 1
+    assert service._state(inputs.project_id, identity) == (2, AuthorizationState.REVOKED, None)
+    with pytest.raises(ValueError, match="revoked"):
+        service.validate_new(project_id=inputs.project_id, attempt=started(action))
+
+
+def test_caller_ref_alone_and_forged_start_fingerprint_have_no_original_authority(resolved):
+    core, inputs, _, service, parameters, action = resolved
+    with pytest.raises(ValueError, match="original"):
+        service.validate_new(project_id=inputs.project_id, attempt=started(action))
+    actor, challenge = review(service, inputs.project_id, action, parameters)
+    save(service, inputs.project_id, action, parameters, actor, challenge)
+    tampered_request = replace(
+        action.request,
+        registered_entry=replace(action.request.registered_entry, entrypoint="another-command"),
+    )
+    attempt = replace(
+        action.attempt, intent_digest=execution_start_fingerprint(action.attempt, tampered_request)
+    )
+    with pytest.raises(ValueError, match="authorized action"):
+        service.validate_new(project_id=inputs.project_id, attempt=attempt)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"grant_revision": True},
+        {"grant_revision": 1.0},
+        {"state_revision": True},
+        {"state_revision": 2.0},
+        {"grant_revision": None},
+        {"extra": "field"},
+    ],
+)
+def test_occupation_proof_requires_exact_integer_revisions_and_closed_fields(change):
+    # Isolated boundary probe; the file-transaction tests above establish origin.
+    request = _request()
+    resolved_action = ResolvedExecutionAction(_attempt(), request, "environment", "source")
+    attempt = started(resolved_action)
+    service = Mock(spec=ExecutionAuthorizationService)
+    service._origin.return_value = ({"original": "grant"}, resolved_action)
+    service._state.return_value = (2, AuthorizationState.OCCUPIED, attempt.attempt_id)
+    from aitest.application.approval_service import _digest
+
+    proof = {
+        "grant_id": request.authorization_ref.authorization_id,
+        "grant_revision": 1,
+        "grant_digest": _digest({"original": "grant"}),
+        "state_revision": 2,
+    }
+    ExecutionAuthorizationService.validate_occupation(
+        service,
+        project_id=request.project_id,
+        attempt=attempt,
+        proof=proof,
+    )
+    with pytest.raises(ValueError, match="occupation"):
+        ExecutionAuthorizationService.validate_occupation(
+            service,
+            project_id=request.project_id,
+            attempt=attempt,
+            proof=proof | change,
+        )

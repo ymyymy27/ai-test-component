@@ -1,0 +1,5 @@
+.                                                                        [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED .git/p1-abc-fix-20261003/probe_environment_actual_core.py::test_actual_local_environment_is_frozen_and_changed_bytes_block_new_admission
+1 passed in 81.37s (0:01:21)

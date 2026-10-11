@@ -26,7 +26,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypedDict, cast
 
 from aitest.domain.execution.runs import (
     AdapterKind,
@@ -40,6 +40,7 @@ from aitest.domain.execution.runs import (
     StopRequestResult,
 )
 from aitest.domain.execution.sources import SourceCheckResult, SourceCheckType
+from aitest.domain.json_material import decode_json
 from aitest.infrastructure.adapters.execution.command import (
     CommandAdapter,
     CommandRegistration,
@@ -52,6 +53,22 @@ _END = "@@@ ATEST SOURCE PROBE END"
 _HASH_BLOCK = 64 * 1024
 
 BindingState = Literal["verified", "mismatch", "unverified"]
+
+
+class _ModulePayload(TypedDict):
+    file: str | None
+    sha256: str | None
+    error: str | None
+
+
+class _ProbePayload(TypedDict):
+    executable: str
+    version: str
+    prefix: str
+    pythonpath_env: str | None
+    sys_path: list[str]
+    project_scope_entries: list[str]
+    modules: dict[str, _ModulePayload]
 
 
 class PythonSourceProbeError(RuntimeError):
@@ -179,10 +196,13 @@ class PythonLoadSourceProbe:
         root = Path(materialized_root).resolve()
         if not root.is_dir():
             raise PythonSourceProbeError(f"物化目录不存在: {root}")
+        if not isinstance(modules, (tuple, list)) or any(
+            not isinstance(name, str) or not _MODULE_NAME_RE.fullmatch(name) for name in modules
+        ):
+            raise PythonSourceProbeError("登记模块必须是合法模块名列表")
         names = tuple(modules)
-        for name in names:
-            if not _MODULE_NAME_RE.fullmatch(name):
-                raise PythonSourceProbeError(f"模块名非法（不执行任意代码）: {name}")
+        if len(names) != len(set(names)):
+            raise PythonSourceProbeError("登记模块名重复，无法核对准确集合")
         pythonpath = [os.path.realpath(str(root)), *(str(p) for p in extra_pythonpath)]
         env = dict(os.environ)
         # -E 阻止解释器自动消费 PYTHONPATH，探针按声明顺序手工注入；同时把
@@ -219,41 +239,33 @@ class PythonLoadSourceProbe:
                 modules=(),
                 probe_error=f"探针进程退出码 {completed.returncode}: {error}",
             )
-        parsed = _extract_payload(completed.stdout.decode("utf-8", errors="replace"))
+        try:
+            stdout = completed.stdout.decode("utf-8")
+        except UnicodeError as error:
+            raise PythonSourceProbeError("探针输出不是合法 UTF-8") from error
+        parsed = _validate_probe_payload(_extract_payload(stdout), names)
         pythonpath_env = parsed.get("pythonpath_env")
-        if pythonpath_env is not None and not isinstance(pythonpath_env, str):
-            raise PythonSourceProbeError("探针 pythonpath_env 事实非法")
         sys_path = parsed.get("sys_path")
         scope = parsed.get("project_scope_entries")
         modules_raw = parsed.get("modules")
-        if (
-            not isinstance(sys_path, list)
-            or not isinstance(scope, list)
-            or not isinstance(modules_raw, dict)
-            or not all(isinstance(p, str) for p in sys_path)
-            or not all(isinstance(p, str) for p in scope)
-        ):
-            raise PythonSourceProbeError("探针事实结构非法")
         module_items: list[LoadedModuleFact] = []
         for raw_name, raw_item in modules_raw.items():
-            if not isinstance(raw_name, str) or not isinstance(raw_item, dict):
-                raise PythonSourceProbeError("探针模块事实非法")
             file_value = raw_item.get("file")
             digest_value = raw_item.get("sha256")
             error_value = raw_item.get("error")
             module_items.append(
                 LoadedModuleFact(
                     module=raw_name,
-                    file=file_value if isinstance(file_value, str) else None,
-                    sha256=digest_value if isinstance(digest_value, str) else None,
-                    load_error=error_value if isinstance(error_value, str) else None,
+                    file=file_value,
+                    sha256=digest_value,
+                    load_error=error_value,
                 )
             )
         return LoadSourceFact(
             requested_executable=self.executable,
-            executable=str(parsed["executable"]),
-            version=str(parsed["version"]),
-            prefix=str(parsed["prefix"]),
+            executable=parsed["executable"],
+            version=parsed["version"],
+            prefix=parsed["prefix"],
             pythonpath_env=pythonpath_env,
             sys_path=tuple(sys_path),
             project_scope_entries=tuple(scope),
@@ -262,18 +274,64 @@ class PythonLoadSourceProbe:
 
 
 def _extract_payload(stdout: str) -> dict[str, object]:
+    lines = stdout.splitlines()
+    if stdout.count(_BEGIN) != 1 or stdout.count(_END) != 1 or (
+        lines.count(_BEGIN) != 1 or lines.count(_END) != 1
+    ):
+        raise PythonSourceProbeError("探针输出协议标记缺失或歧义，拒绝猜测来源")
+    begin, end = lines.index(_BEGIN), lines.index(_END)
+    if begin >= end:
+        raise PythonSourceProbeError("探针输出协议边界反序")
     try:
-        begin = stdout.index(_BEGIN) + len(_BEGIN)
-        end = stdout.index(_END, begin)
+        parsed = decode_json("\n".join(lines[begin + 1:end]))
     except ValueError as exc:
-        raise PythonSourceProbeError("探针输出协议标记缺失，拒绝猜测来源") from exc
-    try:
-        parsed = json.loads(stdout[begin:end].strip())
-    except json.JSONDecodeError as exc:
         raise PythonSourceProbeError("探针事实不是合法 JSON") from exc
     if not isinstance(parsed, dict):
         raise PythonSourceProbeError("探针事实结构非法")
     return parsed
+
+
+def _validate_probe_payload(
+    parsed: dict[str, object], names: tuple[str, ...]
+) -> _ProbePayload:
+    if set(parsed) != {
+        "executable", "version", "prefix", "pythonpath_env", "sys_path",
+        "project_scope_entries", "modules",
+    }:
+        raise PythonSourceProbeError("探针事实有缺失或未知字段")
+    for name in ("executable", "version", "prefix"):
+        value = parsed[name]
+        if not isinstance(value, str) or not value.strip():
+            raise PythonSourceProbeError("探针解释器/路径事实类型非法")
+    if (
+        parsed["pythonpath_env"] is not None and not isinstance(parsed["pythonpath_env"], str)
+    ):
+        raise PythonSourceProbeError("探针解释器/路径事实类型非法")
+    for name in ("sys_path", "project_scope_entries"):
+        items = parsed[name]
+        if not isinstance(items, list) or any(
+            not isinstance(item, str) for item in items
+        ):
+            raise PythonSourceProbeError("探针路径集合事实非法")
+    modules = parsed["modules"]
+    if not isinstance(modules, dict) or set(modules) != set(names):
+        raise PythonSourceProbeError("探针模块集合与本次登记不同")
+    for item in modules.values():
+        if not isinstance(item, dict) or set(item) != {"file", "sha256", "error"}:
+            raise PythonSourceProbeError("探针模块有缺失或未知字段")
+        if any(
+            item[field] is not None and (
+                not isinstance(item[field], str) or not item[field].strip()
+            ) for field in ("file", "error")
+        ):
+            raise PythonSourceProbeError("探针模块路径/错误事实类型非法")
+        digest = item["sha256"]
+        if digest is not None and (
+            not isinstance(digest, str) or len(digest) != 64
+            or any(char not in "0123456789abcdef" for char in digest)
+        ):
+            raise PythonSourceProbeError("探针模块摘要事实非法")
+    return cast(_ProbePayload, parsed)
 
 
 def evaluate_source_binding(

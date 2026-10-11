@@ -1,0 +1,10 @@
+{
+  "existing_positive": {"passed": 1, "seconds": 39.64},
+  "lost_controlled_receipt_probe": {"failed": 2, "seconds": 72.56},
+  "additional_exact_origin_negatives": {"failed": 9, "deselected": 5, "seconds": 315.01},
+  "distinct_failed": 11,
+  "formal_negative_nodes_collected": 14,
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22,
+  "full_python_run": false
+}

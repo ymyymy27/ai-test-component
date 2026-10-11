@@ -43,6 +43,7 @@ class FileCheckpointStore:
     def to_payload(record: RecoveryRecord) -> dict[str, object]:
         return {
             "schema_version": _SCHEMA_VERSION,
+            "project_id": record.project_id,
             "checkpoint": _CHECKPOINT_ADAPTER.dump_python(
                 record.checkpoint,
                 mode="json",
@@ -75,7 +76,10 @@ class FileCheckpointStore:
             raise ValueError("unsupported checkpoint schema")
         checkpoint = _CHECKPOINT_ADAPTER.validate_python(payload.get("checkpoint"))
         attempt = _ATTEMPT_ADAPTER.validate_python(payload.get("attempt"))
-        return RecoveryRecord(checkpoint=checkpoint, attempt=attempt)
+        owner = payload.get("project_id")
+        if owner is not None and (not isinstance(owner, str) or not owner.strip()):
+            raise ValueError("checkpoint project identity is invalid")
+        return RecoveryRecord(checkpoint=checkpoint, attempt=attempt, project_id=owner)
 
     @classmethod
     def from_payload(cls, payload: object) -> RecoveryRecord:

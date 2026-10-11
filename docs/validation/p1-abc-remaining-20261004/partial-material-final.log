@@ -1,0 +1,45 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short tests/unit/test_partial_capture_material.py tests/unit/test_capture_completion_closure.py tests/unit/test_execution_observation_identity.py tests/unit/test_serial_runner.py tests/unit/test_serial_execution_slices.py tests/unit/test_serial_execution_loop.py tests/unit/test_confirmed_stop_partial_recovery.py tests/unit/test_saved_run_control.py tests/recovery/test_spool_store.py
+........................................................................ [ 61%]
+.............................................                            [100%]
+117 passed in 68.57s (0:01:08)
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check src tests
+I001 [*] Import block is un-sorted or un-formatted
+ --> tests\unit\test_partial_capture_material.py:3:1
+  |
+1 |   """Partial capture retains the same physical ownership and integrity requirements."""
+2 |
+3 | / from dataclasses import replace
+4 | | import pytest
+5 | | from aitest.application.execution.runner import SerialRunner
+6 | | from aitest.domain.execution.runs import CaptureCompleteness, CapturedOutputBlock, OutputStreamName
+7 | | from aitest.infrastructure.file_store.spool import FileSpoolStore
+8 | | from tests.unit.test_execution_observation_identity import observation
+  | |______________________________________________________________________^
+help: Organize imports
+  |
+3 | from dataclasses import replace
+4 +
+5 | import pytest
+6 +
+7 | from aitest.application.execution.runner import SerialRunner
+  |
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
+
+EXIT: 1
+
+Initial import ordering lint fixed; product code and passed 117 tests unchanged.
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check src tests
+All checks passed!
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 187 source files
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe scripts/generate_schemas.py
+
+EXIT: 0

@@ -1,0 +1,62 @@
+docs\validation\p1-abc-fix-20261003\core-start-before-test.py:1:1: E401 [*] Multiple imports on one line
+docs\validation\p1-abc-fix-20261003\core-start-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\core-start-before-test.py:1:26: E702 Multiple statements on one line (semicolon)
+docs\validation\p1-abc-fix-20261003\history\bounded-query-directory-1750\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\bounded-query-directory-1750\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\history\bounded-query-directory-1750\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\history\bounded-query-directory-1750\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\history\bounded-query-directory-1750\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\core-start-before-test.py:1:1: E401 [*] Multiple imports on one line
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\core-start-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\core-start-before-test.py:1:26: E702 Multiple statements on one line (semicolon)
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\history\core-startup-1866\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\core-start-before-test.py:1:1: E401 [*] Multiple imports on one line
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\core-start-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\core-start-before-test.py:1:26: E702 Multiple statements on one line (semicolon)
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\history\discovery-path-1878\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\finite-query-routes-1799\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\finite-query-routes-1799\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\history\finite-query-routes-1799\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\history\finite-query-routes-1799\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\history\finite-query-routes-1799\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\core-start-before-test.py:1:1: E401 [*] Multiple imports on one line
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\core-start-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\core-start-before-test.py:1:26: E702 Multiple statements on one line (semicolon)
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\history\publication-prototype-1928\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\core-start-before-test.py:1:1: E401 [*] Multiple imports on one line
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\core-start-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\core-start-before-test.py:1:26: E702 Multiple statements on one line (semicolon)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\windows-publication-probe.py:12:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\windows-publication-probe.py:14:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\windows-publication-probe.py:83:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\windows-publication-probe.py:115:101: E501 Line too long (104 > 100)
+docs\validation\p1-abc-fix-20261003\history\windows-publication-1967\windows-publication-probe.py:117:101: E501 Line too long (108 > 100)
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:1:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:9:101: E501 Line too long (144 > 100)
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:11:101: E501 Line too long (152 > 100)
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:13:101: E501 Line too long (140 > 100)
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:56:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\windows-publication-probe.py:12:1: I001 [*] Import block is un-sorted or un-formatted
+docs\validation\p1-abc-fix-20261003\windows-publication-probe.py:14:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\windows-publication-probe.py:83:101: E501 Line too long (103 > 100)
+docs\validation\p1-abc-fix-20261003\windows-publication-probe.py:115:101: E501 Line too long (104 > 100)
+docs\validation\p1-abc-fix-20261003\windows-publication-probe.py:117:101: E501 Line too long (108 > 100)
+Found 60 errors.
+[*] 19 fixable with the `--fix` option.

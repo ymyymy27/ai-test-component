@@ -1,0 +1,9 @@
+{
+  "command": ".venv/Scripts/python.exe -m pytest -o addopts='' tests/unit/test_approval_origin_boundary.py -q",
+  "failed": 1,
+  "passed": 0,
+  "seconds": 10.16,
+  "meaning": "Default confirm_basis saves a confirmation with only a controlled HUMAN_UI session label and no core ApprovalChallenge or actual user-interaction fact. The fixture is simulated UI origin, not real human acceptance.",
+  "baseline_source": "Tracked source 37c874d plus the new test; domain/port drafts added after the process loaded its modules are excluded.",
+  "real_ac_verified": 0
+}

@@ -1,0 +1,82 @@
+FFFFFFFFFFFFF.                                                           [100%]
+================================== FAILURES ===================================
+_____ test_current_consumer_rejects_noncanonical_saved_types[path0-True] ______
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+______ test_current_consumer_rejects_noncanonical_saved_types[path1-1.0] ______
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_current_consumer_rejects_noncanonical_saved_types[path2-1] _______
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_current_consumer_rejects_noncanonical_saved_types[path3-1] _______
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_current_consumer_rejects_noncanonical_saved_types[path4-false] _____
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_current_consumer_rejects_noncanonical_saved_types[path5-1] _______
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_current_consumer_rejects_noncanonical_saved_types[path6-false] _____
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_current_consumer_rejects_noncanonical_saved_types[path7-True] ______
+tests\unit\test_execution_snapshot_strict_read.py:67: in test_current_consumer_rejects_noncanonical_saved_types
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____ test_frozen_runtime_source_rejects_inconsistent_original_facts[run] _____
+tests\unit\test_execution_snapshot_strict_read.py:92: in test_frozen_runtime_source_rejects_inconsistent_original_facts
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_frozen_runtime_source_rejects_inconsistent_original_facts[step] _____
+tests\unit\test_execution_snapshot_strict_read.py:92: in test_frozen_runtime_source_rejects_inconsistent_original_facts
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_frozen_runtime_source_rejects_inconsistent_original_facts[current] ___
+tests\unit\test_execution_snapshot_strict_read.py:92: in test_frozen_runtime_source_rejects_inconsistent_original_facts
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___ test_frozen_runtime_source_rejects_inconsistent_original_facts[history] ___
+tests\unit\test_execution_snapshot_strict_read.py:92: in test_frozen_runtime_source_rejects_inconsistent_original_facts
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+__ test_frozen_runtime_source_rejects_inconsistent_original_facts[revision] ___
+tests\unit\test_execution_snapshot_strict_read.py:92: in test_frozen_runtime_source_rejects_inconsistent_original_facts
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path0-True]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path1-1.0]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path2-1]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path3-1]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path4-false]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path5-1]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path6-false]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_current_consumer_rejects_noncanonical_saved_types[path7-True]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_frozen_runtime_source_rejects_inconsistent_original_facts[run]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_frozen_runtime_source_rejects_inconsistent_original_facts[step]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_frozen_runtime_source_rejects_inconsistent_original_facts[current]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_frozen_runtime_source_rejects_inconsistent_original_facts[history]
+FAILED tests/unit/test_execution_snapshot_strict_read.py::test_frozen_runtime_source_rejects_inconsistent_original_facts[revision]
+13 failed, 1 passed in 7.42s

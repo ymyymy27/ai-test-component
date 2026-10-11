@@ -1,0 +1,12 @@
+.................F................................                       [100%]
+================================== FAILURES ===================================
+_______ test_a_persisted_snapshot_with_the_frozen_identity_is_readable ________
+tests\unit\test_frozen_basis_drift.py:124: in test_a_persisted_snapshot_with_the_frozen_identity_is_readable
+    prepared = scenario.prepared_run.model_copy(update={"snapshot": SnapshotRef(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for SnapshotRef
+E   purpose
+E     Field required [type=missing, input_value={'source_snapshot_id': 's...c2be99ce973eae8babea07'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.13/v/missing
+=========================== short test summary info ===========================
+FAILED tests/unit/test_frozen_basis_drift.py::test_a_persisted_snapshot_with_the_frozen_identity_is_readable
+1 failed, 49 passed in 53.99s

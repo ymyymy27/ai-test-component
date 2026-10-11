@@ -1,0 +1,64 @@
+F841 Local variable `result` is assigned to but never used
+   --> tests\unit\test_model_policy_approval.py:290:9
+    |
+289 |     def lost(*args, **kwargs):
+290 |         result = commit(*args, **kwargs)
+    |         ^^^^^^
+291 |         raise OSError("injected policy response lost after publication")
+    |
+help: Remove assignment to unused variable `result`
+
+E501 Line too long (102 > 100)
+   --> tests\unit\test_model_policy_approval.py:457:101
+    |
+457 | def test_a_save_receipt_cannot_be_redirected_to_another_valid_policy_intent(policy_core, monkeypatch):
+    |                                                                                                     ^^
+458 |     from aitest.application.approval_service import _digest
+    |
+
+E501 Line too long (114 > 100)
+   --> tests\unit\test_model_policy_approval.py:463:101
+    |
+461 |     first = controlled_policy_confirm(core, policy_command(), session=HUMAN)
+462 |     assert first.error is None
+463 |     second = controlled_policy_confirm(core, policy_command(policy=replace(_policy(),revision=2,ai_enabled=False),
+    |                                                                                                     ^^^^^^^^^^^^^^
+464 |         expected=1, intent="other-valid-policy-intent", request="other-valid-policy-request"), session=HUMAN)
+465 |     assert second.error is None
+    |
+
+E501 Line too long (109 > 100)
+   --> tests\unit\test_model_policy_approval.py:464:101
+    |
+462 |     assert first.error is None
+463 |     second = controlled_policy_confirm(core, policy_command(policy=replace(_policy(),revision=2,ai_enabled=False),
+464 |         expected=1, intent="other-valid-policy-intent", request="other-valid-policy-request"), session=HUMAN)
+    |                                                                                                     ^^^^^^^^^
+465 |     assert second.error is None
+466 |     repo, sequence = core.unit_of_work.repo, core.unit_of_work.current_commit_sequence()
+    |
+
+E501 Line too long (114 > 100)
+   --> tests\unit\test_model_policy_approval.py:468:101
+    |
+466 |     repo, sequence = core.unit_of_work.repo, core.unit_of_work.current_commit_sequence()
+467 |     read = repo.read
+468 |     other = read(aggregate_kind="model_outbound_policy", record_id="model-policy:"+PROJECT_ID, revision=2).payload
+    |                                                                                                     ^^^^^^^^^^^^^^
+469 |
+470 |     def redirected(**kwargs):
+    |
+
+E501 Line too long (107 > 100)
+   --> tests\unit\test_model_policy_approval.py:495:101
+    |
+493 |     core.lifetime_lock.release()
+494 |     changed = assemble_workspace_core(core.workspace.root, instance_id="historical-policy-recall",
+495 |         model_endpoint=_policy().endpoint.address, model_secret_reference=("model", "different-reference"),
+    |                                                                                                     ^^^^^^^
+496 |         secret_manager=SecretManager((EnvironmentSecretProvider({
+497 |             ("model", "different-reference"):"AITEST_POLICY_PROOF_FIXTURE",
+    |
+
+Found 6 errors.
+No fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).

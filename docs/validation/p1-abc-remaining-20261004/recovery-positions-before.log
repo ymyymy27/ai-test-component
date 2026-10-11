@@ -1,0 +1,25 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short .git\p1-abc-fix-20261003\probe_recovery_positions.py
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+____________ test_recovery_rejects_unproven_positions[not_durable] ____________
+.git\p1-abc-fix-20261003\probe_recovery_positions.py:26: in test_recovery_rejects_unproven_positions
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+__________ test_recovery_rejects_unproven_positions[missing_prefix] ___________
+.git\p1-abc-fix-20261003\probe_recovery_positions.py:26: in test_recovery_rejects_unproven_positions
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____________ test_recovery_rejects_unproven_positions[offset_gap] _____________
+.git\p1-abc-fix-20261003\probe_recovery_positions.py:26: in test_recovery_rejects_unproven_positions
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_recovery_positions.py::test_recovery_rejects_unproven_positions[not_durable]
+FAILED .git/p1-abc-fix-20261003/probe_recovery_positions.py::test_recovery_rejects_unproven_positions[missing_prefix]
+FAILED .git/p1-abc-fix-20261003/probe_recovery_positions.py::test_recovery_rejects_unproven_positions[offset_gap]
+3 failed in 0.81s
+
+EXIT: 1

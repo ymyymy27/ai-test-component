@@ -1,0 +1,25 @@
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests\unit\test_environment_resolution_flow.py:3:1
+   |
+ 1 |   """Trusted environment observations survive B/C admission and safe history replay."""
+ 2 |
+ 3 | / from dataclasses import replace
+ 4 | |
+ 5 | | import pytest
+ 6 | |
+ 7 | | from aitest.application.ports import EnvironmentResolutionRequest
+ 8 | |
+ 9 | | from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
+10 | | from tests.unit.test_authoritative_preparation import authoritative as authoritative
+11 | | from tests.unit.test_authoritative_preparation import prepare
+12 | | from tests.unit.test_initial_run_registration import register
+   | |_____________________________________________________________^
+help: Organize imports
+  |
+7 | from aitest.application.ports import EnvironmentResolutionRequest
+  -
+8 | from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
+  |
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

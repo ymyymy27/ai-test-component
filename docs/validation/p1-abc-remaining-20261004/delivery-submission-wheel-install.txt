@@ -1,0 +1,5 @@
+Using CPython 3.13.13 interpreter at: .venv\Scripts\python.exe
+Resolved 1 package in 15ms
+Prepared 1 package in 71ms
+Installed 1 package in 199ms
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component/.git/p1-abc-fix-20261003/delivery-submission-published-dist/ai_test_component-0.4.0-py3-none-any.whl)

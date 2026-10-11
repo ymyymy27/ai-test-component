@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import os
 import signal
 import subprocess
@@ -35,6 +36,7 @@ from aitest.domain.execution.runs import (
     StopRequestResult,
 )
 from aitest.infrastructure.file_store.execution_handles import PersistedExecutionHandle
+from aitest.infrastructure.security import UnsafeMaterialError
 
 from .redaction import StreamingRedactor
 
@@ -45,6 +47,7 @@ class CommandHandleStore(Protocol):
     def save(self, record: PersistedExecutionHandle) -> Path: ...
 
     def load(self, handle_id: str) -> PersistedExecutionHandle: ...
+
 
 _WINDOWS_JOB_PROCESS_ACCESS = 0x0001 | 0x0100 | 0x0200 | 0x1000
 
@@ -96,6 +99,8 @@ class _CommandRuntime:
     timeout_timer: threading.Timer | None = None
     job_handle: int | None = None
     group_stopped: bool = False
+    collection: ExecutionCollectionResult | None = None
+    collection_lock: threading.Lock = field(default_factory=threading.Lock)
     lock: threading.Lock = field(default_factory=threading.Lock)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -127,7 +132,10 @@ class CommandAdapter:
         stream_block_size: int = 64 * 1024,
         graceful_stop_timeout_seconds: float = 3.0,
         force_kill_timeout_seconds: float = 3.0,
+        max_in_memory_bytes: int = 1024 * 1024,
     ) -> None:
+        if type(max_in_memory_bytes) is not int or not 0 < max_in_memory_bytes <= 1024 * 1024:
+            raise ValueError("command memory capture budget must be a positive bounded integer")
         if stream_block_size < 1:
             raise ValueError("stream_block_size must be positive")
         if graceful_stop_timeout_seconds < 0 or force_kill_timeout_seconds < 0:
@@ -140,6 +148,7 @@ class CommandAdapter:
         self._stream_block_size = stream_block_size
         self._graceful_stop_timeout_seconds = graceful_stop_timeout_seconds
         self._force_kill_timeout_seconds = force_kill_timeout_seconds
+        self._max_in_memory_bytes = max_in_memory_bytes
 
     def register(self, registration: CommandRegistration) -> None:
         if registration.entry_id in self._registrations:
@@ -159,6 +168,16 @@ class CommandAdapter:
         )
 
     def start(self, request: ExecutionRequest) -> ExecutionHandle:
+        handle_id = f"command-handle:{request.attempt_id}"
+        if handle_id in self._runtimes:
+            raise ValueError("attempt already started; inspect the original execution")
+        if self._handle_store is not None:
+            try:
+                self._handle_store.load(handle_id)
+            except FileNotFoundError:
+                pass
+            else:
+                raise ValueError("attempt already started; inspect the persisted execution")
         registration = self._registration_for(request)
         arguments = request.registered_entry.arguments
         if len(arguments) > registration.max_arguments:
@@ -190,7 +209,7 @@ class CommandAdapter:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=False,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004,
             )
         else:
             process = subprocess.Popen(
@@ -204,60 +223,160 @@ class CommandAdapter:
                 start_new_session=True,
             )
 
-        if process.stdout is None or process.stderr is None:
-            self._terminate_group(process.pid, force=True)
-            raise RuntimeError("command process streams are unavailable")
-
-        handle = ExecutionHandle(
-            handle_id=f"command-handle:{request.attempt_id}",
-            adapter_kind=AdapterKind.COMMAND,
-            adapter_version=self.adapter_version,
-            real_execution_id=str(process.pid),
-            process_start_identity=_process_start_identity(process.pid),
-            workdir_ref=str(registration.cwd),
-        )
-        runtime = _CommandRuntime(
-            request=request,
-            registration=registration,
-            handle=handle,
-            process=process,
-            startup_token=str(uuid4()),
-            captured_buffers={
-                OutputStreamName.STDOUT: bytearray(),
-                OutputStreamName.STDERR: bytearray(),
-            },
-            job_handle=_assign_windows_job(process.pid) if os.name == "nt" else None,
-        )
-        self._runtimes[handle.handle_id] = runtime
+        runtime: _CommandRuntime | None = None
+        job_handle: int | None = None
         try:
+            if process.stdout is None or process.stderr is None:
+                raise RuntimeError("command process streams are unavailable")
+            # CPython 3.13 Popen retains CreateProcess's handle in _handle.
+            owned_process_handle: int | None = None
+            if os.name == "nt":
+                retained_handle = getattr(process, "_handle", None)
+                if not isinstance(retained_handle, int):
+                    raise RuntimeError("original Windows process handle is unavailable")
+                owned_process_handle = int(retained_handle)
+            identity = (
+                _windows_handle_identity(owned_process_handle, process.pid)
+                if owned_process_handle is not None
+                else _process_start_identity(process.pid)
+            )
+            if os.name == "nt" and ":created:" not in identity:
+                raise RuntimeError("original process birth identity could not be verified")
+            handle = ExecutionHandle(
+                handle_id=handle_id,
+                adapter_kind=AdapterKind.COMMAND,
+                adapter_version=self.adapter_version,
+                real_execution_id=str(process.pid),
+                process_start_identity=identity,
+                workdir_ref=str(registration.cwd),
+            )
+            startup_token = str(uuid4())
+            if owned_process_handle is not None:
+                job_handle = _assign_windows_job(owned_process_handle, startup_token)
+                if job_handle is None:
+                    raise RuntimeError("exclusive Windows execution job could not be established")
+            runtime = _CommandRuntime(
+                request=request,
+                registration=registration,
+                handle=handle,
+                process=process,
+                startup_token=startup_token,
+                captured_buffers={
+                    OutputStreamName.STDOUT: bytearray(),
+                    OutputStreamName.STDERR: bytearray(),
+                },
+                job_handle=job_handle,
+            )
+            self._runtimes[handle.handle_id] = runtime
             self._persist_handle(runtime)
-        except BaseException:
-            self._terminate_group(process.pid, force=True)
-            _close_job(runtime.job_handle)
-            self._runtimes.pop(handle.handle_id, None)
-            raise
-
-        try:
             self._open_spool_writers(runtime)
-        except BaseException:
-            self._terminate_group(process.pid, force=True)
-            _close_job(runtime.job_handle)
-            self._runtimes.pop(handle.handle_id, None)
+            # A failed reader startup must not activate a suspended Windows command.
+            self._start_reader(runtime, OutputStreamName.STDOUT, process.stdout, secrets)
+            self._start_reader(runtime, OutputStreamName.STDERR, process.stderr, secrets)
+            if request.timeout_ms is not None:
+                timer = threading.Timer(
+                    request.timeout_ms / 1000, self._timeout_runtime, (runtime,)
+                )
+                timer.daemon = True
+                runtime.timeout_timer = timer
+            if owned_process_handle is not None:
+                _resume_windows_process(owned_process_handle)
+            if runtime.timeout_timer is not None:
+                runtime.timeout_timer.start()
+            return handle
+        except BaseException as error:
+            try:
+                if runtime is None:
+                    self._abort_untracked_launch(process, job_handle)
+                else:
+                    self._abort_launch(runtime)
+            except BaseException as cleanup_error:
+                # Preserve the actual startup cause while exposing failed cleanup.
+                raise error from cleanup_error
             raise
 
-        self._start_reader(runtime, OutputStreamName.STDOUT, process.stdout, secrets)
-        self._start_reader(runtime, OutputStreamName.STDERR, process.stderr, secrets)
-        if request.timeout_ms is not None:
-            timer = threading.Timer(request.timeout_ms / 1000, self._timeout_runtime, (runtime,))
-            timer.daemon = True
-            runtime.timeout_timer = timer
-            timer.start()
-        return handle
+    def _abort_untracked_launch(
+        self, process: subprocess.Popen[bytes], job_handle: int | None
+    ) -> None:
+        """Popen exists even when business/runtime identity cannot be constructed."""
+        errors: list[BaseException] = []
+        try:
+            if os.name == "nt":
+                if job_handle is not None:
+                    _terminate_and_wait_windows_job(
+                        job_handle, timeout_seconds=self._force_kill_timeout_seconds
+                    )
+                elif process.poll() is None:
+                    process.terminate()
+            else:
+                self._terminate_group(process.pid, force=True)
+            process.wait(timeout=self._force_kill_timeout_seconds)
+        except BaseException as error:
+            errors.append(error)
+        try:
+            _close_job(job_handle)
+        except BaseException as error:
+            errors.append(error)
+        self._close_failed_process_streams(process, errors)
+        if errors:
+            raise errors[0]
+
+    @staticmethod
+    def _close_failed_process_streams(
+        process: subprocess.Popen[bytes], errors: list[BaseException]
+    ) -> None:
+        for stream in (process.stdout, process.stderr):
+            try:
+                if stream is not None:
+                    stream.close()
+            except BaseException as error:
+                errors.append(error)
+
+    def _abort_launch(self, runtime: _CommandRuntime) -> None:
+        """Release this launch only; keep already persisted startup facts immutable."""
+        self._cancel_timeout(runtime)
+        errors: list[BaseException] = []
+        with runtime.collection_lock:
+            try:
+                if os.name == "nt" and runtime.job_handle is not None:
+                    self._cleanup_group(runtime)
+                    runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+                else:
+                    self._abort_untracked_launch(runtime.process, runtime.job_handle)
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                try:
+                    _close_job(runtime.job_handle)
+                except BaseException as error:
+                    errors.append(error)
+                runtime.job_handle = None
+        # Readers own spool writes. Let them finish before aborting any remainder.
+        for thread in runtime.threads:
+            try:
+                if thread.ident is not None:
+                    thread.join(timeout=self._force_kill_timeout_seconds)
+                    if thread.is_alive():
+                        raise RuntimeError("failed launch reader remains unresolved")
+            except BaseException as error:
+                errors.append(error)
+        self._close_failed_process_streams(runtime.process, errors)
+        for writer in runtime.writers.values():
+            try:
+                writer.abort()
+            except BaseException as error:
+                errors.append(error)
+        self._runtimes.pop(runtime.handle.handle_id, None)
+        if errors:
+            raise errors[0]
 
     def inspect(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
         runtime = self._runtimes.get(handle.handle_id)
         if runtime is None:
             return self._inspect_persisted(handle)
+        if runtime.handle != handle:
+            raise ValueError("execution handle identity mismatch")
+        self._hydrate_stop(runtime)
         return_code = runtime.process.poll()
         if return_code is not None:
             self._cancel_timeout(runtime)
@@ -299,12 +418,48 @@ class CommandAdapter:
         runtime = self._runtimes.get(handle.handle_id)
         if runtime is None:
             return self._collect_persisted(handle, cursors)
+        if runtime.handle != handle:
+            raise ValueError("execution handle identity mismatch")
+        with runtime.collection_lock:
+            if runtime.collection is not None:
+                if self._spool_store is not None:
+                    for block in runtime.collection.output_blocks:
+                        self._spool_store.read_block(block)
+                return runtime.collection
+            result = self._collect_runtime(runtime, handle, cursors)
+            if result.complete:
+                save = getattr(self._handle_store, "save_collection", None)
+                if callable(save):
+                    save(handle, result)
+                runtime.collection = result
+            return result
+
+    def _collect_runtime(
+        self,
+        runtime: _CommandRuntime,
+        handle: ExecutionHandle,
+        cursors: tuple[OutputCursor, ...] | None,
+    ) -> ExecutionCollectionResult:
+        self._hydrate_stop(runtime)
         return_code = runtime.process.poll()
         if return_code is None:
+            # The cursor and its bytes must come from the same saved snapshot.
+            # Runtime caches can lag the spool and caller positions are not observations.
+            manifest = (
+                self._spool_store.read_manifest(runtime.request.attempt_id)
+                if self._spool_store is not None
+                else None
+            )
+            blocks = manifest.blocks if manifest is not None else ()
             return ExecutionCollectionResult(
                 attempt_id=runtime.request.attempt_id,
-                output_cursors=tuple(runtime.output_cursors.values()) or (cursors or ()),
-                capture_completeness=CaptureCompleteness.GAP,
+                output_blocks=blocks,
+                output_cursors=manifest.cursors if manifest is not None else (),
+                capture_completeness=(
+                    CaptureCompleteness.PARTIAL
+                    if blocks and not runtime.read_errors
+                    else CaptureCompleteness.GAP
+                ),
                 complete=False,
             )
 
@@ -337,7 +492,7 @@ class CommandAdapter:
                 attempt_id=runtime.request.attempt_id,
                 output_blocks=output_blocks,
                 captured_blocks=captured_blocks,
-                output_cursors=output_cursors or (cursors or ()),
+                output_cursors=output_cursors,
                 capture_completeness=completeness,
                 complete=False,
             )
@@ -378,6 +533,17 @@ class CommandAdapter:
         runtime = self._runtimes.get(handle.handle_id)
         if runtime is None:
             return self._stop_persisted(handle)
+        if runtime.handle != handle:
+            raise ValueError("execution handle identity mismatch")
+        # The timeout callback and collection own the same Job lifecycle.
+        with runtime.collection_lock:
+            return self._stop_runtime(runtime, handle)
+
+    def _stop_runtime(self, runtime: _CommandRuntime, handle: ExecutionHandle) -> StopRequestResult:
+        saved_stop = self._saved_stop(handle)
+        if saved_stop is not None:
+            self._hydrate_stop(runtime)
+            return saved_stop
         return_code = runtime.process.poll()
         if return_code is not None:
             self._cancel_timeout(runtime)
@@ -390,14 +556,22 @@ class CommandAdapter:
             )
         runtime.stop_requested = True
         self._cancel_timeout(runtime)
-        self._terminate_group(runtime.process.pid, force=False)
-        try:
-            runtime.process.wait(timeout=self._graceful_stop_timeout_seconds)
-        except subprocess.TimeoutExpired:
-            self._terminate_group(runtime.process.pid, force=True)
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
-        group_stopped = self._cleanup_group(runtime)
-        return StopRequestResult(
+        if os.name == "nt":
+            group_stopped = self._cleanup_group(runtime)
+            if group_stopped:
+                try:
+                    runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    group_stopped = False
+        else:
+            self._terminate_group(runtime.process.pid, force=False)
+            try:
+                runtime.process.wait(timeout=self._graceful_stop_timeout_seconds)
+            except subprocess.TimeoutExpired:
+                self._terminate_group(runtime.process.pid, force=True)
+                runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+            group_stopped = self._cleanup_group(runtime)
+        result = StopRequestResult(
             handle_id=handle.handle_id,
             stop_confirmed=group_stopped,
             observed_state=(
@@ -407,17 +581,24 @@ class CommandAdapter:
             ),
             unknown_reason=None if group_stopped else "process_group_stop_unconfirmed",
         )
+        self._persist_stop(handle, result)
+        return result
 
     def _timeout_runtime(self, runtime: _CommandRuntime) -> None:
-        if runtime.process.poll() is not None:
-            return
-        runtime.timed_out = True
-        self._terminate_group(runtime.process.pid, force=True)
-        try:
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
-        except subprocess.TimeoutExpired:
-            runtime.process.kill()
-            runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+        with runtime.collection_lock:
+            if runtime.process.poll() is not None or runtime.stop_requested:
+                return
+            runtime.timed_out = True
+            if os.name == "nt":
+                # Never substitute taskkill/PID for the Job retained at actual launch.
+                self._cleanup_group(runtime)
+                return
+            self._terminate_group(runtime.process.pid, force=True)
+            try:
+                runtime.process.wait(timeout=self._force_kill_timeout_seconds)
+            except subprocess.TimeoutExpired:
+                runtime.process.kill()
+                runtime.process.wait(timeout=self._force_kill_timeout_seconds)
 
     def _open_spool_writers(self, runtime: _CommandRuntime) -> None:
         if self._spool_store is None:
@@ -470,39 +651,63 @@ class CommandAdapter:
             except Exception as error:  # noqa: BLE001
                 reader_error = True
                 with runtime.lock:
-                    runtime.read_errors.append(str(error))
+                    runtime.read_errors.append(type(error).__name__)
             finally:
                 stats = redactor.stats
                 if writer is not None:
-                    refs = writer.close(complete=not reader_error)
-                    with runtime.lock:
-                        runtime.output_blocks.extend(refs)
+                    try:
+                        refs = writer.close(complete=not reader_error)
+                        with runtime.lock:
+                            runtime.output_blocks.extend(refs)
+                    except Exception as error:  # noqa: BLE001
+                        reader_error = True
+                        with runtime.lock:
+                            runtime.read_errors.append(type(error).__name__)
+                        writer.abort()
                 if self._spool_store is not None:
-                    self._spool_store.persist_redaction_summary(
-                        runtime.request.attempt_id,
-                        stream_name,
-                        RedactionSummary(
-                            policy_version="aitest.redaction/1.0",
-                            applied_rule_categories=tuple(
-                                category
-                                for category, count in stats.replacement_categories
-                                if count
+                    try:
+                        summary_completeness = "gap" if reader_error else "complete"
+                        summary_gaps: tuple[str, ...] = ("reader_error",) if reader_error else ()
+                        try:
+                            secondary_changed = getattr(writer, "redaction_changed", None)
+                        except Exception:  # A missing observation is not proof of no filtering.
+                            secondary_changed = None
+                        if secondary_changed is not False:
+                            summary_gaps += (
+                                "secondary_filter_summary_unavailable"
+                                if secondary_changed is True
+                                else "secondary_filter_observation_unavailable",
+                            )
+                            if not reader_error:
+                                summary_completeness = "unknown"
+                        self._spool_store.persist_redaction_summary(
+                            runtime.request.attempt_id,
+                            stream_name,
+                            RedactionSummary(
+                                policy_version="aitest.redaction/1.0",
+                                applied_rule_categories=tuple(
+                                    category
+                                    for category, count in stats.replacement_categories
+                                    if count
+                                ),
+                                filtered_streams=(stream_name.value,),
+                                filtered_ranges=(f"{stream_name.value}:0-{stats.output_bytes}",),
+                                replacement_count=stats.replacement_count,
+                                completeness=summary_completeness,
+                                gap_reasons=summary_gaps,
                             ),
-                            filtered_streams=(stream_name.value,),
-                            filtered_ranges=(f"{stream_name.value}:0-{stats.output_bytes}",),
-                            replacement_count=stats.replacement_count,
-                            completeness="gap" if reader_error else "complete",
-                            gap_reasons=("reader_error",) if reader_error else (),
-                        ),
-                    )
+                        )
+                    except Exception as error:  # noqa: BLE001
+                        with runtime.lock:
+                            runtime.read_errors.append(type(error).__name__)
                 stream.close()
 
         thread = threading.Thread(target=consume, name=f"command-{stream_name.value}", daemon=True)
         runtime.threads.append(thread)
         thread.start()
 
-    @staticmethod
     def _consume_filtered(
+        self,
         runtime: _CommandRuntime,
         stream_name: OutputStreamName,
         content: bytes,
@@ -513,6 +718,10 @@ class CommandAdapter:
             return
         if writer is None:
             with runtime.lock:
+                if sum(len(value) for value in runtime.captured_buffers.values()) + len(content) > (
+                    self._max_in_memory_bytes
+                ):
+                    raise UnsafeMaterialError("command filtered output exceeds memory budget")
                 memory_target.extend(content)
             return
         refs = writer.append(content)
@@ -575,6 +784,31 @@ class CommandAdapter:
 
     def _inspect_persisted(self, handle: ExecutionHandle) -> ExecutionInspectionResult:
         persisted = self._persisted_for(handle)
+        collection = self._saved_collection(handle)
+        if collection is not None:
+            fact = collection.exit_fact_ref
+            stopped = fact is not None and (
+                fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+                and not fact.timed_out
+            )
+            return ExecutionInspectionResult(
+                handle_id=handle.handle_id,
+                state=ExecutionInspectionState.STOPPED
+                if stopped
+                else ExecutionInspectionState.EXITED,
+                process_reachable=False,
+                identity_matches=True,
+                stop_confirmed=stopped,
+                unknown_reason="command_timeout" if fact is not None and fact.timed_out else None,
+            )
+        if self._saved_stop(handle) is not None:
+            return ExecutionInspectionResult(
+                handle_id=handle.handle_id,
+                state=ExecutionInspectionState.STOPPED,
+                process_reachable=False,
+                identity_matches=True,
+                stop_confirmed=True,
+            )
         pid = _real_pid(handle)
         if not _process_is_alive(pid):
             return ExecutionInspectionResult(
@@ -603,10 +837,29 @@ class CommandAdapter:
         cursors: tuple[OutputCursor, ...] | None,
     ) -> ExecutionCollectionResult:
         persisted = self._persisted_for(handle)
+        confirmed = self._saved_collection(handle)
+        if confirmed is not None:
+            return confirmed
+        stopped = self._saved_stop(handle)
+
+        def stopped_exit(completeness: CaptureCompleteness) -> ExitFact | None:
+            if stopped is None:
+                return None
+            # This observation is grounded in the original owned group-stop receipt.
+            # The vanished process's exit code and unread output cannot be reconstructed.
+            return ExitFact(
+                attempt_id=persisted.attempt_id,
+                startup_token=persisted.startup_token,
+                process_start_identity=handle.process_start_identity,
+                real_exit_code=None,
+                capture_completeness=completeness,
+                termination_reason=ProcessTerminationReason.CONFIRMED_STOP,
+            )
+
         if self._spool_store is None:
             return ExecutionCollectionResult(
                 attempt_id=persisted.attempt_id,
-                output_cursors=cursors or (),
+                exit_fact_ref=stopped_exit(CaptureCompleteness.GAP),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
             )
@@ -615,26 +868,32 @@ class CommandAdapter:
         except FileNotFoundError:
             return ExecutionCollectionResult(
                 attempt_id=persisted.attempt_id,
-                output_cursors=cursors or (),
+                exit_fact_ref=stopped_exit(CaptureCompleteness.GAP),
                 capture_completeness=CaptureCompleteness.GAP,
                 complete=False,
             )
+        completeness = CaptureCompleteness.PARTIAL if manifest.blocks else CaptureCompleteness.GAP
         return ExecutionCollectionResult(
             attempt_id=persisted.attempt_id,
             output_blocks=manifest.blocks,
-            output_cursors=manifest.cursors or (cursors or ()),
-            capture_completeness=(
-                CaptureCompleteness.COMPLETE
-                if manifest.blocks and all(block.complete for block in manifest.blocks)
-                else CaptureCompleteness.PARTIAL
-                if manifest.blocks
-                else CaptureCompleteness.GAP
-            ),
+            output_cursors=manifest.cursors,
+            exit_fact_ref=stopped_exit(completeness),
+            capture_completeness=completeness,
             complete=False,
         )
 
     def _stop_persisted(self, handle: ExecutionHandle) -> StopRequestResult:
-        self._persisted_for(handle)
+        persisted = self._persisted_for(handle)
+        saved_stop = self._saved_stop(handle)
+        if saved_stop is not None:
+            return saved_stop
+        if self._saved_collection(handle) is not None:
+            return StopRequestResult(
+                handle_id=handle.handle_id,
+                stop_confirmed=False,
+                observed_state=ExecutionInspectionState.EXITED,
+                unknown_reason="process_already_exited",
+            )
         pid = _real_pid(handle)
         if not _process_is_alive(pid):
             return StopRequestResult(
@@ -643,13 +902,36 @@ class CommandAdapter:
                 observed_state=ExecutionInspectionState.EXITED,
                 unknown_reason="process_already_exited",
             )
+        if _process_start_identity(pid) != persisted.handle.process_start_identity:
+            return StopRequestResult(
+                handle_id=handle.handle_id,
+                stop_confirmed=False,
+                observed_state=ExecutionInspectionState.LOST,
+                unknown_reason="process_identity_mismatch",
+            )
+        if os.name == "nt":
+            stopped = _stop_owned_windows_job(persisted)
+            result = StopRequestResult(
+                handle_id=handle.handle_id,
+                stop_confirmed=stopped,
+                observed_state=(
+                    ExecutionInspectionState.STOPPED
+                    if stopped
+                    else ExecutionInspectionState.UNKNOWN
+                ),
+                unknown_reason=None if stopped else "process_group_ownership_unavailable",
+            )
+            self._persist_stop(handle, result)
+            return result
         _terminate_process_group(pid, force=True)
         if _wait_for_process_exit(pid):
-            return StopRequestResult(
+            result = StopRequestResult(
                 handle_id=handle.handle_id,
                 stop_confirmed=True,
                 observed_state=ExecutionInspectionState.STOPPED,
             )
+            self._persist_stop(handle, result)
+            return result
         return StopRequestResult(
             handle_id=handle.handle_id,
             stop_confirmed=False,
@@ -662,10 +944,48 @@ class CommandAdapter:
         if runtime.timeout_timer is not None:
             runtime.timeout_timer.cancel()
 
+    def _saved_collection(self, handle: ExecutionHandle) -> ExecutionCollectionResult | None:
+        load = getattr(self._handle_store, "load_collection", None)
+        if not callable(load):
+            return None
+        result = load(handle)
+        if result is None:
+            return None
+        if not isinstance(result, ExecutionCollectionResult):
+            raise ValueError("persisted execution collection is invalid")
+        if self._spool_store is not None:
+            manifest = self._spool_store.read_manifest(result.attempt_id)
+            if manifest.blocks != result.output_blocks or manifest.cursors != result.output_cursors:
+                raise ValueError("confirmed execution collection no longer matches its spool")
+            for block in manifest.blocks:
+                self._spool_store.read_block(block)
+        return result
+
+    def _saved_stop(self, handle: ExecutionHandle) -> StopRequestResult | None:
+        load = getattr(self._handle_store, "load_stop", None)
+        result = load(handle) if callable(load) else None
+        if result is not None and not isinstance(result, StopRequestResult):
+            raise ValueError("persisted execution stop is invalid")
+        return result
+
+    def _persist_stop(self, handle: ExecutionHandle, result: StopRequestResult) -> None:
+        save = getattr(self._handle_store, "save_stop", None)
+        if result.stop_confirmed and callable(save):
+            save(handle, result)
+
+    def _hydrate_stop(self, runtime: _CommandRuntime) -> None:
+        if self._saved_stop(runtime.handle) is not None:
+            runtime.stop_requested = True
+            runtime.group_stopped = True
+
     def _terminate_group(self, pid: int, *, force: bool) -> None:
         _terminate_process_group(pid, force=force)
 
     def _cleanup_group(self, runtime: _CommandRuntime) -> bool:
+        if runtime.group_stopped:
+            _close_job(runtime.job_handle)
+            runtime.job_handle = None
+            return True
         if os.name == "nt":
             if runtime.job_handle is None:
                 runtime.group_stopped = False
@@ -761,66 +1081,74 @@ def _process_group_stopped(pid: int) -> bool:
         time.sleep(0.02)
     return False
 
-def _assign_windows_job(pid: int) -> int | None:
+
+def _job_name(startup_token: str) -> str:
+    return "Local\\aitest-" + hashlib.sha256(startup_token.encode("utf-8")).hexdigest()
+
+
+def _resume_windows_process(process_handle: int) -> None:
+    resume = ctypes.WinDLL("ntdll", use_last_error=True).NtResumeProcess
+    resume.argtypes = [ctypes.c_void_p]
+    resume.restype = ctypes.c_long
+    if resume(ctypes.c_void_p(process_handle)) != 0:
+        raise RuntimeError("suspended execution process could not be resumed")
+
+
+def _assign_windows_job(process_handle: int, startup_token: str) -> int | None:
     if os.name != "nt":
         return None
     kernel32 = _kernel32()
-    create_job = kernel32.CreateJobObjectW
-    create_job.restype = ctypes.c_void_p
-    job = create_job(None, None)
+    job = kernel32.CreateJobObjectW(None, _job_name(startup_token))
     if not job:
         return None
-
-    class _IoCounters(ctypes.Structure):
-        _fields_ = [
-            ("ReadOperationCount", ctypes.c_ulonglong),
-            ("WriteOperationCount", ctypes.c_ulonglong),
-            ("OtherOperationCount", ctypes.c_ulonglong),
-            ("ReadTransferCount", ctypes.c_ulonglong),
-            ("WriteTransferCount", ctypes.c_ulonglong),
-            ("OtherTransferCount", ctypes.c_ulonglong),
-        ]
-
-    class _BasicLimit(ctypes.Structure):
-        _fields_ = [
-            ("PerProcessUserTimeLimit", ctypes.c_longlong),
-            ("PerJobUserTimeLimit", ctypes.c_longlong),
-            ("LimitFlags", ctypes.c_uint32),
-            ("MinimumWorkingSetSize", ctypes.c_size_t),
-            ("MaximumWorkingSetSize", ctypes.c_size_t),
-            ("ActiveProcessLimit", ctypes.c_uint32),
-            ("Affinity", ctypes.c_size_t),
-            ("PriorityClass", ctypes.c_uint32),
-            ("SchedulingClass", ctypes.c_uint32),
-        ]
-
-    class _ExtendedLimit(ctypes.Structure):
-        _fields_ = [
-            ("BasicLimitInformation", _BasicLimit),
-            ("IoInfo", _IoCounters),
-            ("ProcessMemoryLimit", ctypes.c_size_t),
-            ("JobMemoryLimit", ctypes.c_size_t),
-            ("PeakProcessMemoryUsed", ctypes.c_size_t),
-            ("PeakJobMemoryUsed", ctypes.c_size_t),
-        ]
-
-    info = _ExtendedLimit()
-    info.BasicLimitInformation.LimitFlags = 0x2000
-    set_info = kernel32.SetInformationJobObject
-    if not set_info(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
-        kernel32.CloseHandle(job)
-        return None
-    process_handle = kernel32.OpenProcess(_WINDOWS_JOB_PROCESS_ACCESS, False, pid)
-    if not process_handle:
-        kernel32.CloseHandle(job)
-        return None
+    transferred = False
     try:
-        if not kernel32.AssignProcessToJobObject(job, process_handle):
-            kernel32.CloseHandle(job)
+
+        class _IoCounters(ctypes.Structure):
+            _fields_ = [
+                ("ReadOperationCount", ctypes.c_ulonglong),
+                ("WriteOperationCount", ctypes.c_ulonglong),
+                ("OtherOperationCount", ctypes.c_ulonglong),
+                ("ReadTransferCount", ctypes.c_ulonglong),
+                ("WriteTransferCount", ctypes.c_ulonglong),
+                ("OtherTransferCount", ctypes.c_ulonglong),
+            ]
+
+        class _BasicLimit(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", ctypes.c_longlong),
+                ("PerJobUserTimeLimit", ctypes.c_longlong),
+                ("LimitFlags", ctypes.c_uint32),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", ctypes.c_uint32),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", ctypes.c_uint32),
+                ("SchedulingClass", ctypes.c_uint32),
+            ]
+
+        class _ExtendedLimit(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", _BasicLimit),
+                ("IoInfo", _IoCounters),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        info = _ExtendedLimit()
+        info.BasicLimitInformation.LimitFlags = 0x2000
+        if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
             return None
+        if not kernel32.AssignProcessToJobObject(job, ctypes.c_void_p(process_handle)):
+            return None
+        result = int(job)
+        transferred = True
+        return result
     finally:
-        kernel32.CloseHandle(process_handle)
-    return int(job)
+        if not transferred:
+            kernel32.CloseHandle(job)
 
 
 def _close_job(job_handle: int | None) -> None:
@@ -855,7 +1183,65 @@ def _terminate_and_wait_windows_job(
 
 
 def _kernel32() -> Any:
-    return ctypes.WinDLL("kernel32", use_last_error=True)
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    # 64 位进程中的 HANDLE 不能走 ctypes 默认的 32 位整数转换。
+    signatures = {
+        "CreateJobObjectW": ([ctypes.c_void_p, wintypes.LPCWSTR], ctypes.c_void_p),
+        "OpenJobObjectW": ([wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR], ctypes.c_void_p),
+        "OpenProcess": ([wintypes.DWORD, wintypes.BOOL, wintypes.DWORD], ctypes.c_void_p),
+        "CloseHandle": ([ctypes.c_void_p], wintypes.BOOL),
+        "AssignProcessToJobObject": ([ctypes.c_void_p, ctypes.c_void_p], wintypes.BOOL),
+        "IsProcessInJob": (
+            [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(wintypes.BOOL)],
+            wintypes.BOOL,
+        ),
+        "SetInformationJobObject": (
+            [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD],
+            wintypes.BOOL,
+        ),
+        "QueryInformationJobObject": (
+            [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p],
+            wintypes.BOOL,
+        ),
+        "TerminateJobObject": ([ctypes.c_void_p, wintypes.UINT], wintypes.BOOL),
+        "GetProcessTimes": (
+            [ctypes.c_void_p, *([ctypes.POINTER(wintypes.FILETIME)] * 4)],
+            wintypes.BOOL,
+        ),
+    }
+    for name, (args, result) in signatures.items():
+        function = getattr(kernel, name)
+        function.argtypes = args
+        function.restype = result
+    return kernel
+
+
+def _stop_owned_windows_job(record: PersistedExecutionHandle) -> bool:
+    from ctypes import wintypes
+
+    kernel = _kernel32()
+    job = kernel.OpenJobObjectW(0x0008 | 0x0004, False, _job_name(record.startup_token))
+    if not job:
+        return False
+    process = kernel.OpenProcess(0x1000, False, _real_pid(record.handle))
+    if not process:
+        _close_job(int(job))
+        return False
+    try:
+        belongs = wintypes.BOOL()
+        if not kernel.IsProcessInJob(process, job, ctypes.byref(belongs)) or not belongs.value:
+            return False
+        # 在同一个 OS 进程句柄上核对创建时间，避免 PID 重用期间终止别的业务。
+        if _windows_handle_identity(process, _real_pid(record.handle)) != (
+            record.handle.process_start_identity
+        ):
+            return False
+        return _terminate_and_wait_windows_job(int(job), timeout_seconds=5)
+    finally:
+        kernel.CloseHandle(process)
+        _close_job(int(job))
 
 
 def _process_start_identity(pid: int) -> str:
@@ -902,29 +1288,24 @@ def _wait_for_process_exit(pid: int) -> bool:
 
 
 def _windows_process_start_identity(pid: int) -> str:
-    from ctypes import wintypes
-
     kernel32 = _kernel32()
     handle = kernel32.OpenProcess(0x1000, False, pid)
     if not handle:
         return f"win32-pid:{pid}:unverified"
     try:
-        creation = wintypes.FILETIME()
-        exit_time = wintypes.FILETIME()
-        kernel_time = wintypes.FILETIME()
-        user_time = wintypes.FILETIME()
-        if not kernel32.GetProcessTimes(
-            handle,
-            ctypes.byref(creation),
-            ctypes.byref(exit_time),
-            ctypes.byref(kernel_time),
-            ctypes.byref(user_time),
-        ):
-            return f"win32-pid:{pid}:unverified"
-        ticks = (creation.dwHighDateTime << 32) | creation.dwLowDateTime
-        return f"win32-pid:{pid}:created:{ticks}"
+        return _windows_handle_identity(handle, pid)
     finally:
         kernel32.CloseHandle(handle)
+
+
+def _windows_handle_identity(handle: int, pid: int) -> str:
+    from ctypes import wintypes
+
+    times = [wintypes.FILETIME() for _ in range(4)]
+    if not _kernel32().GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+        return f"win32-pid:{pid}:unverified"
+    ticks = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+    return f"win32-pid:{pid}:created:{ticks}"
 
 
 def _linux_process_start_identity(pid: int) -> str:

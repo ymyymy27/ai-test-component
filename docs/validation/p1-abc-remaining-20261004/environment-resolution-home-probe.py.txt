@@ -1,0 +1,32 @@
+"""No actual redirected interpreter is launched by these regression probes."""
+
+from dataclasses import replace
+
+import pytest
+
+from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
+from tests.unit.test_python_environment import carrier as carrier
+from tests.unit.test_python_environment import request
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_venv_home_must_be_registered_before_probe(carrier, monkeypatch, missing):
+    config = carrier.venv_root / "pyvenv.cfg"
+    text = config.read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines() if not line.startswith("home =")]
+    if not missing:
+        lines.append("home = " + str(carrier.venv_root / "unregistered-base"))
+    config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    resolver = RegisteredPythonEnvironmentResolver((carrier,))
+    monkeypatch.setattr(resolver, "_probe", lambda _: pytest.fail("unregistered home reached probe"))
+    with pytest.raises(ValueError, match="home"):
+        resolver.resolve(request())
+
+
+@pytest.mark.parametrize("mode", ["none", "unmanaged"])
+def test_non_venv_registration_cannot_ignore_active_venv_configuration(carrier, monkeypatch, mode):
+    registered = replace(carrier, isolation_mode=mode, venv_root=None)
+    resolver = RegisteredPythonEnvironmentResolver((registered,))
+    monkeypatch.setattr(resolver, "_probe", lambda _: pytest.fail("hidden venv reached probe"))
+    with pytest.raises(ValueError, match="venv configuration"):
+        resolver.resolve(request(isolation_mode=mode))

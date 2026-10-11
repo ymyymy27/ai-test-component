@@ -1,0 +1,55 @@
+I001 [*] Import block is un-sorted or un-formatted
+  --> src\aitest\infrastructure\file_store\records.py:3:1
+   |
+ 1 |   """File-backed immutable record repository used by the A substrate."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import hashlib
+ 6 | | import json
+ 7 | | from collections.abc import Mapping, Sequence
+ 8 | | from contextlib import suppress
+ 9 | | from dataclasses import dataclass
+10 | | from pathlib import Path
+11 | | from typing import Any, cast
+12 | |
+13 | | from aitest.application.ports import CommittedRecord, RecordQuery
+14 | | from aitest.contracts.events import Event
+15 | | from aitest.contracts.queries import QuerySpec
+16 | | from aitest.infrastructure.security import guard_bytes, guard_value
+17 | |
+18 | | from . import atomic
+19 | | from .commit_manifest import FileCommitStore, canonical_bytes
+20 | | from .events import FileEventJournal, derive_event_id
+21 | | from .index import FileQueryIndex, build_index_row
+22 | | from .ordered_events import OrderedEventStore
+23 | | from .references import verify_record_objects
+24 | | from .source_material import verify_source_reference
+25 | | from .sharded_records import (
+26 | |     SCHEMA,
+27 | |     ShardedRows,
+28 | |     authority_header,
+29 | |     find_commit,
+30 | |     open_authority,
+31 | | )
+   | |_^
+32 |
+33 |   #: 待提交业务记录：(聚合类型, 记录 ID, 期望修订（None 表示新建）, 业务载荷)。
+   |
+help: Organize imports
+   |
+21 | from .index import FileQueryIndex, build_index_row
+   - from .ordered_events import OrderedEventStore
+   - from .references import verify_record_objects
+   - from .source_material import verify_source_reference
+22 + from .ordered_events import OrderedEventStore
+23 + from .references import verify_record_objects
+24 | from .sharded_records import (
+--------------------------------------------------------------------------------
+30 | )
+31 + from .source_material import verify_source_reference
+32 |
+   |
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

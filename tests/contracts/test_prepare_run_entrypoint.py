@@ -171,6 +171,7 @@ def _parameters(inputs: PreparationInputs) -> dict[str, object]:
         "execution_source": _plain(inputs.execution_source),
         "plan_revision": _plain(inputs.plan_revision),
         "acceptance_scope_revision": inputs.acceptance_scope_revision,
+        "scope_id": inputs.scope_id,
         "rule_versions": _plain(inputs.rule_versions),
         "template_versions": _plain(inputs.template_versions),
         "case_revisions": _plain(inputs.case_revisions),
@@ -248,10 +249,10 @@ def test_prepare_run_reaches_the_entry_and_reports_the_contract_dto(
     assert result["blocking_reasons"]
 
 
-def test_blocked_and_unblocked_inputs_are_distinguishable(
+def test_explicit_gap_and_unverified_material_are_both_blocked(
     workspace_root: Path,
 ) -> None:
-    """`blocked` 与 `needs_reprepare` 两个场景的输入产生**不同**的结论。"""
+    """清空自述缺口不能让没有权威记录的输入成为可启动准备。"""
     api = _api(_start(workspace_root))
     blocked = _scenario_inputs("blocked")
     other = _scenario_inputs("needs_reprepare")
@@ -278,7 +279,9 @@ def test_blocked_and_unblocked_inputs_are_distinguishable(
     )
     assert second.error is None, second.error
     assert second.result is not None
-    assert second.result["status"] != PreparedRunStatusFact.BLOCKED.value
+    assert second.result["status"] == PreparedRunStatusFact.BLOCKED.value
+    assert any(reason["code"] == "basis_unverified"
+               for reason in second.result["blocking_reasons"])
 
 
 # ------------------------------------------------------------------ 失败路径

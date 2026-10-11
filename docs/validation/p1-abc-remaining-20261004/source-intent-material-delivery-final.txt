@@ -1,0 +1,18 @@
+Timeout (0:01:30)!
+Thread 0x0000aee4 (most recent call first):
+  File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_local.py", line ??? in _parse_path
+  <invalid frame>
+Timeout (0:01:30)!
+Thread 0x0000aee4 (most recent call first):
+  File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_local.py", line 515 in stat
+  File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_abc.py", line 437 in lstat
+  File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_abc.py", line 518 in is_symlink
+  File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\ordered_index.py", line 47 in <genexpr>
+  File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\ordered_index.py", line 47 in _reject_links
+  File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\ordered_index.py", line 39 in __init__
+  File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\business_changes.py", line 120 in tree
+  File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\business_changes.py", line 101 in __init__
+  File "__init__", line ??? in __init__
+  <invalid frame>
+..                                                                       [100%]
+2 passed in 240.63s (0:04:00)

@@ -1,0 +1,38 @@
+{
+  "status": "passed",
+  "scope": "Controlled real Windows CPython interpreter/venv component probe; no product or Trae AC",
+  "python": "3.13.13",
+  "legacy": {
+    "popen_pid": 75752,
+    "worker": {
+      "pid": 73940,
+      "parent": 75752,
+      "executable": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "prefix": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv",
+      "dependency": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Lib\\site-packages\\portalocker\\__init__.py"
+    }
+  },
+  "actual": {
+    "popen_pid": 1692,
+    "worker": {
+      "pid": 1692,
+      "parent": 18696,
+      "executable": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "prefix": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv",
+      "dependency": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Lib\\site-packages\\portalocker\\__init__.py"
+    }
+  },
+  "launch_program": "C:\\Users\\y'm'y\\AppData\\Roaming\\uv\\python\\cpython-3.13.13-windows-x86_64-none\\python.exe",
+  "venv_launcher": "C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Scripts\\python.exe",
+  "legacy_pid_mismatch": true,
+  "actual_pid_matches": true,
+  "venv_prefix_preserved": true,
+  "source": {
+    "path": "src/aitest/infrastructure/file_store/core_launch.py",
+    "sha256": "d6d577e4d2f93a3afde341ef892cc5d39c6e81d4665dc55480f4c72dde405143"
+  },
+  "primary_sources": [
+    "https://github.com/python/cpython/blob/v3.13.0/PC/venvlauncher.c",
+    "https://github.com/python/cpython/blob/v3.13.0/Modules/getpath.py"
+  ]
+}

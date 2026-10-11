@@ -1,0 +1,56 @@
+E501 Line too long (101 > 100)
+   --> src\aitest\domain\planning\runtime_revision.py:159:88
+    |
+157 |     | 任一尝试在 `intent_recorded`…`collecting`，或步骤 `running` | `EXECUTING` | **拒绝修改** |
+158 |     | 存在其他尝试事实，或步骤已停在待核实／完成／取消／执行错误 | `FACTS_RECORDED` | 原内容不回改 |
+159 |     | 没有尝试且步骤 `pending` / `ready` / `blocked` / `invalidated` | `NOT_STARTED` | 修订可以作用 |
+    |                                                                                                     ^
+160 |
+161 |     失效的是依据，已有Attempt事实不能因Step投影滞后或失效而成为未执行内容。
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests\unit\test_runtime_revision_attempt_history.py:3:1
+   |
+ 1 |   """Runtime edits must preserve attempted content despite lagging step state."""
+ 2 |
+ 3 | / from dataclasses import replace
+ 4 | |
+ 5 | | import pytest
+ 6 | | from pydantic import TypeAdapter
+ 7 | |
+ 8 | | from aitest.application.execution.facts import project_attempt_fact
+ 9 | | from aitest.application.planning.run_mode import runtime_facts_from_execution_facts
+10 | | from aitest.contracts.execution_facts import ExecutionFacts, StepStateFact
+11 | | from aitest.domain.execution.runs import AttemptState, RecoveryRecord
+12 | | from aitest.domain.planning.runtime_revision import CaseRuntimeChange, StepRuntimeProgress
+13 | | from tests.unit.test_authoritative_preparation import authoritative as authoritative
+14 | | from tests.unit.test_runtime_revision import (
+15 | |     _case,
+16 | |     _change,
+17 | |     _codes,
+18 | |     _decide,
+19 | |     _failure_in_progress,
+20 | | )
+21 | | from tests.unit.test_saved_runtime_revision import (
+22 | |     assess,
+23 | |     runtime as runtime,
+24 | |     save_current_attempt,
+25 | | )
+   | |_^
+26 |
+27 |   RECORDED = (
+   |
+help: Organize imports
+   |
+22 |     assess,
+23 +     save_current_attempt,
+24 + )
+25 + from tests.unit.test_saved_runtime_revision import (
+26 |     runtime as runtime,
+   -     save_current_attempt,
+27 | )
+   |
+
+Found 2 errors.
+[*] 1 fixable with the `--fix` option.

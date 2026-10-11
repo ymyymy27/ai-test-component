@@ -1,0 +1,23 @@
+{
+  "status": "failed",
+  "groups": [
+    {
+      "name": "last-gates-before-direct-base-probe",
+      "passed": 27,
+      "failed": 1,
+      "duration_seconds": 370.94
+    }
+  ],
+  "notes": [
+    "Windows venv launcher left child briefly holding cwd; temporary cleanup masked output-limit ValueError."
+  ],
+  "log_files": [
+    "environment-resolution-last-gates.log",
+    "environment-resolution-last-risk-and-probes.log",
+    "environment-resolution-last-risk-collection.log",
+    "environment-resolution-last-mypy.log",
+    "environment-resolution-last-ruff.log",
+    "environment-resolution-last-build.log",
+    "environment-resolution-last-package.log"
+  ]
+}

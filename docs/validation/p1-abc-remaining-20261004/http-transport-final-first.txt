@@ -1,0 +1,16 @@
+...................................F.................................... [ 20%]
+........................................................................ [ 41%]
+........................................................................ [ 62%]
+........................................................................ [ 82%]
+...........................................................              [100%]
+================================== FAILURES ===================================
+_____ test_stalled_dns_workers_are_bounded_and_cannot_send_late_requests ______
+tests\unit\test_http_transport_limits.py:322: in test_stalled_dns_workers_are_bounded_and_cannot_send_late_requests
+    assert [result.error_class for result in results] == ["timeout"] * 4 + ["network"] * 3
+E   AssertionError: assert ['timeout', '...network', ...] == ['timeout', '...network', ...]
+E     
+E     At index 1 diff: 'network' != 'timeout'
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/unit/test_http_transport_limits.py::test_stalled_dns_workers_are_bounded_and_cannot_send_late_requests
+1 failed, 346 passed in 9.69s

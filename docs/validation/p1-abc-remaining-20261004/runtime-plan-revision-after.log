@@ -1,0 +1,5 @@
+{"body_revision": 7, "record_revision": 2, "requested_revision": 2, "accepted": true, "refusals": []}
+{"body_revision": 7, "record_revision": 2, "requested_revision": 7, "accepted": false, "refusals": ["plan_revision_mismatch"]}
+{"mismatched_run_plan_field": "revision_id", "translation": "blocked"}
+{"mismatched_run_plan_field": "revision_no", "translation": "blocked"}
+{"mismatched_run_plan_field": "digest", "translation": "blocked"}

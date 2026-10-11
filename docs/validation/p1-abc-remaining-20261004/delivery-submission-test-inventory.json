@@ -1,0 +1,9 @@
+{
+  "regression_nodes": 152,
+  "final_nodes": 33,
+  "overlap": 11,
+  "unique_nodes": 183,
+  "execution_status": "passed; regression=152, final=33, overlap=11, additional=1+8; interrupted/draft/overlapping target reruns excluded",
+  "additional_closure_nodes": 1,
+  "additional_source_type_nodes": 8
+}

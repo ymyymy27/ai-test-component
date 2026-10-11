@@ -7,9 +7,17 @@ import json
 import os
 import threading
 from collections.abc import Sequence
+from contextlib import ExitStack
 from pathlib import Path
 
+import portalocker
+
 from aitest.domain.evidence.evidence import RedactionSummary
+from aitest.domain.evidence.redaction_material import (
+    MAX_SUMMARY_BYTES,
+    parse_redaction_summary,
+    redaction_summary_payload,
+)
 from aitest.domain.execution.runs import (
     CapturedOutputBlock,
     OutputBlockRef,
@@ -17,17 +25,21 @@ from aitest.domain.execution.runs import (
     OutputStreamName,
     SpoolManifest,
 )
+from aitest.domain.json_material import decode_json
 
 from ..security import (
     KnownSecretRegistry,
     StreamSecretFilter,
     UnsafeMaterialError,
     guard_bytes,
+    guard_value,
     known_secrets,
 )
 from . import atomic
 
 _INVALID_COMPONENT_CHARS = frozenset('\\/:*?"<>|')
+_MAX_PENDING_BYTES = 1024 * 1024
+
 
 
 def _safe_component(value: str, name: str) -> str:
@@ -68,6 +80,8 @@ def _require_optional_str(value: object, name: str) -> str | None:
     return _require_str(value, name)
 
 
+
+
 class _FileSpoolStreamWriter:
     def __init__(
         self,
@@ -81,8 +95,9 @@ class _FileSpoolStreamWriter:
         block_size: int,
         redaction_summary_id: str | None,
         registry: KnownSecretRegistry,
+        max_pending_bytes: int,
     ) -> None:
-        if block_size < 1:
+        if type(block_size) is not int or block_size < 1:
             raise ValueError("block_size must be positive")
         self._store = store
         self._run_id = run_id
@@ -94,16 +109,35 @@ class _FileSpoolStreamWriter:
         self._redaction_summary_id = redaction_summary_id
         self._lock = threading.Lock()
         self._closed = False
+        self._failed = False
+        self._sealed = False
+        self._max_pending_bytes = max_pending_bytes
         self._path = store._stream_path(attempt_id, stream_name)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._handle = self._path.open("ab")
-        self._offset = self._path.stat().st_size
-        self._block_start = self._offset
-        self._block_length = 0
-        self._hasher = hashlib.sha256()
-        self._block_index = store._next_block_index(attempt_id, stream_name)
-        # A-09：跨块凭据过滤的未决尾部只存在内存；落盘的一律是过滤后字节。
-        self._filter = StreamSecretFilter(registry)
+        self._capture_lock = store._capture_lock(attempt_id, stream_name)
+        self._capture_lock.acquire()
+        opened = None
+        try:
+            manifest = store.read_manifest(attempt_id)
+            self._offset = store._stream_boundary(attempt_id, stream_name, manifest)
+            self._block_start = self._offset
+            self._block_length = 0
+            self._hasher = hashlib.sha256()
+            self._block_index = store._next_block_index(attempt_id, stream_name)
+            self._filter = StreamSecretFilter(registry)
+            store._capture_state(attempt_id, stream_name, "active")
+            opened = self._path.open("ab")
+            self._handle = opened
+        except BaseException:
+            if opened is not None:
+                opened.close()
+            self._capture_lock.release()
+            raise
+
+    @property
+    def redaction_changed(self) -> bool | None:
+        with self._lock:
+            return self._filter.changed if self._sealed and not self._failed else None
 
     def append(self, content: bytes) -> tuple[OutputBlockRef, ...]:
         if not content:
@@ -111,7 +145,13 @@ class _FileSpoolStreamWriter:
         with self._lock:
             if self._closed:
                 raise RuntimeError("spool stream writer is closed")
+            if self._failed:
+                raise UnsafeMaterialError("spool unresolved output exceeded memory budget")
             safe = self._filter.feed(content)
+            if self._filter.pending_bytes > self._max_pending_bytes:
+                self._filter.abort()
+                self._failed = True
+                raise UnsafeMaterialError("spool unresolved output exceeds memory budget")
             if not safe:
                 # 整块（或尾部）仍在未决窗口：尚未确认安全，不落盘。
                 return ()
@@ -140,9 +180,12 @@ class _FileSpoolStreamWriter:
                     self._hasher.update(tail)
                     self._block_length += len(tail)
                 if self._block_length:
-                    refs = (self._seal(complete=complete),)
+                    refs = (self._seal(complete=complete and not self._failed),)
+                self._store._capture_state(self._attempt_id, self._stream_name, "sealed")
+                self._sealed = True
             finally:
                 self._handle.close()
+                self._capture_lock.release()
                 self._store._unregister_writer(self._attempt_id, self._stream_name)
             return refs
 
@@ -159,6 +202,7 @@ class _FileSpoolStreamWriter:
                 os.fsync(self._handle.fileno())
             finally:
                 self._handle.close()
+                self._capture_lock.release()
                 self._store._unregister_writer(self._attempt_id, self._stream_name)
 
     def _seal(self, *, complete: bool) -> OutputBlockRef:
@@ -206,9 +250,13 @@ class FileSpoolStore:
         workspace_root: Path,
         *,
         registry: KnownSecretRegistry | None = None,
+        max_pending_bytes: int = _MAX_PENDING_BYTES,
     ) -> None:
+        if type(max_pending_bytes) is not int or not 0 < max_pending_bytes <= _MAX_PENDING_BYTES:
+            raise ValueError("spool pending budget must be a positive bounded integer")
         self._root = workspace_root.resolve()
-        self._registry = registry or known_secrets()
+        self._max_pending_bytes = max_pending_bytes
+        self._registry = registry if registry is not None else known_secrets()
         self._manifest_lock = threading.RLock()
         self._writer_lock = threading.Lock()
         self._open_writers: set[tuple[str, OutputStreamName]] = set()
@@ -224,6 +272,8 @@ class FileSpoolStore:
         block_size: int = 64 * 1024,
         redaction_summary_id: str | None = None,
     ) -> _FileSpoolStreamWriter:
+        if type(block_size) is not int or block_size < 1:
+            raise ValueError("block_size must be a positive integer")
         safe_run = _safe_component(run_id, "run_id")
         safe_step = _safe_component(step_id, "step_id")
         safe_attempt = _safe_component(attempt_id, "attempt_id")
@@ -242,6 +292,7 @@ class FileSpoolStore:
                 block_size=block_size,
                 redaction_summary_id=redaction_summary_id,
                 registry=self._registry,
+                max_pending_bytes=self._max_pending_bytes,
             )
             self._open_writers.add(key)
             return writer
@@ -258,8 +309,12 @@ class FileSpoolStore:
         cursors: list[OutputCursor] = []
         # 先对全部密封块做落盘前检查，任何一块不洁则整批拒绝（无孤儿字节）。
         for block in batch:
-            if not block.complete:
+            if block.complete is not True:
                 raise ValueError("only sealed blocks may be persisted")
+            if type(block.offset) is not int or type(block.block_index) is not int:
+                raise ValueError("spool block offsets and indexes must be exact integers")
+            if not isinstance(block.content, bytes):
+                raise ValueError("sealed spool content must be immutable bytes")
             if (block.attempt_id, block.run_id, block.step_id) != (attempt_id, run_id, step_id):
                 raise ValueError("all spool blocks must share run_id, step_id and attempt_id")
             _guarded, dirty = guard_bytes(block.content, self._registry)
@@ -270,46 +325,63 @@ class FileSpoolStore:
                     "sealed spool block still contains a known credential; "
                     "register a capture gap instead of persisting raw bytes"
                 )
-        for block in batch:
-            ref = OutputBlockRef(
-                block_id=f"{attempt_id}:{block.stream_name.value}:{block.block_index}",
-                attempt_id=attempt_id,
-                stream_name=block.stream_name,
-                block_index=block.block_index,
-                offset=block.offset,
-                length=block.length,
-                digest=block.digest,
-                complete=block.complete,
-                capture_source=block.capture_source,
-                redaction_summary_id=block.redaction_summary_id,
-            )
-            self._write_block(ref, block.content)
-            refs.append(ref)
-            cursors.append(
-                OutputCursor(
+        with ExitStack() as leases:
+            for stream in sorted({block.stream_name for block in batch}):
+                leases.enter_context(self._capture_lock(attempt_id, stream))  # type: ignore[arg-type]
+            self._ensure_manifest(attempt_id, run_id, step_id)
+            self._preflight_blocks(batch, self.read_manifest(attempt_id))
+            for block in batch:
+                ref = OutputBlockRef(
+                    block_id=f"{attempt_id}:{block.stream_name.value}:{block.block_index}",
                     attempt_id=attempt_id,
                     stream_name=block.stream_name,
-                    offset=block.offset + block.length,
-                    last_block_index=block.block_index,
-                    last_committed_digest=block.digest,
-                    durable=True,
+                    block_index=block.block_index,
+                    offset=block.offset,
+                    length=block.length,
+                    digest=block.digest,
+                    complete=block.complete,
+                    capture_source=block.capture_source,
+                    redaction_summary_id=block.redaction_summary_id,
                 )
+                self._write_block(ref, block.content)
+                refs.append(ref)
+                cursors.append(
+                    OutputCursor(
+                        attempt_id=attempt_id,
+                        stream_name=block.stream_name,
+                        offset=block.offset + block.length,
+                        last_block_index=block.block_index,
+                        last_committed_digest=block.digest,
+                        durable=True,
+                    )
+                )
+            self._merge_manifest(
+                attempt_id=attempt_id,
+                run_id=run_id,
+                step_id=step_id,
+                new_blocks=tuple(refs),
+                new_cursors=tuple(cursors),
             )
-        self._merge_manifest(
-            attempt_id=attempt_id,
-            run_id=run_id,
-            step_id=step_id,
-            new_blocks=tuple(refs),
-            new_cursors=tuple(cursors),
-        )
-        return self.read_manifest(attempt_id)
+            return self.read_manifest(attempt_id)
 
     def read_manifest(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
+
+        def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+            fields: dict[str, object] = {}
+            for key, value in pairs:
+                if key in fields:
+                    raise ValueError("duplicate field in spool manifest: " + key)
+                fields[key] = value
+            return fields
+
         with self._manifest_lock:
             path = self._manifest_path(safe_attempt)
-            raw: object = json.loads(path.read_text(encoding="utf-8"))
-            return self._manifest_from_json(raw)
+            raw: object = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique)
+            manifest = self._manifest_from_json(raw)
+            if manifest.attempt_id != safe_attempt:
+                raise ValueError("spool manifest identity differs from the requested attempt")
+            return manifest
 
     def read_block(self, ref: OutputBlockRef) -> bytes:
         safe_attempt = _safe_component(ref.attempt_id, "attempt_id")
@@ -330,18 +402,15 @@ class FileSpoolStore:
     ) -> str:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
         summary_id = f"redaction:{safe_attempt}:{stream_name.value}"
-        payload = {
-            "schema_version": "aitest.redaction-summary/1.0",
-            "summary_id": summary_id,
-            "stream_name": stream_name.value,
-            "policy_version": summary.policy_version,
-            "applied_rule_categories": list(summary.applied_rule_categories),
-            "filtered_streams": list(summary.filtered_streams),
-            "filtered_ranges": list(summary.filtered_ranges),
-            "replacement_count": summary.replacement_count,
-            "completeness": summary.completeness,
-            "gap_reasons": list(summary.gap_reasons),
-        }
+        payload = redaction_summary_payload(summary, safe_attempt, stream_name)
+        _, changed = guard_value(payload, self._registry)
+        if changed:
+            raise UnsafeMaterialError("redaction summary metadata requires credential filtering")
+        encoded = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        )
+        if len(encoded) > MAX_SUMMARY_BYTES:
+            raise ValueError("redaction summary exceeds metadata budget")
         atomic.write_json(
             self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json",
             payload,
@@ -354,42 +423,51 @@ class FileSpoolStore:
         stream_name: OutputStreamName,
     ) -> RedactionSummary:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
-        raw: object = json.loads(
-            (self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        if not isinstance(raw, dict):
-            raise ValueError("redaction summary must be an object")
-        if raw.get("schema_version") != "aitest.redaction-summary/1.0":
-            raise ValueError("unsupported redaction summary schema")
-        return RedactionSummary(
-            policy_version=_require_str(raw.get("policy_version"), "policy_version"),
-            applied_rule_categories=tuple(
-                _require_str(value, "applied_rule_category")
-                for value in _require_list(
-                    raw.get("applied_rule_categories"),
-                    "applied_rule_categories",
-                )
-            ),
-            filtered_streams=tuple(
-                _require_str(value, "filtered_stream")
-                for value in _require_list(raw.get("filtered_streams"), "filtered_streams")
-            ),
-            filtered_ranges=tuple(
-                _require_str(value, "filtered_range")
-                for value in _require_list(raw.get("filtered_ranges"), "filtered_ranges")
-            ),
-            replacement_count=_require_int(raw.get("replacement_count"), "replacement_count"),
-            completeness=_require_str(raw.get("completeness"), "completeness"),
-            gap_reasons=tuple(
-                _require_str(value, "gap_reason")
-                for value in _require_list(raw.get("gap_reasons"), "gap_reasons")
-            ),
-        )
+        path = self._attempt_dir(safe_attempt) / f"redaction-{stream_name.value}.json"
+        with path.open("rb") as handle:
+            content = handle.read(MAX_SUMMARY_BYTES + 1)
+        if len(content) > MAX_SUMMARY_BYTES:
+            raise ValueError("redaction summary exceeds metadata budget")
+        return parse_redaction_summary(decode_json(content), safe_attempt, stream_name)
 
     def salvage_streams(self, attempt_id: str) -> SpoolManifest:
         safe_attempt = _safe_component(attempt_id, "attempt_id")
+        # OS 锁覆盖全部抢救操作，另一实例/进程的写流存在时绝不抢认字节。
+        with ExitStack() as locks:
+            for stream in OutputStreamName:
+                lock = self._capture_lock(safe_attempt, stream)
+                lock.acquire()
+                locks.callback(lock.release)
+            result = self._salvage_locked(safe_attempt)
+            for stream in OutputStreamName:
+                if self._capture_path(safe_attempt, stream).exists():
+                    self._capture_state(safe_attempt, stream, "recovered")
+            return result
+
+    def _capture_path(self, attempt_id: str, stream: OutputStreamName) -> Path:
+        return self._attempt_dir(attempt_id) / f"capture-{stream.value}.json"
+
+    def _capture_lock(self, attempt_id: str, stream: OutputStreamName) -> portalocker.Lock:
+        directory = self._attempt_dir(attempt_id)
+        directory.mkdir(parents=True, exist_ok=True)
+        return portalocker.Lock(
+            directory / f".capture-{stream.value}.lock",
+            mode="a",
+            timeout=0,
+            flags=portalocker.LOCK_EX | portalocker.LOCK_NB,
+        )
+
+    def _capture_state(self, attempt_id: str, stream: OutputStreamName, state: str) -> None:
+        atomic.write_json(
+            self._capture_path(attempt_id, stream),
+            {
+                "attempt_id": attempt_id,
+                "stream": stream.value,
+                "state": state,
+            },
+        )
+
+    def _salvage_locked(self, safe_attempt: str) -> SpoolManifest:
         manifest = self.read_manifest(safe_attempt)
         recovered: list[OutputBlockRef] = []
         for stream_name in (OutputStreamName.STDOUT, OutputStreamName.STDERR):
@@ -421,6 +499,7 @@ class FileSpoolStore:
             if dirty:
                 with path.open("r+b") as handle:
                     handle.truncate(start)
+                    handle.seek(start)
                     handle.write(content)
                     handle.flush()
                     os.fsync(handle.fileno())
@@ -454,20 +533,91 @@ class FileSpoolStore:
             )
         return self.read_manifest(safe_attempt)
 
+    def _stream_boundary(
+        self, attempt_id: str, stream: OutputStreamName, manifest: SpoolManifest
+    ) -> int:
+        blocks = sorted(
+            (item for item in manifest.blocks if item.stream_name is stream),
+            key=lambda item: item.block_index,
+        )
+        end = 0
+        for index, block in enumerate(blocks):
+            if block.block_index != index or block.offset != end:
+                raise ValueError("spool stream metadata has no contiguous boundary")
+            end += block.length
+        cursor = next((item for item in manifest.cursors if item.stream_name is stream), None)
+        if cursor is not None:
+            cursor_block = next(
+                (item for item in blocks if item.block_index == cursor.last_block_index), None
+            )
+            if cursor_block is None or (cursor.offset, cursor.last_committed_digest) != (
+                cursor_block.offset + cursor_block.length,
+                cursor_block.digest,
+            ):
+                raise ValueError("spool cursor does not match the saved stream boundary")
+        path = self._stream_path(attempt_id, stream)
+        size = path.stat().st_size if path.exists() else 0
+        if size != end:
+            raise ValueError("spool stream boundary requires recovery before capture")
+        return size
+
+    def _preflight_blocks(
+        self, batch: tuple[CapturedOutputBlock, ...], manifest: SpoolManifest
+    ) -> None:
+        """Validate the whole append before the first byte, under all stream leases."""
+        streams = {item.stream_name for item in batch}
+        ends = {
+            stream: self._stream_boundary(manifest.attempt_id, stream, manifest)
+            for stream in streams
+        }
+        existing = {(item.stream_name, item.block_index): item for item in manifest.blocks}
+        planned: dict[tuple[OutputStreamName, int], CapturedOutputBlock] = {}
+        indexes = {
+            stream: sum(item.stream_name is stream for item in manifest.blocks)
+            for stream in streams
+        }
+        for block in batch:
+            key = (block.stream_name, block.block_index)
+            prior = existing.get(key)
+            if prior is not None:
+                if (
+                    prior.offset != block.offset
+                    or prior.length != block.length
+                    or prior.digest != block.digest
+                    or prior.complete is not block.complete
+                    or prior.capture_source != block.capture_source
+                    or prior.redaction_summary_id != block.redaction_summary_id
+                    or self.read_block(prior) != block.content
+                ):
+                    raise ValueError("spool block conflicts with existing metadata or bytes")
+                continue
+            duplicate = planned.get(key)
+            if duplicate is not None:
+                if duplicate != block:
+                    raise ValueError("spool batch contains conflicting blocks")
+                continue
+            if (
+                block.offset != ends[block.stream_name]
+                or block.block_index != indexes[block.stream_name]
+            ):
+                raise ValueError("spool block offsets and indexes must be contiguous")
+            planned[key] = block
+            ends[block.stream_name] += block.length
+            indexes[block.stream_name] += 1
+
     def _write_block(self, ref: OutputBlockRef, content: bytes) -> None:
         path = self._stream_path(ref.attempt_id, ref.stream_name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.exists():
-            existing_size = path.stat().st_size
-            if ref.offset < existing_size:
-                with path.open("rb") as handle:
-                    handle.seek(ref.offset)
-                    existing = handle.read(ref.length)
-                if len(existing) == ref.length and existing == content:
-                    return
-                raise ValueError("stream block conflicts with existing bytes")
-            if ref.offset != existing_size:
-                raise ValueError("stream block offset must be contiguous")
+        existing_size = path.stat().st_size if path.exists() else 0
+        if path.exists() and ref.offset < existing_size:
+            with path.open("rb") as handle:
+                handle.seek(ref.offset)
+                existing = handle.read(ref.length)
+            if len(existing) == ref.length and existing == content:
+                return
+            raise ValueError("stream block conflicts with existing bytes")
+        if ref.offset != existing_size:
+            raise ValueError("stream block offset must be contiguous")
         with path.open("ab") as handle:
             handle.write(content)
             handle.flush()
@@ -477,7 +627,7 @@ class FileSpoolStore:
         with self._manifest_lock:
             path = self._manifest_path(attempt_id)
             if path.exists():
-                existing = self._manifest_from_json(json.loads(path.read_text(encoding="utf-8")))
+                existing = self.read_manifest(attempt_id)
                 if (existing.run_id, existing.step_id) != (run_id, step_id):
                     raise ValueError("spool manifest identity does not match")
                 return
@@ -496,7 +646,7 @@ class FileSpoolStore:
         with self._manifest_lock:
             path = self._manifest_path(attempt_id)
             if path.exists():
-                manifest = self._manifest_from_json(json.loads(path.read_text(encoding="utf-8")))
+                manifest = self.read_manifest(attempt_id)
                 if (manifest.run_id, manifest.step_id) != (run_id, step_id):
                     raise ValueError("spool manifest identity does not match")
             else:
@@ -509,6 +659,14 @@ class FileSpoolStore:
                 blocks[(block.stream_name, block.block_index)] = block
             cursors = {cursor.stream_name: cursor for cursor in manifest.cursors}
             for cursor in new_cursors:
+                previous_cursor = cursors.get(cursor.stream_name)
+                if previous_cursor is not None and (
+                    cursor.offset < previous_cursor.offset
+                    or cursor.last_block_index < previous_cursor.last_block_index
+                ):
+                    # Replaying an older sealed block is idempotent; it cannot rewind
+                    # the already committed capture cursor.
+                    continue
                 cursors[cursor.stream_name] = cursor
             ordered_blocks = tuple(
                 blocks[key] for key in sorted(blocks, key=lambda item: (item[0].value, item[1]))

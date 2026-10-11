@@ -1,0 +1,3 @@
+.................................................................        [100%]
+65 passed in 6.33s
+Installed direct model POST, total deadline, bounded/strict response and credential guards passed; source parity verified. No real vendor/Trae AC.

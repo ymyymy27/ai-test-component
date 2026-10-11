@@ -15,8 +15,8 @@
 4. 终止条件三选一：达到有限 ``--max-clients``（测试用）；收到同管道的
    停机控制帧（:func:`shutdown_frame`，工作空间关闭端）；父进程消亡。
    父进程消亡不再被看门狗线程直接 ``os._exit``：看门狗只置退出请求并
-   取消阻塞中的连接等待，主循环在**当前命令边界排空后**密封抢救在途
-   spool 输出再退出（退出码 6），避免杀掉活动执行或留下未封口字节（A-02）。
+   取消阻塞中的连接等待；主循环核实权威执行与输出。仍有活动或未知
+   执行时保留核心继续服务，已核实收尾后才允许退出（退出码 6）。
 5. 入口类型由核心依据对端**进程映像事实**判定：可信交互宿主进程映像
    （内置 ``trae.exe`` 及 ``--human-host-images`` 显式扩展）才归类
    ``human_ui``；取证失败/未知映像一律按最小权限归类 ``agent_relay``，
@@ -29,6 +29,7 @@ import argparse
 import json
 import sys
 import threading
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -37,9 +38,11 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
+from aitest.application.errors import WorkspaceInUse
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.responses import Response
+from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
 #: 停机控制键；不出现在 ``contracts.commands`` 的业务 Command 中
@@ -84,24 +87,20 @@ def _safe_request_id(obj: object) -> str:
     return _FALLBACK_REQUEST_ID
 
 
-def _protocol_error(
-    api: LocalAPI, request_id: str, code: str, message: str
-) -> Response:
+def _protocol_error(api: LocalAPI, request_id: str, code: str, message: str) -> Response:
     return Response(
         request_id=request_id,
         instance_id=api.instance_id,
         workspace_id=api.workspace_id,
         error=ErrorDTO(
             code=code,
-            message=message[:500],
+            message=api._safe_message(ValueError(message)),
             next_step="检查帧格式与 aitest.local/2.0 合同",
         ),
     )
 
 
-def dispatch_frame(
-    api: LocalAPI, session: Session, payload: bytes
-) -> Response | ShutdownControl:
+def dispatch_frame(api: LocalAPI, session: Session, payload: bytes) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
     - 非法 UTF-8 / JSON / 非对象帧 → ``MALFORMED_MESSAGE`` 错误响应；
@@ -110,8 +109,8 @@ def dispatch_frame(
     - 正常帧交 ``api.dispatch``，业务幂等与错误归一在该层完成。
     """
     try:
-        obj: object = json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        obj: object = decode_json(payload.decode("utf-8"))
+    except ValueError:
         return _protocol_error(
             api, _FALLBACK_REQUEST_ID, "MALFORMED_MESSAGE", "帧不是合法 UTF-8 JSON"
         )
@@ -143,13 +142,28 @@ def dispatch_frame(
     return api.dispatch(command, session)
 
 
-def classify_entry_kind(
-    image_basename: str | None, human_host_images: frozenset[str]
-) -> EntryKind:
+def classify_entry_kind(image_basename: str | None, human_host_images: frozenset[str]) -> EntryKind:
     """按对端进程映像事实归类入口；未知/取证失败按最小权限归类。"""
     if image_basename and image_basename in human_host_images:
         return EntryKind.HUMAN_UI
     return EntryKind.AGENT_RELAY
+
+
+def prepare_core_shutdown(
+    blocker: Callable[[], str | None] | None,
+    seal: Callable[[], tuple[str, ...]],
+) -> str | None:
+    """No collection, blanket stop or seal of live output on a mere exit request."""
+    try:
+        if blocker is None:
+            return "退出核实能力不可用，核心保留并继续服务"
+        reason = blocker()
+        if reason is not None:
+            return reason if isinstance(reason, str) and reason else "退出状态无法核实"
+        seal()
+        return None
+    except Exception:
+        return "退出材料保存或核实失败，核心保留并继续服务"
 
 
 def serve_connection(
@@ -158,6 +172,8 @@ def serve_connection(
     *,
     connection_no: int,
     entry_kind: EntryKind = EntryKind.AGENT_RELAY,
+    shutdown_blocker: Callable[[], str | None] | None = None,
+    on_wait: Callable[[], None] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -169,31 +185,46 @@ def serve_connection(
     session = Session(
         session_id=f"{prefix}-{connection_no}-{uuid4().hex[:12]}",
         entry_kind=entry_kind,
+        interactive=entry_kind is EntryKind.HUMAN_UI,
     )
-    while True:
-        try:
-            payload = server.read_message()  # type: ignore[attr-defined]
-        except Exception:
-            # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
-            return "disconnected"
-        outcome = dispatch_frame(api, session, payload)
-        if isinstance(outcome, ShutdownControl):
-            ack = Response(
-                request_id=outcome.request_id,
-                instance_id=api.instance_id,
-                workspace_id=api.workspace_id,
-                result={"status": "shutting_down"},
-            )
-            # 回执写不进去也必须停机：对端已经不在，停机语义不受影响。
-            with suppress(Exception):
-                server.write_message(serialize_response(ack))  # type: ignore[attr-defined]
-            return "shutdown"
-        try:
-            server.write_message(  # type: ignore[attr-defined]
-                serialize_response(outcome)
-            )
-        except Exception:
-            return "disconnected"
+    try:
+        while True:
+            try:
+                if on_wait is not None:
+                    payload = server.read_message(on_wait=on_wait)  # type: ignore[attr-defined]
+                else:
+                    payload = server.read_message()  # type: ignore[attr-defined]
+            except Exception:
+                # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
+                return "disconnected"
+            outcome = dispatch_frame(api, session, payload)
+            if isinstance(outcome, ShutdownControl):
+                reason = prepare_core_shutdown(shutdown_blocker, lambda: ())
+                if reason is not None:
+                    response = _protocol_error(api, outcome.request_id, "CORE_DRAINING", reason)
+                    with suppress(Exception):
+                        server.write_message(serialize_response(response))  # type: ignore[attr-defined]
+                    continue
+                ack = Response(
+                    request_id=outcome.request_id,
+                    instance_id=api.instance_id,
+                    workspace_id=api.workspace_id,
+                    result={"status": "shutting_down"},
+                )
+                # 回执写不进去也必须停机：对端已经不在，停机语义不受影响。
+                with suppress(Exception):
+                    server.write_message(serialize_response(ack))  # type: ignore[attr-defined]
+                return "shutdown"
+            try:
+                if on_wait is not None:
+                    on_wait()
+                server.write_message(  # type: ignore[attr-defined]
+                    serialize_response(outcome)
+                )
+            except Exception:
+                return "disconnected"
+    finally:
+        api.close_session(session)
 
 
 def watch_parent(
@@ -234,6 +265,10 @@ class ShutdownCoordinator:
     def bind_accept(self, cancel_accept: Callable[[], None]) -> None:
         with self._guard:
             self._cancel_accept = cancel_accept
+            requested = self.event.is_set()
+        if requested:
+            with suppress(Exception):
+                cancel_accept()
 
     def unbind_accept(self) -> None:
         with self._guard:
@@ -243,10 +278,16 @@ class ShutdownCoordinator:
         with self._guard:
             self.reason = reason
             cancel = self._cancel_accept
-        self.event.set()
+            self.event.set()
         if cancel is not None:
             with suppress(Exception):
                 cancel()
+
+    def retain_activity(self) -> None:
+        """The lost parent cannot authorize interrupting an active or unknown execution."""
+        with self._guard:
+            self.reason = "parent_exited_activity_retained"
+            self.event.clear()
 
     @property
     def exit_requested(self) -> bool:
@@ -277,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workspace-root", required=True)
     parser.add_argument("--workspace-id", required=True)
     parser.add_argument("--instance-id", required=True)
+    parser.add_argument("--launch-claim", action="store_true")
+    parser.add_argument("--instance-id-file", default=".core-instance-id")
     parser.add_argument(
         "--max-clients",
         type=int,
@@ -313,9 +356,7 @@ def main(argv: list[str] | None = None) -> int:
 
     human_host_images = set(_BUILT_IN_HUMAN_HOST_IMAGES)
     human_host_images.update(
-        item.strip().lower()
-        for item in args.human_host_images.split(",")
-        if item.strip()
+        item.strip().lower() for item in args.human_host_images.split(",") if item.strip()
     )
 
     # 延迟导入：bootstrap 反向延迟导入本模块（shutdown_endpoint），
@@ -323,6 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     from aitest.bootstrap import (
         CoreAssemblyBlocked,
         assemble_workspace_core,
+        await_core_launch_claim,
         registered_use_cases,
     )
     from aitest.interfaces.local.pipe import (
@@ -333,6 +375,17 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     workspace_root = Path(args.workspace_root)
+    if args.launch_claim:
+        try:
+            if not await_core_launch_claim(
+                workspace_root,
+                args.workspace_id,
+                args.instance_id,
+                instance_id_file=args.instance_id_file,
+            ):
+                return 7
+        except (OSError, WorkspaceInUse):
+            return 7
     try:
         # --workspace-id 是**管道地址**（可信宿主按工作空间身份命名，
         # 但运输层不承载身份校验）；持久工作空间身份由工作空间根目录的
@@ -348,22 +401,38 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         return 5
     api = assembly.api
+    next_work_tick = 0.0
+    next_work_warning = 0.0
+
+    def continue_work() -> None:
+        nonlocal next_work_tick, next_work_warning
+        now = time.monotonic()
+        if now < next_work_tick:
+            return
+        next_work_tick = now + 0.25
+        if assembly.continue_work is not None:
+            try:
+                assembly.continue_work()
+            except Exception:
+                if now >= next_work_warning:
+                    next_work_warning = now + 60.0
+                    print("已登记运行续行受阻，原材料与活动状态保留", file=sys.stderr)
 
     coordinator: ShutdownCoordinator | None = None
     if args.parent_pid:
-        coordinator = ShutdownCoordinator(
-            parent_pid=args.parent_pid, is_alive=process_exists
-        )
+        coordinator = ShutdownCoordinator(parent_pid=args.parent_pid, is_alive=process_exists)
         coordinator.start_watchdog()
 
-    def _parent_lost_exit() -> int:
-        # 父进程消亡：排空点已到，先抢救在途输出再退出（A-02）。
-        sealed = assembly.seal_inflight()
-        if sealed:
-            print(
-                f"父进程消亡，已密封抢救在途输出: {', '.join(sealed)}",
-                file=sys.stderr,
-            )
+    def shutdown_blocker() -> str | None:
+        return prepare_core_shutdown(assembly.shutdown_blocker, assembly.seal_inflight)
+
+    def _parent_lost_exit() -> int | None:
+        reason = shutdown_blocker()
+        if reason is not None:
+            assert coordinator is not None
+            coordinator.retain_activity()
+            print(reason, file=sys.stderr)
+            return None
         return _PARENT_EXIT_CODE
 
     try:
@@ -371,48 +440,53 @@ def main(argv: list[str] | None = None) -> int:
         connection_no = 0
         while True:
             if coordinator is not None and coordinator.exit_requested:
-                return _parent_lost_exit()
+                code = _parent_lost_exit()
+                if code is not None:
+                    return code
             if args.max_clients and served >= args.max_clients:
-                return 0
+                if shutdown_blocker() is None:
+                    return 0
+                args.max_clients = 0
             try:
-                server = NamedPipeServer(
-                    args.workspace_id, instance_id=args.instance_id
-                )
+                server = NamedPipeServer(args.workspace_id, instance_id=args.instance_id)
                 server.start()
             except PipeUnavailable:
                 # 同名管道仍被另一核心持有：唯一核心语义，本进程退出。
-                return 3
+                if shutdown_blocker() is None:
+                    return 3
+                time.sleep(0.1)
+                continue
             try:
                 if coordinator is not None:
-                    coordinator.bind_accept(server.close)
+                    coordinator.bind_accept(server.cancel_wait)
                 try:
-                    server.wait_for_client()
+                    server.wait_for_client(on_wait=continue_work)
                     server.validate_peer()
                 except PeerRejected:
                     # 拒绝对端不致命，关闭本管道后继续接受下一连接；
                     # 拒绝期间父进程可能已消亡，循环顶部统一检查。
                     continue
                 except PipeUnavailable:
-                    if (
-                        coordinator is not None
-                        and coordinator.exit_requested
-                    ):
-                        return _parent_lost_exit()
+                    if coordinator is not None and coordinator.exit_requested:
+                        code = _parent_lost_exit()
+                        if code is not None:
+                            return code
+                        continue
                     raise
                 finally:
                     if coordinator is not None:
                         coordinator.unbind_accept()
                 # 对端身份核对通过后按进程映像事实归类入口（A-02）。
                 image_basename = server.peer_process_basename()
-                entry_kind = classify_entry_kind(
-                    image_basename, frozenset(human_host_images)
-                )
+                entry_kind = classify_entry_kind(image_basename, frozenset(human_host_images))
                 connection_no += 1
                 outcome = serve_connection(
                     server,
                     api,
                     connection_no=connection_no,
                     entry_kind=entry_kind,
+                    shutdown_blocker=shutdown_blocker,
+                    on_wait=continue_work,
                 )
                 served += 1
                 if outcome == "shutdown":
@@ -420,7 +494,9 @@ def main(argv: list[str] | None = None) -> int:
             except PipeUnavailable:
                 # 等待/核对/服务阶段管道故障：客户端断开已在 serve_connection
                 # 内部归一，能到这里的是服务端自身故障，退出交宿主重新拉起。
-                return 4
+                if shutdown_blocker() is None:
+                    return 4
+                time.sleep(0.1)
             finally:
                 server.close()
     finally:

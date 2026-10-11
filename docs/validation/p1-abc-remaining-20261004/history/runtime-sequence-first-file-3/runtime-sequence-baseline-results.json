@@ -1,0 +1,3 @@
+{
+  "before": "1 failed in 0.19s; effective Case@2 cannot be assessed against initial Plan Case@1, because there is no effective material/sequence input. This is a missing subsequent-revision capability, not a claim that an unverified sequence has authority."
+}

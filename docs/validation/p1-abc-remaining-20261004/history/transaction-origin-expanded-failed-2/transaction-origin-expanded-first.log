@@ -1,0 +1,50 @@
+.....................F.                                                  [100%]
+================================== FAILURES ===================================
+________ test_rich_page_dto_is_serialized_before_credential_projection ________
+
+    def test_rich_page_dto_is_serialized_before_credential_projection():
+        secret = "sk-" + "C" * 32
+    
+        class PagedResponse:
+            def recover(self, **kwargs):
+                return Response(request_id="inner", instance_id="inner",
+                                page=PageInfo(limit=1, next_cursor=secret), result={"state":"idle"})
+    
+        def projection(value):
+            # Real configured projection supports JSON values, not arbitrary models.
+            return json.loads(json.dumps(value))
+    
+        api = LocalAPI("actual", "workspace", transaction_port=PagedResponse(),
+                       credential_projector=projection)
+        response = api.dispatch(_command("recover", request_id="paged"), OWNER)
+>       assert response.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='Object of type PageInfo is not JSON serializable', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='paged', intent_id=None) is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='Object of type PageInfo is not JSON serializable', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='paged', intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='paged', instance_id='actual', workspace_id=None, project_id=... not JSON serializable', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='paged', intent_id=None)).error
+
+tests\unit\test_transaction_origin_boundary.py:165: AssertionError
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session0]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session1]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[commit-session2]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session0]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session1]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[rollback-session2]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[close-session0]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[close-session1]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_same_named_foreign_origin_cannot_end_owners_transaction[close-session2]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[None-commit]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[None-rollback]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[-commit]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[-rollback]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[False-commit]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_requires_the_exact_explicit_begin_handle[False-rollback]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_cannot_omit_the_project_frozen_at_begin[commit]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_end_cannot_omit_the_project_frozen_at_begin[rollback]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_a_declined_begin_response_does_not_claim_an_active_transaction
+PASSED tests/unit/test_transaction_origin_boundary.py::test_transaction_response_dto_uses_core_envelope_and_safe_projection[False]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_transaction_response_dto_uses_core_envelope_and_safe_projection[True]
+PASSED tests/unit/test_transaction_origin_boundary.py::test_scalar_transaction_result_still_crosses_the_safe_boundary
+PASSED tests/unit/test_transaction_origin_boundary.py::test_successful_begin_keeps_owner_when_safe_projection_fails
+FAILED tests/unit/test_transaction_origin_boundary.py::test_rich_page_dto_is_serialized_before_credential_projection
+1 failed, 22 passed in 0.18s

@@ -1,0 +1,78 @@
+{
+  "source_commit": "92309296cf2a9fe8d564fca112c8bd6025132854",
+  "completed_groups": {
+    "architecture_contract_scope": 235,
+    "start_integrity": 28,
+    "original_counterexample": 1,
+    "actual_authority_consumer_scope": 11
+  },
+  "distinct_passed": 275,
+  "consumer_group_seconds": 3307.04,
+  "source_proofs": [
+    {
+      "path": "src/aitest/application/execution/authorization.py",
+      "normalized_sha256": "07ec69d9b3496d58b98e5f8ad982899e579c865f109abd215bf4bebc9e78d63c",
+      "symbols": [
+        {
+          "symbol": "ExecutionAuthorizationService._context",
+          "line": 207
+        },
+        {
+          "symbol": "ExecutionAuthorizationService._current_action",
+          "line": 357
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.grant",
+          "line": 499
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.validate_new",
+          "line": 683
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.stage_occupation",
+          "line": 709
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.validate_occupation",
+          "line": 745
+        }
+      ]
+    },
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "normalized_sha256": "d877f58026aec92e54b00386f7f9368b5a43a98d996288b418180c5389d294cb",
+      "symbols": [
+        {
+          "symbol": "ExecutionCommitCoordinator.find_start",
+          "line": 461
+        },
+        {
+          "symbol": "ExecutionCommitCoordinator.claim_start",
+          "line": 552
+        }
+      ]
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "normalized_sha256": "b9bcebbd2470a213797eea40fa76a5e295450e89fe5f98029a6ded133aeb6f82",
+      "symbols": [
+        {
+          "symbol": "SerialRunner.start_attempt",
+          "line": 400
+        },
+        {
+          "symbol": "_start_fingerprint",
+          "line": 807
+        }
+      ]
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "normalized_sha256": "f3f2afe85badfae7039976101340965a13e074cc3c6cc2c995aec93471fc0e21",
+      "symbols": []
+    }
+  ],
+  "not_added_to_later_367": true,
+  "real_ac_verified": 0
+}

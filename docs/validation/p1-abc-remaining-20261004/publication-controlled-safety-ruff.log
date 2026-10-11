@@ -1,0 +1,12 @@
+E501 Line too long (101 > 100)
+  --> src\aitest\application\planning\controlled_publication.py:72:101
+   |
+70 |     gaps = parameters.get("context_gaps", [])
+71 |     if not isinstance(gaps, list) or any(
+72 |         not isinstance(gap, Mapping) or set(gap)-{f.name for f in fields(ContextGap)} for gap in gaps
+   |                                                                                                     ^
+73 |     ):
+74 |         raise ApprovalRequired("publication has blocking or unverified context gaps")
+   |
+
+Found 1 error.

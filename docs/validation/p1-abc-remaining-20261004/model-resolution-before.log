@@ -1,0 +1,17 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+__________ test_pending_response_can_commit_without_provider_reissue __________
+tests\unit\test_model_response_resolution.py:59: in test_pending_response_can_commit_without_provider_reissue
+    assert response.error is None, response.error
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='CAPABILITY_UNAVAILABLE', message='action is not implemented in this ...ble=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='resolve-response', intent_id='resolve-response-intent')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='CAPABILITY_UNAVAILABLE', message='action is not implemented in this ...ble=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='resolve-response', intent_id='resolve-response-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='CAPABILITY_UNAVAILABLE', message='action is not implemented in this ...ble=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='resolve-response', intent_id='resolve-response-intent') = Response(protocol_version='aitest.local/2.0', request_id='resolve-response', instance_id='model-basis-fixture', worksp...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='resolve-response', intent_id='resolve-response-intent')).error
+_ test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration _
+tests\unit\test_model_response_resolution.py:75: in test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration
+    assert len(pointers) == 1, "backup omitted permanent response pointer"
+E   AssertionError: backup omitted permanent response pointer
+E   assert 0 == 1
+E    +  where 0 = len([])
+=========================== short test summary info ===========================
+FAILED tests/unit/test_model_response_resolution.py::test_pending_response_can_commit_without_provider_reissue
+FAILED tests/unit/test_model_response_resolution.py::test_pending_response_backup_preserves_pointer_and_resolves_without_model_configuration

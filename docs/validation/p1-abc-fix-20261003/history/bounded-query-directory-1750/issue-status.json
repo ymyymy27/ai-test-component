@@ -1,0 +1,1971 @@
+{
+  "baseline": "7dbc5a45aa1666652c3dcdc2d0b0604066bc6498",
+  "branch": "文档更新-袁",
+  "generated_at": "2026-10-04T09:09:40.712111+08:00",
+  "total": 27,
+  "closed": [
+    "A-11",
+    "A-16",
+    "B-10",
+    "B-17",
+    "C-14"
+  ],
+  "issues": [
+    {
+      "issue": "A-02",
+      "status": "partial",
+      "detail": "退出抢救曾未先核实活动进程。现在仅在持久句柄归属且 EXITED/STOPPED 时抢救；真实 C/D 默认入口、可信人工会话、保活/排空仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/file_store/recovery.py",
+          "symbol": "seal_inflight_outputs",
+          "line": 207,
+          "sha256": "af355e9d2ace53d713cd0c78bf3e12fbfe9dd135fa7c426e7403761716185f3b"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_sealed_spool_does_not_make_a_live_execution_safe_for_maintenance",
+          "line": 537,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "A-05",
+      "status": "partial",
+      "detail": "权威记录、索引目录和报告/问题当前键账现均为不可变有界树，小提交复制相关路径，读取固定叶页和目录路径。发布从已保存根派生，中断文件不能漏入后续根；损坏键账不作为空账。旧查询格式经备份迁移，原材料保留且旧游标刷新。剩余有限QuerySpec组合/路由和完整CommitManifest索引闭包：脱离对象的revision仍余过滤，issues混用report_id会忽略字段。组件访问量/默认重启证明不等于真实AC验收。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/file_store/index.py",
+          "symbol": "query_spec",
+          "line": 1148,
+          "sha256": "31ab17f0c61aba6825b1a1ddb170a3fb5c50e2928ac3024f78c2c4d367853e8f"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/sharded_records.py",
+          "symbol": "AuthorityTree.get",
+          "line": 72,
+          "sha256": "73427b722e75e36efa580aed8c6ddb04795aa64668bbb4c6b96399a285e68912"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/sharded_records.py",
+          "symbol": "AuthorityTree.put",
+          "line": 87,
+          "sha256": "73427b722e75e36efa580aed8c6ddb04795aa64668bbb4c6b96399a285e68912"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/sharded_records.py",
+          "symbol": "open_authority",
+          "line": 266,
+          "sha256": "73427b722e75e36efa580aed8c6ddb04795aa64668bbb4c6b96399a285e68912"
+        },
+        {
+          "path": "src/aitest/bootstrap.py",
+          "symbol": "assemble_workspace_core",
+          "line": 228,
+          "sha256": "ff3b6b1b68005c3de1a79645325250001d0599c4c329ea89f345ca6e7d61e167"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/ordered_index.py",
+          "symbol": "OrderedIndexTree.read",
+          "line": 77,
+          "sha256": "6631ec175fc19d708c1cf0372d284c1c3a4466280b3b633daef8824ca4ef33f5"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/ordered_index.py",
+          "symbol": "OrderedIndexTree.get",
+          "line": 208,
+          "sha256": "6631ec175fc19d708c1cf0372d284c1c3a4466280b3b633daef8824ca4ef33f5"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/ordered_index.py",
+          "symbol": "OrderedIndexTree.replace",
+          "line": 231,
+          "sha256": "6631ec175fc19d708c1cf0372d284c1c3a4466280b3b633daef8824ca4ef33f5"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/ordered_index.py",
+          "symbol": "OrderedIndexTree.scan",
+          "line": 286,
+          "sha256": "6631ec175fc19d708c1cf0372d284c1c3a4466280b3b633daef8824ca4ef33f5"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/index.py",
+          "symbol": "FileQueryIndex._snapshot",
+          "line": 616,
+          "sha256": "31ab17f0c61aba6825b1a1ddb170a3fb5c50e2928ac3024f78c2c4d367853e8f"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/index.py",
+          "symbol": "FileQueryIndex._publish_latest_replacements",
+          "line": 982,
+          "sha256": "31ab17f0c61aba6825b1a1ddb170a3fb5c50e2928ac3024f78c2c4d367853e8f"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/index.py",
+          "symbol": "migrate_query_layout",
+          "line": 1249,
+          "sha256": "31ab17f0c61aba6825b1a1ddb170a3fb5c50e2928ac3024f78c2c4d367853e8f"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/index.py",
+          "symbol": "rollback_query_layout",
+          "line": 1333,
+          "sha256": "31ab17f0c61aba6825b1a1ddb170a3fb5c50e2928ac3024f78c2c4d367853e8f"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_query_deep_pages_read_only_shards_after_the_last_key",
+          "line": 333,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_report_cursor_preserves_replaced_revision_in_original_root",
+          "line": 372,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_exact_read_and_healthy_commit_never_traverse_unrelated_history",
+          "line": 71,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_unpublished_nodes_do_not_change_root_or_old_facts",
+          "line": 108,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_corrupt_authority_root_never_becomes_an_empty_workspace",
+          "line": 195,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_page_and_commit_do_not_read_whole_directory_history",
+          "line": 49,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_corrupt_current_key_ledger_cannot_be_treated_as_empty",
+          "line": 86,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_current_identity_update_reads_only_its_paths",
+          "line": 109,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_ordered_tree_split_delete_reinsert_and_old_snapshot",
+          "line": 139,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_interrupted_publish_cannot_leak_into_a_later_root",
+          "line": 187,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_late_older_rank_cannot_restore_old_current_keys",
+          "line": 231,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_conflicting_immutable_generic_key_blocks_publication",
+          "line": 246,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_legacy_migration_backup_resume_rollback_and_refresh",
+          "line": 305,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_corrupt_legacy_point_shard_is_not_migrated_as_empty",
+          "line": 347,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_migration_rollback_blocks_new_business_write",
+          "line": 359,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_default_core_migrates_only_after_backup_and_preserves_snapshot_events",
+          "line": 377,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_ordered_node_damage_returns_maintenance_without_record_scan",
+          "line": 422,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_invalid_row_cannot_publish_another_commit_boundary",
+          "line": 448,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        },
+        {
+          "path": "tests/unit/test_bounded_query_directory.py",
+          "symbol": "test_index_directory_link_is_rejected_before_any_tree_write",
+          "line": 457,
+          "sha256": "fef22177a6c2655c80ef2ce6acc4fc87998e823f54f351ae9b0ab8f5c8f37c9b"
+        }
+      ]
+    },
+    {
+      "issue": "A-06",
+      "status": "partial",
+      "detail": "备份遗漏 execution-handles，路径只核对末层。现纳入句柄/权威分片永久闭包，核对祖先 symlink/junction、先验证再恢复；真实 Windows Junction 零写入拒绝已测。两项物理 symlink 权限检查跳过，目标环境耐久验收仍缺。 备份先核对完整闭包/摘要再写恢复目标，损坏或未登记材料零写入拒绝；复制重新核对字节且fsync后发布，前置核对后的变化不能发布旧摘要清单。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/file_store/backup.py",
+          "symbol": "_chain_has_symlink",
+          "line": 101,
+          "sha256": "548f7c406fb463628615ca2bb840ee2fb89838577410fd1fbb54fbfd779a8a0e"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/backup.py",
+          "symbol": "FileBackupStore.create",
+          "line": 191,
+          "sha256": "548f7c406fb463628615ca2bb840ee2fb89838577410fd1fbb54fbfd779a8a0e"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/integrity.py",
+          "symbol": "check_workspace",
+          "line": 310,
+          "sha256": "5fa5527cf833f2eced770c137e08884f508aaba51d580d4d07050e59287a6801"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/backup.py",
+          "symbol": "FileBackupStore._copy_safe_file",
+          "line": 171,
+          "sha256": "548f7c406fb463628615ca2bb840ee2fb89838577410fd1fbb54fbfd779a8a0e"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/backup.py",
+          "symbol": "FileBackupStore.restore",
+          "line": 300,
+          "sha256": "548f7c406fb463628615ca2bb840ee2fb89838577410fd1fbb54fbfd779a8a0e"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_backup_refuses_junction_parent_before_any_restore_write",
+          "line": 779,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_repeated_real_command_collection_preserves_exit_fact",
+          "line": 460,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_backup_restores_sharded_authority_and_integrity_detects_missing_node",
+          "line": 157,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_corrupted_backup_is_rejected_before_creating_the_restore_target",
+          "line": 54,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_unmanifested_backup_file_is_rejected_before_creating_restore_target",
+          "line": 65,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_changed_safe_bytes_cannot_publish_a_manifest_for_the_previous_digest",
+          "line": 126,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_safe_backup_and_restore_preserve_exact_non_ascii_bytes_and_digests",
+          "line": 159,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        }
+      ]
+    },
+    {
+      "issue": "A-07",
+      "status": "partial",
+      "detail": "manifest 封口不等于进程/采集已结束。新增 OS 采集排他锁，批量写入也取同锁；活动/不确定句柄阻塞维护，抢救仅处理未确认尾部。启动业务协调与可信排空链仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/file_store/spool.py",
+          "symbol": "FileSpoolStore.persist_blocks",
+          "line": 262,
+          "sha256": "a09c719d38bb7a6ecdf574d5655734ec88224db6449e5d138bd6debdca9b5ea4"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/spool.py",
+          "symbol": "FileSpoolStore._salvage_locked",
+          "line": 444,
+          "sha256": "a09c719d38bb7a6ecdf574d5655734ec88224db6449e5d138bd6debdca9b5ea4"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/maintenance.py",
+          "symbol": "detect_activity_blocker",
+          "line": 102,
+          "sha256": "823240892c5bc37b0c2547c4d4e6cb5d37a9f2ac33350aa50a9d8779dae34cf8"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_capture_lease_blocks_maintenance_and_foreign_instance_salvage",
+          "line": 286,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_batch_spool_cannot_bypass_another_instances_live_capture",
+          "line": 93,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_salvage_filters_only_unclaimed_tail_without_overwriting_sealed_prefix",
+          "line": 308,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_sealed_spool_does_not_make_a_live_execution_safe_for_maintenance",
+          "line": 537,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "A-08",
+      "status": "partial",
+      "detail": "摘要/探针 PASSED 曾可替代实际加载来源。现在要求真实入口、解释器及对应加载事实，缺失/不匹配保留未知或失败；默认 B 固定→C 实际执行链、editable/PYTHONPATH 与目标掉电证据仍缺。 清单缺失/非法文件列表不能作为空源码；清单身份摘要与范围条目严格核对，损坏blob先核对再物化，Junction来源不证明unchanged。",
+      "source": [
+        {
+          "path": "src/aitest/application/execution/source_checks.py",
+          "symbol": "SourceVerificationService.verify",
+          "line": 102,
+          "sha256": "22e9aa988f68b923e98c9ed18fbcaa1a7f1f7fd4479777f44a639582798011c3"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+          "symbol": "FileSourceSnapshotStore.read_pinned",
+          "line": 225,
+          "sha256": "b98ac09eba40c8e761159abbee8bf73c32077d5455ee00feceb824a2fa9c5a31"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+          "symbol": "FileSourceSnapshotStore.materialize",
+          "line": 286,
+          "sha256": "b98ac09eba40c8e761159abbee8bf73c32077d5455ee00feceb824a2fa9c5a31"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+          "symbol": "FileSourceSnapshotStore.detect_changes",
+          "line": 371,
+          "sha256": "b98ac09eba40c8e761159abbee8bf73c32077d5455ee00feceb824a2fa9c5a31"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_digest_alone_never_proves_runtime_load_source",
+          "line": 884,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_source_mismatch_overrides_probe_passed",
+          "line": 896,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_corrupt_manifest_cannot_be_certified_as_an_empty_or_valid_source",
+          "line": 158,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_corrupt_blob_is_detected_before_any_materialization_write",
+          "line": 180,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_snapshot_rejects_real_junction_ancestors_before_writing",
+          "line": 69,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        }
+      ]
+    },
+    {
+      "issue": "A-09",
+      "status": "partial",
+      "detail": "短已知值/跨 UTF-8 块漏过滤与 UOW 静默改写摘要正文已修。流窗口按字符边界，带摘要材料若需后置过滤则拒绝落盘；默认模型响应及错误详情先过滤。诊断/附件/导出完整产品制品链仍需核对。 本轮确认并修复源码blob直接写原始凭据：临时字节也先过滤，任何改写拒绝源码固定而不伪造原始身份；旧blob重用/物化再次核对凭据及摘要。未决段超1MiB安全拒绝，临时文件独占创建；尾部换行使用绝对末尾边界，避免每行回退扫描。备份创建/恢复共用安全原字节复制，结构化旧材料也核对标准认证字段与转义已知值，超16MiB保留安全阻塞。诊断/附件/导出完整产品链仍须继续核对。 连接诊断先对结构化完整值过滤，再截断/JSON转义，转义已知凭据不能漏出；协议异常与正常结果共用已配置凭据出口，凭据过滤器失败不退回原文。其他诊断/附件/导出产品边界仍需核对。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/security.py",
+          "symbol": "KnownSecretRegistry.register",
+          "line": 110,
+          "sha256": "ee59ccbdb703407c75653d6b897967f6d9223c579513753072a5bb6f8a12801b"
+        },
+        {
+          "path": "src/aitest/infrastructure/security.py",
+          "symbol": "StreamSecretFilter.feed",
+          "line": 310,
+          "sha256": "ee59ccbdb703407c75653d6b897967f6d9223c579513753072a5bb6f8a12801b"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+          "symbol": "FileUnitOfWork.stage_record",
+          "line": 128,
+          "sha256": "ceab5d03deb3bc2309895652ae9698bf17af9057e43e5eeb36f5688d1e774303"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/model.py",
+          "symbol": "HttpModelProvider._safe_detail",
+          "line": 230,
+          "sha256": "294ac07ee3f1f9b4db9763931903a5a13c8e2d5b4ad4d4c094ff36e756252ab9"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+          "symbol": "FileSourceSnapshotStore._copy_safe_stream",
+          "line": 486,
+          "sha256": "b98ac09eba40c8e761159abbee8bf73c32077d5455ee00feceb824a2fa9c5a31"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+          "symbol": "FileSourceSnapshotStore._store_blob",
+          "line": 419,
+          "sha256": "b98ac09eba40c8e761159abbee8bf73c32077d5455ee00feceb824a2fa9c5a31"
+        },
+        {
+          "path": "src/aitest/infrastructure/security.py",
+          "symbol": "StreamSecretFilter._safe_cut",
+          "line": 272,
+          "sha256": "ee59ccbdb703407c75653d6b897967f6d9223c579513753072a5bb6f8a12801b"
+        },
+        {
+          "path": "src/aitest/infrastructure/security.py",
+          "symbol": "copy_unchanged_safe_bytes",
+          "line": 335,
+          "sha256": "ee59ccbdb703407c75653d6b897967f6d9223c579513753072a5bb6f8a12801b"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/backup.py",
+          "symbol": "FileBackupStore._safe_json_bytes",
+          "line": 151,
+          "sha256": "548f7c406fb463628615ca2bb840ee2fb89838577410fd1fbb54fbfd779a8a0e"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/objects.py",
+          "symbol": "FileObjectStore.__init__",
+          "line": 37,
+          "sha256": "41d477374de8310dd1ff9662db2cab31ff5ad0398eec7c2833822489013d9060"
+        },
+        {
+          "path": "src/aitest/infrastructure/connections.py",
+          "symbol": "ConnectionFactStore.append",
+          "line": 241,
+          "sha256": "23036cc62c58e862b8efd67959dcf43b948b29ddfde166f5976b8a74658bd2b9"
+        },
+        {
+          "path": "src/aitest/interfaces/local/api.py",
+          "symbol": "LocalAPI._safe_error_text",
+          "line": 427,
+          "sha256": "690d608b046deee541b9e690bdc0bf93adac4ce060e3448a64d779135a15576f"
+        },
+        {
+          "path": "src/aitest/interfaces/local/api.py",
+          "symbol": "LocalAPI.safe_projection",
+          "line": 330,
+          "sha256": "690d608b046deee541b9e690bdc0bf93adac4ce060e3448a64d779135a15576f"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_registered_short_credentials_are_filtered_at_every_stream_split",
+          "line": 82,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_uow_refuses_rewriting_a_previously_fingerprinted_body",
+          "line": 224,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent",
+          "line": 598,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_unsafe_source_never_reaches_even_a_temporary_blob_write",
+          "line": 24,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_source_replacement_between_hash_and_copy_cannot_persist_unfiltered_bytes",
+          "line": 104,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_existing_corrupt_blob_is_rejected_without_republishing_a_manifest",
+          "line": 125,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_newly_registered_credential_blocks_reusing_or_materializing_a_legacy_blob",
+          "line": 138,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_source_filter_does_not_change_safe_bytes_or_their_existing_identity",
+          "line": 191,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_source_snapshot_integrity.py",
+          "symbol": "test_unresolved_source_segment_is_bounded_without_publishing_partial_material",
+          "line": 208,
+          "sha256": "b2a502895d24ee70eae54adda0571abb01c7debb7a9f458e976a20604e60e979"
+        },
+        {
+          "path": "tests/unit/test_a_a09_prefilter_persistence.py",
+          "symbol": "test_stream_filter_completed_newlines_do_not_retain_repeated_partial_words",
+          "line": 145,
+          "sha256": "a680e64927996f91c32da6daf3d7ae0b9ff6f9eb7a0962f238eb14042b7ec7a6"
+        },
+        {
+          "path": "tests/unit/test_a_a09_prefilter_persistence.py",
+          "symbol": "test_stream_filter_complete_secret_before_newline_is_still_redacted",
+          "line": 155,
+          "sha256": "a680e64927996f91c32da6daf3d7ae0b9ff6f9eb7a0962f238eb14042b7ec7a6"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_unsafe_legacy_backup_is_rejected_before_any_destination_write",
+          "line": 24,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_newly_registered_credential_blocks_legacy_backup_restore_without_rewriting_it",
+          "line": 39,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_change_after_preflight_never_writes_credential_bytes",
+          "line": 77,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_structured_legacy_credentials_cannot_bypass_backup_scan",
+          "line": 145,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_sensitive_backup_filename_is_rejected_before_manifest_or_data_write",
+          "line": 174,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_backup_security_integrity.py",
+          "symbol": "test_unresolved_legacy_material_is_bounded_before_backup_destination_creation",
+          "line": 185,
+          "sha256": "907a83268145fffab8adf39c7c1d8f58a0573e8e952877839227142d60c4ab07"
+        },
+        {
+          "path": "tests/unit/test_evidence_publication_integrity.py",
+          "symbol": "test_late_registered_credential_cannot_upgrade_changed_object_bytes_to_complete_evidence",
+          "line": 61,
+          "sha256": "eea3f895ce04b48c7a3e89b5f235cf97f7da5b04ff8b7943acec23a2e694c25c"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_escaped_registered_credential_is_filtered_before_connection_diagnostic_write",
+          "line": 116,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_default_core_handler_error_cannot_echo_a_registered_credential",
+          "line": 271,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_failed_error_projection_never_falls_back_to_unfiltered_exception_text",
+          "line": 300,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_failed_credential_guard_cannot_fall_back_to_a_success_payload",
+          "line": 378,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        }
+      ]
+    },
+    {
+      "issue": "A-10",
+      "status": "partial",
+      "detail": "默认 B 模型 provider/凭据/安全投影已注入；能力门异常现在失败关闭，未配置模型只阻塞模型草稿。模型回执已更新能力事实；人工暂停不受失败/成功/重新配置解除，model 模式单独准入。自动事实和人工暂停分开持久保存并在默认核心水合；历史就绪不提供本次配置，configure不抹旧故障，解除人工暂停也不抹实际故障。坏Schema/归属/重复事实拒绝，保存不确定时能力失败关闭；C/D默认接线、受控恢复入口及原意图回读的实际能力依赖仍需贯通。 最新同端点连接成功事实现在恢复自动故障而保留人工暂停，其他端点成功不覆盖本端点失败；布尔/时长/分类/Schema/重复字段/残尾严格核对，不将字符串false解释为可达。不可核对诊断仅降级连接依赖，保存失败归一为安全错误并阻塞依赖，不阻塞本地动作。",
+      "source": [
+        {
+          "path": "src/aitest/bootstrap.py",
+          "symbol": "assemble_workspace_core",
+          "line": 228,
+          "sha256": "ff3b6b1b68005c3de1a79645325250001d0599c4c329ea89f345ca6e7d61e167"
+        },
+        {
+          "path": "src/aitest/interfaces/local/api.py",
+          "symbol": "LocalAPI._gate_denial",
+          "line": 439,
+          "sha256": "690d608b046deee541b9e690bdc0bf93adac4ce060e3448a64d779135a15576f"
+        },
+        {
+          "path": "src/aitest/infrastructure/capabilities.py",
+          "symbol": "CapabilityGate.report",
+          "line": 280,
+          "sha256": "559914e3a22911d2f52168e7183e9ff207c538568cd23981e6ce0360c2d7639e"
+        },
+        {
+          "path": "src/aitest/infrastructure/capabilities.py",
+          "symbol": "CapabilityGate.check_command",
+          "line": 364,
+          "sha256": "559914e3a22911d2f52168e7183e9ff207c538568cd23981e6ce0360c2d7639e"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/model.py",
+          "symbol": "HttpModelProvider.call",
+          "line": 125,
+          "sha256": "294ac07ee3f1f9b4db9763931903a5a13c8e2d5b4ad4d4c094ff36e756252ab9"
+        },
+        {
+          "path": "src/aitest/infrastructure/capabilities.py",
+          "symbol": "FileCapabilityConditionStore.load",
+          "line": 105,
+          "sha256": "559914e3a22911d2f52168e7183e9ff207c538568cd23981e6ce0360c2d7639e"
+        },
+        {
+          "path": "src/aitest/infrastructure/capabilities.py",
+          "symbol": "CapabilityGate._publish",
+          "line": 398,
+          "sha256": "559914e3a22911d2f52168e7183e9ff207c538568cd23981e6ce0360c2d7639e"
+        },
+        {
+          "path": "src/aitest/infrastructure/capabilities.py",
+          "symbol": "CapabilityGate.restore",
+          "line": 317,
+          "sha256": "559914e3a22911d2f52168e7183e9ff207c538568cd23981e6ce0360c2d7639e"
+        },
+        {
+          "path": "src/aitest/infrastructure/connections.py",
+          "symbol": "_transport_fact",
+          "line": 389,
+          "sha256": "23036cc62c58e862b8efd67959dcf43b948b29ddfde166f5976b8a74658bd2b9"
+        },
+        {
+          "path": "src/aitest/infrastructure/connections.py",
+          "symbol": "_fact_object",
+          "line": 380,
+          "sha256": "23036cc62c58e862b8efd67959dcf43b948b29ddfde166f5976b8a74658bd2b9"
+        },
+        {
+          "path": "src/aitest/infrastructure/connections.py",
+          "symbol": "ConnectionFactStore.load",
+          "line": 279,
+          "sha256": "23036cc62c58e862b8efd67959dcf43b948b29ddfde166f5976b8a74658bd2b9"
+        },
+        {
+          "path": "src/aitest/interfaces/local/api.py",
+          "symbol": "LocalAPI._connect",
+          "line": 343,
+          "sha256": "690d608b046deee541b9e690bdc0bf93adac4ce060e3448a64d779135a15576f"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_gate_failure_never_executes_the_guarded_handler",
+          "line": 861,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent",
+          "line": 598,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_a_a10_capability_gate.py",
+          "symbol": "test_failed_then_healthy_facts_cannot_clear_manual_degrade",
+          "line": 102,
+          "sha256": "cf5cd4f00ab1d435aea31150dada46c32b1c62b0c115d7c4407a1cb774d46992"
+        },
+        {
+          "path": "tests/unit/test_a_a10_capability_gate.py",
+          "symbol": "test_model_mode_is_blocked_without_disabling_template_mode",
+          "line": 116,
+          "sha256": "cf5cd4f00ab1d435aea31150dada46c32b1c62b0c115d7c4407a1cb774d46992"
+        },
+        {
+          "path": "tests/unit/test_a_model_provider.py",
+          "symbol": "test_model_results_report_failure_and_recovery_without_clearing_manual_pause",
+          "line": 134,
+          "sha256": "35367c73328038f78dee5b6d41db21e7f36afbd5e1795c2d9ef10ac60323513c"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_manual_pause_and_automatic_result_are_distinct_after_restart",
+          "line": 24,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_historical_success_cannot_configure_the_new_core",
+          "line": 54,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_configuration_does_not_replace_a_saved_actual_failure",
+          "line": 65,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_default_core_rebuild_preserves_pause_and_keeps_local_actions_available",
+          "line": 74,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_persisted_failure_after_save_error_blocks_and_cannot_drop_a_pause",
+          "line": 91,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_unverifiable_saved_state_cannot_be_reinterpreted_as_ready",
+          "line": 113,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_capability_reason_is_filtered_before_even_temporary_json_write",
+          "line": 135,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_capability_persistence_integrity.py",
+          "symbol": "test_backup_restore_keeps_workspace_bound_pause_fact",
+          "line": 146,
+          "sha256": "a4625a2fdebadf12322490efe1d0a222895caa5bcc56136189b857c61dfbcb56"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_latest_saved_success_recovers_automatic_failure_without_clearing_pause",
+          "line": 18,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_invalid_reachable_record_is_rejected_instead_of_hydrated_as_success",
+          "line": 48,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_corrupted_fact_metadata_is_never_silently_defaulted",
+          "line": 75,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency",
+          "line": 91,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_other_endpoints_success_does_not_restore_the_configured_endpoints_failure",
+          "line": 134,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_partial_or_ambiguous_connection_fact_is_not_recoverable_as_ready",
+          "line": 160,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_bad_new_fact_is_rejected_before_diagnostic_directory_is_created",
+          "line": 190,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_connected_label_with_contradictory_metadata_cannot_report_a_success",
+          "line": 202,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_connection_persistence_failure_is_a_safe_response_and_blocks_its_dependent_action",
+          "line": 220,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_valid_probe_fact_preserves_compatibility_with_controlled_boolean_connector",
+          "line": 255,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        },
+        {
+          "path": "tests/unit/test_connection_fact_integrity.py",
+          "symbol": "test_unverifiable_connection_fact_only_blocks_actions_depending_on_connection",
+          "line": 326,
+          "sha256": "db385efcbf7fee33ed9c9abbd1fed0702e58f3a7c99b89ac7b84e358ef81eade"
+        }
+      ]
+    },
+    {
+      "issue": "A-11",
+      "status": "closed",
+      "detail": "归属不能只从正文推断。旧记录结合权威提交 created 台账核对，分片身份冻结原项目；未知归属不允许补字段接管；同项目正常修订保留。 对象引用按项目/内容摘要核对准确相对路径，Junction不能把项目对象目录别名为另一项目。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/file_store/records.py",
+          "symbol": "FileRecordRepository._verify_ownership",
+          "line": 79,
+          "sha256": "a8e4baf453c6c90ce540ec666f0f5a9dcb0e446a582bcec91056f82f16ec8c74"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/sharded_records.py",
+          "symbol": "migrate_to_shards",
+          "line": 290,
+          "sha256": "73427b722e75e36efa580aed8c6ddb04795aa64668bbb4c6b96399a285e68912"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/objects.py",
+          "symbol": "FileObjectStore.read_bytes",
+          "line": 74,
+          "sha256": "41d477374de8310dd1ff9662db2cab31ff5ad0398eec7c2833822489013d9060"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_ownerless_checkpoint_cannot_be_taken_over_by_another_project",
+          "line": 243,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_migration_preserves_every_revision_intent_commit_owner_and_unknown_field",
+          "line": 52,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_legacy_owner_conflict_leaves_authority_unchanged",
+          "line": 174,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_evidence_publication_integrity.py",
+          "symbol": "test_object_reference_cannot_rebind_another_projects_relative_path",
+          "line": 123,
+          "sha256": "eea3f895ce04b48c7a3e89b5f235cf97f7da5b04ff8b7943acec23a2e694c25c"
+        },
+        {
+          "path": "tests/unit/test_evidence_publication_integrity.py",
+          "symbol": "test_object_project_directory_cannot_alias_another_project",
+          "line": 132,
+          "sha256": "eea3f895ce04b48c7a3e89b5f235cf97f7da5b04ff8b7943acec23a2e694c25c"
+        }
+      ]
+    },
+    {
+      "issue": "A-16",
+      "status": "closed",
+      "detail": "迁移前态曾在 forward 后才登记。现写前保存原键和业务提交水位，逆向输入也先登记；重复中断沿用本轮独立可校验备份，格式回滚拒绝新业务写入。新工作空间冻结水位 0。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/file_store/migrations.py",
+          "symbol": "FileMigrationManager.apply",
+          "line": 301,
+          "sha256": "f4eb15c787f06b0500b6a89b5d9acf29ca91f2af09e9e83d9dab88604e8dd6c4"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/migrations.py",
+          "symbol": "FileMigrationManager.rollback",
+          "line": 406,
+          "sha256": "f4eb15c787f06b0500b6a89b5d9acf29ca91f2af09e9e83d9dab88604e8dd6c4"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/migrations.py",
+          "symbol": "FileMigrationManager._ensure_backup",
+          "line": 504,
+          "sha256": "f4eb15c787f06b0500b6a89b5d9acf29ca91f2af09e9e83d9dab88604e8dd6c4"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/migrations.py",
+          "symbol": "FileMigrationManager._records_watermark",
+          "line": 578,
+          "sha256": "f4eb15c787f06b0500b6a89b5d9acf29ca91f2af09e9e83d9dab88604e8dd6c4"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_migration_retains_first_prestate_after_forward_then_registry_failure",
+          "line": 263,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_rollback_can_repeat_after_reverse_write_then_registry_failure",
+          "line": 492,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_migration_new_cycle_resume_keeps_its_own_backup",
+          "line": 513,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_corrupt_migration_cycle_cannot_select_another_backup",
+          "line": 187,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_migration_publication_failure_resumes_original_before_state",
+          "line": 124,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_fresh_workspace_migration_freezes_zero_watermark_before_business_write",
+          "line": 184,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_sharded_record_authority.py",
+          "symbol": "test_unknown_business_watermark_prevents_migration_without_changing_authority",
+          "line": 217,
+          "sha256": "fc1597e158170f6366470b00c9e72c13857e7bb13fe03c432aa5396dd77d298b"
+        },
+        {
+          "path": "tests/unit/test_a_a16_migration_rollback.py",
+          "symbol": "test_resume_after_partial_forward_failure",
+          "line": 96,
+          "sha256": "860f2aae697a66549c06bb49991db74c897fd02dcf26a2f2676cdf72ea90d758"
+        }
+      ]
+    },
+    {
+      "issue": "B-01",
+      "status": "partial",
+      "detail": "默认 B 增至 18 动作，模型生成及人工策略保存已接入真实文件底座；受控依据确认、源码固定/分析与运行修订产品入口仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/application/usecase_registry.py",
+          "symbol": "build_b_use_case_registry",
+          "line": 899,
+          "sha256": "0f7ae28eccff43dc2e2d5fae77871ef1d5e4d94cfae961ff9f09033ec08bb8c0"
+        },
+        {
+          "path": "src/aitest/bootstrap.py",
+          "symbol": "assemble_workspace_core",
+          "line": 228,
+          "sha256": "ff3b6b1b68005c3de1a79645325250001d0599c4c329ea89f345ca6e7d61e167"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent",
+          "line": 598,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "B-03",
+      "status": "partial",
+      "detail": "默认响应与 provider 请求号/错误先过滤；迟到响应持久为历史、不发布当前 GeneratedContent。默认当前依据核对覆盖项目/策略，源码/人工正文的真实稳定身份及真实供应方故障恢复仍待贯通。",
+      "source": [
+        {
+          "path": "src/aitest/application/planning/model_orchestration.py",
+          "symbol": "request_model_draft",
+          "line": 444,
+          "sha256": "81bde055b06723097292ca3c8d5aef5befc713be548dcec00092f662af2b7e90"
+        },
+        {
+          "path": "src/aitest/infrastructure/projections.py",
+          "symbol": "SafeMaterialProjector.project",
+          "line": 76,
+          "sha256": "3cc46c749cafeedf509eaea45a3d982683f72b7eeb2b43bfd03632dffee01c09"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/model.py",
+          "symbol": "HttpModelProvider._safe_detail",
+          "line": 230,
+          "sha256": "294ac07ee3f1f9b4db9763931903a5a13c8e2d5b4ad4d4c094ff36e756252ab9"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_model_late_response_is_history_and_never_a_current_draft",
+          "line": 148,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent",
+          "line": 598,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "B-04",
+      "status": "partial",
+      "detail": "正文标题/围栏/多行列表往返已修；DEC-007/008/009 按人工裁定实现：正文/仓储版本区分、冻结 scope_id、比较 content_identity，旧缺标识要求重新准备。实际来源固定/检测/加载和模板摘要验证仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/application/planning/rules_markdown.py",
+          "symbol": "rule_markdown_to_payload",
+          "line": 207,
+          "sha256": "64af80187d363bb3aba72170491edb4c6d5668a35bf793b2d457cf3b39c6d041"
+        },
+        {
+          "path": "src/aitest/application/planning/prepare_run.py",
+          "symbol": "prepare_run",
+          "line": 273,
+          "sha256": "be169e6be5bd458f7fbfa9feb9b466bfa52451bf1d7968e11bc7d909ea92c488"
+        },
+        {
+          "path": "src/aitest/application/planning/drift.py",
+          "symbol": "check_frozen_basis",
+          "line": 125,
+          "sha256": "b479ff9957508b034b95afaed5a25c6d6f98284e0a2a77477fbd9321f0a5fd0f"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_arbitrary_rule_body_is_lossless_in_markdown",
+          "line": 918,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_decision_regressions.py",
+          "symbol": "test_published_body_versions_do_not_become_repository_references",
+          "line": 34,
+          "sha256": "b0cb26973c449805dadd5a3aa0d329f46bc72aa5069f337a95f59103c3320cb5"
+        },
+        {
+          "path": "tests/unit/test_abc_decision_regressions.py",
+          "symbol": "test_snapshot_content_change_survives_restart_without_revision_change",
+          "line": 74,
+          "sha256": "b0cb26973c449805dadd5a3aa0d329f46bc72aa5069f337a95f59103c3320cb5"
+        },
+        {
+          "path": "tests/unit/test_abc_decision_regressions.py",
+          "symbol": "test_scope_identity_change_with_same_revision_is_detected_after_restart",
+          "line": 124,
+          "sha256": "b0cb26973c449805dadd5a3aa0d329f46bc72aa5069f337a95f59103c3320cb5"
+        },
+        {
+          "path": "tests/unit/test_abc_decision_regressions.py",
+          "symbol": "test_legacy_prepared_scope_is_explicitly_missing_in_basis_check",
+          "line": 141,
+          "sha256": "b0cb26973c449805dadd5a3aa0d329f46bc72aa5069f337a95f59103c3320cb5"
+        },
+        {
+          "path": "tests/unit/test_abc_decision_regressions.py",
+          "symbol": "test_frozen_basis_rejects_foreign_scope_even_with_matching_revision",
+          "line": 152,
+          "sha256": "b0cb26973c449805dadd5a3aa0d329f46bc72aa5069f337a95f59103c3320cb5"
+        }
+      ]
+    },
+    {
+      "issue": "B-05",
+      "status": "open",
+      "detail": "运行修订仍缺权威当前活动读取、持久暂停/依赖失效及默认入口与 D 双序列消费。本轮计划身份子守卫见 B-15；不声明完整运行修订修复。",
+      "source": [
+        {
+          "path": "src/aitest/domain/planning/runtime_revision.py",
+          "symbol": "evaluate_runtime_revision",
+          "line": 401,
+          "sha256": "92c7932504c2c9d5549c28cbe5f06143c7765007aaa0542edd7ba8d13abb14e8"
+        }
+      ],
+      "tests": []
+    },
+    {
+      "issue": "B-06",
+      "status": "open",
+      "detail": "8 项真实验收仍 7 not_verified/1 blocked，证据路径空；本轮自动化不能替代真实用户/宿主/业务环境验收。",
+      "source": [],
+      "tests": []
+    },
+    {
+      "issue": "B-10",
+      "status": "closed",
+      "detail": "已成功结果不可读不能当成未执行。占领在短事务内重读持久意图，异输入冲突，未知结果不重发；原草稿按身份/修订/摘要核对。模板引用进入生成指纹，新明确意图才允许再次出站。",
+      "source": [
+        {
+          "path": "src/aitest/application/planning/model_orchestration.py",
+          "symbol": "_recall_existing_draft",
+          "line": 285,
+          "sha256": "81bde055b06723097292ca3c8d5aef5befc713be548dcec00092f662af2b7e90"
+        },
+        {
+          "path": "src/aitest/application/planning/model_orchestration.py",
+          "symbol": "request_model_draft",
+          "line": 444,
+          "sha256": "81bde055b06723097292ca3c8d5aef5befc713be548dcec00092f662af2b7e90"
+        },
+        {
+          "path": "src/aitest/application/planning/substrate.py",
+          "symbol": "current_record",
+          "line": 421,
+          "sha256": "a1b8c339e721360b93b77aaf3fc15a9d1e5aeb4210bf1896f94c91955d9b6171"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_unreadable_successful_model_draft_does_not_call_provider_again",
+          "line": 947,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_two_file_uows_claim_one_model_generation_without_repeating_the_call",
+          "line": 972,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_model_identity_includes_the_frozen_template_reference",
+          "line": 130,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_default_core_model_flow_persists_filtered_draft_and_reuses_original_intent",
+          "line": 598,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "B-12",
+      "status": "partial",
+      "detail": "save_context 命令/正文/工作空间、binding 及规则引用项目守卫已补。所有公开写入口与嵌套引用的命名空间核对还需贯通，旧归属未知不能升级。",
+      "source": [
+        {
+          "path": "src/aitest/application/usecase_registry.py",
+          "symbol": "handle_save_context",
+          "line": 902,
+          "sha256": "0f7ae28eccff43dc2e2d5fae77871ef1d5e4d94cfae961ff9f09033ec08bb8c0"
+        },
+        {
+          "path": "src/aitest/application/usecase_registry.py",
+          "symbol": "handle_save_binding",
+          "line": 925,
+          "sha256": "0f7ae28eccff43dc2e2d5fae77871ef1d5e4d94cfae961ff9f09033ec08bb8c0"
+        },
+        {
+          "path": "src/aitest/application/usecase_registry.py",
+          "symbol": "_rule_versions_for",
+          "line": 443,
+          "sha256": "0f7ae28eccff43dc2e2d5fae77871ef1d5e4d94cfae961ff9f09033ec08bb8c0"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_public_b_entry_refuses_payload_from_another_project",
+          "line": 819,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "B-13",
+      "status": "partial",
+      "detail": "交付现在按权威修订读已登记任务并冻结 task_revision，缺任务/跨项目拒绝；版本/来源与新执行派生验证、用户自述分离产品链仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/application/project/persistence.py",
+          "symbol": "save_delivery",
+          "line": 390,
+          "sha256": "25d9414c3630c465ed65d04f1b61a04a00eee9f2698e406f16e7164215ce053c"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_missing_task_cannot_be_saved_as_delivery",
+          "line": 800,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "B-15",
+      "status": "partial",
+      "detail": "请求和传入 Plan 一致还不够，现在比对 ExecutionFacts 冻结计划身份及仓储修订。权威完整计划摘要/当前 Case 与运行修订默认应用链仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/domain/planning/runtime_revision.py",
+          "symbol": "evaluate_runtime_revision",
+          "line": 401,
+          "sha256": "92c7932504c2c9d5549c28cbe5f06143c7765007aaa0542edd7ba8d13abb14e8"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_matching_request_and_wrong_plan_cannot_override_execution_facts_plan",
+          "line": 850,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "B-17",
+      "status": "closed",
+      "detail": "旧记录缺 edges_declared 现保留 False/未知，不再推导为已声明无依赖；显式声明空依赖的正常路径保留，旧原文不改写。",
+      "source": [
+        {
+          "path": "src/aitest/application/project/serialization.py",
+          "symbol": "dependency_graph_from_payload",
+          "line": 427,
+          "sha256": "227e733c779c4649d635fcae59d9a384751d07eeb4894c9684b24000ca801e95"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_legacy_graph_remains_unverified_and_keeps_history_payload_unchanged",
+          "line": 841,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "C-01",
+      "status": "partial",
+      "detail": "已登记运行的启动认领原未同步当前快照，旧下游仍有效。现按已保存实际输出/条件消费关系，同事务替换当前Attempt并失效传递下游；无关分支和旧修订保留。活动/未知执行及无可靠终止事实的句柄阻止替换；新输入不能消费本次将失效的下游。剩余初始运行/默认入口、实际消费对象/条件来源、未使用授权与整用例复用持久链。",
+      "source": [
+        {
+          "path": "src/aitest/domain/execution/cases.py",
+          "symbol": "aggregate_case_execution",
+          "line": 30,
+          "sha256": "bfa242c2a79f6adf59c75794ad6044ee0dba2f2858047580aee0391feba3a00d"
+        },
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "SerialRunner._revoke_reuse_for_new_attempt",
+          "line": 524,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        },
+        {
+          "path": "src/aitest/domain/execution/dependencies.py",
+          "symbol": "invalidate_downstream_attempts",
+          "line": 30,
+          "sha256": "739c673c4e5d1c60eca26516a64b92434859d6ddf6453d21b7a0b34a1fd65192"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator._prepare_current_start",
+          "line": 372,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/current.py",
+          "symbol": "project_current_update",
+          "line": 18,
+          "sha256": "a9e46c021764895727cfc9c98ee8d72a8c9456e3312e686fd1e6a2a94539e232"
+        },
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "SerialRunner.recover_pending",
+          "line": 450,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        },
+        {
+          "path": "src/aitest/application/execution/recovery.py",
+          "symbol": "recover_attempt",
+          "line": 56,
+          "sha256": "77814ff44daa00cd7884ea044fb8d63526784affb6f500766df01327af7f5dad"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_valid_failed_case_retains_execution_or_reuse_and_verification",
+          "line": 18,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_empty_required_steps_cannot_be_a_completed_or_verified_case",
+          "line": 30,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_missing_attempt_identity_cannot_count_execution",
+          "line": 38,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_capture_gap_cannot_count_execution_reuse_or_verification",
+          "line": 48,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_new_optional_attempt_cancels_whole_case_reuse",
+          "line": 58,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_ambiguous_current_step_facts_are_rejected_instead_of_last_wins",
+          "line": 72,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_case_aggregation_integrity.py",
+          "symbol": "test_valid_upstream_failure_remains_when_downstream_is_unverified",
+          "line": 80,
+          "sha256": "d200e7ceeceb4f0729a9a5e766e4c34a26eb36829a07fb2eb4cc814d56de7945"
+        },
+        {
+          "path": "tests/unit/test_dependency_closure_integrity.py",
+          "symbol": "test_terminal_and_previously_outdated_nodes_do_not_cut_the_actual_dependency_chain",
+          "line": 18,
+          "sha256": "d76552702c8ee3dba932958505c108f1b5c38f3cb628defaeaeab042867ada3f"
+        },
+        {
+          "path": "tests/unit/test_dependency_closure_integrity.py",
+          "symbol": "test_duplicate_attempt_facts_cannot_hide_a_dependency_by_last_value_wins",
+          "line": 62,
+          "sha256": "d76552702c8ee3dba932958505c108f1b5c38f3cb628defaeaeab042867ada3f"
+        },
+        {
+          "path": "tests/unit/test_dependency_closure_integrity.py",
+          "symbol": "test_self_consumption_is_rejected_instead_of_becoming_a_usable_dependency_fact",
+          "line": 74,
+          "sha256": "d76552702c8ee3dba932958505c108f1b5c38f3cb628defaeaeab042867ada3f"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_start_updates_current_and_transitive_consumers_before_external_effect",
+          "line": 142,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write",
+          "line": 204,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_new_start_rejects_unverified_or_invalidated_input_before_occupancy",
+          "line": 324,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_saved_active_handle_without_a_terminal_fact_blocks_even_a_terminal_label",
+          "line": 354,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_new_attempt_cannot_consume_a_superseded_or_outdated_upstream",
+          "line": 374,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed",
+          "line": 424,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_outdated_live_execution_cannot_become_a_valid_basis_during_recovery",
+          "line": 450,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        }
+      ]
+    },
+    {
+      "issue": "C-02",
+      "status": "partial",
+      "detail": "启动指纹曾漏步骤修订/真实消费依赖，授权占用只依赖caller字段。现固定完整执行依据；授权/意图/检查点原子保存，缺修订旧授权阻止新启动，跨重启/异项目/新Attempt不能复用占用。提交前失败完整回滚，已发布后失联不重启，两核心只认领一次。受控人工授权来源、已有准确运行快照时当前引用/实际消费闭包与认领同事务；原子失败不提前占用，发布失联不重启。可信确认、未使用授权、整用例复用持久链和默认入口仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator.claim_start",
+          "line": 240,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "SerialRunner.start_attempt",
+          "line": 343,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        },
+        {
+          "path": "src/aitest/domain/execution/runs.py",
+          "symbol": "attempt_start_basis",
+          "line": 621,
+          "sha256": "1e8d1bbd1a7622a944b3f3dc98a6b933fb363aec301f0fec5d29c088d4550699"
+        },
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "_start_fingerprint",
+          "line": 748,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator.claim_start",
+          "line": 240,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_real_uow_runner_can_complete_then_recall_without_restarting",
+          "line": 409,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_execution_intent_conflict_checks_actual_entry_arguments",
+          "line": 441,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_runner_keeps_the_same_intent_namespaced_by_project",
+          "line": 201,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_same_request_cannot_replay_a_changed_attempt_basis",
+          "line": 36,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_authorization_must_bind_the_exact_step_revision",
+          "line": 59,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_new_attempt_cannot_reuse_an_occupied_authorization",
+          "line": 73,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_authorization_intent_and_checkpoint_are_visible_together_before_external_start",
+          "line": 99,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_retry",
+          "line": 123,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_lost_reply_after_publishing_claim_never_replays_external_start",
+          "line": 153,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_two_cores_share_one_saved_start_even_before_the_first_handle_is_returned",
+          "line": 172,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_auth_claim_is_project_bound_and_cannot_be_rebound_by_a_foreign_request",
+          "line": 274,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_original_request_with_saved_consumption_metadata_replays_the_same_attempt",
+          "line": 226,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy",
+          "line": 224,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effect",
+          "line": 249,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_a_dependency_without_a_registered_run_is_blocked_before_any_effect",
+          "line": 412,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        }
+      ]
+    },
+    {
+      "issue": "C-03",
+      "status": "partial",
+      "detail": "外部导入指纹现包括断言值、预期、来源/内容/附件等决定性输入，异输入不复用原导入。HTTP 缺字段/非法 JSON 不再等于 null；观察缺口返回 matched=null/value_available=false，JSON 布尔/数字不混同，规则移至纯领域。跨重启持久幂等与原验证回读、默认多类真实业务独立核验链仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/adapters/execution/external_result.py",
+          "symbol": "ExternalResultAdapter.validate",
+          "line": 52,
+          "sha256": "856b778ee395fb5ac7fad26a731b6a0abfd2c8a0736c256de4244e9b853917bb"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/execution/http.py",
+          "symbol": "HttpAdapter._enrich",
+          "line": 123,
+          "sha256": "71a61436988093b880f65b31eb7ebae8b8c8cec7dc68c66aa659e888d8e696da"
+        },
+        {
+          "path": "src/aitest/domain/execution/assertions.py",
+          "symbol": "evaluate_http_assertion",
+          "line": 42,
+          "sha256": "5cf44a3ead2772429583b50e8d9a9104c876554a80428d0959f3540e299c7ad0"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_external_import_identity_includes_all_decisive_inputs",
+          "line": 924,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_http_observation_integrity.py",
+          "symbol": "test_unavailable_http_value_never_becomes_a_null_match",
+          "line": 29,
+          "sha256": "ba6b35b8c0f7b935aa09f1d15efb0e12875ce411af18cdb178b1d00e1e3ede12"
+        },
+        {
+          "path": "tests/unit/test_http_observation_integrity.py",
+          "symbol": "test_explicit_json_null_remains_an_available_exact_value",
+          "line": 37,
+          "sha256": "ba6b35b8c0f7b935aa09f1d15efb0e12875ce411af18cdb178b1d00e1e3ede12"
+        },
+        {
+          "path": "tests/unit/test_http_observation_integrity.py",
+          "symbol": "test_boolean_number_and_unhashable_contains_cannot_forge_a_match",
+          "line": 51,
+          "sha256": "ba6b35b8c0f7b935aa09f1d15efb0e12875ce411af18cdb178b1d00e1e3ede12"
+        }
+      ]
+    },
+    {
+      "issue": "C-04",
+      "status": "partial",
+      "detail": "来源仅摘要/PASSED 的升级漏洞已修；Windows 以命名 Job、启动时间和 Job 归属核对后停止，拒绝外来/复用 PID。实际业务加载事实与真实宿主强杀/掉电链仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/application/execution/source_checks.py",
+          "symbol": "SourceVerificationService.verify",
+          "line": 102,
+          "sha256": "22e9aa988f68b923e98c9ed18fbcaa1a7f1f7fd4479777f44a639582798011c3"
+        },
+        {
+          "path": "src/aitest/infrastructure/adapters/execution/command.py",
+          "symbol": "CommandAdapter._stop_persisted",
+          "line": 720,
+          "sha256": "44e102a0e198b079331d23a1900b67bdab5ca12ce1bdaa17bb80aa1ca1240f58"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_digest_alone_never_proves_runtime_load_source",
+          "line": 884,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_source_mismatch_overrides_probe_passed",
+          "line": 896,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_repeated_real_command_collection_preserves_exit_fact",
+          "line": 460,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "C-05",
+      "status": "partial",
+      "detail": "检查点在正式短事务内按权威当前修订 CAS；磁盘投影在权威成功之后。事实与 Attempt/证据身份核对，snapshot commit/cursor 由实际发布序号派生。当前依赖/授权、可靠证据闭包与默认 D 生产消费仍缺。 当前快照引用与快照同提交，按准确修订/摘要/归属读取；当前映射矛盾、重复身份、冻结Run身份重绑拒绝。检查点进度不能改写冻结启动依据，原历史修订保留。 仅比六字段可伪造complete/输出块的漏洞已重现并修复：由同一领域投影逐字段核对当前Attempt，其他当前步骤也读已保存检查点；不能将缺失或改写的对象回执升级为完整证据，落盘后再按对象引用回读确认。历史快照、未使用授权与复用原子链仍需继续。 已登记运行的新Attempt与后续检查点进度同步当前快照，旧结果/证据等级/覆盖摘要清除；发布不能退回旧当前或丢步骤，过期检查点不能恢复有效。恢复先读权威而非滞后投影，无权威不升级。新保存链仍不补造初始Run/Step，也不自动完成未使用授权/整用例复用及D产品消费。",
+      "source": [
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator.commit_checkpoint",
+          "line": 628,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator._stage_with_facts",
+          "line": 466,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator.read_current_facts",
+          "line": 146,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator._validate_checkpoint_update",
+          "line": 119,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "_validate_current_facts",
+          "line": 742,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "_validate_attempt_projection",
+          "line": 786,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/facts.py",
+          "symbol": "project_attempt_fact",
+          "line": 308,
+          "sha256": "e8ecf4b897eb88c0b4a74c8fb5987bf66ae90e368bf75ddaf6e1c8fa745876bd"
+        },
+        {
+          "path": "src/aitest/application/evidence/publication.py",
+          "symbol": "EvidencePublisher._publish_block",
+          "line": 93,
+          "sha256": "e915217612de4368b477338bdaa9bf413a06b45b52acc851583510fb0ae27770"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator._stage_snapshot",
+          "line": 548,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "_validate_publication_current",
+          "line": 775,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        },
+        {
+          "path": "src/aitest/application/execution/commit.py",
+          "symbol": "ExecutionCommitCoordinator.read_checkpoint",
+          "line": 179,
+          "sha256": "6c245038bfd5728ce428863fc69622131ce802da141aea961fd2f030dee54262"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_real_uow_runner_can_complete_then_recall_without_restarting",
+          "line": 409,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary",
+          "line": 713,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis",
+          "line": 198,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_execution_start_integrity.py",
+          "symbol": "test_frozen_checkpoint_keeps_the_original_revision_when_progress_is_saved",
+          "line": 256,
+          "sha256": "c4f35ee2bcc7b1775c35b198644ae5fdb3ad6f665dea120c728d50f87b10d2f4"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_current_reference_and_snapshot_share_the_actual_boundary_and_preserve_old_revision",
+          "line": 153,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item",
+          "line": 173,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_current_snapshot正文_digest_is_verified_after_exact_revision_read",
+          "line": 193,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_failed_snapshot_staging_cannot_publish_the_preceding_pointer_or_checkpoint",
+          "line": 209,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_inconsistent_current_attempt_facts_are_rejected_before_any_publication",
+          "line": 235,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_current_reference_rejects_rebinding_the_frozen_run_intent",
+          "line": 255,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_caller_cannot_publish_completion_or_bytes_absent_from_the_real_checkpoint",
+          "line": 45,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_current_execution_snapshot.py",
+          "symbol": "test_another_current_step_needs_a_saved_exact_checkpoint",
+          "line": 106,
+          "sha256": "4000cd908f470a874da57368490c89bc9dbd1eadc4449712eb94beec227c3e3f"
+        },
+        {
+          "path": "tests/unit/test_evidence_publication_integrity.py",
+          "symbol": "test_unverified_object_store_receipt_cannot_create_complete_evidence",
+          "line": 80,
+          "sha256": "eea3f895ce04b48c7a3e89b5f235cf97f7da5b04ff8b7943acec23a2e694c25c"
+        },
+        {
+          "path": "tests/unit/test_evidence_publication_integrity.py",
+          "symbol": "test_spool_port_must_provide_the_exact_frozen_block_bytes_before_object_write",
+          "line": 102,
+          "sha256": "eea3f895ce04b48c7a3e89b5f235cf97f7da5b04ff8b7943acec23a2e694c25c"
+        },
+        {
+          "path": "tests/unit/test_evidence_publication_integrity.py",
+          "symbol": "test_normal_spool_to_object_evidence_keeps_digest_size_and_exact_bytes",
+          "line": 110,
+          "sha256": "eea3f895ce04b48c7a3e89b5f235cf97f7da5b04ff8b7943acec23a2e694c25c"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_checkpoint_progress_and_current_snapshot_share_the_same_commit",
+          "line": 284,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_publisher_cannot_restore_a_superseded_current_attempt",
+          "line": 273,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_publisher_cannot_drop_a_registered_current_step",
+          "line": 397,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_outdated_checkpoint_cannot_restore_validity_without_a_new_attempt",
+          "line": 311,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        },
+        {
+          "path": "tests/unit/test_current_attempt_transition_integrity.py",
+          "symbol": "test_projection_checkpoint_without_authority_cannot_be_promoted_during_recovery",
+          "line": 465,
+          "sha256": "2752a6eb3c7e47b09e9e53dbe12a9e0d256d6e3aa7387e57a2932017d7c0850e"
+        }
+      ]
+    },
+    {
+      "issue": "C-06",
+      "status": "open",
+      "detail": "暂停/取消/退回/补证尚未接受控默认产品入口与权威保存恢复链，本包 10 项真实 AC 仍 untested。",
+      "source": [
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "SerialRunner.request_stop",
+          "line": 447,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        }
+      ],
+      "tests": []
+    },
+    {
+      "issue": "C-12",
+      "status": "partial",
+      "detail": "max_polls 切片耗尽保留 RUNNING 活动态，新 runner 从持久句柄续行 inspect/collect；无意图/句柄的旧不确定记录不重放。依赖后续调度与持久控制/默认链仍缺。",
+      "source": [
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "SerialRunner.execute_attempt",
+          "line": 191,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        },
+        {
+          "path": "src/aitest/application/execution/runner.py",
+          "symbol": "SerialRunner.recover_pending",
+          "line": 450,
+          "sha256": "e0321b79059afb471e7524e3da4c6259c51bdf1729007ea0db5385d37a2777bf"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_poll_slice_continues_same_execution_after_runner_restart",
+          "line": 422,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    },
+    {
+      "issue": "C-14",
+      "status": "closed",
+      "detail": "采集终态与资源释放分离；保存不可变确认结果/停止事实，重复收集、重启及备份恢复回读同一事实；实际输出字节损坏拒绝完整结果，读/封口错误保留 GAP，启动失败释放采集租约保留不确定句柄。",
+      "source": [
+        {
+          "path": "src/aitest/infrastructure/adapters/execution/command.py",
+          "symbol": "CommandAdapter.collect",
+          "line": 327,
+          "sha256": "44e102a0e198b079331d23a1900b67bdab5ca12ce1bdaa17bb80aa1ca1240f58"
+        },
+        {
+          "path": "src/aitest/infrastructure/file_store/execution_handles.py",
+          "symbol": "FileExecutionHandleStore",
+          "line": 35,
+          "sha256": "3a4a1724c92c965c23f97cc1f5afbf1be0463700b04a86e52ea89223c637837d"
+        }
+      ],
+      "tests": [
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_repeated_real_command_collection_preserves_exit_fact",
+          "line": 460,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_confirmed_collection_rejects_corrupted_output_bytes",
+          "line": 109,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_reader_metadata_failure_cannot_be_published_as_complete",
+          "line": 576,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        },
+        {
+          "path": "tests/unit/test_abc_root_cause_regressions.py",
+          "symbol": "test_launch_failure_releases_all_spool_leases_without_erasing_uncertain_handle",
+          "line": 753,
+          "sha256": "2842215ae04f7941d3383f6d370746c6b8b6a5d4c5211f04f3bfef11bbde3905"
+        }
+      ]
+    }
+  ],
+  "acceptance": {
+    "verified": 0,
+    "not_verified": 7,
+    "blocked": 1,
+    "untested": 27
+  },
+  "command": "uv run pytest tests/unit/test_a_a09_prefilter_persistence.py tests/unit/test_a_a10_capability_gate.py tests/unit/test_a_a16_migration_rollback.py tests/unit/test_a_model_provider.py tests/unit/test_abc_decision_regressions.py tests/unit/test_abc_root_cause_regressions.py tests/unit/test_backup_security_integrity.py tests/unit/test_bounded_query_directory.py tests/unit/test_capability_persistence_integrity.py tests/unit/test_case_aggregation_integrity.py tests/unit/test_connection_fact_integrity.py tests/unit/test_current_attempt_transition_integrity.py tests/unit/test_current_execution_snapshot.py tests/unit/test_dependency_closure_integrity.py tests/unit/test_evidence_publication_integrity.py tests/unit/test_execution_start_integrity.py tests/unit/test_http_observation_integrity.py tests/unit/test_sharded_record_authority.py tests/unit/test_source_snapshot_integrity.py"
+}

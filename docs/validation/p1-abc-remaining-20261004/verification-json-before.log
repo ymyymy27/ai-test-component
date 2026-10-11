@@ -1,0 +1,17 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collected 1 item
+
+tests\unit\test_verification_json_semantics.py F                         [100%]
+
+================================== FAILURES ===================================
+_ test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual0-expected0-no_result-business] _
+tests\unit\test_verification_json_semantics.py:69: in test_missing_null_boolean_and_nested_values_use_one_domain_rule
+    assert result.observation is observation
+E   AssertionError: assert <VerificationObservation.MATCHED: 'matched'> is <VerificationObservation.NO_RESULT: 'no_result'>
+E    +  where <VerificationObservation.MATCHED: 'matched'> = Verification(verification_id='verification:test-object:object-1', verification_of='test-object', business_object_id='o...0f61caaff8a', key_trace_link_refs=(), covers_critical_chain_item_ids=(), evidence_refs=(), gap_ids=(), created_at=None).observation
+=========================== short test summary info ===========================
+FAILED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual0-expected0-no_result-business]
+============================== 1 failed in 0.53s ==============================

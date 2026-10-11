@@ -1,0 +1,11 @@
+warning: in the working copy of 'CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/ABC剩余问题修复证据-2026-10-04.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/一期工程检查-B包.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/修改日志/袁/2026-10-04-ABC剩余问题整改.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/当前代码分析与一期工程对比.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/接口对接/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/接口对接/进行中/AB-001-端口与保存/contract.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/接口对接/进行中/CORE-001-A包公共接口/contract.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/usecase_registry.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/infrastructure/file_store/source_material.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_abc_root_cause_regressions.py', LF will be replaced by CRLF the next time Git touches it

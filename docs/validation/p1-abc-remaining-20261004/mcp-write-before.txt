@@ -1,0 +1,15 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+__ test_write_tool_requires_exact_core_contract_and_advertises_fixed_inputs ___
+tests\unit\test_mcp_stdio_write.py:52: in test_write_tool_requires_exact_core_contract_and_advertises_fixed_inputs
+    tool = next(item for item in tools if item["name"] == "aitest_dispatch")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   StopIteration
+_ test_forwarding_preserves_business_intent_and_allocates_a_separate_transport_request _
+tests\unit\test_mcp_stdio_write.py:64: in test_forwarding_preserves_business_intent_and_allocates_a_separate_transport_request
+    assert "error" not in result and result["result"]["isError"] is False
+E   AssertionError: assert ('error' not in {'jsonrpc': '2.0', 'id': 2, 'error': {'code': -32602, 'message': 'Tool unavailable'}})
+=========================== short test summary info ===========================
+FAILED tests/unit/test_mcp_stdio_write.py::test_write_tool_requires_exact_core_contract_and_advertises_fixed_inputs
+FAILED tests/unit/test_mcp_stdio_write.py::test_forwarding_preserves_business_intent_and_allocates_a_separate_transport_request
+2 failed in 0.62s

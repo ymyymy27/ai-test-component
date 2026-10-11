@@ -192,6 +192,7 @@ def _inputs(**overrides: object) -> PreparationInputs:
             revision_id="plan-1", revision_no=1, digest="sha256:plan-1"
         ),
         "acceptance_scope_revision": 1,
+        "scope_id": "scope-1",
         "rule_versions": (
             RuleVersionRef(rule_id="rule-1", revision=1, digest="sha256:rule-1"),
         ),

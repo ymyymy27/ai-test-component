@@ -1,0 +1,12 @@
+{
+  "baseline_commit": "4df83eb",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/application/evidence/saved_verification.py": "ce73bd2bba359823659c311e4852fdcbceb48e07fbe4393a20aa1335a55435e9",
+    "src/aitest/application/execution/snapshots.py": "b770ce4844329747a7f27dbf9dc7fd09513c8b00e890d20d5309bfc95a8cc875",
+    "tests/unit/test_saved_verification_exact_read.py": "8a2cb5d261b814feaa1113f70e594bf55f64a480b18e526e8fbe6fb803f6dd1f",
+    "tests/unit/test_saved_business_verification.py": "5aa000e18f0a111cdeccbcb8f060fbb32533043a90df0c26f4da8696bd0b7b18",
+    "tests/unit/test_default_business_verification.py": "9a4565fbd05ff023215ff09b7757cc1aebea4326bb54ccb6ad65d8df14bab843"
+  },
+  "scope": "Component/synthetic authority and real Python/file-query integration; no real Trae AC"
+}

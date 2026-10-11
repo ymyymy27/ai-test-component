@@ -1,0 +1,55 @@
+import json
+from pathlib import Path
+import re
+
+base = Path('docs/validation/p1-abc-remaining-20261004')
+
+
+def result(name):
+    raw = (base / name).read_text(encoding='utf-8')
+    match = re.search(r'\b(\d+) passed(?:, (\d+) skipped)? in ([0-9.]+)s', raw)
+    assert match is not None and 'FAILED ' not in raw and 'ERROR ' not in raw, name
+    return {'passed': int(match[1]), 'skipped': int(match[2] or 0), 'seconds': float(match[3])}
+
+
+gates = result('publication-controlled-final-gates.log')
+risk = result('publication-controlled-final-risk.log')
+assert gates['passed'] == 35 and gates['skipped'] == 0
+assert 'All checks passed!' in (base / 'publication-controlled-final-ruff.log').read_text()
+mypy = (base / 'publication-controlled-final-mypy.log').read_text()
+assert 'Success:' in mypy
+mypy_files = int(re.search(r'(\d+) source files', mypy)[1])
+assert not (base / 'publication-controlled-schema.log').read_text().strip()
+assert (base / 'publication-controlled-version.log').read_text().strip() == '0.4.0'
+assert '6 modified product modules' in (base / 'publication-controlled-package.log').read_text()
+assert 'Isolated wheel smoke checks passed' in (base / 'publication-controlled-package.log').read_text()
+distinct = gates['passed'] + risk['passed']
+phase = f'publication-controlled-final-{distinct}'
+results = {'distinct_passed': distinct, 'final_publication_gates': gates,
+           'final_contract_architecture_storage_policy_binding_preparation': risk,
+           'full_python_run': False, 'ruff': 'passed', 'mypy_source_files': mypy_files,
+           'schema_generated_change': False, 'version': '0.4.0', 'offline_build': 'passed',
+           'modified_product_modules_package_byte_match': 6, 'isolated_wheel_smoke': 'passed',
+           'real_ac_verified': 0, 'remaining_abc_issues': 22,
+           'pre_safety_passes_not_counted': 321}
+(base / 'publication-controlled-final-results.json').write_text(json.dumps(results, indent=2) + '\n', encoding='utf-8')
+Path('.git/p1-abc-fix-20261003/publication-phase.txt').write_text(phase, encoding='utf-8')
+journal = Path('docs/修改日志/袁/2026-10-05-规则计划受控发布与准确消费.md')
+with journal.open('a', encoding='utf-8') as stream:
+    stream.write(f'''
+## 最终源码验证登记
+
+最后源码**{distinct}项互不重叠通过**：完整35项发布门禁（{gates['seconds']}秒），全部合同/架构与受影响存储、模型策略、绑定、权威准备/依据确认及原发布编排共{risk['passed']}项通过、{risk['skipped']}项跳过（{risk['seconds']}秒）。跳过原因见原输出，不计通过。35节点不在后一组中，原321和单独三项安全修后结果不再累计。没有重跑完整Python。
+
+Ruff/Mypy{mypy_files}、Schema生成无差异、0.4.0版本、离线wheel/sdist构建、六个改动产品模块的两种制品源码字节及隔离Python3.13安装冒烟通过；未重建VSIX。原始最后输出见[35项门禁](../../validation/p1-abc-remaining-20261004/publication-controlled-final-gates.log)、[受影响风险组](../../validation/p1-abc-remaining-20261004/publication-controlled-final-risk.log)。[准确最后源码/测试/日志/AST清单](../../validation/p1-abc-remaining-20261004/history/{phase}/manifest.json)冻结后核对当前工程；后续改变按其新阶段独立核对，旧全量不充当当前结果。
+''')
+paragraph = f'\n规则计划发布后续修复（2026-10-05）：默认publish_rules/publish_plan已要求准确受控交互，来源/正文/效果六记录同提交；规范计划正文比对准确Case/Scope，规则及B准备核对发布证明。另修必需缺口改标非阻塞和过滤后发布不同冻结正文。当前{distinct}项通过、{risk["skipped"]}项跳过；原反例、源码与命令见[逐项记录](修改日志/袁/2026-10-05-规则计划受控发布与准确消费.md)。C初始登记的持续证明消费、未用授权/复用及默认C/D继续修复；22项产品条件和真实AC仍保留。\n'
+for name in ('docs/一期工程检查-A包.md', 'docs/一期工程检查-B包.md',
+             'docs/一期工程检查-C包.md', 'docs/当前代码分析与一期工程对比.md',
+             'docs/ABC剩余问题修复证据-2026-10-04.md', 'docs/ABC剩余问题整改计划-2026-10-04.md',
+             'docs/ABC包问题修复证据清单-2026-10-03.md'):
+    with Path(name).open('a', encoding='utf-8') as stream:
+        stream.write(paragraph)
+with (base / 'README.md').open('a', encoding='utf-8') as stream:
+    stream.write(paragraph.replace('(修改日志/', '(../../修改日志/')))
+print(json.dumps({'phase': phase, 'distinct_passed': distinct, 'skipped': risk['skipped']}))

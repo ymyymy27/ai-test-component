@@ -133,9 +133,16 @@ def derive_event_id(
 class FileEventJournal:
     """基于文件的正式追加事件日志。"""
 
+    @property
+    def instance_id(self) -> str:
+        return self._instance_id
+
     def __init__(self, workspace_root: Path, *, instance_id: str) -> None:
         if not instance_id:
             raise ValueError("instance_id is required")
+        from .commit_manifest import FileCommitStore
+
+        FileCommitStore.reject_links(workspace_root)
         self._root = workspace_root.resolve()
         self._instance_id = instance_id
         self._dir = self._root / "event-log"
@@ -144,17 +151,28 @@ class FileEventJournal:
         self._staging_dir = self._dir / _STAGING_DIR
         self._boundary_dir = self._dir / _BOUNDARY_DIR
         self._quarantine_dir = self._dir / _QUARANTINE_DIR
+        if FileCommitStore(self._root).read_current() is not None:
+            self._repaired_tail_lines = 0
+            return
         for path in (self._staging_dir, self._boundary_dir, self._quarantine_dir):
+            FileCommitStore.reject_links(path)
             path.mkdir(parents=True, exist_ok=True)
         if not self._journal.exists():
             self._journal.touch()
-        self._repaired_tail_lines = self._repair_tail()
+        self._repaired_tail_lines = (
+            0 if FileCommitStore(self._root).read_current() is not None else self._repair_tail()
+        )
 
     # ----- 公开读能力 -------------------------------------------------
 
     def health(self) -> dict[str, object]:
         """日志健康与当前位置摘要。"""
-        position = self._load_position()
+        from .commit_manifest import FileCommitStore
+
+        current = FileCommitStore(self._root).read_current()
+        position = (
+            current["manifest"]["event_root"] if current is not None else self._load_position()
+        )
         return {
             "ok": True,
             "instance_id": self._instance_id,
@@ -165,6 +183,14 @@ class FileEventJournal:
 
     def read(self, *, cursor: str | None = None, limit: int = _DEFAULT_LIMIT) -> EventReadResult:
         """从游标后续读事件；cursor=None 从头开始。"""
+        from .commit_manifest import CommitMaterialError, FileCommitStore
+        from .ordered_events import OrderedEventStore
+
+        try:
+            if FileCommitStore(self._root).read_current() is not None:
+                return OrderedEventStore(self._root).read(cursor=cursor, limit=limit)
+        except CommitMaterialError:
+            return EventReadResult(status="maintenance_required")
         after_sequence = 0
         if cursor is not None:
             try:
@@ -176,9 +202,7 @@ class FileEventJournal:
             events = self._parse_journal()
         except EventMaintenanceRequired:
             return EventReadResult(status="maintenance_required")
-        later = (
-            event for event in events if event.event_sequence > after_sequence
-        )
+        later = (event for event in events if event.event_sequence > after_sequence)
         selected = tuple(later)[:bounded]
         if not selected:
             return EventReadResult(status="ok", next_cursor=None)
@@ -190,6 +214,11 @@ class FileEventJournal:
 
     def snapshot_cursor(self, *, commit_sequence: int) -> str | None:
         """返回某已提交边界末尾的游标，供快照后续读；边界不存在返回 None。"""
+        from .commit_manifest import FileCommitStore
+        from .ordered_events import OrderedEventStore
+
+        if FileCommitStore(self._root).read_current() is not None:
+            return OrderedEventStore(self._root).snapshot_cursor(commit_sequence=commit_sequence)
         marker = self._load_boundary(commit_sequence)
         if marker is None:
             return None
@@ -210,6 +239,10 @@ class FileEventJournal:
         writer_epoch: int,
     ) -> BoundaryHandle:
         """开启一个事件边界；已存在标记的边界禁止重开（幂等提交走 commit）。"""
+        from .commit_manifest import FileCommitStore
+
+        if FileCommitStore(self._root).read_current() is not None:
+            raise ValueError("event publication must use the shared commit unit")
         if commit_sequence < 1:
             raise ValueError("commit_sequence must be >= 1")
         if self._load_boundary(commit_sequence) is not None:
@@ -341,31 +374,80 @@ class FileEventJournal:
     def reconcile(self, *, committed_sequences: set[int]) -> ReconcileReport:
         """崩溃后核对：修复尾行、补提交已确认边界、登记孤立暂存。
 
-        ``committed_sequences`` 来自业务提交清单（commit.json），是“该提交
-        是否真实存在”的事实来源；不在其中的暂存边界只登记为孤立，不
-        自动重放。
+        序号仅为查找提示；发布必须逐项核对真实业务权威提交与记录。
         """
+        from .locking import writer_lock
+
+        with writer_lock(self._root / "writer.lock", reentrant=True):
+            return self._reconcile_locked(committed_sequences=committed_sequences)
+
+    def _reconcile_locked(self, *, committed_sequences: set[int]) -> ReconcileReport:
+        from .commit_manifest import FileCommitStore, canonical_bytes
+        from .records import FileRecordRepository
+
+        if FileCommitStore(self._root).read_current(verify_material=True) is not None:
+            return ReconcileReport(
+                repaired_tail_lines=0,
+                completed_boundaries=(),
+                orphaned_staging=(),
+                actions=(),
+            )
+        if any(type(sequence) is not int or sequence < 1 for sequence in committed_sequences):
+            raise EventMaintenanceRequired("recovery sequence hints are invalid")
+        store = FileCommitStore(self._root)
+        legacy_authority = self._root / "records.json"
+        store.reject_links(legacy_authority)
+        if legacy_authority.exists():
+            store._decode(store._read_bytes(legacy_authority, 64 * 1024 * 1024))
+        authority = {}
+        for entry in FileRecordRepository(self._root).authoritative_commits():
+            sequence = entry.get("commit_sequence")
+            if (
+                type(sequence) is not int
+                or sequence < 1
+                or sequence in authority
+                or entry.get("state") != "committed"
+            ):
+                raise EventMaintenanceRequired("business commit authority cannot be verified")
+            authority[sequence] = entry
+        candidates = []
+        orphaned: list[int] = []
+        for staging in sorted(self._staging_dir.glob("*.jsonl")):
+            commit_sequence = self._commit_from_staging_name(staging.name)
+            if commit_sequence not in committed_sequences or commit_sequence not in authority:
+                orphaned.append(commit_sequence)
+                continue
+            events = self._read_staging(staging)
+            self._verify_recovery_events(authority[commit_sequence], events)
+            boundary = self._load_boundary(commit_sequence)
+            if boundary is not None:
+                expected = {
+                    "schema": _BOUNDARY_SCHEMA,
+                    "commit_sequence": commit_sequence,
+                    "first_sequence": events[0].event_sequence,
+                    "last_sequence": events[-1].event_sequence,
+                    "event_ids": [event.event_id for event in events],
+                    "state": "committed",
+                }
+                if canonical_bytes(boundary) != canonical_bytes(expected):
+                    raise EventMaintenanceRequired("saved boundary does not match committed events")
+            candidates.append((staging, commit_sequence, boundary is not None, events))
         actions: list[str] = []
         repaired = self._repair_tail()
         if repaired:
             actions.append(f"repaired {repaired} torn journal tail line(s)")
         completed: list[int] = []
-        orphaned: list[int] = []
-        for staging in sorted(self._staging_dir.glob("*.jsonl")):
-            commit_sequence = self._commit_from_staging_name(staging.name)
-            if self._load_boundary(commit_sequence) is not None:
-                self._unlink_quiet(staging)
+        for staging, commit_sequence, had_boundary, events in candidates:
+            self._merge_staging_after_crash(staging, commit_sequence, verified_events=events)
+            if had_boundary:
                 actions.append(f"removed staging for already committed boundary {commit_sequence}")
-            elif commit_sequence in committed_sequences:
-                self._merge_staging_after_crash(staging, commit_sequence)
+            else:
                 completed.append(commit_sequence)
                 actions.append(f"completed boundary {commit_sequence} after crash")
-            else:
-                orphaned.append(commit_sequence)
-                actions.append(
-                    f"orphaned staging for boundary {commit_sequence}; "
-                    "left for human recovery"
-                )
+        for commit_sequence in orphaned:
+            actions.append(
+                f"orphaned staging for boundary {commit_sequence}; left for human recovery"
+            )
         self._rebuild_position_from_journal(actions)
         return ReconcileReport(
             repaired_tail_lines=repaired,
@@ -373,6 +455,77 @@ class FileEventJournal:
             orphaned_staging=tuple(orphaned),
             actions=tuple(actions),
         )
+
+    def _verify_recovery_events(self, entry: dict[str, object], events: tuple[Event, ...]) -> None:
+        from collections.abc import Mapping
+
+        from aitest.infrastructure.security import guard_value
+
+        from .records import FileRecordRepository
+
+        created = entry.get("created")
+        if (
+            not isinstance(created, list)
+            or not created
+            or len(created) != len(events)
+            or type(entry.get("writer_epoch")) is not int
+            or any(
+                not isinstance(entry.get(key), str) or not str(entry[key]).strip()
+                for key in ("workspace_id", "project_id")
+            )
+        ):
+            raise EventMaintenanceRequired("committed event set or ownership is unverified")
+        repository = FileRecordRepository(self._root)
+        for event, reference in zip(events, created, strict=True):
+            payload = event.model_dump(mode="json")
+            safe, changed = guard_value(payload)
+            if changed or safe != payload:
+                raise EventMaintenanceRequired("staged event identity cannot be safely preserved")
+            if (
+                not isinstance(reference, dict)
+                or type(reference.get("revision")) is not int
+                or not isinstance(reference.get("aggregate_kind"), str)
+                or not isinstance(reference.get("record_id"), str)
+                or not event.instance_id
+                or event.event_type != "record_created"
+                or any(
+                    getattr(event, key) != entry.get(key)
+                    for key in (
+                        "request_id",
+                        "intent_id",
+                        "project_id",
+                        "workspace_id",
+                        "writer_epoch",
+                        "commit_sequence",
+                    )
+                )
+                or event.record_id != reference["record_id"]
+                or event.revision != reference["revision"]
+            ):
+                raise EventMaintenanceRequired("staged event does not match business authority")
+            try:
+                record = repository.read(
+                    aggregate_kind=reference["aggregate_kind"],
+                    record_id=reference["record_id"],
+                    revision=reference["revision"],
+                )
+            except (ValueError, KeyError, TypeError, OSError, AttributeError) as error:
+                raise EventMaintenanceRequired("committed event record is unavailable") from error
+            if not isinstance(record.payload, Mapping):
+                raise EventMaintenanceRequired("committed event record is not an object")
+            owner = record.payload.get("project_id", record.payload.get("local_project_id"))
+            if owner != event.project_id or event.event_id != derive_event_id(
+                instance_id=event.instance_id,
+                commit_sequence=event.commit_sequence,
+                event_type=event.event_type,
+                project_id=event.project_id,
+                aggregate_kind=reference["aggregate_kind"],
+                record_id=event.record_id,
+                revision=event.revision,
+            ):
+                raise EventMaintenanceRequired(
+                    "committed record ownership or event id is unverified"
+                )
 
     # ----- 内部：journal 解析与尾部修复 -------------------------------
 
@@ -424,10 +577,13 @@ class FileEventJournal:
         return int(name.removesuffix(".jsonl"))
 
     def _read_staging(self, staging: Path) -> tuple[Event, ...]:
+        from .commit_manifest import FileCommitStore
+
+        store = FileCommitStore(self._root)
         events: list[Event] = []
-        for raw_line in staging.read_bytes().splitlines():
+        for raw_line in store._read_bytes(staging, 64 * 1024 * 1024).splitlines():
             if raw_line.strip():
-                events.append(self._deserialize(raw_line))
+                events.append(Event.model_validate(store._decode(raw_line)))
         return tuple(events)
 
     def _find_in_staging(self, staging: Path, event_id: str) -> Event | None:
@@ -436,16 +592,45 @@ class FileEventJournal:
                 return event
         return None
 
-    def _merge_staging_after_crash(self, staging: Path, commit_sequence: int) -> None:
+    def _merge_staging_after_crash(
+        self, staging: Path, commit_sequence: int, *, verified_events: tuple[Event, ...]
+    ) -> None:
         """journal 已有该提交的事件时去重，否则补追加，最后写标记。"""
         journal_events = self._parse_journal()
         staged_events = self._read_staging(staging)
-        existing_sequences = {event.event_sequence for event in journal_events}
-        missing = [
-            event
-            for event in staged_events
-            if event.event_sequence not in existing_sequences
-        ]
+        if staged_events != verified_events:
+            raise EventMaintenanceRequired("staged events changed after authority verification")
+        existing: dict[int, Event] = {}
+        identities: set[str] = set()
+        last_sequence = 0
+        for event in journal_events:
+            if event.event_sequence != last_sequence + 1 or event.event_id in identities:
+                raise EventMaintenanceRequired("journal event identity or range cannot be verified")
+            existing[event.event_sequence] = event
+            identities.add(event.event_id)
+            last_sequence = event.event_sequence
+        missing: list[Event] = []
+        previous_staged = None
+        for event in staged_events:
+            if (
+                event.commit_sequence != commit_sequence
+                or previous_staged is not None
+                and event.event_sequence != previous_staged + 1
+            ):
+                raise EventMaintenanceRequired("staged boundary range cannot be verified")
+            previous_staged = event.event_sequence
+            saved = existing.get(event.event_sequence)
+            if saved is not None:
+                if saved != event:
+                    raise EventMaintenanceRequired(
+                        "same event sequence has different saved material"
+                    )
+                continue
+            if event.event_sequence != last_sequence + 1 or event.event_id in identities:
+                raise EventMaintenanceRequired("staged event cannot extend the saved range")
+            missing.append(event)
+            identities.add(event.event_id)
+            last_sequence = event.event_sequence
         if missing:
             with self._journal.open("ab") as handle:
                 for event in missing:
@@ -466,11 +651,14 @@ class FileEventJournal:
     # ----- 内部：边界标记与位置 ---------------------------------------
 
     def _load_boundary(self, commit_sequence: int) -> dict[str, object] | None:
+        from .commit_manifest import FileCommitStore
+
+        store = FileCommitStore(self._root)
         path = self._boundary_dir / f"{commit_sequence}.json"
+        store.reject_links(path)
         if not path.exists():
             return None
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        return dict(raw) if isinstance(raw, dict) else None
+        return store._decode(store._read_bytes(path, 64 * 1024))
 
     def _write_boundary(self, commit_sequence: int, payload: dict[str, object]) -> None:
         path = self._boundary_dir / f"{commit_sequence}.json"

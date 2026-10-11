@@ -1,0 +1,10 @@
+..........................F..........                                    [100%]
+================================== FAILURES ===================================
+_ test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[307] _
+tests\unit\test_http_transport_limits.py:197: in test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target
+    assert result.status == status
+E   AssertionError: assert None == 307
+E    +  where None = HttpExchangeResult(request_id='redirect', method='POST', url='http://127.0.0.1:58371/', status=None, headers=(), body=...tracted={}, assertion_results=(), request_log_ref='http-request:redirect', missing_extractions=(), body_complete=False).status
+=========================== short test summary info ===========================
+FAILED tests/unit/test_http_transport_limits.py::test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[307]
+1 failed, 36 passed in 1.62s

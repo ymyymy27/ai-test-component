@@ -1,0 +1,38 @@
+{
+  "phase": "authorization-origin-audit-before-1",
+  "status": "unfixed",
+  "scope": "Only directly relevant authorization modules; no complete suite claim.",
+  "failed": 1,
+  "seconds": 1.65,
+  "source_files": [
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "sha256": "633e24407ab9b1777e5fdc7e8a127d22b258e45107e4ee2de7f426c5c82654ef"
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "sha256": "bed26ed2b60c13cf912a03d5ce110415de6fe48f19cc52d71c12d452d8c75c53"
+    },
+    {
+      "path": "src/aitest/domain/execution/runs.py",
+      "sha256": "1e8d1bbd1a7622a944b3f3dc98a6b933fb363aec301f0fec5d29c088d4550699"
+    },
+    {
+      "path": "tests/unit/test_serial_runner.py",
+      "sha256": "fd39dcbd39d23e913b2ed0a5c7618603c8571cc5cf046a4740ece9a940373136"
+    }
+  ],
+  "logs": [
+    {
+      "path": "authorization-origin-probe-before.log",
+      "sha256": "40613d097f326c1ba8aa9dbcb794872867fdb95f4111243dc5412ff7138d4c20"
+    },
+    {
+      "path": "authorization-origin-probe-source.py.txt",
+      "sha256": "a259e1b6d25ff10525f7c59484b4e77cc0d060e5e0e395505d8624b7588d9aa0"
+    }
+  ],
+  "archive_sha256": "a34d239ee988fb11af0d5e563632b0a69cbe081056fbcf8ca9f9de547a89824c",
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22
+}

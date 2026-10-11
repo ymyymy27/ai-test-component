@@ -1,0 +1,22 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+________ test_relay_cannot_self_confirm_disabled_environment_isolation ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-672/test_relay_cannot_self_confirm0")
+
+    def test_relay_cannot_self_confirm_disabled_environment_isolation(tmp_path):
+        core=assemble_workspace_core(tmp_path/'workspace',instance_id='environment-confirmation-probe')
+        try:
+            project=LocalProject('project-env',core.workspace.workspace_id,'Environment probe','Local component probe','1')
+            assert dispatch(core,'save_context',project=project.project_id,parameters={'project':project_to_payload(project)}).error is None
+            environment=EnvironmentRef('env-no-isolation',1,'Python 3.13','declared dependencies',isolation_mode=IsolationMode.NONE,isolation_confirmed=True)
+            sequence=core.unit_of_work.current_commit_sequence()
+            response=dispatch(core,'save_environment',project=project.project_id,parameters={'environment':environment_to_payload(environment,project_id=project.project_id)},session=AGENT)
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='save_environment-request', instance_id='environment-confirma...=None, result={'aggregate_kind': 'environment', 'record_id': 'env-no-isolation', 'revision': 1}, page=None, error=None).error
+
+.git\p1-abc-fix-20261003\probe_environment_confirmation.py:14: AssertionError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_environment_confirmation.py::test_relay_cannot_self_confirm_disabled_environment_isolation
+1 failed in 27.31s

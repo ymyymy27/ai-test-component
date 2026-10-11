@@ -1,0 +1,827 @@
+{
+  "schema_version": "1",
+  "mode": "range",
+  "repository": "C:/Users/y'm'y/Desktop/ai-test-component",
+  "from": "335540b",
+  "to": "7dbc5a4",
+  "merge_base": "335540bd7f6a5937ff17e1addd93461f478b9ea8",
+  "total_files": 124,
+  "reviewable_count": 58,
+  "excluded_count": 66,
+  "total_insertions": 16814,
+  "total_deletions": 868,
+  "reviewable_files": [
+    {
+      "path": "src/aitest/application/evidence/evidence_review.py",
+      "status": "modified",
+      "insertions": 27,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/application/evidence/publication.py",
+      "status": "modified",
+      "insertions": 39,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "status": "added",
+      "insertions": 207,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/application/execution/control.py",
+      "status": "added",
+      "insertions": 260,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/application/execution/facts.py",
+      "status": "modified",
+      "insertions": 75,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/application/execution/recovery.py",
+      "status": "modified",
+      "insertions": 136,
+      "deletions": 47
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "status": "modified",
+      "insertions": 218,
+      "deletions": 17
+    },
+    {
+      "path": "src/aitest/application/execution/source_checks.py",
+      "status": "modified",
+      "insertions": 233,
+      "deletions": 2
+    },
+    {
+      "path": "src/aitest/application/planning/draft.py",
+      "status": "modified",
+      "insertions": 15,
+      "deletions": 2
+    },
+    {
+      "path": "src/aitest/application/planning/drift.py",
+      "status": "modified",
+      "insertions": 192,
+      "deletions": 15
+    },
+    {
+      "path": "src/aitest/application/planning/model_orchestration.py",
+      "status": "modified",
+      "insertions": 362,
+      "deletions": 14
+    },
+    {
+      "path": "src/aitest/application/planning/model_ports.py",
+      "status": "modified",
+      "insertions": 17,
+      "deletions": 10
+    },
+    {
+      "path": "src/aitest/application/planning/persistence.py",
+      "status": "modified",
+      "insertions": 60,
+      "deletions": 2
+    },
+    {
+      "path": "src/aitest/application/planning/publish.py",
+      "status": "modified",
+      "insertions": 47,
+      "deletions": 4
+    },
+    {
+      "path": "src/aitest/application/planning/rules_markdown.py",
+      "status": "added",
+      "insertions": 386,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/application/ports.py",
+      "status": "modified",
+      "insertions": 22,
+      "deletions": 1
+    },
+    {
+      "path": "src/aitest/application/project/context.py",
+      "status": "modified",
+      "insertions": 30,
+      "deletions": 9
+    },
+    {
+      "path": "src/aitest/application/project/persistence.py",
+      "status": "modified",
+      "insertions": 130,
+      "deletions": 5
+    },
+    {
+      "path": "src/aitest/application/project/serialization.py",
+      "status": "modified",
+      "insertions": 130,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "status": "modified",
+      "insertions": 171,
+      "deletions": 11
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "status": "modified",
+      "insertions": 168,
+      "deletions": 48
+    },
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "status": "modified",
+      "insertions": 64,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/contracts/redaction.py",
+      "status": "modified",
+      "insertions": 15,
+      "deletions": 5
+    },
+    {
+      "path": "src/aitest/domain/execution/runs.py",
+      "status": "modified",
+      "insertions": 10,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/domain/planning/runtime_revision.py",
+      "status": "modified",
+      "insertions": 44,
+      "deletions": 12
+    },
+    {
+      "path": "src/aitest/domain/project/context.py",
+      "status": "modified",
+      "insertions": 106,
+      "deletions": 5
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/agent.py",
+      "status": "modified",
+      "insertions": 116,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "status": "modified",
+      "insertions": 272,
+      "deletions": 16
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/external_result.py",
+      "status": "modified",
+      "insertions": 117,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/http.py",
+      "status": "modified",
+      "insertions": 214,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/manual_evidence.py",
+      "status": "modified",
+      "insertions": 93,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/python_checks.py",
+      "status": "modified",
+      "insertions": 455,
+      "deletions": 2
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/verification.py",
+      "status": "modified",
+      "insertions": 108,
+      "deletions": 1
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/model.py",
+      "status": "modified",
+      "insertions": 19,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+      "status": "modified",
+      "insertions": 17,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/capabilities.py",
+      "status": "added",
+      "insertions": 235,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/connections.py",
+      "status": "modified",
+      "insertions": 4,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/credentials.py",
+      "status": "modified",
+      "insertions": 5,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/backup.py",
+      "status": "modified",
+      "insertions": 32,
+      "deletions": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/checkpoints.py",
+      "status": "modified",
+      "insertions": 11,
+      "deletions": 3
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/events.py",
+      "status": "modified",
+      "insertions": 10,
+      "deletions": 1
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/execution_handles.py",
+      "status": "added",
+      "insertions": 110,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "status": "modified",
+      "insertions": 1240,
+      "deletions": 210
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/integrity.py",
+      "status": "modified",
+      "insertions": 100,
+      "deletions": 12
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/locking.py",
+      "status": "modified",
+      "insertions": 103,
+      "deletions": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/maintenance.py",
+      "status": "modified",
+      "insertions": 95,
+      "deletions": 14
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "status": "modified",
+      "insertions": 92,
+      "deletions": 12
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/objects.py",
+      "status": "modified",
+      "insertions": 17,
+      "deletions": 2
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "status": "modified",
+      "insertions": 199,
+      "deletions": 102
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/recovery.py",
+      "status": "modified",
+      "insertions": 65,
+      "deletions": 1
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/spool.py",
+      "status": "modified",
+      "insertions": 54,
+      "deletions": 4
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "status": "modified",
+      "insertions": 75,
+      "deletions": 2
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/workspace.py",
+      "status": "modified",
+      "insertions": 18,
+      "deletions": 1
+    },
+    {
+      "path": "src/aitest/infrastructure/security.py",
+      "status": "added",
+      "insertions": 326,
+      "deletions": 0
+    },
+    {
+      "path": "src/aitest/interfaces/local/api.py",
+      "status": "modified",
+      "insertions": 182,
+      "deletions": 23
+    },
+    {
+      "path": "src/aitest/interfaces/local/core_worker.py",
+      "status": "modified",
+      "insertions": 185,
+      "deletions": 60
+    },
+    {
+      "path": "src/aitest/interfaces/local/pipe.py",
+      "status": "modified",
+      "insertions": 89,
+      "deletions": 38
+    },
+    {
+      "path": "src/aitest/resources/panel/src/index.ts",
+      "status": "modified",
+      "insertions": 8,
+      "deletions": 3
+    }
+  ],
+  "excluded_files": [
+    {
+      "path": "docs/修改日志/LU/2026-10-03-A包A08A10复核报告与修改日志.md",
+      "status": "added",
+      "insertions": 95,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/LU/2026-10-03-A包一期缺陷收敛修复-第二轮.md",
+      "status": "added",
+      "insertions": 46,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/feix-a/2026-10-03-B包模型生成意图与落盘前过滤.md",
+      "status": "added",
+      "insertions": 133,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/feix-a/2026-10-03-B包源码内容身份与快照落盘.md",
+      "status": "added",
+      "insertions": 93,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/feix-a/2026-10-03-B包漂移核对链覆盖扩展.md",
+      "status": "added",
+      "insertions": 93,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/feix-a/2026-10-03-B包用例修订不变量B-11.md",
+      "status": "added",
+      "insertions": 101,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/feix-a/2026-10-03-B包规则Markdown导入导出.md",
+      "status": "added",
+      "insertions": 121,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/feix-a/2026-10-03-B包项目归属与修订守卫六项修复.md",
+      "status": "added",
+      "insertions": 267,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/修改日志/袁/2026-10-03-接口对接台账更新-B包追加与两项待裁定.md",
+      "status": "added",
+      "insertions": 68,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/README.md",
+      "status": "modified",
+      "insertions": 22,
+      "deletions": 4,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/已完成/BC-001-PreparedRun/contract.md",
+      "status": "modified",
+      "insertions": 138,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/待裁定/DEC-007-规则与计划记录的修订配对.md",
+      "status": "added",
+      "insertions": 108,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/待裁定/DEC-008-验收范围标识是否冻结进PreparedRun.md",
+      "status": "added",
+      "insertions": 100,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/待裁定/DEC-009-源码快照的修订语义.md",
+      "status": "added",
+      "insertions": 109,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/待裁定/README.md",
+      "status": "modified",
+      "insertions": 11,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+      "status": "modified",
+      "insertions": 283,
+      "deletions": 11,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+      "status": "modified",
+      "insertions": 37,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+      "status": "modified",
+      "insertions": 62,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/文档-feix-a/B包/02-B包施工检查项清单.md",
+      "status": "modified",
+      "insertions": 622,
+      "deletions": 9,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "docs/文档-feix-a/B包/09-待解决问题清单.md",
+      "status": "modified",
+      "insertions": 141,
+      "deletions": 2,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/conftest.py",
+      "status": "added",
+      "insertions": 17,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/contracts/test_b_use_case_registration.py",
+      "status": "modified",
+      "insertions": 25,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/contracts/test_draft_and_rule_publication_entrypoint.py",
+      "status": "modified",
+      "insertions": 54,
+      "deletions": 4,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/contracts/test_rule_import_export_entrypoint.py",
+      "status": "modified",
+      "insertions": 165,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/recovery/test_execution_recovery.py",
+      "status": "modified",
+      "insertions": 183,
+      "deletions": 6,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/recovery/test_spool_store.py",
+      "status": "modified",
+      "insertions": 34,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a02_core_dispatch.py",
+      "status": "modified",
+      "insertions": 20,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a02_lifetime_writer.py",
+      "status": "added",
+      "insertions": 210,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a05_bound_cursor.py",
+      "status": "modified",
+      "insertions": 465,
+      "deletions": 16,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a06_inline_digest_and_snapshots.py",
+      "status": "added",
+      "insertions": 146,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a06_reference_closure.py",
+      "status": "modified",
+      "insertions": 4,
+      "deletions": 4,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a07_reclaim_eligibility.py",
+      "status": "modified",
+      "insertions": 58,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a08_load_source_probe.py",
+      "status": "added",
+      "insertions": 277,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a08_snapshot_durability.py",
+      "status": "modified",
+      "insertions": 8,
+      "deletions": 2,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a09_prefilter_persistence.py",
+      "status": "added",
+      "insertions": 398,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a10_capability_gate.py",
+      "status": "added",
+      "insertions": 366,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a11_ownership.py",
+      "status": "added",
+      "insertions": 123,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a12_uow_uncertain.py",
+      "status": "added",
+      "insertions": 156,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a13_redirect_auth.py",
+      "status": "added",
+      "insertions": 124,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a14_transaction_identity.py",
+      "status": "added",
+      "insertions": 191,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a15_snapshot_identity.py",
+      "status": "added",
+      "insertions": 82,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a16_migration_rollback.py",
+      "status": "added",
+      "insertions": 116,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a17_event_identity.py",
+      "status": "added",
+      "insertions": 74,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_a18_pipe_sid.py",
+      "status": "added",
+      "insertions": 78,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_pipe_peer_rejection.py",
+      "status": "modified",
+      "insertions": 9,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_source_snapshot.py",
+      "status": "modified",
+      "insertions": 4,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_transactions_and_queries.py",
+      "status": "modified",
+      "insertions": 2,
+      "deletions": 2,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_a_verification.py",
+      "status": "modified",
+      "insertions": 79,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_command_adapter.py",
+      "status": "modified",
+      "insertions": 82,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_command_handle_reattach.py",
+      "status": "added",
+      "insertions": 74,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_execution_adapters.py",
+      "status": "added",
+      "insertions": 337,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_execution_commit.py",
+      "status": "added",
+      "insertions": 116,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_execution_control.py",
+      "status": "added",
+      "insertions": 158,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_frozen_basis_drift.py",
+      "status": "modified",
+      "insertions": 149,
+      "deletions": 14,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_model_orchestration.py",
+      "status": "modified",
+      "insertions": 292,
+      "deletions": 16,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_planning_persistence_real_store.py",
+      "status": "modified",
+      "insertions": 79,
+      "deletions": 2,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_project_context_usecases.py",
+      "status": "modified",
+      "insertions": 84,
+      "deletions": 3,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_publish_orchestration.py",
+      "status": "modified",
+      "insertions": 54,
+      "deletions": 1,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_rules_markdown.py",
+      "status": "added",
+      "insertions": 242,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_runtime_revision.py",
+      "status": "modified",
+      "insertions": 148,
+      "deletions": 2,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_serial_execution_loop.py",
+      "status": "modified",
+      "insertions": 40,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_serial_runner.py",
+      "status": "modified",
+      "insertions": 209,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_source_checks.py",
+      "status": "added",
+      "insertions": 96,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_source_identity.py",
+      "status": "added",
+      "insertions": 205,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_source_snapshot_persistence.py",
+      "status": "added",
+      "insertions": 370,
+      "deletions": 0,
+      "exclude_reason": "user_exclude"
+    },
+    {
+      "path": "tests/unit/test_task_and_delivery_persistence.py",
+      "status": "modified",
+      "insertions": 131,
+      "deletions": 4,
+      "exclude_reason": "user_exclude"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+FFF.FF                                                                   [100%]
+================================== FAILURES ===================================
+_________ test_matching_snapshot_label_without_manifest_is_unverified _________
+
+    def test_matching_snapshot_label_without_manifest_is_unverified():
+        scenario = build_scenario("git")
+        frozen = scenario.prepared_run.snapshot
+        with transaction(scenario.unit_of_work, scenario.prepared_run.project_id) as tx:
+            tx.stage_record(
+                aggregate_kind="source_snapshot",
+                record_id=frozen.source_snapshot_id,
+                expected_revision=None,
+                payload={
+                    "project_id": scenario.prepared_run.project_id,
+                    "content_identity": frozen.content_identity,
+                },
+            )
+            tx.commit()
+>       assert not check(scenario.prepared_run, scenario.reader, "source_snapshot").readable
+E       AssertionError: assert not True
+E        +  where True = BasisCheck(source_kind='source_snapshot', record_id='snapshot-ticket-1', revision=1, readable=True, detail='').readable
+E        +    where BasisCheck(source_kind='source_snapshot', record_id='snapshot-ticket-1', revision=1, readable=True, detail='') = check(PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1accaf884dacfd962726b72f1451d82c10241a...odel_outbound_policy_revision=None, source_snippets_enabled=False, invalidation_rules=(), blocking_reasons=(), gaps=()), <tests.support.memory_substrate.MemoryReader object at 0x00000234A9D29400>, 'source_snapshot')
+E        +      where PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1accaf884dacfd962726b72f1451d82c10241a...odel_outbound_policy_revision=None, source_snippets_enabled=False, invalidation_rules=(), blocking_reasons=(), gaps=()) = Scenario(name='git', prepared_run=PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1acc...atus'), selected_case_ids=('case-create-ticket', 'case-change-status'), skipped_scope=(), applicability_exclusions=())).prepared_run
+E        +      and   <tests.support.memory_substrate.MemoryReader object at 0x00000234A9D29400> = Scenario(name='git', prepared_run=PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1acc...atus'), selected_case_ids=('case-create-ticket', 'case-change-status'), skipped_scope=(), applicability_exclusions=())).reader
+
+tests\unit\test_frozen_basis_content.py:34: AssertionError
+___ test_exact_repository_revision_with_different_plan_bytes_is_unverified ____
+
+    def test_exact_repository_revision_with_different_plan_bytes_is_unverified():
+        scenario = build_scenario("git")
+        prepared = scenario.prepared_run
+        ref = prepared.plan_revision
+        saved = scenario.reader.read(
+            aggregate_kind="plan", record_id=ref.revision_id, revision=ref.revision_no
+        )
+        original_digest = payload_digest(saved.payload)
+        with transaction(scenario.unit_of_work, prepared.project_id) as tx:
+            tx.stage_record(
+                aggregate_kind="plan",
+                record_id=ref.revision_id,
+                expected_revision=saved.revision,
+                payload={**saved.payload, "scope_id": "another-scope"},
+            )
+            tx.commit()
+        altered_ref = PlanRevisionRef(
+            revision_id=ref.revision_id, revision_no=saved.revision + 1, digest=original_digest
+        )
+        prepared = prepared.model_copy(update={"plan_revision": altered_ref})
+>       assert not check(prepared, scenario.reader, "plan").readable
+E       AssertionError: assert not True
+E        +  where True = BasisCheck(source_kind='plan', record_id='plan-ticket', revision=2, readable=True, detail='').readable
+E        +    where BasisCheck(source_kind='plan', record_id='plan-ticket', revision=2, readable=True, detail='') = check(PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1accaf884dacfd962726b72f1451d82c10241a...odel_outbound_policy_revision=None, source_snippets_enabled=False, invalidation_rules=(), blocking_reasons=(), gaps=()), <tests.support.memory_substrate.MemoryReader object at 0x00000234A9C774D0>, 'plan')
+E        +      where <tests.support.memory_substrate.MemoryReader object at 0x00000234A9C774D0> = Scenario(name='git', prepared_run=PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1acc...atus'), selected_case_ids=('case-create-ticket', 'case-change-status'), skipped_scope=(), applicability_exclusions=())).reader
+
+tests\unit\test_frozen_basis_content.py:57: AssertionError
+_______ test_installed_template_identity_requires_exact_content_digest ________
+
+    def test_installed_template_identity_requires_exact_content_digest():
+        scenario = build_scenario("git")
+        frozen = TemplateVersionRef(
+            template_id="python-library", version="1.0.0", digest="sha256:" + "0" * 64
+        )
+        prepared = scenario.prepared_run.model_copy(update={"template_versions": (frozen,)})
+>       assert not check(prepared, scenario.reader, "template_versions").readable
+E       AssertionError: assert not True
+E        +  where True = BasisCheck(source_kind='template_versions', record_id='template:python-library@1.0.0', revision=0, readable=True, detail='').readable
+E        +    where BasisCheck(source_kind='template_versions', record_id='template:python-library@1.0.0', revision=0, readable=True, detail='') = check(PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1accaf884dacfd962726b72f1451d82c10241a...odel_outbound_policy_revision=None, source_snippets_enabled=False, invalidation_rules=(), blocking_reasons=(), gaps=()), <tests.support.memory_substrate.MemoryReader object at 0x00000234A9C77D90>, 'template_versions')
+E        +      where <tests.support.memory_substrate.MemoryReader object at 0x00000234A9C77D90> = Scenario(name='git', prepared_run=PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1acc...atus'), selected_case_ids=('case-create-ticket', 'case-change-status'), skipped_scope=(), applicability_exclusions=())).reader
+
+tests\unit\test_frozen_basis_content.py:66: AssertionError
+___________ test_readable_case_without_frozen_content_is_unverified ___________
+
+    def test_readable_case_without_frozen_content_is_unverified():
+        scenario = build_scenario("git")
+        prepared = scenario.prepared_run
+        ref = prepared.case_revisions[0]
+        with transaction(scenario.unit_of_work, prepared.project_id) as tx:
+            tx.stage_record(
+                aggregate_kind="case",
+                record_id=ref.case_id,
+                expected_revision=None,
+                payload={
+                    "project_id": prepared.project_id,
+                    "case_id": ref.case_id,
+                    "revision": 1,
+                    "objective": "different content",
+                },
+            )
+            tx.commit()
+>       assert not check(prepared, scenario.reader, "case_revisions").readable
+E       AssertionError: assert not True
+E        +  where True = BasisCheck(source_kind='case_revisions', record_id='case-create-ticket', revision=1, readable=True, detail='').readable
+E        +    where BasisCheck(source_kind='case_revisions', record_id='case-create-ticket', revision=1, readable=True, detail='') = check(PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1accaf884dacfd962726b72f1451d82c10241a...odel_outbound_policy_revision=None, source_snippets_enabled=False, invalidation_rules=(), blocking_reasons=(), gaps=()), <tests.support.memory_substrate.MemoryReader object at 0x00000234A9D93A80>, 'case_revisions')
+E        +      where <tests.support.memory_substrate.MemoryReader object at 0x00000234A9D93A80> = Scenario(name='git', prepared_run=PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1acc...atus'), selected_case_ids=('case-create-ticket', 'case-change-status'), skipped_scope=(), applicability_exclusions=())).reader
+
+tests\unit\test_frozen_basis_content.py:93: AssertionError
+___________ test_readable_rule_without_frozen_content_is_unverified ___________
+
+    def test_readable_rule_without_frozen_content_is_unverified():
+        scenario = build_scenario("git")
+        prepared = scenario.prepared_run
+        ref = prepared.rule_versions[0]
+        with transaction(scenario.unit_of_work, prepared.project_id) as tx:
+            tx.stage_record(
+                aggregate_kind="rule_version",
+                record_id=ref.rule_id,
+                expected_revision=None,
+                payload={
+                    "project_id": prepared.project_id,
+                    "rule_id": ref.rule_id,
+                    "status": "published",
+                },
+            )
+            tx.commit()
+>       assert not check(prepared, scenario.reader, "rule_versions").readable
+E       AssertionError: assert not True
+E        +  where True = BasisCheck(source_kind='rule_versions', record_id='rule-ticket', revision=1, readable=True, detail='').readable
+E        +    where BasisCheck(source_kind='rule_versions', record_id='rule-ticket', revision=1, readable=True, detail='') = check(PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1accaf884dacfd962726b72f1451d82c10241a...odel_outbound_policy_revision=None, source_snippets_enabled=False, invalidation_rules=(), blocking_reasons=(), gaps=()), <tests.support.memory_substrate.MemoryReader object at 0x00000234A9DBA7B0>, 'rule_versions')
+E        +      where <tests.support.memory_substrate.MemoryReader object at 0x00000234A9DBA7B0> = Scenario(name='git', prepared_run=PreparedRun(schema_version='aitest.prepared-run/1.0', prepared_run_id='prepared-1acc...atus'), selected_case_ids=('case-create-ticket', 'case-change-status'), skipped_scope=(), applicability_exclusions=())).reader
+
+tests\unit\test_frozen_basis_content.py:112: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_frozen_basis_content.py::test_matching_snapshot_label_without_manifest_is_unverified
+FAILED tests/unit/test_frozen_basis_content.py::test_exact_repository_revision_with_different_plan_bytes_is_unverified
+FAILED tests/unit/test_frozen_basis_content.py::test_installed_template_identity_requires_exact_content_digest
+FAILED tests/unit/test_frozen_basis_content.py::test_readable_case_without_frozen_content_is_unverified
+FAILED tests/unit/test_frozen_basis_content.py::test_readable_rule_without_frozen_content_is_unverified
+5 failed, 1 passed in 0.30s

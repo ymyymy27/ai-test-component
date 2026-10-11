@@ -1,0 +1,4 @@
+warning: in the working copy of 'src/aitest/application/controlled_write.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/planning/basis_validation.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_authoritative_preparation.py', LF will be replaced by CRLF the next time Git touches it
+16 same-symbol current source anchors updated

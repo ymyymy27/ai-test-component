@@ -1,0 +1,5 @@
+Baseline d56ddb7: old source validator accepted all 8 damaged query sources.
+observation, query_scope, evidence_origin, evidence_code, missing_query,
+missing_admission, missing_evidence_ref, missing_inline_evidence.
+Corrected component fixture isolates actual saved query objects; synthetic command output omitted.
+8 failed, 1 passed in 9.41s. Final 13 source boundaries pass; no new query or commit.

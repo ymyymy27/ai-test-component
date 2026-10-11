@@ -1,0 +1,33 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_________ test_same_revocation_intent_cannot_revoke_another_challenge _________
+
+approvals = (<aitest.application.approval_service.ApprovalService object at 0x000001AEE82E8AD0>, <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x000001AEE7E43CB0>, <tests.unit.test_approval_service.Actors object at 0x000001AEE80406E0>)
+
+    def test_same_revocation_intent_cannot_revoke_another_challenge(approvals):
+        service, unit, _ = approvals
+        first = prepare(service)
+        second = service.prepare(
+            project_id="project",
+            action_intent_id="business2",
+            preparation_intent_id="prepare2",
+            request_id="request2",
+            action="confirm_basis",
+            target="case",
+            parameters={"basis": "original"},
+        )
+        service.revoke(
+            project_id="project",
+            challenge_id=first.challenge_id,
+            request_id="first-revocation-request",
+            intent_id="same-revocation",
+        )
+        sequence = unit.sequence
+>       with pytest.raises(ApprovalConflict):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ApprovalConflict
+
+tests\unit\test_approval_revocation_intent.py:29: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_approval_revocation_intent.py::test_same_revocation_intent_cannot_revoke_another_challenge
+1 failed in 0.27s

@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "retained_risk_nodes": 183,
+  "changed_product_methods": [
+    "RegisteredPythonEnvironmentResolver._configuration"
+  ],
+  "required_current_runs": [
+    "all native gates",
+    "four home probes",
+    "actual core probe",
+    "two architecture nodes",
+    "corrected restart/source node"
+  ],
+  "limitation": "Retained nodes belong to the archived pre-home group; not a fresh 184-node run."
+}

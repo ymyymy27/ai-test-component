@@ -1,0 +1,28 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short .git\p1-abc-fix-20261003\invalidated_capture_counter.py
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+________ test_collection_does_not_revive_invalidated_history[natural] _________
+.git\p1-abc-fix-20261003\invalidated_capture_counter.py:18: in test_collection_does_not_revive_invalidated_history
+    assert result.state is AttemptState.INVALIDATED
+E   AssertionError: assert <AttemptState.COMPLETED: 'completed'> is <AttemptState.INVALIDATED: 'invalidated'>
+E    +  where <AttemptState.COMPLETED: 'completed'> = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...ompleteness.COMPLETE: 'complete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).state
+E    +  and   <AttemptState.INVALIDATED: 'invalidated'> = AttemptState.INVALIDATED
+________ test_collection_does_not_revive_invalidated_history[stopped] _________
+.git\p1-abc-fix-20261003\invalidated_capture_counter.py:18: in test_collection_does_not_revive_invalidated_history
+    assert result.state is AttemptState.INVALIDATED
+E   AssertionError: assert <AttemptState.CANCELLED: 'cancelled'> is <AttemptState.INVALIDATED: 'invalidated'>
+E    +  where <AttemptState.CANCELLED: 'cancelled'> = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...ompleteness.COMPLETE: 'complete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).state
+E    +  and   <AttemptState.INVALIDATED: 'invalidated'> = AttemptState.INVALIDATED
+______ test_collection_does_not_revive_invalidated_history[reader_error] ______
+.git\p1-abc-fix-20261003\invalidated_capture_counter.py:18: in test_collection_does_not_revive_invalidated_history
+    assert result.state is AttemptState.INVALIDATED
+E   AssertionError: assert <AttemptState.EXECUTION_ERROR: 'execution_error'> is <AttemptState.INVALIDATED: 'invalidated'>
+E    +  where <AttemptState.EXECUTION_ERROR: 'execution_error'> = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...pleteness.GAP: 'gap'>, error_ref='reader_failure', unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).state
+E    +  and   <AttemptState.INVALIDATED: 'invalidated'> = AttemptState.INVALIDATED
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/invalidated_capture_counter.py::test_collection_does_not_revive_invalidated_history[natural]
+FAILED .git/p1-abc-fix-20261003/invalidated_capture_counter.py::test_collection_does_not_revive_invalidated_history[stopped]
+FAILED .git/p1-abc-fix-20261003/invalidated_capture_counter.py::test_collection_does_not_revive_invalidated_history[reader_error]
+3 failed in 0.45s
+
+EXIT: 1

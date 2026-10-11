@@ -1,0 +1,5 @@
+{
+  "tests": [{"command": ".venv/Scripts/python.exe -m pytest -o addopts='' tests/unit/test_runtime_revision_invalidation.py -q", "failed": 1, "passed": 0, "seconds": 48.64}],
+  "meaning": "Controlled checkpoint fixture incorrectly assigned positional Steps to a proposed Case. The guard correctly found no unexecuted Step in the proposed Case. This is a fixture error, not evidence of a product defect; the subsequent fixture selects Steps by case_id.",
+  "real_ac_verified": 0
+}

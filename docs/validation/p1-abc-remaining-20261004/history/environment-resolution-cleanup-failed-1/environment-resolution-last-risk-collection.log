@@ -1,0 +1,10 @@
+tests/architecture/test_boundaries.py::test_dependency_direction
+tests/architecture/test_boundaries.py::test_forbidden_legacy_and_later_phase_modules_absent
+tests/unit/test_initial_run_registration.py::test_initial_run_recall_survives_restart_and_active_source_change
+.git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_venv_home_must_be_registered_before_probe[False]
+.git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_venv_home_must_be_registered_before_probe[True]
+.git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_non_venv_registration_cannot_ignore_active_venv_configuration[none]
+.git/p1-abc-fix-20261003/probe_environment_home_origin.py::test_non_venv_registration_cannot_ignore_active_venv_configuration[unmanaged]
+.git/p1-abc-fix-20261003/probe_environment_actual_core.py::test_actual_local_environment_is_frozen_and_changed_bytes_block_new_admission
+
+8 tests collected in 0.67s

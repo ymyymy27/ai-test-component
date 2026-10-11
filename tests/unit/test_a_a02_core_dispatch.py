@@ -178,12 +178,13 @@ def test_second_lifetime_admission_for_same_root_is_rejected(
 
 
 def test_assembly_blocked_on_integrity_failure(tmp_path: Path) -> None:
-    # 先建立合法工作空间身份，再放入不可解析的 JSON 制造完整性失败。
+    # 损坏当前权威指针，不能用已退出读取路径的legacy副本制造假反例。
     seeded = assemble_workspace_core(tmp_path, instance_id="core-seed")
     seeded.lifetime_lock.release()
-    (tmp_path / "records.json").write_text("{not-json", encoding="utf-8")
+    (tmp_path / "current.json").write_text("{not-json", encoding="utf-8")
     with pytest.raises(CoreAssemblyBlocked):
         assemble_workspace_core(tmp_path, instance_id="core-blocked")
+    assert (tmp_path / "current.json").read_text(encoding="utf-8") == "{not-json"
 
 
 # ------------------------------------------------------------ 帧派发
@@ -271,7 +272,7 @@ def test_serve_connection_dispatches_multiple_frames_and_acks_shutdown(
             shutdown_frame(),
         ]
     )
-    result = serve_connection(server, api, connection_no=1)
+    result = serve_connection(server, api, connection_no=1, shutdown_blocker=lambda: None)
     assert result == "shutdown"
     assert len(server.written) == 3
     ack = Response.model_validate_json(server.written[2])
@@ -457,7 +458,9 @@ def test_worker_startup_recovers_stale_core_leavings(tmp_path: Path) -> None:
             {
                 "request_id": "req-crashed",
                 "project_id": "project-a02",
+                "intent_id": None,
                 "commit_sequence": 1,
+                "state": "in_progress",
             }
         ),
         encoding="utf-8",

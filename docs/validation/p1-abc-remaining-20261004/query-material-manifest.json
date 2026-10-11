@@ -1,0 +1,36 @@
+{
+  "base_commit": "0a474ddee8903b486bbd5da02c94acca887dee33",
+  "branch": "fix",
+  "remaining_total": 21,
+  "real_ac_verified": 0,
+  "results": {
+    "main_passed": 413,
+    "latest_boundary_passed": 39,
+    "overlap": 38,
+    "unique": 414,
+    "wide_consumers": "interrupted; not counted"
+  },
+  "source_sha256": {
+    "src/aitest/infrastructure/file_store/index.py": "22a4faee851fbb84cc557a5e99c10d967ce504b289c7f80206d2042dafdbc9d1",
+    "src/aitest/infrastructure/file_store/records.py": "201b595f30b75694c7539f4dfcab8dae32b3e127294c529db6653809df7d1e2d"
+  },
+  "source_symbols": {
+    "src/aitest/infrastructure/file_store/index.py": {
+      "_ShardDirectory._read_shard": 398,
+      "FileQueryIndex._validate_rows": 912,
+      "FileQueryIndex._validate_query_entry": 952,
+      "FileQueryIndex.query_spec": 1248
+    },
+    "src/aitest/infrastructure/file_store/records.py": {
+      "FileRecordRepository.query": 323
+    }
+  },
+  "test_sha256": "8737688a722b9a1485632849bd1b149a38dfa274e5749aeabcb2ca29f07bedf0",
+  "unverified": [
+    "full Python suite after this change",
+    "VSIX rebuild",
+    "real Trae/DeepSeek/physical power loss",
+    "production resolver registrations and background continuation"
+  ],
+  "wheel_sha256": "cc2779f30d2b652a031f2a3524b8e5042b176907c67a63c3328adc3ab8043ce9"
+}

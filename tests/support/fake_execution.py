@@ -143,7 +143,7 @@ class FakeExecutionPort:
             for stream_name, last in sorted(last_by_stream.items(), key=lambda item: item[0].value)
         )
         saved_bytes_by_stream = tuple(
-            (stream_name, last.length)
+            (stream_name, last.offset + last.length)
             for stream_name, last in sorted(last_by_stream.items(), key=lambda item: item[0].value)
         )
         exit_fact = ExitFact(

@@ -27,13 +27,15 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
+from aitest.application.planning.model_orchestration import policy_record_id
 from aitest.application.planning.model_ports import CredentialStatus
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
 )
+from aitest.application.project.serialization import project_to_payload
 from aitest.application.usecase_registry import (
     OWNED_ACTIONS,
     BUseCaseDependencies,
@@ -54,9 +56,11 @@ from aitest.domain.planning.plans import (
     RunDriver,
     RunTier,
 )
+from aitest.domain.project.context import LocalProject
 from aitest.infrastructure.capabilities import CapabilityState
 from aitest.infrastructure.credential_resolver import PurposeBoundCredentialResolver
 from aitest.infrastructure.file_store.index import FileQueryIndex
+from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from aitest.interfaces.local.b_registration import register_b_use_cases
@@ -102,9 +106,9 @@ def workspace_root() -> Iterator[Path]:
 def _deps(
     root: Path,
     *,
-    projector: MemoryProjector | None = None,
-    caller: MemoryModelCaller | None = None,
-    credentials: MemoryCredentialResolver | None = None,
+    material_projector: MemoryProjector | None = None,
+    model_provider: MemoryModelCaller | None = None,
+    model_credentials: MemoryCredentialResolver | None = None,
 ) -> BUseCaseDependencies:
     raw = FileUnitOfWork(root)
     # 新工作空间尚无查询索引；按既有合同测试约定先建空索引
@@ -114,10 +118,62 @@ def _deps(
         unit_of_work=PortsUnitOfWork(raw, repository=raw.repo),
         reader=PortsRecordReader(raw.repo),
         clock=_FixedClock(),
-        projector=projector,
-        caller=caller,
-        credentials=credentials,
+        material_projector=material_projector,
+        model_provider=model_provider,
+        model_credentials=model_credentials,
+        # fix 的 `handle_model_draft` 还要求模型响应存储；缺它会如实返回
+        # `blocked/model_not_configured`，而不是把未配置当成可用。
+        model_responses=FileModelResponseStore(root, writer_epoch=1),
     )
+
+
+def _save_project_and_policy(root: Path) -> None:
+    """落一条已保存的项目与出站策略。
+
+    fix 的 `request_model_draft` 按 `project_revision` / `policy_revision` 从仓储读这两条
+    记录（并经 `load_project` 校验归属）；develop 版把策略内联在载荷里，因此测试必须先落盘。
+
+    写入走文件底座自己的 `begin` / `stage_record` / `commit`（它负责取工作空间排他写锁），
+    不走应用层的 `transaction()` 上下文——后者与底座在同一进程里的锁语义冲突。
+    """
+
+    raw = FileUnitOfWork(root)
+    raw.begin("setup-project", PROJECT_ID)
+    raw.stage_record(
+        aggregate_kind="project",
+        record_id=PROJECT_ID,
+        expected_revision=None,
+        payload=project_to_payload(
+            LocalProject(
+                local_project_id=PROJECT_ID,
+                workspace_id=WORKSPACE_ID,
+                name="example-project",
+                goal="exercise the model draft outbound path",
+                created_at_commit=raw.commit_seq(),
+            )
+        ),
+    )
+    raw.commit("setup-project")
+
+    policy = ModelOutboundPolicy(
+        project_id=PROJECT_ID,
+        revision=1,
+        endpoint=ModelEndpoint(
+            provider="stub",
+            address="https://model.example.com:443",
+            model_id="stub-model",
+            purpose="model",
+        ),
+        allowed_material_kinds=frozenset({MaterialKind.PROJECT_CONTEXT}),
+    )
+    raw.begin("setup-policy", PROJECT_ID)
+    raw.stage_record(
+        aggregate_kind="model_outbound_policy",
+        record_id=policy_record_id(PROJECT_ID),
+        expected_revision=0,
+        payload=TypeAdapter(ModelOutboundPolicy).dump_python(policy, mode="json"),
+    )
+    raw.commit("setup-policy")
 
 
 def _session() -> Session:
@@ -275,19 +331,32 @@ def _policy_payload() -> dict[str, object]:
     }
 
 
-def test_request_model_draft_succeeds_with_injected_ports(
+def test_request_model_draft_is_reachable_and_reports_an_unverifiable_basis(
     workspace_root: Path,
 ) -> None:
-    """三端口齐备时出站成功：意图+结果+草稿落盘，返回草稿元数据。"""
+    """动作级接线：`request_model_draft` 可达，且把不可核验的出站依据**如实**报成结构化 blocked。
+
+    口径说明（2026-10-11 合并裁定）：
+    - **成功路径**已由 fix 的服务级用例覆盖，且需要完整的 prepared 链（源码快照 + 来源分析
+      服务 + 受控策略确认），见 `tests/unit/test_model_orchestration.py` 的
+      `test_successful_request_produces_a_draft` 与
+      `test_successful_request_records_what_was_actually_sent`
+      （断言 `OUTBOUND_DRAFT_READY`、`blocked_by == ()`、内容为 draft、以及实际发送材料）。
+    - 本用例只覆盖**动作级接线**：项目与策略已保存、三个模型端口齐备时动作可达；此时若
+      出站依据仍不可核验（缺源码快照与来源分析），必须落 `blocked/model_basis_unverified`，
+      **不得**变成 INTERNAL_ERROR，也不得伪装成成功。
+    """
+
     caller = MemoryModelCaller(draft_text="draft: proposed checks")
+    _save_project_and_policy(workspace_root)
     api = LocalAPI(instance_id="core-ab001", workspace_id=WORKSPACE_ID, handlers={})
     register_b_use_cases(
         api,
         _deps(
             workspace_root,
-            projector=MemoryProjector(),
-            caller=caller,
-            credentials=MemoryCredentialResolver(available_purposes=("model",)),
+            material_projector=MemoryProjector(),
+            model_provider=caller,
+            model_credentials=MemoryCredentialResolver(available_purposes=("model",)),
         ),
     )
     response = api.dispatch(
@@ -297,6 +366,8 @@ def test_request_model_draft_succeeds_with_injected_ports(
                 "policy": _policy_payload(),
                 "task_type": "context_summary",
                 "selected_material": {"project_context": "订单项目的上下文材料"},
+                "project_revision": 1,
+                "policy_revision": 1,
                 "source_revision": 1,
                 "base_manual_revision": 1,
                 "generation_request_id": "gen-1",
@@ -304,14 +375,14 @@ def test_request_model_draft_succeeds_with_injected_ports(
         ),
         _session(),
     )
-    assert response.error is None
+    assert response.error is None, response.error
     assert response.result is not None
-    assert response.result["status"] == "draft_ready"
-    assert response.result["request_id"] == f"outbound:{PROJECT_ID}:gen-1"
-    content = response.result["content"]
-    assert isinstance(content, dict)
-    assert content["status"] == "draft"
-    assert len(caller.calls) == 1
+    assert response.result["blocked"] is True
+    assert response.result["status"] == "blocked"
+    assert response.result["blocked_by"] == ["model_basis_unverified"]
+    # 依据未核验就不得出站：没有内容、也没有调用模型。
+    assert response.result.get("content") is None
+    assert caller.calls == []
 
 
 def test_request_model_draft_without_ports_is_structured_error(
@@ -333,8 +404,13 @@ def test_request_model_draft_without_ports_is_structured_error(
         ),
         _session(),
     )
-    assert response.error is not None
-    assert response.error.code == "B_DEPENDENCY_NOT_CONFIGURED"
+    assert response.error is None, response.error
+    assert response.result is not None
+    # fix 的既有约定：依赖未配齐返回**结构化 blocked**（带 `blocked_by` 编码），
+    # 而不是 error，也不升级成 INTERNAL_ERROR——比 develop 版更贴合「如实显示不可用」。
+    assert response.result["blocked"] is True
+    assert response.result["status"] == "blocked"
+    assert "model_not_configured" in response.result["blocked_by"]
 
 
 def test_request_model_draft_rejects_unknown_material_kind(
@@ -345,9 +421,9 @@ def test_request_model_draft_rejects_unknown_material_kind(
         api,
         _deps(
             workspace_root,
-            projector=MemoryProjector(),
-            caller=MemoryModelCaller(),
-            credentials=MemoryCredentialResolver(),
+            material_projector=MemoryProjector(),
+            model_provider=MemoryModelCaller(),
+            model_credentials=MemoryCredentialResolver(),
         ),
     )
     policy = _policy_payload()

@@ -1,0 +1,45 @@
+.....................................                                    [100%]
+=================================== PASSES ====================================
+_________________ test_main_rejects_non_windows_and_bad_args __________________
+---------------------------- Captured stderr call -----------------------------
+�����ܵ��� Windows
+max-clients ����Ϊ��
+=========================== short test summary info ===========================
+PASSED tests/unit/test_approval_session_close.py::test_default_channel_close_revokes_pending_challenge_and_is_repeatable
+PASSED tests/unit/test_approval_session_close.py::test_failed_close_does_not_claim_revocation_or_discard_its_retry
+PASSED tests/unit/test_approval_session_close.py::test_close_cannot_roll_back_another_sessions_transaction
+PASSED tests/unit/test_default_basis_confirmation.py::test_default_confirmation_freezes_exact_basis_and_preserves_plan_and_case
+PASSED tests/unit/test_default_basis_confirmation.py::test_original_confirmation_recalled_after_restart_and_changed_input_conflicts
+PASSED tests/unit/test_default_basis_confirmation.py::test_agent_cannot_self_confirm_and_mismatched_basis_does_not_consume_intent
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_basis_confirmation_requires_a_core_challenge_and_user_interaction
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_challenge_does_not_replace_its_actual_bound_user_event[no_event]
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_challenge_does_not_replace_its_actual_bound_user_event[input_digest]
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_challenge_does_not_replace_its_actual_bound_user_event[session]
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_challenge_does_not_replace_its_actual_bound_user_event[input]
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_challenge_does_not_replace_its_actual_bound_user_event[relay]
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_confirmation_effect_failure_keeps_challenge_and_original_intent_retryable
+PASSED tests/unit/test_approval_origin_boundary.py::test_relay_cannot_read_preparation_cached_by_same_named_human_session
+PASSED tests/unit/test_approval_origin_boundary.py::test_default_prepare_does_not_accept_a_legacy_role_only_confirmation
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_assembly_auto_wires_b_use_cases
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_assembled_doctor_advertises_b_actions
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_assembled_b_query_routes_through_narrow_adapter
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_extra_handlers_overlay_and_conflict_rejection
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_second_lifetime_admission_for_same_root_is_rejected
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_assembly_blocked_on_integrity_failure
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_dispatch_frame_routes_valid_command
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_dispatch_frame_rejects_malformed_and_non_object
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_dispatch_frame_rejects_invalid_command
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_dispatch_frame_handles_shutdown_and_unknown_control
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_serve_connection_dispatches_multiple_frames_and_acks_shutdown
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_serve_connection_returns_disconnected_when_peer_gone
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_serve_connection_survives_write_failure
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_watch_parent_detects_gone_parent_and_stop_event
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_main_rejects_non_windows_and_bad_args
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_worker_dispatches_commands_over_real_pipe
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_worker_is_long_lived_unique_core_across_reconnects
+PASSED tests/unit/test_a_a02_core_dispatch.py::test_worker_startup_recovers_stale_core_leavings
+PASSED tests/contracts/test_local_api.py::test_doctor_is_honest_and_transport_retry_is_deduplicated
+PASSED tests/contracts/test_local_api.py::test_agent_cannot_confirm_and_human_cannot_execute_unimplemented_actions
+PASSED tests/contracts/test_local_api.py::test_write_requires_intent_and_revision
+PASSED tests/contracts/test_local_api.py::test_version_and_client_supplied_entry_kind_rejected
+37 passed in 200.72s (0:03:20)

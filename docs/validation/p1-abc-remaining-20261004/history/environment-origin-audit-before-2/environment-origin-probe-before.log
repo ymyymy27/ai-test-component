@@ -1,0 +1,25 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_client_cannot_invent_resolved_interpreter_identity_for_saved_environment _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000023717E65E80>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-669/test_client_cannot_invent_reso0/tested"))
+
+    def test_client_cannot_invent_resolved_interpreter_identity_for_saved_environment(authoritative):
+        core, inputs, _ = authoritative
+        candidate = replace(inputs, environment=inputs.environment.model_copy(update={
+            'interpreter_identity': 'client-invented-interpreter',
+            'dependency_set_digest': 'sha256:client-invented-dependency-set',
+        }))
+        before = core.unit_of_work.current_commit_sequence()
+        response = prepare(core, candidate)
+        assert response.error is None
+>       assert response.result['status'] == 'blocked'
+E       AssertionError: assert 'prepared' == 'blocked'
+E         
+E         - blocked
+E         + prepared
+
+.git\p1-abc-fix-20261003\probe_environment_origin.py:18: AssertionError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_environment_origin.py::test_client_cannot_invent_resolved_interpreter_identity_for_saved_environment
+1 failed in 34.86s

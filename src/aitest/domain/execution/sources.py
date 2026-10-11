@@ -71,12 +71,13 @@ class ExecutionSourceVerification:
     verification_id: str
     project_id: str
     plan_revision_ref: PlanRevisionRef
-    expected_source_binding_digest: str
+    expected_source_content_digest: str
     materialized_snapshot_ref: str
     observed_source_digest: str
     state: SourceVerificationState
     observed_entry_ref: str | None = None
     observed_import_ref: str | None = None
+    observed_interpreter_ref: str | None = None
     failure_class: FailureClass | None = None
     gap_ids: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
@@ -86,7 +87,7 @@ class ExecutionSourceVerification:
         for name in (
             "verification_id",
             "project_id",
-            "expected_source_binding_digest",
+            "expected_source_content_digest",
             "materialized_snapshot_ref",
             "observed_source_digest",
         ):

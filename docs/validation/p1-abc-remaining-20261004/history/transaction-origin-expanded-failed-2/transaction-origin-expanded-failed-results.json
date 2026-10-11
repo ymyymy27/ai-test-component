@@ -1,0 +1,13 @@
+{
+  "expanded_component": {
+    "failed": 1,
+    "passed": 22,
+    "seconds": 0.18
+  },
+  "default_file_close": {
+    "failed": 1,
+    "seconds": 20.87
+  },
+  "earlier_17_fixes_already_present": true,
+  "full_python_run": false
+}

@@ -1,0 +1,183 @@
+FFFFF                                                                    [100%]
+================================== FAILURES ===================================
+_________ test_same_revocation_intent_cannot_revoke_another_challenge _________
+
+approvals = (<aitest.application.approval_service.ApprovalService object at 0x00000260D06FCC20>, <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D0253CB0>, <tests.unit.test_approval_service.Actors object at 0x00000260D0457E00>)
+
+    def test_same_revocation_intent_cannot_revoke_another_challenge(approvals):
+        service, unit, _ = approvals
+        first = prepare(service)
+        second = service.prepare(
+            project_id="project",
+            action_intent_id="business2",
+            preparation_intent_id="prepare2",
+            request_id="request2",
+            action="confirm_basis",
+            target="case",
+            parameters={"basis": "original"},
+        )
+        service.revoke(
+            project_id="project",
+            challenge_id=first.challenge_id,
+            request_id="first-revocation-request",
+            intent_id="same-revocation",
+        )
+        sequence = unit.sequence
+>       with pytest.raises(ApprovalConflict):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ApprovalConflict
+
+tests\unit\test_approval_revocation_intent.py:29: Failed
+_ test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error[approval_confirmation] _
+
+approvals = (<aitest.application.approval_service.ApprovalService object at 0x00000260D04EB250>, <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D04EA210>, <tests.unit.test_approval_service.Actors object at 0x00000260D04EAD50>)
+missing = 'approval_confirmation'
+
+    @pytest.mark.parametrize(
+        "missing", ["approval_confirmation", "approval_interaction", "approval_challenge"]
+    )
+    def test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error(approvals, missing):
+        service, unit, actors = approvals
+        challenge = prepare(service)
+        click(actors, challenge)
+        saved = confirm(service, challenge)
+        key = next(key for key in unit.saved if key[0] == missing and key[2] == 1)
+        del unit.saved[key]
+        with pytest.raises(ApprovalRequired):
+>           service.read_confirmation(project_id="project", confirmation_id=saved.confirmation_id)
+
+tests\unit\test_approval_revocation_intent.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\approval_service.py:442: in read_confirmation
+    result = self._confirmed(project_id, confirmation_id, receipt["input_digest"])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\approval_service.py:483: in _confirmed
+    raw = self._read("approval_confirmation", identity, 1, project)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\approval_service.py:98: in _read
+    record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D04EA210>
+aggregate_kind = 'approval_confirmation'
+record_id = 'approval-confirm-ef432b908b98b4143797caee4d0e8bbb93a2b2583c5c05c37992784d6101b747'
+revision = 1
+
+    def read(self, *, aggregate_kind, record_id, revision):
+>       return self.saved[(aggregate_kind, record_id, revision)]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: ('approval_confirmation', 'approval-confirm-ef432b908b98b4143797caee4d0e8bbb93a2b2583c5c05c37992784d6101b747', 1)
+
+tests\unit\test_approval_service.py:30: KeyError
+_ test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error[approval_interaction] _
+
+approvals = (<aitest.application.approval_service.ApprovalService object at 0x00000260D0780050>, <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D039AAD0>, <tests.unit.test_approval_service.Actors object at 0x00000260D04EB390>)
+missing = 'approval_interaction'
+
+    @pytest.mark.parametrize(
+        "missing", ["approval_confirmation", "approval_interaction", "approval_challenge"]
+    )
+    def test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error(approvals, missing):
+        service, unit, actors = approvals
+        challenge = prepare(service)
+        click(actors, challenge)
+        saved = confirm(service, challenge)
+        key = next(key for key in unit.saved if key[0] == missing and key[2] == 1)
+        del unit.saved[key]
+        with pytest.raises(ApprovalRequired):
+>           service.read_confirmation(project_id="project", confirmation_id=saved.confirmation_id)
+
+tests\unit\test_approval_revocation_intent.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\approval_service.py:442: in read_confirmation
+    result = self._confirmed(project_id, confirmation_id, receipt["input_digest"])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\approval_service.py:497: in _confirmed
+    interaction_raw = self._read(
+src\aitest\application\approval_service.py:98: in _read
+    record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D039AAD0>
+aggregate_kind = 'approval_interaction'
+record_id = 'approval-interaction-03a9bb4a55f29b49bba86d05b22bb21e5fc2c0a9faae789c3d21ea43b683309f'
+revision = 1
+
+    def read(self, *, aggregate_kind, record_id, revision):
+>       return self.saved[(aggregate_kind, record_id, revision)]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: ('approval_interaction', 'approval-interaction-03a9bb4a55f29b49bba86d05b22bb21e5fc2c0a9faae789c3d21ea43b683309f', 1)
+
+tests\unit\test_approval_service.py:30: KeyError
+_ test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error[approval_challenge] _
+
+approvals = (<aitest.application.approval_service.ApprovalService object at 0x00000260D0721CD0>, <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D0392C40>, <tests.unit.test_approval_service.Actors object at 0x00000260D0721810>)
+missing = 'approval_challenge'
+
+    @pytest.mark.parametrize(
+        "missing", ["approval_confirmation", "approval_interaction", "approval_challenge"]
+    )
+    def test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error(approvals, missing):
+        service, unit, actors = approvals
+        challenge = prepare(service)
+        click(actors, challenge)
+        saved = confirm(service, challenge)
+        key = next(key for key in unit.saved if key[0] == missing and key[2] == 1)
+        del unit.saved[key]
+        with pytest.raises(ApprovalRequired):
+>           service.read_confirmation(project_id="project", confirmation_id=saved.confirmation_id)
+
+tests\unit\test_approval_revocation_intent.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\approval_service.py:442: in read_confirmation
+    result = self._confirmed(project_id, confirmation_id, receipt["input_digest"])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\approval_service.py:504: in _confirmed
+    initial_raw = self._read("approval_challenge", result.challenge_id, 1, project)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\approval_service.py:98: in _read
+    record = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D0392C40>
+aggregate_kind = 'approval_challenge', record_id = 'challenge-1', revision = 1
+
+    def read(self, *, aggregate_kind, record_id, revision):
+>       return self.saved[(aggregate_kind, record_id, revision)]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: ('approval_challenge', 'challenge-1', 1)
+
+tests\unit\test_approval_service.py:30: KeyError
+___ test_boolean_warehouse_revision_cannot_prove_an_immutable_confirmation ____
+
+approvals = (<aitest.application.approval_service.ApprovalService object at 0x00000260D0722780>, <tests.unit.test_approval_service.MemoryApprovalUnit object at 0x00000260D0721F30>, <tests.unit.test_approval_service.Actors object at 0x00000260D07222C0>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000260D07228B0>
+
+    def test_boolean_warehouse_revision_cannot_prove_an_immutable_confirmation(approvals, monkeypatch):
+        service, unit, actors = approvals
+        challenge = prepare(service)
+        click(actors, challenge)
+        saved = confirm(service, challenge)
+        original = unit.current_revision
+    
+        def invalid_revision(**kwargs):
+            if kwargs["aggregate_kind"] == "approval_confirmation":
+                return True
+            return original(**kwargs)
+    
+        monkeypatch.setattr(unit, "current_revision", invalid_revision)
+>       with pytest.raises(ApprovalRequired):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ApprovalRequired
+
+tests\unit\test_approval_revocation_intent.py:69: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_approval_revocation_intent.py::test_same_revocation_intent_cannot_revoke_another_challenge
+FAILED tests/unit/test_approval_revocation_intent.py::test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error[approval_confirmation]
+FAILED tests/unit/test_approval_revocation_intent.py::test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error[approval_interaction]
+FAILED tests/unit/test_approval_revocation_intent.py::test_missing_accurate_origin_returns_a_blocked_confirmation_not_a_raw_error[approval_challenge]
+FAILED tests/unit/test_approval_revocation_intent.py::test_boolean_warehouse_revision_cannot_prove_an_immutable_confirmation
+5 failed in 0.33s

@@ -31,6 +31,9 @@ from aitest.application.planning.model_ports import (
     ProjectionStatus as ProjectionStatus,
 )
 from aitest.application.planning.substrate import (
+    AggregateKind as AggregateKind,
+)
+from aitest.application.planning.substrate import (
     CommittedRecord as CommittedRecord,
 )
 from aitest.application.planning.substrate import (
@@ -40,14 +43,20 @@ from aitest.contracts.capabilities import CapabilitySet
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.events import Event
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.identity import IntentId, RequestId
+from aitest.contracts.prepared_run import EnvironmentRefFact
 from aitest.contracts.queries import Query, QuerySpec
 from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.contracts.verification import VerificationFact
+from aitest.domain.approvals import ActionBasis, TrustedActor
+from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, Verification
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
-from aitest.domain.evidence.evidence import StoredObjectRef, Verification
+from aitest.domain.evidence.polling import BusinessQueryObservation as BusinessQueryObservation
+from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
+    Attempt,
     CapturedOutputBlock,
     ExecutionCollectionResult,
     ExecutionHandle,
@@ -57,10 +66,90 @@ from aitest.domain.execution.runs import (
     OutputCursor,
     OutputStreamName,
     RecoveryRecord,
+    Run,
     SpoolManifest,
+    Step,
     StopRequestResult,
 )
 from aitest.domain.planning.model_outbound import MaterialKind
+from aitest.domain.planning.plans import Case, Plan
+
+
+@dataclass(frozen=True, slots=True)
+class EnvironmentResolutionRequest:
+    project_id: str
+    environment_id: str
+    isolation_mode: str
+    interpreter_requirement: str
+
+
+class EnvironmentResolver(Protocol):
+    """Probe only a core-registered tested carrier, outside the business UOW."""
+
+    def resolve(self, request: EnvironmentResolutionRequest) -> EnvironmentRefFact: ...
+
+
+class ExecutionActionResolver(Protocol):
+    """Trusted assembly only; resolve actual single-step input outside a transaction."""
+
+    def resolve(
+        self,
+        *,
+        run: Run,
+        step: Step,
+        intent_id: str,
+        prepared: Mapping[str, object],
+        step_content: Mapping[str, object],
+    ) -> ResolvedExecutionAction: ...
+
+
+class ExecutionAuthorizationProof(Protocol):
+    """Read original authority and occupy it inside the coordinator's transaction."""
+
+    def validate_new(self, *, project_id: str, attempt: Attempt) -> None: ...
+
+    def stage_occupation(
+        self,
+        *,
+        project_id: str,
+        attempt: Attempt,
+        superseded_attempt_ids: tuple[str, ...] = (),
+        changed_step_ids: tuple[str, ...] = (),
+    ) -> Mapping[str, object]: ...
+
+    def stage_revoke_affected(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        superseded_attempt_ids: tuple[str, ...],
+        changed_step_ids: tuple[str, ...],
+    ) -> None: ...
+
+    def validate_occupation(
+        self, *, project_id: str, attempt: Attempt, proof: Mapping[str, object]
+    ) -> None: ...
+
+
+class RecordIntentOpening(Protocol):
+    """Optional extension for narrow B transactions carrying a persistent business intent."""
+
+    def open_for_intent(self, project_id: str, intent_id: str) -> None: ...
+
+
+class ExactRecordStaging(Protocol):
+    """Stage frozen safe bytes; credential filtering that changes them rejects the write."""
+
+    def stage_record_exact(
+        self, *, aggregate_kind: str, record_id: str,
+        expected_revision: int | None, payload: Mapping[str, object],
+    ) -> int: ...
+
+
+class RecordValueProtector(Protocol):
+    """Apply the core's known credential guard before freezing record fingerprints."""
+
+    def __call__(self, value: Mapping[str, object]) -> Mapping[str, object]: ...
 
 
 class TransactionPort(Protocol):
@@ -72,13 +161,10 @@ class TransactionPort(Protocol):
         project_id: str,
         intent_id: IntentId | None = None,
     ) -> Response: ...
-    def commit(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
-    def rollback(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def commit(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
+    def rollback(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
     def recover(self, *, workspace_id: str) -> Response: ...
+
 
 class StoragePort(Protocol):
     def append_record(
@@ -122,10 +208,9 @@ class StoragePort(Protocol):
         digest: str,
     ) -> bytes: ...
 
+
 class BackupPort(Protocol):
-    def inspect(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def inspect(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
     def create(
         self,
         *,
@@ -176,14 +261,21 @@ class IndexPort(Protocol):
 class QueryPort(Protocol):
     def dispatch(self, query: Query) -> Response: ...
     def list_events(self, query: Query) -> Response: ...
-    def capabilities(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> CapabilitySet: ...
+    def capabilities(self, *, request_id: RequestId, workspace_id: str) -> CapabilitySet: ...
+
 
 class LocalProtocolPort(Protocol):
     def dispatch(self, command: Command) -> Response: ...
     def event(self, event: Event) -> Response: ...
     def error(self, error: ErrorDTO) -> Response: ...
+
+
+class BackgroundWorkDirectory(Protocol):
+    """Finite workspace inventory, containing identities rather than history."""
+
+    def active_execution_schedules(
+        self, *, workspace_id: str
+    ) -> tuple[Mapping[str, object], ...]: ...
 
 
 class Clock(Protocol):
@@ -192,8 +284,78 @@ class Clock(Protocol):
     def monotonic(self) -> float: ...
 
 
+class ControlledActorContext(Protocol):
+    """Allocated by the core entry; never populated from command parameters."""
+
+    def current(self) -> TrustedActor: ...
+
+
+class ApprovalActionResolver(Protocol):
+    """Freeze/revalidate actual action material without inventing a user gesture."""
+
+    def resolve(
+        self,
+        *,
+        project_id: str,
+        intent_id: str,
+        action: str,
+        target: str,
+        parameters: Mapping[str, object],
+    ) -> ActionBasis: ...
+
+
+class ApprovalIdentitySource(Protocol):
+    """Opaque identity allocation is independent of approval permission."""
+
+    def create(self) -> str: ...
+
+
+class ApprovalRecords(Protocol):
+    """Exact immutable approval reads; no scan or arbitrary query capability."""
+
+    def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> object: ...
+
+    def current_revision(self, *, aggregate_kind: str, record_id: str) -> int: ...
+
+
+class BasisConfirmationProof(Protocol):
+    """Validate saved controlled origin, without inventing a new confirmation."""
+
+    def validate_basis_confirmation(
+        self, *, project_id: str, payload: Mapping[str, object]
+    ) -> None: ...
+
+
+class ModelPolicyConfirmationProof(Protocol):
+    """Validate exact policy origin before model sending; no new user event is invented."""
+
+    def validate_model_policy(
+        self,
+        *,
+        project_id: str,
+        record_revision: int,
+        payload: Mapping[str, object],
+    ) -> None: ...
+
+
+class ControlledWriteProof(Protocol):
+    """Read exact human origin for a saved registered write, without granting a new action."""
+
+    def validate_saved_write(
+        self,
+        *,
+        project_id: str,
+        action: str,
+        aggregate_kind: str,
+        record_id: str,
+        record_revision: int,
+        payload: Mapping[str, object],
+    ) -> None: ...
+
+
 class WorkspaceUnitOfWork(Protocol):
     """Expected revisions, epoch, intent results and atomic publication."""
+
     def open(self, project_id: str) -> None: ...
     def commit_seq(self) -> str:
         """当前工作空间全局提交序号（``records.json`` 的 ``commit``）。
@@ -202,6 +364,7 @@ class WorkspaceUnitOfWork(Protocol):
         复用分支不暂存任何记录，但仍要按它判断业务顺序（不使用系统时间）。
         """
         ...
+
     def next_commit_seq(self) -> str:
         """本次提交后下一条暂存记录将得到的序号。
 
@@ -210,6 +373,7 @@ class WorkspaceUnitOfWork(Protocol):
         ``created_at_commit`` 写进不可变 payload。
         """
         ...
+
     def stage_record(
         self,
         *,
@@ -222,8 +386,33 @@ class WorkspaceUnitOfWork(Protocol):
     def rollback(self) -> None: ...
 
 
+class StageableWorkspaceUnitOfWork(Protocol):
+    """Common B/C atomic writer with a frozen persistent business intent."""
+
+    def open(self, project_id: str) -> None: ...
+    def next_commit_seq(self) -> str: ...
+    def begin(
+        self,
+        request_id: str,
+        project_id: str,
+        workspace_id: str | None = None,
+        intent_id: str | None = None,
+    ) -> object: ...
+    def stage_record(
+        self,
+        *,
+        aggregate_kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
+    ) -> object: ...
+    def commit(self, request_id: str | None = None) -> object: ...
+    def rollback(self, request_id: str | None = None) -> object: ...
+
+
 class RecordRepository(Protocol):
     """Immutable revisions and project-scoped pagination."""
+
     def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> object: ...
     def query(self, query: object) -> object: ...
     def current_revision(self, *, aggregate_kind: str, record_id: str) -> int:
@@ -233,6 +422,40 @@ class RecordRepository(Protocol):
         该值；新工作空间尚无索引文件，此读取不得经过索引分页。
         """
         ...
+
+
+class RuntimeExecutionReader(Protocol):
+    """Read saved facts and all consumed current/history checkpoints (BC-001 section 20)."""
+
+    def read_runtime_revision_facts(self, *, project_id: str, run_id: str) -> ExecutionFacts: ...
+
+
+class RuntimeRevisionBasisReader(Protocol):
+    """Verify the exact saved sequence and readable effective case/step content."""
+
+    def read_effective_cases(
+        self, *, facts: ExecutionFacts, plan: Plan, initial_cases: tuple[Case, ...]
+    ) -> tuple[Case, ...]: ...
+
+
+class RuntimeRevisionOriginProof(Protocol):
+    """Verify original controlled consent for every default runtime revision."""
+
+    def validate_runtime_origins(self, facts: ExecutionFacts) -> None: ...
+
+
+class RevisionRecordReader(Protocol):
+    """Only exact B material reads, without query or preparation lookup capabilities."""
+
+    def read(
+        self, *, aggregate_kind: AggregateKind, record_id: str, revision: int
+    ) -> CommittedRecord: ...
+
+
+class EvidenceReferenceValidator(Protocol):
+    """Reference availability only; it cannot establish a business observation."""
+
+    def exists(self, evidence_ref: str) -> bool: ...
 
 
 class EvidenceObjectStore(Protocol):
@@ -247,6 +470,66 @@ class EvidenceObjectStore(Protocol):
     ) -> StoredObjectRef: ...
 
     def read_bytes(self, ref: StoredObjectRef) -> bytes: ...
+
+
+class ExecutionEvidenceCollector(Protocol):
+    """Publish verified immutable bytes outside the business write transaction."""
+
+    def collect(self, project_id: str, checkpoint: RecoveryRecord) -> tuple[EvidenceRef, ...]: ...
+
+    def validate(self, references: tuple[EvidenceRef, ...]) -> None: ...
+
+    def existing(
+        self, project_id: str, checkpoint: RecoveryRecord,
+    ) -> tuple[EvidenceRef, ...] | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CollectedRedactionSummary:
+    summary_id: str
+    payload: Mapping[str, object]
+    summary: DomainRedactionSummary
+
+
+class ExecutionRedactionCollector(Protocol):
+    """Optional exact materials to save beside collected output references."""
+
+    def redaction_materials(
+        self, project_id: str, checkpoint: RecoveryRecord, references: tuple[EvidenceRef, ...],
+    ) -> tuple[CollectedRedactionSummary, ...]: ...
+
+    def validate_redaction_materials(
+        self, materials: tuple[CollectedRedactionSummary, ...],
+    ) -> None: ...
+
+
+class ModelResponseStore(Protocol):
+    """Durable safe response material, independent of authority publication success."""
+
+    def validate(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        identity: Mapping[str, object],
+    ) -> None: ...
+
+    def save(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        identity: Mapping[str, object],
+        response: Mapping[str, object],
+    ) -> StoredObjectRef: ...
+
+    def find(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        identity: Mapping[str, object],
+    ) -> tuple[StoredObjectRef, Mapping[str, object]] | None: ...
 
 
 class SourceSnapshotPort(Protocol):
@@ -265,6 +548,10 @@ class SourceSnapshotPort(Protocol):
 
     def read_pinned(self, snapshot_id: str) -> Mapping[str, object]: ...
 
+    def verify_pinned(self, snapshot_id: str) -> Mapping[str, object]:
+        """Return original metadata after checking every fixed blob; never repin."""
+        ...
+
     def detect_changes(self, snapshot_id: str) -> Mapping[str, object]: ...
 
 
@@ -278,6 +565,8 @@ class SourceControlPort(Protocol):
     def describe(self, path: Path) -> Mapping[str, object]: ...
 
     def changes(self, path: Path) -> Mapping[str, object]: ...
+
+    def snapshot_identity(self, path: Path) -> Mapping[str, object]: ...
 
     def upstream_counts(self, path: Path) -> Mapping[str, object]: ...
 
@@ -299,11 +588,30 @@ class ExecutionPort(Protocol):
 
 
 class SpoolStreamWriter(Protocol):
+    def abort(self) -> None:
+        """Release the capture lease while preserving unconfirmed output for recovery."""
+        ...
+
     """Append filtered bytes to one output stream and seal blocks."""
 
     def append(self, content: bytes) -> tuple[OutputBlockRef, ...]: ...
 
     def close(self, *, complete: bool = True) -> tuple[OutputBlockRef, ...]: ...
+
+
+class SpoolRedactionInspection(Protocol):
+    """Optional trustworthy observation after a stream is reliably sealed."""
+
+    @property
+    def redaction_changed(self) -> bool | None: ...
+
+
+class SpoolRedactionSummaryReader(Protocol):
+    """Optional reader for the actual sealed stream summary, not its identifier."""
+
+    def read_redaction_summary(
+        self, attempt_id: str, stream_name: OutputStreamName,
+    ) -> DomainRedactionSummary: ...
 
 
 class SpoolStore(Protocol):
@@ -394,6 +702,45 @@ class BusinessVerificationPort(Protocol):
     def verify(self, request: VerificationRequest) -> Verification: ...
 
 
+class ReadOnlyBusinessQueryPort(Protocol):
+    """Independent business read; adapters implement this application-owned port."""
+
+    def read_business_object(
+        self, *, business_object_id: str, target_deployment_ref: str
+    ) -> Mapping[str, object] | None: ...
+
+
+class DeadlineBusinessQueryPort(Protocol):
+    """Optional independent reader honoring one absolute monotonic cutoff."""
+
+    def read_business_object_before(
+        self, *, business_object_id: str, target_deployment_ref: str,
+        deadline_monotonic: float,
+    ) -> Mapping[str, object] | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CapturedBusinessVerification:
+    """Transient actual material; no digest alone proves that it was saved."""
+
+    verification: Verification
+    actual_fields: Mapping[str, object] | None = None
+    query_observations: tuple[BusinessQueryObservation, ...] = ()
+    query_elapsed_ms: int | None = None
+
+
+class BusinessVerificationCapturePort(Protocol):
+    def capture(self, request: VerificationRequest) -> CapturedBusinessVerification: ...
+
+
+class BusinessVerificationResolver(Protocol):
+    """Resolve the original operation/object and published query/expected basis."""
+
+    def resolve(
+        self, *, facts: ExecutionFacts, step_id: str, attempt_id: str
+    ) -> VerificationRequest: ...
+
+
 class ModelProvider(Protocol):
     """Normalized response/errors for policy-approved projected input."""
 
@@ -468,17 +815,11 @@ class MaintenancePort(Protocol):
     active execution blocks migration.
     """
 
-    def check_integrity(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def check_integrity(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
-    def diagnose_space(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def diagnose_space(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
-    def preview_reclaim(
-        self, *, request_id: RequestId, workspace_id: str
-    ) -> Response: ...
+    def preview_reclaim(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
     def reclaim(
         self,
@@ -495,3 +836,13 @@ class MaintenancePort(Protocol):
         workspace_id: str,
         revisions: Sequence[str] = (),
     ) -> Response: ...
+
+
+class CoreMessagePort(Protocol):
+    """A verified local message channel, with finite owned-frame IO."""
+
+    def write_message(self, payload: bytes, *, timeout_ms: int | None = 10000) -> None: ...
+
+    def read_message(self, *, timeout_ms: int | None = 10000) -> bytes: ...
+
+    def close(self) -> None: ...

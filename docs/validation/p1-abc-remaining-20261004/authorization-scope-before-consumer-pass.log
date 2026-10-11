@@ -1,0 +1,17 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\.codex\worktrees\authorization-consumption\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+tests/unit/test_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress PASSED [100%]
+
+=================================== PASSES ====================================
+============================ slowest 10 durations =============================
+150.50s call     tests/unit/test_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress
+70.30s setup    tests/unit/test_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress
+0.00s teardown tests/unit/test_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress
+=========================== short test summary info ===========================
+PASSED tests/unit/test_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress
+======================== 1 passed in 246.23s (0:04:06) ========================

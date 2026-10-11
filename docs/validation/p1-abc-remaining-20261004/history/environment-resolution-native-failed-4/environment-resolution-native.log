@@ -1,0 +1,123 @@
+FF.............FF                                                        [100%]
+================================== FAILURES ===================================
+_ test_actual_registered_python_proves_exact_version_executable_and_stable_dependencies _
+
+carrier = PythonEnvironmentCarrier(project_id='project', environment_id='environment', carrier_id='registered-local-test-carrier...indowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-686/test_actual_registered_python_0/tested-venv"))
+
+    def test_actual_registered_python_proves_exact_version_executable_and_stable_dependencies(carrier):
+        resolver = RegisteredPythonEnvironmentResolver((carrier,))
+>       fact = resolver.resolve(request())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_python_environment.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\python_environment.py:269: in resolve
+    base_digest = self._file_digest(base)
+                  ^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\python_environment.py:95: in _file_digest
+    self._no_links(path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath("C:/Users/y'm'y/AppData/Roaming/uv/python/cpython-3.13-windows-x86_64-none/python.exe")
+
+    @staticmethod
+    def _no_links(path: Path) -> None:
+        for part in (path, *path.parents):
+            if part.is_symlink() or part.is_junction():
+>               raise ValueError("environment path contains an unsupported link")
+E               ValueError: environment path contains an unsupported link
+
+src\aitest\infrastructure\python_environment.py:92: ValueError
+_ test_dependency_bytes_change_identity_even_with_restored_mtime_and_same_size _
+
+carrier = PythonEnvironmentCarrier(project_id='project', environment_id='environment', carrier_id='registered-local-test-carrier...indowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-686/test_dependency_bytes_change_i0/tested-venv"))
+
+    def test_dependency_bytes_change_identity_even_with_restored_mtime_and_same_size(carrier):
+        file = carrier.dependency_roots[0] / "business.py"
+        file.write_text("VALUE = 1\n")
+        resolver = RegisteredPythonEnvironmentResolver((carrier,))
+>       first = resolver.resolve(request())
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_python_environment.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\python_environment.py:269: in resolve
+    base_digest = self._file_digest(base)
+                  ^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\python_environment.py:95: in _file_digest
+    self._no_links(path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath("C:/Users/y'm'y/AppData/Roaming/uv/python/cpython-3.13-windows-x86_64-none/python.exe")
+
+    @staticmethod
+    def _no_links(path: Path) -> None:
+        for part in (path, *path.parents):
+            if part.is_symlink() or part.is_junction():
+>               raise ValueError("environment path contains an unsupported link")
+E               ValueError: environment path contains an unsupported link
+
+src\aitest\infrastructure\python_environment.py:92: ValueError
+_________ test_probe_does_not_import_project_or_ambient_sitecustomize _________
+
+carrier = PythonEnvironmentCarrier(project_id='project', environment_id='environment', carrier_id='registered-local-test-carrier...indowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-686/test_probe_does_not_import_pro0/tested-venv"))
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-686/test_probe_does_not_import_pro0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000219EE19BF00>
+
+    def test_probe_does_not_import_project_or_ambient_sitecustomize(carrier, tmp_path, monkeypatch):
+        malicious = tmp_path / "ambient"
+        malicious.mkdir()
+        marker = tmp_path / "executed"
+        (malicious / "sitecustomize.py").write_text(
+            f"from pathlib import Path; Path({str(marker)!r}).write_text('executed')\n"
+        )
+        monkeypatch.setenv("PYTHONPATH", str(malicious))
+        monkeypatch.setenv("PYTHONHOME", str(malicious))
+>       RegisteredPythonEnvironmentResolver((carrier,)).resolve(request())
+
+tests\unit\test_python_environment.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\python_environment.py:269: in resolve
+    base_digest = self._file_digest(base)
+                  ^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\python_environment.py:95: in _file_digest
+    self._no_links(path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = WindowsPath("C:/Users/y'm'y/AppData/Roaming/uv/python/cpython-3.13-windows-x86_64-none/python.exe")
+
+    @staticmethod
+    def _no_links(path: Path) -> None:
+        for part in (path, *path.parents):
+            if part.is_symlink() or part.is_junction():
+>               raise ValueError("environment path contains an unsupported link")
+E               ValueError: environment path contains an unsupported link
+
+src\aitest\infrastructure\python_environment.py:92: ValueError
+_____________ test_environment_mutation_during_probe_is_rejected ______________
+
+carrier = PythonEnvironmentCarrier(project_id='project', environment_id='environment', carrier_id='registered-local-test-carrier...indowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-686/test_environment_mutation_duri0/tested-venv"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000219EE0BEE50>
+
+    def test_environment_mutation_during_probe_is_rejected(carrier, monkeypatch):
+        resolver = RegisteredPythonEnvironmentResolver((carrier,))
+        original = resolver._probe
+    
+        def mutate(executable):
+            facts = original(executable)
+            (carrier.dependency_roots[0] / "new.py").write_text("changed = True\n")
+            return facts
+    
+        monkeypatch.setattr(resolver, "_probe", mutate)
+>       with pytest.raises(ValueError, match="changed while resolving"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'changed while resolving'
+E         Actual message: 'environment path contains an unsupported link'
+
+tests\unit\test_python_environment.py:160: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_python_environment.py::test_actual_registered_python_proves_exact_version_executable_and_stable_dependencies
+FAILED tests/unit/test_python_environment.py::test_dependency_bytes_change_identity_even_with_restored_mtime_and_same_size
+FAILED tests/unit/test_python_environment.py::test_probe_does_not_import_project_or_ambient_sitecustomize
+FAILED tests/unit/test_python_environment.py::test_environment_mutation_during_probe_is_rejected

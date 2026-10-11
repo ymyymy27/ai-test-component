@@ -1,0 +1,16 @@
+Using CPython 3.13.13 interpreter at: .venv\Scripts\python.exe
+Resolved 8 packages in 1.13s
+Prepared 1 package in 73ms
+Installed 8 packages in 371ms
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component/.git/p1-abc-fix-20261003/query-material-dist/ai_test_component-0.4.0-py3-none-any.whl)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+aitest/infrastructure/file_store/index.py 22a4faee851fbb84cc557a5e99c10d967ce504b289c7f80206d2042dafdbc9d1
+aitest/infrastructure/file_store/sharded_records.py 0cd5eaea417b64209827ec6c51122274f0530d4ace6fe41e1127f85fd0dfd728
+aitest/infrastructure/file_store/records.py 201b595f30b75694c7539f4dfcab8dae32b3e127294c529db6653809df7d1e2d
+Installed wheel: exact default source-record query hydration, typed query rows and wrong physical identities refusal, original A transaction replay, default source pin/same-byte closure/historical replay and missing historical bytes refusal passed. Synthetic gesture, not real Trae/user acceptance.

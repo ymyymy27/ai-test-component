@@ -1,0 +1,22 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 1 item
+
+.git/p1-abc-fix-20261003/probe_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress FAILED [100%]
+
+================================== FAILURES ===================================
+_______ test_independent_pregranted_action_survives_unrelated_progress ________
+.git\p1-abc-fix-20261003\probe_authorization_pregranted.py:35: in test_independent_pregranted_action_survives_unrelated_progress
+    service.validate_new(project_id=inputs.project_id, attempt=started(second))
+src\aitest\application\execution\authorization.py:665: in validate_new
+    self.resolver.resolve(
+src\aitest\application\execution\authorization.py:155: in resolve
+    raise ApprovalRequired("execution basis changed; resolve and review a new action")
+E   aitest.domain.approvals.ApprovalRequired: execution basis changed; resolve and review a new action
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_authorization_pregranted.py::test_independent_pregranted_action_survives_unrelated_progress - aitest.domain.approvals.ApprovalRequired: execution basis changed; resolve and review a new action
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======================== 1 failed in 334.99s (0:05:34) ========================

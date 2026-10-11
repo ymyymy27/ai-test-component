@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "issue_count": 27,
+  "source_test_references": 351,
+  "current_counts": {
+    "A": 7,
+    "B": 8,
+    "C": 7
+  },
+  "checked_documents": 10,
+  "broken_links": [],
+  "protected_project_docs": "git diff --name-only -- docs/项目文档 returned no changes"
+}

@@ -1,0 +1,13 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short .git\p1-abc-fix-20261003\probe_running_capture.py
+F                                                                        [100%]
+================================== FAILURES ===================================
+___________ test_live_capture_returns_material_before_process_exit ____________
+.git\p1-abc-fix-20261003\probe_running_capture.py:22: in test_live_capture_returns_material_before_process_exit
+    assert result.output_blocks
+E   AssertionError: assert ()
+E    +  where () = ExecutionCollectionResult(attempt_id='attempt-1', output_blocks=(), captured_blocks=(), output_cursors=(OutputCursor(a...one, structured_result_ref=None, capture_completeness=<CaptureCompleteness.GAP: 'gap'>, error_ref=None, complete=False).output_blocks
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_running_capture.py::test_live_capture_returns_material_before_process_exit
+1 failed in 1.35s
+
+EXIT: 1

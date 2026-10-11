@@ -1,0 +1,12 @@
+{
+  "failed": 5,
+  "passed": 0,
+  "seconds": 0.33,
+  "log": "approval-revocation-five-before.log",
+  "baseline": "0410cdd plus the new negative test; product source unchanged",
+  "roots": [
+    "revocation intent has no saved input receipt",
+    "unavailable exact proof escapes as a raw lookup error",
+    "boolean current warehouse revision accepted by equality to 1"
+  ]
+}

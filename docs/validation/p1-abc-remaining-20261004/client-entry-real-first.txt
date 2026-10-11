@@ -1,0 +1,13 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_________ test_actual_cli_doctor_and_dispatch_share_the_verified_core _________
+tests\unit\test_cli_core_forwarding.py:149: in test_actual_cli_doctor_and_dispatch_share_the_verified_core
+    assert denied.stdout, denied.stderr.decode(errors="replace")
+E   AssertionError: {"code": "CORE_RESULT_UNVERIFIED", "message": "\u8f93\u5165\u6216\u6838\u5fc3\u7ed3\u679c\u65e0\u6cd5\u6838\u5b9e\uff0c\u4fdd\u7559\u539f\u610f\u56fe\u67e5\u8be2"}
+
+E     
+E   assert b''
+E    +  where b'' = CompletedProcess(args=["C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Scripts\\python.exe", '-m', 'aitest.inter...\u6838\\u5fc3\\u7ed3\\u679c\\u65e0\\u6cd5\\u6838\\u5b9e\\uff0c\\u4fdd\\u7559\\u539f\\u610f\\u56fe\\u67e5\\u8be2"}\r\n').stdout
+=========================== short test summary info ===========================
+FAILED tests/unit/test_cli_core_forwarding.py::test_actual_cli_doctor_and_dispatch_share_the_verified_core
+1 failed in 4.86s

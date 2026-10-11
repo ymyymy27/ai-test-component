@@ -1,0 +1,11 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+____________ test_second_revision_uses_the_effective_case_version _____________
+tests\unit\test_runtime_revision_effective_basis.py:31: in test_second_revision_uses_the_effective_case_version
+    assert decision.accepted, decision.refusals
+E   AssertionError: (RuntimeRevisionRefusal(code=<RuntimeRevisionRefusalCode.FROZEN_CASE_REVISION_MISMATCH: 'frozen_case_revision_mismatch'>, detail='case-1 needs the frozen case revision 1'),)
+E   assert False
+E    +  where False = RuntimeRevisionDecision(accepted=False, revision_no=2, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commi...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+=========================== short test summary info ===========================
+FAILED tests/unit/test_runtime_revision_effective_basis.py::test_second_revision_uses_the_effective_case_version
+1 failed in 0.19s

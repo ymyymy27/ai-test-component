@@ -1,0 +1,36 @@
+F..                                                                      [100%]
+================================== FAILURES ===================================
+________ test_default_restart_does_not_read_unrelated_historical_json _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-499/test_default_restart_does_not_0")
+
+    def test_default_restart_does_not_read_unrelated_historical_json(tmp_path: Path) -> None:
+        root = tmp_path / "workspace"
+        initialized_workspace(root)
+        history = root / "diagnostics" / "old-stage"
+        history.mkdir(parents=True)
+        files = {history / f"{number}.json" for number in range(150)}
+        for file in files:
+            file.write_text(json.dumps({"old_diagnostic": "unchanged"}), encoding="utf-8")
+        visited: set[Path] = set()
+        read_bytes, read_text = Path.read_bytes, Path.read_text
+    
+        def traced_bytes(path: Path):
+            visited.add(path)
+            return read_bytes(path)
+    
+        def traced_text(path: Path, *args, **kwargs):
+            visited.add(path)
+            return read_text(path, *args, **kwargs)
+    
+        with patch.object(Path, "read_bytes", traced_bytes), patch.object(Path, "read_text", traced_text):
+            restarted = assemble_workspace_core(root, instance_id="second-core")
+        try:
+>           assert not files & visited, "normal startup read unrelated historical diagnostics"
+E           AssertionError: normal startup read unrelated historical diagnostics
+E           assert not ({WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-499/test_default_restart_does_not_0/workspace/d.../Local/Temp/pytest-of-y'm'y/pytest-499/test_default_restart_does_not_0/workspace/diagnostics/old-stage/102.json"), ...} & {WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-499/test_default_restart_does_not_0/workspace/c.../Local/Temp/pytest-of-y'm'y/pytest-499/test_default_restart_does_not_0/workspace/diagnostics/old-stage/100.json"), ...})
+
+tests\unit\test_incremental_core_startup.py:54: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_incremental_core_startup.py::test_default_restart_does_not_read_unrelated_historical_json
+1 failed, 2 passed in 5.49s

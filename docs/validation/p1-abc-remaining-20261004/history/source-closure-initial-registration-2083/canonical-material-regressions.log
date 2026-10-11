@@ -1,0 +1,30 @@
+........................................................................ [ 46%]
+...............................................................F........ [ 93%]
+..........                                                               [100%]
+================================== FAILURES ===================================
+_________________ test_inspect_reports_available_and_pending __________________
+
+manager = <aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x00000227CCB563C0>
+
+    def test_inspect_reports_available_and_pending(manager: FileMigrationManager) -> None:
+        report = manager.inspect()
+        assert report["applied"] == []
+        available = sorted(
+            (
+                *_BOTH_STEPS,
+                "0003-sharded-record-authority",
+                "0004-bounded-query-directory",
+                "0005-complete-commit-closure",
+                "0006-canonical-current-publication",
+            )
+        )
+>       assert report["available"] == available
+E       AssertionError: assert ['0001-worksp...ication', ...] == ['0001-worksp...-publication']
+E         
+E         Left contains one more item: '0007-canonical-manifest-and-business-changes'
+E         Use -v to get more diff
+
+tests\unit\test_a_migrations.py:44: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_migrations.py::test_inspect_reports_available_and_pending
+1 failed, 153 passed in 107.20s (0:01:47)

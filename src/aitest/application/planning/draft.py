@@ -69,14 +69,14 @@ def load_template(template_ref: TemplateRef) -> TemplatePack:
     当前发布布局是 `<template_id>/<version>.json` 单文件
     （架构文档第 3 节描述的 `manifest.json` + 子目录与仓库实际不一致，已登记为 D-01，以代码为准）。
     """
-    directory = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(
-        TEMPLATE_RESOURCE_DIR, template_ref.template_id
+    # 逐段 joinpath：3.11 的 `MultiplexedPath.joinpath` 只接受一个参数（多参数自 3.12 起）。
+    directory = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(TEMPLATE_RESOURCE_DIR).joinpath(
+        template_ref.template_id
     )
     source = directory.joinpath(f"{template_ref.version}.json")
     if not source.is_file():
         raise TemplateNotFoundError(
-            "unknown template version: "
-            f"{template_ref.template_id}@{template_ref.version}"
+            f"unknown template version: {template_ref.template_id}@{template_ref.version}"
         )
     return TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
 
@@ -98,9 +98,7 @@ def list_templates() -> tuple[TemplateSummary, ...]:
             pack = TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
             summaries.append(
                 TemplateSummary(
-                    template_ref=TemplateRef(
-                        template_id=pack.template_id, version=pack.version
-                    ),
+                    template_ref=TemplateRef(template_id=pack.template_id, version=pack.version),
                     name=pack.name,
                     implementation_status=pack.implementation_status.value,
                     delivery_method=pack.delivery_method,
@@ -127,19 +125,24 @@ class RevisionContext:
     """
 
     project_revision: int
-    binding_revision: int
+    binding_revision: int | None
     template_revision: str
     environment_revision: int | None = None
     source_revision: int | None = None
     rules_revision: int | None = None
 
     def __post_init__(self) -> None:
-        for name in ("project_revision", "binding_revision"):
+        for name in ("project_revision",):
             if getattr(self, name) < 1:
                 raise ValueError(f"{name} must be >= 1")
         if not self.template_revision.strip():
             raise ValueError("template_revision must not be empty")
-        for name in ("environment_revision", "source_revision", "rules_revision"):
+        for name in (
+            "binding_revision",
+            "environment_revision",
+            "source_revision",
+            "rules_revision",
+        ):
             value = getattr(self, name)
             if value is not None and value < 1:
                 raise ValueError(f"{name} must be >= 1 when applicable")
@@ -254,9 +257,7 @@ def template_draft_text(pack: TemplatePack) -> str:
     这一步**不编造检查内容**：正文完全来自已安装的模板资源，模板里没有的东西不会出现。
     """
     canonical = pack.model_dump(mode="json")
-    return json.dumps(
-        canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    )
+    return json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
 def generated_content_payload(
@@ -298,9 +299,7 @@ def generated_content_payload(
     return payload
 
 
-def draft_expiry(
-    content: GeneratedContent, current: RevisionContext
-) -> tuple[str, ...]:
+def draft_expiry(content: GeneratedContent, current: RevisionContext) -> tuple[str, ...]:
     """列出使该草稿**定向过期**的来源名；**只列实际变化的那几项**。
 
     未变化的来源不出现在结果里，因此未变部分仍可复用
@@ -310,7 +309,10 @@ def draft_expiry(
     changed: list[str] = []
     if current.project_revision != content.revision_context.project_revision:
         changed.append("project_revision")
-    if current.binding_revision != content.revision_context.binding_revision:
+    if (
+        content.revision_context.binding_revision is not None
+        and current.binding_revision != content.revision_context.binding_revision
+    ):
         changed.append("binding_revision")
     if current.template_revision != content.revision_context.template_revision:
         changed.append("template_revision")
@@ -389,10 +391,7 @@ def assess_template(
         missing.append("agent_model")
     if requirements.requires_frontend and not capabilities.has_frontend:
         missing.append("frontend")
-    if (
-        requirements.requires_database_verification
-        and not capabilities.has_database_verification
-    ):
+    if requirements.requires_database_verification and not capabilities.has_database_verification:
         missing.append("database_verification")
     return ApplicabilityAssessment(applicable=not missing, missing=tuple(missing))
 

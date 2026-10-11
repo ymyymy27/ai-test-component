@@ -1,0 +1,36 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000274E2C95A90>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-870/test_same_bytes_new_intent_clo0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000274E1C7C640>
+
+    def test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original(
+        stack, monkeypatch
+    ):
+        from copy import deepcopy
+    
+        from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+    
+        core, source, root = stack
+        seed(core, source)
+        first = analyze(core)
+        assert first.error is None
+        repo = core.unit_of_work.repo
+        original_commit = repo.commit_transaction
+        captured = {}
+    
+        def capture(pending, **kwargs):
+            captured.update(pending=deepcopy(pending), kwargs=dict(kwargs))
+            return original_commit(pending, **kwargs)
+    
+        monkeypatch.setattr(repo, "commit_transaction", capture)
+        second = analyze(core, intent="same-byte-intent", request="same-byte-request", expected=1)
+>       assert second.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='frozen source record reference...retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='same-byte-request', intent_id='same-byte-intent') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='COMMIT_MATERIAL_UNVERIFIED', message='frozen source record reference...retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='same-byte-request', intent_id='same-byte-intent') = Response(protocol_version='aitest.local/2.0', request_id='same-byte-request', instance_id='source-core', workspace_id=...etryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='same-byte-request', intent_id='same-byte-intent')).error
+
+tests\unit\test_default_source_analysis.py:391: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_source_analysis.py::test_same_bytes_new_intent_closes_material_and_transaction_retry_keeps_original
+1 failed in 46.62s

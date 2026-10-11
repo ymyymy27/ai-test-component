@@ -1,0 +1,104 @@
+................................FFFFFFFFFFF........                      [100%]
+================================== FAILURES ===================================
+_ test_other_scope_cannot_be_attached_to_the_requested_object[verification_of] _
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'different|scope'
+E     Actual message: 'JSON comparison material has an unsupported value'
+_ test_other_scope_cannot_be_attached_to_the_requested_object[business_object_id] _
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'different|scope'
+E     Actual message: 'JSON comparison material has an unsupported value'
+_ test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref] _
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'different|scope'
+E     Actual message: 'JSON comparison material has an unsupported value'
+__ test_other_scope_cannot_be_attached_to_the_requested_object[query_method] __
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'different|scope'
+E     Actual message: 'JSON comparison material has an unsupported value'
+_ test_other_scope_cannot_be_attached_to_the_requested_object[query_interval] _
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'different|scope'
+E     Actual message: 'JSON comparison material has an unsupported value'
+_ test_other_scope_cannot_be_attached_to_the_requested_object[deadline_condition] _
+tests\unit\test_verification_request_scope.py:54: in test_other_scope_cannot_be_attached_to_the_requested_object
+    with pytest.raises(ValueError, match="different|scope"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'different|scope'
+E     Actual message: 'JSON comparison material has an unsupported value'
+_______ test_expected_evidence_cannot_be_dropped_from_the_returned_fact _______
+tests\unit\test_verification_request_scope.py:63: in test_expected_evidence_cannot_be_dropped_from_the_returned_fact
+    with pytest.raises(ValueError, match="evidence"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'evidence'
+E     Actual message: 'JSON comparison material has an unsupported value'
+__________ test_invalid_verification_shape_remains_unverified[shape] __________
+tests\unit\test_verification_request_scope.py:79: in test_invalid_verification_shape_remains_unverified
+    with pytest.raises(ValueError, match="verification|observation|reference"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'verification|observation|reference'
+E     Actual message: 'JSON comparison material has an unsupported value'
+_______ test_invalid_verification_shape_remains_unverified[observation] _______
+tests\unit\test_verification_request_scope.py:79: in test_invalid_verification_shape_remains_unverified
+    with pytest.raises(ValueError, match="verification|observation|reference"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'verification|observation|reference'
+E     Actual message: 'JSON comparison material has an unsupported value'
+____ test_invalid_verification_shape_remains_unverified[actual_reference] _____
+tests\unit\test_verification_request_scope.py:79: in test_invalid_verification_shape_remains_unverified
+    with pytest.raises(ValueError, match="verification|observation|reference"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'verification|observation|reference'
+E     Actual message: 'JSON comparison material has an unsupported value'
+____ test_matching_result_retains_added_evidence_and_unknown_query_outcome ____
+tests\unit\test_verification_request_scope.py:89: in test_matching_result_retains_added_evidence_and_unknown_query_outcome
+    assert EvidenceReviewService(verifier).review(request) == verifier.verify.return_value
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:42: in review
+    frozen = freeze_verification_request(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:29: in freeze_verification_request
+    expected = _freeze_query_fields(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\evidence\evidence_review.py:88: in _freeze_query_fields
+    frozen = freeze_json_value(values)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\domain\execution\assertions.py:129: in freeze_json_value
+    return {key: freeze_json_value(item) for key, item in value.items()}
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\domain\execution\assertions.py:132: in freeze_json_value
+    raise ValueError("JSON comparison material has an unsupported value")
+E   ValueError: JSON comparison material has an unsupported value
+=========================== short test summary info ===========================
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[verification_of]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[business_object_id]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_method]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_interval]
+FAILED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[deadline_condition]
+FAILED tests/unit/test_verification_request_scope.py::test_expected_evidence_cannot_be_dropped_from_the_returned_fact
+FAILED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[shape]
+FAILED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[observation]
+FAILED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[actual_reference]
+FAILED tests/unit/test_verification_request_scope.py::test_matching_result_retains_added_evidence_and_unknown_query_outcome
+11 failed, 40 passed in 6.51s

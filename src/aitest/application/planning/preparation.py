@@ -76,17 +76,13 @@ class InputRevisions:
             _require_revision(getattr(self, field_name), field_name)
 
 
-_REVISION_FIELDS: tuple[str, ...] = tuple(
-    field.name for field in fields(InputRevisions)
-)
+_REVISION_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(InputRevisions))
 
 
 # ------------------------------------------------------------------ 业务身份
 
 
-def preparation_identity_digest(
-    *, project_id: str, client_id: str, prepare_request_id: str
-) -> str:
+def preparation_identity_digest(*, project_id: str, client_id: str, prepare_request_id: str) -> str:
     """三个业务身份键的稳定摘要。
 
     准备记录标识与业务意图标识**都由它派生**，因此两者同域、定长、无歧义：
@@ -107,9 +103,7 @@ def preparation_identity_digest(
     return sha256(raw.encode("utf-8")).hexdigest()[:40]
 
 
-def preparation_record_id(
-    *, project_id: str, client_id: str, prepare_request_id: str
-) -> str:
+def preparation_record_id(*, project_id: str, client_id: str, prepare_request_id: str) -> str:
     """`preparation_record` 的稳定记录标识。"""
     return _RECORD_PREFIX + preparation_identity_digest(
         project_id=project_id,
@@ -118,9 +112,7 @@ def preparation_record_id(
     )
 
 
-def preparation_intent_id(
-    *, project_id: str, client_id: str, prepare_request_id: str
-) -> str:
+def preparation_intent_id(*, project_id: str, client_id: str, prepare_request_id: str) -> str:
     """业务意图标识；由应用派生，**不是**传输层的 `prepare_request_id`。"""
     return _INTENT_PREFIX + preparation_identity_digest(
         project_id=project_id,
@@ -183,9 +175,7 @@ def payload_hash(payload: Mapping[str, object]) -> str:
     只应传入业务输入。把 `request_id`、重试次数、接收时间一类传输层参数放进来，
     会让"同号重传"被误判为"输入不同"。
     """
-    canonical = {
-        key: _canonical_item(payload[key]) for key in sorted(payload)
-    }
+    canonical = {key: _canonical_item(payload[key]) for key in sorted(payload)}
     encoded = json.dumps(
         canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("utf-8")
@@ -221,18 +211,9 @@ class PreparationRequest:
     #: 变化判为 `needs_reprepare`（与 `observed_case_revisions` 同一处理方式）。
     #: 为 `None` 表示该次请求没有解析结果可比（不参与判定）。
     observed_resolved_input_digest: str | None = None
-    #: **观察到的**源码内容身份（`SnapshotRef.content_identity`）。
-    #:
-    #: 它是**观察结果**而不是请求内容，因此按架构《01-项目与计划》第 11 节
-    #: **不进 `payload_hash`**；改在 `decide_preparation()` 里单独比对，
-    #: 变化判为 `needs_reprepare`（`DEC-009` 选丙）。
-    #:
-    #: **为什么快照的变化判据是内容身份而不是修订号**：源码快照按内容寻址
-    #: （`snapshot_id` 由内容决定、同一标识的清单不可变），其记录**恒为修订 1**；
-    #: 而准备判定是**按值比对**修订号的。若沿用修订号，"源码变了"这件事永远
-    #: 比不出来。内容身份**随源码内容变化**，因此它就是现成的、可核对的判据。
-    #: 为 `None` 表示该次请求没有内容身份可比（不参与判定，历史记录因此不被误判）。
-    observed_snapshot_identity: str | None = None
+    observed_snapshot_content_identity: str | None = None
+    observed_scope_id: str | None = None
+    observed_environment_content_identity: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.project_id, "project_id")
@@ -240,12 +221,14 @@ class PreparationRequest:
         _require_text(self.prepare_request_id, "prepare_request_id")
         _require_text(self.payload_hash, "payload_hash")
         if self.observed_resolved_input_digest is not None:
+            _require_text(self.observed_resolved_input_digest, "observed resolved input digest")
+        if self.observed_snapshot_content_identity is not None:
+            _require_text(self.observed_snapshot_content_identity, "snapshot content identity")
+        if self.observed_scope_id is not None:
+            _require_text(self.observed_scope_id, "scope_id")
+        if self.observed_environment_content_identity is not None:
             _require_text(
-                self.observed_resolved_input_digest, "observed resolved input digest"
-            )
-        if self.observed_snapshot_identity is not None:
-            _require_text(
-                self.observed_snapshot_identity, "observed snapshot identity"
+                self.observed_environment_content_identity, "environment content identity"
             )
         seen: set[str] = set()
         for case_id, revision in self.observed_case_revisions:
@@ -289,9 +272,7 @@ class PreparationRecord:
         # 传输层的 request_id 不能代替业务身份；本值对象不接受 request_id，
         # 这里再挡住"把请求号当意图号"这一种实际会发生的写法。
         if self.intent_id == self.request.prepare_request_id:
-            raise ValueError(
-                "intent_id must not be the transport-level prepare_request_id"
-            )
+            raise ValueError("intent_id must not be the transport-level prepare_request_id")
 
     def matches_identity(self, request: PreparationRequest) -> bool:
         return self.request.identity_key == request.identity_key
@@ -315,18 +296,19 @@ def preparation_record_payload(record: PreparationRecord) -> dict[str, object]:
         "created_at_commit": record.created_at_commit,
         "cancelled": record.cancelled,
         "input_revisions": {
-            name: getattr(record.request.input_revisions, name)
-            for name in _REVISION_FIELDS
+            name: getattr(record.request.input_revisions, name) for name in _REVISION_FIELDS
         },
         # 观察事实也随记录落盘：不落盘则进程重启后无法比对，"换配对要识别为异输入"就失效。
         "observed_case_revisions": [
-            [case_id, revision]
-            for case_id, revision in record.request.observed_case_revisions
+            [case_id, revision] for case_id, revision in record.request.observed_case_revisions
         ],
         # 同上：解析出来的实际输入摘要也要随记录落盘，否则重启后无法比对。
         "observed_resolved_input_digest": record.request.observed_resolved_input_digest,
-        # 同上：源码内容身份也要随记录落盘，否则重启后无法比对（`DEC-009` 选丙）。
-        "observed_snapshot_identity": record.request.observed_snapshot_identity,
+        "observed_snapshot_content_identity": record.request.observed_snapshot_content_identity,
+        "observed_scope_id": record.request.observed_scope_id,
+        "observed_environment_content_identity": (
+            record.request.observed_environment_content_identity
+        ),
     }
 
 
@@ -380,11 +362,15 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
     raw_digest = payload.get("observed_resolved_input_digest")
     if raw_digest is not None and not isinstance(raw_digest, str):
         raise ValueError("observed_resolved_input_digest must be a string when given")
-
-    # 同上：该键也是后加的，老记录可能没有它；缺失不报错，出现时必须是字符串。
-    raw_identity = payload.get("observed_snapshot_identity")
+    raw_identity = payload.get("observed_snapshot_content_identity")
     if raw_identity is not None and not isinstance(raw_identity, str):
-        raise ValueError("observed_snapshot_identity must be a string when given")
+        raise ValueError("observed_snapshot_content_identity must be a string when given")
+    raw_scope = payload.get("observed_scope_id")
+    if raw_scope is not None and not isinstance(raw_scope, str):
+        raise ValueError("observed_scope_id must be a string when given")
+    raw_environment = payload.get("observed_environment_content_identity")
+    if raw_environment is not None and not isinstance(raw_environment, str):
+        raise ValueError("observed_environment_content_identity must be a string when given")
 
     return PreparationRecord(
         request=PreparationRequest(
@@ -395,13 +381,14 @@ def preparation_record_from_payload(payload: Mapping[str, object]) -> Preparatio
             input_revisions=InputRevisions(**revisions),
             observed_case_revisions=tuple(observed),
             observed_resolved_input_digest=raw_digest,
-            observed_snapshot_identity=raw_identity,
+            observed_snapshot_content_identity=raw_identity,
+            observed_scope_id=raw_scope,
+            observed_environment_content_identity=raw_environment,
         ),
         intent_id=_payload_text(payload, "intent_id"),
         created_at_commit=_payload_text(payload, "created_at_commit"),
         cancelled=cancelled,
     )
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -413,14 +400,10 @@ class PreparationLookup:
     changed_inputs: tuple[str, ...] = ()
 
 
-def changed_inputs(
-    previous: InputRevisions, current: InputRevisions
-) -> tuple[str, ...]:
+def changed_inputs(previous: InputRevisions, current: InputRevisions) -> tuple[str, ...]:
     """列出发生变化的输入项名；顺序固定为字段声明顺序，便于稳定提示与测试。"""
     return tuple(
-        name
-        for name in _REVISION_FIELDS
-        if getattr(previous, name) != getattr(current, name)
+        name for name in _REVISION_FIELDS if getattr(previous, name) != getattr(current, name)
     )
 
 
@@ -446,9 +429,18 @@ def decide_preparation(
     if existing.request.payload_hash != request.payload_hash:
         return PreparationLookup(decision=PreparationDecision.CONFLICTED)
 
-    changed = list(
-        changed_inputs(existing.request.input_revisions, request.input_revisions)
-    )
+    changed = list(changed_inputs(existing.request.input_revisions, request.input_revisions))
+    previous_identity = existing.request.observed_snapshot_content_identity
+    current_identity = request.observed_snapshot_content_identity
+    if previous_identity != current_identity:
+        changed.append("snapshot_content_identity")
+    if existing.request.observed_scope_id != request.observed_scope_id:
+        changed.append("scope_id")
+    if (
+        existing.request.observed_environment_content_identity
+        != request.observed_environment_content_identity
+    ):
+        changed.append("environment_content_identity")
     if existing.request.observed_case_revisions != request.observed_case_revisions:
         # 「哪个用例配哪个修订」变了也是**依据变化**，不是"换了请求"：
         # 配对不进摘要（见 PreparationRequest 的说明），因此在这里单独识别。
@@ -461,16 +453,6 @@ def decide_preparation(
         # 只拿"双方都有值且不同"判定：旧记录没有该值（本次新增字段之前的记录）
         # 时不能算变化，否则会把历史记录一律判成需重新准备。
         changed.append("resolved_input_digest")
-    previous_identity = existing.request.observed_snapshot_identity
-    current_identity = request.observed_snapshot_identity
-    if previous_identity is not None and current_identity != previous_identity:
-        # **源码内容变了**：旧意图绑定的依据已经不是当前来源，必须报"依据需重新准备"，
-        # 不得复用（`DEC-009` 选丙：快照的变化判据是**内容身份**，不是记录修订号——
-        # 快照按内容寻址、其记录恒为修订 1，用修订号永远比不出源码变化）。
-        # 只拿"双方都有值且不同"判定：旧记录没有该值（本次新增字段之前的记录）
-        # 时不能算变化，否则会把历史记录一律判成需重新准备。
-        # 报出的名字沿用既有 `snapshot_revision`：失效提示与既有 `changed_inputs` 形状不变。
-        changed.append("snapshot_revision")
     if changed:
         return PreparationLookup(
             decision=PreparationDecision.NEEDS_REPREPARE,

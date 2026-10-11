@@ -29,9 +29,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from contextlib import AbstractContextManager, suppress
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol, cast
+
+if TYPE_CHECKING:
+    from aitest.application.ports import RecordIntentOpening
 
 from aitest.application.planning.preparation import PreparationRecord
+from aitest.contracts.queries import QueryUnsupportedFilter
 
 #: 参与提交与查询的记录类别。新增时同步更新文档与内存实现。
 AggregateKind = Literal[
@@ -41,9 +45,13 @@ AggregateKind = Literal[
     "dependency_set",
     "task",
     "delivery",
+    "delivery_submission",
     "acceptance_item",
     "environment",
     "source_snapshot",
+    "source_pin_intent",
+    "record_write_intent",
+    "source_binding_current",
     "template_ref",
     "generated_content",
     "rule_draft",
@@ -97,8 +105,7 @@ class SubstrateContractError(RuntimeError):
         self.owner = owner
         self.request = request
         super().__init__(
-            f"the injected substrate does not provide {capability!r}; "
-            f"owner={owner}; see {request}"
+            f"the injected substrate does not provide {capability!r}; owner={owner}; see {request}"
         )
 
 
@@ -170,21 +177,52 @@ class CommittedRecord:
 
 @dataclass(frozen=True, slots=True)
 class RecordQuery:
-    """有限查询：项目范围 + 可选类别 + 可选精确标识（存储与恢复第 13 节）。"""
+    """有限查询：项目范围 + 可选类别 + 可选精确标识（存储与恢复第 13 节）。
+
+    自 2026-10-11 起，本对象也承载 `contracts.queries.QuerySpec` 的**固定目录**
+    选择器（报告业务结果、报告/运行标识、问题 view/facet/severity、排序与修订）。
+    组合合法性由 `QuerySpec.ensure_finite_route()` 唯一判定；本对象只做类型与
+    非空的最前置检查，避免出现第二套路由规则。
+    """
 
     project_id: str
     aggregate_kind: AggregateKind | None = None
     record_id: str | None = None
     limit: int = 50
     cursor: str | None = None
+    revision: int | None = None
+    sort: str = "aggregate_kind"
+    descending: bool = False
+    business_outcome: str | None = None
+    run_id: str | None = None
+    report_id: str | None = None
+    view: str | None = None
+    facet: str = "NONE"
+    facet_value: str | None = None
+    severity: str | None = None
 
     def __post_init__(self) -> None:
         if not self.project_id.strip():
             raise ValueError("query requires a project_id")
+        if self.record_id is not None and self.aggregate_kind is None:
+            raise QueryUnsupportedFilter("record identity requires aggregate_kind")
         if self.limit < 1:
             raise ValueError("query limit must be >= 1")
         if self.cursor is not None and not self.cursor.strip():
             raise ValueError("query cursor must not be blank when given")
+        if self.revision is not None and self.revision < 1:
+            raise ValueError("query revision must be >= 1")
+        for name in (
+            "business_outcome",
+            "run_id",
+            "report_id",
+            "view",
+            "facet_value",
+            "severity",
+        ):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"query {name} must be non-empty when given")
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,12 +347,15 @@ class Transaction(AbstractContextManager["Transaction"]):
     "提交时刻"必须由用例显式给出。
     """
 
-    __slots__ = ("_owns_transaction", "_project_id", "_unit_of_work")
+    __slots__ = ("_owns_transaction", "_project_id", "_unit_of_work", "_intent_id")
 
-    def __init__(self, unit_of_work: UnitOfWork, project_id: str) -> None:
+    def __init__(
+        self, unit_of_work: UnitOfWork, project_id: str, *, intent_id: str | None = None
+    ) -> None:
         if not project_id.strip():
             raise ValueError("project_id must not be empty")
         self._unit_of_work = unit_of_work
+        self._intent_id = intent_id
         self._project_id = project_id
         #: 只有**确实开启成功**才为真；未开启时不持有任何资源，也不得回滚别人的事务。
         self._owns_transaction = False
@@ -324,7 +365,15 @@ class Transaction(AbstractContextManager["Transaction"]):
     def __enter__(self) -> Transaction:
         # 先 open，成功后才认领；`open()` 抛错（例如排他锁取不到）时本对象不认领，
         # 因此 `__exit__` / `__del__` 不会去回滚一个不属于自己的事务。
-        self._unit_of_work.open(self._project_id)
+        if self._intent_id is None:
+            self._unit_of_work.open(self._project_id)
+        else:
+            opener = getattr(self._unit_of_work, "open_for_intent", None)
+            if not callable(opener):
+                raise ValueError("business write requires the declared intent opening port")
+            cast("RecordIntentOpening", self._unit_of_work).open_for_intent(
+                self._project_id, self._intent_id
+            )
         self._owns_transaction = True
         return self
 
@@ -364,7 +413,16 @@ class Transaction(AbstractContextManager["Transaction"]):
         record_id: str,
         expected_revision: int | None,
         payload: Mapping[str, object],
+        require_unchanged: bool = False,
     ) -> StagedRevision:
+        if require_unchanged:
+            exact = getattr(self._unit_of_work, "stage_record_exact", None)
+            if not callable(exact):
+                raise ValueError("business write requires the exact record staging capability")
+            return cast(StagedRevision, exact(
+                aggregate_kind=aggregate_kind, record_id=record_id,
+                expected_revision=expected_revision, payload=payload,
+            ))
         return self._unit_of_work.stage_record(
             aggregate_kind=aggregate_kind,
             record_id=record_id,
@@ -386,13 +444,15 @@ class Transaction(AbstractContextManager["Transaction"]):
         self._owns_transaction = False
 
 
-def transaction(unit_of_work: UnitOfWork, project_id: str) -> Transaction:
+def transaction(
+    unit_of_work: UnitOfWork, project_id: str, *, intent_id: str | None = None
+) -> Transaction:
     """开启一个**事务作用域**；B 的应用用例统一经它写入，不直接调 `open()`。
 
     返回的是**对象**而不是上下文装饰器：锁由该对象持有，因此可以用它暂存与提交，
     它的生命周期就是事务的生命周期（见 `Transaction`）。
     """
-    return Transaction(unit_of_work, project_id)
+    return Transaction(unit_of_work, project_id, intent_id=intent_id)
 
 
 class RecordReader(Protocol):
@@ -419,6 +479,159 @@ class RecordReader(Protocol):
     def find_preparation_by_intent(self, *, intent_id: str) -> PreparationRecord | None: ...
 
 
+_RECORD_BODY_IDENTITIES: Mapping[str, str] = {
+    "project": "local_project_id",
+    "binding": "binding_id",
+    "environment": "environment_id",
+    "source_snapshot": "snapshot_id",
+    "task": "task_id",
+    "delivery": "delivery_id",
+    "delivery_submission": "submission_id",
+    "case": "case_id",
+    "acceptance_scope": "scope_id",
+    "rule_draft": "rule_id",
+    "rule_version": "rule_id",
+    "plan": "plan_id",
+    "case_link": "confirmation_id",
+    "generated_content": "generated_content_id",
+    "prepared_run": "prepared_run_id",
+    "model_outbound_request": "request_id",
+}
+
+
+def require_record_identity(
+    record: object,
+    *,
+    aggregate_kind: str,
+    record_id: str,
+    revision: int,
+) -> None:
+    """Validate an exact immutable warehouse envelope without interpreting its body."""
+    if any(
+        not isinstance(value, str) or not value.strip() for value in (aggregate_kind, record_id)
+    ):
+        raise ValueError("record identity requires nonempty kind and record_id")
+    if type(revision) is not int or revision < 1:
+        raise ValueError("record requires an exact positive warehouse revision")
+    if (
+        getattr(record, "aggregate_kind", None),
+        getattr(record, "record_id", None),
+        getattr(record, "revision", None),
+    ) != (
+        aggregate_kind,
+        record_id,
+        revision,
+    ) or type(getattr(record, "revision", None)) is not int:
+        raise ValueError("record reader returned another warehouse identity")
+    if not isinstance(getattr(record, "payload", None), Mapping):
+        raise ValueError("saved record payload is not an object")
+
+
+def require_scoped_record(
+    record: object,
+    *,
+    project_id: str,
+    aggregate_kind: str,
+    record_id: str,
+    revision: int,
+) -> None:
+    """Prove warehouse identity and owning project before consuming a saved body."""
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("record scope requires a nonempty project_id")
+    require_record_identity(
+        record, aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
+    )
+    payload = getattr(record, "payload", None)
+    if not isinstance(payload, Mapping):
+        raise ValueError("saved record payload is not an object")
+    owner = payload.get("project_id")
+    if owner is None and aggregate_kind == "project":
+        owner = payload.get("local_project_id")
+    if owner is None:
+        raise ValueError("saved record carries no project_id; owning project is unknown")
+    if owner != project_id:
+        raise ValueError("record belongs to another project")
+    body_key = _RECORD_BODY_IDENTITIES.get(aggregate_kind)
+    if body_key is not None and payload.get(body_key) != record_id:
+        raise ValueError("saved body identity differs from its warehouse record")
+
+
+def read_scoped_record(
+    reader: RecordReader,
+    *,
+    project_id: str,
+    aggregate_kind: AggregateKind,
+    record_id: str,
+    revision: int,
+) -> CommittedRecord:
+    if any(
+        not isinstance(value, str) or not value.strip()
+        for value in (project_id, aggregate_kind, record_id)
+    ):
+        raise ValueError("record lookup requires nonempty project, kind and identity")
+    if type(revision) is not int or revision < 1:
+        raise ValueError("record requires an exact positive warehouse revision")
+    record = reader.read(aggregate_kind=aggregate_kind, record_id=record_id, revision=revision)
+    require_scoped_record(
+        record,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+        revision=revision,
+    )
+    return record
+
+
+def current_record(
+    reader: RecordReader, *, project_id: str, aggregate_kind: AggregateKind, record_id: str
+) -> CommittedRecord | None:
+    """定位权威当前修订后准确读回；旧端口逐页查询，不能取首分页冒充最新。"""
+    current = getattr(reader, "current_revision", None)
+    if callable(current):
+        revision = current(aggregate_kind=aggregate_kind, record_id=record_id)
+        if type(revision) is not int or revision < 0:
+            raise ValueError("current warehouse revision cannot be verified")
+        if revision == 0:
+            return None
+        return read_scoped_record(
+            reader,
+            project_id=project_id,
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            revision=revision,
+        )
+    latest: CommittedRecord | None = None
+    cursor: str | None = None
+    seen: set[str] = set()
+    while True:
+        page = reader.query(
+            RecordQuery(
+                project_id=project_id,
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                cursor=cursor,
+            )
+        )
+        for item in page.items:
+            require_scoped_record(
+                item,
+                project_id=project_id,
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                revision=item.revision,
+            )
+            if latest is not None and item.revision == latest.revision and item != latest:
+                raise ValueError("query returned conflicting bodies for the same revision")
+            if latest is None or item.revision > latest.revision:
+                latest = item
+        cursor = page.next_cursor
+        if cursor is None:
+            return latest
+        if cursor in seen:
+            raise InvalidQueryCursor("query repeated a cursor while locating a revision")
+        seen.add(cursor)
+
+
 __all__ = [
     "AggregateKind",
     "CommitResult",
@@ -435,4 +648,8 @@ __all__ = [
     "Transaction",
     "UnitOfWork",
     "transaction",
+    "current_record",
+    "read_scoped_record",
+    "require_scoped_record",
+    "require_record_identity",
 ]

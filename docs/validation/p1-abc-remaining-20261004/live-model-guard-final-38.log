@@ -1,0 +1,87 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 38 items
+
+tests/unit/test_live_model_validation_guard.py::test_fresh_harness_cannot_create_confirmation_workspace_or_transport PASSED [  2%]
+tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[True] PASSED [  5%]
+tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[1.0] PASSED [  7%]
+tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[1] PASSED [ 10%]
+tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[-1] PASSED [ 13%]
+tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[0] PASSED [ 15%]
+tests/unit/test_live_model_validation_guard.py::test_harness_reads_actual_saved_controlled_policy_without_model_call PASSED [ 18%]
+tests/unit/test_live_model_validation_guard.py::test_legacy_self_signed_policy_cannot_pass_harness_preflight PASSED [ 21%]
+tests/unit/test_live_model_validation_guard.py::test_existing_controlled_workspace_sends_once_then_replays_without_transport PASSED [ 23%]
+tests/unit/test_model_policy_approval.py::test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy PASSED [ 26%]
+tests/unit/test_model_policy_approval.py::test_default_generation_cannot_use_a_legacy_policy_without_saved_origin PASSED [ 28%]
+tests/unit/test_model_policy_approval.py::test_policy_origin_business_record_and_receipt_share_one_commit_before_send PASSED [ 31%]
+tests/unit/test_model_policy_approval.py::test_policy_save_replay_returns_its_exact_historical_revision_and_new_input_conflicts PASSED [ 34%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[1] PASSED [ 36%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[2] PASSED [ 39%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[3] PASSED [ 42%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[4] PASSED [ 44%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[5] PASSED [ 47%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[6] PASSED [ 50%]
+tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[before_commit] PASSED [ 52%]
+tests/unit/test_model_policy_approval.py::test_published_policy_lost_reply_replays_without_another_user_event PASSED [ 55%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[endpoint] PASSED [ 57%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[kinds] PASSED [ 60%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[origin_id] PASSED [ 63%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[confirmation_missing] PASSED [ 65%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_missing] PASSED [ 68%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_intent] PASSED [ 71%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_digest] PASSED [ 73%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[boolean_revision] PASSED [ 76%]
+tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[interaction_missing] PASSED [ 78%]
+tests/unit/test_model_policy_approval.py::test_read_after_restart_requires_the_same_frozen_credential_reference PASSED [ 81%]
+tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[ai_enabled] PASSED [ 84%]
+tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[endpoint] PASSED [ 86%]
+tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[project_revision] PASSED [ 89%]
+tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[expected_revision] PASSED [ 92%]
+tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[purpose] PASSED [ 94%]
+tests/unit/test_model_policy_approval.py::test_a_save_receipt_cannot_be_redirected_to_another_valid_policy_intent PASSED [ 97%]
+tests/unit/test_model_policy_approval.py::test_historical_save_replay_is_readable_after_credential_reference_changes PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_live_model_validation_guard.py::test_fresh_harness_cannot_create_confirmation_workspace_or_transport
+PASSED tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[True]
+PASSED tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[1.0]
+PASSED tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[1]
+PASSED tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[-1]
+PASSED tests/unit/test_live_model_validation_guard.py::test_harness_cannot_coerce_a_saved_revision[0]
+PASSED tests/unit/test_live_model_validation_guard.py::test_harness_reads_actual_saved_controlled_policy_without_model_call
+PASSED tests/unit/test_live_model_validation_guard.py::test_legacy_self_signed_policy_cannot_pass_harness_preflight
+PASSED tests/unit/test_live_model_validation_guard.py::test_existing_controlled_workspace_sends_once_then_replays_without_transport
+PASSED tests/unit/test_model_policy_approval.py::test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy
+PASSED tests/unit/test_model_policy_approval.py::test_default_generation_cannot_use_a_legacy_policy_without_saved_origin
+PASSED tests/unit/test_model_policy_approval.py::test_policy_origin_business_record_and_receipt_share_one_commit_before_send
+PASSED tests/unit/test_model_policy_approval.py::test_policy_save_replay_returns_its_exact_historical_revision_and_new_input_conflicts
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[1]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[2]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[3]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[4]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[5]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[6]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[before_commit]
+PASSED tests/unit/test_model_policy_approval.py::test_published_policy_lost_reply_replays_without_another_user_event
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[endpoint]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[kinds]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[origin_id]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[confirmation_missing]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_missing]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_intent]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_digest]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[boolean_revision]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[interaction_missing]
+PASSED tests/unit/test_model_policy_approval.py::test_read_after_restart_requires_the_same_frozen_credential_reference
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[ai_enabled]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[endpoint]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[project_revision]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[expected_revision]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[purpose]
+PASSED tests/unit/test_model_policy_approval.py::test_a_save_receipt_cannot_be_redirected_to_another_valid_policy_intent
+PASSED tests/unit/test_model_policy_approval.py::test_historical_save_replay_is_readable_after_credential_reference_changes
+======================= 38 passed in 230.09s (0:03:50) ========================

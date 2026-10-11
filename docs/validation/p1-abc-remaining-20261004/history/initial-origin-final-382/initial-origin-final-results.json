@@ -1,0 +1,28 @@
+{
+  "distinct_passed": 382,
+  "contract_architecture_preparation_initial_content_history": {
+    "passed": 334,
+    "skipped": 0,
+    "seconds": 2899.71,
+    "log": "initial-origin-final-regression.log"
+  },
+  "runtime_unchanged_test_nodes_passed": 42,
+  "runtime_unchanged_nodes_log": "initial-origin-runtime-risk-after.log",
+  "corrected_runtime_nodes": {
+    "passed": 6,
+    "skipped": 0,
+    "seconds": 491.91,
+    "log": "initial-origin-runtime-origin-corrected.log"
+  },
+  "all_prior_risk_results_counted": false,
+  "full_python_run": false,
+  "ruff": "passed",
+  "mypy_source_files": 177,
+  "schema_generated_change": false,
+  "version": "0.4.0",
+  "offline_build": "passed",
+  "modified_product_modules_package_byte_match": 7,
+  "isolated_wheel_smoke": "passed",
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22
+}

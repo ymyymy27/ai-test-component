@@ -1,0 +1,5 @@
+.                                                                        [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state
+1 passed in 91.36s (0:01:31)

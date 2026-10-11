@@ -1,0 +1,2 @@
+Installed command adapter bytes match final source; actual Windows owned-Job cancel/timeout/startup failure and timer deadline passed.
+No Trae, physical power loss, business rollback or business verification acceptance claimed.

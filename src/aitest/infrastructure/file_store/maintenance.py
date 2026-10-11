@@ -113,6 +113,23 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
       无短事务标记也不能回收/迁移该工作空间。
     """
     root = workspace_root.resolve()
+    # 管道封口不等于执行结束。没有核实并保存终态的句柄仍是活动/未知事实。
+    handles = root / "execution-handles"
+    if handles.is_dir():
+        from .execution_handles import FileExecutionHandleStore
+
+        handle_store = FileExecutionHandleStore(root)
+        for path in handles.glob("*.json"):
+            if path.stem.endswith(("-result", "-stop")):
+                continue
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                handle_id = payload["handle"]["handle_id"]
+                saved = handle_store.load(handle_id)
+                if handle_store.load_collection(saved.handle) is None:
+                    return f"执行终态尚未核实: {saved.attempt_id}"
+            except (OSError, ValueError, KeyError, TypeError):
+                return f"执行句柄状态无法核实: {path.name}"
     marker = root / _ACTIVE_MARKER
     if marker.exists():
         return f"活动事务标记存在: {_ACTIVE_MARKER.as_posix()}"
@@ -130,23 +147,25 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
         for attempt in spool.iterdir():
             if not attempt.is_dir() or attempt.is_symlink():
                 continue
+            for capture in attempt.glob("capture-*.json"):
+                try:
+                    state = json.loads(capture.read_text(encoding="utf-8"))
+                    if state.get("state") not in {"sealed", "recovered"}:
+                        return f"执行输出采集尚未核实: {capture.relative_to(root)}"
+                except (OSError, ValueError, AttributeError):
+                    return f"执行输出采集状态无法核实: {capture.relative_to(root)}"
             try:
                 streams = [
                     path
                     for path in attempt.iterdir()
-                    if path.is_file()
-                    and path.suffix.lower() == ".log"
-                    and path.stat().st_size >= 0
+                    if path.is_file() and path.suffix.lower() == ".log" and path.stat().st_size >= 0
                 ]
             except OSError:
                 return f"在途执行目录状态无法核实: spool/{attempt.name}"
             if not streams:
                 continue
             if not (attempt / "manifest.json").exists():
-                return (
-                    "存在未封口在途执行输出（无 manifest 封口）: "
-                    f"spool/{attempt.name}"
-                )
+                return f"存在未封口在途执行输出（无 manifest 封口）: spool/{attempt.name}"
     return None
 
 
@@ -211,11 +230,7 @@ class FileMaintenanceService:
         reclaimable_bytes = sum(candidate.size_bytes for candidate in candidates)
         integrity = check_workspace(self._root)
         raw_errors = integrity.get("errors", [])
-        errors = (
-            tuple(str(error) for error in raw_errors)
-            if isinstance(raw_errors, list)
-            else ()
-        )
+        errors = tuple(str(error) for error in raw_errors) if isinstance(raw_errors, list) else ()
         return SpaceReport(
             total_bytes=total_bytes,
             total_files=total_files,
@@ -287,9 +302,7 @@ class FileMaintenanceService:
                     try:
                         referenced.update(_iter_digest_refs(json.loads(line)))
                     except json.JSONDecodeError:
-                        unreadable.append(
-                            path.relative_to(self._root).as_posix()
-                        )
+                        unreadable.append(path.relative_to(self._root).as_posix())
                         break
         if unreadable:
             raise MaintenanceError(
@@ -298,9 +311,7 @@ class FileMaintenanceService:
             )
         return referenced
 
-    def _classify_candidate(
-        self, path: Path, referenced: set[str]
-    ) -> ReclaimCandidate | None:
+    def _classify_candidate(self, path: Path, referenced: set[str]) -> ReclaimCandidate | None:
         try:
             stat = path.stat()
             size = stat.st_size
@@ -332,9 +343,7 @@ class FileMaintenanceService:
             return None
         return ReclaimCandidate(relative_posix, size, candidate)
 
-    def _classify_temporary(
-        self, path: Path, mtime_ns: int, digest: str
-    ) -> str | None:
+    def _classify_temporary(self, path: Path, mtime_ns: int, digest: str) -> str | None:
         """按真实发布/进程事实判定隐藏临时文件的回收资格与理由。"""
         name = path.name
 
@@ -495,9 +504,7 @@ class FileMaintenanceService:
             "size_bytes": size,
         }
         with self._audit_path.open("a", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n"
-            )
+            handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
 

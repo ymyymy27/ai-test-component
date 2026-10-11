@@ -1,0 +1,261 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+__ test_legacy_no_summary_state_can_be_corrected_using_only_permanent_bytes ___
+
+store = <aitest.infrastructure.file_store.spool.FileSpoolStore object at 0x000001F245DC82F0>
+attempt = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...eCompleteness.PARTIAL: 'partial'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0)
+blocks = (OutputBlockRef(block_id='attempt-1:stdout:0', attempt_id='attempt-1', stream_name=<OutputStreamName.STDOUT: 'stdout'>...7d23acaabb9fddc8b22d03084e5592edf54257521761eac', complete=True, capture_source='runtime', redaction_summary_id=None),)
+
+    def require_saved_output_material(
+        store: SpoolStore | None, attempt: Attempt, blocks: tuple[OutputBlockRef, ...]
+    ) -> None:
+        if not blocks:
+            return
+        if store is None:
+            raise SavedOutputMaterialError("output_material_reader_unavailable")
+        try:
+            manifest = store.read_manifest(attempt.attempt_id)
+            if not isinstance(manifest, SpoolManifest) or (
+                manifest.run_id,
+                manifest.step_id,
+                manifest.attempt_id,
+                manifest.schema_version,
+            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
+                raise ValueError("spool ownership differs from the original attempt")
+            for block in blocks:
+                if (
+                    not isinstance(block.stream_name, OutputStreamName)
+                    or any(
+                        type(value) is not int
+                        for value in (block.block_index, block.offset, block.length)
+                    )
+                    or type(block.complete) is not bool
+                    or block not in manifest.blocks
+                ):
+                    raise ValueError("output reference differs from saved material")
+>               content = store.read_block(block)
+                          ^^^^^^^^^^^^^^^^^^^^^^^
+
+src\aitest\application\execution\output_material.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\spool.py:389: in read_block
+    with path.open("rb") as handle:
+         ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1059/test_legacy_no_summary_state_c0/spool/attempt-1/stdout.log")
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\pytest-of-y'm'y\\pytest-1059\\test_legacy_no_summary_state_c0\\spool\\attempt-1\\stdout.log"
+
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_local.py:537: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1059/test_legacy_no_summary_state_c0")
+
+    def test_legacy_no_summary_state_can_be_corrected_using_only_permanent_bytes(tmp_path):
+        collector, checkpoint, records = material(tmp_path)
+        current = collector.collect("project-1", checkpoint)[0]
+        records.save(replace(current, redaction_state=RedactionState.NOT_REQUIRED, gap_ids=()))
+        path = (tmp_path / "spool/attempt-1/stdout.log").resolve()
+        assert path.is_relative_to(tmp_path.resolve())
+        path.unlink()
+>       corrected = collector.collect("project-1", checkpoint)[0]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_saved_output_repair_without_spool.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\evidence\execution_outputs.py:174: in collect
+    require_saved_output_material(self.spool, attempt, attempt.output_block_refs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <aitest.infrastructure.file_store.spool.FileSpoolStore object at 0x000001F245DC82F0>
+attempt = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...eCompleteness.PARTIAL: 'partial'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0)
+blocks = (OutputBlockRef(block_id='attempt-1:stdout:0', attempt_id='attempt-1', stream_name=<OutputStreamName.STDOUT: 'stdout'>...7d23acaabb9fddc8b22d03084e5592edf54257521761eac', complete=True, capture_source='runtime', redaction_summary_id=None),)
+
+    def require_saved_output_material(
+        store: SpoolStore | None, attempt: Attempt, blocks: tuple[OutputBlockRef, ...]
+    ) -> None:
+        if not blocks:
+            return
+        if store is None:
+            raise SavedOutputMaterialError("output_material_reader_unavailable")
+        try:
+            manifest = store.read_manifest(attempt.attempt_id)
+            if not isinstance(manifest, SpoolManifest) or (
+                manifest.run_id,
+                manifest.step_id,
+                manifest.attempt_id,
+                manifest.schema_version,
+            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
+                raise ValueError("spool ownership differs from the original attempt")
+            for block in blocks:
+                if (
+                    not isinstance(block.stream_name, OutputStreamName)
+                    or any(
+                        type(value) is not int
+                        for value in (block.block_index, block.offset, block.length)
+                    )
+                    or type(block.complete) is not bool
+                    or block not in manifest.blocks
+                ):
+                    raise ValueError("output reference differs from saved material")
+                content = store.read_block(block)
+                if (
+                    type(content) is not bytes
+                    or len(content) != block.length
+                    or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
+                ):
+                    raise ValueError("saved output content differs from its reference")
+        except (OSError, ValueError) as error:
+>           raise SavedOutputMaterialError("output_material_unverified") from error
+E           aitest.application.execution.output_material.SavedOutputMaterialError: output_material_unverified
+
+src\aitest\application\execution\output_material.py:50: SavedOutputMaterialError
+___ test_old_terminal_can_repair_current_projection_after_permanent_cleanup ___
+
+store = <aitest.infrastructure.file_store.spool.FileSpoolStore object at 0x000001F245F007D0>
+attempt = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...ompleteness.COMPLETE: 'complete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0)
+blocks = (OutputBlockRef(block_id='attempt-1:stdout:0', attempt_id='attempt-1', stream_name=<OutputStreamName.STDOUT: 'stdout'>...7d23acaabb9fddc8b22d03084e5592edf54257521761eac', complete=True, capture_source='runtime', redaction_summary_id=None),)
+
+    def require_saved_output_material(
+        store: SpoolStore | None, attempt: Attempt, blocks: tuple[OutputBlockRef, ...]
+    ) -> None:
+        if not blocks:
+            return
+        if store is None:
+            raise SavedOutputMaterialError("output_material_reader_unavailable")
+        try:
+            manifest = store.read_manifest(attempt.attempt_id)
+            if not isinstance(manifest, SpoolManifest) or (
+                manifest.run_id,
+                manifest.step_id,
+                manifest.attempt_id,
+                manifest.schema_version,
+            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
+                raise ValueError("spool ownership differs from the original attempt")
+            for block in blocks:
+                if (
+                    not isinstance(block.stream_name, OutputStreamName)
+                    or any(
+                        type(value) is not int
+                        for value in (block.block_index, block.offset, block.length)
+                    )
+                    or type(block.complete) is not bool
+                    or block not in manifest.blocks
+                ):
+                    raise ValueError("output reference differs from saved material")
+>               content = store.read_block(block)
+                          ^^^^^^^^^^^^^^^^^^^^^^^
+
+src\aitest\application\execution\output_material.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\spool.py:389: in read_block
+    with path.open("rb") as handle:
+         ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1059/test_old_terminal_can_repair_c0/spool/attempt-1/stdout.log")
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\pytest-of-y'm'y\\pytest-1059\\test_old_terminal_can_repair_c0\\spool\\attempt-1\\stdout.log"
+
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\pathlib\_local.py:537: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1059/test_old_terminal_can_repair_c0")
+
+    def test_old_terminal_can_repair_current_projection_after_permanent_cleanup(tmp_path):
+        runner, coordinator, unit, collector, checkpoint = saved_output(tmp_path)
+        collector.collect("project-1", checkpoint)  # Publish verified actual bytes first.
+        original_collect = collector.collect
+        collector.collect = lambda project, checkpoint: tuple(replace(
+            ref, redaction_state=RedactionState.NOT_REQUIRED, gap_ids=(),
+        ) for ref in original_collect(project, checkpoint))
+        coordinator._evidence_collector = collector
+        old = coordinator.commit_checkpoint(project_id="project-1", checkpoint=checkpoint).facts
+        collector.collect = original_collect
+        path = (tmp_path / "spool/attempt-1/stdout.log").resolve()
+        assert path.is_relative_to(tmp_path.resolve())
+        path.unlink()
+>       coordinator.ensure_checkpoint_evidence(project_id="project-1", attempt=checkpoint.attempt)
+
+tests\unit\test_saved_output_repair_without_spool.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\commit.py:1734: in ensure_checkpoint_evidence
+    self.commit_checkpoint(project_id=project_id, checkpoint=checkpoint)
+src\aitest\application\execution\commit.py:1560: in commit_checkpoint
+    self._evidence_collector.collect(project_id, checkpoint)
+src\aitest\application\evidence\execution_outputs.py:174: in collect
+    require_saved_output_material(self.spool, attempt, attempt.output_block_refs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = <aitest.infrastructure.file_store.spool.FileSpoolStore object at 0x000001F245F007D0>
+attempt = Attempt(attempt_id='attempt-1', run_id='run-1', step_id='step-1', attempt_index=1, resolved_input_digest='sha256:input...ompleteness.COMPLETE: 'complete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0)
+blocks = (OutputBlockRef(block_id='attempt-1:stdout:0', attempt_id='attempt-1', stream_name=<OutputStreamName.STDOUT: 'stdout'>...7d23acaabb9fddc8b22d03084e5592edf54257521761eac', complete=True, capture_source='runtime', redaction_summary_id=None),)
+
+    def require_saved_output_material(
+        store: SpoolStore | None, attempt: Attempt, blocks: tuple[OutputBlockRef, ...]
+    ) -> None:
+        if not blocks:
+            return
+        if store is None:
+            raise SavedOutputMaterialError("output_material_reader_unavailable")
+        try:
+            manifest = store.read_manifest(attempt.attempt_id)
+            if not isinstance(manifest, SpoolManifest) or (
+                manifest.run_id,
+                manifest.step_id,
+                manifest.attempt_id,
+                manifest.schema_version,
+            ) != (attempt.run_id, attempt.step_id, attempt.attempt_id, "aitest.spool/1.0"):
+                raise ValueError("spool ownership differs from the original attempt")
+            for block in blocks:
+                if (
+                    not isinstance(block.stream_name, OutputStreamName)
+                    or any(
+                        type(value) is not int
+                        for value in (block.block_index, block.offset, block.length)
+                    )
+                    or type(block.complete) is not bool
+                    or block not in manifest.blocks
+                ):
+                    raise ValueError("output reference differs from saved material")
+                content = store.read_block(block)
+                if (
+                    type(content) is not bytes
+                    or len(content) != block.length
+                    or "sha256:" + hashlib.sha256(content).hexdigest() != block.digest
+                ):
+                    raise ValueError("saved output content differs from its reference")
+        except (OSError, ValueError) as error:
+>           raise SavedOutputMaterialError("output_material_unverified") from error
+E           aitest.application.execution.output_material.SavedOutputMaterialError: output_material_unverified
+
+src\aitest\application\execution\output_material.py:50: SavedOutputMaterialError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_output_repair_without_spool.py::test_legacy_no_summary_state_can_be_corrected_using_only_permanent_bytes
+FAILED tests/unit/test_saved_output_repair_without_spool.py::test_old_terminal_can_repair_current_projection_after_permanent_cleanup
+2 failed in 2.64s

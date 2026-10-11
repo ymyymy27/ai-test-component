@@ -1,0 +1,72 @@
+E501 Line too long (103 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:147:101
+    |
+146 | @pytest.mark.parametrize("fault", [1,2,3,4,5,6,"before_commit"])
+147 | def test_binding_batch_failure_keeps_challenge_pending_and_retry_exact(binding_core,monkeypatch,fault):
+    |                                                                                                     ^^^
+148 |     core,binding = binding_core
+149 |     challenge = prepare_binding_challenge(core,command(binding),HUMAN)
+    |
+
+E501 Line too long (108 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:177:101
+    |
+175 |     monkeypatch.setattr(unit,"stage_record",stage)
+176 |     monkeypatch.setattr(unit,"commit",commit)
+177 |     replay = core.api.dispatch_user_confirmation(approved.model_copy(update={"request_id":"retry-binding"}),
+    |                                                                                                     ^^^^^^^^
+178 |         HUMAN,challenge_id=challenge.result["challenge_id"],input_digest=challenge.result["basis"]["input_digest"])
+179 |     assert replay.error is None
+    |
+
+E501 Line too long (102 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:207:101
+    |
+205 | @pytest.mark.parametrize("damage", ["path","confirmed","origin","missing_interaction",
+206 |     "receipt_digest","receipt_revision_bool","receipt_other_intent","schema"])
+207 | def test_binding_origin_damage_blocks_pin_before_files_and_no_commit(binding_core,monkeypatch,damage):
+    |                                                                                                     ^^
+208 |     core,binding = binding_core
+209 |     assert controlled_binding_confirm(core,command(binding),session=HUMAN).error is None
+    |
+
+E501 Line too long (110 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:268:101
+    |
+266 |     assert result.error is not None
+267 |     assert core.unit_of_work.current_commit_sequence() == before
+268 |     assert core.unit_of_work.repo.current_revision("approval_challenge",challenge.result["challenge_id"]) == 1
+    |                                                                                                     ^^^^^^^^^^
+
+E501 Line too long (102 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:271:101
+    |
+271 | def test_original_binding_save_cannot_be_redirected_and_reads_after_restart(binding_core,monkeypatch):
+    |                                                                                                     ^^
+272 |     core,binding = binding_core
+273 |     base = command(binding)
+    |
+
+E501 Line too long (109 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:275:101
+    |
+273 |     base = command(binding)
+274 |     assert controlled_binding_confirm(core,base,session=HUMAN).error is None
+275 |     next_command = command(replace(binding,binding_revision=7),intent="another-binding",request="other-save")
+    |                                                                                                     ^^^^^^^^^
+276 |     next_command = next_command.model_copy(update={"expected_revision":1,
+277 |         "parameters":dict(next_command.parameters)|{"expected_revision":1}})
+    |
+
+E501 Line too long (104 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:302:101
+    |
+300 |     restarted = assemble_workspace_core(root,instance_id="binding-origin-restart")
+301 |     try:
+302 |         recalled = restarted.api.dispatch(base.model_copy(update={"request_id":"restarted-read"}),HUMAN)
+    |                                                                                                     ^^^^
+303 |         assert recalled.error is None and recalled.result["revision"] == 1
+304 |         assert restarted.unit_of_work.current_commit_sequence() == before
+    |
+
+Found 7 errors.

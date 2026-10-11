@@ -1,0 +1,34 @@
+{
+  "test_groups": [
+    {
+      "log": "approval-revocation-expanded-pure.log",
+      "passed": 46,
+      "seconds": 0.7
+    },
+    {
+      "log": "approval-revocation-channel-seven.log",
+      "passed": 7,
+      "seconds": 0.28
+    },
+    {
+      "log": "approval-revocation-entry-regression.log",
+      "passed": 37,
+      "seconds": 200.72
+    },
+    {
+      "log": "approval-revocation-lifecycle-regression.log",
+      "passed": 80,
+      "seconds": 21.74
+    }
+  ],
+  "distinct_passed": 170,
+  "full_python_run": false,
+  "ruff": "passed",
+  "mypy_source_files": 158,
+  "schema_generated_change": false,
+  "version": "0.4.0",
+  "offline_build": "passed",
+  "modified_product_modules_package_byte_match": 4,
+  "isolated_wheel_smoke": "passed",
+  "initial_no_isolation_build": "failed: Hatchling unavailable; original log retained"
+}

@@ -1,0 +1,18 @@
+{
+  "status": "failed",
+  "groups": [
+    {
+      "name": "home-origin",
+      "passed": 0,
+      "failed": 4,
+      "duration_seconds": 2.19
+    }
+  ],
+  "notes": [
+    "Callbacks stopped every unexpected probe; no unregistered interpreter was launched."
+  ],
+  "log_files": [
+    "environment-resolution-home-before.log",
+    "environment-resolution-home-probe.py.txt"
+  ]
+}

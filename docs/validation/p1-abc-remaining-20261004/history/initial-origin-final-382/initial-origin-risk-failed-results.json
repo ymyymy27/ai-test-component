@@ -1,0 +1,20 @@
+{
+  "gates": {
+    "passed": 22,
+    "seconds": 902.64,
+    "log": "initial-origin-final-gates.log"
+  },
+  "early_source_gates": {
+    "passed": 3,
+    "deselected": 22,
+    "seconds": 117.45,
+    "log": "initial-origin-early-source-gates.log"
+  },
+  "risk": {
+    "passed": 309,
+    "failed": 6,
+    "seconds": 1232.98,
+    "log": "initial-origin-final-risk.log"
+  },
+  "note": "Risk failures preserved before repair. Gate groups cover 25 distinct nodes; this is not a full suite pass."
+}

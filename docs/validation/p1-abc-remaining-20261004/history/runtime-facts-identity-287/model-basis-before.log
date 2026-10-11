@@ -1,0 +1,57 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+____ test_unknown_anonymous_source_revision_does_not_authorize_model_call _____
+
+model_stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000178CDB09FD0>, workspace=<aitest.infrastructur...ource"), ['https://api.example/v1/chat/completions'], [<function model_stack.<locals>.<lambda> at 0x00000178CDB13CE0>])
+
+    def test_unknown_anonymous_source_revision_does_not_authorize_model_call(model_stack):
+        core, _, calls, _ = model_stack
+        result = generate(core)
+        assert result.error is None, result.error
+>       assert result.result["status"] == "blocked"
+E       AssertionError: assert 'draft_ready' == 'blocked'
+E         
+E         - blocked
+E         + draft_ready
+
+.git\p1-abc-fix-20261003\current_model_basis_probe.py:91: AssertionError
+___ test_actual_source_change_during_model_call_saves_only_original_history ___
+
+model_stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000178CDA8F390>, workspace=<aitest.infrastructur...tion test_actual_source_change_during_model_call_saves_only_original_history.<locals>.<lambda> at 0x00000178CDB134C0>])
+
+    def test_actual_source_change_during_model_call_saves_only_original_history(model_stack):
+        core, source, calls, on_call = model_stack
+        pinned = analyze(core, project=PROJECT_ID, purpose="analysis")
+        assert pinned.error is None, pinned.error
+        source_ref = {"snapshot_id": pinned.result["snapshot_id"], "record_revision": 1,
+                      "content_identity": pinned.result["content_identity"]}
+        on_call[0] = lambda: (source / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
+        result = generate(core, source_ref=source_ref)
+        assert result.error is None, result.error
+>       assert result.result["status"] == "blocked"
+E       AssertionError: assert 'draft_ready' == 'blocked'
+E         
+E         - blocked
+E         + draft_ready
+
+.git\p1-abc-fix-20261003\current_model_basis_probe.py:104: AssertionError
+_ test_actual_manual_revision_during_model_call_wins_and_response_is_history __
+
+model_stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000178CE0F5D10>, workspace=<aitest.infrastructur...n test_actual_manual_revision_during_model_call_wins_and_response_is_history.<locals>.<lambda> at 0x00000178CDA9B1A0>])
+
+    def test_actual_manual_revision_during_model_call_wins_and_response_is_history(model_stack):
+        core, _, calls, on_call = model_stack
+        manual_ref = save_manual(core, 1)
+        on_call[0] = lambda: save_manual(core, 2)
+        result = generate(core, source_revision=0, base_manual_revision=1, manual_ref=manual_ref)
+>       assert result.error is None, result.error
+E       AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='source_revision must be >= 1 when applicab...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent')
+E       assert ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='source_revision must be >= 1 when applicab...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='INTERNAL_ERROR', message='source_revision must be >= 1 when applicab...le=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent') = Response(protocol_version='aitest.local/2.0', request_id='generate_draft-request', instance_id='model-basis-fixture', ...e=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='generate_draft-request', intent_id='model-basis-intent')).error
+
+.git\p1-abc-fix-20261003\current_model_basis_probe.py:117: AssertionError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/current_model_basis_probe.py::test_unknown_anonymous_source_revision_does_not_authorize_model_call
+FAILED .git/p1-abc-fix-20261003/current_model_basis_probe.py::test_actual_source_change_during_model_call_saves_only_original_history
+FAILED .git/p1-abc-fix-20261003/current_model_basis_probe.py::test_actual_manual_revision_during_model_call_wins_and_response_is_history
+3 failed in 34.32s

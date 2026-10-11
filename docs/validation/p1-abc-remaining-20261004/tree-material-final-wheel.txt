@@ -1,0 +1,18 @@
+Using CPython 3.13.13 interpreter at: .venv\Scripts\python.exe
+Resolved 8 packages in 6.09s
+Prepared 1 package in 71ms
+Installed 8 packages in 335ms
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component/.git/p1-abc-fix-20261003/tree-material-final-dist/ai_test_component-0.4.0-py3-none-any.whl)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+aitest/infrastructure/file_store/material_json.py da9e5959c0f637c38288ea462cfe1ecffc1018476896956407be0e6e93bc3b7d
+aitest/infrastructure/file_store/ordered_index.py a38410f36360167ab887610fe1b766cea8e57d335041be233e5782ef5356c09e
+aitest/infrastructure/file_store/index.py 22a4faee851fbb84cc557a5e99c10d967ce504b289c7f80206d2042dafdbc9d1
+aitest/infrastructure/file_store/sharded_records.py ba842a98483e052d9353ad164f81f26e3795484123a869c6499603d7526a5338
+aitest/infrastructure/file_store/records.py 201b595f30b75694c7539f4dfcab8dae32b3e127294c529db6653809df7d1e2d
+Installed wheel: input/output cache isolation, actual JSON tuple normalization and duplicate-field refusal; default exact source query, original transaction replay and historical source closure passed. Synthetic gesture, not real Trae/user acceptance.

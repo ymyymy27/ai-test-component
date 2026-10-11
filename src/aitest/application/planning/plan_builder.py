@@ -77,7 +77,7 @@ def rule_revision_ref(version: RuleVersion) -> RuleRevisionRef:
     """
     return RuleRevisionRef(
         rule_id=version.rule_id,
-        revision=version.revision,
+        revision=version.record_revision or version.revision,
         digest=version.digest,
     )
 

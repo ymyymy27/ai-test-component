@@ -1,0 +1,1 @@
+C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe: No module named scripts.generate_contract_schemas

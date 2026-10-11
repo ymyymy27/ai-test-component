@@ -1,0 +1,3 @@
+{
+  "memory_guards": "1 failed, 26 passed, 4 deselected in 0.47s; strict Literal[1] still accepted True; initial/guards file-store runs were in progress and are not final results"
+}

@@ -1,0 +1,63 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+___________ test_a_bare_human_label_cannot_create_confirmed_binding ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-646/test_a_bare_human_label_cannot0")
+
+    def test_a_bare_human_label_cannot_create_confirmed_binding(tmp_path):
+        core, binding = make_core(tmp_path)
+        try:
+            before = core.unit_of_work.current_commit_sequence()
+            response = core.api.dispatch(command(binding), HUMAN)
+>           assert response.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='binding-request', instance_id='binding-origin-core', workspa...ding_revision=None, result={'aggregate_kind': 'binding', 'record_id': 'binding', 'revision': 1}, page=None, error=None).error
+
+tests\unit\test_binding_controlled_origin.py:61: AssertionError
+________ test_legacy_confirmed_binding_is_not_permission_to_pin_source ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-646/test_legacy_confirmed_binding_0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001469BB92060>
+
+    def test_legacy_confirmed_binding_is_not_permission_to_pin_source(tmp_path, monkeypatch):
+        core, binding = make_core(tmp_path)
+        try:
+            unit = core.unit_of_work
+            unit.begin("legacy-binding", "project", intent_id="legacy-binding-intent")
+            unit.stage_record(
+                aggregate_kind="binding",
+                record_id="binding",
+                expected_revision=0,
+                payload=binding_to_payload(binding),
+            )
+            unit.commit("legacy-binding")
+    
+            def forbidden(**kwargs):
+                raise AssertionError("source pinning must not precede controlled origin validation")
+    
+            monkeypatch.setattr(core.snapshot_store, "pin", forbidden)
+            before = unit.current_commit_sequence()
+            response = core.api.dispatch(
+                Command(
+                    action="analyze_project",
+                    project_id="project",
+                    request_id="legacy-pin",
+                    intent_id="legacy-pin-intent",
+                    expected_revision=0,
+                    binding_revision=1,
+                    parameters={"binding_id": "binding", "purpose": "prepare", "source_scope": "."},
+                ),
+                Session("binding-relay", EntryKind.AGENT_RELAY),
+            )
+            assert response.error is not None
+>           assert response.error.code == "B_SOURCE_UNVERIFIED"
+E           AssertionError: assert 'INTERNAL_ERROR' == 'B_SOURCE_UNVERIFIED'
+E             
+E             - B_SOURCE_UNVERIFIED
+E             + INTERNAL_ERROR
+
+tests\unit\test_binding_controlled_origin.py:100: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_binding_controlled_origin.py::test_a_bare_human_label_cannot_create_confirmed_binding
+FAILED tests/unit/test_binding_controlled_origin.py::test_legacy_confirmed_binding_is_not_permission_to_pin_source
+2 failed in 6.67s

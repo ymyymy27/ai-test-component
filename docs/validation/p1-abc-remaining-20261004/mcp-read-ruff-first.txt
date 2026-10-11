@@ -1,0 +1,42 @@
+E702 Multiple statements on one line (semicolon)
+   --> tests\unit\test_mcp_stdio_read.py:292:20
+    |
+290 |     replies=[json.loads(line) for line in sink.getvalue().splitlines()]
+291 |     assert len(replies)==1 and replies[0]["error"]["code"] == -32700 and len(sent)==2
+292 |     ready(instance);sink=io.BytesIO()
+    |                    ^
+293 |     instance.serve(io.BytesIO(encode(rpc(3,"tools/list"))+b"\n"),sink)
+294 |     assert json.loads(sink.getvalue())["error"]["code"] == -32000
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> tests\unit\test_mcp_stdio_read.py:322:29
+    |
+320 | def test_actual_stdio_wrong_project_has_no_tool_stream_or_new_writer_epoch(tmp_path):
+321 |     root=tmp_path/"data"
+322 |     raw=FileUnitOfWork(root);raw.begin("seed","project")
+    |                             ^
+323 |     raw.stage_record(aggregate_kind="project",record_id="project",expected_revision=0,
+324 |                      payload={"project_id":"project"})
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> tests\unit\test_mcp_stdio_read.py:328:36
+    |
+326 |                      payload={"project_id":"project","binding_id":"binding"})
+327 |     raw.commit()
+328 |     endpoint=acquire_endpoint(root);endpoint.connection.close()
+    |                                    ^
+329 |     identity=(root/"workspace.json").read_bytes()
+330 |     try:
+    |
+
+E701 Multiple statements on one line (colon)
+   --> tests\unit\test_mcp_stdio_read.py:336:12
+    |
+334 |         assert result.returncode==2 and result.stdout==b""
+335 |         assert (root/"workspace.json").read_bytes()==identity
+336 |     finally:shutdown_endpoint(root)
+    |            ^
+
+Found 4 errors.

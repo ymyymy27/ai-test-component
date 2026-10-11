@@ -1,7 +1,7 @@
 """A-09：落盘前凭据过滤底线（架构02第13节 采集安全与原始证据语义）。
 
 覆盖：
-- KnownSecretRegistry 精确值登记（短值忽略、长→短排序）；
+- KnownSecretRegistry 非空精确值登记（长→短排序）；
 - guard_bytes/guard_value 对精确值、明列模式（sk-/ghp_/Bearer）与
   敏感键名的过滤，二进制不做猜测性改写；
 - StreamSecretFilter：跨块凭据不漏出（token 跨块、已知值跨块）、
@@ -49,13 +49,13 @@ _GHP_TOKEN = "ghp_" + "G" * 32
 # ------------------------------------------------------------- KnownSecretRegistry
 
 
-def test_registry_ignores_short_values_and_orders_longest_first() -> None:
+def test_registry_keeps_short_credentials_and_orders_longest_first() -> None:
     registry = KnownSecretRegistry()
     registry.register(_SHORT)
     registry.register("1234567")
     registry.register("1234567890")
     values = registry.text_values()
-    assert values == ("1234567890", "1234567")
+    assert values == ("1234567890", "1234567", _SHORT)
     assert registry.longest_length() == 10
     assert bool(registry)
 
@@ -140,6 +140,24 @@ def test_stream_filter_single_chunk() -> None:
     # 无任何疑似密钥形态的普通文本立即放行（逐字节切点检查通过）。
     assert stream.feed(b"hello world\n") == b"hello world\n"
     assert stream.flush() == b""
+
+
+def test_stream_filter_completed_newlines_do_not_retain_repeated_partial_words() -> None:
+    stream = StreamSecretFilter(KnownSecretRegistry())
+    # `safe` begins with the conservative `s` token stem. A completed newline
+    # ends that candidate; `$` matched before the newline and rewound every line.
+    content = b"safe\n" * 20000
+    assert stream.feed(content) == content
+    assert stream.pending_bytes == 0
+    assert stream.changed is False
+
+
+def test_stream_filter_complete_secret_before_newline_is_still_redacted() -> None:
+    stream = StreamSecretFilter(KnownSecretRegistry())
+    content = _SK_TOKEN.encode() + b"\n"
+    written = stream.feed(content) + stream.flush()
+    assert _SK_TOKEN.encode() not in written
+    assert stream.changed is True
 
 
 def test_stream_filter_secret_split_across_chunks_never_leaks() -> None:
@@ -335,9 +353,7 @@ def test_uow_stage_record_prefilters_payload(tmp_path: Path) -> None:
 def test_secret_manager_registers_value_on_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
     secret_value = "env-secret-zzz-123456"
     monkeypatch.setenv("A09_SECRET_ENV", secret_value)
-    manager = SecretManager(
-        (EnvironmentSecretProvider({("model", "ref-1"): "A09_SECRET_ENV"}),)
-    )
+    manager = SecretManager((EnvironmentSecretProvider({("model", "ref-1"): "A09_SECRET_ENV"}),))
     resolved = manager.resolve("ref-1", purpose="model")
     assert resolved.reveal() == secret_value
     safe, changed = guard_bytes(f"x={secret_value}".encode())
@@ -356,11 +372,11 @@ def test_connection_facts_prefilter_error_detail(tmp_path: Path) -> None:
 
     store = ConnectionFactStore(tmp_path)
     store.append(
-        endpoint_address="tcp://example.invalid:443",
+        endpoint_address="https://example.invalid:443",
         fact=TransportFact(
             reachable=False,
             elapsed_ms=5,
-            error_kind="refused",
+            error_kind="connection_refused",
             detail=f"Authorization: Bearer {_SK_TOKEN}",
         ),
         source_session="s-1",
@@ -377,9 +393,7 @@ def test_backup_contains_only_filtered_bytes(tmp_path: Path) -> None:
     registry = KnownSecretRegistry()
     registry.register(_SECRET)
     objects = FileObjectStore(tmp_path, registry=registry)
-    objects.publish_bytes(
-        "project-a09", f"model said {_SECRET} and {_SK_TOKEN}".encode()
-    )
+    objects.publish_bytes("project-a09", f"model said {_SECRET} and {_SK_TOKEN}".encode())
     unit = FileUnitOfWork(tmp_path, registry=registry)
     unit.begin("req-bak", "project-a09")
     unit.stage_record(

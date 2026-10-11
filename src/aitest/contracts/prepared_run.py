@@ -90,6 +90,71 @@ class SnapshotRef(ContractModel):
     source_snapshot_id: str = Field(min_length=1)
     purpose: str = Field(min_length=1)
     content_identity: str = Field(min_length=1)
+    record_revision: int = Field(default=1, ge=1)
+
+
+class EnvironmentResolutionFact(ContractModel):
+    """Observed by a core-owned registered carrier, never a client declaration."""
+
+    carrier_id: str = Field(min_length=1)
+    executable_path: str = Field(min_length=1)
+    executable_digest: str = Field(min_length=1)
+    interpreter_version: str = Field(min_length=1)
+    base_executable_path: str = Field(min_length=1)
+    base_executable_digest: str = Field(min_length=1)
+    probe_prefix: str = Field(min_length=1)
+    base_prefix: str = Field(min_length=1)
+    configuration_digest: str = Field(min_length=1)
+    dependency_roots: tuple[str, ...] = Field(min_length=1)
+    dependency_set_digest: str = Field(min_length=1)
+    probe_policy: Literal["python-isolated-no-site/1"] = "python-isolated-no-site/1"
+    # Filled by the application from exact saved inputs, not the probe or client.
+    project_id: str = Field(default="", min_length=0)
+    binding_id: str = Field(default="", min_length=0)
+    binding_revision: int = Field(default=0, ge=0)
+    binding_record_digest: str = ""
+    environment_id: str = ""
+    environment_revision: int = Field(default=0, ge=0)
+    environment_record_digest: str = ""
+
+    @property
+    def content_identity(self) -> str:
+        import hashlib
+        import json
+
+        return (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(
+                    self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")
+            ).hexdigest()
+        )
+
+    @property
+    def interpreter_identity(self) -> str:
+        import hashlib
+        import json
+
+        fields = self.model_dump(
+            mode="json",
+            exclude={
+                "dependency_set_digest",
+                "project_id",
+                "binding_id",
+                "binding_revision",
+                "binding_record_digest",
+                "environment_id",
+                "environment_revision",
+                "environment_record_digest",
+            },
+        )
+        return (
+            "sha256:"
+            + hashlib.sha256(
+                json.dumps(fields, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+        )
 
 
 class EnvironmentRefFact(ContractModel):
@@ -98,6 +163,8 @@ class EnvironmentRefFact(ContractModel):
     isolation_mode: EnvironmentIsolationModeFact
     interpreter_identity: str = Field(min_length=1)
     dependency_set_digest: str = Field(min_length=1)
+    # Missing is readable history, not proof for a new admission.
+    resolution: EnvironmentResolutionFact | None = None
 
 
 class ExecutionSourceBinding(ContractModel):
@@ -111,6 +178,22 @@ class ExecutionSourceBinding(ContractModel):
     test_config_ref: str = Field(min_length=1)
     adapter_versions: dict[str, str] = Field(default_factory=dict)
     resolved_input_digest: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _binding_fields_are_exact(self) -> Self:
+        """冻结绑定本身必须形状明确：空白或重复项不能被当成来源约束。"""
+        for name in ("allowed_env_keys", "secret_refs"):
+            values = getattr(self, name)
+            if any(not isinstance(item, str) or not item.strip() for item in values):
+                raise ValueError(f"{name} must be nonempty text")
+            if len(set(values)) != len(values):
+                raise ValueError(f"{name} must be unique")
+        for key, value in self.adapter_versions.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("adapter version keys must be nonempty text")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("adapter version values must be nonempty text")
+        return self
 
 
 class PlanRevisionRef(ContractModel):
@@ -254,6 +337,9 @@ class PreparedRun(ContractModel):
     # 身份与幂等
     prepared_run_id: str = Field(min_length=1)
     project_id: str = Field(min_length=1)
+    # 缺失只用于读取历史记录；不能据此证明启动依据有效。
+    project_revision: int | None = Field(default=None, ge=1)
+    scope_id: str | None = Field(default=None, min_length=1)
     workspace_id: str = Field(min_length=1)
     binding_id: str = Field(min_length=1)
     binding_revision: int = Field(ge=1)
@@ -301,9 +387,7 @@ class PreparedRun(ContractModel):
     frozen_cases: tuple[FrozenCase, ...] = Field(default_factory=tuple)
 
     # 授权前置、出站策略与失效规则
-    authorization_requirements: tuple[AuthorizationRequirement, ...] = Field(
-        default_factory=tuple
-    )
+    authorization_requirements: tuple[AuthorizationRequirement, ...] = Field(default_factory=tuple)
     model_outbound_policy_revision: int | None = None
     source_snippets_enabled: bool = False
     invalidation_rules: tuple[InvalidationRule, ...] = Field(default_factory=tuple)

@@ -5,7 +5,7 @@
 分支：`feat/package-b-project-planning`
 状态：待评审
 依据：一期架构文档《01-项目与计划》第 3、4、7、11、12 节；《02-执行与证据》；《04-存储与恢复》；一期需求文档 P1-FR01、FR06、FR07；《一期工程四部分拆分与低对接实施方案》第 3 节
-关联：`docs/接口对接/已完成/BC-001-PreparedRun/contract.md`、`docs/文档-feix-a/B包/03-待冻结枚举与跨包字段确认表.md`
+关联：`docs/接口对接/进行中/BC-001-PreparedRun/contract.md`、`docs/文档-feix-a/B包/03-待冻结枚举与跨包字段确认表.md`
 
 ---
 
@@ -94,7 +94,7 @@ B 侧合同声明 `RunTierFact`、`RunDriverFact`、`ConclusionCeilingFact`，
 并以测试锁定两侧值集合一致（见第 8 节）。
 
 > 已发现的上游缺陷：C 的三份夹具中 `conclusion_ceiling` 均写作 `"full"`。
-> 详见 `docs/接口对接/已完成/BC-001-PreparedRun/contract.md` C-01。
+> 详见 `docs/接口对接/进行中/BC-001-PreparedRun/contract.md` C-01。
 
 ## 5 字段设计
 

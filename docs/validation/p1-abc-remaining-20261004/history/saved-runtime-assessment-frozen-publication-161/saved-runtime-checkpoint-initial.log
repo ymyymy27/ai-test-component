@@ -1,0 +1,64 @@
+..F
+================================== FAILURES ===================================
+____ test_current_projection_must_match_the_exact_saved_checkpoint[owner] _____
+
+runtime = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000021B3CBE8F50>, workspace=<aitest.infrastructur...:06752707902cd6c84a484b3911464ce37d8b476d69c657386889833028b1667f', requested_driver=<RunDriver.STEPWISE: 'stepwise'>))
+change = 'owner'
+
+    @pytest.mark.parametrize("change", ["missing", "owner", "state", "input"])
+    def test_current_projection_must_match_the_exact_saved_checkpoint(runtime, change):
+>       request, facts = save_current_attempt(runtime, checkpoint_change=change)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_saved_runtime_revision.py:447: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_saved_runtime_revision.py:433: in save_current_attempt
+    core.unit_of_work.commit("controlled-attempt")
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:731: in commit_transaction
+    self._verify_ownership(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000021B3CEC9640>
+kind = 'execution_checkpoint', record_id = 'controlled-current-attempt'
+rows = [], project_id = 'project-ticket'
+payload = {'checkpoint': {'run_id': 'run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b', 'step_id': 'step-851...7a4d747c7ca739878586fa9f25d2303322f9f5cbae2f5778a73d8030ed', 'attempt_index': 1, ...}, 'project_id': 'foreign-project'}
+index_rows = None, commits = []
+
+    def _verify_ownership(
+        self,
+        *,
+        kind: str,
+        record_id: str,
+        rows: Sequence[object],
+        project_id: str | None,
+        payload: Mapping[str, object],
+        index_rows: Sequence[Mapping[str, Any]] | None = None,
+        commits: Sequence[Mapping[str, Any]] = (),
+    ) -> None:
+        """�ȶ���¼ԭ��Ŀ�����˶ԣ�A-11����
+    
+        ͬһ (aggregate_kind, record_id) ��ȫ���޶���������ͬһ��Ŀ��
+        �������������� project_id��payload �� project_id �Լ���ʷ�޶�/
+        �����й�������һ�²�����������ͬ����ͬ��Ŀ�ǲ�ͬ��¼��������
+        �洢����ͬ�������ڴ���ʽ�ܾ��������ú�д�߸Ĺ�����
+        """
+        if isinstance(rows, ShardedRows):
+            owner = rows.metadata.get("project_id")
+            candidates = {
+                candidate
+                for candidate in (owner, project_id, self._row_project(payload))
+                if candidate is not None
+            }
+            if len(rows) and owner is None and candidates:
+                raise ValueError(f"unverified historical ownership for {kind}/{record_id}")
+            if len(candidates) > 1:
+>               raise ValueError(f"cross-project ownership conflict for {kind}/{record_id}")
+E               ValueError: cross-project ownership conflict for execution_checkpoint/controlled-current-attempt
+
+src\aitest\infrastructure\file_store\records.py:119: ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_runtime_revision.py::test_current_projection_must_match_the_exact_saved_checkpoint[owner]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 2 passed, 26 deselected in 130.38s (0:02:10)

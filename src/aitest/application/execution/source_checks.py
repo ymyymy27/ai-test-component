@@ -31,7 +31,7 @@ class SourceCheckRequest:
     project_id: str
     attempt_id: str
     plan_revision_ref: PlanRevisionRef
-    expected_source_binding_digest: str
+    expected_source_content_digest: str
     materialized_snapshot_ref: str
     check_type: SourceCheckType
     scope: str
@@ -45,6 +45,7 @@ class SourceCheckRequest:
     evidence_refs: tuple[str, ...] = ()
     raw_output_evidence_ref: str | None = None
     observed_at: datetime | None = None
+    expected_interpreter_ref: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -52,7 +53,7 @@ class SourceCheckRequest:
             "check_result_id",
             "project_id",
             "attempt_id",
-            "expected_source_binding_digest",
+            "expected_source_content_digest",
             "materialized_snapshot_ref",
             "scope",
             "source_snapshot_ref",
@@ -72,6 +73,7 @@ class SourceProbeObservation:
     observed_source_digest: str
     observed_entry_ref: str | None = None
     observed_import_ref: str | None = None
+    observed_interpreter_ref: str | None = None
     failure_class: FailureClass | None = None
     evidence_refs: tuple[str, ...] = ()
     raw_output_evidence_ref: str | None = None
@@ -119,12 +121,13 @@ class SourceVerificationService:
             verification_id=request.verification_id,
             project_id=request.project_id,
             plan_revision_ref=request.plan_revision_ref,
-            expected_source_binding_digest=request.expected_source_binding_digest,
+            expected_source_content_digest=request.expected_source_content_digest,
             materialized_snapshot_ref=request.materialized_snapshot_ref,
             observed_source_digest=observation.observed_source_digest,
             state=state,
             observed_entry_ref=observation.observed_entry_ref,
             observed_import_ref=observation.observed_import_ref,
+            observed_interpreter_ref=observation.observed_interpreter_ref,
             failure_class=observation.failure_class,
             gap_ids=gaps,
             evidence_refs=evidence_refs,
@@ -167,14 +170,20 @@ def _derive_state(
         FailureClass.ENVIRONMENT_UNREACHABLE,
     }:
         return SourceVerificationState.BLOCKED, ("environment_unreachable",)
-    if observation.failure_class is FailureClass.SOURCE_ERROR:
-        return SourceVerificationState.MISMATCH, ("source_error",)
-    if observation.failure_class not in {None, FailureClass.PASSED}:
+    if observation.failure_class not in {
+        None, FailureClass.PASSED, FailureClass.SOURCE_ERROR,
+    }:
         return SourceVerificationState.UNKNOWN, ("tool_failure",)
     if not observation.observed_source_digest.strip():
         return SourceVerificationState.UNVERIFIED, ("source_digest_missing",)
 
     gaps: list[str] = []
+    if (
+        request.expected_interpreter_ref and observation.observed_interpreter_ref
+        and Path(request.expected_interpreter_ref).resolve()
+        != Path(observation.observed_interpreter_ref).resolve()
+    ):
+        return SourceVerificationState.MISMATCH, ("actual_interpreter_mismatch",)
     if _outside_materialized(
         observation.observed_entry_ref,
         request.materialized_snapshot_ref,
@@ -187,8 +196,33 @@ def _derive_state(
         gaps.append("import_outside_materialized_source")
     if gaps:
         return SourceVerificationState.MISMATCH, tuple(gaps)
-    if observation.observed_source_digest != request.expected_source_binding_digest:
+    if observation.observed_source_digest != request.expected_source_content_digest:
         return SourceVerificationState.MISMATCH, ("source_digest_mismatch",)
+    base = Path(request.materialized_snapshot_ref)
+    if not base.is_absolute() or not base.is_dir():
+        gaps.append("materialized_source_unverified")
+    for name, value in (
+        ("entry", observation.observed_entry_ref),
+        ("load", observation.observed_import_ref),
+    ):
+        if value and (not Path(value).is_absolute() or not Path(value).is_file()):
+            gaps.append(f"actual_{name}_path_unverified")
+    if not observation.observed_entry_ref:
+        gaps.append("actual_entry_missing")
+    if not observation.observed_interpreter_ref:
+        gaps.append("actual_interpreter_missing")
+    elif (
+        not Path(observation.observed_interpreter_ref).is_absolute()
+        or not Path(observation.observed_interpreter_ref).is_file()
+    ):
+        gaps.append("actual_interpreter_path_unverified")
+    if (
+        request.check_type in {SourceCheckType.LOAD, SourceCheckType.MINIMAL_START}
+        and not observation.observed_import_ref
+    ):
+        gaps.append("actual_load_source_missing")
+    if gaps:
+        return SourceVerificationState.UNVERIFIED, tuple(gaps)
     return SourceVerificationState.VERIFIED, ()
 
 
@@ -196,7 +230,8 @@ def _check_failure_class(
     verification: ExecutionSourceVerification,
     observation: SourceProbeObservation,
 ) -> FailureClass:
-    if observation.failure_class is not None:
+    if observation.failure_class not in {None, FailureClass.PASSED}:
+        assert observation.failure_class is not None
         return observation.failure_class
     if verification.state is SourceVerificationState.VERIFIED:
         return FailureClass.PASSED

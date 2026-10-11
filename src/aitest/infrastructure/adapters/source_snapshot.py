@@ -23,14 +23,31 @@ import json
 import os
 import re
 import shutil
+import uuid
+from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
 from typing import IO, Final
 
+from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.atomic import write_json
+from aitest.infrastructure.file_store.source_material import (
+    MAX_METADATA_BYTES,
+    SourceMaterialError,
+    read_metadata,
+    verify_pinned_material,
+)
+from aitest.infrastructure.security import (
+    KnownSecretRegistry,
+    UnsafeMaterialError,
+    copy_unchanged_safe_bytes,
+    guard_value,
+    known_secrets,
+)
 
 _SCHEMA: Final = "aitest.source-snapshot/1.0"
 _HASH_BLOCK: Final = 64 * 1024
+_MAX_UNRESOLVED_SOURCE_BYTES: Final = 1024 * 1024
 _DEFAULT_EXCLUSIONS: Final = (".git",)
 _DIGEST_RE: Final = re.compile(r"[0-9a-f]{64}")
 
@@ -47,6 +64,20 @@ def _hash_file(path: Path) -> tuple[str, int]:
             digest.update(block)
             size += len(block)
     return digest.hexdigest(), size
+
+
+def _materialized_mapping_digest(paths: list[dict[str, object]]) -> str:
+    """AB-001 1.34：期望→实际路径映射的规范字节摘要（供 C 计算 source_binding_digest）。"""
+    encoded = json.dumps(
+        paths, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _as_digest(value: object) -> str:
+    """清单内是裸十六进制摘要；对外统一为 `sha256:`+64 位小写形式。"""
+    text = str(value)
+    return text if text.startswith("sha256:") else "sha256:" + text
 
 
 def _fsync_file(handle: IO[bytes]) -> None:
@@ -84,10 +115,7 @@ def _try_fsync_directory(directory: Path) -> None:
 
 def _is_excluded(relative: str, rules: tuple[str, ...]) -> bool:
     parts = relative.split("/")
-    return any(
-        relative == rule or any(prefix == rule for prefix in parts[:-1])
-        for rule in rules
-    )
+    return any(relative == rule or any(prefix == rule for prefix in parts[:-1]) for rule in rules)
 
 
 def _is_safe_relative(value: str) -> bool:
@@ -99,11 +127,15 @@ def _is_safe_relative(value: str) -> bool:
     return not any(part == ".." for part in pure.parts)
 
 
+def _has_link_ancestor(path: Path) -> bool:
+    return any(item.is_symlink() or compat.is_junction(item) for item in (path, *path.parents))
+
+
 def _files(record: dict[str, object]) -> list[dict[str, object]]:
-    raw = record.get("files", [])
-    if not isinstance(raw, list):
-        return []
-    return [item for item in raw if isinstance(item, dict)]
+    raw = record.get("files")
+    if not isinstance(raw, list) or any(not isinstance(item, dict) for item in raw):
+        raise SnapshotError("源码快照清单损坏，不能解释为空源码")
+    return raw
 
 
 def _exclusion_rules(record: dict[str, object]) -> tuple[str, ...]:
@@ -123,10 +155,15 @@ def _selected_paths(record: dict[str, object]) -> tuple[str, ...]:
 class FileSourceSnapshotStore:
     """SourceSnapshotPort 的文件实现。"""
 
-    def __init__(self, workspace_root: Path) -> None:
+    def __init__(
+        self, workspace_root: Path, *, registry: KnownSecretRegistry | None = None
+    ) -> None:
         self._root = workspace_root.resolve()
+        self._registry = registry if registry is not None else known_secrets()
         self._dir = self._root / "snapshots"
         self._blobs = self._dir / "blobs"
+        if _has_link_ancestor(workspace_root) or _has_link_ancestor(self._blobs):
+            raise SnapshotError("源码快照工作空间不能经过链接")
         self._blobs.mkdir(parents=True, exist_ok=True)
 
     def pin(
@@ -134,10 +171,13 @@ class FileSourceSnapshotStore:
         *,
         canonical_path: str,
         purpose: str,
-        selected_paths: tuple[str, ...] | list[str] = (),
-        exclusion_rules: tuple[str, ...] | list[str] = (),
+        selected_paths: Sequence[str] = (),
+        exclusion_rules: Sequence[str] = (),
     ) -> dict[str, object]:
-        source = Path(canonical_path).resolve()
+        raw_source = Path(canonical_path)
+        if _has_link_ancestor(raw_source):
+            raise SnapshotError("源码目录不能经过链接")
+        source = raw_source.resolve()
         if not source.exists() or not source.is_dir():
             raise SnapshotError(f"源码目录不存在: {canonical_path}")
         selection = tuple(dict.fromkeys(selected_paths))
@@ -145,24 +185,25 @@ class FileSourceSnapshotStore:
             if not _is_safe_relative(item):
                 raise SnapshotError(f"选定路径越界或非法: {item}")
         rules = tuple(dict.fromkeys((*_DEFAULT_EXCLUSIONS, *exclusion_rules)))
+        self._require_safe_metadata([source.as_posix(), purpose, selection, rules])
 
         files: list[dict[str, object]] = []
-        for current_root, _dirs, names in os.walk(source):
+        for current_root, dirs, names in os.walk(source, onerror=self._walk_error):
             current_dir = Path(current_root)
+            self._limit_walk(source, current_dir, dirs, rules, selection)
             for name in names:
                 path = current_dir / name
-                if path.is_symlink():
-                    raise SnapshotError(f"拒绝符号链接，防止越界固定: {path}")
                 relative = path.relative_to(source).as_posix()
                 if _is_excluded(relative, rules):
                     continue
                 if selection and not self._matches_selection(relative, selection):
                     continue
+                if _has_link_ancestor(path):
+                    raise SnapshotError("选定源码不能经过链接")
+                self._require_safe_metadata(relative)
                 digest, size = _hash_file(path)
                 self._store_blob(path, digest)
-                files.append(
-                    {"relative_path": relative, "size": size, "sha256": digest}
-                )
+                files.append({"relative_path": relative, "size": size, "sha256": digest})
         files.sort(key=lambda item: str(item["relative_path"]))
 
         # 快照**记录身份**与内容对象去重分离（A-15）：blob 仍按 sha256
@@ -183,9 +224,11 @@ class FileSourceSnapshotStore:
         snapshot_id = "snap-" + hashlib.sha256(identity_base).hexdigest()[:16]
 
         record_path = self._path(snapshot_id)
+        if _has_link_ancestor(record_path):
+            raise SnapshotError("源码快照清单不能经过链接")
         if record_path.exists():
             # 内容寻址快照幂等：既有清单不可变，重复 pin 不覆盖 purpose 等元数据。
-            return dict(json.loads(record_path.read_text(encoding="utf-8")))
+            return self.read_pinned(snapshot_id)
 
         record = {
             "schema": _SCHEMA,
@@ -196,20 +239,31 @@ class FileSourceSnapshotStore:
             "exclusion_rules": rules,
             "files": files,
         }
+        if len(json.dumps(record, ensure_ascii=False).encode("utf-8")) > MAX_METADATA_BYTES:
+            raise SnapshotError("源码快照清单超过读取预算，不能发布")
         write_json(record_path, record)
         # 清单原子发布后持久化目录项，掉电后快照身份与 blob 引用同时可达。
         _fsync_directory(record_path.parent)
         return dict(record)
 
     def read_pinned(self, snapshot_id: str) -> dict[str, object]:
-        path = self._path(snapshot_id)
-        if not path.exists():
-            raise SnapshotError(f"快照不存在: {snapshot_id}")
-        return dict(json.loads(path.read_text(encoding="utf-8")))
+        try:
+            return read_metadata(self._root, snapshot_id, registry=self._registry)
+        except SourceMaterialError as error:
+            raise SnapshotError("源码快照清单无法核实: " + str(error)) from error
+
+    def verify_pinned(self, snapshot_id: str) -> dict[str, object]:
+        try:
+            return verify_pinned_material(self._root, snapshot_id, registry=self._registry)
+        except SourceMaterialError as error:
+            raise SnapshotError("固定源码材料无法核实: " + str(error)) from error
 
     def materialize(self, snapshot_id: str, destination: str) -> dict[str, object]:
         record = self.read_pinned(snapshot_id)
-        target = Path(destination).resolve()
+        raw_target = Path(destination)
+        if _has_link_ancestor(raw_target):
+            raise SnapshotError("源码物化目标不能经过链接")
+        target = raw_target.resolve()
         files = _files(record)
 
         # 先逐项限界并确认固定字节可达：任何越界/缺 blob 都整体拒绝，
@@ -228,7 +282,11 @@ class FileSourceSnapshotStore:
                 refused.append(str(name))
                 continue
             destination_path = (target / name).resolve()
-            blob_path = (self._blobs / digest).resolve()
+            raw_blob = self._blobs / digest
+            if _has_link_ancestor(raw_blob):
+                refused.append(name)
+                continue
+            blob_path = raw_blob.resolve()
             if (
                 not destination_path.is_relative_to(target)
                 or not blob_path.is_relative_to(self._blobs)
@@ -238,6 +296,9 @@ class FileSourceSnapshotStore:
                 refused.append(name)
                 continue
             planned.append((item, blob_path, destination_path))
+            actual_digest, actual_size = self._copy_safe_bytes(blob_path)
+            if actual_digest != digest or actual_size != item["size"]:
+                refused.append(name)
         if refused:
             return {
                 "snapshot_id": snapshot_id,
@@ -259,7 +320,7 @@ class FileSourceSnapshotStore:
             # 物化是给执行使用的来源投影，同样显式 fsync，掉电后不出现
             # 目录项存在但内容为零/残缺的文件（A-08）。
             with blob_path.open("rb") as src, destination_path.open("wb") as dst:
-                shutil.copyfileobj(src, dst, _HASH_BLOCK)
+                self._copy_safe_stream(src, dst)
                 _fsync_file(dst)
             shutil.copystat(blob_path, destination_path, follow_symlinks=True)
             durable_directories.add(destination_path.parent)
@@ -274,37 +335,55 @@ class FileSourceSnapshotStore:
                 mismatches.append(str(item["relative_path"]))
         if mismatches:
             raise SnapshotError(f"物化后核对失败: {mismatches}")
+        # AB-001 1.34：成功时返回期望→实际路径映射与内容摘要（既有键不变）；
+        # 该摘要供 C 在 start 生成 source_binding_digest 使用。
+        paths = [
+            {
+                "relative_path": str(item["relative_path"]),
+                "actual_path": destination_path.as_posix(),
+                "sha256": _as_digest(item["sha256"]),
+                "size": item["size"],
+            }
+            for item, _blob_path, destination_path in planned
+        ]
         return {
             "snapshot_id": snapshot_id,
             "destination": target.as_posix(),
             "materialized": copied,
             "verified": True,
             "state": "materialized",
+            "paths": paths,
+            "content_digest": _materialized_mapping_digest(paths),
         }
 
     def detect_changes(self, snapshot_id: str) -> dict[str, object]:
         record = self.read_pinned(snapshot_id)
         source_root = Path(str(record["canonical_path"]))
-        if not source_root.exists():
+        if _has_link_ancestor(source_root):
+            return {"state": "unknown", "reason": "源码目录经过链接", "changed": True}
+        if not source_root.is_dir():
             return {"state": "unknown", "reason": "源码目录已不存在", "changed": True}
-        pinned = {
-            str(item["relative_path"]): str(item["sha256"])
-            for item in _files(record)
-        }
+        pinned = {str(item["relative_path"]): str(item["sha256"]) for item in _files(record)}
         rules = _exclusion_rules(record)
         selection = _selected_paths(record)
         current: dict[str, str] = {}
-        for current_root, _dirs, names in os.walk(source_root):
-            current_dir = Path(current_root)
-            for name in names:
-                path = current_dir / name
-                relative = path.relative_to(source_root).as_posix()
-                if _is_excluded(relative, rules):
-                    continue
-                if selection and not self._matches_selection(relative, selection):
-                    continue
-                digest, _size = _hash_file(path)
-                current[relative] = digest
+        try:
+            for current_root, dirs, names in os.walk(source_root, onerror=self._walk_error):
+                current_dir = Path(current_root)
+                self._limit_walk(source_root, current_dir, dirs, rules, selection)
+                for name in names:
+                    path = current_dir / name
+                    relative = path.relative_to(source_root).as_posix()
+                    if _is_excluded(relative, rules):
+                        continue
+                    if selection and not self._matches_selection(relative, selection):
+                        continue
+                    if _has_link_ancestor(path):
+                        raise SnapshotError("选定源码不能经过链接")
+                    digest, _size = _hash_file(path)
+                    current[relative] = digest
+        except (OSError, SnapshotError):
+            return {"state": "unknown", "reason": "选定源码无法完整核实", "changed": True}
 
         added = sorted(set(current) - set(pinned))
         removed = sorted(set(pinned) - set(current))
@@ -327,17 +406,21 @@ class FileSourceSnapshotStore:
 
     def _store_blob(self, source: Path, digest: str) -> None:
         blob = self._blobs / digest
+        if _has_link_ancestor(source) or _has_link_ancestor(blob):
+            raise SnapshotError("源码或对象不能经过链接")
         if blob.exists():
+            actual, _size = self._copy_safe_bytes(blob)
+            if actual != digest:
+                raise SnapshotError("现有源码对象摘要无法核实，拒绝复用")
             return
         blob.parent.mkdir(parents=True, exist_ok=True)
-        temporary = blob.with_name(f".{digest}.tmp")
+        temporary = blob.with_name(f".{digest}.{uuid.uuid4().hex}.tmp")
         try:
-            with source.open("rb") as src, temporary.open("wb") as dst:
-                shutil.copyfileobj(src, dst, _HASH_BLOCK)
+            with source.open("rb") as src, temporary.open("xb") as dst:
+                actual, _size = self._copy_safe_stream(src, dst)
                 # 耐久发布合同（A-08）：字节必须显式 fsync 后才允许进入
                 # 内容寻址区；fsync 失败直接上抛，绝不静默发布未落盘字节。
                 _fsync_file(dst)
-            actual = hashlib.sha256(temporary.read_bytes()).hexdigest()
             if actual != digest:
                 raise SnapshotError(f"固定字节摘要不符: {source}")
             os.replace(temporary, blob)
@@ -349,12 +432,63 @@ class FileSourceSnapshotStore:
             raise
 
     @staticmethod
-    def _matches_selection(
-        relative: str, selected_paths: tuple[str, ...] | list[str]
-    ) -> bool:
+    def _walk_error(error: OSError) -> None:
+        raise error
+
+    @classmethod
+    def _limit_walk(
+        cls,
+        root: Path,
+        current: Path,
+        dirs: list[str],
+        rules: tuple[str, ...],
+        selection: tuple[str, ...],
+    ) -> None:
+        kept: list[str] = []
+        for name in dirs:
+            path = current / name
+            relative = path.relative_to(root).as_posix()
+            if _is_excluded(relative, rules):
+                continue
+            if selection and not (
+                cls._matches_selection(relative, selection)
+                or any(item.startswith(relative + "/") for item in selection)
+            ):
+                continue
+            if _has_link_ancestor(path):
+                raise SnapshotError("选定源码目录不能经过链接")
+            kept.append(name)
+        dirs[:] = kept
+
+    def _require_safe_metadata(self, value: object) -> None:
+        _safe, changed = guard_value(value, self._registry)
+        if changed:
+            raise SnapshotError("源码路径或清单含敏感材料，不能安全固定")
+
+    def _copy_safe_bytes(self, source: Path) -> tuple[str, int]:
+        if _has_link_ancestor(source):
+            raise SnapshotError("源码对象不能是链接")
+        with source.open("rb") as src:
+            return self._copy_safe_stream(src)
+
+    def _copy_safe_stream(self, src: IO[bytes], dst: IO[bytes] | None = None) -> tuple[str, int]:
+        # Only filtered bytes may reach a temporary file. Filtering changes the
+        # claimed original source, so reject rather than publish a modified identity.
+        try:
+            return copy_unchanged_safe_bytes(
+                src,
+                dst,
+                registry=self._registry,
+                block_size=_HASH_BLOCK,
+                max_pending_bytes=_MAX_UNRESOLVED_SOURCE_BYTES,
+            )
+        except UnsafeMaterialError as error:
+            raise SnapshotError(str(error)) from error
+
+    @staticmethod
+    def _matches_selection(relative: str, selected_paths: tuple[str, ...] | list[str]) -> bool:
         return any(
-            relative == item
-            or relative.startswith(item.rstrip("/") + "/")
+            relative == item or relative.startswith(item.rstrip("/") + "/")
             for item in selected_paths
         )
 

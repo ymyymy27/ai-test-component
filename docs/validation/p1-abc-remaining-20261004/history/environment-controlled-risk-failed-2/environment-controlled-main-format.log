@@ -1,0 +1,19 @@
+unformatted: File would be reformatted
+   --> src\aitest\application\approval_service.py:138:26
+    |
+137 |             "aitest.controlled-write-intent/1.0": {
+    -                 "action", "intent_id", "input_digest", "aggregate_kind", "record_id",
+    -                 "record_revision", "record_digest", "confirmation_id", "created_at_commit",
+138 +                 "action",
+139 +                 "intent_id",
+140 +                 "input_digest",
+141 +                 "aggregate_kind",
+142 +                 "record_id",
+143 +                 "record_revision",
+144 +                 "record_digest",
+145 +                 "confirmation_id",
+146 +                 "created_at_commit",
+147 |             },
+    |
+
+1 file would be reformatted, 7 files already formatted

@@ -1,0 +1,87 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 38 items
+
+tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[verification_of] PASSED [  2%]
+tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[business_object_id] PASSED [  5%]
+tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref] PASSED [  7%]
+tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_method] PASSED [ 10%]
+tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_interval] PASSED [ 13%]
+tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[deadline_condition] PASSED [ 15%]
+tests/unit/test_verification_request_scope.py::test_expected_evidence_cannot_be_dropped_from_the_returned_fact PASSED [ 18%]
+tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[shape] PASSED [ 21%]
+tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[observation] PASSED [ 23%]
+tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[actual_reference] PASSED [ 26%]
+tests/unit/test_verification_request_scope.py::test_matching_result_retains_added_evidence_and_unknown_query_outcome PASSED [ 28%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual0-expected0-no_result-business] PASSED [ 31%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual0-expected0-no_result-external] PASSED [ 34%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual1-expected1-matched-business] PASSED [ 36%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual1-expected1-matched-external] PASSED [ 39%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual2-expected2-mismatched-business] PASSED [ 42%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual2-expected2-mismatched-external] PASSED [ 44%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual3-expected3-mismatched-business] PASSED [ 47%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual3-expected3-mismatched-external] PASSED [ 50%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual4-expected4-mismatched-business] PASSED [ 52%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual4-expected4-mismatched-external] PASSED [ 55%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual5-expected5-matched-business] PASSED [ 57%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual5-expected5-matched-external] PASSED [ 60%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual6-expected6-mismatched-business] PASSED [ 63%]
+tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual6-expected6-mismatched-external] PASSED [ 65%]
+tests/unit/test_verification_json_semantics.py::test_unverifiable_business_material_is_structured_query_error[actual0] PASSED [ 68%]
+tests/unit/test_verification_json_semantics.py::test_unverifiable_business_material_is_structured_query_error[actual1] PASSED [ 71%]
+tests/unit/test_verification_json_semantics.py::test_unverifiable_business_material_is_structured_query_error[actual2] PASSED [ 73%]
+tests/unit/test_execution_adapters.py::test_python_checks_adapter_runs_and_classifies_real_command PASSED [ 76%]
+tests/unit/test_execution_adapters.py::test_http_adapter_extracts_and_evaluates_json_assertions PASSED [ 78%]
+tests/unit/test_execution_adapters.py::test_agent_adapter_rejects_text_only_evaluation PASSED [ 81%]
+tests/unit/test_execution_adapters.py::test_manual_adapter_preserves_operation_and_attachment_provenance PASSED [ 84%]
+tests/unit/test_execution_adapters.py::test_external_result_validates_schema_digest_and_idempotency PASSED [ 86%]
+tests/unit/test_execution_adapters.py::test_external_result_without_expected_assertions_is_not_matched PASSED [ 89%]
+tests/unit/test_execution_adapters.py::test_business_verification_uses_independent_query_facts PASSED [ 92%]
+tests/unit/test_execution_adapters.py::test_business_verification_without_expected_facts_is_not_matched PASSED [ 94%]
+tests/architecture/test_boundaries.py::test_dependency_direction PASSED  [ 97%]
+tests/architecture/test_boundaries.py::test_forbidden_legacy_and_later_phase_modules_absent PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[verification_of]
+PASSED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[business_object_id]
+PASSED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[target_deployment_ref]
+PASSED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_method]
+PASSED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[query_interval]
+PASSED tests/unit/test_verification_request_scope.py::test_other_scope_cannot_be_attached_to_the_requested_object[deadline_condition]
+PASSED tests/unit/test_verification_request_scope.py::test_expected_evidence_cannot_be_dropped_from_the_returned_fact
+PASSED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[shape]
+PASSED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[observation]
+PASSED tests/unit/test_verification_request_scope.py::test_invalid_verification_shape_remains_unverified[actual_reference]
+PASSED tests/unit/test_verification_request_scope.py::test_matching_result_retains_added_evidence_and_unknown_query_outcome
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual0-expected0-no_result-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual0-expected0-no_result-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual1-expected1-matched-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual1-expected1-matched-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual2-expected2-mismatched-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual2-expected2-mismatched-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual3-expected3-mismatched-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual3-expected3-mismatched-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual4-expected4-mismatched-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual4-expected4-mismatched-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual5-expected5-matched-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual5-expected5-matched-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual6-expected6-mismatched-business]
+PASSED tests/unit/test_verification_json_semantics.py::test_missing_null_boolean_and_nested_values_use_one_domain_rule[actual6-expected6-mismatched-external]
+PASSED tests/unit/test_verification_json_semantics.py::test_unverifiable_business_material_is_structured_query_error[actual0]
+PASSED tests/unit/test_verification_json_semantics.py::test_unverifiable_business_material_is_structured_query_error[actual1]
+PASSED tests/unit/test_verification_json_semantics.py::test_unverifiable_business_material_is_structured_query_error[actual2]
+PASSED tests/unit/test_execution_adapters.py::test_python_checks_adapter_runs_and_classifies_real_command
+PASSED tests/unit/test_execution_adapters.py::test_http_adapter_extracts_and_evaluates_json_assertions
+PASSED tests/unit/test_execution_adapters.py::test_agent_adapter_rejects_text_only_evaluation
+PASSED tests/unit/test_execution_adapters.py::test_manual_adapter_preserves_operation_and_attachment_provenance
+PASSED tests/unit/test_execution_adapters.py::test_external_result_validates_schema_digest_and_idempotency
+PASSED tests/unit/test_execution_adapters.py::test_external_result_without_expected_assertions_is_not_matched
+PASSED tests/unit/test_execution_adapters.py::test_business_verification_uses_independent_query_facts
+PASSED tests/unit/test_execution_adapters.py::test_business_verification_without_expected_facts_is_not_matched
+PASSED tests/architecture/test_boundaries.py::test_dependency_direction
+PASSED tests/architecture/test_boundaries.py::test_forbidden_legacy_and_later_phase_modules_absent
+============================= 38 passed in 1.03s ==============================

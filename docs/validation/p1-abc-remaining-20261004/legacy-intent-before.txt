@@ -1,0 +1,627 @@
+FFFFF..FFFFFFFFFFFFFFFF                                                  [100%]
+================================== FAILURES ===================================
+_ test_same_body_with_different_business_identity_is_not_an_original_result[change0] _
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4DB4BA10>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+change = {'kind': 'plan'}
+
+    @pytest.mark.parametrize("change", [{"kind": "plan"}, {"record_id": "other"}])
+    def test_same_body_with_different_business_identity_is_not_an_original_result(saved, change):
+        repo, value = saved
+        before = repo.path.read_bytes()
+>       with pytest.raises(ValueError, match="intent conflict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_legacy_intent_identity.py:23: Failed
+_ test_same_body_with_different_business_identity_is_not_an_original_result[change1] _
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E0D5310>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+change = {'record_id': 'other'}
+
+    @pytest.mark.parametrize("change", [{"kind": "plan"}, {"record_id": "other"}])
+    def test_same_body_with_different_business_identity_is_not_an_original_result(saved, change):
+        repo, value = saved
+        before = repo.path.read_bytes()
+>       with pytest.raises(ValueError, match="intent conflict"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_legacy_intent_identity.py:23: Failed
+____ test_receipt_requires_its_exact_readable_original_body[missing_body] _____
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E0D5810>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+problem = 'missing_body'
+
+    @pytest.mark.parametrize("problem", ["missing_body", "changed_body", "wrong_revision"])
+    def test_receipt_requires_its_exact_readable_original_body(saved, problem):
+        repo, value = saved
+        data = repo._load()
+        if problem == "missing_body":
+            data["records"]["case"]["first"].clear()
+        elif problem == "changed_body":
+            data["records"]["case"]["first"][0]["summary"] = "corrupted"
+        else:
+            data["intents"]["original"]["revision"] = 2
+        repo._save(data)
+        before = repo.path.read_bytes()
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_legacy_intent_identity.py:40: Failed
+____ test_receipt_requires_its_exact_readable_original_body[changed_body] _____
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E0F95B0>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+problem = 'changed_body'
+
+    @pytest.mark.parametrize("problem", ["missing_body", "changed_body", "wrong_revision"])
+    def test_receipt_requires_its_exact_readable_original_body(saved, problem):
+        repo, value = saved
+        data = repo._load()
+        if problem == "missing_body":
+            data["records"]["case"]["first"].clear()
+        elif problem == "changed_body":
+            data["records"]["case"]["first"][0]["summary"] = "corrupted"
+        else:
+            data["intents"]["original"]["revision"] = 2
+        repo._save(data)
+        before = repo.path.read_bytes()
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_legacy_intent_identity.py:40: Failed
+___ test_receipt_requires_its_exact_readable_original_body[wrong_revision] ____
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E0F9940>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+problem = 'wrong_revision'
+
+    @pytest.mark.parametrize("problem", ["missing_body", "changed_body", "wrong_revision"])
+    def test_receipt_requires_its_exact_readable_original_body(saved, problem):
+        repo, value = saved
+        data = repo._load()
+        if problem == "missing_body":
+            data["records"]["case"]["first"].clear()
+        elif problem == "changed_body":
+            data["records"]["case"]["first"][0]["summary"] = "corrupted"
+        else:
+            data["intents"]["original"]["revision"] = 2
+        repo._save(data)
+        before = repo.path.read_bytes()
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_legacy_intent_identity.py:40: Failed
+______ test_intent_identity_is_strict_before_any_storage[True-intent_id] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E0F9BA0>
+field = 'intent_id', bad = True
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+________ test_intent_identity_is_strict_before_any_storage[True-kind] _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict1")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E0F9A70>
+field = 'kind', bad = True
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+______ test_intent_identity_is_strict_before_any_storage[True-record_id] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict2")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E1503B0>
+field = 'record_id', bad = True
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+_______ test_intent_identity_is_strict_before_any_storage[1-intent_id] ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict3")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E09F350>
+field = 'intent_id', bad = 1
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+__________ test_intent_identity_is_strict_before_any_storage[1-kind] __________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict4")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E09F8A0>
+field = 'kind', bad = 1
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+_______ test_intent_identity_is_strict_before_any_storage[1-record_id] ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict5")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E121F50>
+field = 'record_id', bad = 1
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+________ test_intent_identity_is_strict_before_any_storage[-intent_id] ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict6")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E122350>
+field = 'intent_id', bad = ''
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+__________ test_intent_identity_is_strict_before_any_storage[-kind] ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict7")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E25C320>
+field = 'kind', bad = ''
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+________ test_intent_identity_is_strict_before_any_storage[-record_id] ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict8")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E25C7D0>
+field = 'record_id', bad = ''
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+______ test_intent_identity_is_strict_before_any_storage[   -intent_id] _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict9")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E21EEB0>
+field = 'intent_id', bad = '   '
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+_________ test_intent_identity_is_strict_before_any_storage[   -kind] _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict10")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E21E7B0>
+field = 'kind', bad = '   '
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+______ test_intent_identity_is_strict_before_any_storage[   -record_id] _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-913/test_intent_identity_is_strict11")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020B4E1A06D0>
+field = 'record_id', bad = '   '
+
+    @pytest.mark.parametrize("field", ["intent_id", "kind", "record_id"])
+    @pytest.mark.parametrize("bad", [True, 1, "", "   "])
+    def test_intent_identity_is_strict_before_any_storage(tmp_path, monkeypatch, field, bad):
+        repo = FileRecordRepository(tmp_path)
+        monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+        value = dict(intent_id="intent", kind="case", record_id="case", expected_revision=0,
+                     payload={"project_id": "project"})
+        with pytest.raises(ValueError):
+>           repo.append_intent(**{**value, field: bad})
+
+tests\unit\test_legacy_intent_identity.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\records.py:291: in append_intent
+    data = self._load()
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   monkeypatch.setattr(repo, "_load", lambda: pytest.fail("invalid identity reached storage"))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: invalid identity reached storage
+
+tests\unit\test_legacy_intent_identity.py:70: Failed
+____ test_malformed_saved_receipt_is_a_blocked_read_without_mutation[None] ____
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E13B070>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+bad = None
+
+    @pytest.mark.parametrize("bad", [None, [], 1, True])
+    def test_malformed_saved_receipt_is_a_blocked_read_without_mutation(saved, bad):
+        repo, value = saved
+        data = repo._load()
+        data["intents"]["original"] = bad
+        repo._save(data)
+        before = repo.path.read_bytes()
+        with pytest.raises(ValueError):
+>           repo.append_intent(**value)
+
+tests\unit\test_legacy_intent_identity.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E13B070>
+intent_id = 'original', kind = 'case', record_id = 'first'
+expected_revision = 0
+payload = {'project_id': 'project', 'summary': 'original'}
+
+    def append_intent(
+        self,
+        *,
+        intent_id: str,
+        kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
+    ) -> int:
+        exact_counter(expected_revision)
+        data = self._load()
+        intents = data.setdefault("intents", {})
+        fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
+        if intent_id in intents:
+            previous = intents[intent_id]
+>           if previous["fingerprint"] != fingerprint:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: 'NoneType' object is not subscriptable
+
+src\aitest\infrastructure\file_store\records.py:296: TypeError
+____ test_malformed_saved_receipt_is_a_blocked_read_without_mutation[bad1] ____
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4DFDFF50>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+bad = []
+
+    @pytest.mark.parametrize("bad", [None, [], 1, True])
+    def test_malformed_saved_receipt_is_a_blocked_read_without_mutation(saved, bad):
+        repo, value = saved
+        data = repo._load()
+        data["intents"]["original"] = bad
+        repo._save(data)
+        before = repo.path.read_bytes()
+        with pytest.raises(ValueError):
+>           repo.append_intent(**value)
+
+tests\unit\test_legacy_intent_identity.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4DFDFF50>
+intent_id = 'original', kind = 'case', record_id = 'first'
+expected_revision = 0
+payload = {'project_id': 'project', 'summary': 'original'}
+
+    def append_intent(
+        self,
+        *,
+        intent_id: str,
+        kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
+    ) -> int:
+        exact_counter(expected_revision)
+        data = self._load()
+        intents = data.setdefault("intents", {})
+        fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
+        if intent_id in intents:
+            previous = intents[intent_id]
+>           if previous["fingerprint"] != fingerprint:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: list indices must be integers or slices, not str
+
+src\aitest\infrastructure\file_store\records.py:296: TypeError
+_____ test_malformed_saved_receipt_is_a_blocked_read_without_mutation[1] ______
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E172C50>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+bad = 1
+
+    @pytest.mark.parametrize("bad", [None, [], 1, True])
+    def test_malformed_saved_receipt_is_a_blocked_read_without_mutation(saved, bad):
+        repo, value = saved
+        data = repo._load()
+        data["intents"]["original"] = bad
+        repo._save(data)
+        before = repo.path.read_bytes()
+        with pytest.raises(ValueError):
+>           repo.append_intent(**value)
+
+tests\unit\test_legacy_intent_identity.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E172C50>
+intent_id = 'original', kind = 'case', record_id = 'first'
+expected_revision = 0
+payload = {'project_id': 'project', 'summary': 'original'}
+
+    def append_intent(
+        self,
+        *,
+        intent_id: str,
+        kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
+    ) -> int:
+        exact_counter(expected_revision)
+        data = self._load()
+        intents = data.setdefault("intents", {})
+        fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
+        if intent_id in intents:
+            previous = intents[intent_id]
+>           if previous["fingerprint"] != fingerprint:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: 'int' object is not subscriptable
+
+src\aitest\infrastructure\file_store\records.py:296: TypeError
+____ test_malformed_saved_receipt_is_a_blocked_read_without_mutation[True] ____
+
+saved = (<aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E35B7D0>, {'intent_id': 'original', 'kind': 'case', 'record_id': 'first', 'expected_revision': 0, ...})
+bad = True
+
+    @pytest.mark.parametrize("bad", [None, [], 1, True])
+    def test_malformed_saved_receipt_is_a_blocked_read_without_mutation(saved, bad):
+        repo, value = saved
+        data = repo._load()
+        data["intents"]["original"] = bad
+        repo._save(data)
+        before = repo.path.read_bytes()
+        with pytest.raises(ValueError):
+>           repo.append_intent(**value)
+
+tests\unit\test_legacy_intent_identity.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.records.FileRecordRepository object at 0x0000020B4E35B7D0>
+intent_id = 'original', kind = 'case', record_id = 'first'
+expected_revision = 0
+payload = {'project_id': 'project', 'summary': 'original'}
+
+    def append_intent(
+        self,
+        *,
+        intent_id: str,
+        kind: str,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
+    ) -> int:
+        exact_counter(expected_revision)
+        data = self._load()
+        intents = data.setdefault("intents", {})
+        fingerprint = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False)
+        if intent_id in intents:
+            previous = intents[intent_id]
+>           if previous["fingerprint"] != fingerprint:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: 'bool' object is not subscriptable
+
+src\aitest\infrastructure\file_store\records.py:296: TypeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_legacy_intent_identity.py::test_same_body_with_different_business_identity_is_not_an_original_result[change0]
+FAILED tests/unit/test_legacy_intent_identity.py::test_same_body_with_different_business_identity_is_not_an_original_result[change1]
+FAILED tests/unit/test_legacy_intent_identity.py::test_receipt_requires_its_exact_readable_original_body[missing_body]
+FAILED tests/unit/test_legacy_intent_identity.py::test_receipt_requires_its_exact_readable_original_body[changed_body]
+FAILED tests/unit/test_legacy_intent_identity.py::test_receipt_requires_its_exact_readable_original_body[wrong_revision]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[True-intent_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[True-kind]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[True-record_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[1-intent_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[1-kind]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[1-record_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[-intent_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[-kind]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[-record_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[   -intent_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[   -kind]
+FAILED tests/unit/test_legacy_intent_identity.py::test_intent_identity_is_strict_before_any_storage[   -record_id]
+FAILED tests/unit/test_legacy_intent_identity.py::test_malformed_saved_receipt_is_a_blocked_read_without_mutation[None]
+FAILED tests/unit/test_legacy_intent_identity.py::test_malformed_saved_receipt_is_a_blocked_read_without_mutation[bad1]
+FAILED tests/unit/test_legacy_intent_identity.py::test_malformed_saved_receipt_is_a_blocked_read_without_mutation[1]
+FAILED tests/unit/test_legacy_intent_identity.py::test_malformed_saved_receipt_is_a_blocked_read_without_mutation[True]
+21 failed, 2 passed in 1.82s

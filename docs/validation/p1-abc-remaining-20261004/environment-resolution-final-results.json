@@ -1,0 +1,38 @@
+{
+  "fresh_nodes": 36,
+  "gates": {
+    "passed": 28,
+    "seconds": 336.98
+  },
+  "risk_and_probes": {
+    "passed": 8,
+    "seconds": 185.74
+  },
+  "retained_prior_stage_nodes_excluding_rerun_architecture": 181,
+  "prior_stage": "environment-resolution-risk-failed-1",
+  "retained_test_ast_and_product_equivalence_checked": true,
+  "all_217_fresh": false,
+  "full_python_run": false,
+  "vsix_rebuilt": false,
+  "mypy_files": 179,
+  "package_files_verified": 12,
+  "schemas_verified": 7,
+  "real_ac_verified": 0,
+  "whole_abc_issues_remaining": 22,
+  "log_files": [
+    "environment-resolution-final-gates.log",
+    "environment-resolution-final-risk-and-probes.log",
+    "environment-resolution-final-ruff.log",
+    "environment-resolution-final-mypy.log",
+    "environment-resolution-final-build.log",
+    "environment-resolution-final-package.log",
+    "environment-resolution-final-retained-ast.log",
+    "environment-resolution-final-retained-ast-source.py.txt",
+    "environment-resolution-last-schema.log",
+    "environment-resolution-version.log",
+    "environment-resolution-last-risk-collection.log",
+    "environment-resolution-actual-core-probe.py.txt",
+    "environment-resolution-home-probe.py.txt",
+    "environment-resolution-final-results.json"
+  ]
+}

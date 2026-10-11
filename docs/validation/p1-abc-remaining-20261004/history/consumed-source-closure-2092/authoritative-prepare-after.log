@@ -1,0 +1,11 @@
+..F...........................                                           [100%]
+================================== FAILURES ===================================
+____________ test_blocked_and_unblocked_inputs_are_distinguishable ____________
+tests\contracts\test_prepare_run_entrypoint.py:282: in test_blocked_and_unblocked_inputs_are_distinguishable
+    assert second.result["status"] != PreparedRunStatusFact.BLOCKED.value
+E   AssertionError: assert 'blocked' != 'blocked'
+E    +  where 'blocked' = <PreparedRunStatusFact.BLOCKED: 'blocked'>.value
+E    +    where <PreparedRunStatusFact.BLOCKED: 'blocked'> = PreparedRunStatusFact.BLOCKED
+=========================== short test summary info ===========================
+FAILED tests/contracts/test_prepare_run_entrypoint.py::test_blocked_and_unblocked_inputs_are_distinguishable
+1 failed, 29 passed in 1.76s

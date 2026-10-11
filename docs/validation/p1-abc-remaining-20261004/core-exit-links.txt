@@ -1,0 +1,3 @@
+warning: in the working copy of 'docs/接口对接/进行中/AC-001-存储与恢复/contract.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/接口对接/进行中/CORE-001-A包公共接口/contract.md', LF will be replaced by CRLF the next time Git touches it
+Passed: 32 changed docs, 1323 local links, source AST anchors.

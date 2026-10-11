@@ -1,0 +1,12 @@
+F821 Undefined name `payload_digest`
+   --> tests\unit\test_saved_runtime_revision.py:612:64
+    |
+610 |         inputs,
+611 |         plan_revision=PreparedPlanRef(
+612 |             revision_id=saved.record_id, revision_no=2, digest=payload_digest(saved.payload)
+    |                                                                ^^^^^^^^^^^^^^
+613 |         ),
+614 |         input_revisions=replace(inputs.input_revisions, plan_revision=2),
+    |
+
+Found 1 error.

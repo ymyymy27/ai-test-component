@@ -1,0 +1,64 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_ test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost[publish_plan] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000023C98A69A90>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-663/test_initial_registration_does0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000023C989FC180>
+action = 'publish_plan'
+
+    @pytest.mark.parametrize('action', ['publish_plan', 'save_binding'])
+    def test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost(
+        authoritative, monkeypatch, action
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        read = core.unit_of_work.repo.read
+    
+        def lost(**kwargs):
+            saved = read(**kwargs)
+            if (saved.payload.get('schema_version'), saved.payload.get('action')) == (
+                'aitest.controlled-write-intent/1.0', action
+            ):
+                raise KeyError('exact controlled effect receipt is lost')
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, 'read', lost)
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match='basis|confirmation|origin|proof'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\probe_initial_origin.py:28: Failed
+_ test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost[save_binding] _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000023C989AB610>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-663/test_initial_registration_does1/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000023C989FD6E0>
+action = 'save_binding'
+
+    @pytest.mark.parametrize('action', ['publish_plan', 'save_binding'])
+    def test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost(
+        authoritative, monkeypatch, action
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        read = core.unit_of_work.repo.read
+    
+        def lost(**kwargs):
+            saved = read(**kwargs)
+            if (saved.payload.get('schema_version'), saved.payload.get('action')) == (
+                'aitest.controlled-write-intent/1.0', action
+            ):
+                raise KeyError('exact controlled effect receipt is lost')
+            return saved
+    
+        monkeypatch.setattr(core.unit_of_work.repo, 'read', lost)
+        before = core.unit_of_work.current_commit_sequence()
+>       with pytest.raises(ValueError, match='basis|confirmation|origin|proof'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+.git\p1-abc-fix-20261003\probe_initial_origin.py:28: Failed
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/probe_initial_origin.py::test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost[publish_plan]
+FAILED .git/p1-abc-fix-20261003/probe_initial_origin.py::test_initial_registration_does_not_trust_preparation_after_origin_receipt_is_lost[save_binding]
+2 failed in 72.56s (0:01:12)

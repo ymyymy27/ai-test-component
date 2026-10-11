@@ -45,8 +45,10 @@ from aitest.application.planning.substrate import (
     RecordReader,
     StagedRevision,
     UnitOfWork,
+    read_scoped_record,
     transaction,
 )
+from aitest.application.record_write import RecordWriteIntent
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     Case,
@@ -70,6 +72,7 @@ def _stage_and_commit(
     payload: dict[str, object],
     unit_of_work: UnitOfWork,
     revision_carrying_key: str | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """一次短事务：在**事务上下文**里暂存并提交。
 
@@ -82,7 +85,16 @@ def _stage_and_commit(
     核对放在事务**内部**、`stage_record` **之前**：这样底座的并发校验先生效，
     本核对只处理"修订号本身的错配"。
     """
-    with transaction(unit_of_work, project_id) as tx:
+    if record_intent is not None:
+        payload = record_intent.prepare_payload(payload)
+    with transaction(
+        unit_of_work, project_id,
+        intent_id=record_intent.intent_id if record_intent is not None else None,
+    ) as tx:
+        if record_intent is not None:
+            original = record_intent.original()
+            if original is not None:
+                return original
         if revision_carrying_key is not None:
             _require_revision_matches_assignment(
                 aggregate_kind=aggregate_kind,
@@ -96,7 +108,10 @@ def _stage_and_commit(
             record_id=record_id,
             expected_revision=expected_revision,
             payload=payload,
+            require_unchanged=record_intent is not None,
         )
+        if record_intent is not None:
+            record_intent.stage(tx, staged, payload)
         tx.commit()
     return staged
 
@@ -142,14 +157,14 @@ def _load_payload(
     record_id: str,
     revision: int,
 ) -> dict[str, object]:
-    record = reader.read(
-        aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
+    record = read_scoped_record(
+        reader,
+        project_id=project_id,
+        aggregate_kind=aggregate_kind,
+        record_id=record_id,
+        revision=revision,
     )
     payload = dict(record.payload)
-    # 项目校验：跨项目的记录不得被当成同一条读到。
-    stored_project = payload.get("project_id")
-    if stored_project is not None and stored_project != project_id:
-        raise ValueError(f"{aggregate_kind} {record_id} belongs to another project")
     return payload
 
 
@@ -162,6 +177,7 @@ def save_case(
     project_id: str,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存一条用例的某个修订。
 
@@ -175,13 +191,12 @@ def save_case(
         expected_revision=expected_revision,
         payload=case_to_payload(case, project_id=project_id),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
         revision_carrying_key="revision",
     )
 
 
-def load_case(
-    reader: RecordReader, *, project_id: str, case_id: str, revision: int
-) -> Case:
+def load_case(reader: RecordReader, *, project_id: str, case_id: str, revision: int) -> Case:
     """按**准确修订**读回用例；没有"读最新"入口。"""
     payload = _load_payload(
         reader,
@@ -202,6 +217,7 @@ def save_acceptance_scope(
     project_id: str,
     unit_of_work: UnitOfWork,
     expected_revision: int | None = None,
+    record_intent: RecordWriteIntent | None = None,
 ) -> StagedRevision:
     """保存一个验收范围的某个修订。
 
@@ -215,6 +231,7 @@ def save_acceptance_scope(
         expected_revision=expected_revision,
         payload=acceptance_scope_to_payload(scope, project_id=project_id),
         unit_of_work=unit_of_work,
+        record_intent=record_intent,
         revision_carrying_key="revision",
     )
 

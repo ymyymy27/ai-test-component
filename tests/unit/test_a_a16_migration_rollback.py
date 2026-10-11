@@ -106,8 +106,12 @@ def test_resume_after_partial_forward_failure(tmp_path: Path) -> None:
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
     (tmp_path / "records.json").write_text("{not json", encoding="utf-8")
 
-    with pytest.raises(json.JSONDecodeError):
+    records_before = (tmp_path / "records.json").read_bytes()
+    registry_before = registry_path.read_bytes()
+    with pytest.raises(MigrationError, match="权威业务提交水位不可读取"):
         manager.resume(plan.plan_id)
+    assert (tmp_path / "records.json").read_bytes() == records_before
+    assert registry_path.read_bytes() == registry_before
 
     # 修复后 resume：只补跑第二步，第一步不重复执行（幂等 resume）。
     records = {"records": {}, "commit": 0, "intents": {}}

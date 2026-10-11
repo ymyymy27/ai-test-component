@@ -1,0 +1,11 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____ test_default_command_publishes_output_evidence_before_success_reply _____
+tests\unit\test_default_evidence_publication.py:35: in test_default_command_publishes_output_evidence_before_success_reply
+    assert saved.evidence_refs, 'default command never published permanent evidence references'
+E   AssertionError: default command never published permanent evidence references
+E   assert ()
+E    +  where () = ExecutionFacts(schema_version='aitest.execution-facts/1.0', facts_id='execution-update:execution-attempt-6633226ca6072..., unknown_step_ids=(), evidence_gap_count=1, critical_gap_count=1), completeness=<FactCompleteness.PARTIAL: 'partial'>).evidence_refs
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_evidence_publication.py::test_default_command_publishes_output_evidence_before_success_reply
+1 failed in 181.96s (0:03:01)

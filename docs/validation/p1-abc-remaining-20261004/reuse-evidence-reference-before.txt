@@ -1,0 +1,314 @@
+FFFFFFFFFF                                                               [100%]
+================================== FAILURES ===================================
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[project_id-other] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada0")
+field = 'project_id', value = 'other'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[source_instance_id-other] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada1")
+field = 'source_instance_id', value = 'other'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[run_id-other] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada2")
+field = 'run_id', value = 'other'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[step_id-other] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada3")
+field = 'step_id', value = 'other'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[attempt_id-other] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada4")
+field = 'attempt_id', value = 'other'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[object_size-True] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada5")
+field = 'object_size', value = True
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[evidence_revision-True] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada6")
+field = 'evidence_revision', value = True
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[redaction_summary_ref-another-summary] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada7")
+field = 'redaction_summary_ref', value = 'another-summary'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[projection_state-blocked] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada8")
+field = 'projection_state', value = 'blocked'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+_ test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[extra-unknown] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-1064/test_inline_snapshot_and_reada9")
+field = 'extra', value = 'unknown'
+
+    @pytest.mark.parametrize("field,value", [
+        ("project_id", "other"), ("source_instance_id", "other"), ("run_id", "other"),
+        ("step_id", "other"), ("attempt_id", "other"), ("object_size", True),
+        ("evidence_revision", True), ("redaction_summary_ref", "another-summary"),
+        ("projection_state", "blocked"), ("extra", "unknown"),
+    ])
+    def test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference(tmp_path, field, value):
+        selected, unit, collector = source(tmp_path)
+        original = unit.repo.read
+        reader = Mock(wraps=unit.repo)
+    
+        def corrupt(**kwargs):
+            record = original(**kwargs)
+            if kwargs["aggregate_kind"] != "evidence_ref":
+                return record
+            raw = deepcopy(record.payload)
+            raw[field] = value
+            return SimpleNamespace(**kwargs, payload=raw)
+    
+        reader.read.side_effect = corrupt
+>       with pytest.raises(ValueError, match="evidence reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_reuse_evidence_reference_provenance.py:42: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[project_id-other]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[source_instance_id-other]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[run_id-other]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[step_id-other]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[attempt_id-other]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[object_size-True]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[evidence_revision-True]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[redaction_summary_ref-another-summary]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[projection_state-blocked]
+FAILED tests/unit/test_reuse_evidence_reference_provenance.py::test_inline_snapshot_and_readable_objects_cannot_hide_wrong_exact_reference[extra-unknown]
+10 failed in 20.92s

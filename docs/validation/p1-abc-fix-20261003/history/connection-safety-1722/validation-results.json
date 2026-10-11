@@ -1,0 +1,222 @@
+{
+  "baseline": "7dbc5a45aa1666652c3dcdc2d0b0604066bc6498",
+  "branch": "文档更新-袁",
+  "captured_at": "2026-10-04T08:13:59.190772+08:00",
+  "python": "3.13.13",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "uv": "uv 0.11.8 (0e961dd9a 2026-04-27 x86_64-pc-windows-msvc)",
+  "node": "v24.14.1",
+  "npm": "11.13.0",
+  "checks": [
+    {
+      "check": "python_full",
+      "command": "uv run pytest",
+      "status": "passed",
+      "log": "pytest-full.log",
+      "log_sha256": "b3b112b4ee105c3f0b52030044374b45b9a193f132cc804cd12d3235394fe082"
+    },
+    {
+      "check": "root_regressions",
+      "command": "uv run pytest tests/unit/test_abc_root_cause_regressions.py tests/unit/test_abc_decision_regressions.py tests/unit/test_sharded_record_authority.py tests/unit/test_a_a10_capability_gate.py tests/unit/test_a_model_provider.py tests/unit/test_http_observation_integrity.py tests/unit/test_case_aggregation_integrity.py tests/unit/test_execution_start_integrity.py tests/unit/test_dependency_closure_integrity.py tests/unit/test_current_execution_snapshot.py tests/unit/test_source_snapshot_integrity.py tests/unit/test_a_a09_prefilter_persistence.py tests/unit/test_backup_security_integrity.py tests/unit/test_capability_persistence_integrity.py tests/unit/test_evidence_publication_integrity.py tests/unit/test_current_attempt_transition_integrity.py tests/unit/test_connection_fact_integrity.py",
+      "status": "passed",
+      "log": "root-regressions.log",
+      "log_sha256": "f353ea78a147dc67c388a61ad08c682b1010805f10a25df2430650bd3b3893b0"
+    },
+    {
+      "check": "ruff",
+      "command": "uv run ruff check src tests scripts/validate_deepseek.py",
+      "status": "passed",
+      "log": "ruff.log",
+      "log_sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0"
+    },
+    {
+      "check": "mypy",
+      "command": "uv run mypy src",
+      "status": "passed",
+      "log": "mypy.log",
+      "log_sha256": "7a3d559298be9a95540938b363a41dcc63ed845173856b71edb1425d8dcce9bc"
+    },
+    {
+      "check": "generated",
+      "command": "regenerate scripts.generate_schemas and scripts.generate_prepared_run_fixtures; compare all bytes",
+      "status": "passed",
+      "log": "generated.log",
+      "log_sha256": "9c148249407efe467d78d230cc9e3b00a1791c5f1015211d6da2bfa613ba9457"
+    },
+    {
+      "check": "panel_build",
+      "command": "npm run build (src/aitest/resources/panel)",
+      "status": "passed",
+      "log": "panel-build.log",
+      "log_sha256": "baf8742321dc57f284868cfe08a3f9d537bc45e296ee92638a29909c2e02f36e"
+    },
+    {
+      "check": "python_build",
+      "command": "uv build --offline",
+      "status": "passed",
+      "log": "python-build.log",
+      "log_sha256": "eacf2d44f3c9eda2b05bba65d24776d77c9f930bda7eb24a784565e99104d750"
+    },
+    {
+      "check": "trae_package",
+      "command": "npm run package (integrations/trae)",
+      "status": "passed",
+      "log": "trae-package.log",
+      "log_sha256": "581c40330fbaea70217c0490b8e03ca1ae2e415b498b14ed6bb2377cccedcbf2"
+    },
+    {
+      "check": "wheel_smoke",
+      "command": "uv run python scripts/smoke_wheel.py",
+      "status": "passed",
+      "log": "wheel-smoke.log",
+      "log_sha256": "b6b6f406d734ae6f29aa29e02ba7934a30d2a036a0fc2737c6240426ca9dc829"
+    },
+    {
+      "check": "artifacts",
+      "command": "compare wheel schemas/module/panel with source and VSIX",
+      "status": "passed",
+      "log": "artifacts.log",
+      "log_sha256": "94cd308d8bd37c7cbe5aa7cd550a82036231f6179d3f14abc8b861a33fffd86a"
+    }
+  ],
+  "python_full": {
+    "passed": 1722,
+    "skipped": 2,
+    "seconds": 177.55
+  },
+  "root_regressions": {
+    "passed": 367,
+    "skipped": 0,
+    "seconds": 87.04
+  },
+  "skipped_scope": "Two physical symlink permission checks; Windows Junction rejection separately passed",
+  "acceptance": {
+    "verified": 0,
+    "not_verified": 7,
+    "blocked": 1,
+    "untested": 27
+  },
+  "not_verified": [
+    "real Trae integration",
+    "external model vendor failure/recovery",
+    "real business independent verification",
+    "physical power-loss durability"
+  ],
+  "outside_scope": [
+    "D package business changes",
+    "new remote CI status"
+  ],
+  "known_prior_failure": "Panel Playwright ambiguous plan-button locator from prior baseline; not repeated because panel behavior was unchanged",
+  "additional_runs": [
+    {
+      "status": "failed",
+      "scope": "full pytest concurrent with targeted regressions/build/static checks",
+      "passed": 1559,
+      "failed": 5,
+      "skipped": 2,
+      "seconds": 333.57,
+      "log": "pytest-full-concurrent-failure.log",
+      "detail": "Five real core subprocess acquire timeouts; no code or timeout limits changed for recheck.",
+      "log_sha256": "52b43506b35ff9253f5aa06ab1dbabdd1d3098d8ed43eea72b958f38961907a0"
+    },
+    {
+      "status": "passed",
+      "scope": "exact five failed real subprocess startup nodes in isolation",
+      "passed": 5,
+      "seconds": 15.65,
+      "log": "core-startup-recheck.log",
+      "detail": "Failure did not reproduce in isolation; concurrent resource competition is an inference, not a proven root cause.",
+      "log_sha256": "0952603aeff6a9b15c7de8953413cadf518f3709c3ec23f3b336e6ae32129f68"
+    },
+    {
+      "status": "failed",
+      "scope": "expected defect reproduction before current-attempt transition repair",
+      "failed": 4,
+      "log": "current-transition-before-fix.log",
+      "detail": "Four middle states still exposed the old current Attempt at the external-start boundary. Previous source bytes are frozen in history/backup-capability-publication-1659.",
+      "log_sha256": "9ea01724fc117cfcbc01aae895514bbe532d89665824b568b2fe3617a536760a"
+    },
+    {
+      "status": "passed",
+      "scope": "current transition plus affected execution/recovery regressions",
+      "passed": 118,
+      "skipped": 0,
+      "seconds": 32.33,
+      "log": "current-transition-regressions.log",
+      "detail": "Includes 28 new current-attempt/closure/recovery cases; no real Trae/business AC claim.",
+      "log_sha256": "ef4cb2c40f7fdac13fa1b9a969714b31951a3abcf590bb3b5695efd0cfe320ee"
+    },
+    {
+      "status": "failed",
+      "scope": "expected corrected connection defect reproduction against frozen source",
+      "failed": 18,
+      "passed": 2,
+      "seconds": 1.91,
+      "log": "connection-fact-before-fix.log",
+      "detail": "Source archive/test hashes in connection-fact-before-source.json; four original invalid command fixtures are retained separately, not counted as fixed defects.",
+      "log_sha256": "3d6b4502a555fea4e5fedaed447700c5b7d79d7dc17fd3b1b9583bd32b4eba82"
+    },
+    {
+      "status": "passed",
+      "scope": "strict connection/capability/redaction regressions",
+      "passed": 133,
+      "skipped": 0,
+      "seconds": 9.15,
+      "log": "connection-fact-regressions.log",
+      "detail": "Includes real local files, default core rebuilds, supplied transport facts and synthetic credentials; not real remote/vendor acceptance.",
+      "log_sha256": "6cea94dc52761ff97c0d096d3b43276cfb679b6dc85628534348c514ada19daa"
+    }
+  ],
+  "live_model": {
+    "scope": "live_model_component_only",
+    "status": "passed",
+    "captured_at": "2026-10-04T02:13:45.426917+08:00",
+    "python": "3.13.13",
+    "platform": "Windows-11-10.0.22631-SP0",
+    "workspace": "C:\\Users\\y'm'y\\AppData\\Local\\aitest\\validation\\dfa453fab83c46579ef38c5b99b0a593",
+    "project_id": "synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593",
+    "endpoint": "https://api.deepseek.com",
+    "model": "deepseek-flash",
+    "credential_reference": "deepseek-validation",
+    "credential_environment": "DEEPSEEK_API_KEY",
+    "calls_this_invocation": [],
+    "original_result": "committed_successful_draft",
+    "resumed_existing_workspace": true,
+    "same_process_replay_equal": true,
+    "new_core_replay_equal": true,
+    "workspace_secret_scan": "passed",
+    "files_scanned": 117,
+    "draft": {
+      "generated_content_id": "draft:synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593:check_content:outbound:synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593:draft-intent-dfa453fab83c46579ef38c5b99b0a593:1",
+      "project_id": "synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593",
+      "draft_kind": "check_content",
+      "revision": 1,
+      "status": "draft",
+      "content_digest": "sha256:7d3c6f847e35dc3da49d6af5409ce0b3f5585f0871ef9ce5dfff34684ccd9e52",
+      "template_ref": {
+        "template_id": "manual",
+        "version": "1.0.0"
+      },
+      "revision_context": {
+        "project_revision": 1,
+        "binding_revision": 1,
+        "template_revision": "1.0.0"
+      }
+    },
+    "saved_draft_text": "1. 订单服务创建订单后返回唯一订单号与待支付状态。\n2. 计费服务依据同一订单号独立查询并校验支付。\n3. 虚构订单支付成功后，计费服务标记已支付且金额一致。",
+    "saved_draft_digest_verified": true,
+    "outbound_fact": {
+      "record_id": "outbound:synthetic-orders-billing-dfa453fab83c46579ef38c5b99b0a593:draft-intent-dfa453fab83c46579ef38c5b99b0a593",
+      "revision": 2,
+      "provider_request_id": "c1251459-3d93-4b87-b343-c4bf9edf8d45",
+      "call_status": "ok",
+      "projection_digest": "sha256:50c7798f611e9dff571c0bc7c6fa124c2191fd8c0468231c99dabaec08af3fed"
+    },
+    "not_verified": [
+      "real Trae entry",
+      "business backend execution",
+      "physical power loss"
+    ]
+  },
+  "live_model_evidence_sha256": "1e10589ef334afe4b134ac0c438f00aa7b3c2e8f23820586f3df9d384469659d"
+}

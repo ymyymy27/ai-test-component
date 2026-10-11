@@ -1,0 +1,86 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_blob_loss_during_prepare_after_a_later_unrelated_commit_cannot_publish _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002788CA76660>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-552/test_blob_loss_during_prepare_0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002788C9A2C40>
+
+    def test_blob_loss_during_prepare_after_a_later_unrelated_commit_cannot_publish(
+        authoritative, monkeypatch
+    ):
+        core, inputs, _ = authoritative
+        unit = core.unit_of_work
+        unit.begin("unrelated-request", inputs.project_id, intent_id="unrelated-intent")
+        unit.stage_record(
+            aggregate_kind="diagnostic",
+            record_id="unrelated",
+            expected_revision=0,
+            payload={"project_id": inputs.project_id, "message": "controlled fixture"},
+        )
+        unit.commit("unrelated-request")
+        path = blob_path(core.workspace.root, saved_source(core, inputs))
+        before = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        original = unit.stage_record
+    
+        def lose_blob(**kwargs):
+            if kwargs["aggregate_kind"] == "prepared_run":
+                path.unlink()
+            return original(**kwargs)
+    
+        monkeypatch.setattr(unit, "stage_record", lose_blob)
+        result = prepare(core, inputs)
+>       assert result.error is not None and result.error.code == "COMMIT_MATERIAL_UNVERIFIED"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='prepare-request', instance_id='authoritative-core', workspac...'source_snippets_enabled': False, 'invalidation_rules': [], 'blocking_reasons': [], 'gaps': []}, page=None, error=None).error
+
+tests\unit\test_consumed_source_closure.py:44: AssertionError
+_ test_saved_preparation_consumed_by_initial_run_rechecks_blob_inside_publication _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002788CBB8190>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-552/test_saved_preparation_consume0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002788C9A2EA0>
+
+    def test_saved_preparation_consumed_by_initial_run_rechecks_blob_inside_publication(
+        authoritative, monkeypatch
+    ):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        path = blob_path(core.workspace.root, saved_source(core, inputs))
+        before = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        original = core.unit_of_work.stage_record
+    
+        def lose_blob(**kwargs):
+            if kwargs["aggregate_kind"] == "run":
+                path.unlink()
+            return original(**kwargs)
+    
+        monkeypatch.setattr(core.unit_of_work, "stage_record", lose_blob)
+>       with pytest.raises(ValueError, match="source"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_consumed_source_closure.py:64: Failed
+_ test_new_preparation_manifest_includes_its_consumed_historical_source_files _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002788C993250>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-552/test_new_preparation_manifest_0/tested"))
+
+    def test_new_preparation_manifest_includes_its_consumed_historical_source_files(authoritative):
+        core, inputs, _ = authoritative
+        source = saved_source(core, inputs)
+        path = blob_path(core.workspace.root, source)
+        assert prepare(core, inputs).error is None
+        manifest = FileCommitStore(core.workspace.root).read_current(verify_material=True)["manifest"]
+>       assert path.relative_to(core.workspace.root).as_posix() in manifest["source_material_files"]
+E       assert 'snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189' in []
+E        +  where 'snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189' = as_posix()
+E        +    where as_posix = WindowsPath('snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189').as_posix
+E        +      where WindowsPath('snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189') = relative_to(WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-552/test_new_preparation_manifest_0/workspace"))
+E        +        where relative_to = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-552/test_new_preparation_manifest_0/workspace/snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189").relative_to
+E        +        and   WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-552/test_new_preparation_manifest_0/workspace") = <aitest.infrastructure.file_store.workspace.Workspace object at 0x000002788C9A3CE0>.root
+E        +          where <aitest.infrastructure.file_store.workspace.Workspace object at 0x000002788C9A3CE0> = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000002788C993250>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x000002788C9934D0>).workspace
+
+tests\unit\test_consumed_source_closure.py:76: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_consumed_source_closure.py::test_blob_loss_during_prepare_after_a_later_unrelated_commit_cannot_publish
+FAILED tests/unit/test_consumed_source_closure.py::test_saved_preparation_consumed_by_initial_run_rechecks_blob_inside_publication
+FAILED tests/unit/test_consumed_source_closure.py::test_new_preparation_manifest_includes_its_consumed_historical_source_files
+3 failed in 41.66s

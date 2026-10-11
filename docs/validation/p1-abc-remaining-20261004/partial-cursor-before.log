@@ -1,0 +1,28 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+______________ test_partial_cursor_requires_saved_prefix[offset] ______________
+.git\p1-abc-fix-20261003\partial_cursor_counter.py:16: in test_partial_cursor_requires_saved_prefix
+    with pytest.raises(ValueError):SerialRunner(None,spool)._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_________ test_partial_cursor_requires_saved_prefix[last_block_index] _________
+.git\p1-abc-fix-20261003\partial_cursor_counter.py:16: in test_partial_cursor_requires_saved_prefix
+    with pytest.raises(ValueError):SerialRunner(None,spool)._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+______ test_partial_cursor_requires_saved_prefix[last_committed_digest] _______
+.git\p1-abc-fix-20261003\partial_cursor_counter.py:16: in test_partial_cursor_requires_saved_prefix
+    with pytest.raises(ValueError):SerialRunner(None,spool)._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_____________ test_partial_cursor_requires_saved_prefix[durable] ______________
+.git\p1-abc-fix-20261003\partial_cursor_counter.py:16: in test_partial_cursor_requires_saved_prefix
+    with pytest.raises(ValueError):SerialRunner(None,spool)._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/partial_cursor_counter.py::test_partial_cursor_requires_saved_prefix[offset]
+FAILED .git/p1-abc-fix-20261003/partial_cursor_counter.py::test_partial_cursor_requires_saved_prefix[last_block_index]
+FAILED .git/p1-abc-fix-20261003/partial_cursor_counter.py::test_partial_cursor_requires_saved_prefix[last_committed_digest]
+FAILED .git/p1-abc-fix-20261003/partial_cursor_counter.py::test_partial_cursor_requires_saved_prefix[durable]
+4 failed in 1.39s

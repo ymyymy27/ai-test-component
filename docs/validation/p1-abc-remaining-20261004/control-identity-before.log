@@ -1,0 +1,12 @@
+F
+================================== FAILURES ===================================
+___ test_cancel_requires_exact_stopped_handle[foreign-handle-stopped-True] ____
+tests\unit\test_execution_control_identity.py:37: in test_cancel_requires_exact_stopped_handle
+    assert decision.run_state is RunControlState.CANCELLING
+E   AssertionError: assert <RunControlState.CANCELLED: 'cancelled'> is <RunControlState.CANCELLING: 'cancelling'>
+E    +  where <RunControlState.CANCELLED: 'cancelled'> = RunControlDecision(action=<RunControlAction.CANCEL: 'cancel'>, run_state=<RunControlState.CANCELLED: 'cancelled'>, att...'cancelled'>, stop_confirmed=True, requires_verification=False, invalidated_attempt_ids=(), rerun_step_ids=(), gaps=()).run_state
+E    +  and   <RunControlState.CANCELLING: 'cancelling'> = RunControlState.CANCELLING
+=========================== short test summary info ===========================
+FAILED tests/unit/test_execution_control_identity.py::test_cancel_requires_exact_stopped_handle[foreign-handle-stopped-True]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 2.31s

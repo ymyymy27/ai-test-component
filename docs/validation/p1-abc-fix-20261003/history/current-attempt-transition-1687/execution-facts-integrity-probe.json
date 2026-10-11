@@ -1,0 +1,7 @@
+{
+  "scope": "synthetic C publication trust-boundary probe before repair",
+  "checkpoint_capture": "unknown",
+  "caller_fact_capture": "complete",
+  "caller_complete_capture_published": true,
+  "caller_output_blocks_published_without_checkpoint_blocks": true
+}

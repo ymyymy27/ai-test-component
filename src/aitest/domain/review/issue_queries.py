@@ -12,8 +12,15 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TypeVar
 
 from aitest.domain.review.defects import IssueDisposition, IssueSeverity, IssueStatus
+
+#: 枚举解析的绑定类型参数。
+#:
+#: 本仓库 Python 下限为 3.11（见 `pyproject.toml` 与提交 `5eb1249`），因此用 `TypeVar`
+#: 而不是 PEP 695 的 `def f[T: StrEnum](...)` 语法——后者是 3.12 才有的。
+EnumType = TypeVar("EnumType", bound=StrEnum)
 
 QUERY_SPEC_VERSION = "aitest.issues-list/1.0"
 MAX_PAGE_SIZE = 200
@@ -238,7 +245,7 @@ def _validate_facet_value(facet: IssueFacet, value: str) -> None:
     raise IssueQueryError(f"unsupported facet: {facet.value}")
 
 
-def _parse_enum[T: StrEnum](value: str, enum_type: type[T]) -> T:
+def _parse_enum(value: str, enum_type: type[EnumType]) -> EnumType:
     try:
         return enum_type(value)
     except ValueError as error:

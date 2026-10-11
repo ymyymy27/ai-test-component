@@ -1,0 +1,4 @@
+........................................................................ [ 71%]
+.............................                                            [100%]
+101 passed, 3 deselected in 5.87s
+Installed MCP inspection/reads/writes preserve source-byte parity. Synthetic response boundaries; no real Trae AC.

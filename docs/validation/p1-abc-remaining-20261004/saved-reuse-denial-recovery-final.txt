@@ -1,0 +1,29 @@
+.....................FF................................................. [ 21%]
+........................................................................ [ 43%]
+........................................................................ [ 65%]
+........................................................................ [ 87%]
+..........................................                               [100%]
+================================== FAILURES ===================================
+___ test_terminal_authority_repairs_stale_sidecar_without_a_business_commit ___
+tests\unit\test_saved_reuse_revocation.py:256: in test_terminal_authority_repairs_stale_sidecar_without_a_business_commit
+    assert sidecars.load(domain[0].attempt_id).attempt == domain[0]
+E   AssertionError: assert Attempt(attem...e, revision=0) == Attempt(attem...e, revision=0)
+E     
+E     Omitting 29 identical items, use -vv to show
+E     Differing attributes:
+E     ['state', 'capture_completeness', 'unknown_reason_ref']
+E     
+E     Drill down into differing attribute state:
+E       state: <AttemptState.INVALIDATED: 'invalidated'> != <AttemptState.COMPLETED: 'completed'>...
+E     
+E     ...Full output truncated (10 lines hidden), use '-vv' to show
+_ test_stale_sidecar_write_failure_is_explicit_and_retry_uses_original_authority _
+tests\unit\test_saved_reuse_revocation.py:287: in test_stale_sidecar_write_failure_is_explicit_and_retry_uses_original_authority
+    assert unit.current_commit_sequence() == sequence
+E   assert 13 == 10
+E    +  where 13 = current_commit_sequence()
+E    +    where current_commit_sequence = <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x0000024620E99CD0>.current_commit_sequence
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_reuse_revocation.py::test_terminal_authority_repairs_stale_sidecar_without_a_business_commit
+FAILED tests/unit/test_saved_reuse_revocation.py::test_stale_sidecar_write_failure_is_explicit_and_retry_uses_original_authority
+2 failed, 328 passed in 134.23s (0:02:14)

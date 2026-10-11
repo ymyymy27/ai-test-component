@@ -1,0 +1,58 @@
+FFFFFFFFF                                                                [100%]
+================================== FAILURES ===================================
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[summary_id-redaction:another-attempt:stdout] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[stream_name-stderr] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[filtered_streams-value2] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[filtered_ranges-value3] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[completeness-passed] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[gap_reasons-value5] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_summary_with_wrong_identity_or_semantics_is_not_readable[unknown-unverified] _
+tests\unit\test_redaction_material_guards.py:37: in test_summary_with_wrong_identity_or_semantics_is_not_readable
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+________ test_no_newline_output_cannot_grow_unresolved_memory_forever _________
+tests\unit\test_redaction_material_guards.py:43: in test_no_newline_output_cannot_grow_unresolved_memory_forever
+    with pytest.raises(UnsafeMaterialError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE UnsafeMaterialError
+_________ test_spool_never_dumps_an_oversized_unresolved_secret_tail __________
+tests\unit\test_redaction_material_guards.py:55: in test_spool_never_dumps_an_oversized_unresolved_secret_tail
+    with pytest.raises(UnsafeMaterialError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE UnsafeMaterialError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[summary_id-redaction:another-attempt:stdout]
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[stream_name-stderr]
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[filtered_streams-value2]
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[filtered_ranges-value3]
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[completeness-passed]
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[gap_reasons-value5]
+FAILED tests/unit/test_redaction_material_guards.py::test_summary_with_wrong_identity_or_semantics_is_not_readable[unknown-unverified]
+FAILED tests/unit/test_redaction_material_guards.py::test_no_newline_output_cannot_grow_unresolved_memory_forever
+FAILED tests/unit/test_redaction_material_guards.py::test_spool_never_dumps_an_oversized_unresolved_secret_tail
+9 failed in 10.03s

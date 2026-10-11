@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from typing import TypeVar
 
 from aitest.contracts.execution_facts import (
     AdapterKindFact,
@@ -64,11 +65,142 @@ from aitest.domain.evidence.evidence import (
     RedactionSummary,
     Verification,
 )
+from aitest.domain.execution.payload_identity import execution_payload_digest as _payload_digest
 from aitest.domain.execution.runs import Attempt, PlanRevisionRef, Run, Step
 from aitest.domain.execution.sources import ExecutionSourceVerification, SourceCheckResult
 
 
-def _enum[EnumT: StrEnum](enum_type: type[EnumT], value: str) -> EnumT:
+def execution_payload_digest(payload: Mapping[str, object]) -> str:
+    """The existing canonical C snapshot bytes, shared by pointers and lineage."""
+    return _payload_digest(payload)
+
+
+def validate_attempt_projection(attempt: Attempt, fact: AttemptFact) -> None:
+    actual = project_attempt_fact(attempt, is_current=fact.is_current).model_dump(mode="json")
+    published = fact.model_dump(mode="json")
+    # Redaction summaries have their own EvidencePublisher provenance. All byte
+    # identities, offsets, completion flags and capture facts must still match.
+    for payload in (actual, published):
+        for block in payload["output_blocks"]:
+            block.pop("redaction_summary", None)
+    if actual != published:
+        raise ValueError("ExecutionFacts do not match the authoritative checkpoint projection")
+
+
+def validate_execution_facts(facts: ExecutionFacts) -> None:
+    """The current flags describe this exact snapshot, including historical reads."""
+    if facts.run.run_id != facts.run_id or facts.run.run_revision != facts.run_revision:
+        raise ValueError("execution snapshot run identity is inconsistent")
+    if facts.plan_revision != facts.run.plan_revision:
+        raise ValueError("execution snapshot plan identity is inconsistent")
+    refs = facts.runtime_revision_refs
+    if (
+        refs != facts.run.runtime_revision_refs
+        or any(not ref.strip() for ref in refs)
+        or len(refs) != len(set(refs))
+    ):
+        raise ValueError("execution snapshot runtime revision sequence is inconsistent")
+    steps = {step.step_id: step for step in facts.steps}
+    attempts = {attempt.attempt_id: attempt for attempt in facts.attempts}
+    if len(steps) != len(facts.steps) or len(attempts) != len(facts.attempts):
+        raise ValueError("execution snapshot identities must be unique")
+    if set(facts.current_attempt_by_step) != set(steps):
+        raise ValueError("execution snapshot current references must cover exactly its steps")
+    for step in facts.steps:
+        current_id = facts.current_attempt_by_step[step.step_id]
+        if step.run_id != facts.run_id or step.current_attempt_id != current_id:
+            raise ValueError("execution snapshot step/current attempt identity is inconsistent")
+        if current_id is not None:
+            current = attempts.get(current_id)
+            if current is None or (current.run_id, current.step_id) != (facts.run_id, step.step_id):
+                raise ValueError("execution snapshot current attempt is unavailable or foreign")
+            if current.step_revision_ref != step.step_revision_ref:
+                raise ValueError("current attempt does not use the exact current step revision")
+    for attempt in facts.attempts:
+        if (
+            attempt.run_id != facts.run_id
+            or attempt.step_id not in steps
+            or (
+                attempt.is_current
+                != (facts.current_attempt_by_step[attempt.step_id] == attempt.attempt_id)
+            )
+        ):
+            raise ValueError("execution snapshot attempt/current flag is inconsistent")
+
+
+def project_attempt_update(
+    attempt: Attempt, previous: AttemptFact, *, is_current: bool
+) -> AttemptFact:
+    """Retain published redaction provenance only for the identical output block."""
+    projected = project_attempt_fact(attempt, is_current=is_current)
+    saved = {block.block_id: block for block in previous.output_blocks}
+    blocks = []
+    for block in projected.output_blocks:
+        old = saved.get(block.block_id)
+        if old is not None and old.model_dump(exclude={"redaction_summary"}) == block.model_dump(
+            exclude={"redaction_summary"}
+        ):
+            block = block.model_copy(update={"redaction_summary": old.redaction_summary})
+        blocks.append(block)
+    return projected.model_copy(update={"output_blocks": tuple(blocks)})
+
+
+def validate_frozen_step_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
+    before = {step.step_id: step for step in previous.steps}
+    after = {step.step_id: step for step in facts.steps}
+    if set(before) != set(after):
+        raise ValueError("publication cannot add or remove frozen steps")
+    frozen = (
+        "case_id",
+        "ordinal",
+        "required_for_case",
+        "level",
+        "dependency_step_ids",
+        "registered_entry_ref",
+        "assertion_refs",
+        "evidence_requirement_ids",
+        "step_revision_ref",
+    )
+    if any(
+        getattr(after[identity], field) != getattr(step, field)
+        for identity, step in before.items()
+        for field in frozen
+    ):
+        raise ValueError("publication cannot rewrite frozen step execution basis")
+
+
+def validate_frozen_run_basis(previous: ExecutionFacts, facts: ExecutionFacts) -> None:
+    """Progress and attempt claims cannot substitute for controlled runtime actions."""
+    frozen = (
+        "origin_workspace_id",
+        "intent_id",
+        "tier",
+        "required_scope",
+        "selected_scope",
+        "plan_revision",
+        "environment_ref",
+        "environment_isolation_mode",
+        "rules_revision",
+        "conclusion_ceiling",
+        "driver",
+        "source_binding_digest",
+        "runtime_revision_refs",
+    )
+    if facts.run_revision < previous.run_revision or any(
+        getattr(facts.run, field) != getattr(previous.run, field) for field in frozen
+    ):
+        raise ValueError("publication cannot rewrite the frozen run identity or runtime revision")
+    for scope_field in ("mandatory_case_ids", "selected_case_ids"):
+        before = getattr(previous.coverage, scope_field)
+        after = getattr(facts.coverage, scope_field)
+        if set(before) != set(after) or len(after) != len(set(after)):
+            raise ValueError("publication cannot rewrite the frozen coverage scope")
+
+
+_StrEnumT = TypeVar("_StrEnumT", bound=StrEnum)
+
+
+def _enum(enum_type: type[_StrEnumT], value: str) -> _StrEnumT:
     return enum_type(value)
 
 
@@ -140,7 +272,7 @@ class ExecutionFactsAssembler:
             run=_run_fact(run),
             steps=tuple(_step_fact(step) for step in assembly.steps),
             attempts=tuple(
-                _attempt_fact(
+                project_attempt_fact(
                     attempt,
                     is_current=current_attempt_by_step.get(attempt.step_id) == attempt.attempt_id,
                     redaction_summaries=assembly.redaction_summaries,
@@ -305,12 +437,13 @@ def _step_fact(step: Step) -> StepFact:
     )
 
 
-def _attempt_fact(
+def project_attempt_fact(
     attempt: Attempt,
     *,
     is_current: bool,
-    redaction_summaries: Mapping[str, RedactionSummary],
+    redaction_summaries: Mapping[str, RedactionSummary] | None = None,
 ) -> AttemptFact:
+    """The same domain projection is used for assembly and commit validation."""
     return AttemptFact(
         attempt_id=attempt.attempt_id,
         run_id=attempt.run_id,
@@ -392,7 +525,7 @@ def _attempt_fact(
                 capture_source=block.capture_source,
                 redaction_summary=_redaction_summary_fact(
                     block.redaction_summary_id,
-                    redaction_summaries,
+                    redaction_summaries or {},
                 ),
             )
             for block in attempt.output_block_refs
@@ -504,12 +637,13 @@ def _source_verification_fact(item: ExecutionSourceVerification) -> SourceVerifi
         verification_id=item.verification_id,
         project_id=item.project_id,
         plan_revision=_plan_revision(item.plan_revision_ref),
-        expected_source_binding_digest=item.expected_source_binding_digest,
+        expected_source_binding_digest=item.expected_source_content_digest,
         materialized_snapshot_ref=item.materialized_snapshot_ref,
         observed_source_digest=item.observed_source_digest,
         state=_enum(SourceVerificationStateFact, item.state.value),
         observed_entry_ref=item.observed_entry_ref,
         observed_import_ref=item.observed_import_ref,
+        observed_interpreter_ref=item.observed_interpreter_ref,
         failure_class=item.failure_class.value if item.failure_class is not None else None,
         gap_ids=item.gap_ids,
         evidence_refs=item.evidence_refs,
@@ -563,4 +697,10 @@ __all__ = [
     "ExecutionFactsAssembler",
     "ExecutionFactsAssembly",
     "ExecutionFactsBoundary",
+    "project_attempt_fact",
+    "project_attempt_update",
+    "execution_payload_digest",
+    "validate_frozen_run_basis",
+    "validate_frozen_step_basis",
+    "validate_execution_facts",
 ]

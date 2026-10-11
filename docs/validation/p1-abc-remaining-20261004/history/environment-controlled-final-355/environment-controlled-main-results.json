@@ -1,0 +1,30 @@
+{
+  "gates": {
+    "passed": 36,
+    "seconds": 302.82,
+    "log": "environment-controlled-main-last-gates.log"
+  },
+  "risk": {
+    "passed": 319,
+    "seconds": 590.52,
+    "log": "environment-controlled-main-last-risk.log"
+  },
+  "distinct_passed": 355,
+  "original_probe": {
+    "passed": 1,
+    "seconds": 16.18,
+    "log": "environment-confirmation-probe-after.log"
+  },
+  "probe_counted_in_distinct": false,
+  "ruff": "passed",
+  "mypy_files": 177,
+  "generated_schema_count": 7,
+  "version": "0.4.0",
+  "offline_build": "passed",
+  "package_modified_modules": 5,
+  "isolated_wheel": "passed",
+  "full_python_run": false,
+  "format_check": "7 files passed; one pre-existing approval schema set formatting difference retained",
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22
+}

@@ -1,0 +1,109 @@
+E501 Line too long (105 > 100)
+  --> tests\unit\test_publication_controlled_origin.py:93:101
+   |
+91 | def plan_command(core,inputs):
+92 |     repo = core.unit_of_work.repo
+93 |     return Command(action="publish_plan",project_id=inputs.project_id,request_id="plan-controlled-write",
+   |                                                                                                     ^^^^^
+94 |         intent_id="plan-controlled-intent",expected_revision=0,parameters={
+95 |             "project_revision":1,"expected_revision":0,"plan_id":"controlled-plan","revision":7,
+   |
+
+E501 Line too long (112 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:149:101
+    |
+148 | @pytest.mark.parametrize("fault",[1,2,3,4,5,6,"before_commit"])
+149 | def test_publication_fault_keeps_original_challenge_and_effect_unpublished(publication_stack,monkeypatch,fault):
+    |                                                                                                     ^^^^^^^^^^^^
+150 |     core,command = publication_stack
+151 |     ready,challenge = approved(core,command)
+    |
+
+E501 Line too long (114 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:172:101
+    |
+170 |     assert unit.current_commit_sequence() == before
+171 |     kind = "rule_version" if command.action == "publish_rules" else "plan"
+172 |     identity = command.parameters["draft"]["rule_id"] if kind == "rule_version" else command.parameters["plan_id"]
+    |                                                                                                     ^^^^^^^^^^^^^^
+173 |     assert unit.repo.current_revision(kind,identity) == 0
+174 |     assert unit.repo.current_revision("approval_challenge",challenge["challenge_id"]) == 1
+    |
+
+E501 Line too long (101 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:177:101
+    |
+175 |     monkeypatch.setattr(unit,"stage_record",stage)
+176 |     monkeypatch.setattr(unit,"commit",commit)
+177 |     replay = actual_event(core,ready.model_copy(update={"request_id":"retry-publication"}),challenge)
+    |                                                                                                     ^
+178 |     assert replay.error is None and replay.result["published"] is True
+179 |     assert unit.current_commit_sequence() == before+6
+    |
+
+E501 Line too long (103 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:195:101
+    |
+193 |     monkeypatch.setattr(unit,"commit",commit)
+194 |     before = unit.current_commit_sequence()
+195 |     replay = core.api.dispatch(command.model_copy(update={"request_id":"lost-publication-read"}),HUMAN)
+    |                                                                                                     ^^^
+196 |     assert replay.error is None and replay.result["record_revision"] == 1
+197 |     assert unit.current_commit_sequence() == before
+    |
+
+E501 Line too long (102 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:201:101
+    |
+200 | @pytest.mark.parametrize("damage",["origin","body","parameters","receipt"])
+201 | def test_publication_replay_rejects_damage_to_exact_saved_proof(publication_stack,monkeypatch,damage):
+    |                                                                                                     ^^
+202 |     core,command = publication_stack
+203 |     result = controlled_publication_confirm(core,command,session=HUMAN)
+    |
+
+E501 Line too long (116 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:215:101
+    |
+213 |                 raw["approval_confirmation_id"] = "missing-exact-confirmation"
+214 |             elif damage == "body":
+215 |                 raw["text" if kind == "rule_version" else "revision"] = "changed" if kind == "rule_version" else 999
+    |                                                                                                     ^^^^^^^^^^^^^^^^
+216 |             elif damage == "parameters":
+217 |                 raw["approval_parameters"] = dict(raw["approval_parameters"])
+    |
+
+E501 Line too long (101 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:219:101
+    |
+217 |                 raw["approval_parameters"] = dict(raw["approval_parameters"])
+218 |                 raw["approval_parameters"]["project_revision"] = 999
+219 |         if damage == "receipt" and raw.get("schema_version") == "aitest.controlled-write-intent/1.0":
+    |                                                                                                     ^
+220 |             raw["record_revision"] = True
+221 |         return replace(record,payload=raw)
+    |
+
+E501 Line too long (102 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:224:101
+    |
+222 |     monkeypatch.setattr(core.unit_of_work.repo,"read",damaged)
+223 |     before = core.unit_of_work.current_commit_sequence()
+224 |     replay = core.api.dispatch(command.model_copy(update={"request_id":"bad-publication-read"}),HUMAN)
+    |                                                                                                     ^^
+225 |     assert replay.error is not None and replay.error.code == "AWAITING_USER_CONFIRMATION"
+226 |     assert core.unit_of_work.current_commit_sequence() == before
+    |
+
+E501 Line too long (114 > 100)
+   --> tests\unit\test_publication_controlled_origin.py:263:101
+    |
+261 |     unit.stage_record(aggregate_kind="rule_version",record_id="legacy-rule",expected_revision=0,
+262 |         payload={"project_id":inputs.project_id,"rule_id":"legacy-rule","revision":7,"scope":"project",
+263 |             "text":"compare output","source":"manual","steps":[],"evidence_requirements":[],"status":"published"})
+    |                                                                                                     ^^^^^^^^^^^^^^
+264 |     unit.commit("legacy-rule-record")
+265 |     command = plan_command(core,inputs)
+    |
+
+Found 10 errors.

@@ -24,6 +24,7 @@ from aitest.domain.execution.runs import (
     OutputCursor,
     OutputStreamName,
     PlanRevisionRef,
+    ProcessTerminationReason,
     RecoveryCheckpoint,
     SideEffectClass,
     StepRevisionRef,
@@ -131,6 +132,7 @@ def test_recovery_preserves_completed_attempt_with_reliable_exit_fact(
             startup_token="startup-1",
             process_start_identity="start-1",
             real_exit_code=0,
+            termination_reason=ProcessTerminationReason.NATURAL_EXIT,
         ),
     )
     checkpoint = RecoveryCheckpoint(
@@ -420,6 +422,7 @@ def test_runner_preserves_reliable_terminal_without_inspecting_handle(
             startup_token="startup-1",
             process_start_identity="start-1",
             real_exit_code=0,
+            termination_reason=ProcessTerminationReason.NATURAL_EXIT,
         ),
     )
     checkpoint_store = FileCheckpointStore(tmp_path)

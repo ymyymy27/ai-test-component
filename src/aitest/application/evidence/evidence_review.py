@@ -2,8 +2,34 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from aitest.application.ports import BusinessVerificationPort, VerificationRequest
-from aitest.domain.evidence.evidence import Verification
+from aitest.domain.evidence.evidence import Verification, VerificationObservation
+from aitest.domain.execution.assertions import freeze_json_value
+
+
+def freeze_verification_request(request: VerificationRequest) -> VerificationRequest:
+    if not isinstance(request, VerificationRequest) or any(
+        not isinstance(getattr(request, name), str) or not getattr(request, name).strip()
+        for name in (
+            "verification_of",
+            "business_object_id",
+            "query_method",
+            "deadline_condition",
+            "target_deployment_ref",
+            "query_interval",
+        )
+    ):
+        raise ValueError("verification request has an unknown identity or query scope")
+    if not isinstance(request.evidence_refs, tuple) or any(
+        not isinstance(ref, str) or not ref.strip() for ref in request.evidence_refs
+    ):
+        raise ValueError("verification request evidence references are invalid")
+    expected = _freeze_query_fields(request)
+    if not isinstance(expected, dict):
+        raise ValueError("verification request expected facts require a JSON object")
+    return replace(request, expected_facts=expected)
 
 
 class EvidenceReviewService:
@@ -13,12 +39,56 @@ class EvidenceReviewService:
         self._verifier = verifier
 
     def review(self, request: VerificationRequest) -> Verification:
-        result = self._verifier.verify(request)
+        frozen = freeze_verification_request(request)
+        # A provider receives its own detached copy, never our validation basis.
+        result = self._verifier.verify(freeze_verification_request(frozen))
+        return self.validate(frozen, result)
+
+    @staticmethod
+    def validate(request: VerificationRequest, result: Verification) -> Verification:
+        if not isinstance(result, Verification):
+            raise ValueError("verification result has an unknown shape")
+        if not isinstance(result.observation, VerificationObservation):
+            raise ValueError("verification observation is unknown")
         if result.verification_of != request.verification_of:
             raise ValueError("verification result points at a different operation")
         if result.business_object_id != request.business_object_id:
             raise ValueError("verification result points at a different business object")
+        if any(
+            getattr(result, field) != getattr(request, field)
+            for field in (
+                "target_deployment_ref",
+                "query_method",
+                "query_interval",
+                "deadline_condition",
+            )
+        ):
+            raise ValueError("verification result has a different frozen query scope")
+        if not isinstance(result.evidence_refs, tuple) or any(
+            not isinstance(value, str) or not value.strip() for value in result.evidence_refs
+        ):
+            raise ValueError("verification evidence references cannot be verified")
+        if not set(request.evidence_refs).issubset(result.evidence_refs):
+            raise ValueError("verification result dropped requested evidence references")
+        if result.actual_result_ref is not None and (
+            not isinstance(result.actual_result_ref, str) or not result.actual_result_ref.strip()
+        ):
+            raise ValueError("verification actual result reference cannot be verified")
+        if result.observation in {
+            VerificationObservation.MATCHED,
+            VerificationObservation.MISMATCHED,
+        } and not (result.actual_result_ref or result.evidence_refs):
+            raise ValueError("verification observation lacks a material reference")
         return result
+
+
+def _freeze_query_fields(request: VerificationRequest) -> object:
+    """Validate exact field values without copying arbitrary objects via asdict."""
+    values = {name: getattr(request, name) for name in VerificationRequest.__dataclass_fields__}
+    values["evidence_refs"] = list(request.evidence_refs)
+    frozen = freeze_json_value(values)
+    assert isinstance(frozen, dict)
+    return frozen["expected_facts"]
 
 
 __all__ = [

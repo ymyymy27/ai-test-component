@@ -1,0 +1,6 @@
+{
+  "failed": 2,
+  "seconds": 10.53,
+  "negative_test_file": "tests/unit/test_model_policy_approval.py",
+  "full_python_run": false
+}

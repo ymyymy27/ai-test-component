@@ -1,0 +1,10 @@
+{
+  "baseline_commit": "2ce8569",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/infrastructure/adapters/execution/business_query.py": "c9523e0c6fde29ba187f079c06f506736792a843a1c2e5734f513100903b0891",
+    "tests/unit/test_http_business_query.py": "5efd163cf256cd050ef42a5fd55de5cef9bcb6e7d872ee229353d31ccd34a644",
+    "tests/unit/test_default_business_verification.py": "839286188d9a4f30d4064fd6555e5d129e0ac7dc57cd07233c0fe9a5fc2a6363"
+  },
+  "scope": "Actual local HTTP and default core/saved history; synthetic source, authority and deployment. No real Trae AC."
+}

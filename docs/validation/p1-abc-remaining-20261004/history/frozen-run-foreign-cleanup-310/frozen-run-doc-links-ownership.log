@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\.git\p1-abc-fix-20261003\check_frozen_run_links.py", line 5, in <module>
+    exec(compile(source, '<frozen-run-doc-links>', 'exec'))
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen-run-doc-links>", line 36, in <module>
+AssertionError: docs\ABCʣ�������޸�֤��-2026-10-04.md: source symbol does not start at ../src/aitest/infrastructure/file_store/locking.py#L73
+docs\�޸���־\Ԭ\2026-10-05-���п����ܿر���뷶Χ����.md: source symbol does not start at ../../../src/aitest/infrastructure/file_store/locking.py#L73

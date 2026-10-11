@@ -1,0 +1,8 @@
+....                                                                     [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_model_policy_approval.py::test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy
+PASSED tests/unit/test_model_policy_approval.py::test_default_generation_cannot_use_a_legacy_policy_without_saved_origin
+PASSED tests/unit/test_model_policy_approval.py::test_policy_origin_business_record_and_receipt_share_one_commit_before_send
+PASSED tests/unit/test_model_policy_approval.py::test_policy_save_replay_returns_its_exact_historical_revision_and_new_input_conflicts
+4 passed in 30.68s

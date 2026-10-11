@@ -11,7 +11,24 @@
   "activationEvents": ["onCommand:aitest.openPanel"],
   "capabilities": {"untrustedWorkspaces": {"supported": false}},
   "contributes": {
-    "commands": [{"command": "aitest.openPanel", "title": "AI Test: 打开一期骨架面板"}]
+    "commands": [
+      {"command": "aitest.openPanel", "title": "AI Test: 打开一期面板（核心只读入口）"}
+    ],
+    "configuration": {
+      "title": "AI 辅助测试",
+      "properties": {
+        "aitest.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "markdownDescription": "启动本地核心入口用的解释器（需已安装本包，或把 `PYTHONPATH` 指向 `src`）。"
+        },
+        "aitest.workspaceRoot": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "**用户数据工作空间**根目录，不是被打开的源码目录。留空时入口如实返回未配置，不会猜测位置。"
+        }
+      }
+    }
   },
   "scripts": {
     "check": "tsc --noEmit",

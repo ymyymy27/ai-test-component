@@ -1,0 +1,30 @@
+..............................F......................................... [ 55%]
+.........................................................                [100%]
+================================== FAILURES ===================================
+__ test_corrupt_authority_root_never_becomes_an_empty_workspace[empty_tree] ___
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-879/test_corrupt_authority_root_ne2")
+corrupt = 'empty_tree'
+
+    @pytest.mark.parametrize("corrupt", [None, "x" * 64, "empty_tree"])
+    def test_corrupt_authority_root_never_becomes_an_empty_workspace(tmp_path, corrupt):
+        _legacy(tmp_path, 2)
+        _migrate(tmp_path)
+        path = tmp_path / "records.json"
+        header = json.loads(path.read_text(encoding="utf-8"))
+        header["root"] = (
+            AuthorityTree(tmp_path)._write({"entries": {}}) if corrupt == "empty_tree" else corrupt
+        )
+        atomic.write_json(path, header)
+        before = path.read_bytes()
+        repo = FileRecordRepository(tmp_path)
+>       with pytest.raises(ValueError, match="root (header|commit)"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'root (header|commit)'
+E         Actual message: 'authority counter must be a nonnegative integer'
+
+tests\unit\test_sharded_record_authority.py:206: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_sharded_record_authority.py::test_corrupt_authority_root_never_becomes_an_empty_workspace[empty_tree]
+1 failed, 128 passed in 84.14s (0:01:24)

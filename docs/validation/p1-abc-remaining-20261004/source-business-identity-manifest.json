@@ -1,0 +1,14 @@
+{
+  "base_commit": "eca731828161cc8f8395ae5926766fc0081c08f8",
+  "passed_unique_nodes": 66,
+  "abc_remaining": 21,
+  "real_acceptance_verified": 0,
+  "files": {
+    "src/aitest/domain/project/source_identity.py": "db28cc1c0fea57655c0b1271538a3aed2bfdf854d41e24bc582706dd407ddd18",
+    "src/aitest/application/project/source_analysis.py": "bc52f84c2106cb46869212d0a6795794cab80a6548c1175f9ec7fcad898b85a4",
+    "src/aitest/infrastructure/file_store/source_material.py": "0ca6472da058485bc069d913f5df57588d7463afc729e98e01228fbcf4a9a36a",
+    "tests/unit/test_source_business_snapshot_identity.py": "c4213016a648237aa5519670b8002bae65c70c3a37e6a93eae1a15d07c727f98",
+    "tests/unit/test_source_intent_material_replay.py": "ba575765161bb059c4e01c350d37583ae2ed65d17f5d392538e07ab774054884"
+  },
+  "wheel_sha256": "9ab26856efbca99c57fd1c1403f55d21cab2d1000069ef080ba8d12a6161b82e"
+}

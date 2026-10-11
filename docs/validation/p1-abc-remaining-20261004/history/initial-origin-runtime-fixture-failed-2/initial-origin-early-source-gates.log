@@ -1,0 +1,7 @@
+...                                                                      [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_initial_registration_origin.py::test_unverified_c_preparation_never_reaches_actual_source_check[ports]
+PASSED tests/unit/test_initial_registration_origin.py::test_unverified_c_preparation_never_reaches_actual_source_check[publish_plan]
+PASSED tests/unit/test_initial_registration_origin.py::test_unverified_c_preparation_never_reaches_actual_source_check[save_binding]
+3 passed, 22 deselected in 117.45s (0:01:57)

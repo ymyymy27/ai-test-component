@@ -1,0 +1,3 @@
+{
+  "baseline_counterexample": "1 failed in 19.27s; initial StepRevisionRef resolves to warehouse revision 0 instead of saved revision 1; no production changes"
+}

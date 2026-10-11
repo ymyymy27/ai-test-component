@@ -1,0 +1,284 @@
+FFFFFFFFFFFFFFFFFFFFFFFF.....FFFFF....FFFFFEEE                           [100%]
+=================================== ERRORS ====================================
+_ ERROR at setup of test_saved_checkpoint_overrides_lagging_step_without_any_new_execution[completed] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_runtime_revision_attempt_history.py, line 110
+  @pytest.mark.parametrize("state", ["completed", "invalidated", "unknown"])
+  def test_saved_checkpoint_overrides_lagging_step_without_any_new_execution(runtime, state):
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_saved_runtime_revision.py, line 50
+  @pytest.fixture
+  def runtime(authoritative):
+E       fixture 'authoritative' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, runtime, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_saved_runtime_revision.py:50
+_ ERROR at setup of test_saved_checkpoint_overrides_lagging_step_without_any_new_execution[invalidated] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_runtime_revision_attempt_history.py, line 110
+  @pytest.mark.parametrize("state", ["completed", "invalidated", "unknown"])
+  def test_saved_checkpoint_overrides_lagging_step_without_any_new_execution(runtime, state):
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_saved_runtime_revision.py, line 50
+  @pytest.fixture
+  def runtime(authoritative):
+E       fixture 'authoritative' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, runtime, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_saved_runtime_revision.py:50
+_ ERROR at setup of test_saved_checkpoint_overrides_lagging_step_without_any_new_execution[unknown] _
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_runtime_revision_attempt_history.py, line 110
+  @pytest.mark.parametrize("state", ["completed", "invalidated", "unknown"])
+  def test_saved_checkpoint_overrides_lagging_step_without_any_new_execution(runtime, state):
+file C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_saved_runtime_revision.py, line 50
+  @pytest.fixture
+  def runtime(authoritative):
+E       fixture 'authoritative' not found
+>       available fixtures: _clear_known_secret_registry, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, runtime, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_saved_runtime_revision.py:50
+================================== FAILURES ===================================
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-completed] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-cancelled] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-pending_verification] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-execution_error] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-invalidated] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-unknown] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-completed] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-cancelled] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-pending_verification] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-execution_error] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-invalidated] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-unknown] _
+tests\unit\test_runtime_revision_attempt_history.py:50: in test_recorded_current_attempt_cannot_be_edited_via_lagging_step
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-completed] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-cancelled] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-pending_verification] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-execution_error] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-invalidated] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-unknown] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-completed] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-cancelled] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-pending_verification] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-execution_error] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-invalidated] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-unknown] _
+tests\unit\test_runtime_revision_attempt_history.py:64: in test_history_is_preserved_and_outdated_when_only_fresh_step_changes
+    assert decision.affected_step_ids == ("step-2",)
+E   AssertionError: assert ('step-1', 'step-2') == ('step-2',)
+E     
+E     At index 0 diff: 'step-1' != 'step-2'
+E     Left contains one more item: 'step-2'
+E     Use -v to get more diff
+_ test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-intent_recorded] _
+tests\unit\test_runtime_revision_attempt_history.py:76: in test_unresolved_active_attempt_blocks_edit_even_when_not_current
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-starting] _
+tests\unit\test_runtime_revision_attempt_history.py:76: in test_unresolved_active_attempt_blocks_edit_even_when_not_current
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-running] _
+tests\unit\test_runtime_revision_attempt_history.py:76: in test_unresolved_active_attempt_blocks_edit_even_when_not_current
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-stop_requested] _
+tests\unit\test_runtime_revision_attempt_history.py:76: in test_unresolved_active_attempt_blocks_edit_even_when_not_current
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-collecting] _
+tests\unit\test_runtime_revision_attempt_history.py:76: in test_unresolved_active_attempt_blocks_edit_even_when_not_current
+    assert not decision.accepted
+E   AssertionError: assert not True
+E    +  where True = RuntimeRevisionDecision(accepted=True, revision_no=1, effective_driver=<RunDriver.PLANNED: 'planned'>, snapshot_commit...asis_step_ids=(), rejudge_case_ids=(), confirmation_required_case_ids=(), pause_required=False, new_run_required=False).accepted
+_ test_current_attempt_must_use_the_exact_step_content_reference[step_revision_id-different-content] _
+tests\unit\test_runtime_revision_attempt_history.py:106: in test_current_attempt_must_use_the_exact_step_content_reference
+    with pytest.raises(ValueError, match="exact current step revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_current_attempt_must_use_the_exact_step_content_reference[revision_no-99] _
+tests\unit\test_runtime_revision_attempt_history.py:106: in test_current_attempt_must_use_the_exact_step_content_reference
+    with pytest.raises(ValueError, match="exact current step revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_current_attempt_must_use_the_exact_step_content_reference[digest-sha256:different] _
+tests\unit\test_runtime_revision_attempt_history.py:106: in test_current_attempt_must_use_the_exact_step_content_reference
+    with pytest.raises(ValueError, match="exact current step revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_current_attempt_must_use_the_exact_step_content_reference[inherited-True] _
+tests\unit\test_runtime_revision_attempt_history.py:106: in test_current_attempt_must_use_the_exact_step_content_reference
+    with pytest.raises(ValueError, match="exact current step revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_current_attempt_must_use_the_exact_step_content_reference[base_step_revision_id-different-base] _
+tests\unit\test_runtime_revision_attempt_history.py:106: in test_current_attempt_must_use_the_exact_step_content_reference
+    with pytest.raises(ValueError, match="exact current step revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+ERROR tests/unit/test_runtime_revision_attempt_history.py::test_saved_checkpoint_overrides_lagging_step_without_any_new_execution[completed]
+ERROR tests/unit/test_runtime_revision_attempt_history.py::test_saved_checkpoint_overrides_lagging_step_without_any_new_execution[invalidated]
+ERROR tests/unit/test_runtime_revision_attempt_history.py::test_saved_checkpoint_overrides_lagging_step_without_any_new_execution[unknown]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-completed]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-cancelled]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-pending_verification]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-execution_error]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-invalidated]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[pending-unknown]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-completed]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-cancelled]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-pending_verification]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-execution_error]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-invalidated]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_recorded_current_attempt_cannot_be_edited_via_lagging_step[invalidated-unknown]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-completed]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-cancelled]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-pending_verification]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-execution_error]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-invalidated]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[pending-unknown]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-completed]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-cancelled]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-pending_verification]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-execution_error]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-invalidated]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_history_is_preserved_and_outdated_when_only_fresh_step_changes[invalidated-unknown]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-intent_recorded]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-starting]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-running]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-stop_requested]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_unresolved_active_attempt_blocks_edit_even_when_not_current[True-collecting]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_current_attempt_must_use_the_exact_step_content_reference[step_revision_id-different-content]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_current_attempt_must_use_the_exact_step_content_reference[revision_no-99]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_current_attempt_must_use_the_exact_step_content_reference[digest-sha256:different]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_current_attempt_must_use_the_exact_step_content_reference[inherited-True]
+FAILED tests/unit/test_runtime_revision_attempt_history.py::test_current_attempt_must_use_the_exact_step_content_reference[base_step_revision_id-different-base]
+34 failed, 9 passed, 3 errors in 0.55s

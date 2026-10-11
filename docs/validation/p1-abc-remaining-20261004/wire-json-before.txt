@@ -1,0 +1,67 @@
+FFFFFFFFFF                                                               [100%]
+================================== FAILURES ===================================
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","action":"doctor","request_id":"req"}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"foreign","request_id":"req"}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"run_id":"foreign","run_id":"run"}}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"rows":[{"id":"foreign","id":"valid"}]}}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":NaN}}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":Infinity}}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":-Infinity}}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":1e999}}] _
+tests\unit\test_wire_json_identity.py:28: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+E   AssertionError: assert (None is not None)
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id=None, project_id=None, intent_id=None, binding_revision=None, result={'status': 'READY'}, page=None, error=None).error
+_ test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"__aitest_control__":"unknown","__aitest_control__":"shutdown","request_id":"req"}] _
+tests\unit\test_wire_json_identity.py:27: in test_ambiguous_frame_is_rejected_before_business_or_shutdown
+    assert isinstance(result, Response)
+E   AssertionError: assert False
+E    +  where False = isinstance(ShutdownControl(request_id='req'), Response)
+_______ test_excessive_json_nesting_does_not_terminate_the_serving_core _______
+tests\unit\test_wire_json_identity.py:38: in test_excessive_json_nesting_does_not_terminate_the_serving_core
+    assert isinstance(result,Response) and result.error.code=="MALFORMED_MESSAGE"
+E   AssertionError: assert (True and 'INVALID_COMMAND' == 'MALFORMED_MESSAGE'
+E    +  where True = isinstance(Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id='workspace', project_... message='������Ϻ�ͬ: 1 ���ֶδ���', retryable=False, next_step='���֡��ʽ�� aitest.local/2.0 ��ͬ', request_id=None, intent_id=None)), Response)
+E     
+E     - MALFORMED_MESSAGE
+E     + INVALID_COMMAND)
+=========================== short test summary info ===========================
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","action":"doctor","request_id":"req"}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"foreign","request_id":"req"}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"run_id":"foreign","run_id":"run"}}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"rows":[{"id":"foreign","id":"valid"}]}}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":NaN}}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":Infinity}}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":-Infinity}}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"action":"doctor","request_id":"req","parameters":{"value":1e999}}]
+FAILED tests/unit/test_wire_json_identity.py::test_ambiguous_frame_is_rejected_before_business_or_shutdown[{"__aitest_control__":"unknown","__aitest_control__":"shutdown","request_id":"req"}]
+FAILED tests/unit/test_wire_json_identity.py::test_excessive_json_nesting_does_not_terminate_the_serving_core
+10 failed in 0.25s

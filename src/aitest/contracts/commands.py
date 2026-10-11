@@ -10,29 +10,51 @@ PROTOCOL_VERSION: Literal["aitest.local/2.0"] = "aitest.local/2.0"
 HUMAN_ACTIONS = frozenset(
     {
         "authorize_step",
+        "revise_pending_steps",
+        "narrow_driver",
         "publish_plan",
         "publish_rules",
+        "submit_delivery",
         "record_local_review",
         "save_model_outbound_policy",
         "close_issue",
         "update_issue",
+        "save_binding",
+        "bind_project",
+        "confirm_basis",
+        "prepare_approval",
+        "revoke_approval",
     }
 )
 PHASE_ONE_ACTIONS = frozenset(
     {
         "bind_project",
         "save_context",
+        "save_environment",
+        "save_dependency_graph",
+        "save_case",
+        "save_task",
         "save_delivery",
+        "submit_delivery",
         "save_acceptance",
         "analyze_project",
+        "check_source",
+        "confirm_basis",
+        "prepare_approval",
+        "revoke_approval",
         "save_model_outbound_policy",
         "save_project_view_preference",
         "save_rules",
         "publish_rules",
         "generate_draft",
+        "resolve_model_response",
         "save_plan",
         "publish_plan",
         "prepare_run",
+        "register_run",
+        "inspect_case_reuse",
+        "prepare_execution",
+        "execute_step",
         "start_run",
         "revise_pending_steps",
         "narrow_driver",
@@ -42,6 +64,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "cancel_run",
         "retry_step",
         "attach_evidence",
+        "import_external_result",
         "verify_pending",
         "return_stage",
         "update_issue",
@@ -61,7 +84,10 @@ PHASE_ONE_ACTIONS = frozenset(
         "migrate",
     }
 )
-READ_ACTIONS = frozenset({"query", "events", "doctor", "storage_usage", "copy_repair_brief"})
+READ_ACTIONS = frozenset(
+    {"query", "events", "doctor", "storage_usage", "copy_repair_brief", "check_source",
+     "inspect_case_reuse"}
+)
 
 
 class Command(BaseModel):

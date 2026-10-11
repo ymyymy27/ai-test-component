@@ -1,0 +1,84 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\.codex\worktrees\authorization-consumption\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 28 items
+
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-outputs] PASSED [  3%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-conditions] PASSED [  7%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-index] PASSED [ 10%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-adapter] PASSED [ 14%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-business_key] PASSED [ 17%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-outputs] PASSED [ 21%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-conditions] PASSED [ 25%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-index] PASSED [ 28%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-adapter] PASSED [ 32%]
+tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-business_key] PASSED [ 35%]
+tests/unit/test_execution_start_integrity.py::test_authorization_must_bind_the_exact_step_revision[False] FAILED [ 39%]
+tests/unit/test_execution_start_integrity.py::test_authorization_must_bind_the_exact_step_revision[True] FAILED [ 42%]
+tests/unit/test_execution_start_integrity.py::test_new_attempt_cannot_reuse_an_occupied_authorization[False] PASSED [ 46%]
+tests/unit/test_execution_start_integrity.py::test_new_attempt_cannot_reuse_an_occupied_authorization[True] PASSED [ 50%]
+tests/unit/test_execution_start_integrity.py::test_authorization_intent_and_checkpoint_are_visible_together_before_external_start PASSED [ 53%]
+tests/unit/test_execution_start_integrity.py::test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_retry PASSED [ 57%]
+tests/unit/test_execution_start_integrity.py::test_lost_reply_after_publishing_claim_never_replays_external_start PASSED [ 60%]
+tests/unit/test_execution_start_integrity.py::test_two_cores_share_one_saved_start_even_before_the_first_handle_is_returned PASSED [ 64%]
+tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[outputs] PASSED [ 67%]
+tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[conditions] PASSED [ 71%]
+tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[step] PASSED [ 75%]
+tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[authorization] PASSED [ 78%]
+tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[source] PASSED [ 82%]
+tests/unit/test_execution_start_integrity.py::test_original_request_with_saved_consumption_metadata_replays_the_same_attempt PASSED [ 85%]
+tests/unit/test_execution_start_integrity.py::test_unreadable_authorization_claim_blocks_replay_without_starting_another_execution PASSED [ 89%]
+tests/unit/test_execution_start_integrity.py::test_frozen_checkpoint_keeps_the_original_revision_when_progress_is_saved PASSED [ 92%]
+tests/unit/test_execution_start_integrity.py::test_auth_claim_is_project_bound_and_cannot_be_rebound_by_a_foreign_request PASSED [ 96%]
+tests/unit/test_execution_start_integrity.py::test_attempt_cannot_misclassify_the_requested_side_effect_before_start PASSED [100%]
+
+================================== FAILURES ===================================
+_________ test_authorization_must_bind_the_exact_step_revision[False] _________
+tests\unit\test_execution_start_integrity.py:72: in test_authorization_must_bind_the_exact_step_revision
+    assert not (tmp_path / "records.json").exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = (WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-711/test_authorization_must_bind_t0") / 'records.json').exists
+_________ test_authorization_must_bind_the_exact_step_revision[True] __________
+tests\unit\test_execution_start_integrity.py:72: in test_authorization_must_bind_the_exact_step_revision
+    assert not (tmp_path / "records.json").exists()
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = (WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-711/test_authorization_must_bind_t1") / 'records.json').exists
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-outputs]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-conditions]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-index]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-adapter]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[False-business_key]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-outputs]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-conditions]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-index]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-adapter]
+PASSED tests/unit/test_execution_start_integrity.py::test_same_request_cannot_replay_a_changed_attempt_basis[True-business_key]
+PASSED tests/unit/test_execution_start_integrity.py::test_new_attempt_cannot_reuse_an_occupied_authorization[False]
+PASSED tests/unit/test_execution_start_integrity.py::test_new_attempt_cannot_reuse_an_occupied_authorization[True]
+PASSED tests/unit/test_execution_start_integrity.py::test_authorization_intent_and_checkpoint_are_visible_together_before_external_start
+PASSED tests/unit/test_execution_start_integrity.py::test_failed_claim_leaves_authorization_and_reuse_available_for_a_correct_retry
+PASSED tests/unit/test_execution_start_integrity.py::test_lost_reply_after_publishing_claim_never_replays_external_start
+PASSED tests/unit/test_execution_start_integrity.py::test_two_cores_share_one_saved_start_even_before_the_first_handle_is_returned
+PASSED tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[outputs]
+PASSED tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[conditions]
+PASSED tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[step]
+PASSED tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[authorization]
+PASSED tests/unit/test_execution_start_integrity.py::test_checkpoint_progress_cannot_rewrite_the_frozen_start_basis[source]
+PASSED tests/unit/test_execution_start_integrity.py::test_original_request_with_saved_consumption_metadata_replays_the_same_attempt
+PASSED tests/unit/test_execution_start_integrity.py::test_unreadable_authorization_claim_blocks_replay_without_starting_another_execution
+PASSED tests/unit/test_execution_start_integrity.py::test_frozen_checkpoint_keeps_the_original_revision_when_progress_is_saved
+PASSED tests/unit/test_execution_start_integrity.py::test_auth_claim_is_project_bound_and_cannot_be_rebound_by_a_foreign_request
+PASSED tests/unit/test_execution_start_integrity.py::test_attempt_cannot_misclassify_the_requested_side_effect_before_start
+FAILED tests/unit/test_execution_start_integrity.py::test_authorization_must_bind_the_exact_step_revision[False] - assert not True
+ +  where True = exists()
+ +    where exists = (WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-711/test_authorization_must_bind_t0") / 'records.json').exists
+FAILED tests/unit/test_execution_start_integrity.py::test_authorization_must_bind_the_exact_step_revision[True] - assert not True
+ +  where True = exists()
+ +    where exists = (WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-711/test_authorization_must_bind_t1") / 'records.json').exists
+======================== 2 failed, 26 passed in 57.55s ========================

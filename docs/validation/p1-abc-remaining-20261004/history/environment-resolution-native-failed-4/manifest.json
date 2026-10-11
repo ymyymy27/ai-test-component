@@ -1,0 +1,36 @@
+{
+  "baseline": "510c74f",
+  "status": "failed",
+  "results": {
+    "collected": 17,
+    "passed": 13,
+    "failed": 4
+  },
+  "source_files": [
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "sha256": "4fa47501698daf6b09b556039a5b96061ca8d6f80860ee61fb74b40b73f10d01"
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "sha256": "784d4a2c7795134acbc7a9e8aa06805e12c4c5126798f4314759b7f7368e4706"
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "sha256": "00d385aea3532e4a5f2b6434f7a16d15a27321c2d09949f842128f50ef8fec0c"
+    },
+    {
+      "path": "tests/unit/test_python_environment.py",
+      "sha256": "3b18054771b8d76aa109d055a49b09826378affb68c370e59c56913a28197694"
+    }
+  ],
+  "log": {
+    "path": "environment-resolution-native.log",
+    "sha256": "712cbeed44b5e90d32b8fa5af20e27821cad4b991d639d2629b4c120438ec64e"
+  },
+  "source_archive": {
+    "path": "source.zip",
+    "sha256": "8fc601d5d3fcd46164c8dab3a32954da5b8c1aec64e725be2edb44ec833b0f8a"
+  },
+  "reason": "Returned uv base interpreter alias is a junction to explicitly registered canonical binary; canonical identity was checked after rejecting the alias."
+}

@@ -1,0 +1,15 @@
+..........................F
+================================== FAILURES ===================================
+_ test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed _
+tests\unit\test_current_attempt_transition_integrity.py:522: in test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed
+    assert sidecars.load("attempt-2").attempt.state is AttemptState.INVALIDATED
+E   AssertionError: assert <AttemptState.COMPLETED: 'completed'> is <AttemptState.INVALIDATED: 'invalidated'>
+E    +  where <AttemptState.COMPLETED: 'completed'> = Attempt(attempt_id='attempt-2', run_id='run-1', step_id='step-2', attempt_index=1, resolved_input_digest='sha256:input...ompleteness.COMPLETE: 'complete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0).state
+E    +    where Attempt(attempt_id='attempt-2', run_id='run-1', step_id='step-2', attempt_index=1, resolved_input_digest='sha256:input...ompleteness.COMPLETE: 'complete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0) = RecoveryRecord(checkpoint=RecoveryCheckpoint(run_id='run-1', step_id='step-2', attempt_id='attempt-2', last_committed_...mplete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0), project_id='project-1').attempt
+E    +      where RecoveryRecord(checkpoint=RecoveryCheckpoint(run_id='run-1', step_id='step-2', attempt_id='attempt-2', last_committed_...mplete'>, error_ref=None, unknown_reason_ref=None, started_at=None, ended_at=None, revision=0), project_id='project-1') = load('attempt-2')
+E    +        where load = <aitest.infrastructure.file_store.checkpoints.FileCheckpointStore object at 0x000001FACA5A1550>.load
+E    +  and   <AttemptState.INVALIDATED: 'invalidated'> = AttemptState.INVALIDATED
+=========================== short test summary info ===========================
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 26 passed in 68.13s (0:01:08)

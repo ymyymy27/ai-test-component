@@ -1,0 +1,7 @@
+...                                                                      [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_publication_controlled_origin.py::test_required_context_gap_cannot_be_relabeled_nonblocking[publish_rules]
+PASSED tests/unit/test_publication_controlled_origin.py::test_required_context_gap_cannot_be_relabeled_nonblocking[publish_plan]
+PASSED tests/unit/test_publication_controlled_origin.py::test_filtered_controlled_rule_cannot_publish_a_different_frozen_body
+3 passed, 32 deselected in 30.81s

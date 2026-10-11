@@ -7,7 +7,7 @@ name = "ai-test-component"
 version = "0.4.0"
 description = "Phase-one local AI-assisted testing plugin skeleton"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.11,<3.14"
 license = { text = "Proprietary" }
 authors = [{ name = "AI Test Component Team" }]
 dependencies = [
@@ -44,15 +44,16 @@ testpaths = ["tests"]
 pythonpath = [".", "src"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py311"
 line-length = 100
-extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules"]
+# Validation archives retain the exact historical counterexample source bytes.
+extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules", "docs/validation"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 strict = true
 packages = ["aitest"]
 mypy_path = "src"

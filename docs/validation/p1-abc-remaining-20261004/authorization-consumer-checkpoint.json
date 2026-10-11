@@ -1,0 +1,87 @@
+{
+  "baseline": "21e8e46231973f1261fb0d10959e8c1530238263",
+  "completed_groups": {
+    "architecture_contract_scope": 235,
+    "start_integrity": 28,
+    "original_counterexample": 1
+  },
+  "completed_full_group_nodes": 264,
+  "completed_nodes_in_running_consumer_group": 7,
+  "distinct_completed_nodes_at_checkpoint": 271,
+  "remaining_in_running_consumer_group": 4,
+  "earlier_355_not_counted_as_current": true,
+  "real_ac_verified": 0,
+  "issues_closed": 0,
+  "remaining": {
+    "A": 7,
+    "B": 8,
+    "C": 7,
+    "total": 22
+  },
+  "source_proofs": [
+    {
+      "path": "src/aitest/application/execution/authorization.py",
+      "normalized_sha256": "07ec69d9b3496d58b98e5f8ad982899e579c865f109abd215bf4bebc9e78d63c",
+      "symbols": [
+        {
+          "symbol": "ExecutionAuthorizationService._context",
+          "line": 207
+        },
+        {
+          "symbol": "ExecutionAuthorizationService._current_action",
+          "line": 357
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.grant",
+          "line": 499
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.validate_new",
+          "line": 683
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.stage_occupation",
+          "line": 709
+        },
+        {
+          "symbol": "ExecutionAuthorizationService.validate_occupation",
+          "line": 745
+        }
+      ]
+    },
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "normalized_sha256": "d877f58026aec92e54b00386f7f9368b5a43a98d996288b418180c5389d294cb",
+      "symbols": [
+        {
+          "symbol": "ExecutionCommitCoordinator.find_start",
+          "line": 461
+        },
+        {
+          "symbol": "ExecutionCommitCoordinator.claim_start",
+          "line": 552
+        }
+      ]
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "normalized_sha256": "b9bcebbd2470a213797eea40fa76a5e295450e89fe5f98029a6ded133aeb6f82",
+      "symbols": [
+        {
+          "symbol": "SerialRunner.start_attempt",
+          "line": 400
+        },
+        {
+          "symbol": "_start_fingerprint",
+          "line": 807
+        }
+      ]
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "normalized_sha256": "f3f2afe85badfae7039976101340965a13e074cc3c6cc2c995aec93471fc0e21",
+      "symbols": []
+    }
+  ],
+  "evidence_policy": "Focused logs and source hashes/symbols; no duplicate whole-source archive."
+}

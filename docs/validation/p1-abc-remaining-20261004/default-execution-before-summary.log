@@ -1,0 +1,9 @@
+取证基线fix/5f8354a（默认注册修改前）；动作准备/授权公开入口反例：
+.venv/Scripts/python.exe -m pytest tests/unit/test_default_execution_authorization.py::test_default_capabilities_and_missing_resolver_are_honest -q --tb=short
+1 failed: doctor.supported_actions缺prepare_execution/authorize_step。
+
+本轮授权重传守卫修改前（原grant分支仍为5f8354a实现）：
+.venv/Scripts/python.exe -m pytest tests/unit/test_default_execution_authorization.py::test_saved_grant_recall_rejects_a_different_challenge -q --tb=short
+1 failed: DID NOT RAISE ApprovalConflict；已保存许可忽略换挑战号。
+
+原源码由Git基线恢复；后续锁内/锁外反例及全部默认入口结果见default-execution-final.log。

@@ -1,0 +1,12 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_default_prepare_missing_authority_is_blocked_without_consuming_intent __
+tests\unit\test_authoritative_preparation.py:20: in test_default_prepare_missing_authority_is_blocked_without_consuming_intent
+    assert response.result["status"] == "blocked"
+E   AssertionError: assert 'prepared' == 'blocked'
+E     
+E     - blocked
+E     + prepared
+=========================== short test summary info ===========================
+FAILED tests/unit/test_authoritative_preparation.py::test_default_prepare_missing_authority_is_blocked_without_consuming_intent
+1 failed in 2.22s

@@ -1,0 +1,16 @@
+Using CPython 3.13.13 interpreter at: .venv\Scripts\python.exe
+Resolved 8 packages in 1.28s
+Prepared 1 package in 250ms
+Installed 8 packages in 1.15s
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component/.git/p1-abc-fix-20261003/source-business-identity-dist/ai_test_component-0.4.0-py3-none-any.whl)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+aitest/application/project/source_analysis.py bc52f84c2106cb46869212d0a6795794cab80a6548c1175f9ec7fcad898b85a4
+aitest/infrastructure/file_store/source_material.py 0ca6472da058485bc069d913f5df57588d7463afc729e98e01228fbcf4a9a36a
+aitest/domain/project/source_identity.py db28cc1c0fea57655c0b1271538a3aed2bfdf854d41e24bc582706dd407ddd18
+Installed wheel: full frozen business identity differs under changed logical/refetch scope while bytes stay equal; sorted/deduplicated selection, same-byte closure, exact historical replay and missing historical byte rejection passed. Synthetic gesture, not real Trae/user acceptance.

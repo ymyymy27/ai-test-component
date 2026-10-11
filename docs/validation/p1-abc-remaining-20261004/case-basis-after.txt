@@ -1,0 +1,15 @@
+..................................F..................................... [ 25%]
+........................................................................ [ 51%]
+........................................................................ [ 77%]
+.............................................................            [100%]
+================================== FAILURES ===================================
+_____ test_ambiguous_current_step_facts_are_rejected_instead_of_last_wins _____
+tests\unit\test_case_aggregation_integrity.py:73: in test_ambiguous_current_step_facts_are_rejected_instead_of_last_wins
+    with pytest.raises(ValueError, match="current step facts must be unique"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'current step facts must be unique'
+E     Actual message: 'one attempt cannot belong to multiple steps'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_case_aggregation_integrity.py::test_ambiguous_current_step_facts_are_rejected_instead_of_last_wins
+1 failed, 276 passed in 17.54s

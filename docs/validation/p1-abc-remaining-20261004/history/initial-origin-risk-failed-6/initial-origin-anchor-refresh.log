@@ -1,0 +1,6 @@
+warning: in the working copy of 'src/aitest/application/execution/commit.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/execution/registration.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/planning/prepare_run.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/bootstrap.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_initial_run_registration.py', LF will be replaced by CRLF the next time Git touches it
+46 same-symbol current source anchors updated

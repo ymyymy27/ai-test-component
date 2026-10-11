@@ -1,0 +1,702 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+......................................................F................. [ 13%]
+...............................................s................s....... [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 31%]
+...F...............................................F.................... [ 34%]
+........................................................................ [ 38%]
+.......................................................................F [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 52%]
+......................FFFFFFFFFFFFFFFFFFFFFFFF.F.....................FFF [ 55%]
+FFFF.....F.............................................................. [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 73%]
+........................................................................ [ 76%]
+........................................................................ [ 80%]
+........................................................................ [ 83%]
+........................................................................ [ 87%]
+........................................................................ [ 90%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+...................................................                      [100%]
+================================== FAILURES ===================================
+_________________ test_assembly_blocked_on_integrity_failure __________________
+tests\unit\test_a_a02_core_dispatch.py:185: in test_assembly_blocked_on_integrity_failure
+    with pytest.raises(CoreAssemblyBlocked):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE CoreAssemblyBlocked
+___________ test_workspace_allows_only_one_active_write_transaction ___________
+tests\unit\test_a_transactions_and_queries.py:22: in test_workspace_allows_only_one_active_write_transaction
+    with pytest.raises(RuntimeError, match="transaction already open"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'transaction already open'
+E     Actual message: 'workspace unit of work is busy; retry the same intent'
+___ test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary ___
+tests\unit\test_abc_root_cause_regressions.py:734: in test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary
+    result = ExecutionCommitCoordinator(unit).stage_and_commit(
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_sparse_index_cannot_replace_history_while_preserving_count_and_new_batch _
+tests\unit\test_canonical_commit_material.py:210: in test_sparse_index_cannot_replace_history_while_preserving_count_and_new_batch
+    tree.replace([], [key])
+src\aitest\infrastructure\file_store\ordered_index.py:275: in replace
+    refs = update(self.root, key, value)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\ordered_index.py:253: in update
+    raise ValueError("conflicting duplicate index key")
+E   ValueError: conflicting duplicate index key
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[completed] _
+tests\unit\test_current_attempt_transition_integrity.py:145: in test_start_updates_current_and_transitive_consumers_before_external_effect
+    unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[cancelled] _
+tests\unit\test_current_attempt_transition_integrity.py:145: in test_start_updates_current_and_transitive_consumers_before_external_effect
+    unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[execution_error] _
+tests\unit\test_current_attempt_transition_integrity.py:145: in test_start_updates_current_and_transitive_consumers_before_external_effect
+    unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[invalidated] _
+tests\unit\test_current_attempt_transition_integrity.py:145: in test_start_updates_current_and_transitive_consumers_before_external_effect
+    unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[intent_recorded] _
+tests\unit\test_current_attempt_transition_integrity.py:207: in test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write
+    unit, coordinator, published, domain = _saved_graph(tmp_path, state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[running] _
+tests\unit\test_current_attempt_transition_integrity.py:207: in test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write
+    unit, coordinator, published, domain = _saved_graph(tmp_path, state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[stop_requested] _
+tests\unit\test_current_attempt_transition_integrity.py:207: in test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write
+    unit, coordinator, published, domain = _saved_graph(tmp_path, state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[collecting] _
+tests\unit\test_current_attempt_transition_integrity.py:207: in test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write
+    unit, coordinator, published, domain = _saved_graph(tmp_path, state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[pending_verification] _
+tests\unit\test_current_attempt_transition_integrity.py:207: in test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write
+    unit, coordinator, published, domain = _saved_graph(tmp_path, state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[unknown] _
+tests\unit\test_current_attempt_transition_integrity.py:207: in test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write
+    unit, coordinator, published, domain = _saved_graph(tmp_path, state)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy[execution_checkpoint] _
+tests\unit\test_current_attempt_transition_integrity.py:227: in test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy[execution_facts_current] _
+tests\unit\test_current_attempt_transition_integrity.py:227: in test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy[execution_facts] _
+tests\unit\test_current_attempt_transition_integrity.py:227: in test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effect _
+tests\unit\test_current_attempt_transition_integrity.py:252: in test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effect
+    unit, coordinator, _published, domain = _saved_graph(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_________ test_publisher_cannot_restore_a_superseded_current_attempt __________
+tests\unit\test_current_attempt_transition_integrity.py:274: in test_publisher_cannot_restore_a_superseded_current_attempt
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_____ test_checkpoint_progress_and_current_snapshot_share_the_same_commit _____
+tests\unit\test_current_attempt_transition_integrity.py:285: in test_checkpoint_progress_and_current_snapshot_share_the_same_commit
+    unit, coordinator, _published, domain = _saved_graph(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+___ test_outdated_checkpoint_cannot_restore_validity_without_a_new_attempt ____
+tests\unit\test_current_attempt_transition_integrity.py:312: in test_outdated_checkpoint_cannot_restore_validity_without_a_new_attempt
+    unit, coordinator, _published, domain = _saved_graph(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[wrong_index] _
+tests\unit\test_current_attempt_transition_integrity.py:325: in test_new_start_rejects_unverified_or_invalidated_input_before_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[step_same_digest] _
+tests\unit\test_current_attempt_transition_integrity.py:325: in test_new_start_rejects_unverified_or_invalidated_input_before_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[stale_source] _
+tests\unit\test_current_attempt_transition_integrity.py:325: in test_new_start_rejects_unverified_or_invalidated_input_before_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[descendant] _
+tests\unit\test_current_attempt_transition_integrity.py:325: in test_new_start_rejects_unverified_or_invalidated_input_before_occupancy
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_saved_active_handle_without_a_terminal_fact_blocks_even_a_terminal_label _
+tests\unit\test_current_attempt_transition_integrity.py:355: in test_saved_active_handle_without_a_terminal_fact_blocks_even_a_terminal_label
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+______ test_new_attempt_cannot_consume_a_superseded_or_outdated_upstream ______
+tests\unit\test_current_attempt_transition_integrity.py:375: in test_new_attempt_cannot_consume_a_superseded_or_outdated_upstream
+    unit, coordinator, _published, domain = _saved_graph(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+____________ test_publisher_cannot_drop_a_registered_current_step _____________
+tests\unit\test_current_attempt_transition_integrity.py:398: in test_publisher_cannot_drop_a_registered_current_step
+    unit, coordinator, published, domain = _saved_graph(tmp_path)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed _
+tests\unit\test_current_attempt_transition_integrity.py:425: in test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed
+    unit, coordinator, _published, domain = _saved_graph(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_attempt_transition_integrity.py:68: in _saved_graph
+    coordinator.commit_checkpoint(project_id="project-1", checkpoint=_record(attempt))
+src\aitest\application\execution\commit.py:660: in commit_checkpoint
+    committed = self._uow.commit()
+                ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_current_reference_and_snapshot_share_the_actual_boundary_and_preserve_old_revision _
+tests\unit\test_current_execution_snapshot.py:157: in test_current_reference_and_snapshot_share_the_actual_boundary_and_preserve_old_revision
+    first = _publish(unit, _batch(), "first")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[digest] _
+tests\unit\test_current_execution_snapshot.py:177: in test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item
+    _publish(unit, _batch())
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[snapshot_commit_id] _
+tests\unit\test_current_execution_snapshot.py:177: in test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item
+    _publish(unit, _batch())
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[project_id] _
+tests\unit\test_current_execution_snapshot.py:177: in test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item
+    _publish(unit, _batch())
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[schema_version] _
+tests\unit\test_current_execution_snapshot.py:177: in test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item
+    _publish(unit, _batch())
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+____ test_current_snapshot����_digest_is_verified_after_exact_revision_read _____
+tests\unit\test_current_execution_snapshot.py:195: in test_current_snapshot����_digest_is_verified_after_exact_revision_read
+    _publish(unit, _batch())
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_ test_failed_snapshot_staging_cannot_publish_the_preceding_pointer_or_checkpoint _
+tests\unit\test_current_execution_snapshot.py:213: in test_failed_snapshot_staging_cannot_publish_the_preceding_pointer_or_checkpoint
+    first = _publish(unit, _batch(), "first")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+_______ test_current_reference_rejects_rebinding_the_frozen_run_intent ________
+tests\unit\test_current_execution_snapshot.py:257: in test_current_reference_rejects_rebinding_the_frozen_run_intent
+    first = _publish(unit, batch, "first")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_current_execution_snapshot.py:150: in _publish
+    return ExecutionCommitCoordinator(unit).stage_and_commit(batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\application\execution\commit.py:605: in stage_and_commit
+    return ExecutionCommitResult(staged=staged, committed=self._uow.commit(), facts=facts)
+                                                          ^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\unit_of_work.py:209: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:690: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+src\aitest\infrastructure\file_store\references.py:51: in verify_record_objects
+    _add_reference(references, reference, None)
+src\aitest\infrastructure\file_store\references.py:89: in _add_reference
+    raise ValueError("permanent object reference digest is invalid")
+E   ValueError: permanent object reference digest is invalid
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_assembly_blocked_on_integrity_failure
+FAILED tests/unit/test_a_transactions_and_queries.py::test_workspace_allows_only_one_active_write_transaction
+FAILED tests/unit/test_abc_root_cause_regressions.py::test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary
+FAILED tests/unit/test_canonical_commit_material.py::test_sparse_index_cannot_replace_history_while_preserving_count_and_new_batch
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[completed]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[cancelled]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[execution_error]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[invalidated]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[intent_recorded]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[running]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[stop_requested]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[collecting]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[pending_verification]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_active_or_uncertain_consumers_block_upstream_replacement_without_any_write[unknown]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy[execution_checkpoint]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy[execution_facts_current]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_failed_replacement_cannot_publish_partial_invalidation_or_occupancy[execution_facts]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_lost_replacement_reply_preserves_invalidations_and_never_restarts_effect
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_publisher_cannot_restore_a_superseded_current_attempt
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_checkpoint_progress_and_current_snapshot_share_the_same_commit
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_outdated_checkpoint_cannot_restore_validity_without_a_new_attempt
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[wrong_index]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[step_same_digest]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[stale_source]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_new_start_rejects_unverified_or_invalidated_input_before_occupancy[descendant]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_saved_active_handle_without_a_terminal_fact_blocks_even_a_terminal_label
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_new_attempt_cannot_consume_a_superseded_or_outdated_upstream
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_publisher_cannot_drop_a_registered_current_step
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_recovery_uses_invalidated_authority_even_when_the_sidecar_still_says_completed
+FAILED tests/unit/test_current_execution_snapshot.py::test_current_reference_and_snapshot_share_the_actual_boundary_and_preserve_old_revision
+FAILED tests/unit/test_current_execution_snapshot.py::test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[digest]
+FAILED tests/unit/test_current_execution_snapshot.py::test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[snapshot_commit_id]
+FAILED tests/unit/test_current_execution_snapshot.py::test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[project_id]
+FAILED tests/unit/test_current_execution_snapshot.py::test_unverifiable_current_reference_never_falls_back_to_a_successful_history_item[schema_version]
+FAILED tests/unit/test_current_execution_snapshot.py::test_current_snapshot����_digest_is_verified_after_exact_revision_read
+FAILED tests/unit/test_current_execution_snapshot.py::test_failed_snapshot_staging_cannot_publish_the_preceding_pointer_or_checkpoint
+FAILED tests/unit/test_current_execution_snapshot.py::test_current_reference_rejects_rebinding_the_frozen_run_intent
+37 failed, 2028 passed, 2 skipped in 639.24s (0:10:39)

@@ -1,0 +1,74 @@
+.........F.F...FF..                                                      [100%]
+================================== FAILURES ===================================
+_______ test_a_persisted_snapshot_with_the_frozen_identity_is_readable ________
+
+    def test_a_persisted_snapshot_with_the_frozen_identity_is_readable() -> None:
+        """����һ��ʱ�˶�ͨ�������˶Բ���"һ�ɱ�ȱ��"��"""
+        scenario = build_scenario("git")
+        snapshot = scenario.prepared_run.snapshot
+        with transaction(scenario.unit_of_work, scenario.prepared_run.project_id) as tx:
+            tx.stage_record(
+                aggregate_kind="source_snapshot",
+                record_id=snapshot.source_snapshot_id,
+                expected_revision=None,
+                payload={
+                    "project_id": scenario.prepared_run.project_id,
+                    "content_identity": snapshot.content_identity,
+                },
+            )
+            tx.commit()
+    
+        report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
+        check = next(c for c in report.checks if c.source_kind == _SNAPSHOT_BACKED)
+>       assert check.readable is True
+E       AssertionError: assert False is True
+E        +  where False = BasisCheck(source_kind='source_snapshot', record_id='snapshot-ticket-1', revision=1, readable=False, detail='the persisted snapshot has no verifiable source manifest').readable
+
+tests\unit\test_frozen_basis_drift.py:106: AssertionError
+________________ test_the_frozen_template_version_is_loadable _________________
+
+    def test_the_frozen_template_version_is_loadable() -> None:
+        """ģ�尴**��ʶ+�汾**�˶ԣ�������Ǹ��汾�����ܴ��Ѱ�װ��Դװ�ء�"""
+        scenario = build_scenario("git")
+        report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
+        template = next(c for c in report.checks if c.source_kind == _TEMPLATE_BACKED)
+>       assert template.readable is True
+E       AssertionError: assert False is True
+E        +  where False = BasisCheck(source_kind='template_versions', record_id='template:ticket-workflow@1.0.0', revision=0, readable=False, detail='installed template bytes differ from the frozen digest').readable
+
+tests\unit\test_frozen_basis_drift.py:133: AssertionError
+_____________ test_the_plan_frozen_by_the_fixture_is_reproducible _____________
+
+    def test_the_plan_frozen_by_the_fixture_is_reproducible() -> None:
+        """�ƻ���һ������ʵ���̵ģ���׼ȷ�޶����û�����"""
+        scenario = build_scenario("git")
+        report = check_frozen_basis(scenario.prepared_run, reader=scenario.reader)
+        plan = next(c for c in report.checks if c.source_kind == "plan")
+>       assert plan.readable is True
+E       AssertionError: assert False is True
+E        +  where False = BasisCheck(source_kind='plan', record_id='plan-ticket', revision=1, readable=False, detail='').readable
+
+tests\unit\test_frozen_basis_drift.py:192: AssertionError
+________ test_an_empty_workspace_reports_every_record_check_as_missing ________
+
+    def test_an_empty_workspace_reports_every_record_check_as_missing() -> None:
+        """�չ����ռ���**��¼��**�˶�ȫ����գ�ģ������Դװ�أ���˲���Ӱ�졣"""
+        scenario = build_scenario("git")
+        empty = MemoryReader(MemoryStore())
+        report = check_frozen_basis(scenario.prepared_run, reader=empty)
+        assert report.intact is False
+        record_checks = [c for c in report.checks if c.source_kind != _TEMPLATE_BACKED]
+>       assert report.missing == tuple(record_checks)
+E       AssertionError: assert (BasisCheck(s...tail=''), ...) == (BasisCheck(s...tail=''), ...)
+E         
+E         At index 6 diff: BasisCheck(source_kind='template_versions', record_id='template:ticket-workflow@1.0.0', revision=0, readable=False, detail='installed template bytes differ from the frozen digest') != BasisCheck(source_kind='source_snapshot', record_id='snapshot-ticket-1', revision=1, readable=False, detail='the frozen source snapshot has no persisted record')
+E         Left contains one more item: BasisCheck(source_kind='acceptance_scope', record_id='scope-ticket', revision=1, readable=False, detail='')
+E         Use -v to get more diff
+
+tests\unit\test_frozen_basis_drift.py:202: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_frozen_basis_drift.py::test_a_persisted_snapshot_with_the_frozen_identity_is_readable
+FAILED tests/unit/test_frozen_basis_drift.py::test_the_frozen_template_version_is_loadable
+FAILED tests/unit/test_frozen_basis_drift.py::test_the_plan_frozen_by_the_fixture_is_reproducible
+FAILED tests/unit/test_frozen_basis_drift.py::test_an_empty_workspace_reports_every_record_check_as_missing
+4 failed, 15 passed in 0.34s

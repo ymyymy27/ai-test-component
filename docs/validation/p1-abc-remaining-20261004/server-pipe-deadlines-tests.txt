@@ -1,0 +1,54 @@
+.FF.............                                                         [100%]
+================================== FAILURES ===================================
+_______ test_server_partial_frame_deadline_covers_header_and_body[\x00] _______
+
+prefix = b'\x00'
+
+    @pytest.mark.parametrize("prefix", [b"", b"\x00", (10).to_bytes(4, "big") + b"short"])
+    def test_server_partial_frame_deadline_covers_header_and_body(prefix):
+        server, client = connected_pair()
+        try:
+            if prefix:
+>               client._write_all(prefix)
+                ^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NamedPipeClient' object has no attribute '_write_all'
+
+tests\unit\test_server_pipe_deadlines.py:31: AttributeError
+_ test_server_partial_frame_deadline_covers_header_and_body[\x00\x00\x00\nshort] _
+
+prefix = b'\x00\x00\x00\nshort'
+
+    @pytest.mark.parametrize("prefix", [b"", b"\x00", (10).to_bytes(4, "big") + b"short"])
+    def test_server_partial_frame_deadline_covers_header_and_body(prefix):
+        server, client = connected_pair()
+        try:
+            if prefix:
+>               client._write_all(prefix)
+                ^^^^^^^^^^^^^^^^^
+E               AttributeError: 'NamedPipeClient' object has no attribute '_write_all'
+
+tests\unit\test_server_pipe_deadlines.py:31: AttributeError
+============================== warnings summary ===============================
+tests/unit/test_server_pipe_deadlines.py::test_fragmented_frame_does_not_reset_the_original_deadline
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-1 (trickle)
+  
+  Traceback (most recent call last):
+    File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\threading.py", line 1044, in _bootstrap_inner
+      self.run()
+      ~~~~~~~~^^
+    File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\threading.py", line 995, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Users\y'm'y\Desktop\ai-test-component\tests\unit\test_server_pipe_deadlines.py", line 90, in trickle
+      client._write_all((20).to_bytes(4, "big"))
+      ^^^^^^^^^^^^^^^^^
+  AttributeError: 'NamedPipeClient' object has no attribute '_write_all'
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/test_server_pipe_deadlines.py::test_server_partial_frame_deadline_covers_header_and_body[\x00]
+FAILED tests/unit/test_server_pipe_deadlines.py::test_server_partial_frame_deadline_covers_header_and_body[\x00\x00\x00\nshort]

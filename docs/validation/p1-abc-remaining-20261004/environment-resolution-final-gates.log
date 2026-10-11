@@ -1,0 +1,32 @@
+............................                                             [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_python_environment.py::test_actual_registered_python_proves_exact_version_executable_and_stable_dependencies
+PASSED tests/unit/test_python_environment.py::test_dependency_bytes_change_identity_even_with_restored_mtime_and_same_size
+PASSED tests/unit/test_python_environment.py::test_unregistered_or_mismatched_request_is_refused[changes0]
+PASSED tests/unit/test_python_environment.py::test_unregistered_or_mismatched_request_is_refused[changes1]
+PASSED tests/unit/test_python_environment.py::test_unregistered_or_mismatched_request_is_refused[changes2]
+PASSED tests/unit/test_python_environment.py::test_unregistered_or_mismatched_request_is_refused[changes3]
+PASSED tests/unit/test_python_environment.py::test_unregistered_or_mismatched_request_is_refused[changes4]
+PASSED tests/unit/test_python_environment.py::test_unregistered_or_mismatched_request_is_refused[changes5]
+PASSED tests/unit/test_python_environment.py::test_default_has_no_implicit_core_interpreter
+PASSED tests/unit/test_python_environment.py::test_changed_registered_binary_is_rejected_before_probe[False]
+PASSED tests/unit/test_python_environment.py::test_changed_registered_binary_is_rejected_before_probe[True]
+PASSED tests/unit/test_python_environment.py::test_pth_is_not_executed_or_claimed_as_verified[import malicious\n]
+PASSED tests/unit/test_python_environment.py::test_pth_is_not_executed_or_claimed_as_verified[../external-source\n]
+PASSED tests/unit/test_python_environment.py::test_system_site_packages_mixed_into_venv_is_refused
+PASSED tests/unit/test_python_environment.py::test_missing_root_and_byte_limits_do_not_produce_incomplete_digest
+PASSED tests/unit/test_python_environment.py::test_probe_does_not_import_project_or_ambient_sitecustomize
+PASSED tests/unit/test_python_environment.py::test_environment_mutation_during_probe_is_rejected
+PASSED tests/unit/test_python_environment.py::test_file_count_limit_refuses_an_incomplete_dependency_manifest
+PASSED tests/unit/test_python_environment.py::test_probe_output_is_bounded_and_never_published_raw[print('x' * 20000)-exceeded output limit]
+PASSED tests/unit/test_python_environment.py::test_probe_output_is_bounded_and_never_published_raw[print('invalid-json')-invalid safe facts]
+PASSED tests/unit/test_python_environment.py::test_probe_timeout_stops_the_probe_without_publishing_a_fact
+PASSED tests/unit/test_python_environment.py::test_base_path_mismatch_is_refused_before_reading_unregistered_binary
+PASSED tests/unit/test_environment_resolution_flow.py::test_client_fact_and_nested_resolution_are_replaced_by_trusted_core_observation
+PASSED tests/unit/test_environment_resolution_flow.py::test_missing_trusted_carrier_blocks_without_creating_preparation
+PASSED tests/unit/test_environment_resolution_flow.py::test_same_environment_revision_with_changed_content_requires_new_preparation
+PASSED tests/unit/test_environment_resolution_flow.py::test_new_initial_registration_rechecks_environment_but_history_recall_does_not
+PASSED tests/unit/test_environment_resolution_flow.py::test_environment_probe_never_runs_under_unit_of_work_lock
+PASSED tests/unit/test_environment_resolution_flow.py::test_preparation_atomic_failure_consumes_no_intent_and_retry_freezes_observation
+28 passed in 336.98s (0:05:36)

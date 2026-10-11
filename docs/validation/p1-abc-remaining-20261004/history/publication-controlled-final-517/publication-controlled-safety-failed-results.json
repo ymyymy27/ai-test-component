@@ -1,0 +1,10 @@
+{
+  "failed": 3,
+  "deselected": 32,
+  "seconds": 36.48,
+  "pre_safety_risk_regression": {"passed": 289, "seconds": 486.69},
+  "rule_plan_consumer": {"passed": 1, "deselected": 31, "seconds": 61.68},
+  "expanded_gates_still_running_at_capture": true,
+  "full_python_run": false,
+  "failure_groups": ["Required ContextGap was parsed without its domain invariant in the new publication adapter", "Storage silently filtered controlled body without treating its approval linkage as a frozen fingerprint"]
+}

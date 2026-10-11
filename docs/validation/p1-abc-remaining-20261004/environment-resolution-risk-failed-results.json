@@ -1,0 +1,25 @@
+{
+  "groups": [
+    {
+      "name": "risk-before-fixture-and-home-correction",
+      "passed": 183,
+      "failed": 1,
+      "duration_seconds": 2132.41
+    }
+  ],
+  "status": "failed",
+  "notes": [
+    "Historical registration recall passed without configuration; a new-source negative used an unconfigured restarted carrier and raised environment-not-registered first."
+  ],
+  "log_files": [
+    "environment-resolution-risk.log",
+    "environment-resolution-risk-collection.log",
+    "environment-resolution-ruff.log",
+    "environment-resolution-mypy.log",
+    "environment-resolution-package.log",
+    "environment-resolution-build.log",
+    "environment-resolution-version.log",
+    "environment-resolution-actual-core.log",
+    "environment-resolution-actual-core-probe.py.txt"
+  ]
+}

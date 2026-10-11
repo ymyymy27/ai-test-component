@@ -1,0 +1,44 @@
+I001 [*] Import block is un-sorted or un-formatted
+  --> src\aitest\application\planning\model_response_resolution.py:3:1
+   |
+ 1 |   """Reconcile an exact saved response; never repeat an external model call."""
+ 2 |
+ 3 | / import json
+ 4 | | import re
+ 5 | | from typing import cast
+ 6 | | from collections.abc import Mapping
+ 7 | | from dataclasses import asdict, replace
+ 8 | | from datetime import datetime
+ 9 | |
+10 | | from aitest.application.planning.model_basis import ModelGenerationBasis
+11 | | from aitest.application.planning.model_orchestration import (
+12 | |     CREDENTIAL_FILTER_POLICY,
+13 | |     OUTBOUND_UNRESOLVED,
+14 | |     OutboundOutcome,
+15 | |     OutboundRequest,
+16 | |     _current_payload,
+17 | |     _generation_identity,
+18 | |     _publish_model_response,
+19 | |     _recall_outcome,
+20 | |     policy_record_id,
+21 | | )
+22 | | from aitest.application.planning.model_ports import ModelCallResult, ModelCallStatus
+23 | | from aitest.application.planning.substrate import RecordReader, UnitOfWork, current_record
+24 | | from aitest.application.ports import ModelResponseStore
+25 | | from aitest.application.project.source_analysis import SourceAnalysisService
+26 | | from aitest.domain.planning.model_outbound import MaterialKind, ModelTaskType, ResponseCurrency
+27 | | from aitest.domain.planning.templates import TemplateRef
+   | |________________________________________________________^
+help: Organize imports
+  |
+4 | import re
+  - from typing import cast
+5 | from collections.abc import Mapping
+6 | from dataclasses import asdict, replace
+7 | from datetime import datetime
+8 + from typing import cast
+9 |
+  |
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

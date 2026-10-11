@@ -1,0 +1,258 @@
+{
+  "version": "0.1",
+  "phase": 2,
+  "updated_at": "2026-10-10",
+  "baseline_commit": "3883cf119f275f382da74568bfcda565fd4eb87f",
+  "scope": "product_acceptance_not_scaffold_tests",
+  "update_rules": {
+    "owner_field": "二期牵头包拆分方案尚未建立，owner 一律 null；方案确定后由该方案填写，不得由单人推定。",
+    "scenario_expected": "scenario／expected／related_frs 逐字取自需求文档第 5 节，只在需求文档改动后同步，任何一方不得改写",
+    "verified_rule": "result=verified 必须同时满足 evidence.path 非空且 real_environment_verified=true",
+    "no_inference": "文档一致、单元与合同测试通过、夹具通过，均不得写成真实环境验收通过",
+    "skeleton_rule": "本文件是骨架：全部条目 result=untested、owner=null，只登记场景与预期，不声明任何能力已验收"
+  },
+  "results": [
+    {
+      "id": "P2-AC01",
+      "owner": null,
+      "result": "untested",
+      "scenario": "在非 Trae 编辑器安装插件并完成一次本地测试",
+      "expected": "目录绑定、执行、查询与导出可用；记录与 Trae 中一致，判定口径不变",
+      "related_frs": [
+        "P2-FR01"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC02",
+      "owner": null,
+      "result": "untested",
+      "scenario": "在 macOS 或 Linux 桌面端安装，另注入不兼容版本与运行时缺失",
+      "expected": "实测组合通过真实接入；未实测组合明确报告缺项，不宣称能力可用；分别区分缺核心/被测运行时、模型/被测凭据以及只读记录目录；按动作依赖矩阵保留允许能力，不宣称全部本地能力不受影响",
+      "related_frs": [
+        "P2-FR02",
+        "P2-FR05"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC03",
+      "owner": null,
+      "result": "untested",
+      "scenario": "源码跳转，文件变更、快照缺失、旧mtime、同大小同mtime异内容、路径缺失；校验前dirty、不同宿主同版本号、CRLF/BOM与六态降级",
+      "expected": "优先打开冻结快照；当前文件仅在显式目标哈希、干净文档显示摘要及请求/文档身份均匹配时标内容已核实，元数据相同只能标待确认；mtime与快照记录比而非快照创建时间；不同文件逐文件核对，不错跳；干净文档显示摘要及请求/文档身份均匹配才定位；不自动保存，snapshot_verified只开历史快照，未知状态不映射已核实",
+      "related_frs": [
+        "P2-FR03"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC04",
+      "owner": null,
+      "result": "untested",
+      "scenario": "从一次运行生成依赖与链路图并跳转到证据；另在源码行内展示标注",
+      "expected": "图可打开、可缩放、可搜索；节点跳转到对应证据；缺口明确标出；行内标注只做展示，不修改代码、不触发新工具、不改变断言与缺陷状态",
+      "related_frs": [
+        "P2-FR03",
+        "P2-FR04"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC05",
+      "owner": null,
+      "result": "untested",
+      "scenario": "对生成的图做布局与标注调整；另注入删除事实节点/边、删除或替换缺口标记、重复函数调用",
+      "expected": "形成新的图修订，原始记录与判定不变；图定义与图修订经工作单元落盘、编号独立于领域记录、不参与判定与统计分母；报告引用精确到图修订，新布局不自动改报告，显式选新图才生成新报告修订；逐ID核对事实节点/边/缺口集合，删除或同数量替换均拒绝；不同实际调用不因函数同名合并，不能新增未采集节点；二期交付仅依赖图与链路图，问题关联图为后续探索，不作为本期必交；问题/回归列表详情保留",
+      "related_frs": [
+        "P2-FR04"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC06",
+      "owner": null,
+      "result": "untested",
+      "scenario": "缺工具登记、面板、跳转；源码只读、数据目录只读、不受信任工作区",
+      "expected": "宿主缺项给替代入口；源码只读但数据目录可写可物化执行；数据目录不可写禁止新运行但已有查询可用；不受信任工作区不自动执行命令或MCP配置",
+      "related_frs": [
+        "P2-FR01",
+        "P2-FR05"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC07",
+      "owner": null,
+      "result": "untested",
+      "scenario": "历史分组、同提交不同diff/环境/模板/判定策略、完整重跑取消；组摘要分页、组内新修订、筛选游标及索引损坏",
+      "expected": "按真实源码身份分组并按结论键区分；只读载入，不回退旧绿灯；无删除入口；同一运行报告修订折叠展示；只读相关索引页与所选对象，游标固定commit和条件；索引缺失明确恢复，不隐式全历史附件扫描；范围/环境/档位/业务结果四维16种掩码和跨源码/限定源码查询逐项验证；过滤结果按运行分页且不伪称完整源码组",
+      "related_frs": [
+        "P2-FR06",
+        "P2-FR01"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC08",
+      "owner": null,
+      "result": "untested",
+      "scenario": "在运行后段点缺口跳到对应链路节点，随后到配置页执行一次环境自检；另注入\"未隔离环境\"与\"链路图节点缺失\"两种情形",
+      "expected": "缺口与链路节点同源，点击后定位到对应节点；环境自检展示四项（是否隔离、运行时与依赖、被测可达性、模型连接），依赖环境方式单列，不自动降低证据等级；实际数据污染或版本未知按对应证据缺口处理，快速与按需仍未打分，业务结论独立；**链路上缺节点时保留缺口标记、不用推断补全**，图件生成失败仍展示统计与缺口入口",
+      "related_frs": [
+        "P2-FR06",
+        "P2-FR04",
+        "P2-FR05"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    },
+    {
+      "id": "P2-AC09",
+      "owner": null,
+      "result": "untested",
+      "scenario": "同时打开多个目录并切换当前项目；另注入第二、第三个入口同时连接同一工作空间",
+      "expected": "目录切换不串用不同项目的记录与绑定修订；多入口均不直接写业务文件；只有核心进程持有工作空间写锁，所有入口接入同一核心或被拒绝，**不产生第二写入者**",
+      "related_frs": [
+        "P2-FR01"
+      ],
+      "prerequisites": null,
+      "artifact_versions": null,
+      "actual": null,
+      "evidence": {
+        "path": null,
+        "description": null,
+        "method": null
+      },
+      "unverified_reason": "尚未完成前置条件分析（2 期牵头包拆分方案未建立）；本行场景与预期已对齐需求文档第 5 节。",
+      "blockers": null,
+      "real_environment_verified": false
+    }
+  ],
+  "cases": [
+    {
+      "id": "P2-AC01",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC02",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC03",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC04",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC05",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC06",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC07",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC08",
+      "result": "untested",
+      "evidence_path": null
+    },
+    {
+      "id": "P2-AC09",
+      "result": "untested",
+      "evidence_path": null
+    }
+  ]
+}

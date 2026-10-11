@@ -1,4 +1,5 @@
 """Finite query contracts; callers cannot request an implicit full scan."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -43,6 +44,13 @@ IssueFacet = Literal[
 ]
 
 
+class QueryUnsupportedFilter(ValueError):
+    code = "QUERY_UNSUPPORTED_FILTER"
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(f"{self.code}: {reason}")
+
+
 class QuerySpec(BaseModel):
     """有限查询定义：固定允许筛选组合、排序键与有界页大小。
 
@@ -85,7 +93,42 @@ class QuerySpec(BaseModel):
         # 目录，view 缺省按 OPEN（OPEN 是问题列表默认范围）。
         if self.view is None and (self.facet != "NONE" or self.severity is not None):
             object.__setattr__(self, "view", "OPEN")
+        self.ensure_finite_route()
         return self
+
+    def ensure_finite_route(self) -> None:
+        """Every supplied selector must belong to the chosen fixed directory."""
+        if self.view is not None:
+            if self.aggregate_kind not in (None, "issue") or any(
+                value is not None
+                for value in (
+                    self.record_id,
+                    self.revision,
+                    self.report_id,
+                    self.run_id,
+                    self.business_outcome,
+                )
+            ):
+                raise QueryUnsupportedFilter("issues.list cannot mix record/report selectors")
+            return
+        if self.report_id is not None or self.run_id is not None:
+            if (
+                self.aggregate_kind not in (None, "report")
+                or self.record_id is not None
+                or self.revision is not None
+                or self.report_id is not None
+                and self.run_id is not None
+            ):
+                raise QueryUnsupportedFilter("reports.by_id requires one typed report/run identity")
+            return
+        if self.record_id is not None and self.aggregate_kind is None:
+            raise QueryUnsupportedFilter("record identity requires aggregate_kind")
+        if self.revision is not None and (self.record_id is None or self.aggregate_kind is None):
+            raise QueryUnsupportedFilter("revision requires an exact typed record identity")
+        if self.business_outcome is not None and (
+            self.aggregate_kind not in (None, "report") or self.record_id is not None
+        ):
+            raise QueryUnsupportedFilter("business_outcome belongs to reports.latest/by_id")
 
 
 class Query(BaseModel):

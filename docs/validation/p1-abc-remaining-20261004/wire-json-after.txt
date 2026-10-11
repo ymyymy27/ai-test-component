@@ -1,0 +1,27 @@
+.........F................................                               [100%]
+================================== FAILURES ===================================
+_______ test_excessive_json_nesting_does_not_terminate_the_serving_core _______
+
+    def test_excessive_json_nesting_does_not_terminate_the_serving_core():
+        api = LocalAPI(instance_id="core", workspace_id="workspace")
+        api.dispatch = Mock()
+        depth = sys.getrecursionlimit() + 100
+        raw = (
+            b'{"action":"doctor","request_id":"req","parameters":{"v":'
+            + b"[" * depth
+            + b"0"
+            + b"]" * depth
+            + b"}}"
+        )
+        result = dispatch_frame(api, Session("relay", EntryKind.AGENT_RELAY), raw)
+>       assert isinstance(result, Response) and result.error.code == "MALFORMED_MESSAGE"
+E       AssertionError: assert (True and 'INVALID_COMMAND' == 'MALFORMED_MESSAGE'
+E        +  where True = isinstance(Response(protocol_version='aitest.local/2.0', request_id='req', instance_id='core', workspace_id='workspace', project_... message='������Ϻ�ͬ: 1 ���ֶδ���', retryable=False, next_step='���֡��ʽ�� aitest.local/2.0 ��ͬ', request_id=None, intent_id=None)), Response)
+E         
+E         - MALFORMED_MESSAGE
+E         + INVALID_COMMAND)
+
+tests\unit\test_wire_json_identity.py:51: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_wire_json_identity.py::test_excessive_json_nesting_does_not_terminate_the_serving_core
+1 failed, 41 passed in 10.30s

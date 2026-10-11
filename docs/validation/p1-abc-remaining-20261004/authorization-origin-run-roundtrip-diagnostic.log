@@ -1,0 +1,25 @@
+{
+  "root": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\pytest-of-y'm'y\\pytest-703\\test_original_grant_is_saved_w0\\workspace",
+  "differences": {
+    "selected_scope": {
+      "saved": [
+        "case-change-status",
+        "case-create-ticket"
+      ],
+      "roundtrip": [
+        "case-create-ticket",
+        "case-change-status"
+      ]
+    },
+    "required_scope": {
+      "saved": [
+        "case-change-status",
+        "case-create-ticket"
+      ],
+      "roundtrip": [
+        "case-create-ticket",
+        "case-change-status"
+      ]
+    }
+  }
+}

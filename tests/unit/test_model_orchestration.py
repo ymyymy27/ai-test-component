@@ -44,6 +44,8 @@ from aitest.domain.planning.model_outbound import (
     material_kinds_digest,
 )
 from aitest.domain.planning.templates import TemplateRef
+from aitest.infrastructure.projections import SafeMaterialProjector
+from aitest.infrastructure.security import KnownSecretRegistry
 from tests.support.memory_model import (
     MemoryCredentialResolver,
     MemoryModelCaller,
@@ -1020,3 +1022,42 @@ def test_record_ids_are_stable_and_project_scoped() -> None:
         outbound_request_id("p1", 2, ModelTaskType.CASE_SUGGESTION)
         == "outbound:p1:2:case_suggestion"
     )
+
+
+# ------------------------------------------ 默认链路：转义凭据在调用之前被拦下
+
+
+def test_escaped_json_credential_blocks_the_default_request_before_any_call() -> None:
+    """A-09/B-03：真实投影器下，JSON 转义藏不住已登记凭据，供应方不会被调用。
+
+    反例原文（交接 §5）：``{"note": "unusual-local-key"}`` 以 ``\\uXXXX`` 形式
+    写入材料时，旧投影器保留原转义文本并报 complete，凭据字节到达供应方。
+    """
+    registry = KnownSecretRegistry()
+    registry.register("unusual-local-key")
+    escaped = '{"note":"\\u0075nusual-local-key"}'
+    caller = MemoryModelCaller()
+
+    outcome = _request(
+        material={MaterialKind.PROJECT_CONTEXT: escaped},
+        projector=SafeMaterialProjector(registry=registry),
+        caller=caller,
+    )
+
+    assert outcome.status == OUTBOUND_BLOCKED
+    assert caller.call_count == 0
+    assert any("material.project_context" in reason for reason in outcome.blocked_by)
+
+
+def test_clean_escaped_json_material_is_not_blocked_by_the_strict_projection() -> None:
+    """严格解码只针对缺口：无凭据的合法 JSON（含转义）仍照常出站。"""
+    escaped = '{"note":"\\u0063lean context"}'
+    outcome = _request(
+        material={MaterialKind.PROJECT_CONTEXT: escaped},
+        projector=SafeMaterialProjector(registry=KnownSecretRegistry()),
+    )
+
+    assert outcome.status == OUTBOUND_DRAFT_READY
+    assert outcome.blocked_by == ()
+    assert outcome.request is not None
+    assert outcome.request.item_count == 1

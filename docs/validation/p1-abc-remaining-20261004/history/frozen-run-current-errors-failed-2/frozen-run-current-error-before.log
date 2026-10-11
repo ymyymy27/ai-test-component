@@ -1,0 +1,20 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_________ test_publisher_cannot_restore_a_superseded_current_attempt __________
+tests\unit\test_current_attempt_transition_integrity.py:281: in test_publisher_cannot_restore_a_superseded_current_attempt
+    with pytest.raises(ValueError, match="current attempt"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'current attempt'
+E     Actual message: 'publication cannot rewrite the frozen run identity or runtime revision'
+____________ test_publisher_cannot_drop_a_registered_current_step _____________
+tests\unit\test_current_attempt_transition_integrity.py:409: in test_publisher_cannot_drop_a_registered_current_step
+    with pytest.raises(ValueError, match="current attempt"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'current attempt'
+E     Actual message: 'publication cannot add or remove frozen steps'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_publisher_cannot_restore_a_superseded_current_attempt
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_publisher_cannot_drop_a_registered_current_step
+2 failed in 3.08s

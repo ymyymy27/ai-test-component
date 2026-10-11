@@ -1,0 +1,91 @@
+.F                                                                       [100%]
+================================== FAILURES ===================================
+_ test_deeply_nested_storage_json_is_a_finite_block_not_a_recursion_crash[manifest] _
+
+workspace = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-493/test_deeply_nested_storage_jso1/workspace")
+material = 'manifest'
+
+    @pytest.mark.parametrize("material", ["marker", "manifest"])
+    def test_deeply_nested_storage_json_is_a_finite_block_not_a_recursion_crash(workspace, material):
+        depth = 1100 if material == "marker" else 100000
+        raw = b'{"unknown":' + b'[' * depth + b'0' + b']' * depth + b'}'
+        backend = FilePublicationBackend(workspace)
+        if material == "marker":
+            backend.marker.write_bytes(raw)
+        else:
+            digest = hashlib.sha256(raw).hexdigest()
+            path = workspace / "manifests" / f"{digest}.json"
+            path.write_bytes(raw)  # Corrupt fixture with a matching immutable digest.
+            before = (workspace / "current.json").read_bytes()
+            pointer = json.loads(before)
+            pointer["manifest_digest"] = digest
+            backend.replace_current(canonical_bytes(pointer), previous=before)
+        # Exercise the actual startup boundary in an ordinary Python child.
+        script = """
+    import sys
+    from pathlib import Path
+    from aitest.bootstrap import CoreAssemblyBlocked,assemble_workspace_core
+    from aitest.infrastructure.file_store.commit_manifest import CommitMaterialError,FileCommitStore
+    sys.setrecursionlimit(1000)
+    root=Path(sys.argv[1])
+    try: FileCommitStore(root).read_current()
+    except CommitMaterialError: pass
+    else: raise AssertionError('unsafe material accepted')
+    try: assemble_workspace_core(root,instance_id='restart')
+    except CoreAssemblyBlocked: pass
+    else: raise AssertionError('unsafe core started')
+    print('blocked')
+    """
+        environment = dict(os.environ)
+        environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
+        result = subprocess.run([sys.executable, "-c", script, str(workspace)],
+                                env=environment, capture_output=True, timeout=30)
+>       assert result.returncode == 0, result.stderr.decode(errors="replace")
+E       AssertionError: Traceback (most recent call last):
+
+E           File "<string>", line 8, in <module>
+
+E             try: FileCommitStore(root).read_current()
+
+E                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+
+E           File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\commit_manifest.py", line 155, in read_current
+
+E             manifest = self.read_manifest(str(pointer["manifest_digest"]))
+
+E           File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\commit_manifest.py", line 216, in read_manifest
+
+E             value = self._decode(raw)
+
+E           File "C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\infrastructure\file_store\commit_manifest.py", line 104, in _decode
+
+E             value = json.loads(raw, object_pairs_hook=unique)
+
+E           File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\__init__.py", line 365, in loads
+
+E             return cls(**kw).decode(s)
+
+E                    ~~~~~~~~~~~~~~~~^^^
+
+E           File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\decoder.py", line 345, in decode
+
+E             obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+
+E                        ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+
+E           File "C:\Users\y'm'y\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\decoder.py", line 361, in raw_decode
+
+E             obj, end = self.scan_once(s, idx)
+
+E                        ~~~~~~~~~~~~~~^^^^^^^^
+
+E         RecursionError: maximum recursion depth exceeded while decoding a JSON array from a unicode string
+
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=["C:\\Users\\y'm'y\\Desktop\\ai-test-component\\.venv\\Scripts\\python.exe", '-c', "\nimport sys...~~~^^^^^^^^\r\nRecursionError: maximum recursion depth exceeded while decoding a JSON array from a unicode string\r\n').returncode
+
+tests\unit\test_windows_publication_integrity.py:535: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_windows_publication_integrity.py::test_deeply_nested_storage_json_is_a_finite_block_not_a_recursion_crash[manifest]
+1 failed, 1 passed in 11.47s

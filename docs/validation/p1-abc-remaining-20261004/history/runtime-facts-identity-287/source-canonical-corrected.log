@@ -1,0 +1,39 @@
+F......................                                                  [100%]
+================================== FAILURES ===================================
+______ test_default_plain_pin_saved_identity_matches_actual_byte_digest _______
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000024B47164590>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-513/test_default_plain_pin_saved_i0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000024B46FEF6F0>
+
+    def test_default_plain_pin_saved_identity_matches_actual_byte_digest(stack, monkeypatch):
+        core, source, root = stack
+        seed(core, source)
+        from aitest.infrastructure.adapters.source_control import GitSourceControl
+    
+        def no_git(*args, **kwargs):
+            pytest.fail("plain source must not invoke Git")
+    
+        monkeypatch.setattr(GitSourceControl, "snapshot_identity", no_git)
+        response = analyze(core)
+        assert response.error is None
+        result = response.result
+        manifest = load_source_snapshot(
+            PortsRecordReader(core.unit_of_work.repo),
+            project_id="project",
+            snapshot_id=result["snapshot_id"],
+            revision=1,
+        )
+        import hashlib
+    
+>       assert (
+            manifest.files[0].content_digest == "sha256:" + hashlib.sha256(b"VALUE = 1\n").hexdigest()
+        )
+E       AssertionError: assert 'sha256:5d51e...83611db36e189' == 'sha256:e13df...d6ab9cef9fc65'
+E         
+E         - sha256:e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65
+E         + sha256:5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189
+
+tests\unit\test_default_source_analysis.py:140: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_source_analysis.py::test_default_plain_pin_saved_identity_matches_actual_byte_digest
+1 failed, 22 passed in 75.85s (0:01:15)

@@ -1,0 +1,39 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 14 items
+
+tests/unit/test_unused_authorization_invalidation.py::test_new_attempt_revokes_other_unused_authority_for_the_same_step PASSED [  7%]
+tests/unit/test_unused_authorization_invalidation.py::test_replacement_revokes_exact_outputs_and_conditions_and_keeps_independent_branch PASSED [ 14%]
+tests/unit/test_unused_authorization_invalidation.py::test_occupation_and_affected_revocation_roll_back_together[authorization-state:own] PASSED [ 21%]
+tests/unit/test_unused_authorization_invalidation.py::test_occupation_and_affected_revocation_roll_back_together[authorization-state:condition] PASSED [ 28%]
+tests/unit/test_unused_authorization_invalidation.py::test_occupation_and_affected_revocation_roll_back_together[index] PASSED [ 35%]
+tests/unit/test_unused_authorization_invalidation.py::test_runtime_content_revocation_is_current_and_idempotent PASSED [ 42%]
+tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[duplicates] PASSED [ 50%]
+tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[owner] PASSED [ 57%]
+tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[unknown] PASSED [ 64%]
+tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[envelope] PASSED [ 71%]
+tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[missing] PASSED [ 78%]
+tests/unit/test_unused_authorization_invalidation.py::test_current_index_rejects_unknown_or_duplicate_identities PASSED [ 85%]
+tests/unit/test_unused_authorization_invalidation.py::test_legacy_unused_authority_requires_new_consent PASSED [ 92%]
+tests/unit/test_unused_authorization_invalidation.py::test_explicit_revocation_removes_current_membership_and_replays_exactly PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_new_attempt_revokes_other_unused_authority_for_the_same_step
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_replacement_revokes_exact_outputs_and_conditions_and_keeps_independent_branch
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_occupation_and_affected_revocation_roll_back_together[authorization-state:own]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_occupation_and_affected_revocation_roll_back_together[authorization-state:condition]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_occupation_and_affected_revocation_roll_back_together[index]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_runtime_content_revocation_is_current_and_idempotent
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[duplicates]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[owner]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[unknown]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[envelope]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_uncertain_unused_index_blocks_before_any_state_write[missing]
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_current_index_rejects_unknown_or_duplicate_identities
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_legacy_unused_authority_requires_new_consent
+PASSED tests/unit/test_unused_authorization_invalidation.py::test_explicit_revocation_removes_current_membership_and_replays_exactly
+============================= 14 passed in 7.18s ==============================

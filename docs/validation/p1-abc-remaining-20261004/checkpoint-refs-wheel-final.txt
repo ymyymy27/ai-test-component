@@ -1,0 +1,3 @@
+............................................                             [100%]
+44 passed in 232.50s (0:03:52)
+Installed module bytes exact; exact checkpoints, original intent, runtime controls, real local command/restart and missing-map reuse rejection verified. Consent and source observations remain synthetic; no real Trae/AC or R claimed.

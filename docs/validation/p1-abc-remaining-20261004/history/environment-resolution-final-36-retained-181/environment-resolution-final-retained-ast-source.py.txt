@@ -1,0 +1,58 @@
+"""Verify exactly what is reused from the 183-node risk group, no full-suite claim."""
+
+import ast
+import json
+from pathlib import Path
+from zipfile import ZipFile
+
+root = Path.cwd()
+base = root / "docs/validation/p1-abc-remaining-20261004"
+phase = base / "history/environment-resolution-risk-failed-1"
+manifest = json.loads((phase / "manifest.json").read_text(encoding="utf-8"))
+fixed = "tests/unit/test_initial_run_registration.py::test_initial_run_recall_survives_restart_and_active_source_change"
+nodes = [line.strip() for line in (base / "environment-resolution-risk-collection.log")
+         .read_text(encoding="utf-8").splitlines() if "::" in line]
+
+
+def function(tree, name):
+    found = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+             and node.name == name]
+    assert len(found) == 1, name
+    return ast.dump(found[0], include_attributes=False)
+
+
+with ZipFile(root / manifest["source_archive"]["path"]) as old:
+    for node in nodes:
+        if node == fixed:
+            continue
+        path, name = node.split("::")
+        name = name.split("[")[0]
+        before = ast.parse(old.read(path).decode("utf-8-sig"))
+        now = ast.parse((root / path).read_text(encoding="utf-8-sig"))
+        assert function(before, name) == function(now, name), node
+    changed_product = []
+    for item in manifest["source_files"]:
+        path = item["path"]
+        if not path.startswith("src/"):
+            continue
+        if old.read(path).replace(b"\r\n", b"\n") != (root / path).read_bytes().replace(b"\r\n", b"\n"):
+            changed_product.append(path)
+    assert changed_product == ["src/aitest/infrastructure/python_environment.py"]
+    path = changed_product[0]
+    before = ast.parse(old.read(path).decode("utf-8"))
+    now = ast.parse((root / path).read_text(encoding="utf-8"))
+    for tree in (before, now):
+        owner = next(node for node in tree.body if isinstance(node, ast.ClassDef)
+                     and node.name == "RegisteredPythonEnvironmentResolver")
+        owner.body = [node for node in owner.body if not (
+            isinstance(node, ast.FunctionDef) and node.name in {"_configuration", "_probe", "resolve"}
+        )]
+    assert ast.dump(before, include_attributes=False) == ast.dump(now, include_attributes=False)
+
+print(json.dumps({
+    "status": "passed", "retained_risk_nodes": len(nodes) - 1,
+    "changed_product_methods": ["RegisteredPythonEnvironmentResolver._configuration", "RegisteredPythonEnvironmentResolver._probe", "RegisteredPythonEnvironmentResolver.resolve"],
+    "required_current_runs": ["all native gates", "four home probes", "actual core probe",
+                              "two architecture nodes", "corrected restart/source node"],
+    "limitation": "Retained nodes belong to the archived pre-home group; not a fresh 184-node run.",
+}, indent=2))

@@ -1,0 +1,46 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_______ test_foreign_thread_finalization_clears_the_actual_owner[False] _______
+.git\p1-abc-fix-20261003\test_foreign_lock_cleanup.py:36: in test_foreign_thread_finalization_clears_the_actual_owner
+    executor.submit(acquire_and_collect).result(timeout=20)
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.git\p1-abc-fix-20261003\test_foreign_lock_cleanup.py:27: in acquire_and_collect
+    with writer_lock(path):
+         ^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:77: in writer_lock
+    raise WorkspaceInUse("workspace already has a writer in this thread")
+E   aitest.application.errors.WorkspaceInUse: workspace already has a writer in this thread
+_______ test_foreign_thread_finalization_clears_the_actual_owner[True] ________
+.git\p1-abc-fix-20261003\test_foreign_lock_cleanup.py:36: in test_foreign_thread_finalization_clears_the_actual_owner
+    executor.submit(acquire_and_collect).result(timeout=20)
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\concurrent\futures\thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.git\p1-abc-fix-20261003\test_foreign_lock_cleanup.py:27: in acquire_and_collect
+    with writer_lock(path):
+         ^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\locking.py:77: in writer_lock
+    raise WorkspaceInUse("workspace already has a writer in this thread")
+E   aitest.application.errors.WorkspaceInUse: workspace already has a writer in this thread
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/test_foreign_lock_cleanup.py::test_foreign_thread_finalization_clears_the_actual_owner[False]
+FAILED .git/p1-abc-fix-20261003/test_foreign_lock_cleanup.py::test_foreign_thread_finalization_clears_the_actual_owner[True]
+2 failed in 19.79s

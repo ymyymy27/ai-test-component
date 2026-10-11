@@ -1,0 +1,50 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+........................................................................ [ 14%]
+...............................................s................s....... [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 52%]
+........................................................................ [ 55%]
+........................................................................ [ 59%]
+........................................................................ [ 63%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+........................................................................ [ 93%]
+...................................................................F.... [ 96%]
+.FF.......................................................               [100%]
+================================== FAILURES ===================================
+___________________ test_the_lock_probe_detects_a_held_lock ___________________
+tests\unit\test_substrate_adapter.py:555: in test_the_lock_probe_detects_a_held_lock
+    assert not _lock_is_free(stack.raw)
+E   assert not True
+E    +  where True = _lock_is_free(<aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A8C5FE30>)
+E    +    where <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A8C5FE30> = _Stack(unit_of_work=<aitest.application.planning.substrate_adapter.PortsUnitOfWork object at 0x000001C3A8F0FEC0>, read...t 0x000001C3A84D92C0>, raw=<aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A8C5FE30>).raw
+___________________ test_a_dropped_scope_releases_the_lock ____________________
+tests\unit\test_substrate_adapter.py:653: in test_a_dropped_scope_releases_the_lock
+    assert not _lock_is_free(stack.raw)
+E   assert not True
+E    +  where True = _lock_is_free(<aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A91E7570>)
+E    +    where <aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A91E7570> = _Stack(unit_of_work=<aitest.application.planning.substrate_adapter.PortsUnitOfWork object at 0x000001C3A8F0DFD0>, read...t 0x000001C3A84D4190>, raw=<aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A91E7570>).raw
+__________________ test_a_dropped_adapter_releases_the_lock ___________________
+tests\unit\test_substrate_adapter.py:666: in test_a_dropped_adapter_releases_the_lock
+    assert not _lock_is_free(raw)
+E   assert not True
+E    +  where True = _lock_is_free(<aitest.infrastructure.file_store.unit_of_work.FileUnitOfWork object at 0x000001C3A91E5130>)
+=========================== short test summary info ===========================
+FAILED tests/unit/test_substrate_adapter.py::test_the_lock_probe_detects_a_held_lock
+FAILED tests/unit/test_substrate_adapter.py::test_a_dropped_scope_releases_the_lock
+FAILED tests/unit/test_substrate_adapter.py::test_a_dropped_adapter_releases_the_lock
+3 failed, 1925 passed, 2 skipped in 277.60s (0:04:37)

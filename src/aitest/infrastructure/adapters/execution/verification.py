@@ -9,11 +9,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Protocol
+from time import monotonic_ns, sleep
+from typing import cast
 
-from aitest.application.ports import VerificationRequest
+from aitest.application.ports import (
+    CapturedBusinessVerification,
+    DeadlineBusinessQueryPort,
+    ReadOnlyBusinessQueryPort,
+    VerificationRequest,
+)
 from aitest.contracts.verification import (
     VerificationFact,
     VerificationState,
@@ -21,6 +27,18 @@ from aitest.contracts.verification import (
 from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
+)
+from aitest.domain.evidence.polling import (
+    BusinessQueryObservation,
+    QueryPollingPolicy,
+    derive_polled_query,
+    query_observation_result,
+    query_polling_policy,
+)
+from aitest.domain.evidence.verification import compare_business_fields
+from aitest.domain.execution.assertions import (
+    freeze_json_value,
+    json_equal,
 )
 
 _HASH_BLOCK = 64 * 1024
@@ -74,22 +92,20 @@ class IndependentFileVerifier:
         )
 
 
-class ReadOnlyBusinessQueryPort(Protocol):
-    def read_business_object(
-        self,
-        *,
-        business_object_id: str,
-        target_deployment_ref: str,
-    ) -> Mapping[str, object] | None: ...
-
-
 class BusinessVerificationAdapter:
     """Independently read the same business object and compare key facts."""
 
     method = "read_only_business_query"
 
-    def __init__(self, query_port: ReadOnlyBusinessQueryPort) -> None:
+    def __init__(
+        self,
+        query_port: ReadOnlyBusinessQueryPort | DeadlineBusinessQueryPort,
+        *,
+        clock_ns: Callable[[], int] = monotonic_ns,
+        wait: Callable[[float], None] = sleep,
+    ) -> None:
         self._query_port = query_port
+        self._clock_ns, self._wait = clock_ns, wait
 
     def verify(
         self,
@@ -97,46 +113,182 @@ class BusinessVerificationAdapter:
         *,
         expected_facts: Mapping[str, object] | None = None,
     ) -> Verification:
-        expected = expected_facts if expected_facts is not None else request.expected_facts
+        return self.capture(request, expected_facts=expected_facts).verification
+
+    def capture(
+        self,
+        request: VerificationRequest,
+        *,
+        expected_facts: Mapping[str, object] | None = None,
+    ) -> CapturedBusinessVerification:
+        try:
+            expected = freeze_json_value(request.expected_facts)
+            override = freeze_json_value(expected_facts) if expected_facts is not None else expected
+            if not isinstance(expected, dict):
+                raise ValueError("business expected facts require an object")
+        except (TypeError, ValueError, RecursionError, RuntimeError):
+            return CapturedBusinessVerification(
+                self._fact(
+                    request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_invalid",)
+                )
+            )
+        if not json_equal(override, expected):
+            return CapturedBusinessVerification(
+                self._fact(
+                    request, VerificationObservation.NO_RESULT, gap_ids=("expected_facts_conflict",)
+                )
+            )
         if not expected:
-            return self._fact(
-                request,
-                VerificationObservation.NO_RESULT,
-                gap_ids=("expected_facts_missing",),
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.NO_RESULT,
+                    gap_ids=("expected_facts_missing",),
+                )
             )
         try:
-            observed = self._query_port.read_business_object(
+            policy = query_polling_policy(request.query_interval, request.deadline_condition)
+        except ValueError:
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.NO_RESULT,
+                    gap_ids=("query_policy_unsupported",),
+                )
+            )
+        if policy is not None:
+            return self._poll(request, expected, policy)
+        try:
+            observed = cast(ReadOnlyBusinessQueryPort, self._query_port).read_business_object(
                 business_object_id=request.business_object_id,
                 target_deployment_ref=request.target_deployment_ref,
             )
         except Exception:  # noqa: BLE001
-            return self._fact(
-                request,
-                VerificationObservation.QUERY_ERROR,
-                gap_ids=("independent_query_error",),
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.QUERY_ERROR,
+                    gap_ids=("independent_query_error",),
+                )
             )
         if observed is None:
-            return self._fact(
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.NO_RESULT,
+                    gap_ids=("business_object_not_found",),
+                )
+            )
+        try:
+            if not isinstance(observed, Mapping) or any(
+                not isinstance(key, str) for key in observed
+            ):
+                raise ValueError("business observation requires JSON fields")
+            # Freeze the same exact JSON material for comparison and its evidence digest.
+            frozen_observed = freeze_json_value(observed)
+            if not isinstance(frozen_observed, dict):
+                raise ValueError("business observation requires an object")
+            actual_ref = _mapping_digest(frozen_observed)
+        except (TypeError, ValueError, RecursionError, RuntimeError):
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.QUERY_ERROR,
+                    gap_ids=("independent_query_material_invalid",),
+                )
+            )
+        observation, gaps = compare_business_fields(frozen_observed, expected)
+        return CapturedBusinessVerification(
+            self._fact(
                 request,
-                VerificationObservation.NO_RESULT,
-                gap_ids=("business_object_not_found",),
-            )
-        mismatched = tuple(
-            sorted(
-                key
-                for key, expected_value in expected.items()
-                if observed.get(key) != expected_value
-            )
-        )
-        return self._fact(
-            request,
-            (
-                VerificationObservation.MISMATCHED
-                if mismatched
-                else VerificationObservation.MATCHED
+                observation,
+                actual_result_ref=actual_ref,
+                gap_ids=gaps,
             ),
-            actual_result_ref=_mapping_digest(observed),
-            gap_ids=tuple(f"business_fact_mismatch:{key}" for key in mismatched),
+            frozen_observed,
+        )
+
+    def _poll(
+        self,
+        request: VerificationRequest,
+        expected: Mapping[str, object],
+        policy: QueryPollingPolicy,
+    ) -> CapturedBusinessVerification:
+        if not callable(getattr(self._query_port, "read_business_object_before", None)):
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.NO_RESULT,
+                    gap_ids=("independent_query_deadline_capability_missing",),
+                )
+            )
+        start = self._clock_ns()
+        deadline = start + policy.deadline_ms * 1_000_000
+        observations = []
+        total_bytes = 0
+        while self._clock_ns() < deadline:
+            began = self._clock_ns()
+            actual = None
+            error = None
+            try:
+                observed = cast(
+                    DeadlineBusinessQueryPort, self._query_port
+                ).read_business_object_before(
+                    business_object_id=request.business_object_id,
+                    target_deployment_ref=request.target_deployment_ref,
+                    deadline_monotonic=deadline / 1_000_000_000,
+                )
+                if observed is not None:
+                    frozen = freeze_json_value(observed)
+                    if not isinstance(frozen, dict):
+                        raise ValueError("business query requires JSON fields")
+                    total_bytes += len(json.dumps(frozen, ensure_ascii=False).encode("utf-8"))
+                    if total_bytes > 1024 * 1024:
+                        raise ValueError("query observations exceed the material budget")
+                    actual = frozen
+            except TimeoutError:
+                error = "independent_query_deadline"
+            except (ValueError, TypeError, RecursionError, RuntimeError):
+                error = "independent_query_material_invalid"
+            except Exception:  # noqa: BLE001
+                error = "independent_query_error"
+            ended = self._clock_ns()
+            item = BusinessQueryObservation(
+                (began - start) // 1_000_000,
+                (ended - start) // 1_000_000,
+                actual,
+                error,
+            )
+            observations.append(item)
+            result = query_observation_result(policy, item, expected)
+            if result[0] is not VerificationObservation.NO_RESULT:
+                break
+            # There is one cutoff for all requests and all waits. Never issue a
+            # new query at/after it, or before the preceding query's interval.
+            wake = min(ended + policy.interval_ms * 1_000_000, deadline)
+            while self._clock_ns() < wake:
+                self._wait((wake - self._clock_ns()) / 1_000_000_000)
+        if not observations:
+            return CapturedBusinessVerification(
+                self._fact(
+                    request,
+                    VerificationObservation.DEADLINE_REACHED,
+                    gap_ids=("independent_query_deadline",),
+                )
+            )
+        elapsed = (self._clock_ns() - start) // 1_000_000
+        observation, gaps = derive_polled_query(policy, tuple(observations), elapsed, expected)
+        last_actual = observations[-1].actual_fields
+        return CapturedBusinessVerification(
+            self._fact(
+                request,
+                observation,
+                actual_result_ref=_mapping_digest(last_actual) if last_actual is not None else None,
+                gap_ids=gaps,
+            ),
+            last_actual,
+            tuple(observations),
+            elapsed,
         )
 
     @staticmethod
@@ -165,7 +317,7 @@ class BusinessVerificationAdapter:
 
 
 def _mapping_digest(value: Mapping[str, object]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    encoded = json.dumps(dict(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
     return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

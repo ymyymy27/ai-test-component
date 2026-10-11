@@ -250,6 +250,7 @@ class AuthorizationRef:
     credential_scope_ref: str
     plan_revision_ref: PlanRevisionRef
     consumed_by_attempt_id: str | None = None
+    step_revision_ref: StepRevisionRef | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -261,6 +262,24 @@ class AuthorizationRef:
             "credential_scope_ref",
         ):
             _require_text(getattr(self, name), name)
+        if self.step_revision_ref is not None and not isinstance(
+            self.step_revision_ref, StepRevisionRef
+        ):
+            raise ValueError("authorization step_revision_ref must be a StepRevisionRef")
+
+
+def authorization_action_basis(authorization: AuthorizationRef) -> tuple[object, ...]:
+    """An occupied grant still describes the same original authorized action."""
+    return (
+        authorization.authorization_id,
+        authorization.intent_id,
+        authorization.step_id,
+        authorization.resolved_input_digest,
+        authorization.target_ref,
+        authorization.credential_scope_ref,
+        authorization.plan_revision_ref,
+        authorization.step_revision_ref,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -599,10 +618,191 @@ class Attempt:
         return self.attempt_index - 1
 
 
+def attempt_start_basis(attempt: Attempt) -> tuple[object, ...]:
+    """Frozen execution identity; collection, control and transport progress are separate."""
+    return (
+        attempt.attempt_id,
+        attempt.run_id,
+        attempt.step_id,
+        attempt.attempt_index,
+        attempt.intent_id,
+        attempt.intent_digest,
+        attempt.resolved_input_digest,
+        attempt.step_revision_ref,
+        attempt.source_binding_digest,
+        attempt.side_effect_class,
+        attempt.adapter_kind,
+        attempt.adapter_version,
+        attempt.expected_plan_revision_ref,
+        attempt.consumed_outputs,
+        attempt.consumed_conditions,
+        attempt.business_idempotency_key_ref,
+        attempt.timeout_ms,
+        authorization_action_basis(attempt.authorization_ref)
+        if attempt.authorization_ref is not None
+        else None,
+    )
+
+
+def is_verified_exit_fact(
+    attempt_id: str, process_start_identity: str | None, fact: ExitFact | None
+) -> bool:
+    """Validate the same exit identity for saved domain facts and DTO projections."""
+    return (
+        process_start_identity is not None
+        and fact is not None
+        and fact.attempt_id == attempt_id
+        and fact.process_start_identity == process_start_identity
+        and isinstance(fact.termination_reason, ProcessTerminationReason)
+        and fact.termination_reason
+        in {
+            ProcessTerminationReason.NATURAL_EXIT,
+            ProcessTerminationReason.CONFIRMED_STOP,
+            ProcessTerminationReason.TIMEOUT,
+            ProcessTerminationReason.CAPTURE_FAILURE,
+        }
+        and type(fact.timed_out) is bool
+        and (
+            type(fact.real_exit_code) is int
+            or fact.real_exit_code is None
+            and fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+        )
+    )
+
+
+def has_verified_exit(attempt: Attempt) -> bool:
+    """A saved exit belongs to this actual process and proves its termination."""
+    handle = attempt.execution_handle_ref
+    return is_verified_exit_fact(
+        attempt.attempt_id,
+        handle.process_start_identity if handle is not None else None,
+        attempt.exit_fact_ref,
+    )
+
+
+def execution_boundary_pending(attempt: Attempt) -> bool:
+    """Active collection and an unknown execution exit both keep the core alive."""
+    return attempt.state in {
+        AttemptState.INTENT_RECORDED,
+        AttemptState.STARTING,
+        AttemptState.RUNNING,
+        AttemptState.STOP_REQUESTED,
+        AttemptState.COLLECTING,
+    } or not has_verified_exit(attempt)
+
+
+def has_complete_capture(attempt: Attempt) -> bool:
+    """Complete capture has contiguous saved blocks and matching durable exit totals.
+
+    Physical byte verification belongs to the material reader. A real exit by
+    itself, sealed individual blocks, or an adapter's completeness flag cannot
+    establish this closure. Empty output is valid when every stream map is empty.
+    """
+    fact = attempt.exit_fact_ref
+    if (
+        attempt.capture_completeness is not CaptureCompleteness.COMPLETE
+        or not has_verified_exit(attempt)
+        or fact is None
+        or fact.capture_completeness is not CaptureCompleteness.COMPLETE
+    ):
+        return False
+    indexes = _capture_counts(fact.last_block_index_by_stream)
+    sizes = _capture_counts(fact.saved_bytes_by_stream)
+    if indexes is None or sizes is None:
+        return False
+    streams: dict[OutputStreamName, list[OutputBlockRef]] = {}
+    for block in attempt.output_block_refs:
+        if (
+            block.attempt_id != attempt.attempt_id
+            or not isinstance(block.stream_name, OutputStreamName)
+            or block.complete is not True
+            or any(
+                type(value) is not int or value < 0
+                for value in (block.block_index, block.offset, block.length)
+            )
+        ):
+            return False
+        streams.setdefault(block.stream_name, []).append(block)
+    cursors = {cursor.stream_name: cursor for cursor in attempt.output_cursors}
+    if (
+        len(cursors) != len(attempt.output_cursors)
+        or set(streams) != set(cursors)
+        or set(streams) != set(indexes)
+        or set(streams) != set(sizes)
+    ):
+        return False
+    for stream, blocks in streams.items():
+        ordered = sorted(blocks, key=lambda block: block.block_index)
+        offset = 0
+        for index, block in enumerate(ordered):
+            if block.block_index != index or block.offset != offset:
+                return False
+            offset += block.length
+        last = ordered[-1]
+        cursor = cursors[stream]
+        if (
+            cursor.attempt_id != attempt.attempt_id
+            or not isinstance(cursor.stream_name, OutputStreamName)
+            or type(cursor.offset) is not int
+            or type(cursor.last_block_index) is not int
+            or cursor.durable is not True
+            or (cursor.offset, cursor.last_block_index, cursor.last_committed_digest)
+            != (offset, last.block_index, last.digest)
+            or indexes[stream] != last.block_index
+            or sizes[stream] != offset
+        ):
+            return False
+    return True
+
+
+def _capture_counts(
+    entries: tuple[tuple[OutputStreamName, int], ...],
+) -> dict[OutputStreamName, int] | None:
+    if type(entries) is not tuple:
+        return None
+    result: dict[OutputStreamName, int] = {}
+    for entry in entries:
+        if type(entry) is not tuple or len(entry) != 2:
+            return None
+        stream, count = entry
+        if (
+            not isinstance(stream, OutputStreamName)
+            or stream in result
+            or type(count) is not int
+            or count < 0
+        ):
+            return None
+        result[stream] = count
+    return result
+
+
+def has_reliable_terminal_fact(attempt: Attempt) -> bool:
+    """Preserve only a terminal state supported by the original process exit."""
+    if not has_verified_exit(attempt):
+        return False
+    fact = attempt.exit_fact_ref
+    assert fact is not None
+    if attempt.state is AttemptState.COMPLETED:
+        return (
+            fact.termination_reason is ProcessTerminationReason.NATURAL_EXIT and not fact.timed_out
+        )
+    if attempt.state is AttemptState.CANCELLED:
+        return (
+            fact.termination_reason is ProcessTerminationReason.CONFIRMED_STOP
+            and not fact.timed_out
+        )
+    return attempt.state in {AttemptState.EXECUTION_ERROR, AttemptState.INVALIDATED}
+
+
 @dataclass(frozen=True, slots=True)
 class RecoveryRecord:
     checkpoint: RecoveryCheckpoint
     attempt: Attempt
+    project_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.project_id is not None:
+            _require_text(self.project_id, "checkpoint project_id")
 
 
 class ExecutionInspectionState(StrEnum):
@@ -666,6 +866,8 @@ __all__ = [
     "AdapterKind",
     "Attempt",
     "AttemptState",
+    "attempt_start_basis",
+    "authorization_action_basis",
     "AuthorizationRef",
     "CaptureCompleteness",
     "CapturedOutputBlock",
@@ -681,6 +883,7 @@ __all__ = [
     "ExecutionStatus",
     "ExitFact",
     "FailureClass",
+    "has_complete_capture",
     "InputRef",
     "OutputStreamName",
     "OutputBlockRef",

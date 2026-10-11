@@ -1,0 +1,24 @@
+.....F.................................................................. [ 74%]
+.........................                                                [100%]
+================================== FAILURES ===================================
+_ test_attachment_loss_after_publication_is_reported_without_altering_saved_root _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000124BE0AB2F0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x00000124BE0AB1D0>)
+
+    def test_attachment_loss_after_publication_is_reported_without_altering_saved_root(core) -> None:
+        store = FileObjectStore(core.workspace.root)
+        reference = asdict(store.publish_bytes("project", b"observed output"))
+        stage_reference(core, reference)
+        core.unit_of_work.commit("request")
+        pointer = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        (core.workspace.root / str(reference["relative_path"])).unlink()
+>       with pytest.raises(CommitMaterialError, match="object reference"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'object reference'
+E         Actual message: 'current commit cannot be verified'
+
+tests\unit\test_commit_object_closure.py:78: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_commit_object_closure.py::test_attachment_loss_after_publication_is_reported_without_altering_saved_root
+1 failed, 96 passed in 89.10s (0:01:29)

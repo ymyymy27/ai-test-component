@@ -1,0 +1,135 @@
+FFFFFF                                                                   [100%]
+================================== FAILURES ===================================
+___ test_default_check_source_rejects_lost_or_changed_fixed_bytes[missing] ____
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001628FAD4C20>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_default_check_source_reje0/workspace"))
+damage = 'missing'
+
+    @pytest.mark.parametrize("damage", ["missing", "changed"])
+    def test_default_check_source_rejects_lost_or_changed_fixed_bytes(stack, damage):
+        core, source, root = stack
+        seed(core, source)
+        pinned = analyze(core)
+        assert pinned.error is None
+        path = blob_path(root, pinned.result)
+        if damage == "missing":
+            path.unlink()
+        else:
+            path.write_bytes(b"VALUE = 9\n")
+        before = FileCommitStore(root).read_current()["pointer"]
+        result = dispatch(core, "check_source", parameters={"snapshot_id": pinned.result["snapshot_id"], "revision": 1})
+>       assert result.error is not None and result.error.code == "B_SOURCE_UNVERIFIED"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='check_source-request', instance_id='source-core', workspace_...], 'removed': [], 'modified': []}, 'binding_state': 'unchanged', 'git_state': 'not_applicable'}, page=None, error=None).error
+
+tests\unit\test_pinned_source_closure.py:31: AssertionError
+___ test_default_check_source_rejects_lost_or_changed_fixed_bytes[changed] ____
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001628FA8A210>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_default_check_source_reje1/workspace"))
+damage = 'changed'
+
+    @pytest.mark.parametrize("damage", ["missing", "changed"])
+    def test_default_check_source_rejects_lost_or_changed_fixed_bytes(stack, damage):
+        core, source, root = stack
+        seed(core, source)
+        pinned = analyze(core)
+        assert pinned.error is None
+        path = blob_path(root, pinned.result)
+        if damage == "missing":
+            path.unlink()
+        else:
+            path.write_bytes(b"VALUE = 9\n")
+        before = FileCommitStore(root).read_current()["pointer"]
+        result = dispatch(core, "check_source", parameters={"snapshot_id": pinned.result["snapshot_id"], "revision": 1})
+>       assert result.error is not None and result.error.code == "B_SOURCE_UNVERIFIED"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='check_source-request', instance_id='source-core', workspace_...], 'removed': [], 'modified': []}, 'binding_state': 'unchanged', 'git_state': 'not_applicable'}, page=None, error=None).error
+
+tests\unit\test_pinned_source_closure.py:31: AssertionError
+_____ test_loss_after_pin_before_business_publish_does_not_consume_intent _____
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001628FB5C050>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_loss_after_pin_before_bus0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001628FA27E10>
+
+    def test_loss_after_pin_before_business_publish_does_not_consume_intent(stack, monkeypatch):
+        core, source, root = stack
+        seed(core, source)
+        original = FileSourceSnapshotStore.pin
+    
+        def lose_blob(self, **kwargs):
+            metadata = original(self, **kwargs)
+            (root / "snapshots/blobs" / metadata["files"][0]["sha256"]).unlink()
+            return metadata
+    
+        monkeypatch.setattr(FileSourceSnapshotStore, "pin", lose_blob)
+        before = FileCommitStore(root).read_current()["pointer"]
+        result = analyze(core)
+>       assert result.error is not None and result.error.code == "B_SOURCE_UNVERIFIED"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id='342af...185b91e717da818', 'binding_id': 'binding-project', 'binding_revision': 1, 'purpose': 'prepare'}, page=None, error=None).error
+
+tests\unit\test_pinned_source_closure.py:48: AssertionError
+__________ test_current_manifest_rechecks_its_referenced_fixed_bytes __________
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001628FB656E0>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_current_manifest_rechecks0/workspace"))
+
+    def test_current_manifest_rechecks_its_referenced_fixed_bytes(stack):
+        core, source, root = stack
+        seed(core, source)
+        pinned = analyze(core)
+        assert pinned.error is None
+        path = blob_path(root, pinned.result)
+        before = FileCommitStore(root).read_current()["pointer"]
+        path.unlink()
+>       with pytest.raises(CommitMaterialError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE CommitMaterialError
+
+tests\unit\test_pinned_source_closure.py:61: Failed
+_______ test_new_commit_digest_list_includes_pinned_manifest_and_blobs ________
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001628FB66780>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_new_commit_digest_list_in0/workspace"))
+
+    def test_new_commit_digest_list_includes_pinned_manifest_and_blobs(stack):
+        core, source, root = stack
+        seed(core, source)
+        pinned = analyze(core)
+        assert pinned.error is None
+        path = blob_path(root, pinned.result)
+        current = FileCommitStore(root).read_current(verify_material=True)["manifest"]
+        paths = {item["path"] for item in current["file_digests"]}
+>       assert path.relative_to(root).as_posix() in paths
+E       assert 'snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189' in {'event-log/pages/1580aa3df9dda41797579aad605695b51cf14598d90999f1275e0a2e0e214da2.json', 'indexes/business/1e02e570d4...0afb95be9c3f2c03d38e091906de31838813dcc22e/bd07b3fdc7fb4d311ad00f4af075fc7f828b1210eb45b2d8fc4473de89f4af82.json', ...}
+E        +  where 'snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189' = as_posix()
+E        +    where as_posix = WindowsPath('snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189').as_posix
+E        +      where WindowsPath('snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189') = relative_to(WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_new_commit_digest_list_in0/workspace"))
+E        +        where relative_to = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_new_commit_digest_list_in0/workspace/snapshots/blobs/5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189").relative_to
+
+tests\unit\test_pinned_source_closure.py:74: AssertionError
+_ test_duplicate_snapshot_json_fields_are_rejected_even_if_last_value_is_correct _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001628FB41A30>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-539/test_duplicate_snapshot_json_f0/workspace"))
+
+    def test_duplicate_snapshot_json_fields_are_rejected_even_if_last_value_is_correct(stack):
+        core, source, root = stack
+        seed(core, source)
+        pinned = analyze(core)
+        assert pinned.error is None
+        snapshot_id = pinned.result["pinned_snapshot_id"]
+        path = root / "snapshots" / (snapshot_id + ".json")
+        original = path.read_text(encoding="utf-8")
+        path.write_text('{"purpose":"false earlier value",' + original.lstrip()[1:], encoding="utf-8")
+        raw = path.read_bytes()
+        assert json.loads(raw)["purpose"] == "prepare"
+>       with pytest.raises(SnapshotError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SnapshotError
+
+tests\unit\test_pinned_source_closure.py:89: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_pinned_source_closure.py::test_default_check_source_rejects_lost_or_changed_fixed_bytes[missing]
+FAILED tests/unit/test_pinned_source_closure.py::test_default_check_source_rejects_lost_or_changed_fixed_bytes[changed]
+FAILED tests/unit/test_pinned_source_closure.py::test_loss_after_pin_before_business_publish_does_not_consume_intent
+FAILED tests/unit/test_pinned_source_closure.py::test_current_manifest_rechecks_its_referenced_fixed_bytes
+FAILED tests/unit/test_pinned_source_closure.py::test_new_commit_digest_list_includes_pinned_manifest_and_blobs
+FAILED tests/unit/test_pinned_source_closure.py::test_duplicate_snapshot_json_fields_are_rejected_even_if_last_value_is_correct

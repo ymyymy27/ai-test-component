@@ -1,0 +1,25 @@
+{
+  "distinct_passed": 417,
+  "final_gates": {
+    "passed": 28,
+    "seconds": 187.91
+  },
+  "contract_architecture_binding": {
+    "passed": 256,
+    "seconds": 9.42
+  },
+  "default_risk_regression": {
+    "passed": 133,
+    "seconds": 736.35
+  },
+  "full_python_run": false,
+  "ruff": "passed",
+  "mypy_source_files": 160,
+  "schema_generated_change": false,
+  "version": "0.4.0",
+  "offline_build": "passed",
+  "modified_product_modules_package_byte_match": 8,
+  "isolated_wheel_smoke": "passed",
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22
+}

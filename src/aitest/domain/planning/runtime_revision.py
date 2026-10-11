@@ -43,6 +43,7 @@ from aitest.domain.planning.plans import (
     AssertionBasis,
     AssertionBasisState,
     Case,
+    CaseRevisionRef,
     ConfirmationRecord,
     Plan,
     PlanPublicationStatus,
@@ -145,23 +146,30 @@ class StepRuntimeProgress(StrEnum):
 
 
 def step_runtime_progress(
-    state: StepRuntimeState, *, current_attempt_state: AttemptRuntimeState | None
+    state: StepRuntimeState,
+    *,
+    current_attempt_state: AttemptRuntimeState | None,
+    historical_attempt_states: tuple[AttemptRuntimeState, ...] = (),
 ) -> StepRuntimeProgress:
     """按 C 的事实派生步骤进度。
 
     | 事实 | 分类 | 对运行中修订的含义 |
     | --- | --- | --- |
-    | 当前尝试在 `intent_recorded`…`collecting`，或步骤 `running` | `EXECUTING` | **拒绝修改** |
-    | 步骤 `pending` / `ready` / `blocked` / `invalidated` | `NOT_STARTED` | 修订可以作用 |
-    | 步骤已停在待核实／完成／取消／执行错误 | `FACTS_RECORDED` | 绑定原修订，不回改 |
+    | 任一尝试在 `intent_recorded`…`collecting`，或步骤 `running` | `EXECUTING` | **拒绝修改** |
+    | 存在其他尝试事实，或步骤已停在待核实／完成／取消／执行错误 | `FACTS_RECORDED` | 原内容不回改 |
+    | 无尝试且步骤 `pending` / `ready` / `blocked` / `invalidated` | `NOT_STARTED` | 可修改 |
 
-    `invalidated` 归入"尚未执行"：C 已判定该步骤需要重跑，它不再是历史事实。
-    尝试状态优先于步骤状态——步骤状态滞后时不能让一个仍在跑的尝试被改写。
+    失效的是依据，已有Attempt事实不能因Step投影滞后或失效而成为未执行内容。
+    历史尝试的活动状态也不能由当前引用替换证明已经停止；本分类不改变当前身份或结论。
     """
     if current_attempt_state is not None and current_attempt_state in ACTIVE_ATTEMPT_STATES:
         return StepRuntimeProgress.EXECUTING
+    if any(state in ACTIVE_ATTEMPT_STATES for state in historical_attempt_states):
+        return StepRuntimeProgress.EXECUTING
     if state is StepRuntimeState.RUNNING:
         return StepRuntimeProgress.EXECUTING
+    if current_attempt_state is not None or historical_attempt_states:
+        return StepRuntimeProgress.FACTS_RECORDED
     if state in _UNSTARTED_STEP_STATES:
         return StepRuntimeProgress.NOT_STARTED
     return StepRuntimeProgress.FACTS_RECORDED
@@ -179,6 +187,7 @@ class StepRuntimeFacts:
     current_attempt_state: AttemptRuntimeState | None = None
     invalidated: bool = False
     step_revision_no: int = 1
+    historical_attempt_states: tuple[AttemptRuntimeState, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.step_id, "step_id")
@@ -190,7 +199,9 @@ class StepRuntimeFacts:
 
     def progress(self) -> StepRuntimeProgress:
         return step_runtime_progress(
-            self.state, current_attempt_state=self.current_attempt_state
+            self.state,
+            current_attempt_state=self.current_attempt_state,
+            historical_attempt_states=self.historical_attempt_states,
         )
 
 
@@ -216,6 +227,7 @@ class RunRuntimeFacts:
     frozen_required_case_ids: frozenset[str] = frozenset()
     mandatory_case_ids: frozenset[str] = frozenset()
     steps: tuple[StepRuntimeFacts, ...] = ()
+    effective_case_revisions: tuple[CaseRevisionRef, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.run_id, "run_id")
@@ -231,6 +243,9 @@ class RunRuntimeFacts:
         if self.runtime_revision_count < 0:
             raise ValueError("runtime_revision_count must be >= 0")
         _require_unique([step.step_id for step in self.steps], "step_id")
+        _require_unique([ref.case_id for ref in self.effective_case_revisions], "effective case_id")
+        if any(type(ref.revision) is not int for ref in self.effective_case_revisions):
+            raise ValueError("effective case references require exact integer revisions")
 
     def steps_of(self, case_id: str) -> tuple[StepRuntimeFacts, ...]:
         return tuple(step for step in self.steps if step.case_id == case_id)
@@ -293,7 +308,7 @@ class RuntimeRevisionRequest:
       （ID + 修订 + 摘要）。只比修订号不够——检查项 B-15 的反例正是"同修订号、不同
       `plan_id`"的计划被当成冻结依据接受。摘要为可选是为了兼容只做修订号核对的旧调用方，
       但**应用层一律给出**：`plan_revision_digest` 在 C 的事实里就有，不给就等于放弃这项核对；
-    - `base_plan_revision_no`：本次修订所依据的冻结计划修订，必须与计划**和** C 的事实一致；
+    - `base_plan_revision_no`：冻结计划的仓储读取修订，须与 Plan.record_revision 和 C 的事实一致；
     - `observed_snapshot_cursor`：决策时读到的 C 快照游标；不一致即 `stale_snapshot`，
       保证"按同一 commit 读取整个快照"（`CD-001` 第 3 节）而不是在混合快照上做决策；
     - `requested_driver`：只允许 `planned → stepwise` 收窄，反向由 `narrow_driver()` 拒绝；
@@ -319,11 +334,11 @@ class RuntimeRevisionRequest:
             raise ValueError("observed_snapshot_cursor must be >= 0")
         _require_text(self.reason, "reason")
         _require_text(self.operator_ref, "operator_ref")
-        if not self.case_changes:
-            raise ValueError("a runtime revision must change at least one case")
-        _require_unique(
-            [change.next_case.case_id for change in self.case_changes], "case_id"
-        )
+        if not self.case_changes and self.requested_driver is None:
+            raise ValueError(
+                "a runtime revision must change at least one case or request a driver change"
+            )
+        _require_unique([change.next_case.case_id for change in self.case_changes], "case_id")
 
 
 @dataclass(frozen=True, slots=True)
@@ -381,9 +396,7 @@ _BASIS_RANK: dict[AssertionBasisState, int] = {
 }
 
 
-def assertion_basis_weakened(
-    *, current: AssertionBasis, requested: AssertionBasis
-) -> bool:
+def assertion_basis_weakened(*, current: AssertionBasis, requested: AssertionBasis) -> bool:
     """按**内容**判定断言是否被弱化，不看调用者怎么称呼这次改动。
 
     - 把依据改回 `missing`（删掉断言）→ 弱化；
@@ -422,15 +435,18 @@ def evaluate_runtime_revision(
             "an unpublished plan has no frozen run to revise",
         )
 
+    plan_record_revision = plan.record_revision or plan.revision
     if (
         request.base_plan_revision_id != plan.plan_id
-        or plan.revision != facts.plan_revision_no
-        or request.base_plan_revision_no != plan.revision
+        or plan.plan_id != facts.plan_revision_id
+        or plan_record_revision != facts.plan_revision_no
+        or request.base_plan_revision_no != plan_record_revision
     ):
         refuse(
             RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH,
             "frozen plan "
-            f"{plan.plan_id}@{plan.revision}, request base plan "
+            f"{plan.plan_id}@{plan_record_revision} (body version {plan.revision}), "
+            "request base plan "
             f"{request.base_plan_revision_id}@{request.base_plan_revision_no}, "
             f"facts plan {facts.plan_revision_id}@{facts.plan_revision_no}",
         )
@@ -464,9 +480,7 @@ def evaluate_runtime_revision(
     effective_driver = facts.driver
     new_run_required = False
     try:
-        effective_driver = narrow_driver(
-            facts.driver, request.requested_driver or facts.driver
-        )
+        effective_driver = narrow_driver(facts.driver, request.requested_driver or facts.driver)
     except ValueError:
         refuse(
             RuntimeRevisionRefusalCode.DRIVER_EXPANSION,
@@ -477,11 +491,23 @@ def evaluate_runtime_revision(
         effective_driver = facts.driver
 
     frozen_refs = {ref.case_id: ref for ref in plan.case_revisions}
+    effective_refs = {ref.case_id: ref for ref in facts.effective_case_revisions}
+    if effective_refs and (
+        set(effective_refs) != set(frozen_refs)
+        or facts.runtime_revision_count < 1
+        or any(
+            ref.revision < frozen_refs[key].revision
+            for key, ref in effective_refs.items()
+            if key in frozen_refs
+        )
+    ):
+        refuse(
+            RuntimeRevisionRefusalCode.FROZEN_CASE_REVISION_MISMATCH,
+            "effective case references require the complete saved runtime basis",
+        )
     provided = {case.case_id: case for case in cases}
     mandatory = (
-        plan.scope.required_case_ids
-        | facts.frozen_required_case_ids
-        | facts.mandatory_case_ids
+        plan.scope.required_case_ids | facts.frozen_required_case_ids | facts.mandatory_case_ids
     )
 
     affected: list[str] = []
@@ -495,6 +521,7 @@ def evaluate_runtime_revision(
         next_case = change.next_case
         case_id = next_case.case_id
         frozen_ref = frozen_refs.get(case_id)
+        effective_ref = effective_refs.get(case_id, frozen_ref)
         current = provided.get(case_id)
 
         if frozen_ref is None:
@@ -503,17 +530,18 @@ def evaluate_runtime_revision(
                 f"{case_id} is not frozen in the published plan",
             )
             continue
-        if current is None or current.revision != frozen_ref.revision:
+        assert effective_ref is not None
+        if current is None or current.revision != effective_ref.revision:
             refuse(
                 RuntimeRevisionRefusalCode.FROZEN_CASE_REVISION_MISMATCH,
-                f"{case_id} needs the frozen case revision {frozen_ref.revision}",
+                f"{case_id} needs the effective case revision {effective_ref.revision}",
             )
             continue
-        if next_case.revision <= frozen_ref.revision:
+        if next_case.revision <= effective_ref.revision:
             refuse(
                 RuntimeRevisionRefusalCode.CASE_REVISION_NOT_ADVANCED,
                 f"{case_id} next revision {next_case.revision} must advance past "
-                f"{frozen_ref.revision}",
+                f"{effective_ref.revision}",
             )
 
         if change.remove_from_required and case_id in mandatory:
@@ -579,9 +607,7 @@ def evaluate_runtime_revision(
             continue
 
         executing = [
-            step.step_id
-            for step in case_steps
-            if step.progress() is StepRuntimeProgress.EXECUTING
+            step.step_id for step in case_steps if step.progress() is StepRuntimeProgress.EXECUTING
         ]
         if executing:
             refuse(
@@ -607,19 +633,14 @@ def evaluate_runtime_revision(
             if named_recorded:
                 refuse(
                     RuntimeRevisionRefusalCode.STEP_FACTS_ALREADY_RECORDED,
-                    "steps that already recorded facts cannot be rewritten: "
-                    f"{named_recorded}",
+                    f"steps that already recorded facts cannot be rewritten: {named_recorded}",
                 )
-            targets = [
-                step for step in case_steps if step.step_id in set(change.target_step_ids)
-            ]
+            targets = [step for step in case_steps if step.step_id in set(change.target_step_ids)]
         else:
             targets = list(case_steps)
 
         fresh = sorted(
-            step.step_id
-            for step in targets
-            if step.progress() is StepRuntimeProgress.NOT_STARTED
+            step.step_id for step in targets if step.progress() is StepRuntimeProgress.NOT_STARTED
         )
         if not fresh:
             refuse(

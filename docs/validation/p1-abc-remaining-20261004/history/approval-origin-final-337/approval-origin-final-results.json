@@ -1,0 +1,27 @@
+{
+  "gates": {
+    "passed": 46,
+    "seconds": 160.8,
+    "log": "approval-origin-final-gates.log"
+  },
+  "affected": {
+    "passed": 291,
+    "seconds": 1133.98,
+    "log": "approval-origin-affected-first.log"
+  },
+  "distinct_passed": 337,
+  "ruff": "passed",
+  "mypy_source_files": 158,
+  "schema": "generated_no_diff",
+  "version": "0.4.0",
+  "wheel_sdist": "offline build passed; 12 modified product modules byte matched; isolated wheel smoke passed",
+  "docs": {
+    "files": 23,
+    "links": 987,
+    "ast_anchors": "passed"
+  },
+  "full_python": "not rerun for this incremental phase",
+  "real_ac_verified": 0,
+  "issues_closed": [],
+  "remaining_product_issues": 22
+}

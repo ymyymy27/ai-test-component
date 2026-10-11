@@ -1,0 +1,10 @@
+{
+  "pregranted_independent_action": "1_failed",
+  "seconds": 334.99,
+  "legacy_runner_consumption": "still_open",
+  "original_29_and_103_groups": "still_running_not_claimed",
+  "log_files": [
+    "authorization-origin-pregranted-before.log",
+    "authorization-origin-pregranted-probe.py.txt"
+  ]
+}

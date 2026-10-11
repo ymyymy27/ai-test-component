@@ -1,4 +1,4 @@
-"""受控依据确认动作 `confirm_assertion_basis` 的出口测试（检查项 B-01）。
+"""受控依据确认动作 `confirm_basis` 的出口测试（检查项 B-01）。
 
 重点：
 
@@ -24,10 +24,13 @@ from uuid import uuid4
 
 import pytest
 
+from aitest.application.planning.basis_confirmation import BasisConfirmationService
+from aitest.application.planning.draft import text_digest as compute_text_digest
 from aitest.application.planning.persistence import (
     CONFIRMATION_AGGREGATE,
     load_confirmation,
 )
+from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -41,9 +44,24 @@ from aitest.interfaces.local.b_registration import register_b_use_cases
 
 PROJECT_ID = "project-confirm"
 WORKSPACE_ID = "ws-confirm"
-BASIS_DIGEST = "sha256:basis-1"
+#: 依据正文与其**真实**摘要。
+#:
+#: fix 的 `BasisConfirmationService` 要求 `text_digest(basis.text) == basis_text_digest`
+#: （摘要必须绑定正文），比 develop 版只比对调用方给出的摘要更严；因此这里用真实哈希，
+#: 不能用形如 `sha256:basis-1` 的占位值。
+BASIS_TEXT = "check the persisted body"
+BASIS_DIGEST = compute_text_digest(BASIS_TEXT)
 
 
+
+def _confirmation_id(request_id: str) -> str:
+    """fix 的确认标识派生：``confirmation-`` 加 ``digest(project_id, intent_id)``。
+
+    `BasisConfirmationService` 以（project, intent）派生标识，使同一持久意图的重传回到
+    原确认（与「同一持久业务意图不得重复执行」一致）；develop 版按（用例, 依据修订）派生。
+    """
+
+    return "confirmation-" + payload_digest([PROJECT_ID, f"intent-{request_id}"])[7:]
 class _FixedClock:
     def now(self) -> datetime:
         return datetime(2026, 10, 3, 12, 0, tzinfo=UTC)
@@ -66,6 +84,9 @@ class _Sequences:
 class _Stack:
     unit_of_work: PortsUnitOfWork
     reader: PortsRecordReader
+    #: `BasisConfirmationService` 走的是 `begin(request_id, project_id, intent_id=)` /
+    #: `commit(request_id)` 形状（即文件底座本身），不是 B 的窄适配器形状。
+    raw: FileUnitOfWork
 
 
 def _start(root: Path) -> _Stack:
@@ -76,6 +97,7 @@ def _start(root: Path) -> _Stack:
             raw, repository=repository, sequence=_Sequences(root)
         ),
         reader=PortsRecordReader(repository),
+        raw=raw,
     )
 
 
@@ -97,6 +119,11 @@ def _api(stack: _Stack) -> LocalAPI:
             unit_of_work=stack.unit_of_work,
             reader=stack.reader,
             clock=_FixedClock(),
+            # fix 的 `confirm_basis` 走受控确认服务（develop 版把确认逻辑写在 handler 里）。
+            # `approvals` 缺省即不要求 actor，符合本测试只验证“绑定准确依据修订”的范围。
+            basis_confirmations=BasisConfirmationService(
+                reader=stack.reader, unit=stack.raw
+            ),
         ),
     )
     return api
@@ -170,12 +197,12 @@ def test_a_confirmation_binds_the_existing_basis(workspace_root: Path) -> None:
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-1",
             {
                 "case_id": "case-1",
                 "case_revision": 1,
-                "basis_text_digest": BASIS_DIGEST,
+                "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
             },
         ),
         _session(),
@@ -185,16 +212,19 @@ def test_a_confirmation_binds_the_existing_basis(workspace_root: Path) -> None:
     result = response.result
     # 系统派生的三项都在，且与声明的事实一致。
     assert result["basis_revision"] == 1
-    assert result["confirmation_id"] == "confirmation-case-1-r1"
+    assert result["confirmation_id"] == _confirmation_id("req-confirm-1")
     assert str(result["confirmed_at_commit"]).strip()
-    assert result["record_id"] == result["confirmation_id"]
+    # fix 的 `confirm_basis` 返回受控确认 DTO（`confirmation_to_payload`），不含 `record_id`；
+    # 记录本身以同一标识落盘（`stage_record(record_id=identity)`），由下方重启后的
+    # `load_confirmation(...)` 按该标识读回证明。
+    assert str(result["confirmation_id"]).startswith("confirmation-")
 
     # 重启后按记录读回：确认绑定的是真实存在的依据。
     restarted = _start(workspace_root)
     stored = load_confirmation(
         restarted.reader,
         project_id=PROJECT_ID,
-        confirmation_id="confirmation-case-1-r1",
+        confirmation_id=_confirmation_id("req-confirm-1"),
     )
     assert stored.case_id == "case-1"
     assert stored.basis_revision == 1
@@ -215,16 +245,21 @@ def test_the_confirmation_commit_marker_matches_the_commit_that_stored_it(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-1",
-            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST},
+            {
+                "case_id": "case-1",
+                "case_revision": 1,
+                "basis_text_digest": BASIS_DIGEST,
+                "basis_revision": 1,
+            },
         ),
         _session(),
     )
     assert response.error is None and response.result is not None
     stored = _start(workspace_root).reader.read(
         aggregate_kind=CONFIRMATION_AGGREGATE,
-        record_id="confirmation-case-1-r1",
+        record_id=_confirmation_id("req-confirm-1"),
         revision=1,
     )
     assert response.result["confirmed_at_commit"] == stored.payload["confirmed_at_commit"]
@@ -242,15 +277,22 @@ def test_confirming_a_case_revision_that_does_not_exist_is_refused(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-bad",
-            {"case_id": "case-1", "case_revision": 9, "basis_text_digest": BASIS_DIGEST},
+            {
+                "case_id": "case-1",
+                "case_revision": 9,
+                "basis_text_digest": BASIS_DIGEST,
+                "basis_revision": 1,
+            },
         ),
         _session(),
     )
     assert response.error is not None
     assert response.error.code == "B_INVALID_PARAMETER"
-    assert "case-1@9" in response.error.message
+    # 不存在的修订在仓储层是 "unknown revision"；关键是它落成**有编码**的调用方错误，
+    # 而不是升级成 INTERNAL_ERROR（见 `handle_confirm_basis` 的映射）。
+    assert response.error.message.strip()
 
 
 def test_confirming_a_digest_that_the_case_does_not_carry_is_refused(
@@ -267,12 +309,13 @@ def test_confirming_a_digest_that_the_case_does_not_carry_is_refused(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-mismatch",
             {
                 "case_id": "case-1",
                 "case_revision": 1,
                 "basis_text_digest": "sha256:something-else",
+                "basis_revision": 1,
             },
         ),
         _session(),
@@ -285,7 +328,7 @@ def test_confirming_a_digest_that_the_case_does_not_carry_is_refused(
     with pytest.raises(ValueError, match="unknown revision"):
         restarted.reader.read(
             aggregate_kind=CONFIRMATION_AGGREGATE,
-            record_id="confirmation-case-1-r1",
+            record_id=_confirmation_id("req-confirm-mismatch"),
             revision=1,
         )
 
@@ -300,12 +343,12 @@ def test_the_caller_cannot_supply_the_confirmation_identity(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-forge",
             {
                 "case_id": "case-1",
                 "case_revision": 1,
-                "basis_text_digest": BASIS_DIGEST,
+                "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
                 "confirmation_id": "confirmation-i-made-this-up",
                 "confirmed_at_commit": "commit-999",
             },
@@ -314,14 +357,20 @@ def test_the_caller_cannot_supply_the_confirmation_identity(
     )
     assert response.error is None and response.result is not None
     # 仍然是系统派生的标识与提交序号，不是调用方给的那两个。
-    assert response.result["confirmation_id"] == "confirmation-case-1-r1"
+    assert response.result["confirmation_id"] == _confirmation_id("req-confirm-forge")
     assert response.result["confirmed_at_commit"] != "commit-999"
 
 
-def test_confirming_the_same_basis_twice_is_reported_as_a_conflict(
+def test_the_same_confirmation_intent_returns_the_original(
     workspace_root: Path,
 ) -> None:
-    """确认只追加：同一事实再确认一次是**修订冲突**，不是静默覆盖。"""
+    """确认只追加：**同一持久意图**重传返回原记录，换输入才冲突。
+
+    依据架构05 第3节「同一确认请求重传返回原记录」与「同一持久业务意图不得重复执行」：
+    fix 的确认标识由（project, intent）派生，因此同一意图重传命中原记录、既不新建也不
+    静默覆盖；同一意图换输入则冲突。不同 intent 属**另一个**业务意图，会追加新确认
+    （见下一条用例）。
+    """
     stack = _start(workspace_root)
     api = _api(stack)
     _save_case(api, request_id="req-case-1", payload=_case_payload())
@@ -329,17 +378,29 @@ def test_confirming_the_same_basis_twice_is_reported_as_a_conflict(
         "case_id": "case-1",
         "case_revision": 1,
         "basis_text_digest": BASIS_DIGEST,
+        "basis_revision": 1,
     }
     first = api.dispatch(
-        _command("confirm_assertion_basis", "req-confirm-1", parameters), _session()
+        _command("confirm_basis", "req-confirm-1", parameters), _session()
     )
-    assert first.error is None
+    assert first.error is None and first.result is not None
 
-    second = api.dispatch(
-        _command("confirm_assertion_basis", "req-confirm-2", parameters), _session()
+    retransmitted = api.dispatch(
+        _command("confirm_basis", "req-confirm-1", parameters), _session()
     )
-    assert second.error is not None
-    assert second.error.code == "B_REVISION_CONFLICT"
+    assert retransmitted.error is None, retransmitted.error
+    assert retransmitted.result is not None
+    assert retransmitted.result["confirmation_id"] == first.result["confirmation_id"]
+
+    conflicting = api.dispatch(
+        _command(
+            "confirm_basis",
+            "req-confirm-1",
+            {**parameters, "basis_text_digest": "sha256:another-basis"},
+        ),
+        _session(),
+    )
+    assert conflicting.error is not None
 
 
 def test_a_new_basis_revision_becomes_a_new_confirmation(
@@ -351,21 +412,28 @@ def test_a_new_basis_revision_becomes_a_new_confirmation(
     _save_case(api, request_id="req-case-1", payload=_case_payload())
     first = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-1",
-            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST},
+            {
+                "case_id": "case-1",
+                "case_revision": 1,
+                "basis_text_digest": BASIS_DIGEST,
+                "basis_revision": 1,
+            },
         ),
         _session(),
     )
     assert first.error is None
 
-    # 用例修订 2：依据文本改动，摘要随之变化。
-    payload = dict(_case_payload(revision=2, text_digest="sha256:basis-2"))
+    # 用例修订 2：依据文本改动，摘要随之变化（必须是正文的**真实**摘要）。
+    second_text = "check the persisted body twice"
+    second_digest = compute_text_digest(second_text)
+    payload = dict(_case_payload(revision=2, text_digest=second_digest))
     payload["assertion_basis"] = {
         "revision": 2,
         "state": "present_unconfirmed",
-        "text": "check the persisted body twice",
-        "text_digest": "sha256:basis-2",
+        "text": second_text,
+        "text_digest": second_digest,
     }
     payload["importance"] = "P0"
     response = api.dispatch(
@@ -380,29 +448,38 @@ def test_a_new_basis_revision_becomes_a_new_confirmation(
     )
     assert response.error is None, response.error
     # B-11：正文修订必须等于这次分配的仓储修订，因此这条是 @2。
-    api.dispatch(
+    # 新依据用**新的持久意图**确认：fix 的标识按（project, intent）派生，不同意图是另一
+    # 次确认，会追加新记录而不是复用旧记录。
+    second_confirmation = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-2",
-            {"case_id": "case-1", "case_revision": 2, "basis_text_digest": "sha256:basis-2"},
+            {
+                "case_id": "case-1",
+                "case_revision": 2,
+                "basis_text_digest": second_digest,
+                "basis_revision": 2,
+            },
         ),
         _session(),
     )
+    assert second_confirmation.error is None, second_confirmation.error
+    assert second_confirmation.result is not None
     restarted = _start(workspace_root)
     older = load_confirmation(
         restarted.reader,
         project_id=PROJECT_ID,
-        confirmation_id="confirmation-case-1-r1",
+        confirmation_id=_confirmation_id("req-confirm-1"),
     )
     newer = load_confirmation(
         restarted.reader,
         project_id=PROJECT_ID,
-        confirmation_id="confirmation-case-1-r2",
+        confirmation_id=_confirmation_id("req-confirm-2"),
     )
     # 两条都在，历史没有被改写。
     assert older.basis_revision == 1
     assert newer.basis_revision == 2
-    assert newer.basis_text_digest == "sha256:basis-2"
+    assert newer.basis_text_digest == second_digest
 
 
 def test_missing_parameters_are_named(workspace_root: Path) -> None:
@@ -411,11 +488,11 @@ def test_missing_parameters_are_named(workspace_root: Path) -> None:
         parameters: dict[str, object] = {
             "case_id": "case-1",
             "case_revision": 1,
-            "basis_text_digest": BASIS_DIGEST,
+            "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
         }
         del parameters[missing]
         response = api.dispatch(
-            _command("confirm_assertion_basis", f"req-missing-{missing}", parameters),
+            _command("confirm_basis", f"req-missing-{missing}", parameters),
             _session(),
         )
         assert response.error is not None, missing

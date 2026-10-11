@@ -1,0 +1,15 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 2 items
+
+tests/unit/test_unused_authorization_origin_consumption.py::test_actual_start_revokes_other_saved_grant_before_external_call_and_replays PASSED [ 50%]
+tests/unit/test_unused_authorization_origin_consumption.py::test_actual_runtime_revision_requires_consumer_and_rolls_back_revocation_with_snapshot PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_unused_authorization_origin_consumption.py::test_actual_start_revokes_other_saved_grant_before_external_call_and_replays
+PASSED tests/unit/test_unused_authorization_origin_consumption.py::test_actual_runtime_revision_requires_consumer_and_rolls_back_revocation_with_snapshot
+======================== 2 passed in 402.04s (0:06:42) ========================

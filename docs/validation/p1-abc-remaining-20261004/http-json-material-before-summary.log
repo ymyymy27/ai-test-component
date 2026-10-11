@@ -1,0 +1,13 @@
+修前输出节选；完整原日志保留于.git/p1-abc-fix-20261003。
+SHA-256: 849b1204f330a007a847976a94dac8f4dae8f7dd50b6ad5ba1962b8e6ff426ca
+tests\unit\test_http_json_material.py:33: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":false,"value":true}]
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":{"paid":false,"paid":true}}]
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":NaN}]
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":Infinity}]
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":-Infinity}]
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":1e400}]
+FAILED tests/unit/test_http_json_material.py::test_ambiguous_json_response_is_unavailable_instead_of_verified[{"value":[{"amount":1e400}]}]
+FAILED tests/unit/test_http_json_material.py::test_excessive_json_depth_is_preserved_as_unknown_instead_of_crashing
+8 failed, 1 passed in 0.32s

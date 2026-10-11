@@ -1,0 +1,18 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short -x tests/unit/test_recovery_output_positions.py tests/unit/test_partial_capture_cursors.py tests/unit/test_partial_capture_material.py tests/unit/test_capture_completion_closure.py tests/unit/test_execution_observation_identity.py tests/unit/test_serial_runner.py tests/unit/test_execution_control.py tests/unit/test_confirmed_stop_partial_recovery.py tests/unit/test_recovery_observation_integrity.py tests/recovery/test_execution_recovery.py tests/recovery/test_execution_closure.py
+........................................................................ [ 48%]
+........................................................................ [ 97%]
+...                                                                      [100%]
+147 passed in 29.29s
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check src tests
+All checks passed!
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 189 source files
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe scripts/generate_schemas.py
+
+EXIT: 0

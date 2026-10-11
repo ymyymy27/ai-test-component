@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -66,8 +66,10 @@ from aitest.contracts.prepared_run import (
 _INVALIDATION_DESCRIPTIONS: Mapping[str, str] = {
     "project_revision": "project context changed",
     "binding_revision": "binding changed",
-    "snapshot_revision": "source bytes changed",
+    "snapshot_revision": "source snapshot record revision changed",
+    "snapshot_content_identity": "source bytes changed",
     "environment_revision": "environment changed",
+    "environment_content_identity": "actual environment content changed or is unverified",
     "plan_revision": "plan republished",
     "rules_revision": "rules republished",
     "template_revision": "template version changed",
@@ -102,11 +104,10 @@ class PreparationInputs:
     case_revisions: tuple[CaseRevisionRef, ...]
     frozen_cases: tuple[FrozenCase, ...]
     assertion_bases: tuple[AssertionBasisEntry, ...]
+    scope_id: str | None = None
     #: 项目上下文缺口；非空即阻塞（P1-AC17）。
     context_gaps: tuple[GapEntry, ...] = field(default_factory=tuple)
-    authorization_requirements: tuple[AuthorizationRequirement, ...] = field(
-        default_factory=tuple
-    )
+    authorization_requirements: tuple[AuthorizationRequirement, ...] = field(default_factory=tuple)
     model_outbound_policy_revision: int | None = None
     source_snippets_enabled: bool = False
     exclusion_rules: tuple[str, ...] = field(default_factory=tuple)
@@ -128,7 +129,7 @@ def _require_text(value: str, name: str) -> None:
         raise ValueError(f"{name} must not be empty")
 
 
-def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
+def preparation_payload(inputs: PreparationInputs | PreparedRun) -> dict[str, object]:
     """参与业务输入摘要的字段：**请求要什么**。
 
     摘要只覆盖**业务意图**与**人工选择**，键集合与 `PAYLOAD_FIELDS` 严格一致
@@ -166,13 +167,9 @@ def preparation_payload(inputs: PreparationInputs) -> dict[str, object]:
         "driver": inputs.initial_driver.value,
         "case_revision_ids": sorted({ref.case_id for ref in inputs.case_revisions}),
         "rule_version_ids": sorted({ref.rule_id for ref in inputs.rule_versions}),
-        "template_version_ids": sorted(
-            {ref.template_id for ref in inputs.template_versions}
-        ),
+        "template_version_ids": sorted({ref.template_id for ref in inputs.template_versions}),
         "selected_case_ids": sorted(inputs.selected_case_ids),
-        "skipped_scope": [
-            [entry.case_id, entry.reason] for entry in inputs.skipped_scope
-        ],
+        "skipped_scope": [[entry.case_id, entry.reason] for entry in inputs.skipped_scope],
         "applicability_exclusions": [
             [entry.case_id, entry.reason] for entry in inputs.applicability_exclusions
         ],
@@ -229,6 +226,8 @@ def _build(
     return PreparedRun(
         prepared_run_id=_prepared_run_id(inputs),
         project_id=inputs.project_id,
+        project_revision=inputs.input_revisions.project_revision,
+        scope_id=inputs.scope_id,
         workspace_id=inputs.workspace_id,
         binding_id=inputs.binding_id,
         binding_revision=inputs.binding_revision,
@@ -279,6 +278,8 @@ def prepare_run(
     reader: RecordReader,
     clock: Clock,
     existing: PreparedRun | None = None,
+    basis_verifier: Callable[[PreparedRun], tuple[BlockingReason, ...]] | None = None,
+    persist_snapshot: bool = False,
 ) -> PreparedRun:
     """编排一次准备；返回可直接展示的 `PreparedRun`。
 
@@ -298,6 +299,20 @@ def prepare_run(
     )
     digest = payload_hash(preparation_payload(inputs))
     now = clock.now()
+    if inputs.scope_id is None or not inputs.scope_id.strip():
+        return _build(
+            inputs,
+            intent_id=intent_id,
+            digest=digest,
+            created_at=now,
+            created_at_commit=unit_of_work.commit_seq(),
+            status=_STATUS_BLOCKED,
+            blocking_reasons=(
+                BlockingReason(
+                    code="needs_reprepare", message="A frozen scope_id is required; prepare again."
+                ),
+            ),
+        )
 
     # 步骤 1：项目上下文缺口 → 列缺口并阻塞，不编造依赖与结论（P1-AC17）。
     if inputs.context_gaps:
@@ -309,8 +324,7 @@ def prepare_run(
             created_at_commit=unit_of_work.commit_seq(),
             status=_STATUS_BLOCKED,
             blocking_reasons=tuple(
-                BlockingReason(code=gap.kind, message=gap.detail)
-                for gap in inputs.context_gaps
+                BlockingReason(code=gap.kind, message=gap.detail) for gap in inputs.context_gaps
             ),
         )
 
@@ -333,8 +347,13 @@ def prepare_run(
             # 解析出来的实际执行输入摘要随请求一起参与**观察比对**（B-02）：
             # 它不进 `payload_hash`（那是请求内容），但变了必须报"依据需重新准备"。
             observed_resolved_input_digest=inputs.execution_source.resolved_input_digest,
-            # 源码内容身份同上（`DEC-009` 选丙）：源码变了必须报"依据需重新准备"。
-            observed_snapshot_identity=inputs.snapshot.content_identity,
+            observed_snapshot_content_identity=inputs.snapshot.content_identity,
+            observed_scope_id=inputs.scope_id,
+            observed_environment_content_identity=(
+                inputs.environment.resolution.content_identity
+                if inputs.environment.resolution is not None
+                else None
+            ),
         ),
         record,
     )
@@ -362,14 +381,57 @@ def prepare_run(
             blocking_reasons=(
                 BlockingReason(
                     code="needs_reprepare",
-                    message="Basis needs re-preparation: "
-                    + ", ".join(decision.changed_inputs),
+                    message="Basis needs re-preparation: " + ", ".join(decision.changed_inputs),
                 ),
             ),
             invalidation_rules=_invalidation_rules_for(decision.changed_inputs),
         )
 
+    candidate = _build(
+        inputs,
+        intent_id=intent_id,
+        digest=digest,
+        created_at=now,
+        created_at_commit=unit_of_work.commit_seq(),
+        status=_STATUS_PREPARED,
+    )
+    if basis_verifier is not None:
+        reasons = basis_verifier(candidate)
+        if reasons:
+            return candidate.model_copy(
+                update={
+                    "status": _STATUS_BLOCKED,
+                    "blocking_reasons": reasons,
+                }
+            )
+
     if decision.decision is PreparationDecision.REUSED:
+        if persist_snapshot and existing is None:
+            return candidate.model_copy(
+                update={
+                    "status": _STATUS_BLOCKED,
+                    "blocking_reasons": (
+                        BlockingReason(
+                            code="needs_reprepare",
+                            message="Legacy intent has no saved PreparedRun.",
+                        ),
+                    ),
+                }
+            )
+        if existing is not None and existing.scope_id is None:
+            return _build(
+                inputs,
+                intent_id=existing.intent_id,
+                digest=digest,
+                created_at=now,
+                created_at_commit=existing.created_at_commit,
+                status=_STATUS_BLOCKED,
+                blocking_reasons=(
+                    BlockingReason(
+                        code="needs_reprepare", message="Legacy preparation has no scope_id."
+                    ),
+                ),
+            )
         if existing is not None:
             return existing
         return _build(
@@ -387,6 +449,27 @@ def prepare_run(
     # 用事务上下文而不是裸 `open()`：真实底座的 `open()` 会取工作空间级排他写锁，
     # 这里若抛异常或提前返回，锁必须还回去（`substrate.Transaction` 负责收尾）。
     with transaction(unit_of_work, inputs.project_id) as tx:
+        if basis_verifier is not None:
+            reasons = basis_verifier(candidate)
+            if reasons:
+                return candidate.model_copy(
+                    update={
+                        "status": _STATUS_BLOCKED,
+                        "blocking_reasons": reasons,
+                    }
+                )
+        if persist_snapshot:
+            candidate = candidate.model_copy(
+                update={
+                    "created_at_commit": str(int(tx.next_commit_seq()) + 1),
+                }
+            )
+            tx.stage_record(
+                aggregate_kind="prepared_run",
+                record_id=candidate.prepared_run_id,
+                expected_revision=None,
+                payload=candidate.model_dump(mode="json"),
+            )
         tx.stage_preparation(
             record=PreparationRecord(
                 request=PreparationRequest(
@@ -398,12 +481,14 @@ def prepare_run(
                     observed_case_revisions=tuple(
                         (ref.case_id, ref.revision) for ref in inputs.case_revisions
                     ),
-                    observed_resolved_input_digest=(
-                        inputs.execution_source.resolved_input_digest
+                    observed_resolved_input_digest=(inputs.execution_source.resolved_input_digest),
+                    observed_snapshot_content_identity=inputs.snapshot.content_identity,
+                    observed_scope_id=inputs.scope_id,
+                    observed_environment_content_identity=(
+                        inputs.environment.resolution.content_identity
+                        if inputs.environment.resolution is not None
+                        else None
                     ),
-                    # 源码内容身份也随请求参与**观察比对**（`DEC-009` 选丙）：
-                    # 它不进 `payload_hash`，但源码内容变了必须报"依据需重新准备"。
-                    observed_snapshot_identity=inputs.snapshot.content_identity,
                 ),
                 intent_id=intent_id,
                 # 记录里的序号必须是**本次提交后**的序号，不能取提交前的当前值。
@@ -412,6 +497,10 @@ def prepare_run(
         )
         result = tx.commit()
 
+    if persist_snapshot:
+        if candidate.created_at_commit != result.commit_seq:
+            raise RuntimeError("saved preparation commit boundary differs from actual commit")
+        return candidate
     return _build(
         inputs,
         intent_id=intent_id,

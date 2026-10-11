@@ -1,0 +1,119 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+___ test_initial_run_step_and_current_snapshot_publish_once_without_attempt ___
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434AFA510>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-545/test_initial_run_step_and_curr0/tested"))
+
+    def test_initial_run_step_and_current_snapshot_publish_once_without_attempt(authoritative):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+>       facts = register(core, prepared)
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_initial_run_registration.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_initial_run_registration.py:26: in register
+    return service(core).register(project_id=project or prepared["project_id"], prepared_run_id=prepared["prepared_run_id"], request_id=request, intent_id=intent)
+           ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434AFA510>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025434AF9E80>)
+
+    def service(core):
+>       from aitest.application.execution.registration import InitialRunRegistration
+E       ModuleNotFoundError: No module named 'aitest.application.execution.registration'
+
+tests\unit\test_initial_run_registration.py:13: ModuleNotFoundError
+______ test_initial_run_recall_survives_restart_and_active_source_change ______
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434ABFED0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-545/test_initial_run_recall_surviv0/tested"))
+
+    def test_initial_run_recall_survives_restart_and_active_source_change(authoritative):
+        from aitest.bootstrap import assemble_workspace_core
+    
+        core, inputs, source = authoritative
+        prepared = prepare(core, inputs).result
+>       first = register(core, prepared)
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_initial_run_registration.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_initial_run_registration.py:26: in register
+    return service(core).register(project_id=project or prepared["project_id"], prepared_run_id=prepared["prepared_run_id"], request_id=request, intent_id=intent)
+           ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434ABFED0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025434ABF890>)
+
+    def service(core):
+>       from aitest.application.execution.registration import InitialRunRegistration
+E       ModuleNotFoundError: No module named 'aitest.application.execution.registration'
+
+tests\unit\test_initial_run_registration.py:13: ModuleNotFoundError
+_ test_foreign_preparation_is_rejected_without_consuming_registration_intent __
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434C2D810>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-545/test_foreign_preparation_is_re0/tested"))
+
+    def test_foreign_preparation_is_rejected_without_consuming_registration_intent(authoritative):
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        seq = core.unit_of_work.current_commit_sequence()
+        with pytest.raises(ValueError, match="project"):
+>           register(core, prepared, project="other-project")
+
+tests\unit\test_initial_run_registration.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_initial_run_registration.py:26: in register
+    return service(core).register(project_id=project or prepared["project_id"], prepared_run_id=prepared["prepared_run_id"], request_id=request, intent_id=intent)
+           ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434C2D810>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025434C2D1D0>)
+
+    def service(core):
+>       from aitest.application.execution.registration import InitialRunRegistration
+E       ModuleNotFoundError: No module named 'aitest.application.execution.registration'
+
+tests\unit\test_initial_run_registration.py:13: ModuleNotFoundError
+__ test_initial_publication_failure_leaves_no_run_step_or_current_authority ___
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434C655B0>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-545/test_initial_publication_failu0/tested"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025434C65940>
+
+    def test_initial_publication_failure_leaves_no_run_step_or_current_authority(authoritative, monkeypatch):
+        from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+    
+        core, inputs, _ = authoritative
+        prepared = prepare(core, inputs).result
+        initial = FileCommitStore(core.workspace.root).read_current()["pointer"]
+        original = core.unit_of_work.stage_record
+    
+        def fail_snapshot(**kwargs):
+            if kwargs["aggregate_kind"] == "execution_facts":
+                raise OSError("controlled initial snapshot failure")
+            return original(**kwargs)
+    
+        monkeypatch.setattr(core.unit_of_work, "stage_record", fail_snapshot)
+        with pytest.raises(OSError, match="controlled"):
+>           register(core, prepared)
+
+tests\unit\test_initial_run_registration.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_initial_run_registration.py:26: in register
+    return service(core).register(project_id=project or prepared["project_id"], prepared_run_id=prepared["prepared_run_id"], request_id=request, intent_id=intent)
+           ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+core = CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000025434C655B0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000025434C64FC0>)
+
+    def service(core):
+>       from aitest.application.execution.registration import InitialRunRegistration
+E       ModuleNotFoundError: No module named 'aitest.application.execution.registration'
+
+tests\unit\test_initial_run_registration.py:13: ModuleNotFoundError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_initial_run_registration.py::test_initial_run_step_and_current_snapshot_publish_once_without_attempt
+FAILED tests/unit/test_initial_run_registration.py::test_initial_run_recall_survives_restart_and_active_source_change
+FAILED tests/unit/test_initial_run_registration.py::test_foreign_preparation_is_rejected_without_consuming_registration_intent
+FAILED tests/unit/test_initial_run_registration.py::test_initial_publication_failure_leaves_no_run_step_or_current_authority
+4 failed in 52.77s

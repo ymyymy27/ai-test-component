@@ -68,7 +68,7 @@ def test_source_verification_records_actual_observation_only() -> None:
         plan_revision_ref=PlanRevisionRef(
             revision_id="plan-1", revision_no=1, digest="sha256:plan"
         ),
-        expected_source_binding_digest="sha256:expected",
+        expected_source_content_digest="sha256:expected",
         materialized_snapshot_ref="snapshot-1",
         observed_source_digest="sha256:observed",
         state=SourceVerificationState.MISMATCH,

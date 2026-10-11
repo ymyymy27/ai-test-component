@@ -1,0 +1,5 @@
+{
+  "file_transactions": "3 passed in 115.43s: first/second revisions, narrowing, same intent replay/conflict, exact restart read, four staging failures and committed response loss",
+  "domain_contracts_architecture": "271 passed in 9.43s",
+  "limits": "First working version, before further missing-material, preserved-history and provenance guards. No real start/Trae/default C action acceptance."
+}

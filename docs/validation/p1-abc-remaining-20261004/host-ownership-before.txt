@@ -1,0 +1,158 @@
+FFFFFFFFFFFFFFFFFFFFFF.FFF                                               [100%]
+================================== FAILURES ===================================
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[True-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[True-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[False-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[False-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[0-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[0-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[-1-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[-1-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[nan-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[nan-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[inf-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[inf-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[-inf-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[-inf-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[1-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[1-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[None-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[None-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[61-wait_timeout_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_invalid_wait_policy_fails_before_any_connection_or_launch[61-poll_interval_seconds] _
+tests\unit\test_editor_host_ownership.py:17: in test_invalid_wait_policy_fails_before_any_connection_or_launch
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+______ test_wrong_instance_releases_only_the_rejected_connection[False] _______
+tests\unit\test_editor_host_ownership.py:32: in test_wrong_instance_releases_only_the_rejected_connection
+    channel.close.assert_called_once()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:958: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'close' to have been called once. Called 0 times.
+_______ test_wrong_instance_releases_only_the_rejected_connection[True] _______
+tests\unit\test_editor_host_ownership.py:32: in test_wrong_instance_releases_only_the_rejected_connection
+    channel.close.assert_called_once()
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\unittest\mock.py:958: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'close' to have been called once. Called 0 times.
+_____________ test_sleep_is_limited_to_remaining_acquisition_time _____________
+tests\unit\test_editor_host_ownership.py:60: in test_sleep_is_limited_to_remaining_acquisition_time
+    assert delays == [0.05]
+E   assert [0.1] == [0.05]
+E     
+E     At index 0 diff: 0.1 != 0.05
+E     Use -v to get more diff
+____ test_connection_returned_after_deadline_is_closed_not_published[True] ____
+tests\unit\test_editor_host_ownership.py:77: in test_connection_returned_after_deadline_is_closed_not_published
+    with pytest.raises(WorkspaceInUse):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE WorkspaceInUse
+___ test_connection_returned_after_deadline_is_closed_not_published[False] ____
+tests\unit\test_editor_host_ownership.py:77: in test_connection_returned_after_deadline_is_closed_not_published
+    with pytest.raises(WorkspaceInUse):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE WorkspaceInUse
+=========================== short test summary info ===========================
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[True-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[True-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[False-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[False-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[0-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[0-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[-1-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[-1-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[nan-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[nan-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[inf-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[inf-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[-inf-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[-inf-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[1-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[1-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[None-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[None-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[61-wait_timeout_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_invalid_wait_policy_fails_before_any_connection_or_launch[61-poll_interval_seconds]
+FAILED tests/unit/test_editor_host_ownership.py::test_wrong_instance_releases_only_the_rejected_connection[False]
+FAILED tests/unit/test_editor_host_ownership.py::test_wrong_instance_releases_only_the_rejected_connection[True]
+FAILED tests/unit/test_editor_host_ownership.py::test_sleep_is_limited_to_remaining_acquisition_time
+FAILED tests/unit/test_editor_host_ownership.py::test_connection_returned_after_deadline_is_closed_not_published[True]
+FAILED tests/unit/test_editor_host_ownership.py::test_connection_returned_after_deadline_is_closed_not_published[False]
+25 failed, 1 passed in 0.43s

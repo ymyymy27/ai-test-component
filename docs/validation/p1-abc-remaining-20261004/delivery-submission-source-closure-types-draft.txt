@@ -1,0 +1,67 @@
+F.......                                                                 [100%]
+================================== FAILURES ===================================
+_________ test_publication_closure_contains_actual_manifest_and_blob __________
+
+material = (WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-861/test_publication_closure_conta0/workspace")...{'snapshot': [{'project_id': 'project', 'snapshot_id': 'snapshot', 'purpose': 'prepare', 'source_scope': '.', ...}]}}})
+
+    def test_publication_closure_contains_actual_manifest_and_blob(material):
+        root, pinned, _, body, authority = material
+>       paths = source_record_files(
+            root, "delivery_submission", body, "project", authority, require_verified=True
+        )
+
+tests\unit\test_delivery_source_closure.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\infrastructure\file_store\source_material.py:234: in source_record_files
+    return verify_source_reference(root, source, project_id, require_verified=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-861/test_publication_closure_conta0/workspace")
+body = {'project_id': 'project', 'snapshot_id': 'snapshot', 'purpose': 'prepare', 'source_scope': '.', ...}
+project_id = 'project', require_verified = True
+
+    def verify_source_reference(
+        root: Path, body: Mapping[str, object], project_id: str, *, require_verified: bool = False
+    ) -> set[str]:
+        """Validate an explicit business snapshot; ordinary inline hashes are ignored."""
+        if not {"pinned_manifest_digest", "pinned_snapshot_id"}.intersection(body):
+            if require_verified:
+                raise SourceMaterialError("legacy source has no verified pinned byte reference")
+            return set()
+        snapshot_id = body.get("pinned_snapshot_id")
+        if (
+            not isinstance(snapshot_id, str)
+            or not isinstance(body.get("pinned_manifest_digest"), str)
+            or body.get("project_id") != project_id
+        ):
+            raise SourceMaterialError("pinned source business reference has unknown owner/identity")
+        record = verify_pinned_material(root, snapshot_id)
+        canonical = json.dumps(
+            record, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        expected_files = [
+            {
+                "relative_path": f["relative_path"],
+                "size": f["size"],
+                "content_digest": "sha256:" + f["sha256"],
+            }
+            for f in record["files"]
+        ]
+        selection, exclusions = body.get("selected_paths"), body.get("exclusion_rules")
+        if (
+            body["pinned_manifest_digest"] != "sha256:" + hashlib.sha256(canonical).hexdigest()
+            or body.get("files") != expected_files
+            or body.get("purpose") != record["purpose"]
+            or not isinstance(selection, (list, tuple))
+            or list(selection) != record["selected_paths"]
+            or not isinstance(exclusions, (list, tuple))
+            or list(exclusions) != record["exclusion_rules"]
+        ):
+>           raise SourceMaterialError("business source snapshot differs from actual pinned material")
+E           aitest.infrastructure.file_store.source_material.SourceMaterialError: business source snapshot differs from actual pinned material
+
+src\aitest\infrastructure\file_store\source_material.py:191: SourceMaterialError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_delivery_source_closure.py::test_publication_closure_contains_actual_manifest_and_blob
+1 failed, 7 passed in 0.75s

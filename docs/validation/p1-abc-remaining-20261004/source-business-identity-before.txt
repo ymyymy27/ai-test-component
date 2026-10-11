@@ -1,0 +1,142 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes[changed0] _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000021FA59F5BE0>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-874/test_changed_frozen_scope_does0/workspace"))
+changed = {'source_scope': 'selected-files/new-scope'}
+
+    @pytest.mark.parametrize(
+        "changed",
+        [
+            {"source_scope": "selected-files/new-scope"},
+            {"refetch_dependencies": ["frozen-repository-object"]},
+            {"refetch_scope": "selected-files-offline"},
+        ],
+    )
+    def test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes(stack, changed):
+        core, source, _root = stack
+        seed(core, source)
+        first = analyze(core)
+        assert first.error is None
+        repo = core.unit_of_work.repo
+        original = dict(
+            repo.read(
+                aggregate_kind="source_snapshot", record_id=first.result["snapshot_id"], revision=1
+            ).payload
+        )
+        second = dispatch(
+            core,
+            "analyze_project",
+            expected=1,
+            binding_revision=1,
+            intent="changed-source-contract",
+            request="changed-source-request",
+            parameters={
+                "binding_id": "binding-project",
+                "purpose": "prepare",
+                "source_scope": ".",
+                "exclusion_rules": [".git"],
+                **changed,
+            },
+        )
+>       assert second.error is None, second.error
+E       AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract')
+E       assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract') = Response(protocol_version='aitest.local/2.0', request_id='changed-source-request', instance_id='source-core', workspac...se, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract')).error
+
+tests\unit\test_source_business_snapshot_identity.py:49: AssertionError
+_ test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes[changed1] _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000021FA5A4E490>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-874/test_changed_frozen_scope_does1/workspace"))
+changed = {'refetch_dependencies': ['frozen-repository-object']}
+
+    @pytest.mark.parametrize(
+        "changed",
+        [
+            {"source_scope": "selected-files/new-scope"},
+            {"refetch_dependencies": ["frozen-repository-object"]},
+            {"refetch_scope": "selected-files-offline"},
+        ],
+    )
+    def test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes(stack, changed):
+        core, source, _root = stack
+        seed(core, source)
+        first = analyze(core)
+        assert first.error is None
+        repo = core.unit_of_work.repo
+        original = dict(
+            repo.read(
+                aggregate_kind="source_snapshot", record_id=first.result["snapshot_id"], revision=1
+            ).payload
+        )
+        second = dispatch(
+            core,
+            "analyze_project",
+            expected=1,
+            binding_revision=1,
+            intent="changed-source-contract",
+            request="changed-source-request",
+            parameters={
+                "binding_id": "binding-project",
+                "purpose": "prepare",
+                "source_scope": ".",
+                "exclusion_rules": [".git"],
+                **changed,
+            },
+        )
+>       assert second.error is None, second.error
+E       AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract')
+E       assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract') = Response(protocol_version='aitest.local/2.0', request_id='changed-source-request', instance_id='source-core', workspac...se, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract')).error
+
+tests\unit\test_source_business_snapshot_identity.py:49: AssertionError
+_ test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes[changed2] _
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000021FA5A09450>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-874/test_changed_frozen_scope_does2/workspace"))
+changed = {'refetch_scope': 'selected-files-offline'}
+
+    @pytest.mark.parametrize(
+        "changed",
+        [
+            {"source_scope": "selected-files/new-scope"},
+            {"refetch_dependencies": ["frozen-repository-object"]},
+            {"refetch_scope": "selected-files-offline"},
+        ],
+    )
+    def test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes(stack, changed):
+        core, source, _root = stack
+        seed(core, source)
+        first = analyze(core)
+        assert first.error is None
+        repo = core.unit_of_work.repo
+        original = dict(
+            repo.read(
+                aggregate_kind="source_snapshot", record_id=first.result["snapshot_id"], revision=1
+            ).payload
+        )
+        second = dispatch(
+            core,
+            "analyze_project",
+            expected=1,
+            binding_revision=1,
+            intent="changed-source-contract",
+            request="changed-source-request",
+            parameters={
+                "binding_id": "binding-project",
+                "purpose": "prepare",
+                "source_scope": ".",
+                "exclusion_rules": [".git"],
+                **changed,
+            },
+        )
+>       assert second.error is None, second.error
+E       AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract')
+E       assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='immutable source identity conflicts',...lse, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract') = Response(protocol_version='aitest.local/2.0', request_id='changed-source-request', instance_id='source-core', workspac...se, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='changed-source-request', intent_id='changed-source-contract')).error
+
+tests\unit\test_source_business_snapshot_identity.py:49: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_source_business_snapshot_identity.py::test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes[changed0]
+FAILED tests/unit/test_source_business_snapshot_identity.py::test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes[changed1]
+FAILED tests/unit/test_source_business_snapshot_identity.py::test_changed_frozen_scope_does_not_overwrite_or_collide_with_same_bytes[changed2]
+3 failed in 122.75s (0:02:02)

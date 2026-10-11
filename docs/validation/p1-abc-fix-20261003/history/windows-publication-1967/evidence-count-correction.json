@@ -1,0 +1,9 @@
+{
+  "scope": "Checker counter correction only; source hashes, line checks and test results unchanged",
+  "source_test_references": 389,
+  "remaining_source_references": 4,
+  "previous_checker_count": 390,
+  "reason": "A remaining-source reference also appeared in the repair source list; membership-based counting counted it twice. Count each role list directly.",
+  "frozen_archive": "history/publication-prototype-1928",
+  "frozen_archive_unchanged": true
+}

@@ -1,0 +1,64 @@
+{
+  "baseline": "7dbc5a45aa1666652c3dcdc2d0b0604066bc6498",
+  "base": "335540bd7f6a5937ff17e1addd93461f478b9ea8",
+  "environment": {
+    "python": "3.13.13",
+    "uv": "0.11.8",
+    "node": "24.14.1",
+    "npm": "11.13.0",
+    "shell": "PowerShell",
+    "system": "Windows x64"
+  },
+  "pytest": {
+    "passed": 1405,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 2,
+    "duration_seconds": 62.17,
+    "skips": [
+      {
+        "test": "test_symlink_anywhere_is_reported",
+        "class": "tests.unit.test_a_a06_reference_closure",
+        "reason": "当前会话无权创建符号链接"
+      },
+      {
+        "test": "test_restore_rejects_symlink_target",
+        "class": "tests.unit.test_a_a06_reference_closure",
+        "reason": "当前会话无权创建符号链接"
+      }
+    ]
+  },
+  "ruff": "pass: src tests",
+  "mypy": "pass: src, 127 source files",
+  "versions": "pass: 0.4.0",
+  "schema": "generate_schemas + git status empty: seven committed schemas unchanged",
+  "panel_build": "pass: tsc/esbuild",
+  "panel_test": {
+    "passed": 0,
+    "failed": 1,
+    "original_heading_assertion": "passed",
+    "failure": "panel.spec.ts:18: getByRole(button, name=计划) matches 生成计划草稿 and 计划",
+    "remaining_checks": "not reached"
+  },
+  "probes": {
+    "groups": 20,
+    "exit_code": 0,
+    "meaning": "asserted fixed and remaining observations, not product acceptance"
+  },
+  "product_acceptance": {
+    "verified": 0,
+    "not_verified": 7,
+    "untested": 27,
+    "blocked": 1,
+    "evidence_paths": "all empty"
+  },
+  "not_run": [
+    "real Trae",
+    "real provider/business independent verification",
+    "physical power-loss",
+    "new remote CI lookup",
+    "wheel/sdist/VSIX repack"
+  ],
+  "source_changes_by_this_review": false,
+  "registry_changes_by_this_review": false
+}

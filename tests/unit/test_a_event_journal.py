@@ -13,6 +13,7 @@ from aitest.infrastructure.file_store.events import (
     decode_cursor,
     encode_cursor,
 )
+from aitest.infrastructure.file_store.records import FileRecordRepository
 
 _INSTANCE = "instance-1"
 _WORKSPACE = "workspace-1"
@@ -33,6 +34,7 @@ def _record(
     return journal.record_event(
         commit_sequence=commit_sequence,
         event_type=event_type,
+        aggregate_kind="case",
         project_id=project_id,
         record_id=record_id,
         revision=revision,
@@ -212,17 +214,21 @@ def test_torn_tail_is_quarantined_and_good_events_remain(journal: FileEventJourn
 
 
 def test_reconcile_completes_confirmed_boundary_and_flags_orphan(journal: FileEventJournal) -> None:
-    # Simulate crash: events staged and appended to journal before marker write
-    # is modeled more simply here by staging for a committed sequence.
+    # Save real business authority; a caller-supplied sequence is insufficient.
+    FileRecordRepository(journal._root).commit_transaction(
+        [("case", "rec-5", 0, {"project_id": "project-1"})],
+        request_id="req-5", intent_id="intent-5", project_id="project-1",
+        workspace_id=_WORKSPACE, writer_epoch=1,
+    )
     journal.begin_boundary(
-        commit_sequence=5,
+        commit_sequence=1,
         request_id="req-5",
         intent_id="intent-5",
         workspace_id=_WORKSPACE,
         project_id="project-1",
         writer_epoch=1,
     )
-    _record(journal, commit_sequence=5, record_id="rec-5", request_id="req-5", intent_id="intent-5")
+    _record(journal, commit_sequence=1, record_id="rec-5", request_id="req-5", intent_id="intent-5")
 
     # Another staging with no matching committed sequence.
     journal.begin_boundary(
@@ -235,10 +241,10 @@ def test_reconcile_completes_confirmed_boundary_and_flags_orphan(journal: FileEv
     )
     _record(journal, commit_sequence=6, record_id="rec-6", request_id="req-6", intent_id="intent-6")
 
-    report = journal.reconcile(committed_sequences={5})
+    report = journal.reconcile(committed_sequences={1})
 
-    assert report.completed_boundaries == (5,)
+    assert report.completed_boundaries == (1,)
     assert report.orphaned_staging == (6,)
-    assert journal._load_boundary(5) is not None
+    assert journal._load_boundary(1) is not None
     # Orphan staging is retained on disk, not deleted or replayed.
     assert (journal._dir / "staging" / "6.jsonl").exists()

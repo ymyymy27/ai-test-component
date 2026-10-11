@@ -1,0 +1,14 @@
+........................................................................ [ 59%]
+................................................F.                       [100%]
+================================== FAILURES ===================================
+_ test_history_can_remain_without_becoming_current_or_changing_active_progress _
+tests\unit\test_runtime_facts_identity.py:118: in test_history_can_remain_without_becoming_current_or_changing_active_progress
+    assert view.steps == baseline.steps
+E   AssertionError: assert (StepRuntimeF...pt_states=())) == (StepRuntimeF...pt_states=()))
+E     
+E     At index 0 diff: StepRuntimeFacts(step_id='step-1', case_id='case-1', ordinal=1, state=<StepRuntimeState.EXECUTION_ERROR: 'execution_error'>, required_for_case=True, current_attempt_state=<AttemptRuntimeState.EXECUTION_ERROR: 'execution_error'>, invalidated=False, step_revision_no=1, historical_attempt_states=(<AttemptRuntimeState.COMPLETED: 'completed'>,)) != StepRuntimeFacts(step_id='step-1', case_id='case-1', ordinal=1, state=<StepRuntimeState.EXECUTION_ERROR: 'execution_error'>, required_for_case=True, current_attempt_state=<AttemptRuntimeState.EXECUTION_ERROR: 'exe...
+E     
+E     ...Full output truncated (2 lines hidden), use '-vv' to show
+=========================== short test summary info ===========================
+FAILED tests/unit/test_runtime_facts_identity.py::test_history_can_remain_without_becoming_current_or_changing_active_progress
+1 failed, 121 passed in 266.61s (0:04:26)

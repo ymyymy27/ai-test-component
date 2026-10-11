@@ -1,0 +1,11 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_command_without_spool_cannot_accumulate_unbounded_complete_lines ____
+tests\unit\test_redaction_material_guards.py:185: in test_command_without_spool_cannot_accumulate_unbounded_complete_lines
+    assert result.capture_completeness is CaptureCompleteness.GAP
+E   AssertionError: assert <CaptureCompleteness.COMPLETE: 'complete'> is <CaptureCompleteness.GAP: 'gap'>
+E    +  where <CaptureCompleteness.COMPLETE: 'complete'> = ExecutionCollectionResult(attempt_id='attempt-1', output_blocks=(), captured_blocks=(CapturedOutputBlock(run_id='run-1...nd-result:attempt-1:0', capture_completeness=<CaptureCompleteness.COMPLETE: 'complete'>, error_ref=None, complete=True).capture_completeness
+E    +  and   <CaptureCompleteness.GAP: 'gap'> = CaptureCompleteness.GAP
+=========================== short test summary info ===========================
+FAILED tests/unit/test_redaction_material_guards.py::test_command_without_spool_cannot_accumulate_unbounded_complete_lines
+1 failed in 2.33s

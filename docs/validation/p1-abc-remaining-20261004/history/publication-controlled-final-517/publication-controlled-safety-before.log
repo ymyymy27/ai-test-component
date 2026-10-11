@@ -1,0 +1,88 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+__ test_required_context_gap_cannot_be_relabeled_nonblocking[publish_rules] ___
+
+publication_stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001F190C30440>, workspace=<aitest.infrastructur...7, 'scope': 'project', 'text': 'compare output', 'source': 'manual', 'steps': ['compare output'], 'confirmed': True}}))
+
+    def test_required_context_gap_cannot_be_relabeled_nonblocking(publication_stack):
+        core, command = publication_stack
+        changed = command.model_copy(
+            update={
+                "parameters": dict(command.parameters)
+                | {
+                    "context_gaps": [
+                        {
+                            "kind": "missing_environment_carrier",
+                            "subject": "environment",
+                            "detail": "required carrier is absent",
+                            "blocking": False,
+                        }
+                    ]
+                }
+            }
+        )
+        before = core.unit_of_work.current_commit_sequence()
+        result = prepare_publication(core, changed, HUMAN)
+>       assert result.error is not None and result.error.code == "AWAITING_USER_CONFIRMATION"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='prepare-rule-controlled-write', instance_id='binding-origin-...rigin_entry_kind': 'human_ui', 'state': 'pending', 'created_at': '2026-10-05T13:02:26.247226Z'}, page=None, error=None).error
+
+tests\unit\test_publication_controlled_origin.py:460: AssertionError
+___ test_required_context_gap_cannot_be_relabeled_nonblocking[publish_plan] ___
+
+publication_stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x000001F190CAD090>, workspace=<aitest.infrastructur..., 'read the ticket back through an independent read-only query'], 'verification_method': 'registered pytest entry'}]}))
+
+    def test_required_context_gap_cannot_be_relabeled_nonblocking(publication_stack):
+        core, command = publication_stack
+        changed = command.model_copy(
+            update={
+                "parameters": dict(command.parameters)
+                | {
+                    "context_gaps": [
+                        {
+                            "kind": "missing_environment_carrier",
+                            "subject": "environment",
+                            "detail": "required carrier is absent",
+                            "blocking": False,
+                        }
+                    ]
+                }
+            }
+        )
+        before = core.unit_of_work.current_commit_sequence()
+        result = prepare_publication(core, changed, HUMAN)
+>       assert result.error is not None and result.error.code == "AWAITING_USER_CONFIRMATION"
+E       AssertionError: assert (None is not None)
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='prepare-plan-controlled-write', instance_id='authoritative-c...rigin_entry_kind': 'human_ui', 'state': 'pending', 'created_at': '2026-10-05T13:02:47.243991Z'}, page=None, error=None).error
+
+tests\unit\test_publication_controlled_origin.py:460: AssertionError
+____ test_filtered_controlled_rule_cannot_publish_a_different_frozen_body _____
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-658/test_filtered_controlled_rule_0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001F190B95A70>
+
+    def test_filtered_controlled_rule_cannot_publish_a_different_frozen_body(tmp_path, monkeypatch):
+        core, _ = make_core(tmp_path)
+        try:
+            registry = KnownSecretRegistry()
+            secret = "synthetic-rule-freeze-value"
+            registry.register(secret)
+            monkeypatch.setattr(core.unit_of_work, "_registry", registry)
+            command = rule_command()
+            parameters = dict(command.parameters)
+            parameters["draft"] = dict(parameters["draft"])
+            parameters["draft"]["text"] = "compare output " + secret
+            command = command.model_copy(update={"parameters": parameters})
+            ready, challenge = approved(core, command)
+            before = core.unit_of_work.current_commit_sequence()
+            result = actual_event(core, ready, challenge)
+>           assert result.error is not None
+E           AssertionError: assert None is not None
+E            +  where None = Response(protocol_version='aitest.local/2.0', request_id='rule-controlled-write', instance_id='binding-origin-core', w...led-rule', 'digest': 'sha256:0d7b71f48cb4519f38a483444185a54f539c7f7c4b9d80cf7f6012aa16eb0b93'}, page=None, error=None).error
+
+tests\unit\test_publication_controlled_origin.py:479: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_publication_controlled_origin.py::test_required_context_gap_cannot_be_relabeled_nonblocking[publish_rules]
+FAILED tests/unit/test_publication_controlled_origin.py::test_required_context_gap_cannot_be_relabeled_nonblocking[publish_plan]
+FAILED tests/unit/test_publication_controlled_origin.py::test_filtered_controlled_rule_cannot_publish_a_different_frozen_body
+3 failed, 32 deselected in 36.48s

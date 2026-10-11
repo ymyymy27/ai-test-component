@@ -1,0 +1,23 @@
+{
+  "baseline": "7dbc5a45aa1666652c3dcdc2d0b0604066bc6498",
+  "issue_accounting": "pass",
+  "current_by_package": {
+    "A": 9,
+    "B": 10,
+    "C": 8,
+    "D": 7
+  },
+  "closed": 15,
+  "current_total": 34,
+  "old_total": 48,
+  "new": 1,
+  "fr_rows": 17,
+  "ac_rows": 35,
+  "observations": 20,
+  "ocr_rule_files": 58,
+  "local_link_targets_checked": 193,
+  "broken_local_targets": [],
+  "historical_artifacts_unchanged": 14,
+  "product_and_primary_contracts_unchanged": true,
+  "method_limits": "Checks link targets, not every historical anchor; no product source changes."
+}

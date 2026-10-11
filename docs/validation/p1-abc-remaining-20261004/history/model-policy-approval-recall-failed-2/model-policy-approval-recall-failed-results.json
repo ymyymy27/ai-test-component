@@ -1,0 +1,8 @@
+{
+  "recall_failed": 2,
+  "seconds": 20.64,
+  "expanded_earlier_passed": 27,
+  "expanded_seconds": 165.52,
+  "model_regression_still_running_at_capture": true,
+  "full_python_run": false
+}

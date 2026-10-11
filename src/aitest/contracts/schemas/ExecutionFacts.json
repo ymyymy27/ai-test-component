@@ -1603,6 +1603,18 @@
           "default": null,
           "title": "Observed Import Ref"
         },
+        "observed_interpreter_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Interpreter Ref"
+        },
         "failure_class": {
           "anyOf": [
             {

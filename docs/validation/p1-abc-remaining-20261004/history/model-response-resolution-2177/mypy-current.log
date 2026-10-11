@@ -1,0 +1,3 @@
+src\aitest\application\planning\basis_validation.py:44: error: Argument "aggregate_kind" to "read" of "RecordReader" has incompatible type "str"; expected "Literal['project', 'binding', 'module', 'dependency_set', 'task', 'delivery', 'acceptance_item', 'environment', 'source_snapshot', 'source_pin_intent', 'source_binding_current', 'template_ref', 'generated_content', 'rule_draft', 'rule_version', 'case', 'case_link', 'plan', 'acceptance_scope', 'preparation_record', 'model_outbound_policy', 'model_outbound_request', 'prepared_run']"  [arg-type]
+src\aitest\application\planning\basis_validation.py:46: error: Unused "type: ignore" comment  [unused-ignore]
+Found 2 errors in 1 file (checked 145 source files)

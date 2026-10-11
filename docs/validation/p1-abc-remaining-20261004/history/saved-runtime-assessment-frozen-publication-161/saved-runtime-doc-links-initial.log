@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\.git\p1-abc-fix-20261003\check_saved_runtime_links.py", line 6, in <module>
+    exec(compile(inner, '<saved-runtime-doc-links>', 'exec'))
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<saved-runtime-doc-links>", line 36, in <module>
+AssertionError: docs\ABCʣ�������޸�֤��-2026-10-04.md: source symbol does not start at ../src/aitest/application/execution/commit.py#L679
+docs\�޸���־\Ԭ\2026-10-05-Ȩ�������޶������붳������.md: source symbol does not start at ../../../src/aitest/application/execution/commit.py#L679

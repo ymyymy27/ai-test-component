@@ -97,7 +97,7 @@ def _start(root: Path) -> _Stack:
     raw = FileUnitOfWork(root)
     repository = raw.repo
     return _Stack(
-        unit_of_work=PortsUnitOfWork(raw, repository=repository),
+        unit_of_work=PortsUnitOfWork(raw, repository=repository, sequence=raw),
         reader=PortsRecordReader(repository),
     )
 

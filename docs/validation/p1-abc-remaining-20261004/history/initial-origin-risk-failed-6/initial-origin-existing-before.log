@@ -1,0 +1,5 @@
+.                                                                        [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_initial_run_registration.py::test_initial_run_step_and_current_snapshot_publish_once_without_attempt
+1 passed in 39.64s

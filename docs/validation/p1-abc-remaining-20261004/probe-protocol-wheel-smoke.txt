@@ -1,0 +1,3 @@
+...........................................                              [100%]
+43 passed in 2.10s
+Installed exact probe and shared JSON bytes; real forged-module stdout rejected, valid loads/namespace gaps and malformed identities checked. No runtime attestation or real Trae/AC claimed.

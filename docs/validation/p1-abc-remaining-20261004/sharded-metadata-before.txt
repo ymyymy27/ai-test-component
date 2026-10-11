@@ -1,0 +1,266 @@
+FFFFFFFFFFFFFFFF                                                         [100%]
+================================== FAILURES ===================================
+______ test_identity_revision_does_not_coerce_non_integer_metadata[True] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_identity_revision_does_no0")
+revision = True
+
+    @pytest.mark.parametrize("revision", [True, "1", 1.5])
+    def test_identity_revision_does_not_coerce_non_integer_metadata(tmp_path, revision):
+        tree = AuthorityTree(tmp_path)
+        tree.put(
+            _key("identity", "project", "project"), {"project_id": "project", "revision": revision}
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:22: Failed
+_______ test_identity_revision_does_not_coerce_non_integer_metadata[1] ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_identity_revision_does_no1")
+revision = '1'
+
+    @pytest.mark.parametrize("revision", [True, "1", 1.5])
+    def test_identity_revision_does_not_coerce_non_integer_metadata(tmp_path, revision):
+        tree = AuthorityTree(tmp_path)
+        tree.put(
+            _key("identity", "project", "project"), {"project_id": "project", "revision": revision}
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:22: Failed
+______ test_identity_revision_does_not_coerce_non_integer_metadata[1.5] _______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_identity_revision_does_no2")
+revision = 1.5
+
+    @pytest.mark.parametrize("revision", [True, "1", 1.5])
+    def test_identity_revision_does_not_coerce_non_integer_metadata(tmp_path, revision):
+        tree = AuthorityTree(tmp_path)
+        tree.put(
+            _key("identity", "project", "project"), {"project_id": "project", "revision": revision}
+        )
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:22: Failed
+_____ test_existing_identity_cannot_disappear_or_change_shape[metadata0] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_existing_identity_cannot_0")
+metadata = {}
+
+    @pytest.mark.parametrize("metadata", [{}, {"project_id": "project"}, [["revision", 1]]])
+    def test_existing_identity_cannot_disappear_or_change_shape(tmp_path, metadata):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("identity", "project", "project"), metadata)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:30: Failed
+_____ test_existing_identity_cannot_disappear_or_change_shape[metadata1] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_existing_identity_cannot_1")
+metadata = {'project_id': 'project'}
+
+    @pytest.mark.parametrize("metadata", [{}, {"project_id": "project"}, [["revision", 1]]])
+    def test_existing_identity_cannot_disappear_or_change_shape(tmp_path, metadata):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("identity", "project", "project"), metadata)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:30: Failed
+_____ test_existing_identity_cannot_disappear_or_change_shape[metadata2] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_existing_identity_cannot_2")
+metadata = [['revision', 1]]
+
+    @pytest.mark.parametrize("metadata", [{}, {"project_id": "project"}, [["revision", 1]]])
+    def test_existing_identity_cannot_disappear_or_change_shape(tmp_path, metadata):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("identity", "project", "project"), metadata)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:30: Failed
+________ test_ledger_count_does_not_coerce_non_integer_metadata[True] _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_ledger_count_does_not_coe0")
+count = True
+
+    @pytest.mark.parametrize("count", [True, "1", 1.5])
+    def test_ledger_count_does_not_coerce_non_integer_metadata(tmp_path, count):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("ledger_count"), count)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:38: Failed
+__________ test_ledger_count_does_not_coerce_non_integer_metadata[1] __________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_ledger_count_does_not_coe1")
+count = '1'
+
+    @pytest.mark.parametrize("count", [True, "1", 1.5])
+    def test_ledger_count_does_not_coerce_non_integer_metadata(tmp_path, count):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("ledger_count"), count)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:38: Failed
+_________ test_ledger_count_does_not_coerce_non_integer_metadata[1.5] _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_ledger_count_does_not_coe2")
+count = 1.5
+
+    @pytest.mark.parametrize("count", [True, "1", 1.5])
+    def test_ledger_count_does_not_coerce_non_integer_metadata(tmp_path, count):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("ledger_count"), count)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:38: Failed
+________ test_bool_authority_watermark_cannot_equal_an_integer_header _________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_bool_authority_watermark_0")
+
+    def test_bool_authority_watermark_cannot_equal_an_integer_header(tmp_path):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("authority_commit"), True)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:45: Failed
+__________ test_unrecognized_header_schema_cannot_reuse_a_valid_tree __________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_unrecognized_header_schem0")
+
+    def test_unrecognized_header_schema_cannot_reuse_a_valid_tree(tmp_path):
+        tree = AuthorityTree(tmp_path)
+        tree.put(_key("authority_commit"), 1)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:52: Failed
+_____ test_value_reference_to_another_directory_is_an_unverified_material _____
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_value_reference_to_anothe0")
+
+    def test_value_reference_to_another_directory_is_an_unverified_material(tmp_path):
+        tree = AuthorityTree(tmp_path)
+        wrong = tree._write({"entries": {}})
+        tree.pointer = tree._write({"entries": {_key("record"): wrong}})
+        with pytest.raises(ValueError):
+>           tree.get(_key("record"))
+
+tests\unit\test_sharded_metadata_integrity.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.sharded_records.AuthorityTree object at 0x000002219B69DC50>
+key = '["record"]', default = None
+
+    def get(self, key: str, default: Any = None) -> Any:
+        pointer = self.pointer
+        digest = hashlib.sha256(key.encode()).hexdigest()
+        depth = 0
+        while pointer is not None:
+            node = self._read(pointer)
+            if "entries" in node:
+                value = node["entries"].get(key)
+>               return default if value is None else self._read(value)["value"]
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'value'
+
+src\aitest\infrastructure\file_store\sharded_records.py:95: KeyError
+_______ test_repository_exact_read_does_not_treat_true_as_revision_one ________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_repository_exact_read_doe0")
+
+    def test_repository_exact_read_does_not_treat_true_as_revision_one(tmp_path):
+        repo = FileRecordRepository(tmp_path)
+        repo.append("project", "project", 0, {"project_id": "project", "name": "first"})
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:67: Failed
+_ test_boolean_expected_revision_cannot_publish_another_business_record[append] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_boolean_expected_revision0")
+method = 'append'
+
+    @pytest.mark.parametrize("method", ["append", "append_batch", "commit_transaction"])
+    def test_boolean_expected_revision_cannot_publish_another_business_record(tmp_path, method):
+        repo = FileRecordRepository(tmp_path)
+        repo.append("project", "project", 0, {"project_id": "project", "name": "first"})
+        before = (tmp_path / "records.json").read_bytes()
+        pending = [("project", "project", True, {"project_id": "project", "name": "changed"})]
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:77: Failed
+_ test_boolean_expected_revision_cannot_publish_another_business_record[append_batch] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_boolean_expected_revision1")
+method = 'append_batch'
+
+    @pytest.mark.parametrize("method", ["append", "append_batch", "commit_transaction"])
+    def test_boolean_expected_revision_cannot_publish_another_business_record(tmp_path, method):
+        repo = FileRecordRepository(tmp_path)
+        repo.append("project", "project", 0, {"project_id": "project", "name": "first"})
+        before = (tmp_path / "records.json").read_bytes()
+        pending = [("project", "project", True, {"project_id": "project", "name": "changed"})]
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:77: Failed
+_ test_boolean_expected_revision_cannot_publish_another_business_record[commit_transaction] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-878/test_boolean_expected_revision2")
+method = 'commit_transaction'
+
+    @pytest.mark.parametrize("method", ["append", "append_batch", "commit_transaction"])
+    def test_boolean_expected_revision_cannot_publish_another_business_record(tmp_path, method):
+        repo = FileRecordRepository(tmp_path)
+        repo.append("project", "project", 0, {"project_id": "project", "name": "first"})
+        before = (tmp_path / "records.json").read_bytes()
+        pending = [("project", "project", True, {"project_id": "project", "name": "changed"})]
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\unit\test_sharded_metadata_integrity.py:77: Failed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_identity_revision_does_not_coerce_non_integer_metadata[True]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_identity_revision_does_not_coerce_non_integer_metadata[1]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_identity_revision_does_not_coerce_non_integer_metadata[1.5]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_existing_identity_cannot_disappear_or_change_shape[metadata0]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_existing_identity_cannot_disappear_or_change_shape[metadata1]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_existing_identity_cannot_disappear_or_change_shape[metadata2]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_ledger_count_does_not_coerce_non_integer_metadata[True]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_ledger_count_does_not_coerce_non_integer_metadata[1]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_ledger_count_does_not_coerce_non_integer_metadata[1.5]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_bool_authority_watermark_cannot_equal_an_integer_header
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_unrecognized_header_schema_cannot_reuse_a_valid_tree
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_value_reference_to_another_directory_is_an_unverified_material
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_repository_exact_read_does_not_treat_true_as_revision_one
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_boolean_expected_revision_cannot_publish_another_business_record[append]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_boolean_expected_revision_cannot_publish_another_business_record[append_batch]
+FAILED tests/unit/test_sharded_metadata_integrity.py::test_boolean_expected_revision_cannot_publish_another_business_record[commit_transaction]
+16 failed in 1.76s

@@ -1,0 +1,26 @@
+{
+  "baseline": "b9deb9a",
+  "sources": {
+    "src/aitest/application/execution/reuse_material.py": "afee4778257b91332026c3764b2547e00c2f44a802a8074ae6d3e56230749c4e",
+    "tests/unit/test_reuse_evidence_reference_provenance.py": "f37568070552c896f2cf3dafa7326f3bc8203c9e563045e6d903778751c3ed61",
+    "tests/unit/test_permanent_redaction_summary.py": "8daf3c49b06b5a5478234d4226076bcc655d90486498c4ad23835ef7dd5add6c"
+  },
+  "reports": {
+    "reuse-evidence-reference-before.txt": "ef1c99f798a803deb0f9a97ca530ac312d35a09100ccea75f34feeaffd849ec0",
+    "reuse-evidence-reference-final-verified.txt": "1e7023515dde5fa4b60945acab0216189b5f62b62c55b76db3ec867599d85191",
+    "reuse-evidence-reference-wheel-final.txt": "0778dc73de17f9d08f64a46712bfbdc10996ea54f2b10d94a0a6e1b7f1092510",
+    "reuse-evidence-reference-ruff-final.txt": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "reuse-evidence-reference-mypy-final.txt": "02972dc3a34c18da2c10a609e50f5c3836e50b9af0af9559b1a4ad39ac8cd5fb",
+    "reuse-evidence-reference-build-final.txt": "f468380442976a2b1c802a7ffbd5cd70b41cfe64f363462a9805016268f05eeb"
+  },
+  "reproduce": [
+    ".venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-o",
+    "addopts=",
+    "tests/unit/test_reuse_evidence_reference_provenance.py"
+  ],
+  "limits": "Default command namespace/warehouse alignment only. Actual files/UOW with synthetic source and authority; no full reuse grant or real Trae AC."
+}

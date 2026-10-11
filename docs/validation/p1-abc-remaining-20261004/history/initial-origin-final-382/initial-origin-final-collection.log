@@ -1,0 +1,26 @@
+tests/architecture/test_boundaries.py: 2
+tests/contracts/test_b_use_case_registration.py: 14
+tests/contracts/test_draft_and_rule_publication_entrypoint.py: 14
+tests/contracts/test_execution_facts.py: 10
+tests/contracts/test_generated_schemas.py: 1
+tests/contracts/test_identity.py: 4
+tests/contracts/test_local_api.py: 4
+tests/contracts/test_prepare_run_entrypoint.py: 10
+tests/contracts/test_prepared_run.py: 21
+tests/contracts/test_prepared_run_functional_fixtures.py: 22
+tests/contracts/test_project_vocabulary.py: 7
+tests/contracts/test_public_execution_facts_fixtures.py: 8
+tests/contracts/test_publish_plan_entrypoint.py: 16
+tests/contracts/test_rule_import_export_entrypoint.py: 16
+tests/contracts/test_run_vocabulary.py: 4
+tests/contracts/test_runtime_vocabulary.py: 4
+tests/contracts/test_template_content.py: 36
+tests/contracts/test_templates.py: 32
+tests/unit/test_execution_commit.py: 1
+tests/unit/test_initial_registration_origin.py: 25
+tests/unit/test_initial_run_registration.py: 7
+tests/unit/test_prepare_run.py: 37
+tests/unit/test_prepare_run_flow.py: 2
+tests/unit/test_runtime_revision_history_authority.py: 6
+tests/unit/test_step_content_persistence.py: 31
+

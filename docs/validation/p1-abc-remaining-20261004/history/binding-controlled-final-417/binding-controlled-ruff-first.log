@@ -1,0 +1,86 @@
+E501 Line too long (102 > 100)
+   --> src\aitest\application\controlled_write.py:219:101
+    |
+217 |         ) or type(revision) is not int or revision != write.expected_revision + 1:
+218 |             raise ApprovalRequired("original controlled write result reference differs")
+219 |         payload = self.resolver.materials._read(write.aggregate_kind,write.record_id,revision,project)
+    |                                                                                                     ^^
+220 |         if payload.get("approval_intent_id") != intent:
+221 |             raise ApprovalRequired("original controlled result belongs to another saved intent")
+    |
+
+E501 Line too long (106 > 100)
+   --> src\aitest\application\controlled_write.py:245:101
+    |
+243 |             "binding":{key:value for key,value in payload.items() if key not in _ORIGIN_FIELDS},
+244 |         })
+245 |         intent,confirmation_id = payload.get("approval_intent_id"),payload.get("approval_confirmation_id")
+    |                                                                                                     ^^^^^^
+246 |         if (
+247 |             set(payload) != set(write.payload) | _ORIGIN_FIELDS
+    |
+
+E501 Line too long (107 > 100)
+   --> src\aitest\application\controlled_write.py:259:101
+    |
+257 |         if dict(payload) != saved:
+258 |             raise ApprovalRequired("controlled record differs from its exact warehouse material")
+259 |         confirmation = self.approvals.read_confirmation(project_id=project,confirmation_id=confirmation_id)
+    |                                                                                                     ^^^^^^^
+260 |         receipt = self.approvals._current("approval_intent",self.identity(project,intent),project)
+261 |         expected_refs = {("project",project,write.project_revision)}
+    |
+
+E501 Line too long (103 > 100)
+   --> src\aitest\application\controlled_write.py:277:101
+    |
+275 |             or payload.get("approval_commit_seq") != confirmation.confirmed_at_commit
+276 |             or (confirmation.confirmation_intent_id,confirmation.basis.intent_id,
+277 |                 confirmation.basis.action,confirmation.basis.target) != (intent,intent,action,identity)
+    |                                                                                                     ^^^
+278 |             or confirmation.basis.input_digest != _digest(dict(write.parameters))
+279 |             or confirmation.basis.credential_scope_ref != "none"
+    |
+
+E501 Line too long (103 > 100)
+   --> src\aitest\application\controlled_write.py:280:101
+    |
+278 |             or confirmation.basis.input_digest != _digest(dict(write.parameters))
+279 |             or confirmation.basis.credential_scope_ref != "none"
+280 |             or {(r.aggregate_kind,r.record_id,r.record_revision) for r in confirmation.basis.materials}
+    |                                                                                                     ^^^
+281 |                 != expected_refs
+282 |         ):
+    |
+
+E501 Line too long (101 > 100)
+   --> src\aitest\application\controlled_write.py:283:101
+    |
+281 |                 != expected_refs
+282 |         ):
+283 |             raise ApprovalRequired("controlled record, exact receipt and frozen confirmation differ")
+    |                                                                                                     ^
+
+E501 Line too long (102 > 100)
+   --> src\aitest\application\planning\basis_validation.py:99:101
+    |
+ 97 |         controlled_writes.validate_saved_write(
+ 98 |             project_id=prepared.project_id, action="save_binding", aggregate_kind="binding",
+ 99 |             record_id=prepared.binding_id, record_revision=prepared.binding_revision, payload=binding,
+    |                                                                                                     ^^
+100 |         )
+101 |     if binding.get("confirmed") is not True or binding.get("binding_form") != (
+    |
+
+E501 Line too long (104 > 100)
+   --> src\aitest\application\project\source_analysis.py:397:101
+    |
+395 |             )
+396 |         except (ApprovalRequired, ValueError, OSError, TypeError, KeyError) as error:
+397 |             raise SourceAnalysisError("exact source binding confirmation cannot be verified") from error
+    |                                                                                                     ^^^^
+398 |
+399 |     def _verified_pinned(self, snapshot_id: str) -> Mapping[str, object]:
+    |
+
+Found 10 errors (2 fixed, 8 remaining).

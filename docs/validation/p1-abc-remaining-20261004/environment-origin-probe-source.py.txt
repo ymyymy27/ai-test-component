@@ -1,0 +1,19 @@
+"""A client assertion is not an authoritative resolved interpreter identity."""
+
+from dataclasses import replace
+
+from tests.unit.test_authoritative_preparation import authoritative as authoritative
+from tests.unit.test_authoritative_preparation import prepare
+
+
+def test_client_cannot_invent_resolved_interpreter_identity_for_saved_environment(authoritative):
+    core, inputs, _ = authoritative
+    candidate = replace(inputs, environment=inputs.environment.model_copy(update={
+        'interpreter_identity': 'client-invented-interpreter',
+        'dependency_set_digest': 'sha256:client-invented-dependency-set',
+    }))
+    before = core.unit_of_work.current_commit_sequence()
+    response = prepare(core, candidate)
+    assert response.error is None
+    assert response.result['status'] == 'blocked'
+    assert core.unit_of_work.current_commit_sequence() == before

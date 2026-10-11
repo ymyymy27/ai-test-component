@@ -68,6 +68,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -151,15 +152,27 @@ def _render_section(name: str, content: list[str]) -> list[str]:
 
 
 def _render_body(text: str) -> list[str]:
-    """正文原样输出（去尾空行），**不做硬换行**。"""
-    if not text.strip():
+    """对含章节标题或边界空白的正文使用独立围栏，无损保留 Markdown。"""
+    if not text:
         return [_EMPTY_LIST_MARKER]
-    return text.rstrip("\n").split("\n")
+    if (
+        any(line.startswith("## ") for line in text.split("\n"))
+        or text != text.strip("\n") or text.strip() == _EMPTY_LIST_MARKER
+        or "```" in text or "~~~" in text or not text.strip()
+    ):
+        runs = re.findall(r"~+", text)
+        fence = "~" * max(3, 1 + max(map(len, runs), default=0))
+        return [fence + "aitest-rule-text", *text.split("\n"), fence]
+    return text.split("\n")
 
 
 def _render_list_section(name: str, items: tuple[str, ...]) -> list[str]:
     if not items:
         return [f"## {name}", "", _EMPTY_LIST_MARKER, ""]
+    if any("\n" in item or item != item.strip() for item in items):
+        return _render_section(
+            name, [_JSON_FENCE, json.dumps(list(items), ensure_ascii=False), _FENCE],
+        )
     return [f"## {name}", "", *[f"- {item}" for item in items], ""]
 
 
@@ -212,10 +225,20 @@ def rule_markdown_to_payload(markdown: str) -> dict[str, Any]:
     sections: dict[str, list[str]] = {}
     metadata: dict[str, str] = {}
     current: str | None = None
+    fence: str | None = None
     for raw in lines[title_index + 1 :]:
         # **刻意不 `rstrip()` 内容行**：行尾空格属于正文内容，格式不该改内容。
         line = raw
-        if line.startswith("## "):
+        marker = re.match(r"^(`{3,}|~{3,})", line)
+        if current is not None and marker is not None:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence) and line.strip() == token:
+                fence = None
+            sections[current].append(line)
+            continue
+        if line.startswith("## ") and fence is None:
             name = line[3:].strip()
             if name not in _SECTIONS:
                 raise ValueError(f"unknown section heading: {name!r}")
@@ -318,6 +341,12 @@ def _parse_metadata_line(line: str) -> tuple[str, str] | None:
 
 def _parse_body(lines: list[str]) -> str:
     text = "\n".join(lines).strip("\n")
+    content = text.split("\n")
+    if re.fullmatch(r"~{3,}aitest-rule-text", content[0]):
+        fence = content[0].removesuffix("aitest-rule-text")
+        if len(content) < 2 or content[-1] != fence:
+            raise ValueError("rule text fence is not closed")
+        return "\n".join(content[1:-1])
     if text.strip() == _EMPTY_LIST_MARKER:
         return ""
     return text
@@ -325,6 +354,10 @@ def _parse_body(lines: list[str]) -> str:
 
 def _parse_list(lines: list[str], name: str) -> tuple[str, ...]:
     meaningful = [line for line in lines if line.strip()]
+    if meaningful and meaningful[0] == _JSON_FENCE:
+        if meaningful[-1] != _FENCE:
+            raise ValueError(f"section {name!r} JSON fence is not closed")
+        return _as_text_list(json.loads("\n".join(meaningful[1:-1])), name)
     if not meaningful:
         return ()
     if len(meaningful) == 1 and meaningful[0].strip() == _EMPTY_LIST_MARKER:

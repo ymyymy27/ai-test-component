@@ -1,0 +1,26 @@
+{
+  "distinct_final_passed": 333,
+  "final_policy_gates": {
+    "passed": 29,
+    "seconds": 219.48
+  },
+  "final_risk_regression": {
+    "passed": 302,
+    "seconds": 462.03
+  },
+  "pre_recall_regression": {
+    "passed": 194,
+    "seconds": 724.96,
+    "different_source_snapshot": true
+  },
+  "full_python_run": false,
+  "ruff": "passed",
+  "mypy_source_files": 159,
+  "schema_generated_change": false,
+  "version": "0.4.0",
+  "offline_build": "passed",
+  "modified_product_modules_package_byte_match": 6,
+  "isolated_wheel_smoke": "passed",
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22
+}

@@ -1,0 +1,37 @@
+{
+  "checkpoint": "ongoing_authorization_foundation_not_a_completed_run",
+  "completed_contract_nodes": 223,
+  "contract_seconds": 17.88,
+  "completed_scope_and_proof_nodes": 16,
+  "scope_and_proof_seconds": 1.42,
+  "distinct_completed_nodes": 239,
+  "authorization_and_original_edges_29": "still_running_not_claimed",
+  "registration_step_approval_architecture_103": "still_running_not_claimed",
+  "ruff": "passed",
+  "configured_mypy": "183_passed",
+  "schemas": "7_match",
+  "version": "0.4.0",
+  "package": "8_changed_modules_match_wheel_and_sdist_and_isolated_smoke_passed",
+  "source_boundaries": "legacy_runner_has_not_consumed_original_grant_yet",
+  "progress": {
+    "issues_closed_in_this_checkpoint": 0,
+    "remaining_A": 7,
+    "remaining_B": 8,
+    "remaining_C": 7,
+    "remaining_total": 22
+  },
+  "real_ac_verified": 0,
+  "log_files": [
+    "authorization-origin-current-contracts.log",
+    "authorization-origin-current-scopes.log",
+    "authorization-origin-current-scopes-mypy.log",
+    "authorization-origin-current-ruff.log",
+    "authorization-origin-current-schemas.log",
+    "authorization-origin-current-version.log",
+    "authorization-origin-current-build.log",
+    "authorization-origin-current-package.log",
+    "authorization-origin-current-links.log",
+    "authorization-origin-final-29-collection.log",
+    "authorization-origin-registration-risk-collection.log"
+  ]
+}

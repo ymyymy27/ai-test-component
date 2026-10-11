@@ -9,6 +9,11 @@ __pycache__/
 .uv-cache/
 .uv-python/
 build/
+# 本机验证用的运行时目录（临时根、基线检出、分块日志、venv311）。
+# 此前只写在 .git/info/exclude 中，其他克隆仍会看到它变脏。
+.runtime/
+# 本机 TEMP 不可写时 pytest 会把临时根回退到检出目录，形成 pytest-of-<用户>/。
+/pytest-of-*/
 dist/
 .DS_Store
 Thumbs.db

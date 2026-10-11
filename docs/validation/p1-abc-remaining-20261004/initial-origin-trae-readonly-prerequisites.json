@@ -1,0 +1,17 @@
+{
+  "checked_on": "2026-10-06",
+  "phase": "read-only acceptance prerequisite review",
+  "official_changelog": "https://www.trae.cn/changelog",
+  "latest_listed_traecode_series": "3.3.93-96",
+  "latest_listed_date": "2026-09-01",
+  "platform_specific_latest": "not_verified",
+  "installed_trae_product_version": "3.3.89",
+  "cli_core_version": "1.107.1",
+  "cli_core_commit": "29bc0ce6c7e26dfe0697d37500d71d22386dbea8",
+  "cli_arch": "x64",
+  "version_log": "initial-origin-trae-version-observed.log",
+  "product_upgrade_performed": false,
+  "real_trae_acceptance": "not_verified",
+  "note": "CLI package version is the embedded VS Code core version; never identify it as the Trae product version.",
+  "installed_product_version_source": "E:/Trae CN/resources/app/product.json:appVersion"
+}

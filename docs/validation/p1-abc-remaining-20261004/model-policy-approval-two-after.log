@@ -1,0 +1,6 @@
+..                                                                       [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_model_policy_approval.py::test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy
+PASSED tests/unit/test_model_policy_approval.py::test_default_generation_cannot_use_a_legacy_policy_without_saved_origin
+2 passed in 5.80s

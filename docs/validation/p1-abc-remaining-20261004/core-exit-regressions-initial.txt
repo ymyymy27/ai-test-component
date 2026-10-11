@@ -1,0 +1,14 @@
+........................................................................ [ 41%]
+.....................................................................F.. [ 83%]
+............................                                             [100%]
+================================== FAILURES ===================================
+__ test_client_rejects_oversized_response_before_allocating_or_reading_body ___
+tests\unit\test_core_startup_integrity.py:700: in test_client_rejects_oversized_response_before_allocating_or_reading_body
+    client.read_message()
+src\aitest\interfaces\local\pipe.py:454: in read_message
+    length = int.from_bytes(self._read_exact(4, deadline=deadline), "big")
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: test_client_rejects_oversized_response_before_allocating_or_reading_body.<locals>.read() got an unexpected keyword argument 'deadline'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_core_startup_integrity.py::test_client_rejects_oversized_response_before_allocating_or_reading_body
+1 failed, 171 passed in 54.93s

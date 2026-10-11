@@ -1,0 +1,8 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\y'm'y\Desktop\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 19 items
+
+tests/unit/test_execution_authorization_origin.py::test_original_grant_is_saved_with_exact_confirmation_and_unused_state ERROR [  5%]

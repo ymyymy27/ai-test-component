@@ -1,0 +1,22 @@
+.F                                                                       [100%]
+================================== FAILURES ===================================
+_ test_same_version_text_does_not_mean_same_source_and_fixed_corruption_blocks _
+
+delivery_core = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000010FB7D6B610>, workspace=<aitest.infrastructur...e)), inputs=(), outputs=(), preconditions=(), owner=None, acceptor=None, schema_version='aitest.task/2.0', revision=1))
+
+    def test_same_version_text_does_not_mean_same_source_and_fixed_corruption_blocks(delivery_core):
+        core, base, _, _, _ = delivery_core
+        challenge = prepare(core, base)
+        assert challenge.error is None
+        assert confirm(core, base, challenge.result).error is None
+        first = core.api.dispatch(base.model_copy(update={"request_id": "read-first"}), HUMAN)
+        (core.workspace.root.parent / "tested" / "main.py").write_text("VALUE = 3\n", encoding="utf-8")
+        next_source = analyzed(core, request="new-source", intent="new-source-intent")
+>       assert next_source.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='current source pointer revision changed', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='new-source', intent_id='new-source-intent') is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='current source pointer revision changed', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='new-source', intent_id='new-source-intent') = Response(protocol_version='aitest.local/2.0', request_id='new-source', instance_id='binding-origin-core', workspace_id...ed', retryable=False, next_step='�˶Ե�ǰ״̬����Ϻ���������δ֪�Ķ����Ⱥ�ʵԭ��ͼ��', request_id='new-source', intent_id='new-source-intent')).error
+
+tests\unit\test_delivery_submission_origin.py:365: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_delivery_submission_origin.py::test_same_version_text_does_not_mean_same_source_and_fixed_corruption_blocks
+1 failed, 1 passed in 90.17s (0:01:30)

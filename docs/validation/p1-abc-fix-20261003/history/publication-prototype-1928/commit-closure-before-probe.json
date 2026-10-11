@@ -1,0 +1,46 @@
+{
+  "status": "reproduced_not_fixed",
+  "scope": "Actual default assembly/file UOW with controlled persistent projection failures; no business/model/network execution",
+  "index_failure": {
+    "authority_commit": 2,
+    "record_revision": 1,
+    "query": {
+      "status": "ok",
+      "items": 0,
+      "commit": 1
+    }
+  },
+  "subsequent_incremental_commit": {
+    "authority_commit": 3,
+    "record_revision": 1,
+    "query": {
+      "status": "ok",
+      "items": 0,
+      "commit": 3
+    },
+    "index_healthy": true
+  },
+  "event_failure": {
+    "authority_commit": 2,
+    "record_revision": 1,
+    "snapshot_cursor": null,
+    "event_commits": [
+      1
+    ]
+  },
+  "workspace": "C:\\Users\\y'm'y\\AppData\\Local\\Temp\\aitest-commit-closure-3n1f80sw",
+  "sources": [
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "sha256": "a8e4baf453c6c90ce540ec666f0f5a9dcb0e446a582bcec91056f82f16ec8c74"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "sha256": "a1c0143cb78820fa5cd415919e3c676e867985764e54e3dcccf7c139a0f966a2"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/events.py",
+      "sha256": "36eb177a19fcfaf9f344396b30d65994cfb2ac9d9b0ce9181564bed007b8e429"
+    }
+  ]
+}

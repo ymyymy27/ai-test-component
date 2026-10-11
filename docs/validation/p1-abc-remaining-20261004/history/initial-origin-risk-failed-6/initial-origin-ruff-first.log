@@ -1,0 +1,24 @@
+E501 Line too long (102 > 100)
+   --> src\aitest\application\execution\commit.py:200:101
+    |
+198 |             )
+199 |             if (
+200 |                 dict(raw_step) != {"project_id": project_id, **_json_payload(TypeAdapter(Step), step)}
+    |                                                                                                     ^^
+201 |                 or _step_fact(step) != fact
+202 |             ):
+    |
+
+E501 Line too long (102 > 100)
+   --> src\aitest\application\execution\commit.py:203:101
+    |
+201 |                 or _step_fact(step) != fact
+202 |             ):
+203 |                 raise ValueError("original registration step projection differs from saved authority")
+    |                                                                                                     ^^
+204 |             contents.read(run=run, step=step)
+205 |         return facts
+    |
+
+Found 2 errors.
+4 files reformatted, 1 file left unchanged

@@ -1,0 +1,291 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFF                                            [100%]
+================================== FAILURES ===================================
+_____ test_trickled_response_has_one_deadline_for_success_and_error[200] ______
+tests\unit\test_http_transport_limits.py:82: in test_trickled_response_has_one_deadline_for_success_and_error
+    assert elapsed < .5
+E   assert 1.0805622000043513 < 0.5
+_____ test_trickled_response_has_one_deadline_for_success_and_error[500] ______
+tests\unit\test_http_transport_limits.py:82: in test_trickled_response_has_one_deadline_for_success_and_error
+    assert elapsed < .5
+E   assert 1.0573051999963354 < 0.5
+___________ test_trickled_response_headers_share_the_same_deadline ____________
+tests\unit\test_http_transport_limits.py:100: in test_trickled_response_headers_share_the_same_deadline
+    assert time.monotonic() - started < .4
+E   assert (92071.4847045 - 92070.2788603) < 0.4
+E    +  where 92071.4847045 = <built-in function monotonic>()
+E    +    where <built-in function monotonic> = time.monotonic
+______ test_short_content_length_preserves_prefix_but_cannot_verify[200] ______
+tests\unit\test_http_transport_limits.py:114: in test_short_content_length_preserves_prefix_but_cannot_verify
+    result = HttpAdapter().execute(request(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\http.py:168: in execute
+    body = response.read()
+           ^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:500: in read
+    s = self._safe_read(self.length)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:652: in _safe_read
+    raise IncompleteRead(data, amt - len(data))
+E   http.client.IncompleteRead: IncompleteRead(14 bytes read, 5 more expected)
+______ test_short_content_length_preserves_prefix_but_cannot_verify[500] ______
+src\aitest\infrastructure\adapters\execution\http.py:167: in execute
+    with urlopen(request, timeout=spec.timeout_seconds) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\urllib\request.py:189: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\urllib\request.py:495: in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\urllib\request.py:604: in http_response
+    response = self.parent.error(
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\urllib\request.py:533: in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\urllib\request.py:466: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\urllib\request.py:613: in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+E   urllib.error.HTTPError: HTTP Error 500: Result
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_http_transport_limits.py:114: in test_short_content_length_preserves_prefix_but_cannot_verify
+    result = HttpAdapter().execute(request(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\http.py:181: in execute
+    body = error.read()
+           ^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\tempfile.py:500: in func_wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:500: in read
+    s = self._safe_read(self.length)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:652: in _safe_read
+    raise IncompleteRead(data, amt - len(data))
+E   http.client.IncompleteRead: IncompleteRead(14 bytes read, 5 more expected)
+______ test_missing_final_chunk_does_not_validate_a_complete_json_prefix ______
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:584: in _get_chunk_left
+    chunk_left = self._read_next_chunk_size()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:551: in _read_next_chunk_size
+    return int(line, 16)
+           ^^^^^^^^^^^^^
+E   ValueError: invalid literal for int() with base 16: b''
+
+During handling of the above exception, another exception occurred:
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:602: in _read_chunked
+    while (chunk_left := self._get_chunk_left()) is not None:
+                         ^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:586: in _get_chunk_left
+    raise IncompleteRead(b'')
+E   http.client.IncompleteRead: IncompleteRead(0 bytes read)
+
+The above exception was the direct cause of the following exception:
+tests\unit\test_http_transport_limits.py:127: in test_missing_final_chunk_does_not_validate_a_complete_json_prefix
+    result = HttpAdapter().execute(request(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\http.py:168: in execute
+    body = response.read()
+           ^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:478: in read
+    return self._read_chunked(amt)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:614: in _read_chunked
+    raise IncompleteRead(b''.join(value)) from exc
+E   http.client.IncompleteRead: IncompleteRead(14 bytes read)
+__ test_response_limit_distinguishes_exact_eof_from_an_extra_byte[0-length] ___
+tests\unit\test_http_transport_limits.py:150: in test_response_limit_distinguishes_exact_eof_from_an_extra_byte
+    result = HttpAdapter().execute(request(url, max_response_bytes=limit))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+__ test_response_limit_distinguishes_exact_eof_from_an_extra_byte[0-chunked] __
+tests\unit\test_http_transport_limits.py:150: in test_response_limit_distinguishes_exact_eof_from_an_extra_byte
+    result = HttpAdapter().execute(request(url, max_response_bytes=limit))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+____ test_response_limit_distinguishes_exact_eof_from_an_extra_byte[0-eof] ____
+tests\unit\test_http_transport_limits.py:150: in test_response_limit_distinguishes_exact_eof_from_an_extra_byte
+    result = HttpAdapter().execute(request(url, max_response_bytes=limit))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+__ test_response_limit_distinguishes_exact_eof_from_an_extra_byte[1-length] ___
+tests\unit\test_http_transport_limits.py:150: in test_response_limit_distinguishes_exact_eof_from_an_extra_byte
+    result = HttpAdapter().execute(request(url, max_response_bytes=limit))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+__ test_response_limit_distinguishes_exact_eof_from_an_extra_byte[1-chunked] __
+tests\unit\test_http_transport_limits.py:150: in test_response_limit_distinguishes_exact_eof_from_an_extra_byte
+    result = HttpAdapter().execute(request(url, max_response_bytes=limit))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+____ test_response_limit_distinguishes_exact_eof_from_an_extra_byte[1-eof] ____
+tests\unit\test_http_transport_limits.py:150: in test_response_limit_distinguishes_exact_eof_from_an_extra_byte
+    result = HttpAdapter().execute(request(url, max_response_bytes=limit))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+_ test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: 13\r\nContent-Length: 13\r\n] _
+tests\unit\test_http_transport_limits.py:174: in test_ambiguous_response_framing_cannot_supply_assertions
+    assert result.error_class == "response_protocol"
+E   AssertionError: assert None == 'response_protocol'
+E    +  where None = HttpExchangeResult(request_id='bounded', method='GET', url='http://127.0.0.1:53232/', status=200, headers=(('Content-L...ed=None, actual=None, value_available=False),), request_log_ref='http-request:bounded', missing_extractions=('value',)).error_class
+_ test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: 13\r\nTransfer-Encoding: chunked\r\n] _
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:584: in _get_chunk_left
+    chunk_left = self._read_next_chunk_size()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:551: in _read_next_chunk_size
+    return int(line, 16)
+           ^^^^^^^^^^^^^
+E   ValueError: invalid literal for int() with base 16: b'{"value":true}'
+
+During handling of the above exception, another exception occurred:
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:602: in _read_chunked
+    while (chunk_left := self._get_chunk_left()) is not None:
+                         ^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:586: in _get_chunk_left
+    raise IncompleteRead(b'')
+E   http.client.IncompleteRead: IncompleteRead(0 bytes read)
+
+The above exception was the direct cause of the following exception:
+tests\unit\test_http_transport_limits.py:173: in test_ambiguous_response_framing_cannot_supply_assertions
+    result = HttpAdapter().execute(request(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\adapters\execution\http.py:168: in execute
+    body = response.read()
+           ^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:478: in read
+    return self._read_chunked(amt)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\http\client.py:614: in _read_chunked
+    raise IncompleteRead(b''.join(value)) from exc
+E   http.client.IncompleteRead: IncompleteRead(0 bytes read)
+_ test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: -1\r\n] _
+tests\unit\test_http_transport_limits.py:174: in test_ambiguous_response_framing_cannot_supply_assertions
+    assert result.error_class == "response_protocol"
+E   AssertionError: assert None == 'response_protocol'
+E    +  where None = HttpExchangeResult(request_id='bounded', method='GET', url='http://127.0.0.1:53236/', status=200, headers=(('Content-L...e', matched=True, actual=True, value_available=True),), request_log_ref='http-request:bounded', missing_extractions=()).error_class
+_ test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: 1e1\r\n] _
+tests\unit\test_http_transport_limits.py:174: in test_ambiguous_response_framing_cannot_supply_assertions
+    assert result.error_class == "response_protocol"
+E   AssertionError: assert None == 'response_protocol'
+E    +  where None = HttpExchangeResult(request_id='bounded', method='GET', url='http://127.0.0.1:53238/', status=200, headers=(('Content-L...e', matched=True, actual=True, value_available=True),), request_log_ref='http-request:bounded', missing_extractions=()).error_class
+_ test_ambiguous_response_framing_cannot_supply_assertions[Transfer-Encoding: gzip\r\n] _
+tests\unit\test_http_transport_limits.py:174: in test_ambiguous_response_framing_cannot_supply_assertions
+    assert result.error_class == "response_protocol"
+E   AssertionError: assert None == 'response_protocol'
+E    +  where None = HttpExchangeResult(request_id='bounded', method='GET', url='http://127.0.0.1:53240/', status=200, headers=(('Transfer-...e', matched=True, actual=True, value_available=True),), request_log_ref='http-request:bounded', missing_extractions=()).error_class
+__________ test_invalid_response_budget_is_rejected_before_io[True] ___________
+tests\unit\test_http_transport_limits.py:181: in test_invalid_response_budget_is_rejected_before_io
+    request("https://example.invalid/", max_response_bytes=value)
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+____________ test_invalid_response_budget_is_rejected_before_io[0] ____________
+tests\unit\test_http_transport_limits.py:181: in test_invalid_response_budget_is_rejected_before_io
+    request("https://example.invalid/", max_response_bytes=value)
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+___________ test_invalid_response_budget_is_rejected_before_io[-1] ____________
+tests\unit\test_http_transport_limits.py:181: in test_invalid_response_budget_is_rejected_before_io
+    request("https://example.invalid/", max_response_bytes=value)
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+___________ test_invalid_response_budget_is_rejected_before_io[1.5] ___________
+tests\unit\test_http_transport_limits.py:181: in test_invalid_response_budget_is_rejected_before_io
+    request("https://example.invalid/", max_response_bytes=value)
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+___________ test_invalid_response_budget_is_rejected_before_io[16] ____________
+tests\unit\test_http_transport_limits.py:181: in test_invalid_response_budget_is_rejected_before_io
+    request("https://example.invalid/", max_response_bytes=value)
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+________ test_invalid_response_budget_is_rejected_before_io[67108865] _________
+tests\unit\test_http_transport_limits.py:181: in test_invalid_response_budget_is_rejected_before_io
+    request("https://example.invalid/", max_response_bytes=value)
+tests\unit\test_http_transport_limits.py:53: in request
+    return HttpRequestSpec(
+E   TypeError: HttpRequestSpec.__init__() got an unexpected keyword argument 'max_response_bytes'
+_ test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[301] _
+tests\unit\test_http_transport_limits.py:197: in test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target
+    assert result.status == status
+E   AssertionError: assert 200 == 301
+E    +  where 200 = HttpExchangeResult(request_id='redirect', method='POST', url='http://127.0.0.1:53243/', status=200, headers=(('Content...one, elapsed_ms=1, extracted={}, assertion_results=(), request_log_ref='http-request:redirect', missing_extractions=()).status
+_ test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[302] _
+tests\unit\test_http_transport_limits.py:197: in test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target
+    assert result.status == status
+E   AssertionError: assert 200 == 302
+E    +  where 200 = HttpExchangeResult(request_id='redirect', method='POST', url='http://127.0.0.1:53247/', status=200, headers=(('Content...ne, elapsed_ms=25, extracted={}, assertion_results=(), request_log_ref='http-request:redirect', missing_extractions=()).status
+_ test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[303] _
+tests\unit\test_http_transport_limits.py:197: in test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target
+    assert result.status == status
+E   AssertionError: assert 200 == 303
+E    +  where 200 = HttpExchangeResult(request_id='redirect', method='POST', url='http://127.0.0.1:53252/', status=200, headers=(('Content...one, elapsed_ms=1, extracted={}, assertion_results=(), request_log_ref='http-request:redirect', missing_extractions=()).status
+_ test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[307] _
+tests\unit\test_http_transport_limits.py:198: in test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target
+    assert result.error_class == "redirect_blocked"
+E   AssertionError: assert 'http_status' == 'redirect_blocked'
+E     
+E     - redirect_blocked
+E     + http_status
+_ test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[308] _
+tests\unit\test_http_transport_limits.py:198: in test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target
+    assert result.error_class == "redirect_blocked"
+E   AssertionError: assert 'http_status' == 'redirect_blocked'
+E     
+E     - redirect_blocked
+E     + http_status
+___________________ test_timed_out_dns_cannot_connect_later ___________________
+tests\unit\test_http_transport_limits.py:222: in test_timed_out_dns_cannot_connect_later
+    assert time.monotonic() - started < .3
+E   assert (92072.92353 - 92072.4639286) < 0.3
+E    +  where 92072.92353 = <built-in function monotonic>()
+E    +    where <built-in function monotonic> = time.monotonic
+=========================== short test summary info ===========================
+FAILED tests/unit/test_http_transport_limits.py::test_trickled_response_has_one_deadline_for_success_and_error[200]
+FAILED tests/unit/test_http_transport_limits.py::test_trickled_response_has_one_deadline_for_success_and_error[500]
+FAILED tests/unit/test_http_transport_limits.py::test_trickled_response_headers_share_the_same_deadline
+FAILED tests/unit/test_http_transport_limits.py::test_short_content_length_preserves_prefix_but_cannot_verify[200]
+FAILED tests/unit/test_http_transport_limits.py::test_short_content_length_preserves_prefix_but_cannot_verify[500]
+FAILED tests/unit/test_http_transport_limits.py::test_missing_final_chunk_does_not_validate_a_complete_json_prefix
+FAILED tests/unit/test_http_transport_limits.py::test_response_limit_distinguishes_exact_eof_from_an_extra_byte[0-length]
+FAILED tests/unit/test_http_transport_limits.py::test_response_limit_distinguishes_exact_eof_from_an_extra_byte[0-chunked]
+FAILED tests/unit/test_http_transport_limits.py::test_response_limit_distinguishes_exact_eof_from_an_extra_byte[0-eof]
+FAILED tests/unit/test_http_transport_limits.py::test_response_limit_distinguishes_exact_eof_from_an_extra_byte[1-length]
+FAILED tests/unit/test_http_transport_limits.py::test_response_limit_distinguishes_exact_eof_from_an_extra_byte[1-chunked]
+FAILED tests/unit/test_http_transport_limits.py::test_response_limit_distinguishes_exact_eof_from_an_extra_byte[1-eof]
+FAILED tests/unit/test_http_transport_limits.py::test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: 13\r\nContent-Length: 13\r\n]
+FAILED tests/unit/test_http_transport_limits.py::test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: 13\r\nTransfer-Encoding: chunked\r\n]
+FAILED tests/unit/test_http_transport_limits.py::test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: -1\r\n]
+FAILED tests/unit/test_http_transport_limits.py::test_ambiguous_response_framing_cannot_supply_assertions[Content-Length: 1e1\r\n]
+FAILED tests/unit/test_http_transport_limits.py::test_ambiguous_response_framing_cannot_supply_assertions[Transfer-Encoding: gzip\r\n]
+FAILED tests/unit/test_http_transport_limits.py::test_invalid_response_budget_is_rejected_before_io[True]
+FAILED tests/unit/test_http_transport_limits.py::test_invalid_response_budget_is_rejected_before_io[0]
+FAILED tests/unit/test_http_transport_limits.py::test_invalid_response_budget_is_rejected_before_io[-1]
+FAILED tests/unit/test_http_transport_limits.py::test_invalid_response_budget_is_rejected_before_io[1.5]
+FAILED tests/unit/test_http_transport_limits.py::test_invalid_response_budget_is_rejected_before_io[16]
+FAILED tests/unit/test_http_transport_limits.py::test_invalid_response_budget_is_rejected_before_io[67108865]
+FAILED tests/unit/test_http_transport_limits.py::test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[301]
+FAILED tests/unit/test_http_transport_limits.py::test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[302]
+FAILED tests/unit/test_http_transport_limits.py::test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[303]
+FAILED tests/unit/test_http_transport_limits.py::test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[307]
+FAILED tests/unit/test_http_transport_limits.py::test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target[308]
+FAILED tests/unit/test_http_transport_limits.py::test_timed_out_dns_cannot_connect_later
+29 failed in 5.08s

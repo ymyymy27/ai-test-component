@@ -1,14 +1,14 @@
 {
-  "version": "0.2",
-  "updated_at": "2026-10-03",
-  "baseline_commit": "0e4bd81",
+  "version": "0.1",
+  "updated_at": "2026-10-11",
+  "baseline_commit": "204445f9f8561fe365f1f528b22d3a86f3bbb963",
   "scope": "product_acceptance_not_scaffold_tests",
   "update_rules": {
     "owner_field": "owner 由《一期工程四部分拆分与低对接实施方案》第 5 节确定",
     "scenario_expected": "scenario／expected／related_frs 逐字取自需求文档第 5 节，只在需求文档改动后同步，任何一方不得改写",
-    "b_scope": "B 只更新自己牵头的 P1-AC01／03／12／17／20／30／31／32 的分析与结论字段，不代其他包填结论",
+    "b_scope": "本文件由 2026-10-11 集中刷新：35 项统一按当前源码（204445f）重填 prerequisites/artifact_versions/evidence.method/blockers/source_evidence。原 2026-09-28 基线（eaa315f）的结论大量与源码不符，已就地更正并保留于 Git 历史。此后各项仍由牵头包维护自己的结论字段，不得改写 scenario/expected/related_frs。",
     "verified_rule": "result=verified 必须同时满足 evidence.path 非空且 real_environment_verified=true",
-    "no_inference": "文档一致、单元与合同测试通过、夹具通过，均不得写成真实环境验收通过"
+    "no_inference": "文档一致、单元与合同测试通过、夹具通过、组件存在，均不得写成真实环境验收通过；本次刷新只更新『要跑什么、缺什么』，没有任何一项因此变成 verified。"
   },
   "results": [
     {
@@ -22,34 +22,32 @@
         "P1-FR06"
       ],
       "prerequisites": [
-        "1 个真实项目：开发提交缺少运行说明与版本信息（Git 与 plain 各一）",
-        "交付说明用例可写入口：application/project 的交付用例 + A 的 WorkspaceUnitOfWork 落盘",
-        "入口侧提示与阻止推进的效果（D 的 LocalReview／面板）"
+        "两个真实项目（Git 与 plain 各一）；其中一次交付说明缺运行说明与版本信息",
+        "可用的真实入口：能发起 submit_delivery / save_delivery 并读到入口侧提示"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "交付说明与任务领域模型的修订号（domain/project、domain/planning）"
+        "交付说明与任务领域模型的修订号（domain/project/deliveries.py、domain/planning/plans.py）",
+        "复核基线 204445f"
       ],
-      "actual": "未执行。已具备纯规则与用例层校验：交付说明必填字段缺失时拒绝登记（tests/unit/test_deliveries.py）；缺少上下文时 detect_context_gaps() 返回阻塞缺口且不生成草稿（tests/unit/test_project_context_usecases.py、tests/unit/test_draft_generation.py）。B 侧用例已可经统一入口运行并落盘（tests/unit/test_substrate_adapter.py、tests/contracts/test_b_use_case_registration.py），但保存→重启读回→入口提示的完整产品路径未跑通，未产生任何验收证据。",
+      "actual": "未执行。已具备纯规则与用例层校验：交付说明必填字段缺失时拒绝登记（tests/unit/test_deliveries.py）；缺少上下文时 detect_context_gaps() 返回阻塞缺口且不生成草稿（tests/unit/test_project_context_usecases.py、tests/unit/test_draft_generation.py）。真实落盘与入口提示未接通，未产生任何验收证据。",
       "evidence": {
         "path": null,
         "description": "待补：真实项目输入、阻塞原因截图或日志、落盘记录与修订号",
         "method": "real_entry_then_domain_assertion"
       },
-      "unverified_reason": "缺真实产品路径的端到端证据：B 侧用例与落盘已接通，但保存、重启后读回与入口提示尚未在真实路径上跑通，无法证明『不将任务推进为可验收』在真实产品路径上成立。",
+      "unverified_reason": "规则层校验已有测试（tests/unit/test_deliveries.py）：必填字段缺失即拒绝登记；但缺真实入口，无法证明产品路径上『提示必填且不推进为可验收』成立。",
       "blockers": [
         {
-          "kind": "package_port",
-          "detail": "真实存储与统一入口的业务链路仍未跑通：保存、重启读回与入口提示未在真实产品路径上验证",
-          "resolved_by": "A"
-        },
-        {
           "kind": "user_entry",
-          "detail": "入口提示与任务状态的呈现由 D 负责",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
           "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/usecase_registry.py（save_delivery/submit_delivery 已注册，默认装配可派发）",
+        "tests/unit/test_deliveries.py（必填字段缺失拒绝登记）"
+      ]
     },
     {
       "id": "P1-AC02",
@@ -61,17 +59,43 @@
         "P1-FR11",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "GitHub 检查通过但业务断言失败的一次真实运行",
+        "同时呈现『两类检查』的报告与面板"
+      ],
+      "artifact_versions": [
+        "评审决策与等级（domain/review/reports.py:448/486）",
+        "GitHub 只读客户端（infrastructure/adapters/source_control.py:332）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "two_check_classes_display_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "业务断言失败与等级分离在领域层齐备（DecisionFacts 断言 coverage.failed <= decisive_case_ids，evaluate_review 把 failed 与等级分离），但 GitHub 侧只有 branch_head()，既无 check 结果读取，也无与业务断言并列的 DTO，且评审派生未接运行时。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "GitHub 检查读取缺失：source_control.py:332 GitHubReadOnlyClient 只有 branch_head()，无 check 结果 DTO。",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "execution_facts",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/adapters/source_control.py:332（GitHubReadOnlyClient 仅 branch_head）",
+        "src/aitest/domain/review/reports.py:486 evaluate_review（src/ 内无调用点）"
+      ]
     },
     {
       "id": "P1-AC03",
@@ -84,34 +108,38 @@
         "P1-FR03"
       ],
       "prerequisites": [
-        "1 个只含单一模块的真实被测项目（Git 与 plain 各一）",
-        "建立项目、模块、绑定的真实落盘路径",
-        "该模块适用检查的实际执行（C 的 L1／L2）与跨模块传播的不适用判定"
+        "一个只含单一模块的真实项目（Git 与 plain 各一）",
+        "建立项目/模块/绑定的真实落盘路径",
+        "该模块适用检查的真实执行（L1/L2）与跨模块传播的不适用判定"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "模块与依赖图的修订号（domain/project/context.py）"
+        "模块与依赖图修订号（domain/project/context.py）",
+        "模板修订（resources/templates/*/1.0.0.json）"
       ],
-      "actual": "未执行。单模块项目、依赖边方向与循环／自环规则已有单元测试（tests/unit/test_modules_and_dependencies.py），已明确没有依赖不被判为缺口也有回归测试（tests/unit/test_project_context_usecases.py::test_a_single_module_without_any_edge_is_not_a_gap，检查项 B-17）；跨模块传播的『不适用并说明原因』纯规则在应用层具备。未接真实存储与真实执行，无验收证据。",
+      "actual": "未执行。单模块项目、依赖边方向与循环／自环规则已有单元测试（tests/unit/test_modules_and_dependencies.py）；跨模块传播的『不适用并说明原因』纯规则在应用层具备。未接真实存储与真实执行，无验收证据。",
       "evidence": {
         "path": null,
         "description": "待补：单模块项目输入、适用检查结果、跨模块不适用原因",
         "method": "real_project_then_scope_assertion"
       },
-      "unverified_reason": "缺真实落盘与真实执行事实：无法证明单模块项目能完成适用检查，也无法证明跨模块项在真实报告中显示为『不适用』而非空白或失败。",
+      "unverified_reason": "单模块、依赖边方向与循环/自环规则已有单元测试；但默认装配无真实执行端口，无法产生真实适用检查结果，也无法证明报告中跨模块项显示为『不适用并说明原因』。",
       "blockers": [
         {
-          "kind": "package_port",
-          "detail": "真实被测项目尚未建立：项目、模块与绑定未在真实存储上落盘",
-          "resolved_by": "A"
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
         },
         {
-          "kind": "execution_facts",
-          "detail": "C 的真实 ExecutionFacts（Sprint 7 之后的运行事实）",
-          "resolved_by": "C"
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "tests/unit/test_modules_and_dependencies.py（单模块与依赖边规则）",
+        "src/aitest/application/execution/step_execution.py:49-50（无端口即 CAPABILITY_UNAVAILABLE）"
+      ]
     },
     {
       "id": "P1-AC04",
@@ -124,17 +152,39 @@
         "P1-FR10",
         "P1-FR11"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一个没有前端、只有两个后端模块的真实项目",
+        "模块入口与接口的真实执行（L1/L2/L3 经模板 layer 与 entry_type 声明）",
+        "报告中对『网页项不适用』的呈现入口"
+      ],
+      "artifact_versions": [
+        "模板修订（layer/entry_type 声明）",
+        "命令与 HTTP 适配器版本"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "real_project_layer_applicability"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "命令与 HTTP 适配器是真实实现，分层适用性在模板条目里已声明；但默认装配无真实执行端口，无法产生真实执行结果，也无法在报告里证伪『网页项被误判为通过』。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/adapters/execution/command.py、http.py（真实进程实现）",
+        "src/aitest/resources/templates/*/1.0.0.json（layer/entry_type 声明）"
+      ]
     },
     {
       "id": "P1-AC05",
@@ -146,17 +196,38 @@
         "P1-FR10",
         "P1-FR12"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次按计划使用 Mock 并通过的模块测试",
+        "报告中显示 Mock 范围、并保留『真实集成仍待验证』的呈现"
+      ],
+      "artifact_versions": [
+        "用例 Mock 范围（domain/planning/plans.py:273 Case.mock_scope）",
+        "证据真实性分类（domain/evidence/evidence.py:86 TruthClass）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "mock_scope_display_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "Mock 范围与真实性分类字段已存在，报告有 ReviewGapCode.CRITICAL_MOCK 缺口码；但没有真实采集把 Mock 证据与真实集成分开，也没有消费方在报告里呈现该范围，尚无真实运行可用于验证，故为部分具备。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/planning/plans.py:273（Case.mock_scope）",
+        "src/aitest/domain/evidence/evidence.py:86（TruthClass）"
+      ]
     },
     {
       "id": "P1-AC06",
@@ -168,17 +239,39 @@
         "P1-FR12",
         "P1-FR10"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一个关键函数使用未声明模拟实现的真实项目",
+        "注入『静态候选命中但运行证据不足』与『声明为真实但只拿到 Mock 证据』两种情形"
+      ],
+      "artifact_versions": [
+        "MockDeclaration 契约（contracts/execution_facts.py:458）",
+        "Mock 事实构造（application/execution/facts.py:673 _mock_fact）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "mock_declaration_conflict_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "MockDeclaration 全链路契约齐备，但**没有任何生产代码构造 MockDeclaration**，TruthClass 在全仓只有 1 处定义与 1 处枚举断言测试，STATIC_CANDIDATE 静态候选分析器完全不存在。属于部分具备且有明确功能缺口，不是『只差入口』。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "缺 MockDeclaration 的生产者与静态候选分析器：全仓无构造点，TruthClass 只有定义无生产者。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/contracts/execution_facts.py:458（MockDeclaration 契约）",
+        "src/aitest/application/execution/facts.py:673（_mock_fact）",
+        "tests/unit/test_evidence_domain.py:35（TruthClass 仅枚举断言）"
+      ]
     },
     {
       "id": "P1-AC07",
@@ -190,17 +283,40 @@
         "P1-FR11",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一个接口返回成功但实际未写入数据库的真实项目",
+        "虚构凭据跨输出块、响应回显与采集异常三条注入",
+        "独立数据断言的真实只读通道"
+      ],
+      "artifact_versions": [
+        "独立核验适配器版本（infrastructure/adapters/execution/verification.py）",
+        "业务只读查询适配器（business_query.py）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "independent_data_assertion_and_leak_check"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "独立文件核验与业务核验适配器、HTTP 业务只读查询、以及『字节先经 StreamingRedactor 再进 spool』都有真实实现与源码依据；缺口是 business_verification_port 默认 None，独立数据断言没有真实只读通道，无法在真实材料上验证过滤前字节不落盘。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "business_verification_port 默认 None（bootstrap.py:315），独立数据断言无真实只读通道。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/adapters/execution/verification.py:47 IndependentFileVerifier、:95 BusinessVerificationAdapter",
+        "src/aitest/infrastructure/adapters/execution/business_query.py:66 HttpBusinessQueryReader",
+        "src/aitest/infrastructure/adapters/execution/command.py:627/642/643（先脱敏后落盘）"
+      ]
     },
     {
       "id": "P1-AC08",
@@ -212,17 +328,39 @@
         "P1-FR13",
         "P1-FR15"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次页面分页或滚动后功能失效的真实操作",
+        "按钮、分页、跳转、表单、滚动、适用鼠标操作、异常提示七类操作各一条",
+        "可编辑缺陷草稿的生成与呈现入口"
+      ],
+      "artifact_versions": [
+        "人工操作类型（infrastructure/adapters/execution/manual_evidence.py:17）",
+        "manual-web-workflow 模板修订"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "manual_operation_coverage_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "ManualOperationType 已覆盖七类操作（含 data_display），但 ManualEvidenceAdapter 全仓只被一个单测使用，manual-web-workflow 模板只有 navigation/form/refresh 三项，ReviewGapCode 也没有人工操作覆盖缺口码；缺真实人工操作入口与缺陷草稿呈现。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "契约与适配器存在但无生产者：ManualEvidenceAdapter 全仓只被 tests/unit/test_execution_adapters.py:196 使用；TraceNode 没有任何生产代码构造；EvidenceGapKind.MISSING_REQUEST_ID / MISSING_STRUCTURED_LOG 只有枚举无产出路径。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/adapters/execution/manual_evidence.py:17（ManualOperationType 七类）",
+        "tests/unit/test_execution_adapters.py:196（唯一使用点）"
+      ]
     },
     {
       "id": "P1-AC09",
@@ -234,17 +372,39 @@
         "P1-FR09",
         "P1-FR11"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次带请求标识和后端日志的真实操作",
+        "同次执行的证据关联视图"
+      ],
+      "artifact_versions": [
+        "证据溯源节点（domain/evidence/evidence.py:227 TraceNode）",
+        "报告/证据关联 DTO（interfaces/dto.py）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "trace_association_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "TraceNode 具备 navigation_path/parent/explicit_relation_ref，ManualEvidenceAdapter.to_trace_node 是唯一节点生成路径；但没有请求标识采集、没有后端日志采集、没有证据关联视图，缺口明确标出也无从呈现。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "契约与适配器存在但无生产者：ManualEvidenceAdapter 全仓只被 tests/unit/test_execution_adapters.py:196 使用；TraceNode 没有任何生产代码构造；EvidenceGapKind.MISSING_REQUEST_ID / MISSING_STRUCTURED_LOG 只有枚举无产出路径。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/evidence/evidence.py:227（TraceNode，无生产者）",
+        "src/aitest/domain/evidence/evidence.py:119-127（MISSING_REQUEST_ID 等缺口只有枚举）",
+        "src/aitest/infrastructure/adapters/execution/manual_evidence.py（to_trace_node 是唯一构造路径）"
+      ]
     },
     {
       "id": "P1-AC10",
@@ -256,17 +416,37 @@
         "P1-FR09",
         "P1-FR15"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次缺少日志、模型仍给出具体根因的真实调用",
+        "『以待验证假设呈现并要求证据』的记录类型",
+        "人工驳回并留痕的入口"
+      ],
+      "artifact_versions": [
+        "需要新增的假设记录契约（当前不存在）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "hypothesis_record_and_dismissal_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "**完全未实现**：全仓查 hypothesis/假设/待验证/root_cause/驳回 等词，唯一命中是 tests/unit/test_abc_root_cause_regressions.py 的模块名；没有假设记录类型、没有驳回留痕载体。",
+      "blockers": [
+        {
+          "kind": "protocol",
+          "detail": "缺假设记录与驳回留痕的契约与持久化，全仓无对应类型。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "全仓 grep hypothesis|待验证|驳回 → 仅测试模块名命中"
+      ]
     },
     {
       "id": "P1-AC11",
@@ -277,17 +457,38 @@
       "related_frs": [
         "P1-FR15"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次缺陷修复后复测仍失败的真实回归",
+        "保留修复版本与复测记录的载体"
+      ],
+      "artifact_versions": [
+        "缺陷状态机（domain/review/defects.py）",
+        "回归记录（record_failed_regression）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "failed_regression_reopen_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "缺陷规则齐备：record_failed_regression 会把 READY_FOR_RETEST 或 CLOSED 转为 IN_PROGRESS+ACTIVE，并保留 fix_version/regression_method（即『保留修复版本』成立）；但缺陷无持久化、无端口、无 handler，缺真实入口。",
+      "blockers": [
+        {
+          "kind": "real_storage",
+          "detail": "问题与报告的领域规则齐备但无持久化、无端口、无 handler：domain/review/defects.py(458 行)、domain/review/reports.py(801 行)、application/review/defect_management.py(185 行)、application/review/reporting.py(111 行) 都只有规则与用例，未接 file_store 仓储，record_fix / close_issue / update_issue / create_report / record_local_review 均未注册为可派发动作。",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/review/defects.py（458 行，record_failed_regression）",
+        "tests/unit/test_issue_lifecycle.py"
+      ]
     },
     {
       "id": "P1-AC12",
@@ -300,39 +501,39 @@
         "P1-FR05"
       ],
       "prerequisites": [
-        "一次已发布的规则与计划修订，以及其后的真实规则／代码变化",
-        "旧记录与新执行的修订绑定关系可读",
-        "『关联用例可待回归』的运行状态（C 的运行与依赖失效事实）"
+        "一次已发布的规则与计划修订，以及其后的真实规则/代码变化",
+        "旧记录与新执行的修订绑定关系可读回",
+        "关联用例进入待回归的运行状态"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "规则修订（domain/planning/rules.py）、计划修订（domain/planning/plans.py）、模板修订"
+        "规则修订（domain/planning/rules.py）",
+        "计划修订（domain/planning/plans.py）",
+        "模板修订"
       ],
-      "actual": "未执行。规则发布门禁与『发布修订不可变、新版本另存』已有测试（tests/unit/test_rules.py、tests/unit/test_publish_orchestration.py：第二次修订落为新的记录修订），且发布现已核对调用方声明的修订、不符报 B_REVISION_CONFLICT（检查项 B-14）；草稿定向失效已实现（tests/unit/test_draft_generation.py）。真实存储的历史保留与新执行绑定未验证。",
+      "actual": "未执行。规则发布门禁与『发布修订不可变、新版本另存』已有测试（tests/unit/test_rules.py、tests/unit/test_publish_orchestration.py：第二次修订落为新的记录修订）；草稿定向失效已实现（tests/unit/test_draft_generation.py）。真实存储的历史保留与新执行绑定未验证。",
       "evidence": {
         "path": null,
         "description": "待补：变化前后的修订号、旧记录读取结果、新执行绑定的修订",
         "method": "revision_binding_assertion"
       },
-      "unverified_reason": "缺真实存储的历史保留与真实执行：无法证明变化后旧记录仍读得到原版本、新执行绑定新版本。",
+      "unverified_reason": "规则发布门禁与『发布修订不可变、新版本另存』已有测试，真实文件底座（FileRecordRepository 1163 行）也已实现；但缺真实执行，无法证明变化后新执行确实绑定新修订。原登记的 real_storage/package_port 阻塞已不成立。",
       "blockers": [
         {
-          "kind": "package_port",
-          "detail": "变化前后的真实保存与按准确修订读回尚未在真实存储上跑通",
-          "resolved_by": "A"
-        },
-        {
-          "kind": "real_storage",
-          "detail": "不可变历史与修订读回由 A 的 file_store 提供",
-          "resolved_by": "A"
-        },
-        {
           "kind": "execution_facts",
-          "detail": "C 的真实 ExecutionFacts（Sprint 7 之后的运行事实）",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
           "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/file_store/records.py（1163 行，真实仓储与修订读回）",
+        "tests/unit/test_rules.py、tests/unit/test_publish_orchestration.py"
+      ]
     },
     {
       "id": "P1-AC13",
@@ -345,17 +546,35 @@
         "P1-FR09",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一个因环境不可达而未运行的测试",
+        "复用 venv 中本项目 editable/PYTHONPATH 或绝对入口指向原仓库的形态",
+        "执行后发现来源不明时的证据缺口呈现"
+      ],
+      "artifact_versions": [
+        "来源核验服务（application/execution/source_checks.py:99）",
+        "来源绑定阻塞码 SOURCE_BINDING_UNVERIFIED"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "source_origin_blocking_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "来源核验链的规则与适配器都在，且默认准入已完成覆盖性、workdir 归属、逐文件摘要、映射摘要、cwd 受限解析与适配器唯一键核对；缺的是「实际入口／实际解释器／来源核验事实」这三个实际值的来源——source probe 在装配中无人调用、SourceVerificationService 不参与装配，所以「启动前核对实际来源、不符则阻塞」尚未接在默认启动路径上。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实。**其中解释器一项已于 2026-10-11 接通**：`SavedActionResolver` 接受装配层注入的 `interpreter_verifier`（`bootstrap._interpreter_verifier` 用 `PythonLoadSourceProbe` 以冻结环境事实的 executable_path 现场探测，交回解释器自报的 realpath），按 `source_checks._derive_state` 第 182–186 行的解析路径口径比对；`assemble_workspace_core` 的 `verify_start_interpreter` **默认开启**，全默认执行族 58 项在该默认下通过。**仍缺**：实际入口核对、来源核验事实（`SourceVerificationService` 仍不参与装配）与默认执行端口。",
+          "resolved_by": "C"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/execution/source_checks.py:99（SourceVerificationService）",
+        "src/aitest/infrastructure/adapters/source_control.py:138、python_checks.py:172 PythonLoadSourceProbe",
+        "src/aitest/bootstrap.py（source_probe 构造后无人调用）"
+      ]
     },
     {
       "id": "P1-AC14",
@@ -367,17 +586,38 @@
         "P1-FR15",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一个范围仍有未关闭 P1 缺陷的真实项目",
+        "核实非缺陷、重复归并、主问题重开、暂缓四类处置的注入"
+      ],
+      "artifact_versions": [
+        "阻塞计算（domain/review/defects.py effective_blocking_issue_ids）",
+        "归并环拒绝（resolve_canonical_issue_id）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "blocking_issue_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "有效阻塞、按链取最强严重度、重复归并无环且悬空拒绝、重开与暂缓规则都有实现与测试；但无持久化与入口，无法在真实范围上证明『阻止判定通过并显示关联问题』。",
+      "blockers": [
+        {
+          "kind": "real_storage",
+          "detail": "问题与报告的领域规则齐备但无持久化、无端口、无 handler：domain/review/defects.py(458 行)、domain/review/reports.py(801 行)、application/review/defect_management.py(185 行)、application/review/reporting.py(111 行) 都只有规则与用例，未接 file_store 仓储，record_fix / close_issue / update_issue / create_report / record_local_review 均未注册为可派发动作。",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/review/defects.py（effective_blocking_issue_ids/effective_severity/resolve_canonical_issue_id）",
+        "tests/unit/test_defect_management_application.py"
+      ]
     },
     {
       "id": "P1-AC15",
@@ -389,17 +629,37 @@
         "P1-FR09",
         "P1-FR15"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次模型服务调用失败的真实运行",
+        "人工填写结论并提交缺陷的入口"
+      ],
+      "artifact_versions": [
+        "人工证据适配器（infrastructure/adapters/execution/manual_evidence.py）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "manual_conclusion_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "**完全未实现**：全仓查 manual_conclusion/人工结论/人工填写 零命中；resolve_model_response 只处理模型草稿与理由，manual_evidence 只记录人工步骤、不含结论。",
+      "blockers": [
+        {
+          "kind": "protocol",
+          "detail": "缺『人工填写结论』的契约与载体；人工证据适配器只记录步骤。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "全仓 grep manual_conclusion|人工结论 → 零命中",
+        "src/aitest/infrastructure/adapters/execution/manual_evidence.py（仅人工步骤）"
+      ]
     },
     {
       "id": "P1-AC16",
@@ -410,17 +670,37 @@
       "related_frs": [
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一份包含请求和日志的报告",
+        "统一字段与编号的导出产物"
+      ],
+      "artifact_versions": [
+        "导出产物生成器（当前不存在）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "export_bytes_secret_scan"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "**完全未实现**：infrastructure/exports.py 全文 4 行 docstring，自述『一期职责预留，尚未实现，不注册为可用能力』；export_report 在一期动作表已声明但 src/ 下无任何 handler，产物生成器不存在。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "导出产物生成器不存在：src/aitest/infrastructure/exports.py 全文 4 行 docstring，自述『一期职责预留，尚未实现，不注册为可用能力』；export_report / copy_repair_brief 在一期动作表里已声明但在 src/ 下无任何 handler。",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/exports.py（4 行空壳）",
+        "全仓 grep export_report → 仅 contracts/commands.py"
+      ]
     },
     {
       "id": "P1-AC17",
@@ -434,39 +714,34 @@
         "P1-FR06"
       ],
       "prerequisites": [
-        "两个真实项目：一个上下文完整、一个上下文缺失（缺环境载体或缺依赖登记）",
-        "同一个内置模板在两个项目上的草稿生成",
-        "草稿来源标注与『未确认草稿不进入执行』的入口（D）"
+        "两个真实项目：一个上下文完整、一个上下文缺失",
+        "同一内置模板在两个项目上的草稿生成与落盘",
+        "草稿来源标注与『未确认草稿不进入执行』的入口"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "六个内置模板修订（resources/templates/*/1.0.0.json）"
+        "六个内置模板修订",
+        "源码身份与快照字段（domain/execution/sources.py）"
       ],
-      "actual": "未执行。六模板结构与草稿生成、来源标注、上下文缺口阻塞均有测试（tests/contracts/test_template_content.py、tests/unit/test_draft_generation.py：缺口存在时不生成草稿、只列缺口）；『生成内容为草稿且无自动发布路径』有反例测试；草稿现已按 generated_content 记录落盘（application/planning/draft.py、统一入口的生成动作）。真实产品路径上的落盘与入口执行未跑通。",
+      "actual": "未执行。六模板结构与草稿生成、来源标注、上下文缺口阻塞均有测试（tests/contracts/test_template_content.py、tests/unit/test_draft_generation.py：缺口存在时不生成草稿、只列缺口）；『生成内容为草稿且无自动发布路径』有反例测试。真实存储落盘与入口执行未接通。",
       "evidence": {
         "path": null,
         "description": "待补：两个项目的草稿结构对比、缺口清单、草稿未进入执行的记录",
         "method": "two_project_draft_comparison"
       },
-      "unverified_reason": "缺真实产品路径的落盘与入口：草稿已可落盘为记录，但『未确认草稿不进入执行』未在真实入口上被证伪或证实；源码身份（SourceSnapshot）的实现已有、尚未进默认装配。",
+      "unverified_reason": "六模板结构、草稿生成、来源标注与上下文缺口阻塞均有测试；SourceSnapshotPort 现有 7 个方法签名、FileSourceSnapshotStore 为真实实现。B-Q01/C-Q08 已由负责人 2026-09-30 裁定（BC-001 §14.3），原 decision 阻塞失效；剩余缺口是真实入口与草稿落盘。",
       "blockers": [
         {
-          "kind": "package_port",
-          "detail": "真实存储与统一入口的草稿链路未在真实产品路径上跑通",
-          "resolved_by": "A"
-        },
-        {
-          "kind": "decision",
-          "detail": "SourceSnapshot 的规则与身份判据口径已定（DEC-001），端口实现已有但未进默认装配",
-          "resolved_by": "A"
-        },
-        {
           "kind": "user_entry",
-          "detail": "草稿确认与执行的入口由 D 负责",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
           "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/ports.py:535-555（SourceSnapshotPort 7 个方法）",
+        "src/aitest/infrastructure/adapters/source_snapshot.py:155 FileSourceSnapshotStore",
+        "docs/接口对接/进行中/BC-001-PreparedRun/contract.md:491-512（B-Q01/C-Q08 已裁定）"
+      ]
     },
     {
       "id": "P1-AC18",
@@ -479,17 +754,38 @@
         "P1-FR08",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "同一批检查分别以按需自测（只选 L2 且跳过 3 项）与完整验证执行",
+        "『按需自测把冻结范围勾满并全部通过』的注入"
+      ],
+      "artifact_versions": [
+        "档位与结论上限（contracts/prepared_run.py）",
+        "评审决策表（domain/review/reports.py _GAP_GRADES）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "tier_grading_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "规则层成立：非 full 直接返回 None（即『未打分』），决策表 A/B/C/D 齐备，并有 test_quick_run_never_gets_evidence_grade_or_full_pass 等测试；但 evaluate_review 在 src/ 内无调用点，等级与『未打分』标注在产品路径上不存在。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/review/reports.py:448 _derive_evidence_grade（非 full 返回 None）、:486 evaluate_review",
+        "tests/unit/test_review_decision.py"
+      ]
     },
     {
       "id": "P1-AC19",
@@ -502,17 +798,40 @@
         "P1-FR07",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次可暂停/取消/重试/退回的真实运行，且执行器未确认停止",
+        "同号传输恢复与新副作用 Attempt 的注入",
+        "上游重试改变/未改变输出、控制依赖、传递依赖及宿主退出的注入"
+      ],
+      "artifact_versions": [
+        "控制与恢复规则（application/execution/control.py、recovery.py、continuation.py）",
+        "核心保活钩子（interfaces/local/core_worker.py）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "control_and_recovery_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "控制与恢复规则最完整（不伪造终态、runner/recovery/dependencies/continuation 均有实现，核心有保活钩子）；但无真实执行端口，产生不了任何真实终止事实，传输次数与尝试次数的分别记录也未在应用路径落地。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/execution/saved_control.py:346-410（不伪造终态）",
+        "src/aitest/application/execution/runner.py:525-598、recovery.py:81-212",
+        "src/aitest/interfaces/local/core_worker.py:407-419（保活钩子）"
+      ]
     },
     {
       "id": "P1-AC20",
@@ -528,13 +847,13 @@
       ],
       "prerequisites": [
         "一次真实运行，执行到一半后修改尚未执行的用例",
-        "正在执行步骤的拒绝修改路径（C 的步骤执行事实）",
-        "运行中修订序列与基础计划修订序列都可查（A 的记录修订 + C 的运行修订）",
-        "『依据失效时暂停并列出需重跑用例』的编排"
+        "正在执行步骤的拒绝修改路径（步骤级执行事实）",
+        "运行中修订序列与基础计划修订序列都可查",
+        "依据失效时暂停并列出需重跑用例的编排"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "计划修订、用例修订、步骤修订（domain/planning/plans.py、domain/execution/runs.py）"
+        "计划/用例/步骤修订（domain/planning/plans.py、domain/execution/runs.py）",
+        "运行中修订服务（application/execution/runtime_revision_service.py）"
       ],
       "actual": null,
       "evidence": {
@@ -542,25 +861,24 @@
         "description": "待补：运行中修订记录、正在执行步骤的拒绝结果、依据失效后的暂停与重跑清单",
         "method": "running_revision_sequence_assertion"
       },
-      "unverified_reason": "该项必须在一半已执行的运行上判定，需要步骤级执行事实与运行中修订序列；两者均未交付，故当前无法构造输入，不属『已具备但未跑』。B 侧的领域门禁与决策结果已实现并有回归测试（domain/planning/runtime_revision.py、application/planning/run_mode.py），但运行中修订的落盘与 runner 消费归 C，尚未接通；运行中／正在执行的快照夹具也尚缺（BC-001 第 17 节已列设计）。",
+      "unverified_reason": "该项必须在『一半已执行』的真实运行上判定。运行中修订动作已实现并注册（revise_pending_steps/narrow_driver，application/execution/runtime_actions.py；SavedRuntimeRevisionActions 由默认装配注入），但仍无法构造输入：默认装配无真实执行端口，产生不了有步骤级执行事实的半程运行。故仍记 blocked 而非 not_verified。",
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "C 的真实 ExecutionFacts（Sprint 7 之后的运行事实）",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
           "resolved_by": "C"
         },
         {
-          "kind": "package_port",
-          "detail": "运行中修订的落盘与 runner 消费尚未接通（B 侧领域门禁与决策结果已就绪）",
-          "resolved_by": "C"
-        },
-        {
-          "kind": "real_storage",
-          "detail": "运行中修订序列的保存与查读由 A 的记录仓储提供",
-          "resolved_by": "A"
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/bootstrap.py:639-653（revise_pending_steps/narrow_driver 已注册）+ :636 runtime_actions",
+        "src/aitest/application/execution/step_execution.py:49-50（无端口无法产生执行事实）"
+      ]
     },
     {
       "id": "P1-AC21",
@@ -573,17 +891,38 @@
         "P1-FR14",
         "P1-FR06"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "断言依据已填写但未确认、12 项执行完成但 2 项依据未确认两种输入",
+        "用例草稿未发布、已发布依据待确认、已发布依据确认三种输入"
+      ],
+      "artifact_versions": [
+        "依据确认（application/planning/basis_confirmation.py）",
+        "报告修订（domain/review/reports.py create_report_revision）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "basis_state_and_grading_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "业务结论与等级分离、依据确认绑定准确修订、补确认不产生新执行等规则齐备；但评审派生未接运行时，报告字段与 effective_assertion_basis_state 没有产品路径，且缺真实入口。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/planning/basis_confirmation.py",
+        "src/aitest/domain/review/reports.py（create_report_revision / LocalReview 绑定 report_revision）"
+      ]
     },
     {
       "id": "P1-AC22",
@@ -596,17 +935,37 @@
         "P1-FR14",
         "P1-FR12"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "完整真实证据、仅非关键局部缺口、关键依赖未知、快照与执行不一致、证据充分但业务失败五种注入"
+      ],
+      "artifact_versions": [
+        "证据等级决策表（domain/review/reports.py _GAP_GRADES）",
+        "覆盖断言（Coverage：E∩R=∅、V⊆E∪R⊆S、P⊆V）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "grade_decision_table_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "决策表 A/B/C/D 与覆盖不变式在领域层成立，并有 test_missing_critical_evidence_is_grade_c、test_source_mismatch_and_no_execution_basis_are_grade_d 等测试；但等级计算未接运行时，五种注入无法在产品路径上产出可核对报告。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/review/reports.py（_GAP_GRADES、Coverage）",
+        "tests/unit/test_review_decision.py（等级反例）"
+      ]
     },
     {
       "id": "P1-AC23",
@@ -620,17 +979,43 @@
         "P1-FR10",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "同一改动用三个档位分别运行",
+        "全量选择按需、首次与单模块快速检查的注入"
+      ],
+      "artifact_versions": [
+        "档位定义（contracts/prepared_run.py）",
+        "档位到等级的映射（domain/review/reports.py）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "tier_full_pass_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "『快查/按需不打分且不判完整通过、只有完整验证派生等级』在规则层成立；但等级未接运行时，且缺真实入口与真实执行，无法在真实运行上核对覆盖摘要。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/review/reports.py:448（非 full 不打分）",
+        "tests/unit/test_phase_one_rules.py"
+      ]
     },
     {
       "id": "P1-AC24",
@@ -645,17 +1030,38 @@
         "P1-FR13",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "模板必测/关键链路漏项、无清单、缺独立核验、缺请求标识与日志四种输入的注入",
+        "多步骤用例含跨运行继承和本轮新 Attempt 的真实运行"
+      ],
+      "artifact_versions": [
+        "计划冻结与门禁（domain/planning/plans.py:319-339/395-399/461-509）",
+        "整用例聚合（domain/execution/cases.py:32）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "case_aggregation_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "『缺独立核验拒绝』『full 必须含全部必测』『E/R/V 互斥、部分本轮执行与历史继承不计整用例』『冻结步骤依据校验』都已具备；但证据要求到事实只是 id 投影，『请求标识/日志缺失』只有 EvidenceGapKind.MISSING_REQUEST_ID 枚举而无生产者，且无真实执行。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/execution/cases.py:32（aggregate_case_execution）",
+        "src/aitest/application/execution/facts.py:148（validate_frozen_step_basis）"
+      ]
     },
     {
       "id": "P1-AC25",
@@ -669,17 +1075,39 @@
         "P1-FR10",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一个不是 Git 仓库的被测目录（plain 形态）",
+        "在其上完成适用的 L1/L2/L3 检查、证据与导出"
+      ],
+      "artifact_versions": [
+        "plain 序列化形态（application/project/serialization.py:47-51/92-95/108-116）",
+        "源码分析（application/project/source_analysis.py:396-398）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "plain_project_full_loop_assertion"
       },
-      "unverified_reason": "尚未由牵头包 C 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "plain 用『省略键』而非空值、双向拒绝形态不符，_git_identity 对 plain 直接返回 None，并有测试断言 plain 不调用 Git，规则层齐备；缺口仍是默认装配无真实执行端口，以及 DEC-010 期望摘要字段改名待 CD-001 破坏性变更。",
+      "blockers": [
+        {
+          "kind": "execution_facts",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
+          "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/project/serialization.py:47-51/92-95/108-116",
+        "src/aitest/application/project/source_analysis.py:396-398",
+        "tests/unit/test_default_source_analysis.py:126"
+      ]
     },
     {
       "id": "P1-AC26",
@@ -691,17 +1119,36 @@
         "P1-FR17",
         "P1-FR07"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "三段信息面板（信息区只读 + 动作区）与未隔离、暂停恢复、计划未确认、按需选择四种状态",
+        "可从运行后段缺口跳到证据详情的入口"
+      ],
+      "artifact_versions": [
+        "面板源码（src/aitest/resources/panel/src/index.ts）",
+        "扩展适配（integrations/trae/src/extension.ts）",
+        "DTO（interfaces/dto.py）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "panel_three_section_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "入口面已接通一部分：扩展经 core-bridge 与面板建立消息通道并能向同一核心派发只读动作（真实进程已验证 doctor/storage_usage），面板已把 supported_actions 原样列出并可按需派发storage_usage / events。仍未实现：三段信息区的只读业务字段、动作区（开始/控制/导出/跳转）、计划发布与按需范围入口、缺口跳证据详情；业务动作按钮仍 disabled，写动作必须经受控用户入口。真实 Trae 兼容性未验证。",
+      "blockers": [
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "integrations/trae/src/core-bridge.ts（只读白名单 + 经 CLI 派发 + 回执 request_id 核对）",
+        "integrations/trae/src/extension.ts（onDidReceiveMessage + 配置项 + 回执回送）",
+        "src/aitest/resources/panel/src/index.ts（消息通道、真实回执驱动的状态行、刷新动作）",
+        "src/aitest/resources/panel/tests/panel.spec.ts（Playwright 通过）"
+      ]
     },
     {
       "id": "P1-AC27",
@@ -713,17 +1160,34 @@
         "P1-FR17",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "面板、报告与示例 DTO 的同一来源修订对比",
+        "快照生成与订阅之间提交、同提交多事件、重复投递的注入"
+      ],
+      "artifact_versions": [
+        "QuerySpec（contracts/queries.py）",
+        "查询索引（infrastructure/file_store/index.py，1462 行 VERSION=3）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "real_query_spec_then_snapshot_cursor_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "入口侧的报告/问题查询现已支持固定目录选器（business_outcome/report_id/run_id/view/facet/severity/sort/descending/revision 都能到达 QuerySpec）；仍缺读取端与订阅面：面板不读 DTO、无实时值与快照值区分、无「从快照游标之后重放」的实现，因此『同来源修订口径一致』与『执行完成/有效验证分别读取核心计数』仍无法在真实入口上核对。",
+      "blockers": [
+        {
+          "kind": "user_entry",
+          "detail": "查询层缺口已收窄（2026-10-11 修复）：`query` 动作现在承载完整 QuerySpec 选器（revision/sort/descending/business_outcome/run_id/report_id/view/facet/facet_value/severity），MCP relay 同步广告这些字段。剩余阻塞是读取端：面板与扩展不读任何 DTO，没有实时值/快照值区分与订阅面（契约层 events.py 只有 20 行）。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/contracts/queries.py（完整 QuerySpec 与 ensure_finite_route）",
+        "src/aitest/infrastructure/file_store/index.py（三套目录、facet 掩码、同提交游标）",
+        "src/aitest/application/planning/substrate.py:179（RecordQuery 仅五字段）、usecase_registry.py:1282 handle_query"
+      ]
     },
     {
       "id": "P1-AC28",
@@ -735,17 +1199,38 @@
         "P1-FR16",
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "连续完成多轮真实运行（含失败、阻塞、取消与重跑）并生成多份报告修订",
+        "注入从界面删除报告/证据、长时间后查看最早期运行证据、修改本机系统时间三种情形",
+        "完整历史备份恢复及活动 spool 未发布的注入"
+      ],
+      "artifact_versions": [
+        "备份实现（infrastructure/file_store/backup.py FileBackupStore）",
+        "维护服务（maintenance.py FileMaintenanceService）",
+        "完整性巡检（integrity.py check_workspace）",
+        "迁移管理（migrations.py FileMigrationManager）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "permanence_and_backup_assertion"
       },
-      "unverified_reason": "尚未由牵头包 A 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "永久保留的底座齐备（备份、维护、完整性巡检、迁移、事件日志），且 `storage_usage`／`events` 现已在默认装配中真实可派发。仍无法验收的原因是：`backup`／`migrate` 尚未接入默认动作面（需先裁定工作空间级维护写动作携带的 project/intent/revision），面板未接核心、无「界面不提供删除入口」的呈现，也没有多轮真实运行历史可供核对。",
+      "blockers": [
+        {
+          "kind": "user_entry",
+          "detail": "维护面已部分接通（2026-10-11）：`storage_usage` 与 `events` 已注册为默认可派发动作（FileMaintenanceService.diagnose / FileEventJournal.read），默认可派发动作由 39 增至 41。仍缺：`backup`／`migrate` 未注册（二者非只读动作，`Command` 要求 project_id/intent_id/expected_revision，工作空间级维护写动作该带什么身份尚未裁定）；面板没有任何删除入口的呈现。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/file_store/backup.py:132 FileBackupStore",
+        "src/aitest/infrastructure/file_store/maintenance.py:197 FileMaintenanceService",
+        "src/aitest/infrastructure/file_store/integrity.py:310 check_workspace",
+        "src/aitest/application/ports.py（MaintenancePort 5 个方法）"
+      ]
     },
     {
       "id": "P1-AC29",
@@ -756,17 +1241,39 @@
       "related_frs": [
         "P1-FR14"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "对同一份报告先后记录两次本地复核（复核人、结论、说明、所依据的报告内容修订、时间）",
+        "复核后注入证据或问题变化影响结论的情形"
+      ],
+      "artifact_versions": [
+        "本地复核（domain/review/reports.py LocalReview）",
+        "报告修订（create_report_revision）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "independent_local_review_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "LocalReview 绑定 report_revision、create_report_revision 递增 content_revision 的设计已具备（含测试）；但 record_local_review 未注册为可派发动作，复核无持久化与入口，无法证明『复核不改变报告内容修订』在真实路径上成立。",
+      "blockers": [
+        {
+          "kind": "real_storage",
+          "detail": "问题与报告的领域规则齐备但无持久化、无端口、无 handler：domain/review/defects.py(458 行)、domain/review/reports.py(801 行)、application/review/defect_management.py(185 行)、application/review/reporting.py(111 行) 都只有规则与用例，未接 file_store 仓储，record_fix / close_issue / update_issue / create_report / record_local_review 均未注册为可派发动作。",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/domain/review/reports.py（LocalReview、create_report_revision）",
+        "tests/unit/test_reporting_application.py",
+        "全仓 grep record_local_review → 仅 contracts/commands.py"
+      ]
     },
     {
       "id": "P1-AC30",
@@ -782,40 +1289,35 @@
         "P1-FR17"
       ],
       "prerequisites": [
-        "新建两个真实项目：纯函数项目与 HTTP 项目，均无模型凭据",
+        "两个真实新项目：纯函数项目与 HTTP 项目，均无模型凭据",
         "无模板、尚无计划时的源码分析入口",
-        "『显式分析可在发布前固定选定内容』的入口与固定结果（D 的动作 + B 的输出）",
-        "分析后源码变化的依据变化提示"
+        "『显式分析可在发布前固定选定内容』的固定结果",
+        "分析后源码变化触发依据变化的提示"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "模板修订、源码清单摘要（domain/project/context.py 的 SourceManifest）"
+        "模板修订",
+        "源码清单摘要与快照内容身份（domain/project/context.py、domain/execution/sources.py）"
       ],
-      "actual": "未执行。最小输入与适用检查的选择规则、无模型时人工建计划的路径已在纯规则与用例层具备（tests/unit/test_model_outbound_policy.py、tests/unit/test_prepare_run_flow.py）；plain 形态的 SourceManifest 内容身份有测试（tests/unit/test_source_manifest.py），内容身份算法与 git 形态已实现并有回归测试（domain/project/context.py 的 source_content_identity()、tests/unit/test_source_identity.py），快照记录与读回亦已实现（application/project/persistence.py 的 save_source_snapshot()／load_source_snapshot()、tests/unit/test_source_snapshot_persistence.py）。真实源码读取仍未进默认装配。",
+      "actual": "未执行。最小输入与适用检查的选择规则、无模型时人工建计划的路径已在纯规则与用例层具备（tests/unit/test_model_outbound_policy.py、tests/unit/test_prepare_run_flow.py）；plain 形态的 SourceManifest 内容身份有测试（tests/unit/test_source_manifest.py）。尚无真实源码读取与固定。",
       "evidence": {
         "path": null,
         "description": "待补：两个项目的分析输出、固定内容摘要、分析后源码变化的提示",
         "method": "analysis_then_source_change_assertion"
       },
-      "unverified_reason": "缺默认装配下的真实源码读取：内容身份算法、快照记录与读写已实现，但文件型快照适配未进默认装配，『分析后源码变化提示依据变化』无法在真实字节上验证。",
+      "unverified_reason": "快照实现、源码分析动作与受限 cwd/映射核对都已具备；缺的是把 source probe 与来源核验服务接进默认准入以产生「实际入口／实际解释器／核验事实」，以及真实入口。原登记里「SourceSnapshotPort 无方法签名」「源码读取与摘要计算无真实实现」已被源码推翻。",
       "blockers": [
         {
-          "kind": "decision",
-          "detail": "SourceSnapshot 的规则与身份判据口径已定（DEC-001 与 AB-001 第 11 节），字段与适配已有实现",
-          "resolved_by": "A"
-        },
-        {
-          "kind": "package_port",
-          "detail": "文件型快照适配器未进默认装配：pin／read_pinned／materialize／detect_changes 已有实现，但未注入默认核心",
-          "resolved_by": "A"
-        },
-        {
-          "kind": "user_entry",
-          "detail": "分析入口与固定动作由 D 负责",
-          "resolved_by": "D"
+          "kind": "execution_facts",
+          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实。**其中解释器一项已于 2026-10-11 接通**：`SavedActionResolver` 接受装配层注入的 `interpreter_verifier`（`bootstrap._interpreter_verifier` 用 `PythonLoadSourceProbe` 以冻结环境事实的 executable_path 现场探测，交回解释器自报的 realpath），按 `source_checks._derive_state` 第 182–186 行的解析路径口径比对；`assemble_workspace_core` 的 `verify_start_interpreter` **默认开启**，全默认执行族 58 项在该默认下通过。**仍缺**：实际入口核对、来源核验事实（`SourceVerificationService` 仍不参与装配）与默认执行端口。",
+          "resolved_by": "C"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/adapters/source_snapshot.py:169/249/255/261/359（pin/read_pinned/verify_pinned/materialize/detect_changes）",
+        "tests/unit/test_default_source_analysis.py:120/126/258（plain 真实字节摘要、plain 不调用 Git、真实 Git 身份）",
+        "src/aitest/bootstrap.py（source_probe 构造后无人调用）"
+      ]
     },
     {
       "id": "P1-AC31",
@@ -831,39 +1333,40 @@
       ],
       "prerequisites": [
         "两个独立验收范围与一次模板漏项注入",
-        "启动前集中逐项授权，以及授权后输入／目标／凭据范围变化的失效注入",
-        "MCP 伪造确认、挑战错配、重复确认三条反例的入口（D 的 agent_relay）",
-        "每个副作用动作的独立确认记录（C 的动作 + A 的记录落盘）"
+        "启动前集中逐项授权，以及授权后输入/目标/凭据范围变化的失效注入",
+        "受控交互入口与 MCP relay 上的三条反例（伪造确认/挑战错配/重复确认）",
+        "每个副作用动作的独立确认记录落盘"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "档位／驱动／结论上限（contracts/prepared_run.py）、授权命令（contracts/commands.py）"
+        "档位/驱动/结论上限（contracts/prepared_run.py）",
+        "授权命令（contracts/commands.py）",
+        "确认记录（domain/approvals.py）"
       ],
-      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。受控依据确认动作已接入统一入口（confirm_assertion_basis，检查项 B-01，tests/contracts/test_confirm_assertion_basis_entrypoint.py）；MCP 反例与真实副作用动作尚未接通。",
+      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。确认记录、MCP 反例与真实副作用动作均未接通。",
       "evidence": {
         "path": null,
         "description": "待补：每个动作的确认记录、变更后原授权失效的记录、MCP 三条反例的拒绝结果",
         "method": "per_action_authorization_assertion"
       },
-      "unverified_reason": "缺真实副作用动作、确认记录的完整落盘链与 MCP relay 入口：B 侧受控确认动作与边界规则已就绪，『每个副作用动作单独有确认记录』在真实入口与真实介质上尚未验证。",
+      "unverified_reason": "档位与范围规则、计划确认与逐项授权分离、prepare_approval/revoke_approval/authorize_step 注册均已具备，MCP relay（interfaces/tools/agent_relay.py，440 行）与 stdio 测试也存在；但缺真实副作用执行与真实受控入口，无法证明每个动作都有独立确认记录且原授权可失效。",
       "blockers": [
         {
-          "kind": "user_entry",
-          "detail": "确认与 relay 由 D 负责",
-          "resolved_by": "D"
-        },
-        {
-          "kind": "package_port",
-          "detail": "确认记录在真实入口与真实介质上的完整落盘链未跑通",
-          "resolved_by": "A"
-        },
-        {
           "kind": "execution_facts",
-          "detail": "被授权的副作用动作由 C 执行",
+          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
           "resolved_by": "C"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/bootstrap.py:701（prepare_approval/revoke_approval）+ :643（authorize_step）",
+        "src/aitest/interfaces/tools/agent_relay.py（MCP relay 真实实现）",
+        "tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py"
+      ]
     },
     {
       "id": "P1-AC32",
@@ -879,37 +1382,37 @@
       "prerequisites": [
         "一次真实模型首次调用（或确认无法调用时的降级路径）",
         "关闭 AI、改接收地址、改材料类别、改源码片段开关四类动作入口",
-        "脱敏投影与凭据解析的真实实现（A 的 ProjectionPort／SecretPort／ModelProvider）"
+        "真实脱敏投影与凭据解析（ProjectionPort/SecretPort/ModelProvider 真实实现）"
       ],
       "artifact_versions": [
-        "baseline_commit：见顶层字段",
-        "模型出站策略修订（domain/planning/model_outbound.py）、请求编排（application/planning/model_orchestration.py）"
+        "模型出站策略修订（domain/planning/model_outbound.py）",
+        "请求编排（application/planning/model_orchestration.py）"
       ],
-      "actual": "未执行。出站准入九条门禁、`source_snippets` 默认关闭、接收地址或材料类别变化后重新确认、关闭 AI 阻止新请求而人工路径继续，均有纯规则测试（tests/unit/test_model_outbound_policy.py）与编排测试（tests/unit/test_model_orchestration.py，走内存替身）。三个模型端口在 application/ports.py 已有签名与适配器实现（ModelProvider／ProjectionPort／SecretPort），但未进默认装配，故真实脱敏字节、真实凭据解析与真实调用仍无法验证。",
+      "actual": "未执行。出站准入九条门禁、`source_snippets` 默认关闭、接收地址或材料类别变化后重新确认、关闭 AI 阻止新请求而人工路径继续，均有纯规则测试（tests/unit/test_model_outbound_policy.py）与编排测试（tests/unit/test_model_orchestration.py，走内存替身）。真实脱敏字节、真实凭据解析与真实调用未做。",
       "evidence": {
         "path": null,
         "description": "待补：首次调用前的确认记录、实际出站材料与脱敏结果、关闭 AI 后的阻断结果",
         "method": "real_outbound_material_assertion"
       },
-      "unverified_reason": "缺默认装配下的真实出站端口：三个模型端口已有签名与适配器实现，但默认装配未注入（出站编排仍走内存替身 tests/support/memory_model.py），『仅发送选定脱敏材料』无法在真实字节上验证。",
+      "unverified_reason": "出站准入门禁、source_snippets 默认关闭、地址或材料类别变化后重新确认均有测试；ProjectionPort/SecretPort/ModelProvider 现均已有方法签名，且 bootstrap 在给出 model_endpoint 时会构造真实 HttpModelProvider。原登记的 package_port 与 B-Q06 阻塞均已失效（B-Q06 于 2026-09-28 结案：模型出站请求不需逐项授权）。剩余缺口是真实供应方调用与入口。",
       "blockers": [
         {
-          "kind": "package_port",
-          "detail": "ProjectionPort／SecretPort／ModelProvider 未进默认装配：签名与适配器已有，默认核心未注入",
-          "resolved_by": "A"
-        },
-        {
-          "kind": "decision",
-          "detail": "凭据解析的形状差异（B 只取状态、A 的 SecretPort 要求引用并返回受控对象）待 A 选定收敛方式",
+          "kind": "environment",
+          "detail": "缺真实供应方凭据与一次真实出站调用；脱敏字节未在真实材料上核对。",
           "resolved_by": "A"
         },
         {
           "kind": "user_entry",
-          "detail": "出站确认与关闭 AI 的入口由 D 负责",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
           "resolved_by": "D"
         }
       ],
-      "real_environment_verified": false
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/application/ports.py（ProjectionPort/SecretPort/ModelProvider 均有方法签名）",
+        "src/aitest/bootstrap.py:453（给出 model_endpoint 时构造 HttpModelProvider）",
+        "docs/文档-feix-a/B包/09-待解决问题清单.md:298（B-Q06 于 2026-09-28 结案）"
+      ]
     },
     {
       "id": "P1-AC33",
@@ -922,17 +1425,38 @@
         "P1-FR15",
         "P1-FR17"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "断言失败、环境阻塞、依据未确认、副作用结果未知、复制修复说明五种状态",
+        "主动作分别跳转到证据/问题、具体配置、依据核对、状态核实"
+      ],
+      "artifact_versions": [
+        "DTO（interfaces/dto.py）",
+        "修复说明复制（copy_repair_brief，当前无 handler）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "action_routing_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "DTO 与领域状态齐备，但入口侧没有任何主动作路由实现：copy_repair_brief 在一期动作表已声明却无 handler，面板未接核心，『未知副作用不给直接重跑』也无产品路径可核对。",
+      "blockers": [
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "package_port",
+          "detail": "copy_repair_brief 无 handler 与产物生成器。",
+          "resolved_by": "A"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "interfaces/dto.py（227 行 DTO）",
+        "全仓 grep copy_repair_brief → 仅 contracts/commands.py"
+      ]
     },
     {
       "id": "P1-AC34",
@@ -945,17 +1469,40 @@
         "P1-FR16",
         "P1-FR17"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "筛选旧报告、折叠修订、隐藏/恢复项目、运行中关闭后重开编辑器",
+        "最后客户端退出、暂停人工待办、draining 时重连及索引暂不可用的注入"
+      ],
+      "artifact_versions": [
+        "保活与退出门（infrastructure/file_store/core_exit.py:37）",
+        "父进程消亡处理（interfaces/local/core_worker.py:426-436）",
+        "宿主发现（interfaces/local/editor_host.py:68）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "host_lifecycle_and_history_page_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "核心保活与退出门已实现，父进程消亡时按 blocker 保留活动；查询层现已支持按业务结果/报告编号/修订筛选（reports.latest/by_id/revisions 的选器已可达）。缺的仍是入口侧：没有运行列表/恢复动作、没有『关闭前常驻提示』的宿主实现、没有报告筛选/折叠/隐藏项目的界面，`save_project_view_preference` 仍未注册为可派发动作。",
+      "blockers": [
+        {
+          "kind": "user_entry",
+          "detail": "查询层缺口已收窄（2026-10-11 修复）：`query` 动作现在承载完整 QuerySpec 选器（revision/sort/descending/business_outcome/run_id/report_id/view/facet/facet_value/severity），MCP relay 同步广告这些字段。剩余阻塞是读取端：面板与扩展不读任何 DTO，没有实时值/快照值区分与订阅面（契约层 events.py 只有 20 行）。",
+          "resolved_by": "D"
+        },
+        {
+          "kind": "real_storage",
+          "detail": "多轮运行与报告修订的真实历史尚未产生（报告无仓储）。",
+          "resolved_by": "A"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/file_store/core_exit.py:37 FileCoreExitGuard.blocker",
+        "src/aitest/interfaces/local/core_worker.py:426-436 _parent_lost_exit",
+        "src/aitest/interfaces/local/editor_host.py:68 EditorHost.acquire"
+      ]
     },
     {
       "id": "P1-AC35",
@@ -967,17 +1514,36 @@
         "P1-FR14",
         "P1-FR16"
       ],
-      "prerequisites": null,
-      "artifact_versions": null,
+      "prerequisites": [
+        "一次导出摘要与证据包，并移到新目录/另一台机器",
+        "注入附件缺失、敏感信息和路径穿越"
+      ],
+      "artifact_versions": [
+        "导出产物生成器（当前不存在）"
+      ],
       "actual": null,
       "evidence": {
         "path": null,
         "description": null,
-        "method": null
+        "method": "portable_export_assertion"
       },
-      "unverified_reason": "尚未由牵头包 D 完成前置条件分析；本行场景与预期已对齐需求文档第 5 节。",
-      "blockers": null,
-      "real_environment_verified": false
+      "unverified_reason": "**完全未实现**：与 P1-AC16 同源，infrastructure/exports.py 是 4 行空壳，『摘要说明不含附件、相对路径可读、清单摘要匹配、拒绝越界路径』都无生成器可验证。",
+      "blockers": [
+        {
+          "kind": "package_port",
+          "detail": "导出产物生成器不存在：src/aitest/infrastructure/exports.py 全文 4 行 docstring，自述『一期职责预留，尚未实现，不注册为可用能力』；export_report / copy_repair_brief 在一期动作表里已声明但在 src/ 下无任何 handler。",
+          "resolved_by": "A"
+        },
+        {
+          "kind": "user_entry",
+          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
+          "resolved_by": "D"
+        }
+      ],
+      "real_environment_verified": false,
+      "source_evidence": [
+        "src/aitest/infrastructure/exports.py（4 行空壳）"
+      ]
     }
   ],
   "cases": [

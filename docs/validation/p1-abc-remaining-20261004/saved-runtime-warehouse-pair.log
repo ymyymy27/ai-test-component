@@ -1,0 +1,10 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_saved_plan_body_version_seven_is_read_at_repository_revision_two ____
+tests\unit\test_saved_runtime_revision.py:612: in test_saved_plan_body_version_seven_is_read_at_repository_revision_two
+    revision_id=saved.record_id, revision_no=2, digest=payload_digest(saved.payload)
+                                                       ^^^^^^^^^^^^^^
+E   NameError: name 'payload_digest' is not defined
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_runtime_revision.py::test_saved_plan_body_version_seven_is_read_at_repository_revision_two
+1 failed in 26.11s

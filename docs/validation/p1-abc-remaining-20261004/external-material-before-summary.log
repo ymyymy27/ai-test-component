@@ -1,0 +1,13 @@
+修前结果节选；完整原日志SHA-256: f3f9be4ce3a93f65072afc28725517ad76a31707a8e694e76fda5196d82e4812
+src\aitest\infrastructure\adapters\execution\external_result.py:77: ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_external_result_material.py::test_import_verification_is_recomputed_from_original_content[content0-declared0-expected0-mismatched]
+FAILED tests/unit/test_external_result_material.py::test_import_verification_is_recomputed_from_original_content[content1-declared1-expected1-no_result]
+FAILED tests/unit/test_external_result_material.py::test_import_verification_is_recomputed_from_original_content[content2-declared2-expected2-mismatched]
+FAILED tests/unit/test_external_result_material.py::test_import_verification_is_recomputed_from_original_content[content3-declared3-expected3-mismatched]
+FAILED tests/unit/test_external_result_material.py::test_import_verification_is_recomputed_from_original_content[content4-declared4-expected4-mismatched]
+FAILED tests/unit/test_external_result_material.py::test_import_verification_is_recomputed_from_original_content[content5-declared5-expected5-matched]
+FAILED tests/unit/test_external_result_material.py::test_non_json_content_does_not_get_an_import_receipt[material0]
+FAILED tests/unit/test_external_result_material.py::test_non_json_content_does_not_get_an_import_receipt[material1]
+FAILED tests/unit/test_external_result_material.py::test_failed_validation_does_not_claim_the_import_id
+9 failed, 1 passed in 0.31s

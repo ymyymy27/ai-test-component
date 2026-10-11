@@ -1,0 +1,8 @@
+修前43cda53源码运行当前20项测试；完整日志SHA-256: 7d1dc55723cdbe00a570a8988cca88e1d50ce4cbebaa18fb51ad2b53e726de87
+FAILED tests/unit/test_spool_write_preflight.py::test_every_manifest_write_path_uses_strict_duplicate_field_reader[persist]
+FAILED tests/unit/test_spool_write_preflight.py::test_failed_writer_initialization_releases_os_capture_lease
+FAILED tests/unit/test_spool_write_preflight.py::test_unsealed_prior_tail_requires_recovery_before_a_new_writer
+FAILED tests/unit/test_spool_write_preflight.py::test_writer_requires_exact_positive_integer_block_size[True]
+FAILED tests/unit/test_spool_write_preflight.py::test_writer_requires_exact_positive_integer_block_size[1.5]
+FAILED tests/unit/test_spool_write_preflight.py::test_writer_requires_exact_positive_integer_block_size[0]
+18 failed, 2 passed in 0.99s

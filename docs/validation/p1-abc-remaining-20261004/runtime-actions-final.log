@@ -1,0 +1,17 @@
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m pytest -o addopts= -q --tb=short -x tests/unit/test_default_runtime_actions.py tests/unit/test_runtime_revision.py tests/unit/test_runtime_revision_effective_basis.py tests/unit/test_runtime_revision_saved_material.py tests/unit/test_saved_runtime_revision.py tests/contracts/test_runtime_vocabulary.py tests/contracts/test_b_use_case_registration.py
+........................................................................ [ 64%]
+.......................................                                  [100%]
+111 passed in 2438.94s (0:40:38)
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m ruff check src tests
+All checks passed!
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe -m mypy
+Success: no issues found in 189 source files
+
+EXIT: 0
+COMMAND: C:\Users\y'm'y\Desktop\ai-test-component\.venv\Scripts\python.exe scripts/generate_schemas.py
+
+EXIT: 0

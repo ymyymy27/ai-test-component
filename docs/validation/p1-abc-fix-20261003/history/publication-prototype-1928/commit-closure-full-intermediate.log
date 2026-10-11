@@ -1,0 +1,80 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 11%]
+...................................................F............F.F..... [ 14%]
+...............................................s................s....... [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 26%]
+........................................................................ [ 29%]
+........................................................................ [ 33%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+.................................F...................................... [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 52%]
+........................................................................ [ 56%]
+........................................................................ [ 59%]
+........................................................................ [ 63%]
+........................................................................ [ 67%]
+........................................................................ [ 71%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 86%]
+........................................................................ [ 89%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+..................................................                       [100%]
+================================== FAILURES ===================================
+____________ test_assembled_b_query_routes_through_narrow_adapter _____________
+tests\unit\test_a_a02_core_dispatch.py:123: in test_assembled_b_query_routes_through_narrow_adapter
+    api = _assembled_api(tmp_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_a_a02_core_dispatch.py:58: in _assembled_api
+    return assemble_workspace_core(
+src\aitest\bootstrap.py:287: in assemble_workspace_core
+    migration_report = migrations.apply(migration_plan.plan_id)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\migrations.py:374: in apply
+    detail = migration.forward(self._root)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\commit_migration.py:56: in migrate_commit_closure
+    raise CommitMaterialError("legacy event evidence is missing; migration is blocked")
+E   aitest.infrastructure.file_store.commit_manifest.CommitMaterialError: legacy event evidence is missing; migration is blocked
+_______________ test_worker_dispatches_commands_over_real_pipe ________________
+tests\unit\test_a_a02_core_dispatch.py:360: in test_worker_dispatches_commands_over_real_pipe
+    endpoint = acquire_endpoint(
+src\aitest\bootstrap.py:914: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\interfaces\local\editor_host.py:90: in acquire
+    raise WorkspaceInUse(f"�������˳���exit_code={code}")
+E   aitest.application.errors.WorkspaceInUse: �������˳���exit_code=1
+______________ test_worker_startup_recovers_stale_core_leavings _______________
+tests\unit\test_a_a02_core_dispatch.py:466: in test_worker_startup_recovers_stale_core_leavings
+    endpoint = acquire_endpoint(
+src\aitest\bootstrap.py:914: in acquire_endpoint
+    return host.acquire(workspace_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\interfaces\local\editor_host.py:90: in acquire
+    raise WorkspaceInUse(f"�������˳���exit_code={code}")
+E   aitest.application.errors.WorkspaceInUse: �������˳���exit_code=1
+_ test_default_core_migrates_only_after_backup_and_preserves_snapshot_events __
+tests\unit\test_bounded_query_directory.py:395: in test_default_core_migrates_only_after_backup_and_preserves_snapshot_events
+    first = assemble_workspace_core(tmp_path, instance_id="index-migration")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\bootstrap.py:287: in assemble_workspace_core
+    migration_report = migrations.apply(migration_plan.plan_id)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\migrations.py:374: in apply
+    detail = migration.forward(self._root)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\aitest\infrastructure\file_store\commit_migration.py:56: in migrate_commit_closure
+    raise CommitMaterialError("legacy event evidence is missing; migration is blocked")
+E   aitest.infrastructure.file_store.commit_manifest.CommitMaterialError: legacy event evidence is missing; migration is blocked
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_assembled_b_query_routes_through_narrow_adapter
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_worker_dispatches_commands_over_real_pipe
+FAILED tests/unit/test_a_a02_core_dispatch.py::test_worker_startup_recovers_stale_core_leavings
+FAILED tests/unit/test_bounded_query_directory.py::test_default_core_migrates_only_after_backup_and_preserves_snapshot_events
+4 failed, 1916 passed, 2 skipped in 255.82s (0:04:15)

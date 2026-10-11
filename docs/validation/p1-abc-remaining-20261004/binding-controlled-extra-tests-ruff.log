@@ -1,0 +1,21 @@
+E501 Line too long (102 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:407:101
+    |
+405 |         record = read(**kwargs)
+406 |         if record.aggregate_kind == "binding":
+407 |             return replace(record,payload=dict(record.payload)|{"approval_confirmation_id":"missing"})
+    |                                                                                                     ^^
+408 |         return record
+409 |     monkeypatch.setattr(core.unit_of_work.repo,"read",damaged)
+    |
+
+E501 Line too long (105 > 100)
+   --> tests\unit\test_binding_controlled_origin.py:443:101
+    |
+443 | def test_default_prepare_rejects_legacy_binding_even_with_current_valid_bytes(authoritative,monkeypatch):
+    |                                                                                                     ^^^^^
+444 |     core,inputs,_ = authoritative
+445 |     read = core.unit_of_work.repo.read
+    |
+
+Found 2 errors.

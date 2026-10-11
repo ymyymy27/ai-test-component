@@ -1,0 +1,104 @@
+.........FFFF........................................................... [ 67%]
+...................................                                      [100%]
+================================== FAILURES ===================================
+_ test_report_list_prefix_and_summary_must_describe_the_same_report[report_id] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-883/test_report_list_prefix_and_su0")
+field = 'report_id'
+
+    @pytest.mark.parametrize(
+        "field", ["report_id", "business_outcome", "published_sequence", "aggregate_kind"]
+    )
+    def test_report_list_prefix_and_summary_must_describe_the_same_report(tmp_path, field):
+        original = row("report")
+        value = (
+            2 if field == "published_sequence" else "failed" if field == "business_outcome" else "other"
+        )
+        index = publish_leaf(
+            tmp_path, family="reports", original=original, changed=original | {field: value}
+        )
+        result = index.query_spec(QuerySpec(project_id="p", business_outcome="passed"))
+>       assert result.status == "maintenance_required" and result.items == ()
+E       AssertionError: assert ('ok' == 'maintenance_required'
+E         
+E         - maintenance_required
+E         + ok)
+
+tests\unit\test_query_material_identity.py:86: AssertionError
+_ test_report_list_prefix_and_summary_must_describe_the_same_report[business_outcome] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-883/test_report_list_prefix_and_su1")
+field = 'business_outcome'
+
+    @pytest.mark.parametrize(
+        "field", ["report_id", "business_outcome", "published_sequence", "aggregate_kind"]
+    )
+    def test_report_list_prefix_and_summary_must_describe_the_same_report(tmp_path, field):
+        original = row("report")
+        value = (
+            2 if field == "published_sequence" else "failed" if field == "business_outcome" else "other"
+        )
+        index = publish_leaf(
+            tmp_path, family="reports", original=original, changed=original | {field: value}
+        )
+        result = index.query_spec(QuerySpec(project_id="p", business_outcome="passed"))
+>       assert result.status == "maintenance_required" and result.items == ()
+E       AssertionError: assert ('ok' == 'maintenance_required'
+E         
+E         - maintenance_required
+E         + ok)
+
+tests\unit\test_query_material_identity.py:86: AssertionError
+_ test_report_list_prefix_and_summary_must_describe_the_same_report[published_sequence] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-883/test_report_list_prefix_and_su2")
+field = 'published_sequence'
+
+    @pytest.mark.parametrize(
+        "field", ["report_id", "business_outcome", "published_sequence", "aggregate_kind"]
+    )
+    def test_report_list_prefix_and_summary_must_describe_the_same_report(tmp_path, field):
+        original = row("report")
+        value = (
+            2 if field == "published_sequence" else "failed" if field == "business_outcome" else "other"
+        )
+        index = publish_leaf(
+            tmp_path, family="reports", original=original, changed=original | {field: value}
+        )
+        result = index.query_spec(QuerySpec(project_id="p", business_outcome="passed"))
+>       assert result.status == "maintenance_required" and result.items == ()
+E       AssertionError: assert ('ok' == 'maintenance_required'
+E         
+E         - maintenance_required
+E         + ok)
+
+tests\unit\test_query_material_identity.py:86: AssertionError
+_ test_report_list_prefix_and_summary_must_describe_the_same_report[aggregate_kind] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-883/test_report_list_prefix_and_su3")
+field = 'aggregate_kind'
+
+    @pytest.mark.parametrize(
+        "field", ["report_id", "business_outcome", "published_sequence", "aggregate_kind"]
+    )
+    def test_report_list_prefix_and_summary_must_describe_the_same_report(tmp_path, field):
+        original = row("report")
+        value = (
+            2 if field == "published_sequence" else "failed" if field == "business_outcome" else "other"
+        )
+        index = publish_leaf(
+            tmp_path, family="reports", original=original, changed=original | {field: value}
+        )
+        result = index.query_spec(QuerySpec(project_id="p", business_outcome="passed"))
+>       assert result.status == "maintenance_required" and result.items == ()
+E       AssertionError: assert ('ok' == 'maintenance_required'
+E         
+E         - maintenance_required
+E         + ok)
+
+tests\unit\test_query_material_identity.py:86: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_query_material_identity.py::test_report_list_prefix_and_summary_must_describe_the_same_report[report_id]
+FAILED tests/unit/test_query_material_identity.py::test_report_list_prefix_and_summary_must_describe_the_same_report[business_outcome]
+FAILED tests/unit/test_query_material_identity.py::test_report_list_prefix_and_summary_must_describe_the_same_report[published_sequence]
+FAILED tests/unit/test_query_material_identity.py::test_report_list_prefix_and_summary_must_describe_the_same_report[aggregate_kind]

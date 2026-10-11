@@ -1,0 +1,28 @@
+{
+  "baseline_commit": "7be392e9fbf40252cc067cc9139a48bdd4931a52",
+  "branch": "fix",
+  "date": "2026-10-08",
+  "source_sha256": {
+    "src/aitest/application/evidence/execution_outputs.py": "5bbbb23624c8670d5170ac4676bba137d3492b2efab5fbb6114de8e3b65ee173",
+    "src/aitest/application/evidence/publication.py": "fcb38eb144747096420f9c44a2a64fa34bbd1721ac470bc8e99ffacc764e6e5d",
+    "src/aitest/application/execution/commit.py": "3aefbbdf233fd3a63fa35db7328dad9b4cd898a701f797dd69733e6e4c6067f8",
+    "src/aitest/application/execution/step_execution.py": "f991b499cdcc51b2c0b053c7c957d0f72323aa8c04342f6ba66a35f93902ad45",
+    "src/aitest/application/ports.py": "910d51ee3effeafd63c0d2807a8341dd206d0d0c4dad88ebfb3cf0680db43bf5",
+    "src/aitest/bootstrap.py": "e8a3aa8f63adcc511a19767dace7248299ffd1c641456351c8af05969da08787",
+    "tests/unit/test_default_evidence_publication.py": "c8a9e21a18270ef8a6e9ab313861f18c5bcacda931c4abf6e158ed19b74d9e13",
+    "tests/unit/test_execution_output_evidence.py": "61f20516fe18c0d04c0d77523e5506a3c0af62216f57fb2387913f8a2cacfc8e",
+    "tests/unit/test_default_step_execution.py": "f08589c99b508b01d9229a01a0fbeb835e728bcd3e8b24a2eceb1800c930c3c0"
+  },
+  "checks": {
+    "publication_atomic": 29,
+    "default_entry": 14,
+    "installed_wheel": 29,
+    "ruff": "passed",
+    "mypy_source_files": 214,
+    "wheel_sdist": "passed",
+    "extended_regression": 598,
+    "default_active_control": 2
+  },
+  "pending": [],
+  "real_p1_acceptance": "unchanged; synthetic authority does not certify real Trae AC"
+}

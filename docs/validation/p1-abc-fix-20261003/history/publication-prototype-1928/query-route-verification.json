@@ -1,0 +1,29 @@
+{
+  "status": "fixed_routes_verified",
+  "prior": "history/bounded-query-directory-1750/query-contract-gaps.json",
+  "probes": [
+    {
+      "probe": "generic_revision",
+      "validated_input": "QUERY_UNSUPPORTED_FILTER",
+      "unvalidated_copy": "unsupported_filter",
+      "returned": 0
+    },
+    {
+      "probe": "mixed_query",
+      "validated_input": "QUERY_UNSUPPORTED_FILTER",
+      "unvalidated_copy": "unsupported_filter",
+      "returned": 0
+    }
+  ],
+  "scope": "Component route guards. Complete commit-manifest closure and product/real acceptance remain unverified.",
+  "source": [
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "sha256": "ea966430a4bcced52836c4e9af43045da29a70ba0daf90127892d8e0d5eaaa37"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "sha256": "a1c0143cb78820fa5cd415919e3c676e867985764e54e3dcccf7c139a0f966a2"
+    }
+  ]
+}

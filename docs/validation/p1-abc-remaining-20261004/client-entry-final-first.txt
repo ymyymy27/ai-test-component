@@ -1,0 +1,17 @@
+.................F...................................................... [ 23%]
+........................................................................ [ 47%]
+........................................................................ [ 71%]
+........................................................................ [ 94%]
+................                                                         [100%]
+================================== FAILURES ===================================
+_________ test_actual_cli_doctor_and_dispatch_share_the_verified_core _________
+tests\unit\test_cli_core_forwarding.py:150: in test_actual_cli_doctor_and_dispatch_share_the_verified_core
+    assert json.loads(denied.stdout)["error"]["code"] == "AWAITING_USER_CONFIRMATION"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\json\__init__.py:347: in loads
+    s = s.decode(detect_encoding(s), 'surrogatepass')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeDecodeError: 'utf-8' codec can't decode byte 0xba in position 525: invalid start byte
+=========================== short test summary info ===========================
+FAILED tests/unit/test_cli_core_forwarding.py::test_actual_cli_doctor_and_dispatch_share_the_verified_core
+1 failed, 303 passed in 28.44s

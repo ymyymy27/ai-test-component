@@ -1,0 +1,2 @@
+2 installed modules match final source; invalid request refusal and exact JSON path/unknown semantics passed.
+Component evidence only; no actual HTTP business, Trae or full deadline/capture acceptance claimed.

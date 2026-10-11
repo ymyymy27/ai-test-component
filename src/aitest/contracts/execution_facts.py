@@ -431,6 +431,7 @@ class SourceVerificationFact(ContractModel):
     state: SourceVerificationStateFact
     observed_entry_ref: str | None = None
     observed_import_ref: str | None = None
+    observed_interpreter_ref: str | None = None
     failure_class: str | None = None
     gap_ids: tuple[str, ...] = Field(default_factory=tuple)
     evidence_refs: tuple[str, ...] = Field(default_factory=tuple)

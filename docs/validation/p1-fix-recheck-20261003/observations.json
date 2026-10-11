@@ -1,0 +1,201 @@
+{
+  "snapshot": {
+    "A-15": "original counterexample fixed",
+    "different_scope_ids": true,
+    "drift": {
+      "state": "changed",
+      "added": [
+        "b.py"
+      ],
+      "removed": [],
+      "modified": []
+    }
+  },
+  "migration": {
+    "A-16": "original counterexample fixed",
+    "preexisting_fields_preserved": true
+  },
+  "events": {
+    "A-17": "original counterexample fixed",
+    "events": 2
+  },
+  "sid": {
+    "A-18": "original counterexample fixed",
+    "own_sid_matches": true,
+    "empty_sids_rejected": true,
+    "foreign_user_connection": "not_run"
+  },
+  "project_and_publish": {
+    "B-12": "partial: envelope mismatch still accepted; foreign delivery rejected",
+    "project_envelope_mismatch_accepted": true,
+    "B-13": "self-declared verified scope rejected; real projection not wired",
+    "B-14": [
+      {
+        "error": null,
+        "published": true
+      },
+      {
+        "error": "B_REVISION_CONFLICT",
+        "published": false
+      },
+      {
+        "error": "B_REVISION_CONFLICT",
+        "published": false
+      }
+    ],
+    "plain_unregistered_task_accepted": true,
+    "default_handlers": [
+      "export_rules",
+      "export_rules_markdown",
+      "generate_draft",
+      "import_rules",
+      "import_rules_markdown",
+      "prepare_run",
+      "publish_plan",
+      "publish_rules",
+      "query",
+      "save_acceptance",
+      "save_binding",
+      "save_case",
+      "save_context",
+      "save_delivery",
+      "save_dependency_graph",
+      "save_environment",
+      "save_task"
+    ],
+    "boundary": "real default API and file store; synthetic human session"
+  },
+  "project_rules": {
+    "B-16": "old confirmation/digest not inherited",
+    "missing_new_digest_has_binding": false,
+    "B-17": "explicit no-dependency declaration accepted",
+    "unknown_dependency_gaps": [
+      "missing_dependency_registration"
+    ]
+  },
+  "runtime_identity": {
+    "B-15": "partial",
+    "substitution_rejected": true,
+    "original_wrong_plan_rejected": true,
+    "request_and_plan_unrelated_to_facts_accepted": true,
+    "facts_plan": "plan-1@1",
+    "request_and_plan": "unrelated@1",
+    "boundary": "real runtime application gate, derived running fixture"
+  },
+  "command": {
+    "C-12": "default original early-poll cutoff fixed",
+    "elapsed_seconds": 2.6,
+    "C-13": "early bytes persisted before exit",
+    "C-10": "completed preserved after LOST",
+    "C-14_new": "second collect complete=False after first complete=True",
+    "second_capture_completeness": "gap",
+    "job_closed": true
+  },
+  "live_recovery": {
+    "C-11": "fixed",
+    "writer_close_succeeded": true,
+    "salvaged_live_tail": false
+  },
+  "real_commit": {
+    "C-05": "real coordinator path still broken",
+    "error": "revision conflict",
+    "external_start_calls": 1,
+    "stored_checkpoint_revision": 1,
+    "stored_stage": "intent_recorded",
+    "boundary": "real FileUnitOfWork, fake external execution, no side effects"
+  },
+  "missing_owner": {
+    "A-11": "partial",
+    "missing_payload_owner_cross_project_revision_accepted": true,
+    "boundary": "real UOW, owner-less payload as used by C checkpoint codec"
+  },
+  "handle_closure": {
+    "A-06": "partial: new execution-handles excluded",
+    "integrity_errors": [
+      "unexpected directory outside whitelist: execution-handles"
+    ],
+    "execution_handles_in_backup": false,
+    "boundary": "real handle store/checker/backup"
+  },
+  "old_empty": {
+    "D-09": "unchanged, original counterexample still reproduced",
+    "selected": 0,
+    "executed": 0,
+    "verified": 0,
+    "business_outcome": "passed",
+    "evidence_grade": "D",
+    "gap": "no_valid_execution_basis"
+  },
+  "model_replay": {
+    "B-10": "partial",
+    "normal_retransmission_external_calls": 1,
+    "after_unreadable_saved_draft_external_calls": 2,
+    "original_success_outbound_was_preserved": true,
+    "boundary": "real orchestration; memory model/store and read fault; no network"
+  },
+  "migration_interruption": {
+    "A-16": "partial: forward write before registry not recoverable as rollback",
+    "field_absent_before": true,
+    "field_remains_after_resume_rollback": true,
+    "boundary": "real manager, registry-save fault injection; no physical power loss"
+  },
+  "maintenance_live": {
+    "A-07": "partial: active writer with sealed prefix not detected",
+    "writer_still_open": true,
+    "manifest_exists": true,
+    "blocker": null
+  },
+  "finite_resume": {
+    "C-12": "partial: finite slice never resumes collection for the same intent",
+    "before": "pending_verification",
+    "after_process_exit_same_intent": "pending_verification",
+    "manual_collect_complete": true
+  },
+  "query_boundaries": {
+    "A-05": "partial",
+    "shard_reads_by_page": [
+      1,
+      2,
+      2,
+      3,
+      4,
+      4,
+      5,
+      6,
+      6,
+      7,
+      7,
+      8,
+      9,
+      9,
+      10,
+      10
+    ],
+    "old_report_page_expected": "report-b@1",
+    "old_report_page_actual": [],
+    "old_page_status": "ok",
+    "old_page_commit": 2,
+    "boundary": "real FileQueryIndex; 80 synthetic rows and two saved report summaries"
+  },
+  "source_and_import": {
+    "C-04": "partial",
+    "no_entry_import_evidence_state": "verified",
+    "mismatched_source_verification": "mismatch",
+    "mismatched_source_check": "passed",
+    "C-03": "partial: same external identity accepts changed assertion values",
+    "first_import_observation": "mismatched",
+    "second_import_observation": "matched",
+    "second_import_idempotency": "duplicate",
+    "boundary": "real services, synthetic facts; no actual external import or host"
+  },
+  "markdown_and_legacy_graph": {
+    "B-04": "new Markdown body heading fails export/import round-trip",
+    "markdown_error": "unknown section heading: 'detail inside body'",
+    "B-17": "partial: missing legacy declaration field becomes True",
+    "unknown_before_serialization": true,
+    "legacy_read_edges_declared": true,
+    "A-09": "registered synthetic four-character credential is ignored",
+    "short_known_value_retained": true,
+    "boundary": "pure codecs and in-memory synthetic credential; no real secret or network"
+  }
+}

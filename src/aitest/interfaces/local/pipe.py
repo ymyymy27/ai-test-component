@@ -1,6 +1,7 @@
 """Windows 当前用户及会话命名管道、对端及实例校验；不监听 TCP。
 
-阻塞式字节管道 + 4 字节大端长度前缀的 JSON 消息帧。管道名编码工作空间
+字节管道 + 4 字节大端长度前缀的 JSON 消息帧；服务端使用可取消重叠IO，
+两端读/写各共享整帧截止，API保留同步入口。管道名编码工作空间
 与会话；接受连接后用 ``GetNamedPipeClientProcessId/SessionId`` 及进程
 令牌 SID 校验对端必须是同会话同用户。不使用 TCP、不引入第三方依赖。
 
@@ -11,7 +12,9 @@ from __future__ import annotations
 
 import ctypes
 import sys
+import threading
 import time
+from collections.abc import Callable
 from ctypes import wintypes
 
 _PIPE_PREFIX = r"\\.\pipe\aitest"
@@ -28,6 +31,22 @@ _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _TOKEN_QUERY = 0x8
 _TOKEN_USER = 1
 MAX_MESSAGE_BYTES = 8 * 1024 * 1024
+_SERVER_FRAME_TIMEOUT_MS = 10000
+_FILE_FLAG_OVERLAPPED = 0x40000000
+_ERROR_IO_PENDING = 997
+_ERROR_PIPE_CONNECTED = 535
+_WAIT_OBJECT_0 = 0
+_WAIT_TIMEOUT = 258
+
+
+class _Overlapped(ctypes.Structure):
+    _fields_ = [
+        ("Internal", ctypes.c_size_t),
+        ("InternalHigh", ctypes.c_size_t),
+        ("Offset", wintypes.DWORD),
+        ("OffsetHigh", wintypes.DWORD),
+        ("hEvent", wintypes.HANDLE),
+    ]
 
 
 class PipeUnavailable(RuntimeError):
@@ -54,13 +73,11 @@ def check_peer_identity(
         raise PeerRejected("空用户 SID 无法证明同源，拒绝连接")
     if client_session_id != expected_session_id:
         raise PeerRejected(
-            f"跨会话连接被拒绝: client={client_session_id} "
-            f"expected={expected_session_id}"
+            f"跨会话连接被拒绝: client={client_session_id} expected={expected_session_id}"
         )
     if client_user_sid != expected_user_sid:
         raise PeerRejected(
-            f"跨用户连接被拒绝: client={client_user_sid!r} "
-            f"expected={expected_user_sid!r}"
+            f"跨用户连接被拒绝: client={client_user_sid!r} expected={expected_user_sid!r}"
         )
 
 
@@ -115,36 +132,85 @@ class _Kernel:
 
         kernel32.CreateNamedPipeW.restype = wintypes.HANDLE
         kernel32.CreateNamedPipeW.argtypes = [
-            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
-            wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
         ]
         kernel32.ConnectNamedPipe.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+        kernel32.CreateEventW.restype = wintypes.HANDLE
+        kernel32.CreateEventW.argtypes = [
+            ctypes.c_void_p,
+            wintypes.BOOL,
+            wintypes.BOOL,
+            wintypes.LPCWSTR,
+        ]
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.GetOverlappedResult.argtypes = [
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.DWORD),
+            wintypes.BOOL,
+        ]
+        kernel32.CancelIoEx.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
         kernel32.ReadFile.argtypes = [
-            wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
-            ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p,
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.c_void_p,
         ]
         kernel32.WriteFile.argtypes = [
-            wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
-            ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p,
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.c_void_p,
+        ]
+        kernel32.PeekNamedPipe.argtypes = [
+            wintypes.HANDLE,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.c_void_p,
         ]
         kernel32.CreateFileW.restype = wintypes.HANDLE
         kernel32.CreateFileW.argtypes = [
-            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
-            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
         ]
         kernel32.WaitNamedPipeW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD]
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
         kernel32.LocalFree.argtypes = [wintypes.HLOCAL]
         kernel32.LocalFree.restype = wintypes.HLOCAL
         kernel32.GetNamedPipeClientProcessId.argtypes = [
-            wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
         ]
         kernel32.GetNamedPipeClientSessionId.argtypes = [
-            wintypes.HANDLE, ctypes.POINTER(wintypes.ULONG)
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
         ]
-        kernel32.ProcessIdToSessionId.argtypes = [
-            wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)
+        kernel32.GetNamedPipeServerProcessId.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
         ]
+        kernel32.GetNamedPipeServerSessionId.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.ULONG),
+        ]
+        kernel32.ProcessIdToSessionId.argtypes = [wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
         kernel32.GetCurrentProcessId.restype = wintypes.DWORD
         kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
         kernel32.QueryFullProcessImageNameW.argtypes = [
@@ -154,18 +220,22 @@ class _Kernel:
             ctypes.POINTER(wintypes.DWORD),
         ]
         kernel32.OpenProcess.restype = wintypes.HANDLE
-        kernel32.OpenProcess.argtypes = [
-            wintypes.DWORD, wintypes.BOOL, wintypes.DWORD
-        ]
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
         advapi32.OpenProcessToken.argtypes = [
-            wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.HANDLE),
         ]
         advapi32.GetTokenInformation.argtypes = [
-            wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
             ctypes.POINTER(wintypes.DWORD),
         ]
         advapi32.ConvertSidToStringSidW.argtypes = [
-            ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.LPWSTR),
         ]
 
 
@@ -178,7 +248,170 @@ class _TokenUser(ctypes.Structure):
     ]
 
 
-class NamedPipeServer:
+class _PipeIO:
+    """Shared owned-handle IO; cancellation completion precedes storage release."""
+
+    _kernel: _Kernel
+
+    def _init_io(self) -> None:
+        self._handle: int | None = None
+        self._io_guard = threading.RLock()
+        self._pending_io: dict[int, _Overlapped] = {}
+        self._closing = False
+
+    @staticmethod
+    def _deadline(timeout_ms: int | None) -> float | None:
+        if timeout_ms is not None and (type(timeout_ms) is not int or timeout_ms < 0):
+            raise ValueError("IO timeout must be a nonnegative integer")
+        return None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
+
+
+    def _operation(
+        self,
+        begin: Callable[[int, _Overlapped], int],
+        *,
+        deadline: float | None,
+        on_wait: Callable[[], None] | None,
+        connecting: bool = False,
+    ) -> int:
+        """Keep the request storage alive through cancellation completion."""
+        kernel = self._kernel.kernel32
+        with self._io_guard:
+            handle = self._handle
+            if handle is None or self._closing:
+                raise PipeUnavailable("管道已关闭")
+            if deadline is not None and time.monotonic() >= deadline:
+                raise PipeUnavailable("管道帧IO超时，业务结果待核实")
+            event = kernel.CreateEventW(None, True, False, None)
+            if not event:
+                raise PipeUnavailable("无法创建管道IO事件")
+            overlap = _Overlapped(hEvent=event)
+            self._pending_io[event] = overlap
+            pending = False
+            try:
+                completed = begin(handle, overlap)
+                error = ctypes.get_last_error() if not completed else 0
+            except BaseException:
+                del self._pending_io[event]
+                kernel.CloseHandle(event)
+                raise
+        transferred = wintypes.DWORD(0)
+        try:
+            if not completed and connecting and error == _ERROR_PIPE_CONNECTED:
+                return 0
+            if not completed and error != _ERROR_IO_PENDING:
+                raise PipeUnavailable("管道IO失败或对端关闭")
+            pending = not completed
+            while pending:
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise PipeUnavailable("管道帧IO超时，业务结果待核实")
+                wait_ms = (
+                    25
+                    if deadline is None
+                    else max(1, min(25, int((deadline - time.monotonic()) * 1000)))
+                )
+                state = kernel.WaitForSingleObject(event, wait_ms)
+                if state == _WAIT_OBJECT_0:
+                    break
+                if state != _WAIT_TIMEOUT:
+                    raise PipeUnavailable("管道IO等待失败")
+                if on_wait is not None:
+                    on_wait()
+            if deadline is not None and time.monotonic() >= deadline:
+                raise PipeUnavailable("管道帧IO超时，业务结果待核实")
+            if not kernel.GetOverlappedResult(
+                handle, ctypes.byref(overlap), ctypes.byref(transferred), False
+            ):
+                raise PipeUnavailable("管道IO失败或对端关闭")
+            pending = False
+            return int(transferred.value)
+        finally:
+            if pending:
+                kernel.CancelIoEx(handle, ctypes.byref(overlap))
+                # CancelIoEx only requests cancellation; the local pipe operation
+                # must finish before its event, OVERLAPPED or buffer is released.
+                kernel.GetOverlappedResult(
+                    handle, ctypes.byref(overlap), ctypes.byref(transferred), True
+                )
+            with self._io_guard:
+                del self._pending_io[event]
+                kernel.CloseHandle(event)
+                if self._closing and not self._pending_io and self._handle is not None:
+                    kernel.CloseHandle(self._handle)
+                    self._handle = None
+
+
+    def close(self) -> None:
+        with self._io_guard:
+            self._closing = True
+            if self._handle is not None:
+                self._kernel.kernel32.CancelIoEx(self._handle, None)
+                if not self._pending_io:
+                    self._kernel.kernel32.CloseHandle(self._handle)
+                    self._handle = None
+
+
+    def _read_exact(
+        self, size: int, *, deadline: float | None = None, on_wait: Callable[[], None] | None = None
+    ) -> bytes:
+        chunks = bytearray()
+        while len(chunks) < size:
+            buffer = (wintypes.BYTE * (size - len(chunks)))()
+
+            def begin_read(
+                handle: int, overlap: _Overlapped, buffer: ctypes.Array[wintypes.BYTE] = buffer
+            ) -> int:
+                return int(
+                    self._kernel.kernel32.ReadFile(
+                        handle, buffer, len(buffer), None, ctypes.byref(overlap)
+                    )
+                )
+
+            read = self._operation(
+                begin_read,
+                deadline=deadline,
+                on_wait=on_wait,
+            )
+            if not 0 < read <= len(buffer):
+                raise PipeUnavailable("管道读取失败或对端关闭")
+            # ctypes 数组切片在 3.11/3.12 返回**有符号**整数（>=0x80 会变负），3.13 起返回无符号；
+            # 统一经 memoryview 取原始字节，避免 `bytes(...)` 因负值报 "must be in range(0, 256)"。
+            chunks.extend(memoryview(buffer)[:read])
+        return bytes(chunks)
+
+
+    def _write_all(
+        self,
+        data: bytes,
+        *,
+        deadline: float | None = None,
+        on_wait: Callable[[], None] | None = None,
+    ) -> None:
+        offset = 0
+        while offset < len(data):
+            chunk = data[offset:]
+            buffer = (wintypes.BYTE * len(chunk)).from_buffer_copy(chunk)
+
+            def begin_write(
+                handle: int, overlap: _Overlapped, buffer: ctypes.Array[wintypes.BYTE] = buffer
+            ) -> int:
+                return int(
+                    self._kernel.kernel32.WriteFile(
+                        handle, buffer, len(buffer), None, ctypes.byref(overlap)
+                    )
+                )
+
+            written = self._operation(
+                begin_write,
+                deadline=deadline,
+                on_wait=on_wait,
+            )
+            if not 0 < written <= len(chunk):
+                raise PipeUnavailable("管道写入失败")
+            offset += written
+
+
+class NamedPipeServer(_PipeIO):
     """唯一核心的服务端管道；同名管道已被占用即失败。"""
 
     def __init__(self, workspace_id: str, *, instance_id: str) -> None:
@@ -187,19 +420,20 @@ class NamedPipeServer:
         validate_workspace_id(workspace_id)
         self._kernel = _Kernel()
         self._session_id = self._current_session()
-        self._pipe_name = (
-            f"{_PIPE_PREFIX}/{workspace_id}/session-{self._session_id}/{instance_id}"
-        )
-        self._handle: int | None = None
+        self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{self._session_id}/{instance_id}"
+        self._init_io()
 
     @property
     def name(self) -> str:
         return self._pipe_name
 
     def start(self) -> None:
+        if self._handle is not None:
+            raise PipeUnavailable("管道已启动")
+        self._closing = False
         handle = self._kernel.kernel32.CreateNamedPipeW(
             self._pipe_name,
-            _PIPE_ACCESS_DUPLEX,
+            _PIPE_ACCESS_DUPLEX | _FILE_FLAG_OVERLAPPED,
             _PIPE_TYPE_BYTE | _PIPE_WAIT,
             _PIPE_MAX_ONE_INSTANCE,
             MAX_MESSAGE_BYTES,
@@ -212,11 +446,23 @@ class NamedPipeServer:
             raise PipeUnavailable("管道已被占用，工作空间存在活动核心")
         self._handle = handle
 
-    def wait_for_client(self) -> None:
-        assert self._handle is not None
-        connected = self._kernel.kernel32.ConnectNamedPipe(self._handle, None)
-        if not connected and ctypes.get_last_error() != 535:  # ERROR_PIPE_CONNECTED
-            raise PipeUnavailable("连接客户端失败")
+
+    def wait_for_client(
+        self, *, timeout_ms: int | None = None, on_wait: Callable[[], None] | None = None
+    ) -> None:
+        self._operation(
+            lambda handle, overlap: self._kernel.kernel32.ConnectNamedPipe(
+                handle, ctypes.byref(overlap)
+            ),
+            deadline=self._deadline(timeout_ms),
+            on_wait=on_wait,
+            connecting=True,
+        )
+
+    def cancel_wait(self) -> None:
+        with self._io_guard:
+            if self._handle is not None:
+                self._kernel.kernel32.CancelIoEx(self._handle, None)
 
     def validate_peer(self) -> None:
         assert self._handle is not None
@@ -231,9 +477,7 @@ class NamedPipeServer:
         ):
             raise PeerRejected("无法取得客户端会话标识")
         client_sid = self._process_user_sid(int(client_pid.value))
-        local_sid = self._process_user_sid(
-            self._kernel.kernel32.GetCurrentProcessId()
-        )
+        local_sid = self._process_user_sid(self._kernel.kernel32.GetCurrentProcessId())
         check_peer_identity(
             client_session_id=int(client_session.value),
             expected_session_id=self._session_id,
@@ -252,29 +496,39 @@ class NamedPipeServer:
             return None
         return query_process_image_basename(self._kernel, int(client_pid.value))
 
-    def read_message(self) -> bytes:
-        length = int.from_bytes(self._read_exact(4), "big")
+    def read_message(
+        self,
+        *,
+        timeout_ms: int | None = _SERVER_FRAME_TIMEOUT_MS,
+        on_wait: Callable[[], None] | None = None,
+    ) -> bytes:
+        deadline = self._deadline(timeout_ms)
+        length = int.from_bytes(self._read_exact(4, deadline=deadline, on_wait=on_wait), "big")
         if length > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("消息超过上限")
-        return self._read_exact(length)
+        return self._read_exact(length, deadline=deadline, on_wait=on_wait)
 
-    def write_message(self, payload: bytes) -> None:
+    def write_message(
+        self,
+        payload: bytes,
+        *,
+        timeout_ms: int | None = _SERVER_FRAME_TIMEOUT_MS,
+        on_wait: Callable[[], None] | None = None,
+    ) -> None:
+        deadline = self._deadline(timeout_ms)
         if len(payload) > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("消息超过上限")
         frame = len(payload).to_bytes(4, "big") + payload
-        self._write_all(frame)
+        self._write_all(frame, deadline=deadline, on_wait=on_wait)
 
-    def close(self) -> None:
-        if self._handle is not None:
-            self._kernel.kernel32.CloseHandle(self._handle)
-            self._handle = None
 
     # ----- 内部 -------------------------------------------------------
 
     def _current_session(self) -> int:
         pid = self._kernel.kernel32.GetCurrentProcessId()
         session = wintypes.DWORD(0)
-        self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session))
+        if not self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session)):
+            raise PipeUnavailable("无法核实当前登录会话")
         return session.value
 
     def _process_user_sid(self, process_id: int) -> str:
@@ -288,40 +542,8 @@ class NamedPipeServer:
             raise PeerRejected(f"无法核实客户端进程用户身份: {process_id}")
         return sid
 
-    def _read_exact(self, size: int) -> bytes:
-        assert self._handle is not None
-        chunks = bytearray()
-        while len(chunks) < size:
-            buffer = (wintypes.BYTE * (size - len(chunks)))()
-            read = wintypes.DWORD(0)
-            ok = self._kernel.kernel32.ReadFile(
-                self._handle, buffer, len(buffer), ctypes.byref(read), None
-            )
-            if not ok or read.value == 0:
-                raise PipeUnavailable("管道读取失败或对端关闭")
-            chunks.extend(bytes(buffer[: read.value]))
-        return bytes(chunks)
 
-    def _write_all(self, data: bytes) -> None:
-        assert self._handle is not None
-        offset = 0
-        while offset < len(data):
-            chunk = data[offset:]
-            buffer = (wintypes.BYTE * len(chunk)).from_buffer_copy(chunk)
-            written = wintypes.DWORD(0)
-            ok = self._kernel.kernel32.WriteFile(
-                self._handle,
-                buffer,
-                len(chunk),
-                ctypes.byref(written),
-                None,
-            )
-            if not ok or written.value == 0:
-                raise PipeUnavailable("管道写入失败")
-            offset += written.value
-
-
-class NamedPipeClient:
+class NamedPipeClient(_PipeIO):
     """连接唯一核心的客户端。"""
 
     def __init__(self, workspace_id: str, *, instance_id: str) -> None:
@@ -330,10 +552,10 @@ class NamedPipeClient:
         validate_workspace_id(workspace_id)
         self._kernel = _Kernel()
         session = self._current_session()
-        self._pipe_name = (
-            f"{_PIPE_PREFIX}/{workspace_id}/session-{session}/{instance_id}"
-        )
-        self._handle: int | None = None
+        self._session_id = session
+        self._pipe_name = f"{_PIPE_PREFIX}/{workspace_id}/session-{session}/{instance_id}"
+        self._init_io()
+        self._peer_pid: int | None = None
 
     def connect(self, *, timeout_ms: int = 2000) -> None:
         """连接服务端管道，超时内重试 ``ERROR_PIPE_BUSY``。
@@ -341,6 +563,9 @@ class NamedPipeClient:
         原实现遇 ``ERROR_PIPE_BUSY`` 后递归调用自身，并发场景会
         ``RecursionError``。改为基于 ``time.monotonic`` 的有限循环。
         """
+        if self._handle is not None or self._pending_io:
+            raise PipeUnavailable("客户端已有活动连接")
+        self._closing = False
         kernel32 = self._kernel.kernel32
         deadline = time.monotonic() + max(0, timeout_ms) / 1000.0
         while True:
@@ -350,11 +575,16 @@ class NamedPipeClient:
                 0,
                 None,
                 _OPEN_EXISTING,
-                0,
+                _FILE_FLAG_OVERLAPPED,
                 None,
             )
             if handle != _INVALID_HANDLE:
                 self._handle = handle
+                try:
+                    self._validate_server()
+                except PeerRejected as error:
+                    self.close()
+                    raise PipeUnavailable("核心管道服务端身份无法核实") from error
                 return
             if ctypes.get_last_error() != _ERROR_PIPE_BUSY:
                 raise PipeUnavailable("核心管道不存在或不可连接")
@@ -363,46 +593,55 @@ class NamedPipeClient:
                 raise PipeUnavailable("核心管道不可连接：超时")
             kernel32.WaitNamedPipeW(self._pipe_name, remaining_ms)
 
-    def write_message(self, payload: bytes) -> None:
-        if self._handle is None:
-            raise PipeUnavailable("未连接")
+    def _validate_server(self) -> None:
+        assert self._handle is not None
+        kernel32 = self._kernel.kernel32
+        pid, session = wintypes.ULONG(), wintypes.ULONG()
+        if not kernel32.GetNamedPipeServerProcessId(self._handle, ctypes.byref(pid)):
+            raise PeerRejected("无法取得核心进程身份")
+        if not kernel32.GetNamedPipeServerSessionId(self._handle, ctypes.byref(session)):
+            raise PeerRejected("无法取得核心会话身份")
+        check_peer_identity(
+            client_session_id=int(session.value),
+            expected_session_id=self._session_id,
+            client_user_sid=_query_process_user_sid(self._kernel, int(pid.value)) or "",
+            expected_user_sid=(
+                _query_process_user_sid(self._kernel, kernel32.GetCurrentProcessId()) or ""
+            ),
+        )
+        self._peer_pid = int(pid.value)
+
+    @property
+    def peer_process_id(self) -> int | None:
+        """Actual connected server PID, available only after same-user/session verification."""
+        return self._peer_pid
+
+    def write_message(
+        self, payload: bytes, *, timeout_ms: int | None = _SERVER_FRAME_TIMEOUT_MS,
+    ) -> None:
+        deadline = self._deadline(timeout_ms)
         if len(payload) > MAX_MESSAGE_BYTES:
             raise PipeUnavailable("消息超过上限")
-        frame = len(payload).to_bytes(4, "big") + payload
-        written = wintypes.DWORD(0)
-        self._kernel.kernel32.WriteFile(
-            self._handle, frame, len(frame), ctypes.byref(written), None
-        )
+        self._write_all(len(payload).to_bytes(4, "big") + payload,
+                        deadline=deadline, on_wait=None)
 
-    def read_message(self) -> bytes:
-        if self._handle is None:
-            raise PipeUnavailable("未连接")
-        length = int.from_bytes(self._read_exact(4), "big")
-        return self._read_exact(length)
+    def read_message(self, *, timeout_ms: int | None = _SERVER_FRAME_TIMEOUT_MS) -> bytes:
+        deadline = self._deadline(timeout_ms)
+        length = int.from_bytes(self._read_exact(4, deadline=deadline), "big")
+        if length > MAX_MESSAGE_BYTES:
+            raise PipeUnavailable("核心响应消息超过上限")
+        return self._read_exact(length, deadline=deadline)
 
     def close(self) -> None:
-        if self._handle is not None:
-            self._kernel.kernel32.CloseHandle(self._handle)
-            self._handle = None
+        super().close()
+        self._peer_pid = None
 
     def _current_session(self) -> int:
         pid = self._kernel.kernel32.GetCurrentProcessId()
         session = wintypes.DWORD(0)
-        self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session))
+        if not self._kernel.kernel32.ProcessIdToSessionId(pid, ctypes.byref(session)):
+            raise PipeUnavailable("无法核实当前登录会话")
         return session.value
-
-    def _read_exact(self, size: int) -> bytes:
-        chunks = bytearray()
-        while len(chunks) < size:
-            buffer = (wintypes.BYTE * (size - len(chunks)))()
-            read = wintypes.DWORD(0)
-            self._kernel.kernel32.ReadFile(
-                self._handle, buffer, len(buffer), ctypes.byref(read), None
-            )
-            if read.value == 0:
-                raise PipeUnavailable("对端关闭")
-            chunks.extend(bytes(buffer[: read.value]))
-        return bytes(chunks)
 
 
 #: 进程内共享的 kernel32/advapi32 签名容器，避免重复加载与声明。
@@ -444,9 +683,7 @@ def _query_process_user_sid(kernel: _Kernel, process_id: int) -> str | None:
         if not advapi32.OpenProcessToken(process, _TOKEN_QUERY, ctypes.byref(token)):
             return None
         needed = wintypes.DWORD(0)
-        advapi32.GetTokenInformation(
-            token, _TOKEN_USER, None, 0, ctypes.byref(needed)
-        )
+        advapi32.GetTokenInformation(token, _TOKEN_USER, None, 0, ctypes.byref(needed))
         if not needed.value:
             return None
         raw = (ctypes.c_byte * needed.value)()
@@ -460,9 +697,7 @@ def _query_process_user_sid(kernel: _Kernel, process_id: int) -> str | None:
             return None
         token_user = _TokenUser.from_buffer(raw)
         sid_string = wintypes.LPWSTR()
-        if not advapi32.ConvertSidToStringSidW(
-            token_user.user.Sid, ctypes.byref(sid_string)
-        ):
+        if not advapi32.ConvertSidToStringSidW(token_user.user.Sid, ctypes.byref(sid_string)):
             return None
         value = sid_string.value or None
         if sid_string:
@@ -483,17 +718,13 @@ def query_process_image_basename(kernel: _Kernel, process_id: int) -> str | None
     if process_id <= 0:
         return None
     kernel32 = kernel.kernel32
-    process = kernel32.OpenProcess(
-        _PROCESS_QUERY_LIMITED_INFORMATION, False, process_id
-    )
+    process = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, process_id)
     if not process:
         return None
     try:
         size = wintypes.DWORD(32768)
         buffer = ctypes.create_unicode_buffer(size.value)
-        if not kernel32.QueryFullProcessImageNameW(
-            process, 0, buffer, ctypes.byref(size)
-        ):
+        if not kernel32.QueryFullProcessImageNameW(process, 0, buffer, ctypes.byref(size)):
             return None
         full_path = buffer.value
         if not full_path:

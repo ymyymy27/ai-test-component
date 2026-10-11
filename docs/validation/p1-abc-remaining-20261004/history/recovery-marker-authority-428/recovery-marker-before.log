@@ -1,0 +1,68 @@
+FFFFFFFF                                                                 [100%]
+================================== FAILURES ===================================
+_________ test_full_maintenance_preserves_unverified_marker[changes0] _________
+tests\unit\test_recovery_marker_authority.py:33: in test_full_maintenance_preserves_unverified_marker
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_________ test_full_maintenance_preserves_unverified_marker[changes1] _________
+tests\unit\test_recovery_marker_authority.py:33: in test_full_maintenance_preserves_unverified_marker
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_________ test_full_maintenance_preserves_unverified_marker[changes2] _________
+tests\unit\test_recovery_marker_authority.py:33: in test_full_maintenance_preserves_unverified_marker
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_________ test_full_maintenance_preserves_unverified_marker[changes3] _________
+tests\unit\test_recovery_marker_authority.py:33: in test_full_maintenance_preserves_unverified_marker
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+_________ test_full_maintenance_preserves_unverified_marker[changes4] _________
+tests\unit\test_recovery_marker_authority.py:33: in test_full_maintenance_preserves_unverified_marker
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+______ test_startup_does_not_interpret_malformed_identity_as_absence[[]] ______
+tests\unit\test_recovery_marker_authority.py:45: in test_startup_does_not_interpret_malformed_identity_as_absence
+    assert result.state == "blocked"
+E   AssertionError: assert 'healthy' == 'blocked'
+E     
+E     - blocked
+E     + healthy
+_____ test_startup_does_not_interpret_malformed_identity_as_absence[null] _____
+tests\unit\test_recovery_marker_authority.py:45: in test_startup_does_not_interpret_malformed_identity_as_absence
+    assert result.state == "blocked"
+E   AssertionError: assert 'healthy' == 'blocked'
+E     
+E     - blocked
+E     + healthy
+_ test_startup_does_not_interpret_malformed_identity_as_absence[{"request_id":"unknown","request_id":"save","intent_id":"save","project_id":"project","commit_sequence":1,"state":"in_progress"}] _
+tests\unit\test_recovery_marker_authority.py:45: in test_startup_does_not_interpret_malformed_identity_as_absence
+    assert result.state == "blocked"
+E   AssertionError: assert 'repaired' == 'blocked'
+E     
+E     - blocked
+E     + repaired
+=========================== short test summary info ===========================
+FAILED tests/unit/test_recovery_marker_authority.py::test_full_maintenance_preserves_unverified_marker[changes0]
+FAILED tests/unit/test_recovery_marker_authority.py::test_full_maintenance_preserves_unverified_marker[changes1]
+FAILED tests/unit/test_recovery_marker_authority.py::test_full_maintenance_preserves_unverified_marker[changes2]
+FAILED tests/unit/test_recovery_marker_authority.py::test_full_maintenance_preserves_unverified_marker[changes3]
+FAILED tests/unit/test_recovery_marker_authority.py::test_full_maintenance_preserves_unverified_marker[changes4]
+FAILED tests/unit/test_recovery_marker_authority.py::test_startup_does_not_interpret_malformed_identity_as_absence[[]]
+FAILED tests/unit/test_recovery_marker_authority.py::test_startup_does_not_interpret_malformed_identity_as_absence[null]
+FAILED tests/unit/test_recovery_marker_authority.py::test_startup_does_not_interpret_malformed_identity_as_absence[{"request_id":"unknown","request_id":"save","intent_id":"save","project_id":"project","commit_sequence":1,"state":"in_progress"}]
+8 failed in 20.30s

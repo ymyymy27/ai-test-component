@@ -1,0 +1,25 @@
+{
+  "edge_probes_failed": 3,
+  "edge_seconds": 422.23,
+  "approval_risk_passed": 65,
+  "risk_seconds": 321.89,
+  "ten_service_nodes": "still_running_not_claimed",
+  "src_mypy": "passed_167",
+  "default_mypy": "passed_182",
+  "src_and_scripts_mypy": "7_type_errors_validate_deepseek",
+  "issues_closed": [],
+  "log_files": [
+    "authorization-origin-edges-before.log",
+    "authorization-origin-edges-probe.py.txt",
+    "authorization-origin-approval-risk.log",
+    "authorization-origin-ruff.log",
+    "authorization-origin-default-mypy.log",
+    "authorization-origin-mypy.log",
+    "authorization-origin-src-mypy.log",
+    "authorization-origin-build.log",
+    "authorization-origin-package.log",
+    "authorization-origin-risk-collection.log",
+    "authorization-origin-collection.log",
+    "authorization-origin-edges-before-results.json"
+  ]
+}

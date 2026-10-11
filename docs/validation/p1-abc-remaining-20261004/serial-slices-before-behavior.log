@@ -1,0 +1,59 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+___ test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent ____
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-515/test_slice_resumes_saved_runni0")
+
+    def test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent(tmp_path):
+        port = FakeExecutionPort()
+        port.register(
+            FakeExecutionSpec("attempt-1", "run-1", "step-1", running_observations_before_exit=2)
+        )
+        port.register(
+            FakeExecutionSpec("attempt-2", "run-1", "step-2", running_observations_before_exit=0)
+        )
+        checkpoint = FileCheckpointStore(tmp_path)
+        runner = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+        first = runner.execute_attempt(items()[0].attempt, items()[0].request, max_polls=1)
+        assert first.state is AttemptState.RUNNING
+        active_items = (
+            replace(
+                items()[0],
+                step=replace(items()[0].step, state=StepState.RUNNING, current_attempt_id="attempt-1"),
+                attempt=first,
+            ),
+            items()[1],
+        )
+        restarted = SerialRunner(port, checkpoint_store=checkpoint, poll_interval_seconds=0)
+        result = restarted.run_serial(active_items)
+>       assert [step.state for step in result.steps] == [StepState.COMPLETED, StepState.COMPLETED]
+E       AssertionError: assert [<StepState.R...G: 'pending'>] == [<StepState.C... 'completed'>]
+E         
+E         At index 0 diff: <StepState.RUNNING: 'running'> != <StepState.COMPLETED: 'completed'>
+E         Use -v to get more diff
+
+tests\unit\test_serial_execution_slices.py:49: AssertionError
+_____ test_default_slice_does_not_wait_for_all_long_running_observations ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-515/test_default_slice_does_not_wa0")
+
+    def test_default_slice_does_not_wait_for_all_long_running_observations(tmp_path):
+        port = FakeExecutionPort()
+        port.register(
+            FakeExecutionSpec("attempt-1", "run-1", "step-1", running_observations_before_exit=500)
+        )
+        port.register(FakeExecutionSpec("attempt-2", "run-1", "step-2"))
+        runner = SerialRunner(
+            port, checkpoint_store=FileCheckpointStore(tmp_path), poll_interval_seconds=0
+        )
+        result = runner.run_serial(items())
+>       assert result.steps[0].state is StepState.RUNNING
+E       AssertionError: assert <StepState.COMPLETED: 'completed'> is <StepState.RUNNING: 'running'>
+E        +  where <StepState.COMPLETED: 'completed'> = Step(step_id='step-1', run_id='run-1', ordinal=1, case_id='case-1', level=<StepLevel.L2: 'L2'>, step_revision_ref=Step...s=(), evidence_requirements=(), execution_source_requirement=None, current_attempt_id='attempt-1', invalidated_by=None).state
+E        +  and   <StepState.RUNNING: 'running'> = StepState.RUNNING
+
+tests\unit\test_serial_execution_slices.py:63: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_serial_execution_slices.py::test_slice_resumes_saved_running_attempt_and_then_dispatches_dependent
+FAILED tests/unit/test_serial_execution_slices.py::test_default_slice_does_not_wait_for_all_long_running_observations
+2 failed, 5 deselected in 0.63s

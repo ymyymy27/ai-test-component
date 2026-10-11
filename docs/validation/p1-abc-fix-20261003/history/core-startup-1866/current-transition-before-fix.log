@@ -1,0 +1,273 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[completed] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-427/test_start_updates_current_and0")
+middle_state = <AttemptState.COMPLETED: 'completed'>
+
+    @pytest.mark.parametrize(
+        "middle_state",
+        [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.EXECUTION_ERROR, AttemptState.INVALIDATED],
+    )
+    def test_start_updates_current_and_transitive_consumers_before_external_effect(tmp_path, middle_state):
+        unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+        port = FakeExecutionPort()
+        original = port.start
+        observed = []
+    
+        def start(request):
+            current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+                project_id="project-1", run_id="run-1"
+            )
+            assert current.current_attempt_by_step["step-1"] == "replacement"
+            by_id = {attempt.attempt_id: attempt for attempt in current.attempts}
+            assert by_id["replacement"].state == "intent_recorded"
+            assert not by_id["attempt-1"].is_current
+            assert by_id["attempt-1"].state == "completed"
+            assert by_id["attempt-2"].state == by_id["attempt-3"].state == "invalidated"
+            assert by_id["attempt-4"].state == "completed"
+            assert set(current.coverage.invalidated_step_ids) == {"step-2", "step-3"}
+            assert set(current.coverage.executed_attempt_ids) == {"attempt-4"}
+            assert current.run.result_ref is None and current.run.evidence_level is None
+            assert current.run.coverage_summary is None
+            assert current.snapshot_cursor == unit.current_commit_sequence()
+            observed.append(current)
+            return original(request)
+    
+        port.start = start
+        runner, attempt, request = _new_start(domain[0], port, coordinator)
+>       runner.start_attempt(attempt, request)
+
+tests\unit\test_current_attempt_transition_integrity.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\runner.py:413: in start_attempt
+    handle = self._execution_port.start(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = ExecutionRequest(project_id='project-1', run_id='run-1', step_id='step-1', attempt_id='replacement', intent_id='replac...d=None)), side_effect_class=<SideEffectClass.READ_ONLY: 'read_only'>, timeout_ms=None, expected_plan_revision_ref=None)
+
+    def start(request):
+        current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+            project_id="project-1", run_id="run-1"
+        )
+>       assert current.current_attempt_by_step["step-1"] == "replacement"
+E       AssertionError: assert 'attempt-1' == 'replacement'
+E         
+E         - replacement
+E         + attempt-1
+
+tests\unit\test_current_attempt_transition_integrity.py:133: AssertionError
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[cancelled] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-427/test_start_updates_current_and1")
+middle_state = <AttemptState.CANCELLED: 'cancelled'>
+
+    @pytest.mark.parametrize(
+        "middle_state",
+        [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.EXECUTION_ERROR, AttemptState.INVALIDATED],
+    )
+    def test_start_updates_current_and_transitive_consumers_before_external_effect(tmp_path, middle_state):
+        unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+        port = FakeExecutionPort()
+        original = port.start
+        observed = []
+    
+        def start(request):
+            current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+                project_id="project-1", run_id="run-1"
+            )
+            assert current.current_attempt_by_step["step-1"] == "replacement"
+            by_id = {attempt.attempt_id: attempt for attempt in current.attempts}
+            assert by_id["replacement"].state == "intent_recorded"
+            assert not by_id["attempt-1"].is_current
+            assert by_id["attempt-1"].state == "completed"
+            assert by_id["attempt-2"].state == by_id["attempt-3"].state == "invalidated"
+            assert by_id["attempt-4"].state == "completed"
+            assert set(current.coverage.invalidated_step_ids) == {"step-2", "step-3"}
+            assert set(current.coverage.executed_attempt_ids) == {"attempt-4"}
+            assert current.run.result_ref is None and current.run.evidence_level is None
+            assert current.run.coverage_summary is None
+            assert current.snapshot_cursor == unit.current_commit_sequence()
+            observed.append(current)
+            return original(request)
+    
+        port.start = start
+        runner, attempt, request = _new_start(domain[0], port, coordinator)
+>       runner.start_attempt(attempt, request)
+
+tests\unit\test_current_attempt_transition_integrity.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\runner.py:413: in start_attempt
+    handle = self._execution_port.start(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = ExecutionRequest(project_id='project-1', run_id='run-1', step_id='step-1', attempt_id='replacement', intent_id='replac...d=None)), side_effect_class=<SideEffectClass.READ_ONLY: 'read_only'>, timeout_ms=None, expected_plan_revision_ref=None)
+
+    def start(request):
+        current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+            project_id="project-1", run_id="run-1"
+        )
+>       assert current.current_attempt_by_step["step-1"] == "replacement"
+E       AssertionError: assert 'attempt-1' == 'replacement'
+E         
+E         - replacement
+E         + attempt-1
+
+tests\unit\test_current_attempt_transition_integrity.py:133: AssertionError
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[execution_error] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-427/test_start_updates_current_and2")
+middle_state = <AttemptState.EXECUTION_ERROR: 'execution_error'>
+
+    @pytest.mark.parametrize(
+        "middle_state",
+        [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.EXECUTION_ERROR, AttemptState.INVALIDATED],
+    )
+    def test_start_updates_current_and_transitive_consumers_before_external_effect(tmp_path, middle_state):
+        unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+        port = FakeExecutionPort()
+        original = port.start
+        observed = []
+    
+        def start(request):
+            current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+                project_id="project-1", run_id="run-1"
+            )
+            assert current.current_attempt_by_step["step-1"] == "replacement"
+            by_id = {attempt.attempt_id: attempt for attempt in current.attempts}
+            assert by_id["replacement"].state == "intent_recorded"
+            assert not by_id["attempt-1"].is_current
+            assert by_id["attempt-1"].state == "completed"
+            assert by_id["attempt-2"].state == by_id["attempt-3"].state == "invalidated"
+            assert by_id["attempt-4"].state == "completed"
+            assert set(current.coverage.invalidated_step_ids) == {"step-2", "step-3"}
+            assert set(current.coverage.executed_attempt_ids) == {"attempt-4"}
+            assert current.run.result_ref is None and current.run.evidence_level is None
+            assert current.run.coverage_summary is None
+            assert current.snapshot_cursor == unit.current_commit_sequence()
+            observed.append(current)
+            return original(request)
+    
+        port.start = start
+        runner, attempt, request = _new_start(domain[0], port, coordinator)
+>       runner.start_attempt(attempt, request)
+
+tests\unit\test_current_attempt_transition_integrity.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\runner.py:413: in start_attempt
+    handle = self._execution_port.start(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = ExecutionRequest(project_id='project-1', run_id='run-1', step_id='step-1', attempt_id='replacement', intent_id='replac...d=None)), side_effect_class=<SideEffectClass.READ_ONLY: 'read_only'>, timeout_ms=None, expected_plan_revision_ref=None)
+
+    def start(request):
+        current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+            project_id="project-1", run_id="run-1"
+        )
+>       assert current.current_attempt_by_step["step-1"] == "replacement"
+E       AssertionError: assert 'attempt-1' == 'replacement'
+E         
+E         - replacement
+E         + attempt-1
+
+tests\unit\test_current_attempt_transition_integrity.py:133: AssertionError
+_ test_start_updates_current_and_transitive_consumers_before_external_effect[invalidated] _
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-427/test_start_updates_current_and3")
+middle_state = <AttemptState.INVALIDATED: 'invalidated'>
+
+    @pytest.mark.parametrize(
+        "middle_state",
+        [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.EXECUTION_ERROR, AttemptState.INVALIDATED],
+    )
+    def test_start_updates_current_and_transitive_consumers_before_external_effect(tmp_path, middle_state):
+        unit, coordinator, published, domain = _saved_graph(tmp_path, middle_state)
+        port = FakeExecutionPort()
+        original = port.start
+        observed = []
+    
+        def start(request):
+            current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+                project_id="project-1", run_id="run-1"
+            )
+            assert current.current_attempt_by_step["step-1"] == "replacement"
+            by_id = {attempt.attempt_id: attempt for attempt in current.attempts}
+            assert by_id["replacement"].state == "intent_recorded"
+            assert not by_id["attempt-1"].is_current
+            assert by_id["attempt-1"].state == "completed"
+            assert by_id["attempt-2"].state == by_id["attempt-3"].state == "invalidated"
+            assert by_id["attempt-4"].state == "completed"
+            assert set(current.coverage.invalidated_step_ids) == {"step-2", "step-3"}
+            assert set(current.coverage.executed_attempt_ids) == {"attempt-4"}
+            assert current.run.result_ref is None and current.run.evidence_level is None
+            assert current.run.coverage_summary is None
+            assert current.snapshot_cursor == unit.current_commit_sequence()
+            observed.append(current)
+            return original(request)
+    
+        port.start = start
+        runner, attempt, request = _new_start(domain[0], port, coordinator)
+>       runner.start_attempt(attempt, request)
+
+tests\unit\test_current_attempt_transition_integrity.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\runner.py:413: in start_attempt
+    handle = self._execution_port.start(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = ExecutionRequest(project_id='project-1', run_id='run-1', step_id='step-1', attempt_id='replacement', intent_id='replac...d=None)), side_effect_class=<SideEffectClass.READ_ONLY: 'read_only'>, timeout_ms=None, expected_plan_revision_ref=None)
+
+    def start(request):
+        current = ExecutionCommitCoordinator(FileUnitOfWork(tmp_path)).read_current_facts(
+            project_id="project-1", run_id="run-1"
+        )
+>       assert current.current_attempt_by_step["step-1"] == "replacement"
+E       AssertionError: assert 'attempt-1' == 'replacement'
+E         
+E         - replacement
+E         + attempt-1
+
+tests\unit\test_current_attempt_transition_integrity.py:133: AssertionError
+============================== warnings summary ===============================
+tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[completed]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[cancelled]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='cancelled', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[execution_error]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='execution_error', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[invalidated]
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='invalidated', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='state', input_value='completed', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[completed]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[cancelled]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[execution_error]
+FAILED tests/unit/test_current_attempt_transition_integrity.py::test_start_updates_current_and_transitive_consumers_before_external_effect[invalidated]

@@ -1,0 +1,70 @@
+{
+  "phase": "environment-origin-audit-before-2",
+  "status": "unfixed",
+  "scope": "Only directly relevant environment modules; not a complete project suite snapshot.",
+  "results": [
+    {
+      "failed": 1,
+      "seconds": 34.86
+    },
+    {
+      "failed": 1,
+      "seconds": 27.31
+    }
+  ],
+  "source_files": [
+    {
+      "path": "src/aitest/domain/project/context.py",
+      "sha256": "028bdd9d22ee3151b0fa259ee308fde61c20ad8fe6f5b5c652044d3a19d7fb8e"
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "sha256": "eb6469a01d89c36c954b81b4267dcb85f2331dee172b5555e77ba8c9f1691029"
+    },
+    {
+      "path": "src/aitest/application/planning/basis_validation.py",
+      "sha256": "9ac1e5d1bf7ad58007e9ff00eb52adfd4e476db36172f07f5f2d396460052926"
+    },
+    {
+      "path": "src/aitest/application/project/serialization.py",
+      "sha256": "227e733c779c4649d635fcae59d9a384751d07eeb4894c9684b24000ca801e95"
+    },
+    {
+      "path": "src/aitest/application/project/persistence.py",
+      "sha256": "25d9414c3630c465ed65d04f1b61a04a00eee9f2698e406f16e7164215ce053c"
+    },
+    {
+      "path": "src/aitest/contracts/commands.py",
+      "sha256": "ca734dc99f487780188426c67be07eab24ee12c7f74e660bf06f0e5feba65410"
+    },
+    {
+      "path": "tests/unit/test_authoritative_preparation.py",
+      "sha256": "a556b621ccc366c5436cccc3b01cfdf98ca14793739d7c45ef329f6515fa140a"
+    },
+    {
+      "path": "tests/unit/test_default_source_analysis.py",
+      "sha256": "32697dc5c634edc25dbce1810d7a8e154a1c6921ad5b73a5e73f69d7e7fa86f6"
+    }
+  ],
+  "logs": [
+    {
+      "path": "environment-origin-probe-before.log",
+      "sha256": "870fa33d3a35a6f82fd88d62b26574cac72a82982b78e1ee903894ea556416a3"
+    },
+    {
+      "path": "environment-origin-probe-source.py.txt",
+      "sha256": "8bb8b51cb5d4db841d9b37d7e064c3e7dcc20bdc568d2d9468fe40fda111823e"
+    },
+    {
+      "path": "environment-confirmation-probe-before.log",
+      "sha256": "b70ef861ae0638fbe6b3645fb55dbac1d37db5c4d16dde2fcf8bd3eab9ef8641"
+    },
+    {
+      "path": "environment-confirmation-probe-source.py.txt",
+      "sha256": "cef6bae2b72138e0a9881a71b76a678da93bcf63990ab3ebaf143ad94b7970b3"
+    }
+  ],
+  "archive_sha256": "ebe8ca143213e41af4feb37850c3fcb2eb903d4b596e67af878d2e1164999f8b",
+  "real_ac_verified": 0,
+  "remaining_abc_issues": 22
+}

@@ -1,0 +1,34 @@
+FFFFF                                                                    [100%]
+================================== FAILURES ===================================
+_ test_conflicting_nested_project_cannot_be_relabelled_as_command_project[save_case] _
+tests\unit\test_public_nested_ownership.py:38: in test_conflicting_nested_project_cannot_be_relabelled_as_command_project
+    assert response.error is not None
+E   AssertionError: assert None is not None
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='save_case-request', instance_id='nested-owner-core', workspa...ision=None, result={'aggregate_kind': 'case', 'record_id': 'case-create-ticket', 'revision': 1}, page=None, error=None).error
+_ test_conflicting_nested_project_cannot_be_relabelled_as_command_project[save_acceptance] _
+tests\unit\test_public_nested_ownership.py:38: in test_conflicting_nested_project_cannot_be_relabelled_as_command_project
+    assert response.error is not None
+E   AssertionError: assert None is not None
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='save_acceptance-request', instance_id='nested-owner-core', w...None, result={'aggregate_kind': 'acceptance_scope', 'record_id': 'scope-ticket', 'revision': 1}, page=None, error=None).error
+_ test_conflicting_nested_project_cannot_be_relabelled_as_command_project[save_environment] _
+tests\unit\test_public_nested_ownership.py:38: in test_conflicting_nested_project_cannot_be_relabelled_as_command_project
+    assert response.error is not None
+E   AssertionError: assert None is not None
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='save_environment-request', instance_id='nested-owner-core', ...ding_revision=None, result={'aggregate_kind': 'environment', 'record_id': 'env', 'revision': 1}, page=None, error=None).error
+_ test_conflicting_nested_project_cannot_be_relabelled_as_command_project[publish_plan_case] _
+tests\unit\test_public_nested_ownership.py:38: in test_conflicting_nested_project_cannot_be_relabelled_as_command_project
+    assert response.error is not None
+E   AssertionError: assert None is not None
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='publish_plan-request', instance_id='nested-owner-core', work...7b1472d023bcdb8c09fcb32e49abd83fdae135e81e7f'}], 'rule_revisions': [], 'template_versions': []}, page=None, error=None).error
+_ test_conflicting_nested_project_cannot_be_relabelled_as_command_project[publish_plan_scope] _
+tests\unit\test_public_nested_ownership.py:38: in test_conflicting_nested_project_cannot_be_relabelled_as_command_project
+    assert response.error is not None
+E   AssertionError: assert None is not None
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='publish_plan-request', instance_id='nested-owner-core', work...7b1472d023bcdb8c09fcb32e49abd83fdae135e81e7f'}], 'rule_revisions': [], 'template_versions': []}, page=None, error=None).error
+=========================== short test summary info ===========================
+FAILED tests/unit/test_public_nested_ownership.py::test_conflicting_nested_project_cannot_be_relabelled_as_command_project[save_case]
+FAILED tests/unit/test_public_nested_ownership.py::test_conflicting_nested_project_cannot_be_relabelled_as_command_project[save_acceptance]
+FAILED tests/unit/test_public_nested_ownership.py::test_conflicting_nested_project_cannot_be_relabelled_as_command_project[save_environment]
+FAILED tests/unit/test_public_nested_ownership.py::test_conflicting_nested_project_cannot_be_relabelled_as_command_project[publish_plan_case]
+FAILED tests/unit/test_public_nested_ownership.py::test_conflicting_nested_project_cannot_be_relabelled_as_command_project[publish_plan_scope]
+5 failed in 10.52s

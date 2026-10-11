@@ -1,0 +1,14 @@
+........................................................................ [ 23%]
+........................................................................ [ 46%]
+........................................................................ [ 69%]
+................F....................................................... [ 92%]
+......................                                                   [100%]
+================================== FAILURES ===================================
+______ test_foreign_cleanup_does_not_authorize_foreign_business_mutation ______
+tests\unit\test_workspace_lock_ownership.py:162: in test_foreign_cleanup_does_not_authorize_foreign_business_mutation
+    assert len(unit.repo.pending) == 1
+               ^^^^^^^^^^^^^^^^^
+E   AttributeError: 'FileRecordRepository' object has no attribute 'pending'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_workspace_lock_ownership.py::test_foreign_cleanup_does_not_authorize_foreign_business_mutation
+1 failed, 309 passed in 58.87s

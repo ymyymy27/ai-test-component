@@ -1,0 +1,8 @@
+Actual imported module emits its own protocol-shaped stdout before the real probe result.
+Untrusted claimed version: claimed
+Actual returned verdict: verified blocked: False
+Traceback (most recent call last):
+  File "C:\Users\y'm'y\Desktop\ai-test-component\.git\p1-abc-fix-20261003\probe_protocol_before.py", line 32, in <module>
+    assert verdict.state != 'verified', 'module stdout replaced actual source observation'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: module stdout replaced actual source observation

@@ -1,0 +1,4 @@
+warning: in the working copy of 'CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/ABC剩余问题修复证据-2026-10-04.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/接口对接/进行中/BC-001-PreparedRun/contract.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/application/planning/run_mode.py', LF will be replaced by CRLF the next time Git touches it

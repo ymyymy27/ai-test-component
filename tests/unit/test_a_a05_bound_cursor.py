@@ -25,7 +25,6 @@ from aitest.infrastructure.file_store.index import (
     FileQueryIndex,
     _issue_mask,
     _ShardDirectory,
-    _ShardInfo,
     decode_cursor,
     encode_cursor,
 )
@@ -82,8 +81,8 @@ def test_cursor_rejected_when_project_changes(index: FileQueryIndex) -> None:
     "mutated",
     [
         dict(aggregate_kind="plan"),
-        dict(record_id="case-1"),
-        dict(revision=2),
+        dict(aggregate_kind="case", record_id="case-1"),
+        dict(aggregate_kind="case", record_id="case-1", revision=2),
         dict(sort="commit_sequence"),
         dict(sort="aggregate_kind"),
         dict(descending=True),
@@ -342,9 +341,9 @@ def test_fixed_range_page_reads_only_landing_shards_across_history_growth(
     read_files: list[str] = []
     original_read = _ShardDirectory._read_shard
 
-    def _counting_read(self: _ShardDirectory, info: _ShardInfo) -> list[dict[str, object]]:
+    def _counting_read(self: _ShardDirectory, info: dict[str, object]) -> list[dict[str, object]]:
         if self.name == "records-kind":
-            read_files.append(info.file)
+            read_files.append(str(info["file"]))
         return original_read(self, info)
 
     index = FileQueryIndex(tmp_path, shard_size=8)
@@ -388,7 +387,11 @@ def test_corrupt_shard_returns_maintenance_required_without_full_scan(
             encoding="utf-8"
         )
     )
-    first_shard = tmp_path / "indexes" / "records-seq" / family_meta["shards"][0]["file"]
+    reference = family_meta["root"]
+    while reference["level"]:
+        branch = json.loads((tmp_path / "indexes/records-seq" / reference["file"]).read_text())
+        reference = branch["children"][0]
+    first_shard = tmp_path / "indexes" / "records-seq" / reference["file"]
     first_shard.write_text("{not json", encoding="utf-8")
 
     result = index.query_spec(
@@ -553,12 +556,13 @@ def _issue_row(
     *,
     entries: list[dict[str, object]] | None = None,
     commit_sequence: int | None = None,
+    revision: int = 1,
 ) -> dict[str, object]:
     return {
         "project_id": "project-1",
         "aggregate_kind": "issue",
         "record_id": issue_id,
-        "revision": 1,
+        "revision": revision,
         "commit_sequence": commit_sequence or updated_sequence,
         "updated_sequence": updated_sequence,
         "severity": "high",
@@ -679,6 +683,7 @@ def test_issue_updates_replace_old_projection_keys(tmp_path: Path) -> None:
         "i1",
         5,
         commit_sequence=6,
+        revision=2,
         entries=_issue_entries(modules=("m9",)),
     )
     index.publish([moved], commit_sequence=6)

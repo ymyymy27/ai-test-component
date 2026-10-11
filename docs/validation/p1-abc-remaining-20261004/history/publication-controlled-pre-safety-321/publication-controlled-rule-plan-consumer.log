@@ -1,0 +1,5 @@
+.                                                                        [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_publication_controlled_origin.py::test_controlled_plan_and_rule_prepare_with_warehouse_refs_then_missing_rule_proof_blocks
+1 passed, 31 deselected in 61.68s (0:01:01)

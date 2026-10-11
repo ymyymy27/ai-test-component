@@ -1,0 +1,41 @@
+F401 [*] `subprocess` imported but unused
+ --> tests\unit\test_command_launch_resources.py:4:8
+  |
+3 | import os
+4 | import subprocess
+  |        ^^^^^^^^^^
+5 | from types import SimpleNamespace
+6 | from unittest.mock import Mock
+  |
+help: Remove unused import: `subprocess`
+  |
+3 | import os
+  - import subprocess
+4 | from types import SimpleNamespace
+  |
+
+E501 Line too long (125 > 100)
+  --> tests\unit\test_command_launch_resources.py:87:101
+   |
+85 |                     (
+86 |                         "-c",
+87 |                         f"from pathlib import Path; import time; Path({str(marker)!r}).write_text('actual'); time.sleep(30)",
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+88 |                     ),
+89 |                     timeout_ms=20000,
+   |
+
+F841 Local variable `runtime` is assigned to but never used
+   --> tests\unit\test_command_launch_resources.py:133:9
+    |
+131 |     try:
+132 |         handle = adapter.start(_request("python", ("-c", "import time; time.sleep(30)")))
+133 |         runtime = adapter._runtimes[handle.handle_id]
+    |         ^^^^^^^
+134 |         assert ":created:" in handle.process_start_identity
+135 |         assert adapter.request_stop(handle).stop_confirmed
+    |
+help: Remove assignment to unused variable `runtime`
+
+Found 3 errors.
+[*] 1 fixable with the `--fix` option (1 hidden fix can be enabled with the `--unsafe-fixes` option).

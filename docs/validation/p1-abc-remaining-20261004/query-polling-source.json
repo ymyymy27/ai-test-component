@@ -1,0 +1,15 @@
+{
+  "baseline_commit": "cd6059f",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/domain/evidence/polling.py": "5e3d536bf0492b2a24cd7c3ea3c6233efbd427debe0e13d1ecc3982afacbe119",
+    "src/aitest/application/ports.py": "0622a195775b65f4aa97be5faab6ee28298fa24677bc23addf69cdddc2fb9c3a",
+    "src/aitest/infrastructure/adapters/execution/verification.py": "7db56651c48322bfb5c69cfffa26da982feb88c76de76aa344e3840a7e3eeece",
+    "src/aitest/application/evidence/query_materials.py": "fb64a31b5f655eae866d2fb89f8e463f4837393b41b127c3fa73da9076271a2d",
+    "src/aitest/application/evidence/saved_verification.py": "0fb76f7ae21e2e38d044d8abb520027edaa8ffa749a09ccb3e02878008e83a34",
+    "tests/unit/test_business_query_polling.py": "8ccff1bebad93eb3a1a9f62f7fe6f8ec65cb6dc8bfb169a50a07d1a3b91f6f1c",
+    "tests/unit/test_saved_query_polling.py": "c67bee2cf73aa281a95d9da9e723e9cef2e0d6e2630023d7ec98acfd64b70f33",
+    "tests/unit/test_default_business_verification.py": "91edfa58c6555c1c4a35298e72578ac860afda52a4ed10489c7a7a022b22c985"
+  },
+  "scope": "Actual default delayed-file independent query and saved history; synthetic authority/source; no remote deployment or Trae AC."
+}

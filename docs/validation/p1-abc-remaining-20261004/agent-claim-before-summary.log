@@ -1,0 +1,21 @@
+修前结果节选；完整原日志SHA-256: 65daad2b12e79ae1f5c17d683d7421f5eaafd65149c6cd1eb970ff8a8c61d681
+tests\unit\test_agent_claim_boundary.py:62: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_agent_claim_boundary.py::test_agent_claim_does_not_become_an_independently_observed_business_fact[True-matched]
+FAILED tests/unit/test_agent_claim_boundary.py::test_agent_claim_does_not_become_an_independently_observed_business_fact[True-mismatched]
+FAILED tests/unit/test_agent_claim_boundary.py::test_agent_claim_does_not_become_an_independently_observed_business_fact[True-query_error]
+FAILED tests/unit/test_agent_claim_boundary.py::test_agent_claim_does_not_become_an_independently_observed_business_fact[False-matched]
+FAILED tests/unit/test_agent_claim_boundary.py::test_agent_claim_does_not_become_an_independently_observed_business_fact[False-mismatched]
+FAILED tests/unit/test_agent_claim_boundary.py::test_agent_claim_does_not_become_an_independently_observed_business_fact[False-query_error]
+FAILED tests/unit/test_agent_claim_boundary.py::test_tool_success_metadata_must_be_a_boolean[true]
+FAILED tests/unit/test_agent_claim_boundary.py::test_tool_success_metadata_must_be_a_boolean[1]
+FAILED tests/unit/test_agent_claim_boundary.py::test_tool_success_metadata_must_be_a_boolean[None]
+FAILED tests/unit/test_agent_claim_boundary.py::test_evidence_existence_requires_an_exact_positive_fact[false]
+FAILED tests/unit/test_agent_claim_boundary.py::test_evidence_existence_requires_an_exact_positive_fact[1]
+FAILED tests/unit/test_agent_claim_boundary.py::test_evidence_existence_requires_an_exact_positive_fact[value2]
+FAILED tests/unit/test_agent_claim_boundary.py::test_unknown_agent_observation_is_not_accepted_as_a_fact
+FAILED tests/unit/test_agent_claim_boundary.py::test_tool_evidence_metadata_is_an_immutable_reference_tuple[evidence]
+FAILED tests/unit/test_agent_claim_boundary.py::test_tool_evidence_metadata_is_an_immutable_reference_tuple[refs1]
+FAILED tests/unit/test_agent_claim_boundary.py::test_duplicate_tool_identity_cannot_invent_more_actual_calls
+FAILED tests/unit/test_agent_claim_boundary.py::test_call_only_claim_retains_the_missing_material_gap
+17 failed in 0.36s

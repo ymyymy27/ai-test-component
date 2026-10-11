@@ -1,0 +1,31 @@
+...........................                                              [100%]
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/unit/test_model_policy_approval.py::test_role_and_client_confirmation_cannot_save_a_confirmed_model_policy
+PASSED tests/unit/test_model_policy_approval.py::test_default_generation_cannot_use_a_legacy_policy_without_saved_origin
+PASSED tests/unit/test_model_policy_approval.py::test_policy_origin_business_record_and_receipt_share_one_commit_before_send
+PASSED tests/unit/test_model_policy_approval.py::test_policy_save_replay_returns_its_exact_historical_revision_and_new_input_conflicts
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[1]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[2]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[3]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[4]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[5]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[6]
+PASSED tests/unit/test_model_policy_approval.py::test_policy_consent_and_result_roll_back_at_every_batch_fault[before_commit]
+PASSED tests/unit/test_model_policy_approval.py::test_published_policy_lost_reply_replays_without_another_user_event
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[endpoint]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[kinds]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[origin_id]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[confirmation_missing]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_missing]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_intent]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[receipt_digest]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[boolean_revision]
+PASSED tests/unit/test_model_policy_approval.py::test_corrupt_saved_policy_origin_cannot_reach_model_transport[interaction_missing]
+PASSED tests/unit/test_model_policy_approval.py::test_read_after_restart_requires_the_same_frozen_credential_reference
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[ai_enabled]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[endpoint]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[project_revision]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[expected_revision]
+PASSED tests/unit/test_model_policy_approval.py::test_a_policy_challenge_cannot_confirm_changed_inputs[purpose]
+27 passed in 165.52s (0:02:45)

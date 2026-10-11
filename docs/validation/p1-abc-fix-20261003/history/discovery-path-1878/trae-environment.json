@@ -1,0 +1,13 @@
+{
+  "installed_product": "TraeCode CN",
+  "installed_version": "3.3.89",
+  "installed_path": "E:\\Trae CN",
+  "bundled_vscode": "1.107.1",
+  "official_changelog": "https://www.trae.cn/changelog",
+  "official_latest_series_observed": "3.3.93-96",
+  "windows_latest_version": "not_verified",
+  "updated": false,
+  "ui_verification": "stopped",
+  "reason": "Computer Use could not determine current browser URL with enough confidence",
+  "real_trae_acceptance": "not_verified"
+}

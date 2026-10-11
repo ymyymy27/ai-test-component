@@ -1,0 +1,4 @@
+........................................................................ [ 83%]
+..............                                                           [100%]
+86 passed in 25.83s
+Installed exact five production modules; actual Windows stdio/CLI/core restart, replay without a new commit and refused self-confirmation verified. No actual Trae/AC claimed.

@@ -1,0 +1,32 @@
+........................F...                                             [100%]
+================================== FAILURES ===================================
+_ test_same_environment_revision_with_changed_content_requires_new_preparation _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x00000174B9DE0690>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-689/test_same_environment_revision0/tested"))
+
+    def test_same_environment_revision_with_changed_content_requires_new_preparation(authoritative):
+        core, inputs, _ = authoritative
+        first = prepare(core, inputs).result
+        before = core.unit_of_work.current_commit_sequence()
+        core.environment_resolution.resolver.dependency_digest = "sha256:changed-dependencies"
+        changed = prepare(core, inputs, request="changed-environment").result
+        assert changed["status"] == "blocked"
+        assert changed["intent_id"] == first["intent_id"]
+        assert any(
+            rule["source_kind"] == "environment_content_identity"
+            for rule in changed["invalidation_rules"]
+        )
+        assert core.unit_of_work.current_commit_sequence() == before
+        stored = core.unit_of_work.repo.read(
+            aggregate_kind="prepared_run", record_id=first["prepared_run_id"], revision=1
+        )
+        assert dict(stored.payload) == first
+        fresh = prepare(core, replace(inputs, prepare_request_id="explicit-new-prepare")).result
+>       assert fresh["status"] == "prepared"
+               ^^^^^^^^^^^^^^^
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\unit\test_environment_resolution_flow.py:76: TypeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_environment_resolution_flow.py::test_same_environment_revision_with_changed_content_requires_new_preparation
+1 failed, 27 passed in 336.56s (0:05:36)

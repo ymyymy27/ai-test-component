@@ -1,0 +1,38 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_default_basis_confirmation_requires_a_core_challenge_and_user_interaction _
+
+authoritative = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000019A24AE1940>, workspace=<aitest.infrastructur...)), WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-628/test_default_basis_confirmatio0/tested"))
+
+    def test_default_basis_confirmation_requires_a_core_challenge_and_user_interaction(authoritative):
+        core, inputs, _ = authoritative
+        reference = inputs.case_revisions[0]
+        case = case_from_payload(
+            core.unit_of_work.repo.read(
+                aggregate_kind="case",
+                record_id=reference.case_id,
+                revision=reference.revision,
+            ).payload
+        )
+        sequence = core.unit_of_work.current_commit_sequence()
+        response = dispatch(
+            core,
+            "confirm_basis",
+            project=inputs.project_id,
+            request="no-user-gesture-request",
+            intent="no-user-gesture-intent",
+            parameters={
+                "case_id": case.case_id,
+                "case_revision": case.revision,
+                "basis_revision": case.assertion_basis.revision,
+                "basis_text_digest": case.assertion_basis.text_digest,
+            },
+        )
+>       assert response.error is not None
+E       AssertionError: assert None is not None
+E        +  where None = Response(protocol_version='aitest.local/2.0', request_id='no-user-gesture-request', instance_id='authoritative-core', ...8a703c1212f6722662627e2cd1c516d03ee4a8664684cf45b53a35b29b28fe22', 'confirmed_at_commit': '11'}, page=None, error=None).error
+
+tests\unit\test_approval_origin_boundary.py:32: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_approval_origin_boundary.py::test_default_basis_confirmation_requires_a_core_challenge_and_user_interaction
+1 failed in 10.16s

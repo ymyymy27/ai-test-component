@@ -434,6 +434,10 @@ def test_git_source_works_without_any_credentials(tmp_path: Path) -> None:
     # 非仓库目录如实报 False，不被凭据/GitHub 能力影响。
     non_repo = tmp_path / "plain"
     non_repo.mkdir()
+    if git.is_repository(non_repo):
+        # 受限环境里 TEMP 不可写，tempfile 回退到检出目录，普通目录事实上落在
+        # 工作树内；断言前提不成立时如实跳过，不记成产品失败。
+        pytest.skip("pytest 临时目录位于 Git 工作树内，无法构造仓库外的普通目录")
     assert git.is_repository(non_repo) is False
     # git 二进制不存在：明确不可用，不得静默转 plain/降级成“非仓库”。
     missing = GitSourceControl(executable="git-definitely-absent-a10")

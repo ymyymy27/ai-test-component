@@ -1,0 +1,23 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_ test_source_rejects_self_consistent_content_without_a_saved_revision_chain __
+tests\unit\test_case_reuse_runtime_provenance.py:95: in test_source_rejects_self_consistent_content_without_a_saved_revision_chain
+    with pytest.raises(ValueError, match="runtime|initial"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+___________ test_source_rejects_unproved_driver_and_revision_labels ___________
+tests\unit\test_case_reuse_runtime_provenance.py:113: in test_source_rejects_unproved_driver_and_revision_labels
+    with pytest.raises((ValueError, FileNotFoundError)):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE any of (ValueError, FileNotFoundError)
+============================== warnings summary ===============================
+tests/unit/test_case_reuse_runtime_provenance.py::test_source_rejects_unproved_driver_and_revision_labels
+  C:\Users\y'm'y\Desktop\ai-test-component\.venv\Lib\site-packages\pydantic\main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='driver', input_value='stepwise', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/test_case_reuse_runtime_provenance.py::test_source_rejects_self_consistent_content_without_a_saved_revision_chain
+FAILED tests/unit/test_case_reuse_runtime_provenance.py::test_source_rejects_unproved_driver_and_revision_labels
+2 failed, 1 deselected, 1 warning in 240.78s (0:04:00)

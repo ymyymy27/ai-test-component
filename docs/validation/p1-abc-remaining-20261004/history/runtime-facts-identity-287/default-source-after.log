@@ -1,0 +1,124 @@
+FFFFF..F                                                                 [100%]
+================================== FAILURES ===================================
+______ test_default_plain_pin_saved_identity_matches_actual_byte_digest _______
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032C386E0>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-512/test_default_plain_pin_saved_i0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000028032B8F950>
+
+    def test_default_plain_pin_saved_identity_matches_actual_byte_digest(stack, monkeypatch):
+        core, source, root = stack
+        seed(core, source)
+        from aitest.infrastructure.adapters.source_control import GitSourceControl
+    
+        def no_git(*args, **kwargs):
+            pytest.fail("plain source must not invoke Git")
+    
+        monkeypatch.setattr(GitSourceControl, "snapshot_identity", no_git)
+        response = analyze(core)
+>       assert response.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)).error
+
+tests\unit\test_default_source_analysis.py:130: AssertionError
+________ test_original_source_intent_reads_after_restart_without_repin ________
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032C65090>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-512/test_original_source_intent_re0/workspace"))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000028032B8F820>
+
+    def test_original_source_intent_reads_after_restart_without_repin(stack, monkeypatch):
+        core, source, root = stack
+        seed(core, source)
+        first = analyze(core)
+>       assert first.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)).error
+
+tests\unit\test_default_source_analysis.py:152: AssertionError
+_______ test_source_intent_different_input_conflicts_without_new_commit _______
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032C66C10>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-512/test_source_intent_different_i0/workspace"))
+
+    def test_source_intent_different_input_conflicts_without_new_commit(stack):
+        core, source, _root = stack
+        seed(core, source)
+>       assert analyze(core).error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)).error
+E        +    where Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)) = analyze(CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032C66C10>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000028032C665D0>))
+
+tests\unit\test_default_source_analysis.py:174: AssertionError
+______ test_same_physical_source_has_project_owned_business_snapshot_ids ______
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032CFDA70>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-512/test_same_physical_source_has_0/workspace"))
+
+    def test_same_physical_source_has_project_owned_business_snapshot_ids(stack):
+        core, source, _root = stack
+        seed(core, source)
+        seed(core, source, project="other")
+        one = analyze(core)
+        two = analyze(core, project="other", intent="other-pin", request="other-pin-request")
+>       assert one.error is None and two.error is None
+E       AssertionError: assert (ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) is None)
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)).error
+
+tests\unit\test_default_source_analysis.py:187: AssertionError
+_____________ test_check_source_reports_actual_current_byte_drift _____________
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032CFED70>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-512/test_check_source_reports_actu0/workspace"))
+
+    def test_check_source_reports_actual_current_byte_drift(stack):
+        core, source, _root = stack
+        seed(core, source)
+        result = analyze(core)
+>       assert result.error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)).error
+
+tests\unit\test_default_source_analysis.py:203: AssertionError
+__ test_real_git_identity_includes_untracked_content_and_rejects_head_drift ___
+
+stack = (CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032CA86B0>, workspace=<aitest.infrastructur... WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-512/test_real_git_identity_include0/workspace"))
+
+    def test_real_git_identity_includes_untracked_content_and_rejects_head_drift(stack):
+        core, source, _root = stack
+    
+        def git(*args):
+            return subprocess.run(
+                ["git", *args], cwd=source, capture_output=True, text=True, check=True
+            ).stdout.strip()
+    
+        git("init", "-b", "main")
+        git("add", "main.py")
+        git(
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-m",
+            "fixture",
+        )
+        seed(core, source, form=BindingForm.GIT, head=git("rev-parse", "HEAD"))
+        from aitest.infrastructure.adapters.source_control import GitSourceControl
+    
+        control = GitSourceControl()
+        first = control.snapshot_identity(source)
+        (source / "untracked.txt").write_bytes(b"first")
+        second = control.snapshot_identity(source)
+        (source / "untracked.txt").write_bytes(b"second")
+        third = control.snapshot_identity(source)
+        assert len({fact["git_diff_digest"] for fact in (first, second, third)}) == 3
+>       assert analyze(core).error is None
+E       AssertionError: assert ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) is None
+E        +  where ErrorDTO(schema_version='aitest.error/2.0', code='B_SOURCE_UNVERIFIED', message='actual source material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None) = Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)).error
+E        +    where Response(protocol_version='aitest.local/2.0', request_id='pin-request', instance_id='source-core', workspace_id=None, ...ce material could not be verified', retryable=False, next_step='See docs/һ��/����״̬.md', request_id=None, intent_id=None)) = analyze(CoreAssembly(api=<aitest.interfaces.local.api.LocalAPI object at 0x0000028032CA86B0>, workspace=<aitest.infrastructure...urce_probe=<aitest.infrastructure.adapters.execution.python_checks.PythonLoadSourceProbe object at 0x0000028032CA87C0>))
+
+tests\unit\test_default_source_analysis.py:288: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_default_source_analysis.py::test_default_plain_pin_saved_identity_matches_actual_byte_digest
+FAILED tests/unit/test_default_source_analysis.py::test_original_source_intent_reads_after_restart_without_repin
+FAILED tests/unit/test_default_source_analysis.py::test_source_intent_different_input_conflicts_without_new_commit
+FAILED tests/unit/test_default_source_analysis.py::test_same_physical_source_has_project_owned_business_snapshot_ids
+FAILED tests/unit/test_default_source_analysis.py::test_check_source_reports_actual_current_byte_drift
+FAILED tests/unit/test_default_source_analysis.py::test_real_git_identity_includes_untracked_content_and_rejects_head_drift
+6 failed, 2 passed in 32.32s

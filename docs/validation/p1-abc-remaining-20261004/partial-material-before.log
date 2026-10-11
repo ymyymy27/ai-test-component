@@ -1,0 +1,28 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+_ test_partial_reference_is_checked_before_becoming_attempt_material[foreign_run] _
+.git\p1-abc-fix-20261003\partial_material_counter.py:24: in test_partial_reference_is_checked_before_becoming_attempt_material
+    with pytest.raises(ValueError):runner._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_partial_reference_is_checked_before_becoming_attempt_material[foreign_step] _
+.git\p1-abc-fix-20261003\partial_material_counter.py:24: in test_partial_reference_is_checked_before_becoming_attempt_material
+    with pytest.raises(ValueError):runner._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_partial_reference_is_checked_before_becoming_attempt_material[changed_reference] _
+.git\p1-abc-fix-20261003\partial_material_counter.py:24: in test_partial_reference_is_checked_before_becoming_attempt_material
+    with pytest.raises(ValueError):runner._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_ test_partial_reference_is_checked_before_becoming_attempt_material[changed_bytes] _
+.git\p1-abc-fix-20261003\partial_material_counter.py:24: in test_partial_reference_is_checked_before_becoming_attempt_material
+    with pytest.raises(ValueError):runner._apply_collection(attempt,inspection,collection)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED .git/p1-abc-fix-20261003/partial_material_counter.py::test_partial_reference_is_checked_before_becoming_attempt_material[foreign_run]
+FAILED .git/p1-abc-fix-20261003/partial_material_counter.py::test_partial_reference_is_checked_before_becoming_attempt_material[foreign_step]
+FAILED .git/p1-abc-fix-20261003/partial_material_counter.py::test_partial_reference_is_checked_before_becoming_attempt_material[changed_reference]
+FAILED .git/p1-abc-fix-20261003/partial_material_counter.py::test_partial_reference_is_checked_before_becoming_attempt_material[changed_bytes]
+4 failed in 0.99s

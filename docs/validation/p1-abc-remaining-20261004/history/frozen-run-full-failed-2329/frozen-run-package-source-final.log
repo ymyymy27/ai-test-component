@@ -1,0 +1,1 @@
+{"status": "passed", "source": "src/aitest/application/execution/commit.py", "normalized_sha256": "af300814a25bc12731b7416b0a02d5fd95dbe0a69803809ad3cd1f472e8ba0e4", "matches": ["current checkout", "new wheel", "new sdist"]}

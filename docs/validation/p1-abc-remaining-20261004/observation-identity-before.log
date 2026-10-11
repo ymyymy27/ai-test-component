@@ -1,0 +1,11 @@
+F
+================================== FAILURES ===================================
+___ test_foreign_observation_is_rejected_before_spool_or_completion[handle] ___
+tests\unit\test_execution_observation_identity.py:64: in test_foreign_observation_is_rejected_before_spool_or_completion
+    with pytest.raises(ValueError, match="execution observation"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_execution_observation_identity.py::test_foreign_observation_is_rejected_before_spool_or_completion[handle]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 3.74s

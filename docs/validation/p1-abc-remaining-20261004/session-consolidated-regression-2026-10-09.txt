@@ -1,0 +1,140 @@
+Session consolidated regression — 2026-10-09
+============================================
+
+HEAD: 9f79dd8 (fix, == origin/fix at the time of the run). Python 3.13.13, no session shim,
+no environment overrides.
+
+Command:
+
+  .venv/Scripts/python.exe -u -m pytest \
+    tests/contracts tests/architecture tests/recovery tests/acceptance \
+    tests/unit/test_a_a09_projection_json_safety.py \
+    tests/unit/test_model_orchestration.py \
+    tests/unit/test_reuse_non_command_evidence_provenance.py \
+    tests/unit/test_frozen_step_deadline_guard.py \
+    tests/unit/test_reuse_reference_record.py \
+    tests/unit/test_execution_source_binding.py \
+    tests/unit/test_authorization_current_action.py \
+    tests/unit/test_default_active_control.py \
+    tests/unit/test_default_live_output.py \
+    -o addopts= -q --tb=short -p no:cacheprovider
+
+Result:
+
+  418 passed in 732.93s (0:12:12), exit 0
+
+What this run covers, i.e. every file touched or added by this session:
+
+  - 模型材料 JSON 投影（严格解码/编码变体过滤）与默认模型链路:
+    test_a_a09_projection_json_safety.py, test_model_orchestration.py
+  - 复用来源非命令证据准确引用: test_reuse_non_command_evidence_provenance.py
+  - 冻结步骤截止守卫（快速分支回归）: test_frozen_step_deadline_guard.py
+  - 复用引用记录形状/映射/未知登记: test_reuse_reference_record.py
+  - 冻结执行来源绑定形状校验: test_execution_source_binding.py
+  - 本次修正的陈旧夹具与长步骤夹具: test_authorization_current_action.py,
+    test_default_active_control.py, test_default_live_output.py
+  - 合同/架构/恢复/验收: tests/contracts, tests/architecture, tests/recovery,
+    tests/acceptance
+
+Related session evidence (not re-run here):
+
+  - tests/unit 全树分块回归: 927 + 861（已完成批次）与 629（剩余 42 文件三批），
+    除 3 项临时根前提 skip、2 项 symlink 权限 skip、2 项并发 WorkspaceInUse 超时
+    （单独重跑 34 passed）与已修夹具外无失败 — see unit-file-sweep-2026-10-09.txt.
+  - 模型材料 JSON 投影交接反例: pending-model-projection-json-safety-after.txt
+    (14 failed → 15 passed) and json-projection-affected-and-environment.txt.
+  - 冻结步骤截止正/反例: frozen-step-deadline-before-after.txt
+    (基线 4 failed DID NOT RAISE → 修后 5 passed).
+  - 复用来源非命令证据前后对照: reuse-non-command-reference-before-after.txt
+    (基线 7 failed/3 passed → 修后 10 passed).
+
+Boundary: this is component/contract verification on synthetic plus real local processes.
+It is not real Trae, real provider, physical power-loss or the 35 acceptance criteria;
+the real Phase-1 state stays 0 verified / 35 empty evidence paths.
+
+Second run — after the materialize mapping and C-side start binding changes
+--------------------------------------------------------------------------
+
+HEAD: 40b8ef3. Same command, plus the two new/changed files
+(tests/unit/test_start_source_binding.py, tests/unit/test_a_source_snapshot.py):
+
+  447 passed in 738.33s (0:12:18), exit 0
+
+The 29 extra passing nodes over the first run are the new start-binding regressions (16) and
+the extended source-snapshot mapping regressions (13). Supporting evidence for this stretch:
+build evidence and the isolated wheel smoke in build-and-wheel-smoke-2026-10-09.txt
+(wheel 729363 B / sdist 593691 B, smoke passed with TEMP/TMP inside the workspace).
+
+Third run — after the start-binding guard additions
+---------------------------------------------------
+
+HEAD: 4078b11. Focused command over the affected areas plus contracts and architecture:
+
+  pytest tests/unit/test_start_source_binding.py tests/unit/test_a_source_snapshot.py \
+    tests/unit/test_source_checks.py tests/unit/test_source_snapshot_integrity.py \
+    tests/unit/test_a_a08_snapshot_durability.py tests/unit/test_a_a08_load_source_probe.py \
+    tests/contracts tests/architecture -q --tb=line -p no:cacheprovider
+
+  309 passed in 13.25s
+
+This covers the six start-binding checks (exact frozen coverage, requested-workdir ownership,
+symlink/hard-link refusal, unique actual paths, bounded byte verification, cross-entry digest
+replay) with their 21 counterexample regressions, the snapshot adapters including the
+materialize mapping/digest and rejection branch, source checks and integrity, plus all
+contract and architecture checks. Boundary unchanged: component evidence only, not the 35 AC.
+
+Fourth run — after the start-admission closure (rulings 1A/2A/3A/4A)
+-------------------------------------------------------------------
+
+HEAD: 0c2b060. Same command as the second run (the full touched-file set), plus the
+start-binding and snapshot files:
+
+  463 passed, 1 skipped in 827.91s (0:13:47), exit 0
+
+The 16 extra passing nodes over the 447-run are the start-admission regressions added while
+implementing the four rulings: cwd mapping inside the fixed workdir (absolute/drive/`..`/link
+escape refused), arguments taken verbatim from the frozen binding (substitution refused),
+adapter selected by the unique adapter-versions key, registered entry and interpreter identity
+equality, source verification must be `verified`, the four non-retryable failure receipts with
+the domain `source_unverified` gap, the composed `admit_start`, plus the real-materialization
+end-to-end case and the real rejected-materialization case (a missing pinned blob).
+The one skip is the directory-symlink precondition (host privilege), reported honestly and
+never counted as a pass.
+
+Fifth run — final certification at the end of the session
+---------------------------------------------------------
+
+HEAD: 7705301. Same full command as the second and fourth runs:
+
+  463 passed, 1 skipped in 856.16s (0:14:16), exit 0
+
+Identical node count to the fourth run (the later commits changed only the interpreter
+comparison to the existing `resolve()` convention, comments, checklists, handoff, CHANGELOG
+and evidence indexes, plus this run's own record). The one skip is again the host's missing
+directory-symlink privilege. Boundary unchanged: component/packaging evidence only; not real
+Trae, real provider, physical power-loss or the 35 acceptance criteria.
+
+Default execution wiring verification (HEAD 7f474e2)
+----------------------------------------------------
+
+After injecting the production action resolver into the default assembly (AB-001 1.37), every suite that
+mentions the previous missing-resolver/default-execution behaviour was re-run:
+
+  test_default_execution_authorization.py                                    29 passed  (112 s)
+  test_execution_authorization_origin.py + test_default_source_analysis.py
+    + contracts/test_b_use_case_registration.py + contracts/test_local_api.py  51 passed  (1368 s)
+  test_default_step_execution.py + test_saved_business_verification.py        33 passed  (163 s)
+  test_default_active_control.py + test_default_live_output.py
+    + test_saved_run_schedule.py                                             28 passed  (923 s)
+
+  -> 141 nodes passing across every suite that mentions the previous default behaviour; the heavy
+     group covers long-step real file transactions, pause/resume/cancel and a core-instance change.
+
+The two behaviour changes are honest improvements, not relaxations:
+  - relay prepare_execution: CAPABILITY_UNAVAILABLE -> AWAITING_USER_CONFIRMATION (needs a controlled
+    user event; A-10 blocks only the action whose real dependency is missing);
+  - restart with an unregistered carrier: INTERNAL_ERROR -> SOURCE_BINDING_UNVERIFIED
+    (reason environment_unregistered, per DEC-012), instead of leaking a codeless ValueError.
+
+Still not verified: real process end-to-end for the whole default chain, real Trae, real provider
+failure, physical power loss and the 35 acceptance criteria.

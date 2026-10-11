@@ -1,0 +1,2 @@
+src\aitest\application\planning\run_mode.py:113: error: Incompatible types in assignment (expression has type "AttemptFact | None", variable has type "AttemptFact")  [assignment]
+Found 1 error in 1 file (checked 151 source files)

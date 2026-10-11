@@ -1,0 +1,12 @@
+Corrected Windows newline fixture against the exact c104fed-era installed wheel.
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_secondary_filter_cannot_claim_complete_zero_replacement_summary _____
+tests\unit\test_redaction_material_guards.py:215: in test_secondary_filter_cannot_claim_complete_zero_replacement_summary
+    assert actual.completeness != "complete" or actual.replacement_count >= 1
+E   AssertionError: assert ('complete' != 'complete' or 0 >= 1)
+E    +  where 'complete' = RedactionSummary(policy_version='aitest.redaction/1.0', applied_rule_categories=(), filtered_streams=('stdout',), filtered_ranges=('stdout:0-18',), replacement_count=0, completeness='complete', gap_reasons=(), created_at=None).completeness
+E    +  and   0 = RedactionSummary(policy_version='aitest.redaction/1.0', applied_rule_categories=(), filtered_streams=('stdout',), filtered_ranges=('stdout:0-18',), replacement_count=0, completeness='complete', gap_reasons=(), created_at=None).replacement_count
+=========================== short test summary info ===========================
+FAILED tests/unit/test_redaction_material_guards.py::test_secondary_filter_cannot_claim_complete_zero_replacement_summary
+1 failed in 0.32s

@@ -1,0 +1,93 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+__________ test_page_and_commit_do_not_read_whole_directory_history ___________
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-451/test_page_and_commit_do_not_re0")
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B08F7EFA80>
+
+    def test_page_and_commit_do_not_read_whole_directory_history(tmp_path, monkeypatch):
+        index = FileQueryIndex(tmp_path, shard_size=8)
+        index.rebuild([_row(i) for i in range(8)] + [_row(i, project='unrelated') for i in range(2048)])
+        reads, writes = ([], [])
+        original_text, original_bytes = (Path.read_text, Path.read_bytes)
+        original_write = atomic.write_json
+    
+        def record_read(path):
+            if path.is_relative_to(tmp_path):
+                reads.append((path, path.stat().st_size))
+    
+        def read_text(path, *args, **kwargs):
+            record_read(path)
+            return original_text(path, *args, **kwargs)
+    
+        def read_bytes(path, *args, **kwargs):
+            record_read(path)
+            return original_bytes(path, *args, **kwargs)
+    
+        def write_json(path, value, **kwargs):
+            writes.append((path, len(json.dumps(value).encode())))
+            return original_write(path, value, **kwargs)
+        monkeypatch.setattr(Path, 'read_text', read_text)
+        monkeypatch.setattr(Path, 'read_bytes', read_bytes)
+        monkeypatch.setattr(atomic, 'write_json', write_json)
+        page = index.query_spec(QuerySpec(project_id='p', limit=5))
+        assert page.status == 'ok' and len(page.items) == 5
+>       assert sum((size for _, size in reads)) < 40000, reads
+E       AssertionError: [(WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-451/test_page_and_commit_do_not_re0/indexes.js...al/Temp/pytest-of-y'm'y/pytest-451/test_page_and_commit_do_not_re0/indexes/records-kind/1322b77d9bc24246.json"), 2206)]
+E       assert 622444 < 40000
+E        +  where 622444 = sum(<generator object test_page_and_commit_do_not_read_whole_directory_history.<locals>.<genexpr> at 0x000001B091D5E740>)
+
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:43: AssertionError
+_____ test_corrupt_current_key_ledger_cannot_be_treated_as_empty[report] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-451/test_corrupt_current_key_ledge0")
+kind = 'report'
+
+    @pytest.mark.parametrize('kind', ['report', 'issue'])
+    def test_corrupt_current_key_ledger_cannot_be_treated_as_empty(tmp_path, kind):
+        index = FileQueryIndex(tmp_path, shard_size=8)
+        original = _row(1, kind=kind)
+        index.rebuild([original])
+        header = json.loads((tmp_path / 'indexes.json').read_text())
+        snapshot = json.loads((tmp_path / 'indexes/roots' / f"{header['snapshot_root']}.json").read_text())
+        ledger = snapshot.get('latest_keys')
+        if ledger is None:
+            path = tmp_path / 'indexes/.latest-keys.json'
+        else:
+            path = tmp_path / 'indexes/latest-keys' / f"{ledger['root']['file']}"
+        path.write_text('{corrupt', encoding='utf-8')
+        root_before = (tmp_path / 'indexes.json').read_bytes()
+>       with pytest.raises(IndexMissing):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE IndexMissing
+
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:64: Failed
+______ test_corrupt_current_key_ledger_cannot_be_treated_as_empty[issue] ______
+
+tmp_path = WindowsPath("C:/Users/y'm'y/AppData/Local/Temp/pytest-of-y'm'y/pytest-451/test_corrupt_current_key_ledge1")
+kind = 'issue'
+
+    @pytest.mark.parametrize('kind', ['report', 'issue'])
+    def test_corrupt_current_key_ledger_cannot_be_treated_as_empty(tmp_path, kind):
+        index = FileQueryIndex(tmp_path, shard_size=8)
+        original = _row(1, kind=kind)
+        index.rebuild([original])
+        header = json.loads((tmp_path / 'indexes.json').read_text())
+        snapshot = json.loads((tmp_path / 'indexes/roots' / f"{header['snapshot_root']}.json").read_text())
+        ledger = snapshot.get('latest_keys')
+        if ledger is None:
+            path = tmp_path / 'indexes/.latest-keys.json'
+        else:
+            path = tmp_path / 'indexes/latest-keys' / f"{ledger['root']['file']}"
+        path.write_text('{corrupt', encoding='utf-8')
+        root_before = (tmp_path / 'indexes.json').read_bytes()
+>       with pytest.raises(IndexMissing):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE IndexMissing
+
+docs\validation\p1-abc-fix-20261003\query-directory-before-test.py:64: Failed
+=========================== short test summary info ===========================
+FAILED docs/validation/p1-abc-fix-20261003/query-directory-before-test.py::test_page_and_commit_do_not_read_whole_directory_history
+FAILED docs/validation/p1-abc-fix-20261003/query-directory-before-test.py::test_corrupt_current_key_ledger_cannot_be_treated_as_empty[report]
+FAILED docs/validation/p1-abc-fix-20261003/query-directory-before-test.py::test_corrupt_current_key_ledger_cannot_be_treated_as_empty[issue]
+3 failed in 20.58s

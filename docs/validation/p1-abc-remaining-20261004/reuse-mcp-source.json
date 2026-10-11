@@ -1,0 +1,11 @@
+{
+  "baseline_commit": "bcfebe6",
+  "python": "3.13.13",
+  "files": {
+    "src/aitest/interfaces/tools/agent_relay.py": "685411faad5d65a177cebb839285b97064698641ba23e8403c011c778c814630",
+    "src/aitest/application/execution/runtime_revision.py": "5d75d0ccc29adaaa8fa1de6c20c4d87d38e4dbd888230f6f3ee6c8dd26f9b903",
+    "tests/unit/test_mcp_reuse_inspection.py": "4cc88decf48593fc716c81046d11f071ac717c83bf94cf089fcfadba75905941",
+    "tests/unit/test_mcp_default_reuse_inspection.py": "8f10951cf5f0679e72b2983e16c44db4b7be68a91286dd39f39d03c86107fca7"
+  },
+  "scope": "Actual Windows stdio/core/file preview; synthetic source/authority fixture; no Trae AC or R"
+}

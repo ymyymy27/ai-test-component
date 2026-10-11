@@ -1,0 +1,6 @@
+warning: in the working copy of 'docs/接口对接/进行中/AB-001-端口与保存/contract.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/infrastructure/file_store/events.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/aitest/infrastructure/file_store/recovery.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_a_backup_recovery.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_a_event_journal.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/unit/test_complete_commit_closure.py', LF will be replaced by CRLF the next time Git touches it

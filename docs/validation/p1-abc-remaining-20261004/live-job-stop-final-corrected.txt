@@ -1,0 +1,15 @@
+...........F............................................................ [ 22%]
+........................................................................ [ 45%]
+........................................................................ [ 67%]
+........................................................................ [ 90%]
+...............................                                          [100%]
+================================== FAILURES ===================================
+_______ test_actual_handle_save_failure_releases_only_its_launched_job ________
+tests\unit\test_live_command_stop_ownership.py:171: in test_actual_handle_save_failure_releases_only_its_launched_job
+    adapter.start(_request("python", ("-c", "import time; time.sleep(30)")))
+src\aitest\infrastructure\adapters\execution\command.py:175: in start
+    raise ValueError("attempt already started; inspect the persisted execution")
+E   ValueError: attempt already started; inspect the persisted execution
+=========================== short test summary info ===========================
+FAILED tests/unit/test_live_command_stop_ownership.py::test_actual_handle_save_failure_releases_only_its_launched_job
+1 failed, 318 passed in 28.81s

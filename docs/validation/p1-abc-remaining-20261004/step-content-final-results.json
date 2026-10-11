@@ -1,0 +1,18 @@
+{
+  "component_regression": "115 passed in 474.54s; all 31 new nodes included",
+  "contracts_architecture": "225 passed in 8.67s; disjoint from component group",
+  "total_distinct_passed": 340,
+  "memory_subset": "27 passed, 4 deselected in 0.35s; subset of component group",
+  "static": [
+    "Ruff src/tests/scripts",
+    "Mypy src: 152 source files",
+    "generated Schema unchanged",
+    "versions 0.4.0"
+  ],
+  "build": [
+    "offline wheel/sdist",
+    "isolated Python 3.13 wheel smoke",
+    "registration.py and step_content.py normalized bytes equal checkout/wheel/sdist"
+  ],
+  "full_python": "not rerun; old 2336/2 belongs only to 4396824"
+}

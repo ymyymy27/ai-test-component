@@ -1,0 +1,16 @@
+..F                                                                      [100%]
+================================== FAILURES ===================================
+____ test_outcome_committed_but_resolution_reply_lost_reads_original_once _____
+tests\unit\test_model_response_resolution.py:213: in test_outcome_committed_but_resolution_reply_lost_reads_original_once
+    assert FileCommitStore(core.workspace.root).read_current()["pointer"] == before
+E   AssertionError: assert {'commit_id':...3', ...}, ...} == {'commit_id':...3', ...}, ...}
+E     
+E     Omitting 3 identical items, use -vv to show
+E     Differing items:
+E     {'event_cursor': 'eyJ2IjoxLCJ3IjoiMmExY2VlMzEtMDI1NC00NmZjLWJiZDUtZGI1YmY1YjQ4NWVmIiwiZyI6IjQ1MDMxZmU3ODNjMzRiNWFhOTBjM2RjOGRiNDgxY2YzIiwiZSI6MSwicyI6Nn0='} != {'event_cursor': 'eyJ2IjoxLCJ3IjoiMmExY2VlMzEtMDI1NC00NmZjLWJiZDUtZGI1YmY1YjQ4NWVmIiwiZyI6IjQ1MDMxZmU3ODNjMzRiNWFhOTBjM2RjOGRiNDgxY2YzIiwiZSI6MSwicyI6NH0='}
+E     {'index_root': {'generation': 1, 'last_commit_sequence': 6, 'schema': 'aitest.index-root/3-tree', 'snapshot_root': 'ed2d037b73e54a5886b82da9bc3fcb43', ...}} != {'index_root': {'generation': 1, 'last_co...
+E     
+E     ...Full output truncated (4 lines hidden), use '-vv' to show
+=========================== short test summary info ===========================
+FAILED tests/unit/test_model_response_resolution.py::test_outcome_committed_but_resolution_reply_lost_reads_original_once
+1 failed, 2 passed, 24 deselected in 26.92s
