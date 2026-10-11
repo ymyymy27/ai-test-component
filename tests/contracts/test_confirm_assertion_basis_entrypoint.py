@@ -234,7 +234,12 @@ def test_the_confirmation_commit_marker_matches_the_commit_that_stored_it(
         _command(
             "confirm_basis",
             "req-confirm-1",
-            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST, "basis_revision": 1},
+            {
+                "case_id": "case-1",
+                "case_revision": 1,
+                "basis_text_digest": BASIS_DIGEST,
+                "basis_revision": 1,
+            },
         ),
         _session(),
     )
@@ -261,7 +266,12 @@ def test_confirming_a_case_revision_that_does_not_exist_is_refused(
         _command(
             "confirm_basis",
             "req-confirm-bad",
-            {"case_id": "case-1", "case_revision": 9, "basis_text_digest": BASIS_DIGEST, "basis_revision": 1},
+            {
+                "case_id": "case-1",
+                "case_revision": 9,
+                "basis_text_digest": BASIS_DIGEST,
+                "basis_revision": 1,
+            },
         ),
         _session(),
     )
@@ -370,7 +380,12 @@ def test_a_new_basis_revision_becomes_a_new_confirmation(
         _command(
             "confirm_basis",
             "req-confirm-1",
-            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST, "basis_revision": 1},
+            {
+                "case_id": "case-1",
+                "case_revision": 1,
+                "basis_text_digest": BASIS_DIGEST,
+                "basis_revision": 1,
+            },
         ),
         _session(),
     )
