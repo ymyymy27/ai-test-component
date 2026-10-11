@@ -1011,20 +1011,32 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         if deps.basis_confirmations is None:
             raise BUseCaseError("CAPABILITY_UNAVAILABLE", "basis confirmation is unavailable")
         parameters = _command_parameters(command)
-        return deps.basis_confirmations.confirm(
-            project_id=_command_project_id(command),
-            request_id=_as_text(getattr(command, "request_id", None), "request_id"),
-            intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
-            case_id=_as_text(_required(parameters, "case_id"), "case_id"),
-            case_revision=_revision_of(_required(parameters, "case_revision"), "case_revision"),
-            basis_revision=_revision_of(_required(parameters, "basis_revision"), "basis_revision"),
-            basis_text_digest=_as_text(
-                _required(parameters, "basis_text_digest"), "basis_text_digest"
-            ),
-            challenge_id=_optional_text(
-                parameters.get("approval_challenge_id"), "approval_challenge_id"
-            ),
-        )
+        try:
+            return deps.basis_confirmations.confirm(
+                project_id=_command_project_id(command),
+                request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+                intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+                case_id=_as_text(_required(parameters, "case_id"), "case_id"),
+                case_revision=_revision_of(
+                    _required(parameters, "case_revision"), "case_revision"
+                ),
+                basis_revision=_revision_of(
+                    _required(parameters, "basis_revision"), "basis_revision"
+                ),
+                basis_text_digest=_as_text(
+                    _required(parameters, "basis_text_digest"), "basis_text_digest"
+                ),
+                challenge_id=_optional_text(
+                    parameters.get("approval_challenge_id"), "approval_challenge_id"
+                ),
+            )
+        except BUseCaseError:
+            raise
+        except ValueError as error:
+            # 用例/依据不存在或无法读取时底层抛 ValueError（如仓储的 "unknown revision"）。
+            # 这是**调用方输入**问题，必须落成有编码的错误，不能升级成 INTERNAL_ERROR——
+            # 与 `handle_narrow_driver` 等既有 handler 的处理方式一致。
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
 
     def handle_save_context(command: object) -> Mapping[str, object]:
         record_intent = ordinary_intent(command)
