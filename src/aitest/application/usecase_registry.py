@@ -1038,6 +1038,15 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             # 用例/依据不存在或无法读取时底层抛 ValueError（如仓储的 "unknown revision"）。
             # 这是**调用方输入**问题，必须落成有编码的错误，不能升级成 INTERNAL_ERROR——
             # 与 `handle_narrow_driver` 等既有 handler 的处理方式一致。
+            #
+            # 但 `BasisConfirmationError`／`BasisConfirmationConflict` 也继承 `ValueError`，
+            # 且**自带业务编码**（`B_BASIS_UNVERIFIED`／`INTENT_CONFLICT`）。这些编码必须原样
+            # 保留：压成 `B_INVALID_PARAMETER` 会让调用方无法区分「输入非法」与
+            # 「同一意图换了输入」，也会掩盖「依据未核验」。因此只对**没有业务编码**的
+            # ValueError 归为输入非法。
+            code = getattr(error, "code", None)
+            if isinstance(code, str) and code:
+                raise BUseCaseError(code, str(error)) from error
             raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
 
     def handle_save_context(command: object) -> Mapping[str, object]:

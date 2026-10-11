@@ -101,6 +101,7 @@ class SavedActionResolver:
         source_binding_digest, workdir = _admission_digest(
             self._admission, run, step, snapshot_id, binding
         )
+        self._require_registered_entry(binding, entry)
         self._require_observed_interpreter(workdir, environment_fact)
         index = self._attempt_index(run, step)
         if type(index) is not int or index < 1:
@@ -207,6 +208,33 @@ class SavedActionResolver:
             entrypoint=executable,
             arguments=tuple(binding.entry_arguments),
         )
+
+    def _require_registered_entry(
+        self, binding: ExecutionSourceBinding, entry: RegisteredEntryRef
+    ) -> None:
+        """核对**已登记入口**：冻结来源绑定声明的入口 == 解析器实际将使用的入口。
+
+        依据架构01 第 12 节：prepare 冻结「已登记入口与参数」，start 在固定 workdir 中解析
+        实际路径并保存「期望→实际路径映射」。这里核对的是**入口身份**这一层：冻结绑定里的
+        `registered_entry`（期望）必须与本次解析实际采用的入口身份（实际）逐字一致——
+        能力清单「未登记入口不猜命令」的落点。`Step` 自带冻结入口、与绑定不一致时，
+        本核对会阻断而不是照用其中一个。
+
+        未登记入口（空值）不得通过：没有可核对的入口身份时，不能声称"入口已登记"。
+        """
+
+        observed = entry.entry_id
+        if not isinstance(observed, str) or not observed.strip():
+            raise ActionResolutionBlocked(
+                "resolved entry has no registered entry identity to verify"
+            )
+        try:
+            self._validators.require_registered_entry(
+                frozen_entry=binding.registered_entry,
+                observed_entry=observed,
+            )
+        except SourceBindingUnverified as error:
+            raise ActionResolutionBlocked(str(error)) from error
 
     def _require_observed_interpreter(
         self, workdir: str, environment: EnvironmentResolutionFact
