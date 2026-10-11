@@ -24,6 +24,8 @@ from uuid import uuid4
 
 import pytest
 
+from aitest.application.planning.basis_confirmation import BasisConfirmationService
+from aitest.application.planning.draft import text_digest as compute_text_digest
 from aitest.application.planning.persistence import (
     CONFIRMATION_AGGREGATE,
     load_confirmation,
@@ -41,7 +43,13 @@ from aitest.interfaces.local.b_registration import register_b_use_cases
 
 PROJECT_ID = "project-confirm"
 WORKSPACE_ID = "ws-confirm"
-BASIS_DIGEST = "sha256:basis-1"
+#: 依据正文与其**真实**摘要。
+#:
+#: fix 的 `BasisConfirmationService` 要求 `text_digest(basis.text) == basis_text_digest`
+#: （摘要必须绑定正文），比 develop 版只比对调用方给出的摘要更严；因此这里用真实哈希，
+#: 不能用形如 `sha256:basis-1` 的占位值。
+BASIS_TEXT = "check the persisted body"
+BASIS_DIGEST = compute_text_digest(BASIS_TEXT)
 
 
 class _FixedClock:
@@ -66,6 +74,9 @@ class _Sequences:
 class _Stack:
     unit_of_work: PortsUnitOfWork
     reader: PortsRecordReader
+    #: `BasisConfirmationService` 走的是 `begin(request_id, project_id, intent_id=)` /
+    #: `commit(request_id)` 形状（即文件底座本身），不是 B 的窄适配器形状。
+    raw: FileUnitOfWork
 
 
 def _start(root: Path) -> _Stack:
@@ -76,6 +87,7 @@ def _start(root: Path) -> _Stack:
             raw, repository=repository, sequence=_Sequences(root)
         ),
         reader=PortsRecordReader(repository),
+        raw=raw,
     )
 
 
@@ -97,6 +109,11 @@ def _api(stack: _Stack) -> LocalAPI:
             unit_of_work=stack.unit_of_work,
             reader=stack.reader,
             clock=_FixedClock(),
+            # fix 的 `confirm_basis` 走受控确认服务（develop 版把确认逻辑写在 handler 里）。
+            # `approvals` 缺省即不要求 actor，符合本测试只验证“绑定准确依据修订”的范围。
+            basis_confirmations=BasisConfirmationService(
+                reader=stack.reader, unit=stack.raw
+            ),
         ),
     )
     return api
