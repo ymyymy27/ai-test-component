@@ -337,8 +337,13 @@ def test_request_model_draft_without_ports_is_structured_error(
         ),
         _session(),
     )
-    assert response.error is not None
-    assert response.error.code == "B_DEPENDENCY_NOT_CONFIGURED"
+    assert response.error is None, response.error
+    assert response.result is not None
+    # fix 的既有约定：依赖未配齐返回**结构化 blocked**（带 `blocked_by` 编码），
+    # 而不是 error，也不升级成 INTERNAL_ERROR——比 develop 版更贴合「如实显示不可用」。
+    assert response.result["blocked"] is True
+    assert response.result["status"] == "blocked"
+    assert "model_not_configured" in response.result["blocked_by"]
 
 
 def test_request_model_draft_rejects_unknown_material_kind(
