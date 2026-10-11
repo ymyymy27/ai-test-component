@@ -62,6 +62,7 @@ from aitest.application.planning.model_policy_confirmation import (
     SavedHumanActionResolver,
     SavedModelPolicyApprovalResolver,
 )
+from aitest.application.planning.substrate import RecordReader
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
     PortsUnitOfWork,
@@ -76,6 +77,7 @@ from aitest.application.ports import (
     SourceSnapshotPort,
 )
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
+from aitest.application.project.persistence import load_project
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
 from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
@@ -355,8 +357,61 @@ def _interpreter_verifier() -> Callable[[str, EnvironmentResolutionFact], str]:
     return verify
 
 
+def _module_names_from_project(
+    reader: RecordReader, project_id: str, project_revision: object, workdir: str
+) -> tuple[str, ...]:
+    """从项目登记推导**可导入模块名**（落地方式见交接说明 §6.2 第 1 点）。
+
+    合同的 `Module.source_paths` 是「实际变化的文件 → 模块」的映射模式（示例：
+    `src/ticket/**`、`src/ticket`、`tests/ticket`），**不是**模块名，也没有单独的「导入根」字段。
+    因此这里不新增字段、也不猜布局，而是**按探针自己的 sys.path 推导**：探针以物化根作为唯一
+    PYTHONPATH（见 `PythonLoadSourceProbe`），所以把 `source_paths` 去掉尾部通配后得到的相对目录，
+    其在物化根下的点号名就是可导入名（PEP 420 命名空间包同样成立）。
+
+    三条好处：① 推导出的名字**必然可被探针导入**，不会因此假阻塞；② 探针报告的实际加载路径
+    若落在物化根之外（例如解析到 editable 安装或原仓库），`_derive_state` 会判
+    `import_outside_materialized_source` 而阻塞；③ 推导不出的模块**不参与探测**，不伪造结论。
+
+    只在物化根内**确实存在**且含 `.py` 的目录才计入，否则视为不可核对。
+    """
+
+    if type(project_revision) is not int or project_revision < 1:
+        raise SourceBindingUnverified("frozen preparation has no exact project revision")
+    project = load_project(reader, project_id=project_id, revision=project_revision)
+    root = Path(workdir).resolve()
+    names: set[str] = set()
+    for module in project.modules:
+        for pattern in module.source_paths:
+            relative = _pattern_relative_dir(pattern)
+            if relative is None:
+                continue
+            candidate = root / relative
+            if not candidate.is_dir() or not any(candidate.rglob("*.py")):
+                continue
+            names.add(".".join(relative.parts))
+    return tuple(sorted(names))
+
+
+def _pattern_relative_dir(pattern: object) -> Path | None:
+    """把 `source_paths` 的一个模式折成相对目录；含通配或上跳时返回 `None`。"""
+
+    if not isinstance(pattern, str) or not pattern.strip():
+        return None
+    raw = pattern.strip().replace("\\", "/").rstrip("/")
+    # 绝对路径不是「项目内的相对目录」，直接拒绝——不能靠后续 split 把前导分隔符吃掉。
+    if raw.startswith("/") or (len(raw) > 1 and raw[1] == ":"):
+        return None
+    while raw.endswith(("/**", "/*")):
+        raw = raw[: raw.rfind("/")]
+    parts = [part for part in raw.split("/") if part not in ("", ".")]
+    if not parts or any(part == ".." or "*" in part or "?" in part for part in parts):
+        return None
+    return Path(*parts)
+
+
 def _source_verification_provider(
     snapshots: SourceSnapshotPort,
+    reader: RecordReader,
 ) -> Callable[[str, Mapping[str, object], Mapping[str, object]], ExecutionSourceVerification]:
     """装配层适配：合成「来源核验事实」（架构01 第 12 节 / P1-FR08 / P1-AC13）。
 
@@ -409,17 +464,33 @@ def _source_verification_provider(
         plan_revision = prepared.get("plan_revision")
         if not isinstance(plan_revision, Mapping):
             raise SourceBindingUnverified("frozen preparation has no plan revision")
+        # 登记模块的实际加载来源：以探针自己的 sys.path（物化根）推导可导入名并真的导入。
+        # 推导不出任何模块时不伪造结论，退回只覆盖「语法」一类的 SYNTAX。
+        project_id = _required_text(prepared.get("project_id"), "project_id")
+        module_names = _module_names_from_project(
+            reader, project_id, prepared.get("project_revision"), workdir
+        )
+        import_ref: str | None = None
+        if module_names:
+            load_fact = PythonLoadSourceProbe(executable=interpreter).probe(
+                materialized_root=workdir, modules=module_names
+            )
+            import_ref = next(
+                (item.file for item in load_fact.modules if item.file),
+                None,
+            )
+        check_type = SourceCheckType.LOAD if module_names else SourceCheckType.SYNTAX
         observation = SourceProbeObservation(
             observed_source_digest=observed_identity,
             observed_entry_ref=entry_path,
-            observed_import_ref=None,
+            observed_import_ref=import_ref,
             observed_interpreter_ref=interpreter,
             failure_class=None,
         )
         request = SourceCheckRequest(
             verification_id="source-verification:" + snapshot_id,
             check_result_id="source-check:" + snapshot_id,
-            project_id=_required_text(prepared.get("project_id"), "project_id"),
+            project_id=project_id,
             attempt_id="pending-attempt",
             plan_revision_ref=PlanRevisionRef(
                 revision_id=_required_text(plan_revision.get("revision_id"), "plan.revision_id"),
@@ -428,7 +499,7 @@ def _source_verification_provider(
             ),
             expected_source_content_digest=expected_identity,
             materialized_snapshot_ref=workdir,
-            check_type=SourceCheckType.SYNTAX,
+            check_type=check_type,
             scope=workdir,
             source_snapshot_ref=snapshot_id,
             environment_ref=_environment_ref(environment),
@@ -802,7 +873,7 @@ def assemble_workspace_core(
                         _interpreter_verifier() if verify_start_interpreter else None
                     ),
                     source_verification_provider=(
-                        _source_verification_provider(snapshot_store)
+                        _source_verification_provider(snapshot_store, reader)
                         if verify_start_source
                         else None
                     ),
