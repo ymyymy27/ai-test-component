@@ -469,6 +469,13 @@ def build_saved_action_resolver(
     workspace_root: Path,
     read_facts: Callable[[str, str], ExecutionFacts],
     interpreter_verifier: Callable[[str, EnvironmentResolutionFact], str] | None = None,
+    source_verification_provider: (
+        Callable[
+            [str, Mapping[str, object], Mapping[str, object]],
+            ExecutionSourceVerification,
+        ]
+        | None
+    ) = None,
 ) -> SavedActionResolver:
     """装配用工厂：物化准入 + 事实尝试序号 + 最严副作用类别，一次装好。
 
@@ -499,6 +506,7 @@ def build_saved_action_resolver(
         side_effect_class=default_side_effect_class,
         admission=admission,
         interpreter_verifier=interpreter_verifier,
+        source_verification_provider=source_verification_provider,
     )
 
 
