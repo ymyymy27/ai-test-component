@@ -409,6 +409,10 @@ def test_a_step_whose_attempt_is_still_collecting_is_refused() -> None:
     payload["steps"][1]["state"] = "blocked"
     payload["steps"][1]["current_attempt_id"] = "attempt-2"
     payload["current_attempt_by_step"]["step-2"] = "attempt-2"
+    # 当前 attempt 必须与步骤的**当前修订逐字一致**，否则会先在 run_mode 的
+    # 「当前 attempt 不使用当前步骤修订」处被拒，根本到不了「步骤仍在执行」这条判定。
+    # 载荷里 step-2 沿用了 step-1 的修订引用，因此这里**照抄**它，
+    # 而不是另写一个 step-2 修订（那会让载荷自身不自洽）。
     payload["attempts"].append(
         {
             "attempt_id": "attempt-2",
@@ -420,12 +424,7 @@ def test_a_step_whose_attempt_is_still_collecting_is_refused() -> None:
             "state": "collecting",
             "is_current": True,
             "resolved_input_digest": "sha256:input-2",
-            "step_revision_ref": {
-                "step_revision_id": "step-rev-2",
-                "revision_no": 1,
-                "digest": "sha256:step-2",
-                "inherited": False,
-            },
+            "step_revision_ref": copy.deepcopy(payload["steps"][1]["step_revision_ref"]),
             "source_binding_digest": "sha256:source-1",
             "side_effect_class": "read_only",
             "adapter_kind": "command",
