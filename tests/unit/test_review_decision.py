@@ -257,6 +257,22 @@ def test_source_mismatch_and_no_execution_basis_are_grade_d() -> None:
     assert result.primary_gap.code is ReviewGapCode.SOURCE_IDENTITY_MISMATCH
 
 
+def test_empty_full_scope_fails_closed_instead_of_passing() -> None:
+    coverage = _coverage(frozenset(), frozenset(), executed=frozenset())
+    facts = replace(
+        _complete_facts(coverage=coverage),
+        template_required=frozenset(),
+        assertion_basis_confirmed=frozenset(),
+    )
+
+    result = evaluate_review(facts)
+
+    assert result.business_outcome is BusinessOutcome.INCOMPLETE
+    assert result.evidence_grade is EvidenceGrade.D
+    assert result.primary_gap is not None
+    assert result.primary_gap.code is ReviewGapCode.NO_VALID_EXECUTION_BASIS
+
+
 def test_no_applicable_checks_is_not_applicable() -> None:
     coverage = _coverage(frozenset(), frozenset(), executed=frozenset())
     facts = replace(_complete_facts(coverage=coverage), has_applicable_checks=False)

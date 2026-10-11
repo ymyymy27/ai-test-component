@@ -110,9 +110,11 @@ from aitest.application.planning.rules_markdown import (
     rule_draft_from_markdown,
     rule_markdown_from_payload,
 )
+from aitest.application.planning.run_mode import request_runtime_revision
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
     case_from_payload,
+    confirmation_from_payload,
 )
 from aitest.application.planning.substrate import (
     AggregateKind,
@@ -158,6 +160,7 @@ from aitest.application.project.serialization import (
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.record_write import RecordWriteIntent
 from aitest.contracts.commands import Command
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.prepared_run import (
     AssertionBasisEntry,
     AuthorizationRequirement,
@@ -180,10 +183,27 @@ from aitest.contracts.prepared_run import (
 )
 from aitest.domain.planning.model_outbound import MaterialKind, ModelOutboundPolicy, ModelTaskType
 from aitest.domain.planning.plans import (
+    Case,
+    ConfirmationRecord,
+    Plan,
+    PlanPublicationStatus,
+    RuleRevisionRef,
     RunDriver,
     RunTier,
+    narrow_driver,
+)
+from aitest.domain.planning.plans import (
+    CaseRevisionRef as DomainCaseRevisionRef,
+)
+from aitest.domain.planning.plans import (
+    TemplateVersionRef as DomainTemplateVersionRef,
 )
 from aitest.domain.planning.rules import RuleDraft, RuleEnablement, RuleVersion
+from aitest.domain.planning.runtime_revision import (
+    CaseRuntimeChange,
+    RuntimeRevisionDecision,
+    RuntimeRevisionRequest,
+)
 from aitest.domain.planning.templates import TemplateRef
 
 #: 与 `aitest.bootstrap.Handler` 形状一致（`Callable[[Command], Mapping[str, object]]`）。
@@ -197,6 +217,8 @@ _StrEnumT = TypeVar("_StrEnumT", bound=StrEnum)
 #: 本注册表拥有的动作名；`doctor` 与合同测试用它核对暴露面。
 OWNED_ACTIONS: frozenset[str] = frozenset(
     {
+        "revise_pending_steps",
+        "narrow_driver",
         "save_context",
         "bind_project",
         "save_binding",
@@ -1995,7 +2017,269 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             "content": _generated_content(result.content) if result.content is not None else None,
         }
 
+    def _case_revision_refs_of(raw: object, name: str) -> tuple[DomainCaseRevisionRef, ...]:
+        refs: list[DomainCaseRevisionRef] = []
+        for index, item in enumerate(_list_of({name: raw} if raw is not None else {}, name)):
+            entry = _as_mapping(item, f"{name}[{index}]")
+            refs.append(
+                DomainCaseRevisionRef(
+                    case_id=_as_text(_required(entry, "case_id"), f"{name}[{index}].case_id"),
+                    revision=_revision_of(
+                        _required(entry, "revision"), f"{name}[{index}].revision"
+                    ),
+                    digest=_as_text(_required(entry, "digest"), f"{name}[{index}].digest"),
+                )
+            )
+        return tuple(refs)
+
+
+    def _cases_from_payload(raw: object) -> tuple[Case, ...]:
+        """被改动用例的**冻结修订**对象列表；至少一条。"""
+        if not isinstance(raw, list) or not raw:
+            raise BUseCaseError("B_INVALID_PARAMETER", "cases must be a non-empty list")
+        cases: list[Case] = []
+        for index, item in enumerate(raw):
+            try:
+                cases.append(case_from_payload(_as_mapping(item, f"cases[{index}]")))
+            except ValueError as error:
+                raise BUseCaseError(
+                    "B_INVALID_PARAMETER", f"invalid cases[{index}]: {error}"
+                ) from error
+        return tuple(cases)
+
+
+    def _confirmations_from_payload(raw: object) -> tuple[ConfirmationRecord, ...]:
+        """依据确认记录列表；可以没有（未确认是合法状态）。"""
+        if raw is None:
+            return ()
+        if not isinstance(raw, list):
+            raise BUseCaseError("B_INVALID_PARAMETER", "confirmations must be a list")
+        confirmations: list[ConfirmationRecord] = []
+        for index, item in enumerate(raw):
+            try:
+                confirmations.append(
+                    confirmation_from_payload(
+                        _as_mapping(item, f"confirmations[{index}]")
+                    )
+                )
+            except ValueError as error:
+                raise BUseCaseError(
+                    "B_INVALID_PARAMETER", f"invalid confirmations[{index}]: {error}"
+                ) from error
+        return tuple(confirmations)
+
+
+    def _list_of(parameters: Mapping[str, object], name: str) -> list[object]:
+        """可选列表参数：缺省为空列表，给了就必须是 list。"""
+        value = parameters.get(name)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise BUseCaseError("B_INVALID_PARAMETER", f"{name} must be a list")
+        return value
+
+
+    def _plan_from_payload(payload: Mapping[str, object]) -> Plan:
+        """按发布口径重建**冻结计划**（运行中修订的对照基线）。
+
+        只重建身份与冻结引用，不重算任何摘要；缺字段或违反领域不变量即拒绝。
+        """
+        try:
+            return Plan(
+                plan_id=_as_text(_required(payload, "plan_id"), "plan.plan_id"),
+                revision=_revision_of(_required(payload, "revision"), "plan.revision"),
+                scope=acceptance_scope_from_payload(
+                    _as_mapping(_required(payload, "scope"), "plan.scope")
+                ),
+                case_revisions=_case_revision_refs_of(
+                    payload.get("case_revisions"), "plan.case_revisions"
+                ),
+                rule_revisions=_rule_revision_refs_of(
+                    payload.get("rule_revisions"), "plan.rule_revisions"
+                ),
+                template_versions=_template_version_refs_of(
+                    payload.get("template_versions"), "plan.template_versions"
+                ),
+                run_tier=_enum_of(RunTier, _required(payload, "run_tier"), "plan.run_tier"),
+                initial_driver=_enum_of(
+                    RunDriver, _required(payload, "initial_driver"), "plan.initial_driver"
+                ),
+                status=_enum_of(
+                    PlanPublicationStatus, _required(payload, "status"), "plan.status"
+                ),
+                confirmation_id=_optional_text(
+                    payload.get("confirmation_id"), "plan.confirmation_id"
+                ),
+            )
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", f"invalid plan: {error}") from error
+
+
+    def _rule_revision_refs_of(raw: object, name: str) -> tuple[RuleRevisionRef, ...]:
+        refs: list[RuleRevisionRef] = []
+        for index, item in enumerate(_list_of({name: raw} if raw is not None else {}, name)):
+            entry = _as_mapping(item, f"{name}[{index}]")
+            refs.append(
+                RuleRevisionRef(
+                    rule_id=_as_text(_required(entry, "rule_id"), f"{name}[{index}].rule_id"),
+                    revision=_revision_of(
+                        _required(entry, "revision"), f"{name}[{index}].revision"
+                    ),
+                    digest=_as_text(_required(entry, "digest"), f"{name}[{index}].digest"),
+                )
+            )
+        return tuple(refs)
+
+
+    def _runtime_revision_request_from_payload(
+        payload: Mapping[str, object],
+    ) -> RuntimeRevisionRequest:
+        """运行中修订请求；`case_changes` 至少一条（领域不变量）。"""
+        raw_changes = _required(payload, "case_changes")
+        if not isinstance(raw_changes, list) or not raw_changes:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "request.case_changes must be a non-empty list"
+            )
+        changes: list[CaseRuntimeChange] = []
+        for index, item in enumerate(raw_changes):
+            prefix = f"request.case_changes[{index}]"
+            entry = _as_mapping(item, prefix)
+            try:
+                next_case = case_from_payload(
+                    _as_mapping(_required(entry, "next_case"), f"{prefix}.next_case")
+                )
+            except ValueError as error:
+                raise BUseCaseError(
+                    "B_INVALID_PARAMETER", f"invalid {prefix}.next_case: {error}"
+                ) from error
+            changes.append(
+                CaseRuntimeChange(
+                    next_case=next_case,
+                    target_step_ids=_text_list(
+                        entry.get("target_step_ids"), f"{prefix}.target_step_ids"
+                    ),
+                    remove_from_required=_bool_of(
+                        entry.get("remove_from_required"), f"{prefix}.remove_from_required"
+                    ),
+                )
+            )
+        try:
+            return RuntimeRevisionRequest(
+                base_plan_revision_id=_as_text(
+                    _required(payload, "base_plan_revision_id"),
+                    "request.base_plan_revision_id",
+                ),
+                base_plan_revision_no=_revision_of(
+                    _required(payload, "base_plan_revision_no"),
+                    "request.base_plan_revision_no",
+                ),
+                base_plan_revision_digest=_optional_text(
+                    payload.get("base_plan_revision_digest"),
+                    "request.base_plan_revision_digest",
+                ),
+                observed_snapshot_cursor=_int_of(
+                    _required(payload, "observed_snapshot_cursor"),
+                    "request.observed_snapshot_cursor",
+                ),
+                case_changes=tuple(changes),
+                reason=_as_text(_required(payload, "reason"), "request.reason"),
+                operator_ref=_as_text(
+                    _required(payload, "operator_ref"), "request.operator_ref"
+                ),
+                requested_driver=(
+                    None
+                    if payload.get("requested_driver") is None
+                    else _enum_of(
+                        RunDriver, payload["requested_driver"], "request.requested_driver"
+                    )
+                ),
+            )
+        except ValueError as error:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", f"invalid request: {error}"
+            ) from error
+
+
+    def _runtime_revision_result(decision: RuntimeRevisionDecision) -> Mapping[str, object]:
+        """运行中修订决策：只搬运交接清单，不产生任何业务结论。"""
+        return {
+            "accepted": decision.accepted,
+            "revision_no": decision.revision_no,
+            "effective_driver": decision.effective_driver.value,
+            "snapshot_commit_id": decision.snapshot_commit_id,
+            "snapshot_cursor": decision.snapshot_cursor,
+            "refusals": [
+                {"code": refusal.code.value, "detail": refusal.detail}
+                for refusal in decision.refusals
+            ],
+            "affected_step_ids": list(decision.affected_step_ids),
+            "preserved_step_ids": list(decision.preserved_step_ids),
+            "invalidated_basis_step_ids": list(decision.invalidated_basis_step_ids),
+            "rejudge_case_ids": list(decision.rejudge_case_ids),
+            "confirmation_required_case_ids": list(
+                decision.confirmation_required_case_ids
+            ),
+            "pause_required": decision.pause_required,
+            "new_run_required": decision.new_run_required,
+        }
+
+
+    def _template_version_refs_of(
+        raw: object, name: str
+    ) -> tuple[DomainTemplateVersionRef, ...]:
+        refs: list[DomainTemplateVersionRef] = []
+        for index, item in enumerate(_list_of({name: raw} if raw is not None else {}, name)):
+            entry = _as_mapping(item, f"{name}[{index}]")
+            refs.append(
+                DomainTemplateVersionRef(
+                    template_id=_as_text(
+                        _required(entry, "template_id"), f"{name}[{index}].template_id"
+                    ),
+                    version=_as_text(
+                        _required(entry, "version"), f"{name}[{index}].version"
+                    ),
+                    digest=_as_text(_required(entry, "digest"), f"{name}[{index}].digest"),
+                )
+            )
+        return tuple(refs)
+
+
+    def handle_narrow_driver(command: object) -> Mapping[str, object]:
+        parameters = _command_parameters(command)
+        try:
+            current = RunDriver(_as_text(_required(parameters, "current"), "current"))
+            requested = RunDriver(
+                _as_text(_required(parameters, "requested"), "requested")
+            )
+            result = narrow_driver(current, requested)
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+        return {"driver": result.value}
+
+
+    def handle_revise_pending_steps(command: object) -> Mapping[str, object]:
+        parameters = _command_parameters(command)
+        plan = _plan_from_payload(_as_mapping(_required(parameters, "plan"), "plan"))
+        cases = _cases_from_payload(_required(parameters, "cases"))
+        confirmations = _confirmations_from_payload(
+            _required(parameters, "confirmations")
+        )
+        request = _runtime_revision_request_from_payload(
+            _as_mapping(_required(parameters, "request"), "request")
+        )
+        facts = _model_of(ExecutionFacts, _required(parameters, "facts"), "facts")
+        decision = request_runtime_revision(
+            plan=plan,
+            cases=cases,
+            confirmations=confirmations,
+            request=request,
+            facts=facts,
+        )
+        return _runtime_revision_result(decision)
+
     actions: dict[str, Handler] = {
+        "revise_pending_steps": _guard(handle_revise_pending_steps),
+        "narrow_driver": _guard(handle_narrow_driver),
         "save_context": _guard(handle_save_context),
         # 合同名优先（架构05 第3节动作表把「目录绑定：规范化当前目录、选择/建立稳定项目、
         # 取得 binding_revision」定为 `bind_project`）。以合同名注册还有实际收益：

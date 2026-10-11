@@ -1,21 +1,24 @@
 {
+  "schema_version": "aitest.execution-facts/1.0",
   "facts_id": "facts-timeout",
   "project_id": "project-1",
   "run_id": "run-1",
-  "snapshot_commit_id": "commit-timeout",
+  "snapshot_commit_id": "commit-1",
   "snapshot_cursor": 10,
   "snapshot_revision": 1,
-  "committed_at": "2026-09-24T10:01:00+08:00",
-  "run_revision": 1,
+  "committed_at": "2026-10-07T10:01:00Z",
+  "run_revision": 0,
   "plan_revision": {
     "revision_id": "plan-1",
     "revision_no": 1,
     "digest": "sha256:plan-1"
   },
+  "runtime_revision_refs": [],
   "run": {
     "run_id": "run-1",
-    "run_revision": 1,
+    "run_revision": 0,
     "origin_workspace_id": "ws-1",
+    "intent_id": "intent-1",
     "tier": "full",
     "driver": "planned",
     "conclusion_ceiling": "passable",
@@ -25,8 +28,11 @@
       "digest": "sha256:plan-1"
     },
     "environment_ref": "env-1",
+    "environment_isolation_mode": "venv",
     "rules_revision": "rules-1",
     "control_state": "pending_verification",
+    "primary_gap_ids": [],
+    "runtime_revision_refs": [],
     "required_scope": [
       "case-1"
     ],
@@ -34,13 +40,8 @@
       "case-1"
     ],
     "source_binding_digest": "sha256:source-1",
-    "started_at": "2026-09-24T10:00:00+08:00",
-    "evidence_level": null,
-    "intent_id": "intent-1",
-    "primary_gap_ids": [
-      "gap-timeout"
-    ],
-    "environment_isolation_mode": "venv"
+    "started_at": "2026-10-07T10:01:00Z",
+    "ended_at": "2026-10-07T10:01:00Z"
   },
   "steps": [
     {
@@ -58,10 +59,12 @@
       "required_for_case": true,
       "level": "L2",
       "state": "pending_verification",
+      "dependency_step_ids": [],
+      "assertion_refs": [],
+      "evidence_requirement_ids": [],
       "current_attempt_id": "attempt-1",
-      "gap_ids": [
-        "gap-timeout"
-      ]
+      "invalidated": false,
+      "gap_ids": []
     }
   ],
   "attempts": [
@@ -69,7 +72,7 @@
       "attempt_id": "attempt-1",
       "run_id": "run-1",
       "step_id": "step-1",
-      "attempt_revision": 1,
+      "attempt_revision": 0,
       "attempt_index": 1,
       "retry_count": 0,
       "state": "pending_verification",
@@ -84,10 +87,15 @@
         "inherited": false
       },
       "source_binding_digest": "sha256:source-1",
+      "consumed_outputs": [],
+      "consumed_conditions": [],
       "side_effect_class": "read_only",
+      "transport_retry_count": 0,
+      "authorization_ref": "authorization-1",
       "adapter_kind": "command",
       "adapter_version": "1.0",
-      "capture_completeness": "partial",
+      "timeout_ms": 10000,
+      "timed_out": true,
       "handle": {
         "handle_id": "handle-1",
         "adapter_kind": "command",
@@ -96,47 +104,50 @@
         "process_start_identity": "start-1",
         "workdir_ref": "ws-1"
       },
+      "output_cursors": [
+        {
+          "attempt_id": "attempt-1",
+          "stream_name": "stdout",
+          "offset": 23,
+          "last_block_index": 0,
+          "last_committed_digest": "sha256:dfc1a9012e630a0fe8c38baf892f1a1a7377a94cba14811a9589ea287df9b1a9",
+          "durable": true
+        }
+      ],
       "output_blocks": [
         {
-          "block_id": "block-1",
+          "block_id": "attempt-1:stdout:0",
           "attempt_id": "attempt-1",
           "stream_name": "stdout",
           "block_index": 0,
           "offset": 0,
-          "length": 12,
-          "digest": "sha256:block-1",
-          "complete": true,
-          "capture_source": "wrapper"
+          "length": 23,
+          "digest": "sha256:dfc1a9012e630a0fe8c38baf892f1a1a7377a94cba14811a9589ea287df9b1a9",
+          "complete": false,
+          "capture_source": "command"
         }
       ],
       "exit_fact": {
         "attempt_id": "attempt-1",
         "startup_token": "token-1",
         "process_start_identity": "start-1",
-        "real_exit_code": -9,
+        "real_exit_code": -1,
         "last_block_index_by_stream": {
           "stdout": 0
         },
         "saved_bytes_by_stream": {
-          "stdout": 12
+          "stdout": 23
         },
         "capture_completeness": "partial",
         "termination_reason": "timeout",
         "timed_out": true
       },
-      "output_cursors": [
-        {
-          "attempt_id": "attempt-1",
-          "stream_name": "stdout",
-          "offset": 12,
-          "last_block_index": 0,
-          "last_committed_digest": "sha256:block-1",
-          "durable": true
-        }
-      ],
+      "capture_completeness": "partial",
       "unknown_reason_ids": [
-        "unknown-timeout"
-      ]
+        "command_timeout"
+      ],
+      "started_at": "2026-10-07T10:01:00Z",
+      "ended_at": "2026-10-07T10:01:00Z"
     }
   ],
   "current_attempt_by_step": {
@@ -158,13 +169,30 @@
         "workspace_ref": "ws-1",
         "commit_id": "abc123"
       },
-      "object_digest": "sha256:block-1",
-      "object_size": 12,
-      "media_type": "text/plain",
-      "integrity": "complete",
-      "redaction_state": "redacted",
+      "object_digest": "sha256:dfc1a9012e630a0fe8c38baf892f1a1a7377a94cba14811a9589ea287df9b1a9",
+      "object_size": 23,
+      "integrity": "missing_tail",
+      "redaction_state": "not_required",
       "projection_state": "displayable",
-      "evidence_level": "full_link"
+      "evidence_level": "unknown",
+      "gap_ids": []
+    }
+  ],
+  "source_check_results": [
+    {
+      "check_result_id": "check-1",
+      "attempt_id": "attempt-1",
+      "check_type": "load",
+      "scope": "module",
+      "source_snapshot_ref": "snapshot-1",
+      "environment_ref": "environment-1",
+      "rules_revision": "rules-1",
+      "adapter_version": "python-checks/1.0",
+      "failure_class": "passed",
+      "raw_output_evidence_ref": "evidence-1",
+      "evidence_refs": [
+        "evidence-1"
+      ]
     }
   ],
   "source_verifications": [
@@ -180,7 +208,48 @@
       "materialized_snapshot_ref": "snapshot-1",
       "observed_source_digest": "sha256:source-1",
       "state": "verified",
-      "observed_entry_ref": "entry-1"
+      "observed_entry_ref": "entry-1",
+      "gap_ids": [],
+      "evidence_refs": [
+        "evidence-1"
+      ],
+      "verified_at": "2026-10-07T10:01:00Z"
+    }
+  ],
+  "verifications": [
+    {
+      "verification_id": "business-verify-1",
+      "verification_of": "business_assertion",
+      "business_object_id": "order-1",
+      "query_method": "independent_read_only",
+      "observation": "no_result",
+      "query_interval": "configured",
+      "deadline_condition": "immediate",
+      "target_deployment_ref": "deployment-1",
+      "actual_result_ref": "evidence-1",
+      "key_trace_link_refs": [],
+      "covers_critical_chain_item_ids": [],
+      "evidence_refs": [
+        "evidence-1"
+      ],
+      "gap_ids": [
+        "execution_timeout_verification_pending"
+      ],
+      "verified_at": "2026-10-07T10:01:00Z"
+    }
+  ],
+  "mock_declarations": [],
+  "dependency_invalidations": [],
+  "unknowns": [],
+  "gaps": [
+    {
+      "gap_id": "command_timeout",
+      "kind": "execution",
+      "subject_ref": "attempt-1",
+      "reason_code": "command_timeout",
+      "safe_reason": "命令超时，业务结果仍需核实",
+      "critical": true,
+      "requires_user_action": false
     }
   ],
   "coverage": {
@@ -193,33 +262,11 @@
     "executed_attempt_ids": [
       "attempt-1"
     ],
-    "unknown_step_ids": [
-      "step-1"
-    ],
-    "evidence_gap_count": 1,
-    "critical_gap_count": 1
+    "blocked_step_ids": [],
+    "invalidated_step_ids": [],
+    "unknown_step_ids": [],
+    "evidence_gap_count": 0,
+    "critical_gap_count": 0
   },
-  "completeness": "partial",
-  "unknowns": [
-    {
-      "unknown_reason_id": "unknown-timeout",
-      "subject_type": "attempt",
-      "subject_id": "attempt-1",
-      "reason_code": "command_timeout",
-      "safe_reason": "The command exceeded its timeout and was forcibly terminated.",
-      "requires_verification": true,
-      "suggested_next_action": "Verify external side effects before deciding whether a new Attempt is required."
-    }
-  ],
-  "gaps": [
-    {
-      "gap_id": "gap-timeout",
-      "kind": "capture_completeness",
-      "subject_ref": "attempt-1",
-      "reason_code": "partial_capture_after_timeout",
-      "safe_reason": "Only bytes captured before forced termination are available.",
-      "critical": true,
-      "requires_user_action": false
-    }
-  ]
+  "completeness": "partial"
 }

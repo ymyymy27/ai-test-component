@@ -1,4 +1,5 @@
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -7,20 +8,34 @@ from aitest.application.evidence.evidence_review import (
     EvidenceReviewService,
     VerificationRequest,
 )
+from aitest.application.execution.facts import (
+    ExecutionFactsAssembler,
+    ExecutionFactsAssembly,
+)
 from aitest.domain.evidence.evidence import (
     EvidenceCaptureSource,
     VerificationObservation,
 )
 from aitest.domain.execution.runs import (
     AdapterKind,
+    Attempt,
+    AttemptState,
     AuthorizationRef,
     ExecutionRequest,
     FailureClass,
     PlanRevisionRef,
     RegisteredEntryRef,
+    Run,
+    RunControlState,
+    RunTier,
     SideEffectClass,
+    Step,
+    StepLevel,
+    StepRevisionRef,
+    StepState,
 )
 from aitest.domain.execution.sources import SourceCheckType
+from aitest.domain.project.context import IsolationMode
 from aitest.infrastructure.adapters.execution.agent import (
     AgentAdapter,
     AgentEvaluation,
@@ -35,8 +50,10 @@ from aitest.infrastructure.adapters.execution.http import (
     HttpAdapter,
     HttpAssertion,
     HttpAssertionOperator,
+    HttpAssertionResult,
     HttpExchangeResult,
     HttpRequestSpec,
+    http_assertion_verifications,
 )
 from aitest.infrastructure.adapters.execution.manual_evidence import (
     ManualEvidenceAdapter,
@@ -142,6 +159,143 @@ def test_http_adapter_extracts_and_evaluates_json_assertions() -> None:
     assert enriched.extracted == {"order_id": "order-1"}
     assert all(item.matched for item in enriched.assertion_results)
     assert enriched.request_log_ref == "http-request:request-1"
+
+
+def test_http_assertions_convert_to_verification_facts() -> None:
+    exchange = HttpExchangeResult(
+        request_id="request-1",
+        method="POST",
+        url="https://example.invalid/orders",
+        status=200,
+        body=b'{"data":{"status":"paid"}}',
+        request_log_ref="http-request:request-1",
+    )
+    spec = HttpRequestSpec(
+        request_id="request-1",
+        method="POST",
+        url=exchange.url,
+        assertions=(
+            HttpAssertion(
+                assertion_id="status",
+                json_path="data.status",
+                operator=HttpAssertionOperator.EQUALS,
+                expected="paid",
+            ),
+        ),
+    )
+
+    enriched = HttpAdapter._enrich(exchange, spec)
+    verifications = http_assertion_verifications(
+        enriched,
+        business_object_id="order-1",
+        evidence_refs=("evidence-1",),
+        covers_critical_chain_item_ids=("critical-1",),
+    )
+
+    assert len(verifications) == 1
+    verification = verifications[0]
+    assert verification.observation is VerificationObservation.MATCHED
+    assert verification.actual_result_ref == "http-request:request-1"
+    assert verification.evidence_refs == ("evidence-1",)
+    assert verification.covers_critical_chain_item_ids == ("critical-1",)
+
+
+def test_http_network_error_converts_to_query_error_verification() -> None:
+    exchange = HttpExchangeResult(
+        request_id="request-1",
+        method="GET",
+        url="https://example.invalid/orders",
+        status=None,
+        error_class="network",
+        error_detail="connection refused",
+        request_log_ref="http-request:request-1",
+    )
+
+    verifications = http_assertion_verifications(
+        exchange,
+        business_object_id="order-1",
+        evidence_refs=("evidence-1",),
+    )
+
+    assert len(verifications) == 1
+    assert verifications[0].observation is VerificationObservation.QUERY_ERROR
+    assert verifications[0].gap_ids == ("http_network",)
+
+
+def test_http_verification_reaches_execution_facts_contract() -> None:
+    exchange = HttpExchangeResult(
+        request_id="request-1",
+        method="GET",
+        url="https://example.invalid/orders",
+        status=200,
+        body=b'{"status":"paid"}',
+        assertion_results=(
+            HttpAssertionResult(assertion_id="status", matched=True, actual="paid"),
+        ),
+        request_log_ref="http-request:request-1",
+    )
+    verification = http_assertion_verifications(
+        exchange,
+        business_object_id="order-1",
+        evidence_refs=("evidence-1",),
+    )[0]
+    plan = PlanRevisionRef("plan-1", 1, "sha256:plan-1")
+    step_revision = StepRevisionRef("step-rev-1", 1, "sha256:step-1")
+    run = Run(
+        run_id="run-1",
+        project_id="project-1",
+        origin_workspace_id="workspace-1",
+        intent_id="intent-1",
+        tier=RunTier.FULL,
+        driver="planned",
+        conclusion_ceiling="passable",
+        plan_revision_ref=plan,
+        environment_ref="environment-1",
+        environment_isolation_mode=IsolationMode.VENV,
+        rules_revision="rules-1",
+        control_state=RunControlState.COMPLETED,
+        required_scope=frozenset({"case-1"}),
+        selected_scope=frozenset({"case-1"}),
+    )
+    step = Step(
+        step_id="step-1",
+        run_id="run-1",
+        ordinal=1,
+        case_id="case-1",
+        level=StepLevel.L2,
+        step_revision_ref=step_revision,
+        state=StepState.COMPLETED,
+        current_attempt_id="attempt-1",
+    )
+    attempt = Attempt(
+        attempt_id="attempt-1",
+        run_id="run-1",
+        step_id="step-1",
+        attempt_index=1,
+        resolved_input_digest="sha256:input-1",
+        step_revision_ref=step_revision,
+        source_binding_digest="sha256:source-1",
+        side_effect_class=SideEffectClass.READ_ONLY,
+        adapter_kind=AdapterKind.HTTP,
+        adapter_version="1.0",
+        state=AttemptState.COMPLETED,
+    )
+    facts = ExecutionFactsAssembler().assemble(
+        ExecutionFactsAssembly(
+            facts_id="facts-http",
+            snapshot_commit_id="commit-http",
+            snapshot_cursor=1,
+            snapshot_revision=1,
+            committed_at=datetime.now(UTC),
+            run=run,
+            steps=(step,),
+            attempts=(attempt,),
+            verifications=(verification,),
+        )
+    )
+
+    assert facts.verifications[0].observation.value == "matched"
+    assert facts.verifications[0].evidence_refs == ("evidence-1",)
 
 
 def test_agent_adapter_rejects_text_only_evaluation() -> None:
@@ -299,9 +453,7 @@ def test_business_verification_uses_independent_query_facts() -> None:
         expected_facts={"status": "paid"},
     )
     service = EvidenceReviewService(
-        BusinessVerificationAdapter(
-            _OrderQuery({"status": "paid", "order_id": "order-1"})
-        )
+        BusinessVerificationAdapter(_OrderQuery({"status": "paid", "order_id": "order-1"}))
     )
 
     matched = service.review(request)
@@ -327,9 +479,7 @@ def test_business_verification_without_expected_facts_is_not_matched() -> None:
         deadline_condition="immediate",
         target_deployment_ref="deployment-1",
     )
-    service = EvidenceReviewService(
-        BusinessVerificationAdapter(_OrderQuery({"status": "paid"}))
-    )
+    service = EvidenceReviewService(BusinessVerificationAdapter(_OrderQuery({"status": "paid"})))
 
     result = service.review(request)
 

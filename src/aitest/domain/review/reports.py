@@ -463,6 +463,8 @@ def _full_pass_conditions_met(
     coverage = facts.coverage
     return (
         facts.tier is RunTier.FULL
+        and bool(coverage.selected)
+        and bool(coverage.required)
         and not decisive_failures
         and facts.source_identity_state is SourceIdentityState.MATCHED
         and facts.critical_paths_satisfied
