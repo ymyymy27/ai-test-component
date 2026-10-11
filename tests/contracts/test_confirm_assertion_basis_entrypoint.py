@@ -1,4 +1,4 @@
-"""受控依据确认动作 `confirm_assertion_basis` 的出口测试（检查项 B-01）。
+"""受控依据确认动作 `confirm_basis` 的出口测试（检查项 B-01）。
 
 重点：
 
@@ -170,12 +170,12 @@ def test_a_confirmation_binds_the_existing_basis(workspace_root: Path) -> None:
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-1",
             {
                 "case_id": "case-1",
                 "case_revision": 1,
-                "basis_text_digest": BASIS_DIGEST,
+                "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
             },
         ),
         _session(),
@@ -215,9 +215,9 @@ def test_the_confirmation_commit_marker_matches_the_commit_that_stored_it(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-1",
-            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST},
+            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST, "basis_revision": 1},
         ),
         _session(),
     )
@@ -242,9 +242,9 @@ def test_confirming_a_case_revision_that_does_not_exist_is_refused(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-bad",
-            {"case_id": "case-1", "case_revision": 9, "basis_text_digest": BASIS_DIGEST},
+            {"case_id": "case-1", "case_revision": 9, "basis_text_digest": BASIS_DIGEST, "basis_revision": 1},
         ),
         _session(),
     )
@@ -267,7 +267,7 @@ def test_confirming_a_digest_that_the_case_does_not_carry_is_refused(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-mismatch",
             {
                 "case_id": "case-1",
@@ -300,12 +300,12 @@ def test_the_caller_cannot_supply_the_confirmation_identity(
 
     response = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-forge",
             {
                 "case_id": "case-1",
                 "case_revision": 1,
-                "basis_text_digest": BASIS_DIGEST,
+                "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
                 "confirmation_id": "confirmation-i-made-this-up",
                 "confirmed_at_commit": "commit-999",
             },
@@ -328,15 +328,15 @@ def test_confirming_the_same_basis_twice_is_reported_as_a_conflict(
     parameters = {
         "case_id": "case-1",
         "case_revision": 1,
-        "basis_text_digest": BASIS_DIGEST,
+        "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
     }
     first = api.dispatch(
-        _command("confirm_assertion_basis", "req-confirm-1", parameters), _session()
+        _command("confirm_basis", "req-confirm-1", parameters), _session()
     )
     assert first.error is None
 
     second = api.dispatch(
-        _command("confirm_assertion_basis", "req-confirm-2", parameters), _session()
+        _command("confirm_basis", "req-confirm-2", parameters), _session()
     )
     assert second.error is not None
     assert second.error.code == "B_REVISION_CONFLICT"
@@ -351,9 +351,9 @@ def test_a_new_basis_revision_becomes_a_new_confirmation(
     _save_case(api, request_id="req-case-1", payload=_case_payload())
     first = api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-1",
-            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST},
+            {"case_id": "case-1", "case_revision": 1, "basis_text_digest": BASIS_DIGEST, "basis_revision": 1},
         ),
         _session(),
     )
@@ -382,7 +382,7 @@ def test_a_new_basis_revision_becomes_a_new_confirmation(
     # B-11：正文修订必须等于这次分配的仓储修订，因此这条是 @2。
     api.dispatch(
         _command(
-            "confirm_assertion_basis",
+            "confirm_basis",
             "req-confirm-2",
             {"case_id": "case-1", "case_revision": 2, "basis_text_digest": "sha256:basis-2"},
         ),
@@ -411,11 +411,11 @@ def test_missing_parameters_are_named(workspace_root: Path) -> None:
         parameters: dict[str, object] = {
             "case_id": "case-1",
             "case_revision": 1,
-            "basis_text_digest": BASIS_DIGEST,
+            "basis_text_digest": BASIS_DIGEST, "basis_revision": 1,
         }
         del parameters[missing]
         response = api.dispatch(
-            _command("confirm_assertion_basis", f"req-missing-{missing}", parameters),
+            _command("confirm_basis", f"req-missing-{missing}", parameters),
             _session(),
         )
         assert response.error is not None, missing

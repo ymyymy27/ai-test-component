@@ -114,9 +114,9 @@ def _deps(
         unit_of_work=PortsUnitOfWork(raw, repository=raw.repo),
         reader=PortsRecordReader(raw.repo),
         clock=_FixedClock(),
-        projector=projector,
-        caller=caller,
-        credentials=credentials,
+        material_projector=projector,
+        model_provider=caller,
+        model_credentials=credentials,
     )
 
 
@@ -285,9 +285,9 @@ def test_request_model_draft_succeeds_with_injected_ports(
         api,
         _deps(
             workspace_root,
-            projector=MemoryProjector(),
-            caller=caller,
-            credentials=MemoryCredentialResolver(available_purposes=("model",)),
+            material_projector=MemoryProjector(),
+            model_provider=caller,
+            model_credentials=MemoryCredentialResolver(available_purposes=("model",)),
         ),
     )
     response = api.dispatch(
@@ -345,9 +345,9 @@ def test_request_model_draft_rejects_unknown_material_kind(
         api,
         _deps(
             workspace_root,
-            projector=MemoryProjector(),
-            caller=MemoryModelCaller(),
-            credentials=MemoryCredentialResolver(),
+            material_projector=MemoryProjector(),
+            model_provider=MemoryModelCaller(),
+            model_credentials=MemoryCredentialResolver(),
         ),
     )
     policy = _policy_payload()

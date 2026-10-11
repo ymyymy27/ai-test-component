@@ -516,6 +516,11 @@ def assemble_workspace_core(
         gate.require_if(
             "generate_draft", parameter="generation_mode", equals="model", keys=(MODEL, SECRET)
         )
+        # AB-001 第 8.16.3 节第 4 条：动作级能力声明。`request_model_draft` 依赖真实模型
+        # 调用与凭据解析（两者未配齐时按“未配置”降级，由能力门与 handler 双重把关）；
+        # `revise_pending_steps` / `narrow_driver` 是纯规则（执行事实随命令带来），
+        # 无外部能力依赖，因此不声明。
+        gate.require("request_model_draft", MODEL, SECRET)
         actors = CoreActorContext()
 
         class ApprovalIdentity:
