@@ -202,6 +202,10 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
     save(service, inputs.project_id, action, parameters, actor, challenge)
     value = execution_command(inputs.project_id, action, parameters)
     before = core.unit_of_work.current_commit_sequence()
+    # 默认装配自 2026-10-11 起**带真实执行端口**（RegisteredEntryExecutionAdapter）。
+    # 本段验证的是"**没有**可信执行适配器时"的行为，故显式清空端口——该配置由
+    # `assemble_workspace_core(execution_enabled=False)` 表达（刻意保留的合法配置）。
+    core.step_execution.execution_port = None
     missing = core.api.dispatch(value, RELAY)
     assert missing.error.code == "CAPABILITY_UNAVAILABLE"
     assert core.unit_of_work.current_commit_sequence() == before
@@ -249,7 +253,9 @@ def test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_
 
     core.lifetime_lock.release()
     (source / "main.py").write_bytes(b"VALUE = 9\n")
-    restarted = assemble_workspace_core(core.workspace.root, instance_id="execute-recall")
+    restarted = assemble_workspace_core(
+        core.workspace.root, instance_id="execute-recall", execution_enabled=False
+    )
     try:
         before = restarted.unit_of_work.current_commit_sequence()
         recalled = restarted.api.dispatch(

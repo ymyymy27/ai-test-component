@@ -88,6 +88,9 @@ from aitest.domain.execution.sources import ExecutionSourceVerification, SourceC
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
 )
+from aitest.infrastructure.adapters.execution.registered_entry import (
+    RegisteredEntryExecutionAdapter,
+)
 from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
 from aitest.infrastructure.adapters.source_control import GitSourceControl
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
@@ -524,6 +527,7 @@ def assemble_workspace_core(
     business_verification_port: BusinessVerificationCapturePort | None = None,
     verify_start_interpreter: bool = True,
     verify_start_source: bool = True,
+    execution_enabled: bool = True,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -819,7 +823,20 @@ def assemble_workspace_core(
             ),
         )
         step_execution = SavedStepExecution(
-            execution_authorizations, execution_coordinator, FileSpoolStore(root), execution_port
+            execution_authorizations,
+            execution_coordinator,
+            FileSpoolStore(root),
+            # 默认执行端口（契约：端口绑定固定快照、登记入口、参数数组与环境；命令始终是
+            # argv 数组、`shell=False`）。`ExecutionRequest` 恰好携带这些且已经过准入链核对
+            # （实际入口、实际解释器、来源核验、固定 workdir），故由
+            # `RegisteredEntryExecutionAdapter` 在首次 `start` 时从请求派生登记命令。
+            #
+            # **显式关闭仍然可用**：`execution_enabled=False`（且未传 `execution_port`）时端口为
+            # `None`，装配会如实报「未配置可信执行适配器」——这是刻意保留的合法配置，
+            # 不因为"默认有端口"就变得不可达。
+            execution_port
+            if execution_port is not None
+            else (RegisteredEntryExecutionAdapter() if execution_enabled else None),
         )
         execution_commands = ExecutionCommands(
             execution_authorizations, initial_run_registration, step_execution
