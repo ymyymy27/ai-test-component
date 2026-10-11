@@ -321,7 +321,10 @@ def test_confirming_a_digest_that_the_case_does_not_carry_is_refused(
         _session(),
     )
     assert response.error is not None
-    assert response.error.code == "B_INVALID_PARAMETER"
+    # fix 的业务编码：调用方给的摘要与用例实际携带的依据不一致 = **依据未核验**
+    # （`BasisConfirmationError.code`），而不是笼统的「输入非法」——调用方据此能区分
+    # 「参数写错」与「依据对不上」。
+    assert response.error.code == "B_BASIS_UNVERIFIED"
     assert "does not match" in response.error.message
     # 被拒时什么都没写。
     restarted = _start(workspace_root)

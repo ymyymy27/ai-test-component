@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess as subprocess
@@ -47,6 +48,12 @@ from aitest.application.execution.reuse_inspection import CaseReuseInspection
 from aitest.application.execution.run_schedule import SavedRunSchedule
 from aitest.application.execution.runtime_actions import SavedRuntimeRevisionActions
 from aitest.application.execution.saved_control import SavedRunControl
+from aitest.application.execution.source_checks import (
+    SourceCheckRequest,
+    SourceProbeObservation,
+    SourceVerificationService,
+)
+from aitest.application.execution.start_source_binding import SourceBindingUnverified
 from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
@@ -66,6 +73,7 @@ from aitest.application.ports import (
     ExecutionActionResolver,
     ExecutionPort,
     RecordRepository,
+    SourceSnapshotPort,
 )
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisService
@@ -75,8 +83,13 @@ from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseEr
 from aitest.contracts.commands import Command
 from aitest.contracts.prepared_run import EnvironmentResolutionFact
 from aitest.domain.approvals import TrustedActor
+from aitest.domain.execution.runs import PlanRevisionRef
+from aitest.domain.execution.sources import ExecutionSourceVerification, SourceCheckType
 from aitest.infrastructure.adapters.execution.python_checks import (
     PythonLoadSourceProbe,
+)
+from aitest.infrastructure.adapters.execution.registered_entry import (
+    RegisteredEntryExecutionAdapter,
 )
 from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
 from aitest.infrastructure.adapters.source_control import GitSourceControl
@@ -342,6 +355,160 @@ def _interpreter_verifier() -> Callable[[str, EnvironmentResolutionFact], str]:
     return verify
 
 
+def _source_verification_provider(
+    snapshots: SourceSnapshotPort,
+) -> Callable[[str, Mapping[str, object], Mapping[str, object]], ExecutionSourceVerification]:
+    """装配层适配：合成「来源核验事实」（架构01 第 12 节 / P1-FR08 / P1-AC13）。
+
+    这是**一期**要求：需求 P1-FR08 明确 L1 覆盖「Python 语法、适用构建、加载或最小启动」，
+    P1-AC13 要求 start 准入核对实际来源。
+
+    **本轮采用 `SYNTAX`，并说明两处未获合同定义的点（裁定见交接说明 §6）**：
+
+    1. `LOAD`／`MINIMAL_START` 需要**登记模块的可导入名**，而合同只在新建项目时登记
+       「模块清单及其职责」，未定义可导入名，且实测三个候选（`LocalProject.modules` 的
+       `module_id`/`name`/`source_paths`、`binding.entry_arguments`、快照路径）都无法确定
+       可导入名与导入根（`src/` 布局与平铺布局的模块名不同）。故暂不使用这两种类型。
+    2. 因此本核验**不覆盖** L1 的「必要入口可用性」，只覆盖「语法」这一类；这是**已知的范围缺口**，
+       在登记里如实记录，不得当成完整 L1 通过。
+
+    **非空转**：`observed_source_digest` 取自 `SourceSnapshotPort.verify_pinned(snapshot_id)`——
+    它**逐 blob 重新核对**后返回固定记录，而不是回读冻结值；入口路径取自物化的
+    期望→实际映射（`paths[*].actual_path`，由 `resolve` 保证在固定 workdir 内）。映射摘要一致性
+    **已由** `StartSourceBindingResolver.resolve` 重算比对，此处不重复声称。
+    """
+
+    service = SourceVerificationService()
+
+    def provide(
+        workdir: str,
+        admitted: Mapping[str, object],
+        prepared: Mapping[str, object],
+    ) -> ExecutionSourceVerification:
+        snapshot = prepared.get("snapshot")
+        if not isinstance(snapshot, Mapping):
+            raise SourceBindingUnverified("frozen preparation has no snapshot to verify")
+        snapshot_id = _required_text(snapshot.get("snapshot_id"), "snapshot.snapshot_id")
+        expected_identity = _required_text(
+            snapshot.get("content_identity"), "snapshot.content_identity"
+        )
+        pinned = snapshots.verify_pinned(snapshot_id)
+        observed_identity = _required_text(
+            pinned.get("content_identity"), "pinned.content_identity"
+        )
+        environment = prepared.get("environment")
+        if not isinstance(environment, Mapping):
+            raise SourceBindingUnverified("frozen preparation has no environment")
+        resolution = environment.get("resolution")
+        if not isinstance(resolution, Mapping):
+            raise SourceBindingUnverified("frozen environment has no resolved carrier")
+        interpreter = _required_text(
+            resolution.get("executable_path"), "environment.resolution.executable_path"
+        )
+        entry_path = _entry_actual_path(admitted.get("paths"), workdir)
+        plan_revision = prepared.get("plan_revision")
+        if not isinstance(plan_revision, Mapping):
+            raise SourceBindingUnverified("frozen preparation has no plan revision")
+        observation = SourceProbeObservation(
+            observed_source_digest=observed_identity,
+            observed_entry_ref=entry_path,
+            observed_import_ref=None,
+            observed_interpreter_ref=interpreter,
+            failure_class=None,
+        )
+        request = SourceCheckRequest(
+            verification_id="source-verification:" + snapshot_id,
+            check_result_id="source-check:" + snapshot_id,
+            project_id=_required_text(prepared.get("project_id"), "project_id"),
+            attempt_id="pending-attempt",
+            plan_revision_ref=PlanRevisionRef(
+                revision_id=_required_text(plan_revision.get("revision_id"), "plan.revision_id"),
+                revision_no=_positive_int(plan_revision.get("revision_no"), "plan.revision_no"),
+                digest=_required_text(plan_revision.get("digest"), "plan.digest"),
+            ),
+            expected_source_content_digest=expected_identity,
+            materialized_snapshot_ref=workdir,
+            check_type=SourceCheckType.SYNTAX,
+            scope=workdir,
+            source_snapshot_ref=snapshot_id,
+            environment_ref=_environment_ref(environment),
+            rules_revision=_rules_revision(prepared),
+            adapter_version=_frozen_adapter_version(prepared),
+            observed_source_digest=observed_identity,
+        )
+        return service.verify(request, observation)
+
+    return provide
+
+
+def _required_text(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise SourceBindingUnverified(f"{name} must be nonempty text")
+    return value
+
+
+def _positive_int(value: object, name: str) -> int:
+    if type(value) is not int or value < 1:
+        raise SourceBindingUnverified(f"{name} must be a positive integer")
+    return value
+
+
+def _entry_actual_path(paths: object, workdir: str) -> str:
+    """取物化的期望→实际映射里的入口实际路径（必须落在固定 workdir 内）。"""
+
+    if not isinstance(paths, (list, tuple)) or not paths:
+        raise SourceBindingUnverified("materialization has no expected→actual path mapping")
+    root = Path(workdir).resolve()
+    for item in paths:
+        if not isinstance(item, Mapping):
+            continue
+        actual = item.get("actual_path")
+        if not isinstance(actual, str) or not actual.strip():
+            continue
+        candidate = Path(actual)
+        if candidate.is_absolute() and candidate.is_relative_to(root) and candidate.is_file():
+            return str(candidate)
+    raise SourceBindingUnverified("no entry path inside the fixed workdir to verify")
+
+
+def _environment_ref(environment: Mapping[str, object]) -> str:
+    environment_id = environment.get("environment_id")
+    revision = environment.get("revision")
+    if not isinstance(environment_id, str) or not environment_id.strip():
+        raise SourceBindingUnverified("frozen environment has no identity")
+    if type(revision) is not int or revision < 1:
+        raise SourceBindingUnverified("frozen environment has no exact revision")
+    return f"{environment_id}@{revision}"
+
+
+def _frozen_adapter_version(prepared: Mapping[str, object]) -> str:
+    """冻结的适配器版本：取 `execution_source.adapter_versions` 的唯一取值。
+
+    与 `_adapter_kind` 同源（唯一键）。
+    """
+
+    source = prepared.get("execution_source")
+    if not isinstance(source, Mapping):
+        raise SourceBindingUnverified("frozen preparation has no execution source binding")
+    versions = source.get("adapter_versions")
+    if not isinstance(versions, Mapping) or not versions:
+        raise SourceBindingUnverified("frozen binding has no adapter versions")
+    unique = {str(value) for value in versions.values()}
+    if len(unique) != 1:
+        raise SourceBindingUnverified("frozen binding has ambiguous adapter versions")
+    return next(iter(unique))
+
+
+def _rules_revision(prepared: Mapping[str, object]) -> str:
+    versions = prepared.get("rule_versions")
+    if not isinstance(versions, (list, tuple)):
+        raise SourceBindingUnverified("frozen preparation has no rule versions")
+    payload = sorted(
+        json.dumps(dict(item), sort_keys=True, ensure_ascii=False) for item in versions
+    )
+    return "rules:" + hashlib.sha256("\n".join(payload).encode("utf-8")).hexdigest()
+
+
 def assemble_workspace_core(
     workspace_root: Path,
     *,
@@ -359,6 +526,8 @@ def assemble_workspace_core(
     business_verification_resolver: BusinessVerificationResolver | None = None,
     business_verification_port: BusinessVerificationCapturePort | None = None,
     verify_start_interpreter: bool = True,
+    verify_start_source: bool = True,
+    execution_enabled: bool = True,
 ) -> CoreAssembly:
     """装配唯一核心：启动恢复 → 文件底座 → B 用例自动接线 → 注册表叠加。
 
@@ -632,6 +801,11 @@ def assemble_workspace_core(
                     interpreter_verifier=(
                         _interpreter_verifier() if verify_start_interpreter else None
                     ),
+                    source_verification_provider=(
+                        _source_verification_provider(snapshot_store)
+                        if verify_start_source
+                        else None
+                    ),
                 )
             ),
             controlled_writes=controlled_writes,
@@ -649,7 +823,20 @@ def assemble_workspace_core(
             ),
         )
         step_execution = SavedStepExecution(
-            execution_authorizations, execution_coordinator, FileSpoolStore(root), execution_port
+            execution_authorizations,
+            execution_coordinator,
+            FileSpoolStore(root),
+            # 默认执行端口（契约：端口绑定固定快照、登记入口、参数数组与环境；命令始终是
+            # argv 数组、`shell=False`）。`ExecutionRequest` 恰好携带这些且已经过准入链核对
+            # （实际入口、实际解释器、来源核验、固定 workdir），故由
+            # `RegisteredEntryExecutionAdapter` 在首次 `start` 时从请求派生登记命令。
+            #
+            # **显式关闭仍然可用**：`execution_enabled=False`（且未传 `execution_port`）时端口为
+            # `None`，装配会如实报「未配置可信执行适配器」——这是刻意保留的合法配置，
+            # 不因为"默认有端口"就变得不可达。
+            execution_port
+            if execution_port is not None
+            else (RegisteredEntryExecutionAdapter() if execution_enabled else None),
         )
         execution_commands = ExecutionCommands(
             execution_authorizations, initial_run_registration, step_execution
