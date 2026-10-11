@@ -39,6 +39,7 @@ from aitest.domain.execution.runs import (
     SideEffectClass,
     Step,
 )
+from aitest.domain.execution.sources import ExecutionSourceVerification
 
 #: 解析阶段的占位标识：prepare 返回后会用权威标识替换（见其 461-475 行）。
 _PENDING_GRANT = "resolved-pending-grant"
@@ -66,15 +67,21 @@ class SavedActionResolver:
         side_effect_class: Callable[[Run, Step], SideEffectClass],
         admission: Callable[..., Mapping[str, object]] | None = None,
         interpreter_verifier: Callable[[str, EnvironmentResolutionFact], str] | None = None,
+        source_verification_provider: (
+            Callable[[str, Mapping[str, object]], ExecutionSourceVerification] | None
+        ) = None,
     ) -> None:
         if not callable(attempt_index) or not callable(side_effect_class):
             raise ActionResolutionBlocked("attempt index and side effect providers are required")
         if interpreter_verifier is not None and not callable(interpreter_verifier):
             raise ActionResolutionBlocked("interpreter verifier must be callable")
+        if source_verification_provider is not None and not callable(source_verification_provider):
+            raise ActionResolutionBlocked("source verification provider must be callable")
         self._attempt_index = attempt_index
         self._side_effect_class = side_effect_class
         self._admission = admission
         self._interpreter_verifier = interpreter_verifier
+        self._source_verification_provider = source_verification_provider
 
     def resolve(
         self,
@@ -98,11 +105,12 @@ class SavedActionResolver:
         entry = self._frozen_entry(step, binding, environment_fact)
         adapter_kind = self._adapter_kind(binding, entry.adapter_kind)
         arguments = self._arguments(binding, entry)
-        source_binding_digest, workdir = _admission_digest(
+        source_binding_digest, workdir, admitted = _admission_digest(
             self._admission, run, step, snapshot_id, binding
         )
         self._require_registered_entry(binding, entry)
         self._require_observed_interpreter(workdir, environment_fact)
+        self._require_verified_source(workdir, admitted)
         index = self._attempt_index(run, step)
         if type(index) is not int or index < 1:
             raise ActionResolutionBlocked("attempt index must be a positive integer")
@@ -208,6 +216,30 @@ class SavedActionResolver:
             entrypoint=executable,
             arguments=tuple(binding.entry_arguments),
         )
+
+    def _require_verified_source(
+        self, workdir: str, admitted: Mapping[str, object]
+    ) -> None:
+        """可选的「来源核验事实」核对（架构01 第 12 节 / P1-AC13）。
+
+        注入方（`bootstrap`）提供 `source_verification_provider`：给定物化 workdir 与准入映射
+        （含期望→实际路径映射与映射摘要），它**现场探测**并合成 `ExecutionSourceVerification`；
+        应用层只按既有 `require_verified_source` 判定——非 `verified` 一律阻塞，缺口编码由
+        `source_checks._derive_state` 给出，不在此层重算。
+
+        未注入时本核对**不执行**，也不声称来源已核验（与解释器核对同一约定）。
+        """
+
+        if self._source_verification_provider is None:
+            return
+        try:
+            verification = self._source_verification_provider(workdir, admitted)
+        except SourceBindingUnverified as error:
+            raise ActionResolutionBlocked(str(error)) from error
+        try:
+            self._validators.require_verified_source(verification)
+        except SourceBindingUnverified as error:
+            raise ActionResolutionBlocked(str(error)) from error
 
     def _require_registered_entry(
         self, binding: ExecutionSourceBinding, entry: RegisteredEntryRef
@@ -405,7 +437,7 @@ def _admission_digest(
     step: Step,
     snapshot_id: str,
     binding: ExecutionSourceBinding,
-) -> tuple[str, str]:
+) -> tuple[str, str, Mapping[str, object]]:
     if admission is None:
         raise ActionResolutionBlocked(
             "start admission is required to derive the source binding digest"
@@ -421,7 +453,7 @@ def _admission_digest(
     workdir = admitted.get("workdir")
     if not isinstance(workdir, str) or not workdir.strip():
         raise ActionResolutionBlocked("start admission lacks its fixed workdir")
-    return digest, workdir
+    return digest, workdir, admitted
 
 
 def build_saved_action_resolver(
