@@ -27,6 +27,7 @@ from aitest.infrastructure.adapters.execution.http import (
 from aitest.infrastructure.adapters.execution.verification import BusinessVerificationAdapter
 from aitest.interfaces.local.core_client import CoreClient, CoreResultUnverified, read_command
 from aitest.interfaces.local.editor_host import CoreEndpoint
+from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 from tests.unit.test_mcp_stdio_read import encode, relay, rpc
 
 
@@ -184,7 +185,7 @@ def test_actual_cli_and_stdio_reject_bad_unicode_then_share_unchanged_core(tmp_p
             },
         )
     unit.commit()
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     before = (root / "workspace.json").read_bytes()
     try:

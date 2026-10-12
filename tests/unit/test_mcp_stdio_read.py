@@ -15,6 +15,7 @@ from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.core_client import CoreClient
 from aitest.interfaces.local.editor_host import CoreEndpoint
 from aitest.interfaces.tools.agent_relay import McpRelay
+from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 
 
 def encode(value):
@@ -208,7 +209,7 @@ def test_actual_stdio_process_uses_selected_binding_same_core_and_clean_eof(tmp_
         payload={"project_id": "project", "binding_id": "binding"},
     )
     raw.commit()
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     before = (root / "workspace.json").read_bytes()
     messages = [
@@ -349,7 +350,7 @@ def test_actual_stdio_wrong_project_has_no_tool_stream_or_new_writer_epoch(tmp_p
         payload={"project_id": "project", "binding_id": "binding"},
     )
     raw.commit()
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     identity = (root / "workspace.json").read_bytes()
     try:
@@ -419,7 +420,7 @@ def test_waiting_stdio_does_not_occupy_the_only_core_pipe(tmp_path):
         payload={"project_id": "project", "binding_id": "binding"},
     )
     raw.commit()
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     process = subprocess.Popen(
         [

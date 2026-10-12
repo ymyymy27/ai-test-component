@@ -18,6 +18,7 @@ from aitest.interfaces.local.editor_host import CoreEndpoint
 from aitest.interfaces.tools import agent_relay
 from aitest.interfaces.tools.agent_relay import McpRelay
 from tests.contracts.test_b_use_case_registration import _scope_payload
+from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 from tests.unit.test_controlled_environment_input import declaration
 from tests.unit.test_mcp_stdio_read import encode, ready, rpc
 
@@ -255,7 +256,7 @@ def test_actual_stdio_write_replay_cli_and_restart_share_original_saved_result(t
             aggregate_kind=kind, record_id=identity, expected_revision=0, payload=payload
         )
     raw.commit()
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     source_identity = (root / "workspace.json").read_bytes()
     before = FileUnitOfWork(root).current_commit_sequence()
@@ -351,7 +352,7 @@ def test_actual_stdio_write_replay_cli_and_restart_share_original_saved_result(t
         assert cli_response["intent_id"] == "stdio-original"
         assert FileUnitOfWork(root).current_commit_sequence() == before + 2
         shutdown_endpoint(root)
-        reopened = acquire_endpoint(root)
+        reopened = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
         reopened.connection.close()
         assert reopened.instance_id != endpoint.instance_id
         replay = subprocess.run(
