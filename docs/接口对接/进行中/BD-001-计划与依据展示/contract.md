@@ -3,24 +3,40 @@ contract_id: BD-001
 title: 计划、范围与断言依据展示
 provider: B
 consumer: D
-contract_version: "0.2"
+contract_version: "0.4"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: not_started
 verification_status: not_run
 last_verified_commit: null
-blockers: []
-next_owner: D
-next_action: D 回复第 5 节五项展示/查询/运行中修订问题，以及第 8 节五项动作与状态新增的确认与排期
+blockers:
+  - "D-06：面板当前项目/计划身份和受控业务动作入口未接"
+  - "D-05/D-07：计划/依据/双序列/缺口的真实同源 DTO 读取与呈现未接"
+  - "B-13：交付验证投影待权威新执行/核验派生"
+next_owner: B/D
+next_action: B/D 将既有枚举与领域结果接准确查询/DTO、当前项目和受控用户动作；落实历史评审中的呈现要求并验证半程双序列，保留未完成确认项。
 ---
+
+## 当前源码复核与下一动作（2026-10-12）
+
+本版 0.4 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+
+**已实现**：B 领域/发布/依据确认及默认修订动作存在；D 的三段骨架/详情返回/只读回执有浏览器实现，但尚未实现本合同完整业务投影，consumer_implementation 仍 not_started。
+
+**仍缺／优先动作**：现行动作名为 confirm_basis（HUMAN_ACTIONS，relay 不自签），不是历史 confirm_assertion_basis。动作数量以实际库存协商，不能沿用历史 18/19 项。第 5 节第三、四项的统计由核心领域唯一计算、界面读 DTO；第 8 节历史 D 回复已存在，不能再笼统写“等待所有回复”。
+
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
+
+字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
 
 # B-D 跨包需求：计划、范围与断言依据的展示口径
 
-版本：0.2
-日期：2026-09-25
+版本：0.4（2026-10-12 状态复核；历史修订与确认按各自日期）
+日期：2026-10-12（历史记录保留原条目日期）
 提出方：B 包（项目与计划）
 接收方：D 包（判定、报告与用户入口）
-状态：**待 D 确认**（2.2 节的枚举已由 B 实现，见第 6 节确认记录）
+状态：**0.4 状态复核；历史回复/确认保留，具体投影接入仍未完成**（2.2 节枚举已由 B 实现；第 8 节历史 D 回复见 review-D.md）
 依据：一期架构文档《01-项目与计划》第 3、4 节；《03-报告与缺陷》；功能文档第 2、3 节；需求 P1-FR06/07/14/17、P1-AC17/AC20/AC31/AC32
 
 ---
@@ -148,6 +164,8 @@ B 牵头的这四个 AC 需要 D 的界面配合，列在这里便于对齐：
 
 ## 5 待 D 确认问题清单
 
+> 原问题保留其历史提出记录。第 3、4 项的计算归属已由一期功能“判定与统计唯一口径”限定：核心领域只算一次，面板消费 DTO，不在界面重算模板覆盖/警告；这不代表 D 已实现。第 1、2、5 项的具体投影/查询及运行修订呈现仍需完成接入确认。第 8 节已有 D 历史回复，不能把两组问题混成“尚无回复”。
+
 1. `PreparedRun` 需要以什么形式提供给面板——完整快照、还是摘要 + 按引用读取详情？
 2. `effective_assertion_basis_state` 由 B 派生后，D 是通过查询获取，还是随用例记录一起返回？
 3. D 是否需要"模板覆盖 `count(M∩T)/count(T)`"的计算结果，还是仅需要 `M`、`T` 两个集合自行展示？
@@ -253,7 +271,7 @@ B 侧已随 PR #70 合并（`develop a7ad9fc`）。**本节不改 `BD-001` 既�
 | --- | --- | --- |
 | `export_rules_markdown` | `rule_versions` | `documents`：每项 `{rule_id, revision, markdown}` |
 | `import_rules_markdown` | `markdown`（单份或列表） | `imported`：与 `import_rules` 同形（**恒为未确认未启用草稿**） |
-| `confirm_assertion_basis` | `case_id`／`case_revision`／`basis_text_digest` | 登记一条依据确认（`confirmation_id` 与 `confirmed_at_commit` 由系统派生，见 `AB-001` 第 8.17 节） |
+| `confirm_basis` | `case_id`／`case_revision`／`basis_revision`／`basis_text_digest`；首次确认还须 `approval_challenge_id` 和核心受控来源 | 登记既有独立依据确认，不回写 Case/计划或伪造核验；[AB-001 已实现动作索引](../AB-001-端口与保存/contract.md#13-已实现依据确认动作的接口索引2026-10-12)是准确输入/幂等与角色边界入口，旧“8.17 节”引用不存在 |
 
 **与 D-06 的衔接**（"CLI/MCP/面板/Trae 没有同核心业务动作"）：
 **动作清单由 15 增至 18**（两个 Markdown 动作与一个受控确认动作），

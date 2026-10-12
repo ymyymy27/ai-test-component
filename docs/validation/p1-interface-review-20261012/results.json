@@ -1,0 +1,77 @@
+{
+  "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6",
+  "scope": "interface_state_documentation_and_partial_automated_checks_not_complete_joint_verification",
+  "commands": [
+    {
+      "label": "interface-tests",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-ra",
+        "tests/contracts",
+        "tests/architecture",
+        "tests/integration/test_execution_facts_decision_real_store.py",
+        "tests/unit/test_acceptance_status.py",
+        "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-interface-review-20261012\\interface-tests.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 12.3,
+      "log": "interface-tests.log"
+    },
+    {
+      "label": "schemas",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/generate_schemas.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.37,
+      "log": "schemas.log"
+    },
+    {
+      "label": "schema-diff",
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "--",
+        "src/aitest/contracts/schemas"
+      ],
+      "exit_code": 0,
+      "seconds": 0.13,
+      "log": "schema-diff.log"
+    },
+    {
+      "label": "docs-facts",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/check_docs_facts.py",
+        "--full"
+      ],
+      "exit_code": 0,
+      "seconds": 4.88,
+      "log": "docs-facts.log"
+    },
+    {
+      "label": "basis-interface",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-ra",
+        "tests/unit/test_default_basis_confirmation.py",
+        "tests/unit/test_saved_case_basis_proof.py",
+        "tests/unit/test_approval_origin_boundary.py",
+        "--junitxml=docs\\validation\\p1-interface-review-20261012\\basis-interface.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 564.01,
+      "log": "basis-interface.log"
+    }
+  ]
+}

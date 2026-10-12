@@ -3,21 +3,37 @@ contract_id: AC-001
 title: ExecutionFacts 存储与恢复
 provider: A
 consumer: C
-contract_version: "1.4"
+contract_version: "1.5"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
-blockers: []
-next_owner: C
-next_action: 回复 A 评审列出的五项确认事项并安排真实适配对拍
+blockers:
+  - "A-05/A-07：未知发布/实际活动核实的受控产品恢复未闭合"
+  - "C-03：核验/外部导入准确关联重算与多类生产配置待接"
+  - "C-05：完整复用保存和 D 权威消费未闭合"
+next_owner: A/C
+next_action: A/C 对实际提交快照、检查点/证据/意图闭包和未知活动恢复逐项对拍；补生产核验/导入关联及完整业务保存→换核心→恢复。
 ---
+
+## 当前源码复核与下一动作（2026-10-12）
+
+本版 1.5 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+
+**已实现**：ExecutionCommitCoordinator、准确检查点引用、命令永久输出/脱敏材料、持久外部导入附件和独立查询材料保存已有实现。基础存储/恢复并非空端口。
+
+**仍缺／优先动作**：默认 business_verification_resolver/port 为 None，verify_pending 注册不等于业务核验可执行。真实损坏备份、符号链接权限、未知停止/物理掉电仍待完整实测。
+
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
+
+字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
 
 # A包C包存储恢复公共接口约定
 
-版本：1.4
-日期：2026-10-07
+版本：1.5（2026-10-12 状态复核；历史修订与确认按各自日期）
+日期：2026-10-12（历史记录保留原条目日期）
 状态：A/C 跨包存储与恢复接口对齐（草案）  
 提供方：A包（本地核心底座）  
 调用方：C包（执行编排）  

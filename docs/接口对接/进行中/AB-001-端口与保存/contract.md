@@ -3,16 +3,32 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.38"
+contract_version: "1.39"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
-blockers: []
-next_owner: A
-next_action: 默认来源、准备快照与受控依据确认已有组件证据；未发布响应补登记已有受控证据；继续可信人工会话、未使用授权/复用、初始运行与C/D默认入口及真实验收；Q4按DEC-009执行。
+blockers:
+  - "A-19：干净锁定安装阻断"
+  - "B-03/B-01：真实供应方故障、选定材料映射与可信人工产品路径未验收"
+  - "B-05/B-13：实际半程修订和交付验证投影/下游呈现未闭合"
+next_owner: A/B
+next_action: 核对完整材料依赖和真实人工/供应方故障；接半程修订/交付验证投影及 C/D 实际消费；A 处理干净安装与剩余恢复。
 ---
+
+## 当前源码复核与下一动作（2026-10-12）
+
+本版 1.39 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+
+**已实现**：来源固定/物化、模型/凭据/投影端口、受控确认/发布、准备保存、运行修订/驱动收窄已默认接线。prepare_execution 的生产解析器、入口/解释器/LOAD 来源与执行端口也已接通。
+
+**仍缺／优先动作**：DEC-010 已按 CD-001 1.17 采用非破坏性实现：仅内部 expected_source_content_digest 改名，公开 expected_source_binding_digest 字段与 execution-facts/1.0 保持；旧 1.36 中“外字段改名未完成”预案不再是待办。实际供应方与完整业务 UI 未通过验收。
+
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
+
+字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
 
 1.38 副作用类别默认口径（2026-10-09，按 [DEC-013](../../归档/裁定/DEC-013-副作用类别的冻结来源与默认口径.md) 裁定）：ExecutionRequest.side_effect_class 的**冻结来源在一期分册中未定义**，故装配一律取最严 unknown（default_side_effect_class）；**禁止**由 adapter_kind/命令名/参数反推“只读”或“幂等”，**禁止**因缺该字段放行受控确认；后续若计划/步骤合同冻结该字段，仅需改 build_saved_action_resolver 一处。字段/枚举/生成 Schema/已保存材料与 D 侧**均不变**。
 1.37 默认装配注入可信动作解析器（2026-10-09）：assemble_workspace_core 在调用方未传入时，默认装配 build_saved_action_resolver（物化准入用 StartMaterializer：按架构01第12节物化到 workdirs/<run_id> 并保留期望→实际映射与 source_binding_digest；尝试序号读已保存运行事实；副作用类别取最严 unknown）。因此 prepare_execution 不再回答“无可信解析器”：中继（relay）入口诚实拒绝为 AWAITING_USER_CONFIRMATION（需受控用户确认）；重启后未登记载体时按 [DEC-012](../../归档/裁定/DEC-012-start来源失败错误码与原因标识登记.md) 返回 SOURCE_BINDING_UNVERIFIED（reason 取 environment_unregistered），**不再以 INTERNAL_ERROR 泄露无 code 的 ValueError**。实现仍为 partial：真实进程端到端与真实宿主验收未做，35 项 AC 未变。
@@ -40,8 +56,8 @@ next_action: 默认来源、准备快照与受控依据确认已有组件证据�
 
 # B-A 跨包需求：B 包所需端口与保存语义
 
-版本：1.32
-日期：2026-10-07
+版本：1.39（2026-10-12 状态复核；历史修订与确认按各自日期）
+日期：2026-10-12（历史记录保留原条目日期）
 提出方：B 包（项目与计划）
 接收方：A 包（本地核心底座）；第 5 节的口径冲突同时抄送裁定方
 状态：**三项归属与范围已由项目负责人裁定；默认业务链及完整保存闭包继续实现与对拍**
@@ -1312,3 +1328,15 @@ prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料
 1.28同批标识新source_pin_intent为aitest.source-pin-intent/1.0，规范inputs与摘要同存；A按新schema核对原快照/绑定/内容身份及准确本意图来源指针，并纳入实际固定清单/blob闭包，即使同字节未新增source_snapshot也不能省略。新schema缺输入/引用/摘要时拒绝发布。旧无schema的已存意图/清单保持原字节与历史分类，回读仍核对实际材料，不重新固定或回写旧记录。
 
 新source_pin_intent用aitest.source-pin-intent/1.0标识冻结inputs；同字节复用也须将原快照实际清单/blob带入本提交闭包。提交前核对本批快照/指针时只建只读候选视图，不提前添加权威节点；原持久事务意图重传核对原已提交视图与准确材料，不因旧expected_revision重复新增或误拒绝。旧无Schema记录按原闭包兼容读取，不追写历史。
+
+## 13 已实现依据确认动作的接口索引（2026-10-12）
+
+本节纠正 BD 历史动作名与遗漏参数的交接说明，索引已经存在的 `confirm_basis` 实现，不新增动作、字段或协议行为。人工确认主责仍为一期 Trae 接入架构第 9 节；准确依据状态与统计使用项目/计划及功能分册既有口径。
+
+- 入口：`contracts/commands.py::HUMAN_ACTIONS` 和 `usecase_registry.py::handle_confirm_basis`；写身份使用 Command 的 `project_id`、独立 `intent_id`、`request_id`、`expected_revision`，不把请求号充当业务意图。
+- 业务参数为 `case_id`、`case_revision`、`basis_revision`、`basis_text_digest`。准备挑战的 `target` 必须为 `case_id`，参数准确为上述四项，由 `SavedBasisApprovalResolver.resolve` 核对当前 Case/依据及准确正文摘要；不是只校验 Case 修订。
+- 首次确认还须 `approval_challenge_id` 及核心受控用户来源，挑战覆盖准确项目/Case/依据/意图；仅提交“我是人工”或客户端布尔值不构成确认。relay 不代签人工确认。
+- `BasisConfirmationService.confirm` 保存独立确认与来源，同意图同输入核对原记录后回原结果，同意图改依据冲突；成功返回 `confirmation_to_payload` 的既有确认 DTO。旧无可靠来源的材料不升级。
+- 确认不回写冻结 Case/计划/报告，也不伪造实际执行或独立核验；后续资格和判定仍读取准确确认记录并使用同一领域规则。
+
+源码回归入口：`test_default_basis_confirmation.py`、`test_saved_case_basis_proof.py`、`test_approval_origin_boundary.py`；本轮实际结果与未完成的真实用户入口见接口复核记录。此索引不替代双方确认或真实产品对拍。

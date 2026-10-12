@@ -1,25 +1,19 @@
-# CD-001 D侧消费交付
+# CD-001 当前实现与交付边界
 
-日期：2026-10-03  
-提供方：D包 郭  
-状态：适配器和夹具测试已完成；C-01—C-13 修复后仍需真实对拍
+复核日期：2026-10-12；合同 [1.18](contract.md)；代码 `develop@845e697`。本记录是自动化源码/证据核对，不冒充原交付方的新签署，也不改变合同定义。原提供/消费方确认和交付全文保留在[历史快照](../../归档/2026-10-12状态复核前/CD-001-delivery-D.md)。
 
-## 1 已实现
+## 1. 已实现
 
-- `application/review/execution_decision_adapter.py` 完成 ExecutionFacts→DecisionFacts 映射。
-- 七类 JSON 夹具全部通过消费者合同测试。
-- 业务通过/失败/H 只从显式 `AssertionOutcomeFact` 产生，不从 Attempt completed、退出码或 `EvidenceFact.evidence_level` 推断。
-- V/P/F/H 校验当前 Attempt、证据引用、证据摘要关联、依据确认、来源和依赖。
-- A 的真实 `FileObjectStore` + `FileRecordRepository` 往返测试覆盖非 UTF-8 字节和一致快照读取。
+build_decision_facts、DecisionDTO、公开夹具消费者与真实对象/快照往返测试已经存在，D-09 的空 full 门禁已修。
 
-## 2 关键边界
+源码触点及实际动作库存见[前轮代码复核](../../../validation/p1-code-review-20261012/README.md)。各记录/DTO/接口按本目录唯一 contract.md 消费，不复制统计或业务判定。
 
-- `EvidenceFact.evidence_level` 保留为逐条证据事实；Run 级 A/B/C/D 由 DecisionFacts/evaluate_review 派生。
-- `R` 无法从当前 ExecutionFacts 通用事实安全推断时保持为空，不伪造复用。
-- 当前适配器是 D 的消费实现，不代表 C-01—C-13 已修复或整条 CD-001 已完成真实环境验收。
+## 2. 自动化检查与对拍范围
 
-## 3 后续
+本轮接口相关 Schema、PreparedRun/ExecutionFacts 夹具、消费者与真实文件往返的实际命令/版本/输出见[接口验证](../../../validation/p1-interface-review-20261012/README.md)。这是局部自动化检查，不能覆盖全部主题的统一提供/消费方对拍；verification_status 仍 not_run。
 
-1. C 完成 C-01—C-13 后重放七类夹具。
-2. 在真实 A 一致快照和对象读取链上登记对拍证据。
-3. 完成验收状态后再更新本合同验证结论。
+## 3. 剩余／未验证
+
+D-10 证明 E 当前性、必需证据和来源适用性守卫不足；不能宣称已完整核对这些事实。断言依据/核验仍需权威派生；R 恒空、生产报告/问题/制品未接，当前未修。
+
+真实 Trae/实际业务对象与供应方故障、物理掉电及 FR/AC 证据未取得，未填 verified，未移入已完成。当前阻塞已登记 contract.md 元数据，下一批按合同 next_owner/next_action 和[项目现状](../../../现状.md)推进。

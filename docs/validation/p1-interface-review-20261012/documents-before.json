@@ -1,0 +1,116 @@
+[
+  {
+    "path": "docs/接口对接/AGENTS.md",
+    "sha256": "9fb44b0dd3202f137643bcabdfbc9367309e20f989453b4f0c759bf6949b697b",
+    "bytes": 3830,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "sha256": "0a955ecdf6fc35469ee7cb8a08eac300a0cc756170118f484f6f710fbbaf6d46",
+    "bytes": 48588,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/待裁定/README.md",
+    "sha256": "f432338d448f6f94598d925cbdb76f8d8e637c066aad6d8af6ec9d3adb59f54d",
+    "bytes": 4398,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "sha256": "8f5f14f07daa9ea400e3f087778a68e26b1eabef27eebd901aa13f4e0d3a7cfe",
+    "bytes": 130768,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "sha256": "32afcc632d323de16c918f9884b380299022e29160e874574ef7077da13a762c",
+    "bytes": 11606,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/review-A.md",
+    "sha256": "2bac581db8dae93309bc19c030affcc2d8a9882b6efe5338492b20e0abef1fba",
+    "bytes": 15740,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "sha256": "ce4bbb885563b6f916d97da46f1bbc065a43015bb4b002c44fd5a9d6a3dcdde2",
+    "bytes": 17853,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/review-A.md",
+    "sha256": "2d7201e5e233840c9baa2877f92a97eebc8400459e8d11c2ca2a98357efc48ce",
+    "bytes": 9849,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "sha256": "db062dd2ba51d606863725c7ab222b1e6cfe743c0cb36c3fcb5ace798a57c658",
+    "bytes": 100976,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "sha256": "dd7a66b4a4a1026a5b3b505358389ed14d0277122ae66ebc51b8e5372c1fd1aa",
+    "bytes": 9414,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "sha256": "99f20ad872c30415aa78ebed7673e41af1aad7c6a28bbe5b7804be7ad931ed23",
+    "bytes": 17306,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/review-D.md",
+    "sha256": "c06ec68ccfa51f39b860a10cb9dde38e3453a024a594ac4b62fd3dd04feb3d8a",
+    "bytes": 2025,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "sha256": "f5a24bfa04e62bc113f261083cfd04b32e23ee1010e68c54b19eb74199597aa2",
+    "bytes": 18222,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "sha256": "89fb68e30fdcd41f1b6b6a9a60b0e6bcc392762529c70d8ee6c77d60301f0285",
+    "bytes": 1274,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/README.md",
+    "sha256": "f57e3e244335ef0367ab6aab727bc770c20a0a7de09fdf0657d5e98fa45bcccb",
+    "bytes": 607,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/review-D-http.md",
+    "sha256": "e3313c73f928cd33ff1f6de9e2d3c111c2222533417cb1830698dfec04abca22",
+    "bytes": 1615,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/review-D.md",
+    "sha256": "05c12e7fb91163476e3c61138152d903670bb154cebeb42f37550a748b8e9b64",
+    "bytes": 1695,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "sha256": "66f095967769e0f17133d5db36adae167c3419e0c46c2324631064e6fd3177aa",
+    "bytes": 79730,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "sha256": "8655297aa103f60978f1f50168dd25ab6e2db8d38f4f63ebacfb96ffdda9c030",
+    "bytes": 3254,
+    "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6"
+  }
+]

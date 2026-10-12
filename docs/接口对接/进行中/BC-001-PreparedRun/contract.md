@@ -3,24 +3,40 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.45"
+contract_version: "0.46"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
-blockers: []
-next_owner: C
-next_action: 补实际加载与业务核验/复用及真实宿主后台验收，完成真实环境验收；默认登记/单步/控制/修订/有界整Run调度已接通，DEC-007/008/009 已裁定。
+blockers:
+  - "C-01/C-05：合法整用例复用资格与选择持久化/下游消费未闭合"
+  - "C-03：默认多类业务核验配置/端口缺失"
+  - "B-05/B-15/C-06：真实半程修订、授权和 D 双序列呈现待验收"
+next_owner: B/C
+next_action: B/C 补整用例复用保存与准确消费、默认业务核验配置；按真实半程流程验证修订/收窄/授权，D 接双序列。
 ---
+
+## 当前源码复核与下一动作（2026-10-12）
+
+本版 0.46 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+
+**已实现**：B 准备来源、准确输入/范围/环境内容身份和 C 默认 register/prepare/authorize/execute/start/control/runtime revision 链存在；不再要求重新做解析器或实际 LOAD 默认注入。
+
+**仍缺／优先动作**：PreparedRun/source_binding_digest 的原语义、生成 Schema/夹具保持；默认 LOAD 覆盖不免除构建/显式脚本最小启动及真实加载来源验收。预览/来源可读不授予 R/V。
+
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
+
+字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.45（2026-10-08 完整复用资格与实际来源材料；实施与验证另行登记）
-日期：2026-10-08
+版本：0.46（2026-10-12 状态复核；历史修订与确认按各自日期）
+日期：2026-10-12（历史记录保留原条目日期）
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）
-状态：**既有签署与裁定历史保留；0.45增量评审中，实现与真实环境验收分开登记**
+状态：**既有签署与裁定历史保留；0.46 状态复核仍在评审中，实现与真实环境验收分开登记**
 依据：一期架构文档《01-项目与计划》第 4、11、12 节；《02-执行与证据》；组长《一期工程四部分拆分与低对接实施方案》第 3 节跨包合同表；需求文档 P1-FR07、P1-AC19/AC20/AC31
 对照对象：`origin/feat/package-c-execution`，commit `d60781d`，文件 `src/aitest/contracts/execution_facts.py`；B 侧本轮分支 `feature/contract-b-c-isolation-mode`
 

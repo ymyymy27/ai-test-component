@@ -1,0 +1,67 @@
+{
+  "baseline": "90baba0360f378eb5feaa3a7aa8c25dc2064fed6",
+  "protocol_schema_changed": false,
+  "acceptance_changed": false,
+  "contracts": {
+    "CORE-001": {
+      "old": "1.78",
+      "new": "1.79",
+      "blockers": [
+        "A-19：锁文件与声明 Python 范围不一致，干净 --locked 安装失败",
+        "D-04/D-06：报告/问题/安全制品的权威持久链与业务用户入口未接",
+        "C-03/C-01：默认业务核验端口与整用例复用保存未完成",
+        "A-05/A-07：未知发布/实际活动的完整受控恢复待产品验证"
+      ]
+    },
+    "AB-001": {
+      "old": "1.38",
+      "new": "1.39",
+      "blockers": [
+        "A-19：干净锁定安装阻断",
+        "B-03/B-01：真实供应方故障、选定材料映射与可信人工产品路径未验收",
+        "B-05/B-13：实际半程修订和交付验证投影/下游呈现未闭合"
+      ]
+    },
+    "BC-001": {
+      "old": "0.45",
+      "new": "0.46",
+      "blockers": [
+        "C-01/C-05：合法整用例复用资格与选择持久化/下游消费未闭合",
+        "C-03：默认多类业务核验配置/端口缺失",
+        "B-05/B-15/C-06：真实半程修订、授权和 D 双序列呈现待验收"
+      ]
+    },
+    "AC-001": {
+      "old": "1.4",
+      "new": "1.5",
+      "blockers": [
+        "A-05/A-07：未知发布/实际活动核实的受控产品恢复未闭合",
+        "C-03：核验/外部导入准确关联重算与多类生产配置待接",
+        "C-05：完整复用保存和 D 权威消费未闭合"
+      ]
+    },
+    "BD-001": {
+      "old": "0.2",
+      "new": "0.4",
+      "blockers": [
+        "D-06：面板当前项目/计划身份和受控业务动作入口未接",
+        "D-05/D-07：计划/依据/双序列/缺口的真实同源 DTO 读取与呈现未接",
+        "B-13：交付验证投影待权威新执行/核验派生"
+      ]
+    },
+    "CD-001": {
+      "old": "1.17",
+      "new": "1.18",
+      "blockers": [
+        "D-10：当前性/必需证据/来源适用性守卫存在已复现反例",
+        "D-02/D-04/D-05：生产断言依据/核验派生与持久报告/问题/DTO 消费未闭合",
+        "C-01/C-05：完整 R 资格及选择保存未接"
+      ]
+    }
+  },
+  "clarifications": [
+    "BD confirm_basis omitted existing basis_revision and controlled challenge; corrected using existing implementation",
+    "BD referenced nonexistent AB 8.17; replaced with AB section 13 existing-action index",
+    "DEC-011/012 default wiring complete; historical pending-wiring entries corrected"
+  ]
+}

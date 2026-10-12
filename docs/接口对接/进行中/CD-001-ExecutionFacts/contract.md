@@ -3,22 +3,38 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.17"
+contract_version: "1.18"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: 8d9883c
-blockers: []
-next_owner: C/D
-next_action: C 补准确冻结来源读取及完整复用材料，D 接入资格与保存选择；真实对拍另记
+blockers:
+  - "D-10：当前性/必需证据/来源适用性守卫存在已复现反例"
+  - "D-02/D-04/D-05：生产断言依据/核验派生与持久报告/问题/DTO 消费未闭合"
+  - "C-01/C-05：完整 R 资格及选择保存未接"
+next_owner: D/C
+next_action: D 优先修复 D-10 并增加拒绝型回归；C 补复用持久选择，D 从权威同提交事实派生断言/核验和 S/M/H，接报告/问题生产链后再统一对拍。
 ---
+
+## 当前源码复核与下一动作（2026-10-12）
+
+本版 1.18 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+
+**已实现**：ExecutionFactsAssembler、准确事实读取、公开夹具、build_decision_facts 及真实文件往返测试已存在；不能把适配器重新列成未实现。
+
+**仍缺／优先动作**：本轮 D-10 反例仍未修：冲突步骤证据/同源 verified+unverified 可 passed/A，is_current=False 仍计 E；既有七类消费者测试通过不覆盖这些拒绝断言。R 在 D 适配器仍恒空。冻结外字段与 execution-facts/1.0 不迁移。
+
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。原 last_verified_commit=8d9883c 仅为旧阶段引用，不代表本次统一对拍；本轮失败反例另存。真实 Trae/供应方/掉电与 AC 证据另验。
+
+字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
 
 # C包-D包 ExecutionFacts 对接说明
 
-版本：1.7
-日期：2026-10-08
-状态：1.0历史确认保留；1.1—1.16增量评审中，待完整复用接入和真实夹具对拍
+版本：1.18（2026-10-12 状态复核；历史修订与确认按各自日期）
+日期：2026-10-12（历史记录保留原条目日期）
+状态：1.0历史确认保留；1.1—1.18增量评审中，D-10 守卫待修、完整复用/生产消费与统一对拍未完成
 提供方：C包（执行与证据）-赵  
 调用方：D包（判定、报告与用户入口）  
 保存方：A包（核心底座与存储）  
