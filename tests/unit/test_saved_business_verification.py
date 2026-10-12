@@ -273,7 +273,11 @@ def test_new_snapshot_during_query_keeps_historical_material_without_overwrite(t
         saved.coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
         == moved
     )
-    assert not moved.verifications
+    # 查询期间出现的新快照是从**查询前**的 facts 派生的（见上面的 read 钩子），
+    # 因此它本就带着查询前已有的核验；本用例要守的是「新快照不得被查询结果覆盖或追加」，
+    # 即核验与查询前**逐字相同**。原先写成 `assert not moved.verifications` 否定了
+    # fixture 自带的 `business-verify-1`，永不可能成立——而它并没有检验到"不覆盖"。
+    assert moved.verifications == facts.verifications
     assert saved.apply(command(facts, request_id="replay-request")) == result
 
 

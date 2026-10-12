@@ -33,6 +33,8 @@
 
 - 四份分包检查表继续放在 `docs/` 根目录，作为当前问题清单；本目录通过链接引用。
 - [修改日志](../修改日志/袁/)保留每批次根因、修改内容和验证；根目录 [CHANGELOG](../../CHANGELOG.md)只写精简摘要。
+- [执行链收口记录](../修改日志/袁/2026-10-12-一期执行链收口与两处口径裁定.md)记录后续默认装配、来源核验的实现与对应验证范围；当前完成状态仍查项目现状。
+- [真实 Trae 入口验证流程与证据模板](../validation/p1-trae-entry-20261011/README.md)列出实机前置条件、操作、故障恢复和登记要求；准备好流程不表示已经通过验收。
 - [前轮验证](../validation/p1-abc-fix-20261003/README.md)与[剩余问题验证](../validation/p1-abc-remaining-20261004/README.md)保留原位置。日志、源码快照、ZIP 和历史清单按各自基线读取，不能套用到新源码。
 - 模型材料JSON投影反例已修（`2567bf9` 基线14 failed/1 passed）：原[反例脚本](../validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py)与[失败记录](../validation/p1-abc-remaining-20261004/pending-model-projection-counterexample.txt)按原字节保留为未修证据，修后15 passed见[新记录](../validation/p1-abc-remaining-20261004/pending-model-projection-json-safety-after.txt)；根因、源码与本轮验证见[修改日志](../修改日志/袁/2026-10-08-模型材料JSON严格解码与编码变体过滤.md)。
 

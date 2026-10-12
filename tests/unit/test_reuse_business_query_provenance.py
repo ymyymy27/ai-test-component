@@ -117,8 +117,17 @@ def test_readable_actual_object_does_not_hide_wrong_query_provenance(
 
 
 def test_duplicate_query_observations_cannot_be_selected_by_dictionary_order(original):
-    source, saved, _, _ = original
-    actual = source.facts.verifications[0]
+    source, saved, result, _ = original
+    # 「重复**查询**观测不得靠字典序选中」针对的是**查询型**核验（`business-query-*`）：
+    # 歧义判定只覆盖 `verification_of` 落在本次 attempt 且 id 带查询前缀的那些核验
+    # （reuse_material.validate_saved_business_queries 第 44-50 行）。先前这里取
+    # `verifications[0]`，那是业务断言型核验，根本进不了歧义判定，于是先撞上
+    # 「与原始保存证明不符」——断言永远不可能命中 "ambiguous"。改为按本次查询回执的
+    # verification_id 精确定位（与本文件另一处用例同一做法）。
+    identity = result["verification"]["verification_id"]
+    actual = next(
+        item for item in source.facts.verifications if item.verification_id == identity
+    )
     wrong = actual.model_copy(update={"observation": VerificationObservationFact.MISMATCHED})
     for values in ((actual, wrong), (wrong, actual), (actual, actual)):
         source.facts = source.facts.model_copy(update={"verifications": values})
