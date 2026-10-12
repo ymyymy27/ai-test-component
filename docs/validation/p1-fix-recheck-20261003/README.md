@@ -1,6 +1,6 @@
 # develop修复复核证据（2026-10-03）
 
-源码 7dbc5a45aa1666652c3dcdc2d0b0604066bc6498；比较335540b→7dbc5a4；完整结论见[复核报告](../../一期工程整改/01-现状检查/一期修复复核-2026-10-03.md)。
+源码 7dbc5a45aa1666652c3dcdc2d0b0604066bc6498；比较335540b→7dbc5a4；完整结论见[复核报告](https://github.com/ymyymy27/ai-test-component/blob/845e6978d522def651d5fec5a0b046126ffaaadd/docs/%E4%B8%80%E6%9C%9F%E5%B7%A5%E7%A8%8B%E6%95%B4%E6%94%B9/01-%E7%8E%B0%E7%8A%B6%E6%A3%80%E6%9F%A5/%E4%B8%80%E6%9C%9F%E4%BF%AE%E5%A4%8D%E5%A4%8D%E6%A0%B8-2026-10-03.md)。
 
 - issue-status.json：48条旧任务逐条关闭/部分/待接入验收，加C-14；15关闭、33旧剩余、34当前。
 - observations.json / probes.py：20组独立观察，合成数据/临时目录、真实本地组件与短Python进程；无真实供应方/Trae/掉电验收。探针引用现有tests夹具及历史empty_full函数，在仓库根目录运行 uv run python docs/validation/p1-fix-recheck-20261003/probes.py 会更新同目录观察JSON。

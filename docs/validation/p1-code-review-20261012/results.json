@@ -1,0 +1,384 @@
+{
+  "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd",
+  "python": "3.13.0 (tags/v3.13.0:60403a5, Oct  7 2024, 09:38:07) [MSC v.1941 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "scope": "static_contract_domain_component_only",
+  "commands": [
+    {
+      "label": "versions",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/check_versions.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.09,
+      "log": "versions.log"
+    },
+    {
+      "label": "ruff",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "src",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 1.26,
+      "log": "ruff.log"
+    },
+    {
+      "label": "mypy",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "seconds": 6.11,
+      "log": "mypy.log"
+    },
+    {
+      "label": "schemas",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/generate_schemas.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.64,
+      "log": "schemas.log"
+    },
+    {
+      "label": "collect",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "--collect-only",
+        "-q",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 8.19,
+      "log": "collect.log"
+    },
+    {
+      "label": "targeted",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-ra",
+        "tests/architecture",
+        "tests/contracts",
+        "tests/acceptance",
+        "tests/unit/test_acceptance_status.py",
+        "tests/unit/test_acceptance_status_phases.py",
+        "tests/unit/test_review_decision.py",
+        "tests/unit/test_reporting_application.py",
+        "tests/unit/test_issue_lifecycle.py",
+        "tests/unit/test_issue_queries.py",
+        "tests/unit/test_start_source_verification.py",
+        "tests/unit/test_registered_entry_execution_port.py",
+        "tests/unit/test_action_resolver.py",
+        "tests/unit/test_start_source_binding.py",
+        "tests/unit/test_cli_ensure_core.py",
+        "tests/unit/test_trae_read_only_allowlist.py",
+        "tests/integration/test_execution_facts_decision_real_store.py",
+        "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-code-review-20261012\\targeted.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 13.16,
+      "log": "targeted.log"
+    },
+    {
+      "label": "full",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-ra",
+        "tests",
+        "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-code-review-20261012\\full.xml"
+      ],
+      "exit_code": 4294967295,
+      "seconds": 939.95,
+      "log": "full.log",
+      "classification": "incomplete_intentionally_terminated",
+      "reason": "Documentation/tooling-only change; targeted suite completed; product source/tests identical to historical full-suite baseline. 939.95 seconds, ~18%, no final test summary."
+    },
+    {
+      "label": "panel-install",
+      "argv": [
+        "F:/Node/npm.cmd",
+        "--prefix",
+        "src/aitest/resources/panel",
+        "ci"
+      ],
+      "exit_code": 0,
+      "seconds": 14.43,
+      "log": "panel-install.log"
+    },
+    {
+      "label": "panel-build",
+      "argv": [
+        "F:/Node/npm.cmd",
+        "--prefix",
+        "src/aitest/resources/panel",
+        "run",
+        "build"
+      ],
+      "exit_code": 0,
+      "seconds": 2.77,
+      "log": "panel-build.log"
+    },
+    {
+      "label": "panel-test",
+      "argv": [
+        "F:/Node/npm.cmd",
+        "--prefix",
+        "src/aitest/resources/panel",
+        "test"
+      ],
+      "exit_code": 0,
+      "seconds": 6.24,
+      "log": "panel-test.log"
+    },
+    {
+      "label": "trae-install",
+      "argv": [
+        "F:/Node/npm.cmd",
+        "--prefix",
+        "integrations/trae",
+        "ci"
+      ],
+      "exit_code": 0,
+      "seconds": 11.77,
+      "log": "trae-install.log"
+    },
+    {
+      "label": "trae-package",
+      "argv": [
+        "F:/Node/npm.cmd",
+        "--prefix",
+        "integrations/trae",
+        "run",
+        "package"
+      ],
+      "exit_code": 0,
+      "seconds": 30.35,
+      "log": "trae-package.log"
+    },
+    {
+      "label": "wheel-build",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "build",
+        "--wheel"
+      ],
+      "exit_code": 0,
+      "seconds": 14.99,
+      "log": "wheel-build.log"
+    },
+    {
+      "label": "artifacts",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/verify_artifacts.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.13,
+      "log": "artifacts.log"
+    },
+    {
+      "label": "wheel-smoke",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/smoke_wheel.py"
+      ],
+      "exit_code": 0,
+      "seconds": 6.86,
+      "log": "wheel-smoke.log"
+    },
+    {
+      "label": "counterexamples",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "E:\\ai-test-component\\docs\\validation\\p1-code-review-20261012\\decision-counterexamples.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.37,
+      "log": "counterexamples.log"
+    },
+    {
+      "label": "locked-install",
+      "argv": [
+        "C:/Users/86178/.local/bin/uv.exe",
+        "sync",
+        "--extra",
+        "dev",
+        "--locked",
+        "--python",
+        "3.13"
+      ],
+      "exit_code": 1,
+      "seconds": 0.82,
+      "log": "locked-install.log",
+      "classification": "confirmed_A-19_not_fixed"
+    },
+    {
+      "label": "source-diff",
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "c9e5807..845e697",
+        "--",
+        "src",
+        "tests",
+        "integrations",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "exit_code": 0,
+      "seconds": 0.05,
+      "log": "source-diff.log"
+    },
+    {
+      "label": "schema-diff",
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "--",
+        "src/aitest/contracts/schemas"
+      ],
+      "exit_code": 0,
+      "seconds": 0.05,
+      "log": "schema-diff.log"
+    },
+    {
+      "label": "docs-facts",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/check_docs_facts.py",
+        "--full"
+      ],
+      "exit_code": 1,
+      "seconds": 5.13,
+      "log": "docs-facts.log"
+    },
+    {
+      "label": "tooling-ruff",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "scripts/check_docs_facts.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.13,
+      "log": "tooling-ruff.log"
+    },
+    {
+      "label": "counterexamples-recheck",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "E:\\ai-test-component\\docs\\validation\\p1-code-review-20261012\\decision-counterexamples.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.34,
+      "log": "counterexamples-recheck.log"
+    },
+    {
+      "label": "locked-install-recheck",
+      "argv": [
+        "C:/Users/86178/.local/bin/uv.exe",
+        "sync",
+        "--extra",
+        "dev",
+        "--locked",
+        "--python",
+        "3.13"
+      ],
+      "exit_code": 1,
+      "seconds": 0.09,
+      "log": "locked-install-recheck.log"
+    },
+    {
+      "label": "source-diff-recheck",
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "c9e5807..845e697",
+        "--",
+        "src",
+        "tests",
+        "integrations",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "exit_code": 0,
+      "seconds": 0.06,
+      "log": "source-diff-recheck.log"
+    },
+    {
+      "label": "schema-diff-recheck",
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "--",
+        "src/aitest/contracts/schemas"
+      ],
+      "exit_code": 0,
+      "seconds": 0.05,
+      "log": "schema-diff-recheck.log"
+    },
+    {
+      "label": "docs-facts-recheck",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "scripts/check_docs_facts.py",
+        "--full"
+      ],
+      "exit_code": 0,
+      "seconds": 5.06,
+      "log": "docs-facts-recheck.log"
+    },
+    {
+      "label": "tooling-ruff-recheck",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "scripts/check_docs_facts.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.13,
+      "log": "tooling-ruff-recheck.log"
+    },
+    {
+      "label": "mypy-final",
+      "argv": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "seconds": 0.41,
+      "log": "mypy-final.log"
+    }
+  ]
+}

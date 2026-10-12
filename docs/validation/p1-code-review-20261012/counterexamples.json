@@ -1,0 +1,56 @@
+[
+  {
+    "case": "control",
+    "schema_accepted": true,
+    "executed": [
+      "case-1"
+    ],
+    "verified": [
+      "case-1"
+    ],
+    "required_evidence_valid": true,
+    "source_identity_state": "matched",
+    "business_outcome": "passed",
+    "evidence_grade": "A"
+  },
+  {
+    "case": "required_evidence_conflict",
+    "schema_accepted": true,
+    "executed": [
+      "case-1"
+    ],
+    "verified": [
+      "case-1"
+    ],
+    "required_evidence_valid": true,
+    "source_identity_state": "matched",
+    "business_outcome": "passed",
+    "evidence_grade": "A"
+  },
+  {
+    "case": "source_unverified",
+    "schema_accepted": true,
+    "executed": [
+      "case-1"
+    ],
+    "verified": [
+      "case-1"
+    ],
+    "required_evidence_valid": true,
+    "source_identity_state": "matched",
+    "business_outcome": "passed",
+    "evidence_grade": "A"
+  },
+  {
+    "case": "attempt_not_current",
+    "schema_accepted": true,
+    "executed": [
+      "case-1"
+    ],
+    "verified": [],
+    "required_evidence_valid": true,
+    "source_identity_state": "matched",
+    "business_outcome": "incomplete",
+    "evidence_grade": "B"
+  }
+]

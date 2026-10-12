@@ -32,7 +32,7 @@ DOCS = (
     "docs/现状.md",
     "AGENTS.md",
     "README.md",
-    "docs/一期工程整改/04-交接/交接说明-2026-10-11.md",
+    "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
 )
 
 
@@ -197,7 +197,8 @@ def report(*, full: bool) -> int:
     for name in DOCS:
         path = ROOT / name
         if not path.is_file():
-            print(f"跳过（不存在）: {name}")
+            print(f"X 现行状态文档不存在: {name}")
+            problems += 1
             continue
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         for rule in RULES:

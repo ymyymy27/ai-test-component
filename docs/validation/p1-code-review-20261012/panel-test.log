@@ -1,0 +1,13 @@
+
+> @aitest/panel@0.4.0 test
+> playwright test
+
+
+Running 2 tests using 1 worker
+
+(node:12244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\panel.spec.ts:4:1 › prototype follows current-test panel and same-panel detail flow (1.1s)
+  ok 2 tests\panel.spec.ts:36:1 › host outcome is rendered verbatim without recalculating conclusions (260ms)
+
+  2 passed (4.4s)

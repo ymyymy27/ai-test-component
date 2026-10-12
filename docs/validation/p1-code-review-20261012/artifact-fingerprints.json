@@ -1,0 +1,17 @@
+[
+  {
+    "path": "dist/ai_test_component-0.4.0-py3-none-any.whl",
+    "sha256": "420e4e54d27976f287fb68f179f040a40a3b2f8dbe7fd3976f09be8cbf9be842",
+    "size": 779436
+  },
+  {
+    "path": "integrations/trae/dist/aitest-trae.vsix",
+    "sha256": "e50f9ce920f2a5cfe7ed64e53fe56f67d5565a1020c6f477bccc530686e432cc",
+    "size": 11779
+  },
+  {
+    "path": "src/aitest/resources/panel/dist/index.js",
+    "sha256": "6c151abea0ebe25335a57784dc08afd9d6c70a94a39385d6745a022f70868342",
+    "size": 16513
+  }
+]

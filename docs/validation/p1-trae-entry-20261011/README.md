@@ -49,7 +49,7 @@ npm --prefix integrations/trae run package   # 产出 dist/aitest-trae.vsix
 
 1. 命令面板执行 `AI Test: 打开一期面板（核心只读入口）`。
 2. 点「**连接核心**」→ 期望状态行出现核心 `READY` 与身份（`workspace_id`/`instance_id`），且**不**创建缺失的工作空间目录。
-3. 点「**刷新核心状态**」→ 期望「核心能力（真实回执）」区列出 `supported_actions`，数量应为 **41 或 42**（取决于是否含 `bind_project`；以实际回执为准，不要用文档数字倒推）。
+3. 点「**刷新核心状态**」→ 期望「核心能力（真实回执）」区列出 `supported_actions`，实际动作集合与[现行动作库存](../../现状.md#3-默认动作库存与缺依赖)核对（条件依赖变化如实登记，不用历史数量倒推）。
 
 ### 3.4 只读派发与安全边界
 
@@ -79,10 +79,10 @@ npm --prefix integrations/trae run package   # 产出 dist/aitest-trae.vsix
 
 ## 5. 通过后如何登记
 
-只有全部满足才可以改 `tests/acceptance/p1/status.json`：
+只有对应 AC 的**完整需求场景**实际通过且全部满足，才可以改 `tests/acceptance/p1/status.json`；本目录只读入口验证只是部分前置，不能凭这些步骤直接把 AC26/27 或其他完整 AC 登记通过：
 
 1. `result = "verified"`；
-2. `evidence.method` 指向**本目录内的具体文件**（非空）；
+2. `evidence.path` 指向**本目录内的具体文件**（非空）；`evidence.method` 另记实测方法；
 3. 该行要求的**真实环境已验证**为真（即上表场景在真实 Trae 内实测通过）。
 
 且：登记里的 `scenario`/`expected`/`related_frs` **逐字取自需求文档第 5 节**，只在需求文档改动后同步——不得为了迁就实测结果改写它们。

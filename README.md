@@ -1,227 +1,75 @@
 # AI 辅助测试插件（AI Test Component）
 
-> 面向 Windows 11 x64、Python 3.13 与 Trae 的本地 AI 辅助测试插件工程。目标是将项目与计划、分层执行、证据、判定、报告、问题回归和恢复组织成同一套可追溯闭环。
->
-> 当前版本为 **0.4.0 开发阶段**：核心分层、真实文件底座、部分规划/执行能力及进程内用例入口已经实现，但尚未形成完整产品闭环，一期 35 项 AC 均未完成真实环境验收。
+面向 Windows 11 x64、Python 3.13 与 Trae 的本地测试插件，当前产品版本 0.4.0。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、门禁、验收与未验证范围统一见[项目现状](docs/现状.md)。**
 
 [![CI](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-0.4.0-orange.svg)](CHANGELOG.md)
 
----
+## 实现结构
 
-## 目录
+入口 → 接口适配 → 应用用例 → 纯领域规则；应用经 `application/ports.py` 使用外部端口，`bootstrap.py` 统一注入。用户数据位于独立本地工作空间，生命周期排他写锁和不可变提交保存记录/证据，执行/模型调用在短事务外。
 
-- [项目简介](#项目简介)
-- [当前状态](#当前状态)
-- [核心能力](#核心能力)
-- [技术栈](#技术栈)
-- [系统架构](#系统架构)
-- [项目结构](#项目结构)
-- [快速开始](#快速开始)
-- [命令行入口](#命令行入口)
-- [验证与验收](#验证与验收)
-- [文档导航](#文档导航)
-- [已知限制](#已知限制)
-
----
-
-## 项目简介
-
-本项目采用“入口 → 接口适配 → 应用用例 → 纯领域规则”的依赖方向，以本地文件工作空间保存不可变记录和证据。Trae、面板、CLI 与 stdio MCP 按合同复用同一核心；当前产品接入尚未闭合，不在宿主侧复制业务判定。
-
-工程按三期演进：
-
-| 期次 | 目标 |
-| --- | --- |
-| 一期 | Trae 上的本地测试闭环，共 17 FR / 35 AC |
-| 二期 | 增加编辑器和操作系统组合、源码定位、依赖/链路图及能力诊断 |
-| 三期 | 使用平台身份，将已保存结果安全投影并上传，不改变一期本地能力 |
-
-## 当前状态
-
-| 范围 | 现状 |
-| --- | --- |
-| 项目与规划 | 项目/绑定/环境/依赖图、任务/交付/Case/验收范围/确认已有保存函数；默认B15动作含计划发布、模板正文、规则JSON导入导出和准备输入/观察冻结；运行修订守卫已有 |
-| 执行与证据 | 已有串行运行器、命令执行、超时/停止、流式 spool、采集前脱敏、恢复、证据发布和 ExecutionFacts 组装 |
-| 本地底座 | records权威提交台账与投影恢复、查询条件/提交/代次绑定、Blob发布前fsync及连接事实保存已实现；永久闭包、JSONL回收、有限分片与长期唯一写入者仍有缺口 |
-| 产品入口 | 默认装配B15动作，worker解析Command并回Response、支持多次重连；C/D/模型与可信人工入口、业务CLI/MCP/面板/Trae消息桥仍未闭合 |
-| 报告与问题 | 业务结论与等级解耦、F⊆H/FailureCandidate、归并环拒绝/P1重开及S/M/H DTO已补；生产事实聚合、持久化、真实新回归与安全导出未贯通 |
-| 一期验收 | 0/35 项通过真实环境验收；详见[当前代码分析](docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md) |
-
-## 核心能力
-
-### 项目、规则与计划
-
-- 建模本地项目、模块、依赖、任务、交付、环境与源码身份
-- 管理规则版本、测试用例、冻结计划、档位和执行准备结果；依据确认核对准确用例/修订，准备修订变化独立返回需重新准备
-- 支持人工模板草稿和受策略约束的模型请求编排；模型请求先提交出站意图，再事务外调用，最后保存结果与草稿正文
-- 内置 Python 库、Python 服务、HTTP、Agent、人工 Web 和工单流程六类模板
-
-### 执行与证据
-
-- 以 Run → Step → Attempt 记录执行事实
-- 串行调度命令，处理超时、停止、重试与未知副作用
-- 分流保存 stdout/stderr，使用游标和摘要支持增量采集与恢复
-- 在命令 stdout/stderr 落盘前执行敏感信息过滤，并登记过滤摘要和证据缺口；模型响应的落盘前过滤仍待补齐
-
-### 本地数据底座
-
-- 工作空间身份校验和单写锁
-- 不可变记录修订、预期版本检查、同持久意图返回原结果和内容寻址对象/历史源码字节
-- 已有 QuerySpec 分页、查询条件/提交/代次绑定、完整性和备份原语；完整有限索引目录、末尾键分页及永久引用闭包仍待完成
-- `bootstrap.py` 作为唯一核心装配入口
-
-## 技术栈
-
-| 层级 | 技术 |
-| --- | --- |
-| 核心 | Python 3.13、Pydantic 2 |
-| 本地存储 | JSON/二进制文件、portalocker、原子替换 |
-| 面板 | TypeScript、esbuild、Playwright |
-| Trae 扩展 | VS Code Extension API、TypeScript、VSIX |
-| 工程工具 | uv、pytest、ruff、mypy、Hatchling |
-
-## 系统架构
+项目/规则/计划与默认命令执行、授权、采集、控制已接通；CLI/MCP 接同核心，Trae/面板接只读桥。持久报告/问题/安全导出、复用选择保存、完整业务 UI 和真实环境验收仍有剩余，具体按四包检查表实施。
 
 ```text
-用户 / Trae / CLI / MCP
-          │
-          ▼
-入口层：Trae 扩展 · 共享面板 · CLI · stdio relay
-          │
-          ▼
-接口层：LocalAPI · 本地管道 · DTO · 版本/能力协商
-          │
-          ▼
-应用层：项目 · 规划 · 执行 · 证据 · 报告 · 连接诊断
-          │
-          ▼
-领域层：不可变对象 · 状态机 · 判定与统计规则
-          │
-          ▼
-基础设施：文件工作空间 · 执行/模型/源码适配器
+src/aitest/           domain / application / infrastructure / contracts / interfaces
+integrations/trae/    Trae 候选薄扩展
+tests/               单元 / 合同 / 架构 / 恢复 / 集成 / 验收登记
+docs/项目文档/        需求、功能、架构、设计主责合同
+docs/一期工程整改/    当前分析、计划、证据索引与交接
+docs/validation/     按准确版本保存的实测与反例
 ```
 
-应用层只通过 `application/ports.py` 使用外部能力，由 `bootstrap.py` 注入实现。外部执行、模型和网络调用位于短事务之外。
+## 开发安装与验证
 
-## 项目结构
-
-```text
-ai-test-component/
-├── src/aitest/
-│   ├── domain/                 # 项目、计划、执行、证据、报告与问题规则
-│   ├── application/            # 用例编排与外部能力端口
-│   ├── infrastructure/         # 文件存储及执行/模型/源码适配器
-│   ├── contracts/              # Pydantic 合同与生成 Schema
-│   ├── interfaces/             # LocalAPI、CLI、管道与 relay
-│   ├── resources/              # 六个模板与共享面板源码
-│   └── bootstrap.py            # 唯一核心装配入口
-├── integrations/trae/          # Trae 薄扩展候选实现
-├── tests/                      # unit / contracts / architecture / recovery / acceptance
-├── docs/项目文档/              # 现行需求、功能、架构与设计合同
-├── docs/接口对接/              # 跨包合同、裁定与交付材料
-├── docs/修改日志/              # 分包修改记录
-├── pyproject.toml
-└── uv.lock
-```
-
-## 快速开始
-
-### 环境要求
-
-- Windows 11 x64（一期目标环境）
-- Python 3.13
-- [uv](https://docs.astral.sh/uv/)
-- Node.js 22+ 与 npm（仅面板和 Trae 扩展需要）
-
-### 安装开发依赖
+标准安装命令是 `uv sync --extra dev --locked --python 3.13`。**当前锁文件与工程的 Python 范围不一致，干净安装会退出 1（A-19）**；本轮复核的 frozen 环境不能写成此门禁通过。依赖已正确安装后，可按工程配置运行：
 
 ```powershell
-git clone https://github.com/ymyymy27/ai-test-component.git
-cd ai-test-component
-uv sync --extra dev --locked
+.venv/Scripts/python.exe scripts/check_versions.py
+.venv/Scripts/python.exe -m ruff check src tests
+.venv/Scripts/python.exe -m mypy
+.venv/Scripts/python.exe scripts/generate_schemas.py
+.venv/Scripts/python.exe scripts/check_docs_facts.py --full
+.venv/Scripts/python.exe -m pytest -p no:cacheprovider -ra tests
 ```
 
-### 运行 Python 检查
+生成 Schema 后须检查 Git diff；不手工编辑生成物。全量测试期间不并发其他重测试，保留退出码、原输出与跳过原因，不用分块结果相加替代全量。临时数据可放 `.runtime/tmp` 并设置 TEMP/TMP。
 
-```powershell
-uv run python scripts/check_versions.py
-uv run ruff check .
-uv run mypy
-uv run python scripts/generate_schemas.py
-uv run pytest
-```
-
-### 构建面板与 Trae 扩展
+面板/Trae 需要 Node/npm，按现有 lock 安装并构建：
 
 ```powershell
 npm --prefix src/aitest/resources/panel ci
 npm --prefix src/aitest/resources/panel run build
+npm --prefix src/aitest/resources/panel test
 npm --prefix integrations/trae ci
 npm --prefix integrations/trae run package
 ```
 
-生成的 VSIX 位于 `integrations/trae/dist/aitest-trae.vsix`。它目前只是候选扩展，编译或打包成功不等于真实 Trae 兼容通过。
+VSIX 在 `integrations/trae/dist/aitest-trae.vsix`，构建物不跟踪；浏览器/打包通过不代表真实 Trae 行为验收。制品用 `scripts/verify_artifacts.py` / `scripts/smoke_wheel.py` 验证内容、共享面板字节与隔离安装，原证据不得用于新构建。
 
 ## 命令行入口
 
 ```powershell
-uv run aitest templates
-uv run aitest doctor
-uv run aitest doctor --workspace "C:\本地用户数据\aitest"
-# ensure-core 供编辑器宿主使用：发现或启动该工作空间的唯一核心，只回报已核对的身份
-uv run aitest ensure-core --workspace "C:\本地用户数据\aitest"
-# dispatch从标准输入读取一份完整Command JSON（EOF结束）
-uv run aitest dispatch --workspace "C:\本地用户数据\aitest"
-uv run aitest mcp-relay --binding example
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli templates
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli doctor
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli ensure-core --workspace "C:\本地用户数据\aitest"
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli dispatch --workspace "C:\本地用户数据\aitest"
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli mcp-relay --workspace "C:\本地用户数据\aitest" --project <项目ID> --binding <绑定ID>
 ```
 
-- `templates`：列出六个已打包模板及其当前状态。
-- `doctor`：未指定workspace时仍为离线诊断（NOT_READY/退出2）；指定既有用户数据工作空间后核对并连接同一核心，READY退出0。路径缺失或身份无法核实返回错误，不把当前目录创建成数据工作空间。
-- `ensure-core`：宿主入口——先连既有核心，连不上再启动一个，并回报已核对的 `workspace_id`/`instance_id`；**不派发业务动作、不写业务记录**。路径不存在或不是目录时结构化失败（`WORKSPACE_NOT_FOUND`/退出2），**不据此创建数据工作空间**。
-- `dispatch --workspace`：从stdin读取一份有界UTF-8 Command JSON，保留原request/intent/准确修订，核对原核心回执。退出0仅表示收到成功回执；人工动作需受控用户入口，Python CLI不会自签确认。
-- `mcp-relay --workspace <用户数据工作空间> --project <项目ID> --binding <绑定ID>`：提供同核心只读doctor/有限query，冻结绑定修订并核对变更；stdin/stdout为UTF-8逐行MCP，缺上下文返回不可用。完整业务动作仍需接通。
-
-## 验证与验收
-
-自动化测试覆盖部分领域规则、合同、依赖边界、存储故障和恢复行为，但不能替代产品验收。P1-AC01—35 的状态统一记录在 [`tests/acceptance/p1/status.json`](tests/acceptance/p1/status.json)。
-
-截至2026年10月4日，在develop **7dbc5a4**基线上实施A/B/C根因整改：pytest **1967 passed、2 skipped**，Ruff/mypy138文件、7份Schema/4份功能夹具一致性、wheel/sdist构建及制品字节/隔离wheel冒烟通过；面板/VSIX沿用未改来源的历史日志。真实一期仍 **0/35 verified**，证据路径未代填；doctor/MCP尚不可用；真实DeepSeek草稿及持久回读组件实测通过，前轮面板Playwright定位失败仍保留。
-
-2026年10月4日阶段关闭A-11/A-16/B-10/B-17/C-14共5条代码问题；当时 **29条（A7/B8/C7/D7）**，其中A/B/C剩22条。详见[逐项源码/测试证据](docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)、[整体分析](docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)、[执行记录](docs/validation/p1-abc-fix-20261003/validation-results.json)及四包[A](docs/一期工程检查-A包.md)/[B](docs/一期工程检查-B包.md)/[C](docs/一期工程检查-C包.md)/[D](docs/一期工程检查-D包.md)。[前轮复核](docs/一期工程整改/01-现状检查/一期修复复核-2026-10-03.md)保留原历史反例及数字。
-
-CI普通develop/PR范围为Windows/Python版本、静态、Schema和pytest；面板/VSIX/wheel/制品smoke只在tag路径运行。底层Windows凭据、管道和本地Git集成不替代真实Trae、模型、业务核验和掉电验收。
-
-2026年10月7日继续修复后，ABC整项剩余 **21条（A7/B7/C7）**，B-12已闭合；最新stdio MCP只读329项及安装制品官方SDK握手/读取通过，真实一期仍0/35。当前剩余范围见[整改计划](docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md)。
+离线 doctor 如实返回 NOT_READY；ensure-core 发现/启动既有工作空间的唯一核心，缺路径拒绝且不创建目录；dispatch 从有界 stdin Command JSON 派发，保留 request/intent/准确修订；MCP 冻结项目绑定、只读查询与允许的普通保存，不自行签人工确认。动作可用性以实际装配回执和具体依赖为准。
 
 ## 文档导航
 
-| 文档 | 用途 |
+| 入口 | 用途 |
 | --- | --- |
-| [项目现状](docs/现状.md) | **唯一现行状态页**：规模、静态门禁、接口合同版本、验收结论、版本兼容与未验证边界 |
-| [文档总览](docs/项目文档/README.md) | 按期次进入需求、功能、架构和界面设计 |
-| [总体架构](docs/项目文档/总体架构.md) | 分层、模块、运行形态和目标结构 |
-| [阅读索引](docs/项目文档/阅读索引.md) | 字段、状态、规则和主责合同入口 |
-| [一期架构总览](docs/项目文档/一期/架构文档/00-架构总览.md) | 一期本地闭环的模块与边界 |
-| [接口对接台账](docs/接口对接/README.md) | 跨包合同、裁定和交付状态 |
-| [一期工程整改资料](docs/一期工程整改/README.md) | 现状检查、整改计划、修复证据与分类索引 |
-| [ABC整改交接说明](docs/一期工程整改/04-交接/交接说明-2026-10-08.md) | 当前基线、剩余21项、待修反例及新对话续接提示 |
-| [当前代码分析](docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md) | 当前四包进展、17FR/35AC、历史与本次测试结果及一期差距 |
-| [编辑器内面板交互草案](docs/项目文档/一期/设计文档/02-编辑器内面板交互设计草案.md) | 0.3设计讨论与参考图，尚未在产品/真实Trae实现 |
-| [本轮修改日志](docs/修改日志/袁/2026-10-03-develop更新后修复复核.md) | 文档逐项更新、复核证据及未验证边界 |
-| [更新记录](CHANGELOG.md) | 精简版本与阶段变更 |
-
-## 已知限制
-
-- 默认B已有18动作，模型生成已接线；C/D、受控依据确认及CLI/MCP/Trae业务桥仍需贯通。
-- 实际当前源码/人工依据、业务加载事实、可信人工授权来源、未使用授权/整用例复用持久链与默认运行修订仍缺；已登记运行的当前Attempt与实际依赖失效已同提交。
-- 启动认领/实际核心身份/发现指针、管道对端及有限字节传输已修，未知旧启动恢复及权威排空仍缺；有界目录/身份键账、旧根及有限选择器已修；七字段current及Windows受检发布/恢复材料已有组件证据；完整CommitManifest/对象/业务索引闭包、未知发布人工恢复、实际实例来源、有界启动及产品历史/排序仍缺。诊断/附件/安全导出的完整产品链仍待验证。
-- D生产S/M/H聚合、新实际回归/报告与安全导出未闭合，空full和面板后续定位问题仍保留。
-- 真实Trae、供应方/业务独立核验、物理掉电及35项AC证据未完成。
-
----
+| [项目现状](docs/现状.md) | 唯一现行状态、门禁、验收和版本边界 |
+| [项目文档总览](docs/项目文档/README.md)、[总体架构](docs/项目文档/总体架构.md)、[阅读索引](docs/项目文档/阅读索引.md) | 主责字段、时序与 FR/AC |
+| [四包检查 A](docs/一期工程检查-A包.md) / [B](docs/一期工程检查-B包.md) / [C](docs/一期工程检查-C包.md) / [D](docs/一期工程检查-D包.md) | 稳定问题编号、当前实现和剩余关闭条件 |
+| [整改索引](docs/一期工程整改/README.md)、[当前交接](docs/一期工程整改/04-交接/交接说明-2026-10-12.md) | 接续实施与历史追溯 |
+| [本轮复核证据](docs/validation/p1-code-review-20261012/README.md) | 准确版本、实际测试、A-19/D-10 新反例和清理原文哈希 |
+| [接口台账](docs/接口对接/README.md) | 现行跨包合同及对拍状态 |
+| [验收台账](tests/acceptance/p1/status.json) | 按需求原场景逐项登记，真实证据才能 verified |
+| [真实 Trae 入口准备](docs/validation/p1-trae-entry-20261011/README.md) | 只读入口流程，不替代完整业务 AC |
+| [变更记录](CHANGELOG.md) | 历史版本与阶段摘要 |
 
 项目为内部工程，许可证以仓库和组织规定为准。
-
-最新A/B/C整改：[根因计划](docs/一期工程整改/02-整改计划/ABC包根因整改计划-2026-10-03.md) · [逐项源码/测试证据](docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md) · [验证输出](docs/validation/p1-abc-fix-20261003/README.md)。
