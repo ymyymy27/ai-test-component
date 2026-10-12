@@ -1,0 +1,92 @@
+[
+  {
+    "name": "interface-and-ledger-regression",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/contracts",
+      "tests/architecture",
+      "tests/unit/test_acceptance_status.py",
+      "tests/integration/test_execution_facts_decision_real_store.py",
+      "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-source-completion-20261012\\interface-and-ledger-regression.xml"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 12.2,
+    "log": "interface-and-ledger-regression.log",
+    "sha256": "18e51a70b81427160857cf6e6db44b63ff58c4e49895518951cd36d5a70c1407"
+  },
+  {
+    "name": "docs-facts",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/check_docs_facts.py",
+      "--full"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 5.03,
+    "log": "docs-facts.log",
+    "sha256": "6d1905e9229648c8b4a00ba592f0c88aca29f2953975089aebdd42235b31d787"
+  },
+  {
+    "name": "product-and-ledger-unchanged",
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "708439b",
+      "--",
+      "src",
+      "integrations",
+      "pyproject.toml",
+      "uv.lock",
+      "tests",
+      "docs/项目文档"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 0.05,
+    "log": "product-and-ledger-unchanged.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "diff-check",
+    "command": [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 2,
+    "duration_seconds": 0.06,
+    "log": "diff-check.log",
+    "sha256": "092949e39c8a91229f23d8e162816f7e6f3709fc76ad5b28595d6600c8e6c0d2"
+  },
+  {
+    "name": "diff-check-repository-settings",
+    "command": [
+      "git",
+      "diff",
+      "--cached",
+      "--check"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 0.06,
+    "log": "diff-check-repository-settings.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "diff-check-repository-settings-final",
+    "command": [
+      "git",
+      "diff",
+      "--cached",
+      "--check"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 0.06,
+    "log": "diff-check-repository-settings-final.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "python": "3.13.0 (tags/v3.13.0:60403a5, Oct  7 2024, 09:38:07) [MSC v.1941 64 bit (AMD64)]",
+  "executable": "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "packages": {
+    "pytest": "9.1.1",
+    "pydantic": "2.13.5",
+    "pydantic-core": "2.46.5",
+    "mypy": "1.20.2",
+    "ruff": "0.16.6"
+  },
+  "source_baseline": "845e6978d522def651d5fec5a0b046126ffaaadd",
+  "document_start": "708439bf0152008ea981cfb89c68d64538b2e57d",
+  "counterexample_script_sha256": "7f01aa5f071267f5b8d8612eee2b1d67bdbf4688d0bcd20ab54f57957fdc35f4",
+  "dependency_install_boundary": "previous --locked failed; existing frozen audit environment, not a clean-install pass"
+}

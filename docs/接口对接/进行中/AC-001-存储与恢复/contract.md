@@ -3,23 +3,26 @@ contract_id: AC-001
 title: ExecutionFacts 存储与恢复
 provider: A
 consumer: C
-contract_version: "1.5"
+contract_version: "1.6"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
+  - "C-15/C-16：默认业务/技术源码快照及字段/目录错接，来源语法/多模块失败仍 verified，生产闭环未贯通"
   - "A-05/A-07：未知发布/实际活动核实的受控产品恢复未闭合"
   - "C-03：核验/外部导入准确关联重算与多类生产配置待接"
   - "C-05：完整复用保存和 D 权威消费未闭合"
 next_owner: A/C
-next_action: A/C 对实际提交快照、检查点/证据/意图闭包和未知活动恢复逐项对拍；补生产核验/导入关联及完整业务保存→换核心→恢复。
+next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源事实消费；A/C 对实际提交快照、检查点/证据/意图闭包和未知活动恢复逐项对拍；补生产核验/导入关联及完整业务保存→换核心→恢复。
 ---
 
 ## 当前源码复核与下一动作（2026-10-12）
 
-本版 1.5 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+本次全源码完成性复核（文档起点 fix@708439b）更正前轮默认接线结论：真实保存材料经未替换默认解析器无法 prepare_execution（C-15），兼容字段替身下语法错/部分导入失败仍 verified（C-16）。组件已注入不等于可信默认链已贯通。[原脚本/实际输出及替身边界](../../../validation/p1-source-completion-20261012/README.md)与[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)分别说明；本次仅修实现状态/阻塞记录，字段签名/Schema/已存数据/历史确认保持，无数据迁移，不补签或标对拍完成。
+
+本版 1.6 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
 
 **已实现**：ExecutionCommitCoordinator、准确检查点引用、命令永久输出/脱敏材料、持久外部导入附件和独立查询材料保存已有实现。基础存储/恢复并非空端口。
 

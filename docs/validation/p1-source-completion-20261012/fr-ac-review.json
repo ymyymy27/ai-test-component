@@ -1,0 +1,388 @@
+{
+  "fr_review": [
+    {
+      "id": "P1-FR01",
+      "name": "项目与模块",
+      "assessment": "部分实现",
+      "implemented": "项目/模块/绑定/依赖的纯模型、受控保存和 Git/plain 字节固定已存在。",
+      "gaps": "缺当前项目选择、目录切换与设置产品链；默认执行来源被 C-15 阻断。",
+      "source_touchpoints": "project/context.py、project/persistence.py、project/source_analysis.py；test_default_source_analysis.py"
+    },
+    {
+      "id": "P1-FR02",
+      "name": "交付说明",
+      "assessment": "部分实现",
+      "implemented": "任务、交付自述、提测来源冻结与受控 submit_delivery 已存在。",
+      "gaps": "实际执行/独立核验后的 verified_in_scope 没有权威生产投影；面板交付入口欠缺，不能将自述当验证。",
+      "source_touchpoints": "project/delivery_submission.py、domain/project/deliveries.py；test_delivery_submission_origin.py"
+    },
+    {
+      "id": "P1-FR03",
+      "name": "变更与回归",
+      "assessment": "部分实现",
+      "implemented": "反向依赖传播、循环去重、文件→模块映射、漂移和保存修订已存在。",
+      "gaps": "真实变化→用户确认回归→新执行→问题/报告的闭环未贯通；单模块不免除本模块回归。",
+      "source_touchpoints": "planning/regression_graph.py、planning/drift.py、domain/execution/dependencies.py"
+    },
+    {
+      "id": "P1-FR04",
+      "name": "模板与草稿",
+      "assessment": "组件较完整／产品未闭合",
+      "implemented": "六份版本化模板、必测/关键链路校验、草稿来源与定向失效、受控模型编排已存在。",
+      "gaps": "人工/模型草稿编辑和发布的真实宿主入口未完成；真实供应方故障与材料缺口仍待验收。",
+      "source_touchpoints": "planning/draft.py、planning/model_orchestration.py、resources/templates/；test_template_content.py"
+    },
+    {
+      "id": "P1-FR05",
+      "name": "规则版本",
+      "assessment": "组件较完整／入口缺口",
+      "implemented": "规则草稿/发布版本、JSON 和 Markdown 往返、来源保留、受控发布已存在。",
+      "gaps": "save_rules 默认名称未接；已有 import_rules/publish_rules 不能据此误写成完全无规则功能。缺用户编辑/确认与新旧版本产品对照。",
+      "source_touchpoints": "planning/rules_markdown.py、planning/portable.py、planning/publish.py；test_rule_import_export_entrypoint.py"
+    },
+    {
+      "id": "P1-FR06",
+      "name": "计划与用例",
+      "assessment": "部分实现",
+      "implemented": "Case/AcceptanceScope、计划发布门禁、独立依据确认、prepare_run 与运行中修订材料已存在。",
+      "gaps": "save_plan 名称未接；面板实际编辑/确认/发布欠缺。执行被 C-15 阻断，D 权威结果消费未贯通。",
+      "source_touchpoints": "planning/basis_confirmation.py、planning/prepare_run.py、execution/runtime_actions.py"
+    },
+    {
+      "id": "P1-FR07",
+      "name": "档位与驱动",
+      "assessment": "部分实现",
+      "implemented": "quick/on_demand/full 上限、planned→stepwise、范围冻结、非空 full 守卫与 H 失败优先已有规则。",
+      "gaps": "整用例 R 选择/保存/判定消费缺失；D-10 当前性/必需证据守卫有已复现反例；真实三个档位和双驱动未验收。",
+      "source_touchpoints": "domain/planning/plans.py、domain/review/reports.py、execution/reuse_inspection.py"
+    },
+    {
+      "id": "P1-FR08",
+      "name": "L1 源码检查",
+      "assessment": "默认链阻断／核验缺陷",
+      "implemented": "固定源码、物化映射、解释器探针和 PythonChecksAdapter 组件存在。",
+      "gaps": "C-15 默认编号/字段不匹配；C-16 无实际语法编译的 fallback、部分导入失败仍 verified。适用构建和显式最小启动缺产品配置，不能宣布豁免。",
+      "source_touchpoints": "bootstrap.py:412、execution/action_resolver.py、infrastructure/adapters/execution/python_checks.py"
+    },
+    {
+      "id": "P1-FR09",
+      "name": "工作台与控制",
+      "assessment": "部分实现",
+      "implemented": "Run/Step/Attempt、原许可占用、检查点、串行有界调度和持久暂停/恢复/取消已有组件。",
+      "gaps": "默认运行准备受 C-15 阻断；retry_step/attach_evidence/return_stage 未注册；工作台仍空骨架，半程操作/宿主恢复未验收。",
+      "source_touchpoints": "execution/runner.py、execution/run_schedule.py、execution/saved_control.py"
+    },
+    {
+      "id": "P1-FR10",
+      "name": "L2 函数模块",
+      "assessment": "部分实现",
+      "implemented": "真实命令组件、独立预期比较规则与安全输出保存已存在，退出码不会自行成为业务通过。",
+      "gaps": "默认实际执行受 C-15 阻断；独立核验默认端口缺配置。组件测试更换解析器/端口的事实必须单列。",
+      "source_touchpoints": "infrastructure/adapters/execution/command.py、registered_entry.py、domain/execution/assertions.py"
+    },
+    {
+      "id": "P1-FR11",
+      "name": "L2 接口集成",
+      "assessment": "部分实现",
+      "implemented": "HTTP 单次受控传输/断言、同对象只读查询/轮询与 saved verification 材料组件已存在。",
+      "gaps": "默认执行端口为命令端口，缺完整 HTTP 流程产品装配；business_verification_resolver/port 默认 None，串联同对象→最终持久核验→报告未闭合。",
+      "source_touchpoints": "infrastructure/adapters/execution/http.py、business_query.py、application/evidence/saved_verification.py"
+    },
+    {
+      "id": "P1-FR12",
+      "name": "Mock 与真实性",
+      "assessment": "部分实现",
+      "implemented": "Mock/混合/未知事实、独立证据规则与真实性约束模型已存在。",
+      "gaps": "缺完整生产采集/核验配置和实际呈现；D-10 适配不能可靠反映必需证据/来源缺口。声明与组件测试均不证明真实链路。",
+      "source_touchpoints": "domain/evidence/evidence.py、application/review/execution_decision_adapter.py"
+    },
+    {
+      "id": "P1-FR13",
+      "name": "L3 业务场景",
+      "assessment": "部分实现",
+      "implemented": "人工七类操作结构、Agent 工具材料、外部导入验证和附件永久保存已有组件。",
+      "gaps": "人工 adapter 只构造记录/TraceNode，Agent 不产生独立通过；缺受控人工补证入口与完整业务对象/最终核验产品链，外部导入不等于本地实际执行。",
+      "source_touchpoints": "infrastructure/adapters/execution/manual_evidence.py、agent.py、application/evidence/external_imports.py"
+    },
+    {
+      "id": "P1-FR14",
+      "name": "报告与导出",
+      "assessment": "关键产品用例未实现",
+      "implemented": "纯判定、不可变报告/复核/导出键规则、DecisionDTO/S/M/H 投影已有。",
+      "gaps": "reporting.py 明确不实现持久化；create_report/record_local_review/export_report 没有 handler；exports.py 只有职责说明，无 Markdown/可携带证据包制品。",
+      "source_touchpoints": "application/review/reporting.py、domain/review/reports.py、infrastructure/exports.py"
+    },
+    {
+      "id": "P1-FR15",
+      "name": "缺陷与回归",
+      "assessment": "关键产品用例未实现",
+      "implemented": "问题状态/处置/阻塞纯规则、issues.list 有限查询/DTO 已存在。",
+      "gaps": "update_issue/record_fix/request_regression/close_issue/copy_repair_brief 未接默认入口；门面接收调用方 ClosureEvidence，没有权威读取新实际回归并持久关闭的生产用例。",
+      "source_touchpoints": "application/review/defect_management.py、domain/review/defects.py、infrastructure/file_store/index.py"
+    },
+    {
+      "id": "P1-FR16",
+      "name": "永久留存",
+      "assessment": "底座已实现／产品与实测未闭合",
+      "implemented": "不可变记录、单写锁、current/清单、永久对象、有界索引/事件、备份/迁移/活动恢复已有实现。",
+      "gaps": "完整报告/复核/导出尚无永久材料；backup/migrate 缺受控产品入口，未知发布处置/全历史闭包/物理掉电未验收；A-19 干净锁定安装失败。",
+      "source_touchpoints": "infrastructure/file_store/*；test_atomic_and_lock.py、test_execution_closure.py"
+    },
+    {
+      "id": "P1-FR17",
+      "name": "面板与宿主",
+      "assessment": "原型／只读诊断桥",
+      "implemented": "共享面板三段/详情骨架、doctor/空间/事件回执、Trae 经既有 CLI 的只读桥和 ensure-core 已存在。",
+      "gaps": "当前项目固定为未选择；生成/开始按钮 disabled；详情是静态说明，无业务 DTO、配对快照订阅、人工挑战/计划/问题/报告/设置流程；真实 Trae 未验收。",
+      "source_touchpoints": "resources/panel/src/index.ts、integrations/trae/src/extension.ts、core-bridge.ts"
+    }
+  ],
+  "ac_review": [
+    {
+      "id": "P1-AC01",
+      "scenario_summary": "交付必填信息",
+      "registered_result": "not_verified",
+      "code_support": "B 任务/提测校验与保存",
+      "gaps": "缺真实用户缺字段提测、提示与阻止推进证据；不可据组件通过关闭。"
+    },
+    {
+      "id": "P1-AC02",
+      "scenario_summary": "外部绿色但业务失败",
+      "registered_result": "untested",
+      "code_support": "D 领域失败优先／C HTTP 组件",
+      "gaps": "缺权威业务断言→报告→面板链；D-10 守卫缺陷。"
+    },
+    {
+      "id": "P1-AC03",
+      "scenario_summary": "单模块检查与回归",
+      "registered_result": "not_verified",
+      "code_support": "B 单模块/回归规则与 plain 分析",
+      "gaps": "C-15 阻断默认执行；缺单模块真实适用检查与回归证据。"
+    },
+    {
+      "id": "P1-AC04",
+      "scenario_summary": "无页面的两后端模块",
+      "registered_result": "untested",
+      "code_support": "C 命令/HTTP 组件、B 适用性",
+      "gaps": "缺多模块 L1/L2/业务 L3 生产装配；无前端仅网页不适用。"
+    },
+    {
+      "id": "P1-AC05",
+      "scenario_summary": "允许 Mock 的局部通过",
+      "registered_result": "untested",
+      "code_support": "C Mock 模型、D 领域限制",
+      "gaps": "缺实际 Mock 采集/核验/报告，不能由声明证明集成。"
+    },
+    {
+      "id": "P1-AC06",
+      "scenario_summary": "未声明模拟、未知与冲突",
+      "registered_result": "untested",
+      "code_support": "C 真实性事实、D 缺口规则",
+      "gaps": "缺真实候选→取证→混合/未知呈现和对应拒绝场景。"
+    },
+    {
+      "id": "P1-AC07",
+      "scenario_summary": "假成功与写前过滤",
+      "registered_result": "untested",
+      "code_support": "C 安全采集/独立业务查询组件",
+      "gaps": "默认核验 resolver/port 缺失；D 报告未接，全制品安全链未闭合。"
+    },
+    {
+      "id": "P1-AC08",
+      "scenario_summary": "七类人工操作与问题查询",
+      "registered_result": "untested",
+      "code_support": "C ManualOperationType、D issues.list 索引/DTO",
+      "gaps": "无人工工作台/补证 handler 和持久问题链；14 掩码组件不等于 UI/真实七类操作验收。"
+    },
+    {
+      "id": "P1-AC09",
+      "scenario_summary": "同次请求和日志关联",
+      "registered_result": "untested",
+      "code_support": "C Evidence/TraceNode 事实",
+      "gaps": "缺真实请求/后端日志产品采集与证据详情；不得以时间猜关联。"
+    },
+    {
+      "id": "P1-AC10",
+      "scenario_summary": "AI 根因是假设",
+      "registered_result": "untested",
+      "code_support": "B 模型草稿边界、D 问题结构",
+      "gaps": "缺事实/假设编辑、驳回留痕及持久缺陷产品流程。"
+    },
+    {
+      "id": "P1-AC11",
+      "scenario_summary": "修复后复测仍失败",
+      "registered_result": "untested",
+      "code_support": "D defects.record_failed_regression 纯规则",
+      "gaps": "缺 record_fix/request_regression 与权威新执行读取/持久重开。"
+    },
+    {
+      "id": "P1-AC12",
+      "scenario_summary": "变化绑定新版本",
+      "registered_result": "not_verified",
+      "code_support": "B 修订、来源检查/漂移",
+      "gaps": "缺真实新执行与新旧报告；C-15 阻断默认生产消费。"
+    },
+    {
+      "id": "P1-AC13",
+      "scenario_summary": "环境与 editable/PYTHONPATH 来源",
+      "registered_result": "untested",
+      "code_support": "C 来源探针/准入",
+      "gaps": "C-15 默认接线阻断；C-16 语法/多模块错误仍 verified；实际来源对拍未验收。"
+    },
+    {
+      "id": "P1-AC14",
+      "scenario_summary": "阻塞问题与处置",
+      "registered_result": "untested",
+      "code_support": "D 有效阻塞/归并/处置纯规则",
+      "gaps": "缺受控持久人工处置和关联报告，归并主问题重开需产品对拍。"
+    },
+    {
+      "id": "P1-AC15",
+      "scenario_summary": "模型失败仍人工处理",
+      "registered_result": "untested",
+      "code_support": "B 按动作降级/已有证据保存",
+      "gaps": "缺人工结论和问题提交入口，真实供应方失败未验收。"
+    },
+    {
+      "id": "P1-AC16",
+      "scenario_summary": "统一报告、安全导出",
+      "registered_result": "untested",
+      "code_support": "D ReportExport 规则；A 投影",
+      "gaps": "实际 export_report/制品实现缺失。"
+    },
+    {
+      "id": "P1-AC17",
+      "scenario_summary": "模板草稿与发布门禁",
+      "registered_result": "not_verified",
+      "code_support": "B 六模板/缺口/受控发布",
+      "gaps": "缺两个真实项目的用户修改/确认/消费证据。"
+    },
+    {
+      "id": "P1-AC18",
+      "scenario_summary": "档位上限与跳过",
+      "registered_result": "untested",
+      "code_support": "B 范围冻结；D quick/on_demand 规则",
+      "gaps": "缺三档真实报告/面板及逐步重跑；默认执行 C-15。"
+    },
+    {
+      "id": "P1-AC19",
+      "scenario_summary": "控制、重试、双入口与恢复",
+      "registered_result": "untested",
+      "code_support": "C 持久控制/幂等/定向失效",
+      "gaps": "retry/return_stage 缺入口；默认 C-15；真实宿主/停止未核实/H 与整用例统计链未验收。"
+    },
+    {
+      "id": "P1-AC20",
+      "scenario_summary": "半程修订与收窄",
+      "registered_result": "blocked",
+      "code_support": "B/C 保存修订、旧依据与拒绝规则",
+      "gaps": "机器台账 blocked；缺真实半程业务 UI 和 D 过期依据报告，不能改成 verified。"
+    },
+    {
+      "id": "P1-AC21",
+      "scenario_summary": "完成与有效验证、补确认、复用",
+      "registered_result": "untested",
+      "code_support": "B exact basis confirmation；D S/M 与报告纯规则",
+      "gaps": "C-01 没有保存 R；D-10/D 生产判定缺口；报告/面板计数与旧字节对拍欠缺。"
+    },
+    {
+      "id": "P1-AC22",
+      "scenario_summary": "业务结果与 A/B/C/D",
+      "registered_result": "untested",
+      "code_support": "D 唯一领域判定与 DTO",
+      "gaps": "纯规则已有；D-10 事实到规则不可靠，生产报告未接。"
+    },
+    {
+      "id": "P1-AC23",
+      "scenario_summary": "三档快速范围与单模块",
+      "registered_result": "untested",
+      "code_support": "B 档位/回归准备规则",
+      "gaps": "首次 quick 保守范围到实际执行/独立核验/报告仍需贯通。"
+    },
+    {
+      "id": "P1-AC24",
+      "scenario_summary": "漏必测/链路、多步骤聚合",
+      "registered_result": "untested",
+      "code_support": "B 发布门禁；C 依赖/聚合；D 规则",
+      "gaps": "默认核验缺失、R 无保存、D-10 必需证据/current 守卫；UI 待补事实欠缺。"
+    },
+    {
+      "id": "P1-AC25",
+      "scenario_summary": "非 Git 也可完成闭环",
+      "registered_result": "untested",
+      "code_support": "B plain 与省略仓库字段",
+      "gaps": "建项目/固定字节已有；C-15 和 D 无导出阻断完整 L1/L2/L3→报告，UI plain 真实对照未验。"
+    },
+    {
+      "id": "P1-AC26",
+      "scenario_summary": "三段信息与业务动作",
+      "registered_result": "untested",
+      "code_support": "D 面板/Trae 只读桥",
+      "gaps": "按钮禁用/业务详情空骨架，开始/控制/导出/计划/按需范围不存在真实用户流程。"
+    },
+    {
+      "id": "P1-AC27",
+      "scenario_summary": "同源 DTO/报告/事件",
+      "registered_result": "untested",
+      "code_support": "A 快照游标/事件；D DTO",
+      "gaps": "A 组件存在；面板无配对快照消费、报告未持久发布，重复/epoch/计数真实对拍欠缺。"
+    },
+    {
+      "id": "P1-AC28",
+      "scenario_summary": "全历史保留与备份迁移",
+      "registered_result": "untested",
+      "code_support": "A 清单/对象/闭包/活动守卫",
+      "gaps": "D 永久报告/复核/导出缺材料；未知发布产品恢复/全历史真实备份迁移/掉电未验。"
+    },
+    {
+      "id": "P1-AC29",
+      "scenario_summary": "独立本地复核",
+      "registered_result": "untested",
+      "code_support": "D LocalReview 纯对象/准确修订校验",
+      "gaps": "record_local_review 未注册、无受控人工保存/报告变更后新修订/含复核安全导出。"
+    },
+    {
+      "id": "P1-AC30",
+      "scenario_summary": "最小输入、无模型分析",
+      "registered_result": "not_verified",
+      "code_support": "B 显式 analyze_project/人工材料保存",
+      "gaps": "用户首次向导缺失；默认执行 C-15/L1 C-16；无模型到实际人工计划/运行欠真实证据。"
+    },
+    {
+      "id": "P1-AC31",
+      "scenario_summary": "范围与逐项人工授权",
+      "registered_result": "not_verified",
+      "code_support": "B/C 受控挑战、输入修订绑定；MCP 禁人工",
+      "gaps": "组件与安全守卫存在；受控 Trae 人工交互未实现，默认 C-15；两范围/改输入真实取证欠缺。"
+    },
+    {
+      "id": "P1-AC32",
+      "scenario_summary": "出站策略与关 AI",
+      "registered_result": "not_verified",
+      "code_support": "B ModelOutboundPolicy/安全投影/模型编排",
+      "gaps": "缺真实设置/首次确认/换目标交互；无 AI 的人工报告流程未闭合。"
+    },
+    {
+      "id": "P1-AC33",
+      "scenario_summary": "下一步与复制修复说明",
+      "registered_result": "untested",
+      "code_support": "C 未知不重放；D 问题规则",
+      "gaps": "primary_action/RepairBrief 生产投影及 copy_repair_brief handler 缺失；静态下一步不是原因驱动。"
+    },
+    {
+      "id": "P1-AC34",
+      "scenario_summary": "历史、隐藏、关闭重开",
+      "registered_result": "untested",
+      "code_support": "A 有限查询/保活/排空组件",
+      "gaps": "save_project_view_preference 和真实历史/修订 UI 缺失；真实 Trae 重开/键盘/索引异常链未验。"
+    },
+    {
+      "id": "P1-AC35",
+      "scenario_summary": "可携带证据包与安全失败",
+      "registered_result": "untested",
+      "code_support": "A 对象/投影；D 导出键规则",
+      "gaps": "无实际 export_report 制品，搬目录/跨机/附件摘要/排除清单/越界拒绝整体发布尚无法验收。"
+    }
+  ],
+  "acceptance_status_sha256": "2dfc7fcbe7e90c5cd0d5968b6d984b291a9a5350936b649898bcf64e6328efb7"
+}

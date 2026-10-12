@@ -1,0 +1,116 @@
+[
+  {
+    "path": "docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "c931a3a3413b65a6d7e45e288ee697ff85603d04a456c06e2a5a9ea7b4acae55",
+    "bytes": 10680
+  },
+  {
+    "path": "docs/现状.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "24a12595dc80bb98575750442fabe03d100ca55013ddee33c6897a988d23f2ef",
+    "bytes": 8490
+  },
+  {
+    "path": "docs/一期工程检查-A包.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "9b2b5da0c59c5a4d3c555b68df5f1ac7169252f17bf80779552b1205a905c522",
+    "bytes": 5434
+  },
+  {
+    "path": "docs/一期工程检查-C包.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "697b6e26489a13bb7ec6d0da283c1c2ffee1f2a154bbbc725ce8f49b37fade82",
+    "bytes": 5141
+  },
+  {
+    "path": "docs/一期工程整改/README.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "9b31d16c5d39250494f199e2d3a43d0855178ac0b15717db77703a35ff5ba574",
+    "bytes": 2224
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "0dbdd5d3f176013219166a54e90e5823842b414d245a2f7b56ba3a8a9896a222",
+    "bytes": 3503
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/动作解析器实施清单-2026-10-09.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "1eaedf80855f37ca0de888527474bd7147ab97bb6d3497f418834dfe79b26385",
+    "bytes": 3970
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "5fe844b9d24a95ccb4f346401e464c86ddb8448c6b012143bdca532d756c2309",
+    "bytes": 2104
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "204c0ee2bbee9df989aeddb45901392409f95225538208dba8670024b1311086",
+    "bytes": 3008
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "7042f4c6383c755636f9055357a6b1a8c22bc5b229eda474bbf58261ede9a802",
+    "bytes": 2623
+  },
+  {
+    "path": "README.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "8f2fdf2c696c46d094881b6c87d920a649c9cb56362c3719c8171c3675e38cb9",
+    "bytes": 5222
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "9ecc1cc0cc559ccb2bdcaca0e3f81489ee7ee5f41270c0a2de70159bdd9d7a00",
+    "bytes": 18416
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "4a50b089b3f953626985a6699c758ea414f04710fbba61a966afd2b6b1df3988",
+    "bytes": 133268
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "f44a1ff3d1034a1eabccedb92f0bc8b3a7ef180c37450fa8afe1bfd84891516f",
+    "bytes": 1585
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "735e14f8295fd0938f7c3109323d13e2b23c40c1f01d5264fb74b6bb7887b7ff",
+    "bytes": 19608
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "a21491d8c9b1b7564b9f076d659ba79b546f350c4e156ffe5da01e5db6cc0243",
+    "bytes": 101900
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "89990eb6b0c5966c82c28bebe876bb5547f6b679331351567d0ebc29694b7c83",
+    "bytes": 1670
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "431384e2f8ad94c2c528883ccc397116beab0a9da7d101707f23315ca8c2b4e3",
+    "bytes": 81508
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "git_restore_commit": "708439bf0152008ea981cfb89c68d64538b2e57d",
+    "sha256": "5c3ec5dc9364a8ad2e3bd7dbd09eb1f77f1dce7d0c6130745dc724bace9e2a9b",
+    "bytes": 1555
+  }
+]

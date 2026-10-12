@@ -3,27 +3,30 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.46"
+contract_version: "0.47"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
+  - "C-15/C-16：默认业务/技术源码快照及字段/目录错接，来源语法/多模块失败仍 verified，生产闭环未贯通"
   - "C-01/C-05：合法整用例复用资格与选择持久化/下游消费未闭合"
   - "C-03：默认多类业务核验配置/端口缺失"
   - "B-05/B-15/C-06：真实半程修订、授权和 D 双序列呈现待验收"
 next_owner: B/C
-next_action: B/C 补整用例复用保存与准确消费、默认业务核验配置；按真实半程流程验证修订/收窄/授权，D 接双序列。
+next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源事实消费；B/C 补整用例复用保存与准确消费、默认业务核验配置；按真实半程流程验证修订/收窄/授权，D 接双序列。
 ---
 
 ## 当前源码复核与下一动作（2026-10-12）
 
-本版 0.46 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+本次全源码完成性复核（文档起点 fix@708439b）更正前轮默认接线结论：真实保存材料经未替换默认解析器无法 prepare_execution（C-15），兼容字段替身下语法错/部分导入失败仍 verified（C-16）。组件已注入不等于可信默认链已贯通。[原脚本/实际输出及替身边界](../../../validation/p1-source-completion-20261012/README.md)与[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)分别说明；本次仅修实现状态/阻塞记录，字段签名/Schema/已存数据/历史确认保持，无数据迁移，不补签或标对拍完成。
 
-**已实现**：B 准备来源、准确输入/范围/环境内容身份和 C 默认 register/prepare/authorize/execute/start/control/runtime revision 链存在；不再要求重新做解析器或实际 LOAD 默认注入。
+本版 0.47 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
 
-**仍缺／优先动作**：PreparedRun/source_binding_digest 的原语义、生成 Schema/夹具保持；默认 LOAD 覆盖不免除构建/显式脚本最小启动及真实加载来源验收。预览/来源可读不授予 R/V。
+**已实现**：B 准备来源、准确输入/范围/环境内容身份和 C 默认 register/prepare/authorize/execute/start/control/runtime revision 链存在；不另建解析器；C-15/C-16 尚须修准确业务/技术来源桥和实际 LOAD/SYNTAX 事实消费。
+
+**仍缺／优先动作**：PreparedRun/source_binding_digest 的原语义、生成 Schema/夹具保持；来源 provider 的注入不证明 LOAD 有效，也不免除构建/显式脚本最小启动及真实加载来源验收。预览/来源可读不授予 R/V。
 
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 

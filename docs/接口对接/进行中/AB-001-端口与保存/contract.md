@@ -3,25 +3,28 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.39"
+contract_version: "1.40"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
+  - "C-15/C-16：默认业务/技术源码快照及字段/目录错接，来源语法/多模块失败仍 verified，生产闭环未贯通"
   - "A-19：干净锁定安装阻断"
   - "B-03/B-01：真实供应方故障、选定材料映射与可信人工产品路径未验收"
   - "B-05/B-13：实际半程修订和交付验证投影/下游呈现未闭合"
 next_owner: A/B
-next_action: 核对完整材料依赖和真实人工/供应方故障；接半程修订/交付验证投影及 C/D 实际消费；A 处理干净安装与剩余恢复。
+next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源事实消费；核对完整材料依赖和真实人工/供应方故障；接半程修订/交付验证投影及 C/D 实际消费；A 处理干净安装与剩余恢复。
 ---
 
 ## 当前源码复核与下一动作（2026-10-12）
 
-本版 1.39 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+本次全源码完成性复核（文档起点 fix@708439b）更正前轮默认接线结论：真实保存材料经未替换默认解析器无法 prepare_execution（C-15），兼容字段替身下语法错/部分导入失败仍 verified（C-16）。组件已注入不等于可信默认链已贯通。[原脚本/实际输出及替身边界](../../../validation/p1-source-completion-20261012/README.md)与[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)分别说明；本次仅修实现状态/阻塞记录，字段签名/Schema/已存数据/历史确认保持，无数据迁移，不补签或标对拍完成。
 
-**已实现**：来源固定/物化、模型/凭据/投影端口、受控确认/发布、准备保存、运行修订/驱动收窄已默认接线。prepare_execution 的生产解析器、入口/解释器/LOAD 来源与执行端口也已接通。
+本版 1.40 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
+
+**已实现**：来源固定/物化、模型/凭据/投影端口、受控确认/发布、准备保存、运行修订/驱动收窄已默认接线。prepare_execution 的解析器/入口/解释器/来源 provider 与执行端口已注入，但 C-15/C-16 阻断默认可信闭环。
 
 **仍缺／优先动作**：DEC-010 已按 CD-001 1.17 采用非破坏性实现：仅内部 expected_source_content_digest 改名，公开 expected_source_binding_digest 字段与 execution-facts/1.0 保持；旧 1.36 中“外字段改名未完成”预案不再是待办。实际供应方与完整业务 UI 未通过验收。
 
