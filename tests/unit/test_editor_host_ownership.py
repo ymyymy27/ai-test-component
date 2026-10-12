@@ -7,6 +7,7 @@ import pytest
 
 from aitest.interfaces.local import editor_host
 from aitest.interfaces.local.editor_host import EditorHost, WorkspaceInUse
+from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 
 
 @pytest.mark.parametrize("field", ["wait_timeout_seconds", "poll_interval_seconds"])
@@ -104,7 +105,11 @@ def test_rejected_live_connection_releases_sole_pipe_for_independent_cli(tmp_pat
     from tests.unit.test_cli_core_forwarding import cli
 
     identity = Workspace(tmp_path)
-    endpoint = acquire_endpoint(tmp_path, workspace_id=identity.workspace_id)
+    endpoint = acquire_endpoint(
+        tmp_path,
+        workspace_id=identity.workspace_id,
+        wait_timeout_seconds=REAL_CORE_WAIT_SECONDS,
+    )
     core_id = endpoint.instance_id
     endpoint.connection.close()
     real = make_pipe_connector(tmp_path)

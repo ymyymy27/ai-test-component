@@ -6,6 +6,7 @@ import sys
 
 from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.bootstrap import acquire_endpoint, shutdown_endpoint
+from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_initial_run_registration import register
@@ -22,7 +23,7 @@ def test_actual_stdio_inspects_saved_whole_case_via_same_core_without_business_w
     root = core.workspace.root
     sequence = core.unit_of_work.current_commit_sequence()
     core.lifetime_lock.release()
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     values = {
         "case_id": prepared["selected_case_ids"][0], "source_run_id": source.run_id,

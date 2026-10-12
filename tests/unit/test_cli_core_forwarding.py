@@ -13,6 +13,7 @@ from aitest.contracts.responses import Response
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.interfaces.local.core_client import CoreClient, CoreResultUnverified, read_command
 from aitest.interfaces.local.editor_host import CoreEndpoint
+from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 
 
 @pytest.mark.parametrize(
@@ -119,7 +120,7 @@ def test_cli_rejects_missing_workspace_without_creating_files(tmp_path):
 def test_actual_cli_doctor_and_dispatch_share_the_verified_core(tmp_path):
     root = tmp_path / "user-data"
     Workspace(root)
-    endpoint = acquire_endpoint(root)
+    endpoint = acquire_endpoint(root, wait_timeout_seconds=REAL_CORE_WAIT_SECONDS)
     endpoint.connection.close()
     identity_before = (root / "workspace.json").read_bytes()
     try:
