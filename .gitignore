@@ -18,6 +18,8 @@ build/
 # 它们**不被上面的规则覆盖**，会出现在 git status 里，有被 `git add -A` 误提交的风险
 # （本会话已实测：一次全量跑产生 2 个）。只锚定在仓库根，不误伤别处的同名文件。
 /tmp????????
+# 同为 TEMP 回退的残迹：smoke_wheel.py 的 TemporaryDirectory（前缀 aitest-wheel-）。
+/aitest-wheel-*/
 dist/
 .DS_Store
 Thumbs.db
