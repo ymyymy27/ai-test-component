@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.23"
+contract_version: "1.24"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,12 +13,16 @@ blockers:
   - "C-17/C-03/D-02：动态 R、准确独立预期/观察与业务配置仍缺"
   - "真实 Trae/业务关闭、恢复与完整安全便携制品未验收"
 next_owner: D/C/B
-next_action: 原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
+next_action: R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。
 ---
 
-## 当前实现修复（2026-10-13）
+## 当前续修与验证范围（76ab7d2 起点）
 
-现行版本：1.23；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
+R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+
+## 上一批实现修复（2026-10-13）
+
+现行版本：1.24；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -302,3 +306,11 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 1.17 来源核验期望侧语义澄清（2026-10-09，**非破坏性**）：按 [DEC-010](../../归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md) 裁定，SourceVerificationFact.expected_source_binding_digest 的**字段名与 aitest.execution-facts/1.0 冻结形状保持不变**；本合同澄清其含义是“本次来源核验所比对的**来源内容期望摘要**”，**不是** BC-001 第 6 节的 source_binding_digest（期望→实际路径映射摘要），二者不得混用；映射级比较归 start 准入。为消除歧义，C 侧**内部**类型（SourceCheckRequest、领域 ExecutionSourceVerification）的同名字段改名为 expected_source_content_digest，由 facts.py **显式映射**到冻结字段名；因此对外 DTO/Schema、生成 Schema 与已保存材料**均不迁移**，D 侧无需改动。FR/AC、reviewing/partial/not_run 不变。
 
 1.16复用当前材料（2026-10-08）：CORE-0011.78将同Attempt的后补核验/证据及实际消费祖先当前指针纳入旧源比对。改变为incompatible、缺材料保持unverified，不推导R/V；集合重排不改义，完整资格/选择及实际字节消费继续。D只消费共同核心准确结果，Schema及reviewing/partial/not_run保持。
+
+## 2026-10-13 后续补齐合同（76ab7d2 起点，实施与验证中）
+
+复用报告保存准确源执行快照引用与所采用 ReuseReference，证据集合包含已核对的整用例来源引用；导出仅从报告冻结的原目标/源快照读取对应证据，不回落最新源运行。缺来源引用或材料列缺口，身份不一致或重复冲突拒绝。动态环境/目标依赖仍须可信真实观察，不从配置或路径推断。此为既有一期功能15/报告架构03冻结输入的内部伴随记录，不改变旧公开 DTO，旧无来源材料仍可读但不给完整证据。
+
+新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限三种投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
+
+`select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 reviewing/partial/not_run，原 last_verified_commit 和确认记录保持。

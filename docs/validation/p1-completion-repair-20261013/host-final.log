@@ -1,0 +1,32 @@
+
+> aitest-trae@0.4.0 test
+> node --test tests/*.test.mjs
+
+✔ only exact successful receipts are accepted (103.4202ms)
+✔ unverified request receipt is refused as success (84.3642ms)
+✔ unverified protocol receipt is refused as success (89.3187ms)
+✔ unverified project receipt is refused as success (83.1684ms)
+✔ unverified missing_identity receipt is refused as success (90.5039ms)
+✔ unverified exit receipt is refused as success (77.2652ms)
+✔ unverified array receipt is refused as success (82.5745ms)
+✔ unverified result_array receipt is refused as success (79.3915ms)
+✔ unverified error_array receipt is refused as success (92.4721ms)
+✔ large_stdout is limited by UTF8 bytes (244.4933ms)
+✔ large_stderr is limited by UTF8 bytes (238.2341ms)
+✔ raw stderr is never copied into the outcome (77.0075ms)
+✔ timeout cannot become success (341.0717ms)
+✔ ensure requires zero exit and complete core identity (237.1951ms)
+✔ controlled refusal stays refusal and writes stay forbidden (79.3941ms)
+✔ invalid startup configuration and budget fail before spawning (0.2066ms)
+✔ host publishes configured scope and preserves request correlation (5.9023ms)
+✔ foreign project cannot reach the bridge (0.9617ms)
+✔ configuration changes reject the in-flight receipt and publish fresh context (0.7928ms)
+✔ missing project blocks scoped reads and panel disposal releases configuration watch (1.7292ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2191.5617

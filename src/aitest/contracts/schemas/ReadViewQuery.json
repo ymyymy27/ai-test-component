@@ -1,0 +1,143 @@
+{
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "delivery_id"
+            ]
+          },
+          {
+            "required": [
+              "revision"
+            ]
+          },
+          {
+            "required": [
+              "submission_id"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "view": {
+          "enum": [
+            "run",
+            "panel"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view",
+        "run_id"
+      ]
+    },
+    {
+      "not": {
+        "required": [
+          "run_id"
+        ]
+      },
+      "properties": {
+        "view": {
+          "const": "delivery"
+        },
+        "delivery_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view",
+        "delivery_id"
+      ]
+    }
+  ],
+  "properties": {
+    "view": {
+      "enum": [
+        "run",
+        "panel",
+        "delivery"
+      ],
+      "title": "View",
+      "type": "string"
+    },
+    "run_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\x00-\\x1f]"
+          },
+          "pattern": "^[^\\x00-\\x1f]*[^\\x00-\\x1f\\s][^\\x00-\\x1f]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Run Id"
+    },
+    "delivery_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\x00-\\x1f]"
+          },
+          "pattern": "^[^\\x00-\\x1f]*[^\\x00-\\x1f\\s][^\\x00-\\x1f]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Delivery Id"
+    },
+    "revision": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Revision"
+    },
+    "submission_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\x00-\\x1f]"
+          },
+          "pattern": "^[^\\x00-\\x1f]*[^\\x00-\\x1f\\s][^\\x00-\\x1f]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Submission Id"
+    }
+  },
+  "required": [
+    "view"
+  ],
+  "title": "ReadViewQuery",
+  "type": "object"
+}

@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.84"
+contract_version: "1.85"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,12 +13,16 @@ blockers:
   - "C-17/C-03：动态资格与默认核验仍缺可信输入；未知不能授予 R/V"
   - "A-05/A-07/D-06：跨进程维护、未知活动/恢复与真实宿主用户流程未闭合"
 next_owner: A/B/C/D
-next_action: 维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。
 ---
 
-## 当前实现修复（2026-10-13）
+## 当前续修与验证范围（76ab7d2 起点）
 
-现行版本：1.84；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+
+## 上一批实现修复（2026-10-13）
+
+现行版本：1.85；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -447,3 +451,15 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 2026-10-07（1.55）：命令/回执/MCP和永久JSON明确只接受UTF-8字节，不使用JSON库的UTF-16/32自动探测。字符串值、键和核验冻结范围须为可严格UTF-8编码的Unicode字符；未配对代理字符拒绝，不替换或丢弃来修饰原依据，合法转义代理对解码为对应字符后保持可用。拒绝在实际查询/派发及登记之前，错误回包使用静态安全身份，后续合法帧仍可处理。既有冻结JSON比较语义与DTO不变，旧不合格材料保留并阻塞，不悄悄转换编码；此项不增加执行、验证或AC通过事实。
 
 2026-10-08（1.57）：canonical current读取对同一准确manifest摘要只做一次既有结构/目录路径校验，再按完整规范JSON字节比较指针与该manifest派生的唯一预期指针；bool/float不得靠Python等号冒充int，未知/缺字段、根/摘要/游标不一致仍拒绝。不能用改写index_root的清单副本重复遍历全部业务类型目录来验证别名。manifest读取摘要、工作空间身份、原路径链接检查及verify_material的完整材料验证保持，不改变保存格式或恢复条件。
+
+## 2026-10-13 后续补齐合同（76ab7d2 起点，实施与验证中）
+
+复用报告保存准确源执行快照引用与所采用 ReuseReference，证据集合包含已核对的整用例来源引用；导出仅从报告冻结的原目标/源快照读取对应证据，不回落最新源运行。缺来源引用或材料列缺口，身份不一致或重复冲突拒绝。动态环境/目标依赖仍须可信真实观察，不从配置或路径推断。此为既有一期功能15/报告架构03冻结输入的内部伴随记录，不改变旧公开 DTO，旧无来源材料仍可读但不给完整证据。
+
+新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限三种投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
+
+`select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 reviewing/partial/not_run，原 last_verified_commit 和确认记录保持。
+
+同批只读 MCP 工具 aitest_read_view 仅在 doctor 广告 read_view 时出现，参数范围与核心一致，项目/绑定身份由原 MCP 上下文固定，禁止 arguments 覆盖。每次读取前后仍核对绑定准确修订；不授予人工动作，不扩充写白名单。外层 commit_id/event_cursor 是整个读取窗口的边界，内层 snapshot_commit_id/snapshot_cursor 仍为执行事实身份，不能相互替代。
+
+2026-10-14 同批参数合同补证：生成 ReadViewQuery Schema 用 oneOf 明确三种投影的必填/禁止组合，身份不得为空白或含控制字符；标准 JSON Schema 的尾换行宽松锚点不能扩大核心接受范围，增加显式否定控制字符。14 个向量与模型一致，接口/旧记录/人工边界不改，局部证据见[续检](../../../validation/p1-completion-repair-20261014/README.md)，不新增真实对拍。

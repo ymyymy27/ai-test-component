@@ -1,6 +1,6 @@
 # 跨包接口对接规则与总台账
 
-版本：2.86
+版本：2.87
 
 更新日期：2026-10-13
 
@@ -190,12 +190,12 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.84 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.44 | A/B partial | not_run（局部自动化检查另记） | D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。 |
-| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.49 | B/C partial | not_run（局部自动化检查另记） | 选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。 |
-| [AC-001](进行中/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | reviewing，1.8 | A/C partial | not_run（局部自动化检查另记） | 维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。 |
-| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.6 | B partial；D partial | not_run（局部自动化检查另记） | 后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。 |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.23 | C/D partial | not_run（局部自动化检查另记） | 原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。 |
+| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.85 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.45 | A/B partial | not_run（局部自动化检查另记） | 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 |
+| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.49 | B/C partial | not_run（局部自动化检查另记） | 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。 |
+| [AC-001](进行中/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | reviewing，1.9 | A/C partial | not_run（局部自动化检查另记） | 已知持久检查点重启写闸门已补；继续完整来源/核验闭包、独立备份位置、未知活动与实际 generation 迁移/恢复。 |
+| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.7 | B partial；D partial | not_run（局部自动化检查另记） | 显式宿主上下文/read_view 主屏只读消费已接；继续受控业务动作、主动作/工作台/设置、交付验证投影与真实 Trae。 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.24 | C/D partial | not_run（局部自动化检查另记） | R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 
@@ -267,3 +267,7 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 ## 13. 当前实现修复（2026-10-13）
 
 按项目主责分册落实 A-20、C-18、D-11—14，C-17 误计/统计与完整依据闸门已改，动态资格无真实输入继续拒绝。[本轮验证](../validation/p1-boundary-fixes-20261013/README.md)记录代码、命令和明确夹具边界。六合同/四交付说明已同步，保持 reviewing/partial/not_run，不改旧确认与 last_verified_commit。执行快照三字段沿用只读核对，修复选择错误指纹；报告伴随引用可兼容读旧材料但缺口不能回落当前运行。
+
+后续补齐：AB 1.45 同次有限页/全视图外层配对与准确交付提测关联；AC 1.9 持久迁移检查点跨重启写闸门。CORE 1.85 增加协商式 read_view 与只读 MCP 工具，人工 select_case_reuse 仍不得由 relay 代签；局部证据不升为真实对拍。
+
+2026-10-14 补证：同批 ReadViewQuery Schema 的有限组合/控制字符与模型对账，桥接拒绝不照抄 stderr 代码；3.11/3.12 子套件与三环境锁定安装已补，全量新批次及前批中断见[续检](../validation/p1-completion-repair-20261014/README.md)。局部检查不替代对接状态或签署。

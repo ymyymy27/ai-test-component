@@ -6,17 +6,21 @@
 
 - 判定**只算一次**：调用 D 侧 `SavedReportService.live_decision`（报告与面板共用同一次领域判定），
   再经 `interfaces/dto.py` 的纯投影函数生成 DTO；
-- **不写任何记录**：只读已提交事实与冻结准备，不新增动作、不改协议；
-- 快照与事件配对（§2/§4）由宿主按 SnapshotEnvelope 的 `snapshot_cursor` 继续调 `events`，
-  本模块只负责"同一已提交边界"的视图读数（`snapshot_commit_id`/`snapshot_cursor` 原样带出）。
+- **不写任何记录**：只读已提交事实与冻结准备，协商式 `read_view` 暴露有限选择器；
+- 外层返回读取期间未变化的全视图提交/事件边界，供宿主续读；DTO 内的执行事实快照
+  标识保留原义，不把它当成整个视图的事件游标。
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
+from aitest.application.ports import RecordQuery
 from aitest.application.project.serialization import delivery_from_payload
 from aitest.application.review.saved_reports import SavedReportService
+from aitest.contracts.commands import Command
+from aitest.contracts.read_views import ReadViewQuery
 from aitest.interfaces.dto import (
     DeliveryViewDTO,
     PanelViewDTO,
@@ -44,6 +48,50 @@ class CommittedViewReader:
         self._decisions = decisions
         self._reader = reader
         self._records = records
+
+    def dispatch(self, command: Command) -> Mapping[str, object]:
+        """Finite DTO query with a single verified outer view/event boundary."""
+        project = command.project_id
+        if not isinstance(project, str) or not project.strip() or len(project) > 128:
+            raise ValueError("read_view requires an explicit project")
+        selector = ReadViewQuery.model_validate(command.parameters)
+        view = selector.view
+        identity = selector.run_id if view in {"run", "panel"} else selector.delivery_id
+        assert identity is not None
+        boundary = self._boundary(project)
+        result: RunViewDTO | PanelViewDTO | DeliveryViewDTO
+        if view == "run":
+            result = self.run_view(project_id=project, run_id=identity)
+        elif view == "panel":
+            result = self.panel_view(project_id=project, run_id=identity)
+        else:
+            result = self.delivery_view(
+                project_id=project,
+                delivery_id=identity,
+                revision=selector.revision,
+                submission_id=selector.submission_id,
+            )
+        if self._boundary(project) != boundary:
+            raise ValueError("the committed view boundary changed while reading")
+        return {"view_type": view, "view": result.model_dump(mode="json"), **boundary}
+
+    def _boundary(self, project_id: str) -> dict[str, object]:
+        query = getattr(self._reader, "query", None)
+        if not callable(query):
+            raise ValueError("committed view/event pairing is unavailable")
+        page = query(RecordQuery(project_id=project_id, limit=1))
+        values = {
+            name: getattr(page, name, None)
+            for name in ("commit_id", "event_cursor", "generation", "index_version")
+        }
+        for name in ("commit_id", "generation", "index_version"):
+            value = values[name]
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError("the exact committed view/event boundary is unverified")
+        cursor = values["event_cursor"]
+        if not isinstance(cursor, str) or not cursor.strip():
+            raise ValueError("the exact committed view/event boundary is unverified")
+        return values
 
     def run_view(self, *, project_id: str, run_id: str) -> RunViewDTO:
         """运行视图：事实 + 同一次领域判定 → `RunViewDTO`（含快照边界与配对游标）。"""
@@ -98,13 +146,18 @@ class CommittedViewReader:
             exact = current
         if type(exact) is not int or exact < 1:
             raise ValueError("the delivery view requires a positive record revision")
-        record = self._reader.read(
-            aggregate_kind="delivery", record_id=delivery_id, revision=exact
-        )
+        record = self._reader.read(aggregate_kind="delivery", record_id=delivery_id, revision=exact)
         payload = record.payload
         delivery = delivery_from_payload(payload)
         if payload.get("project_id") != project_id:
             raise ValueError("saved delivery belongs to another project")
+        if (
+            delivery.delivery_id != delivery_id
+            or record.record_id != delivery_id
+            or record.revision != exact
+            or record.aggregate_kind != "delivery"
+        ):
+            raise ValueError("saved delivery does not match its exact record identity")
         submission: dict[str, object] | None = None
         if submission_id is not None:
             if not isinstance(submission_id, str) or not submission_id.strip():
@@ -122,4 +175,10 @@ class CommittedViewReader:
             submission = dict(submission_record.payload)
             if submission.get("project_id") != project_id:
                 raise ValueError("saved delivery submission belongs to another project")
+            if (
+                submission.get("submission_id") != submission_id
+                or submission.get("delivery_id") != delivery_id
+                or submission.get("delivery_record_revision") != exact
+            ):
+                raise ValueError("saved submission does not bind the exact delivery revision")
         return delivery_view_dto(delivery, project_id=project_id, submission=submission)

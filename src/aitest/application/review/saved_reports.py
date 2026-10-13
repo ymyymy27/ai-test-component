@@ -442,6 +442,14 @@ class _ReuseReading:
         return {
             "candidates": self.candidates,
             "reused": sorted(self.outcome.reused),
+            "references": [item.model_dump(mode="json") for item in self.outcome.references],
+            "source_snapshots": [
+                {
+                    "run_id": item.run_id,
+                    "snapshot_ref": SnapshotContentRef.of(item).model_dump(mode="json"),
+                }
+                for item in self.outcome.source_snapshots
+            ],
             "denials": [
                 {"case_id": case_id, "reasons": list(reasons)}
                 for case_id, reasons in self.outcome.named_reasons
@@ -509,8 +517,8 @@ class SavedReportService:
             basis_proof=basis_proof,
             override=case_basis,
         )
-        #: 整用例复用候选来源（`(project_id, run_id) -> 已保存引用`）。生产端保存动作
-        #: 仍缺合同冻结名称，因此默认 `None`：报告把 R 记为"候选来源未接"而不是空结论。
+        #: 整用例复用候选来源（`(project_id, run_id) -> 已保存引用`）。选择动作
+        #: 已在默认装配接入；缺端口的组件实例仍用 `None` 并明确登记未接，不伪造空结论。
         self._reuse_references = reuse_references
         self._reuse_basis = reuse_basis
 
@@ -650,7 +658,7 @@ class SavedReportService:
                 report_id=report_id,
                 context=context,
                 decision=decision,
-                evidence_refs=tuple(sorted({item.evidence_id for item in facts.evidence_refs})),
+                evidence_refs=self._report_evidence(facts, reuse),
                 issue_revisions=tuple(sorted((issue.issue_id, issue.revision) for issue in issues)),
             ),
             created_at=self._clock.now(),
@@ -677,6 +685,35 @@ class SavedReportService:
             revision=snapshot.content_revision,
             source_sequence=live.source_sequence,
         )
+
+    def _report_evidence(self, facts: ExecutionFacts, reuse: _ReuseReading) -> tuple[str, ...]:
+        evidence = {item.evidence_id: item for item in facts.evidence_refs}
+        outcome = reuse.outcome
+        if outcome is None or not outcome.reused:
+            return tuple(sorted(evidence))
+        if {item.case_id for item in outcome.references} != outcome.reused:
+            raise ReportGuardRefused("qualified reuse lacks its exact saved references")
+        sources = {item.run_id: item for item in outcome.source_snapshots}
+        if len(sources) != len(outcome.source_snapshots):
+            raise ReportGuardRefused("qualified reuse has conflicting source snapshots")
+        for reference in outcome.references:
+            source = sources.get(reference.source_run_id)
+            if source is None or source.project_id != facts.project_id:
+                raise ReportGuardRefused("qualified reuse source cannot be frozen")
+            source_evidence = {item.evidence_id: item for item in source.evidence_refs}
+            for identity in reference.evidence_refs:
+                item = source_evidence.get(identity)
+                if (
+                    item is None
+                    or item.project_id != facts.project_id
+                    or item.run_id != source.run_id
+                ):
+                    raise ReportGuardRefused("qualified reuse evidence belongs elsewhere")
+                previous = evidence.get(identity)
+                if previous is not None and previous != item:
+                    raise ReportGuardRefused("frozen evidence identity has conflicting sources")
+                evidence[identity] = item
+        return tuple(sorted(evidence))
 
     def _decision(
         self,

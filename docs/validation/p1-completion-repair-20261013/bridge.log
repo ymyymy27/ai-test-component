@@ -1,0 +1,24 @@
+✔ only exact successful receipts are accepted (101.5091ms)
+✔ unverified request receipt is refused as success (85.8043ms)
+✔ unverified protocol receipt is refused as success (88.8943ms)
+✔ unverified project receipt is refused as success (91.1849ms)
+✔ unverified missing_identity receipt is refused as success (95.6095ms)
+✔ unverified exit receipt is refused as success (90.5884ms)
+✔ unverified array receipt is refused as success (88.0637ms)
+✔ unverified result_array receipt is refused as success (78.6547ms)
+✔ unverified error_array receipt is refused as success (81.177ms)
+✔ large_stdout is limited by UTF8 bytes (225.4399ms)
+✔ large_stderr is limited by UTF8 bytes (221.3427ms)
+✔ raw stderr is never copied into the outcome (79.1763ms)
+✔ timeout cannot become success (337.943ms)
+✔ ensure requires zero exit and complete core identity (241.1046ms)
+✔ controlled refusal stays refusal and writes stay forbidden (77.4128ms)
+✔ invalid startup configuration and budget fail before spawning (0.2173ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2947.0961

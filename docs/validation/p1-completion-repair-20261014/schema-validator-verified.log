@@ -1,0 +1,118 @@
+[
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r"
+    },
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "panel",
+      "run_id": "r"
+    },
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d",
+      "revision": 2,
+      "submission_id": "s"
+    },
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d"
+    },
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "run"
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": null
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r",
+      "revision": null
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d",
+      "run_id": "r"
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d",
+      "revision": true
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r\n"
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": " "
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r",
+      "latest": true
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "other"
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+    },
+    "model_accepts": false,
+    "schema_accepts": false
+  }
+]

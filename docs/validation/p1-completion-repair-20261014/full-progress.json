@@ -1,0 +1,10 @@
+{
+  "recorded_at": "2026-10-13T18:08:28.575979+00:00",
+  "state": "running",
+  "total_collected": 5297,
+  "completed_progress_symbols": 1957,
+  "failed_progress_symbols": 1,
+  "skipped_progress_symbols": 5,
+  "next_file_by_collection_order": "tests/unit/test_default_runtime_actions.py",
+  "scope": "Console progress only; no full-suite verdict or failure diagnosis before exit/JUnit."
+}

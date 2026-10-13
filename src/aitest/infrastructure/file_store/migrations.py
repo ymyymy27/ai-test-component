@@ -305,7 +305,27 @@ class FileMigrationManager:
                 "unknown_applied": sorted(applied_ids - known_ids),
             },
             "plans": plans,
+            "maintenance_reason": self.maintenance_reason(),
         }
+
+    def maintenance_reason(self) -> str | None:
+        """Persisted uncertain steps block ordinary writes across core restarts.
+
+        Prepared step files deliberately remain after success; the durable registry
+        distinguishes those from a forward operation whose result is still unknown.
+        This only reads progress and never automatically replays a migration.
+        """
+        applied = self._load_registry()
+        for path in sorted(self._steps_dir.glob("*/*.json")):
+            state = _load_json(path)
+            if state.get("plan_id") != path.parent.name or path.stem not in _BUILT_IN:
+                raise MigrationError("迁移检查点身份无法核实，拒绝新业务写入")
+            status = state.get("state")
+            if status == "rollback_pending" or status == "prepared" and path.stem not in applied:
+                return f"migration recovery required: {path.parent.name}/{path.stem}"
+            if status not in {"prepared", "rolled_back"}:
+                raise MigrationError("迁移检查点状态无法核实，拒绝新业务写入")
+        return None
 
     # ----- plan -------------------------------------------------------
 

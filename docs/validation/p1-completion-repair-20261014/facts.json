@@ -1,0 +1,12 @@
+{
+  "modules": 235,
+  "lines": 72887,
+  "nodes": 5297,
+  "mypy_files": 249,
+  "actions": 61,
+  "python": "3.13.0 (tags/v3.13.0:60403a5, Oct  7 2024, 09:38:07) [MSC v.1941 64 bit (AMD64)]",
+  "platform": "win32",
+  "phase_catalog": 56,
+  "test_files": 353,
+  "test_lines": 81163
+}

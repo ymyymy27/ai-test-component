@@ -1,0 +1,408 @@
+[
+  {
+    "path": "docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "777652e6c9ce04a7e947c25b90c2f77aa96ed6c18025594dfacc884a20afa73e",
+    "current_sha256": "3375c88aab72f01f1e8805694942f2161bb795162828176a37f16b699f14b44e"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "4c74f1298087b52496e208691462c3085c6340e118a13ea0c34996fa363897ed",
+    "current_sha256": "dba0157e8000a8ed70b596ca7ddd32b286dae5e0199729bcb468a6ed39b51394"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/A包完整提交闭包整改设计-2026-10-04.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "f09e347f45418c33d9e03adf31cda3787bbf27d60172f2b342c34b630c70a043",
+    "current_sha256": "8b7b8f7a284121c3054e7c0660459d3531c44e93ad56d021c16177d2bba0593a"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/动作解析器实施清单-2026-10-09.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "d5a3f920bc83e13c2c8e2ff1d0f2e3864e33556ad4078d2750e2d902f1c4054a",
+    "current_sha256": "77b34762c8f6d0bb146d96cacb11298a06b1afa89b6599f6ebd674f178e7edd1"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "fb705fbad20067392d0f32b4e95442f1adf6b99e0a9ec49cf0c9ab918ceb6373",
+    "current_sha256": "62fc4facd7c1b806fd069e6ac01053f325b1a6bde16c3e824f09eb6ef503201d"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "37e07208287038be882969f029a1b9f9f2a1a733dfd73e56159e45e00e201d6c",
+    "current_sha256": "b56185dcfaba28ba40ddd0e9026e4597dd54f0fbbdf756500436b7b2827c7c1c"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "5051b9a83ddcf4358c46a2b026b6f4234ffc07337764a2e858167848d6b71ecf",
+    "current_sha256": "faabaec396e053d7403afdecc3f3901c0dc76460bc18e62a5734a0a10f8d56fd"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "5275227f4f20e51529e59daaca442dc00c6f7d3f761308fb07fc096ef3d0aeb0",
+    "current_sha256": "044dd8e9114c855de7a7c331f484fb39f4e9b7c594a363a693fe60e30315c142"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "25fceeb7246be5ac7894cdc01dd0419d35d33fa4df2f9e2e51ff7b16a094b7cb",
+    "current_sha256": "907924a6c653ab5aa5186c08851855a71207baba2beea3c75e6497c046cafe14"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "388f55007a1c01e90b690a0ba172ded427dfccb3ef2b81a12ac4cd736c9b4598",
+    "current_sha256": "f258f0464c23c99e18aeac85cc9681c3f242b912d5519c1ae8c5493847f126a6"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C0105整用例复用消费规则.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "4779815dfa2a4a62d14f48de495e783933914e4e65455c99e14343efdd070c51",
+    "current_sha256": "035c195732c5c5c5e7301a641317bdcdcc8a8444584c6dbc18e85f57c084289b"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03声明点按路径细分.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "8d37b0f287d17a0cb419e3f13794cfb8844837347f9ad9592335bf84f6a7ae6b",
+    "current_sha256": "f8a12d6849f67c78446b3ec3880cda0f6ae6561d9b1b44478f5f5b6eef6fd212"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03核验声明点自述.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "5a41423e5b120fe781f722b65c89a462169c65aed66305c02e81f7320b7c6982",
+    "current_sha256": "16b5346641f092d66b83f47f0898995ed46759ffe9b7a481e8bf8a3c8d3756a6"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控人工补证入口.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "eab6a5aa7ff3fe0804e73cd9d1c2d0308d64921a1f320f8d59a84f33e09f527d",
+    "current_sha256": "88971d6959a92251e0eb7c11e7b0b6c256258e494127700cfdfb7b6417c45b3f"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控备份入口backup.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "e0e0cd3a709a0ab707a48644dc7bdd18adf4c3f7278ee0a6704789ff7ce6307b",
+    "current_sha256": "1e10a129d82fe49ca1d6762a06e5d47c11fd953d7a15d983c2c600533ea7137f"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C备份登记与恢复入口.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "acbd01fb4bfbf0c95f147f8fcec1dfc9a7e066170cfb1384c7eeeef342fbfaeb",
+    "current_sha256": "58debd5bcbe4ef4908386ec230491891fb3bb1c03619290cc35dbf5c873d13c3"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C结构迁移入口与维护窗口.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "bc516fed83b7feea24644a5e2b5384ba00494efbe096420d33af3adf0c5be149",
+    "current_sha256": "7b7366bbd10f3cae79363880b7da9dd9da9c770902f1c915acdfbdc70602484d"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C重试入口retry-step.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "09460438dfb0e359a1045aa0e7f753e16d9404147f7218fd6bce17cfd5905b4f",
+    "current_sha256": "f4781a7e1e5a84cb117db1858ecfe9dd34755f0deb7f0909f05bd078caa1a2bf"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D02断言结果生产者.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "8d96b3b521ea505fd850f18737cd4bc77d127292d2914cd0e59f895593acedb5",
+    "current_sha256": "6da8c09933561638d2a4d1d65165d58d20c47521dedfea42800adce58650353d"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D导出安全与可携带包验证.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "7e8374b2bda4d5906068799ec1c155befb4d1911e3ab7d63fbcf07fda0978c2e",
+    "current_sha256": "29b854d174d4b92e70486b1555466f55a115f69ec0db67a47c44ea12aea842b4"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板只读业务投影.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "6d24278f85fbe3d2e26750d28be8ad87496239400b9ae02dbb1ed826216763d8",
+    "current_sha256": "871e2873c1f01aa902698e930ac27f04517c8d466723f3ec12a191fa94fb318f"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板复测简报只读视图.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "830cdfb01f01630d81ac9d7b3fa0f90e4ab477a8616a542f8979fd0c54e94a8e",
+    "current_sha256": "7c15d3832c9ebc3d4e977f60fdeff108d2af60da34a3931d12192483f9678bac"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板已提交事件增量续读.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "bdbd50b13394a6bbd0053247a059f691c1d4774eca42f2828be7f71ffeb8d719",
+    "current_sha256": "0bc3d3578550d01305381c3562c0259a1bee0a1815e98250cd85dd93c2630c0e"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板问题详情业务闭环.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "6d8ea306eaf9907b6e65827b2e70abf940ca62443ae20cf28e932cf634d872e9",
+    "current_sha256": "dee810e86003cf8c971994ff5119f7b18c568996ce9f526a526b6555020d7ace"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02交付说明视图.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "8da93981e064f54b6e5167501a72d1d42db7309ddae2dd9ec657e04cf0da5316",
+    "current_sha256": "57a1268aeeba153d85e4622c00b6fc57c39ed62e7b823ce81ca86b5f7e249f57"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02核验状态与自述分列.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "059176594049fc76ab5e76d4879f19ca53fef3f7a129415ddb6ffd5e4d998be9",
+    "current_sha256": "9ad4bc1450998f904d9935e494a3e7876ea2a79b93b862cd1bb99a51cf7c1297"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-request-regression与return-stage.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "eea002d6e2417f09df53a746bec4eab0dac3e706f4ea88ad6522c52756b25644",
+    "current_sha256": "94fca2fcb06abc30908d4ae02e42813f1c535261a9931145163affed930770a9"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-列表与事件配对边界.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "cd206b686153e0061cda26bd34ba84050b2a0921a6480dd51b7bd1810918093f",
+    "current_sha256": "311c79cc16eee859a8474e4ecba3f494d9a52a1d3ced157d3b833564001250e2"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用保存侧收窄.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "cdbae0732b218389281c2361d7de467f6925626d5eb63cd9ea60179e8e02f7fc",
+    "current_sha256": "df5b6b09103034bad6b5e428a6ef8a98829d9513ebd7042da05fca38ec259771"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用选择动作.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "0ffee56e49f4d0f10cd77d61ed18138fce9a320f7f9108e8a3b68aae74cda797",
+    "current_sha256": "6d5adb936c792272effebd0301ceec69762136dfc60aa94fd955ebe247a7dae5"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-对象分块与按需范围读取.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "ece2ec0fc944e89d68f903e9b2e496add147659fc820088021c89f283f1f3842",
+    "current_sha256": "914ba95b02c2c06d5d4f7944b6a6e9bba1d76cdbbf08c6bcf10106634317f30e"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-迁移前备份可追溯性.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "7e949ffeb421c36f15aa873c3d6672faa632ca0b35ebcdaf6906be5b41ae4c06",
+    "current_sha256": "8a7f9dcc71379875fcf8fbfc8c4df208d17d825c86636e4913090a76dd0cf2ff"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-运行视图DTO与只读接缝.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "e5958675cda61ba30da1b44a2513bb1dc39ff74b743f3176d8eb20e341dec3d4",
+    "current_sha256": "fcff49ce1b50b48f8b6ca8b1b7f811ba8fd1d962e16662aa35e74a5eb5dbbf51"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-面板主屏当前段与情形事实.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "e2ad7c717ac931099eaddf9767ae6f3fae7e59f2b6fb150fbaf0961bf2ca2ec1",
+    "current_sha256": "6ea30171c3f0842bba16243fe0fa82f730d596bb0bf2982785a2a8ee7d1c47b0"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "a393124de32ab004371522c49f45716a01b53d42c288b63a211bca7c1810ea1e",
+    "current_sha256": "8ea8a0109d6a6b0429a0c571d26bf4bc78dbcfd6609058f54336218ccdbe0bcc"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "a90f004484ec0a0060129583d7fe287540e69066ac3c21c6db1d783fccacdf5c",
+    "current_sha256": "9f32eb423b464474b83f90baeaf7832fe871da77110bd4e3a6d7456b9a2c676e"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/一期七项边界代码修复-2026-10-13.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "ddaa25629d48e3c7d36a9ca79d39d30dea03867901dcbf68b340420f0e0dd46c",
+    "current_sha256": "4d7b464bdb3a8ab57bb261ee79d360dbb1d70b4610492702e44d1f3556b701fb"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "79be7e2a017c1db80d7628768e19b8ce5b6ea9867f4c83e88c5d1db353b7bd65",
+    "current_sha256": "59f9b2f47e8d2c1e0e39093009627e0aae12e7d8a8d860929c16a1c13212bd17"
+  },
+  {
+    "path": "docs/一期工程整改/05-待裁定/2026-10-13-剩余合同缺口与所需决定.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "294e0a9416ccfcf5800d480717ccdad98cbab40e5e631384ea0c7537001bb50d",
+    "current_sha256": "39ddaad2aed03a82594da63c869dc4aa05eeb0e23ce01c8fccb90d74e90e86b5"
+  },
+  {
+    "path": "docs/一期工程整改/06-完成度审计/2026-10-13-目标项逐条完成度审计.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "3f87743847f49d00f5759a3cb7f649e651061e9fe56195105765de1825550467",
+    "current_sha256": "753af530af0185379c0143cbcdf4ca75a26184c9f4939e6c768b94ab7aafd2e5"
+  },
+  {
+    "path": "docs/一期工程整改/README.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "9a5b78883c1edfca5c1643e50270ca0c91cedf95d59cb8b80f03a6f2f83ce0b9",
+    "current_sha256": "b9976f21722c9e4121b547da7da72d421d8213df01549f2b6a5300ba75189bb3"
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-12.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "466789a81759c4205a6d098b54edae97084a079fbd1ad6087205ed3c70d50616",
+    "current_sha256": "a71bd27a070293a98fc90976dd1833afc723d627edbdd044b6d42743f93455c0"
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-13.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "3016e851fb6be0628a32e38c95d64a3cc2f82e642be7f340fed96f143a733406",
+    "current_sha256": "be6438ef3bb3e630e8e071788f4298508d0dac7f7baec9f81f826f5e18cb2d07"
+  },
+  {
+    "path": "docs/一期工程检查-A包.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "4f9cc6280edce5c0a3f4c786a00e4afb9a30ea2b398711d26701acaada1d06cd",
+    "current_sha256": "92fa975532d45a14b4113375ad78b29e7e121c993103e6c653c0ceca2767082f"
+  },
+  {
+    "path": "docs/一期工程检查-B包.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "7f43c480f57d183ea78aceed43b7f70977bad0890863668c4a0ed6f0674a9cdf",
+    "current_sha256": "118f0eb3ba6470664d9cc19aefe31094461366341a2de1ab667d929bdaa06472"
+  },
+  {
+    "path": "docs/一期工程检查-C包.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "96739072d33b3990e278365553356d04367cc8cff6d20e619054a148f58a544c",
+    "current_sha256": "4272b80db8ef1a10f963bc868c8bb4c9b58411bd8c81d712622881308052b723"
+  },
+  {
+    "path": "docs/一期工程检查-D包.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "cdce315c5bd7224f6fc96d44fa4966d02e93da2a7bc7bf54dd859e28a937309c",
+    "current_sha256": "aadf3b6858196e5b71fb79404884c51180cb20ae0549fe16a0f458c5c094c7e9"
+  },
+  {
+    "path": "docs/修改日志/2026-10-14-一期欠缺边界续修与检查.md",
+    "disposition": "added",
+    "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
+    "baseline_sha256": null,
+    "current_sha256": "ac0642a4747e9ab5e7c3a5c11df4d8740c8ba17bd7a7f2ace12f64ff3279ff48"
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "54bbd2c67a46c653f98fd04ee58e2b8c8e733b0d7dfaa6a55efaa72354c4d78e",
+    "current_sha256": "a857625ddfaa1c63318b1d450fda54f4ce905bc339564cace4f7befbb007b2fb"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "28a81ef67b5a92f7341cb5aaf1ba48dd7850d475d5a28f3f99eafea67d1b4325",
+    "current_sha256": "f40e49a9639f0976287c57695f2fed575e6e627056a05f13e9c4d5fd76b27165"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "d0c100efca9e2111875cc10ab042fcfcf9795b61a7c920df5adef3c11e2b5347",
+    "current_sha256": "080938cffde1999979b0c5a19dc29e7ca4a0926011371cf369d2ebd58a4aab84"
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "b73d92616d0a0a1e37e5880ba04690e666355088750da283a0b381684b23e617",
+    "current_sha256": "52f312ddb01d669d615bbb872cef6d926221efff529a19e4a123127a932710b5"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "acc64efbf5be98030f4c7edb4879638e98daf4ad29ff8f74afd910f537d15217",
+    "current_sha256": "74698a03d3c920e3b6eef34d8253968c71e2c19c1130633f5ffe970ee52bb1c5"
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "ec2c8e26cc10329261484a0fb56c202d25b4e4b794b449343ed0b265eccd8646",
+    "current_sha256": "05841a2377c6e00d26053f7c27e4b8ce1aa2ed112ef00cac3a138b51155c2c94"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "f3b71c1c556dde433ac94a19f76392d04a2f145bcfb7214108cf0fc7e969d8f5",
+    "current_sha256": "856e1dedbdbdaff8fb7d4a5d7271077a1901fd0c4b1d4746e4e223d1bb1ae61b"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "71f9409fae843e5edfaa88f4bd4314233f19199d6ea07a0c03c3e99ed52318df",
+    "current_sha256": "b7b788c9326f5c1efc214744b2c1d2af034859c9dcf619d6174ee39b26929349"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "55bff4a15e0f01b08955b47267f2a9e2814def68cfa2f69bce9978d237cdc51b",
+    "current_sha256": "f697d1c655f49e97c612bdd18da9fbcabaf1ff6648c35b94489ac6f6a2fdf810"
+  },
+  {
+    "path": "docs/现状.md",
+    "disposition": "precisely_update_current_state",
+    "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
+    "baseline_sha256": "b32e9ed9603688451973ade50598117bb43e505ac7e92ef09e34452f93370018",
+    "current_sha256": "ce23bac96c775ecc011bd27f1d4bf9065750be605a60421a690565d84f54a583"
+  }
+]

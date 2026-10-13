@@ -250,26 +250,34 @@ class PortsRecordReader:
         # 由 `QuerySpec` 的 `Literal` 与 `ensure_finite_route()` 唯一判定。
         # 只转发五个字段会让 `issues.list` 之类固定目录查询丢条件，退化成通用目录
         # 查询（例如把 intent 记录一并返回），与"按固定掩码查询"的合同不符。
-        _require(self._repository, "query")
-        result = self._repository.query(
-            RecordQuery(
-                project_id=query.project_id,
-                aggregate_kind=query.aggregate_kind,
-                record_id=query.record_id,
-                limit=min(query.limit, _PAGE_LIMIT),
-                cursor=query.cursor,
-                revision=query.revision,
-                sort=query.sort,
-                descending=query.descending,
-                business_outcome=query.business_outcome,
-                run_id=query.run_id,
-                report_id=query.report_id,
-                view=query.view,
-                facet=query.facet,
-                facet_value=query.facet_value,
-                severity=query.severity,
-            )
+        request = RecordQuery(
+            project_id=query.project_id,
+            aggregate_kind=query.aggregate_kind,
+            record_id=query.record_id,
+            limit=min(query.limit, _PAGE_LIMIT),
+            cursor=query.cursor,
+            revision=query.revision,
+            sort=query.sort,
+            descending=query.descending,
+            business_outcome=query.business_outcome,
+            run_id=query.run_id,
+            report_id=query.report_id,
+            view=query.view,
+            facet=query.facet,
+            facet_value=query.facet_value,
+            severity=query.severity,
         )
+        page = getattr(self._repository, "query_page", None)
+        boundary: object | None = None
+        if callable(page):
+            # Payload and watermarks MUST come from the same repository read.
+            boundary = page(request)
+            result = getattr(boundary, "result", None)
+            if result is None:
+                raise IndexMaintenanceRequired("the paired query result cannot be verified")
+        else:
+            _require(self._repository, "query")
+            result = self._repository.query(request)
         status = getattr(result, "status", "ok")
         if status == "maintenance_required":
             raise IndexMaintenanceRequired(
@@ -277,30 +285,8 @@ class PortsRecordReader:
             )
         if status == "invalid_cursor":
             raise InvalidQueryCursor(str(query.cursor))
-        # 同一已提交边界的配对信息：优先取存储仓库一并返回的 page（架构 06 §4/§136）；
-        # 仓库不提供时保持 None（未知），绝不改读"此刻最新"水位。
-        page = getattr(self._repository, "query_page", None)
-        boundary: object | None = None
-        if callable(page):
-            boundary = page(
-                RecordQuery(
-                    project_id=query.project_id,
-                    aggregate_kind=query.aggregate_kind,
-                    record_id=query.record_id,
-                    limit=min(query.limit, _PAGE_LIMIT),
-                    cursor=query.cursor,
-                    revision=query.revision,
-                    sort=query.sort,
-                    descending=query.descending,
-                    business_outcome=query.business_outcome,
-                    run_id=query.run_id,
-                    report_id=query.report_id,
-                    view=query.view,
-                    facet=query.facet,
-                    facet_value=query.facet_value,
-                    severity=query.severity,
-                )
-            )
+        if status != "ok":
+            raise IndexMaintenanceRequired("the query result status cannot be verified")
         return RecordPage(
             items=tuple(getattr(result, "items", ())),
             next_cursor=getattr(result, "next_cursor", None),
@@ -478,14 +464,22 @@ class PortsUnitOfWork:
             raise
 
     def stage_record_exact(
-        self, *, aggregate_kind: AggregateKind, record_id: str,
-        expected_revision: int | None, payload: Mapping[str, object],
+        self,
+        *,
+        aggregate_kind: AggregateKind,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
     ) -> StagedRevision:
         self._require_open()
         try:
-            return self._stage(aggregate_kind=aggregate_kind, record_id=record_id,
-                               expected_revision=expected_revision, payload=payload,
-                               require_unchanged=True)
+            return self._stage(
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=payload,
+                require_unchanged=True,
+            )
         except BaseException:
             self._abandon()
             raise
@@ -522,14 +516,21 @@ class PortsUnitOfWork:
         if require_unchanged:
             exact = getattr(self._ports, "stage_record_exact", None)
             if not callable(exact):
-                raise SubstrateContractError("stage_record_exact", owner=_PORT_OWNER,
-                                             request=_PORT_REQUEST)
-            revision = exact(aggregate_kind=aggregate_kind, record_id=record_id,
-                             expected_revision=expected_revision, payload=dict(payload))
+                raise SubstrateContractError(
+                    "stage_record_exact", owner=_PORT_OWNER, request=_PORT_REQUEST
+                )
+            revision = exact(
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=dict(payload),
+            )
         else:
             revision = self._ports.stage_record(
-                aggregate_kind=aggregate_kind, record_id=record_id,
-                expected_revision=expected_revision, payload=dict(payload),
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=dict(payload),
             )
         if type(revision) is not int or revision != current + 1:
             raise SubstrateContractError(

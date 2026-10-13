@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
+import { postHostMessage } from "./host-outcome";
 
 test("prototype follows current-test panel and same-panel detail flow", async ({ page }) => {
   const errors: string[] = [];
@@ -42,9 +43,7 @@ test("host outcome is rendered verbatim without recalculating conclusions", asyn
   await page.addScriptTag({ path: resolve("dist/index.js") });
 
   // 模拟宿主（扩展）回送一份**真实形状**的 doctor 回执。
-  await page.evaluate(() => {
-    window.postMessage(
-      {
+  await postHostMessage(page, {
         kind: "outcome",
         action: "doctor",
         status: "ok",
@@ -59,10 +58,7 @@ test("host outcome is rendered verbatim without recalculating conclusions", asyn
           },
           error: null,
         },
-      },
-      "*",
-    );
-  });
+      });
 
   await expect(page.getByTestId("panel-status")).toContainText("READY");
   await expect(page.getByTestId("panel-status")).toContainText("可派发动作 4");
@@ -100,17 +96,12 @@ test("project context gates read-only queries and rows render verbatim", async (
   expect(first["action"]).toBe("doctor");
   // 等待核心回执期间不派发新动作：面板如实显示"已请求核心"。
   await expect(page.getByTestId("panel-status")).toContainText("已请求核心");
-  await page.evaluate(() => {
-    window.postMessage(
-      {
+  await postHostMessage(page, {
         kind: "outcome",
         action: "doctor",
         status: "ok",
         response: { result: { status: "READY", supported_actions: ["doctor", "query"] } },
-      },
-      "*",
-    );
-  });
+      });
   // 有宿主但未声明项目：问题清单不可点，点了也不派发（不猜项目身份）。
   await expect(page.getByTestId("read-only-actions").getByRole("button").first()).toBeDisabled();
   await page.getByRole("button", { name: "问题与报告", exact: true }).click();
@@ -138,9 +129,7 @@ test("project context gates read-only queries and rows render verbatim", async (
   expect(last["parameters"]).toEqual({ view: "OPEN", limit: 20 });
 
   // 真实形状的 issues.list 回执：面板只列 record_id@revision，不重算结论。
-  await page.evaluate(() => {
-    window.postMessage(
-      {
+  await postHostMessage(page, {
         kind: "outcome",
         action: "query",
         status: "ok",
@@ -153,10 +142,7 @@ test("project context gates read-only queries and rows render verbatim", async (
             next_cursor: null,
           },
         },
-      },
-      "*",
-    );
-  });
+      });
   await page.getByRole("button", { name: "问题与报告", exact: true }).click();
   const issuesBlock = page.getByTestId("review-issues");
   await expect(issuesBlock.locator("li")).toHaveCount(2);

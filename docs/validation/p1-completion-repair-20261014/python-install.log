@@ -1,0 +1,11 @@
+Downloading cpython-3.12.13-windows-x86_64-none (download) (20.8MiB)
+Downloading cpython-3.11.15-windows-x86_64-none (download) (24.4MiB)
+ Downloaded cpython-3.12.13-windows-x86_64-none (download)
+ Downloaded cpython-3.11.15-windows-x86_64-none (download)
+Installed 2 versions in 12.60s
+ + cpython-3.11.15-windows-x86_64-none
+ + cpython-3.12.13-windows-x86_64-none
+warning: Failed to install executable for cpython-3.11.15-windows-x86_64-none
+  Caused by: Executable already exists at `C:\Users\86178\.local\bin\python3.11.exe` but is not managed by uv; use `--force` to replace it
+warning: Failed to install executable for cpython-3.12.13-windows-x86_64-none
+  Caused by: Executable already exists at `C:\Users\86178\.local\bin\python3.12.exe` but is not managed by uv; use `--force` to replace it

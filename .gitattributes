@@ -2,3 +2,5 @@
 docs/validation/p1-abc-fix-20261003/** -text -whitespace
 docs/validation/p1-fix-recheck-20261003/** -text -whitespace
 docs/validation/p1-abc-remaining-20261004/** -text -whitespace
+docs/validation/p1-completion-repair-20261013/** -text -whitespace
+docs/validation/p1-completion-repair-20261014/** -text -whitespace

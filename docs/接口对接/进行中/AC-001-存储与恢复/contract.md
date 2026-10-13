@@ -3,23 +3,27 @@ contract_id: AC-001
 title: ExecutionFacts 存储与恢复
 provider: A
 consumer: C
-contract_version: "1.8"
+contract_version: "1.9"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "A-05/A-07：跨进程维护、未知活动与副本启动恢复仍未闭合"
+  - "A-05/A-07：已知检查点重启闸门已补，未知活动/完整迁移与副本启动恢复仍欠"
   - "C-03/C-05：默认核验/外部导入准确闭包与来源事实保存仍欠"
   - "真实业务保存→换核心→恢复及物理掉电未验收"
 next_owner: A/C
-next_action: 维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。
+next_action: 已知持久检查点重启写闸门已补；继续完整来源/核验闭包、独立备份位置、未知活动与实际 generation 迁移/恢复。
 ---
 
-## 当前实现修复（2026-10-13）
+## 当前续修与验证范围（76ab7d2 起点）
 
-现行版本：1.8；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。
+已知持久检查点重启写闸门已补；继续完整来源/核验闭包、独立备份位置、未知活动与实际 generation 迁移/恢复。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+
+## 上一批实现修复（2026-10-13）
+
+现行版本：1.9；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -359,3 +363,8 @@ A 包核心启动后，C 包按以下顺序恢复：
 ## 10 与A包对外接口与装配约定的关系
 
 本文档是 `A包对外接口与装配约定.md` 在存储与恢复领域的专项对齐，不替代主约定。冲突时以 `A包对外接口与装配约定.md` 为准。
+
+
+## 2026-10-13 后续补证（76ab7d2 起点）
+
+进程内维护窗口之外，普通写入还核对原迁移步骤检查点与成功注册：未登记的 prepared、rollback_pending 或不可核实检查点跨核心重启后继续阻塞新业务写入，诊断/受控迁移入口保留。检查不重放迁移、不把进程重启当作收尾成功。此项只是已知持久检查点的恢复闸门；未知活动核实、独立备份位置、新 generation 迁移和物理掉电仍需单独证明。

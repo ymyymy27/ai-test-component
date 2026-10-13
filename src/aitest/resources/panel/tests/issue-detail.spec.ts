@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
+import { postHostMessage } from "./host-outcome";
 
 /** 宿主桩：记录面板派发的消息；剪贴板用桩，避免依赖浏览器权限。 */
 async function mountPanel(page: import("@playwright/test").Page): Promise<void> {
@@ -33,9 +34,7 @@ function outcome(
   page: import("@playwright/test").Page,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  return page.evaluate(message => {
-    window.postMessage(message, "*");
-  }, payload);
+  return postHostMessage(page, payload);
 }
 
 /** 问题详情（设计 §10/§12）：只读回执原样展示 + 复制说明不执行修复。 */

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
+import { postHostMessage } from "./host-outcome";
 
 /** 复测简报（只读 `copy_repair_brief`）：按当前问题身份读取，正文与元数据原样展示。 */
 async function mount(page: import("@playwright/test").Page): Promise<void> {
@@ -30,9 +31,7 @@ async function mount(page: import("@playwright/test").Page): Promise<void> {
 }
 
 function send(page: import("@playwright/test").Page, message: Record<string, unknown>) {
-  return page.evaluate(payload => {
-    window.postMessage(payload, "*");
-  }, message);
+  return postHostMessage(page, message);
 }
 
 function sent(page: import("@playwright/test").Page): Promise<Array<Record<string, unknown>>> {

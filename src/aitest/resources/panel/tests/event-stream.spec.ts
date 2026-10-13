@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
+import { postHostMessage } from "./host-outcome";
 
 /** 已提交事件增量续读（设计 §12「已提交事件增量刷新」）：游标只前移、拒绝不静默重置。 */
 async function mount(page: import("@playwright/test").Page): Promise<void> {
@@ -17,9 +18,7 @@ async function mount(page: import("@playwright/test").Page): Promise<void> {
 }
 
 function send(page: import("@playwright/test").Page, message: Record<string, unknown>) {
-  return page.evaluate(payload => {
-    window.postMessage(payload, "*");
-  }, message);
+  return postHostMessage(page, message);
 }
 
 function sent(page: import("@playwright/test").Page): Promise<Array<Record<string, unknown>>> {
@@ -113,6 +112,7 @@ test("a refused cursor keeps the previous cursor and never rewinds silently", as
   await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
 
   // 游标非法：显示代码原文、保持原游标与既有事件行。
+  await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
   await send(page, {
     kind: "outcome",
     action: "events",
@@ -126,6 +126,7 @@ test("a refused cursor keeps the previous cursor and never rewinds silently", as
   await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
 
   // 真实 `events` 形状：`invalid_cursor` 在 result.status 里（宿主层 status 仍是 ok）。
+  await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
   await send(page, {
     kind: "outcome",
     action: "events",

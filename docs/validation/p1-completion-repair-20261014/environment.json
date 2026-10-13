@@ -1,0 +1,29 @@
+{
+  "python": "3.13.0 (tags/v3.13.0:60403a5, Oct  7 2024, 09:38:07) [MSC v.1941 64 bit (AMD64)]",
+  "executable": "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+  "machine": "AMD64",
+  "os": "Windows-11-10.0.22631-SP0",
+  "win32_version": [
+    "11",
+    "10.0.22631",
+    "SP0",
+    "Multiprocessor Free"
+  ],
+  "packages": {
+    "pytest": "9.1.1",
+    "pydantic": "2.13.5",
+    "portalocker": "3.2.0",
+    "mypy": "1.20.2",
+    "ruff": "0.16.6"
+  },
+  "panel_locked_versions": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  },
+  "trae_locked_versions": {
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  }
+}

@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.44"
+contract_version: "1.45"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,12 +13,16 @@ blockers:
   - "B-01/B-03/B-05/B-13：可信人工/供应方/半程及交付验证投影未闭合"
   - "真实宿主与业务来源/重启/物理掉电未验证"
 next_owner: A/B/D
-next_action: D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
+next_action: 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。
 ---
 
-## 当前实现修复（2026-10-13）
+## 当前续修与验证范围（76ab7d2 起点）
 
-现行版本：1.44；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
+同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+
+## 上一批实现修复（2026-10-13）
+
+现行版本：1.45；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -1375,3 +1379,8 @@ prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料
 - 确认不回写冻结 Case/计划/报告，也不伪造实际执行或独立核验；后续资格和判定仍读取准确确认记录并使用同一领域规则。
 
 源码回归入口：`test_default_basis_confirmation.py`、`test_saved_case_basis_proof.py`、`test_approval_origin_boundary.py`；本轮实际结果与未完成的真实用户入口见接口复核记录。此索引不替代双方确认或真实产品对拍。
+
+
+## 2026-10-13 后续补证（76ab7d2 起点）
+
+有限记录页必须由同一次 query_page 取得行与 commit/event/generation/index_version，不二次读取拼接。read_view 外层返回完整读取期间未变化的提交/事件配对；内部 DTO 的执行快照身份不更名为全视图边界。交付视图带提测时须核对其 delivery_id 和准确 delivery_record_revision，不能混入同项目其他交付。

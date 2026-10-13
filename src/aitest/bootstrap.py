@@ -1395,8 +1395,9 @@ def assemble_workspace_core(
         # 不得迁移"，此前缺的是受控入口与维护窗口。维护窗口期间入口适配器拒绝新的
         # 写动作（§142「进入维护状态暂停新写入」）。
         maintenance_mode = MaintenanceMode()
+        migration_runner = FileMigrationManager(root, maintenance=FileMaintenanceService(root))
         migration_entry = SavedMigrationEntry(
-            runner=FileMigrationManager(root, maintenance=FileMaintenanceService(root)),
+            runner=migration_runner,
             actors=actors,
             mode=maintenance_mode,
         )
@@ -1438,6 +1439,7 @@ def assemble_workspace_core(
             reader=reader,
             records=cast(RecordRepository, unit_of_work.repo),
         )
+        handlers["read_view"] = view_queries.dispatch
         # D 的导出（P1-FR14 §5/§8）：正文与附件都要脱敏，制品先写事务临时位置、
         # 核对摘要后发布，发布成功**再**在工作单元登记导出记录。
         export_management = SavedExportService(
@@ -1515,7 +1517,10 @@ def assemble_workspace_core(
             actors=actors,
             session_finalizer=close_approval_session,
             intent_contracts={action: RECORD_WRITE_SCHEMA for action in ORDINARY_WRITE_ACTIONS},
-            maintenance=lambda: maintenance_mode.reason if maintenance_mode.active else None,
+            maintenance=lambda: (
+                maintenance_mode.reason if maintenance_mode.active
+                else migration_runner.maintenance_reason()
+            ),
         )
     except BaseException:
         lifetime_lock.release()

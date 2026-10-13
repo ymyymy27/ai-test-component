@@ -1,0 +1,13 @@
+
+> aitest-trae@0.4.0 package
+> npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix
+
+
+> aitest-trae@0.4.0 build
+> npm run check && node scripts/build.mjs
+
+
+> aitest-trae@0.4.0 check
+> tsc --noEmit
+
+ ERROR  Couldn't detect the repository where this extension is published. The link '../../docs/validation/p1-completion-repair-20261013/README.md' will be broken in README.md. GitHub/GitLab repositories will be automatically detected. Otherwise, please provide the repository URL in package.json or use the --baseContentUrl and --baseImagesUrl options.

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests",
+    "-ra",
+    "--basetemp=E:\\ai-test-component\\.runtime\\tmp\\completion-full14",
+    "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-completion-repair-20261014\\full.xml"
+  ],
+  "started_at": "2026-10-13T16:44:31.846966+00:00",
+  "baseline": "76ab7d24c68a590de44d12fd6f749f5f98fcc6f4",
+  "scope": "all tests, clean locked Python 3.13 environment; no other heavy tests concurrently"
+}

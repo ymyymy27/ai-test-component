@@ -12,11 +12,15 @@ import { dispatchReadOnly, ensureCore, type DispatchOutcome, type DispatchReques
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
 
-function readSettings(): { python: string; workspaceRoot: string } {
+function readSettings(): { python: string; workspaceRoot: string; projectId: string | null; runId: string | null } {
   const configuration = vscode.workspace.getConfiguration("aitest");
+  const python = configuration.get<unknown>("pythonPath", "python");
+  const workspace = configuration.get<unknown>("workspaceRoot", "");
   return {
-    python: configuration.get<string>("pythonPath", "python"),
-    workspaceRoot: configuration.get<string>("workspaceRoot", ""),
+    python: typeof python === "string" ? python : "",
+    workspaceRoot: typeof workspace === "string" ? workspace : "",
+    projectId: identityOrNull(configuration.get<string>("projectId", "")),
+    runId: identityOrNull(configuration.get<string>("runId", "")),
   };
 }
 
@@ -47,14 +51,35 @@ function openPanel(context: vscode.ExtensionContext): void {
         script-src 'nonce-${nonceValue}'; style-src 'unsafe-inline';">
       <title>AI 辅助测试</title></head><body><ai-test-panel></ai-test-panel>
       <script nonce="${nonceValue}" src="${script}"></script></body></html>`;
+  const scope: PanelScope = { key: "", id: randomUUID() };
   panel.webview.onDidReceiveMessage((message: unknown) => {
-    void handleWebviewMessage(panel, message);
+    void handleWebviewMessage(panel, message, scope);
   });
+  const configurationWatch = vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration("aitest")) { publishProject(panel, scope); }
+  });
+  panel.onDidDispose(() => configurationWatch.dispose());
   context.subscriptions.push(panel);
 }
 
 function textOrNull(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function identityOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() && value.length <= 128
+    && !/[\u0000-\u001f]/.test(value) ? value : null;
+}
+
+interface PanelScope { key: string; id: string }
+
+function publishProject(panel: vscode.WebviewPanel, scope: PanelScope): string {
+  const settings = readSettings();
+  const key = JSON.stringify(settings);
+  if (key !== scope.key) { scope.key = key; scope.id = randomUUID(); }
+  post(panel, { kind: "projectContext", project_id: settings.projectId ?? "",
+    run_id: settings.projectId ? settings.runId : null, context_id: scope.id });
+  return key;
 }
 
 /** 只接受"要派发什么"；参数必须是 JSON 对象，身份字段不补造。 */
@@ -77,14 +102,23 @@ function toDispatchRequest(raw: Record<string, unknown>): DispatchRequest | null
   };
 }
 
-async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
+async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown, scope: PanelScope): Promise<void> {
   if (typeof message !== "object" || message === null) {
     return;
   }
   const raw = message as Record<string, unknown>;
+  const clientRequestId = identityOrNull(raw["clientRequestId"]);
+  if (clientRequestId === null) { return; }
+  const expectedContext = publishProject(panel, scope);
   if (raw["kind"] === "ensureCore") {
     const { python, workspaceRoot } = readSettings();
     const ensured = await ensureCore(python, workspaceRoot);
+    if (JSON.stringify(readSettings()) !== expectedContext) {
+      publishProject(panel, scope);
+      post(panel, { kind: "outcome", action: "ensure-core", status: "unavailable",
+        code: "PROJECT_CONTEXT_CHANGED", message: "连接期间宿主配置变化，请重新核对核心", clientRequestId });
+      return;
+    }
     post(panel, {
       kind: "outcome",
       action: "ensure-core",
@@ -92,6 +126,7 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
       code: ensured.code,
       message: ensured.message,
       response: ensured.response,
+      clientRequestId,
     });
     return;
   }
@@ -106,13 +141,20 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
       status: "refused",
       code: "INVALID_REQUEST",
       message: "派发请求缺少动作名，或参数不是 JSON 对象",
+      clientRequestId,
     });
     return;
   }
-  const { python, workspaceRoot } = readSettings();
+  const { python, workspaceRoot, projectId } = readSettings();
+  if ((request.projectId !== null && request.projectId !== projectId)
+      || (["query", "read_view", "check_source", "inspect_case_reuse", "copy_repair_brief"].includes(request.action) && projectId === null)) {
+    post(panel, { kind: "outcome", action: request.action, status: "refused",
+      code: "PROJECT_CONTEXT_MISMATCH", message: "请求与宿主所选项目不一致，请重新选择项目", clientRequestId });
+    return;
+  }
   let outcome: DispatchOutcome;
   try {
-    outcome = await dispatchReadOnly(python, workspaceRoot, request, randomUUID(), DISPATCH_TIMEOUT_MS);
+    outcome = await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);
   } catch (error) {
     // 白名单外动作在此被拒：扩展不代签确认，也不把它降级成"可用"。
     outcome = {
@@ -121,7 +163,13 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
       message: error instanceof Error ? error.message : "该动作不能由面板发起",
     };
   }
-  post(panel, { kind: "outcome", action: request.action, ...outcome });
+  if (JSON.stringify(readSettings()) !== expectedContext) {
+    publishProject(panel, scope);
+    post(panel, { kind: "outcome", action: request.action, status: "unavailable",
+      code: "PROJECT_CONTEXT_CHANGED", message: "读取期间宿主上下文变化，原回执未应用", clientRequestId });
+    return;
+  }
+  post(panel, { kind: "outcome", action: request.action, ...outcome, clientRequestId });
 }
 
 function post(panel: vscode.WebviewPanel, payload: Record<string, unknown>): void {

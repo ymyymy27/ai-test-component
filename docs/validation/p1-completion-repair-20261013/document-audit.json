@@ -1,0 +1,392 @@
+[
+  {
+    "path": "docs/现状.md",
+    "sha256": "abe606967a37b10a66e9d3544d51ab7bbebc99db949e44ffeda6d2f2d1706f74",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程检查-A包.md",
+    "sha256": "92fa975532d45a14b4113375ad78b29e7e121c993103e6c653c0ceca2767082f",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程检查-B包.md",
+    "sha256": "118f0eb3ba6470664d9cc19aefe31094461366341a2de1ab667d929bdaa06472",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程检查-C包.md",
+    "sha256": "4272b80db8ef1a10f963bc868c8bb4c9b58411bd8c81d712622881308052b723",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程检查-D包.md",
+    "sha256": "aadf3b6858196e5b71fb79404884c51180cb20ae0549fe16a0f458c5c094c7e9",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/README.md",
+    "sha256": "e6650f3f70ca694531b33386ca2d4e41aded3556d35064a3734aab66ca50ecb0",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-12.md",
+    "sha256": "4263fe30288d65e86e8f00681b8c6bfbf8800cffe3606fe6b7909122cf57b450",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-13.md",
+    "sha256": "fd016f1cdef22f141c840043a42dce20ada3c5f7724d924e42d2937508c15178",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md",
+    "sha256": "3c228c24e7d41b9403c63794e8f7b4a7e83e2db8288a1ca08b7534f1c5994b81",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md",
+    "sha256": "657af602400c5091c6c3d5d6e6a465223ecf5f8dc736854a16e3a91aed5ae909",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/A包完整提交闭包整改设计-2026-10-04.md",
+    "sha256": "f5f725618e9b2aab3f75dbc00cd9a31bbe8264808cc3f2956ab2714a82a88d79",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/动作解析器实施清单-2026-10-09.md",
+    "sha256": "dd8ab5d7a16248808bc56c0f112a266d28566cad6317b293320af0e834fa26f3",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md",
+    "sha256": "fbed307f0660703b6dcd4bf6ae2c43b10fb1a92d051d62eaf51e960b58e8d206",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md",
+    "sha256": "37ff0706cc5c50c4eeed6fd423037eaf91e1d6453cf239ec576357c0e82eaa3e",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md",
+    "sha256": "62abdd6384b7494018ddbcd0587486c9e26ccd2a1d9ba0dce8c2c7aea086351c",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md",
+    "sha256": "bc4c66e4d0bf0230b21e6b236b18944697ae233af823d46be2de697d58cceb5f",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+    "sha256": "5e001f0712c3afeadb22b1c047dc3a91c90ddad27af81eea9cf5e1dddcbe057c",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md",
+    "sha256": "feb5a21f89a4235703b2a88bfd27f966e1943da50e96d61816e3774658eb391f",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C0105整用例复用消费规则.md",
+    "sha256": "3e6fbeec6af666108460af9a288b32ac039c423f097d80d393bfa110af4032f7",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03声明点按路径细分.md",
+    "sha256": "828d1fe39cbbff0ce61b9ee1ef5448f572cbafefa4e717de4a54b79a44d7d3d3",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03核验声明点自述.md",
+    "sha256": "6cb9f3cb8faee2576ff572d900cd9ba2e1f22940ab494ee99ffcbe4a958a4caf",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控人工补证入口.md",
+    "sha256": "823a0aabb3704084d304e9d058554b4e7292959665f818fd4ef9c8d529bd81c0",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控备份入口backup.md",
+    "sha256": "546260d3edef4ee96729c4083886c40065e19dffe69e4725ebfc36dbae2633dd",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C备份登记与恢复入口.md",
+    "sha256": "0e0d776b49a7e182481646718ab539bed05df8fad54f66837f3f0a2f2d069ba3",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C结构迁移入口与维护窗口.md",
+    "sha256": "fd1c030a33c2478790bb7c58fecc5384ee49f417c52fa619c4b80ec3acc8c907",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C重试入口retry-step.md",
+    "sha256": "8ccd1366330d56f7e452a3d08bbd4d40ea4a419882d429d75457f8da5b28b210",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D02断言结果生产者.md",
+    "sha256": "78fda65936f293767707469ef6af0ecaf950a9da9624afc16caf4c6e7ed567cb",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D导出安全与可携带包验证.md",
+    "sha256": "6a303c5dbf0cf3c5a280b228c0a8093497302a1e8326d33db8b023d02fbf24f1",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板只读业务投影.md",
+    "sha256": "508bb44a997f46d70fcec866f5df81cf0b58361733948023b078b6ecb5324c71",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板复测简报只读视图.md",
+    "sha256": "41ec9582fdddc6f0175ae3e7277c6311189824d160076893bb58c6068bab0add",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板已提交事件增量续读.md",
+    "sha256": "7bf7ad0029791f0672463d16107939c6bd71c41c8393be19890e91b1d5d64ad6",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板问题详情业务闭环.md",
+    "sha256": "863b6364a7e9c979bac322096512662623be8b4e03c1f43df0464f8fd91e6190",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02交付说明视图.md",
+    "sha256": "52f390d9a4df98f43565205e9a44a7f3405bc1d6b0b850157d71daea93266707",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02核验状态与自述分列.md",
+    "sha256": "df16b327b71abec3141b28b781c89fde80ab7e51a1cdf161f31190681130f3b0",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-request-regression与return-stage.md",
+    "sha256": "5b46e0a8f8f7b4bb6432020c4fc9d6fe38d397585d3c0df9f8aa7d804dec4ce0",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-列表与事件配对边界.md",
+    "sha256": "5eb4a7efa872fb706f0809c99914a341b7999e9b801ea22a0e832315d7ce0fb0",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用保存侧收窄.md",
+    "sha256": "0f066f407a905d7ebb88f7a27e78d72d4c5847d68029235a5eaff51682da77b2",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用选择动作.md",
+    "sha256": "1081f597bb6689ebb98e8be4344dfbcff1b41dbeb05d7024ab8cf5cf0357ba02",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-对象分块与按需范围读取.md",
+    "sha256": "d3f3f273441d345cee0efb9f6f3f8b61ae6d780e58f127a4813c700447709a35",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-迁移前备份可追溯性.md",
+    "sha256": "34a46ea5794893e2b407af732f2737a4230b01c313b39f0f2804e0201035074a",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-运行视图DTO与只读接缝.md",
+    "sha256": "ea542396450a1be0630e4bca682110a6691cee97f56af63730168b6776b95cb5",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-面板主屏当前段与情形事实.md",
+    "sha256": "c24fef5dd1e7375cab3d60d3478a31df714635316d8fb97e50990a482455a361",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
+    "sha256": "529bf239c4f99a2182200eb645f591519370e0b8b473facc789e9123a7a00a7d",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md",
+    "sha256": "4be419231fd0c0acf62d8f1f5dc03839f99770bc83aa4a5d54b68bf9ada4450d",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/一期七项边界代码修复-2026-10-13.md",
+    "sha256": "9d0d4976ae4dad9d631970a91d623ff4c2ed3669bb0995b949a9d86e8daa96b1",
+    "disposition": "retain_historical_evidence_and_add_current_scope",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
+    "sha256": "cf6dd6216be508c7442909ecf581848f4e2eeace05d6da2905c2c2be05fc325c",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/05-待裁定/2026-10-13-剩余合同缺口与所需决定.md",
+    "sha256": "7d7066b58ce7af916ebf843ee2a7ac2f40d0b887b6228ed88c449b69f850bbd3",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/一期工程整改/06-完成度审计/2026-10-13-目标项逐条完成度审计.md",
+    "sha256": "f96c439d0371be9d6548dafcf3e577cd940355cabfa8174c219fe83906becc03",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "sha256": "f40e49a9639f0976287c57695f2fed575e6e627056a05f13e9c4d5fd76b27165",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "sha256": "080938cffde1999979b0c5a19dc29e7ca4a0926011371cf369d2ebd58a4aab84",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/review-A.md",
+    "sha256": "a5f4aefcaac351f0cbf72ad6d0583d8b1a6de42ed3ba5f7a378eeb0b4c4013f8",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "sha256": "52f312ddb01d669d615bbb872cef6d926221efff529a19e4a123127a932710b5",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/review-A.md",
+    "sha256": "040a6e5878f210778dc0013c4e34fc6b970482c5eaee97fdddbd5a157e63d0c1",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "sha256": "74698a03d3c920e3b6eef34d8253968c71e2c19c1130633f5ffe970ee52bb1c5",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "sha256": "167734ac55eec4a8402cd13dde1820e0fc71f739d9c3044497879689b1d79a74",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "sha256": "23ea087ec489680831ff72a1d07d59e322d39bfc2f7ddccfb2738af842228ace",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/review-D.md",
+    "sha256": "b16103b85d7305fb3631e15eb6a5db0150b01ae730b1b17760e9f09bfa015216",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "sha256": "856e1dedbdbdaff8fb7d4a5d7271077a1901fd0c4b1d4746e4e223d1bb1ae61b",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "sha256": "b7b788c9326f5c1efc214744b2c1d2af034859c9dcf619d6174ee39b26929349",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/review-D-http.md",
+    "sha256": "b9caad7444e074df7b1393711f3bd2382d4c62698b1944700e6090b7a55c0318",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/review-D.md",
+    "sha256": "5931c6e3ff4000564fd67e6b84b884f4ae2020b7b682a829df4a8df202ceed7b",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "sha256": "837fd7fe541b3ac46c0a626a1dceee63c58bdc5206afd7a7fce1f4a73bf7e7f0",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "sha256": "c89c270eb3f3bf53bd9e78dfb3df655a81642b4f96fea8c0c9600e08bc064c4a",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/README.md",
+    "sha256": "f57e3e244335ef0367ab6aab727bc770c20a0a7de09fdf0657d5e98fa45bcccb",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "sha256": "0f749d128e86591d7d89d21c7968357fa784f01606ff4001200c11429ad1e4e7",
+    "disposition": "precisely_update_current_state",
+    "reason": "Preserve original inputs/results and stable IDs; update implemented scope and exact unverified closure conditions."
+  }
+]

@@ -1,5 +1,5 @@
-/** Static phase-one panel prototype. It renders fixture text only and never
- * calculates business outcomes or treats UI clicks as user confirmation. */
+/** Phase-one read-only panel. It renders core facts and never calculates
+ * business outcomes or treats UI clicks as user confirmation. */
 type Detail = "current" | "plan" | "workbench" | "review" | "settings";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
@@ -22,6 +22,7 @@ type Outcome = {
   code?: string;
   message?: string;
   response?: Record<string, unknown>;
+  clientRequestId?: string;
 };
 
 /** 宿主（扩展）声明的当前项目上下文；面板**不猜**项目身份，未声明即未选择。 */
@@ -30,6 +31,7 @@ type ProjectContext = {
   project_id: string;
   run_id?: string | null;
   scope_name?: string | null;
+  context_id?: string;
 };
 
 interface HostApi { postMessage(message: unknown): void }
@@ -117,6 +119,7 @@ class AITestPanel extends HTMLElement {
   private outcome: Outcome | null = null;
   private pending = false;
   private project: ProjectContext | null = null;
+  private contextId: string | null = null;
   private issueOutcome: Outcome | null = null;
   private reportOutcome: Outcome | null = null;
   /** 当前打开的问题详情身份（来自清单回执行，不猜）。 */
@@ -134,22 +137,52 @@ class AITestPanel extends HTMLElement {
   private briefNote: string | null = null;
   /** 最近一次只读查询的作用域：回执只有动作名，靠它把结果归位（不猜）。 */
   private pendingQuery: "issues" | "reports" | "issue-detail" | null = null;
+  private pendingRequest: { id: string; action: string } | null = null;
+  private requestSequence = 0;
+  private readonly requestPrefix = `panel-${Date.now().toString(36)}`;
+  private doctorOutcome: Outcome | null = null;
+  private viewOutcomes = new Map<string, Outcome>();
 
-  connectedCallback(): void {
-    window.addEventListener("message", (event: MessageEvent) => {
+  private readonly receiveMessage = (event: MessageEvent): void => {
       const data = event.data as Outcome | ProjectContext | undefined;
-      if (!data) { return; }
+      if (!data || typeof data !== "object") { return; }
       if (data.kind === "projectContext") {
-        // 宿主声明的当前项目；身份只来自宿主，面板不推断、不补造。
-        this.project = data.project_id.trim()
+        if (typeof data.project_id !== "string" || data.project_id.length > 128
+            || /[\u0000-\u001f]/.test(data.project_id)
+            || (data.run_id != null && (typeof data.run_id !== "string" || data.run_id.length > 128))) { return; }
+        const next = data.project_id.trim()
           ? { kind: "projectContext", project_id: data.project_id, run_id: data.run_id ?? null,
-              scope_name: data.scope_name ?? null }
+              scope_name: typeof data.scope_name === "string" ? data.scope_name : null,
+              context_id: data.context_id, } as ProjectContext
           : null;
+        if (JSON.stringify(next) !== JSON.stringify(this.project)) {
+          if (this.contextId && data.context_id !== this.contextId) {
+            this.doctorOutcome = null;
+          }
+          this.issueOutcome = this.reportOutcome = this.issueDetailOutcome = null;
+          this.eventOutcome = this.briefOutcome = null;
+          this.eventLog = []; this.eventCursor = this.eventNote = null;
+          this.briefIssueId = this.briefNote = null;
+          this.viewOutcomes.clear(); this.pendingQuery = null; this.outcome = null;
+          if (this.pendingRequest && !["doctor", "ensure-core"].includes(this.pendingRequest.action)) {
+            this.pendingRequest = null; this.pending = false;
+          }
+        }
+        const contextChanged = this.contextId !== null && data.context_id !== this.contextId;
+        this.contextId = typeof data.context_id === "string" ? data.context_id : null;
+        this.project = next;
         this.render();
+        if (contextChanged && !this.pending) { this.dispatch("doctor"); }
         return;
       }
       if (data.kind !== "outcome") { return; }
+      if (!["ok", "refused", "unavailable"].includes(data.status)) { return; }
+      const correlation = data.clientRequestId ?? data.response?.["request_id"];
+      if (this.pendingRequest) {
+        if (correlation !== this.pendingRequest.id || data.action !== this.pendingRequest.action) { return; }
+      } else if (this.host !== null || data.action !== "doctor") { return; }
       this.outcome = data;
+      if (data.action === "doctor") { this.doctorOutcome = data; }
       if (data.action === "query") {
         // 按**本次查询的作用域**归位；没有待归位作用域时只更新最近回执。
         if (this.pendingQuery === "issues") { this.issueOutcome = data; }
@@ -164,11 +197,35 @@ class AITestPanel extends HTMLElement {
         this.briefOutcome = data;
         this.briefNote = data.status === "ok" ? null : "核心未通过：简报未取得。";
       }
+      if (data.action === "read_view") {
+        const result = data.response?.["result"] as Record<string, unknown> | undefined;
+        const view = result?.["view"] as Record<string, unknown> | undefined;
+        const kind = result?.["view_type"];
+        if (data.status === "ok" && this.project && typeof kind === "string"
+            && ["run", "panel", "delivery"].includes(kind)
+            && typeof view === "object" && view !== null && !Array.isArray(view)
+            && view["project_id"] === this.project.project_id
+            && (kind === "delivery" || view["run_id"] === this.project.run_id)
+            && Number.isSafeInteger(result?.["commit_id"])
+            && Number(result?.["commit_id"]) >= 0
+            && typeof result?.["event_cursor"] === "string" && result["event_cursor"].length > 0) {
+          this.viewOutcomes.set(kind, data);
+        }
+      }
+      this.pendingRequest = null;
       this.pending = false;
       this.render();
-    });
+  };
+
+  connectedCallback(): void {
+    window.addEventListener("message", this.receiveMessage);
     this.render();
     this.dispatch("doctor");
+  }
+
+  disconnectedCallback(): void {
+    window.removeEventListener("message", this.receiveMessage);
+    this.pendingRequest = null; this.pendingQuery = null; this.pending = false;
   }
 
   /**
@@ -219,8 +276,10 @@ class AITestPanel extends HTMLElement {
       return;
     }
     this.pending = true;
+    const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
+    this.pendingRequest = { id: clientRequestId, action };
     const message: Record<string, unknown> = {
-      kind: "dispatch", action, parameters: parameters ?? {},
+      kind: "dispatch", action, parameters: parameters ?? {}, clientRequestId,
     };
     if (this.project !== null) { message["projectId"] = this.project.project_id; }
     this.host.postMessage(message);
@@ -242,7 +301,7 @@ class AITestPanel extends HTMLElement {
 
   private statusText(): string {
     if (this.pending) { return "已请求核心，等待回执…"; }
-    const outcome = this.outcome;
+    const outcome = this.doctorOutcome ?? this.outcome;
     if (outcome === null) { return "尚未连接核心"; }
     if (outcome.status === "ok") {
       const result = outcome.response?.["result"] as Record<string, unknown> | undefined;
@@ -325,7 +384,9 @@ class AITestPanel extends HTMLElement {
       return;
     }
     this.pending = true;
-    this.host.postMessage({ kind: "ensureCore" });
+    const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
+    this.pendingRequest = { id: clientRequestId, action: "ensure-core" };
+    this.host.postMessage({ kind: "ensureCore", clientRequestId });
     this.render();
   }
 
@@ -431,7 +492,7 @@ class AITestPanel extends HTMLElement {
     const section = document.createElement("section");
     section.dataset.testid = "core-capability";
     const title = document.createElement("h2"); title.textContent = "核心能力（真实回执）";
-    const outcome = this.outcome;
+    const outcome = this.doctorOutcome ?? (this.outcome?.action === "doctor" ? this.outcome : null);
     const line = document.createElement("p");
     if (outcome === null) {
       line.textContent = "尚未连接核心。";
@@ -513,6 +574,11 @@ class AITestPanel extends HTMLElement {
     const title = document.createElement("h2"); title.textContent = "当前测试";
     const section = document.createElement("section");
     section.dataset.testid = "phase-summary";
+    const response = this.viewOutcomes.get("panel")?.response;
+    const result = response?.["result"] as Record<string, unknown> | undefined;
+    const view = result?.["view"] as Record<string, unknown> | undefined;
+    const stageNames: Record<string, string> = { pre_run: "运行前", runtime: "运行时", post_run: "运行后" };
+    const active = typeof view?.["stage"] === "string" ? stageNames[view["stage"]] : undefined;
     const grid = document.createElement("div"); grid.className = "phases";
     for (const [phase, state, description] of phases) {
       const card = document.createElement("article"); card.className = "phase";
@@ -520,9 +586,23 @@ class AITestPanel extends HTMLElement {
       const name = document.createElement("h3"); name.textContent = phase;
       const current = document.createElement("p"); current.textContent = state;
       const detail = document.createElement("p"); detail.className = "muted"; detail.textContent = description;
+      if (active === phase && view) {
+        card.setAttribute("aria-current", "step");
+        current.textContent = `当前 · ${String(view["control_state"] ?? "待核实")}`;
+        detail.textContent = `业务结论：${String(view["business_outcome"] ?? "待核实")} · 档位：${String(view["tier"] ?? "待核实")} · 驱动：${String(view["driver"] ?? "待核实")}`;
+      }
       card.append(name, current, detail); grid.append(card);
     }
     section.append(grid);
+    const refresh = document.createElement("button"); refresh.textContent = "刷新本次视图";
+    refresh.dataset.testid = "refresh-panel-view";
+    const capabilities = this.doctorOutcome?.response?.["result"] as Record<string, unknown> | undefined;
+    refresh.disabled = this.pending || this.host === null || !this.project?.run_id
+      || !Array.isArray(capabilities?.["supported_actions"]) || !capabilities["supported_actions"].includes("read_view");
+    refresh.onclick = () => this.dispatchScoped("read_view", { view: "panel", run_id: this.project?.run_id ?? "" });
+    const observed = document.createElement("p"); observed.className = "muted"; observed.dataset.testid = "panel-view-boundary";
+    observed.textContent = active && result ? `已保存视图 · 提交 ${String(result["commit_id"])} · 事件边界 ${String(result["event_cursor"])}` : "尚未取得当前运行的准确视图。";
+    section.append(refresh, observed);
     fragment.append(title, section);
     return fragment;
   }

@@ -14,6 +14,7 @@ import { spawn } from "node:child_process";
 export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   "doctor",
   "query",
+  "read_view",
   "events",
   "storage_usage",
   "check_source",
@@ -74,7 +75,7 @@ export function buildCommand(request: DispatchRequest, requestId: string): CoreC
 export function requireReadOnly(request: DispatchRequest): void {
   if (!READ_ONLY_ACTIONS.has(request.action)) {
     throw new BridgeRefused(
-      `action ${request.action} is not a read-only entry action; ` +
+        "action is not a read-only entry action; " +
         "write actions require the controlled user entry",
     );
   }
@@ -85,6 +86,7 @@ interface SpawnResult {
   readonly stdout: string;
   readonly stderr: string;
   readonly timedOut: boolean;
+  readonly oversized?: boolean;
 }
 
 function runCli(
@@ -101,6 +103,8 @@ function runCli(
     );
     let stdout = "";
     let stderr = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
     let settled = false;
     const finish = (result: SpawnResult): void => {
       if (settled) {
@@ -117,11 +121,23 @@ function runCli(
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
-      if (stdout.length < MAX_STDOUT_BYTES) {
-        stdout += chunk;
+      if (settled) { return; }
+      stdoutBytes += Buffer.byteLength(chunk, "utf8");
+      if (stdoutBytes > MAX_STDOUT_BYTES) {
+        child.kill();
+        finish({ code: null, stdout: "", stderr: "", timedOut: false, oversized: true });
+        return;
       }
+      stdout += chunk;
     });
     child.stderr.on("data", (chunk: string) => {
+      if (settled) { return; }
+      stderrBytes += Buffer.byteLength(chunk, "utf8");
+      if (stderrBytes > MAX_STDOUT_BYTES) {
+        child.kill();
+        finish({ code: null, stdout: "", stderr: "", timedOut: false, oversized: true });
+        return;
+      }
       stderr += chunk;
     });
     child.on("error", (error: Error) => {
@@ -129,6 +145,10 @@ function runCli(
     });
     child.on("close", (code: number | null) => {
       finish({ code, stdout, stderr, timedOut: false });
+    });
+    child.stdin.on("error", () => {
+      child.kill();
+      finish({ code: null, stdout: "", stderr: "", timedOut: false });
     });
     child.stdin.end(`${JSON.stringify(command)}\n`, "utf8");
   });
@@ -141,7 +161,7 @@ function parseResponse(raw: string): Record<string, unknown> | null {
   }
   try {
     const parsed: unknown = JSON.parse(text);
-    return typeof parsed === "object" && parsed !== null
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;
   } catch {
@@ -160,6 +180,9 @@ export async function ensureCore(
   workspaceRoot: string,
   timeoutMs = 60_000,
 ): Promise<DispatchOutcome> {
+  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
+    return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
+  }
   if (!workspaceRoot.trim()) {
     return {
       status: "unavailable",
@@ -175,6 +198,8 @@ export async function ensureCore(
     );
     let stdout = "";
     let stderr = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
     let settled = false;
     const finish = (outcome: DispatchOutcome): void => {
       if (settled) {
@@ -191,31 +216,44 @@ export async function ensureCore(
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
+      if (settled) { return; }
+      stdoutBytes += Buffer.byteLength(chunk, "utf8");
+      if (stdoutBytes > MAX_STDOUT_BYTES) {
+        child.kill();
+        finish({ status: "unavailable", code: "ENTRY_OUTPUT_LIMIT", message: "核心入口输出超出允许预算，结果未核实" });
+        return;
+      }
       stdout += chunk;
     });
     child.stderr.on("data", (chunk: string) => {
+      if (settled) { return; }
+      stderrBytes += Buffer.byteLength(chunk, "utf8");
+      if (stderrBytes > MAX_STDOUT_BYTES) {
+        child.kill();
+        finish({ status: "unavailable", code: "ENTRY_OUTPUT_LIMIT", message: "核心入口输出超出允许预算，结果未核实" });
+        return;
+      }
       stderr += chunk;
     });
-    child.on("error", (error: Error) => {
-      finish({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: error.message });
+    child.on("error", () => {
+      finish({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: "无法启动已配置的本地核心入口" });
     });
     child.on("close", (code: number | null) => {
       const parsed = parseResponse(stdout);
-      if (code === 0 && parsed !== null && parsed["status"] === "READY") {
+      if (code === 0 && parsed !== null && parsed["status"] === "READY"
+          && typeof parsed["workspace_id"] === "string" && parsed["workspace_id"].trim()
+          && typeof parsed["instance_id"] === "string" && parsed["instance_id"].trim()) {
         finish({ status: "ok", response: parsed });
         return;
       }
-      const refusal = parseResponse(stderr.trim().split("\n").pop() ?? "");
       finish({
         status: "refused",
-        code: typeof refusal?.["code"] === "string" ? refusal["code"] : "CORE_UNAVAILABLE",
+        code: "CORE_UNAVAILABLE",
         message:
-          typeof refusal?.["message"] === "string"
-            ? refusal["message"]
-            : stderr.trim() || "核心未能在限定时间内核实并连接",
+          "核心未能在限定时间内核实并连接，请查看受控诊断",
       });
     });
-  });
+  }).catch(() => ({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: "无法启动已配置的本地核心入口" }));
 }
 
 /**
@@ -232,6 +270,9 @@ export async function dispatchReadOnly(
   timeoutMs = 30_000,
 ): Promise<DispatchOutcome> {
   requireReadOnly(request);
+  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
+    return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
+  }
   if (!workspaceRoot.trim()) {
     return {
       status: "unavailable",
@@ -243,33 +284,42 @@ export async function dispatchReadOnly(
   let result: SpawnResult;
   try {
     result = await runCli(python, workspaceRoot, command, timeoutMs);
-  } catch (error) {
+  } catch {
     return {
       status: "unavailable",
       code: "ENTRY_SPAWN_FAILED",
-      message: error instanceof Error ? error.message : "无法启动本地核心入口",
+      message: "无法启动已配置的本地核心入口",
     };
   }
   if (result.timedOut) {
     return { status: "unavailable", code: "ENTRY_TIMEOUT", message: "核心入口在限定时间内无回执" };
+  }
+  if (result.oversized) {
+    return { status: "unavailable", code: "ENTRY_OUTPUT_LIMIT", message: "核心入口输出超出允许预算，结果未核实" };
   }
   const response = parseResponse(result.stdout);
   if (response === null) {
     return {
       status: "unavailable",
       code: "CORE_RESULT_UNVERIFIED",
-      message: result.stderr.trim() || "核心未返回可核实的回执",
+      message: "核心未返回可核实的回执，请查看受控诊断",
     };
   }
   // 回执身份核对交给 CLI/核心；这里只检查请求-回执的对应关系，不重算业务结论。
-  if (response["request_id"] !== command.request_id) {
+  if (response["request_id"] !== command.request_id || response["protocol_version"] !== PROTOCOL_VERSION
+      || typeof response["instance_id"] !== "string" || !response["instance_id"].trim()
+      || typeof response["workspace_id"] !== "string" || !response["workspace_id"].trim()
+      || (request.projectId && response["project_id"] !== request.projectId)) {
     return {
       status: "unavailable",
       code: "CORE_RESULT_UNVERIFIED",
-      message: "回执 request_id 与请求不一致，保留原意图待核实",
+      message: "回执身份或协议与请求不一致，结果未核实",
     };
   }
   if (response["error"] !== null && response["error"] !== undefined) {
+    if (typeof response["error"] !== "object" || Array.isArray(response["error"])) {
+      return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "核心错误回执形状无法核实" };
+    }
     const error = response["error"] as Record<string, unknown>;
     return {
       status: "refused",
@@ -277,6 +327,9 @@ export async function dispatchReadOnly(
       code: typeof error["code"] === "string" ? error["code"] : "UNKNOWN_ERROR",
       message: typeof error["message"] === "string" ? error["message"] : "核心拒绝该请求",
     };
+  }
+  if (result.code !== 0 || typeof response["result"] !== "object" || response["result"] === null || Array.isArray(response["result"])) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "核心退出状态或结果形状无法核实" };
   }
   return { status: "ok", response };
 }

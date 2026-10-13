@@ -95,6 +95,8 @@ class ReuseOutcome:
     verified: frozenset[str] = frozenset()
     passed: frozenset[str] = frozenset()
     failure_candidates: tuple[FailureCandidate, ...] = ()
+    references: tuple[ReuseReference, ...] = ()
+    source_snapshots: tuple[ExecutionFacts, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.passed <= self.verified <= self.reused:
@@ -146,6 +148,7 @@ def derive_reuse_outcome(
     passed_cases: set[str] = set()
     failures: list[FailureCandidate] = []
     sources: dict[str, ExecutionFacts | None] = {}
+    qualified_references: dict[str, ReuseReference] = {}
 
     def read_source(run_id: str) -> ExecutionFacts | None:
         if run_id not in sources:
@@ -160,6 +163,7 @@ def derive_reuse_outcome(
             reused.discard(reference.case_id)
             verified_cases.discard(reference.case_id)
             passed_cases.discard(reference.case_id)
+            qualified_references.pop(reference.case_id, None)
             failures = [item for item in failures if item.case_id != reference.case_id]
             conflict = ReuseDenial(
                 case_id=reference.case_id,
@@ -229,6 +233,7 @@ def derive_reuse_outcome(
             denials.append(ReuseDenial(case_id=reference.case_id, reasons=reasons))
         else:
             reused.add(reference.case_id)
+            qualified_references[reference.case_id] = reference
             verified_cases.add(reference.case_id)
             if result is not None:
                 passed_cases.update(result.coverage.passed & {reference.case_id})
@@ -241,6 +246,13 @@ def derive_reuse_outcome(
         verified=frozenset(verified_cases),
         passed=frozenset(passed_cases),
         failure_candidates=tuple(failures),
+        references=tuple(qualified_references[key] for key in sorted(qualified_references)),
+        source_snapshots=tuple(
+            source
+            for run_id, source in sorted(sources.items())
+            if source is not None
+            and run_id in {item.source_run_id for item in qualified_references.values()}
+        ),
     )
 
 

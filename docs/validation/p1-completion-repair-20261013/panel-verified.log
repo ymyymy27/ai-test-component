@@ -1,0 +1,24 @@
+
+> @aitest/panel@0.4.0 test
+> playwright test --workers=1
+
+
+Running 13 tests using 1 worker
+
+(node:28028) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 tests\event-stream.spec.ts:51:1 › event stream threads the cursor and appends only new committed events (615ms)
+  ok  2 tests\event-stream.spec.ts:99:1 › a refused cursor keeps the previous cursor and never rewinds silently (453ms)
+  ok  3 tests\issue-detail.spec.ts:41:1 › issue detail renders authoritative fields and never executes a fix (496ms)
+  ok  4 tests\issue-detail.spec.ts:139:1 › rows-only detail outcome never fabricates fields or copyable text (374ms)
+  ok  5 tests\issue-detail.spec.ts:189:1 › issue detail stays blocked without a project and shows refusals verbatim (477ms)
+  ok  6 tests\panel.spec.ts:5:1 › prototype follows current-test panel and same-panel detail flow (329ms)
+  ok  7 tests\panel.spec.ts:39:1 › host outcome is rendered verbatim without recalculating conclusions (232ms)
+  ok  8 tests\panel.spec.ts:73:1 › project context gates read-only queries and rows render verbatim (462ms)
+  ok  9 tests\repair-brief.spec.ts:63:1 › repair brief reads by the open issue identity and renders it verbatim (466ms)
+  ok 10 tests\repair-brief.spec.ts:119:1 › a refused brief shows the code and offers no body to copy (427ms)
+  ok 11 tests\view-correlation.spec.ts:24:1 › owned core view and outer boundary are rendered without changing doctor capability (289ms)
+  ok 12 tests\view-correlation.spec.ts:34:1 › wrong correlation and foreign view never replace the current scoped view (286ms)
+  ok 13 tests\view-correlation.spec.ts:46:1 › project switch clears pending scope and rejects its late reply (334ms)
+
+  13 passed (6.1s)

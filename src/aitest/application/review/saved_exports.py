@@ -43,7 +43,8 @@ from aitest.application.review.saved_reports import (
     local_review_from_payload,
     report_from_payload,
 )
-from aitest.contracts.execution_facts import ExecutionFacts
+from aitest.contracts.execution_facts import EvidenceFact, ExecutionFacts
+from aitest.contracts.reuse_reference import parse_reuse_reference
 from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.planning.model_outbound import MaterialKind
 from aitest.domain.review.reports import (
@@ -243,6 +244,11 @@ def _markdown(
     lines.extend(["", "## 证据索引（只给引用，正文不内联）", ""])
     if evidence_index:
         for item in evidence_index:
+            if item.get("status") == "missing":
+                lines.append(
+                    f"- {item['evidence_id']}：材料缺失（{item.get('reason', 'unknown')}）"
+                )
+                continue
             lines.append(
                 "- {evidence_id}（{evidence_kind}，大小 {size}，摘要 {digest}）{note}".format(
                     evidence_id=item["evidence_id"],
@@ -410,8 +416,15 @@ class SavedExportService:
                 # Preserve a readable report and list missing evidence. Never
                 # substitute the current run for an unavailable frozen source.
                 facts = None
+        source_evidence, source_gaps = self._frozen_reuse_evidence(snapshot, record)
         content, media_type, excluded, missing = self._content(
-            snapshot, reviews, kind=kind, attachment_refs=attachment_refs, facts=facts
+            snapshot,
+            reviews,
+            kind=kind,
+            attachment_refs=attachment_refs,
+            facts=facts,
+            source_evidence=source_evidence,
+            source_gaps=source_gaps,
         )
         # 1) 永久制品先入对象库（凭据在落盘前过滤；摘要基于过滤后字节）。
         object_ref = self._objects.publish_bytes(  # type: ignore[union-attr]
@@ -503,6 +516,101 @@ class SavedExportService:
 
     # ------------------------------------------------------------ 内容生成
 
+    def _frozen_reuse_evidence(
+        self,
+        snapshot: ReportSnapshot,
+        record: Mapping[str, object],
+    ) -> tuple[tuple[EvidenceFact, ...], tuple[dict[str, object], ...]]:
+        reused = snapshot.decision.coverage.reused
+        if not reused:
+            return (), ()
+        raw = record.get("reuse")
+        if not isinstance(raw, Mapping) or "references" not in raw or "source_snapshots" not in raw:
+            return (), tuple(
+                {"case_id": case, "reason": "frozen_reuse_sources_unavailable"}
+                for case in sorted(reused)
+            )
+        try:
+            references_raw, snapshots_raw = raw["references"], raw["source_snapshots"]
+            if not isinstance(references_raw, list) or not isinstance(snapshots_raw, list):
+                raise ValueError("frozen reuse sources are not finite lists")
+            references = tuple(parse_reuse_reference(item) for item in references_raw)
+            if len(references) != len(reused) or {item.case_id for item in references} != reused:
+                raise ValueError("frozen reuse cases differ from the report")
+            if any(item.target_run_id != snapshot.context.run_id for item in references):
+                raise ValueError("frozen reuse reference targets another run")
+            sources: dict[str, SnapshotContentRef] = {}
+            for item in snapshots_raw:
+                if not isinstance(item, Mapping) or set(item) != {"run_id", "snapshot_ref"}:
+                    raise ValueError("frozen reuse source identity is unreadable")
+                run_id = _text(item.get("run_id"), "source run_id")
+                if run_id in sources or run_id == snapshot.context.run_id:
+                    raise ValueError("frozen reuse sources conflict")
+                sources[run_id] = SnapshotContentRef.model_validate_json(
+                    json.dumps(item["snapshot_ref"]), strict=True
+                )
+            if set(sources) != {item.source_run_id for item in references}:
+                raise ValueError("frozen reuse sources differ from the references")
+        except (KeyError, TypeError, ValueError) as error:
+            raise ExportRefused("frozen reuse metadata cannot be verified") from error
+        evidence: dict[str, EvidenceFact] = {}
+        gaps: list[dict[str, object]] = []
+        for run_id, reference in sources.items():
+            try:
+                facts = SavedRuntimeRevisionReader(self._records).read_snapshot(  # type: ignore[arg-type]
+                    project_id=snapshot.context.project_id,
+                    run_id=run_id,
+                    reference=reference,
+                )
+            except (OSError, KeyError, TypeError, ValueError):
+                gaps.append(
+                    {"source_run_id": run_id, "reason": "frozen_reuse_snapshot_unavailable"}
+                )
+                continue
+            by_id = {item.evidence_id: item for item in facts.evidence_refs}
+            steps = {item.step_id: item for item in facts.steps}
+            attempts = {item.attempt_id: item for item in facts.attempts}
+            for selected in (item for item in references if item.source_run_id == run_id):
+                for step_id, attempt_id in selected.source_attempt_by_step:
+                    step, attempt = steps.get(step_id), attempts.get(attempt_id)
+                    if (
+                        step is None
+                        or step.case_id != selected.case_id
+                        or attempt is None
+                        or attempt.step_id != step_id
+                        or attempt.run_id != run_id
+                    ):
+                        raise ExportRefused("frozen reuse attempt mapping belongs elsewhere")
+                allowed_attempts = {item[1] for item in selected.source_attempt_by_step}
+                for identity in selected.evidence_refs:
+                    item = by_id.get(identity)
+                    if (
+                        identity not in snapshot.evidence_refs
+                        or item is None
+                        or item.attempt_id not in allowed_attempts
+                        or item.run_id != run_id
+                        or item.project_id != snapshot.context.project_id
+                    ):
+                        raise ExportRefused("frozen reuse evidence belongs elsewhere")
+                    previous = evidence.get(identity)
+                    if previous is not None and previous != item:
+                        raise ExportRefused("frozen reuse evidence identity conflicts")
+                    evidence[identity] = item
+        return tuple(evidence[key] for key in sorted(evidence)), tuple(gaps)
+
+    @staticmethod
+    def _evidence_by_id(
+        facts: ExecutionFacts | None,
+        source_evidence: tuple[EvidenceFact, ...],
+    ) -> dict[str, EvidenceFact]:
+        result = {item.evidence_id: item for item in (facts.evidence_refs if facts else ())}
+        for item in source_evidence:
+            previous = result.get(item.evidence_id)
+            if previous is not None and previous != item:
+                raise ExportRefused("frozen evidence identity conflicts across runs")
+            result[item.evidence_id] = item
+        return result
+
     def _content(
         self,
         snapshot: ReportSnapshot,
@@ -511,15 +619,23 @@ class SavedExportService:
         kind: ReportExportKind,
         attachment_refs: tuple[str, ...],
         facts: ExecutionFacts | None,
+        source_evidence: tuple[EvidenceFact, ...] = (),
+        source_gaps: tuple[dict[str, object], ...] = (),
     ) -> tuple[bytes, str, list[dict[str, object]], list[dict[str, object]]]:
         issue_titles = self._issue_titles(snapshot)
-        evidence_index, missing = self._evidence_index(snapshot, attachment_refs, facts)
+        evidence_index, missing = self._evidence_index(
+            snapshot, attachment_refs, facts, source_evidence=source_evidence
+        )
+        missing.extend(source_gaps)
         declarations = [
             "本文件是本地过程记录，不引入签名或平台审核保证。",
             "证据正文不内联；按证据标识引用，附件不随本文件交付。"
             if kind is ReportExportKind.MARKDOWN_SUMMARY
             else "证据附件按投影策略脱敏后随包交付。",
         ]
+        declarations.extend(
+            f"复用来源材料缺口：{item['reason']}；不以当前源运行替代。" for item in source_gaps
+        )
         markdown = _markdown(
             snapshot,
             reviews,
@@ -544,6 +660,7 @@ class SavedExportService:
                 excluded=excluded,
                 missing=missing,
                 facts=facts,
+                source_evidence=source_evidence,
             ),
             "application/zip",
             excluded,
@@ -578,10 +695,12 @@ class SavedExportService:
         snapshot: ReportSnapshot,
         attachment_refs: tuple[str, ...],
         facts: ExecutionFacts | None,
+        *,
+        source_evidence: tuple[EvidenceFact, ...] = (),
     ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
         """证据索引：只给引用与摘要；不可安全处理的材料登记缺失/排除原因。"""
 
-        by_id = {item.evidence_id: item for item in (facts.evidence_refs if facts else ())}
+        by_id = self._evidence_by_id(facts, source_evidence)
         index: list[dict[str, object]] = []
         missing: list[dict[str, object]] = []
         if any(identity not in snapshot.evidence_refs for identity in attachment_refs):
@@ -653,24 +772,26 @@ class SavedExportService:
         excluded: list[dict[str, object]],
         missing: list[dict[str, object]],
         facts: ExecutionFacts | None,
+        source_evidence: tuple[EvidenceFact, ...] = (),
     ) -> bytes:
         """ZIP 包：report.md + manifest.json + evidence/…（全部规范相对路径）。"""
 
         attachments: list[dict[str, object]] = []
         contents: dict[str, bytes] = {}
-        by_id = {item.evidence_id: item for item in (facts.evidence_refs if facts else ())}
+        by_id = self._evidence_by_id(facts, source_evidence)
         for entry in evidence_index:
             if entry["status"] != "included":
                 continue
             evidence_id = cast(str, entry["evidence_id"])
             fact = by_id.get(evidence_id)
-            blob = b""
-            if fact is not None and self._objects is not None:
-                try:
-                    blob = self._read_object_bytes(fact)
-                except ExportRefused:
-                    missing.append({"evidence_id": evidence_id, "reason": "evidence_unreadable"})
-                    continue
+            if fact is None or self._objects is None:
+                missing.append({"evidence_id": evidence_id, "reason": "evidence_unavailable"})
+                continue
+            try:
+                blob = self._read_object_bytes(fact)
+            except ExportRefused:
+                missing.append({"evidence_id": evidence_id, "reason": "evidence_unreadable"})
+                continue
             relative = f"evidence/{evidence_id}.bin"
             contents[relative] = blob
             attachments.append(
