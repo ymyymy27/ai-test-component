@@ -3,22 +3,33 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.47"
+contract_version: "0.48"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "C-15/C-16：默认业务/技术源码快照及字段/目录错接，来源语法/多模块失败仍 verified，生产闭环未贯通"
-  - "C-01/C-05：合法整用例复用资格与选择持久化/下游消费未闭合"
+  - "C-17：整用例 R 当前性/同用例核验/来源身份与 V/P/M 统计消费不完整"
+  - "C-18：select_case_reuse 未拒绝陈旧 expected_revision"
   - "C-03：默认多类业务核验配置/端口缺失"
-  - "B-05/B-15/C-06：真实半程修订、授权和 D 双序列呈现待验收"
-next_owner: B/C
-next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源事实消费；B/C 补整用例复用保存与准确消费、默认业务核验配置；按真实半程流程验证修订/收窄/授权，D 接双序列。
+  - "B-05/B-15/C-06：真实半程修订、授权和宿主/D 双序列未验收"
+next_owner: B/C/D
+next_action: 按既有 CORE 选择修订合同修 C-18；C 修同源 R 资格与统计、默认业务核验；B/C/D 对拍半程修订、范围与有效依据。
 ---
 
-## 当前源码复核与下一动作（2026-10-12）
+## 当前源码复核与下一动作（2026-10-13）
+
+现行版本：0.48；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
+
+**已实现及原缺陷修复**：默认 prepare_execution 的 C-15/C-16 原阻断已修，业务快照→技术清单、物化 workdir 与冻结截止读取对齐。retry_step/return_stage/request_regression/attach_evidence、reuse_decision 保存与报告候选读取已有；C-17/C-18 表明新增链仍不足以授予完整 R/V。
+
+**当前阻塞与下一动作**：按既有 CORE 选择修订合同修 C-18；C 修同源 R 资格与统计、默认业务核验；B/C/D 对拍半程修订、范围与有效依据。 具体反例、组件替身范围与原输出见[本轮验证](../../../validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
+
+本轮未完成真实 Trae、实际业务对象/供应方故障、物理掉电或全部合同场景提供/消费方对拍，未新增双方签署。以下历史复核段中的旧缺项/数量只对应原日期；仍有效的正式字段和版本增量继续按正文消费。
+
+
+## 历史源码复核记录（2026-10-12）
 
 本次全源码完成性复核（文档起点 fix@708439b）更正前轮默认接线结论：真实保存材料经未替换默认解析器无法 prepare_execution（C-15），兼容字段替身下语法错/部分导入失败仍 verified（C-16）。组件已注入不等于可信默认链已贯通。[原脚本/实际输出及替身边界](../../../validation/p1-source-completion-20261012/README.md)与[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)分别说明；本次仅修实现状态/阻塞记录，字段签名/Schema/已存数据/历史确认保持，无数据迁移，不补签或标对拍完成。
 
@@ -35,7 +46,7 @@ next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源
 
 # B-C 跨包合同确认：PreparedRun 与运行词汇表
 
-版本：0.46（2026-10-12 状态复核；历史修订与确认按各自日期）
+历史正文版本：0.46（2026-10-12 状态复核；历史修订与确认按各自日期）
 日期：2026-10-12（历史记录保留原条目日期）
 提出方：B 包（项目与计划）
 接收方：C 包（执行与证据）

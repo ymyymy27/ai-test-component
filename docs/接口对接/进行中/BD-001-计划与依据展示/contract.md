@@ -3,21 +3,33 @@ contract_id: BD-001
 title: 计划、范围与断言依据展示
 provider: B
 consumer: D
-contract_version: "0.4"
+contract_version: "0.5"
 contract_status: reviewing
 provider_implementation: partial
-consumer_implementation: not_started
+consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "D-06：面板当前项目/计划身份和受控业务动作入口未接"
-  - "D-05/D-07：计划/依据/双序列/缺口的真实同源 DTO 读取与呈现未接"
+  - "D-06：真实 Trae 未提供 projectContext/详情查询接线，业务操作按钮仍缺可用链"
+  - "D-05/D-07：运行/计划/依据/双序列/历史与主屏的全量同边界呈现未闭环"
+  - "D-13：后补有效确认和运行修订依据不能仅按冻结标签呈现"
   - "B-13：交付验证投影待权威新执行/核验派生"
 next_owner: B/D
-next_action: B/D 将既有枚举与领域结果接准确查询/DTO、当前项目和受控用户动作；落实历史评审中的呈现要求并验证半程双序列，保留未完成确认项。
+next_action: B/D 接真实宿主项目上下文与 CommittedViewReader 的详情查询、有效确认和受控用户动作，补主屏同边界与半程双序列；B 写准确交付验证投影。
 ---
 
-## 当前源码复核与下一动作（2026-10-12）
+## 当前源码复核与下一动作（2026-10-13）
+
+现行版本：0.5；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
+
+**已实现及原缺陷修复**：RunViewDTO/PanelViewDTO/DeliveryViewDTO、CommittedViewReader 与面板只读列表/详情/简报/事件已有部分消费，因此 D 实现从 not_started 更正为 partial。面板测试由模拟 host 提供 projectContext，实际 Trae 扩展没有对应接线；运行/生成按钮仍禁用，不能写成真实工作台完成。
+
+**当前阻塞与下一动作**：B/D 接真实宿主项目上下文与 CommittedViewReader 的详情查询、有效确认和受控用户动作，补主屏同边界与半程双序列；B 写准确交付验证投影。 具体反例、组件替身范围与原输出见[本轮验证](../../../validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
+
+本轮未完成真实 Trae、实际业务对象/供应方故障、物理掉电或全部合同场景提供/消费方对拍，未新增双方签署。以下历史复核段中的旧缺项/数量只对应原日期；仍有效的正式字段和版本增量继续按正文消费。
+
+
+## 历史源码复核记录（2026-10-12）
 
 本版 0.4 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
 
@@ -32,7 +44,7 @@ next_action: B/D 将既有枚举与领域结果接准确查询/DTO、当前项�
 
 # B-D 跨包需求：计划、范围与断言依据的展示口径
 
-版本：0.4（2026-10-12 状态复核；历史修订与确认按各自日期）
+历史正文版本：0.4（2026-10-12 状态复核；历史修订与确认按各自日期）
 日期：2026-10-12（历史记录保留原条目日期）
 提出方：B 包（项目与计划）
 接收方：D 包（判定、报告与用户入口）

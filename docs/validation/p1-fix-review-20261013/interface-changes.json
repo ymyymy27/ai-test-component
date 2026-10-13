@@ -1,0 +1,26 @@
+{
+  "baseline": "a51c2b4",
+  "versions": {
+    "CORE-001": "1.83",
+    "AB-001": "1.43",
+    "BC-001": "0.48",
+    "CD-001": "1.22",
+    "AC-001": "1.7",
+    "BD-001": "0.5"
+  },
+  "paths": [
+    "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "docs/接口对接/README.md"
+  ],
+  "protocol_changed": false,
+  "real_pair_verification": false
+}

@@ -1,0 +1,128 @@
+{
+  "baseline": "a51c2b4",
+  "markdown_files": 88,
+  "local_links": 527,
+  "anchors": 1,
+  "errors": [
+    {
+      "source": "docs/validation/p1-fix-review-20261013/README.md",
+      "target": "document-checks.json",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md",
+      "target": "2026-10-12-regression.log",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md",
+      "target": "2026-10-12-locked-install.txt",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md",
+      "target": "../一期工程检查-D包.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md",
+      "target": "../现状.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md",
+      "target": "../一期工程检查-D包.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md",
+      "target": "../现状.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+      "target": "../一期工程检查-D包.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+      "target": "../现状.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+      "target": "../现状.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md",
+      "target": "../一期工程检查-B包.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md",
+      "target": "../现状.md",
+      "reason": "missing_target"
+    },
+    {
+      "source": "docs/一期工程整改/03-修复证据/2026-10-13-D面板只读业务投影.md",
+      "target": "../一期工程检查-D包.md",
+      "reason": "missing_target"
+    }
+  ],
+  "historical_anchor_notes": [],
+  "versions": {
+    "AB-001": "1.43",
+    "AC-001": "1.7",
+    "BC-001": "0.48",
+    "BD-001": "0.5",
+    "CD-001": "1.22",
+    "CORE-001": "1.83"
+  },
+  "open_issues": {
+    "A": [
+      "A-02",
+      "A-05",
+      "A-06",
+      "A-07",
+      "A-08",
+      "A-09",
+      "A-10",
+      "A-20"
+    ],
+    "B": [
+      "B-01",
+      "B-03",
+      "B-04",
+      "B-05",
+      "B-06",
+      "B-13",
+      "B-15"
+    ],
+    "C": [
+      "C-01",
+      "C-02",
+      "C-03",
+      "C-04",
+      "C-05",
+      "C-06",
+      "C-12",
+      "C-17",
+      "C-18"
+    ],
+    "D": [
+      "D-02",
+      "D-04",
+      "D-05",
+      "D-06",
+      "D-07",
+      "D-11",
+      "D-12",
+      "D-13",
+      "D-14"
+    ]
+  },
+  "acceptance_unchanged": true,
+  "product_and_norms_unchanged": true,
+  "note": "首检：12 处原文链接失效；1 处为首次结果 JSON 尚未生成。原证据正文/结果不改，修链接后重检。"
+}

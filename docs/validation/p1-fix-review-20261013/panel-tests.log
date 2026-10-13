@@ -1,0 +1,27 @@
+
+> @aitest/panel@0.4.0 test
+> playwright test
+
+
+Running 10 tests using 4 workers
+
+(node:27820) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25652) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25560) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26864) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 tests\panel.spec.ts:4:1 › prototype follows current-test panel and same-panel detail flow (1.6s)
+  ok  4 tests\issue-detail.spec.ts:42:1 › issue detail renders authoritative fields and never executes a fix (2.0s)
+  ok  2 tests\repair-brief.spec.ts:64:1 › repair brief reads by the open issue identity and renders it verbatim (2.2s)
+  ok  3 tests\event-stream.spec.ts:52:1 › event stream threads the cursor and appends only new committed events (1.8s)
+  ok  5 tests\panel.spec.ts:38:1 › host outcome is rendered verbatim without recalculating conclusions (333ms)
+  ok  6 tests\issue-detail.spec.ts:140:1 › rows-only detail outcome never fabricates fields or copyable text (494ms)
+  ok  7 tests\repair-brief.spec.ts:120:1 › a refused brief shows the code and offers no body to copy (584ms)
+  ok  8 tests\event-stream.spec.ts:100:1 › a refused cursor keeps the previous cursor and never rewinds silently (537ms)
+  ok  9 tests\panel.spec.ts:77:1 › project context gates read-only queries and rows render verbatim (586ms)
+  ok 10 tests\issue-detail.spec.ts:190:1 › issue detail stays blocked without a project and shows refusals verbatim (539ms)
+
+  10 passed (7.8s)
