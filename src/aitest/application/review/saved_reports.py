@@ -1,54 +1,20 @@
-"""Persisted report revisions and local reviews on the workspace unit of work (P1-FR14).
+"""Persisted report revisions and local reviews (P1-FR14).
 
-Why this module exists
-----------------------
+Contracts: phase-one architecture 03 (frozen report/export inputs and blocking
+issues), architecture 04 (finite indexes and exact revisions), and CORE-001
+(callers do not supply decision or eligibility booleans).
 
-`application/review/reporting.py` is an intentionally persistence-free facade: it
-freezes an immutable `ReportSnapshot` / `LocalReview` / `ReportExport` from values
-the **caller** supplies, and its own docstring says "persistence is intentionally
-not implemented here". The review report
-(`docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md`, P1-FR14 row) and the
-D package check (D-04) record that as the gap: there is no production use case that
-builds the decision from the saved execution facts and stores the report revision.
+The shared assertion producer and decision rules consume saved execution,
+effective controlled basis confirmation and fully proved whole-case reuse.
+Finite issue queries collect all scope-related blockers and their canonical
+chains; issue_ids cannot remove known blockers. Read/publication sequence
+checks reject mixed boundaries. Reports retain exact execution and issue
+references for exports; old records without exact sources retain gaps.
 
-Contract anchors
-----------------
-
-- `docs/项目文档/一期/架构文档/03-报告与缺陷.md` §2/§4/§7/§8/§14 (report revisions,
-  local review binding an exact report revision, export key, `reports.list`);
-- `docs/项目文档/一期/架构文档/04-存储与恢复.md` §"reports.list / reports.by_id"
-  (content_revision / published_sequence / business_outcome summary keys, whole body
-  read by exact revision);
-- `docs/接口对接/进行中/CORE-001-A包公共接口/contract.md` §3.1 (caller supplies
-  identities and revisions — never eligibility, grade or conclusion booleans).
-
-What the caller may and may not supply
---------------------------------------
-
-- `report_id` / `run_id` / `issue_ids` / `review_id` / `conclusion` / `explanation`
-  are identities and human text;
-- the **decision** (`business_outcome`, evidence grade, gaps, coverage), the frozen
-  **input references** (scope revision/name, source identity, environment, rules,
-  acceptance, template, plan revision refs), the frozen **issue revisions** and the
-  **evidence reference set** are all read from the committed snapshot;
-- the reviewer is the bound controlled session, never a parameter.
-
-Known, deliberately registered gaps
------------------------------------
-
-1. **No assertion-outcome producer exists yet** (D-02 remains open). This batch does
-   **not** invent one: `create_report` evaluates the decision with an empty
-   assertion-outcome set, so `V`/`P` stay empty and a run without decisive failures
-   reports `incomplete` with the corresponding gaps. That is the honest projection of
-   "断言结果尚未由生产端派生", and it is asserted by test.
-2. `policy_version` is the single current policy label (`1.0`), matching
-   `DecisionContextFacts`' default; a versioned policy source is not frozen anywhere
-   in phase one yet.
-3. `case_ids_revision` is the frozen scope identity (`scope:<scope_id>@<revision>`)
-   because the decision context has no other authoritative case-set revision.
-4. `record_local_review` derives the reviewed revision from the warehouse (the
-   current `report` revision) and refuses when the caller pins a different one; it
-   never rewrites the report.
+Dynamic reuse environment/dependency proof and default business verification
+still require trustworthy inputs. policy_version uses the current 1.0 policy;
+case_ids_revision uses the frozen scope identity. A local review pins the exact
+saved report revision and never rewrites that report.
 """
 
 from __future__ import annotations
@@ -60,6 +26,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Any, Protocol, cast
 
+from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.application.planning.preparation import preparation_identity_digest
 from aitest.application.planning.preparation_origin import (
     load_saved_preparation,
@@ -67,6 +34,7 @@ from aitest.application.planning.preparation_origin import (
 )
 from aitest.application.planning.serialization import acceptance_scope_from_payload
 from aitest.application.planning.substrate import RecordReader
+from aitest.application.ports import AggregateKind, RecordQuery
 from aitest.application.review import reporting as facade
 from aitest.application.review.authoritative_basis import SavedCaseBasisCheck
 from aitest.application.review.execution_decision_adapter import (
@@ -82,7 +50,8 @@ from aitest.application.review.saved_defects import (
 )
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.reuse_reference import ReuseReference
-from aitest.domain.review.defects import IssueRecord
+from aitest.domain.execution.reuse import WholeCaseReuseBasis
+from aitest.domain.review.defects import IssueRecord, resolve_canonical_issue_id
 from aitest.domain.review.reports import (
     BusinessOutcome,
     Coverage,
@@ -150,9 +119,7 @@ class ReportActorRequired(ReportManagementError):
 
 
 class ReportUnitOfWork(Protocol):
-    def begin(
-        self, request_id: str, project_id: str, *, intent_id: str | None = None
-    ) -> Any: ...
+    def begin(self, request_id: str, project_id: str, *, intent_id: str | None = None) -> Any: ...
     def next_commit_seq(self) -> str: ...
     def stage_record(
         self,
@@ -169,6 +136,7 @@ class ReportUnitOfWork(Protocol):
 class ReportRecordRepository(Protocol):
     def current_revision(self, *, aggregate_kind: str, record_id: str) -> int: ...
     def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> Any: ...
+    def query(self, query: RecordQuery) -> Any: ...
 
 
 class ReportRuntimeFactsReader(Protocol):
@@ -338,6 +306,8 @@ def report_to_payload(
     *,
     published_sequence: int,
     reuse: Mapping[str, object] | None = None,
+    execution_snapshot_ref: SnapshotContentRef | None = None,
+    blocking_issue_ids: frozenset[str] | None = None,
 ) -> dict[str, object]:
     """报告修订 payload；同时给出 `reports.list` / `reports.by_id` 的最小摘要键。
 
@@ -348,11 +318,9 @@ def report_to_payload(
 
     if type(published_sequence) is not int or published_sequence < 0:
         raise ReportManagementError("published_sequence must be a nonnegative integer")
-    context = {
-        name: getattr(snapshot.context, name) for name in _CONTEXT_FIELDS
-    }
+    context = {name: getattr(snapshot.context, name) for name in _CONTEXT_FIELDS}
     context["plan_revision_refs"] = list(snapshot.context.plan_revision_refs)
-    return {
+    payload: dict[str, object] = {
         "schema_version": REPORT_SCHEMA,
         "report_id": snapshot.report_id,
         "project_id": snapshot.context.project_id,
@@ -370,6 +338,11 @@ def report_to_payload(
         "business_outcome": snapshot.decision.business_outcome.value,
         "published_sequence": published_sequence,
     }
+    if execution_snapshot_ref is not None:
+        payload["execution_snapshot_ref"] = execution_snapshot_ref.model_dump(mode="json")
+    if blocking_issue_ids is not None:
+        payload["blocking_issue_ids"] = sorted(blocking_issue_ids)
+    return payload
 
 
 def report_from_payload(payload: Mapping[str, object]) -> ReportSnapshot:
@@ -486,6 +459,8 @@ class _LiveDecision:
     issues: tuple[Any, ...]
     reuse: _ReuseReading
     decision: DecisionResult
+    source_sequence: int
+    blocking_issue_ids: frozenset[str]
 
 
 class SavedReportService:
@@ -504,6 +479,10 @@ class SavedReportService:
         basis_proof: object | None = None,
         case_basis: Any | None = None,
         reuse_references: Callable[[str, str], tuple[ReuseReference, ...]] | None = None,
+        reuse_basis: Callable[
+            [ReuseReference, ExecutionFacts, ExecutionFacts], WholeCaseReuseBasis | None
+        ]
+        | None = None,
     ) -> None:
         for name, value in (
             ("unit", unit),
@@ -533,6 +512,7 @@ class SavedReportService:
         #: 整用例复用候选来源（`(project_id, run_id) -> 已保存引用`）。生产端保存动作
         #: 仍缺合同冻结名称，因此默认 `None`：报告把 R 记为"候选来源未接"而不是空结论。
         self._reuse_references = reuse_references
+        self._reuse_basis = reuse_basis
 
     # ------------------------------------------------------------ 动作入口
 
@@ -555,20 +535,33 @@ class SavedReportService:
         live = self._live(project_id, run_id, issue_ids)
         return live.facts, live.decision
 
-    def _live(
-        self, project_id: str, run_id: str, issue_ids: tuple[str, ...]
-    ) -> _LiveDecision:
+    def _live(self, project_id: str, run_id: str, issue_ids: tuple[str, ...]) -> _LiveDecision:
+        source_sequence = self._next_sequence()
         facts = self._facts(project_id, run_id)
         prepared = self._prepared(project_id, facts.run.intent_id)
         scope = self._scope(project_id, prepared)
-        issues = self._issues(project_id, issue_ids)
-        blocking = frozenset(
-            issue.issue_id for issue in issues if blocking_state(issue) == "blocking"
+        issues = self._issues(
+            project_id,
+            issue_ids,
+            selected_cases=frozenset(facts.run.selected_scope),
+            selected_modules=frozenset(
+                module
+                for case in prepared.frozen_cases
+                if case.case_id in facts.run.selected_scope
+                for module in case.links.module_ids
+            ),
         )
+        graph = {issue.issue_id: issue for issue in issues}
+        blocking_ids: set[str] = set()
+        for issue in issues:
+            root_id = resolve_canonical_issue_id(issue.issue_id, graph)
+            if blocking_state(issue, root=graph[root_id], issues=graph) != "non_blocking":
+                blocking_ids.add(root_id)
+        blocking = frozenset(blocking_ids)
         confirmed_cases = frozenset(
             case.case_id
             for case in prepared.frozen_cases
-            if self._bases(project_id, facts.run.intent_id, case.case_id)
+            if self._bases.for_facts(facts, case.case_id)
         )
         critical_chain = frozenset(
             item for case in prepared.frozen_cases for item in case.links.critical_path_ids
@@ -577,7 +570,7 @@ class SavedReportService:
         outcomes = assertion_outcomes_from_facts(
             facts,
             basis_revision_for=lambda case_id: self._bases.revision(
-                project_id, facts.run.intent_id, case_id
+                project_id, facts.run.intent_id, case_id, facts=facts
             ),
             basis_confirmed_for=lambda case_id: case_id in confirmed_cases,
         )
@@ -591,9 +584,17 @@ class SavedReportService:
             reuse=reuse.outcome,
             assertion_outcomes=outcomes,
         )
+        if self._next_sequence() != source_sequence:
+            raise ReportGuardRefused("decision inputs changed while reading the committed boundary")
         return _LiveDecision(
-            facts=facts, prepared=prepared, scope=scope, issues=issues, reuse=reuse,
+            facts=facts,
+            prepared=prepared,
+            scope=scope,
+            issues=issues,
+            reuse=reuse,
             decision=decision,
+            source_sequence=source_sequence,
+            blocking_issue_ids=blocking,
         )
 
     # ------------------------------------------------------------ 报告修订
@@ -610,9 +611,7 @@ class SavedReportService:
         run_id = _text(parameters.get("run_id"), "run_id")
         issue_ids = _text_list(parameters.get("issue_ids"), "issue_ids")
 
-        fingerprint = _digest(
-            ["create_report", report_id, expected, run_id, list(issue_ids)]
-        )
+        fingerprint = _digest(["create_report", report_id, expected, run_id, list(issue_ids)])
         intent_record_id = "report-intent-" + _digest([project_id, intent_id])[7:]
         recalled = self._recall(
             project_id, intent_record_id, "create_report", report_id, fingerprint
@@ -657,6 +656,13 @@ class SavedReportService:
             created_at=self._clock.now(),
         )
         sequence = self._next_sequence()
+        payload = report_to_payload(
+            snapshot,
+            published_sequence=sequence,
+            reuse=reuse.payload(),
+            execution_snapshot_ref=SnapshotContentRef.of(facts),
+            blocking_issue_ids=live.blocking_issue_ids,
+        )
         return self._commit(
             action="create_report",
             project_id=project_id,
@@ -666,11 +672,10 @@ class SavedReportService:
             intent_record_id=intent_record_id,
             fingerprint=fingerprint,
             aggregate_kind=REPORT_AGGREGATE,
-            payload=report_to_payload(
-                snapshot, published_sequence=sequence, reuse=reuse.payload()
-            ),
+            payload=payload,
             expected_revision=current_revision,
             revision=snapshot.content_revision,
+            source_sequence=live.source_sequence,
         )
 
     def _decision(
@@ -710,8 +715,8 @@ class SavedReportService:
     def _reuse_outcome(self, facts: ExecutionFacts) -> _ReuseReading:
         """整用例复用（R）的消费：候选来源未接时显式记为"未接"。
 
-        生产端"谁写入复用选择"仍缺合同冻结的动作名，因此这里不伪造候选；一旦装配
-        提供候选来源，就按完整守卫计入 R 或给出**具名拒绝原因**（不再静默空集）。
+        候选由 select_case_reuse 保存；来源未装配时显式记为未接。
+        缺完整依据时拒绝 R，并给出具名原因；动态资格和来源材料不得猜测。
         """
 
         if self._reuse_references is None:
@@ -725,8 +730,13 @@ class SavedReportService:
                 references,
                 source_facts=lambda run_id: self._source_facts(facts.project_id, run_id),
                 evidence_readable=self._evidence_saved,
-                basis_confirmed=lambda case_id: self._bases(
-                    facts.project_id, facts.run.intent_id, case_id
+                basis_confirmed=lambda case_id: self._bases.for_facts(facts, case_id),
+                complete_basis=self._reuse_basis,
+                basis_revision_for=lambda source, case: self._bases.revision(
+                    source.project_id,
+                    source.run.intent_id,
+                    case,
+                    facts=source,
                 ),
             ),
             candidates=len(references),
@@ -734,9 +744,7 @@ class SavedReportService:
 
     def _source_facts(self, project_id: str, run_id: str) -> ExecutionFacts | None:
         try:
-            return self._runtime.read_runtime_revision_facts(
-                project_id=project_id, run_id=run_id
-            )
+            return self._runtime.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         except (OSError, KeyError, TypeError, ValueError):
             return None
 
@@ -756,9 +764,7 @@ class SavedReportService:
         return tuple(dict.fromkeys(refs))
 
     def _template_revision(self, prepared: Any) -> str:
-        versions = [
-            f"{item.template_id}@{item.version}" for item in prepared.template_versions
-        ]
+        versions = [f"{item.template_id}@{item.version}" for item in prepared.template_versions]
         if not versions:
             raise ReportGuardRefused("the saved preparation has no frozen template version")
         return versions[0]
@@ -768,8 +774,13 @@ class SavedReportService:
     def _record_local_review(self, command: object) -> Mapping[str, object]:
         project_id, intent_id, request_id, expected = _command_identity(command)
         parameters = _command_parameters(command)
-        unknown = set(parameters) - {"review_id", "report_id", "conclusion", "explanation",
-                                     "report_revision"}
+        unknown = set(parameters) - {
+            "review_id",
+            "report_id",
+            "conclusion",
+            "explanation",
+            "report_revision",
+        }
         if unknown:
             raise ReportManagementError(
                 f"record_local_review received unknown parameters: {sorted(unknown)}"
@@ -781,8 +792,9 @@ class SavedReportService:
         if expected != 0:
             raise ReportRevisionConflict(expected=expected, current=0)
 
-        fingerprint = _digest(["record_local_review", review_id, report_id, conclusion,
-                               explanation])
+        fingerprint = _digest(
+            ["record_local_review", review_id, report_id, conclusion, explanation]
+        )
         intent_record_id = "report-intent-" + _digest([project_id, intent_id])[7:]
         recalled = self._recall(
             project_id, intent_record_id, "record_local_review", review_id, fingerprint
@@ -830,9 +842,7 @@ class SavedReportService:
 
     def _facts(self, project_id: str, run_id: str) -> ExecutionFacts:
         try:
-            facts = self._runtime.read_runtime_revision_facts(
-                project_id=project_id, run_id=run_id
-            )
+            facts = self._runtime.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         except (OSError, KeyError, TypeError, ValueError) as error:
             raise ReportGuardRefused(f"saved run facts are unavailable: {error}") from error
         if not isinstance(facts, ExecutionFacts):
@@ -896,17 +906,80 @@ class SavedReportService:
             raise ReportGuardRefused("the frozen acceptance scope identity differs")
         return scope
 
-    def _issues(self, project_id: str, issue_ids: tuple[str, ...]) -> tuple[IssueRecord, ...]:
-        records: list[IssueRecord] = []
+    def _issues(
+        self,
+        project_id: str,
+        issue_ids: tuple[str, ...],
+        *,
+        selected_cases: frozenset[str] | None = None,
+        selected_modules: frozenset[str] = frozenset(),
+    ) -> tuple[IssueRecord, ...]:
+        # The caller may request additional issues, but cannot subtract saved
+        # blockers. Pages use the finite ALL issue index and its stable cursor.
+        payloads: dict[str, Mapping[str, object]] = {}
+        cursor = None
+        seen: set[str] = set()
+        while True:
+            page = self._records.query(
+                RecordQuery(
+                    project_id=project_id,
+                    aggregate_kind=cast(AggregateKind, ISSUE_AGGREGATE),
+                    view="ALL",
+                    sort="updated_sequence",
+                    limit=100,
+                    cursor=cursor,
+                )
+            )
+            if getattr(page, "status", None) != "ok":
+                if cursor is None and self._next_sequence() == 1:
+                    break  # Authoritative empty workspace, before its first commit.
+                raise ReportGuardRefused("saved issue scope cannot be read completely")
+            for record in page.items:
+                payloads[record.record_id] = record.payload
+            cursor = page.next_cursor
+            if cursor is None:
+                break
+            if cursor in seen:
+                raise ReportGuardRefused("saved issue query repeated its cursor")
+            seen.add(cursor)
         for issue_id in issue_ids:
-            current = self._current(ISSUE_AGGREGATE, issue_id)
+            current = payloads.get(issue_id)
             if current is None:
                 raise ReportGuardRefused(f"issue {issue_id} is not saved")
+        records: dict[str, IssueRecord] = {}
+        for issue_id, current in payloads.items():
             issue = issue_from_payload(current)
             if issue.project_id != project_id:
                 raise ReportGuardRefused(f"issue {issue_id} belongs to another project")
-            records.append(issue)
-        return tuple(records)
+            links = current.get("links")
+            case_id = links.get("case_id") if isinstance(links, Mapping) else None
+            modules = (
+                set(links.get("module_ids", ())) - {"unknown"}
+                if isinstance(links, Mapping)
+                else set()
+            )
+            # Unknown scope is retained, never interpreted as unrelated.
+            if (
+                selected_cases is None
+                or case_id in selected_cases
+                or issue_id in issue_ids
+                or not modules
+                or not selected_modules
+                or bool(modules & selected_modules)
+            ):
+                records[issue_id] = issue
+        # Include exact canonical dependencies even when their own scope differs.
+        for issue in tuple(records.values()):
+            current_issue = issue
+            chain: set[str] = set()
+            while current_issue.canonical_issue_id is not None:
+                root_id = current_issue.canonical_issue_id
+                if root_id in chain or root_id not in payloads:
+                    raise ReportGuardRefused("issue canonical dependency is missing or cyclic")
+                chain.add(root_id)
+                current_issue = issue_from_payload(payloads[root_id])
+                records[root_id] = current_issue
+        return tuple(records[key] for key in sorted(records))
 
     def _current_report(self, project_id: str, report_id: str) -> dict[str, Any] | None:
         payload = self._current(REPORT_AGGREGATE, report_id)
@@ -953,9 +1026,7 @@ class SavedReportService:
         if getattr(entry_kind, "value", None) == "agent_relay" or not getattr(
             actor, "interactive", False
         ):
-            raise ReportActorRequired(
-                "local review cannot come from an AI relay session"
-            )
+            raise ReportActorRequired("local review cannot come from an AI relay session")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ReportActorRequired("local review requires a session identity")
         return f"session:{session_id}"
@@ -1011,6 +1082,7 @@ class SavedReportService:
         payload: dict[str, object],
         expected_revision: int,
         revision: int,
+        source_sequence: int | None = None,
     ) -> Mapping[str, object]:
         result = {
             "aggregate_kind": aggregate_kind,
@@ -1019,6 +1091,8 @@ class SavedReportService:
         }
         self._unit.begin(request_id, project_id, intent_id=intent_id)
         try:
+            if source_sequence is not None and self._next_sequence() != source_sequence:
+                raise ReportGuardRefused("decision inputs changed before report publication")
             staged = self._unit.stage_record(
                 aggregate_kind=aggregate_kind,
                 record_id=record_id,

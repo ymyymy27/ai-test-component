@@ -3,22 +3,30 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.48"
+contract_version: "0.49"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "C-17：整用例 R 当前性/同用例核验/来源身份与 V/P/M 统计消费不完整"
-  - "C-18：select_case_reuse 未拒绝陈旧 expected_revision"
-  - "C-03：默认多类业务核验配置/端口缺失"
-  - "B-05/B-15/C-06：真实半程修订、授权和宿主/D 双序列未验收"
+  - "C-17：准确读取与资格/公式已改，但动态环境/目标依赖摘要仍未知"
+  - "C-03：默认独立核验配置/端口未接"
+  - "真实半程、授权、宿主与完整 R 对拍未验收"
 next_owner: B/C/D
-next_action: 按既有 CORE 选择修订合同修 C-18；C 修同源 R 资格与统计、默认业务核验；B/C/D 对拍半程修订、范围与有效依据。
+next_action: 选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
 ---
 
-## 当前源码复核与下一动作（2026-10-13）
+## 当前实现修复（2026-10-13）
+
+现行版本：0.49；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
+
+本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
+
+原 A-20、C-18、D-11—14 的代码关闭仅依本轮回归；C-17 无可信动态资格时继续拒绝 R。局部/类型夹具不等于真实 Trae、业务数据/供应方故障、物理掉电或完整合同对拍。下方原审查内容仅保留历史问题来源。
+
+
+## 修复前源码复核（7b931af 的原记录）
 
 现行版本：0.48；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
 
@@ -697,7 +705,8 @@ B 侧的**领域门禁与决策结果**已实现并有回归测试
 
 | # | 夹具 | 关键取值 | 用来验证什么 |
 | --- | --- | --- | --- |
-| **R1** | **正常执行中** | `run.control_state=running`；步骤：1 个 `completed`（带历史尝试与证据引用）、1 个 `running`（有当前尝试）、其余 `pending` 或 `ready`；`current_attempt_by_step` 齐全；`completeness=partial`；`run.evidence_level=None` | 设计 §16.2 第 1、2 条的基础样本：修订**只作用于未执行步骤**，已完成的步骤修订与依据不变 || **R2** | **暂停请求 → 已在边界暂停** | 同一逻辑运行的两份快照：①`pause_requested`（执行中的步骤仍 `running`）；②`paused`（**无** `running` 步骤，下一步为 `pending`／`ready`） | §16.2 第 2 条的"在**步骤边界**暂停而不是中途打断"；这是第 17.2 节第 6 条的直接检验 |
+| **R1** | **正常执行中** | `run.control_state=running`；步骤：1 个 `completed`（带历史尝试与证据引用）、1 个 `running`（有当前尝试）、其余 `pending` 或 `ready`；`current_attempt_by_step` 齐全；`completeness=partial`；`run.evidence_level=None` | 设计 §16.2 第 1、2 条的基础样本：修订**只作用于未执行步骤**，已完成的步骤修订与依据不变 |
+| **R2** | **暂停请求 → 已在边界暂停** | 同一逻辑运行的两份快照：①`pause_requested`（执行中的步骤仍 `running`）；②`paused`（**无** `running` 步骤，下一步为 `pending`／`ready`） | §16.2 第 2 条的"在**步骤边界**暂停而不是中途打断"；这是第 17.2 节第 6 条的直接检验 |
 | **R3** | **依据失效 + 修订生效** | `paused` 或 `running`；1 个步骤 `invalidated` 且带 `invalidated_by`；另一部分步骤为 `pending`（未执行）；`runtime_revision_refs` 非空；`run.evidence_level=None` | §16.2 第 3 条：失效的是**依据**而不是删记录；失效步骤**不得**回退成"当前通过" |
 
 **每份夹具的最低自洽要求**：能通过 `ExecutionFacts` 的既有校验器；`current_attempt_by_step` 与

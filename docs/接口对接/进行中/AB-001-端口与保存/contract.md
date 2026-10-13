@@ -3,22 +3,29 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.43"
+contract_version: "1.44"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "B-01/B-03/B-05：可信人工/真实供应方故障、实际半程流程未验收"
-  - "B-13：交付 verified_in_scope 的新执行/核验投影未写入"
-  - "D-13：D 侧只看冻结依据标签，未消费后补有效确认及运行修订依据"
-  - "真实宿主来源/重启回读、editable/PYTHONPATH 与物理掉电未验证"
+  - "B-01/B-03/B-05/B-13：可信人工/供应方/半程及交付验证投影未闭合"
+  - "真实宿主与业务来源/重启/物理掉电未验证"
 next_owner: A/B/D
-next_action: 保持草稿/发布/执行事实独立；B 接权威交付验证投影，B/D 对拍后补确认和运行修订依据；补真实半程及宿主来源证据。
+next_action: D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
 ---
 
-## 当前源码复核与下一动作（2026-10-13）
+## 当前实现修复（2026-10-13）
+
+现行版本：1.44；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
+
+本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
+
+原 A-20、C-18、D-11—14 的代码关闭仅依本轮回归；C-17 无可信动态资格时继续拒绝 R。局部/类型夹具不等于真实 Trae、业务数据/供应方故障、物理掉电或完整合同对拍。下方原审查内容仅保留历史问题来源。
+
+
+## 修复前源码复核（7b931af 的原记录）
 
 现行版本：1.43；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
 

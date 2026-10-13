@@ -3,22 +3,29 @@ contract_id: BD-001
 title: 计划、范围与断言依据展示
 provider: B
 consumer: D
-contract_version: "0.5"
+contract_version: "0.6"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "D-06：真实 Trae 未提供 projectContext/详情查询接线，业务操作按钮仍缺可用链"
-  - "D-05/D-07：运行/计划/依据/双序列/历史与主屏的全量同边界呈现未闭环"
-  - "D-13：后补有效确认和运行修订依据不能仅按冻结标签呈现"
-  - "B-13：交付验证投影待权威新执行/核验派生"
+  - "D-06：真实 Trae 项目/详情查询与受控业务动作未接"
+  - "D-05/D-07/B-13：完整同源视图/双序列/交付验证投影与真实宿主未闭合"
 next_owner: B/D
-next_action: B/D 接真实宿主项目上下文与 CommittedViewReader 的详情查询、有效确认和受控用户动作，补主屏同边界与半程双序列；B 写准确交付验证投影。
+next_action: 后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
 ---
 
-## 当前源码复核与下一动作（2026-10-13）
+## 当前实现修复（2026-10-13）
+
+现行版本：0.6；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
+
+本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
+
+原 A-20、C-18、D-11—14 的代码关闭仅依本轮回归；C-17 无可信动态资格时继续拒绝 R。局部/类型夹具不等于真实 Trae、业务数据/供应方故障、物理掉电或完整合同对拍。下方原审查内容仅保留历史问题来源。
+
+
+## 修复前源码复核（7b931af 的原记录）
 
 现行版本：0.5；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
 

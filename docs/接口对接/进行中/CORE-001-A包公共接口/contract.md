@@ -3,22 +3,29 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.83"
+contract_version: "1.84"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "A-20：维护闸门漏拦 import_rules 等表外注册写动作"
-  - "C-17/C-18：复用消费资格/统计不完整，选择写入忽略 expected_revision"
-  - "D-11—14：关闭依据、阻塞问题集合、有效确认与导出意图回读存在边界缺陷"
-  - "A-05/A-07/C-03/D-06：未知活动恢复、默认业务核验和真实宿主业务入口未闭环"
+  - "C-17/C-03：动态资格与默认核验仍缺可信输入；未知不能授予 R/V"
+  - "A-05/A-07/D-06：跨进程维护、未知活动/恢复与真实宿主用户流程未闭合"
 next_owner: A/B/C/D
-next_action: A 修维护写闸门和受控恢复；C 修复用选择修订与完整消费，补默认业务核验；D 修关闭/报告/确认/导出边界并接真实用户流程。
+next_action: 维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
 ---
 
-## 当前源码复核与下一动作（2026-10-13）
+## 当前实现修复（2026-10-13）
+
+现行版本：1.84；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+
+本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
+
+原 A-20、C-18、D-11—14 的代码关闭仅依本轮回归；C-17 无可信动态资格时继续拒绝 R。局部/类型夹具不等于真实 Trae、业务数据/供应方故障、物理掉电或完整合同对拍。下方原审查内容仅保留历史问题来源。
+
+
+## 修复前源码复核（7b931af 的原记录）
 
 现行版本：1.83；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
 

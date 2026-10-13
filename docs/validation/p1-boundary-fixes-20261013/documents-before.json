@@ -1,0 +1,356 @@
+[
+  {
+    "path": "README.md",
+    "bytes": 5385,
+    "sha256": "c8c4dd33173ebca2007b427c0f3ff2fbed170821e0120923f819996ead71e8dc",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/现状.md",
+    "bytes": 9136,
+    "sha256": "747148649257dd7bb9794b22db8e7521e7237b40f0427c60ebe8f4f75c084d20",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程检查-A包.md",
+    "bytes": 3530,
+    "sha256": "043ef36d6d6bbcad4eb290e381ac43b76c2a02bfa2f5c9d4d07849e6777c14a4",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程检查-B包.md",
+    "bytes": 2931,
+    "sha256": "386277129687e2b061f75f36986a8f4ce7e0600199f8cb31a71cdb0ba608277a",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程检查-C包.md",
+    "bytes": 4186,
+    "sha256": "ed278fce7626db8987931a60082fb00a594b8544a90792a982d28761e0f57b4e",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程检查-D包.md",
+    "bytes": 4812,
+    "sha256": "41cd2ab2fd2a82f7e7cc01905945d8aa49e7a7ee88c623c6d523d61ec1ba38ea",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md",
+    "bytes": 18130,
+    "sha256": "1cf5dfb2c5d1414b9febe70b70743718c98f9d6c29c0f5cf7a0c752d077502cb",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md",
+    "bytes": 2694,
+    "sha256": "480bc9948cc85059bb85c1ec89d0a60f99cde6089ef589e5d9db90776fb138b8",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/A包完整提交闭包整改设计-2026-10-04.md",
+    "bytes": 3603,
+    "sha256": "f09e347f45418c33d9e03adf31cda3787bbf27d60172f2b342c34b630c70a043",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/动作解析器实施清单-2026-10-09.md",
+    "bytes": 4693,
+    "sha256": "d5a3f920bc83e13c2c8e2ff1d0f2e3864e33556ad4078d2750e2d902f1c4054a",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md",
+    "bytes": 2566,
+    "sha256": "fb705fbad20067392d0f32b4e95442f1adf6b99e0a9ec49cf0c9ab918ceb6373",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md",
+    "bytes": 8950,
+    "sha256": "3930819254384b583444a5f576a111d4678e6444bf2430e9dfac9d52586b984d",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md",
+    "bytes": 6230,
+    "sha256": "7e17c322705319a8680267cb78a205c0012f0ed77946e52a3b5c8a05364bf61b",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md",
+    "bytes": 5920,
+    "sha256": "37cc777d6cc813d43cc80fcb6b475a65825707a462f94676d73bfbcf532aa743",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+    "bytes": 6739,
+    "sha256": "7d35607467bf2ff6e8f2ca383d620a26fc0d5b39b1e6224a337212c5c510b7b9",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md",
+    "bytes": 5303,
+    "sha256": "2e2ff55ed9be14ca9d04a9d6db185e4bfcfeae2e37e8789e7399d202dd03b878",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C0105整用例复用消费规则.md",
+    "bytes": 5241,
+    "sha256": "ae581b6036b1c9f406fc464047f213fbad28f6a0d4fff8ab8c409ce57f4150f2",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03声明点按路径细分.md",
+    "bytes": 4566,
+    "sha256": "b7f7126cf8d0dd2b7b55c6dd699ea0f9ffc938fa8638f2b62a4fc3b4dd58fc44",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03核验声明点自述.md",
+    "bytes": 5002,
+    "sha256": "11760977aa58c5ba8c4a72f2ed5231d7fe72636c467974a7e763fa80d5eb2a01",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控人工补证入口.md",
+    "bytes": 5354,
+    "sha256": "d7b6f31223f2c946daf85fcddeec8525f21c1af3a5a4811f44fa70433d958d46",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控备份入口backup.md",
+    "bytes": 5766,
+    "sha256": "60c1c19cfaad712ba2aa0f93eeaaac6ee6c2e31372ed8c7cf8633aeacdd88a8a",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C备份登记与恢复入口.md",
+    "bytes": 5174,
+    "sha256": "f8526e87684477b0ec59ebc916858fe837d857f488e81345b42ab1691f690473",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C结构迁移入口与维护窗口.md",
+    "bytes": 5747,
+    "sha256": "cb44c4f058a87b146e144a7cd7bd57c49aaaedc7254c25932b19e453ae3252b9",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C重试入口retry-step.md",
+    "bytes": 4117,
+    "sha256": "4cc375b5c240747f63ed9b120412441bd8f9df15b0df9e8df9a0bc3e4fb62050",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D02断言结果生产者.md",
+    "bytes": 5455,
+    "sha256": "9e7374e69ec3b5ebe0f37edf84fcd58b2ec63bf68d8c5c57245602bf5e20daab",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D导出安全与可携带包验证.md",
+    "bytes": 3807,
+    "sha256": "71dc5885496943aebb3433b1c6ab4203124dca028bf82a5c461ca55cadb1eb23",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板只读业务投影.md",
+    "bytes": 4693,
+    "sha256": "d6cb3b522607a585574bffad4931f02a3fde2e5519ff9cd17cc4d11141795024",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板复测简报只读视图.md",
+    "bytes": 4485,
+    "sha256": "82d274ae0f83508d4ee0d6a638a1b937abb8f177a34bcf46e705ca3b7099f7b5",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板已提交事件增量续读.md",
+    "bytes": 5183,
+    "sha256": "271b58d337603d9640f343ff5bb43c7187e56a701552f043ae5aadefd57c154b",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板问题详情业务闭环.md",
+    "bytes": 5921,
+    "sha256": "c06fc22a10629f8c7f03c287eedb2ce4f3fe583d7879b73a00833d0bca26b672",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02交付说明视图.md",
+    "bytes": 4977,
+    "sha256": "4a26ba2dd3959f98c57b8b2e0dd703b543e1d9d7409f3b5b665b3b01092a386a",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02核验状态与自述分列.md",
+    "bytes": 4220,
+    "sha256": "4b065cac16cca52aa752a47d9c5fa1ba5061b7a3b51c0cdf1561a8c27e45b561",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-request-regression与return-stage.md",
+    "bytes": 5542,
+    "sha256": "9bb47666d664dff23fab7e3c675c2d292ee3405e557adde1502fbe8a8cd97f0b",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-列表与事件配对边界.md",
+    "bytes": 4687,
+    "sha256": "368e26697b84a53ec57c5108d7b607bcd034285c9e63e57dc9f61f4b5198582e",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用保存侧收窄.md",
+    "bytes": 5027,
+    "sha256": "f7812e68eb802c8721edd33facc3985209495a854da27efe6b7383800066d619",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用选择动作.md",
+    "bytes": 2848,
+    "sha256": "1e6a786a5d04685c74b2e67a8c52deb06fd6009b5706bd2b8237b7491442f512",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-对象分块与按需范围读取.md",
+    "bytes": 5670,
+    "sha256": "2d3aceccbb23fb08c42ce7c52b85317f27c062d0fa43da7faf7cd5c3a5e1aa54",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-迁移前备份可追溯性.md",
+    "bytes": 4831,
+    "sha256": "25eb3a88a9ecafc2f8e4a978a0c38e996e0d7c92ac83b05d340d87e9c85ce341",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-运行视图DTO与只读接缝.md",
+    "bytes": 5157,
+    "sha256": "d14d418ad4f58925ac441555efa54cbc0eedf5ebffbb919157bf68dc08a2531d",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-面板主屏当前段与情形事实.md",
+    "bytes": 4184,
+    "sha256": "b4da41e9745f3d491f8dd13b52905b8b0fae9ded50a6828c5d173020ed20f1fe",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
+    "bytes": 3756,
+    "sha256": "a393124de32ab004371522c49f45716a01b53d42c288b63a211bca7c1810ea1e",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md",
+    "bytes": 2342,
+    "sha256": "a90f004484ec0a0060129583d7fe287540e69066ac3c21c6db1d783fccacdf5c",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
+    "bytes": 1551,
+    "sha256": "8f77ed8c4167116747367452ddc0b87ad60e0398a276bf7661f6c65d9b173881",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/05-待裁定/2026-10-13-剩余合同缺口与所需决定.md",
+    "bytes": 2738,
+    "sha256": "a0ad283b578cea87c68e8fba2256ce822e2f4f48b36615e23e15b20fff192f27",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/06-完成度审计/2026-10-13-目标项逐条完成度审计.md",
+    "bytes": 11390,
+    "sha256": "55f08b0ce7e69dabbe7f42a4696c4661c1b818009bcb2a03922596d730b802a9",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/README.md",
+    "bytes": 3002,
+    "sha256": "baa204f15eaa276205fb681306eaf15a20bb8ad1de4d9b6b961b137c74dcdba4",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-12.md",
+    "bytes": 4010,
+    "sha256": "466789a81759c4205a6d098b54edae97084a079fbd1ad6087205ed3c70d50616",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-13.md",
+    "bytes": 1968,
+    "sha256": "09b68a0dce817c53f7305b582b5a49cb68da2db9cab1cf67684924f08881170a",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "bytes": 20427,
+    "sha256": "5adb7eaff1ae174571d28471aa491da75f6d38ff23051e152e02b995b7ce23fe",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "bytes": 139837,
+    "sha256": "a47a8b91e592666ebefe5728a61aec05c01962ad969c252b216bb72dca0e0c85",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "bytes": 21887,
+    "sha256": "b68bc2e50742fb11dc6d6fb0a0b7f10c886cf1858001ab3f3a1e6ec5a3f006d3",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "bytes": 104172,
+    "sha256": "860e4e724f0acb7fb188ce2c6f3eec63da08d3145a91b2f8872713cfd6dfd459",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "bytes": 21592,
+    "sha256": "7310390d4b28020bd4a45b388e867f985bbca4da72d6a81ab94fced45669b69e",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "bytes": 25202,
+    "sha256": "cf06ab0e4a1050a63ca2af7a5d28fa2e0202471d6c1084ced1df1ba85edeb86f",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "bytes": 87566,
+    "sha256": "77c83d6c83d2ab53dd86df32209120b252923525b7634a0d7d095bf366238b7b",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "bytes": 2857,
+    "sha256": "62e0a0fbec52fc124ec74cc5059e512dc87fdcc9237ed9895e41d91f98b69b9e",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "bytes": 2973,
+    "sha256": "c4dc4cabadcbd08d345003752bfc4a94ecd83891e2ccdd63c7d2c2eefacde919",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "bytes": 2638,
+    "sha256": "ac25df7ae331a09408b8d75caad9f72c26aa038a0e03fd40d004e95879d29242",
+    "restore_commit": "7b931af"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "bytes": 2919,
+    "sha256": "a0435c00700d2ab0e61b606a6137ca5cba69ac0444a0465cf9be4ea13c048f4f",
+    "restore_commit": "7b931af"
+  }
+]

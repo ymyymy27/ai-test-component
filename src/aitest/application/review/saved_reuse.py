@@ -35,6 +35,7 @@ from aitest.application.execution.reuse_inspection import (
     CaseReuseInspection,
     CaseReuseUnverified,
 )
+from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.contracts.reuse_reference import (
     ReuseReference,
     parse_reuse_reference,
@@ -64,6 +65,10 @@ class ReuseIntentConflict(ReuseSelectionBlocked):
 
 class ReuseActorRequired(ReuseSelectionBlocked):
     code = "AWAITING_USER_CONFIRMATION"
+
+
+class ReuseRevisionConflict(ReuseSelectionBlocked):
+    code = "RECORD_REVISION_CONFLICT"
 
 
 def reuse_decision_record_id(project_id: str, target_run_id: str) -> str:
@@ -107,6 +112,7 @@ class SavedCaseReuseSelection:
 
         fingerprint = _digest(
             [
+                expected,
                 str(parameters["case_id"]),
                 str(parameters["source_run_id"]),
                 _snapshot_digest(parameters["source_snapshot"]),
@@ -115,13 +121,33 @@ class SavedCaseReuseSelection:
             ]
         )
         intent_record_id = reuse_intent_record_id(project_id, intent_id)
-        recalled = self._recall(project_id, intent_record_id, intent_id, fingerprint)
+        legacy_fingerprint = _digest(
+            [
+                str(parameters["case_id"]),
+                str(parameters["source_run_id"]),
+                _snapshot_digest(parameters["source_snapshot"]),
+                str(parameters["target_run_id"]),
+                _snapshot_digest(parameters["target_snapshot"]),
+            ]
+        )
+        recalled = self._recall(
+            project_id,
+            intent_record_id,
+            intent_id,
+            fingerprint,
+            legacy_fingerprint=legacy_fingerprint,
+        )
         if recalled is not None:
             return recalled
 
         reference = self._reference(command, project_id, parameters)
         record_id = reuse_decision_record_id(project_id, str(parameters["target_run_id"]))
         current_revision = self._current_revision(REUSE_DECISION_AGGREGATE, record_id) or 0
+        if expected != current_revision:
+            raise ReuseRevisionConflict(
+                f"reuse selection revision conflict: expected {expected}, "
+                f"current {current_revision}"
+            )
         current = self._decision_payload(record_id)
         references = [item for item in current if item.case_id != reference.case_id] + [reference]
         references.sort(key=lambda item: item.case_id)
@@ -143,7 +169,7 @@ class SavedCaseReuseSelection:
             project_id=project_id,
             intent_id=intent_id,
             record_id=record_id,
-            expected_revision=current_revision,
+            expected_revision=expected,
             payload=payload,
             intent_record_id=intent_record_id,
             fingerprint=fingerprint,
@@ -162,8 +188,25 @@ class SavedCaseReuseSelection:
             raise ReuseSelectionBlocked(str(error)) from error
         if verified.status != "unverified":
             raise ReuseSelectionBlocked(
-                "case reuse material is incompatible: "
-                + ",".join(verified.denial_reasons)
+                "case reuse material is incompatible: " + ",".join(verified.denial_reasons)
+            )
+        if (
+            verified.project_id,
+            verified.case_id,
+            verified.source_run_id,
+            verified.target_run_id,
+            _snapshot_digest(verified.source_snapshot),
+            _snapshot_digest(verified.target_snapshot),
+        ) != (
+            project_id,
+            parameters["case_id"],
+            parameters["source_run_id"],
+            parameters["target_run_id"],
+            _snapshot_digest(parameters["source_snapshot"]),
+            _snapshot_digest(parameters["target_snapshot"]),
+        ):
+            raise ReuseSelectionBlocked(
+                "inspection result differs from the exact selection request"
             )
         inputs = verified.reference_inputs
         mapping = [
@@ -191,9 +234,7 @@ class SavedCaseReuseSelection:
             source_content_identity=_text(
                 inputs.get("source_content_identity"), "source_content_identity"
             ),
-            environment_revision_digest=_digest_or_none(
-                inputs.get("environment_revision_digest")
-            ),
+            environment_revision_digest=_digest_or_none(inputs.get("environment_revision_digest")),
             entry_input_digest=_digest_or_none(inputs.get("entry_input_digest")),
             rules_revision_digest=_digest_or_none(inputs.get("rules_revision_digest")),
             adapter_digest=_digest_or_none(inputs.get("adapter_digest")),
@@ -234,7 +275,13 @@ class SavedCaseReuseSelection:
     # ------------------------------------------------------------ 幂等与提交
 
     def _recall(
-        self, project_id: str, intent_record_id: str, intent_id: str, fingerprint: str
+        self,
+        project_id: str,
+        intent_record_id: str,
+        intent_id: str,
+        fingerprint: str,
+        *,
+        legacy_fingerprint: str | None = None,
     ) -> Mapping[str, object] | None:
         revision = self._current_revision(REUSE_INTENT_AGGREGATE, intent_record_id)
         if revision is None:
@@ -246,7 +293,9 @@ class SavedCaseReuseSelection:
             or payload.get("intent_id") != intent_id
         ):
             raise ReuseIntentConflict("reuse intent belongs to different inputs")
-        if payload.get("input_digest") != fingerprint:
+        if payload.get("input_digest") != fingerprint and (
+            legacy_fingerprint is None or payload.get("input_digest") != legacy_fingerprint
+        ):
             raise ReuseIntentConflict("reuse intent has different frozen input")
         result = payload.get("result")
         if not isinstance(result, Mapping) or set(result) != {
@@ -380,8 +429,15 @@ def _digest_or_none(value: object) -> str | None:
 def _snapshot_digest(value: object) -> str:
     if not isinstance(value, Mapping):
         raise ReuseSelectionBlocked("reuse selection requires an exact snapshot reference")
-    return _digest([str(value.get("snapshot_id")), str(value.get("record_revision")),
-                    str(value.get("content_identity"))])
+    try:
+        import json
+
+        parsed = SnapshotContentRef.model_validate_json(json.dumps(dict(value)), strict=True)
+    except (TypeError, ValueError) as error:
+        raise ReuseSelectionBlocked(
+            "reuse selection requires an execution snapshot reference"
+        ) from error
+    return _digest(parsed.model_dump(mode="json"))
 
 
 def _sequence(value: object) -> Iterable[object]:

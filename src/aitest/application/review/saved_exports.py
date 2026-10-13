@@ -1,27 +1,13 @@
 """持久导出用例：Markdown 摘要与可携带证据包（P1-FR14，架构 03 §5/§8）。
 
-缺口形态
---------
+由已保存报告准确修订、冻结执行快照、准确问题修订与所选本地复核生成内容。
+调用方只给标识与选择器；附件限定在原报告证据集合，缺准确来源不回落当前运行。
+内容经安全投影，坏/缺材料登记缺口，不生成伪装为有效证据的空附件。
 
-`reporting.py::register_report_export` 是纯门面：导出键、产物路径与摘要都由调用方
-给出；`infrastructure/exports.py` 是四行占位；`ReportArtifactPort` 无人实现。于是
-"相同冻结输入复用产物、摘要按实际导出字节计算、附件投影脱敏、包路径规范"这些合同
-条款没有任何生产入口。
-
-本模块的边界
-------------
-
-- 内容由**已保存报告修订 + 已保存复核**生成，调用方只给标识与选择器；
-- 正文与附件都经 `ProjectionPort` 脱敏；无法安全投影的材料**登记为排除并说明**，
-  不静默丢弃、也不夹带原文；
-- 制品先写事务临时位置、核对摘要后才发布；发布后**再登记**导出记录，
-  未登记成功不得报成功（跨目录写入不假设同一事务）；
-- 相同冻结输入（报告修订 + 复核集合 + 格式 + 脱敏策略 + 附件集合）**复用同一产物**，
-  新增复核产生新导出记录而不是改写旧正文；
-- 包内所有路径必须是规范相对路径（拒绝绝对路径、盘符、穿越、重复覆盖、符号链接）。
-
-`markdown_summary` 按合同**声明附件未随文件交付**，但仍附原始证据索引（只给引用），
-`evidence_bundle` 是 ZIP：`report.md` + `manifest.json` + `evidence/…` 附件。
+原意图先回读其永久制品并核对字节；同冻结输入的新意图复用同一制品且保存意图。
+制品保存、摘要校验与记录登记全部完成才报成功。包内路径必须是规范相对路径。
+markdown_summary 声明附件未随文件交付并列证据索引；evidence_bundle 保存
+report.md、manifest.json 与安全附件。原冻结材料和已交付制品不改写。
 """
 
 from __future__ import annotations
@@ -34,6 +20,10 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Protocol, cast
 
+from aitest.application.execution.runtime_revision import (
+    SavedRuntimeRevisionReader,
+    SnapshotContentRef,
+)
 from aitest.application.planning.model_ports import Projection
 from aitest.application.planning.substrate import RecordReader
 from aitest.application.review.saved_defects import (
@@ -54,6 +44,7 @@ from aitest.application.review.saved_reports import (
     report_from_payload,
 )
 from aitest.contracts.execution_facts import ExecutionFacts
+from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.planning.model_outbound import MaterialKind
 from aitest.domain.review.reports import (
     ReportExport,
@@ -160,16 +151,19 @@ def _text_list(value: object, name: str) -> tuple[str, ...]:
 def export_key_id(key: ReportExportKey) -> str:
     """导出键的稳定记录标识：同一冻结输入只有一个导出记录。"""
 
-    return "export-" + _digest(
-        [
-            key.report_id,
-            key.report_revision,
-            list(key.review_ids),
-            key.kind.value,
-            key.redaction_policy_version,
-            list(key.attachment_refs),
-        ]
-    )[7:]
+    return (
+        "export-"
+        + _digest(
+            [
+                key.report_id,
+                key.report_revision,
+                list(key.review_ids),
+                key.kind.value,
+                key.redaction_policy_version,
+                list(key.attachment_refs),
+            ]
+        )[7:]
+    )
 
 
 def _markdown(
@@ -199,7 +193,8 @@ def _markdown(
         "- 证据等级："
         + (decision.evidence_grade.value if decision.evidence_grade is not None else "不适用"),
         # 覆盖数字给的是计数，不展开具体用例（详情按引用读取）。
-        "- 覆盖计数：" + ",".join(
+        "- 覆盖计数："
+        + ",".join(
             f"{name}={len(value)}"
             for name, value in (
                 ("S", decision.coverage.selected),
@@ -268,9 +263,7 @@ def _markdown(
 class ExportObjectStore(Protocol):
     """永久对象库：成功导出的制品先在此保存并纳入已提交引用（架构 03 §8）。"""
 
-    def publish_bytes(
-        self, project_id: str, content: bytes, *, media_type: str = ...
-    ) -> Any: ...
+    def publish_bytes(self, project_id: str, content: bytes, *, media_type: str = ...) -> Any: ...
     def read_bytes(self, ref: Any, *, max_bytes: int | None = None) -> bytes: ...
 
 
@@ -352,12 +345,28 @@ class SavedExportService:
         run_id = parameters.get("run_id")
         run_id = None if run_id is None else _text(run_id, "run_id")
 
+        command_input = {
+            "report_id": report_id,
+            "kind": kind.value,
+            "review_ids": list(review_ids),
+            "attachment_refs": list(attachment_refs),
+            "redaction_policy_version": policy,
+            "run_id": run_id,
+        }
+        fingerprint = _digest(["export_report", command_input])
+        intent_record_id = "export-intent-" + _digest([project_id, intent_id])[7:]
+        recalled = self._recall(project_id, intent_record_id, fingerprint, command_input)
+        if recalled is not None:
+            return recalled
+
         record = self._current(REPORT_AGGREGATE, report_id)
         if record is None:
             raise ExportNotSaved(f"report {report_id} is not saved")
         if record.get("project_id") != project_id:
             raise ExportNotSaved(f"report {report_id} belongs to another project")
         snapshot = report_from_payload(record)
+        if run_id is not None and run_id != snapshot.context.run_id:
+            raise ExportRefused("export evidence must belong to the frozen report run")
         reviews = self._reviews(project_id, snapshot, review_ids)
 
         key = ReportExportKey(
@@ -370,24 +379,37 @@ class SavedExportService:
         )
         # 导出身份由冻结输入决定：调用方给不出 export_id，也拿不到"另造一个导出"的口子。
         key_record_id = export_key_id(key)
-        fingerprint = _digest(["export_report", key_record_id])
-        intent_record_id = "export-intent-" + _digest([project_id, intent_id])[7:]
-        recalled = self._recall(project_id, intent_record_id, fingerprint)
-        if recalled is not None:
-            return recalled
-
         existing = self._existing_export(key_record_id)
         if existing is not None:
-            # 相同冻结输入：复用已有受控产物，不重写制品、不新增导出记录。
-            return {
-                "aggregate_kind": EXPORT_AGGREGATE,
-                "record_id": key_record_id,
-                "revision": 1,
-            }
+            self._verify_saved_artifact(project_id, key_record_id)
+            return self._commit(
+                project_id=project_id,
+                key_record_id=key_record_id,
+                intent_id=intent_id,
+                request_id=request_id,
+                intent_record_id=intent_record_id,
+                fingerprint=fingerprint,
+                payload={},
+                reuse_existing=True,
+                command_input=command_input,
+            )
 
         facts = None
-        if run_id is not None:
-            facts = self._facts(project_id, run_id)
+        frozen = record.get("execution_snapshot_ref")
+        if frozen is not None:
+            try:
+                reference = SnapshotContentRef.model_validate_json(json.dumps(frozen), strict=True)
+                facts = SavedRuntimeRevisionReader(self._records).read_snapshot(  # type: ignore[arg-type]
+                    project_id=project_id,
+                    run_id=snapshot.context.run_id,
+                    reference=reference,
+                )
+                if facts.run_revision != snapshot.context.run_revision:
+                    raise ExportRefused("frozen report execution revision differs")
+            except (OSError, KeyError, TypeError, ValueError):
+                # Preserve a readable report and list missing evidence. Never
+                # substitute the current run for an unavailable frozen source.
+                facts = None
         content, media_type, excluded, missing = self._content(
             snapshot, reviews, kind=kind, attachment_refs=attachment_refs, facts=facts
         )
@@ -438,10 +460,7 @@ class SavedExportService:
             expected_sha256=artifact_digest,
         )
         verified_result = getattr(verified, "result", None)
-        if (
-            not isinstance(verified_result, Mapping)
-            or verified_result.get("status") != "verified"
-        ):
+        if not isinstance(verified_result, Mapping) or verified_result.get("status") != "verified":
             raise ExportRefused(
                 "published artifact could not be re-verified; it is not a success",
                 code="INTEGRITY_CHECK_FAILED",
@@ -479,6 +498,7 @@ class SavedExportService:
             intent_record_id=intent_record_id,
             fingerprint=fingerprint,
             payload=payload,
+            command_input=command_input,
         )
 
     # ------------------------------------------------------------ 内容生成
@@ -546,9 +566,7 @@ class SavedExportService:
             for kind_value, path in projection.excluded
         ]
         # 投影器把"命中凭据标记而整体排除"记为 PARTIAL：此时正文不可交付。
-        if MaterialKind.CASE_CONTENT not in {
-            item.material_kind for item in projection.projected
-        }:
+        if MaterialKind.CASE_CONTENT not in {item.material_kind for item in projection.projected}:
             raise ExportRefused("the report body cannot be safely projected")
         return (
             {item.material_kind: item.projected_text for item in projection.projected},
@@ -566,11 +584,21 @@ class SavedExportService:
         by_id = {item.evidence_id: item for item in (facts.evidence_refs if facts else ())}
         index: list[dict[str, object]] = []
         missing: list[dict[str, object]] = []
-        for evidence_id in attachment_refs or tuple(sorted(by_id)):
+        if any(identity not in snapshot.evidence_refs for identity in attachment_refs):
+            raise ExportRefused("attachments must be references frozen in the report")
+        for evidence_id in attachment_refs or snapshot.evidence_refs:
             fact = by_id.get(evidence_id)
             if fact is None:
                 missing.append({"evidence_id": evidence_id, "reason": "facts_unavailable"})
+                index.append(
+                    {
+                        "evidence_id": evidence_id,
+                        "status": "missing",
+                        "reason": "frozen_facts_unavailable",
+                    }
+                )
                 continue
+
             def _value(name: str, item: object = fact) -> object:
                 return getattr(getattr(item, name, None), "value", None)
 
@@ -600,10 +628,12 @@ class SavedExportService:
 
     def _issue_titles(self, snapshot: ReportSnapshot) -> dict[str, str]:
         titles: dict[str, str] = {}
-        for issue_id, _revision in snapshot.issue_revisions:
-            record = self._current(ISSUE_AGGREGATE, issue_id)
-            if record is None:
-                continue
+        for issue_id, revision in snapshot.issue_revisions:
+            record = self._records.read(
+                aggregate_kind=ISSUE_AGGREGATE,
+                record_id=issue_id,
+                revision=revision,
+            ).payload
             try:
                 issue = issue_from_payload(record)
             except ValueError:
@@ -636,7 +666,11 @@ class SavedExportService:
             fact = by_id.get(evidence_id)
             blob = b""
             if fact is not None and self._objects is not None:
-                blob = self._read_object_bytes(fact)
+                try:
+                    blob = self._read_object_bytes(fact)
+                except ExportRefused:
+                    missing.append({"evidence_id": evidence_id, "reason": "evidence_unreadable"})
+                    continue
             relative = f"evidence/{evidence_id}.bin"
             contents[relative] = blob
             attachments.append(
@@ -654,9 +688,7 @@ class SavedExportService:
             "report_id": snapshot.report_id,
             "report_revision": snapshot.content_revision,
             "review_ids": [review.review_id for review in reviews],
-            "review_revisions": {
-                review.review_id: review.report_revision for review in reviews
-            },
+            "review_revisions": {review.review_id: review.report_revision for review in reviews},
             "scope": {
                 "scope_revision": snapshot.context.scope_revision,
                 "scope_name": snapshot.context.scope_name,
@@ -703,7 +735,7 @@ class SavedExportService:
         size = getattr(fact, "object_size", None)
         project = getattr(fact, "project_id", None)
         if not isinstance(digest, str) or type(size) is not int or not isinstance(project, str):
-            return b""
+            raise ExportRefused("frozen evidence object identity is missing")
         try:
             content = self._objects.read_bytes(  # type: ignore[union-attr]
                 StoredObjectRef(
@@ -714,9 +746,15 @@ class SavedExportService:
                     f"objects/{project}/{digest.removeprefix('sha256:')}",
                 )
             )
-        except (OSError, ValueError):
-            return b""
-        return content if isinstance(content, bytes) and len(content) == size else b""
+        except (OSError, ValueError) as error:
+            raise ExportRefused("frozen evidence object bytes are unreadable") from error
+        if (
+            not isinstance(content, bytes)
+            or len(content) != size
+            or _bytes_digest(content) != digest
+        ):
+            raise ExportRefused("frozen evidence bytes differ from their saved digest/size")
+        return content
 
     # ------------------------------------------------------------ 读取与登记
 
@@ -762,9 +800,9 @@ class SavedExportService:
             key=key,
             artifact_ref=_text(payload.get("artifact_ref"), "artifact_ref"),
             artifact_digest=_text(payload.get("artifact_digest"), "artifact_digest"),
-            created_at=None if created is None else datetime.fromisoformat(
-                _text(created, "created_at")
-            ),
+            created_at=None
+            if created is None
+            else datetime.fromisoformat(_text(created, "created_at")),
         )
 
     def _export_payload(
@@ -787,9 +825,7 @@ class SavedExportService:
             "report_revision": export.key.report_revision,
             "kind": export.key.kind.value,
             "review_ids": list(export.key.review_ids),
-            "review_revisions": {
-                review.review_id: review.report_revision for review in reviews
-            },
+            "review_revisions": {review.review_id: review.report_revision for review in reviews},
             "attachment_refs": list(export.key.attachment_refs),
             "redaction_policy_version": export.key.redaction_policy_version,
             # 自描述导出键：相同冻结输入只有一个记录（幂等复用按此重建）。
@@ -822,9 +858,7 @@ class SavedExportService:
 
     def _facts(self, project_id: str, run_id: str) -> ExecutionFacts:
         try:
-            facts = self._runtime.read_runtime_revision_facts(
-                project_id=project_id, run_id=run_id
-            )
+            facts = self._runtime.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         except (OSError, KeyError, TypeError, ValueError) as error:
             raise ExportRefused(f"saved run facts are unavailable: {error}") from error
         if not isinstance(facts, ExecutionFacts):
@@ -854,7 +888,11 @@ class SavedExportService:
         return dict(payload)
 
     def _recall(
-        self, project_id: str, intent_record_id: str, fingerprint: str
+        self,
+        project_id: str,
+        intent_record_id: str,
+        fingerprint: str,
+        command_input: Mapping[str, object],
     ) -> Mapping[str, object] | None:
         payload = self._current(EXPORT_INTENT_AGGREGATE, intent_record_id)
         if payload is None:
@@ -865,7 +903,31 @@ class SavedExportService:
         ):
             raise ExportIntentConflict("export intent belongs to different inputs")
         if payload.get("input_digest") != fingerprint:
-            raise ExportIntentConflict("export intent has different frozen input")
+            # Legacy intents hashed the frozen export key, not the command. Read
+            # that exact key rather than resolving the latest report revision.
+            export_id = payload.get("export_id")
+            original = self._current(EXPORT_AGGREGATE, str(export_id))
+            if original is None or payload.get("input_digest") != _digest(
+                [
+                    "export_report",
+                    export_id,
+                ]
+            ):
+                raise ExportIntentConflict("export intent has different frozen input")
+            expected = dict(command_input)
+            requested_run = expected.pop("run_id")
+            original_key = dict(original["key"])
+            original_key.pop("report_revision")
+            if expected != original_key:
+                raise ExportIntentConflict("export intent has different frozen input")
+            if requested_run is not None:
+                report = self._records.read(
+                    aggregate_kind=REPORT_AGGREGATE,
+                    record_id=str(original["report_id"]),
+                    revision=int(original["report_revision"]),
+                )
+                if report_from_payload(report.payload).context.run_id != requested_run:
+                    raise ExportIntentConflict("export intent has a different source run")
         result = payload.get("result")
         if not isinstance(result, Mapping) or set(result) != {
             "aggregate_kind",
@@ -873,7 +935,26 @@ class SavedExportService:
             "revision",
         }:
             raise ExportManagementError("saved export intent result is unreadable")
+        self._verify_saved_artifact(project_id, str(result["record_id"]))
         return dict(result)
+
+    def _verify_saved_artifact(self, project_id: str, export_id: str) -> None:
+        payload = self._current(EXPORT_AGGREGATE, export_id)
+        if payload is None or payload.get("project_id") != project_id:
+            raise ExportRefused("saved export belongs to a different project or is missing")
+        raw = payload.get("object_ref")
+        if not isinstance(raw, Mapping) or raw.get("project_id") != project_id:
+            raise ExportRefused("saved export permanent object cannot be verified")
+        ref = StoredObjectRef(
+            project_id,
+            _text(raw.get("digest"), "digest"),
+            cast(int, raw.get("size")),
+            _text(raw.get("media_type"), "media_type"),
+            _text(raw.get("relative_path"), "relative_path"),
+        )
+        content = self._objects.read_bytes(ref)  # type: ignore[union-attr]
+        if _bytes_digest(content) != payload.get("artifact_digest"):
+            raise ExportRefused("saved export artifact digest differs")
 
     def _commit(
         self,
@@ -885,6 +966,8 @@ class SavedExportService:
         intent_record_id: str,
         fingerprint: str,
         payload: dict[str, object],
+        command_input: Mapping[str, object],
+        reuse_existing: bool = False,
     ) -> Mapping[str, object]:
         result = {
             "aggregate_kind": EXPORT_AGGREGATE,
@@ -893,15 +976,16 @@ class SavedExportService:
         }
         self._unit.begin(request_id, project_id, intent_id=intent_id)
         try:
-            staged = self._unit.stage_record(
-                aggregate_kind=EXPORT_AGGREGATE,
-                record_id=key_record_id,
-                expected_revision=0,
-                payload=payload,
-            )
-            staged_revision = getattr(staged, "revision", staged)
-            if type(staged_revision) is not int or staged_revision != 1:
-                raise ExportManagementError("staged export revision cannot be verified")
+            if not reuse_existing:
+                staged = self._unit.stage_record(
+                    aggregate_kind=EXPORT_AGGREGATE,
+                    record_id=key_record_id,
+                    expected_revision=0,
+                    payload=payload,
+                )
+                staged_revision = getattr(staged, "revision", staged)
+                if type(staged_revision) is not int or staged_revision != 1:
+                    raise ExportManagementError("staged export revision cannot be verified")
             self._unit.stage_record(
                 aggregate_kind=EXPORT_INTENT_AGGREGATE,
                 record_id=intent_record_id,
@@ -912,6 +996,7 @@ class SavedExportService:
                     "intent_id": intent_id,
                     "export_id": key_record_id,
                     "input_digest": fingerprint,
+                    "command_input": dict(command_input),
                     "result": dict(result),
                 },
             )

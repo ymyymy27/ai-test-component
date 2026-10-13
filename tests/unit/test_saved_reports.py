@@ -249,9 +249,54 @@ class _Harness:
             objects=self.objects,
             instance_id="instance-r",
         )
+        self.save_facts(self.facts)
 
-    def command(self, *, action: str, expected: int, parameters: dict[str, object],
-                intent_id: str, request_id: str) -> dict[str, object]:
+    def save_facts(self, facts):
+        """Persist exact fixture snapshots and real objects; no real execution claim."""
+        from uuid import uuid4
+
+        evidence = []
+        for item in facts.evidence_refs:
+            ref = self.objects.publish_bytes(PROJECT_ID, b"abc", media_type="text/plain")
+            evidence.append(
+                item.model_copy(
+                    update={
+                        "object_digest": ref.digest,
+                        "object_size": ref.size,
+                        "media_type": "text/plain",
+                    }
+                )
+            )
+        facts = facts.model_copy(update={"evidence_refs": tuple(evidence)})
+        if self.repository.current_revision("execution_facts", facts.snapshot_commit_id):
+            facts = facts.model_copy(
+                update={
+                    "snapshot_commit_id": "fixture-snapshot-" + uuid4().hex,
+                    "snapshot_cursor": facts.snapshot_cursor + 1,
+                }
+            )
+        request = "fixture-snapshot-" + uuid4().hex
+        self.unit.begin(request, PROJECT_ID, intent_id=request + "-intent")
+        self.unit.stage_record(
+            aggregate_kind="execution_facts",
+            record_id=facts.snapshot_commit_id,
+            expected_revision=0,
+            payload=facts.model_dump(mode="json"),
+        )
+        self.unit.commit(request)
+        self.facts = facts
+        self.facts_reader._facts = facts
+        self.exports._runtime = _FactsReader(facts)
+
+    def command(
+        self,
+        *,
+        action: str,
+        expected: int,
+        parameters: dict[str, object],
+        intent_id: str,
+        request_id: str,
+    ) -> dict[str, object]:
         handler = {
             "create_report": self.service.create_report,
             "record_local_review": self.service.record_local_review,
@@ -295,9 +340,15 @@ class _Harness:
         )
 
 
-def _create(harness: _Harness, *, report_id: str = "report-1", expected: int = 0,
-            intent_id: str = "intent-1", request_id: str = "request-1",
-            issue_ids: list[str] | None = None) -> dict[str, object]:
+def _create(
+    harness: _Harness,
+    *,
+    report_id: str = "report-1",
+    expected: int = 0,
+    intent_id: str = "intent-1",
+    request_id: str = "request-1",
+    issue_ids: list[str] | None = None,
+) -> dict[str, object]:
     return harness.command(
         action="create_report",
         expected=expected,
@@ -344,9 +395,15 @@ def test_create_report_derives_decision_and_frozen_inputs_from_saved_facts(tmp_p
 
     # 编解码往返一致
     restored = report_from_payload(payload)
+    from aitest.application.execution.runtime_revision import SnapshotContentRef
     from aitest.application.review.saved_reports import report_to_payload
 
-    again = report_to_payload(restored, published_sequence=payload["published_sequence"])
+    again = report_to_payload(
+        restored,
+        published_sequence=payload["published_sequence"],
+        execution_snapshot_ref=SnapshotContentRef.model_validate(payload["execution_snapshot_ref"]),
+        blocking_issue_ids=frozenset(payload["blocking_issue_ids"]),
+    )
     assert again == payload
 
 
@@ -386,38 +443,52 @@ def test_intent_replay_is_idempotent_and_different_input_conflicts(tmp_path) -> 
 
 def test_report_freezes_issue_revisions_read_from_the_warehouse(tmp_path) -> None:
     harness = _Harness(tmp_path)
-    harness.repository.append(
-        "issue",
-        "issue-1",
-        0,
-        {
-            "schema_version": "aitest.issue/1.0",
-            "issue_id": "issue-1",
-            "project_id": PROJECT_ID,
-            "revision": 1,
-            "title": "t",
-            "status": "confirmed",
-            "severity": "P0",
-            "disposition": "active",
-            "owner": "owner",
-            "confirmed_by": "session:s",
-            "disposition_reason": None,
-            "canonical_issue_id": None,
-            "fix_version": None,
-            "regression_method": None,
-            "closure_criteria": None,
-            "evidence_refs": [],
-            "attempt_ids": [],
-            "links": {"module_ids": [], "layers": []},
-        },
+    from aitest.application.review.saved_defects import issue_to_payload
+    from aitest.domain.review.defects import IssueRecord, IssueSeverity, IssueStatus
+
+    issue = IssueRecord(
+        issue_id="issue-1",
+        project_id=PROJECT_ID,
+        revision=1,
+        title="t",
+        status=IssueStatus.CONFIRMED,
+        severity=IssueSeverity.P0,
+        owner="owner",
+        confirmed_by="session:s",
     )
+    harness.unit.begin("seed-issue", PROJECT_ID, intent_id="seed-issue-intent")
+    harness.unit.stage_record(
+        aggregate_kind="issue",
+        record_id="issue-1",
+        expected_revision=0,
+        payload=issue_to_payload(
+            issue,
+            links={
+                "module_ids": [],
+                "layers": [],
+                "case_id": None,
+                "run_id": None,
+                "attempt_id": None,
+                "regressions": [],
+            },
+            updated_sequence=1,
+            open_state=True,
+            blocking="blocking",
+        ),
+    )
+    harness.unit.commit("seed-issue")
     _create(harness, issue_ids=["issue-1"])
     payload = harness.saved_report("report-1")
     assert payload["issue_revisions"] == [["issue-1", 1]]
 
     with pytest.raises(ReportGuardRefused):
-        _create(harness, report_id="report-2", issue_ids=["issue-missing"],
-                intent_id="intent-x", request_id="request-x")
+        _create(
+            harness,
+            report_id="report-2",
+            issue_ids=["issue-missing"],
+            intent_id="intent-x",
+            request_id="request-x",
+        )
 
 
 def test_record_local_review_binds_the_exact_report_revision(tmp_path) -> None:
@@ -557,9 +628,7 @@ def test_report_is_visible_in_reports_list_and_by_id(tmp_path) -> None:
     assert [item.record_id for item in by_id.items] == ["report-1"]
     assert by_id.items[0].aggregate_kind == "report"
 
-    by_outcome = repository.query(
-        RecordQuery(project_id=PROJECT_ID, business_outcome="incomplete")
-    )
+    by_outcome = repository.query(RecordQuery(project_id=PROJECT_ID, business_outcome="incomplete"))
     assert "report-1" in [item.record_id for item in by_outcome.items]
 
     # 其它业务结论不得命中该报告（摘要键取自判定，不是占位）。
@@ -607,6 +676,7 @@ def test_report_records_reuse_denials_with_named_reasons(tmp_path) -> None:
                 "evidence_unreadable",
                 "basis_confirmed_unverified",
                 "verification_valid_unverified",
+                "complete_reuse_basis_unverified",
             ],
         }
     ]

@@ -14,7 +14,6 @@ from pydantic import JsonValue
 from aitest.application.connectivity import retry_delay
 from aitest.contracts.commands import (
     HUMAN_ACTIONS,
-    PHASE_ONE_ACTIONS,
     READ_ACTIONS,
     Command,
 )
@@ -144,7 +143,10 @@ class LocalAPI:
     def _maintenance_reason(self, action: str) -> str | None:
         """维护窗口内的写动作拒绝原因；只读动作与维护动作本身不受影响。"""
 
-        if self._maintenance is None or action not in PHASE_ONE_ACTIONS - READ_ACTIONS:
+        if self._maintenance is None or action in READ_ACTIONS | {
+            "export_rules",
+            "export_rules_markdown",
+        }:
             return None
         if action in _MAINTENANCE_ACTIONS:
             return None
@@ -182,9 +184,7 @@ class LocalAPI:
             response = self._transaction(command, session)
         elif command.action == "test_connection" and self.connector is not None:
             response = self._connect(command)
-        elif (
-            (maintenance_reason := self._maintenance_reason(command.action)) is not None
-        ):
+        elif (maintenance_reason := self._maintenance_reason(command.action)) is not None:
             # 维护窗口期间暂停**新写入**（迁移等结构性动作正在改写工作空间结构）。
             response = self._error(
                 command,
@@ -234,10 +234,14 @@ class LocalAPI:
                 "phase": 1,
             }
             if self._intent_contracts:
-                doctor_result["intent_contracts"] = cast(JsonValue, {
-                    action: version for action, version in self._intent_contracts.items()
-                    if action in self.handlers
-                })
+                doctor_result["intent_contracts"] = cast(
+                    JsonValue,
+                    {
+                        action: version
+                        for action, version in self._intent_contracts.items()
+                        if action in self.handlers
+                    },
+                )
             if self.capability_gate is not None:
                 # A-10：显式报告各项外部能力条件与动作依赖，调用方据此做
                 # 动作级降级判断，而不是把单个适配器故障当成整体不可用。

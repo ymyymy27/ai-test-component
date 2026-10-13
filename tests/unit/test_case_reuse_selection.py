@@ -62,12 +62,21 @@ def _verification(**changes: Any) -> CaseReuseVerification:
         "case_id": CASE,
         "source_run_id": SOURCE_RUN,
         "target_run_id": TARGET_RUN,
-        "source_snapshot": {"snapshot_id": "snap-s", "record_revision": 1,
-                            "content_identity": DIGEST_A},
-        "source_current_snapshot": {"snapshot_id": "snap-s", "record_revision": 1,
-                                    "content_identity": DIGEST_A},
-        "target_snapshot": {"snapshot_id": "snap-t", "record_revision": 1,
-                            "content_identity": DIGEST_B},
+        "source_snapshot": {
+            "snapshot_commit_id": "snap-s",
+            "snapshot_cursor": 1,
+            "digest": DIGEST_A,
+        },
+        "source_current_snapshot": {
+            "snapshot_commit_id": "snap-s",
+            "snapshot_cursor": 1,
+            "digest": DIGEST_A,
+        },
+        "target_snapshot": {
+            "snapshot_commit_id": "snap-t",
+            "snapshot_cursor": 1,
+            "digest": DIGEST_B,
+        },
         "status": "unverified",
         # 资格类原因允许存在：保存侧只登记引用关系，不授予资格。
         "denial_reasons": ("source_verified_unverified", "verification_valid_unverified"),
@@ -108,11 +117,17 @@ def _command(**changes: Any) -> Command:
         "parameters": {
             "case_id": CASE,
             "source_run_id": SOURCE_RUN,
-            "source_snapshot": {"snapshot_id": "snap-s", "record_revision": 1,
-                                "content_identity": DIGEST_A},
+            "source_snapshot": {
+                "snapshot_commit_id": "snap-s",
+                "snapshot_cursor": 1,
+                "digest": DIGEST_A,
+            },
             "target_run_id": TARGET_RUN,
-            "target_snapshot": {"snapshot_id": "snap-t", "record_revision": 1,
-                                "content_identity": DIGEST_B},
+            "target_snapshot": {
+                "snapshot_commit_id": "snap-t",
+                "snapshot_cursor": 1,
+                "digest": DIGEST_B,
+            },
         },
     }
     payload.update(changes)
@@ -182,13 +197,12 @@ def test_same_intent_replays_and_different_input_conflicts(tmp_path) -> None:
     core, selection, _ = _harness(tmp_path)
     try:
         first = selection.apply(_command())
-        replay = selection.apply(
-            _command(request_id="req-reuse-2")
-        )
+        replay = selection.apply(_command(request_id="req-reuse-2"))
         assert replay == first
-        assert core.unit_of_work.repo.current_revision(
-            REUSE_DECISION_AGGREGATE, first["record_id"]
-        ) == 1
+        assert (
+            core.unit_of_work.repo.current_revision(REUSE_DECISION_AGGREGATE, first["record_id"])
+            == 1
+        )
 
         # 同意图异输入：冲突，不静默覆盖。
         with pytest.raises(ReuseIntentConflict):
@@ -199,9 +213,9 @@ def test_same_intent_replays_and_different_input_conflicts(tmp_path) -> None:
                     parameters={
                         **_command().parameters,
                         "source_snapshot": {
-                            "snapshot_id": "snap-s",
-                            "record_revision": 2,
-                            "content_identity": DIGEST_A,
+                            "snapshot_commit_id": "snap-s",
+                            "snapshot_cursor": 2,
+                            "digest": DIGEST_A,
                         },
                     },
                 )
@@ -219,6 +233,7 @@ def test_second_case_appends_a_new_revision_for_the_same_run(tmp_path) -> None:
             _command(
                 request_id="req-reuse-9",
                 intent_id="intent-reuse-9",
+                expected_revision=1,
                 target="case-2",
                 parameters={**_command().parameters, "case_id": "case-2"},
             )
@@ -232,13 +247,16 @@ def test_second_case_appends_a_new_revision_for_the_same_run(tmp_path) -> None:
         ).payload
         assert [item["case_id"] for item in stored["references"]] == ["case-1", "case-2"]
         # 旧修订保留（不可变历史）。
-        assert len(
-            core.unit_of_work.repo.read(
-                aggregate_kind=REUSE_DECISION_AGGREGATE,
-                record_id=first["record_id"],
-                revision=1,
-            ).payload["references"]
-        ) == 1
+        assert (
+            len(
+                core.unit_of_work.repo.read(
+                    aggregate_kind=REUSE_DECISION_AGGREGATE,
+                    record_id=first["record_id"],
+                    revision=1,
+                ).payload["references"]
+            )
+            == 1
+        )
     finally:
         core.lifetime_lock.release()
 
@@ -306,11 +324,17 @@ def test_unusable_material_is_refused_without_writing(tmp_path, verification, re
             "parameters": {
                 "case_id": CASE,
                 "source_run_id": SOURCE_RUN,
-                "source_snapshot": {"snapshot_id": "snap-s", "record_revision": 1,
-                                    "content_identity": DIGEST_A},
+                "source_snapshot": {
+                    "snapshot_commit_id": "snap-s",
+                    "snapshot_cursor": 1,
+                    "digest": DIGEST_A,
+                },
                 "target_run_id": TARGET_RUN,
-                "target_snapshot": {"snapshot_id": "snap-t", "record_revision": 1,
-                                    "content_identity": DIGEST_B},
+                "target_snapshot": {
+                    "snapshot_commit_id": "snap-t",
+                    "snapshot_cursor": 1,
+                    "digest": DIGEST_B,
+                },
                 "extra": "not allowed",
             }
         },

@@ -1,5 +1,9 @@
 # BC-001 当前实现与交付边界
 
+## 后续实现修复（2026-10-13）
+
+合同[0.49](contract.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。 [原命令/回归/夹具边界](../../../validation/p1-boundary-fixes-20261013/README.md)为本轮依据；真实环境与整体对拍仍未完成，不代签。以下是原交付/审查记录。
+
 ## 当前复核（2026-10-13）
 
 合同 [0.48](contract.md)；源码 `fix@a51c2b4`。默认 prepare_execution 的 C-15/C-16 原阻断已修，业务快照→技术清单、物化 workdir 与冻结截止读取对齐。retry_step/return_stage/request_regression/attach_evidence、reuse_decision 保存与报告候选读取已有；C-17/C-18 表明新增链仍不足以授予完整 R/V。

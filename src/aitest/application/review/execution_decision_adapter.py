@@ -431,6 +431,12 @@ def build_decision_facts(
     )
     passed, verified, candidates = _assertion_sets(facts, assertion_outcomes)
     reused = frozenset() if reuse is None else reuse.reused & selected - executed
+    if reuse is not None:
+        verified = verified | (reuse.verified & reused)
+        passed = passed | (reuse.passed & reused)
+        candidates = candidates + tuple(
+            item for item in reuse.failure_candidates if item.case_id in reused
+        )
     coverage = Coverage(
         selected=selected,
         required=required,
@@ -451,6 +457,8 @@ def build_decision_facts(
             None,
         )
     confirmed = set(context.assertion_basis_confirmed_case_ids)
+    if reuse is not None:
+        confirmed.update(reuse.verified & reused)
     confirmed.update(
         item.case_id
         for item in assertion_outcomes
@@ -462,14 +470,14 @@ def build_decision_facts(
         template_required=context.template_required_case_ids,
         pending_verification=pending,
         outdated_basis=outdated,
-        required_unresolved=required - executed - pending,
+        required_unresolved=required - executed - reused - pending,
         required_pending=required & pending,
         assertion_basis_confirmed=frozenset(confirmed),
         source_identity_state=source_state,
         critical_paths_satisfied=_critical_paths_satisfied(
             facts, context.required_critical_chain_item_ids
         ),
-        required_evidence_valid=_required_evidence_valid(facts, required),
+        required_evidence_valid=_required_evidence_valid(facts, required - reused),
         environment_evidence_complete=context.environment_evidence_complete,
         critical_unknowns=bool(
             facts.coverage.unknown_step_ids

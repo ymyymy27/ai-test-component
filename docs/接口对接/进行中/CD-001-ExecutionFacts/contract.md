@@ -3,23 +3,29 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.22"
+contract_version: "1.23"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: 8d9883c
 blockers:
-  - "D-11：关闭问题采信调用方 passed，未消费已有 mismatched 核验/原标准/修复版本"
-  - "D-12：报告阻塞问题集合只读调用方 issue_ids，省略可漏掉已保存 P1"
-  - "D-13：后补依据确认与运行修订依据未进入权威派生"
-  - "D-14：原导出意图重传先读取最新报告，发生错误 INTENT_CONFLICT"
-  - "C-17/C-18/D-02：完整 R 资格/统计、选择修订、准确断言期望登记仍未闭环"
+  - "C-17/C-03/D-02：动态 R、准确独立预期/观察与业务配置仍缺"
+  - "真实 Trae/业务关闭、恢复与完整安全便携制品未验收"
 next_owner: D/C/B
-next_action: D 先修关闭依据、完整阻塞集合、有效确认和冻结导出意图回读；C 修 R 资格/统计及选择修订；按同一保存边界对拍报告/问题/制品。
+next_action: 原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
 ---
 
-## 当前源码复核与下一动作（2026-10-13）
+## 当前实现修复（2026-10-13）
+
+现行版本：1.23；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
+
+本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
+
+原 A-20、C-18、D-11—14 的代码关闭仅依本轮回归；C-17 无可信动态资格时继续拒绝 R。局部/类型夹具不等于真实 Trae、业务数据/供应方故障、物理掉电或完整合同对拍。下方原审查内容仅保留历史问题来源。
+
+
+## 修复前源码复核（7b931af 的原记录）
 
 现行版本：1.22；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=8d9883c 的旧阶段引用 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
 

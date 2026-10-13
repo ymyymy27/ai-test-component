@@ -51,12 +51,17 @@ def _report_with_review(harness: _Harness) -> None:
     )
 
 
-def _export(harness: _Harness, *, kind: str = "markdown_summary",
-            review_ids: list[str] | None = None,
-            attachment_refs: list[str] | None = None,
-            intent_id: str = "intent-export",
-            request_id: str = "request-export", report_id: str = "report-1",
-            run_id: str | None = "run-report-1") -> dict[str, object]:
+def _export(
+    harness: _Harness,
+    *,
+    kind: str = "markdown_summary",
+    review_ids: list[str] | None = None,
+    attachment_refs: list[str] | None = None,
+    intent_id: str = "intent-export",
+    request_id: str = "request-export",
+    report_id: str = "report-1",
+    run_id: str | None = "run-report-1",
+) -> dict[str, object]:
     parameters: dict[str, object] = {
         "report_id": report_id,
         "kind": kind,
@@ -120,16 +125,16 @@ def test_markdown_summary_is_published_verified_and_registered(tmp_path) -> None
 
 def test_evidence_bundle_unzips_into_an_empty_directory(tmp_path) -> None:
     harness = _Harness(tmp_path, evidence=("evidence-1", "evidence-2"))
-    _report_with_review(harness)
     # 第二项证据不可安全投影：必须登记为排除，而不是夹带原文。
-    blocked = harness.facts.evidence_refs[1].model_copy(update={"gap_ids": ["gap-1"]})
-    harness.exports._runtime = type(harness.exports._runtime)(  # noqa: SLF001
+    blocked = harness.facts.evidence_refs[1].model_copy(update={"gap_ids": ("gap-1",)})
+    harness.save_facts(
         harness.facts.model_copy(
             update={
                 "evidence_refs": (harness.facts.evidence_refs[0], blocked),
             }
         )
     )
+    _report_with_review(harness)
 
     result = _export(
         harness,
@@ -163,9 +168,7 @@ def test_evidence_bundle_unzips_into_an_empty_directory(tmp_path) -> None:
         assert "sha256:" + hashlib.sha256(actual).hexdigest() == item["sha256"]
         assert len(actual) == item["size"]
     assert manifest["attachments"][0]["path"] == "evidence/evidence-1.bin"
-    assert {
-        item["evidence_id"] for item in manifest["missing"]
-    } == {"evidence-2"}
+    assert {item["evidence_id"] for item in manifest["missing"]} == {"evidence-2"}
     # 报告正文脱离插件可读。
     assert "业务结论：incomplete" in (extracted / "report.md").read_text(encoding="utf-8")
 
@@ -378,9 +381,7 @@ def test_artifact_port_rejects_unsafe_paths_and_tampering(tmp_path) -> None:
             report_id="../escape", kind="markdown_summary", digest="sha256:" + "b" * 64
         )
     with pytest.raises(ArtifactError):
-        safe_artifact_name(
-            report_id="report-1", kind="unknown_kind", digest="sha256:" + "b" * 64
-        )
+        safe_artifact_name(report_id="report-1", kind="unknown_kind", digest="sha256:" + "b" * 64)
     with pytest.raises(ArtifactError):
         port.artifact_path("artifacts/reports/../../secret.txt")
     with pytest.raises(ArtifactError):

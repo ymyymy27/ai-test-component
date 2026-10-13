@@ -1,0 +1,55 @@
+[
+  {
+    "label": "lock-check",
+    "command": [
+      "C:/Users/86178/.local/bin/uv.exe",
+      "lock",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.08,
+    "log": "lock-check.log",
+    "sha256": "63796b67d94115becf2d9002672feb2455d5d348a979f62b809035363f787420"
+  },
+  {
+    "label": "versions",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/check_versions.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.09,
+    "log": "versions.log",
+    "sha256": "40b8eb4000a913a7791090535f291d3d369874162a89ef3c9e3d4e887a1b9e79",
+    "raw_sha256": "be36d0066e8b6749a88a1c6bf1ce96482157ec618cb7f2aab162d3efae41f4d9",
+    "raw_log": "versions.log.raw.gz"
+  },
+  {
+    "label": "schemas",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/generate_schemas.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.36,
+    "log": "schemas.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "collect",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "--collect-only",
+      "-q",
+      "tests"
+    ],
+    "exit_code": 0,
+    "seconds": 3.04,
+    "log": "collect.log",
+    "sha256": "a189b358145f047bc13838d2a9f870be60c2a2b3c2651427d05c974f489bb914",
+    "raw_sha256": "b7267b7e3fbb63202aa83763c33690927bf6776d8a38652319d93c6d9774c3f1",
+    "raw_log": "collect.log.raw.gz"
+  }
+]

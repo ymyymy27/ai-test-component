@@ -3,22 +3,30 @@ contract_id: AC-001
 title: ExecutionFacts 存储与恢复
 provider: A
 consumer: C
-contract_version: "1.7"
+contract_version: "1.8"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "A-20：维护态仅拦一期名称表，表外注册写动作可进入"
-  - "A-05/A-07：未知发布/实际活动核实及副本启动恢复未闭环"
-  - "C-03/C-05：核验/外部导入准确关联、来源事实保存及完整 R 消费仍欠"
-  - "真实业务保存→换核心→恢复、物理掉电未验收"
+  - "A-05/A-07：跨进程维护、未知活动与副本启动恢复仍未闭合"
+  - "C-03/C-05：默认核验/外部导入准确闭包与来源事实保存仍欠"
+  - "真实业务保存→换核心→恢复及物理掉电未验收"
 next_owner: A/C
-next_action: A 覆盖全部注册写动作的维护限制并完善活动恢复；A/C 核对备份/迁移、检查点/证据/意图闭包及来源事实准确保存；补真实重启恢复。
+next_action: 维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。
 ---
 
-## 当前源码复核与下一动作（2026-10-13）
+## 当前实现修复（2026-10-13）
+
+现行版本：1.8；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。
+
+本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
+
+原 A-20、C-18、D-11—14 的代码关闭仅依本轮回归；C-17 无可信动态资格时继续拒绝 R。局部/类型夹具不等于真实 Trae、业务数据/供应方故障、物理掉电或完整合同对拍。下方原审查内容仅保留历史问题来源。
+
+
+## 修复前源码复核（7b931af 的原记录）
 
 现行版本：1.7；源码 `fix@a51c2b4`。本版只同步实现、阻塞与交付边界，不改公开协议/Schema、字段签名、保存数据或 FR/AC，不需迁移。历史双方确认、last_verified_commit=null 保留；reviewing / partial / not_run 不因局部回归改成对拍完成。
 

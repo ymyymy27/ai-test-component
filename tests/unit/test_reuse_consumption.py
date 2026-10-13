@@ -93,11 +93,47 @@ def _facts(
                     "level": "L2",
                     "state": "completed",
                     "assertion_refs": [f"assertion-{step_id}"],
-                    "current_attempt_id": None,
+                    "current_attempt_id": next(
+                        (item["attempt_id"] for item in attempts if item["step_id"] == step_id),
+                        None,
+                    ),
                 }
                 for index, (step_id, case_id) in enumerate(case_steps, start=1)
             ],
             "attempts": list(attempts),
+            "current_attempt_by_step": {item["step_id"]: item["attempt_id"] for item in attempts},
+            "evidence_refs": [
+                {
+                    "evidence_id": identity,
+                    "evidence_revision": 1,
+                    "project_id": "project-1",
+                    "source_instance_id": "instance-1",
+                    "run_id": run_id,
+                    "step_id": next(
+                        (
+                            item["step_id"]
+                            for item in attempts
+                            if item["attempt_id"] == verification["verification_of"]
+                        ),
+                        "step-1",
+                    ),
+                    "attempt_id": verification["verification_of"],
+                    "evidence_kind": "command_output",
+                    "capture_source": "plugin_runtime",
+                    "code_identity": {
+                        "binding_kind": "plain",
+                        "workspace_ref": "binding-1@1",
+                    },
+                    "object_digest": "sha256:" + "a" * 64,
+                    "object_size": 3,
+                    "integrity": "complete",
+                    "redaction_state": "not_required",
+                    "projection_state": "displayable",
+                    "evidence_level": "full_link",
+                }
+                for verification in verifications
+                for identity in verification["evidence_refs"]
+            ],
             "source_verifications": list(source_verifications),
             "dependency_invalidations": list(invalidations),
             "verifications": list(verifications),
@@ -145,9 +181,9 @@ def _verified_source(materialized: str = "snapshot-content-1") -> dict[str, Any]
             "revision_no": 1,
             "digest": "sha256:plan-1",
         },
-        "expected_source_binding_digest": "sha256:source-1",
+        "expected_source_binding_digest": "snapshot-content-1",
         "materialized_snapshot_ref": materialized,
-        "observed_source_digest": "sha256:source-1",
+        "observed_source_digest": "snapshot-content-1",
         "state": "verified",
         "observed_entry_ref": "entry-1",
         "gap_ids": [],
@@ -206,16 +242,59 @@ def _outcome(
     return derive_reuse_outcome(
         facts if facts is not None else _facts(),
         references if references is not None else (_reference(),),
-        source_facts=lambda _run_id: source if source is not None else _facts(
-            run_id="run-source",
-            selected=("case-1",),
-            case_steps=(("step-1", "case-1"),),
-            attempts=(_attempt(),),
-            source_verifications=(_verified_source(),),
-            verifications=(_verification(),),
+        source_facts=lambda _run_id: (
+            source
+            if source is not None
+            else _facts(
+                run_id="run-source",
+                selected=("case-1",),
+                case_steps=(("step-1", "case-1"),),
+                attempts=(_attempt(),),
+                source_verifications=(_verified_source(),),
+                verifications=(_verification(),),
+            )
         ),
         evidence_readable=lambda _evidence_id: evidence_readable,
         basis_confirmed=lambda _case_id: basis_confirmed,
+        complete_basis=_complete_basis,
+        basis_revision_for=lambda _facts, _case: 1,
+    )
+
+
+def _complete_basis(reference, target, source):
+    """Explicit typed component proof; does not claim real dynamic observations."""
+    from aitest.application.execution.facts import execution_payload_digest
+    from aitest.domain.execution.reuse import (
+        ReuseCondition,
+        ReuseConditionKind,
+        ReuseConditionState,
+        ReuseIdentity,
+        WholeCaseReuseBasis,
+    )
+
+    identity = ReuseIdentity(
+        project_id=source.project_id,
+        case_id=reference.case_id,
+        source_content_identity=reference.source_content_identity,
+        environment_dynamic_digest="dynamic-state-1",
+        check_scope_digest="scope-1",
+        entry_input_digest=reference.entry_input_digest,
+        rules_digest=reference.rules_revision_digest,
+        adapter_digest=reference.adapter_digest,
+        case_content_digest="case-content-1",
+        assertion_basis_digest="basis-1",
+        dependency_digest="dependency-1",
+    )
+    return WholeCaseReuseBasis(
+        source_run_id=source.run_id,
+        source_snapshot_id=source.snapshot_commit_id,
+        source_snapshot_digest=execution_payload_digest(source.model_dump(mode="json")),
+        source_attempt_by_step=reference.source_attempt_by_step,
+        source=identity,
+        target=identity,
+        conditions=tuple(
+            ReuseCondition(kind, ReuseConditionState.VERIFIED) for kind in ReuseConditionKind
+        ),
     )
 
 
@@ -280,7 +359,10 @@ def test_source_identity_or_verification_missing_is_denied() -> None:
         source_verifications=(_verified_source(),),
     )
     outcome = _outcome(source=no_verification)
-    assert outcome.reasons_for("case-1") == ("verification_valid_unverified",)
+    assert outcome.reasons_for("case-1") == (
+        "evidence_unreadable",
+        "verification_valid_unverified",
+    )
 
     # "有核验但带缺口"不算有效核验。
     gap_verification = _facts(

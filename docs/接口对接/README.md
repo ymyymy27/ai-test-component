@@ -1,6 +1,6 @@
 # 跨包接口对接规则与总台账
 
-版本：2.85
+版本：2.86
 
 更新日期：2026-10-13
 
@@ -190,12 +190,12 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.83 | A partial；B/C/D partial | not_run（局部自动化检查另记） | A 修维护写闸门和受控恢复；C 修复用选择修订与完整消费，补默认业务核验；D 修关闭/报告/确认/导出边界并接真实用户流程。 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.43 | A/B partial | not_run（局部自动化检查另记） | 保持草稿/发布/执行事实独立；B 接权威交付验证投影，B/D 对拍后补确认和运行修订依据；补真实半程及宿主来源证据。 |
-| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.48 | B/C partial | not_run（局部自动化检查另记） | 按既有 CORE 选择修订合同修 C-18；C 修同源 R 资格与统计、默认业务核验；B/C/D 对拍半程修订、范围与有效依据。 |
-| [AC-001](进行中/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | reviewing，1.7 | A/C partial | not_run（局部自动化检查另记） | A 覆盖全部注册写动作的维护限制并完善活动恢复；A/C 核对备份/迁移、检查点/证据/意图闭包及来源事实准确保存；补真实重启恢复。 |
-| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.5 | B partial；D partial | not_run（局部自动化检查另记） | B/D 接真实宿主项目上下文与 CommittedViewReader 的详情查询、有效确认和受控用户动作，补主屏同边界与半程双序列；B 写准确交付验证投影。 |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.22 | C/D partial | not_run（局部自动化检查另记） | D 先修关闭依据、完整阻塞集合、有效确认和冻结导出意图回读；C 修 R 资格/统计及选择修订；按同一保存边界对拍报告/问题/制品。 |
+| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.84 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.44 | A/B partial | not_run（局部自动化检查另记） | D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。 |
+| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.49 | B/C partial | not_run（局部自动化检查另记） | 选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。 |
+| [AC-001](进行中/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | reviewing，1.8 | A/C partial | not_run（局部自动化检查另记） | 维护漏写已修；继续跨进程维护、完整来源/核验闭包、未知活动与实际备份/恢复对拍。 |
+| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.6 | B partial；D partial | not_run（局部自动化检查另记） | 后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.23 | C/D partial | not_run（局部自动化检查另记） | 原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 
@@ -256,10 +256,14 @@ AB 的 DEC-010 字段迁移预案已被 CD 1.17 的非破坏性映射落实替�
 
 本次全源码补充：CORE/AB/BC/AC 的现行实现状态与阻塞修订已同步，CD/BD 的原部分实现与剩余边界保持。见[全源码完成性取证](../validation/p1-source-completion-20261012/README.md)；协议/Schema/确认/对拍状态不变，不能仅修字段名就关闭实际来源核验。
 
-## 12. 当前源码复核与维护（2026-10-13）
+## 12. 修复前审查（2026-10-13，7b931af）
 
 基线 `fix@a51c2b4`。六份合同元数据与交付说明已同步；C-15/C-16/A-19/D-10 原代码缺陷已修，草稿、控制/补证、备份/迁移、复用选择、问题/报告/导出及只读 DTO 的新增实现如实登记。本轮发现 A-20、C-17/C-18、D-11—14，分别回写主责合同 blockers/next_action；[证据与范围](../validation/p1-fix-review-20261013/README.md)及[现状](../现状.md)为当前入口。历史 11 节的原失败与“无默认入口”等只代表原基线。
 
 BD 的 D 消费已有只读 DTO/列表/详情组件，改为 partial；实际 Trae 项目上下文、详情查询与受控业务动作仍未接。六主题保持 reviewing / partial / not_run，未补签、未移目录、未修改协议/生成 Schema/夹具或项目文档。
 
 CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 时请求 0 未被拒绝是 C-18 实现缺陷，无需再次裁定动作名。正文提到的 DEC-014 独立记录未在裁定目录找到，登记追溯缺口，不据此伪造裁定/双方确认；现有 DEC-010—013 原记录保留。项目整改的未定配置与接口独立建卡状态分别管理。
+
+## 13. 当前实现修复（2026-10-13）
+
+按项目主责分册落实 A-20、C-18、D-11—14，C-17 误计/统计与完整依据闸门已改，动态资格无真实输入继续拒绝。[本轮验证](../validation/p1-boundary-fixes-20261013/README.md)记录代码、命令和明确夹具边界。六合同/四交付说明已同步，保持 reviewing/partial/not_run，不改旧确认与 last_verified_commit。执行快照三字段沿用只读核对，修复选择错误指纹；报告伴随引用可兼容读旧材料但缺口不能回落当前运行。

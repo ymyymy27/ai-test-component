@@ -1,0 +1,86 @@
+[
+  {
+    "label": "final-ruff",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0,
+    "seconds": 1.07,
+    "log": "final-ruff.log",
+    "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  {
+    "label": "final-mypy",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0,
+    "seconds": 1.78,
+    "log": "final-mypy.log",
+    "sha256": "ee26b57771c02fc8fb7c96c47893cdd1ddf6a1ae7668c191065a26322dc85669",
+    "raw_sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa",
+    "raw_log": "final-mypy.log.raw.gz"
+  },
+  {
+    "label": "docs-facts",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/check_docs_facts.py",
+      "--full"
+    ],
+    "exit_code": 0,
+    "seconds": 6.6,
+    "log": "docs-facts.log",
+    "sha256": "c6f6a31646d3595493ff9b5b88887e41063d157bf8eb37b6b4b610aad2906178",
+    "raw_sha256": "0fc18c4c8ddc9f91120d6b9651a5297a68e4f9cd8c6bf26129fdaccd7ed3bec4",
+    "raw_log": "docs-facts.log.raw.gz"
+  },
+  {
+    "label": "document-checks",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "E:\\ai-test-component\\.runtime\\p1_boundary_document_checks.py"
+    ],
+    "exit_code": 0,
+    "seconds": 2.79,
+    "log": "document-checks.log",
+    "sha256": "d9eb26766c8e89cf5af75f8afd01913f051491b8832fdf7aa3b0cf6d3ced7bb3",
+    "raw_sha256": "8237495a9395d1b83828e7f136697f047108082e1687af97e5d3b37582671aee",
+    "raw_log": "document-checks.log.raw.gz"
+  },
+  {
+    "label": "diff-check",
+    "command": [
+      "git",
+      "-c",
+      "core.safecrlf=false",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.08,
+    "log": "diff-check.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "final-document-checks",
+    "command": [
+      ".venv/Scripts/python.exe",
+      ".runtime/p1_boundary_document_checks.py"
+    ],
+    "exit_code": 0,
+    "seconds": 1.76,
+    "log": "final-document-checks.log",
+    "sha256": "002040c756559b98866c80ad65c20097bffd8c3fbc23ec43fea4f16aba8ee10d",
+    "raw_sha256": "1a0749d3ad0b590e1bc5416d55517b7f42c9421daa37067d68cbe24c943aa284",
+    "raw_log": "final-document-checks.log.raw.gz"
+  }
+]

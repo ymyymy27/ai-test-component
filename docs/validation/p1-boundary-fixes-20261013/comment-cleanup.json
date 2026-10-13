@@ -1,0 +1,11 @@
+{
+  "paths": [
+    "src/aitest/application/review/saved_exports.py",
+    "src/aitest/application/review/saved_defects.py",
+    "src/aitest/application/review/saved_reports.py",
+    "src/aitest/application/review/reuse_consumption.py",
+    "src/aitest/application/review/authoritative_basis.py"
+  ],
+  "executable_ast_unchanged": true,
+  "reason": "同步过时源码说明，未改可执行 AST"
+}

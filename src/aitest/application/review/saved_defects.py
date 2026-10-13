@@ -1,59 +1,19 @@
 """Persisted issue lifecycle on the workspace unit of work (P1-FR15).
 
-Authority direction (why this module exists)
---------------------------------------------
+Contracts: phase-one architecture 03 (issue transitions, original criteria,
+new regression and actual fix version), architecture 04 (finite issue indexes),
+and CORE-001 (caller identities do not grant eligibility).
 
-`application/review/defect_management.py` is an intentionally persistence-free
-facade: it takes an :class:`IssueRecord` and an :class:`IssueClosureEvidence`
-whose seven booleans are **supplied by the caller**. The review report
-(`docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md`, P1-FR15 row) and the
-package check (`docs/一期工程检查-D包.md`, D-04 row) call that out as the gap:
-there was no production use case that *reads the new actual regression from saved
-facts* and persists the closure.
+Close eligibility comes from saved current execution and readable evidence,
+the effective Case and controlled basis confirmation, the original Attempt's
+exact step content, and the shared assertion-outcome producer. A caller outcome
+is only a consistency check. The observed source digest must prove fix_version;
+an unbound version label or missing original criteria refuses closure.
 
-This module supplies that use case. Contract anchors:
-
-- `docs/项目文档/一期/架构文档/03-报告与缺陷.md` §2 (records), §4 (state machine),
-  §7 (fields), §8 (closing/export table), §9 (dispositions), §14 (query projection);
-- `docs/项目文档/一期/架构文档/04-存储与恢复.md` §"issues.list固定Schema与索引合同"
-  (mask/directory contract, one current revision per issue, no evidence body copied);
-- `docs/接口对接/进行中/CORE-001-A包公共接口/contract.md` §3.1 (the caller submits
-  identities and revisions, never eligibility/validity booleans).
-
-How the caller's authority is bounded
--------------------------------------
-
-- `expected_revision`, `intent_id` and `project_id` come from the frozen `Command`;
-- the issue body is read from the warehouse at its **current revision** and rebuilt
-  with the domain object; the domain guards then decide the transition;
-- `close_issue` derives `actual_execution`, `current_regression_attempt`,
-  `evidence_saved`, `basis_confirmed`, `source_identity_matched` and
-  `dependencies_valid` **from the saved facts, the saved preparation + the exact
-  controlled basis confirmation**, and derives the evidence reference set itself;
-  the caller supplies identifiers plus the explicit D-side assertion outcome only;
-- `confirmed_by` is the controlled session of the bound actor, never a parameter.
-
-Known, deliberately registered gaps (not silently assumed away)
---------------------------------------------------------------
-
-1. `satisfies_original_criteria` still needs an explicit **D-side assertion outcome**
-   input: no production producer of `AssertionOutcomeFact` exists yet (D-02 is open,
-   per `docs/一期工程检查-D包.md`). This module therefore verifies that the referenced
-   assertion belongs to the saved step and that the attempt facts support it, but it
-   does not claim to derive "the assertion passed" from the warehouse.
-2. `request_regression`（**安排回归**）已实现：架构 03 §66「处理中 → 待复测：登记修复版本
-   与回归方式」、§117「回归关联：原证据、事实/假设、修复版本、新Attempt/证据、原关闭条件」、
-   §149「修复关闭读取指定**新回归 Attempt** 及可读证据」、功能 §542「登记修复、安排回归及
-   核对关闭依据」共同冻结了语义：安排回归只**登记回归关联**（要重跑什么、按什么标准、
-   原来哪次尝试与证据），**不创建 Attempt、不执行、不授权、不关闭**；参数只接受
-   `issue_id` 与可选说明，目标与标准一律来自问题记录自身（修复三元组与 links），
-   不接受调用方自报身份。幂等按 intent 记录。
-3. "核对实际修复版本" (architecture 03 §8) is only partially covered: the executed
-   code identity is available in the facts, but nothing binds it to
-   `IssueRecord.fix_version`. This is recorded as a remaining gap instead of being
-   faked.
-4. `review_state` is fixed to UNREVIEWED here: this batch stores no issue fact
-   confirmation records, and a projection must not be invented from nothing.
+request_regression saves the original case/run/attempt, fix version, method and
+criteria. It does not create an Attempt, authorize execution or close an issue.
+The controlled session supplies confirmed_by. Issue review_state remains
+UNREVIEWED until independent issue-fact confirmation records exist.
 """
 
 from __future__ import annotations
@@ -64,12 +24,19 @@ from collections.abc import Callable, Mapping
 from dataclasses import fields
 from typing import Any, Protocol, cast
 
+from aitest.application.execution.run_record import read_run_record
+from aitest.application.execution.step_content import StepContent, StepContentReader
+from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.substrate import RecordReader
 from aitest.application.review import defect_management as facade
 from aitest.application.review.authoritative_basis import SavedCaseBasisCheck
-from aitest.application.review.execution_decision_adapter import build_decision_facts
+from aitest.application.review.execution_decision_adapter import (
+    assertion_outcomes_from_facts,
+    build_decision_facts,
+)
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.execution.runs import Step, StepLevel, StepRevisionRef
 from aitest.domain.review.defects import (
     IssueClosureEvidence,
     IssueDisposition,
@@ -96,9 +63,7 @@ _ISSUE_FIELDS = tuple(field.name for field in fields(IssueRecord))
 class IssueUnitOfWork(Protocol):
     """问题写入需要的短事务能力（A 侧 `StageableWorkspaceUnitOfWork` 的形状）。"""
 
-    def begin(
-        self, request_id: str, project_id: str, *, intent_id: str | None = None
-    ) -> Any: ...
+    def begin(self, request_id: str, project_id: str, *, intent_id: str | None = None) -> Any: ...
     def next_commit_seq(self) -> str: ...
     def stage_record(
         self,
@@ -277,12 +242,8 @@ def _regression_links(raw: Mapping[str, object]) -> tuple[dict[str, object], ...
                 "regression_request_id": request_id,
                 "status": "arranged",
                 "fix_version": _text(item.get("fix_version"), "fix_version"),
-                "regression_method": _text(
-                    item.get("regression_method"), "regression_method"
-                ),
-                "closure_criteria": _text(
-                    item.get("closure_criteria"), "closure_criteria"
-                ),
+                "regression_method": _text(item.get("regression_method"), "regression_method"),
+                "closure_criteria": _text(item.get("closure_criteria"), "closure_criteria"),
                 "original_case_id": _text(item.get("original_case_id"), "original_case_id"),
                 "original_run_id": _text(item.get("original_run_id"), "original_run_id"),
                 "original_attempt_id": _text(
@@ -307,9 +268,7 @@ def issue_from_payload(payload: Mapping[str, object]) -> IssueRecord:
     values["severity"] = None if severity is None else IssueSeverity(_text(severity, "severity"))
     values["disposition"] = IssueDisposition(_text(payload.get("disposition"), "disposition"))
     values["evidence_refs"] = _text_tuple(payload.get("evidence_refs", ()), "evidence_refs")
-    values["attempt_ids"] = frozenset(
-        _text_tuple(payload.get("attempt_ids", ()), "attempt_ids")
-    )
+    values["attempt_ids"] = frozenset(_text_tuple(payload.get("attempt_ids", ()), "attempt_ids"))
     values["revision"] = payload.get("revision")
     for name in ("owner", "confirmed_by", "disposition_reason", "canonical_issue_id"):
         values[name] = _optional_text(payload.get(name), name)
@@ -421,9 +380,7 @@ def issue_to_payload(
 
     if type(updated_sequence) is not int or updated_sequence < 0:
         raise DefectManagementError("updated_sequence must be a nonnegative integer")
-    entries = issue_index_entries(
-        issue, links=links, open_state=open_state, blocking=blocking
-    )
+    entries = issue_index_entries(issue, links=links, open_state=open_state, blocking=blocking)
     payload: dict[str, object] = {
         "schema_version": ISSUE_SCHEMA,
         "issue_id": issue.issue_id,
@@ -468,7 +425,12 @@ def issue_to_payload(
     return payload
 
 
-def blocking_state(issue: IssueRecord, *, root: IssueRecord | None = None) -> str:
+def blocking_state(
+    issue: IssueRecord,
+    *,
+    root: IssueRecord | None = None,
+    issues: Mapping[str, IssueRecord] | None = None,
+) -> str:
     """单条问题的阻塞状态（P0/P1 且仍未解决）；归并沿最终主问题并保留最强级别。
 
     处置表见功能文档 §12.2 / 架构 03 §9：active/deferred 的 P0/P1 阻塞；
@@ -483,8 +445,12 @@ def blocking_state(issue: IssueRecord, *, root: IssueRecord | None = None) -> st
         return "non_blocking"
     if subject.disposition is IssueDisposition.DUPLICATE:
         return "unknown"
-    severity = issue.severity if root is None else effective_severity(
-        issue.issue_id, {issue.issue_id: issue, root.issue_id: root}
+    severity = (
+        issue.severity
+        if root is None
+        else effective_severity(
+            issue.issue_id, issues or {issue.issue_id: issue, root.issue_id: root}
+        )
     )
     if severity is None:
         return "unknown"
@@ -659,9 +625,9 @@ class SavedDefectManagement:
             raise IssueGuardRefused(
                 "arranging a regression requires the original case and run links"
             )
-        request_id = "regression-" + _digest(
-            [issue.project_id, issue.issue_id, issue.revision]
-        )[7:31]
+        request_id = (
+            "regression-" + _digest([issue.project_id, issue.issue_id, issue.revision])[7:31]
+        )
         try:
             updated = facade.request_regression(
                 issue, expected_revision=issue.revision, regression_request_id=request_id
@@ -695,9 +661,7 @@ class SavedDefectManagement:
         self, project_id: str, issue_id: str, parameters: Mapping[str, object]
     ) -> IssueRecord:
         title = _text(parameters.get("title"), "title")
-        return IssueRecord(
-            issue_id=issue_id, project_id=project_id, revision=1, title=title
-        )
+        return IssueRecord(issue_id=issue_id, project_id=project_id, revision=1, title=title)
 
     def _initial_links(self, parameters: Mapping[str, object]) -> dict[str, object]:
         raw = parameters.get("links") or {}
@@ -730,13 +694,25 @@ class SavedDefectManagement:
                     regression_method=_text(
                         parameters.get("regression_method"), "regression_method"
                     ),
-                    closure_criteria=_text(
-                        parameters.get("closure_criteria"), "closure_criteria"
-                    ),
+                    closure_criteria=_text(parameters.get("closure_criteria"), "closure_criteria"),
                 )
                 return updated, links
             if action == "close_issue":
+                if not all(links.get(name) for name in ("case_id", "run_id", "attempt_id")):
+                    raise IssueGuardRefused("original reproduction context cannot be verified")
+                if parameters.get("case_id") != links["case_id"]:
+                    raise IssueGuardRefused("regression must verify the original case")
+                if parameters.get("attempt_id") == links["attempt_id"]:
+                    raise IssueGuardRefused("closure requires a new actual regression attempt")
+                self._original_criteria(issue, links, parameters)
                 evidence = self._closure_evidence(issue, parameters)
+                if not evidence.satisfies_original_criteria:
+                    return facade.record_failed_regression(
+                        issue,
+                        expected_revision=issue.revision,
+                        attempt_id=evidence.attempt_id,
+                        evidence_refs=evidence.evidence_refs,
+                    ), links
                 updated = facade.close_issue(
                     issue, expected_revision=issue.revision, evidence=evidence
                 )
@@ -852,6 +828,72 @@ class SavedDefectManagement:
 
     # ------------------------------------------------------------ 权威关闭依据
 
+    def _attempt_case(self, project_id: str, run_id: str, attempt_id: str) -> tuple[Any, str]:
+        """Historical criteria come from that Attempt's exact step content."""
+        facts = self._facts(project_id, run_id)
+        attempt = next((item for item in facts.attempts if item.attempt_id == attempt_id), None)
+        if attempt is None:
+            raise IssueGuardRefused("original regression attempt cannot be read")
+        fact = next((item for item in facts.steps if item.step_id == attempt.step_id), None)
+        if fact is None:
+            raise IssueGuardRefused("original case step cannot be read")
+        reference = attempt.step_revision_ref
+        stored = self._records.read(
+            aggregate_kind="step_revision",
+            record_id=reference.step_revision_id,
+            revision=reference.revision_no,
+        )
+        raw = stored.payload
+        if payload_digest(raw) != reference.digest:
+            raise IssueGuardRefused("original assertion content digest differs")
+        content = StepContent.model_validate_json(json.dumps(raw), strict=True)
+        saved_run = self._records.read(aggregate_kind="run", record_id=run_id, revision=1)
+        run = read_run_record(saved_run.payload)
+        if run.project_id != project_id:
+            raise IssueGuardRefused("original regression run belongs to another project")
+        step = Step(
+            step_id=fact.step_id,
+            run_id=run_id,
+            ordinal=fact.ordinal,
+            case_id=fact.case_id,
+            level=StepLevel(content.frozen_step.layer),
+            step_revision_ref=StepRevisionRef(**reference.model_dump()),
+        )
+        checked = StepContentReader(self._records).read(run=run, step=step)  # type: ignore[arg-type]
+        return checked.checked_case(), facts.run.rules_revision
+
+    def _original_criteria(
+        self,
+        issue: IssueRecord,
+        links: Mapping[str, object],
+        parameters: Mapping[str, object],
+    ) -> None:
+        try:
+            original, rules = self._attempt_case(
+                issue.project_id,
+                str(links["run_id"]),
+                str(links["attempt_id"]),
+            )
+            current, current_rules = self._attempt_case(
+                issue.project_id,
+                str(parameters["run_id"]),
+                str(parameters["attempt_id"]),
+            )
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            raise IssueGuardRefused("original closure criteria cannot be verified") from error
+        if (
+            original.case_id != current.case_id
+            or original.case_id != links["case_id"]
+            or rules != current_rules
+            or original.expected != current.expected
+            or original.layer != current.layer
+            or original.verification_method != current.verification_method
+            or original.independent_verification != current.independent_verification
+            or original.assertion_basis.text_digest != current.assertion_basis.text_digest
+            or original.links.acceptance_item_ids != current.links.acceptance_item_ids
+        ):
+            raise IssueGuardRefused("new regression differs from the original closure standard")
+
     def _closure_evidence(
         self, issue: IssueRecord, parameters: Mapping[str, object]
     ) -> IssueClosureEvidence:
@@ -874,8 +916,8 @@ class SavedDefectManagement:
         run_id = _text(parameters.get("run_id"), "run_id")
         attempt_id = _text(parameters.get("attempt_id"), "attempt_id")
         assertion_ref = _text(parameters.get("assertion_ref"), "assertion_ref")
-        outcome = _text(parameters.get("assertion_outcome"), "assertion_outcome")
-        if outcome not in {"passed", "failed"}:
+        claimed_outcome = parameters.get("assertion_outcome")
+        if claimed_outcome is not None and claimed_outcome not in {"passed", "failed"}:
             raise DefectManagementError("assertion_outcome must be passed or failed")
 
         facts = self._facts(issue.project_id, run_id)
@@ -899,16 +941,55 @@ class SavedDefectManagement:
             for invalidation in facts.dependency_invalidations
         ):
             raise IssueGuardRefused("closure requires valid upstream dependencies")
-        if step.assertion_refs and assertion_ref not in step.assertion_refs:
+        if assertion_ref not in step.assertion_refs:
             raise IssueGuardRefused("the referenced assertion is not part of the saved step")
 
         decision = build_decision_facts(facts)
         if decision.source_identity_state is not SourceIdentityState.MATCHED:
             raise IssueGuardRefused("closure requires a matched source identity")
-        if not self._basis_confirmed(issue.project_id, facts.run.intent_id, case_id):
+        if not self._bases_check.for_facts(facts, case_id):
             raise IssueBasisUnconfirmed("closure requires a confirmed assertion basis for the case")
 
         evidence_ids = self._attempt_evidence(facts, attempt_id)
+        basis_text = self._bases_check.text(facts, case_id)
+        if basis_text is None or issue.closure_criteria != basis_text:
+            raise IssueGuardRefused(
+                "original closure criteria do not match the saved assertion basis"
+            )
+        # A human tag/annotation in an evidence record is not a measured
+        # version binding. Only the verified source observation can close it.
+        executed_versions = {
+            item.observed_source_digest
+            for item in facts.source_verifications
+            if not item.gap_ids and item.state.value == "verified"
+        }
+        if issue.fix_version not in executed_versions:
+            raise IssueGuardRefused(
+                "the actual regression source does not verify the recorded fix version"
+            )
+        outcomes = assertion_outcomes_from_facts(
+            facts,
+            basis_revision_for=lambda identity: self._bases_check.revision(
+                issue.project_id,
+                facts.run.intent_id,
+                identity,
+                facts=facts,
+            ),
+            basis_confirmed_for=lambda identity: self._bases_check.for_facts(facts, identity),
+        )
+        matching = [
+            item
+            for item in outcomes
+            if item.attempt_id == attempt_id
+            and item.assertion_ref == assertion_ref
+            and item.case_id == case_id
+        ]
+        if not matching:
+            raise IssueGuardRefused("closure has no authoritative assertion verification")
+        derived = build_decision_facts(facts, assertion_outcomes=outcomes)
+        satisfies = case_id in derived.coverage.passed
+        if claimed_outcome is not None and claimed_outcome != ("passed" if satisfies else "failed"):
+            raise IssueGuardRefused("caller assertion outcome differs from saved verification")
         return IssueClosureEvidence(
             case_id=case_id,
             attempt_id=attempt_id,
@@ -916,7 +997,7 @@ class SavedDefectManagement:
             actual_execution=True,
             current_regression_attempt=True,
             evidence_saved=True,
-            satisfies_original_criteria=outcome == "passed",
+            satisfies_original_criteria=satisfies,
             basis_confirmed=True,
             source_identity_matched=True,
             dependencies_valid=True,
@@ -1009,12 +1090,13 @@ class SavedDefectManagement:
 
     def _facts(self, project_id: str, run_id: str) -> ExecutionFacts:
         try:
-            facts = self._runtime.read_runtime_revision_facts(
-                project_id=project_id, run_id=run_id
-            )
+            facts = self._runtime.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         except (OSError, KeyError, TypeError, ValueError) as error:
             raise IssueGuardRefused(f"saved run facts are unavailable: {error}") from error
-        if getattr(facts, "project_id", None) != project_id:
+        if (getattr(facts, "project_id", None), getattr(facts, "run_id", None)) != (
+            project_id,
+            run_id,
+        ):
             raise IssueGuardRefused("saved run facts belong to another project")
         return facts
 
@@ -1064,9 +1146,7 @@ class SavedDefectManagement:
                         return True
                     target = record.canonical_issue_id
                 root = graph[
-                    resolve_canonical_issue_id(
-                        issue.issue_id, {**graph, issue.issue_id: issue}
-                    )
+                    resolve_canonical_issue_id(issue.issue_id, {**graph, issue.issue_id: issue})
                 ]
                 return root.disposition in {IssueDisposition.ACTIVE, IssueDisposition.DEFERRED}
             except (DefectManagementError, ValueError):

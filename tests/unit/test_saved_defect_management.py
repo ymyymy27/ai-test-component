@@ -125,6 +125,7 @@ def _facts(
     evidence: tuple[Any, ...] = (),
     verifications: tuple[Any, ...] = (),
     invalidations: tuple[Any, ...] = (),
+    business_observation: str = "matched",
 ) -> Any:
     from aitest.contracts.execution_facts import ExecutionFacts
 
@@ -186,6 +187,20 @@ def _facts(
             "current_attempt_by_step": {"step-1": chosen.attempt_id},
             "evidence_refs": [item.model_dump(mode="json") for item in evidence],
             "source_verifications": list(verifications),
+            "verifications": [
+                {
+                    "verification_id": "verification-business-1",
+                    "verification_of": chosen.attempt_id,
+                    "business_object_id": "order-1",
+                    "query_method": "read_only_business_query",
+                    "observation": business_observation,
+                    "target_deployment_ref": "deployment-1",
+                    "evidence_refs": [item.evidence_id for item in evidence],
+                    "gap_ids": [],
+                }
+            ]
+            if evidence
+            else [],
             "dependency_invalidations": list(invalidations),
         }
     )
@@ -205,7 +220,11 @@ def _evidence(evidence_id: str = "evidence-1", attempt_id: str = "attempt-1") ->
             "attempt_id": attempt_id,
             "evidence_kind": "command_output",
             "capture_source": "plugin_runtime",
-            "code_identity": {"binding_kind": "plain", "workspace_ref": "binding-1@1"},
+            "code_identity": {
+                "binding_kind": "plain",
+                "workspace_ref": "binding-1@1",
+                "revision_ref": "v2",
+            },
             "object_digest": "sha256:" + __import__("hashlib").sha256(b"abc").hexdigest(),
             "object_size": 3,
             "integrity": "complete",
@@ -282,7 +301,7 @@ class _Harness:
             workspace_id="workspace-1",
             objects=objects,
             basis_proof=_UnusedBases(),
-            case_basis=lambda project, intent, case: case_confirmed,
+            case_basis=_FixtureBasis(case_confirmed),
         )
 
     def command(
@@ -316,9 +335,7 @@ class _Harness:
     def saved(self, issue_id: str) -> dict[str, object]:
         revision = self.repository.current_revision("issue", issue_id)
         assert revision >= 1
-        record = self.repository.read(
-            aggregate_kind="issue", record_id=issue_id, revision=revision
-        )
+        record = self.repository.read(aggregate_kind="issue", record_id=issue_id, revision=revision)
         return dict(record.payload)
 
 
@@ -332,11 +349,27 @@ def _ready_issue() -> IssueRecord:
         severity=IssueSeverity.P2,
         owner="owner",
         confirmed_by="session:session-user-1",
-        fix_version="v2",
+        fix_version="sha256:source-1",
         regression_method="m",
         closure_criteria="c",
         attempt_ids=frozenset(),
     )
+
+
+class _FixtureBasis:
+    """Explicit isolated basis material, not a controlled-origin integration proof."""
+
+    def __init__(self, confirmed: bool) -> None:
+        self.confirmed = confirmed
+
+    def __call__(self, project, intent, case):
+        return self.confirmed
+
+    def revision(self, project, intent, case):
+        return 1
+
+    def text(self, project, intent, case):
+        return "c"
 
 
 _CLOSE_PARAMETERS = {
@@ -368,57 +401,69 @@ def test_issue_lifecycle_persists_revisions_and_list_index_entries(tmp_path) -> 
     assert first["issue_index_entries"], "issues.list 必须拿到索引入口"
     assert first["module_ids"] == ["module-a"] and first["layer"] == "L2"
 
-    assert harness.command(
-        action="update_issue",
-        issue_id="issue-1",
-        expected_revision=1,
-        parameters={"awaiting_confirmation": True, "evidence_refs": ["evidence-1"]},
-        intent_id="intent-2",
-        request_id="request-2",
-    )["revision"] == 2
+    assert (
+        harness.command(
+            action="update_issue",
+            issue_id="issue-1",
+            expected_revision=1,
+            parameters={"awaiting_confirmation": True, "evidence_refs": ["evidence-1"]},
+            intent_id="intent-2",
+            request_id="request-2",
+        )["revision"]
+        == 2
+    )
 
-    assert harness.command(
-        action="update_issue",
-        issue_id="issue-1",
-        expected_revision=2,
-        parameters={"confirm": {"severity": "P1", "owner": "local-owner"}},
-        intent_id="intent-3",
-        request_id="request-3",
-    )["revision"] == 3
+    assert (
+        harness.command(
+            action="update_issue",
+            issue_id="issue-1",
+            expected_revision=2,
+            parameters={"confirm": {"severity": "P1", "owner": "local-owner"}},
+            intent_id="intent-3",
+            request_id="request-3",
+        )["revision"]
+        == 3
+    )
     third = harness.saved("issue-1")
     assert third["status"] == "confirmed" and third["severity"] == "P1"
     assert third["confirmed_by"] == "session:session-user-1"
     assert third["blocking"] == "blocking"
     assert third["review_state"] == "unreviewed"
 
-    assert harness.command(
-        action="update_issue",
-        issue_id="issue-1",
-        expected_revision=3,
-        parameters={"start": True},
-        intent_id="intent-4",
-        request_id="request-4",
-    )["revision"] == 4
+    assert (
+        harness.command(
+            action="update_issue",
+            issue_id="issue-1",
+            expected_revision=3,
+            parameters={"start": True},
+            intent_id="intent-4",
+            request_id="request-4",
+        )["revision"]
+        == 4
+    )
 
-    assert harness.command(
-        action="record_fix",
-        issue_id="issue-1",
-        expected_revision=4,
-        parameters={
-            "fix_version": "1.2.3",
-            "regression_method": "rerun the original case",
-            "closure_criteria": "original acceptance criteria",
-        },
-        intent_id="intent-5",
-        request_id="request-5",
-    )["revision"] == 5
+    assert (
+        harness.command(
+            action="record_fix",
+            issue_id="issue-1",
+            expected_revision=4,
+            parameters={
+                "fix_version": "1.2.3",
+                "regression_method": "rerun the original case",
+                "closure_criteria": "original acceptance criteria",
+            },
+            intent_id="intent-5",
+            request_id="request-5",
+        )["revision"]
+        == 5
+    )
     assert harness.saved("issue-1")["status"] == "ready_for_retest"
 
     # 不可变历史：旧修订仍是草稿，不被新修订覆盖。
     assert (
-        harness.repository.read(
-            aggregate_kind="issue", record_id="issue-1", revision=1
-        ).payload["status"]
+        harness.repository.read(aggregate_kind="issue", record_id="issue-1", revision=1).payload[
+            "status"
+        ]
         == "draft"
     )
 
@@ -446,10 +491,10 @@ def test_close_issue_derives_every_fact_from_saved_execution(tmp_path) -> None:
     # 证据集合由服务从已提交证据派生，不接受调用方传入。
     assert evidence.evidence_refs == ("evidence-1",)
 
-    failed = harness.service._closure_evidence(  # noqa: SLF001
-        _ready_issue(), {**_CLOSE_PARAMETERS, "assertion_outcome": "failed"}
-    )
-    assert failed.satisfies_original_criteria is False
+    with pytest.raises(IssueGuardRefused, match="differs from saved verification"):
+        harness.service._closure_evidence(
+            _ready_issue(), {**_CLOSE_PARAMETERS, "assertion_outcome": "failed"}
+        )
 
 
 def test_unknown_close_parameters_are_rejected(tmp_path) -> None:
@@ -590,26 +635,42 @@ def test_evidence_object_bytes_must_match_the_reference(tmp_path) -> None:
 def test_revision_conflict_intent_conflict_and_idempotent_replay(tmp_path) -> None:
     harness = _Harness(tmp_path, facts=_facts())
     harness.command(
-        action="update_issue", issue_id="issue-3", expected_revision=0,
-        parameters={"title": "t", "links": {}}, intent_id="i1", request_id="r1",
+        action="update_issue",
+        issue_id="issue-3",
+        expected_revision=0,
+        parameters={"title": "t", "links": {}},
+        intent_id="i1",
+        request_id="r1",
     )
     with pytest.raises(IssueRevisionConflict) as conflict:
         harness.command(
-            action="update_issue", issue_id="issue-3", expected_revision=7,
-            parameters={"start": True}, intent_id="i2", request_id="r2",
+            action="update_issue",
+            issue_id="issue-3",
+            expected_revision=7,
+            parameters={"start": True},
+            intent_id="i2",
+            request_id="r2",
         )
     assert conflict.value.code == "RECORD_REVISION_CONFLICT"
     assert (conflict.value.expected, conflict.value.current) == (7, 1)
 
     with pytest.raises(IssueIntentConflict):
         harness.command(
-            action="update_issue", issue_id="issue-3", expected_revision=0,
-            parameters={"title": "different", "links": {}}, intent_id="i1", request_id="r3",
+            action="update_issue",
+            issue_id="issue-3",
+            expected_revision=0,
+            parameters={"title": "different", "links": {}},
+            intent_id="i1",
+            request_id="r3",
         )
 
     replay = harness.command(
-        action="update_issue", issue_id="issue-3", expected_revision=0,
-        parameters={"title": "t", "links": {}}, intent_id="i1", request_id="r4",
+        action="update_issue",
+        issue_id="issue-3",
+        expected_revision=0,
+        parameters={"title": "t", "links": {}},
+        intent_id="i1",
+        request_id="r4",
     )
     assert replay["revision"] == 1
     assert harness.repository.current_revision("issue", "issue-3") == 1
@@ -618,14 +679,21 @@ def test_revision_conflict_intent_conflict_and_idempotent_replay(tmp_path) -> No
 def test_relay_session_cannot_confirm(tmp_path) -> None:
     harness = _Harness(tmp_path, facts=_facts(), actors=_RejectingActors())
     harness.command(
-        action="update_issue", issue_id="issue-4", expected_revision=0,
-        parameters={"title": "t", "links": {}}, intent_id="i1", request_id="r1",
+        action="update_issue",
+        issue_id="issue-4",
+        expected_revision=0,
+        parameters={"title": "t", "links": {}},
+        intent_id="i1",
+        request_id="r1",
     )
     with pytest.raises(Exception) as refused:
         harness.command(
-            action="update_issue", issue_id="issue-4", expected_revision=1,
+            action="update_issue",
+            issue_id="issue-4",
+            expected_revision=1,
             parameters={"confirm": {"severity": "P0", "owner": "o"}},
-            intent_id="i2", request_id="r2",
+            intent_id="i2",
+            request_id="r2",
         )
     assert getattr(refused.value, "code", None) == "AWAITING_USER_CONFIRMATION"
 
@@ -741,7 +809,10 @@ def test_issue_index_entries_match_the_documented_upper_bound(tmp_path) -> None:
         "attempt_id": None,
     }
     issue = IssueRecord(
-        issue_id="issue-6", project_id="project-1", revision=1, title="t",
+        issue_id="issue-6",
+        project_id="project-1",
+        revision=1,
+        title="t",
         severity=IssueSeverity.P2,
     )
     entries = issue_index_entries(issue, links=links, open_state=True, blocking="non_blocking")

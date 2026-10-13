@@ -513,8 +513,10 @@ def _pinned_file_digests(pinned: Mapping[str, object]) -> tuple[dict[str, object
         name, digest, size = item.get("relative_path"), item.get("sha256"), item.get("size")
         if not isinstance(name, str) or not name.strip() or type(size) is not int:
             raise SourceBindingUnverified("a pinned manifest entry lacks its exact identity")
-        if not isinstance(digest, str) or len(digest) != 64 or any(
-            char not in "0123456789abcdef" for char in digest
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(char not in "0123456789abcdef" for char in digest)
         ):
             raise SourceBindingUnverified("a pinned manifest entry digest is invalid")
         entries.append(
@@ -527,9 +529,7 @@ def _pinned_file_digests(pinned: Mapping[str, object]) -> tuple[dict[str, object
     return tuple(entries)
 
 
-def _observed_content_identity(
-    saved: Mapping[str, object], pinned: Mapping[str, object]
-) -> str:
+def _observed_content_identity(saved: Mapping[str, object], pinned: Mapping[str, object]) -> str:
     """用**重新核对过的固定字节**重算业务内容身份（不回声冻结值）。
 
     只核摘要或只比"记录里写的身份"都是空转：这里把技术清单的实际逐文件摘要放回 B 冻结的
@@ -599,9 +599,7 @@ def _probe_output_reference(
     raw = getattr(fact, "raw_output", b"")
     if objects is None or not isinstance(raw, bytes) or not raw:
         return None
-    stored = objects.publish_bytes(
-        project_id, raw, media_type="application/json; charset=utf-8"
-    )
+    stored = objects.publish_bytes(project_id, raw, media_type="application/json; charset=utf-8")
     return stored.relative_path
 
 
@@ -718,9 +716,7 @@ def _source_verification_provider(
         loaded_files = [
             item.file
             for item in fact.modules
-            if item.file is not None
-            and item.load_error is None
-            and item.module in expected_modules
+            if item.file is not None and item.load_error is None and item.module in expected_modules
         ]
         # `LOAD` 只在**确有文件型登记的模块**时使用；纯命名空间包没有文件型加载来源，
         # 退回 `SYNTAX`（仍然实际编译范围内全部 .py），不伪造一个 load 引用。
@@ -735,9 +731,7 @@ def _source_verification_provider(
             failure_class=(
                 FailureClass.ENVIRONMENT_UNREACHABLE
                 if fact.probe_error is not None
-                else (
-                    FailureClass.SOURCE_ERROR if fact.syntax_errors else None
-                )
+                else (FailureClass.SOURCE_ERROR if fact.syntax_errors else None)
             ),
             raw_output_evidence_ref=raw_reference,
             observed_python_file_count=len(getattr(fact, "python_files", ())),
@@ -1171,8 +1165,8 @@ def assemble_workspace_core(
                             _required_source_analysis(dependencies), project, snapshot, revision
                         )
                     ),
-                    read_step_timeout=lambda project, environment, revision: (
-                        _frozen_step_timeout(reader, project, environment, revision)
+                    read_step_timeout=lambda project, environment, revision: _frozen_step_timeout(
+                        reader, project, environment, revision
                     ),
                     interpreter_verifier=(
                         _interpreter_verifier() if verify_start_interpreter else None
@@ -1199,8 +1193,12 @@ def assemble_workspace_core(
             execution_authorizations=execution_authorizations,
             serial_execution=True,
             evidence_collector=SavedExecutionEvidence(
-                cast(RecordRepository, unit_of_work.repo), reader, FileSpoolStore(root),
-                FileObjectStore(root), workspace_id=workspace.workspace_id, instance_id=instance_id,
+                cast(RecordRepository, unit_of_work.repo),
+                reader,
+                FileSpoolStore(root),
+                FileObjectStore(root),
+                workspace_id=workspace.workspace_id,
+                instance_id=instance_id,
             ),
         )
         step_execution = SavedStepExecution(
@@ -1223,8 +1221,12 @@ def assemble_workspace_core(
             execution_authorizations, initial_run_registration, step_execution
         )
         reuse_inspection = CaseReuseInspection(
-            execution_coordinator, cast(RecordRepository, unit_of_work.repo), reader,
-            FileObjectStore(root), FileSpoolStore(root), basis_proof=approvals,
+            execution_coordinator,
+            cast(RecordRepository, unit_of_work.repo),
+            reader,
+            FileObjectStore(root),
+            FileSpoolStore(root),
+            basis_proof=approvals,
         )
         # 复用选择（裁定 DEC-014 / CORE-001 1.82）：只登记引用关系，不授予资格；
         # 同一核对器派生来源身份，报告侧据此把候选交给消费守卫。
@@ -1349,9 +1351,7 @@ def assemble_workspace_core(
         def storage_usage(command: Command) -> Mapping[str, object]:
             """只读空间诊断；工作空间级动作，不接受业务参数。"""
             del command
-            return cast(
-                Mapping[str, object], _json_value(FileMaintenanceService(root).diagnose())
-            )
+            return cast(Mapping[str, object], _json_value(FileMaintenanceService(root).diagnose()))
 
         def read_events(command: Command) -> Mapping[str, object]:
             """只读事件续读：游标非法由日志返回结构化状态，不猜测、不补造。"""
@@ -1374,9 +1374,7 @@ def assemble_workspace_core(
                 cursor = raw_cursor
             else:
                 raise BUseCaseError("B_INVALID_PARAMETER", "cursor must be a non-empty string")
-            return cast(
-                Mapping[str, object], _json_value(journal.read(cursor=cursor, limit=limit))
-            )
+            return cast(Mapping[str, object], _json_value(journal.read(cursor=cursor, limit=limit)))
 
         handlers.update(storage_usage=storage_usage, events=read_events)
 
@@ -1431,6 +1429,7 @@ def assemble_workspace_core(
             basis_proof=approvals,
             # 复用候选来源：已保存的复用选择（CORE-001 1.82）；资格仍由消费守卫派生。
             reuse_references=reuse_selection.references_for_run,
+            reuse_basis=reuse_inspection.consumption_basis,
         )
         # 宿主只读视图（架构 06 §1/§54）：面板读 DTO，判定复用 D 侧 live_decision，
         # 不新增协议动作、不写任何记录。
@@ -2089,9 +2088,7 @@ def shutdown_endpoint(
         raw_acknowledgement = client.read_message(
             timeout_ms=max(1, int((deadline - time.monotonic()) * 1000))
         )
-        acknowledgement = Response.model_validate(
-            decode_json(raw_acknowledgement.decode("utf-8"))
-        )
+        acknowledgement = Response.model_validate(decode_json(raw_acknowledgement.decode("utf-8")))
         if (
             acknowledgement.error is not None
             or acknowledgement.request_id != "core-shutdown"
