@@ -18,10 +18,10 @@
 | A-05 · 部分实现／待完整恢复验收 | CommitManifest v2、七字段 current、对象/幂等引用、业务索引、旧根与有界查询已有实现。 | 不确定发布的人工恢复产品入口；完整历史对象归属/大小、报告历史排序对拍、目标设备耐久与物理掉电。不能以启动自愈替代发布一致性。 | `infrastructure/file_store/commit_manifest.py；canonical_manifest.py；ordered_index.py；publication_backend.py`；AC27/28/34 |
 | A-06 · 待真实环境验收 | 句柄与永久材料进入完整性/备份闭包，恢复先检查摘要、归属与路径链接。 | 完整 C/D 保存→换核心→备份/恢复，损坏备份和目标目录拒绝，有符号链接权限的实测；跳过项不能计通过。 | `infrastructure/file_store/backup.py；integrity.py；references.py`；AC16/28/35 |
 | A-07 · 部分实现／待产品恢复 | spool 租约、活动守卫、抢救与控制恢复均已有组件。 | 实际活动/未知句柄核实与安全人工处置；确认抢救及全部 JSON/JSONL 引用后才能迁移或回收，不可读引用继续阻塞。 | `infrastructure/file_store/recovery.py；spool.py；maintenance.py`；AC28 |
-| A-08 · 组件已注入／默认来源阻断 | 固定源码物化、路径映射和入口/解释器/来源组件存在；不能把注入当实际链路通过。 | 先修 C-15 快照/字段/目录错接及 C-16 语法/模块失败仍 verified，再验 editable/PYTHONPATH/绝对入口、构建/最小启动和 Windows 耐久/掉电；物化不证明环境/远端一致。 | `bootstrap.py；application/execution/action_resolver.py；infrastructure/adapters/execution/python_checks.py`；AC12/13/19/25/30 |
+| A-08 · 组件已注入／默认来源核验已接 | 固定源码物化、路径映射和入口/解释器/来源组件存在；C-15 快照/字段/目录错接与 C-16 语法/多模块核验已修（[修复证据](一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)），真实默认链可解析受控动作。 | 仍欠真实运行验收：editable/PYTHONPATH/绝对入口、适用构建与最小启动（合同字段来源未冻结，仍未实现）、Windows 耐久/掉电；物化不证明环境/远端一致。 | `bootstrap.py；application/execution/action_resolver.py；infrastructure/adapters/execution/python_checks.py`；AC12/13/19/25/30 |
 | A-09 · 部分实现／待全制品验证 | 模型结构化响应、spool、对象、诊断等共用写前过滤，JSON 编码变体已有回归。 | 附件、报告、portable 导出/诊断/备份的完整产品安全链；不安全材料登记缺口，凭据正文不得进入任何制品。 | `infrastructure/security.py；projections.py；application/evidence/external_imports.py`；AC07/16/32/35 |
 | A-10 · 部分实现／待按动作对拍 | 能力门和连接状态持久化已实现；执行族接通不能等同全部动作已可用。 | 按每个动作真实端口依赖核对故障与恢复；verify_pending 默认缺业务解析/核验端口，D 发布族缺 handler。模型关闭仍须可用人工路径。 | `infrastructure/capabilities.py；bootstrap.py；infrastructure/connections.py`；AC26/32 |
-| A-19 · 新增：可复现工程阻断 | uv.lock requires-python 为 ==3.13.*，pyproject.toml 为 >=3.11,<3.14。uv 0.11.8 的 --locked 安装退出 1。 | 按声明的 Python 范围重新解析并生成锁文件，干净环境重跑 uv sync --extra dev --locked，再验证 3.11/3.12/3.13；不手改生成锁文件。本轮只登记。 | `uv.lock（仓库根）；pyproject.toml；.github/workflows/ci.yml`；工程门禁／AC26/28 前置 |
+| A-19 · **已修（2026-10-12）** | 按声明范围重新解析并生成 `uv.lock`（`requires-python = ">=3.11, <3.14"`）；`uv lock --check` 退出 0，干净环境 `uv sync --locked` 退出 0 并真实导入 aitest/pydantic/portalocker（CPython 3.13.13）。 | 仍欠：3.11/3.12 的真实运行复核与 CI 中的锁定安装门禁；本次只证明 3.13 干净锁定安装，不写"各版本可复现"。 | `uv.lock（仓库根）；pyproject.toml；.github/workflows/ci.yml`；工程门禁／AC26/28 前置；证据见[修复证据](一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md) |
 
 ## 3. 已修条目与验证边界
 

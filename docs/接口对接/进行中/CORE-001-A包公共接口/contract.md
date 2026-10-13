@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.80"
+contract_version: "1.82"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -32,6 +32,10 @@ next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 
 字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
+1.82 新增受控写动作 `select_case_reuse`（整用例复用**选择**，2026-10-13 裁定 DEC-014）：按一期架构 01《复用、回归与模型任务矩阵》「ReuseReference 登记 target_run/case_id、source_run/step/attempt、来源计划与源码/环境/入口参数/规则/适配器修订、证据引用、validity_checked_at_commit 及验证依据。**它是已有运行记录的引用关系，不创建虚假 Attempt**」登记该引用关系。参数严格为 `case_id` + 两对 `source_run_id`/`source_snapshot`、`target_run_id`/`target_snapshot`（与只读 `inspect_case_reuse` 1.69 同一组引用，`SnapshotContentRef` 三字段），命令 `target` 固定 `case_id`；`expected_revision` 为当前选择记录修订（首写 0）。来源身份（步骤/尝试映射、四类修订摘要与证据引用）由**同一个核对器** `CaseReuseInspection.verify` 派生，**不接受调用方自报**；未知来源修订保持未知（不补造摘要）。记录为 `reuse_decision@1`（每个 (项目, 目标运行) 一条，追加修订，正文含 `references` 列表），幂等按 `intent_id` + 输入摘要（同意图同输入回读原结果，同意图异输入报 `INTENT_CONFLICT`）；动作属**人工动作**，非受控交互会话（含 relay）拒绝且不落盘；**只登记引用关系、不授予复用资格**：R/V 仍由消费侧 `derive_reuse_outcome` 按当前事实派生，拒绝时给出具名原因。报告侧候选来源已接该记录（未选择时保持 `reuse_candidate_source_not_configured`）。stdio MCP 派发（`intent_contracts`/`aitest_dispatch`）**本轮未接**，按后续接入项处理；公开 Command/Response 与生成 Schema 不变，真实宿主与 D 侧消费对拍仍待完成。实现与用例见证据 [整用例复用选择动作](../../../一期工程整改/03-修复证据/2026-10-13-复用选择动作.md)。
+
+1.81 `query` 响应补充**同一已提交边界的配对信息**（2026-10-13）：按一期架构 06 §4/§8/§136「核心从同一已发布清单读取视图及其有效事件边界，**不能先读视图再取“此刻最新”游标**」「列表返回 **commit 配对摘要**」「响应含 … **commit_id** …」，`query` 成功响应在既有 `items`/`next_cursor` 之外**追加** `commit_id`（该页绑定的已提交序号）与 `event_cursor`（同一边界的事件续读游标）。两者取自**同一次**索引读取（存储层 `IndexQueryResult` 本就有这两项，此前在三字段结果处被丢弃），实现经并行的 `RecordQueryPage` 承载；**`RecordQueryResult(status, items, next_cursor)` 三字段形状与 AC-001 §147 不变**；取不到时如实返回 `null`，**不退回“此刻最新”水位**。既有字段语义、协议版本、生成 Schema/夹具与已保存记录语义不变，无需数据迁移。消费方据 `event_cursor` 直接续读 `events`；提供方实现见证据 [列表与事件配对边界](../../../一期工程整改/03-修复证据/2026-10-13-列表与事件配对边界.md)，合同检查见 `tests/contracts/test_query_boundary_response.py`。
 
 
 1.78 复用来源完整当前依据（2026-10-08）：源快照与源运行当前边界除Step/Attempt外，须核对所选当前Attempt的准确证据、业务核验、源码检查，以及运行共同来源核验、Mock、缺口/未知和材料完整性；追加/删除/改义均不能继续使用旧依据。实际consumed_outputs/conditions向上递归核对原来源Attempt事实和当前指针，缺失、过期、未完成或不完整保留不可核实；上游换Attempt或材料变化显示source_dependency_basis_changed，即使选中下游Step/Attempt尚未变化。集合重排不改义，无关其他用例的局部证据/核验不干扰；共同运行材料变化需重新请求当前边界。预览仍为incompatible/unverified、不授予R/V或生成Attempt，真实动态观察、引用实际字节、完整资格/选择及消费继续另验。公开Schema/FR/AC及reviewing/partial/not_run保持。
@@ -124,8 +128,8 @@ A包是本地核心底座，为B/C/D包提供底层存储、协议、工作空�
 
 # A包与上层B/C/D包模块对接说明
 
-版本：1.79（2026-10-12 状态复核；历史修订与确认按各自日期）
-日期：2026-10-12（历史记录保留原条目日期）
+版本：1.82（2026-10-13 新增 `select_case_reuse` 与 `query` 配对边界；历史修订与确认按各自日期）
+日期：2026-10-13（历史记录保留原条目日期）
 状态：草案，待B/C/D确认  
 
 1.39 冻结核心退出准入：父进程消亡、工作空间停机和有限客户端退出均须先核实原工作空间的权威执行检查点与未收尾材料；到达命令边界不证明执行终止。存在活动/未知执行、不可读权威依据、尚未保存的输出时保留唯一核心与写锁继续服务，不终止全部执行、不伪造取消、不密封仍被采集的输出。显式停机拒绝返回CORE_DRAINING；客户端仅在同一已核对管道收到准确实例/持久工作空间/请求号的shutting_down回执后登记stopping，超时/丢回执/拒绝保持结果未核实。父进程丢失时解除本次退出请求而继续接受重连；核实收尾后可再次明确停机。退出核对是显式维护检查，不用于列表刷新，后续有界活动目录及后台续行仍需接入。本合同不把保存终态、未知副作用或停机回执当作业务通过/有效验证，也不新增集合停止授权。

@@ -184,7 +184,7 @@ def _inputs(**overrides: object) -> PreparationInputs:
         "execution_source": ExecutionSourceBinding(
             registered_entry="python -m pytest",
             entry_arguments=("tests/acceptance",),
-            cwd_mapping="<project-root> -> workdirs/run-1",
+            cwd_mapping="workdir:.",
             test_config_ref="pyproject.toml#tool.pytest",
             resolved_input_digest="sha256:resolved-1",
         ),

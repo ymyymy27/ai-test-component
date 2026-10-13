@@ -53,6 +53,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "prepare_run",
         "register_run",
         "inspect_case_reuse",
+        "select_case_reuse",
         "prepare_execution",
         "execute_step",
         "start_run",

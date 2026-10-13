@@ -105,6 +105,7 @@ from aitest.application.planning.publish import (
     payload_digest,
     publish_plan,
     publish_rules,
+    save_plan_draft,
 )
 from aitest.application.planning.rules_markdown import (
     rule_draft_from_markdown,
@@ -158,6 +159,10 @@ from aitest.application.project.serialization import (
     task_from_payload,
 )
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.project.view_preference import (
+    PreferenceError,
+    save_view_preference,
+)
 from aitest.application.record_write import RecordWriteIntent
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import ExecutionFacts
@@ -229,6 +234,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "save_task",
         "save_delivery",
         "submit_delivery",
+        "save_project_view_preference",
         "generate_draft",
         "resolve_model_response",
         "save_model_outbound_policy",
@@ -238,7 +244,9 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "export_rules_markdown",
         "import_rules",
         "import_rules_markdown",
+        "save_rules",
         "publish_rules",
+        "save_plan",
         "publish_plan",
         "prepare_run",
         "query",
@@ -274,6 +282,9 @@ _AGGREGATE_KINDS: frozenset[str] = frozenset(
         "model_outbound_policy",
         "model_outbound_request",
         "prepared_run",
+        "project_view_preference",
+        # 人工补证记录（只含人工描述与引用，不含证据正文）：列表可读，正文按引用取。
+        "manual_evidence",
     }
 )
 
@@ -1380,6 +1391,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 for record in page.items
             ],
             "next_cursor": page.next_cursor,
+            # 同一已提交边界的配对信息（架构 06 §4/§8/§136：「列表返回 commit 配对摘要」
+            # 「读取 SnapshotEnvelope 及配对游标」）。取不到时如实给 None（未知），
+            # 不改成"此刻最新"水位。
+            "commit_id": getattr(page, "commit_id", None),
+            "event_cursor": getattr(page, "event_cursor", None),
         }
 
     def handle_prepare_run(command: object) -> Mapping[str, object]:
@@ -1499,6 +1515,75 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
         # 导出的是**内容**：导入方拿到草稿，"已发布"由各自实例重新发布产生。
         return {"bundle": export_rule_payloads(versions)}
+
+    def handle_save_project_view_preference(command: object) -> Mapping[str, object]:
+        """隐藏/恢复项目在列表中的显示（P1-AC34）。
+
+        只写一条 `project_view_preference`：项目、绑定、运行、报告、问题与历史引用
+        **都不动**，也不停任何运行；恢复只把可见性置回。只有已保存项目可被隐藏。
+        """
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        unknown = set(parameters) - {"hidden"}
+        if unknown:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER",
+                f"save_project_view_preference received unknown parameters: {sorted(unknown)}",
+            )
+        # `hidden` 必须显式给出**真布尔**：缺省或 null 都不能等于"悄悄恢复可见"。
+        raw_hidden = parameters.get("hidden")
+        if type(raw_hidden) is not bool:
+            raise BUseCaseError("B_INVALID_PARAMETER", "hidden must be a boolean")
+        hidden = raw_hidden
+        try:
+            result = save_view_preference(
+                project_id=project_id,
+                hidden=hidden,
+                unit_of_work=deps.unit_of_work,
+                reader=deps.reader,
+                expected_revision=_expected_revision_or_none(command),
+                commit_sequence=deps.unit_of_work.next_commit_seq(),
+            )
+        except PreferenceError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+        return {
+            "saved": {
+                "aggregate_kind": "project_view_preference",
+                "record_id": result.project_id,
+                "revision": result.revision,
+                "hidden": result.hidden,
+            },
+            "stopped_runs": False,
+            "deleted": False,
+        }
+
+    def handle_save_rules(command: object) -> Mapping[str, object]:
+        """保存规则**草稿**（需求 P1-FR05："未发布不生效"）。
+
+        与 `import_rules` 共用同一个 `save_rule_draft` 落盘路径与同一份严格字段解析；
+        区别只在入口形态：这里是**单条**草稿，由受控用户编辑后保存。保存不发布——
+        `rule_version` 只由 `publish_rules` 产生，草稿默认未确认、未启用。
+        """
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        draft = _rule_draft_of(_as_mapping(_required(parameters, "draft"), "draft"))
+        staged = save_rule_draft(
+            draft,
+            project_id=project_id,
+            unit_of_work=deps.unit_of_work,
+            expected_revision=_command_expected_revision(command),
+        )
+        return {
+            "saved": {
+                "aggregate_kind": staged.aggregate_kind,
+                "record_id": staged.record_id,
+                "revision": staged.revision,
+                "rule_id": draft.rule_id,
+                "confirmed": draft.confirmed,
+                "enablement": draft.enablement.value,
+            },
+            "published": False,
+        }
 
     def handle_import_rules(command: object) -> Mapping[str, object]:
         """导入规则：**只得到草稿**，并作为 `rule_draft` 记录落盘。
@@ -1633,6 +1718,71 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 }
             )
         return {"imported": stored}
+
+    def handle_save_plan(command: object) -> Mapping[str, object]:
+        """保存计划**草稿**（功能 P1-FR06"草稿/发布独立"）。
+
+        与 `publish_plan` 的分工只有一条：这里**不跑发布门禁**，草稿允许尚未补齐；
+        发布仍走 `publish_plan` 的逐条门禁并产生带确认标识的下一修订。身份、修订与
+        "已发布计划不可当草稿覆盖"仍必须核对。
+        """
+        project_id = _command_project_id(command)
+        parameters = _command_parameters(command)
+        plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
+        revision = _revision_of(_required(parameters, "revision"), "revision")
+        scope_payload = _as_mapping(_required(parameters, "scope"), "scope")
+        _require_owned_by_command(
+            scope_payload, command=command, name="scope", aggregate_kind="acceptance_scope"
+        )
+        scope = acceptance_scope_from_payload(scope_payload)
+        raw_cases = _required(parameters, "cases")
+        if not isinstance(raw_cases, list) or not raw_cases:
+            raise BUseCaseError("B_INVALID_PARAMETER", "cases must be a non-empty list")
+        case_values = []
+        for index, item in enumerate(raw_cases):
+            payload = _as_mapping(item, f"cases[{index}]")
+            _require_owned_by_command(
+                payload, command=command, name=f"cases[{index}]", aggregate_kind="case"
+            )
+            case_values.append(case_from_payload(payload))
+        cases = tuple(case_values)
+        plan = build_plan(
+            plan_id=plan_id,
+            revision=revision,
+            scope=scope,
+            cases=cases,
+            project_id=project_id,
+            rule_versions=_rule_versions_for(deps, project_id=project_id, parameters=parameters),
+            template_refs=_template_refs_for(parameters),
+            run_tier=_enum_or(RunTier, parameters.get("run_tier"), "run_tier", RunTier.FULL),
+            initial_driver=_enum_or(
+                RunDriver,
+                parameters.get("initial_driver"),
+                "initial_driver",
+                RunDriver.PLANNED,
+            ),
+        )
+        try:
+            staged = save_plan_draft(
+                plan,
+                project_id=project_id,
+                cases=cases,
+                unit_of_work=deps.unit_of_work,
+                reader=deps.reader,
+                expected_revision=_expected_revision_or_none(command),
+            )
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+        return {
+            "saved": {
+                "aggregate_kind": staged.aggregate_kind,
+                "record_id": staged.record_id,
+                "revision": staged.revision,
+                "plan_id": plan.plan_id,
+                "status": plan.status.value,
+            },
+            "published": False,
+        }
 
     def handle_publish_plan(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
@@ -2314,6 +2464,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "save_environment": _guard(handle_save_environment),
         "save_dependency_graph": _guard(handle_save_dependency_graph),
         "save_acceptance": _guard(handle_save_acceptance),
+        "save_project_view_preference": _guard(handle_save_project_view_preference),
         "save_case": _guard(handle_save_case),
         "save_task": _guard(handle_save_task),
         "save_delivery": _guard(handle_save_delivery),
@@ -2329,7 +2480,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "export_rules_markdown": _guard(handle_export_rules_markdown),
         "import_rules": _guard(handle_import_rules),
         "import_rules_markdown": _guard(handle_import_rules_markdown),
+        "save_rules": _guard(handle_save_rules),
         "publish_rules": _guard(handle_publish_rules),
+        "save_plan": _guard(handle_save_plan),
         "publish_plan": _guard(handle_publish_plan),
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),

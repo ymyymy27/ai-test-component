@@ -374,3 +374,60 @@ def test_default_handler_rejects_injected_query_material_and_reports_missing_cap
         assert error.value.code == "CAPABILITY_UNAVAILABLE"
     finally:
         core.lifetime_lock.release()
+
+
+def test_missing_capability_message_names_the_unfrozen_declarations(tmp_path) -> None:
+    """C-03 缺口自述（能力清单 §6 独立核验 / 架构 01 §1.5 环境声明）。
+
+    默认装配没有核验解析器：只报"端口未配置"无法区分"能力没装"与"合同没定义声明点"。
+    这里从**已在手的冻结材料**列出环境身份与已登记的独立核验方式，并把没有声明点的
+    `business_object_id`/`url_template`（查询方法）/`expected_facts`（独立预期）点名，
+    同时给出分册引用——**不改变拒绝类型与错误码**。
+    """
+
+    core = assemble_workspace_core(tmp_path, instance_id="query-diagnosis-core")
+    try:
+        saved = core.business_verification
+        assert saved is not None
+        prepared = SimpleNamespace(
+            frozen_cases=(
+                SimpleNamespace(
+                    case_id="case-1",
+                    independent_verification="只读HTTP查询同一业务对象",
+                    steps=(SimpleNamespace(step_id="step"),),
+                ),
+            ),
+            environment=SimpleNamespace(
+                environment_id="env-1",
+                revision=3,
+                model_fields={
+                    "environment_id": None,
+                    "revision": None,
+                    "isolation_mode": None,
+                },
+            ),
+        )
+        saved.authorizations = Mock()
+        saved.authorizations._context.return_value = (None, None, prepared, None)
+        message = saved._missing_verification_declarations(  # noqa: SLF001
+            {"project_id": "project", "run_id": "run", "step_id": "step"}
+        )
+    finally:
+        core.lifetime_lock.release()
+
+    assert message.startswith("a trusted business query resolver/adapter is not configured")
+    # 已冻结材料：环境身份与独立核验方式登记情况。
+    assert "env-1@3" in message
+    assert '"independent_verification_registered": true' in message
+    assert '"case_id": "case-1"' in message
+    # 未定义声明点：按路径细分点名（HTTP/数据库核验 vs 纯函数独立预期比对），并给出分册引用。
+    for name in ("business_object_id", "url_template", "expected_facts"):
+        assert name in message
+    assert (
+        '"http_or_database_verification_missing_declarations": ["business_object_id", '
+        in message
+    )
+    assert '"pure_function_comparison_missing_declarations": ["expected_facts"]' in message
+    assert "能力与模板清单" in message and "架构 01" in message
+    # 两册清单不一致的事实也要如实给出（功能 §4 并列要求 vs 架构 01 §1.5 清单缺项）。
+    assert "业务对象ID" in message and "目标服务身份/部署版本" in message

@@ -246,6 +246,10 @@ class PortsRecordReader:
         return revision
 
     def query(self, query: RecordQuery) -> RecordPage:
+        # 完整转发有限查询选择器：`view`/`facet`/`facet_value`/`severity`/`sort` 等
+        # 由 `QuerySpec` 的 `Literal` 与 `ensure_finite_route()` 唯一判定。
+        # 只转发五个字段会让 `issues.list` 之类固定目录查询丢条件，退化成通用目录
+        # 查询（例如把 intent 记录一并返回），与"按固定掩码查询"的合同不符。
         _require(self._repository, "query")
         result = self._repository.query(
             RecordQuery(
@@ -254,6 +258,16 @@ class PortsRecordReader:
                 record_id=query.record_id,
                 limit=min(query.limit, _PAGE_LIMIT),
                 cursor=query.cursor,
+                revision=query.revision,
+                sort=query.sort,
+                descending=query.descending,
+                business_outcome=query.business_outcome,
+                run_id=query.run_id,
+                report_id=query.report_id,
+                view=query.view,
+                facet=query.facet,
+                facet_value=query.facet_value,
+                severity=query.severity,
             )
         )
         status = getattr(result, "status", "ok")
@@ -263,9 +277,37 @@ class PortsRecordReader:
             )
         if status == "invalid_cursor":
             raise InvalidQueryCursor(str(query.cursor))
+        # 同一已提交边界的配对信息：优先取存储仓库一并返回的 page（架构 06 §4/§136）；
+        # 仓库不提供时保持 None（未知），绝不改读"此刻最新"水位。
+        page = getattr(self._repository, "query_page", None)
+        boundary: object | None = None
+        if callable(page):
+            boundary = page(
+                RecordQuery(
+                    project_id=query.project_id,
+                    aggregate_kind=query.aggregate_kind,
+                    record_id=query.record_id,
+                    limit=min(query.limit, _PAGE_LIMIT),
+                    cursor=query.cursor,
+                    revision=query.revision,
+                    sort=query.sort,
+                    descending=query.descending,
+                    business_outcome=query.business_outcome,
+                    run_id=query.run_id,
+                    report_id=query.report_id,
+                    view=query.view,
+                    facet=query.facet,
+                    facet_value=query.facet_value,
+                    severity=query.severity,
+                )
+            )
         return RecordPage(
             items=tuple(getattr(result, "items", ())),
             next_cursor=getattr(result, "next_cursor", None),
+            commit_id=_boundary_int(boundary, "commit_id"),
+            event_cursor=_boundary_text(boundary, "event_cursor"),
+            generation=_boundary_int(boundary, "generation"),
+            index_version=_boundary_int(boundary, "index_version"),
         )
 
     def find_preparation(
@@ -656,6 +698,24 @@ def _created_rows(
         seen.add(row)
         rows.append(row)
     return tuple(rows)
+
+
+def _boundary_int(boundary: object | None, name: str) -> int | None:
+    """从存储页里取整数边界；缺失或类型不符一律 `None`（未知，不猜）。"""
+
+    if boundary is None:
+        return None
+    value = getattr(boundary, name, None)
+    return value if type(value) is int else None
+
+
+def _boundary_text(boundary: object | None, name: str) -> str | None:
+    """从存储页里取文本边界（事件游标）；缺失或空文本一律 `None`。"""
+
+    if boundary is None:
+        return None
+    value = getattr(boundary, name, None)
+    return value if isinstance(value, str) and value.strip() else None
 
 
 __all__ = [

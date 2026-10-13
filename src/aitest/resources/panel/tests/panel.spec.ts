@@ -12,8 +12,10 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
   // 非宿主环境必须如实降级：不假装已连核心，也不让只读入口可点。
   await expect(page.getByTestId("core-capability")).toContainText("核心未通过");
   const readOnly = page.getByTestId("read-only-actions").getByRole("button");
-  await expect(readOnly).toHaveCount(2);
+  await expect(readOnly).toHaveCount(4);
   await expect(readOnly.first()).toBeDisabled();
+  // 宿主未声明项目时如实显示"未选择"，且项目作用域查询不可用。
+  await expect(page.getByTestId("project-context")).toContainText("当前项目：未选择");
   // 没有回执时不得伪造结果体：只显示未取得结果的原因。
   await expect(page.getByTestId("last-result")).toContainText("未取得结果");
   await expect(page.getByTestId("last-result-body")).toHaveCount(0);
@@ -68,5 +70,99 @@ test("host outcome is rendered verbatim without recalculating conclusions", asyn
   const body = page.getByTestId("last-result-body");
   await expect(body).toContainText('"status": "READY"');
   await expect(body).toContainText('"supported_actions"');
+  expect(errors).toEqual([]);
+});
+
+/** 只读项目作用域查询：面板只用宿主声明的项目身份，回执行原样展示。 */
+test("project context gates read-only queries and rows render verbatim", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.setContent('<html lang="zh-CN"><body><ai-test-panel></ai-test-panel></body></html>');
+  // 宿主桩必须在面板脚本加载**之前**注入：面板只在宿主存在时派发。
+  await page.evaluate(() => {
+    const scope = window as unknown as {
+      __sent: unknown[];
+      acquireVsCodeApi: () => unknown;
+    };
+    scope.__sent = [];
+    scope.acquireVsCodeApi = () => ({
+      postMessage: (message: unknown) => {
+        scope.__sent.push(message);
+      },
+    });
+  });
+  await page.addScriptTag({ path: resolve("dist/index.js") });
+
+  // 首次连接只派发 doctor（只读）。
+  const sent = () => page.evaluate(() => (window as unknown as { __sent: unknown[] }).__sent);
+  await expect.poll(async () => (await sent()).length, { timeout: 5000 }).toBeGreaterThan(0);
+  const first = (await sent())[0] as Record<string, unknown>;
+  expect(first["action"]).toBe("doctor");
+  // 等待核心回执期间不派发新动作：面板如实显示"已请求核心"。
+  await expect(page.getByTestId("panel-status")).toContainText("已请求核心");
+  await page.evaluate(() => {
+    window.postMessage(
+      {
+        kind: "outcome",
+        action: "doctor",
+        status: "ok",
+        response: { result: { status: "READY", supported_actions: ["doctor", "query"] } },
+      },
+      "*",
+    );
+  });
+  // 有宿主但未声明项目：问题清单不可点，点了也不派发（不猜项目身份）。
+  await expect(page.getByTestId("read-only-actions").getByRole("button").first()).toBeDisabled();
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await expect(page.getByTestId("review-blocked")).toContainText("不猜项目身份");
+  await page.getByRole("button", { name: "返回本次测试" }).click();
+
+  await page.evaluate(() => {
+    window.postMessage(
+      { kind: "projectContext", project_id: "project-ticket", run_id: "run-1" },
+      "*",
+    );
+  });
+  await expect(page.getByTestId("project-context")).toContainText("当前项目：project-ticket");
+  await expect(page.getByTestId("project-context")).toContainText("运行 run-1");
+
+  const issues = page
+    .getByTestId("read-only-actions")
+    .getByRole("button", { name: "问题清单（未关闭）" });
+  await expect(issues).toBeEnabled();
+  await issues.click();
+  const last = (await sent()).at(-1) as Record<string, unknown>;
+  expect(last["kind"]).toBe("dispatch");
+  expect(last["action"]).toBe("query");
+  expect(last["projectId"]).toBe("project-ticket");
+  expect(last["parameters"]).toEqual({ view: "OPEN", limit: 20 });
+
+  // 真实形状的 issues.list 回执：面板只列 record_id@revision，不重算结论。
+  await page.evaluate(() => {
+    window.postMessage(
+      {
+        kind: "outcome",
+        action: "query",
+        status: "ok",
+        response: {
+          result: {
+            items: [
+              { aggregate_kind: "issue", record_id: "issue-1", revision: 3 },
+              { aggregate_kind: "issue", record_id: "issue-2", revision: 1 },
+            ],
+            next_cursor: null,
+          },
+        },
+      },
+      "*",
+    );
+  });
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  const issuesBlock = page.getByTestId("review-issues");
+  await expect(issuesBlock.locator("li")).toHaveCount(2);
+  await expect(issuesBlock).toContainText("issue-1@3（issue）");
+  await expect(issuesBlock).toContainText("issue-2@1（issue）");
+  // 报告块尚未读取：如实说明，不补造。
+  await expect(page.getByTestId("review-reports")).toContainText("尚未读取");
   expect(errors).toEqual([]);
 });

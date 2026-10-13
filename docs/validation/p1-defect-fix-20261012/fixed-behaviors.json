@@ -1,0 +1,68 @@
+{
+  "scope": "post-fix behavior: D-10 pure adapter inputs, C-16 rule-level facts with real files; C-15 real default chain is covered by tests/unit/test_default_start_source_chain.py and is not re-claimed here",
+  "d10": [
+    {
+      "case": "control",
+      "executed": [
+        "case-1"
+      ],
+      "verified": [
+        "case-1"
+      ],
+      "required_evidence_valid": true,
+      "source_identity_state": "matched",
+      "business_outcome": "passed",
+      "evidence_grade": "A"
+    },
+    {
+      "case": "required_evidence_conflict",
+      "executed": [
+        "case-1"
+      ],
+      "verified": [
+        "case-1"
+      ],
+      "required_evidence_valid": false,
+      "source_identity_state": "matched",
+      "business_outcome": "incomplete",
+      "evidence_grade": "C"
+    },
+    {
+      "case": "source_unverified",
+      "executed": [
+        "case-1"
+      ],
+      "verified": [
+        "case-1"
+      ],
+      "required_evidence_valid": true,
+      "source_identity_state": "unverified",
+      "business_outcome": "incomplete",
+      "evidence_grade": "C"
+    },
+    {
+      "case": "attempt_not_current",
+      "executed": [],
+      "verified": [],
+      "required_evidence_valid": false,
+      "source_identity_state": "matched",
+      "business_outcome": "incomplete",
+      "evidence_grade": "D"
+    }
+  ],
+  "c16": {
+    "syntax_state": "mismatch",
+    "syntax_gaps": [
+      "source_syntax_error:entry.py"
+    ],
+    "syntax_failure_class": "source_error",
+    "module_state": "unverified",
+    "module_gaps": [
+      "module[bad] load_error=SyntaxError: invalid syntax"
+    ],
+    "probe_state": "blocked",
+    "probe_gaps": [
+      "environment_unreachable"
+    ]
+  }
+}

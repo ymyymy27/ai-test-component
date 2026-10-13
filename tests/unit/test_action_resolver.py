@@ -31,6 +31,9 @@ from aitest.domain.project.context import IsolationMode
 
 _DIGEST = "sha256:" + "a" * 64
 _SNAPSHOT = "step-revision-1"
+#: 业务来源快照身份与技术固定清单身份是**两个**东西（C-15）。
+_BUSINESS_SNAPSHOT = "source-business-1"
+_TECHNICAL_SNAPSHOT = "snap-technical-1"
 
 
 def _plan() -> PlanRevisionRef:
@@ -84,7 +87,11 @@ def _prepared(*, adapter_versions: Mapping[str, str] | None = None) -> dict[str,
             "adapter_versions": dict(adapter_versions or {"command": "1.0.0"}),
             "resolved_input_digest": _DIGEST,
         },
-        "snapshot": {"source_snapshot_id": _SNAPSHOT, "content_identity": _DIGEST},
+        "snapshot": {
+            "source_snapshot_id": _BUSINESS_SNAPSHOT,
+            "content_identity": _DIGEST,
+            "record_revision": 1,
+        },
         "environment": {
             "resolution": {
                 "carrier_id": "carrier-1",
@@ -104,8 +111,13 @@ def _prepared(*, adapter_versions: Mapping[str, str] | None = None) -> dict[str,
     }
 
 
-def _admission(digest: str = _DIGEST, snapshot: str = _SNAPSHOT) -> dict[str, object]:
+def _admission(
+    digest: str = _DIGEST, snapshot: str = _TECHNICAL_SNAPSHOT
+) -> dict[str, object]:
     return {"snapshot_id": snapshot, "source_binding_digest": digest, "workdir": "C:/work"}
+
+
+_UNSET = object()
 
 
 def _resolver(
@@ -113,11 +125,18 @@ def _resolver(
     admission: Mapping[str, object] | None = None,
     index: object = 1,
     side_effect: object = SideEffectClass.READ_ONLY,
+    pinned_snapshot_ref: object = _UNSET,
 ) -> SavedActionResolver:
+    pinned = (
+        (lambda project, snapshot, revision: _TECHNICAL_SNAPSHOT)
+        if pinned_snapshot_ref is _UNSET
+        else pinned_snapshot_ref
+    )
     return SavedActionResolver(
         attempt_index=lambda run, step: index,  # type: ignore[return-value]
         side_effect_class=lambda run, step: side_effect,  # type: ignore[return-value]
         admission=lambda run, step, **kwargs: admission if admission is not None else _admission(),
+        pinned_snapshot_ref=pinned,  # type: ignore[arg-type]
     )
 
 
@@ -141,6 +160,51 @@ def test_resolves_a_self_consistent_action() -> None:
     assert action.attempt.authorization_ref == action.request.authorization_ref
     assert action.request.authorization_ref.consumed_by_attempt_id is None
     assert action.environment_content_identity and action.source_content_identity
+    # C-15：实际物化引用必须是**固定 workdir**（默认注册入口把它当执行目录），
+    # 既不是业务 source-ID，也不是技术 snap-ID。
+    assert action.request.materialized_snapshot_ref == "C:/work"
+
+
+def test_the_business_snapshot_id_is_never_used_as_the_technical_identity() -> None:
+    """解析器只接受业务→技术映射的结果；把业务 ID 当地址即失败关闭。"""
+
+    seen: list[tuple[str, str, int]] = []
+
+    def pinned(project: str, snapshot: str, revision: int) -> str:
+        seen.append((project, snapshot, revision))
+        return _TECHNICAL_SNAPSHOT
+
+    admitted: list[str] = []
+
+    def admission(run, step, *, binding, snapshot_id):  # type: ignore[no-untyped-def]
+        admitted.append(snapshot_id)
+        return _admission()
+
+    resolver = SavedActionResolver(
+        attempt_index=lambda run, step: 1,
+        side_effect_class=lambda run, step: SideEffectClass.READ_ONLY,
+        admission=admission,
+        pinned_snapshot_ref=pinned,
+    )
+    resolver.resolve(
+        run=_run(),
+        step=_step(),
+        intent_id="intent-1",
+        prepared=_prepared(),
+        step_content={},
+    )
+
+    assert seen == [("project-1", _BUSINESS_SNAPSHOT, 1)]
+    assert admitted == [_TECHNICAL_SNAPSHOT]
+
+
+def test_a_missing_business_to_technical_mapping_fails_closed() -> None:
+    for pinned in (None, lambda project, snapshot, revision: ""):
+        with pytest.raises(ActionResolutionBlocked):
+            _resolver(pinned_snapshot_ref=pinned).resolve(
+                run=_run(), step=_step(), intent_id="intent-1",
+                prepared=_prepared(), step_content={},
+            )
 
 
 def test_step_entry_adapter_must_match_the_frozen_binding() -> None:
@@ -173,8 +237,18 @@ def test_arguments_and_adapter_key_come_from_the_frozen_binding() -> None:
         {"execution_source": _prepared()["execution_source"], "snapshot": {}},
         {
             "execution_source": _prepared()["execution_source"],
-            "snapshot": {"source_snapshot_id": _SNAPSHOT, "content_identity": _DIGEST},
+            "snapshot": {
+                "source_snapshot_id": _BUSINESS_SNAPSHOT,
+                "content_identity": _DIGEST,
+            },
             "environment": {},
+        },
+        {
+            "execution_source": _prepared()["execution_source"],
+            # 缺 record_revision：无法按准确修订读回业务记录，必须拒绝。
+            "snapshot": {"source_snapshot_id": _BUSINESS_SNAPSHOT, "content_identity": _DIGEST,
+                         "record_revision": 0},
+            "environment": {"resolution": {}},
         },
     ],
 )
@@ -189,6 +263,7 @@ def test_missing_start_admission_is_refused() -> None:
     resolver = SavedActionResolver(
         attempt_index=lambda run, step: 1,
         side_effect_class=lambda run, step: SideEffectClass.READ_ONLY,
+        pinned_snapshot_ref=lambda project, snapshot, revision: _TECHNICAL_SNAPSHOT,
     )
     with pytest.raises(ActionResolutionBlocked):
         resolver.resolve(
@@ -200,8 +275,10 @@ def test_missing_start_admission_is_refused() -> None:
     "admission",
     [
         _admission(snapshot="other-snapshot"),
-        {"snapshot_id": _SNAPSHOT, "source_binding_digest": "sha256:short"},
-        {"snapshot_id": _SNAPSHOT},
+        {"snapshot_id": _TECHNICAL_SNAPSHOT, "source_binding_digest": "sha256:short"},
+        {"snapshot_id": _TECHNICAL_SNAPSHOT},
+        # 物化端口回执的技术身份与业务→技术映射不一致：拒绝，不"就近取信"。
+        _admission(snapshot=_BUSINESS_SNAPSHOT),
     ],
 )
 def test_admission_must_match_snapshot_and_carry_exact_digest(

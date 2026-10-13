@@ -838,6 +838,62 @@ class MaintenancePort(Protocol):
     ) -> Response: ...
 
 
+class BackupStorePort(Protocol):
+    """**存储级**备份端口：冻结闭包 + 清单最后写 + 校验后才可恢复（架构 04 §6/§9/§10）。
+
+    与上面 **接口级** :class:`BackupPort`（`inspect`／`create`／`verify`／`restore`
+    返回协议 `Response`，按 `backup_id` 登记）不同：本端口是应用用例直接驱动的
+    存储能力，实现由基础设施提供
+    （`infrastructure.file_store.backup.FileBackupStore`），失败以 `RuntimeError`
+    派生类型报告原因。两者职责不同，不能合并：接口级端口还包含备份登记与恢复编排。
+    """
+
+    def create(self, destination: Path) -> Path: ...
+
+    def verify(self, backup: Path) -> Mapping[str, object]: ...
+
+    def restore(self, *, backup: Path, target: Path) -> object: ...
+
+
+class MigrationRunnerPort(Protocol):
+    """**存储级**结构迁移端口（架构 04 §6/§9/§11）：
+
+    `inspect`／`plan`／`apply`／`resume`／`rollback` 与 `aitest migrate` 子命令一一对应；
+    实现负责"迁移前必须有可校验备份""活动执行未核实不得迁移""新 generation + 检查点"
+    等硬规则（`infrastructure.file_store.migrations.FileMigrationManager`）。
+    失败以 `RuntimeError` 派生类型报告原因。
+    """
+
+    def inspect(self) -> Mapping[str, object]: ...
+
+    def plan(self, migration_ids: list[str]) -> object: ...
+
+    def apply(self, plan_id: str) -> object: ...
+
+    def resume(self, plan_id: str) -> object: ...
+
+    def rollback(self, plan_id: str) -> object: ...
+
+
+class BackupAuditPort(Protocol):
+    """备份审计端口：登记备份事实（§9.3）并读回它们（§10 备份登记可核对）。"""
+
+    def record_backup(
+        self,
+        *,
+        destination: str,
+        kind: str,
+        verified: bool,
+        complete: bool,
+        known_missing: tuple[str, ...],
+        file_count: int,
+        total_bytes: int,
+        manifest_digest: str,
+    ) -> None: ...
+
+    def backup_facts(self) -> tuple[Mapping[str, object], ...]: ...
+
+
 class CoreMessagePort(Protocol):
     """A verified local message channel, with finite owned-frame IO."""
 

@@ -30,16 +30,29 @@ from tests.unit.test_default_source_analysis import dispatch
 
 
 @contextmanager
-def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
-    """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。"""
+def _authoritative(
+    tmp_path,
+    *,
+    step_timeout_seconds: int | None = 120,
+    main_source: str = "VALUE = 1\n",
+    environment_resolver=None,
+):
+    """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。
+
+    `main_source` 是固定源码文件的实际字节：C-16 的语法反例需要**真的**固定一份含语法
+    错误的源码，而不是改内存里的期望值。
+
+    `environment_resolver` 只在需要真实解释器取值（真实来源探针）时替换；默认仍是
+    显式合成环境端口。
+    """
     core = assemble_workspace_core(
         tmp_path / "workspace",
         instance_id="authoritative-core",
-        environment_resolver=FixtureEnvironmentResolver(),
+        environment_resolver=environment_resolver or FixtureEnvironmentResolver(),
     )
     source = tmp_path / "tested"
     source.mkdir()
-    (source / "main.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (source / "main.py").write_text(main_source, encoding="utf-8")
     scenario = build_scenario("plain")
     project = replace(scenario.project, workspace_id=core.workspace.workspace_id)
     cases = tuple(

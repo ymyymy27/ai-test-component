@@ -61,6 +61,11 @@ class _ModulePayload(TypedDict):
     error: str | None
 
 
+class _SyntaxErrorPayload(TypedDict):
+    path: str
+    error: str
+
+
 class _ProbePayload(TypedDict):
     executable: str
     version: str
@@ -68,6 +73,8 @@ class _ProbePayload(TypedDict):
     pythonpath_env: str | None
     sys_path: list[str]
     project_scope_entries: list[str]
+    python_files: list[str]
+    syntax_errors: list[_SyntaxErrorPayload]
     modules: dict[str, _ModulePayload]
 
 
@@ -90,6 +97,14 @@ class LoadedModuleFact:
 
 
 @dataclass(frozen=True, slots=True)
+class SyntaxErrorFact:
+    """物化源码中一个文件的实际语法结果（真实 compile，不是"看摘要"）。"""
+
+    relative_path: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class LoadSourceFact:
     """一次受控加载取证的完整事实（执行来源合同 §12）。"""
 
@@ -102,6 +117,11 @@ class LoadSourceFact:
     project_scope_entries: tuple[str, ...]
     modules: tuple[LoadedModuleFact, ...] = ()
     probe_error: str | None = None
+    #: 物化范围内实际编译过的全部 `.py` 相对路径（升序）与实际语法错误。
+    python_files: tuple[str, ...] = ()
+    syntax_errors: tuple[SyntaxErrorFact, ...] = ()
+    #: 探针子进程的原始输出字节（stdout；失败时含 stderr），供永久留存。
+    raw_output: bytes = b""
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +162,34 @@ for name in args["modules"]:
             "error": f"{type(exc).__name__}: {exc}",
         }
 
+# 语法核对必须**实际编译**物化范围内的每个 .py 文件：只核摘要/文件存在不能证明
+# 源码可用；未编译时"verified"没有依据。用登记解释器编译，口径与真实执行一致。
+python_files = []
+for current_root, dirs, names in os.walk(root):
+    dirs[:] = [name for name in dirs if name != ".git"]
+    for name in names:
+        if not name.endswith(".py"):
+            continue
+        path = os.path.join(current_root, name)
+        python_files.append(os.path.relpath(path, root).replace(os.sep, "/"))
+python_files.sort()
+syntax_errors = []
+for relative in python_files:
+    path = os.path.join(root, relative.replace("/", os.sep))
+    try:
+        with open(path, "rb") as handle:
+            compile(handle.read(), relative, "exec")
+    except SyntaxError as exc:
+        syntax_errors.append({
+            "path": relative,
+            "error": "SyntaxError: %s (line %s)" % (exc.msg, exc.lineno),
+        })
+    except (ValueError, MemoryError, OSError) as exc:
+        syntax_errors.append({
+            "path": relative,
+            "error": "%s: %s" % (type(exc).__name__, exc),
+        })
+
 # 目录归属必须整段比较：前缀 startswith 会把兄弟目录（如 root 的
 # "materialized-evil"）误报成项目范围内路径，造成范围事实失真。
 scope_entries = [
@@ -160,6 +208,8 @@ payload = {
     "pythonpath_env": os.environ.get("PYTHONPATH"),
     "sys_path": list(sys.path),
     "project_scope_entries": scope_entries,
+    "python_files": python_files,
+    "syntax_errors": syntax_errors,
     "modules": modules,
 }
 print("@@@ ATEST SOURCE PROBE BEGIN")
@@ -238,6 +288,7 @@ class PythonLoadSourceProbe:
                 project_scope_entries=(),
                 modules=(),
                 probe_error=f"探针进程退出码 {completed.returncode}: {error}",
+                raw_output=completed.stdout + b"\n--- stderr ---\n" + completed.stderr,
             )
         try:
             stdout = completed.stdout.decode("utf-8")
@@ -270,6 +321,12 @@ class PythonLoadSourceProbe:
             sys_path=tuple(sys_path),
             project_scope_entries=tuple(scope),
             modules=tuple(module_items),
+            python_files=tuple(parsed.get("python_files", ())),
+            syntax_errors=tuple(
+                SyntaxErrorFact(relative_path=item["path"], reason=item["error"])
+                for item in parsed.get("syntax_errors", ())
+            ),
+            raw_output=completed.stdout,
         )
 
 
@@ -296,7 +353,7 @@ def _validate_probe_payload(
 ) -> _ProbePayload:
     if set(parsed) != {
         "executable", "version", "prefix", "pythonpath_env", "sys_path",
-        "project_scope_entries", "modules",
+        "project_scope_entries", "python_files", "syntax_errors", "modules",
     }:
         raise PythonSourceProbeError("探针事实有缺失或未知字段")
     for name in ("executable", "version", "prefix"):
@@ -313,6 +370,26 @@ def _validate_probe_payload(
             not isinstance(item, str) for item in items
         ):
             raise PythonSourceProbeError("探针路径集合事实非法")
+    python_files = parsed["python_files"]
+    if not isinstance(python_files, list) or any(
+        not isinstance(item, str) or not item.strip() or item.startswith("/")
+        or ".." in item.split("/") for item in python_files
+    ):
+        raise PythonSourceProbeError("探针语法核对文件集合事实非法")
+    syntax_errors = parsed["syntax_errors"]
+    if not isinstance(syntax_errors, list):
+        raise PythonSourceProbeError("探针语法错误事实非法")
+    for item in syntax_errors:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"path", "error"}
+            or not isinstance(item["path"], str)
+            or not item["path"].strip()
+            or item["path"] not in python_files
+            or not isinstance(item["error"], str)
+            or not item["error"].strip()
+        ):
+            raise PythonSourceProbeError("探针语法错误事实字段非法")
     modules = parsed["modules"]
     if not isinstance(modules, dict) or set(modules) != set(names):
         raise PythonSourceProbeError("探针模块集合与本次登记不同")
@@ -510,6 +587,7 @@ __all__ = [
     "PythonLoadSourceProbe",
     "PythonSourceProbeError",
     "SourceBindingVerdict",
+    "SyntaxErrorFact",
     "evaluate_source_binding",
     "file_sha256",
 ]

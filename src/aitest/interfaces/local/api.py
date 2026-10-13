@@ -12,8 +12,13 @@ from uuid import uuid4
 from pydantic import JsonValue
 
 from aitest.application.connectivity import retry_delay
-from aitest.contracts.commands import HUMAN_ACTIONS, Command
-from aitest.contracts.errors import ErrorDTO
+from aitest.contracts.commands import (
+    HUMAN_ACTIONS,
+    PHASE_ONE_ACTIONS,
+    READ_ACTIONS,
+    Command,
+)
+from aitest.contracts.errors import ErrorCode, ErrorDTO
 from aitest.contracts.redaction import (
     redact_structure,
     safeguard_projector,
@@ -23,6 +28,9 @@ from aitest.contracts.views import Response
 from aitest.domain.approvals import ApprovalRequired, TrustedActor, UserInteraction
 from aitest.domain.approvals import EntryKind as EntryKind
 from aitest.interfaces.local.actor_context import CoreActorContext
+
+#: 维护窗口期间仍允许执行的写入类动作：维护动作本身（否则无法完成迁移）。
+_MAINTENANCE_ACTIONS: frozenset[str] = frozenset({"migrate"})
 
 Handler = Callable[[Command], Mapping[str, object] | dict[str, object]]
 
@@ -78,6 +86,7 @@ class LocalAPI:
         actors: CoreActorContext | None = None,
         session_finalizer: Callable[[Session], None] | None = None,
         intent_contracts: Mapping[str, str] | None = None,
+        maintenance: Callable[[], str | None] | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -112,6 +121,10 @@ class LocalAPI:
         self.actors = actors
         self._session_finalizer = session_finalizer
         self._intent_contracts = dict(intent_contracts or {})
+        #: 维护窗口（架构 04 §142「进入维护状态暂停新写入」）：返回非空原因即
+        #: 拒绝新的**写动作**；只读动作与维护动作本身继续可用。装配时注入，
+        #: 接口层只按结构调用，不导入应用/基础设施。
+        self._maintenance = maintenance
         if connection_persistence is not None:
             try:
                 recovered = connection_persistence.load()  # type: ignore[attr-defined]
@@ -127,6 +140,22 @@ class LocalAPI:
         )
         #: 受控通道来源 → 活动事务归属（A-14）。
         self._active_transactions: dict[tuple[str, EntryKind, bool], _TransactionOwnership] = {}
+
+    def _maintenance_reason(self, action: str) -> str | None:
+        """维护窗口内的写动作拒绝原因；只读动作与维护动作本身不受影响。"""
+
+        if self._maintenance is None or action not in PHASE_ONE_ACTIONS - READ_ACTIONS:
+            return None
+        if action in _MAINTENANCE_ACTIONS:
+            return None
+        try:
+            reason = self._maintenance()
+        except Exception:
+            # 维护状态读不出来时按"不可写"处理：宁可拒绝写，也不在未知维护态下写入。
+            return "maintenance state cannot be verified"
+        if reason is None:
+            return None
+        return str(reason) or "maintenance window"
 
     def dispatch(self, command: Command, session: Session) -> Response:
         fingerprint = sha256(json.dumps(command.model_dump(), sort_keys=True).encode()).hexdigest()
@@ -153,6 +182,15 @@ class LocalAPI:
             response = self._transaction(command, session)
         elif command.action == "test_connection" and self.connector is not None:
             response = self._connect(command)
+        elif (
+            (maintenance_reason := self._maintenance_reason(command.action)) is not None
+        ):
+            # 维护窗口期间暂停**新写入**（迁移等结构性动作正在改写工作空间结构）。
+            response = self._error(
+                command,
+                ErrorCode.MAINTENANCE_REQUIRED.value,
+                f"the workspace is in a maintenance window: {maintenance_reason}",
+            )
         elif (
             command.action in self.handlers
             and (denied_reason := self._gate_denial(command.action, command.parameters)) is not None
@@ -183,10 +221,16 @@ class LocalAPI:
                 )
         elif command.action == "doctor":
             ready = "READY" if self.workspace_id else "NOT_READY"
+            # 能力声明（架构 05 §3）：`test_connection` 是**已配置连接器**时的 API
+            # 内建分支，因此只在连接器存在时广告；未配置时不得声称可用（调用它得到
+            # 的是未知动作/CAPABILITY_UNAVAILABLE，而不是"测试通过"）。
+            advertised = set(self.handlers) | {"doctor"}
+            if self.connector is not None:
+                advertised.add("test_connection")
             doctor_result: dict[str, JsonValue] = {
                 "status": ready,
                 "protocol": "aitest.local/2.0",
-                "supported_actions": cast(list[JsonValue], sorted(set(self.handlers) | {"doctor"})),
+                "supported_actions": cast(list[JsonValue], sorted(advertised)),
                 "phase": 1,
             }
             if self._intent_contracts:

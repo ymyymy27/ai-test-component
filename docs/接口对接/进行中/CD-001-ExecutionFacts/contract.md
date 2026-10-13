@@ -3,18 +3,17 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.18"
+contract_version: "1.21"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: 8d9883c
 blockers:
-  - "D-10：当前性/必需证据/来源适用性守卫存在已复现反例"
-  - "D-02/D-04/D-05：生产断言依据/核验派生与持久报告/问题/DTO 消费未闭合"
+  - "D-02：断言结果生产者未闭合（报告/导出因此在无断言结果时如实为 incomplete）"
   - "C-01/C-05：完整 R 资格及选择保存未接"
 next_owner: D/C
-next_action: D 优先修复 D-10 并增加拒绝型回归；C 补复用持久选择，D 从权威同提交事实派生断言/核验和 S/M/H，接报告/问题生产链后再统一对拍。
+next_action: 问题、报告/复核、导出与复测简报均已接生产（issue/report/local_review/report_export 记录 + 固定目录索引入口 + 对象库先行/摘要核对后发布的摘要与证据包 + 权威依据与判定派生）；下一步 C 补复用持久选择，D 补断言结果生产者后统一对拍。
 ---
 
 ## 当前源码复核与下一动作（2026-10-12）
@@ -23,7 +22,15 @@ next_action: D 优先修复 D-10 并增加拒绝型回归；C 补复用持久选
 
 **已实现**：ExecutionFactsAssembler、准确事实读取、公开夹具、build_decision_facts 及真实文件往返测试已存在；不能把适配器重新列成未实现。
 
-**仍缺／优先动作**：本轮 D-10 反例仍未修：冲突步骤证据/同源 verified+unverified 可 passed/A，is_current=False 仍计 E；既有七类消费者测试通过不覆盖这些拒绝断言。R 在 D 适配器仍恒空。冻结外字段与 execution-facts/1.0 不迁移。
+**仍缺／优先动作**：D-10 已修（2026-10-12）：来源身份改为同一快照内集合级判定（任一非 verified 或带缺口即 `unverified`）；E／pending 只认 **当前** Attempt；必需证据逐项核对完整性/脱敏/投影/缺口并覆盖声明项数，引用存在不再等于满足。原三组反例现为拒绝/降级（`incomplete`、`unverified`、`executed=[]`），对照组仍 passed/A。**R 在 D 适配器仍恒空**；生产报告/问题/制品链仍未接。冻结外字段与 execution-facts/1.0 不迁移。
+
+**修复后状态（2026-10-12）**：本批只改 D 侧实现与回归，**不改端口签名/字段/枚举/协议版本/生成 Schema/夹具**；证据见[修复证据](../../../一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)与[修复轮验证](../../../validation/p1-defect-fix-20261012/README.md)。`verification_status` 保持 `not_run`，`last_verified_commit` 保持 `8d9883c`（旧阶段引用），不因局部回归标为对拍完成。
+
+**问题侧接生产（2026-10-12 第二批）**：D 侧新增 `issue` 记录与 `issue_intent` 幂等（同一工作单元、按修订不可变），随 payload 写入 `issues.list` 的 `view/mask/facet_value/severity` 索引入口；`update_issue`／`record_fix`／`close_issue` 已并入默认装配，`close_issue` 的六项依据布尔改由**同一提交快照的执行事实 + 已保存准备与受控确认链 + 可读证据字节**派生，确认人取受控会话身份（AI 中继拒绝）。另修 `PortsRecordReader.query` 丢 `view/facet/severity` 条件导致 `issues.list` 退化为通用目录查询的问题。证据见[FR15 修复证据](../../../一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md)。
+
+**报告/复核接生产（2026-10-12 第三批）**：新增 `report` 记录（判定由**已提交执行事实**经 `build_decision_facts` + `evaluate_review` 派生，冻结输入取自已保存准备与准确范围修订；`reports.list`／`reports.by_id` 摘要键齐备）与 `local_review` 记录（绑定准确报告修订、复核人取受控会话）；`create_report`／`record_local_review` 并入默认装配。依据确认核对抽成 `application/review/authoritative_basis.py::SavedCaseBasisCheck`，问题关闭与报告共用同一权威路径。证据见[FR14 报告证据](../../../一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md)。
+
+**导出与复测简报接生产（2026-10-12 第四批，版本升至 1.21）**：实现 `ReportArtifactPort`（临时写入→摘要核对→原子发布，规范相对路径底线、篡改拒绝、幂等复用），导出制品**先入对象库**再发布交付副本；`export_report` 生成 Markdown 摘要与 ZIP 证据包（`report.md` + `manifest.json` + `evidence/`，逐文件 SHA-256、排除/缺失原因），导出身份由冻结输入派生、相同输入复用产物；只读 `copy_repair_brief` 输出脱敏复测指引且不含证据正文。默认可派发动作 50。证据见[FR14 导出证据](../../../一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md)。仍缺：`request_regression`（合同未定义）、断言结果生产者、R 的持久选择；`verification_status`/`last_verified_commit` 与 FR/AC 不变。
 
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。原 last_verified_commit=8d9883c 仅为旧阶段引用，不代表本次统一对拍；本轮失败反例另存。真实 Trae/供应方/掉电与 AC 证据另验。
 

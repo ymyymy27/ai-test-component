@@ -380,3 +380,28 @@ class FileBackupStore:
             verified=True,
             state=state,
         )
+
+
+def manifest_facts(destination: Path) -> tuple[str, int, int]:
+    """返回备份的 (清单摘要, 文件数, 总字节)（规范字节口径，与备份身份同一来源）。
+
+    迁移前强制备份也要能进入维护审计（架构 04 §9/§10/§197：维护记录给出检查范围、
+    已完成项与材料缺口），因此把清单读回、计数与摘要计算放在这里**一次**，
+    避免迁移模块另算一套口径。
+    """
+
+    manifest = _read_manifest(destination)
+    canonical = json.dumps(
+        dict(manifest), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
+    total = 0
+    for name in manifest:
+        path = _contained_path(destination, name)
+        if path is None or not path.is_file():
+            raise BackupError(f"备份材料不可读: {name}")
+        total += path.stat().st_size
+    return digest, len(manifest), total
+
+
+__all__ = ["FileBackupStore", "RestoreReport", "manifest_facts"]

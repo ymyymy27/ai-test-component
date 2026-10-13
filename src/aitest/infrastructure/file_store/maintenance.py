@@ -496,6 +496,77 @@ class FileMaintenanceService:
         )
         return candidate is not None
 
+    def record_backup(
+        self,
+        *,
+        destination: str,
+        kind: str,
+        verified: bool,
+        complete: bool,
+        known_missing: tuple[str, ...],
+        file_count: int,
+        total_bytes: int,
+        manifest_digest: str,
+    ) -> None:
+        """把备份时间、校验结果与缺失内容写入维护审计（架构 04 §9/§10）。
+
+        与回收审计同一份 `maintenance/audit.jsonl`：这是维护事实，不是业务记录；
+        只追加，不轮换删除。
+        """
+
+        if not isinstance(destination, str) or not destination.strip():
+            raise MaintenanceError("备份审计需要目标位置")
+        if not isinstance(kind, str) or not kind.strip():
+            raise MaintenanceError("备份审计需要类型")
+        if type(verified) is not bool or type(complete) is not bool:
+            raise MaintenanceError("备份审计需要明确的校验/完整性布尔")
+        if type(file_count) is not int or file_count < 0 or type(total_bytes) is not int:
+            raise MaintenanceError("备份审计需要非负计数")
+        if any(not isinstance(item, str) or not item.strip() for item in known_missing):
+            raise MaintenanceError("备份审计的缺失清单必须是非空文本项")
+        entry = {
+            "schema": _AUDIT_SCHEMA,
+            "action": "backed_up",
+            "destination": destination,
+            "kind": kind,
+            "verified": verified,
+            "complete": complete,
+            "known_missing": sorted(known_missing),
+            "file_count": file_count,
+            "total_bytes": total_bytes,
+            "manifest_digest": manifest_digest,
+        }
+        self._audit_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._audit_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def backup_facts(self) -> tuple[dict[str, object], ...]:
+        """读回维护审计里的备份事实（架构 04 §10：备份登记与诊断可核对）。
+
+        只解析 `maintenance/audit.jsonl` 里 `action="backed_up"` 的完整行；损坏行与
+        其它动作跳过，不猜测、不补造。返回按写入顺序（即时间顺序）的事实。
+        """
+
+        if not self._audit_path.exists():
+            return ()
+        facts: list[dict[str, object]] = []
+        try:
+            with self._audit_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(entry, dict) and entry.get("action") == "backed_up":
+                        facts.append(entry)
+        except OSError as error:
+            raise MaintenanceError(f"备份审计不可读: {error}") from error
+        return tuple(facts)
+
     def _audit(self, relative: str, size: int) -> None:
         entry = {
             "schema": _AUDIT_SCHEMA,

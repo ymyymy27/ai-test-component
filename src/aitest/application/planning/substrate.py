@@ -64,6 +64,11 @@ AggregateKind = Literal[
     "model_outbound_policy",
     "model_outbound_request",
     "prepared_run",
+    #: 项目列表显示偏好（只记隐藏/恢复，P1-AC34）。
+    "project_view_preference",
+    #: 证据事实与人工补证材料（C 侧写入；人工补证见 application/evidence/manual_capture.py）。
+    "evidence_ref",
+    "manual_evidence",
 ]
 
 
@@ -227,10 +232,19 @@ class RecordQuery:
 
 @dataclass(frozen=True, slots=True)
 class RecordPage:
-    """稳定分页结果；详情按引用读取，列表只读摘要。"""
+    """稳定分页结果；详情按引用读取，列表只读摘要。
+
+    `commit_id`/`event_cursor` 是**同一已提交边界**的配对信息（架构 06 §4/§8/§136：
+    「列表返回 commit 配对摘要」「读取 SnapshotEnvelope 及配对游标」）。存储层缺失或
+    实现不提供时保持 `None`，即"未知"——不退回"此刻最新"水位。
+    """
 
     items: tuple[CommittedRecord, ...]
     next_cursor: str | None = None
+    commit_id: int | None = None
+    event_cursor: str | None = None
+    generation: int | None = None
+    index_version: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

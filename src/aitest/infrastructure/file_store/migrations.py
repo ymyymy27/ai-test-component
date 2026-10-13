@@ -24,7 +24,7 @@ from typing import Final
 from uuid import uuid4
 
 from . import atomic
-from .backup import FileBackupStore
+from .backup import FileBackupStore, manifest_facts
 from .commit_manifest import FileCommitStore
 from .commit_migration import migrate_commit_closure
 from .index import migrate_query_layout, rollback_query_layout
@@ -40,6 +40,8 @@ _REGISTRY_NAME: Final = "registry.json"
 _JOURNAL_NAME: Final = "journal.jsonl"
 _PLANS_DIR: Final = "plans"
 _BACKUPS_DIR: Final = "backups"
+#: 迁移前强制备份在维护审计里的类型标记（审计事实，不是协议字段）。
+MIGRATION_BACKUP_KIND: Final = "migration_pre_apply"
 _REGISTRY_SCHEMA: Final = "aitest.migration-registry/1.0"
 _PLAN_SCHEMA: Final = "aitest.migration-plan/1.0"
 
@@ -76,6 +78,9 @@ class ApplyReport:
     executed: tuple[str, ...]
     skipped: tuple[str, ...]
     backup_path: Path | None
+    #: 迁移前备份是否落在活动工作空间之外（架构 04 §140/§230 要求备份位置独立于活动目录）。
+    #: 只读事实，便于维护记录/界面显式呈现"当前备份与活动目录同盘"的风险。
+    backup_outside_active_workspace: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -265,8 +270,9 @@ def _plan_token(steps: tuple[str, ...]) -> str:
 class FileMigrationManager:
     """inspect/plan/apply/resume/rollback 的文件实现。"""
 
-    def __init__(self, workspace_root: Path) -> None:
+    def __init__(self, workspace_root: Path, *, maintenance: object | None = None) -> None:
         self._root = workspace_root.resolve()
+        self._maintenance = maintenance
         self._dir = self._root / "migrations"
         self._registry_path = self._dir / _REGISTRY_NAME
         self._journal_path = self._dir / _JOURNAL_NAME
@@ -423,7 +429,19 @@ class FileMigrationManager:
             executed=tuple(executed),
             skipped=tuple(migration_id for migration_id in steps if migration_id not in executed),
             backup_path=backup_path,
+            backup_outside_active_workspace=self._outside_workspace(backup_path),
         )
+
+    def _outside_workspace(self, backup_path: Path | None) -> bool | None:
+        """备份位置是否在活动工作空间之外；没有备份就返回 None（未知，不猜）。"""
+
+        if backup_path is None:
+            return None
+        try:
+            resolved = backup_path.resolve()
+        except OSError:  # pragma: no cover - 极端路径错误
+            return None
+        return resolved != self._root and not resolved.is_relative_to(self._root)
 
     # ----- resume -----------------------------------------------------
 
@@ -571,7 +589,29 @@ class FileMigrationManager:
             cycle_path,
             {"plan_id": plan_id, "state": "active", "backup_name": destination.name},
         )
+        # 迁移前强制备份也进维护审计（架构 04 §9/§197）：维护记录/`backup inspect`
+        # 能看到它以及它落在哪里——当前位置在工作空间内，位置口径的裁定见待裁定清单。
+        self._record_backup(destination)
         return destination
+
+    def _record_backup(self, destination: Path) -> None:
+        if self._maintenance is None:
+            return
+        try:
+            digest, file_count, total_bytes = manifest_facts(destination)
+            self._maintenance.record_backup(  # type: ignore[attr-defined]
+                destination=str(destination),
+                kind=MIGRATION_BACKUP_KIND,
+                verified=True,
+                complete=True,
+                known_missing=(),
+                file_count=file_count,
+                total_bytes=total_bytes,
+                manifest_digest=digest,
+            )
+        except (OSError, ValueError, RuntimeError) as error:
+            # 审计登记失败不能把"已校验的迁移前备份"说成不存在；记入迁移日志后继续。
+            self._append_journal("", "backup_audit_failed", str(error))
 
     def _load_registry(self) -> dict[str, dict[str, object]]:
         raw = json.loads(self._registry_path.read_text(encoding="utf-8"))

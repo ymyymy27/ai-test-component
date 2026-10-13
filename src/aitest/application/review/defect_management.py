@@ -39,6 +39,9 @@ from aitest.domain.review.defects import (
     record_fix as domain_record_fix,
 )
 from aitest.domain.review.defects import (
+    request_regression as domain_request_regression,
+)
+from aitest.domain.review.defects import (
     start_issue as domain_start_issue,
 )
 from aitest.domain.review.defects import (
@@ -129,6 +132,18 @@ def record_failed_regression(
     )
 
 
+def request_regression(
+    issue: IssueRecord,
+    *,
+    expected_revision: int,
+    regression_request_id: str,
+) -> IssueRecord:
+    """安排回归（架构 03 §66/§117/§149）：登记关联，不改状态、不执行。"""
+
+    _require_expected_revision(issue, expected_revision)
+    return domain_request_regression(issue, regression_request_id=regression_request_id)
+
+
 def update_issue_disposition(
     issue: IssueRecord,
     *,
@@ -180,6 +195,7 @@ __all__ = [
     "mark_awaiting_confirmation",
     "record_failed_regression",
     "record_fix",
+    "request_regression",
     "start_issue",
     "update_issue_disposition",
 ]

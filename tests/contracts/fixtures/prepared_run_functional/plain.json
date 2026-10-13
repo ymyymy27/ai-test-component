@@ -64,7 +64,7 @@
     "allowed_env_keys": [
       "PYTHONPATH"
     ],
-    "cwd_mapping": "<project-root> -> workdirs/run-1",
+    "cwd_mapping": "workdir:.",
     "entry_arguments": [
       "tests/acceptance"
     ],
@@ -162,7 +162,7 @@
   "intent_id": "intent-1accaf884dacfd962726b72f1451d82c10241a94",
   "invalidation_rules": [],
   "model_outbound_policy_revision": null,
-  "payload_hash": "sha256:3570df0a07b4fa31f4a4d011fb5cd1b4f1788c0af94cdb846e861031e072ec8c",
+  "payload_hash": "sha256:823f30e5ed8b7f96d1a367dee7568cad7755d87d507c6d33e6169b79b2b27ead",
   "plain_manifest_digest": "sha256:manifest-plain-1",
   "plan_revision": {
     "digest": "sha256:plan-ticket",

@@ -14,7 +14,7 @@
 
 | 编号／复核状态 | 已实现并核对的边界 | 剩余工作与整项关闭条件 | 源码触点／涉及验收 |
 | --- | --- | --- | --- |
-| B-01 · 默认接通／待人工产品链 | 普通保存、依据确认、分析、模型草稿、发布/prepare、运行修订/收窄均已有注册。 | 真实受控人工会话及 C/D 保存→重启→准确回读；HUMAN_UI 测试夹具不等于真实用户确认。 | `application/usecase_registry.py；application/controlled_write.py`；FR01—07／牵头 AC |
+| B-01 · 默认接通／待人工产品链 | 普通保存、依据确认、分析、模型草稿、发布/prepare、运行修订/收窄均已有注册；`save_plan`／`save_rules`／`save_project_view_preference` 的**名称缺口已接**（2026-10-13）：计划与规则可保存**草稿**（草稿与发布独立，保存不跑发布门禁、不产生 `rule_version` 或发布标识），发布仍走原门禁并产生下一修订；项目显示偏好只记隐藏/恢复（隐藏不删项目/绑定/历史、不停运行）。 | 真实受控人工会话及 C/D 保存→重启→准确回读；HUMAN_UI 测试夹具不等于真实用户确认。 | `application/usecase_registry.py；application/planning/publish.py；application/project/view_preference.py；application/controlled_write.py`；FR01—07／牵头 AC；[草稿入口证据](一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md) |
 | B-03 · 部分实现／待供应方验收 | 冻结模型策略/材料，写前过滤，意图先保存、事务外调用，响应旁录与补登记已实现。 | 完整实际依赖/选定材料映射，真实供应方失败/迟到响应/中断，关闭 AI 后人工路径；不可读旧结果不再次出站。 | `application/planning/model_orchestration.py；model_response_resolution.py；infrastructure/adapters/model.py`；AC15/17/30/32 |
 | B-04 · 默认接通／待来源变化验收 | 真实 Git/plain 快照、固定内容身份、当前字节/准备漂移及 start LOAD 核对已接。 | 真实宿主中来源变化→重新准备→重新授权→实际加载；旧历史字节不得声称当前环境/业务源码一致。 | `application/project/source_analysis.py；application/planning/preparation.py`；AC03/12/13/25/30 |
 | B-05 · 部分实现／待半程产品验收 | 持久运行修订与驱动收窄有默认受控入口，旧 Attempt 正文和依赖失效保留。 | 实际半程活动、暂停/失效/重启、入口重登记/授权、D 双序列呈现；预览 accepted 不能替代保存和执行许可。 | `application/planning/saved_runtime_revision.py；application/execution/runtime_revision_service.py`；AC20/21/31 |

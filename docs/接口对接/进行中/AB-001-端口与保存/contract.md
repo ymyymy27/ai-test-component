@@ -3,19 +3,18 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.40"
+contract_version: "1.42"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "C-15/C-16：默认业务/技术源码快照及字段/目录错接，来源语法/多模块失败仍 verified，生产闭环未贯通"
-  - "A-19：干净锁定安装阻断"
+  - "真实宿主验收：真实 Trae 端到端执行/重启回读、editable/PYTHONPATH 实际对拍、物理掉电未做"
   - "B-03/B-01：真实供应方故障、选定材料映射与可信人工产品路径未验收"
   - "B-05/B-13：实际半程修订和交付验证投影/下游呈现未闭合"
 next_owner: A/B
-next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源事实消费；核对完整材料依赖和真实人工/供应方故障；接半程修订/交付验证投影及 C/D 实际消费；A 处理干净安装与剩余恢复。
+next_action: C-15/C-16/A-19 的代码缺陷已修（默认链可解析受控动作、来源核验实际编译并逐模块消费、锁定安装干净通过），`save_plan`／`save_rules` 草稿入口已接（草稿与发布独立、未发布不生效）；下一步按真实宿主与业务来源补验收证据，接半程修订/交付验证投影及 C/D 实际消费，并处理剩余恢复项。
 ---
 
 ## 当前源码复核与下一动作（2026-10-12）
@@ -30,7 +29,21 @@ next_action: 先修 C-15/C-16 的准确快照/字段/实际目录与全部来源
 
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 
+## 修复后状态（2026-10-12，本批）
+
+C-15／C-16／A-19 的代码缺陷已修，**只改实现，不改端口签名/字段/枚举/Schema/已保存记录语义，无需数据迁移**：
+
+- **C-15**：默认解析器经权威业务记录（`SourceAnalysisService.verify_saved`：按准确修订读回并逐 blob 复核）取技术 `pinned_snapshot_id`，不再把业务 `source-*` 当技术 `snap-*`；`ExecutionRequest.materialized_snapshot_ref` 改填**实际固定 workdir**；来源 provider 改读合同的 `snapshot.source_snapshot_id` + `record_revision`，内容身份按唯一口径重算而非回声。修复过程中同族暴露的**冻结步骤截止读取错位**（`EnvironmentRefFact` 投影不带 `step_timeout_seconds`，解析器读投影得 `None`，授权侧读环境记录得真实毫秒数）一并改为从**权威环境记录**读取。
+- **C-16**：来源核验在登记解释器下逐个 `.py` 实际 `compile`；逐**全部登记模块**核对实际加载文件（必须在固定 workdir 内）/字节摘要/失败分类；解释器取探针自报 realpath 与冻结值比对；探针原始输出按内容寻址永久保存。`APPLICABLE_BUILD`／显式 `MINIMAL_START` 仍未实现（字段来源未冻结），如实保留为缺口。
+- **A-19**：`uv.lock` 按声明范围重新生成（`>=3.11, <3.14`），`uv lock --check` 退出 0，全新环境 `uv sync --locked` 退出 0。
+- **save_plan／save_rules 草稿入口（1.42，2026-10-13）**：两个一期动作名补齐。计划草稿保存**不跑发布门禁**（草稿可尚未补齐），发布仍走 `publish_plan` 逐条门禁并产生下一修订，两者共用同一条"调用方所见修订"乐观锁（`0` = 新建），已发布计划不可当草稿覆盖；规则草稿与 `import_rules` 共用 `save_rule_draft` 落盘路径，**不产生 `rule_version`**（未发布不生效）。请求里自报 `status`/`confirmation_id` 不算数。默认可派发动作 52。证据见[草稿入口证据](../../../一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md)。
+
+证据见[修复证据](../../../一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)与[修复轮验证](../../../validation/p1-defect-fix-20261012/README.md)。**这不是真实验收**：合同 `verification_status` 保持 `not_run`、`last_verified_commit` 保持 `null`，reviewing/partial 与原确认历史不变。
+
 字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
+
+
+1.41 C-15/C-16/A-19 实现状态同步（2026-10-12，仅实现与阻塞记录，不改协议）：默认 start 来源链已按 1.20/1.21 的业务→技术身份口径贯通，来源核验实际消费语法/逐模块事实，锁定安装按声明 Python 范围干净通过。上文 1.40 的“C-15/C-16 阻断默认可信闭环”“A-19 阻断”作为**当时基线**保留，不再是今天的实现状态；真实宿主/业务来源与物理掉电仍未验收，`verification_status`/`last_verified_commit` 与 FR/AC 不变。
 
 
 1.38 副作用类别默认口径（2026-10-09，按 [DEC-013](../../归档/裁定/DEC-013-副作用类别的冻结来源与默认口径.md) 裁定）：ExecutionRequest.side_effect_class 的**冻结来源在一期分册中未定义**，故装配一律取最严 unknown（default_side_effect_class）；**禁止**由 adapter_kind/命令名/参数反推“只读”或“幂等”，**禁止**因缺该字段放行受控确认；后续若计划/步骤合同冻结该字段，仅需改 build_saved_action_resolver 一处。字段/枚举/生成 Schema/已保存材料与 D 侧**均不变**。

@@ -67,6 +67,36 @@ class SourceCheckRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceSyntaxErrorFact:
+    """物化源码中一个文件在**登记解释器**下的实际语法错误（C-16）。"""
+
+    relative_path: str
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not self.relative_path.strip() or not self.reason.strip():
+            raise ValueError("a syntax error fact requires its path and reason")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceModuleFact:
+    """一个**登记模块**的实际加载事实与冻结期望（C-16）。
+
+    `expected_digest` 为 `None` 表示冻结清单里该模块没有文件型来源（PEP 420 命名空间包）。
+    """
+
+    module: str
+    expected_digest: str | None
+    loaded_file: str | None
+    observed_digest: str | None
+    load_error: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.module.strip():
+            raise ValueError("a module fact requires its registered name")
+
+
+@dataclass(frozen=True, slots=True)
 class SourceProbeObservation:
     """执行探针返回的原始观察；不在此层做通过/失败结论。"""
 
@@ -78,6 +108,13 @@ class SourceProbeObservation:
     evidence_refs: tuple[str, ...] = ()
     raw_output_evidence_ref: str | None = None
     observed_at: datetime | None = None
+    #: 物化范围内实际编译过的文件数与逐文件语法错误（全部文件，不只是第一个）。
+    observed_python_file_count: int = 0
+    observed_syntax_errors: tuple[SourceSyntaxErrorFact, ...] = ()
+    #: 逐登记模块的实际加载事实（全部模块，不只是第一个非空文件）。
+    observed_modules: tuple[SourceModuleFact, ...] = ()
+    #: 探针自身失败事实；非空即取证缺口，不得给出 verified。
+    probe_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +202,7 @@ def _derive_state(
     request: SourceCheckRequest,
     observation: SourceProbeObservation,
 ) -> tuple[SourceVerificationState, tuple[str, ...]]:
-    if observation.failure_class in {
+    if observation.probe_error is not None or observation.failure_class in {
         FailureClass.DEPENDENCY_MISSING,
         FailureClass.ENVIRONMENT_UNREACHABLE,
     }:
@@ -176,6 +213,17 @@ def _derive_state(
         return SourceVerificationState.UNKNOWN, ("tool_failure",)
     if not observation.observed_source_digest.strip():
         return SourceVerificationState.UNVERIFIED, ("source_digest_missing",)
+
+    # C-16：语法必须**实际编译**过物化范围内的源码；有语法错误时不得给出 verified。
+    # 只核摘要/文件存在就判通过，会把"字节固定但代码不可用"当成来源已核实。
+    if observation.observed_syntax_errors:
+        return SourceVerificationState.MISMATCH, tuple(
+            f"source_syntax_error:{item.relative_path}"
+            for item in observation.observed_syntax_errors
+        )
+
+    # C-16：逐**全部登记模块**核对实际加载来源/摘要/失败分类，不再只取第一个非空文件。
+    module_mismatch, module_unverified = _module_gaps(request, observation)
 
     gaps: list[str] = []
     if (
@@ -194,8 +242,8 @@ def _derive_state(
         request.materialized_snapshot_ref,
     ):
         gaps.append("import_outside_materialized_source")
-    if gaps:
-        return SourceVerificationState.MISMATCH, tuple(gaps)
+    if gaps or module_mismatch:
+        return SourceVerificationState.MISMATCH, tuple(gaps) + module_mismatch
     if observation.observed_source_digest != request.expected_source_content_digest:
         return SourceVerificationState.MISMATCH, ("source_digest_mismatch",)
     base = Path(request.materialized_snapshot_ref)
@@ -221,9 +269,45 @@ def _derive_state(
         and not observation.observed_import_ref
     ):
         gaps.append("actual_load_source_missing")
-    if gaps:
-        return SourceVerificationState.UNVERIFIED, tuple(gaps)
+    if gaps or module_unverified:
+        return SourceVerificationState.UNVERIFIED, tuple(gaps) + module_unverified
     return SourceVerificationState.VERIFIED, ()
+
+
+def _module_gaps(
+    request: SourceCheckRequest,
+    observation: SourceProbeObservation,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """逐登记模块判定，返回 `(mismatch 缺口, unverified 缺口)`（C-16）。
+
+    - 导入失败/取不到文件：无法证明字节身份 → `unverified`（保留缺口，不冒充通过）；
+    - 冻结清单里该模块**没有**文件型来源（命名空间包）：导入结果无文件且无错误即符合期望；
+      若反而加载出一个文件，就是来源与冻结清单不符 → `mismatch`；
+    - 冻结清单里该模块**有**文件：实际加载文件必须在固定 workdir 内，且摘要逐字相符；
+      越界（外部同名包覆盖、editable 指回原仓库）或摘要不符 → `mismatch`。
+    """
+
+    mismatch: list[str] = []
+    unverified: list[str] = []
+    for item in observation.observed_modules:
+        prefix = f"module[{item.module}]"
+        if item.load_error is not None:
+            unverified.append(f"{prefix} load_error={item.load_error}")
+            continue
+        if item.loaded_file is None:
+            if item.expected_digest is None and item.observed_digest is None:
+                continue
+            unverified.append(f"{prefix} load_source_missing")
+            continue
+        if item.expected_digest is None:
+            mismatch.append(f"{prefix} unexpected_file_source")
+            continue
+        if _outside_materialized(item.loaded_file, request.materialized_snapshot_ref):
+            mismatch.append(f"{prefix} outside_materialized_source")
+            continue
+        if item.observed_digest != item.expected_digest:
+            mismatch.append(f"{prefix} digest_mismatch")
+    return tuple(mismatch), tuple(unverified)
 
 
 def _check_failure_class(
@@ -264,7 +348,9 @@ def _outside_materialized(reference: str | None, materialized_ref: str) -> bool:
 __all__ = [
     "SourceCheckOutcome",
     "SourceCheckRequest",
+    "SourceModuleFact",
     "SourceProbeObservation",
     "SourceProbePort",
+    "SourceSyntaxErrorFact",
     "SourceVerificationService",
 ]

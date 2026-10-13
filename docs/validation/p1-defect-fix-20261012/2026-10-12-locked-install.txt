@@ -1,0 +1,39 @@
+﻿=== uv --version ===
+uv 0.11.8 (0e961dd9a 2026-04-27 x86_64-pc-windows-msvc)
+
+=== uv lock --check ===
+uv : Resolved 21 packages in 1ms
+所在位置 行:1 字符: 410
++ ...  | Out-File -Append -Encoding utf8 $log; uv lock --check 2>&1 | Out-F ...
++                                              ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Resolved 21 packages in 1ms:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+lock-check-exit=0
+
+=== clean env uv sync --locked ===
+uv : Using CPython 3.13.13
+所在位置 行:1 字符: 683
++ ... ONMENT="$PWD\.runtime\uv-locked-venv2"; uv sync --locked 2>&1 | Out-F ...
++                                             ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Using CPython 3.13.13:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Creating virtual environment at: .runtime\uv-locked-venv2
+Resolved 21 packages in 1ms
+Installed 8 packages in 422ms
+ + ai-test-component==0.4.0 (from file:///C:/Users/y'm'y/Desktop/ai-test-component)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+sync-exit=0
+
+=== import check ===
+python 3.13.13
+aitest C:\Users\y'm'y\Desktop\ai-test-component\src\aitest\__init__.py
+pydantic 2.13.5
+portalocker 3.2.0

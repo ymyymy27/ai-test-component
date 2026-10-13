@@ -69,6 +69,38 @@ def test_events_rejects_a_non_finite_limit_as_a_parameter_problem(tmp_path: Path
     assert response.error.code == "B_INVALID_PARAMETER"
 
 
+def test_events_result_shape_is_the_panel_contract(tmp_path: Path) -> None:
+    """`events` 的结果形状是**共享面板**的消费契约（`event-stream.spec.ts` 逐字解析）。
+
+    - 成功：`status == "ok"`，`events` 为数组，`next_cursor` 为字符串或 null；
+    - 游标非法：`status == "invalid_cursor"`（**在 result 里**，不是宿主层错误），
+      面板据此保持原游标并显示代码，绝不静默重置成"从头开始"。
+    """
+
+    api = _assembled_api(tmp_path)
+    first = api.dispatch(
+        Command(request_id="req-events-shape", action="events", parameters={"limit": 5}), _SESSION
+    )
+    assert first.error is None, first.error
+    result = first.result
+    assert result is not None
+    assert result["status"] == "ok"
+    assert isinstance(result["events"], list)
+    assert result["next_cursor"] is None or isinstance(result["next_cursor"], str)
+
+    bad = api.dispatch(
+        Command(
+            request_id="req-events-bad-cursor",
+            action="events",
+            parameters={"limit": 5, "cursor": "not-a-cursor"},
+        ),
+        _SESSION,
+    )
+    assert bad.error is None, bad.error
+    assert bad.result is not None
+    assert bad.result["status"] == "invalid_cursor"
+
+
 def test_doctor_advertises_the_maintenance_actions(tmp_path: Path) -> None:
     api = _assembled_api(tmp_path)
     response = api.dispatch(Command(request_id="req-doctor", action="doctor"), _SESSION)

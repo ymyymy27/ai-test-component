@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Mapping
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.frozen_plan import FrozenRunPlanReader
@@ -38,6 +38,31 @@ from aitest.domain.planning.plans import AssertionBasisState, effective_assertio
 
 class CaseReuseUnverified(ValueError):
     code = "CASE_REUSE_UNVERIFIED"
+
+
+@dataclass(frozen=True, slots=True)
+class CaseReuseVerification:
+    """一次核对的**结构化结果**（只读检查与保存侧共用同一次核对）。
+
+    `reference_inputs` 是保存侧登记 `ReuseReference` 所需的来源身份与修订摘要：
+    它们全部来自这次核对读到的冻结材料，**不授予资格**——资格仍由消费侧
+    （`derive_reuse_outcome`）按当前事实重新派生。
+    """
+
+    project_id: str
+    case_id: str
+    source_run_id: str
+    target_run_id: str
+    source_snapshot: Mapping[str, object]
+    source_current_snapshot: Mapping[str, object]
+    target_snapshot: Mapping[str, object]
+    status: str
+    denial_reasons: tuple[str, ...]
+    step_mapping: tuple[Mapping[str, object], ...]
+    source_identity: Mapping[str, object]
+    target_identity: Mapping[str, object]
+    basis_confirmation: Mapping[str, Mapping[str, object]]
+    reference_inputs: Mapping[str, object]
 
 
 class CaseReuseInspection:
@@ -102,6 +127,16 @@ class CaseReuseInspection:
                 raise
             raise CaseReuseUnverified("exact case reuse material cannot be verified") from error
 
+    def verify(self, command: Command) -> CaseReuseVerification:
+        """结构化核对入口（保存侧登记 `ReuseReference` 与只读检查共用）。"""
+
+        try:
+            return self._verify(command)
+        except (KeyError, OSError, TypeError, ValueError) as error:
+            if isinstance(error, CaseReuseUnverified):
+                raise
+            raise CaseReuseUnverified("exact case reuse material cannot be verified") from error
+
     def _basis_confirmation(
         self, source: CaseReuseSource, target: CaseReuseSource,
     ) -> dict[str, dict[str, object]]:
@@ -158,7 +193,7 @@ class CaseReuseInspection:
             }
         return result
 
-    def _inspect(self, command: Command) -> Mapping[str, object]:
+    def _verify(self, command: Command) -> CaseReuseVerification:
         values = command.parameters
         if (
             command.action != "inspect_case_reuse" or not command.project_id
@@ -252,16 +287,67 @@ class CaseReuseInspection:
             SnapshotContentRef.of(self._current(project, source_run)) != source_current_ref
         ):
             raise CaseReuseUnverified("run changed while inspecting reuse material")
+        prepared = source.original_preparation
+        source_attempts = {
+            item.attempt.attempt_id for item in source.steps if item.attempt is not None
+        }
+        evidence_refs = tuple(
+            sorted(
+                {
+                    item.evidence_id
+                    for item in source.facts.evidence_refs
+                    if item.attempt_id in source_attempts
+                }
+            )
+        )
+        status = "incompatible" if any(
+            x.endswith("_changed") or x == "target_case_already_started" for x in reasons
+        ) else "unverified"
+        return CaseReuseVerification(
+            project_id=project,
+            case_id=case,
+            source_run_id=source_run,
+            target_run_id=target_run,
+            source_snapshot=source_ref.model_dump(mode="json"),
+            source_current_snapshot=source_current_ref.model_dump(mode="json"),
+            target_snapshot=target_ref.model_dump(mode="json"),
+            status=status,
+            denial_reasons=tuple(dict.fromkeys(reasons)),
+            step_mapping=tuple(mapping),
+            source_identity=asdict(left),
+            target_identity=asdict(right),
+            basis_confirmation=basis,
+            reference_inputs={
+                "source_content_identity": left.source_content_identity,
+                "source_plan_revision_digest": payload_digest(
+                    prepared.plan_revision.model_dump(mode="json")
+                ),
+                "environment_revision_digest": payload_digest(
+                    prepared.environment.model_dump(mode="json")
+                ),
+                "entry_input_digest": left.entry_input_digest,
+                "rules_revision_digest": left.rules_digest,
+                "adapter_digest": left.adapter_digest,
+                "evidence_refs": evidence_refs,
+            },
+        )
+
+    def _inspect(self, command: Command) -> Mapping[str, object]:
+        verified = self._verify(command)
         return {
             "schema_version": "aitest.case-reuse-inspection/1.1",
-            "project_id": project, "case_id": case,
-            "source_run_id": source_run, "source_snapshot": source_ref.model_dump(mode="json"),
-            "source_current_snapshot": source_current_ref.model_dump(mode="json"),
-            "target_run_id": target_run, "target_snapshot": target_ref.model_dump(mode="json"),
-            "status": "incompatible" if any(x.endswith("_changed") or x == (
-                "target_case_already_started"
-            ) for x in reasons) else "unverified",
-            "source_identity": asdict(left), "target_identity": asdict(right),
-            "basis_confirmation": basis,
-            "step_mapping": mapping, "denial_reasons": list(dict.fromkeys(reasons)),
+            "project_id": verified.project_id, "case_id": verified.case_id,
+            "source_run_id": verified.source_run_id,
+            "source_snapshot": dict(verified.source_snapshot),
+            "source_current_snapshot": dict(verified.source_current_snapshot),
+            "target_run_id": verified.target_run_id,
+            "target_snapshot": dict(verified.target_snapshot),
+            "status": verified.status,
+            "source_identity": dict(verified.source_identity),
+            "target_identity": dict(verified.target_identity),
+            "basis_confirmation": {
+                side: dict(value) for side, value in verified.basis_confirmation.items()
+            },
+            "step_mapping": [dict(item) for item in verified.step_mapping],
+            "denial_reasons": list(verified.denial_reasons),
         }

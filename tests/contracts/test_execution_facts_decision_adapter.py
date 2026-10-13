@@ -10,7 +10,12 @@ from aitest.application.review.execution_decision_adapter import (
     build_decision_facts,
 )
 from aitest.contracts.execution_facts import ExecutionFacts
-from aitest.domain.review.reports import BusinessOutcome, EvidenceGrade, evaluate_review
+from aitest.domain.review.reports import (
+    BusinessOutcome,
+    EvidenceGrade,
+    SourceIdentityState,
+    evaluate_review,
+)
 
 FIXTURE_DIR = Path("docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures")
 FIXTURE_NAMES = (
@@ -184,3 +189,114 @@ def test_execution_evidence_level_does_not_become_run_grade_or_pass() -> None:
 
     assert result.business_outcome is BusinessOutcome.INCOMPLETE
     assert result.evidence_grade is not EvidenceGrade.A
+
+
+# --------------------------------------------------------------- D-10 守卫
+# 以下三组用同一 success 夹具的最小变体，把 D-10 已复现的三个错误接受
+# 变成真实拒绝；变体只改输入事实，不改断言口径。
+
+
+def _variant(mutate) -> ExecutionFacts:
+    raw = json.loads((FIXTURE_DIR / "success.json").read_text(encoding="utf-8"))
+    mutate(raw)
+    return ExecutionFacts.model_validate(raw)
+
+
+def test_conflicting_required_evidence_is_not_valid_and_never_passes() -> None:
+    def mutate(raw: dict) -> None:
+        raw["steps"][0]["evidence_requirement_ids"] = ["required-stderr"]
+        raw["evidence_refs"][1]["integrity"] = "conflict"
+
+    facts = _variant(mutate)
+    decision_facts = build_decision_facts(
+        facts, assertion_outcomes=(_passed_outcome(),), context=_context()
+    )
+    result = evaluate_review(decision_facts)
+
+    assert decision_facts.required_evidence_valid is False
+    assert result.business_outcome is not BusinessOutcome.PASSED
+    assert result.evidence_grade is not EvidenceGrade.A
+
+
+def test_referenced_but_incomplete_required_evidence_is_rejected() -> None:
+    """引用存在但完整性不是 complete：不得算满足必需证据。"""
+
+    def mutate(raw: dict) -> None:
+        raw["steps"][0]["evidence_requirement_ids"] = ["evidence-1", "evidence-stderr"]
+        raw["evidence_refs"][1]["integrity"] = "partial"
+
+    decision_facts = build_decision_facts(
+        _variant(mutate), assertion_outcomes=(_passed_outcome(),), context=_context()
+    )
+
+    assert decision_facts.required_evidence_valid is False
+    assert evaluate_review(decision_facts).business_outcome is not BusinessOutcome.PASSED
+
+
+def test_required_evidence_requires_current_completed_attempt() -> None:
+    def mutate(raw: dict) -> None:
+        raw["steps"][0]["evidence_requirement_ids"] = ["evidence-1"]
+        raw["attempts"][0]["state"] = "running"
+
+    decision_facts = build_decision_facts(
+        _variant(mutate), assertion_outcomes=(_passed_outcome(),), context=_context()
+    )
+
+    assert decision_facts.required_evidence_valid is False
+
+
+def test_same_source_unverified_never_counts_as_matched() -> None:
+    def mutate(raw: dict) -> None:
+        extra = json.loads(json.dumps(raw["source_verifications"][0]))
+        extra["verification_id"] = "source-verify-unverified"
+        extra["state"] = "unverified"
+        extra["gap_ids"] = ["import_outside_materialized_source"]
+        raw["source_verifications"].append(extra)
+
+    decision_facts = build_decision_facts(
+        _variant(mutate), assertion_outcomes=(_passed_outcome(),), context=_context()
+    )
+    result = evaluate_review(decision_facts)
+
+    assert decision_facts.source_identity_state is SourceIdentityState.UNVERIFIED
+    assert decision_facts.source_commit is None
+    assert result.business_outcome is not BusinessOutcome.PASSED
+    assert result.evidence_grade is not EvidenceGrade.A
+
+
+def test_verified_source_with_gaps_is_not_matched() -> None:
+    def mutate(raw: dict) -> None:
+        raw["source_verifications"][0]["gap_ids"] = ["actual_entry_missing"]
+
+    decision_facts = build_decision_facts(
+        _variant(mutate), assertion_outcomes=(_passed_outcome(),), context=_context()
+    )
+
+    assert decision_facts.source_identity_state is SourceIdentityState.UNVERIFIED
+
+
+def test_non_current_attempt_is_not_counted_as_executed() -> None:
+    def mutate(raw: dict) -> None:
+        raw["attempts"][0]["is_current"] = False
+
+    decision_facts = build_decision_facts(
+        _variant(mutate), assertion_outcomes=(_passed_outcome(),), context=_context()
+    )
+    result = evaluate_review(decision_facts)
+
+    assert decision_facts.coverage.executed == frozenset()
+    assert decision_facts.coverage.verified == frozenset()
+    assert result.business_outcome is BusinessOutcome.INCOMPLETE
+    assert result.evidence_grade is not EvidenceGrade.A
+
+
+def test_mismatched_source_still_wins_over_other_verifications() -> None:
+    def mutate(raw: dict) -> None:
+        extra = json.loads(json.dumps(raw["source_verifications"][0]))
+        extra["verification_id"] = "source-verify-mismatch"
+        extra["state"] = "mismatch"
+        raw["source_verifications"].append(extra)
+
+    decision_facts = build_decision_facts(_variant(mutate))
+
+    assert decision_facts.source_identity_state is SourceIdentityState.MISMATCHED

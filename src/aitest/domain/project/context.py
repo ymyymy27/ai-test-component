@@ -676,6 +676,18 @@ class Task:
                 _require_text(value, name)
 
 
+class VerificationState(StrEnum):
+    """核验状态（功能 §14：「必要核验未完成、材料无效或核验有效」）。
+
+    三个取值就是分册冻结的词汇，**不能用一个"待核实"布尔值替代**；
+    执行状态与依据状态各自独立（功能 §14 第一段）。
+    """
+
+    REQUIRED_VERIFICATION_INCOMPLETE = "required_verification_incomplete"
+    MATERIAL_INVALID = "material_invalid"
+    VERIFICATION_VALID = "verification_valid"
+
+
 @dataclass(frozen=True, slots=True)
 class SelfReport:
     """开发方自述，**不是证据**。自述完成不等于测试验证完成。"""
@@ -758,3 +770,18 @@ class Delivery:
     def is_verified(self) -> bool:
         """有已验证范围才算测试验证完成；与自述无关。"""
         return bool(self.verified_in_scope)
+
+    @property
+    def verification_state(self) -> VerificationState:
+        """核验状态（功能 §14）：有已验证范围⇒核验有效，否则⇒必要核验未完成。
+
+        `material_invalid`（材料无效）由**材料检查**决定（证据可读性、来源是否匹配等），
+        本对象只看交付说明自身的字段，因此不在此推断材料有效性；自述完成与否都不改变
+        核验状态——BD-001 §7.2 要求「`verified_in_scope` 为空而 `self_report.completed`
+        非空时，必须显示为**待验证**，不得显示为已完成」，`is_verified` 与
+        `verification_state` 就是这条展示规则的权威来源。
+        """
+
+        if self.verified_in_scope:
+            return VerificationState.VERIFICATION_VALID
+        return VerificationState.REQUIRED_VERIFICATION_INCOMPLETE

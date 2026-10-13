@@ -20,7 +20,7 @@ import sys
 import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -34,6 +34,7 @@ from aitest.application.controlled_write import ControlledWriteService, SavedCon
 from aitest.application.errors import WorkspaceInUse
 from aitest.application.evidence.execution_outputs import SavedExecutionEvidence
 from aitest.application.evidence.external_imports import SavedExternalResultImport
+from aitest.application.evidence.manual_capture import SavedManualEvidenceCapture
 from aitest.application.evidence.saved_verification import SavedBusinessVerification
 from aitest.application.execution.action_resolver import build_saved_action_resolver
 from aitest.application.execution.authorization import (
@@ -50,11 +51,16 @@ from aitest.application.execution.runtime_actions import SavedRuntimeRevisionAct
 from aitest.application.execution.saved_control import SavedRunControl
 from aitest.application.execution.source_checks import (
     SourceCheckRequest,
+    SourceModuleFact,
     SourceProbeObservation,
+    SourceSyntaxErrorFact,
     SourceVerificationService,
 )
 from aitest.application.execution.start_source_binding import SourceBindingUnverified
 from aitest.application.execution.step_execution import SavedStepExecution
+from aitest.application.maintenance.backup import SavedBackupEntry
+from aitest.application.maintenance.migration import SavedMigrationEntry
+from aitest.application.maintenance.mode import MaintenanceMode
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.model_policy_confirmation import (
@@ -78,17 +84,26 @@ from aitest.application.ports import (
 )
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.persistence import load_project
+from aitest.application.project.serialization import source_manifest_from_payload
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
 from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
+from aitest.application.review.repair_brief import SavedRepairBrief
+from aitest.application.review.saved_defects import SavedDefectManagement
+from aitest.application.review.saved_exports import SavedExportService
+from aitest.application.review.saved_reports import SavedReportService
+from aitest.application.review.saved_reuse import SavedCaseReuseSelection
 from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseError
 from aitest.contracts.commands import Command
 from aitest.contracts.prepared_run import EnvironmentResolutionFact
 from aitest.domain.approvals import TrustedActor
-from aitest.domain.execution.runs import PlanRevisionRef
+from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
 from aitest.domain.execution.sources import ExecutionSourceVerification, SourceCheckType
+from aitest.domain.project.context import SourceFileDigest, source_content_identity
 from aitest.infrastructure.adapters.execution.python_checks import (
+    LoadSourceFact,
     PythonLoadSourceProbe,
+    PythonSourceProbeError,
 )
 from aitest.infrastructure.adapters.execution.registered_entry import (
     RegisteredEntryExecutionAdapter,
@@ -111,6 +126,8 @@ from aitest.infrastructure.connections import (
     LocalAPIConnectionBridge,
 )
 from aitest.infrastructure.credentials import SecretManager
+from aitest.infrastructure.exports import FileReportArtifactPort
+from aitest.infrastructure.file_store.backup import FileBackupStore
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.core_exit import FileCoreExitGuard
 from aitest.infrastructure.file_store.core_launch import (
@@ -140,6 +157,7 @@ from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
 from aitest.interfaces.local.api import Handler, LocalAPI, Session
 from aitest.interfaces.local.b_registration import b_registration_for
+from aitest.interfaces.local.d_registration import d_registration_for
 from aitest.interfaces.local.editor_host import (
     Connector,
     CoreEndpoint,
@@ -147,6 +165,7 @@ from aitest.interfaces.local.editor_host import (
     CoreStartupObservation,
     EditorHost,
 )
+from aitest.interfaces.local.view_queries import CommittedViewReader
 
 _INSTANCE_ID_FILE = ".core-instance-id"
 _CORE_DIR = "core"
@@ -334,6 +353,10 @@ class CoreAssembly:
     run_control: SavedRunControl | None = None
     runtime_actions: SavedRuntimeRevisionActions | None = None
     model_policy_proof: ModelPolicyConfirmationService | None = None
+    #: 进程内维护窗口（迁移等结构性动作期间暂停新写入，架构 04 §142）。
+    maintenance_mode: MaintenanceMode | None = None
+    #: 宿主只读视图查询（架构 06 §1/§54：面板读 DTO，不读原始记录载荷）。
+    view_queries: CommittedViewReader | None = None
 
 
 def _interpreter_verifier() -> Callable[[str, EnvironmentResolutionFact], str]:
@@ -409,28 +432,206 @@ def _pattern_relative_dir(pattern: object) -> Path | None:
     return Path(*parts)
 
 
+def _required_source_analysis(dependencies: BUseCaseDependencies) -> SourceAnalysisService:
+    """默认 start 来源链要求的 B 来源分析能力；缺失即显式拒绝，不静默降级。"""
+
+    source_analysis = dependencies.source_analysis
+    if source_analysis is None:
+        raise SourceBindingUnverified("the source analysis capability is not configured")
+    return source_analysis
+
+
+def _technical_identity(saved: Mapping[str, object]) -> str:
+    """已核对的业务快照记录 → 技术固定清单身份（键缺失/空值即拒绝）。"""
+
+    technical = saved.get("pinned_snapshot_id")
+    if not isinstance(technical, str) or not technical.strip():
+        raise SourceBindingUnverified(
+            "the saved business snapshot has no technical pinned identity"
+        )
+    return technical
+
+
+def _frozen_step_timeout(
+    reader: RecordReader, project_id: str, environment_id: str, revision: int
+) -> int | None:
+    """权威环境记录里声明的步骤截止（秒）。
+
+    与 `ExecutionAuthorizationService._frozen_step_deadline_ms` 同一权威来源：冻结准备记录的
+    `EnvironmentRefFact` 投影不带该字段，只读投影会让解析器算出 `None`、授权侧算出真实毫秒数，
+    默认链因此在"未冻结的截止"处阻塞。声明缺失返回 `None`（历史事实，不是新的执行依据）。
+    """
+
+    from aitest.application.planning.substrate import read_scoped_record
+
+    record = read_scoped_record(
+        reader,
+        project_id=project_id,
+        aggregate_kind="environment",
+        record_id=environment_id,
+        revision=revision,
+    )
+    declared = record.payload.get("step_timeout_seconds")
+    if declared is None:
+        return None
+    if type(declared) is not int or declared <= 0:
+        raise ValueError("the frozen environment step timeout cannot be verified")
+    return declared
+
+
+def _pinned_snapshot_identity(
+    source_analysis: SourceAnalysisService,
+    project_id: str,
+    source_snapshot_id: str,
+    record_revision: int,
+) -> str:
+    """业务 `SourceSnapshot` 记录 → **技术固定清单身份**（C-15 的权威映射）。
+
+    依据 AB-001 1.21/1.22 与 BC-001 第 6 节：B 保存不可变**业务**快照（`snapshot_id` 带
+    项目/绑定修订命名空间）、`content_identity` 与 `pinned_snapshot_id`；物化端口只认技术
+    `snap-*`。`SourceAnalysisService.verify_saved` 会按准确修订读回业务记录、重新核对固定
+    blob 与业务清单逐项一致，再由它交回技术身份——既不做"业务 ID 当前缀"的猜测，也不跳过
+    固定字节复核。
+    """
+
+    payload = source_analysis.verify_saved(
+        project_id=project_id, snapshot_id=source_snapshot_id, revision=record_revision
+    )
+    return _technical_identity(payload)
+
+
+def _pinned_file_digests(pinned: Mapping[str, object]) -> tuple[dict[str, object], ...]:
+    """技术固定清单的逐文件身份（`verify_pinned` 已重新核对 blob 后才交回）。"""
+
+    raw = pinned.get("files")
+    if not isinstance(raw, (list, tuple)) or not raw:
+        raise SourceBindingUnverified("the pinned source has no frozen file manifest")
+    entries: list[dict[str, object]] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise SourceBindingUnverified("a pinned manifest entry is unreadable")
+        name, digest, size = item.get("relative_path"), item.get("sha256"), item.get("size")
+        if not isinstance(name, str) or not name.strip() or type(size) is not int:
+            raise SourceBindingUnverified("a pinned manifest entry lacks its exact identity")
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+            char not in "0123456789abcdef" for char in digest
+        ):
+            raise SourceBindingUnverified("a pinned manifest entry digest is invalid")
+        entries.append(
+            {
+                "relative_path": name,
+                "size": size,
+                "content_digest": "sha256:" + digest,
+            }
+        )
+    return tuple(entries)
+
+
+def _observed_content_identity(
+    saved: Mapping[str, object], pinned: Mapping[str, object]
+) -> str:
+    """用**重新核对过的固定字节**重算业务内容身份（不回声冻结值）。
+
+    只核摘要或只比"记录里写的身份"都是空转：这里把技术清单的实际逐文件摘要放回 B 冻结的
+    形态身份（git 基准提交/差异摘要或 plain 清单摘要）与范围声明，按 `source_content_identity`
+    唯一口径重算。重算值与冻结 `content_identity` 不符即 `source_digest_mismatch`。
+    """
+
+    try:
+        manifest = source_manifest_from_payload(saved)
+    except ValueError as error:
+        raise SourceBindingUnverified(f"saved source manifest is unreadable: {error}") from error
+    files = _pinned_file_digests(pinned)
+    try:
+        observed = replace(
+            manifest,
+            files=tuple(
+                SourceFileDigest(
+                    relative_path=str(item["relative_path"]),
+                    size=cast(int, item["size"]),
+                    content_digest=str(item["content_digest"]),
+                )
+                for item in files
+            ),
+        )
+    except ValueError as error:
+        raise SourceBindingUnverified(f"pinned file identity is invalid: {error}") from error
+    return source_content_identity(observed)
+
+
+def _module_expectations(
+    reader: RecordReader,
+    project_id: str,
+    project_revision: object,
+    workdir: str,
+    pinned: Mapping[str, object],
+) -> tuple[tuple[str, ...], dict[str, str]]:
+    """登记模块 → 冻结期望摘要（只对冻结清单里**确有文件型来源**的模块给期望）。
+
+    `_module_names_from_project` 已保证推导出的名字都存在于物化根内；这里再把每个名字映射到
+    冻结清单中的实际文件（常规包取 `__init__.py`）。命名空间包在清单里没有文件，交由
+    `evaluate_source_binding` 之外的观测事实按"无文件且无错误"处理。
+    """
+
+    names = _module_names_from_project(reader, project_id, project_revision, workdir)
+    digests = {
+        str(item["relative_path"]): str(item["content_digest"]).removeprefix("sha256:")
+        for item in _pinned_file_digests(pinned)
+    }
+    expected: dict[str, str] = {}
+    for name in names:
+        relative = name.replace(".", "/")
+        digest = digests.get(f"{relative}/__init__.py")
+        if digest is not None:
+            expected[name] = digest
+    return names, expected
+
+
+def _probe_output_reference(
+    objects: FileObjectStore | None, project_id: str, fact: object
+) -> str | None:
+    """永久保存探针原始输出，返回可读回的对象引用（相对工作空间路径）。
+
+    关闭条件要求"永久原始输出"：逐模块/语法结论必须能回到原始事实，而不是只有汇总状态。
+    对象按内容寻址、不可变，引用即 `objects/<project>/<sha256>` 相对路径。
+    """
+
+    raw = getattr(fact, "raw_output", b"")
+    if objects is None or not isinstance(raw, bytes) or not raw:
+        return None
+    stored = objects.publish_bytes(
+        project_id, raw, media_type="application/json; charset=utf-8"
+    )
+    return stored.relative_path
+
+
 def _source_verification_provider(
     snapshots: SourceSnapshotPort,
     reader: RecordReader,
+    source_analysis: SourceAnalysisService,
+    objects: FileObjectStore | None = None,
 ) -> Callable[[str, Mapping[str, object], Mapping[str, object]], ExecutionSourceVerification]:
     """装配层适配：合成「来源核验事实」（架构01 第 12 节 / P1-FR08 / P1-AC13）。
 
     这是**一期**要求：需求 P1-FR08 明确 L1 覆盖「Python 语法、适用构建、加载或最小启动」，
     P1-AC13 要求 start 准入核对实际来源。
 
-    **本轮采用 `SYNTAX`，并说明两处未获合同定义的点（裁定见交接说明 §6）**：
+    **本轮实现 `SYNTAX` + `LOAD` 两类，并说明仍未覆盖的一点**：
 
-    1. `LOAD`／`MINIMAL_START` 需要**登记模块的可导入名**，而合同只在新建项目时登记
-       「模块清单及其职责」，未定义可导入名，且实测三个候选（`LocalProject.modules` 的
-       `module_id`/`name`/`source_paths`、`binding.entry_arguments`、快照路径）都无法确定
-       可导入名与导入根（`src/` 布局与平铺布局的模块名不同）。故暂不使用这两种类型。
-    2. 因此本核验**不覆盖** L1 的「必要入口可用性」，只覆盖「语法」这一类；这是**已知的范围缺口**，
-       在登记里如实记录，不得当成完整 L1 通过。
+    1. `MINIMAL_START`／`APPLICABLE_BUILD` 需要显式构建配置与最小启动脚本来源，合同尚未冻结
+       该字段来源，故仍不实现；这是**已知的范围缺口**，在登记里如实记录，不得当成完整 L1 通过。
+    2. 有登记模块时用 `LOAD`（真实导入 + 逐模块摘要），无登记模块时用 `SYNTAX`（实际编译
+       物化范围内全部 `.py` 文件）；两类都**实际执行**，不再只核"文件存在/摘要非空"。
 
-    **非空转**：`observed_source_digest` 取自 `SourceSnapshotPort.verify_pinned(snapshot_id)`——
-    它**逐 blob 重新核对**后返回固定记录，而不是回读冻结值；入口路径取自物化的
-    期望→实际映射（`paths[*].actual_path`，由 `resolve` 保证在固定 workdir 内）。映射摘要一致性
-    **已由** `StartSourceBindingResolver.resolve` 重算比对，此处不重复声称。
+    **非空转**：
+    - 业务 `SnapshotRef` → 技术 `pinned_snapshot_id` 走 `SourceAnalysisService.verify_saved`
+      （按项目与准确修订读回并逐 blob 复核），不再把业务 ID 当技术 ID（C-15）；
+    - `observed_source_digest` 由重新核对过的固定字节按唯一内容身份口径**重算**，不回声冻结值；
+    - 语法在**登记解释器**下逐个 `.py` 实际 `compile`；每个登记模块的实际加载文件/摘要/失败
+      全部进入观测事实，由 `_derive_state` 逐项判定（C-16）；
+    - 入口路径取自物化的期望→实际映射（`paths[*].actual_path`，由 `resolve` 保证落在固定
+      workdir 内）。映射摘要一致性**已由** `StartSourceBindingResolver.resolve` 重算比对，
+      此处不重复声称。
     """
 
     service = SourceVerificationService()
@@ -440,17 +641,26 @@ def _source_verification_provider(
         admitted: Mapping[str, object],
         prepared: Mapping[str, object],
     ) -> ExecutionSourceVerification:
+        project_id = _required_text(prepared.get("project_id"), "project_id")
         snapshot = prepared.get("snapshot")
         if not isinstance(snapshot, Mapping):
             raise SourceBindingUnverified("frozen preparation has no snapshot to verify")
-        snapshot_id = _required_text(snapshot.get("snapshot_id"), "snapshot.snapshot_id")
+        business_id = _required_text(
+            snapshot.get("source_snapshot_id"), "snapshot.source_snapshot_id"
+        )
+        record_revision = _positive_int(
+            snapshot.get("record_revision", 1), "snapshot.record_revision"
+        )
         expected_identity = _required_text(
             snapshot.get("content_identity"), "snapshot.content_identity"
         )
-        pinned = snapshots.verify_pinned(snapshot_id)
-        observed_identity = _required_text(
-            pinned.get("content_identity"), "pinned.content_identity"
+        # 一次权威读取：既给出技术身份，也用同一份业务记录重算内容身份。
+        saved = source_analysis.verify_saved(
+            project_id=project_id, snapshot_id=business_id, revision=record_revision
         )
+        technical_id = _technical_identity(saved)
+        pinned = snapshots.verify_pinned(technical_id)
+        observed_identity = _observed_content_identity(saved, pinned)
         environment = prepared.get("environment")
         if not isinstance(environment, Mapping):
             raise SourceBindingUnverified("frozen preparation has no environment")
@@ -460,36 +670,87 @@ def _source_verification_provider(
         interpreter = _required_text(
             resolution.get("executable_path"), "environment.resolution.executable_path"
         )
-        entry_path = _entry_actual_path(admitted.get("paths"), workdir)
+        entry_path = _entry_actual_path(admitted.get("paths"), workdir, prepared)
         plan_revision = prepared.get("plan_revision")
         if not isinstance(plan_revision, Mapping):
             raise SourceBindingUnverified("frozen preparation has no plan revision")
         # 登记模块的实际加载来源：以探针自己的 sys.path（物化根）推导可导入名并真的导入。
         # 推导不出任何模块时不伪造结论，退回只覆盖「语法」一类的 SYNTAX。
-        project_id = _required_text(prepared.get("project_id"), "project_id")
-        module_names = _module_names_from_project(
-            reader, project_id, prepared.get("project_revision"), workdir
+        module_names, expected_modules = _module_expectations(
+            reader, project_id, prepared.get("project_revision"), workdir, pinned
         )
-        import_ref: str | None = None
-        if module_names:
-            load_fact = PythonLoadSourceProbe(executable=interpreter).probe(
+        try:
+            fact = PythonLoadSourceProbe(executable=interpreter).probe(
                 materialized_root=workdir, modules=module_names
             )
-            import_ref = next(
-                (item.file for item in load_fact.modules if item.file),
-                None,
+        except PythonSourceProbeError as error:
+            # 探针起不来（登记解释器不可执行/超时/协议被破坏）是**来源取证缺口**，
+            # 不是可以逃逸的内部错误：按 DEC-012 归为不可重试的来源未核实阻塞。
+            fact = LoadSourceFact(
+                requested_executable=interpreter,
+                executable=interpreter,
+                version="",
+                prefix="",
+                pythonpath_env=None,
+                sys_path=(),
+                project_scope_entries=(),
+                modules=(),
+                probe_error=str(error),
             )
-        check_type = SourceCheckType.LOAD if module_names else SourceCheckType.SYNTAX
+        raw_reference = _probe_output_reference(objects, project_id, fact)
+        observed_modules: list[SourceModuleFact] = []
+        modules_by_name = {item.module: item for item in fact.modules}
+        for name in module_names:
+            item = modules_by_name.get(name)
+            observed_modules.append(
+                SourceModuleFact(
+                    module=name,
+                    expected_digest=expected_modules.get(name),
+                    loaded_file=item.file if item is not None else None,
+                    observed_digest=item.sha256 if item is not None else None,
+                    load_error=(
+                        item.load_error
+                        if item is not None
+                        else "the probe reported no fact for this registered module"
+                    ),
+                )
+            )
+        loaded_files = [
+            item.file
+            for item in fact.modules
+            if item.file is not None
+            and item.load_error is None
+            and item.module in expected_modules
+        ]
+        # `LOAD` 只在**确有文件型登记的模块**时使用；纯命名空间包没有文件型加载来源，
+        # 退回 `SYNTAX`（仍然实际编译范围内全部 .py），不伪造一个 load 引用。
+        check_type = SourceCheckType.LOAD if expected_modules else SourceCheckType.SYNTAX
+        import_ref = loaded_files[0] if loaded_files else None
         observation = SourceProbeObservation(
             observed_source_digest=observed_identity,
             observed_entry_ref=entry_path,
             observed_import_ref=import_ref,
-            observed_interpreter_ref=interpreter,
-            failure_class=None,
+            # 实际解释器取探针自报的 realpath，**不是**冻结值回声；冻结值作为期望侧比对。
+            observed_interpreter_ref=fact.executable,
+            failure_class=(
+                FailureClass.ENVIRONMENT_UNREACHABLE
+                if fact.probe_error is not None
+                else (
+                    FailureClass.SOURCE_ERROR if fact.syntax_errors else None
+                )
+            ),
+            raw_output_evidence_ref=raw_reference,
+            observed_python_file_count=len(getattr(fact, "python_files", ())),
+            observed_syntax_errors=tuple(
+                SourceSyntaxErrorFact(relative_path=item.relative_path, reason=item.reason)
+                for item in fact.syntax_errors
+            ),
+            observed_modules=tuple(observed_modules),
+            probe_error=fact.probe_error,
         )
         request = SourceCheckRequest(
-            verification_id="source-verification:" + snapshot_id,
-            check_result_id="source-check:" + snapshot_id,
+            verification_id="source-verification:" + technical_id,
+            check_result_id="source-check:" + technical_id,
             project_id=project_id,
             attempt_id="pending-attempt",
             plan_revision_ref=PlanRevisionRef(
@@ -501,11 +762,15 @@ def _source_verification_provider(
             materialized_snapshot_ref=workdir,
             check_type=check_type,
             scope=workdir,
-            source_snapshot_ref=snapshot_id,
+            source_snapshot_ref=technical_id,
             environment_ref=_environment_ref(environment),
             rules_revision=_rules_revision(prepared),
             adapter_version=_frozen_adapter_version(prepared),
             observed_source_digest=observed_identity,
+            observed_entry_ref=entry_path,
+            observed_import_ref=import_ref,
+            expected_interpreter_ref=interpreter,
+            raw_output_evidence_ref=raw_reference,
         )
         return service.verify(request, observation)
 
@@ -524,21 +789,53 @@ def _positive_int(value: object, name: str) -> int:
     return value
 
 
-def _entry_actual_path(paths: object, workdir: str) -> str:
-    """取物化的期望→实际映射里的入口实际路径（必须落在固定 workdir 内）。"""
+def _entry_actual_path(
+    paths: object, workdir: str, prepared: Mapping[str, object] | None = None
+) -> str:
+    """取物化的期望→实际映射里的入口实际路径（必须落在固定 workdir 内）。
+
+    优先取**冻结入口参数**指向的文件（`execution_source.entry_arguments` 里的相对路径），
+    而不是清单里的第一个文件：入口身份必须来自冻结事实，取任意文件只是"恰好存在"。
+    冻结参数没有落入物化清单时回落到清单中的第一个文件（仍必须落在固定 workdir 内）。
+    """
 
     if not isinstance(paths, (list, tuple)) or not paths:
         raise SourceBindingUnverified("materialization has no expected→actual path mapping")
     root = Path(workdir).resolve()
+    wanted: set[str] = set()
+    if isinstance(prepared, Mapping):
+        source = prepared.get("execution_source")
+        arguments = source.get("entry_arguments") if isinstance(source, Mapping) else None
+        if isinstance(arguments, (list, tuple)):
+            wanted = {
+                item.replace("\\", "/").lstrip("./")
+                for item in arguments
+                if isinstance(item, str) and item.strip()
+            }
+
+    def _inside(actual: str) -> str | None:
+        candidate = Path(actual)
+        if candidate.is_absolute() and candidate.is_relative_to(root) and candidate.is_file():
+            return str(candidate)
+        return None
+
+    fallback: str | None = None
     for item in paths:
         if not isinstance(item, Mapping):
             continue
         actual = item.get("actual_path")
+        relative = item.get("relative_path")
         if not isinstance(actual, str) or not actual.strip():
             continue
-        candidate = Path(actual)
-        if candidate.is_absolute() and candidate.is_relative_to(root) and candidate.is_file():
-            return str(candidate)
+        resolved = _inside(actual)
+        if resolved is None:
+            continue
+        if fallback is None:
+            fallback = resolved
+        if isinstance(relative, str) and relative.replace("\\", "/") in wanted:
+            return resolved
+    if fallback is not None:
+        return fallback
     raise SourceBindingUnverified("no entry path inside the fixed workdir to verify")
 
 
@@ -869,11 +1166,24 @@ def assemble_workspace_core(
                             project_id=project, run_id=run
                         )
                     ),
+                    pinned_snapshot_ref=lambda project, snapshot, revision: (
+                        _pinned_snapshot_identity(
+                            _required_source_analysis(dependencies), project, snapshot, revision
+                        )
+                    ),
+                    read_step_timeout=lambda project, environment, revision: (
+                        _frozen_step_timeout(reader, project, environment, revision)
+                    ),
                     interpreter_verifier=(
                         _interpreter_verifier() if verify_start_interpreter else None
                     ),
                     source_verification_provider=(
-                        _source_verification_provider(snapshot_store, reader)
+                        _source_verification_provider(
+                            snapshot_store,
+                            reader,
+                            dependencies.source_analysis,
+                            FileObjectStore(root),
+                        )
                         if verify_start_source
                         else None
                     ),
@@ -916,6 +1226,14 @@ def assemble_workspace_core(
             execution_coordinator, cast(RecordRepository, unit_of_work.repo), reader,
             FileObjectStore(root), FileSpoolStore(root), basis_proof=approvals,
         )
+        # 复用选择（裁定 DEC-014 / CORE-001 1.82）：只登记引用关系，不授予资格；
+        # 同一核对器派生来源身份，报告侧据此把候选交给消费守卫。
+        reuse_selection = SavedCaseReuseSelection(
+            unit=unit_of_work,
+            records=cast(RecordRepository, unit_of_work.repo),
+            actors=actors,
+            inspection=reuse_inspection,
+        )
         run_control = SavedRunControl(execution_coordinator, step_execution, workspace.workspace_id)
         run_schedule = SavedRunSchedule(
             execution_coordinator, step_execution, workspace.workspace_id, unit_of_work.repo
@@ -948,15 +1266,28 @@ def assemble_workspace_core(
         runtime_actions = SavedRuntimeRevisionActions(execution_coordinator, approvals)
         human_resolver.runtime = runtime_actions
         execution_authorizations.runtime_origins = runtime_actions
+        # 受控人工补证（P1-FR13/§4）：登记人工实际材料为永久证据，不判业务通过。
+        manual_capture = SavedManualEvidenceCapture(
+            coordinator=execution_coordinator,
+            unit=unit_of_work,
+            reader=reader,
+            objects=FileObjectStore(root),
+            workspace_id=workspace.workspace_id,
+            protector=lambda value: guard_value(value)[0],
+        )
         handlers.update(
             register_run=execution_commands.register,
             inspect_case_reuse=reuse_inspection.inspect,
+            select_case_reuse=reuse_selection.apply,
             prepare_execution=execution_commands.prepare,
             authorize_step=execution_commands.grant,
             execute_step=execution_commands.execute,
+            retry_step=execution_commands.retry,
+            return_stage=execution_commands.return_stage,
             start_run=run_schedule.apply,
             verify_pending=business_verification.apply,
             import_external_result=external_imports.apply,
+            attach_evidence=manual_capture.apply,
             pause_run=run_control.apply,
             resume_run=run_control.apply,
             cancel_run=run_control.apply,
@@ -1049,6 +1380,95 @@ def assemble_workspace_core(
 
         handlers.update(storage_usage=storage_usage, events=read_events)
 
+        # 受控备份入口（架构 04 §6/§9/§10，P1-FR16）：底层 FileBackupStore 早已实现冻结
+        # 闭包、清单最后写与双向校验，此前缺的是"受控写身份 + 产品入口"。
+        # 只做在线备份：维护模式的完整停机备份要求"停止接纳新写入"，没有维护模式
+        # 状态可依赖时明确拒绝，而不是假装做到了。
+        backup_entry = SavedBackupEntry(
+            root=root,
+            actors=actors,
+            store=FileBackupStore(root),
+            maintenance=FileMaintenanceService(root),
+        )
+        handlers.update(backup=backup_entry.apply)
+
+        # 受控结构迁移入口（架构 04 §6/§9/§11，P1-FR16）：FileMigrationManager 已实现
+        # inspect/plan/apply/resume/rollback 与"apply 前必须有可校验备份""活动未核实
+        # 不得迁移"，此前缺的是受控入口与维护窗口。维护窗口期间入口适配器拒绝新的
+        # 写动作（§142「进入维护状态暂停新写入」）。
+        maintenance_mode = MaintenanceMode()
+        migration_entry = SavedMigrationEntry(
+            runner=FileMigrationManager(root, maintenance=FileMaintenanceService(root)),
+            actors=actors,
+            mode=maintenance_mode,
+        )
+        handlers.update(migrate=migration_entry.apply)
+
+        # D 的问题生命周期（P1-FR15）：权威读取已提交执行事实 + 受控会话身份，
+        # 经同一工作单元持久化问题记录与 issues.list 索引入口。
+        # 位置必须在 `execution_coordinator` 之后：关闭依据要从它读同一快照事实。
+        defect_management = SavedDefectManagement(
+            unit=unit_of_work,
+            reader=reader,
+            records=cast(RecordRepository, unit_of_work.repo),
+            clock=SystemClock(),
+            actors=actors,
+            runtime=execution_coordinator,
+            workspace_id=workspace.workspace_id,
+            objects=FileObjectStore(root),
+            basis_proof=approvals,
+        )
+        # D 的报告/复核（P1-FR14）：判定由同一快照事实与冻结准备/范围派生，
+        # 人工复核绑定准确报告修订；**不**由调用方声明结论或等级。
+        report_management = SavedReportService(
+            unit=unit_of_work,
+            reader=reader,
+            records=cast(RecordRepository, unit_of_work.repo),
+            clock=SystemClock(),
+            actors=actors,
+            runtime=execution_coordinator,
+            workspace_id=workspace.workspace_id,
+            basis_proof=approvals,
+            # 复用候选来源：已保存的复用选择（CORE-001 1.82）；资格仍由消费守卫派生。
+            reuse_references=reuse_selection.references_for_run,
+        )
+        # 宿主只读视图（架构 06 §1/§54）：面板读 DTO，判定复用 D 侧 live_decision，
+        # 不新增协议动作、不写任何记录。
+        view_queries = CommittedViewReader(
+            decisions=report_management,
+            reader=reader,
+            records=cast(RecordRepository, unit_of_work.repo),
+        )
+        # D 的导出（P1-FR14 §5/§8）：正文与附件都要脱敏，制品先写事务临时位置、
+        # 核对摘要后发布，发布成功**再**在工作单元登记导出记录。
+        export_management = SavedExportService(
+            unit=unit_of_work,
+            reader=reader,
+            records=cast(RecordRepository, unit_of_work.repo),
+            clock=SystemClock(),
+            actors=actors,
+            runtime=execution_coordinator,
+            workspace_id=workspace.workspace_id,
+            artifacts=FileReportArtifactPort(root, instance_id=instance_id),
+            projector=SafeMaterialProjector(),
+            objects=FileObjectStore(root),
+            instance_id=instance_id,
+        )
+        # 只读的复测简报（P1-FR14 §5 末段）：只投影文本、不写记录、不含证据正文。
+        repair_briefs = SavedRepairBrief(
+            records=cast(RecordRepository, unit_of_work.repo),
+            runtime=execution_coordinator,
+            projector=SafeMaterialProjector(),
+        )
+        handlers.update(
+            d_registration_for(
+                defect_management,
+                reports=report_management,
+                exports=export_management,
+                briefs=repair_briefs,
+            )
+        )
+
         if extra_handlers:
             conflicts = sorted(handlers.keys() & extra_handlers.keys())
             if conflicts:
@@ -1096,6 +1516,7 @@ def assemble_workspace_core(
             actors=actors,
             session_finalizer=close_approval_session,
             intent_contracts={action: RECORD_WRITE_SCHEMA for action in ORDINARY_WRITE_ACTIONS},
+            maintenance=lambda: maintenance_mode.reason if maintenance_mode.active else None,
         )
     except BaseException:
         lifetime_lock.release()
@@ -1125,6 +1546,8 @@ def assemble_workspace_core(
         run_control=run_control,
         runtime_actions=runtime_actions,
         model_policy_proof=policy_confirmations,
+        maintenance_mode=maintenance_mode,
+        view_queries=view_queries,
     )
 
 

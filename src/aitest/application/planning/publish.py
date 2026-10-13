@@ -24,6 +24,7 @@ from hashlib import sha256
 from aitest.application.planning.substrate import (
     ConcurrentEditError,
     RecordReader,
+    StagedRevision,
     UnitOfWork,
     current_record,
     transaction,
@@ -339,6 +340,47 @@ def _plan_payload(plan: Plan, cases: Sequence[Case], *, project_id: str) -> dict
     }
 
 
+def save_plan_draft(
+    plan: Plan,
+    *,
+    project_id: str,
+    cases: Sequence[Case],
+    unit_of_work: UnitOfWork,
+    reader: RecordReader,
+    expected_revision: int | None = None,
+) -> StagedRevision:
+    """保存计划**草稿**：草稿与发布独立（功能文档 P1-FR06）。
+
+    与 `publish_plan` 的分工只有一条：这里**不跑发布门禁**。草稿允许尚未补齐
+    （例如通用用例还没登记独立核验方式），因此保存成功不代表可以发布；发布仍走
+    `publish_plan` 的逐条门禁并产生带确认标识的下一修订。
+
+    仍必须核对的：调用方所见修订与实际当前修订一致（同一份 `_revision_to_stage`
+    乐观锁窗口），以及已发布计划**不可**再当草稿覆盖。
+    """
+
+    if not project_id.strip():
+        raise ValueError("project_id must not be empty")
+    if plan.status is PlanPublicationStatus.PUBLISHED:
+        raise ValueError("a published plan is immutable; save a new draft revision instead")
+    payload = _plan_payload(plan, cases, project_id=project_id)
+    with transaction(unit_of_work, project_id) as tx:
+        staged = tx.stage_record(
+            aggregate_kind="plan",
+            record_id=plan.plan_id,
+            expected_revision=_revision_to_stage(
+                reader,
+                project_id=project_id,
+                aggregate_kind="plan",
+                record_id=plan.plan_id,
+                expected_revision=expected_revision,
+            ),
+            payload=payload,
+        )
+        tx.commit()
+    return staged
+
+
 def plan_publication_digest(plan: Plan, cases: Sequence[Case], *, project_id: str) -> str:
     """计划落盘内容的摘要；供 `PreparedRun.plan_revision.digest` 引用。"""
     return payload_digest(_plan_payload(plan, cases, project_id=project_id))
@@ -348,5 +390,6 @@ __all__ = [
     "PublicationResult",
     "plan_publication_digest",
     "publish_plan",
+    "save_plan_draft",
     "publish_rules",
 ]
