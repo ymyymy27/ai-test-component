@@ -1,10 +1,10 @@
 {
-  "scope": "isolated candidate branch; collection is not execution",
+  "scope": "isolated candidate extended by reproduced backup defects; collection is not execution",
   "modules": 236,
-  "lines": 73227,
+  "lines": 73243,
   "test_files": 353,
-  "test_lines": 81735,
-  "collected_nodes": 5355,
+  "test_lines": 81838,
+  "collected_nodes": 5367,
   "mypy_files": 248,
-  "collection_method": "single full pytest collection; sum of per-file counts from collect.log, not historical executions"
+  "collection_method": "single full collection from backup-collect.log; not historical executions"
 }

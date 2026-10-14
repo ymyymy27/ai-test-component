@@ -1,0 +1,8 @@
+{
+  "previous_source_commit": "52ef5a7",
+  "intentional_changed_paths": [
+    "src/aitest/infrastructure/file_store/backup.py",
+    "tests/unit/test_backup_security_integrity.py"
+  ],
+  "new_source_files": 601
+}

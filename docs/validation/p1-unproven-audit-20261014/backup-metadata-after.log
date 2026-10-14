@@ -1,0 +1,1 @@
+[{"case": "unknown_schema", "rejected": true}, {"case": "duplicate_fields", "rejected": true}, {"case": "path_alias", "rejected": true}]

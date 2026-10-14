@@ -10,6 +10,109 @@ from aitest.infrastructure.file_store.backup import BackupError, FileBackupStore
 from aitest.infrastructure.security import KnownSecretRegistry
 
 
+@pytest.mark.parametrize("relative", ["exports/backup.json", "exports/nested/backup.json"])
+def test_unregistered_nested_manifest_cannot_bypass_backup_closure(tmp_path, relative):
+    workspace, _ = _legacy(tmp_path, b"permanent evidence")
+    store = FileBackupStore(workspace)
+    backup = tmp_path / "backup"
+    store.create(backup)
+    assert store.verify(backup)["ok"] is True
+    extra = backup / relative
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text('{"unregistered":true}', encoding="utf-8")
+    assert store.verify(backup) == {"ok": False, "errors": [relative]}
+    target = tmp_path / "restored"
+    with pytest.raises(BackupError, match="备份闭包或摘要"):
+        store.restore(backup=backup, target=target)
+    assert not target.exists()
+
+
+def test_registered_nested_manifest_is_permanent_material(tmp_path):
+    workspace, original = _legacy(tmp_path, b'{"retained":true}', "backup.json")
+    store = FileBackupStore(workspace)
+    backup = tmp_path / "backup"
+    store.create(backup)
+    assert store.verify(backup) == {"ok": True, "errors": []}
+    target = tmp_path / "restored"
+    result = store.restore(backup=backup, target=target)
+    assert result.verified is True
+    assert (target / "exports/backup.json").read_bytes() == original.read_bytes()
+
+
+@pytest.mark.parametrize("case", ["unknown_schema", "duplicate_fields", "utf16", "nonfinite"])
+def test_unverifiable_backup_manifest_cannot_create_restore_target(tmp_path, case):
+    workspace, _ = _legacy(tmp_path, b"permanent evidence")
+    store = FileBackupStore(workspace)
+    backup = store.create(tmp_path / "backup")
+    path = backup / "backup.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if case == "unknown_schema":
+        raw["schema"] = "aitest.backup/999.0"
+        content = json.dumps(raw).encode()
+    elif case == "duplicate_fields":
+        content = (
+            '{"schema":"aitest.backup/1.0","files":{},"files":'
+            + json.dumps(raw["files"]) + "}"
+        ).encode()
+    elif case == "nonfinite":
+        raw["unexpected"] = float("nan")
+        content = json.dumps(raw).encode()
+    else:
+        content = json.dumps(raw).encode("utf-16")
+    path.write_bytes(content)
+    with pytest.raises(BackupError):
+        store.verify(backup)
+    target = tmp_path / "restored"
+    with pytest.raises(BackupError):
+        store.restore(backup=backup, target=target)
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("alias", ["exports/./legacy.txt", "exports//legacy.txt"])
+def test_alias_manifest_cannot_restore_same_file_twice(tmp_path, alias):
+    workspace, _ = _legacy(tmp_path, b"permanent evidence")
+    store = FileBackupStore(workspace)
+    backup = store.create(tmp_path / "backup")
+    path = backup / "backup.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["files"][alias] = raw["files"]["exports/legacy.txt"]
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    assert store.verify(backup)["ok"] is False
+    target = tmp_path / "restored"
+    with pytest.raises(BackupError):
+        store.restore(backup=backup, target=target)
+    assert not target.exists()
+
+
+def test_backup_manifest_read_has_finite_budget(tmp_path, monkeypatch):
+    import aitest.infrastructure.file_store.backup as module
+
+    workspace, _ = _legacy(tmp_path, b"permanent evidence")
+    store = FileBackupStore(workspace)
+    backup = store.create(tmp_path / "backup")
+    monkeypatch.setattr(module, "_MAX_JSON_BYTES", 16)
+    with pytest.raises(BackupError, match="内存范围"):
+        store.verify(backup)
+    target = tmp_path / "restored"
+    with pytest.raises(BackupError, match="内存范围"):
+        store.restore(backup=backup, target=target)
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("name", ["legacy.json", "legacy.jsonl"])
+def test_duplicate_json_fields_cannot_hide_escaped_known_credentials(tmp_path, name):
+    secret = "虚构重复字段凭据"
+    content = ('{"note":' + json.dumps(secret, ensure_ascii=True) + ',"note":"safe"}').encode()
+    workspace, original = _legacy(tmp_path, content, name)
+    registry = KnownSecretRegistry()
+    registry.register(secret)
+    target = tmp_path / "backup"
+    with pytest.raises(BackupError):
+        FileBackupStore(workspace, registry=registry).create(target)
+    assert not target.exists()
+    assert original.read_bytes() == content
+
+
 def _legacy(root, content, name="legacy.txt"):
     workspace = root / "workspace"
     (workspace / "exports").mkdir(parents=True)

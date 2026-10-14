@@ -275,3 +275,5 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 2026-10-14 后续实现补齐：CD/CORE/BD 记录 ZIP 路径/重名、旧包回读、清单与目录精确关联及有界读取、未知投影策略拒绝。原全量 5290/1/6 与失败原因保留，修后五文件 98、导出最终整文件 42 通过；当前源码的新全量见[最终检查](../validation/p1-final-closure-20261014/README.md)。合同版本、reviewing/partial/not_run、原签署及 last_verified_commit 不变。
 
 2026-10-14 隔离候选未证明续检：内部动作 1.1 源观察/原始对象保存链，旧 1.0 兼容及 ZIP 父子冲突/缓存字节码反例见[候选证据](../validation/p1-unproven-audit-20261014/README.md)。真实事务、新候选全量及真实双方对接未完成，合同版本/签署与 not_run 保留。
+
+2026-10-14 候选备份继续修复：AC补闭包/严格清单/有限读取和重复字段凭据隐藏守卫；公开字段与1.0备份形状保留，原签署/版本/not_run不变。32项安全整文件通过，既有恢复/迁移文件与候选全量尚待；准确反例见[本批证据](../validation/p1-unproven-audit-20261014/README.md#继续修复的备份反例)。

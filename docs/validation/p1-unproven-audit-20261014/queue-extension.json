@@ -1,0 +1,7 @@
+{
+  "reason": "Add reproduced backup closure defect before candidate tests start; baseline full remains running",
+  "state": "waiting_queue_superseded",
+  "at": "2026-10-14T03:42:38.6740871Z",
+  "previous_source_commit": "52ef5a7313225dfd8948828349b9abf8c90b939a",
+  "heavy_tests_interrupted": false
+}

@@ -1,6 +1,6 @@
 # 未证明边界逐项续检（2026-10-14，隔离候选）
 
-基线为 fix@f4c9f32；主工作区的 758124a / 5331 节点完整回归仍在运行。为保护其源码，本批候选位于 codex/p1-unproven-boundaries 工作树；候选不会与该全量合并计数。当前代码事实见 [facts.json](facts.json)，原始输入、失败与中断均保留。
+基线为 fix@f4c9f32；主工作区的 758124a / 5331 节点完整回归仍在运行。为保护其源码，本批候选位于 codex/p1-unproven-boundaries 工作树；候选不会与该全量合并计数。候选在备份反例修复后单次收集 5367 节点；5355 为此前准入/ZIP 修复版本。当前代码事实见 [facts.json](facts.json)，原始输入、失败与中断均保留。
 
 ## 本批代码与准确证明
 
@@ -36,3 +36,11 @@
 后续文档维护只改文档和取证脚本，601 项候选源码指纹未漂移，队列依然按源码 `52ef5a7` 执行。整改目录 44 份文档已逐份更新最新入口，另列[来源保存链](../../一期工程整改/03-修复证据/2026-10-14-来源准入与证据保存续检.md)的准确证明范围；[链接/表格核对](document-links.json)与三个期次的[验收字节核对](acceptance-unchanged.json)保留。
 
 [队列前置检查](continuation-preflight.json)确认 Node/npm 入口存在；[生成物前置指纹](artifact-inventory-before-queue.json)冻结 Schema、锁文件、配置和打包定义。[制品检查观察器](check_queued_artifacts.py)等待本候选 wheel 冒烟实际成功，再核对生成物漂移、wheel 内新对象模块、共享面板和 VSIX 字节。VSIX 是从主工作区复制的[未改扩展参考制品](vsix-reference.json)，不是候选真实 Trae 接入证明；观察器等待状态不算检查通过。
+
+## 继续修复的备份反例
+
+`FileBackupStore.verify` 原先按文件名跳过任何 backup.json，使未登记的嵌套同名文件绕过闭包核对；元数据同时接受未知版本、重复 JSON 字段和同一文件的点段别名。旧行为的[嵌套清单反例](backup-extra-manifest-before.log)与[三项元数据反例](backup-metadata-before.log)均实际成立。修后只豁免备份根清单，严格 UTF-8 JSON / 1.0 版本、有限读取和准确路径；[修后元数据](backup-metadata-after.log)均拒绝。
+
+重复 JSON 字段还可隐藏转义的已知凭据，使旧备份扫描只看到最后一项；[旧用例失败](backup-duplicate-secret-before.log)使用虚构凭据证明问题。结构化永久材料改用共同严格解析器，解析不确定的材料在创建目标前拒绝，不重写原证据。整个备份安全文件[32 项 / 0 失败 / 0 跳过](backup-final-small.xml)通过，原二十项安全用例也覆盖；新 ruff、248 strict mypy 与单次 5367 收集退出 0。
+
+这次只终止尚在等待、没有执行测试子进程的候选队列与制品观察器，[等待状态和原因](queue-extension.json)保留；主全量没有中断。新增的备份/恢复/迁移既有路径加入新候选串行队列，冻结的新指纹与[两处准确源码变动](backup-extension-source-changes.json)保留，原 52ef5a7 的指纹/事实文件另存。完整历史、迁移位置和世代/物理掉电并不因这组安全检查而通过。

@@ -238,6 +238,13 @@
     "current_sha256": "9cf445ab70867b3965319e1ad39b5c2aaa317a3b5139786124f415aec3e361b0"
   },
   {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-14-备份闭包与清单安全续修.md",
+    "disposition": "added",
+    "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
+    "baseline_sha256": null,
+    "current_sha256": "d18874e21f26de09a5301fb00f5f24292861d659d07a6c56526f218cbf36fd12"
+  },
+  {
     "path": "docs/一期工程整改/03-修复证据/2026-10-14-来源准入与证据保存续检.md",
     "disposition": "added",
     "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
@@ -291,7 +298,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "9a5b78883c1edfca5c1643e50270ca0c91cedf95d59cb8b80f03a6f2f83ce0b9",
-    "current_sha256": "e5be45ff3939c73adcacca74faf506d51c0e6cde45f737b5b22e9c8955f8f4a5"
+    "current_sha256": "78e92eb15806775476ec89eaf4f2fdeb4b52bc2912d316057fe8681cb97feeae"
   },
   {
     "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-12.md",
@@ -312,7 +319,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "4f9cc6280edce5c0a3f4c786a00e4afb9a30ea2b398711d26701acaada1d06cd",
-    "current_sha256": "578c9f7dc5ca57c0f16578a5014fa6782dae1e64d46df1be2cd28ff727dd791f"
+    "current_sha256": "38838c7e79c6f85a709ea4d1cf74552354cdee806cfbdcf8e1101e4fc3a382ac"
   },
   {
     "path": "docs/一期工程检查-B包.md",
@@ -326,7 +333,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "96739072d33b3990e278365553356d04367cc8cff6d20e619054a148f58a544c",
-    "current_sha256": "0e92cf2c29b07a71dac2272335c5428e29d83007900ac2ce7705132e527570c1"
+    "current_sha256": "843b9d8455433fc65b2c1a923427f399f499fc193c0f7bec9de93a940209ecca"
   },
   {
     "path": "docs/一期工程检查-D包.md",
@@ -347,14 +354,14 @@
     "disposition": "added",
     "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
     "baseline_sha256": null,
-    "current_sha256": "0bc9160fadaf3082f9dc5222f1d80b0b97db70cd059043293fd4eb6d55e8ef77"
+    "current_sha256": "4d6f5fd9d9fcb8656e86a091b2f179a355dd1c00624a88ea8d095e5278c11809"
   },
   {
     "path": "docs/接口对接/README.md",
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "54bbd2c67a46c653f98fd04ee58e2b8c8e733b0d7dfaa6a55efaa72354c4d78e",
-    "current_sha256": "3ca753d1892025ae17a2ecd1b095d5ad57b516f7ebdbe13ad521e898147b4104"
+    "current_sha256": "a31a71c34f074222b1185f3a92f48dfa64677d9ff792cf8a84be219c13955149"
   },
   {
     "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
@@ -382,7 +389,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b73d92616d0a0a1e37e5880ba04690e666355088750da283a0b381684b23e617",
-    "current_sha256": "f33ad7ee469d74c449a07c279115f170d41605653d2fdb0e027d96e463479519"
+    "current_sha256": "35fbff43cd7e40a46edfd20780aaa78feb7155f0f255fe70dc3e5c32be2fb70d"
   },
   {
     "path": "docs/接口对接/进行中/AC-001-存储与恢复/review-A.md",
@@ -473,7 +480,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b32e9ed9603688451973ade50598117bb43e505ac7e92ef09e34452f93370018",
-    "current_sha256": "644cc3b20aa906efe60c8e2847ef7373d1d0e63c1311fe87d5c1bdcf2755b66b"
+    "current_sha256": "7bdd2f06fd82acbc7b3486a623dd8a0d5bb74b099c951362fc47f1ccac46e8cb"
   },
   {
     "path": "README.md",
