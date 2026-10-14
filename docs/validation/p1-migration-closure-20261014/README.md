@@ -8,3 +8,6 @@
 
 
 记录器预检已通过：8项真实Windows共享锁/重试/关键失败检查，以及[三个完整故障注入文件的38项](observer-probe-result.json)，完整JUnit和逐阶段回执在observer-probe目录。该数字不并入产品全量，正在准备主源码预检与重新冻结。
+
+
+主工作区最新制品预检已结束，源码e7d6cb2：versions/lock/generation/ruff/mypy250/docs-facts/build/wheel-smoke/artifacts全部exit0，[预检结束回执](preflight-state.json)、[制品逐字节核对](artifact-source-integrity.json)及[601源码指纹](source-inventory.json)冻结新本机字节。236wheel模块与源码一致，生成物/源码无漂移。离线wheel安装用实际缓存，依赖版本与锁定回归分开登记。构建hatchling1.32.4；6项捕获I/O检查还验证真实记录器错误不吞。下步单次5427全量，尚不登记通过。
