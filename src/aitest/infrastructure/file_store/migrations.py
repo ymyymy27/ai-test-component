@@ -26,7 +26,7 @@ from uuid import uuid4
 from aitest.domain.json_material import decode_json
 
 from . import atomic
-from .backup import FileBackupStore, manifest_facts
+from .backup import BackupError, FileBackupStore, manifest_facts
 from .commit_manifest import FileCommitStore
 from .commit_migration import migrate_commit_closure
 from .index import migrate_query_layout, rollback_query_layout
@@ -326,6 +326,8 @@ class FileMigrationManager:
             if state.get("plan_id") != path.parent.name or path.stem not in _BUILT_IN:
                 raise MigrationError("迁移检查点身份无法核实，拒绝新业务写入")
             status = state.get("state")
+            if not isinstance(status, str):
+                raise MigrationError("迁移检查点状态无法核实，拒绝新业务写入")
             registered = applied.get(path.stem)
             if status == "rollback_pending" or status == "prepared" and (
                 registered is None or registered.get("plan_id") != path.parent.name
@@ -395,7 +397,10 @@ class FileMigrationManager:
                 backup_path=None,
             )
         self._records_watermark()  # 不把不可读业务水位当成空工作空间。
-        backup_path = self._ensure_backup(plan_id)
+        try:
+            backup_path = self._ensure_backup(plan_id)
+        except BackupError as error:
+            raise MigrationError("迁移前备份无法可靠核对，拒绝继续") from error
         executed: list[str] = []
         for migration_id in pending:
             migration = _BUILT_IN[migration_id]
@@ -587,29 +592,66 @@ class FileMigrationManager:
     def _ensure_backup(self, plan_id: str) -> Path:
         cycle_path = self._cycles_dir / f"{plan_id}.json"
         cycle = _load_json(cycle_path) if cycle_path.exists() else {}
+        cycle_status = cycle.get("state")
         if cycle and (
-            cycle.get("plan_id") != plan_id or cycle.get("state") not in {"active", "rolled_back"}
+            cycle.get("plan_id") != plan_id
+            or not isinstance(cycle_status, str)
+            or cycle_status not in {"active", "rolled_back"}
         ):
             raise MigrationError("迁移周期状态损坏，拒绝沿用未知前态")
         destination = self._backups_dir / plan_id
         states = list((self._steps_dir / plan_id).glob("*.json"))
-        if cycle.get("state") == "active":
+        planned_steps = set(self._load_plan(plan_id))
+        checkpoint_states = []
+        for path in states:
+            checkpoint = _load_json(path)
+            status = checkpoint.get("state")
+            if (
+                path.stem not in planned_steps
+                or checkpoint.get("plan_id") != plan_id
+                or not isinstance(status, str)
+                or status not in {"prepared", "rolled_back", "rollback_pending"}
+            ):
+                raise MigrationError("迁移检查点身份或状态无法核实，拒绝受控续跑")
+            checkpoint_states.append(status)
+        if cycle.get("state") == "rolled_back" and any(
+            status != "rolled_back" for status in checkpoint_states
+        ):
+            raise MigrationError("迁移周期与检查点回滚事实冲突，拒绝重新采样")
+        rolled_back = cycle.get("state") == "rolled_back" or (
+            bool(states) and all(status == "rolled_back" for status in checkpoint_states)
+        )
+        if rolled_back:
+            # 最后一步回滚已保存但周期收尾中断，也必须冻结当前新一轮前态。
+            destination = self._backups_dir / f"{plan_id}-{uuid4().hex}"
+        elif cycle.get("state") == "active":
             name = cycle.get("backup_name")
-            if not isinstance(name, str) or Path(name).name != name:
+            if not isinstance(name, str) or not (
+                name == plan_id
+                or name.startswith(plan_id + "-")
+                and len(name) == len(plan_id) + 33
+                and all(character in "0123456789abcdef" for character in name[len(plan_id) + 1 :])
+            ):
                 raise MigrationError("迁移备份引用损坏")
             destination = self._backups_dir / name
-        elif cycle.get("state") == "rolled_back" or (
-            states and all(_load_json(path).get("state") == "rolled_back" for path in states)
-        ):
-            # 新一轮迁移留独立备份，不覆盖旧备份也不沿用过时前态。
-            destination = self._backups_dir / f"{plan_id}-{uuid4().hex}"
+        elif states:
+            raise MigrationError("迁移步骤已有前态但缺少冻结备份周期，拒绝重新采样")
         manifest = destination / "backup.json"
-        if manifest.exists():
+        if cycle.get("state") == "active" and not rolled_back:
+            expected_digest = cycle.get("backup_manifest_digest")
+            if not isinstance(expected_digest, str) or not manifest.is_file():
+                raise MigrationError("冻结迁移备份身份或材料缺失，拒绝重新备份")
             # 复用既有备份前必须重新核对，绝不信任未校验副本。
             verification = FileBackupStore(self._root).verify(destination)
             if not verification["ok"]:
                 raise MigrationError(f"复用备份校验失败: {verification['errors']}")
+            actual_digest, _count, _bytes = manifest_facts(destination)
+            if actual_digest != expected_digest:
+                raise MigrationError("冻结迁移备份摘要不一致，拒绝替换本轮前态")
         else:
+            if destination.exists():
+                # 无本轮引用的同名材料不能冒充迁移前备份，原材料永久保留。
+                destination = self._backups_dir / f"{plan_id}-{uuid4().hex}"
             FileBackupStore(self._root).create(destination)
             verification = FileBackupStore(self._root).verify(destination)
             if not verification["ok"]:
@@ -617,7 +659,12 @@ class FileMigrationManager:
         # 在任何 forward 之前冻结本轮备份引用，重启不能切回第一轮备份。
         atomic.write_json(
             cycle_path,
-            {"plan_id": plan_id, "state": "active", "backup_name": destination.name},
+            {
+                "plan_id": plan_id,
+                "state": "active",
+                "backup_name": destination.name,
+                "backup_manifest_digest": manifest_facts(destination)[0],
+            },
         )
         # 迁移前强制备份也进维护审计（架构 04 §9/§197）：维护记录/`backup inspect`
         # 能看到它以及它落在哪里——当前位置在工作空间内，位置口径的裁定见待裁定清单。

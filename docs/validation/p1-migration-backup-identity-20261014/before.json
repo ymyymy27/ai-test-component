@@ -1,0 +1,58 @@
+{
+  "source_commit": "7cde1de",
+  "scope": "disposable directories; actual migration apply/resume, no core or heavy tests",
+  "counterexamples": [
+    {
+      "kind": "unowned_empty_backup",
+      "backup_self_verifies_before": true,
+      "result": {
+        "state": "applied",
+        "executed": [
+          "0001-workspace-schema-version",
+          "0002-records-intents-container"
+        ],
+        "backup_path": "C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-migration-identity-d6xuyrgl\\migrations\\backups\\plan-72011b2348",
+        "reused_original_path": true
+      },
+      "records_now": {
+        "commit": 0,
+        "intents": {},
+        "records": {}
+      }
+    },
+    {
+      "kind": "changed_frozen_backup",
+      "backup_self_verifies_before": true,
+      "result": {
+        "state": "resumed",
+        "executed": [
+          "0002-records-intents-container"
+        ],
+        "backup_path": "C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-migration-identity-kq6sijge\\migrations\\backups\\plan-72011b2348",
+        "reused_original_path": true
+      },
+      "records_now": {
+        "commit": 0,
+        "intents": {},
+        "records": {}
+      }
+    },
+    {
+      "kind": "missing_frozen_backup",
+      "backup_self_verifies_before": null,
+      "result": {
+        "state": "resumed",
+        "executed": [
+          "0002-records-intents-container"
+        ],
+        "backup_path": "C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-migration-identity-vsd2zo7x\\migrations\\backups\\plan-72011b2348",
+        "reused_original_path": true
+      },
+      "records_now": {
+        "commit": 0,
+        "intents": {},
+        "records": {}
+      }
+    }
+  ]
+}

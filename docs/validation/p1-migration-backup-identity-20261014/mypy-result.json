@@ -1,0 +1,10 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "mypy"
+  ],
+  "exit_code": 0,
+  "seconds": 0.6654074192047119,
+  "scope": "final backup identity, rollback and controlled/ordinary checkpoint guards"
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "unowned_empty_backup",
+    "result": {
+      "state": "applied",
+      "executed": [
+        "0001-workspace-schema-version",
+        "0002-records-intents-container"
+      ],
+      "reused_original_path": false,
+      "new_backup_verified": true,
+      "original_unowned_manifest_retained": true
+    }
+  },
+  {
+    "kind": "changed_frozen_backup",
+    "result": {
+      "error": "MigrationError",
+      "message": "冻结迁移备份摘要不一致，拒绝替换本轮前态",
+      "registry_journal_cycle_unchanged": true
+    }
+  },
+  {
+    "kind": "missing_frozen_backup",
+    "result": {
+      "error": "MigrationError",
+      "message": "冻结迁移备份身份或材料缺失，拒绝重新备份",
+      "registry_journal_cycle_unchanged": true,
+      "backup_recreated": false
+    }
+  }
+]

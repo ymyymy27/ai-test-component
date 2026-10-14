@@ -1,0 +1,4 @@
+{
+  "initial_probe_error": "FileNotFoundError: journal.jsonl does not exist before first apply",
+  "correction": "snapshot only existing journal/registry files; this is a helper assumption, not a product failure"
+}

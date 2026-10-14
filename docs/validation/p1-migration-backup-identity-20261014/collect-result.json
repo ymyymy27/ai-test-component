@@ -1,0 +1,12 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "--collect-only",
+    "-q"
+  ],
+  "exit_code": 0,
+  "seconds": 3.5933432579040527,
+  "scope": "final backup identity, rollback and controlled/ordinary checkpoint guards"
+}

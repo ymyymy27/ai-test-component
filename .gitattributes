@@ -15,3 +15,7 @@ docs/validation/p1-state-reader-security-20261014/** -text -whitespace
 docs/validation/p1-current-closure-20261014/** -text -whitespace
 
 docs/validation/p1-empty-reference-20261014/** -text -whitespace
+
+docs/validation/p1-migration-backup-identity-20261014/** -text -whitespace
+
+docs/validation/p1-migration-closure-20261014/** -text -whitespace

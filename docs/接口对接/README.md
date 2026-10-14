@@ -282,3 +282,9 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 
 
 2026-10-14 零字节回收续修：CORE/AB/AC 的实施证据同步候选与删除前永久引用检查；六个新增节点和两份完整小型文件通过，5403 仅收集。版本/对接/签署状态不变，详见[本批证明](../validation/p1-empty-reference-20261014/README.md)。
+
+
+2026-10-14 迁移备份身份与回滚收尾实施同步：CORE/AB/AC记录冻结摘要及拒绝重采样/新轮备份的实现与47项小型文件证明，版本/签署/真实对接未改变。旧5397仍执行，5416仅收集；[本批范围](../validation/p1-migration-backup-identity-20261014/README.md)分别登记。
+
+
+本批最终范围：迁移身份/受控检查点的两份完整文件58项，5427仅收集；47/5416是前阶段。旧5397已1112/2/exit3结束，新记录器故障注入38项通过，[新全量](../validation/p1-migration-closure-20261014/README.md)另记，not_run及签署保持。

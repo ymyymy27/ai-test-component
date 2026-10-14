@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
+from aitest.infrastructure.file_store.backup import FileBackupStore, manifest_facts
 from aitest.infrastructure.file_store.migrations import (
     FileMigrationManager,
     MigrationError,
@@ -270,6 +272,202 @@ def test_apply_twice_is_nothing_to_apply(manager: FileMigrationManager) -> None:
     second = manager.apply(plan_id)
     assert second.state == "nothing_to_apply"
     assert second.executed == ()
+
+
+def _pending_second_step(manager: FileMigrationManager) -> tuple[str, Path]:
+    plan_id = _plan(manager)
+    report = manager.apply(plan_id)
+    assert report.backup_path is not None
+    registry_path = manager._dir / "registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["applied"].pop(_BOTH_STEPS[1])
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    return plan_id, report.backup_path
+
+
+@pytest.mark.parametrize("kind", ["empty", "foreign", "partial"])
+def test_unowned_backup_is_preserved_and_never_used_as_migration_prestate(
+    manager: FileMigrationManager, kind: str
+) -> None:
+    root = manager._root
+    (root / "records.json").write_text('{"records":{},"commit":0}', encoding="utf-8")
+    before_workspace = (root / "workspace.json").read_bytes()
+    before_records = (root / "records.json").read_bytes()
+    plan_id = _plan(manager)
+    unowned = manager._backups_dir / plan_id
+    unowned.mkdir()
+    if kind != "partial":
+        files = {}
+        if kind == "foreign":
+            material = b'{"workspace_id":"another-workspace"}'
+            (unowned / "workspace.json").write_bytes(material)
+            files["workspace.json"] = hashlib.sha256(material).hexdigest()
+        (unowned / "backup.json").write_text(
+            json.dumps({"schema": "aitest.backup/1.0", "files": files, "excluded_active": []}),
+            encoding="utf-8",
+        )
+        assert FileBackupStore(root).verify(unowned)["ok"]
+    else:
+        (unowned / "partial-output").write_bytes(b"retain unknown material")
+    original = {p.name: p.read_bytes() for p in unowned.iterdir()}
+
+    report = manager.apply(plan_id)
+
+    assert report.backup_path is not None and report.backup_path != unowned
+    assert FileBackupStore(root).verify(report.backup_path)["ok"]
+    assert (report.backup_path / "workspace.json").read_bytes() == before_workspace
+    assert (report.backup_path / "records.json").read_bytes() == before_records
+    assert {p.name: p.read_bytes() for p in unowned.iterdir()} == original
+    cycle = json.loads((manager._cycles_dir / f"{plan_id}.json").read_text(encoding="utf-8"))
+    assert cycle["backup_manifest_digest"] == manifest_facts(report.backup_path)[0]
+
+
+@pytest.mark.parametrize(
+    "damage", ["changed", "missing", "legacy_digest", "cycle_missing", "invalid_manifest"]
+)
+def test_resume_cannot_replace_or_recapture_the_frozen_backup(
+    manager: FileMigrationManager, damage: str
+) -> None:
+    plan_id, backup = _pending_second_step(manager)
+    cycle_path = manager._cycles_dir / f"{plan_id}.json"
+    if damage == "changed":
+        path = backup / "workspace.json"
+        path.write_bytes(b'{"workspace_id":"changed-after-freeze"}')
+        manifest_path = backup / "backup.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"]["workspace.json"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        assert FileBackupStore(manager._root).verify(backup)["ok"]
+    elif damage == "missing":
+        backup.rename(manager._root / "original-backup-preserved")
+    elif damage == "legacy_digest":
+        cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+        cycle.pop("backup_manifest_digest")
+        cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+    elif damage == "invalid_manifest":
+        (backup / "backup.json").write_text("{torn", encoding="utf-8")
+    else:
+        cycle_path.rename(cycle_path.with_suffix(".preserved"))
+    tracked = [manager._registry_path, manager._journal_path, manager._root / "workspace.json"]
+    tracked += list(manager._steps_dir.rglob("*.json"))
+    if cycle_path.exists():
+        tracked.append(cycle_path)
+    before = {path: path.read_bytes() for path in tracked}
+
+    with pytest.raises(MigrationError, match="冻结|摘要|备份无法可靠核对"):
+        FileMigrationManager(manager._root).resume(plan_id)
+
+    assert {path: path.read_bytes() for path in tracked} == before
+    if damage == "missing":
+        assert not backup.exists()
+        assert (manager._root / "original-backup-preserved" / "backup.json").is_file()
+
+
+@pytest.mark.parametrize("name", ["..", "another-plan", "plan-72011b2348-invalid"])
+def test_resume_rejects_backup_name_outside_its_exact_plan(
+    manager: FileMigrationManager, name: str
+) -> None:
+    plan_id, backup = _pending_second_step(manager)
+    cycle_path = manager._cycles_dir / f"{plan_id}.json"
+    cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+    cycle["backup_name"] = name
+    cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+    before_registry = manager._registry_path.read_bytes()
+    before_journal = manager._journal_path.read_bytes()
+    with pytest.raises(MigrationError, match="备份引用损坏"):
+        manager.resume(plan_id)
+    assert manager._registry_path.read_bytes() == before_registry
+    assert manager._journal_path.read_bytes() == before_journal
+    assert FileBackupStore(manager._root).verify(backup)["ok"]
+
+
+def test_new_manager_resumes_with_the_original_frozen_backup(
+    manager: FileMigrationManager,
+) -> None:
+    plan_id, backup = _pending_second_step(manager)
+    before = manifest_facts(backup)
+    resumed = FileMigrationManager(manager._root).resume(plan_id)
+    assert resumed.executed == (_BOTH_STEPS[1],)
+    assert resumed.backup_path == backup
+    assert manifest_facts(backup) == before
+
+
+def test_finished_rollback_before_cycle_publish_requires_a_new_backup(
+    manager: FileMigrationManager,
+) -> None:
+    records = manager._root / "records.json"
+    records.write_text('{"records":{},"commit":0}', encoding="utf-8")
+    plan_id = _plan(manager)
+    first = manager.apply(plan_id)
+    assert first.backup_path is not None
+    cycle_path = manager._cycles_dir / f"{plan_id}.json"
+    active_cycle = cycle_path.read_bytes()
+    manager.rollback(plan_id)
+    # 模拟最后一个 rolled_back 已保存，但周期收尾写入前中断。
+    cycle_path.write_bytes(active_cycle)
+    records.write_text(
+        '{"records":{"saved_after_rollback":{"retained":true}},"commit":1}',
+        encoding="utf-8",
+    )
+    current_records = records.read_bytes()
+    first_identity = manifest_facts(first.backup_path)
+
+    second = FileMigrationManager(manager._root).apply(plan_id)
+
+    assert second.backup_path is not None and second.backup_path != first.backup_path
+    assert (second.backup_path / "records.json").read_bytes() == current_records
+    assert manifest_facts(first.backup_path) == first_identity
+    assert FileBackupStore(manager._root).verify(second.backup_path)["ok"]
+
+
+@pytest.mark.parametrize(
+    "damage",
+    ["wrong_plan", "unknown_state", "structured_state", "wrong_step", "cycle_conflict",
+     "structured_cycle"],
+)
+def test_controlled_resume_rejects_conflicting_checkpoint_identity(
+    manager: FileMigrationManager, damage: str
+) -> None:
+    plan_id, _backup = _pending_second_step(manager)
+    state_path = manager._steps_dir / plan_id / f"{_BOTH_STEPS[1]}.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    if damage == "wrong_plan":
+        state["plan_id"] = "another-plan"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+    elif damage in {"unknown_state", "structured_state"}:
+        state["state"] = "unknown" if damage == "unknown_state" else []
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+    elif damage == "wrong_step":
+        (state_path.parent / "unknown-step.json").write_text(json.dumps(state), encoding="utf-8")
+    else:
+        cycle_path = manager._cycles_dir / f"{plan_id}.json"
+        cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+        cycle["state"] = "rolled_back" if damage == "cycle_conflict" else {}
+        cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+    tracked = [manager._registry_path, manager._journal_path, manager._root / "workspace.json"]
+    tracked += list(manager._steps_dir.rglob("*.json"))
+    tracked += list(manager._cycles_dir.glob("*.json"))
+    before = {path: path.read_bytes() for path in tracked}
+    backup_names = sorted(path.name for path in manager._backups_dir.iterdir())
+    with pytest.raises(MigrationError, match="检查点|冲突|周期"):
+        FileMigrationManager(manager._root).resume(plan_id)
+    assert {path: path.read_bytes() for path in tracked} == before
+    assert sorted(path.name for path in manager._backups_dir.iterdir()) == backup_names
+
+
+@pytest.mark.parametrize("status", [[], {}, False, None, 42])
+def test_malformed_checkpoint_status_blocks_ordinary_writes_as_migration_error(
+    manager: FileMigrationManager, status: object
+) -> None:
+    plan_id, _backup = _pending_second_step(manager)
+    state_path = manager._steps_dir / plan_id / f"{_BOTH_STEPS[1]}.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["state"] = status
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    original = state_path.read_bytes()
+    with pytest.raises(MigrationError, match="检查点状态"):
+        manager.maintenance_reason()
+    assert state_path.read_bytes() == original
 
 
 def test_resume_completes_only_unapplied_step(manager: FileMigrationManager) -> None:
