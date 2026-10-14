@@ -1,0 +1,10 @@
+{
+  "scope": "isolated candidate with backup and admission/runtime distinction; collection is not execution",
+  "modules": 236,
+  "lines": 73252,
+  "test_files": 353,
+  "test_lines": 81880,
+  "collected_nodes": 5370,
+  "mypy_files": 248,
+  "collection_method": "single full collection from runtime-scope-collect.log; not historical executions"
+}

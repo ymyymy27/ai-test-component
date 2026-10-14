@@ -80,9 +80,7 @@ def _saved_action(core, action_id: str) -> dict[str, object]:
 def test_business_snapshot_identity_differs_from_the_technical_pinned_identity(tmp_path):
     """先证明测试真的有区分度：业务 source-ID 与技术 snap-ID 不同。"""
 
-    with _authoritative(
-        tmp_path, environment_resolver=_chain_environment()
-    ) as (core, inputs, _):
+    with _authoritative(tmp_path, environment_resolver=_chain_environment()) as (core, inputs, _):
         prepared = prepare(core, inputs)
         assert prepared.error is None, prepared.error
         assert prepared.result["status"] == "prepared", prepared.result
@@ -104,9 +102,7 @@ def test_default_prepare_execution_resolves_business_record_to_pinned_technical_
 ):
     """C-15：默认链必须贯通，且物化引用是**固定 workdir**、不是任何快照身份。"""
 
-    with _authoritative(
-        tmp_path, environment_resolver=_chain_environment()
-    ) as (core, inputs, _):
+    with _authoritative(tmp_path, environment_resolver=_chain_environment()) as (core, inputs, _):
         prepared = prepare(core, inputs)
         assert prepared.error is None, prepared.error
         assert prepared.result["status"] == "prepared", prepared.result
@@ -150,11 +146,118 @@ def test_a_real_syntax_error_in_the_frozen_source_blocks_start(tmp_path):
 def test_a_clean_frozen_source_still_verifies_under_the_same_chain(tmp_path):
     """对照组：同一链路下干净源码仍然通过（避免把"一律阻塞"当成修复）。"""
 
-    with _authoritative(
-        tmp_path, environment_resolver=_chain_environment()
-    ) as (core, inputs, _):
+    with _authoritative(tmp_path, environment_resolver=_chain_environment()) as (core, inputs, _):
         prepared = prepare(core, inputs)
         assert prepared.result["status"] == "prepared", prepared.result
         action = _prepare_execution(core, inputs, prepared.result)
         assert action["execution_action_id"]
         core.lifetime_lock.release()
+
+
+@pytest.mark.parametrize("corrupt_object", [False, True])
+def test_default_source_observation_is_atomic_and_readable_after_restart(tmp_path, corrupt_object):
+    """Real probe/FileUOW; consent and environment claims remain explicit fixtures."""
+    import hashlib
+
+    from aitest.bootstrap import assemble_workspace_core
+    from aitest.domain.execution.authorization import AuthorizationState
+    from aitest.domain.execution.runs import RecoveryCheckpoint, RecoveryRecord
+    from aitest.infrastructure.file_store.objects import FileObjectStore
+    from tests.unit.test_execution_authorization_origin import review, save, started
+
+    with _authoritative(tmp_path, environment_resolver=_chain_environment()) as (core, inputs, _):
+        prepared = prepare(core, inputs)
+        parameters = _prepare_execution(core, inputs, prepared.result)
+        service = core.execution_authorizations
+        _, action = service.resolver.read(inputs.project_id, parameters["execution_action_id"])
+        source = action.source_verification
+        assert source is not None and source.raw_output_object is not None
+        assert source.source_instance_id == "authoritative-core"
+        assert _saved_action(core, parameters["execution_action_id"])["schema_version"] == (
+            "aitest.resolved-execution-action/1.1"
+        )
+        actor, challenge = review(service, inputs.project_id, action, parameters)
+        save(service, inputs.project_id, action, parameters, actor, challenge)
+        attempt = started(action)
+        checkpoint = RecoveryRecord(
+            RecoveryCheckpoint(
+                last_committed_stage="intent_recorded",
+                run_id=attempt.run_id,
+                step_id=attempt.step_id,
+                attempt_id=attempt.attempt_id,
+                resolved_input_digest=attempt.resolved_input_digest,
+                side_effect_class=attempt.side_effect_class,
+            ),
+            attempt,
+            project_id=inputs.project_id,
+        )
+        before = core.unit_of_work.current_commit_sequence()
+        if corrupt_object:
+            (core.workspace.root / source.raw_output_object.relative_path).write_bytes(b"corrupted")
+            with pytest.raises(ValueError, match="source probe material"):
+                core.execution_coordinator.claim_start(
+                    project_id=inputs.project_id,
+                    intent_id=attempt.intent_id,
+                    fingerprint=attempt.intent_digest,
+                    checkpoint=checkpoint,
+                )
+            assert core.unit_of_work.current_commit_sequence() == before
+            assert service._state(inputs.project_id, attempt.authorization_ref.authorization_id)[
+                1
+            ] is (AuthorizationState.UNUSED)
+            core.lifetime_lock.release()
+            return
+        original = FileObjectStore(core.workspace.root).read_bytes(source.raw_output_object)
+        assert (
+            core.execution_coordinator.claim_start(
+                project_id=inputs.project_id,
+                intent_id=attempt.intent_id,
+                fingerprint=attempt.intent_digest,
+                checkpoint=checkpoint,
+            )
+            is None
+        )
+        current = core.execution_coordinator.read_current_facts(
+            project_id=inputs.project_id, run_id=attempt.run_id
+        )
+        observed = next(
+            item
+            for item in current.source_verifications
+            if (item.verification_id == "source-verification:" + attempt.attempt_id)
+        )
+        assert observed.state.value == "unverified"
+        assert observed.gap_ids == ("actual_execution_load_source_unverified",)
+        evidence = next(
+            item for item in current.evidence_refs if item.evidence_id in observed.evidence_refs
+        )
+        assert evidence.evidence_kind.value == "source_check"
+        assert evidence.attempt_id == attempt.attempt_id
+        assert evidence.object_digest == "sha256:" + hashlib.sha256(original).hexdigest()
+        assert (
+            core.unit_of_work.repo.read(
+                aggregate_kind="evidence_ref", record_id=evidence.evidence_id, revision=1
+            ).payload["attempt_id"]
+            == attempt.attempt_id
+        )
+        workspace = core.workspace.root
+        core.lifetime_lock.release()
+    restarted = assemble_workspace_core(
+        workspace, instance_id="source-reopen", execution_enabled=False
+    )
+    try:
+        saved = restarted.execution_coordinator.read_runtime_revision_facts(
+            project_id=inputs.project_id, run_id=attempt.run_id
+        )
+        assert observed in saved.source_verifications
+        assert evidence in saved.evidence_refs
+        assert FileObjectStore(workspace).read_bytes(source.raw_output_object) == original
+        assert (
+            restarted.unit_of_work.repo.read(
+                aggregate_kind="execution_authorization",
+                record_id=parameters["execution_action_id"],
+                revision=1,
+            ).payload["schema_version"]
+            == "aitest.resolved-execution-action/1.1"
+        )
+    finally:
+        restarted.lifetime_lock.release()

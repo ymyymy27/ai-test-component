@@ -1,0 +1,77 @@
+...............................F.............................            [100%]
+================================== FAILURES ===================================
+_ test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture _
+
+    def test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture():
+        import hashlib
+        from dataclasses import replace
+        from types import SimpleNamespace
+    
+        from aitest.application.execution.commit import ExecutionCommitCoordinator
+        from aitest.domain.evidence.evidence import EvidenceKind, StoredObjectRef
+        from aitest.domain.execution.sources import SourceVerificationState
+        from tests.unit.test_current_execution_snapshot import _batch
+    
+        batch = _batch()
+        content = b'{"observed":"source"}'
+        reference = StoredObjectRef(
+            project_id=batch.facts.project_id,
+            digest="sha256:" + hashlib.sha256(content).hexdigest(),
+            size=len(content), media_type="application/json",
+            relative_path="objects/project-1/" + hashlib.sha256(content).hexdigest(),
+        )
+        source = replace(
+            _source_observation(), raw_output_object=reference,
+            source_instance_id="synthetic-source-component",
+            evidence_refs=(reference.relative_path,),
+        )
+        coordinator = ExecutionCommitCoordinator(
+            SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
+        )
+>       observed, evidence = coordinator._source_material(source, batch.facts, batch.checkpoint.attempt)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_action_resolver.py:487: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\aitest\application\execution\commit.py:663: in _source_material
+    identity = facts.code_identity
+               ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ExecutionFacts(schema_version='aitest.execution-facts/1.0', facts_id='facts-success', project_id='project-1', run_id='...unknown_step_ids=(), evidence_gap_count=0, critical_gap_count=0), completeness=<FactCompleteness.COMPLETE: 'complete'>)
+item = 'code_identity'
+
+    def __getattr__(self, item: str) -> Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+>                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'ExecutionFacts' object has no attribute 'code_identity'
+
+E:\ai-test-component\.runtime\completion-clean313\Lib\site-packages\pydantic\main.py:1042: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_action_resolver.py::test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture
+1 failed, 60 passed, 23 deselected in 1.17s

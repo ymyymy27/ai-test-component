@@ -1,0 +1,36 @@
+...........F................................                             [100%]
+================================== FAILURES ===================================
+___ test_probe_does_not_verify_source_bytes_after_executing_stale_bytecode ____
+
+tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-8/test_probe_does_not_verify_sou0')
+
+    def test_probe_does_not_verify_source_bytes_after_executing_stale_bytecode(tmp_path):
+        import importlib.util
+        import marshal
+        import struct
+    
+        source = tmp_path / "cache_subject.py"
+        source.write_text("value = 'declared source'\n", encoding="utf-8")
+        cache = Path(importlib.util.cache_from_source(str(source)))
+        cache.parent.mkdir()
+        injected = compile(
+            "print('ATTEST_BYTECODE_CANARY')\nvalue = 'different code'\n", str(source), "exec"
+        )
+        metadata = source.stat()
+        content = (
+            importlib.util.MAGIC_NUMBER
+            + struct.pack("<III", 0, int(metadata.st_mtime), metadata.st_size)
+            + marshal.dumps(injected)
+        )
+        cache.write_bytes(content)
+        observed = PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=("cache_subject",))
+        assert observed.probe_error is None
+        assert b"ATTEST_BYTECODE_CANARY" not in observed.raw_output
+>       assert observed.modules[0].sha256 == hashlib.sha256(source.read_bytes()).hexdigest()
+                                             ^^^^^^^
+E       NameError: name 'hashlib' is not defined. Did you forget to import 'hashlib'?
+
+tests\unit\test_a_a08_load_source_probe.py:302: NameError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_a08_load_source_probe.py::test_probe_does_not_verify_source_bytes_after_executing_stale_bytecode
+1 failed, 43 passed in 3.13s

@@ -1,0 +1,47 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture _
+
+    def test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture():
+        import hashlib
+        from dataclasses import replace
+        from types import SimpleNamespace
+    
+        from aitest.application.execution.commit import ExecutionCommitCoordinator
+        from aitest.domain.evidence.evidence import EvidenceKind, StoredObjectRef
+        from aitest.domain.execution.sources import SourceVerificationState
+        from tests.unit.test_current_execution_snapshot import _batch
+    
+        batch = _batch()
+        content = b'{"observed":"source"}'
+        reference = StoredObjectRef(
+            project_id=batch.facts.project_id,
+            digest="sha256:" + hashlib.sha256(content).hexdigest(),
+            size=len(content), media_type="application/json",
+            relative_path="objects/project-1/" + hashlib.sha256(content).hexdigest(),
+        )
+        source = replace(
+            _source_observation(), raw_output_object=reference,
+            source_instance_id="synthetic-source-component",
+            evidence_refs=(reference.relative_path,),
+        )
+        coordinator = ExecutionCommitCoordinator(
+            SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
+        )
+        observed, evidence = coordinator._source_material(
+            source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+        )
+        assert observed is not None and evidence is not None
+        assert evidence.evidence_kind is EvidenceKind.SOURCE_CHECK
+        assert evidence.attempt_id == batch.checkpoint.attempt.attempt_id
+        assert evidence.object_digest == reference.digest and evidence.object_size == len(content)
+        assert evidence.code_identity == _source_code_fixture(batch)
+        assert observed.evidence_refs == (evidence.evidence_id,)
+>       assert observed.state is SourceVerificationState.UNVERIFIED
+E       AssertionError: assert <SourceVerificationState.VERIFIED: 'verified'> is <SourceVerificationState.UNVERIFIED: 'unverified'>
+E        +  where <SourceVerificationState.VERIFIED: 'verified'> = ExecutionSourceVerification(verification_id='observed-source', project_id='project-1', plan_revision_ref=PlanRevisionR...-1/509f50c44ec95b7f917d53842a2d7a692f36bab28ff091ca60f2ba6338657b3d'), source_instance_id='synthetic-source-component').state
+E        +  and   <SourceVerificationState.UNVERIFIED: 'unverified'> = <enum 'SourceVerificationState'>.UNVERIFIED
+
+tests\unit\test_action_resolver.py:496: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_action_resolver.py::test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture

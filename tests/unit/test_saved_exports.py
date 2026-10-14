@@ -782,3 +782,43 @@ def test_bundle_refuses_unsupported_manifest_compression() -> None:
         archive.writestr("manifest.json", b"{}")
     with pytest.raises(ExportRefused, match="compression is unavailable"):
         _verify_bundle_paths(buffer.getvalue())
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["evidence/parent.bin", "evidence/parent.bin/child.bin"],
+        ["evidence/parent.bin/child.bin", "evidence/PARENT.bin"],
+        ["evidence/é.bin", "evidence/e\u0301.bin/child.bin"],
+    ],
+)
+def test_bundle_guard_refuses_file_directory_prefix_collisions(names) -> None:
+    with pytest.raises(ExportRefused, match="paths collide"):
+        _verify_bundle_paths(_member_fixture(names))
+
+
+@pytest.mark.parametrize("flag", [1, 64])
+def test_bundle_guard_refuses_encryption_before_opening_members(monkeypatch, flag) -> None:
+    import struct
+
+    content = bytearray(_member_fixture(["evidence/ordinary.bin"]))
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        manifest = archive.getinfo("manifest.json")
+        central = archive.start_dir
+    struct.pack_into("<H", content, manifest.header_offset + 6, flag)
+    while content[central : central + 4] == b"PK\x01\x02":
+        name_size, extra_size, comment_size = struct.unpack_from("<HHH", content, central + 28)
+        name = bytes(content[central + 46 : central + 46 + name_size])
+        if name == b"manifest.json":
+            struct.pack_into("<H", content, central + 8, flag)
+            break
+        central += 46 + name_size + extra_size + comment_size
+    else:
+        raise AssertionError("manifest central entry missing from fixture")
+
+    def must_not_open(*_args, **_kwargs):
+        raise AssertionError("encrypted members must be refused before expansion")
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", must_not_open)
+    with pytest.raises(ExportRefused, match="encrypted"):
+        _verify_bundle_paths(bytes(content))

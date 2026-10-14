@@ -1,0 +1,62 @@
+[
+  {
+    "input": [
+      "parent",
+      "parent.bin/child"
+    ],
+    "refused": false,
+    "members": [
+      "report.md",
+      "manifest.json",
+      "evidence/parent.bin",
+      "evidence/parent.bin/child.bin"
+    ],
+    "manifest_files": [
+      {
+        "path": "report.md",
+        "sha256": "sha256:ba9c736f19e7f60b7f6764adb0b7908c0a2b394e09b6c09863528c7f2bc86095",
+        "size": 5
+      },
+      {
+        "path": "evidence/parent.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      },
+      {
+        "path": "evidence/parent.bin/child.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      }
+    ]
+  },
+  {
+    "input": [
+      "parent.bin/child",
+      "PARENT"
+    ],
+    "refused": false,
+    "members": [
+      "report.md",
+      "manifest.json",
+      "evidence/PARENT.bin",
+      "evidence/parent.bin/child.bin"
+    ],
+    "manifest_files": [
+      {
+        "path": "report.md",
+        "sha256": "sha256:ba9c736f19e7f60b7f6764adb0b7908c0a2b394e09b6c09863528c7f2bc86095",
+        "size": 5
+      },
+      {
+        "path": "evidence/parent.bin/child.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      },
+      {
+        "path": "evidence/PARENT.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      }
+    ]
+  }
+]

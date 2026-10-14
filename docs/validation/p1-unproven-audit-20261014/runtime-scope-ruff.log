@@ -1,0 +1,11 @@
+E501 Line too long (103 > 100)
+   --> src\aitest\application\execution\commit.py:684:101
+    |
+682 |             state=(SourceVerificationState.UNVERIFIED
+683 |                    if source.state is SourceVerificationState.VERIFIED else source.state),
+684 |             gap_ids=tuple(dict.fromkeys((*source.gap_ids, "actual_execution_load_source_unverified"))),
+    |                                                                                                     ^^^
+685 |         ), evidence
+    |
+
+Found 1 error.

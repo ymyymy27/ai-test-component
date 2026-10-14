@@ -36,6 +36,7 @@ from aitest.application.execution.facts import (
     ExecutionFactsAssembly,
     _evidence_fact,
     _run_fact,
+    _source_verification_fact,
     _step_fact,
     execution_payload_digest,
     project_attempt_fact,
@@ -69,10 +70,12 @@ from aitest.application.ports import (
     BasisConfirmationProof,
     CollectedRedactionSummary,
     ControlledWriteProof,
+    EvidenceObjectStore,
     ExactRecordStaging,
     ExecutionAuthorizationProof,
     ExecutionEvidenceCollector,
     ExecutionRedactionCollector,
+    ExecutionSourceProof,
     RecordRepository,
 )
 from aitest.application.ports import StageableWorkspaceUnitOfWork as StageableWorkspaceUnitOfWork
@@ -87,7 +90,14 @@ from aitest.contracts.execution_facts import (
 )
 from aitest.contracts.prepared_run import CaseRevisionRef, FrozenCaseStep, RunDriverFact
 from aitest.contracts.prepared_run import PlanRevisionRef as PlanContentRef
-from aitest.domain.evidence.evidence import EvidenceRef
+from aitest.domain.evidence.evidence import (
+    CodeIdentity,
+    EvidenceCaptureSource,
+    EvidenceIntegrity,
+    EvidenceKind,
+    EvidenceRef,
+    RedactionState,
+)
 from aitest.domain.execution.dependencies import (
     AttemptInvalidation,
     CaseReuseBasis,
@@ -113,6 +123,10 @@ from aitest.domain.execution.runs import (
     has_complete_capture,
     has_reliable_terminal_fact,
     has_verified_exit,
+)
+from aitest.domain.execution.sources import (
+    ExecutionSourceVerification,
+    SourceVerificationState,
 )
 from aitest.domain.planning.plans import Plan
 from aitest.domain.planning.runtime_revision import RuntimeRevisionRefused, RuntimeRevisionRequest
@@ -187,6 +201,7 @@ class ExecutionCommitCoordinator:
         execution_authorizations: ExecutionAuthorizationProof | None = None,
         serial_execution: bool = False,
         evidence_collector: ExecutionEvidenceCollector | None = None,
+        source_objects: EvidenceObjectStore | None = None,
     ) -> None:
         self._uow = unit_of_work
         self._checkpoint_store = checkpoint_store
@@ -195,6 +210,7 @@ class ExecutionCommitCoordinator:
         self._execution_authorizations = execution_authorizations
         self._serial_execution = serial_execution
         self._evidence_collector = evidence_collector
+        self._source_objects = source_objects
 
     def _revision(self, kind: str, record_id: str, expected: int | None = None) -> int | None:
         reader = self._records or self._uow
@@ -619,6 +635,57 @@ class ExecutionCommitCoordinator:
         )
         return attempt
 
+    def _source_material(
+        self, source: ExecutionSourceVerification | None, facts: ExecutionFacts, attempt: Attempt,
+        code_identity: CodeIdentity | None = None,
+    ) -> tuple[ExecutionSourceVerification | None, EvidenceRef | None]:
+        if source is None:
+            return None, None
+        reference = source.raw_output_object
+        if reference is None or not source.source_instance_id or code_identity is None:
+            return replace(
+                source, state=SourceVerificationState.UNVERIFIED,
+                gap_ids=(*source.gap_ids, "source_probe_material_unavailable"), evidence_refs=(),
+            ), None
+        if (
+            self._source_objects is None or type(reference.size) is not int or reference.size <= 0
+            or reference.size > 8 * 1024 * 1024
+            or reference.project_id != facts.project_id
+            or code_identity.workspace_ref != facts.run.origin_workspace_id
+            or source.evidence_refs != (reference.relative_path,)
+        ):
+            raise ValueError("source probe material scope or verified read budget differs")
+        try:
+            content = self._source_objects.read_bytes(reference)
+        except (OSError, ValueError, RuntimeError) as error:
+            raise ValueError("source probe material cannot be reliably read") from error
+        if (
+            not isinstance(content, bytes) or len(content) != reference.size
+            or "sha256:" + hashlib.sha256(content).hexdigest() != reference.digest
+        ):
+            raise ValueError("source probe material differs from its saved object")
+        evidence = EvidenceRef(
+            evidence_id="source-evidence-" + attempt.attempt_id,
+            project_id=facts.project_id, source_instance_id=source.source_instance_id,
+            run_id=facts.run_id, step_id=attempt.step_id, attempt_id=attempt.attempt_id,
+            evidence_kind=EvidenceKind.SOURCE_CHECK,
+            capture_source=EvidenceCaptureSource.PLUGIN_RUNTIME,
+            object_digest=reference.digest, object_size=reference.size,
+            code_identity=code_identity,
+            integrity=EvidenceIntegrity.COMPLETE, redaction_state=RedactionState.NOT_REQUIRED,
+            media_type=reference.media_type, created_at=source.verified_at,
+        )
+        # A saved admission probe precedes this execution. Keep its material,
+        # but it cannot certify the business process's eventual module loading.
+        return replace(
+            source, evidence_refs=(evidence.evidence_id,),
+            state=(SourceVerificationState.UNVERIFIED
+                   if source.state is SourceVerificationState.VERIFIED else source.state),
+            gap_ids=tuple(dict.fromkeys((
+                *source.gap_ids, "actual_execution_load_source_unverified",
+            ))),
+        ), evidence
+
     def claim_start(
         self,
         *,
@@ -648,6 +715,22 @@ class ExecutionCommitCoordinator:
             if previous is None:
                 raise
             return previous
+        source_reader = getattr(self._execution_authorizations, "source_at_start", None)
+        source, source_identity = (
+            cast(ExecutionSourceProof, self._execution_authorizations).source_at_start(
+                project_id=project_id, attempt=checkpoint.attempt
+            )
+            if callable(source_reader)
+            else (None, None)
+        )
+        source_evidence = None
+        if source is not None:
+            observed_current, _ = self._prepare_current_start(project_id, checkpoint.attempt)
+            if observed_current is None:
+                raise ValueError("source observation requires its registered current run")
+            source, source_evidence = self._source_material(
+                source, observed_current, checkpoint.attempt, source_identity
+            )
         begin = getattr(self._uow, "begin", None)
         if callable(begin):
             begin(f"execution-{uuid4().hex}", project_id)
@@ -786,13 +869,46 @@ class ExecutionCommitCoordinator:
                     payload=_json_payload(_CHECKPOINT_ADAPTER, updated),
                 )
             if current is not None:
+                updated_facts = project_current_update(
+                    current,
+                    checkpoint.attempt,
+                    invalidations=invalidations,
+                    committed_at=datetime.now(UTC),
+                )
+                if source is not None:
+                    observed = _source_verification_fact(source)
+                    previous_source = next(
+                        (
+                            item
+                            for item in updated_facts.source_verifications
+                            if item.verification_id == observed.verification_id
+                        ),
+                        None,
+                    )
+                    if previous_source is not None and previous_source != observed:
+                        raise ValueError("saved source observation identity conflicts")
+                    if previous_source is None:
+                        updated_facts = updated_facts.model_copy(
+                            update={
+                                "source_verifications": (
+                                    *updated_facts.source_verifications, observed
+                                )
+                            }
+                        )
+                if source_evidence is not None:
+                    _, projected_source = self._stage_collected_evidence(
+                        project_id, checkpoint, (source_evidence,),
+                    )
+                    if any(
+                        item.evidence_id == source_evidence.evidence_id
+                        for item in updated_facts.evidence_refs
+                    ):
+                        raise ValueError("source evidence identity already belongs to another fact")
+                    updated_facts = updated_facts.model_copy(update={
+                        "evidence_refs": (*updated_facts.evidence_refs, *projected_source)
+                    })
                 self._stage_snapshot(
-                    project_current_update(
-                        current,
-                        checkpoint.attempt,
-                        invalidations=invalidations,
-                        committed_at=datetime.now(UTC),
-                    ),
+                    updated_facts,
                     allow_current_change=True,
                     checkpoint_refs=checkpoint_refs,
                 )

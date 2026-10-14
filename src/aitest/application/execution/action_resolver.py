@@ -134,7 +134,7 @@ class SavedActionResolver:
         )
         self._require_registered_entry(binding, entry)
         self._require_observed_interpreter(workdir, environment_fact)
-        self._require_verified_source(workdir, admitted, prepared)
+        source_verification = self._require_verified_source(workdir, admitted, prepared)
         index = self._attempt_index(run, step)
         if type(index) is not int or index < 1:
             raise ActionResolutionBlocked("attempt index must be a positive integer")
@@ -196,7 +196,7 @@ class SavedActionResolver:
             ) from error
         try:
             return ResolvedExecutionAction(
-                attempt, request, environment_identity, source_identity
+                attempt, request, environment_identity, source_identity, source_verification
             )
         except ValueError as error:  # 领域不变量：构造成功即证明自洽
             raise ActionResolutionBlocked(f"resolved action is inconsistent: {error}") from error
@@ -309,7 +309,7 @@ class SavedActionResolver:
         workdir: str,
         admitted: Mapping[str, object],
         prepared: Mapping[str, object],
-    ) -> None:
+    ) -> ExecutionSourceVerification | None:
         """可选的「来源核验事实」核对（架构01 第 12 节 / P1-AC13）。
 
         注入方（`bootstrap`）提供 `source_verification_provider`：给定物化 workdir、准入映射
@@ -321,15 +321,17 @@ class SavedActionResolver:
         """
 
         if self._source_verification_provider is None:
-            return
+            return None
         try:
             verification = self._source_verification_provider(workdir, admitted, prepared)
         except SourceBindingUnverified as error:
             raise ActionResolutionBlocked(str(error)) from error
+
         try:
             self._validators.require_verified_source(verification)
         except SourceBindingUnverified as error:
             raise ActionResolutionBlocked(str(error)) from error
+        return verification
 
     def _require_registered_entry(
         self, binding: ExecutionSourceBinding, entry: RegisteredEntryRef

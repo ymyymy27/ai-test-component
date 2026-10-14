@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from aitest.domain.execution.runs import Attempt, AttemptState, ExecutionRequest
+from aitest.domain.execution.sources import ExecutionSourceVerification
 
 
 class AuthorizationState(StrEnum):
@@ -20,10 +21,25 @@ class ResolvedExecutionAction:
     request: ExecutionRequest
     environment_content_identity: str
     source_content_identity: str
+    source_verification: ExecutionSourceVerification | None = None
 
     def __post_init__(self) -> None:
         attempt, request = self.attempt, self.request
         authorization = request.authorization_ref
+        source = self.source_verification
+        if source is not None and (
+            not isinstance(source, ExecutionSourceVerification)
+            or source.project_id != request.project_id
+            or source.plan_revision_ref != request.expected_plan_revision_ref
+            or source.materialized_snapshot_ref != request.materialized_snapshot_ref
+            or source.expected_source_content_digest != self.source_content_identity
+            or source.observed_source_digest != self.source_content_identity
+            or (
+                source.raw_output_object is not None
+                and source.raw_output_object.project_id != request.project_id
+            )
+        ):
+            raise ValueError("resolved source observation has a different frozen execution scope")
         if (
             not self.environment_content_identity
             or not self.source_content_identity

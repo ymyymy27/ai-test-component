@@ -51,7 +51,7 @@ from aitest.contracts.responses import Response
 from aitest.contracts.secrets import ResolvedSecret
 from aitest.contracts.verification import VerificationFact
 from aitest.domain.approvals import ActionBasis, TrustedActor
-from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, Verification
+from aitest.domain.evidence.evidence import CodeIdentity, EvidenceRef, StoredObjectRef, Verification
 from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
 from aitest.domain.evidence.polling import BusinessQueryObservation as BusinessQueryObservation
 from aitest.domain.execution.authorization import ResolvedExecutionAction
@@ -71,6 +71,7 @@ from aitest.domain.execution.runs import (
     Step,
     StopRequestResult,
 )
+from aitest.domain.execution.sources import ExecutionSourceVerification
 from aitest.domain.planning.model_outbound import MaterialKind
 from aitest.domain.planning.plans import Case, Plan
 
@@ -101,6 +102,14 @@ class ExecutionActionResolver(Protocol):
         prepared: Mapping[str, object],
         step_content: Mapping[str, object],
     ) -> ResolvedExecutionAction: ...
+
+
+class ExecutionSourceProof(Protocol):
+    """Optional exact saved source observation, read before the start transaction."""
+
+    def source_at_start(
+        self, *, project_id: str, attempt: Attempt
+    ) -> tuple[ExecutionSourceVerification | None, CodeIdentity | None]: ...
 
 
 class ExecutionAuthorizationProof(Protocol):

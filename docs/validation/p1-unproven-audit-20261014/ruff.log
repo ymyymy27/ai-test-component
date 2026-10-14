@@ -1,0 +1,111 @@
+I001 [*] Import block is un-sorted or un-formatted
+  --> src\aitest\application\ports.py:3:1
+   |
+ 1 |   """A-package abstract ports; implementations live in infrastructure."""
+ 2 |
+ 3 | / from collections.abc import Mapping, Sequence
+ 4 | | from dataclasses import dataclass, field
+ 5 | | from datetime import datetime
+ 6 | | from pathlib import Path
+ 7 | | from typing import Protocol
+ 8 | |
+ 9 | | from aitest.application.planning.model_ports import (
+10 | |     CredentialResolution as CredentialResolution,
+11 | | )
+12 | | from aitest.application.planning.model_ports import (
+13 | |     CredentialStatus as CredentialStatus,
+14 | | )
+15 | | from aitest.application.planning.model_ports import (
+16 | |     ModelCall as ModelCall,
+17 | | )
+18 | | from aitest.application.planning.model_ports import (
+19 | |     ModelCallResult as ModelCallResult,
+20 | | )
+21 | | from aitest.application.planning.model_ports import (
+22 | |     ModelCallStatus as ModelCallStatus,
+23 | | )
+24 | | from aitest.application.planning.model_ports import (
+25 | |     ProjectedMaterial as ProjectedMaterial,
+26 | | )
+27 | | from aitest.application.planning.model_ports import (
+28 | |     Projection as Projection,
+29 | | )
+30 | | from aitest.application.planning.model_ports import (
+31 | |     ProjectionStatus as ProjectionStatus,
+32 | | )
+33 | | from aitest.application.planning.substrate import (
+34 | |     AggregateKind as AggregateKind,
+35 | | )
+36 | | from aitest.application.planning.substrate import (
+37 | |     CommittedRecord as CommittedRecord,
+38 | | )
+39 | | from aitest.application.planning.substrate import (
+40 | |     RecordQuery as RecordQuery,
+41 | | )
+42 | | from aitest.contracts.capabilities import CapabilitySet
+43 | | from aitest.contracts.commands import Command
+44 | | from aitest.contracts.errors import ErrorDTO
+45 | | from aitest.contracts.events import Event
+46 | | from aitest.contracts.execution_facts import ExecutionFacts
+47 | | from aitest.contracts.identity import IntentId, RequestId
+48 | | from aitest.contracts.prepared_run import EnvironmentRefFact
+49 | | from aitest.contracts.queries import Query, QuerySpec
+50 | | from aitest.contracts.responses import Response
+51 | | from aitest.contracts.secrets import ResolvedSecret
+52 | | from aitest.contracts.verification import VerificationFact
+53 | | from aitest.domain.approvals import ActionBasis, TrustedActor
+54 | | from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, Verification
+55 | | from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionSummary
+56 | | from aitest.domain.evidence.polling import BusinessQueryObservation as BusinessQueryObservation
+57 | | from aitest.domain.execution.authorization import ResolvedExecutionAction
+58 | | from aitest.domain.execution.sources import ExecutionSourceVerification
+59 | | from aitest.domain.execution.runs import (
+60 | |     Attempt,
+61 | |     CapturedOutputBlock,
+62 | |     ExecutionCollectionResult,
+63 | |     ExecutionHandle,
+64 | |     ExecutionInspectionResult,
+65 | |     ExecutionRequest,
+66 | |     OutputBlockRef,
+67 | |     OutputCursor,
+68 | |     OutputStreamName,
+69 | |     RecoveryRecord,
+70 | |     Run,
+71 | |     SpoolManifest,
+72 | |     Step,
+73 | |     StopRequestResult,
+74 | | )
+75 | | from aitest.domain.planning.model_outbound import MaterialKind
+76 | | from aitest.domain.planning.plans import Case, Plan
+   | |___________________________________________________^
+help: Organize imports
+   |
+57 | from aitest.domain.execution.authorization import ResolvedExecutionAction
+   - from aitest.domain.execution.sources import ExecutionSourceVerification
+58 | from aitest.domain.execution.runs import (
+--------------------------------------------------------------------------------
+73 | )
+74 + from aitest.domain.execution.sources import ExecutionSourceVerification
+75 | from aitest.domain.planning.model_outbound import MaterialKind
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+   --> tests\unit\test_action_resolver.py:445:5
+    |
+443 |   @pytest.mark.parametrize("state", ["unknown", "unverified", "blocked", "mismatch"])
+444 |   def test_resolver_keeps_unverified_source_blocked(state) -> None:
+445 | /     from dataclasses import replace
+446 | |     from aitest.domain.execution.sources import SourceVerificationState
+    | |_______________________________________________________________________^
+447 |
+448 |       resolver = _resolver()
+    |
+help: Organize imports
+    |
+445 |     from dataclasses import replace
+446 +
+447 |     from aitest.domain.execution.sources import SourceVerificationState
+    |
+
+Found 2 errors.
+[*] 2 fixable with the `--fix` option.
