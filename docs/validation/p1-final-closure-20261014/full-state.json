@@ -1,16 +1,27 @@
 {
-  "state": "running",
-  "runner_pid": 26248,
-  "child_pid": 35660,
-  "started_at": "2026-10-14T00:54:48.220658+00:00",
+  "state": "interrupted",
+  "detected_at": "2026-10-14T06:26:00.085133+00:00",
   "source_commit": "758124ad670c1ccda84ed9023312c26299d71352",
-  "command": [
-    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
-    "-m",
-    "pytest",
-    "tests",
-    "-ra",
-    "--basetemp=C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014\\full-final",
-    "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-final-closure-20261014\\full.xml"
-  ]
+  "original_state": {
+    "state": "running",
+    "runner_pid": 26248,
+    "child_pid": 35660,
+    "started_at": "2026-10-14T00:54:48.220658+00:00",
+    "source_commit": "758124ad670c1ccda84ed9023312c26299d71352",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests",
+      "-ra",
+      "--basetemp=C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014\\full-final",
+      "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-final-closure-20261014\\full.xml"
+    ]
+  },
+  "source_drift_count": 0,
+  "last_progress": "40%; original full.log retained",
+  "complete_junit": false,
+  "exit_code": null,
+  "reason": "runner, launcher and pytest worker absent; no completion result; cause not established",
+  "next": "verify the latest published fix source; do not resume an obsolete source suite or sum partial results"
 }
