@@ -1,0 +1,61 @@
+{
+  "documents": 77,
+  "local_links": 805,
+  "issues": [],
+  "contracts": [
+    {
+      "contract_id": "AB-001",
+      "contract_version": "1.45",
+      "contract_status": "reviewing",
+      "provider_implementation": "partial",
+      "consumer_implementation": "partial",
+      "verification_status": "not_run",
+      "last_verified_commit": "null"
+    },
+    {
+      "contract_id": "AC-001",
+      "contract_version": "1.9",
+      "contract_status": "reviewing",
+      "provider_implementation": "partial",
+      "consumer_implementation": "partial",
+      "verification_status": "not_run",
+      "last_verified_commit": "null"
+    },
+    {
+      "contract_id": "BC-001",
+      "contract_version": "0.49",
+      "contract_status": "reviewing",
+      "provider_implementation": "partial",
+      "consumer_implementation": "partial",
+      "verification_status": "not_run",
+      "last_verified_commit": "null"
+    },
+    {
+      "contract_id": "BD-001",
+      "contract_version": "0.7",
+      "contract_status": "reviewing",
+      "provider_implementation": "partial",
+      "consumer_implementation": "partial",
+      "verification_status": "not_run",
+      "last_verified_commit": "null"
+    },
+    {
+      "contract_id": "CD-001",
+      "contract_version": "1.24",
+      "contract_status": "reviewing",
+      "provider_implementation": "partial",
+      "consumer_implementation": "partial",
+      "verification_status": "not_run",
+      "last_verified_commit": "8d9883c"
+    },
+    {
+      "contract_id": "CORE-001",
+      "contract_version": "1.85",
+      "contract_status": "reviewing",
+      "provider_implementation": "partial",
+      "consumer_implementation": "partial",
+      "verification_status": "not_run",
+      "last_verified_commit": "null"
+    }
+  ]
+}

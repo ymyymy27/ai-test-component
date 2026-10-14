@@ -472,3 +472,5 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 ## 2026-10-14 状态读取与永久引用实现续修
 
 迁移/采集/永久引用/备份审计使用已有严格 JSON 解码，核对既有 registry/plan schema 与准确计划身份；prepared 不再借另一计划登记解除。异常材料保留，普通写/回收拒绝，重复审计不发布已核验事实。公开字段、DTO、Schema、签署和合同版本不变，reviewing/partial/not_run 保持。三个完整小文件 56 项通过，重核心/制品与新全量尚待串行验证；[准确输入/源码/回执](../../../validation/p1-state-reader-security-20261014/README.md)保留，组件接缝不证明真实核心重启/宿主/物理掉电或完整对拍。
+
+后续补标准核心启动异常转换及拒绝后锁释放：三个完整受改小文件现为 60 项通过。旧源码全量因可选进度记录器内部错误提前结束（734 passed / 2 skipped，exit 3），原结果不算完整对拍；记录器经真实 Win32 读共享锁复现/修复，最新主工作区合并源码转入[独立闭环验证](../../../validation/p1-current-closure-20261014/README.md)，5397 新全量完成前不更新 not_run/签署/last_verified_commit。
