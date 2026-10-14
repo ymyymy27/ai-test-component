@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import io
 import json
 import zipfile
@@ -26,6 +28,8 @@ from aitest.application.review.saved_exports import (
     ExportManagementError,
     ExportNotSaved,
     ExportRefused,
+    SavedExportService,
+    _verify_bundle_paths,
     export_key_id,
 )
 from aitest.domain.review.reports import ReportExportKey, ReportExportKind
@@ -601,3 +605,180 @@ def test_extracted_bundle_is_readable_without_the_plugin(tmp_path) -> None:
         archive.extractall(target)
     assert (target / "report.md").is_file()
     assert (target / "manifest.json").is_file()
+
+
+@pytest.mark.parametrize(
+    "identities",
+    [("../../escape",), (r"..\..\escape",), ("CON",), ("Evidence-A", "evidence-a")],
+)
+def test_export_rejects_unsafe_member_identities_before_publication(tmp_path, identities) -> None:
+    harness = _Harness(tmp_path, evidence=identities)
+    _report_with_review(harness)
+    sequence = harness.unit.current_commit_sequence()
+    with pytest.raises(ExportRefused):
+        _export(harness, kind="evidence_bundle")
+    assert harness.unit.current_commit_sequence() == sequence
+    assert not list((tmp_path / "artifacts").rglob("*.zip"))
+
+
+@pytest.mark.parametrize("vector_index", range(4))
+def test_saved_export_guard_refuses_actual_legacy_unsafe_archives(vector_index) -> None:
+    """Permanent-object digest agreement alone must not authorize old unsafe ZIPs."""
+    vectors_path = Path(__file__).resolve().parents[2] / (
+        "docs/validation/p1-completion-repair-20261014/zip-legacy-vectors.json"
+    )
+    vector = json.loads(vectors_path.read_text(encoding="utf-8"))["vectors"][vector_index]
+    content = base64.b64decode(vector["artifact_base64"], validate=True)
+    digest = "sha256:" + hashlib.sha256(content).hexdigest()
+    assert digest == vector["sha256"] and len(content) == vector["size"]
+
+    class MemoryObjects:
+        def read_bytes(self, reference):
+            assert reference.digest == digest and reference.size == len(content)
+            return content
+
+    service = object.__new__(SavedExportService)
+    service._objects = MemoryObjects()
+    payload = {
+        "project_id": "project-1",
+        "kind": "evidence_bundle",
+        "artifact_digest": digest,
+        "object_ref": {
+            "project_id": "project-1",
+            "digest": digest,
+            "size": len(content),
+            "media_type": "application/zip",
+            "relative_path": "objects/project-1/" + digest[7:],
+        },
+    }
+    service._current = lambda _kind, _identity: payload
+    with pytest.raises(ExportRefused):
+        service._verify_saved_artifact("project-1", "legacy-export")
+
+
+def _member_fixture(names, *, manifest_mutator=None, symbolic_link=False) -> bytes:
+    """Portable ZIP bytes with deliberate hostile metadata variants; no extraction."""
+    contents = {"report.md": b"report", **{name: b"abc" for name in names}}
+    manifest = {
+        "format_version": "aitest.evidence-bundle/1.0",
+        "files": [
+            {
+                "path": path,
+                "size": len(blob),
+                "sha256": "sha256:" + hashlib.sha256(blob).hexdigest(),
+            }
+            for path, blob in contents.items()
+        ],
+        "attachments": [{"path": name} for name in names],
+    }
+    if manifest_mutator is not None:
+        manifest_mutator(manifest)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, blob in contents.items():
+            info = zipfile.ZipInfo(name)
+            if symbolic_link and name in names:
+                info.create_system = 3
+                info.external_attr = 0o120777 << 16
+            archive.writestr(info, blob)
+        archive.writestr("manifest.json", json.dumps(manifest).encode("utf-8"))
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "evidence/evidence-1.bin",
+        "evidence/证据.bin",
+        "evidence/group/item.bin",
+        "evidence/COM10.bin",
+    ],
+)
+def test_bundle_guard_preserves_portable_unicode_and_nested_members(name) -> None:
+    _verify_bundle_paths(_member_fixture([name]))
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["evidence/a.bin", "evidence/A.bin"],
+        ["evidence/Å.bin", "evidence/A\u030a.bin"],
+        ["evidence/COM¹.bin"],
+        ["evidence/CON.note.bin"],
+        ["evidence/NUL.bin"],
+        ["evidence/folder./item.bin"],
+        ["evidence/folder /item.bin"],
+        ["evidence/a:stream.bin"],
+        ["evidence/item\x00suffix.bin"],
+    ],
+)
+def test_bundle_guard_refuses_portability_and_manifest_aliases(names) -> None:
+    with pytest.raises(ExportRefused):
+        _verify_bundle_paths(_member_fixture(names))
+
+
+def test_bundle_guard_refuses_symlink_members() -> None:
+    with pytest.raises(ExportRefused):
+        _verify_bundle_paths(_member_fixture(["evidence/item.bin"], symbolic_link=True))
+
+
+@pytest.mark.parametrize(
+    "mutation", ["missing", "duplicate", "foreign", "wrong_size", "unknown_format"]
+)
+def test_bundle_guard_checks_manifest_paths_against_actual_directory(mutation) -> None:
+    def alter(manifest):
+        if mutation == "missing":
+            manifest["files"].pop()
+        elif mutation == "duplicate":
+            manifest["files"].append(manifest["files"][0])
+        elif mutation == "foreign":
+            manifest["attachments"][0]["path"] = "../../outside"
+        elif mutation == "wrong_size":
+            manifest["files"][0]["size"] += 1
+        else:
+            manifest["format_version"] = "unknown"
+
+    with pytest.raises(ExportRefused):
+        _verify_bundle_paths(_member_fixture(["evidence/item.bin"], manifest_mutator=alter))
+
+
+def test_export_refuses_unavailable_policy_instead_of_claiming_it(tmp_path) -> None:
+    harness = _Harness(tmp_path)
+    _report_with_review(harness)
+    sequence = harness.unit.current_commit_sequence()
+    with pytest.raises(ExportRefused, match="policy is unavailable"):
+        harness.command(
+            action="export_report",
+            expected=0,
+            intent_id="unknown-policy",
+            request_id="unknown-policy-request",
+            parameters={
+                "report_id": "report-1",
+                "kind": "markdown_summary",
+                "redaction_policy_version": "unknown-policy/99",
+            },
+        )
+    assert harness.unit.current_commit_sequence() == sequence
+
+
+def test_bundle_manifest_budget_is_checked_before_expansion(monkeypatch) -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("report.md", b"report")
+        archive.writestr("manifest.json", b" " * (8 * 1024 * 1024 + 1))
+
+    def forbid_expansion(*args, **kwargs):
+        raise AssertionError("oversized manifest must not be expanded")
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", forbid_expansion)
+    with pytest.raises(ExportRefused, match="read budget"):
+        _verify_bundle_paths(buffer.getvalue())
+
+
+def test_bundle_refuses_unsupported_manifest_compression() -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_BZIP2) as archive:
+        archive.writestr("report.md", b"report")
+        archive.writestr("manifest.json", b"{}")
+    with pytest.raises(ExportRefused, match="compression is unavailable"):
+        _verify_bundle_paths(buffer.getvalue())

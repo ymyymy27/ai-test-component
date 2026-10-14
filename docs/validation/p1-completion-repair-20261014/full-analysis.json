@@ -1,0 +1,108 @@
+{
+  "source_commit": "dba1d4b51d681cdc5f2e2bacf89a50773a0693ae",
+  "scope": "Completed full run before ZIP repair and native tasklist test-helper repair; not the repaired-source full verdict.",
+  "summary": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "1",
+    "skipped": "6",
+    "tests": "5297",
+    "time": "23217.401",
+    "timestamp": "2026-10-14T00:44:35.110811+08:00",
+    "hostname": "d"
+  },
+  "failures": [
+    {
+      "name": "tests.unit.test_command_adapter::test_command_adapter_reaps_child_process_group",
+      "message": "TypeError: argument of type 'NoneType' is not iterable"
+    }
+  ],
+  "skips": [
+    {
+      "name": "tests.unit.test_a_a06_reference_closure::test_symlink_anywhere_is_reported",
+      "reason": "当前会话无权创建符号链接"
+    },
+    {
+      "name": "tests.unit.test_a_a06_reference_closure::test_restore_rejects_symlink_target",
+      "reason": "当前会话无权创建符号链接"
+    },
+    {
+      "name": "tests.unit.test_a_a10_connection_recovery::test_git_source_works_without_any_credentials",
+      "reason": "pytest 临时目录位于 Git 工作树内，无法构造仓库外的普通目录"
+    },
+    {
+      "name": "tests.unit.test_a_source_control::test_is_repository",
+      "reason": "pytest 临时目录位于某个 Git 工作树内（本机 TEMP 不可写，tempfile 回退到检出目录），无法构造仓库外的普通目录"
+    },
+    {
+      "name": "tests.unit.test_a_source_control::test_describe_plain",
+      "reason": "pytest 临时目录位于某个 Git 工作树内（本机 TEMP 不可写，tempfile 回退到检出目录），无法构造仓库外的普通目录"
+    },
+    {
+      "name": "tests.unit.test_start_source_binding::test_cwd_mapping_must_not_traverse_links",
+      "reason": "directory symlinks are not available on this host"
+    }
+  ],
+  "slowest": [
+    {
+      "name": "tests.unit.test_saved_run_schedule::test_default_schedule_resumes_original_activity_and_completes_without_business_pass",
+      "seconds": 787.003
+    },
+    {
+      "name": "tests.unit.test_default_business_verification::test_default_actual_business_read_is_saved_and_replayed_without_requery",
+      "seconds": 295.334
+    },
+    {
+      "name": "tests.unit.test_default_live_output::test_default_active_large_output_stays_running_and_preserves_pause",
+      "seconds": 266.975
+    },
+    {
+      "name": "tests.unit.test_default_active_control::test_default_long_step_pause_resume_and_actual_cancel",
+      "seconds": 264.544
+    },
+    {
+      "name": "tests.unit.test_default_step_execution::test_saved_consent_is_consumed_by_default_api_once_and_recalled_without_new_port",
+      "seconds": 253.851
+    },
+    {
+      "name": "tests.unit.test_unused_authorization_origin_consumption::test_actual_start_revokes_other_saved_grant_before_external_call_and_replays",
+      "seconds": 231.555
+    },
+    {
+      "name": "tests.unit.test_default_runtime_actions::test_revision_confirmation_and_effect_rollback_together",
+      "seconds": 221.348
+    },
+    {
+      "name": "tests.unit.test_execution_original_authority_consumer::test_original_authority_is_consumed_atomically_and_replays_after_source_change",
+      "seconds": 207.787
+    },
+    {
+      "name": "tests.unit.test_default_active_control::test_default_new_core_and_adapter_use_saved_stop_without_inventing_exit_code",
+      "seconds": 201.965
+    },
+    {
+      "name": "tests.unit.test_unverified_terminal_observation::test_default_error_without_exit_continues_original_collection_and_keeps_gap",
+      "seconds": 200.478
+    },
+    {
+      "name": "tests.unit.test_default_runtime_actions::test_default_successive_revision_history_and_restart",
+      "seconds": 200.4
+    },
+    {
+      "name": "tests.unit.test_authorization_pregranted::test_independent_pregranted_action_survives_unrelated_progress",
+      "seconds": 191.433
+    },
+    {
+      "name": "tests.unit.test_default_runtime_actions::test_driver_only_narrowing_does_not_fake_case_change",
+      "seconds": 169.226
+    },
+    {
+      "name": "tests.unit.test_unused_authorization_origin_consumption::test_actual_runtime_revision_requires_consumer_and_rolls_back_revocation_with_snapshot",
+      "seconds": 168.31
+    },
+    {
+      "name": "tests.unit.test_default_execution_authorization::test_public_prepare_consent_grant_and_restart_preserve_originals",
+      "seconds": 158.786
+    }
+  ]
+}

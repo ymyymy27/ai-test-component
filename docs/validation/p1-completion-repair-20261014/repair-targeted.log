@@ -1,0 +1,66 @@
+........................................................F............... [ 73%]
+..........................                                               [100%]
+================================== FAILURES ===================================
+________ test_export_refuses_unavailable_policy_instead_of_claiming_it ________
+
+tmp_path = WindowsPath('E:/ai-test-component/.runtime/tmp/zip-repair-targeted/test_export_refuses_unavailabl0')
+
+    def test_export_refuses_unavailable_policy_instead_of_claiming_it(tmp_path) -> None:
+        harness = _Harness(tmp_path)
+        _report_with_review(harness)
+        sequence = harness.unit.current_commit_sequence()
+        with pytest.raises(ExportRefused, match="policy is unavailable"):
+>           harness.command(
+                action="export_report",
+                expected=0,
+                intent_id="unknown-policy",
+                request_id="unknown-policy",
+                parameters={
+                    "report_id": "report-1",
+                    "kind": "markdown_summary",
+                    "redaction_policy_version": "unknown-policy/99",
+                },
+            )
+
+tests\unit\test_saved_exports.py:750: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <tests.unit.test_saved_reports._Harness object at 0x000002710C0CD550>
+action = 'export_report', expected = 0
+parameters = {'report_id': 'report-1', 'kind': 'markdown_summary', 'redaction_policy_version': 'unknown-policy/99'}
+intent_id = 'unknown-policy', request_id = 'unknown-policy'
+
+    def command(
+        self,
+        *,
+        action: str,
+        expected: int,
+        parameters: dict[str, object],
+        intent_id: str,
+        request_id: str,
+    ) -> dict[str, object]:
+        handler = {
+            "create_report": self.service.create_report,
+            "record_local_review": self.service.record_local_review,
+            "export_report": self.exports.export_report,
+        }[action]
+        return dict(
+            handler(
+>               Command(
+                    request_id=request_id,
+                    action=action,
+                    project_id=PROJECT_ID,
+                    intent_id=intent_id,
+                    expected_revision=expected,
+                    parameters=parameters,
+                )
+            )
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, request_id must not be used as intent_id [type=value_error, input_value={'request_id': 'unknown-p...': 'unknown-policy/99'}}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\unit\test_saved_reports.py:307: ValidationError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_exports.py::test_export_refuses_unavailable_policy_instead_of_claiming_it
+1 failed, 97 passed in 121.34s (0:02:01)

@@ -314,3 +314,5 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限三种投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
 
 `select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 reviewing/partial/not_run，原 last_verified_commit 和确认记录保持。
+
+**2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、reviewing/partial/not_run、签署与 last_verified_commit 均不变。

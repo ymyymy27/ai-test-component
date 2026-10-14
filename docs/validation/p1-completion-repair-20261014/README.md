@@ -11,13 +11,27 @@
 
 前一批已补的 R 源快照/证据冻结、同次 query_page、整个只读视图外层配对、准确交付提测关联、显式宿主上下文/迟到回执及持久迁移检查点闸门仍见原批取证。
 
+## 进一步复核：ZIP 路径守卫已修
+
+运行全量期间只做纯内存路径探针，不启动其他重测试或改动冻结产品源码。实际 `_bundle`、已验证形状的 EvidenceFact、合成报告上下文与内存对象读取共同证明：`../../escape`、反斜线穿越、`CON` 和大小写重名均被接受，见[生成反例](zip-path-counterexample.log)；同样材料的永久对象摘要正确时，公共旧制品回读守卫也未拒绝，见[旧包反例](zip-legacy-counterexample.log)。没有解压这些路径，不作为真实 AC 证据。
+
+按[报告架构第 5 节](../../项目文档/一期/架构文档/03-报告与缺陷.md#5-范围环境和可携带导出)的规范相对路径/拒绝覆盖要求，隔离副本先验证[生成预览](zip-path-preview.log)/[旧包预览](zip-legacy-preview.log)均拒绝四组输入；原全量结束后已实际应用到产品源码。保留名、控制字符和大小写规则参照 [Microsoft 文件命名规范](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file)。
+
+生成与原意图/相同冻结键回读共同检查成员路径、大小写/Unicode 重名、普通文件属性和清单路径/目录对应；清单预算 8 MiB，仅支持 stored/deflate，不解压附件。当前实际投影仅为 1.0，未知请求策略拒绝，避免记录声称另一策略但产物仍用 1.0。真实 UOW 拒绝前不提交、Unicode/安全下级路径/COM10 正向、保留名/控制/重名/符号链接/不完整清单/预算与压缩反向均已覆盖。
+
+[五文件最终回归](repair-verified.xml) 98 passed / 0 failed，[导出最后整文件](zip-budget-final.xml) 42 passed / 0 failed，均覆盖受改动路径的既有断言，不拼接为全量。首次新增策略测试误将 request_id 和 intent_id 写成同值，被 Command 校验器拒绝（[原失败](repair-targeted.log)），修正测试输入后整组重跑。ruff/strict mypy 249 通过；旧失败与所有辅助脚本错误保留。
+
+[旧生成器实际字节向量](zip-legacy-vectors.json)以 Base64 归档供回读回归，含 SHA-256 和准确来源提交；[生成探针](probe_zip_attachment_paths.py)与[回读探针](probe_zip_legacy_recall.py)可复现。首次生成探针曾传错辅助参数顺序，见[辅助脚本错误](zip-path-probe-helper-error.json)，已修正；该异常不是产品反例。
+
 ## 全量检查与中断
 
 2026-10-13 全量停在约 25%，没有完成回执/JUnit，原进程已不存在：[原中断登记](../p1-completion-repair-20261013/full-interrupted.json)与 [原日志](../p1-completion-repair-20261013/full.log)保留，不能登记通过或与重跑相加。
 
-本批在独立干净锁定 3.13.0 环境重新执行全部 **5297 个节点**：[准确命令](full-command.json)、[运行状态](full-state.json)、[原输出](full.log)。当前执行中，结束前不写通过。单次后台进程隐藏启动，可跨会话核对 PID、命令与原状态；不并行其他重测试，不自动重放失败用例。
+本批在独立干净锁定 3.13.0 环境执行全部 **5297 个节点**：[准确命令](full-command.json)、[完成状态](full-state.json)、[原输出](full.log)、[JUnit](full.xml)、[完整分析](full-analysis.json)。结果 **5290 passed / 1 failed / 6 skipped / 1 warning**，退出 1，23217.62 秒（6 小时 26 分 57 秒）。这是 ZIP/测试助手修复前的完整失败批次，不能登记为修后全量通过。
 
-运行中已出现一个失败；按收集顺序定位为 `test_command_adapter_reaps_child_process_group`，见[定位记录](first-failure-locator.json)。完整错误回执尚未生成，不能提前认定是产品清理缺陷或夹具时限；保留整轮输出，结束后按实际原因修复并覆盖既有用例。
+唯一失败为 `test_command_adapter_reaps_child_process_group`：子进程 PID 已打印，但辅助 tasklist 文本采集在 PYTHONUTF8 下解码本机 CP936 原生输出失败，阅读线程异常后 stdout 为 None，继而 TypeError。已改为二进制采集、仅按 CSV ASCII PID 精确列核对，非零退出不当“已终止”；新增本机编码/精确 PID/探针失败反例。原 150ms 超时及实际子进程终止断言未放宽，修后该实际进程用例通过且无线程警告。
+
+6 个跳过分别为 3 个符号链接权限不足和 3 个临时目录位于 Git 工作树内；后者已准备仓库外可写目录实测。修后实际收集 **5331** 节点，[新全量取证](../p1-final-closure-20261014/README.md)单独记录，不覆盖本轮原回执或把局部数字相加。
 
 [源码指纹](tested-source-inventory.json)覆盖全部核心/测试/脚本与受改 TS；[facts.json](facts.json)记录规模/动作与版本。全文件指纹不等于逐行安全审计。
 

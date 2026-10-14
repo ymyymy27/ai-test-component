@@ -1,0 +1,132 @@
+[
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r"
+    },
+    "expected_accepts": true,
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "panel",
+      "run_id": "r"
+    },
+    "expected_accepts": true,
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d",
+      "revision": 2,
+      "submission_id": "s"
+    },
+    "expected_accepts": true,
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d"
+    },
+    "expected_accepts": true,
+    "model_accepts": true,
+    "schema_accepts": true
+  },
+  {
+    "input": {
+      "view": "run"
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": null
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r",
+      "revision": null
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d",
+      "run_id": "r"
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "delivery",
+      "delivery_id": "d",
+      "revision": true
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r\n"
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": " "
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "r",
+      "latest": true
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "other"
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  },
+  {
+    "input": {
+      "view": "run",
+      "run_id": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+    },
+    "expected_accepts": false,
+    "model_accepts": false,
+    "schema_accepts": false
+  }
+]

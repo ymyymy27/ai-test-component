@@ -463,3 +463,5 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 同批只读 MCP 工具 aitest_read_view 仅在 doctor 广告 read_view 时出现，参数范围与核心一致，项目/绑定身份由原 MCP 上下文固定，禁止 arguments 覆盖。每次读取前后仍核对绑定准确修订；不授予人工动作，不扩充写白名单。外层 commit_id/event_cursor 是整个读取窗口的边界，内层 snapshot_commit_id/snapshot_cursor 仍为执行事实身份，不能相互替代。
 
 2026-10-14 同批参数合同补证：生成 ReadViewQuery Schema 用 oneOf 明确三种投影的必填/禁止组合，身份不得为空白或含控制字符；标准 JSON Schema 的尾换行宽松锚点不能扩大核心接受范围，增加显式否定控制字符。14 个向量与模型一致，接口/旧记录/人工边界不改，局部证据见[续检](../../../validation/p1-completion-repair-20261014/README.md)，不新增真实对拍。
+
+**2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、reviewing/partial/not_run、签署与 last_verified_commit 均不变。

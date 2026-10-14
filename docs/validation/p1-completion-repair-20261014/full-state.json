@@ -1,15 +1,8 @@
 {
-  "state": "running",
+  "state": "finished",
   "runner_pid": 29576,
   "child_pid": 25120,
+  "exit_code": 1,
   "started_at": "2026-10-13T16:44:31.846966+00:00",
-  "command": [
-    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
-    "-m",
-    "pytest",
-    "tests",
-    "-ra",
-    "--basetemp=E:\\ai-test-component\\.runtime\\tmp\\completion-full14",
-    "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-completion-repair-20261014\\full.xml"
-  ]
+  "ended_at": "2026-10-13T23:11:33.715563+00:00"
 }

@@ -1,3 +1,5 @@
+import csv
+import io
 import os
 import subprocess
 import sys
@@ -151,10 +153,7 @@ def test_command_adapter_flushes_early_output_before_process_exit(tmp_path: Path
     store = FileSpoolStore(tmp_path)
     adapter = _adapter(store, block_size=1)
     script = (
-        "import sys, time; "
-        "print('EARLY', flush=True); "
-        "time.sleep(0.5); "
-        "print('LATE', flush=True)"
+        "import sys, time; print('EARLY', flush=True); time.sleep(0.5); print('LATE', flush=True)"
     )
     handle = adapter.start(_request("python", ("-c", script)))
 
@@ -213,9 +212,7 @@ def test_windows_job_cleanup_waits_until_active_processes_reach_zero(
         ) -> int:
             accounting = command_module.ctypes.cast(
                 info,
-                command_module.ctypes.POINTER(
-                    command_module._JobBasicAccountingInformation
-                ),
+                command_module.ctypes.POINTER(command_module._JobBasicAccountingInformation),
             ).contents
             accounting.ActiveProcesses = 0
             return 1
@@ -293,16 +290,51 @@ def _process_is_alive(pid: int) -> bool:
             ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
             stdin=subprocess.DEVNULL,
             capture_output=True,
-            text=True,
             check=False,
             shell=False,
         )
-        return str(pid) in result.stdout
+        if result.returncode != 0:
+            raise RuntimeError("tasklist could not inspect the child process")
+        # Native tasklist uses the Windows console code page, not PYTHONUTF8.
+        # Only the ASCII PID column is needed; preserve it without a locale guess.
+        rows = csv.reader(io.StringIO(result.stdout.decode("ascii", errors="replace")))
+        return any(len(row) >= 2 and row[1] == str(pid) for row in rows)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     return True
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        ("信息: 没有运行的任务与指定标准匹配。\r\n".encode("gbk"), False),
+        ('"进程.exe","123","Console","1","1,234 K"\r\n'.encode("gbk"), True),
+        (b'"python.exe","1230","Console","1","123 K"\r\n', False),
+    ],
+)
+def test_process_probe_reads_native_csv_pid_without_utf8_assumption(
+    monkeypatch: pytest.MonkeyPatch, stdout: bytes, expected: bool
+) -> None:
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(
+        subprocess, "run", lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, stdout, b"")
+    )
+    assert _process_is_alive(123) is expected
+
+
+def test_process_probe_does_not_treat_command_failure_as_child_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, b"", b"error"),
+    )
+    with pytest.raises(RuntimeError, match="could not inspect"):
+        _process_is_alive(123)
 
 
 def test_command_adapter_handles_empty_output(tmp_path: Path) -> None:

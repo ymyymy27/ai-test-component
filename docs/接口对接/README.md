@@ -271,3 +271,5 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 后续补齐：AB 1.45 同次有限页/全视图外层配对与准确交付提测关联；AC 1.9 持久迁移检查点跨重启写闸门。CORE 1.85 增加协商式 read_view 与只读 MCP 工具，人工 select_case_reuse 仍不得由 relay 代签；局部证据不升为真实对拍。
 
 2026-10-14 补证：同批 ReadViewQuery Schema 的有限组合/控制字符与模型对账，桥接拒绝不照抄 stderr 代码；3.11/3.12 子套件与三环境锁定安装已补，全量新批次及前批中断见[续检](../validation/p1-completion-repair-20261014/README.md)。局部检查不替代对接状态或签署。
+
+2026-10-14 后续实现补齐：CD/CORE/BD 记录 ZIP 路径/重名、旧包回读、清单与目录精确关联及有界读取、未知投影策略拒绝。原全量 5290/1/6 与失败原因保留，修后五文件 98、导出最终整文件 42 通过；当前源码的新全量见[最终检查](../validation/p1-final-closure-20261014/README.md)。合同版本、reviewing/partial/not_run、原签署及 last_verified_commit 不变。

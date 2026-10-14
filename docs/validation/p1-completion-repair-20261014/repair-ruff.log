@@ -1,0 +1,74 @@
+E501 Line too long (104 > 100)
+   --> src\aitest\application\review\saved_exports.py:167:101
+    |
+165 |                 if key in keys:
+166 |                     raise ExportRefused("evidence bundle member paths collide")
+167 |                 if item.filename != item.orig_filename or stat.S_IFMT(item.external_attr >> 16) not in {
+    |                                                                                                     ^^^^
+168 |                     0, stat.S_IFREG,
+169 |                 }:
+    |
+
+E501 Line too long (102 > 100)
+   --> tests\unit\test_command_adapter.py:337:101
+    |
+335 |     monkeypatch.setattr(os, "name", "nt")
+336 |     monkeypatch.setattr(
+337 |         subprocess, "run", lambda *args, **kwargs: subprocess.CompletedProcess(args, 1, b"", b"error")
+    |                                                                                                     ^^
+338 |     )
+339 |     with pytest.raises(RuntimeError, match="could not inspect"):
+    |
+
+E501 Line too long (101 > 100)
+   --> tests\unit\test_saved_exports.py:662:101
+    |
+660 |         "format_version": "aitest.evidence-bundle/1.0",
+661 |         "files": [
+662 |             {"path": path, "size": len(blob), "sha256": "sha256:" + hashlib.sha256(blob).hexdigest()}
+    |                                                                                                     ^
+663 |             for path, blob in contents.items()
+664 |         ],
+    |
+
+E501 Line too long (131 > 100)
+   --> tests\unit\test_saved_exports.py:681:99
+    |
+681 | @pytest.mark.parametrize("name", ["evidence/evidence-1.bin", "evidence/证据.bin", "evidence/group/item.bin", "evidence/COM10.bin"])
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+682 | def test_bundle_guard_preserves_portable_unicode_and_nested_members(name) -> None:
+683 |     _verify_bundle_paths(_member_fixture([name]))
+    |
+
+E501 Line too long (105 > 100)
+   --> tests\unit\test_saved_exports.py:706:101
+    |
+706 | @pytest.mark.parametrize("mutation", ["missing", "duplicate", "foreign", "wrong_size", "unknown_format"])
+    |                                                                                                     ^^^^^
+707 | def test_bundle_guard_checks_manifest_paths_against_actual_directory(mutation) -> None:
+708 |     def alter(manifest):
+    |
+
+E501 Line too long (104 > 100)
+   --> tests\unit\test_saved_exports.py:729:101
+    |
+727 |     with pytest.raises(ExportRefused, match="policy is unavailable"):
+728 |         harness.command(
+729 |             action="export_report", expected=0, intent_id="unknown-policy", request_id="unknown-policy",
+    |                                                                                                     ^^^^
+730 |             parameters={"report_id": "report-1", "kind": "markdown_summary", "redaction_policy_version": "unknown-policy/99"},
+731 |         )
+    |
+
+E501 Line too long (126 > 100)
+   --> tests\unit\test_saved_exports.py:730:101
+    |
+728 |         harness.command(
+729 |             action="export_report", expected=0, intent_id="unknown-policy", request_id="unknown-policy",
+730 |             parameters={"report_id": "report-1", "kind": "markdown_summary", "redaction_policy_version": "unknown-policy/99"},
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+731 |         )
+732 |     assert harness.unit.current_commit_sequence() == sequence
+    |
+
+Found 7 errors.

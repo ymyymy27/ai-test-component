@@ -15,6 +15,8 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import stat
+import unicodedata
 import zipfile
 from collections.abc import Mapping
 from datetime import datetime
@@ -46,6 +48,7 @@ from aitest.application.review.saved_reports import (
 from aitest.contracts.execution_facts import EvidenceFact, ExecutionFacts
 from aitest.contracts.reuse_reference import parse_reuse_reference
 from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.json_material import decode_json
 from aitest.domain.planning.model_outbound import MaterialKind
 from aitest.domain.review.reports import (
     ReportExport,
@@ -117,6 +120,109 @@ class ExportProjectionPort(Protocol):
 
 class ExportRuntimeFactsReader(Protocol):
     def read_runtime_revision_facts(self, *, project_id: str, run_id: str) -> ExecutionFacts: ...
+
+
+_WINDOWS_DEVICE_NAMES = frozenset(
+    ("CON", "PRN", "AUX", "NUL")
+    + tuple(f"COM{digit}" for digit in "123456789¹²³")
+    + tuple(f"LPT{digit}" for digit in "123456789¹²³")
+)
+_MANIFEST_METADATA_LIMIT_BYTES = 8 * 1024 * 1024
+
+
+def _portable_member_key(path: str) -> str:
+    """Verify a portable relative member; return its conservative collision key."""
+    for component in path.split("/"):
+        if (
+            not component
+            or component in {".", ".."}
+            or component.endswith((" ", "."))
+            or any(ord(char) < 32 or ord(char) == 127 or char in '<>:"\\|?*' for char in component)
+            or component.partition(".")[0].rstrip(" ").upper() in _WINDOWS_DEVICE_NAMES
+        ):
+            raise ExportRefused("evidence bundle member path is not portable and relative")
+        try:
+            if len(component.encode("utf-8")) > 255:
+                raise ExportRefused("evidence bundle member component is too long")
+        except UnicodeError as error:
+            raise ExportRefused("evidence bundle member path cannot be encoded") from error
+    return unicodedata.normalize("NFC", path).casefold()
+
+
+def _verify_bundle_paths(content: bytes) -> None:
+    """Refuse unsafe old artifacts on both intent recall and frozen-key reuse.
+
+    Read directory metadata and a bounded manifest; never extract attachments.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            members = archive.infolist()
+            if not {"report.md", "manifest.json"} <= {item.filename for item in members}:
+                raise ExportRefused("saved evidence bundle lacks its required members")
+            keys: set[str] = set()
+            for item in members:
+                key = _portable_member_key(item.orig_filename)
+                if key in keys:
+                    raise ExportRefused("evidence bundle member paths collide")
+                if item.filename != item.orig_filename or stat.S_IFMT(
+                    item.external_attr >> 16
+                ) not in {
+                    0,
+                    stat.S_IFREG,
+                }:
+                    raise ExportRefused("evidence bundle member is not a regular portable file")
+                keys.add(key)
+            manifest_info = archive.getinfo("manifest.json")
+            if manifest_info.file_size > _MANIFEST_METADATA_LIMIT_BYTES:
+                raise ExportRefused("evidence bundle manifest exceeds its verified read budget")
+            if manifest_info.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}:
+                raise ExportRefused("evidence bundle manifest compression is unavailable")
+            with archive.open(manifest_info) as stream:
+                raw = stream.read(_MANIFEST_METADATA_LIMIT_BYTES + 1)
+            if len(raw) > _MANIFEST_METADATA_LIMIT_BYTES:
+                raise ExportRefused("evidence bundle manifest exceeds its verified read budget")
+            manifest = decode_json(raw)
+            if (
+                not isinstance(manifest, Mapping)
+                or manifest.get("format_version") != MANIFEST_FORMAT_VERSION
+                or not isinstance(manifest.get("files"), list)
+                or not isinstance(manifest.get("attachments"), list)
+            ):
+                raise ExportRefused("evidence bundle manifest paths cannot be verified")
+            by_name = {item.filename: item for item in members}
+            declared: set[str] = set()
+            for item in manifest["files"]:
+                if not isinstance(item, Mapping) or not isinstance(item.get("path"), str):
+                    raise ExportRefused("evidence bundle manifest member is unreadable")
+                path = item["path"]
+                _portable_member_key(path)
+                if (
+                    path in declared
+                    or path == "manifest.json"
+                    or path not in by_name
+                    or type(item.get("size")) is not int
+                    or item["size"] != by_name[path].file_size
+                ):
+                    raise ExportRefused("evidence bundle manifest differs from its directory")
+                declared.add(path)
+            if declared != set(by_name) - {"manifest.json"}:
+                raise ExportRefused("evidence bundle manifest does not bind every member")
+            attachments: set[str] = set()
+            for item in manifest["attachments"]:
+                if (
+                    not isinstance(item, Mapping)
+                    or not isinstance(item.get("path"), str)
+                    or item["path"] in attachments
+                    or item["path"] not in declared - {"report.md"}
+                ):
+                    raise ExportRefused("evidence bundle attachment paths cannot be verified")
+                attachments.add(item["path"])
+            if attachments != declared - {"report.md"}:
+                raise ExportRefused("evidence bundle attachment manifest is incomplete")
+    except ExportRefused:
+        raise
+    except (zipfile.BadZipFile, UnicodeError, ValueError, NotImplementedError) as error:
+        raise ExportRefused("saved evidence bundle directory cannot be verified") from error
 
 
 def _digest(value: object) -> str:
@@ -348,6 +454,8 @@ class SavedExportService:
             parameters.get("redaction_policy_version") or DEFAULT_REDACTION_POLICY_VERSION,
             "redaction_policy_version",
         )
+        if policy != DEFAULT_REDACTION_POLICY_VERSION:
+            raise ExportRefused("requested export redaction policy is unavailable")
         run_id = parameters.get("run_id")
         run_id = None if run_id is None else _text(run_id, "run_id")
 
@@ -778,6 +886,7 @@ class SavedExportService:
 
         attachments: list[dict[str, object]] = []
         contents: dict[str, bytes] = {}
+        member_keys: set[str] = set()
         by_id = self._evidence_by_id(facts, source_evidence)
         for entry in evidence_index:
             if entry["status"] != "included":
@@ -793,6 +902,10 @@ class SavedExportService:
                 missing.append({"evidence_id": evidence_id, "reason": "evidence_unreadable"})
                 continue
             relative = f"evidence/{evidence_id}.bin"
+            member_key = _portable_member_key(relative)
+            if member_key in member_keys:
+                raise ExportRefused("evidence bundle member paths collide")
+            member_keys.add(member_key)
             contents[relative] = blob
             attachments.append(
                 {
@@ -847,7 +960,9 @@ class SavedExportService:
             for path in sorted(contents):
                 info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
                 archive.writestr(info, contents[path])
-        return buffer.getvalue()
+        content = buffer.getvalue()
+        _verify_bundle_paths(content)
+        return content
 
     def _read_object_bytes(self, fact: Any) -> bytes:
         from aitest.domain.evidence.evidence import StoredObjectRef
@@ -1076,6 +1191,8 @@ class SavedExportService:
         content = self._objects.read_bytes(ref)  # type: ignore[union-attr]
         if _bytes_digest(content) != payload.get("artifact_digest"):
             raise ExportRefused("saved export artifact digest differs")
+        if payload.get("kind") == ReportExportKind.EVIDENCE_BUNDLE.value:
+            _verify_bundle_paths(content)
 
     def _commit(
         self,
