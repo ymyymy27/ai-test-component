@@ -1,0 +1,58 @@
+[
+  {
+    "path": "pyproject.toml",
+    "sha256": "1025c0d92fd856a1336bc901323a943db71a2d30220b10446bfbd79a6baadb76"
+  },
+  {
+    "path": "uv.lock",
+    "sha256": "14d13f85e4fdaed1b407ad38791202a24d71d777b6c539ae5a29eb2d398f7696"
+  },
+  {
+    "path": "src/aitest/resources/panel/package.json",
+    "sha256": "8714a5f87daf32ac69539e2645f738b430ce95c0149f93f50d2c90a1dc3e7c25"
+  },
+  {
+    "path": "src/aitest/resources/panel/package-lock.json",
+    "sha256": "0faf73028ed4d459cde52308d5500f68478455d50e552bc0018d88f7cbc4e157"
+  },
+  {
+    "path": "integrations/trae/package.json",
+    "sha256": "c0a90ef57638272e3380ec5c8a9bbc9108b49a69a935aa7b313c32bcc22ac354"
+  },
+  {
+    "path": "integrations/trae/package-lock.json",
+    "sha256": "23bfa5c6ed9fd1cfe9bd35fbb9b120f4b5bc50dd9261581d279b0743d967aff5"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/Command.json",
+    "sha256": "5beb567170d49fcc19c2594d52bfa50a143bc1b0c9c32906e7db29bf811a68d7"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/CoverageDTO.json",
+    "sha256": "fc7843597773034df6c7278a64b8f1ec12a2742b53689dbd9f7432fb303b011a"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/Event.json",
+    "sha256": "270d7550351e7ceaecf52d0334fe43951a36d94648e765743727c868638bbb82"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/ExecutionFacts.json",
+    "sha256": "bb30abd738ce0af6e559421ce93ec72d6f90a5129de6c45d828321c8433771e8"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/PreparedRun.json",
+    "sha256": "86a63519ae1a638959e38c5956e5d88e4a2f22412b7e325943bf4528873e8617"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/ReadViewQuery.json",
+    "sha256": "969fe63c1066c68bac7ea94e24fff81bf6a7331aeb1508b59e5268071dcf7650"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/Response.json",
+    "sha256": "fb0b4fa9400f6920a074bd7226f45dfa165ed216c71bdf0e10780554546736fc"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/TemplatePack.json",
+    "sha256": "1ce3651553340ad5ff06ad82af9eaf97866ddf438fe1028c0523efbfc78df0a6"
+  }
+]

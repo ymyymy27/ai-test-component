@@ -1384,3 +1384,7 @@ prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料
 ## 2026-10-13 后续补证（76ab7d2 起点）
 
 有限记录页必须由同一次 query_page 取得行与 commit/event/generation/index_version，不二次读取拼接。read_view 外层返回完整读取期间未变化的提交/事件配对；内部 DTO 的执行快照身份不更名为全视图边界。交付视图带提测时须核对其 delivery_id 和准确 delivery_record_revision，不能混入同项目其他交付。
+
+## 2026-10-14 状态读取与永久引用实现续修
+
+迁移/采集/永久引用/备份审计使用已有严格 JSON 解码，核对既有 registry/plan schema 与准确计划身份；prepared 不再借另一计划登记解除。异常材料保留，普通写/回收拒绝，重复审计不发布已核验事实。公开字段、DTO、Schema、签署和合同版本不变，reviewing/partial/not_run 保持。三个完整小文件 56 项通过，重核心/制品与新全量尚待串行验证；[准确输入/源码/回执](../../../validation/p1-state-reader-security-20261014/README.md)保留，组件接缝不证明真实核心重启/宿主/物理掉电或完整对拍。

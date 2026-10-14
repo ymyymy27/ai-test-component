@@ -74,6 +74,15 @@ def test_business_files_are_not_reclaimable(service: FileMaintenanceService) -> 
         assert business not in paths
 
 
+def test_duplicate_backup_audit_does_not_publish_fabricated_verified_fact(
+    service: FileMaintenanceService,
+) -> None:
+    material = b'{"action":"backed_up","verified":false,"verified":true}\n'
+    service._audit_path.write_bytes(material)
+    assert service.backup_facts() == ()
+    assert service._audit_path.read_bytes() == material
+
+
 def test_dry_run_preview_deletes_nothing(service: FileMaintenanceService, tmp_path: Path) -> None:
     leftover = _make_atomic_leftover(tmp_path)
     report = service.reclaim(dry_run=True)

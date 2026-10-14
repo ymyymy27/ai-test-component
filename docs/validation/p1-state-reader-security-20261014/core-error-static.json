@@ -1,0 +1,6 @@
+{
+  "ruff": 0,
+  "facts": 0,
+  "collection": 0,
+  "scope": "latest core-error candidate static/collection only"
+}
