@@ -1,0 +1,20 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests",
+    "-ra",
+    "--basetemp=C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014\\full-final",
+    "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-final-closure-20261014\\full.xml"
+  ],
+  "started_at": "2026-10-14T00:54:48.220658+00:00",
+  "source_commit": "758124ad670c1ccda84ed9023312c26299d71352",
+  "environment_overrides": {
+    "PYTHONUTF8": "1",
+    "PYTHONIOENCODING": "utf-8",
+    "TEMP": "C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014",
+    "TMP": "C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014"
+  },
+  "scope": "all 5331 collected tests, clean locked Python 3.13 environment; no other heavy tests concurrently"
+}

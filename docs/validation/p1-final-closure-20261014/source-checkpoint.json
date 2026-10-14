@@ -1,0 +1,7 @@
+{
+  "source_commit": "758124ad670c1ccda84ed9023312c26299d71352",
+  "checked_at": "2026-10-14T00:57:45.035707+00:00",
+  "paths": 600,
+  "changed_paths": [],
+  "scope": "lightweight byte comparison while full suite is running; not a completed test verdict"
+}

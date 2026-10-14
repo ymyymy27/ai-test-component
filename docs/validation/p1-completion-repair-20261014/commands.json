@@ -136,6 +136,8 @@
   {
     "command": "full-command.json",
     "state": "full-state.json",
-    "scope": "running; no inferred exit or result until complete"
+    "scope": "completed original source dba1d4b: 5290 passed / 1 failed / 6 skipped; repaired source full suite recorded separately",
+    "result": "full-result.json",
+    "exit_code": 1
   }
 ]

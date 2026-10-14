@@ -94,5 +94,11 @@
     ],
     "exit_code": 0,
     "log": "../p1-completion-repair-20261014/repair-artifacts.log"
+  },
+  {
+    "command": "full-command.json",
+    "state": "full-state.json",
+    "source_commit": "758124ad670c1ccda84ed9023312c26299d71352",
+    "scope": "running all 5331 collected tests; no exit code or passed count until finished"
   }
 ]

@@ -305,28 +305,28 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "4f9cc6280edce5c0a3f4c786a00e4afb9a30ea2b398711d26701acaada1d06cd",
-    "current_sha256": "92fa975532d45a14b4113375ad78b29e7e121c993103e6c653c0ceca2767082f"
+    "current_sha256": "614dabe33c94d9ebc6c895d55d0f17f9e7d4f89f7df570c23868ebb1473501aa"
   },
   {
     "path": "docs/一期工程检查-B包.md",
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "7f43c480f57d183ea78aceed43b7f70977bad0890863668c4a0ed6f0674a9cdf",
-    "current_sha256": "118f0eb3ba6470664d9cc19aefe31094461366341a2de1ab667d929bdaa06472"
+    "current_sha256": "04d7a328401ee6815d38eba6ee0f801fda65d54e5d0373a7224f10d59570e0c4"
   },
   {
     "path": "docs/一期工程检查-C包.md",
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "96739072d33b3990e278365553356d04367cc8cff6d20e619054a148f58a544c",
-    "current_sha256": "4272b80db8ef1a10f963bc868c8bb4c9b58411bd8c81d712622881308052b723"
+    "current_sha256": "f80b95636c0a5f8ebe2c85cb4768eb3d8ecff0f7136fa975105ddc28a88ba096"
   },
   {
     "path": "docs/一期工程检查-D包.md",
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "cdce315c5bd7224f6fc96d44fa4966d02e93da2a7bc7bf54dd859e28a937309c",
-    "current_sha256": "67115fd3b7c9a7d9597ac1efad5455853b2bf54a62f645621562683ceb632c3b"
+    "current_sha256": "d10fa11930b90187fc30fd673453f95364a849402361cbb0897b80b184187335"
   },
   {
     "path": "docs/修改日志/2026-10-14-一期欠缺边界续修与检查.md",
@@ -403,6 +403,6 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b32e9ed9603688451973ade50598117bb43e505ac7e92ef09e34452f93370018",
-    "current_sha256": "f10d79f5e3c317be827cd70afc3065d7ea0d1110e6658e8f867d3bf01a7a4f96"
+    "current_sha256": "6483840c9dc75c705b5d7fcf5d3c3bf429c3bf6e849f37daa3e31e9a567e882f"
   }
 ]
