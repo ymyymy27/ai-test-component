@@ -1,0 +1,52 @@
+{
+  "result": "passed",
+  "source_commit": "6d42115f12a068f54b3a5732449d6ac375275c15",
+  "saved_at": "2026-10-14T07:10:03.701154+00:00",
+  "scope": "two exact real probe/FileUOW component tests only; human consent/environment claims remain fixtures; full suite and real product acceptance not inferred",
+  "checked_paths": 601,
+  "source_drift": [],
+  "phases": [
+    {
+      "nodeid": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[False]",
+      "when": "setup",
+      "outcome": "passed",
+      "duration": 0.005548999999973603,
+      "updated_at": "2026-10-14T07:03:04.621976+00:00"
+    },
+    {
+      "nodeid": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[False]",
+      "when": "call",
+      "outcome": "passed",
+      "duration": 204.5309578,
+      "updated_at": "2026-10-14T07:06:29.159331+00:00"
+    },
+    {
+      "nodeid": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[False]",
+      "when": "teardown",
+      "outcome": "passed",
+      "duration": 0.0003573999999844091,
+      "updated_at": "2026-10-14T07:06:29.199500+00:00"
+    },
+    {
+      "nodeid": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[True]",
+      "when": "setup",
+      "outcome": "passed",
+      "duration": 0.0021890000000439613,
+      "updated_at": "2026-10-14T07:06:29.203241+00:00"
+    },
+    {
+      "nodeid": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[True]",
+      "when": "call",
+      "outcome": "passed",
+      "duration": 179.9461609,
+      "updated_at": "2026-10-14T07:09:29.150228+00:00"
+    },
+    {
+      "nodeid": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[True]",
+      "when": "teardown",
+      "outcome": "passed",
+      "duration": 0.00046369999995476974,
+      "updated_at": "2026-10-14T07:09:29.162231+00:00"
+    }
+  ]
+}
