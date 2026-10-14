@@ -18,6 +18,24 @@ def save(name,data):
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+def process_alive(pid):
+ if type(pid) is not int or pid<=0: return False
+ if os.name=='nt':
+  import ctypes
+  from ctypes import wintypes
+  kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+  kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
+  kernel.OpenProcess.restype=wintypes.HANDLE
+  handle=kernel.OpenProcess(0x1000,False,pid)
+  if not handle: return False
+  try:
+   code=wintypes.DWORD()
+   return bool(kernel.GetExitCodeProcess(handle,ctypes.byref(code))) and code.value==259
+  finally: kernel.CloseHandle(handle)
+ try: os.kill(pid,0)
+ except OSError: return False
+ return True
+
 def frozen():
  inventory=json.loads((out/'source-inventory.json').read_text(encoding='utf-8'))
  changed=[item['path'] for item in inventory if hashlib.sha256((root/item['path']).read_bytes()).hexdigest()!=item['sha256']]
@@ -36,6 +54,8 @@ try:
    save('baseline-result.json',json.loads((baseline/'full-result.json').read_text(encoding='utf-8')))
    break
   if state['state']!='running': raise RuntimeError('baseline has no complete verdict; candidate queue remains unverified')
+  if not process_alive(state.get('runner_pid')) or not process_alive(state.get('child_pid')):
+   raise RuntimeError('baseline process is absent; stale running state cannot keep this queue waiting')
   time.sleep(30)
  frozen()
  env={**os.environ,'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8','PYTHONPATH':os.pathsep.join((str(root/'src'),str(root))),'TEMP':str(temporary),'TMP':str(temporary)}
