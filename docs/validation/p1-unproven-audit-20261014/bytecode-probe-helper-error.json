@@ -1,0 +1,5 @@
+{
+  "scope": "helper error; not a product verdict",
+  "error": "AttributeError: source binding state is a string, not an Enum",
+  "repair": "log verdict.state directly; keep this attempt separate from the actual counterexample"
+}

@@ -275,3 +275,30 @@ def test_windows_case_insensitive_scope_match(tmp_path: Path) -> None:
     )
     assert verdict.state == "verified"
     assert verdict.blocked is False
+
+
+def test_probe_does_not_verify_source_bytes_after_executing_stale_bytecode(tmp_path):
+    import importlib.util
+    import marshal
+    import struct
+
+    source = tmp_path / "cache_subject.py"
+    source.write_text("value = 'declared source'\n", encoding="utf-8")
+    cache = Path(importlib.util.cache_from_source(str(source)))
+    cache.parent.mkdir()
+    injected = compile(
+        "print('ATTEST_BYTECODE_CANARY')\nvalue = 'different code'\n", str(source), "exec"
+    )
+    metadata = source.stat()
+    content = (
+        importlib.util.MAGIC_NUMBER
+        + struct.pack("<III", 0, int(metadata.st_mtime), metadata.st_size)
+        + marshal.dumps(injected)
+    )
+    cache.write_bytes(content)
+    observed = PythonLoadSourceProbe().probe(materialized_root=tmp_path, modules=("cache_subject",))
+    assert observed.probe_error is None
+    assert b"ATTEST_BYTECODE_CANARY" not in observed.raw_output
+    assert observed.modules[0].sha256 == file_sha256(source)
+    assert cache.read_bytes() == content
+    assert sorted(p.name for p in cache.parent.iterdir()) == [cache.name]

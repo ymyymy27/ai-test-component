@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from aitest.domain.evidence.objects import StoredObjectRef as StoredObjectRef
 from aitest.domain.execution.sources import SourceBindingKind
 
 
@@ -132,21 +133,6 @@ class EvidenceLevel(StrEnum):
     MANUAL_ASSOCIATED = "manual_associated"
     INSUFFICIENT = "insufficient"
     UNKNOWN = "unknown"
-
-
-@dataclass(frozen=True, slots=True)
-class StoredObjectRef:
-    project_id: str
-    digest: str
-    size: int
-    media_type: str
-    relative_path: str
-
-    def __post_init__(self) -> None:
-        for name in ("project_id", "digest", "media_type", "relative_path"):
-            _require_text(getattr(self, name), name)
-        if self.size < 0:
-            raise ValueError("size must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)

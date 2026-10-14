@@ -1,0 +1,19 @@
+[
+  "src/aitest/application/execution/action_resolver.py",
+  "src/aitest/application/execution/authorization.py",
+  "src/aitest/application/execution/commit.py",
+  "src/aitest/application/ports.py",
+  "src/aitest/application/review/saved_exports.py",
+  "src/aitest/bootstrap.py",
+  "src/aitest/contracts/read_views.py",
+  "src/aitest/contracts/views.py",
+  "src/aitest/domain/evidence/evidence.py",
+  "src/aitest/domain/execution/authorization.py",
+  "src/aitest/domain/execution/sources.py",
+  "src/aitest/infrastructure/adapters/execution/python_checks.py",
+  "tests/unit/test_a_a08_load_source_probe.py",
+  "tests/unit/test_action_resolver.py",
+  "tests/unit/test_default_start_source_chain.py",
+  "tests/unit/test_read_view_relay.py",
+  "tests/unit/test_saved_exports.py"
+]

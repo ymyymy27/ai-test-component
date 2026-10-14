@@ -1,0 +1,10 @@
+{
+  "scope": "isolated candidate branch; collection is not execution",
+  "modules": 236,
+  "lines": 73227,
+  "test_files": 353,
+  "test_lines": 81735,
+  "collected_nodes": 5355,
+  "mypy_files": 248,
+  "collection_method": "single full pytest collection; sum of per-file counts from collect.log, not historical executions"
+}

@@ -45,6 +45,7 @@ from aitest.domain.approvals import (
     ApprovalMaterialRef,
     ApprovalRequired,
 )
+from aitest.domain.evidence.evidence import CodeIdentity
 from aitest.domain.execution.authorization import (
     AuthorizationState,
     ResolvedExecutionAction,
@@ -60,10 +61,19 @@ from aitest.domain.execution.runs import (
     StepState,
     attempt_start_basis,
 )
+from aitest.domain.execution.sources import ExecutionSourceVerification, SourceBindingKind
 
 
 def _identity(prefix: str, *values: object) -> str:
     return prefix + _digest(list(values))[7:]
+
+
+def _action_payload(action: ResolvedExecutionAction) -> dict[str, Any]:
+    """Preserve legacy action bytes; source observations belong to the new layout."""
+    payload = _payload(action)
+    if action.source_verification is None:
+        payload.pop("source_verification")
+    return payload
 
 
 class ExecutionResolutionUnavailable(ApprovalRequired):
@@ -94,7 +104,8 @@ class SavedExecutionAuthorizationResolver:
                 "materials",
                 "input_digest",
             }
-            or raw["schema_version"] != "aitest.resolved-execution-action/1.0"
+            or raw["schema_version"]
+            not in {"aitest.resolved-execution-action/1.0", "aitest.resolved-execution-action/1.1"}
             or raw["workspace_id"] != self.workspace_id
         ):
             raise ApprovalRequired("resolved action has unknown fields or workspace")
@@ -102,11 +113,17 @@ class SavedExecutionAuthorizationResolver:
             json.dumps(raw["action"]), strict=True
         )
         if (
-            identity
+            raw["schema_version"]
+            != (
+                "aitest.resolved-execution-action/1.1"
+                if action.source_verification is not None
+                else "aitest.resolved-execution-action/1.0"
+            )
+            or identity
             != _identity("execution-action-", self.workspace_id, project, action.request.intent_id)
             or action.request.project_id != project
             or raw["input_digest"] != _digest(raw["action"])
-            or raw["action"] != _payload(action)
+            or raw["action"] != _action_payload(action)
             or action.request.authorization_ref.authorization_id
             != _identity("execution-grant-", self.workspace_id, project, action.request.intent_id)
             or action.attempt.attempt_id
@@ -467,6 +484,14 @@ class ExecutionAuthorizationService:
         attempt_id = _identity("execution-attempt-", self.workspace_id, project_id, intent_id)
         resolved = replace(
             resolved,
+            source_verification=(
+                replace(
+                    resolved.source_verification,
+                    verification_id="source-verification:" + attempt_id,
+                )
+                if resolved.source_verification is not None
+                else None
+            ),
             attempt=replace(
                 resolved.attempt, attempt_id=attempt_id, authorization_ref=authorization
             ),
@@ -481,12 +506,16 @@ class ExecutionAuthorizationService:
             raise ApprovalRequired("resolved execution has no registered current run")
         self._actual(prepared)
         raw = {
-            "schema_version": "aitest.resolved-execution-action/1.0",
+            "schema_version": (
+                "aitest.resolved-execution-action/1.1"
+                if resolved.source_verification is not None
+                else "aitest.resolved-execution-action/1.0"
+            ),
             "workspace_id": self.workspace_id,
             "project_id": project_id,
-            "action": _payload(resolved),
+            "action": _action_payload(resolved),
             "materials": [_payload(ref) for ref in references],
-            "input_digest": _digest(_payload(resolved)),
+            "input_digest": _digest(_action_payload(resolved)),
         }
         self.unit.begin(request_id, project_id)
         try:
@@ -603,6 +632,26 @@ class ExecutionAuthorizationService:
             self.unit.rollback(request_id)
             raise
         return _payload(action.request.authorization_ref)
+
+    def source_at_start(
+        self, *, project_id: str, attempt: Attempt
+    ) -> tuple[ExecutionSourceVerification | None, CodeIdentity | None]:
+        if attempt.authorization_ref is None:
+            raise ApprovalRequired("source publication requires original execution authority")
+        _, action = self._origin(project_id, attempt.authorization_ref.authorization_id)
+        if attempt_start_basis(action.attempt) != attempt_start_basis(
+            replace(attempt, intent_digest="")
+        ) or attempt.intent_digest != execution_start_fingerprint(action.attempt, action.request):
+            raise ApprovalRequired("source observation belongs to another execution action")
+        if action.source_verification is None:
+            return None, None
+        _, _, prepared, _ = self._context(project_id, action.request.run_id, action.request.step_id)
+        return action.source_verification, CodeIdentity(
+            binding_kind=SourceBindingKind(prepared.binding_form.value),
+            workspace_ref=self.workspace_id, commit_id=prepared.git_base_commit,
+            file_manifest_digest=prepared.plain_manifest_digest,
+            revision_ref=prepared.snapshot.source_snapshot_id,
+        )
 
     def _recall_grant(
         self, project: str, identity: str, parameters: Mapping[str, object], challenge_id: str

@@ -26,6 +26,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Literal, TypedDict, cast
 
 from aitest.domain.execution.runs import (
@@ -264,13 +265,18 @@ class PythonLoadSourceProbe:
             {"root": str(root), "modules": names, "pythonpath": pythonpath}
         )
         try:
-            completed = subprocess.run(
-                [self._executable, "-E", "-c", _PROBE_SCRIPT, payload],
-                capture_output=True,
-                timeout=self._timeout,
-                env=env,
-                check=False,
-            )
+            # A matching timestamp/size in an input .pyc does not prove that its
+            # code matches the declared .py bytes. Read caches only from a fresh
+            # private location and disable cache writes, including source bytes.
+            with TemporaryDirectory(prefix="aitest-source-cache-") as cache_root:
+                completed = subprocess.run(
+                    [self._executable, "-E", "-B", "-X", "pycache_prefix=" + cache_root,
+                     "-c", _PROBE_SCRIPT, payload],
+                    capture_output=True,
+                    timeout=self._timeout,
+                    env=env,
+                    check=False,
+                )
         except OSError as exc:
             raise PythonSourceProbeError(f"解释器无法启动: {self._executable}") from exc
         except subprocess.TimeoutExpired as exc:

@@ -1,0 +1,31 @@
+E501 Line too long (103 > 100)
+   --> src\aitest\application\execution\commit.py:820:101
+    |
+818 |                         updated_facts = updated_facts.model_copy(
+819 |                             update={
+820 |                                 "source_verifications": (*updated_facts.source_verifications, observed)
+    |                                                                                                     ^^^
+821 |                             }
+822 |                         )
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+   --> tests\unit\test_action_resolver.py:443:5
+    |
+441 |   @pytest.mark.parametrize("state", ["unknown", "unverified", "blocked", "mismatch"])
+442 |   def test_resolver_keeps_unverified_source_blocked(state) -> None:
+443 | /     from dataclasses import replace
+444 | |     from aitest.domain.execution.sources import SourceVerificationState
+    | |_______________________________________________________________________^
+445 |
+446 |       resolver = _resolver()
+    |
+help: Organize imports
+    |
+443 |     from dataclasses import replace
+444 +
+445 |     from aitest.domain.execution.sources import SourceVerificationState
+    |
+
+Found 2 errors.
+[*] 1 fixable with the `--fix` option.

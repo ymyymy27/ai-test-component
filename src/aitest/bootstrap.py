@@ -97,8 +97,13 @@ from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseEr
 from aitest.contracts.commands import Command
 from aitest.contracts.prepared_run import EnvironmentResolutionFact
 from aitest.domain.approvals import TrustedActor
+from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
-from aitest.domain.execution.sources import ExecutionSourceVerification, SourceCheckType
+from aitest.domain.execution.sources import (
+    ExecutionSourceVerification,
+    SourceCheckType,
+    SourceVerificationState,
+)
 from aitest.domain.project.context import SourceFileDigest, source_content_identity
 from aitest.infrastructure.adapters.execution.python_checks import (
     LoadSourceFact,
@@ -589,18 +594,18 @@ def _module_expectations(
 
 def _probe_output_reference(
     objects: FileObjectStore | None, project_id: str, fact: object
-) -> str | None:
-    """永久保存探针原始输出，返回可读回的对象引用（相对工作空间路径）。
+) -> StoredObjectRef | None:
+    """永久保存安全探针捕获流，返回包含摘要、大小和路径的完整对象引用。
 
     关闭条件要求"永久原始输出"：逐模块/语法结论必须能回到原始事实，而不是只有汇总状态。
-    对象按内容寻址、不可变，引用即 `objects/<project>/<sha256>` 相对路径。
+    捕获流含协议包裹和模块 stdout，使用 text/plain；对象不可变且可按摘要回读。
     """
 
     raw = getattr(fact, "raw_output", b"")
     if objects is None or not isinstance(raw, bytes) or not raw:
         return None
-    stored = objects.publish_bytes(project_id, raw, media_type="application/json; charset=utf-8")
-    return stored.relative_path
+    stored = objects.publish_bytes(project_id, raw, media_type="text/plain; charset=utf-8")
+    return stored
 
 
 def _source_verification_provider(
@@ -608,6 +613,8 @@ def _source_verification_provider(
     reader: RecordReader,
     source_analysis: SourceAnalysisService,
     objects: FileObjectStore | None = None,
+    *,
+    instance_id: str | None = None,
 ) -> Callable[[str, Mapping[str, object], Mapping[str, object]], ExecutionSourceVerification]:
     """装配层适配：合成「来源核验事实」（架构01 第 12 节 / P1-FR08 / P1-AC13）。
 
@@ -695,7 +702,8 @@ def _source_verification_provider(
                 modules=(),
                 probe_error=str(error),
             )
-        raw_reference = _probe_output_reference(objects, project_id, fact)
+        raw_object = _probe_output_reference(objects, project_id, fact)
+        raw_reference = raw_object.relative_path if raw_object is not None else None
         observed_modules: list[SourceModuleFact] = []
         modules_by_name = {item.module: item for item in fact.modules}
         for name in module_names:
@@ -766,7 +774,17 @@ def _source_verification_provider(
             expected_interpreter_ref=interpreter,
             raw_output_evidence_ref=raw_reference,
         )
-        return service.verify(request, observation)
+        verification = service.verify(request, observation)
+        if raw_object is not None and raw_object.digest != (
+            "sha256:" + hashlib.sha256(fact.raw_output).hexdigest()
+        ):
+            verification = replace(
+                verification, state=SourceVerificationState.UNVERIFIED,
+                gap_ids=(*verification.gap_ids, "source_probe_material_redacted"),
+            )
+        return replace(
+            verification, raw_output_object=raw_object, source_instance_id=instance_id,
+        )
 
     return provide
 
@@ -1177,6 +1195,7 @@ def assemble_workspace_core(
                             reader,
                             dependencies.source_analysis,
                             FileObjectStore(root),
+                            instance_id=instance_id,
                         )
                         if verify_start_source
                         else None
@@ -1200,6 +1219,7 @@ def assemble_workspace_core(
                 workspace_id=workspace.workspace_id,
                 instance_id=instance_id,
             ),
+            source_objects=FileObjectStore(root),
         )
         step_execution = SavedStepExecution(
             execution_authorizations,

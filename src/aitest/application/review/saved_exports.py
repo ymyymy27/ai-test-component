@@ -160,10 +160,15 @@ def _verify_bundle_paths(content: bytes) -> None:
             if not {"report.md", "manifest.json"} <= {item.filename for item in members}:
                 raise ExportRefused("saved evidence bundle lacks its required members")
             keys: set[str] = set()
+            directories: set[str] = set()
             for item in members:
                 key = _portable_member_key(item.orig_filename)
-                if key in keys:
+                parts = key.split("/")
+                parents = {"/".join(parts[:index]) for index in range(1, len(parts))}
+                if key in keys or key in directories or parents & keys:
                     raise ExportRefused("evidence bundle member paths collide")
+                if item.flag_bits & (1 | 64):
+                    raise ExportRefused("encrypted evidence bundle members are unavailable")
                 if item.filename != item.orig_filename or stat.S_IFMT(
                     item.external_attr >> 16
                 ) not in {
@@ -172,6 +177,7 @@ def _verify_bundle_paths(content: bytes) -> None:
                 }:
                     raise ExportRefused("evidence bundle member is not a regular portable file")
                 keys.add(key)
+                directories.update(parents)
             manifest_info = archive.getinfo("manifest.json")
             if manifest_info.file_size > _MANIFEST_METADATA_LIMIT_BYTES:
                 raise ExportRefused("evidence bundle manifest exceeds its verified read budget")

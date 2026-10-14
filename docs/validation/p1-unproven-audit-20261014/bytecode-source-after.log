@@ -1,0 +1,8 @@
+{
+  "scope": "actual interpreter component; not real host acceptance",
+  "cached_code_executed": false,
+  "source_bytes_sha256": "60f8dc631a15959ff14642e432a7542af18f1c26d60b68ba7a42faf53d070752",
+  "reported_module_sha256": "60f8dc631a15959ff14642e432a7542af18f1c26d60b68ba7a42faf53d070752",
+  "binding_state": "verified",
+  "blocked": false
+}

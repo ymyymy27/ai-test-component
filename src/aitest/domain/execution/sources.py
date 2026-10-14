@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from aitest.domain.evidence.objects import StoredObjectRef
 from aitest.domain.execution.runs import AdapterKind, FailureClass, PlanRevisionRef
 
 
@@ -82,6 +83,8 @@ class ExecutionSourceVerification:
     gap_ids: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
     verified_at: datetime | None = None
+    raw_output_object: StoredObjectRef | None = None
+    source_instance_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in (

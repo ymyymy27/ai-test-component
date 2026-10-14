@@ -1,0 +1,8 @@
+{
+  "state": "interrupted",
+  "at": "2026-10-14T02:07:14.071716+00:00",
+  "scope": "two new real FileUOW cases; no completed verdict or JUnit",
+  "reason": "actual runtime exceeded lightweight estimate; stopped to obey AGENTS prohibition on concurrent heavy tests during the baseline full suite",
+  "command": "pytest tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart",
+  "next": "run serially only after baseline p1-final-closure full suite ends"
+}

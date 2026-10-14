@@ -328,6 +328,7 @@ def test_step_content_and_intent_must_match_the_frozen_scope() -> None:
                 step_content=content,
             )
 
+
 def test_default_side_effect_class_is_unknown_not_read_only() -> None:
     from aitest.application.execution.action_resolver import default_side_effect_class
 
@@ -367,3 +368,192 @@ def test_facts_attempt_index_fails_closed() -> None:
     ):
         with pytest.raises(ActionResolutionBlocked):
             FactsAttemptIndex(reader)(_run(), _step())
+
+
+def _source_observation():
+    from aitest.domain.execution.sources import ExecutionSourceVerification, SourceVerificationState
+
+    return ExecutionSourceVerification(
+        verification_id="observed-source",
+        project_id=_run().project_id,
+        plan_revision_ref=_plan(),
+        expected_source_content_digest=_DIGEST,
+        materialized_snapshot_ref="C:/work",
+        observed_source_digest=_DIGEST,
+        state=SourceVerificationState.VERIFIED,
+        evidence_refs=("objects/project-1/" + "a" * 64,),
+    )
+
+
+def test_resolver_preserves_exact_source_observation_and_legacy_payload() -> None:
+    from aitest.application.execution.authorization import _action_payload
+
+    resolver = _resolver()
+    legacy = resolver.resolve(
+        run=_run(),
+        step=_step(),
+        intent_id="intent-1",
+        prepared=_prepared(),
+        step_content={"step_id": "step-1", "run_id": "run-1"},
+    )
+    assert legacy.source_verification is None
+    assert "source_verification" not in _action_payload(legacy)
+    observed = _source_observation()
+    resolver._source_verification_provider = lambda *_args: observed
+    action = resolver.resolve(
+        run=_run(),
+        step=_step(),
+        intent_id="intent-1",
+        prepared=_prepared(),
+        step_content={"step_id": "step-1", "run_id": "run-1"},
+    )
+    assert action.source_verification == observed
+    assert _action_payload(action)["source_verification"]["evidence_refs"] == list(
+        observed.evidence_refs
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"project_id": "foreign-project"},
+        {"materialized_snapshot_ref": "C:/foreign"},
+        {"expected_source_content_digest": "sha256:" + "b" * 64},
+        {"observed_source_digest": "sha256:" + "b" * 64},
+        {"plan_revision_ref": PlanRevisionRef("foreign-plan", 1, _DIGEST)},
+    ],
+)
+def test_resolver_refuses_source_observation_from_another_execution_scope(change) -> None:
+    from dataclasses import replace
+
+    resolver = _resolver()
+    resolver._source_verification_provider = lambda *_args: replace(_source_observation(), **change)
+    with pytest.raises(ActionResolutionBlocked):
+        resolver.resolve(
+            run=_run(),
+            step=_step(),
+            intent_id="intent-1",
+            prepared=_prepared(),
+            step_content={"step_id": "step-1", "run_id": "run-1"},
+        )
+
+
+@pytest.mark.parametrize("state", ["unknown", "unverified", "blocked", "mismatch"])
+def test_resolver_keeps_unverified_source_blocked(state) -> None:
+    from dataclasses import replace
+
+    from aitest.domain.execution.sources import SourceVerificationState
+
+    resolver = _resolver()
+    resolver._source_verification_provider = lambda *_args: replace(
+        _source_observation(), state=SourceVerificationState(state)
+    )
+    with pytest.raises(ActionResolutionBlocked):
+        resolver.resolve(
+            run=_run(),
+            step=_step(),
+            intent_id="intent-1",
+            prepared=_prepared(),
+            step_content={"step_id": "step-1", "run_id": "run-1"},
+        )
+
+
+def test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture():
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from aitest.application.execution.commit import ExecutionCommitCoordinator
+    from aitest.domain.evidence.evidence import EvidenceKind, StoredObjectRef
+    from aitest.domain.execution.sources import SourceVerificationState
+    from tests.unit.test_current_execution_snapshot import _batch
+
+    batch = _batch()
+    content = b'{"observed":"source"}'
+    reference = StoredObjectRef(
+        project_id=batch.facts.project_id,
+        digest="sha256:" + hashlib.sha256(content).hexdigest(),
+        size=len(content), media_type="application/json",
+        relative_path="objects/project-1/" + hashlib.sha256(content).hexdigest(),
+    )
+    source = replace(
+        _source_observation(), raw_output_object=reference,
+        source_instance_id="synthetic-source-component",
+        evidence_refs=(reference.relative_path,),
+    )
+    coordinator = ExecutionCommitCoordinator(
+        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
+    )
+    observed, evidence = coordinator._source_material(
+        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+    )
+    assert observed is not None and evidence is not None
+    assert evidence.evidence_kind is EvidenceKind.SOURCE_CHECK
+    assert evidence.attempt_id == batch.checkpoint.attempt.attempt_id
+    assert evidence.object_digest == reference.digest and evidence.object_size == len(content)
+    assert evidence.code_identity == _source_code_fixture(batch)
+    assert observed.evidence_refs == (evidence.evidence_id,)
+    missing, no_evidence = coordinator._source_material(
+        replace(source, raw_output_object=None), batch.facts, batch.checkpoint.attempt,
+        _source_code_fixture(batch)
+    )
+    assert missing is not None and missing.state is SourceVerificationState.UNVERIFIED
+    assert "source_probe_material_unavailable" in missing.gap_ids
+    assert no_evidence is None and not missing.evidence_refs
+
+
+@pytest.mark.parametrize("mutation", ["digest", "size", "scope", "reference", "budget"])
+def test_source_material_refuses_changed_or_foreign_saved_objects(mutation):
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from aitest.application.execution.commit import ExecutionCommitCoordinator
+    from aitest.domain.evidence.evidence import StoredObjectRef
+    from tests.unit.test_current_execution_snapshot import _batch
+
+    batch = _batch()
+    content = b'{"observed":"source"}'
+    reference = StoredObjectRef(
+        "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
+        "application/json", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
+    )
+    source = replace(
+        _source_observation(), raw_output_object=reference,
+        source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),
+    )
+    seen = []
+
+    def read(ref):
+        seen.append(ref)
+        return b'changed same length!!' if mutation == "digest" else content
+
+    if mutation == "size":
+        source = replace(source, raw_output_object=replace(reference, size=reference.size + 1))
+    if mutation == "scope":
+        source = replace(source, raw_output_object=replace(reference, project_id="foreign-project"))
+    if mutation == "reference":
+        source = replace(source, evidence_refs=("objects/foreign-project/unknown",))
+    if mutation == "budget":
+        source = replace(source, raw_output_object=replace(reference, size=8 * 1024 * 1024 + 1))
+    coordinator = ExecutionCommitCoordinator(
+        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=read)
+    )
+    with pytest.raises(ValueError):
+        coordinator._source_material(
+        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+    )
+    if mutation in {"scope", "reference", "budget"}:
+        assert not seen
+
+
+def _source_code_fixture(batch):
+    from aitest.domain.evidence.evidence import CodeIdentity
+    from aitest.domain.execution.sources import SourceBindingKind
+
+    identity = batch.facts.evidence_refs[0].code_identity
+    return CodeIdentity(
+        SourceBindingKind(identity.binding_kind.value), batch.facts.run.origin_workspace_id,
+        commit_id=identity.commit_id, file_manifest_digest=identity.file_manifest_digest,
+        revision_ref=identity.revision_ref,
+    )
