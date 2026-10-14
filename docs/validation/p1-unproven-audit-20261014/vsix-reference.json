@@ -1,5 +1,5 @@
 {
-  "candidate_source_commit": "b55374aa0e4e0027d74bf35bb7dce50d5e2d68d5",
+  "candidate_source_commit": "c55f9e0c57fd305fea35ce5a65542356cbfd0897",
   "sha256": "da853ac4b5d397c2dbc8399d26c558c3168f400c160e78af5ecb34f21176051e",
   "real_host_verified": false,
   "source": "fix frozen build reference; unchanged extension TypeScript"
