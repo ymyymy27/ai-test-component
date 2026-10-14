@@ -431,6 +431,6 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b32e9ed9603688451973ade50598117bb43e505ac7e92ef09e34452f93370018",
-    "current_sha256": "f9d61c556c635dc2f5d68dc026060c3a0c08d03be611bf7a44e7571f9e1eaf3e"
+    "current_sha256": "77db9597e5d9210c903edeb460039c71a43925fd4bf53ffd88f8a9fb1a158998"
   }
 ]
