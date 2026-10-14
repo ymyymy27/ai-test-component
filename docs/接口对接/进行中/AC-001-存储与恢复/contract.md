@@ -374,3 +374,6 @@ A 包核心启动后，C 包按以下顺序恢复：
 
 
 2026-10-14 隔离候选备份续修：备份闭包只豁免根清单，嵌套同名文件仍核对；严格 UTF-8 JSON/1.0 格式、有限清单读取、路径别名与重复字段拒绝，结构化永久材料不允许重复字段隐藏转义已知凭据。安全整文件32项通过，备份/恢复/迁移既有文件与新候选全量仍待串行结果；不宣称完整历史、独立位置/世代迁移或物理掉电通过。字段、版本、reviewing/partial/not_run、签署与last_verified_commit保持；见[本批备份反例](../../../validation/p1-unproven-audit-20261014/README.md#继续修复的备份反例)。
+
+
+2026-10-14 准入/实际运行来源发布边界：准入原始证据保存不等于后续业务进程加载范围已证明；当前快照保留 unverified/actual_execution_load_source_unverified，原授权准入观察不追改，mismatch/blocked/unknown 不降级。64项轻量选择通过，真实事务和实际加载仍待；公开DTO字段、接口版本/签署/not_run保持，见[准确反例](../../../validation/p1-unproven-audit-20261014/README.md#准入与实际运行来源不得混同)。

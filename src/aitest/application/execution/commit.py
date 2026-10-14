@@ -675,7 +675,16 @@ class ExecutionCommitCoordinator:
             integrity=EvidenceIntegrity.COMPLETE, redaction_state=RedactionState.NOT_REQUIRED,
             media_type=reference.media_type, created_at=source.verified_at,
         )
-        return replace(source, evidence_refs=(evidence.evidence_id,)), evidence
+        # A saved admission probe precedes this execution. Keep its material,
+        # but it cannot certify the business process's eventual module loading.
+        return replace(
+            source, evidence_refs=(evidence.evidence_id,),
+            state=(SourceVerificationState.UNVERIFIED
+                   if source.state is SourceVerificationState.VERIFIED else source.state),
+            gap_ids=tuple(dict.fromkeys((
+                *source.gap_ids, "actual_execution_load_source_unverified",
+            ))),
+        ), evidence
 
     def claim_start(
         self,

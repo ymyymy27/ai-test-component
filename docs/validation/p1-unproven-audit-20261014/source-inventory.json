@@ -133,7 +133,7 @@
   },
   {
     "path": "src/aitest/application/execution/commit.py",
-    "sha256": "ab66d80bd13adf03d58f14de2cce4cd6f0c3f4e341adbe1578551abd33d51f78"
+    "sha256": "1487fd05f08ef29c5bd786ad50e5e954f3905856549a9d1ba9e14b49731981a4"
   },
   {
     "path": "src/aitest/application/execution/continuation.py",
@@ -1365,7 +1365,7 @@
   },
   {
     "path": "tests/unit/test_action_resolver.py",
-    "sha256": "97e6f8a5ab1509addb43ab3dd8fcb15e30734a6d002bf490765af0e75f19bc4e"
+    "sha256": "a6032beebccd3833016ae1814899ba47b7fb5be4ec38fea31cba9a34131e62bc"
   },
   {
     "path": "tests/unit/test_agent_claim_boundary.py",
@@ -1649,7 +1649,7 @@
   },
   {
     "path": "tests/unit/test_default_start_source_chain.py",
-    "sha256": "eb9a8e5f6d7320db6da16cf20b51ce93174b85f5a4ae9334e72b2f1685c625d4"
+    "sha256": "2375d1afc82737d58b47d4456925e419157a4b331a65dc99d30f62b843a41472"
   },
   {
     "path": "tests/unit/test_default_step_execution.py",

@@ -28,6 +28,11 @@ if (OUT / 'artifact-check-state.json').exists():
     raise RuntimeError('artifact observer already registered; refuse duplicate execution')
 save('artifact-check-state.json', {'state': 'waiting_for_build', 'runner_pid': os.getpid(), 'started_at': now()})
 try:
+    deadline = time.monotonic() + 60
+    while not (OUT / 'queue-state.json').exists():
+        if time.monotonic() >= deadline:
+            raise RuntimeError('queue did not publish its initial state within 60 seconds')
+        time.sleep(0.1)
     while True:
         state = json.loads((OUT / 'queue-state.json').read_text(encoding='utf-8'))
         completed = OUT / 'wheel-smoke-result.json'

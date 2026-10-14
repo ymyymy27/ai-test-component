@@ -1,0 +1,7 @@
+{
+  "state": "waiting_for_baseline",
+  "runner_pid": 36096,
+  "created_at": "2026-10-14T03:49:46.590177+00:00",
+  "candidate_commit": "b55374aa0e4e0027d74bf35bb7dce50d5e2d68d5",
+  "baseline": "E:\\ai-test-component\\docs\\validation\\p1-final-closure-20261014"
+}

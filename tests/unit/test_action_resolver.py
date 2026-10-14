@@ -493,6 +493,15 @@ def test_source_material_preserves_actual_object_scope_and_downgrades_missing_ca
     assert evidence.object_digest == reference.digest and evidence.object_size == len(content)
     assert evidence.code_identity == _source_code_fixture(batch)
     assert observed.evidence_refs == (evidence.evidence_id,)
+    assert observed.state is SourceVerificationState.UNVERIFIED
+    assert "actual_execution_load_source_unverified" in observed.gap_ids
+    from aitest.application.execution.facts import _source_verification_fact
+    from aitest.application.review.execution_decision_adapter import _source_state
+
+    projected = batch.facts.model_copy(update={
+        "source_verifications": (_source_verification_fact(observed),),
+    })
+    assert _source_state(projected).value == "unverified"
     missing, no_evidence = coordinator._source_material(
         replace(source, raw_output_object=None), batch.facts, batch.checkpoint.attempt,
         _source_code_fixture(batch)
@@ -545,6 +554,38 @@ def test_source_material_refuses_changed_or_foreign_saved_objects(mutation):
     )
     if mutation in {"scope", "reference", "budget"}:
         assert not seen
+
+
+@pytest.mark.parametrize("state", ["mismatch", "blocked", "unknown"])
+def test_source_material_preserves_stronger_states(state):
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from aitest.application.execution.commit import ExecutionCommitCoordinator
+    from aitest.domain.evidence.evidence import StoredObjectRef
+    from aitest.domain.execution.sources import SourceVerificationState
+    from tests.unit.test_current_execution_snapshot import _batch
+
+    batch = _batch()
+    content = b"source observation"
+    reference = StoredObjectRef(
+        "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
+        "text/plain", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
+    )
+    source = replace(
+        _source_observation(), state=SourceVerificationState(state), raw_output_object=reference,
+        source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),
+    )
+    coordinator = ExecutionCommitCoordinator(
+        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
+    )
+    observed, evidence = coordinator._source_material(
+        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+    )
+    assert observed is not None and evidence is not None
+    assert observed.state is source.state
+    assert "actual_execution_load_source_unverified" in observed.gap_ids
 
 
 def _source_code_fixture(batch):

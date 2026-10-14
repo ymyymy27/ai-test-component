@@ -225,7 +225,8 @@ def test_default_source_observation_is_atomic_and_readable_after_restart(tmp_pat
             for item in current.source_verifications
             if (item.verification_id == "source-verification:" + attempt.attempt_id)
         )
-        assert observed.state.value == "verified" and not observed.gap_ids
+        assert observed.state.value == "unverified"
+        assert observed.gap_ids == ("actual_execution_load_source_unverified",)
         evidence = next(
             item for item in current.evidence_refs if item.evidence_id in observed.evidence_refs
         )

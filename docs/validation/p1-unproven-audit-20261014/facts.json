@@ -1,10 +1,10 @@
 {
-  "scope": "isolated candidate extended by reproduced backup defects; collection is not execution",
+  "scope": "isolated candidate with backup and admission/runtime distinction; collection is not execution",
   "modules": 236,
-  "lines": 73243,
+  "lines": 73252,
   "test_files": 353,
-  "test_lines": 81838,
-  "collected_nodes": 5367,
+  "test_lines": 81880,
+  "collected_nodes": 5370,
   "mypy_files": 248,
-  "collection_method": "single full collection from backup-collect.log; not historical executions"
+  "collection_method": "single full collection from runtime-scope-collect.log; not historical executions"
 }

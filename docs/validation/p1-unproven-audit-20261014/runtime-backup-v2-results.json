@@ -1,0 +1,44 @@
+[
+  {
+    "python": "311",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean311\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_action_resolver.py",
+      "tests/unit/test_saved_exports.py",
+      "tests/unit/test_backup_security_integrity.py",
+      "-k",
+      "resolv or bundle_guard or source_material or backup_security",
+      "-q",
+      "-ra",
+      "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/runtime-backup-v2-311",
+      "--junitxml=C:\\Users\\86178\\.codex\\worktrees\\p1-unproven-boundaries\\ai-test-component\\docs\\validation\\p1-unproven-audit-20261014\\runtime-backup-v2-311.xml"
+    ],
+    "started_at": "2026-10-14T04:03:00.598822+00:00",
+    "ended_at": "2026-10-14T04:03:05.175370+00:00",
+    "exit_code": 0,
+    "scope": "only the 96 selected source/bundle/backup checks; not full regression"
+  },
+  {
+    "python": "312",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean312\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_action_resolver.py",
+      "tests/unit/test_saved_exports.py",
+      "tests/unit/test_backup_security_integrity.py",
+      "-k",
+      "resolv or bundle_guard or source_material or backup_security",
+      "-q",
+      "-ra",
+      "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/runtime-backup-v2-312",
+      "--junitxml=C:\\Users\\86178\\.codex\\worktrees\\p1-unproven-boundaries\\ai-test-component\\docs\\validation\\p1-unproven-audit-20261014\\runtime-backup-v2-312.xml"
+    ],
+    "started_at": "2026-10-14T04:03:05.176129+00:00",
+    "ended_at": "2026-10-14T04:03:10.451852+00:00",
+    "exit_code": 0,
+    "scope": "only the 96 selected source/bundle/backup checks; not full regression"
+  }
+]

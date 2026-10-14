@@ -249,7 +249,7 @@
     "disposition": "added",
     "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
     "baseline_sha256": null,
-    "current_sha256": "e7c91cd24857a072947444f461404d3d984497734f4a78adbf95f512aa3042b2"
+    "current_sha256": "f91d00f3aad066dead63b25550172862b5bcddc57b69cd4e380c852fba8b59b1"
   },
   {
     "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
@@ -354,7 +354,7 @@
     "disposition": "added",
     "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
     "baseline_sha256": null,
-    "current_sha256": "4d6f5fd9d9fcb8656e86a091b2f179a355dd1c00624a88ea8d095e5278c11809"
+    "current_sha256": "07dde7805750491bed8f7638f3867fd72596a67ea1e6b366c559d76994c03a2a"
   },
   {
     "path": "docs/接口对接/README.md",
@@ -382,7 +382,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b73d92616d0a0a1e37e5880ba04690e666355088750da283a0b381684b23e617",
-    "current_sha256": "35fbff43cd7e40a46edfd20780aaa78feb7155f0f255fe70dc3e5c32be2fb70d"
+    "current_sha256": "c289dc8094716f5f838dbc98dd25cd4a241eb21cda46b0721303d299a3208fd6"
   },
   {
     "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
@@ -403,7 +403,7 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "f3b71c1c556dde433ac94a19f76392d04a2f145bcfb7214108cf0fc7e969d8f5",
-    "current_sha256": "912e1fa071a5a922f8addcf36d6367c1f6889f935dd82d734c09d6421e778e81"
+    "current_sha256": "c6879b346af71c62abea444cbba27b010199fe69b734cf0d97bb470e9eab3661"
   },
   {
     "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
@@ -424,6 +424,6 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b32e9ed9603688451973ade50598117bb43e505ac7e92ef09e34452f93370018",
-    "current_sha256": "7bdd2f06fd82acbc7b3486a623dd8a0d5bb74b099c951362fc47f1ccac46e8cb"
+    "current_sha256": "75fa7ca78055683781eaeb46d705cd6088ca661860d368c05c56f7bbaf6af9c2"
   }
 ]
