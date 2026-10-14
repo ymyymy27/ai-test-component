@@ -1,0 +1,13 @@
+{
+  "result": "not_verified",
+  "source_commit": "14ea0ca194e6e2f6d11730aeb3ed2770a88392b2",
+  "collected_nodes": 5397,
+  "pytest_exit_code": 3,
+  "passed": 1112,
+  "skipped": 2,
+  "junit_cases": 1115,
+  "source_drift": [],
+  "ended_at": "2026-10-14T10:26:57.217359+00:00",
+  "cause": "validation ledger calls shared os.fsync while test_a_a08_snapshot_durability injects OSError into that same stdlib attribute; INTERNALERROR, not a product assertion failure",
+  "next_action": "preserve complete partial receipts; freeze reporter I/O callables before tests and bypass patched Path.open; verify actual fault-injection files with the reporter before fresh full suite"
+}
