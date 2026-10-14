@@ -474,3 +474,6 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 迁移/采集/永久引用/备份审计使用已有严格 JSON 解码，核对既有 registry/plan schema 与准确计划身份；prepared 不再借另一计划登记解除。异常材料保留，普通写/回收拒绝，重复审计不发布已核验事实。公开字段、DTO、Schema、签署和合同版本不变，reviewing/partial/not_run 保持。三个完整小文件 56 项通过，重核心/制品与新全量尚待串行验证；[准确输入/源码/回执](../../../validation/p1-state-reader-security-20261014/README.md)保留，组件接缝不证明真实核心重启/宿主/物理掉电或完整对拍。
 
 后续补标准核心启动异常转换及拒绝后锁释放：三个完整受改小文件现为 60 项通过。旧源码全量因可选进度记录器内部错误提前结束（734 passed / 2 skipped，exit 3），原结果不算完整对拍；记录器经真实 Win32 读共享锁复现/修复，最新主工作区合并源码转入[独立闭环验证](../../../validation/p1-current-closure-20261014/README.md)，5397 新全量完成前不更新 not_run/签署/last_verified_commit。
+
+
+2026-10-14 零字节永久引用回收守卫续修：候选识别和删除前复核均核对空字节摘要，空事件暂存不得绕过永久引用。两份完整受改小型文件 37 项通过，新增六个节点；5403 节点仅收集，旧 14ea0ca/5397 全量仍在执行。此为既有不可回收永久材料条件的实现修复，公开字段/版本、reviewing/partial/not_run、签署和 last_verified_commit 不变；完整历史闭包/迁移/真实恢复仍开放，见[本批证据](../../../validation/p1-empty-reference-20261014/README.md)。

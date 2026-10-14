@@ -279,3 +279,6 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 2026-10-14 候选备份继续修复：AC补闭包/严格清单/有限读取和重复字段凭据隐藏守卫；公开字段与1.0备份形状保留，原签署/版本/not_run不变。32项安全整文件通过，既有恢复/迁移文件与候选全量尚待；准确反例见[本批证据](../validation/p1-unproven-audit-20261014/README.md#继续修复的备份反例)。
 
 状态读取安全实现续修（2026-10-14）：CORE/AB 追加严格 JSON、已有 schema 与准确计划登记的实现/验证范围；有效字段和版本、双方签署、last_verified_commit 与 not_run 均保持。[本批证据](../validation/p1-state-reader-security-20261014/README.md)区分 56 个小型既有/新增节点与尚待串行的重核心/制品/5393 全量。
+
+
+2026-10-14 零字节回收续修：CORE/AB/AC 的实施证据同步候选与删除前永久引用检查；六个新增节点和两份完整小型文件通过，5403 仅收集。版本/对接/签署状态不变，详见[本批证明](../validation/p1-empty-reference-20261014/README.md)。

@@ -36,6 +36,7 @@ _MAINTENANCE_DIR: Final = "maintenance"
 _AUDIT_SCHEMA: Final = "aitest.maintenance-audit/1.0"
 _ACTIVE_MARKER: Final = Path("transactions") / "active.json"
 _STAGING_DIR: Final = Path("event-log") / "staging"
+_EMPTY_DIGEST: Final = hashlib.sha256(b"").hexdigest()
 _MKSTEMP_TAIL: Final = re.compile(r"[A-Za-z0-9_-]{8}")
 _PID_TMP: Final = re.compile(r"^\.(?P<base>.+)\.(?P<pid>\d+)\.tmp$")
 
@@ -325,6 +326,8 @@ class FileMaintenanceService:
             return None
         relative_posix = relative.as_posix()
 
+        if size == 0 and _EMPTY_DIGEST in referenced:
+            return None
         if _is_empty_staging(path, self._root):
             return ReclaimCandidate(relative_posix, size, "零字节空暂存文件")
 
@@ -484,6 +487,8 @@ class FileMaintenanceService:
         """删除前重新按全部事实判定，防止候选识别后状态变化。"""
         path = self._resolve_within_root(relative)
         if not path.exists() or not path.is_file():
+            return False
+        if path.stat().st_size == 0 and _EMPTY_DIGEST in self._referenced_digests():
             return False
         if _is_empty_staging(path, self._root):
             return True

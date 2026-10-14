@@ -377,3 +377,6 @@ A 包核心启动后，C 包按以下顺序恢复：
 
 
 2026-10-14 准入/实际运行来源发布边界：准入原始证据保存不等于后续业务进程加载范围已证明；当前快照保留 unverified/actual_execution_load_source_unverified，原授权准入观察不追改，mismatch/blocked/unknown 不降级。64项轻量选择通过，真实事务和实际加载仍待；公开DTO字段、接口版本/签署/not_run保持，见[准确反例](../../../validation/p1-unproven-audit-20261014/README.md#准入与实际运行来源不得混同)。
+
+
+2026-10-14 零字节永久引用回收守卫续修：候选识别和删除前复核均核对空字节摘要，空事件暂存不得绕过永久引用。两份完整受改小型文件 37 项通过，新增六个节点；5403 节点仅收集，旧 14ea0ca/5397 全量仍在执行。此为既有不可回收永久材料条件的实现修复，公开字段/版本、reviewing/partial/not_run、签署和 last_verified_commit 不变；完整历史闭包/迁移/真实恢复仍开放，见[本批证据](../../../validation/p1-empty-reference-20261014/README.md)。

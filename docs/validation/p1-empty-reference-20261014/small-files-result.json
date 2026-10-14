@@ -1,0 +1,15 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/unit/test_a_a07_reclaim_eligibility.py",
+    "tests/unit/test_a_maintenance.py",
+    "-q",
+    "--junitxml=docs\\validation\\p1-empty-reference-20261014\\small-files.xml",
+    "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/empty-reference-tests"
+  ],
+  "exit_code": 0,
+  "seconds": 3.694807767868042,
+  "scope": "candidate empty-reference guard; two complete affected small files; main full remains source 14ea0ca"
+}
