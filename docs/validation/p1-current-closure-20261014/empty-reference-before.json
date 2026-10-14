@@ -1,0 +1,28 @@
+{
+  "source_commit": "14ea0ca",
+  "scope": "disposable directories only; actual reclaim calls, no core or heavy pytest",
+  "counterexamples": [
+    {
+      "kind": "atomic",
+      "candidates": [
+        ".records.json.AbCdEf12"
+      ],
+      "state": "reclaimed",
+      "removed": [
+        ".records.json.AbCdEf12"
+      ],
+      "referenced_empty_file_preserved": false
+    },
+    {
+      "kind": "staging",
+      "candidates": [
+        "event-log/staging/1.jsonl"
+      ],
+      "state": "reclaimed",
+      "removed": [
+        "event-log/staging/1.jsonl"
+      ],
+      "referenced_empty_file_preserved": false
+    }
+  ]
+}

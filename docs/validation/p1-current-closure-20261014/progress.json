@@ -1,0 +1,6 @@
+{
+  "state": "running",
+  "worker_pid": 13156,
+  "current_test": "tests/unit/test_a_a08_snapshot_durability.py::test_fsync_failure_aborts_publish_and_cleans_tmp",
+  "updated_at": "2026-10-14T10:26:56.443355+00:00"
+}
