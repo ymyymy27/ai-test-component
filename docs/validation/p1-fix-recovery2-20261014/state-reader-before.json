@@ -1,0 +1,15 @@
+{
+  "scope": "direct component probe only; no core/pytest process or business workspace",
+  "source_commit": "6d42115",
+  "counterexamples": {
+    "duplicate_checkpoint": {
+      "maintenance_reason": null
+    },
+    "unknown_registry": {
+      "maintenance_reason": null
+    },
+    "duplicate_capture": {
+      "activity_blocker": null
+    }
+  }
+}

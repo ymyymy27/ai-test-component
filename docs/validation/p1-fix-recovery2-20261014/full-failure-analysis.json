@@ -1,0 +1,12 @@
+{
+  "result": "incomplete_runner_error",
+  "source_commit": "6d42115f12a068f54b3a5732449d6ac375275c15",
+  "exit_code": 3,
+  "business_tests_failed": 0,
+  "passed": 734,
+  "skipped": 2,
+  "reason": "pytest progress hook os.replace progress.json hit Windows access denied; INTERNALERROR interrupted suite, not a product test failure",
+  "recorded_at": "2026-10-14T08:20:46.482865+00:00",
+  "source_drift": [],
+  "next": "retry progress snapshot replacement; keep advisory progress failure from aborting tests; latest-source full run remains required"
+}

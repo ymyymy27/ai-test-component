@@ -1,0 +1,9 @@
+{
+  "state": "finished",
+  "exit_code": 3,
+  "source_commit": "6d42115f12a068f54b3a5732449d6ac375275c15",
+  "started_at": "2026-10-14T07:03:01.861140+00:00",
+  "ended_at": "2026-10-14T08:07:31.645307+00:00",
+  "source_drift": [],
+  "scope": "only a complete passing JUnit plus zero drift proves full pass; failfast is not a complete verdict"
+}
