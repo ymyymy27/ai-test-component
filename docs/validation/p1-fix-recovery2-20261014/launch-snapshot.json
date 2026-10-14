@@ -1,0 +1,8 @@
+{
+  "state": "running",
+  "source_commit": "6d42115f12a068f54b3a5732449d6ac375275c15",
+  "runner_pid": 20040,
+  "child_pid": 15184,
+  "started_at": "2026-10-14T07:03:01.861140+00:00",
+  "scope": "initial process registration only; current status must also check actual process liveness and final receipts"
+}
