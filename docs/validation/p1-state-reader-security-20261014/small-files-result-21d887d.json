@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "started_at": "2026-10-14T07:49:32.0507701Z",
+  "ended_at": "2026-10-14T07:49:37.7402282Z",
+  "scope": "three small-file unit modules, including existing tests; no real-core assembly or second heavy suite",
+  "command": "pytest test_a_migrations.py test_a_a07_reclaim_eligibility.py test_a_maintenance.py -ra"
+}

@@ -47,6 +47,13 @@ for registered_plan in (None,'different'):
 verify(migrations,'test_successful_exact_plan_registration_releases_prepared_checkpoint','manager')
 for damage in ('duplicate_checkpoint','unknown_registry','other_plan'):
     verify(migrations,'test_uncertain_migration_blocks_adapter_write_without_blocking_doctor','manager',damage)
+for material in (
+    b'{"schema":"aitest.migration-registry/1.0","applied":{},"applied":{}}',
+    b'{"schema":"unknown","applied":{}}',
+    b'{broken json',
+):
+    verify(migrations,'test_corrupt_registry_blocks_core_start_and_releases_lifetime_lock','manager',material)
+verify(migrations,'test_migration_error_is_translated_during_core_assembly','manager')
 for suffix in ('json','jsonl'):
     verify(reclaim,'test_duplicate_permanent_reference_blocks_actual_reclaim','root',suffix)
 for material in (
@@ -58,11 +65,12 @@ for material in (
 ):
     verify(reclaim,'test_ambiguous_capture_state_cannot_release_activity','root',material)
 verify(maintenance,'test_duplicate_backup_audit_does_not_publish_fabricated_verified_fact','service')
-assert len(checks)==23
+assert len(checks)==27
 changed=['src/aitest/infrastructure/file_store/migrations.py','src/aitest/infrastructure/file_store/maintenance.py',
+         'src/aitest/bootstrap.py',
          'tests/unit/test_a_migrations.py','tests/unit/test_a_a07_reclaim_eligibility.py','tests/unit/test_a_maintenance.py']
 record={'result':'passed','completed_at':datetime.now(timezone.utc).isoformat(),'loaded_source_root':str(ROOT),
-        'scope':'23 new small-file function/vector checks directly with real filesystem and three LocalAPI seams; no full pytest/JUnit, existing full-file regression, core restart or real acceptance inferred',
+        'scope':'27 new function/vector checks with real filesystem, three LocalAPI seams and early core rejection/error translation/lock release; no full pytest/JUnit, existing full-file regression, successful core restart or real acceptance inferred',
         'checks':checks,'source':[{'path':path,'sha256':hashlib.sha256((ROOT/path).read_bytes()).hexdigest()} for path in changed]}
 (OUT/'light-vectors-result.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 print(json.dumps({'result':'passed','vectors':len(checks),'source_root':str(ROOT)}))

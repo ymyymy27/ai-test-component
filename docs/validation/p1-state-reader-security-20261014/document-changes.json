@@ -256,7 +256,7 @@
     "disposition": "added",
     "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
     "baseline_sha256": null,
-    "current_sha256": "fe43f50408632325f73c7d4a67cd23aa222db9790a16fb4c3aa84c5c4837e57c"
+    "current_sha256": "0d6b9193866c85f3cf5b7f812dfac0d09281eab94d817cdf56086c18b75d78fc"
   },
   {
     "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
@@ -375,7 +375,7 @@
     "disposition": "added",
     "reason": "Record current repair reasons, actual validation scope and remaining boundaries.",
     "baseline_sha256": null,
-    "current_sha256": "cd03089bef1981c6c936e53601989b13092392aff241186c16b9dfa9731cbf33"
+    "current_sha256": "e33166198a6fb7cdbef6cb74425362f0edf8189976f3fe0c455953a17d59ce88"
   },
   {
     "path": "docs/接口对接/README.md",
@@ -445,6 +445,6 @@
     "disposition": "precisely_update_current_state",
     "reason": "Replace obsolete current conclusions; preserve stable IDs, historical inputs/results, failed evidence and signatures.",
     "baseline_sha256": "b32e9ed9603688451973ade50598117bb43e505ac7e92ef09e34452f93370018",
-    "current_sha256": "0acbd35dd5b24b940bf945b8afac34d83ba5f58e688af4ef71f0aeb2467d4f32"
+    "current_sha256": "c44226c8fa6a05902fce1affffa079642523d4c3fe0142760434771a9bf0cd99"
   }
 ]

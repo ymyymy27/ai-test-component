@@ -58,7 +58,7 @@ tests/unit/test_a_connections.py: 11
 tests/unit/test_a_credentials.py: 20
 tests/unit/test_a_event_journal.py: 15
 tests/unit/test_a_maintenance.py: 8
-tests/unit/test_a_migrations.py: 25
+tests/unit/test_a_migrations.py: 29
 tests/unit/test_a_model_provider.py: 13
 tests/unit/test_a_pipe_host.py: 9
 tests/unit/test_a_pipe_peer_rejection.py: 22

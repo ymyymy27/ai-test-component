@@ -208,6 +208,44 @@ def test_uncertain_migration_blocks_adapter_write_without_blocking_doctor(
     assert all(file.read_bytes() == content for file, content in before.items())
 
 
+@pytest.mark.parametrize(
+    "material",
+    [
+        b'{"schema":"aitest.migration-registry/1.0","applied":{},"applied":{}}',
+        b'{"schema":"unknown","applied":{}}',
+        b'{broken json',
+    ],
+)
+def test_corrupt_registry_blocks_core_start_and_releases_lifetime_lock(
+    manager: FileMigrationManager, material: bytes
+) -> None:
+    from aitest.bootstrap import CoreAssemblyBlocked, assemble_workspace_core
+
+    manager._registry_path.write_bytes(material)
+    with pytest.raises(CoreAssemblyBlocked, match="核心拒绝启动"):
+        assemble_workspace_core(manager._root, instance_id="invalid-registry-core")
+    assert manager._registry_path.read_bytes() == material
+    lock = Workspace(manager._root).admit_lifetime()
+    lock.release()
+
+
+def test_migration_error_is_translated_during_core_assembly(manager: FileMigrationManager) -> None:
+    from aitest.bootstrap import CoreAssemblyBlocked, assemble_workspace_core
+
+    before = manager._registry_path.read_bytes()
+
+    def reject(self, plan_id):
+        raise MigrationError("unreadable migration material")
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(FileMigrationManager, "apply", reject)
+        with pytest.raises(CoreAssemblyBlocked, match="提交材料迁移"):
+            assemble_workspace_core(manager._root, instance_id="migration-error-core")
+    assert manager._registry_path.read_bytes() == before
+    lock = Workspace(manager._root).admit_lifetime()
+    lock.release()
+
+
 def test_plan_is_persisted(manager: FileMigrationManager) -> None:
     plan_id = _plan(manager)
     files = list((manager._dir / "plans").glob(f"{plan_id}.json"))

@@ -1,0 +1,9 @@
+{
+  "modules": 236,
+  "lines": 73266,
+  "test_files": 353,
+  "test_lines": 82077,
+  "nodes": 5393,
+  "mypy_files": 248,
+  "scope": "isolated candidate source only; collection is not execution; main baseline is still 5370 nodes"
+}

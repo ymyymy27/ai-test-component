@@ -461,7 +461,7 @@
   },
   {
     "path": "src/aitest/bootstrap.py",
-    "sha256": "7f69b872e56531db35a640c68d18152d9d5febb89aea54e5ffab4e9bf9cf55c2"
+    "sha256": "fbf6b22c1e74ee8ba3dd740191eb68f317427ef6f57ed42a210d06b39be9f151"
   },
   {
     "path": "src/aitest/contracts/__init__.py",
@@ -1309,7 +1309,7 @@
   },
   {
     "path": "tests/unit/test_a_migrations.py",
-    "sha256": "c02b17f3d320c085deb126bfed2ace2994154e6d4def58488099e4a0e01a21aa"
+    "sha256": "cd6077468e18d82991571be45fb69d838dcc17bf755a468da453ef47530de65e"
   },
   {
     "path": "tests/unit/test_a_model_provider.py",

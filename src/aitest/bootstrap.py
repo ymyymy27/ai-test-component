@@ -145,7 +145,7 @@ from aitest.infrastructure.file_store.core_launch import (
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
 from aitest.infrastructure.file_store.maintenance import FileMaintenanceService
-from aitest.infrastructure.file_store.migrations import FileMigrationManager
+from aitest.infrastructure.file_store.migrations import FileMigrationManager, MigrationError
 from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.recovery import (
@@ -954,7 +954,7 @@ def assemble_workspace_core(
         )
         try:
             migration_report = migrations.apply(migration_plan.plan_id)
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, MigrationError) as error:
             raise CoreAssemblyBlocked("提交材料迁移无法核实，核心拒绝启动") from error
         if migration_report.state == "blocked":
             raise CoreAssemblyBlocked("权威分片迁移被未核实活动阻塞，核心拒绝启动")

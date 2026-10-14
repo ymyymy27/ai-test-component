@@ -1,8 +1,8 @@
 {
   "result": "passed",
-  "completed_at": "2026-10-14T07:46:56.618396+00:00",
+  "completed_at": "2026-10-14T08:16:45.574529+00:00",
   "loaded_source_root": "C:\\Users\\86178\\.codex\\worktrees\\p1-unproven-boundaries\\ai-test-component",
-  "scope": "23 new small-file function/vector checks directly with real filesystem and three LocalAPI seams; no full pytest/JUnit, existing full-file regression, core restart or real acceptance inferred",
+  "scope": "27 new function/vector checks with real filesystem, three LocalAPI seams and early core rejection/error translation/lock release; no full pytest/JUnit, existing full-file regression, successful core restart or real acceptance inferred",
   "checks": [
     {
       "test": "test_duplicate_checkpoint_cannot_hide_prepared_state",
@@ -80,6 +80,26 @@
       "result": "passed"
     },
     {
+      "test": "test_corrupt_registry_blocks_core_start_and_releases_lifetime_lock",
+      "arguments": "(b'{\"schema\":\"aitest.migration-registry/1.0\",\"applied\":{},\"applied\":{}}',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_corrupt_registry_blocks_core_start_and_releases_lifetime_lock",
+      "arguments": "(b'{\"schema\":\"unknown\",\"applied\":{}}',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_corrupt_registry_blocks_core_start_and_releases_lifetime_lock",
+      "arguments": "(b'{broken json',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_migration_error_is_translated_during_core_assembly",
+      "arguments": "()",
+      "result": "passed"
+    },
+    {
       "test": "test_duplicate_permanent_reference_blocks_actual_reclaim",
       "arguments": "('json',)",
       "result": "passed"
@@ -130,8 +150,12 @@
       "sha256": "a9bfe84be191d8a855f4d2c2c93adabaf54ba0bfd0d4b3d7dfc02bd095191239"
     },
     {
+      "path": "src/aitest/bootstrap.py",
+      "sha256": "fbf6b22c1e74ee8ba3dd740191eb68f317427ef6f57ed42a210d06b39be9f151"
+    },
+    {
       "path": "tests/unit/test_a_migrations.py",
-      "sha256": "c02b17f3d320c085deb126bfed2ace2994154e6d4def58488099e4a0e01a21aa"
+      "sha256": "cd6077468e18d82991571be45fb69d838dcc17bf755a468da453ef47530de65e"
     },
     {
       "path": "tests/unit/test_a_a07_reclaim_eligibility.py",
