@@ -1,0 +1,18 @@
+{
+  "checked_at": "2026-10-14T10:51:26.704117+00:00",
+  "full_state": {
+    "state": "running",
+    "source_commit": "96d418a8b6ef4bd73e23c0488a9957125c4c835e",
+    "runner_pid": 8908,
+    "child_pid": 3464,
+    "started_at": "2026-10-14T10:50:01.817805+00:00"
+  },
+  "progress": {
+    "state": "running",
+    "worker_pid": 17280,
+    "current_test": "tests/unit/test_default_start_source_chain.py::test_default_source_observation_is_atomic_and_readable_after_restart[False]",
+    "updated_at": "2026-10-14T10:50:18.143085+00:00"
+  },
+  "source_checkpoint": "96d418a",
+  "scope": "independent hidden full run, 5427 expected unique nodes; launch is not a pass"
+}
