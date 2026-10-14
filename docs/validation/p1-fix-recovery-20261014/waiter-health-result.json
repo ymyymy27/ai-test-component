@@ -1,0 +1,11 @@
+{
+  "result": "passed",
+  "checks": {
+    "current_process_alive": true,
+    "zero_rejected": true,
+    "bool_rejected": true,
+    "text_rejected": true,
+    "absent_pid_rejected": true
+  },
+  "scope": "Win32 process-handle liveness checks only; no background queue or real acceptance"
+}

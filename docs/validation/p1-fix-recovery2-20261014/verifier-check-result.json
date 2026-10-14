@@ -1,0 +1,11 @@
+{
+  "result": "passed",
+  "checks": {
+    "complete_fixture_accepted": true,
+    "missing_teardown_rejected": true,
+    "duplicate_report_rejected": true,
+    "source_drift_rejected": true,
+    "nonzero_exit_rejected": true
+  },
+  "scope": "synthetic evidence-verifier fixtures only; not execution of product tests"
+}

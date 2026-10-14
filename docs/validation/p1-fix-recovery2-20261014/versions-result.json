@@ -1,0 +1,10 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "scripts/check_versions.py"
+  ],
+  "source_commit": "77451faeec5d0af07cb7bf54be35562bbff52748",
+  "started_at": "2026-10-14T06:58:17.650702+00:00",
+  "ended_at": "2026-10-14T06:58:17.826157+00:00",
+  "exit_code": 0
+}
