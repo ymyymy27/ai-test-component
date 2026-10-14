@@ -468,3 +468,7 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 
 
 2026-10-14 隔离续检修复（本次 fix 发布）：准入源观察随内部 resolved-execution-action/1.1 保存原始对象元数据，旧 1.0 字节形状保留；原授权核对后与启动快照/evidence_ref 同事务发布。没有原始对象或过滤改变材料时不得升为已核实；普通 DTO ExecutionFacts 1.0 不新增字段。缓存、ZIP 父子冲突等证据与原子/重启未完成检查见[候选续检](../../../validation/p1-unproven-audit-20261014/README.md)。保持 reviewing/partial/not_run，不写双方实测或修改旧签署。
+
+## 2026-10-14 状态读取与永久引用实现续修
+
+迁移/采集/永久引用/备份审计使用已有严格 JSON 解码，核对既有 registry/plan schema 与准确计划身份；prepared 不再借另一计划登记解除。异常材料保留，普通写/回收拒绝，重复审计不发布已核验事实。公开字段、DTO、Schema、签署和合同版本不变，reviewing/partial/not_run 保持。三个完整小文件 56 项通过，重核心/制品与新全量尚待串行验证；[准确输入/源码/回执](../../../validation/p1-state-reader-security-20261014/README.md)保留，组件接缝不证明真实核心重启/宿主/物理掉电或完整对拍。

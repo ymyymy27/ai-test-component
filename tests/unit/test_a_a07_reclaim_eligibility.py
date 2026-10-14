@@ -107,6 +107,44 @@ def test_candidate_bytes_referenced_by_permanent_record_is_refused(root: Path) -
     assert _service(root).reclaimable() == ()
 
 
+@pytest.mark.parametrize("suffix", ["json", "jsonl"])
+def test_duplicate_permanent_reference_blocks_actual_reclaim(root: Path, suffix: str) -> None:
+    content = b"still referenced bytes"
+    digest = hashlib.sha256(content).hexdigest()
+    (root / "records.json").write_text("{}", encoding="utf-8")
+    path = root / f"permanent.{suffix}"
+    material = ('{"object_digest":"sha256:' + digest + '","object_digest":null}\n').encode()
+    path.write_bytes(material)
+    leftover = root / ".records.json.AbCdEf12"
+    leftover.write_bytes(content)
+    _set_mtime(leftover, ns_delta=-10_000_000)
+    report = _service(root).reclaim(relative_paths=(leftover.name,), dry_run=False)
+    assert report.state == "blocked"
+    assert report.removed == ()
+    assert leftover.read_bytes() == content
+    assert path.read_bytes() == material
+
+
+@pytest.mark.parametrize(
+    "material",
+    [
+        b'{"state":"capturing","state":"sealed"}',
+        b'{"state":"sealed","detail":NaN}',
+        b'{"state":"sealed","detail":1e9999}',
+        b'{"state":"sealed","detail":"\\ud800"}',
+        '{"state":"sealed"}'.encode("utf-16"),
+    ],
+)
+def test_ambiguous_capture_state_cannot_release_activity(root: Path, material: bytes) -> None:
+    path = root / "spool" / "attempt-1" / "capture-1.json"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(material)
+    assert detect_activity_blocker(root) is not None
+    report = _service(root).reclaim(dry_run=False)
+    assert report.state == "blocked"
+    assert path.read_bytes() == material
+
+
 # ------------------------------------------------------------ 位置白名单
 
 

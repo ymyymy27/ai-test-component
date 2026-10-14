@@ -1,0 +1,5 @@
+{
+  "ruff": 0,
+  "docs_facts": 0,
+  "scope": "candidate final lint and current facts; source frozen, no heavy pytest execution"
+}

@@ -1,0 +1,8 @@
+{
+  "scope": "isolated disposable directory only; actual reclaim call; no production workspace",
+  "state": "reclaimed",
+  "removed": [
+    ".records.json.AbCdEf12"
+  ],
+  "leftover_preserved": false
+}

@@ -1,0 +1,130 @@
+{
+  "result": "passed",
+  "completed_at": "2026-10-14T07:43:48.846693+00:00",
+  "loaded_source_root": "C:\\Users\\86178\\.codex\\worktrees\\p1-unproven-boundaries\\ai-test-component",
+  "scope": "20 new small-file function/vector checks directly with real filesystem; no full pytest/JUnit, existing full-file regression or real acceptance inferred",
+  "checks": [
+    {
+      "test": "test_duplicate_checkpoint_cannot_hide_prepared_state",
+      "arguments": "('state',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_duplicate_checkpoint_cannot_hide_prepared_state",
+      "arguments": "('st\\\\u0061te',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_unknown_registry_schema_cannot_release_maintenance",
+      "arguments": "(None,)",
+      "result": "passed"
+    },
+    {
+      "test": "test_unknown_registry_schema_cannot_release_maintenance",
+      "arguments": "('aitest.migration-registry/999',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_duplicate_registry_cannot_forge_applied_step",
+      "arguments": "()",
+      "result": "passed"
+    },
+    {
+      "test": "test_unknown_plan_schema_or_identity_is_rejected_before_apply",
+      "arguments": "('schema', None)",
+      "result": "passed"
+    },
+    {
+      "test": "test_unknown_plan_schema_or_identity_is_rejected_before_apply",
+      "arguments": "('schema', 'unknown')",
+      "result": "passed"
+    },
+    {
+      "test": "test_unknown_plan_schema_or_identity_is_rejected_before_apply",
+      "arguments": "('plan_id', 'other')",
+      "result": "passed"
+    },
+    {
+      "test": "test_duplicate_commit_cannot_hide_rollback_watermark",
+      "arguments": "()",
+      "result": "passed"
+    },
+    {
+      "test": "test_prepared_checkpoint_needs_registration_from_exact_plan",
+      "arguments": "(None,)",
+      "result": "passed"
+    },
+    {
+      "test": "test_prepared_checkpoint_needs_registration_from_exact_plan",
+      "arguments": "('different',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_successful_exact_plan_registration_releases_prepared_checkpoint",
+      "arguments": "()",
+      "result": "passed"
+    },
+    {
+      "test": "test_duplicate_permanent_reference_blocks_actual_reclaim",
+      "arguments": "('json',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_duplicate_permanent_reference_blocks_actual_reclaim",
+      "arguments": "('jsonl',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_ambiguous_capture_state_cannot_release_activity",
+      "arguments": "(b'{\"state\":\"capturing\",\"state\":\"sealed\"}',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_ambiguous_capture_state_cannot_release_activity",
+      "arguments": "(b'{\"state\":\"sealed\",\"detail\":NaN}',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_ambiguous_capture_state_cannot_release_activity",
+      "arguments": "(b'{\"state\":\"sealed\",\"detail\":1e9999}',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_ambiguous_capture_state_cannot_release_activity",
+      "arguments": "(b'{\"state\":\"sealed\",\"detail\":\"\\\\ud800\"}',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_ambiguous_capture_state_cannot_release_activity",
+      "arguments": "(b'\\xff\\xfe{\\x00\"\\x00s\\x00t\\x00a\\x00t\\x00e\\x00\"\\x00:\\x00\"\\x00s\\x00e\\x00a\\x00l\\x00e\\x00d\\x00\"\\x00}\\x00',)",
+      "result": "passed"
+    },
+    {
+      "test": "test_duplicate_backup_audit_does_not_publish_fabricated_verified_fact",
+      "arguments": "()",
+      "result": "passed"
+    }
+  ],
+  "source": [
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "sha256": "02c39c7c7b15e37fe822d83e9c7ec0ab03ef952c7a6a4ed71e0c14d18299d3fc"
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/maintenance.py",
+      "sha256": "a9bfe84be191d8a855f4d2c2c93adabaf54ba0bfd0d4b3d7dfc02bd095191239"
+    },
+    {
+      "path": "tests/unit/test_a_migrations.py",
+      "sha256": "d13c14143a9f9093171523b6e16fdaa0fc5463d961e83508608d5cab110af6a6"
+    },
+    {
+      "path": "tests/unit/test_a_a07_reclaim_eligibility.py",
+      "sha256": "a7a59975ae82ead5e64c4553ad2bc41b9333399e34d86305863fdf816041410a"
+    },
+    {
+      "path": "tests/unit/test_a_maintenance.py",
+      "sha256": "da268b985dd1edcfd6de68eee9f3591dbcdcc2a953fc86354d821a13b8cca359"
+    }
+  ]
+}

@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from aitest.domain.json_material import decode_json
+
 from .integrity import _iter_digest_refs, check_workspace
 
 _AUDIT_NAME: Final = "audit.jsonl"
@@ -123,7 +125,7 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
             if path.stem.endswith(("-result", "-stop")):
                 continue
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload = decode_json(path.read_bytes())
                 handle_id = payload["handle"]["handle_id"]
                 saved = handle_store.load(handle_id)
                 if handle_store.load_collection(saved.handle) is None:
@@ -149,7 +151,7 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
                 continue
             for capture in attempt.glob("capture-*.json"):
                 try:
-                    state = json.loads(capture.read_text(encoding="utf-8"))
+                    state = decode_json(capture.read_bytes())
                     if state.get("state") not in {"sealed", "recovered"}:
                         return f"执行输出采集尚未核实: {capture.relative_to(root)}"
                 except (OSError, ValueError, AttributeError):
@@ -292,16 +294,16 @@ class FileMaintenanceService:
                 continue
             if suffix == ".json":
                 try:
-                    referenced.update(_iter_digest_refs(json.loads(text)))
-                except json.JSONDecodeError:
+                    referenced.update(_iter_digest_refs(decode_json(text)))
+                except ValueError:
                     unreadable.append(path.relative_to(self._root).as_posix())
             else:
                 for line in text.splitlines():
                     if not line.strip():
                         continue
                     try:
-                        referenced.update(_iter_digest_refs(json.loads(line)))
-                    except json.JSONDecodeError:
+                        referenced.update(_iter_digest_refs(decode_json(line)))
+                    except ValueError:
                         unreadable.append(path.relative_to(self._root).as_posix())
                         break
         if unreadable:
@@ -558,8 +560,8 @@ class FileMaintenanceService:
                     if not line.strip():
                         continue
                     try:
-                        entry = json.loads(line)
-                    except json.JSONDecodeError:
+                        entry = decode_json(line)
+                    except ValueError:
                         continue
                     if isinstance(entry, dict) and entry.get("action") == "backed_up":
                         facts.append(entry)

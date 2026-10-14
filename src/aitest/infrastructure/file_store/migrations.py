@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Final
 from uuid import uuid4
 
+from aitest.domain.json_material import decode_json
+
 from . import atomic
 from .backup import FileBackupStore, manifest_facts
 from .commit_manifest import FileCommitStore
@@ -94,7 +96,10 @@ class RollbackReport:
 
 
 def _load_json(path: Path) -> dict[str, object]:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw = decode_json(path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise MigrationError("迁移材料无法可靠核对，拒绝猜测状态") from error
     if not isinstance(raw, dict):
         raise MigrationError(f"{path.name} 顶层不是对象，拒绝迁移")
     return raw
@@ -321,7 +326,10 @@ class FileMigrationManager:
             if state.get("plan_id") != path.parent.name or path.stem not in _BUILT_IN:
                 raise MigrationError("迁移检查点身份无法核实，拒绝新业务写入")
             status = state.get("state")
-            if status == "rollback_pending" or status == "prepared" and path.stem not in applied:
+            registered = applied.get(path.stem)
+            if status == "rollback_pending" or status == "prepared" and (
+                registered is None or registered.get("plan_id") != path.parent.name
+            ):
                 return f"migration recovery required: {path.parent.name}/{path.stem}"
             if status not in {"prepared", "rolled_back"}:
                 raise MigrationError("迁移检查点状态无法核实，拒绝新业务写入")
@@ -560,7 +568,9 @@ class FileMigrationManager:
         path = self._plans_dir / f"{plan_id}.json"
         if not path.exists():
             raise MigrationError(f"计划不存在: {plan_id}")
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = _load_json(path)
+        if raw.get("schema") != _PLAN_SCHEMA or raw.get("plan_id") != plan_id:
+            raise MigrationError("迁移计划版本或身份无法核实")
         steps = raw.get("steps")
         if not isinstance(steps, list) or not all(isinstance(step, str) for step in steps):
             raise MigrationError("计划内容损坏")
@@ -634,7 +644,9 @@ class FileMigrationManager:
             self._append_journal("", "backup_audit_failed", str(error))
 
     def _load_registry(self) -> dict[str, dict[str, object]]:
-        raw = json.loads(self._registry_path.read_text(encoding="utf-8"))
+        raw = _load_json(self._registry_path)
+        if raw.get("schema") != _REGISTRY_SCHEMA:
+            raise MigrationError("迁移注册表版本无法核实，拒绝猜测状态")
         applied = raw.get("applied")
         if not isinstance(applied, dict):
             raise MigrationError("迁移注册表损坏，拒绝猜测已执行状态")
@@ -670,8 +682,8 @@ class FileMigrationManager:
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8")).get(field)
-        except json.JSONDecodeError:
+            return _load_json(path).get(field)
+        except MigrationError:
             return None
 
     def _records_watermark(self) -> int:
@@ -683,7 +695,7 @@ class FileMigrationManager:
             return 0
         try:
             data = _load_json(path)
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, MigrationError) as error:
             raise MigrationError("权威业务提交水位不可读取，拒绝迁移") from error
         if "commit" not in data and not data.get("records"):
             return 0
