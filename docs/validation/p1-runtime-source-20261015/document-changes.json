@@ -79,17 +79,7 @@
     "docs/接口对接/归档/裁定/DEC-018-实际Python进程来源采集.md",
     "docs/接口对接/归档/裁定/DEC-019-旧接口待确认项与半程夹具处置.md",
     "docs/接口对接/归档/裁定/DEC-020-接口关闭与指定集成分支.md",
-    "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
-    "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
-    "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
-    "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
-    "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
-    "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
-    "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
-    "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
     "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/README.md",
-    "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
-    "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
     "docs/文档-LU/A包事务函数设计.md",
     "docs/文档-feix-a/B包/01-B包一期实施计划.md",
     "docs/文档-feix-a/B包/02-B包施工检查项清单.md",
@@ -104,7 +94,8 @@
     "docs/文档-feix-a/B包/16-用例注册与统一入口设计说明.md",
     "docs/文档-赵/C包/06-契约分支待办事项.md",
     "docs/文档-赵/C包/C包一期核心实现与自检报告.md",
-    "docs/现状.md"
+    "docs/现状.md",
+    "integrations/trae/README.md"
   ],
   "reason": "按现行一期合同同步代码修复/真实验收边界，保留历史与原失败"
 }
