@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.91"
+contract_version: "1.92"
 contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
@@ -14,11 +14,18 @@ next_owner: A/B/C/D
 next_action: 现行接口已关闭；后续字段变更重新评审，真实产品验收继续按项目现状跟踪。
 ---
 
+## 0.4.7 宿主模型配置增量（2026-10-16）
+
+按用户授权补标准 Trae 启动的模型配置接线。机器级 modelConfigurationFile 通过 AITEST_MODEL_CONFIGURATION 传给新核心；严格有界 aitest.model-provider/1 只含 endpoint/credential_reference，密钥由原 model 用途 SecretManager 解析。无配置兼容旧行为，坏配置只降级模型动作；配置变化须受控重启。模型出站策略与材料确认仍独立，不以配置代签。
+
+接口不改 B/C/D DTO 或已保存记录；新增默认装配输入。28 项模型配置/既有接线检查通过，真实 DeepSeek 组件调用通过；实际 Trae 用户流程仍未验证，见[本批记录](../../../validation/p1-trae-live-20261016/README.md)。
+
+
 ## 当前逐项处理结论（2026-10-16）
 
 当前状态只读文件顶部元数据。下面带旧日期的实施记录保留原基线；其中旧状态数字和人员待答文字不构成当前待办。
 
-按用户明确授权代理完成六包间技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
+按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
 
 - 已实现：公共入口、动作级能力、事务/幂等、有限查询与 read_view 已接；Python 实际来源和报告消费已接。
 - 产品实施/验收跟踪（未关闭）：未知活动执行恢复、完整迁移及真实 Trae 用户流仍需补证。
@@ -42,7 +49,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 ## 本次技术决定与当前实现（2026-10-15）
 
-现行版本：1.91。纯函数默认核验、报告关联提测和运行控制表单已接；继续可信动态复用、完整恢复及真实宿主用户流。
+现行版本：1.92。纯函数默认核验、报告关联提测和运行控制表单已接；继续可信动态复用、完整恢复及真实宿主用户流。
 
 用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
 
@@ -558,3 +565,5 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 2026-10-15独立位置实施续修：可信装配migration_backup_root、宿主环境AITEST_MIGRATION_BACKUP_ROOT及worker选项接入同一配置；外部工作空间目录隔离，活动周期冻结原backup_path，配置更改/取消仍核对原副本，旧周期固定位置不追改。三完整小型文件82通过、独立原生CLI1通过且外置备份现场校验通过，5451仅收集；旧5427已31.5%外部中断。未配置兼容模式仍回执本地位置，不假称独立存储满足。公开Command/DTO/端口/Schema/动作及版本、签署/not_run不变，宿主设置/完整历史/真实业务与恢复未闭合，见[本批范围](../../../validation/p1-migration-location-20261014/README.md)。
 
 本批持久化兼容：包含实际来源策略的动作使用 `aitest.resolved-execution-action/1.2`，包含实际来源观察的采集回执使用 `aitest.execution-collection/1.1`；旧动作/回执按原版本读取，不补造来源。首次登记步骤以冻结正文摘要和期望生成唯一断言引用；核验结果仍须满足当前 Attempt、准确依据确认、证据完整和依赖有效才能进入 V。旧运行缺引用时不追溯补写。
+
+0.4.7 进一步修复一次性 ensure-core 的生命周期所有者：原进程将 CLI 自身作为父进程，退出后核心也退出，下一次 doctor 会启动不同实例（真实 0.4.6 反例已保存）。宿主启动改用 OS 返回的 CLI 父进程，即真实编辑器/宿主进程；不是业务请求自报 PID。普通进程内启动仍按原自身生命周期，活动/未知执行的退出守卫保持。新增跨进程延迟读取必须保持同一实例的回归。

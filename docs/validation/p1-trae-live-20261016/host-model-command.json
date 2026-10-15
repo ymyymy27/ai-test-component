@@ -1,0 +1,9 @@
+[
+  ".runtime/completion-clean313/Scripts/python.exe",
+  "-m",
+  "pytest",
+  "tests/unit/test_host_model_configuration.py",
+  "tests/unit/test_a_ab001_model_wiring.py",
+  "-q",
+  "--junitxml=docs/validation/p1-trae-live-20261016/host-model.xml"
+]

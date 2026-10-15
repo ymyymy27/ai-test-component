@@ -8,7 +8,13 @@ from pathlib import Path
 from uuid import uuid4
 
 from aitest.application.errors import CapabilityUnavailable
-from aitest.bootstrap import acquire_endpoint, acquire_existing_endpoint, create_api
+from aitest.bootstrap import (
+    SystemProcessLauncher,
+    acquire_endpoint,
+    acquire_existing_endpoint,
+    cli_host_pid,
+    create_api,
+)
 from aitest.contracts.commands import Command
 from aitest.contracts.templates import TemplatePack
 from aitest.interfaces.local.api import EntryKind, Session
@@ -122,7 +128,14 @@ def main() -> int:
             )
             return 2
         try:
-            endpoint = acquire_endpoint(args.workspace)
+            # The one-shot startup CLI exits after READY. Its OS parent is the
+            # owning editor/host, not a caller-supplied business field.
+            endpoint = acquire_endpoint(
+                args.workspace,
+                launcher=SystemProcessLauncher(
+                    args.workspace, lifecycle_parent_pid=cli_host_pid(),
+                ),
+            )
         except Exception as error:
             code = getattr(error, "code", "CORE_UNAVAILABLE")
             print(

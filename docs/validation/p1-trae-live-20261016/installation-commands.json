@@ -1,0 +1,70 @@
+[
+  {
+    "name": "runtime-create",
+    "command": [
+      "C:/Users/86178/.local/bin/uv.exe",
+      "venv",
+      "C:\\Users\\86178\\AppData\\Local\\AI-Test\\runtime-0.4.7",
+      "--python",
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "runtime-install",
+    "command": [
+      "C:/Users/86178/.local/bin/uv.exe",
+      "pip",
+      "install",
+      "--python",
+      "C:\\Users\\86178\\AppData\\Local\\AI-Test\\runtime-0.4.7\\Scripts\\python.exe",
+      "E:\\ai-test-component\\dist\\ai_test_component-0.4.7-py3-none-any.whl"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "vsix-install",
+    "command": [
+      "E:/Trae CN/bin/trae-cn.cmd",
+      "--install-extension",
+      "E:\\ai-test-component\\integrations\\trae\\dist\\aitest-trae.vsix",
+      "--force"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "extensions",
+    "command": [
+      "E:/Trae CN/bin/trae-cn.cmd",
+      "--list-extensions",
+      "--show-versions"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "ensure-core",
+    "command": [
+      "C:\\Users\\86178\\AppData\\Local\\AI-Test\\runtime-0.4.7\\Scripts\\python.exe",
+      "-I",
+      "-m",
+      "aitest.interfaces.tools.cli",
+      "ensure-core",
+      "--workspace",
+      "C:\\Users\\86178\\AppData\\Local\\AI-Test\\trae-acceptance-20261016\\workspace"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "doctor",
+    "command": [
+      "C:\\Users\\86178\\AppData\\Local\\AI-Test\\runtime-0.4.7\\Scripts\\python.exe",
+      "-I",
+      "-m",
+      "aitest.interfaces.tools.cli",
+      "doctor",
+      "--workspace",
+      "C:\\Users\\86178\\AppData\\Local\\AI-Test\\trae-acceptance-20261016\\workspace"
+    ],
+    "exit_code": 0
+  }
+]

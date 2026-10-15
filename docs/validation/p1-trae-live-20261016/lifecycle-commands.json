@@ -1,0 +1,55 @@
+[
+  {
+    "name": "regression",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_cli_ensure_core.py",
+      "tests/unit/test_a_bootstrap_acquire.py",
+      "tests/unit/test_core_startup_integrity.py",
+      "tests/unit/test_core_exit_admission.py",
+      "tests/unit/test_core_discovery_path_integrity.py",
+      "tests/unit/test_host_model_configuration.py",
+      "-vv",
+      "--junitxml=docs\\validation\\p1-trae-live-20261016\\lifecycle.xml"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "mypy",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "wheel",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "build",
+      "--installer",
+      "uv"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "artifacts",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/verify_artifacts.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "isolated-wheel",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/smoke_wheel.py"
+    ],
+    "exit_code": 0
+  }
+]

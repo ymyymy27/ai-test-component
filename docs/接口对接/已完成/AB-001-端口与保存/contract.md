@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.49"
+contract_version: "1.50"
 contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
@@ -14,11 +14,18 @@ next_owner: A/B/D
 next_action: 现行接口已关闭；后续字段变更重新评审，真实产品验收继续按项目现状跟踪。
 ---
 
+## 0.4.7 宿主模型配置增量（2026-10-16）
+
+按用户授权补标准 Trae 启动的模型配置接线。机器级 modelConfigurationFile 通过 AITEST_MODEL_CONFIGURATION 传给新核心；严格有界 aitest.model-provider/1 只含 endpoint/credential_reference，密钥由原 model 用途 SecretManager 解析。无配置兼容旧行为，坏配置只降级模型动作；配置变化须受控重启。模型出站策略与材料确认仍独立，不以配置代签。
+
+接口不改 B/C/D DTO 或已保存记录；新增默认装配输入。28 项模型配置/既有接线检查通过，真实 DeepSeek 组件调用通过；实际 Trae 用户流程仍未验证，见[本批记录](../../../validation/p1-trae-live-20261016/README.md)。
+
+
 ## 当前逐项处理结论（2026-10-16）
 
 当前状态只读文件顶部元数据。下面带旧日期的实施记录保留原基线；其中旧状态数字和人员待答文字不构成当前待办。
 
-按用户明确授权代理完成六包间技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
+按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
 
 - 已实现：模型端口按用途注入，凭据使用窄状态适配器；草稿/发布/运行修订动作已注册；报告关联提测与材料闭包已接。
 - 产品实施/验收跟踪（未关闭）：真实模型供应方、用户半程修订、非 Python 载体及宿主验收尚缺。
@@ -42,7 +49,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 ## 本次技术决定与当前实现（2026-10-15）
 
-现行版本：1.49。报告关联提测与材料闭包已接；继续真实半程、供应方与宿主取证。
+现行版本：1.50。报告关联提测与材料闭包已接；继续真实半程、供应方与宿主取证。
 
 用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
 

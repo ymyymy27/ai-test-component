@@ -169,6 +169,8 @@ from aitest.infrastructure.file_store.recovery import (
 from aitest.infrastructure.file_store.spool import FileSpoolStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
+from aitest.infrastructure.host_lifetime import cli_host_pid as cli_host_pid
+from aitest.infrastructure.model_configuration import host_model_configuration
 from aitest.infrastructure.projections import SafeMaterialProjector
 from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
@@ -1051,6 +1053,17 @@ def assemble_workspace_core(
 
         model_provider: HttpModelProvider | None = None
         model_credentials: ModelCredentialResolver | None = None
+        if model_endpoint is None and model_secret_reference is None:
+            try:
+                host_model = host_model_configuration()
+                if host_model is not None:
+                    model_endpoint, model_secret_reference = host_model
+            except ValueError:
+                gate.report(
+                    MODEL, healthy=False,
+                    reason="宿主模型配置无效；核对端点与凭据引用后受控重启核心",
+                    classification="configuration",
+                )
         if model_endpoint is not None:
             # 模型能力必须显式装配：端点与已解析凭据同时具备才构造真实
             # provider；凭据解析失败只降级模型能力，不阻断核心启动。
@@ -1721,6 +1734,7 @@ class SystemProcessLauncher:
         instance_id_file: str = _INSTANCE_ID_FILE,
         env: Mapping[str, str] | None = None,
         process_probe: Callable[[int], ProcessFact] | None = None,
+        lifecycle_parent_pid: int | None = None,
     ) -> None:
         FileCoreLaunchStore.reject_links(workspace_root)
         FileCommitStore.reject_links(workspace_root)
@@ -1734,6 +1748,11 @@ class SystemProcessLauncher:
         self._launches = FileCoreLaunchStore(self._root)
         self._probe = process_probe or probe_process
         self._children: dict[str, subprocess.Popen[bytes]] = {}
+        if lifecycle_parent_pid is not None and (
+            type(lifecycle_parent_pid) is not int or lifecycle_parent_pid <= 0
+        ):
+            raise ValueError("core lifecycle parent must be a positive process id")
+        self._lifecycle_parent_pid = lifecycle_parent_pid
 
     def start(self, workspace_id: str) -> str:
         """Return the verified live instance, or create exactly one new child."""
@@ -1823,7 +1842,7 @@ class SystemProcessLauncher:
             self._id_path.name,
             # 父进程消亡后子核心在连接边界自行退出，避免孤儿核心长期占管。
             "--parent-pid",
-            str(os.getpid()),
+            str(self._lifecycle_parent_pid or os.getpid()),
         ]
         creationflags = 0
         if sys.platform == "win32":
