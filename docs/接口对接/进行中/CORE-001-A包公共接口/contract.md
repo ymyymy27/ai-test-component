@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.85"
+contract_version: "1.86"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,13 +16,23 @@ next_owner: A/B/C/D
 next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。
 ---
 
+## 原生受控入口增量（2026-10-15）
+
+依据一期接入第9节，增加可选传输能力 `native-confirmation/1`，不改变 `Command/Response` Schema 或业务动作语义。仅真实工作进程安装核心原生适配器时，管道 `doctor.result.transport_capabilities` 才声明该能力；离线/进程内 API 不冒充支持。消费方先在同一已核实连接协商；旧核心没有声明则拒绝，不降级为 relay 人工签署。
+
+控制信封严格为 `{__aitest_control__: "native-confirmation/1", request_id, command}`，外内请求号须一致；`command` 是现有完整 Command。调用方只能请求弹窗，不得提交 `user_confirmed`、`interaction`、`approval_challenge_id` 或确认摘要。普通 CLI/MCP 继续按真实映像归类 relay。
+
+核心分配私有短期 human_ui 会话；受挑战约束的动作先准确回读已提交意图，新增动作由既有 `prepare_approval` 冻结依据，窗口完整展示输入、工作空间/实例、材料修订/摘要及对应已保存正文。实际窗口点击才调用 `dispatch_user_confirmation`；展示/脱敏/材料校验失败、超出128000字符预算、关闭/取消或120秒超时均不提交业务动作，未消费挑战经既有会话收尾撤销。其他现有写动作也须先在核心窗口确认，再经原应用门禁。
+
+窗口依赖目标Windows及Python tkinter/Tcl组件，缺失明确拒绝；不从网页传入可执行脚本或生成确认事实。回执仍经既有核心实例、工作空间、项目、绑定、请求与业务意图校验；响应超时/丢失不自动重试或创建新意图。入口预览已接通不等于完整向导、默认独立核验或真实Trae流程通过，reviewing/partial/not_run、签署和last_verified_commit保持。准确证据见[本批](../../../validation/p1-native-entry-20261015/README.md)。
+
 ## 当前续修与验证范围（76ab7d2 起点）
 
 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.85；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+现行版本：1.86；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

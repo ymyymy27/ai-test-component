@@ -3,8 +3,8 @@
  * 设计约束（对应根 AGENTS.md 与一期架构 05 第 3 节）：
  * - **不复制协议**：不自行实现命名管道帧、不自行核对实例/工作空间身份与回执，
  *   一律交给 `aitest ... dispatch`（它已做端点发现、身份核对与回执校验）。
- * - **不把界面点击当作用户确认**：骨架只放行只读动作；写动作必须由受控用户入口
- *   发起并携带 project/intent/expected_revision，扩展不代签。
+ * - **不把界面点击当作用户确认**：写动作携带 project/intent/expected_revision，
+ *   只请求核心独立窗口确认；扩展不代签，普通派发仍只读。
  * - **不猜测**：核心不可达或回执无法核实时返回结构化 `unavailable`，不伪造成功。
  */
 
@@ -30,6 +30,9 @@ export interface DispatchRequest {
   readonly parameters?: Readonly<Record<string, unknown>>;
   readonly projectId?: string | null;
   readonly bindingRevision?: number | null;
+  readonly intentId?: string | null;
+  readonly expectedRevision?: number | null;
+  readonly target?: string | null;
 }
 
 export interface CoreCommand {
@@ -38,6 +41,9 @@ export interface CoreCommand {
   readonly action: string;
   readonly project_id?: string | null;
   readonly binding_revision?: number | null;
+  readonly intent_id?: string;
+  readonly expected_revision?: number;
+  readonly target?: string;
   readonly parameters: Record<string, unknown>;
 }
 
@@ -67,6 +73,9 @@ export function buildCommand(request: DispatchRequest, requestId: string): CoreC
     ...(typeof request.bindingRevision === "number"
       ? { binding_revision: request.bindingRevision }
       : {}),
+    ...(request.intentId ? { intent_id: request.intentId } : {}),
+    ...(typeof request.expectedRevision === "number" ? { expected_revision: request.expectedRevision } : {}),
+    ...(request.target ? { target: request.target } : {}),
   };
   return command;
 }
@@ -94,12 +103,14 @@ function runCli(
   workspaceRoot: string,
   command: CoreCommand,
   timeoutMs: number,
+  nativeConfirmation = false,
 ): Promise<SpawnResult> {
   return new Promise<SpawnResult>((resolve) => {
     const child = spawn(
       python,
-      ["-m", "aitest.interfaces.tools.cli", "dispatch", "--workspace", workspaceRoot],
-      { stdio: ["pipe", "pipe", "pipe"] },
+      ["-m", "aitest.interfaces.tools.cli", "dispatch",
+        ...(nativeConfirmation ? ["--native-confirmation"] : []), "--workspace", workspaceRoot],
+      { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
     );
     let stdout = "";
     let stderr = "";
@@ -194,7 +205,7 @@ export async function ensureCore(
     const child = spawn(
       python,
       ["-m", "aitest.interfaces.tools.cli", "ensure-core", "--workspace", workspaceRoot],
-      { stdio: ["ignore", "pipe", "pipe"] },
+      { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
     );
     let stdout = "";
     let stderr = "";
@@ -270,7 +281,28 @@ export async function dispatchReadOnly(
   timeoutMs = 30_000,
 ): Promise<DispatchOutcome> {
   requireReadOnly(request);
-  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
+  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, false);
+}
+
+/** This requests a core-owned dialog; it never sends an assertion of human approval. */
+export async function dispatchControlled(
+  python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
+  timeoutMs = 150_000,
+): Promise<DispatchOutcome> {
+  if (READ_ONLY_ACTIONS.has(request.action) || !request.projectId || !request.intentId
+      || request.intentId === requestId || !Number.isSafeInteger(request.expectedRevision)
+      || (request.expectedRevision ?? -1) < 0) {
+    throw new BridgeRefused("受控写入需要项目、稳定业务意图和准确的预期修订");
+  }
+  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, true);
+}
+
+async function dispatchCommand(
+  python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
+  timeoutMs: number, nativeConfirmation: boolean,
+): Promise<DispatchOutcome> {
+  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0
+      || timeoutMs > (nativeConfirmation ? 150_000 : 60_000)) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
   }
   if (!workspaceRoot.trim()) {
@@ -283,7 +315,7 @@ export async function dispatchReadOnly(
   const command = buildCommand(request, requestId);
   let result: SpawnResult;
   try {
-    result = await runCli(python, workspaceRoot, command, timeoutMs);
+    result = await runCli(python, workspaceRoot, command, timeoutMs, nativeConfirmation);
   } catch {
     return {
       status: "unavailable",
@@ -292,7 +324,8 @@ export async function dispatchReadOnly(
     };
   }
   if (result.timedOut) {
-    return { status: "unavailable", code: "ENTRY_TIMEOUT", message: "核心入口在限定时间内无回执" };
+    return { status: "unavailable", code: "ENTRY_TIMEOUT",
+      message: "核心入口在限定时间内无回执；请查询原业务意图，勿自动创建新意图重试" };
   }
   if (result.oversized) {
     return { status: "unavailable", code: "ENTRY_OUTPUT_LIMIT", message: "核心入口输出超出允许预算，结果未核实" };
@@ -309,7 +342,9 @@ export async function dispatchReadOnly(
   if (response["request_id"] !== command.request_id || response["protocol_version"] !== PROTOCOL_VERSION
       || typeof response["instance_id"] !== "string" || !response["instance_id"].trim()
       || typeof response["workspace_id"] !== "string" || !response["workspace_id"].trim()
-      || (request.projectId && response["project_id"] !== request.projectId)) {
+      || (request.projectId && response["project_id"] !== request.projectId)
+      || (request.intentId && response["intent_id"] !== request.intentId)
+      || (request.bindingRevision != null && response["binding_revision"] !== request.bindingRevision)) {
     return {
       status: "unavailable",
       code: "CORE_RESULT_UNVERIFIED",

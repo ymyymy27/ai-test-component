@@ -1,0 +1,13 @@
+{
+  "version": "0.4.1",
+  "modules": 237,
+  "lines": 73710,
+  "test_files": 355,
+  "test_lines": 83038,
+  "collected": 5472,
+  "full_suite_passed": false,
+  "python_regression": 122,
+  "host_tests": 23,
+  "browser_tests": 15,
+  "mypy_files": 251
+}

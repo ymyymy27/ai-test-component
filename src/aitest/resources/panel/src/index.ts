@@ -1,5 +1,5 @@
-/** Phase-one read-only panel. It renders core facts and never calculates
- * business outcomes or treats UI clicks as user confirmation. */
+/** Phase-one fact viewer and controlled command requester. The core owns
+ * business outcomes and the independent human confirmation dialog. */
 type Detail = "current" | "plan" | "workbench" | "review" | "settings";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
@@ -141,6 +141,8 @@ class AITestPanel extends HTMLElement {
   private requestSequence = 0;
   private readonly requestPrefix = `panel-${Date.now().toString(36)}`;
   private doctorOutcome: Outcome | null = null;
+  private commandDraft = "";
+  private commandNote = "";
   private viewOutcomes = new Map<string, Outcome>();
 
   private readonly receiveMessage = (event: MessageEvent): void => {
@@ -164,6 +166,7 @@ class AITestPanel extends HTMLElement {
           this.eventLog = []; this.eventCursor = this.eventNote = null;
           this.briefIssueId = this.briefNote = null;
           this.viewOutcomes.clear(); this.pendingQuery = null; this.outcome = null;
+          this.commandDraft = ""; this.commandNote = "项目上下文变化，请重新核对操作输入。";
           if (this.pendingRequest && !["doctor", "ensure-core"].includes(this.pendingRequest.action)) {
             this.pendingRequest = null; this.pending = false;
           }
@@ -395,6 +398,7 @@ class AITestPanel extends HTMLElement {
     fragment.append(
       this.phaseSection(),
       this.capabilitySection(),
+      this.controlledSection(),
       this.readOnlySection(),
       this.eventStreamSection(),
       this.resultSection(),
@@ -404,6 +408,79 @@ class AITestPanel extends HTMLElement {
       this.detailSection(),
     );
     return fragment;
+  }
+
+  private controlledSection(): HTMLElement {
+    const section = document.createElement("section");
+    section.dataset.testid = "controlled-entry";
+    const title = document.createElement("h2"); title.textContent = "受控操作（预览）";
+    const note = document.createElement("p"); note.className = "muted";
+    const capabilities = this.doctorOutcome?.response?.["result"] as Record<string, unknown> | undefined;
+    const nativeAvailable = Array.isArray(capabilities?.["transport_capabilities"])
+      && capabilities["transport_capabilities"].includes("native-confirmation/1");
+    note.textContent = "先配置项目编号。此处请求核心窗口确认完整输入；窗口确认前不会提交。"
+      + "计划、环境和执行仍须满足核心门禁。未知结果保留原意图查询，不自动重跑。";
+    const create = document.createElement("button"); create.textContent = "填写新建项目";
+    create.disabled = this.pending || this.project === null || this.host === null || !nativeAvailable;
+    create.onclick = () => {
+      const workspaceId = this.doctorOutcome?.response?.["workspace_id"];
+      if (typeof workspaceId !== "string" || this.project === null) {
+        this.commandNote = "请先刷新核心状态，取得已核实的工作空间身份。";
+      } else {
+        const intentId = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+          value => value.toString(16).padStart(2, "0")).join("");
+        this.commandDraft = JSON.stringify({action:"save_context", intent_id:intentId,
+          expected_revision:0, parameters:{project:{schema_version:"aitest.project/2.0",
+            local_project_id:this.project.project_id, project_id:this.project.project_id,
+            workspace_id:workspaceId, name:"我的项目", goal:"请填写实际测试目标",
+            revision:1, created_at_commit:"@core-assigned", modules:[]}}}, null, 2);
+        this.commandNote = "修改项目名称与测试目标，再请求核心确认。已有同编号项目会拒绝覆盖。";
+      }
+      this.render();
+    };
+    const draft = document.createElement("textarea");
+    draft.setAttribute("aria-label", "受控操作 JSON"); draft.rows = 14;
+    draft.placeholder = '{"action":"…","intent_id":"稳定业务意图","expected_revision":0,"parameters":{}}';
+    draft.value = this.commandDraft; draft.disabled = this.pending;
+    draft.oninput = () => { this.commandDraft = draft.value; };
+    const submit = document.createElement("button"); submit.textContent = "请求核心确认并提交";
+    submit.disabled = this.pending || this.project === null || this.host === null || !nativeAvailable;
+    if (!nativeAvailable) { note.textContent += " 当前核心尚未声明原生确认能力，请连接并刷新新版核心。"; }
+    submit.onclick = () => {
+      try {
+        const raw: unknown = JSON.parse(this.commandDraft);
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) { throw new Error("输入须为 JSON 对象"); }
+        const command = raw as Record<string, unknown>;
+        const allowed = ["action", "intent_id", "expected_revision", "binding_revision", "target", "parameters"];
+        if (Object.keys(command).some(key => !allowed.includes(key))
+            || typeof command["action"] !== "string" || typeof command["intent_id"] !== "string"
+            || !Number.isSafeInteger(command["expected_revision"]) || Number(command["expected_revision"]) < 0
+            || !command["parameters"] || typeof command["parameters"] !== "object"
+            || Array.isArray(command["parameters"])) { throw new Error("请核对动作、意图、预期修订和参数"); }
+        const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
+        this.pendingRequest = {id:clientRequestId, action:command["action"]};
+        this.pending = true;
+        this.commandNote = "已请求核心窗口；请核对窗口里的准确输入和保存依据。";
+        this.host?.postMessage({kind:"controlledDispatch", clientRequestId,
+          action:command["action"], intentId:command["intent_id"],
+          expectedRevision:command["expected_revision"], bindingRevision:command["binding_revision"],
+          target:command["target"], parameters:command["parameters"], projectId:this.project?.project_id});
+      } catch (error) {
+        this.commandNote = error instanceof Error ? error.message : "操作输入无效";
+      }
+      this.render();
+    };
+    const status = document.createElement("p"); status.textContent = this.commandNote;
+    const receipt = document.createElement("pre");
+    receipt.style.whiteSpace = "pre-wrap"; receipt.style.overflowWrap = "anywhere";
+    receipt.textContent = this.outcome?.response ? JSON.stringify(this.outcome.response, null, 2) : "";
+    if (this.outcome && this.outcome.action !== "doctor") {
+      status.textContent = this.outcome.status === "ok"
+        ? "核心已返回本次操作结果；请以回执中的具体业务状态为准。"
+        : `${this.outcome.code ?? this.outcome.status}：${this.outcome.message ?? "操作结果尚未核实"}`;
+    }
+    section.append(title, note, create, draft, submit, status, receipt);
+    return section;
   }
 
   /** 已提交事件增量刷新（设计 §12）：展示真实事件行与游标，界面不重算业务顺序。 */

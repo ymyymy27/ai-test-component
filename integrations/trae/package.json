@@ -1,8 +1,8 @@
 {
   "name": "aitest-trae",
-  "displayName": "AI Test — Phase One Skeleton",
-  "description": "Local AI test panel skeleton. Trae compatibility untested; no execution enabled.",
-  "version": "0.4.0",
+  "displayName": "AI Test — Phase One Preview",
+  "description": "Local core panel with core-owned confirmation. Real Trae workflow acceptance pending.",
+  "version": "0.4.1",
   "publisher": "aitest-local",
   "private": true,
   "engines": {
@@ -13,7 +13,8 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onCommand:aitest.openPanel"
+    "onCommand:aitest.openPanel",
+    "onCommand:aitest.configureEntry"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -24,7 +25,11 @@
     "commands": [
       {
         "command": "aitest.openPanel",
-        "title": "AI Test: 打开一期面板（核心只读入口）"
+        "title": "AI Test: 打开一期面板（预览）"
+      },
+      {
+        "command": "aitest.configureEntry",
+        "title": "AI Test: 配置工作空间与项目"
       }
     ],
     "configuration": {

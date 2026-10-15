@@ -14,7 +14,7 @@ await writeFile(shim, `
 export const state = {settings:{pythonPath:"configured-python",workspaceRoot:"data-root",projectId:"p",runId:"r"},sent:[],calls:[],disposed:false};
 export const workspace = {isTrusted:true,getConfiguration:()=>({get:(key,fallback)=>state.settings[key]??fallback}),
   onDidChangeConfiguration:cb=>{state.configuration=cb;return {dispose:()=>{state.disposed=true}}}};
-export const commands = {registerCommand:(name,cb)=>{state.open=cb;return {dispose(){}}}};
+export const commands = {registerCommand:(name,cb)=>{if(name==='aitest.openPanel') state.open=cb;return {dispose(){}}}};
 export const Uri = {joinPath:(...parts)=>parts.join("/")};
 export const ViewColumn = {One:1};
 export const window = {showWarningMessage:()=>{},createWebviewPanel:()=>({webview:{asWebviewUri:x=>x,
@@ -23,6 +23,8 @@ export const window = {showWarningMessage:()=>{},createWebviewPanel:()=>({webvie
 export async function dispatchReadOnly(python,root,request,id) {state.calls.push({python,root,request,id});
   if(state.defer) return await new Promise(resolve=>{state.resolve=resolve});
   return {status:"ok",response:{result:{status:"READY"}}};}
+export async function dispatchControlled(python,root,request,id){state.controlled={python,root,request,id};
+  return {status:"refused",code:"USER_DECLINED",message:"fixture decline"};}
 export async function ensureCore(){return {status:"ok",response:{status:"READY"}};}
 `);
 await build({ entryPoints: ["src/extension.ts"], bundle: true, platform: "node", format: "esm",
@@ -55,6 +57,17 @@ test("foreign project cannot reach the bridge", async () => {
   await tick();
   assert.equal(state.calls.length,count);
   assert.equal(state.sent.at(-1).code,"PROJECT_CONTEXT_MISMATCH");
+});
+
+test("controlled operation preserves all write identities and is still a prompt request", async () => {
+  state.receive({kind:"controlledDispatch",action:"save_binding",projectId:"p",target:"binding",
+    intentId:"stable-intent",expectedRevision:2,bindingRevision:3,parameters:{binding:{binding_id:"binding"}},
+    clientRequestId:"controlled-request"});
+  await tick();
+  assert.deepEqual(state.controlled.request,{action:"save_binding",projectId:"p",target:"binding",
+    intentId:"stable-intent",expectedRevision:2,bindingRevision:3,parameters:{binding:{binding_id:"binding"}}});
+  assert.equal(state.sent.at(-1).code,"USER_DECLINED");
+  assert.equal(state.sent.at(-1).clientRequestId,"controlled-request");
 });
 test("configuration changes reject the in-flight receipt and publish fresh context", async () => {
   state.defer=true;

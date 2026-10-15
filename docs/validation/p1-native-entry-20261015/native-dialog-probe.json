@@ -1,0 +1,5 @@
+{
+  "scope": "real Windows Tk widgets; automated cancellation only",
+  "tcl_patchlevel": "8.6.14",
+  "accepted": false
+}

@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.45"
+contract_version: "1.46"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -16,13 +16,19 @@ next_owner: A/B/D
 next_action: 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。
 ---
 
+## 新建项目的提交身份占位（2026-10-15）
+
+`save_context.parameters.project.created_at_commit` 新增显式占位 `@core-assigned`，仅用于首次保存（expected_revision为0/无旧修订）的入口模板。应用在已开启事务内以 `next_commit_seq()` 分配本条项目记录的准确提交序号，落盘正文不保留占位；追加修订不得重新请求创建序号。同一业务意图仍按原输入摘要回读原提交，不因重传重新分配。已有非占位字段/记录保持原样可读，不做全库回写。
+
+受控宿主通过CORE-001的可选原生确认入口调用原动作，不直接写仓储，不代填真实验收。reviewing/partial/not_run及签署保持，见[本批证据](../../../validation/p1-native-entry-20261015/README.md)。
+
 ## 当前续修与验证范围（76ab7d2 起点）
 
 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.45；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
+现行版本：1.46；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

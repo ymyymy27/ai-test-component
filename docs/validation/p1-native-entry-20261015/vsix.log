@@ -1,0 +1,24 @@
+
+> aitest-trae@0.4.1 package
+> npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix
+
+
+> aitest-trae@0.4.1 build
+> npm run check && node scripts/build.mjs
+
+
+> aitest-trae@0.4.1 check
+> tsc --noEmit
+
+ INFO  Files included in the VSIX:
+aitest-trae.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ package.json [2.34 KB]
+   ├─ readme.md [2.1 KB]
+   └─ dist/
+      ├─ extension.js [22.29 KB]
+      └─ panel.js [52.19 KB]
+
+ DONE  Packaged: dist/aitest-trae.vsix (6 files, 22.22 KB)

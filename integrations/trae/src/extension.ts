@@ -7,7 +7,7 @@
 import * as vscode from "vscode";
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { dispatchReadOnly, ensureCore, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
+import { dispatchControlled, dispatchReadOnly, ensureCore, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
 
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
@@ -28,6 +28,30 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("aitest.openPanel", () => {
       openPanel(context);
+    }),
+    vscode.commands.registerCommand("aitest.configureEntry", async () => {
+      if (!vscode.workspace.isTrusted) {
+        void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。"); return;
+      }
+      const settings = readSettings();
+      const python = await vscode.window.showInputBox({title:"AI Test 核心解释器",
+        prompt:"填写已安装 AI Test 的 Python 3.13 解释器路径", value:settings.python,
+        ignoreFocusOut:true});
+      if (!python?.trim()) { return; }
+      const folders = await vscode.window.showOpenDialog({title:"选择专用用户数据工作空间（不要选源码目录）",
+        canSelectFiles:false, canSelectFolders:true, canSelectMany:false,
+        ...(settings.workspaceRoot ? {defaultUri:vscode.Uri.file(settings.workspaceRoot)} : {})});
+      if (!folders?.[0]) { return; }
+      const project = await vscode.window.showInputBox({title:"AI Test 项目编号",
+        prompt:"填写既有项目编号，或为新项目保留此新编号", value:settings.projectId ?? randomUUID(),
+        ignoreFocusOut:true, validateInput:value=>identityOrNull(value) ? null : "请输入有效项目编号"});
+      if (!project) { return; }
+      const configuration = vscode.workspace.getConfiguration("aitest");
+      await configuration.update("pythonPath", python, vscode.ConfigurationTarget.Global);
+      await configuration.update("workspaceRoot", folders[0].fsPath, vscode.ConfigurationTarget.Global);
+      await configuration.update("projectId", project, vscode.ConfigurationTarget.Global);
+      await configuration.update("runId", "", vscode.ConfigurationTarget.Global);
+      void vscode.window.showInformationMessage("入口已配置，打开 AI Test 面板连接核心后新建或读取项目。");
     }),
   );
 }
@@ -99,10 +123,15 @@ function toDispatchRequest(raw: Record<string, unknown>): DispatchRequest | null
     action,
     parameters: (parameters as Record<string, unknown> | undefined) ?? {},
     projectId: textOrNull(raw["projectId"]),
+    ...(raw["intentId"] !== undefined ? { intentId: identityOrNull(raw["intentId"]) } : {}),
+    ...(raw["target"] !== undefined ? { target: identityOrNull(raw["target"]) } : {}),
+    ...(raw["expectedRevision"] !== undefined ? { expectedRevision: raw["expectedRevision"] as number } : {}),
+    ...(raw["bindingRevision"] !== undefined ? { bindingRevision: raw["bindingRevision"] as number } : {}),
   };
 }
 
 async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown, scope: PanelScope): Promise<void> {
+  if (!vscode.workspace.isTrusted) { return; }
   if (typeof message !== "object" || message === null) {
     return;
   }
@@ -130,7 +159,7 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
     });
     return;
   }
-  if (raw["kind"] !== "dispatch") {
+  if (raw["kind"] !== "dispatch" && raw["kind"] !== "controlledDispatch") {
     return;
   }
   const request = toDispatchRequest(raw);
@@ -154,7 +183,9 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
   }
   let outcome: DispatchOutcome;
   try {
-    outcome = await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);
+    outcome = raw["kind"] === "controlledDispatch"
+      ? await dispatchControlled(python, workspaceRoot, { ...request, projectId }, clientRequestId)
+      : await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);
   } catch (error) {
     // 白名单外动作在此被拒：扩展不代签确认，也不把它降级成"可用"。
     outcome = {
@@ -166,7 +197,7 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
   if (JSON.stringify(readSettings()) !== expectedContext) {
     publishProject(panel, scope);
     post(panel, { kind: "outcome", action: request.action, status: "unavailable",
-      code: "PROJECT_CONTEXT_CHANGED", message: "读取期间宿主上下文变化，原回执未应用", clientRequestId });
+      code: "PROJECT_CONTEXT_CHANGED", message: "操作期间宿主上下文变化，原回执未应用；写入结果须按原意图核实", clientRequestId });
     return;
   }
   post(panel, { kind: "outcome", action: request.action, ...outcome, clientRequestId });

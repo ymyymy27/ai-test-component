@@ -27,6 +27,10 @@ def main() -> int:
     doctor.add_argument("--workspace", type=Path)
     dispatch = sub.add_parser("dispatch", help="Forward one complete JSON Command on stdin")
     dispatch.add_argument("--workspace", required=True, type=Path)
+    dispatch.add_argument(
+        "--native-confirmation", action="store_true",
+        help="Request the core-owned Windows confirmation window (never auto-confirms)",
+    )
     sub.add_parser("templates", help="List installed draft template versions")
     ensure = sub.add_parser(
         "ensure-core", help="Discover or start the single core for a workspace (host entry)"
@@ -109,7 +113,11 @@ def main() -> int:
                 else Command(request_id=str(uuid4()), action="doctor")
             )
             client = CoreClient(acquire_existing_endpoint(args.workspace))
-            response = client.send(command)
+            response = (
+                client.send_native(command)
+                if args.command == "dispatch" and args.native_confirmation
+                else client.send(command)
+            )
         except Exception as error:
             code = getattr(error, "code", "CLI_INPUT_OR_CONNECTION_UNVERIFIED")
             print(

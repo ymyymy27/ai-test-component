@@ -38,10 +38,13 @@ else:
     command = json.load(sys.stdin)
     data = dict(protocol_version='aitest.local/2.0', request_id=command['request_id'],
                 project_id=command.get('project_id'), workspace_id='w', instance_id='i',
+                intent_id=command.get('intent_id'), binding_revision=command.get('binding_revision'),
                 result=dict(status='READY'), error=None)
     if mode == 'request': data['request_id'] = 'other'
     if mode == 'protocol': data['protocol_version'] = 'unknown'
     if mode == 'project': data['project_id'] = 'other'
+    if mode == 'intent': data['intent_id'] = 'other'
+    if mode == 'binding': data['binding_revision'] = 99
     if mode == 'missing_identity': del data['instance_id']
     if mode == 'result_array': data['result'] = []
     if mode == 'error_array': data['error'] = []
@@ -51,7 +54,7 @@ else:
 `);
 await build({ entryPoints: ["src/core-bridge.ts"], bundle: true, platform: "node", format: "esm",
   outfile: join(fixture, "bridge.mjs") });
-const { dispatchReadOnly, ensureCore } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
+const { dispatchReadOnly, dispatchControlled, buildCommand, ensureCore } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
 const originalPath = process.env.PYTHONPATH;
 process.env.PYTHONPATH = fixture;
 const python = process.env.AITEST_TEST_PYTHON || join(root, ".venv/Scripts/python.exe");
@@ -104,6 +107,21 @@ test("ensure requires zero exit and complete core identity", async () => {
 test("controlled refusal stays refusal and writes stay forbidden", async () => {
   assert.equal((await dispatchReadOnly(python, "refused", { action: "doctor" }, "r", 2000)).code, "FIXTURE_REFUSED");
   await assert.rejects(dispatchReadOnly(python, "ok", { action: "select_case_reuse" }, "r", 2000));
+});
+
+test("controlled bridge preserves exact identities and refuses mismatched receipts", async () => {
+  const request={action:"save_binding",projectId:"p",intentId:"stable-intent",expectedRevision:0,
+    target:"binding",bindingRevision:1,parameters:{binding:{binding_id:"binding"}}};
+  const command=buildCommand(request,"request");
+  assert.equal(command.intent_id,"stable-intent"); assert.equal(command.expected_revision,0);
+  assert.equal(command.target,"binding"); assert.equal(command.binding_revision,1);
+  assert.equal((await dispatchControlled(python,"ok",request,"request",2000)).status,"ok");
+  for(const mode of ["intent","binding","project"]){
+    assert.equal((await dispatchControlled(python,mode,request,"request",2000)).code,"CORE_RESULT_UNVERIFIED");
+  }
+  for(const change of [{intentId:null},{intentId:"request"},{expectedRevision:-1},{expectedRevision:true}]){
+    await assert.rejects(dispatchControlled(python,"ok",{...request,...change},"request",2000));
+  }
 });
 test("invalid startup configuration and budget fail before spawning", async () => {
   for (const budget of [0, -1, NaN, Infinity, 60001]) {
