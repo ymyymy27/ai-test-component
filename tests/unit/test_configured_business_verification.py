@@ -119,7 +119,7 @@ def test_default_resolver_reads_frozen_case_and_rejects_stale_attempt(tmp_path, 
 
 def test_published_plan_actual_execution_query_report_and_restart(
     tmp_path, monkeypatch, *, dynamic=False, tls_context=None,
-    credential_reference=None, pure=False,
+    credential_reference=None, pure=False, complete_library=False,
 ):
     from aitest.bootstrap import assemble_workspace_core
     from aitest.contracts.commands import Command
@@ -157,6 +157,42 @@ def test_published_plan_actual_execution_query_report_and_restart(
                   "print(json.dumps({\"result\": add(2, 3)}))\n")
         declaration = json.dumps({"schema_version": "aitest.pure-function-basis/1",
                                   "expected_facts": {"result": 5}})
+    if complete_library:
+        source = (
+            "import json\n"
+            "def add(a, b):\n"
+            "    if type(a) is not int or type(b) is not int: "
+            "raise TypeError('integers required')\n"
+            "    return a+b\n"
+            "try: add(None, 1)\n"
+            "except TypeError as error: failure=type(error).__name__\n"
+            "print(json.dumps({'normal':add(2,3), 'zero':add(0,0), 'negative':add(-1,1),\n"
+            " 'large':add(2**64,1), 'error':failure}))\n"
+        )
+        declaration = json.dumps({
+            "schema_version": "aitest.pure-function-basis/1", "expected_facts": {
+            "normal": 5, "zero": 0, "negative": 0, "large": 18446744073709551617,
+            "error": "TypeError",
+        }})
+    templates = [{"template_id": "python-library" if complete_library else "ticket-workflow",
+                  "version": "1.0.0"}]
+
+    def library_cases(cases):
+        from aitest.domain.planning.plans import CaseLayer
+
+        return tuple(replace(
+            cases[0], case_id=f"library-{name}",
+            layer=CaseLayer.L1 if name == "syntax" else CaseLayer.L2,
+            objective=f"Python library {name}: frozen normal, boundary and exception expectations",
+            preconditions=("registered Python interpreter and frozen main.py",),
+            inputs=("(2,3), (0,0), (-1,1), (2**64,1), (None,1)",),
+            steps=("execute declared library check suite",),
+            expected="frozen integers and TypeError match exactly",
+            verification_method="pure-function-stdout",
+            independent_verification="independent frozen expected_facts comparison",
+            links=replace(cases[0].links, critical_path_ids=frozenset(),
+                          no_critical_path_reason="local arithmetic library has no external chain"),
+        ) for name in ("syntax", "normal", "boundary", "error"))
 
     def reply(connection, stopped):
         body_reply(business_file.read_bytes())(connection, stopped)
@@ -184,9 +220,8 @@ def test_published_plan_actual_execution_query_report_and_restart(
             monkeypatch.setenv("AITEST_BUSINESS_QUERIES", str(path))
         with _authoritative(tmp_path, basis_text=declaration, main_source=source,
                             case_transform=function_case if pure else None,
-                            template_versions=[
-                                {"template_id": "ticket-workflow", "version": "1.0.0"}
-                            ],
+                            template_versions=templates,
+                            case_set_transform=library_cases if complete_library else None,
                             environment_resolver=_chain_environment()) as (core, inputs, _):
             confirmed = confirm(core, inputs)
             assert confirmed.error is None, confirmed.error
@@ -255,7 +290,7 @@ def test_published_plan_actual_execution_query_report_and_restart(
                     "cases": [dict(core.unit_of_work.repo.read(
                         aggregate_kind="case", record_id=ref["case_id"], revision=ref["revision"],
                     ).payload) for ref in original_plan["case_revisions"]],
-                    "template_versions": [{"template_id": "ticket-workflow", "version": "1.0.0"}],
+                    "template_versions": templates,
                 },
             )
             assert alternative.error is None and alternative.result["published"]
@@ -333,16 +368,16 @@ def test_published_plan_actual_execution_query_report_and_restart(
             report = core.unit_of_work.repo.read(
                 aggregate_kind="report", record_id="order-report", revision=1,
             ).payload
-            # Even all output comparisons cannot replace actual-process source proof.
-            assert report["business_outcome"] == "incomplete"
+            assert report["business_outcome"] == ("passed" if complete_library else "incomplete")
             assert report["evidence_refs"]
             if pure:
                 from tests.unit.test_delivery_report_verification import submit_report_delivery
 
                 assert len(facts.current_attempt_by_step) == 4
-                assert all("actual_execution_load_source_unverified" in item.gap_ids
-                           for item in facts.source_verifications)
-                submit_report_delivery(core, inputs, mapped=True)
+                assert all(item.state.value == "verified" and not item.gap_ids
+                           for item in facts.source_verifications), facts.source_verifications
+                assert len(facts.source_check_results) == 4
+                submit_report_delivery(core, inputs, mapped=True, complete=complete_library)
             exported = core.api.dispatch(Command(
                 action="export_report", project_id=inputs.project_id, request_id="export-request",
                 intent_id="export-intent", expected_revision=0,

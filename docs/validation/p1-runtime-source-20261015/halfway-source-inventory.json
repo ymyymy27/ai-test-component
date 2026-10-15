@@ -1,0 +1,10 @@
+[
+  {
+    "path": "scripts/generate_cd001_fixtures.py",
+    "sha256": "aae9f89423481bd63a8f46336b4141738ea3270e5c9872dd06f0031159c1d50d"
+  },
+  {
+    "path": "tests/contracts/test_halfway_execution_fixtures.py",
+    "sha256": "1a91b9d4ef021d9bb244f89eb3ba46b52ed5a4db2db000f5253b0e4632a0a082"
+  }
+]

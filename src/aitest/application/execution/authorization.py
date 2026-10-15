@@ -71,9 +71,22 @@ def _identity(prefix: str, *values: object) -> str:
 def _action_payload(action: ResolvedExecutionAction) -> dict[str, Any]:
     """Preserve legacy action bytes; source observations belong to the new layout."""
     payload = _payload(action)
+    if action.request.source_capture is None:
+        payload["request"].pop("source_capture")
+    if action.attempt.runtime_source is None:
+        payload["attempt"].pop("runtime_source")
+    if action.source_verification is not None and action.source_verification.capture_plan is None:
+        payload["source_verification"].pop("capture_plan")
     if action.source_verification is None:
         payload.pop("source_verification")
     return payload
+
+
+def _action_version(action: ResolvedExecutionAction) -> str:
+    if action.request.source_capture is not None:
+        return "aitest.resolved-execution-action/1.2"
+    return ("aitest.resolved-execution-action/1.1" if action.source_verification is not None
+            else "aitest.resolved-execution-action/1.0")
 
 
 class ExecutionResolutionUnavailable(ApprovalRequired):
@@ -105,7 +118,8 @@ class SavedExecutionAuthorizationResolver:
                 "input_digest",
             }
             or raw["schema_version"]
-            not in {"aitest.resolved-execution-action/1.0", "aitest.resolved-execution-action/1.1"}
+            not in {"aitest.resolved-execution-action/1.0", "aitest.resolved-execution-action/1.1",
+                    "aitest.resolved-execution-action/1.2"}
             or raw["workspace_id"] != self.workspace_id
         ):
             raise ApprovalRequired("resolved action has unknown fields or workspace")
@@ -114,11 +128,7 @@ class SavedExecutionAuthorizationResolver:
         )
         if (
             raw["schema_version"]
-            != (
-                "aitest.resolved-execution-action/1.1"
-                if action.source_verification is not None
-                else "aitest.resolved-execution-action/1.0"
-            )
+            != _action_version(action)
             or identity
             != _identity("execution-action-", self.workspace_id, project, action.request.intent_id)
             or action.request.project_id != project
@@ -506,11 +516,7 @@ class ExecutionAuthorizationService:
             raise ApprovalRequired("resolved execution has no registered current run")
         self._actual(prepared)
         raw = {
-            "schema_version": (
-                "aitest.resolved-execution-action/1.1"
-                if resolved.source_verification is not None
-                else "aitest.resolved-execution-action/1.0"
-            ),
+            "schema_version": _action_version(resolved),
             "workspace_id": self.workspace_id,
             "project_id": project_id,
             "action": _action_payload(resolved),

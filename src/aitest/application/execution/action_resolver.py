@@ -2,7 +2,7 @@
 
 依据：架构01 第12节（prepare 冻结执行来源；start 在固定 workdir 解析实际路径并保存映射与
 `source_binding_digest`）、架构02 第7节（`ExecutionRequest` 组成）、
-`docs/接口对接/进行中/AB-001-端口与保存/contract.md` 1.36（四项 start 侧语义裁定）。
+`docs/接口对接/已完成/AB-001-端口与保存/contract.md` 1.36（四项 start 侧语义裁定）。
 
 **职责边界**：只**构造**动作对象——不起进程、不写记录、不落证据。
 `authorization_id` 与 `attempt_id` 由 `authorization.py::prepare` 在解析器返回后按
@@ -172,6 +172,8 @@ class SavedActionResolver:
                 side_effect_class=side_effect_class,
                 timeout_ms=timeout_ms,
                 expected_plan_revision_ref=run.plan_revision_ref,
+                source_capture=(source_verification.capture_plan
+                                if source_verification is not None else None),
             )
             attempt = Attempt(
                 attempt_id=_PENDING_ATTEMPT,

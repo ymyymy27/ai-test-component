@@ -39,6 +39,7 @@ def _authoritative(
     basis_text=None,
     template_versions=None,
     case_transform=None,
+    case_set_transform=None,
 ):
     """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。
 
@@ -74,6 +75,8 @@ def _authoritative(
     )
     if case_transform is not None:
         cases = tuple(case_transform(case) for case in cases)
+    if case_set_transform is not None:
+        cases = tuple(case_set_transform(cases))
     assert (
         dispatch(
             core,
@@ -101,6 +104,9 @@ def _authoritative(
         is None
     )
     scope = scenario.plan.scope
+    if case_set_transform is not None:
+        scope = replace(scope, required_case_ids=frozenset(c.case_id for c in cases),
+                        template_case_ids=frozenset(c.case_id for c in cases))
     unit = core.unit_of_work
     unit.begin("fixture-material-request", project.project_id, intent_id="fixture-material-intent")
     for case in cases:
@@ -193,9 +199,21 @@ def _authoritative(
                     "confirmation_refs": (),
                 }
             )
-            for basis in scenario.inputs.assertion_bases
+            for basis in (scenario.inputs.assertion_bases if case_set_transform is None else ())
         ),
     )
+    if case_set_transform is not None:
+        inputs = replace(
+            inputs, template_required_case_ids=tuple(c.case_id for c in cases),
+            frozen_required_case_ids=tuple(c.case_id for c in cases),
+            selected_case_ids=tuple(c.case_id for c in cases),
+            assertion_bases=tuple(scenario.inputs.assertion_bases[0].model_copy(update={
+                "case_id": c.case_id, "basis_revision": c.assertion_basis.revision,
+                "basis_text_digest": c.assertion_basis.text_digest,
+                "assertion_basis_state": AssertionBasisStateFact.PRESENT_UNCONFIRMED,
+                "confirmation_refs": (),
+            }) for c in cases),
+        )
     try:
         yield core, inputs, source
     finally:

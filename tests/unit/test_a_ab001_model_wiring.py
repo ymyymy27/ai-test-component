@@ -75,7 +75,7 @@ WORKSPACE_ID = "ws-ab001"
 
 FIXTURES = (
     Path(__file__).resolve().parents[2]
-    / "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures"
+    / "docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures"
 )
 
 _BASIS_TEXT = "订单创建后状态为已支付"

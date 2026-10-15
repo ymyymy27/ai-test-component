@@ -13,7 +13,7 @@ from aitest.domain.planning.runtime_revision import AttemptRuntimeState
 
 FIXTURES = (
     Path(__file__).resolve().parents[2]
-    / "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures"
+    / "docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures"
 )
 
 

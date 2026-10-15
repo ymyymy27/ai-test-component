@@ -17,7 +17,7 @@ from aitest.domain.review.reports import (
     evaluate_review,
 )
 
-FIXTURE_DIR = Path("docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures")
+FIXTURE_DIR = Path("docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures")
 FIXTURE_NAMES = (
     "success.json",
     "failure.json",
@@ -300,3 +300,25 @@ def test_mismatched_source_still_wins_over_other_verifications() -> None:
     decision_facts = build_decision_facts(_variant(mutate))
 
     assert decision_facts.source_identity_state is SourceIdentityState.MISMATCHED
+
+
+@pytest.mark.parametrize("unprovable", [False, True])
+def test_new_attempt_can_replace_only_provably_historic_source_gaps(unprovable):
+    def mutate(raw):
+        current = raw["attempts"][0]
+        old = {**current, "attempt_id": "old-attempt", "is_current": False}
+        raw["attempts"].append(old)
+        evidence = {**raw["evidence_refs"][0], "evidence_id": "old-source-evidence",
+                    "attempt_id": "old-attempt", "evidence_kind": "source_check"}
+        raw["evidence_refs"].append(evidence)
+        historical = {**raw["source_verifications"][0], "verification_id": "old-source",
+                      "state": "unverified", "gap_ids": ["actual_source_capture_incomplete"],
+                      "evidence_refs": ["missing" if unprovable else "old-source-evidence"]}
+        raw["source_verifications"].append(historical)
+
+    facts = _variant(mutate)
+    result = build_decision_facts(facts)
+    assert result.source_identity_state is (
+        SourceIdentityState.UNVERIFIED if unprovable else SourceIdentityState.MATCHED
+    )
+    assert any(item.verification_id == "old-source" for item in facts.source_verifications)

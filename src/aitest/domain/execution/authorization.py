@@ -27,6 +27,10 @@ class ResolvedExecutionAction:
         attempt, request = self.attempt, self.request
         authorization = request.authorization_ref
         source = self.source_verification
+        if request.source_capture is not None and (
+            source is None or request.source_capture != source.capture_plan
+        ):
+            raise ValueError("capture policy differs from original frozen source scope")
         if source is not None and (
             not isinstance(source, ExecutionSourceVerification)
             or source.project_id != request.project_id
@@ -46,6 +50,7 @@ class ResolvedExecutionAction:
             or attempt.state is not AttemptState.INTENT_RECORDED
             or attempt.execution_handle_ref is not None
             or attempt.intent_digest
+            or attempt.runtime_source is not None
             or authorization.consumed_by_attempt_id is not None
             or attempt.authorization_ref != authorization
             or (

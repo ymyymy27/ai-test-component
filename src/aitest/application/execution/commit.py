@@ -61,6 +61,7 @@ from aitest.application.execution.runtime_revision import (
     revision_record_id,
     revision_request_payload,
 )
+from aitest.application.execution.runtime_source import publish_runtime_source
 from aitest.application.execution.snapshots import read_execution_snapshot
 from aitest.application.execution.step_content import StepContentReader
 from aitest.application.planning.publish import payload_digest
@@ -85,6 +86,7 @@ from aitest.contracts.execution_facts import (
     ExecutionFacts,
     FactCompleteness,
     RunControlStateFact,
+    SourceCheckFact,
     StepRevisionRefFact,
     StepStateFact,
 )
@@ -473,6 +475,9 @@ class ExecutionCommitCoordinator:
         previous_attempt = _CHECKPOINT_ADAPTER.validate_python(previous).attempt
         if attempt_start_basis(previous_attempt) != attempt_start_basis(attempt):
             raise ValueError("checkpoint cannot rewrite frozen execution basis")
+        if (previous_attempt.runtime_source is not None
+                and previous_attempt.runtime_source != attempt.runtime_source):
+            raise ValueError("checkpoint cannot rewrite an actual process observation")
         if (
             previous_attempt.state is AttemptState.INVALIDATED
             and attempt.state is not AttemptState.INVALIDATED
@@ -1672,6 +1677,22 @@ class ExecutionCommitCoordinator:
         expected_revision: int | None = None,
     ) -> ExecutionCommitResult:
         """Commit one start/control intent before any external side effect."""
+        runtime_source = None
+        runtime_evidence = None
+        if checkpoint.attempt.runtime_source is not None:
+            if self._source_objects is None or not callable(
+                getattr(self._execution_authorizations, "source_at_start", None)
+            ):
+                raise ValueError("runtime source requires original authority and permanent objects")
+            original, identity = cast(
+                ExecutionSourceProof, self._execution_authorizations
+            ).source_at_start(project_id=project_id, attempt=checkpoint.attempt)
+            if original is None or identity is None:
+                raise ValueError("runtime source has no original source binding")
+            runtime_source, runtime_evidence = publish_runtime_source(
+                attempt=checkpoint.attempt, source=original, identity=identity,
+                objects=self._source_objects,
+            )
         references = (
             self._evidence_collector.collect(project_id, checkpoint)
             if self._evidence_collector is not None and checkpoint.attempt.output_block_refs else ()
@@ -1722,6 +1743,12 @@ class ExecutionCommitCoordinator:
                 project_id, checkpoint, references, materials,
             )
             records.extend(evidence_records)
+            if runtime_evidence is not None:
+                source_records, source_projected = self._stage_collected_evidence(
+                    project_id, checkpoint, (runtime_evidence,),
+                )
+                records.extend(source_records)
+                projected.extend(source_projected)
             facts = None
             is_current = current is not None and current.current_attempt_by_step.get(
                 checkpoint.attempt.step_id
@@ -1745,6 +1772,33 @@ class ExecutionCommitCoordinator:
                         item = item.model_copy(update={"redaction_summary": old.redaction_summary})
                     by_id[item.evidence_id] = item
                 updated = updated.model_copy(update={"evidence_refs": tuple(by_id.values())})
+                if is_current and runtime_source is not None and runtime_evidence is not None:
+                    observed = _source_verification_fact(runtime_source)
+                    if not any(item.verification_id == observed.verification_id
+                               for item in updated.source_verifications):
+                        raise ValueError("actual source has no original admission observation")
+                    check = SourceCheckFact(
+                        check_result_id="runtime-load:" + checkpoint.attempt.attempt_id,
+                        attempt_id=checkpoint.attempt.attempt_id, check_type="load",
+                        scope=runtime_source.materialized_snapshot_ref,
+                        source_snapshot_ref=runtime_source.expected_source_content_digest,
+                        environment_ref=updated.run.environment_ref,
+                        rules_revision="python-script/1",
+                        adapter_version=checkpoint.attempt.adapter_version,
+                        failure_class="passed" if not observed.gap_ids else "tool_failure",
+                        raw_output_evidence_ref=runtime_evidence.evidence_id,
+                        evidence_refs=(runtime_evidence.evidence_id,),
+                    )
+                    updated = updated.model_copy(update={
+                        "source_verifications": tuple(
+                            observed if item.verification_id == observed.verification_id else item
+                            for item in updated.source_verifications
+                        ),
+                        "source_check_results": (*tuple(
+                            item for item in updated.source_check_results
+                            if item.check_result_id != check.check_result_id
+                        ), check),
+                    })
                 snapshot_records, facts = self._stage_snapshot(
                     updated,
                     checkpoint_refs=checkpoint_refs,

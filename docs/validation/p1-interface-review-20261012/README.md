@@ -34,7 +34,7 @@
 
 [documents-before.json](documents-before.json)记录原工作区接口 Markdown 的字节数、SHA-256 与 Git 基线，本机另有 `.runtime/interface-docs-before-90baba0.zip`。完整旧台账与四份交付说明进入[状态复核前快照](../../接口对接/归档/2026-10-12状态复核前/总台账-2.80.md)；原确认表/评审作者、日期和结论没有删改，review 文档增加历史生效说明，当前实现读 contract.md。
 
-恢复示例：`git show 90baba0:docs/接口对接/进行中/BD-001-计划与依据展示/contract.md`。快照中的相对导航固定到原 Git 基线，不另立生效合同。逐合同版本/阻塞变更见[changes.json](changes.json)，现行导航见[接口台账](../../接口对接/README.md)。链接/锚点检查见[document-checks.json](document-checks.json)，后续不得把旧“未接线”日志重新写成当前待办。
+恢复示例：`git show 90baba0:docs/接口对接/已完成/BD-001-计划与依据展示/contract.md`。快照中的相对导航固定到原 Git 基线，不另立生效合同。逐合同版本/阻塞变更见[changes.json](changes.json)，现行导航见[接口台账](../../接口对接/README.md)。链接/锚点检查见[document-checks.json](document-checks.json)，后续不得把旧“未接线”日志重新写成当前待办。
 
 ## 4. 未验证
 

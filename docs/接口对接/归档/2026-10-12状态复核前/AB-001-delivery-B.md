@@ -1,4 +1,4 @@
-> **历史快照，已被当前合同/交付说明取代。** 原路径 `docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md`；基线 `90baba0360f378eb5feaa3a7aa8c25dc2064fed6`；保留当时确认、实现和测试结论，不作为当前状态。原始字节/哈希见 `docs/validation/p1-interface-review-20261012/documents-before.json`，完整原文可从 Git 恢复。
+> **历史快照，已被当前合同/交付说明取代。** 原路径 `docs/接口对接/已完成/AB-001-端口与保存/delivery-B.md`；基线 `90baba0360f378eb5feaa3a7aa8c25dc2064fed6`；保留当时确认、实现和测试结论，不作为当前状态。原始字节/哈希见 `docs/validation/p1-interface-review-20261012/documents-before.json`，完整原文可从 Git 恢复。
 
 # B 侧实现交付：端口与保存语义（AB-001）
 

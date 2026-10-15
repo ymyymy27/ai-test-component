@@ -1,0 +1,15 @@
+[
+  "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+  "-m",
+  "pytest",
+  "tests/unit/test_pure_function_verification.py",
+  "tests/unit/test_configured_business_verification.py",
+  "tests/unit/test_delivery_report_verification.py",
+  "tests/contracts",
+  "tests/architecture",
+  "tests/unit/test_acceptance_status.py",
+  "tests/unit/test_acceptance_status_phases.py",
+  "-vv",
+  "--maxfail=1",
+  "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-runtime-source-20261015\\regression.xml"
+]

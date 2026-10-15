@@ -654,6 +654,14 @@ class SerialRunner:
         if inspection.handle_id != handle.handle_id or inspection.identity_matches is not True:
             raise _ExecutionObservationMismatch("inspection_identity_unverified")
         _validate_collection_identity(attempt, collection)
+        source = collection.runtime_source
+        if source is not None and (
+            source.attempt_id != attempt.attempt_id
+            or source.process_start_identity != handle.process_start_identity
+            or source.process_id != handle.real_execution_id
+            or not collection.complete
+        ):
+            raise _ExecutionObservationMismatch("runtime_source_identity_unverified")
         output_blocks = self._merge_output_blocks(
             attempt.output_block_refs,
             collection.output_blocks,
@@ -715,6 +723,7 @@ class SerialRunner:
             timed_out=bool(collection.exit_fact_ref and collection.exit_fact_ref.timed_out),
             error_ref=collection.error_ref,
             unknown_reason_ref=self._unknown_reason_for(inspection, collection, state),
+            runtime_source=source,
         )
         if result.capture_completeness is CaptureCompleteness.COMPLETE:
             # Verify the reported final cursors as well as the saved ones. Persisting

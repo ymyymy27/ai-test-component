@@ -22,7 +22,7 @@ B 的用例（`prepare_run` / `publish_*` / `model_orchestration`）只依赖
 | `current_revision(...)` | **有实现，未进 `ports.py`** | 身份查询与冲突提示要用 |
 | `commit_seq()` / `next_commit_seq()` | **尚无** | 业务顺序按提交序号判断 |
 
-后三项已写入 `docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.8 节，
+后三项已写入 `docs/接口对接/已完成/AB-001-端口与保存/contract.md` 第 8.8 节，
 由 A 冻结签名；本模块**不猜测、不自造**，缺哪个就在调用点明确报出
 （`SubstrateContractError`），不用默认值顶替。
 
@@ -91,7 +91,7 @@ from aitest.application.planning.substrate import (
 )
 
 #: AB-001 中记录本模块所需端口签名的小节。
-_PORT_REQUEST = "docs/接口对接/进行中/AB-001-端口与保存/contract.md 第 8.8 节"
+_PORT_REQUEST = "docs/接口对接/已完成/AB-001-端口与保存/contract.md 第 8.8 节"
 _PORT_OWNER = "A"
 
 #: 单页最多读多少行；与 `contracts.queries.QuerySpec.limit` 的上限一致。

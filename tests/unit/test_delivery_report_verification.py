@@ -105,14 +105,17 @@ def submit_report_delivery(core, inputs, *, complete=False, mapped=False):
     assert "report" in {item["aggregate_kind"] for item in challenge.result["basis"]["materials"]}
     result = confirm(core, command, challenge.result)
     assert result.error is None, result.error
-    assert result.result["verified_in_scope"] == ([acceptance_id] if complete else [])
+    # A verified mapped acceptance item is distinct from a complete report:
+    # unrelated critical-path gaps still keep the overall outcome incomplete.
+    verified_scope = complete or mapped
+    assert result.result["verified_in_scope"] == ([acceptance_id] if verified_scope else [])
     assert result.result["verification_state"] == (
-        "verification_valid" if complete else "required_verification_incomplete")
+        "verification_valid" if verified_scope else "required_verification_incomplete")
     view = core.view_queries.delivery_view(
         project_id=inputs.project_id, delivery_id=draft.delivery_id,
         submission_id="workflow-submission",
     )
-    assert view.verified_in_scope == ((acceptance_id,) if complete else ())
+    assert view.verified_in_scope == ((acceptance_id,) if verified_scope else ())
     assert view.self_report_completed == ("developer says complete",)
     assert view.verification_report_id == "order-report"
     assert view.verification_business_outcome == ("passed" if complete else "incomplete")

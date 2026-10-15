@@ -4,7 +4,7 @@
 ----------
 
 `docs/一期工程检查-B包.md` 的 **B-01** 指出："项目/发布/准备/模型动作尚无完整核心注册"，
-`docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.9 节给出了原因：
+`docs/接口对接/已完成/AB-001-端口与保存/contract.md` 第 8.9 节给出了原因：
 `bootstrap` 的 `Handler = Callable[[Command], Mapping]` **没有依赖注入参数**，
 所以 `register_use_cases` 注册的 handler 拿不到工作单元与只读仓储。
 

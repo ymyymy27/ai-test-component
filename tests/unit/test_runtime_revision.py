@@ -1,6 +1,6 @@
 """运行中修订的消费侧（检查文档 B-05）：用 C 的固定夹具驱动 B 的门禁。
 
-夹具来源：`docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/*.json`（C 交付；
+夹具来源：`docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures/*.json`（C 交付；
 形状已由 `tests/contracts/test_public_execution_facts_fixtures.py` 锁定）。
 测试侧负责读文件与校验，产品代码只接受已解析的 `ExecutionFacts` 对象。
 
@@ -64,7 +64,7 @@ from aitest.domain.planning.runtime_revision import (
 
 FIXTURES = (
     Path(__file__).resolve().parents[2]
-    / "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures"
+    / "docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures"
 )
 
 #: 交付夹具全集；每个都至少被本文件用到一次。

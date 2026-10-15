@@ -14,7 +14,7 @@
 等价目录并在结束时清理，被测语义不变，CI 与受限环境都能跑。
 
 **二、提交序号由 `_Sequences` 提供。** `commit_seq()` / `next_commit_seq()` 尚未冻结进
-A 的 `application/ports.py`（见 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`
+A 的 `application/ports.py`（见 `docs/接口对接/已完成/AB-001-端口与保存/contract.md`
 第 8.8 节）。`_Sequences` 取 A 的 `RecoveryOrchestrator.inspect()` 公开返回的
 已提交序号，不访问存储内部文件。A 冻结签名后，装配点换成正式访问器即可。
 

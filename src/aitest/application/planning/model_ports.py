@@ -7,7 +7,7 @@
 并且——关键——它**直接 import 本模块的类型**（`ModelCall` / `ModelCallResult` /
 `Projection` / `ProjectedMaterial` / `ProjectionStatus` 均以 `X as X` 形式引用），
 因此**不存在两套同义类型**，两边的形状差异只剩凭据一处（见
-`docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.16 节）。
+`docs/接口对接/已完成/AB-001-端口与保存/contract.md` 第 8.16 节）。
 
 本模块定义的三个协议是**编排的依赖面**，与 A 的端口对应关系：
 

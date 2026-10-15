@@ -101,6 +101,7 @@ from aitest.contracts.prepared_run import EnvironmentResolutionFact
 from aitest.domain.approvals import TrustedActor
 from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
+from aitest.domain.execution.runtime_source import RuntimeSourceFile, RuntimeSourcePlan
 from aitest.domain.execution.sources import (
     ExecutionSourceVerification,
     SourceCheckType,
@@ -116,6 +117,7 @@ from aitest.infrastructure.adapters.execution.python_checks import (
 from aitest.infrastructure.adapters.execution.registered_entry import (
     RegisteredEntryExecutionAdapter,
 )
+from aitest.infrastructure.adapters.execution.runtime_source import carrier_digest
 from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
 from aitest.infrastructure.adapters.source_control import GitSourceControl
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
@@ -153,6 +155,7 @@ from aitest.infrastructure.file_store.core_launch import (
     valid_instance_filename,
 )
 from aitest.infrastructure.file_store.events import FileEventJournal
+from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
 from aitest.infrastructure.file_store.locking import LifetimeWriterLock
 from aitest.infrastructure.file_store.maintenance import FileMaintenanceService
 from aitest.infrastructure.file_store.migrations import FileMigrationManager, MigrationError
@@ -793,6 +796,11 @@ def _source_verification_provider(
             )
         return replace(
             verification, raw_output_object=raw_object, source_instance_id=instance_id,
+            capture_plan=RuntimeSourcePlan(carrier_digest=carrier_digest(), files=tuple(
+                RuntimeSourceFile(str(item["relative_path"]), str(item["content_digest"]))
+                for item in _pinned_file_digests(pinned)
+                if str(item["relative_path"]).endswith(".py")
+            )),
         )
 
     return provide
@@ -1249,7 +1257,9 @@ def assemble_workspace_core(
             # 不因为"默认有端口"就变得不可达。
             execution_port
             if execution_port is not None
-            else (RegisteredEntryExecutionAdapter(CommandAdapter(spool_store=FileSpoolStore(root)))
+            else (RegisteredEntryExecutionAdapter(CommandAdapter(
+                spool_store=FileSpoolStore(root), handle_store=FileExecutionHandleStore(root),
+            ))
                   if execution_enabled else None),
         )
         execution_commands = ExecutionCommands(

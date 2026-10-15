@@ -15,7 +15,7 @@
 ## 1 本次做了什么
 
 按 DEC-001 的裁定（"`SourceSnapshot` 的建立时机、`purpose`、范围、排除规则、内容身份算法、
-Git/plain 身份、复取范围与失效判据由 B 主责"），在 `docs/接口对接/进行中/AB-001-端口与保存/contract.md`
+Git/plain 身份、复取范围与失效判据由 B 主责"），在 `docs/接口对接/已完成/AB-001-端口与保存/contract.md`
 新增**第 11 节：`SourceSnapshot` 字段口径**，供 C 评审执行兼容性后落地。
 
 遵守 `docs/接口对接/AGENTS.md` 第 5 节修改流程：**先改 `contract.md`，未改任何代码、Schema 或夹具**。

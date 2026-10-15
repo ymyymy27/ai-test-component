@@ -12,6 +12,7 @@ from enum import StrEnum
 
 from aitest.domain.evidence.objects import StoredObjectRef
 from aitest.domain.execution.runs import AdapterKind, FailureClass, PlanRevisionRef
+from aitest.domain.execution.runtime_source import RuntimeSourcePlan
 
 
 class SourceBindingKind(StrEnum):
@@ -85,6 +86,7 @@ class ExecutionSourceVerification:
     verified_at: datetime | None = None
     raw_output_object: StoredObjectRef | None = None
     source_instance_id: str | None = None
+    capture_plan: RuntimeSourcePlan | None = None
 
     def __post_init__(self) -> None:
         for name in (

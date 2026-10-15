@@ -1,0 +1,23 @@
+[
+  "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+  "-m",
+  "pytest",
+  "tests/unit/test_a_checkpoint_port.py",
+  "tests/unit/test_a_a04_publish_recovery.py",
+  "tests/unit/test_a_backup_recovery.py",
+  "tests/unit/test_a_migrations.py",
+  "tests/unit/test_a_ab001_model_wiring.py",
+  "tests/unit/test_run_view_dto.py",
+  "tests/unit/test_panel_view_dto.py",
+  "tests/unit/test_view_queries.py",
+  "tests/unit/test_read_view_relay.py",
+  "tests/unit/test_delivery_view.py",
+  "tests/unit/test_saved_run_control.py",
+  "tests/unit/test_substrate_adapter.py",
+  "tests/unit/test_runtime_facts_identity.py",
+  "tests/unit/test_runtime_revision.py",
+  "tests/integration/test_execution_facts_decision_real_store.py",
+  "-vv",
+  "--maxfail=1",
+  "--junitxml=docs\\validation\\p1-runtime-source-20261015\\interface-closure.xml"
+]

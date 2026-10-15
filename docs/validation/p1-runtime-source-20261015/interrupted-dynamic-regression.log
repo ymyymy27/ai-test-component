@@ -1,0 +1,30 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0 -- E:\ai-test-component\.runtime\completion-clean313\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: E:\ai-test-component
+configfile: pyproject.toml
+collecting ... collected 734 items
+
+tests/unit/test_runtime_source_capture.py::test_actual_entry_import_and_output_are_bound_to_owned_process PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_unknown_execution_cannot_become_verified[exec('print(5)')\n-dynamic_code_unverified] PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_unknown_execution_cannot_become_verified[import os\nos._exit(0)\n-source_channel_incomplete] PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_unknown_execution_cannot_become_verified[import subprocess, sys\nsubprocess.run([sys.executable, '-c', 'print(5)'])\n-opaque_execution] PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_unknown_execution_cannot_become_verified[import os, sys\nos.spawnv(os.P_WAIT, sys.executable, [sys.executable, '-c', 'print(5)'])\n-opaque_execution] PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_unknown_execution_cannot_become_verified[import atexit\natexit.register(lambda: exec('print(5)'))\n-dynamic_code_unverified] PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_unknown_execution_cannot_become_verified[exec(compile('print(5)', __file__, 'exec'))\n-loaded_code_mismatch] PASSED [  0%]
+tests/unit/test_runtime_source_capture.py::test_changed_materialized_entry_is_not_certified PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_stdout_cannot_supply_source_receipts PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_isolated_carrier_retains_utf8_output PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_unlisted_dynamic_import_keeps_gap PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_secret_metadata_never_enters_collection_receipt PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_cached_wrong_bytecode_does_not_execute_under_matching_source_name PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_external_project_import_is_not_certified PASSED [  1%]
+tests/unit/test_runtime_source_capture.py::test_external_native_extension_cannot_silently_certify_source PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_unjoined_daemon_has_no_complete_scope PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_carrier_changed_after_authorization_refuses_start PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_execution_receipt_reads_legacy_absent_observation_and_rejects_extra_fields PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_source_receipt_restart_preserves_identity_and_rejects_substitution[None] PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_source_receipt_restart_preserves_identity_and_rejects_substitution[attempt_id] PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_source_receipt_restart_preserves_identity_and_rejects_substitution[process_id] PASSED [  2%]
+tests/unit/test_runtime_source_capture.py::test_source_receipt_restart_preserves_identity_and_rejects_substitution[process_start_identity] PASSED [  2%]
+tests/unit/test_runtime_source_complete_chain.py::test_library_plan_execution_verification_passed_report_delivery_and_restart 

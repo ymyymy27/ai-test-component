@@ -1,0 +1,12 @@
+{
+  "production_source_changed": false,
+  "changed_files": [
+    "tests/unit/test_delivery_report_verification.py"
+  ],
+  "first_batch": {
+    "passed": 379,
+    "failed": 1,
+    "completed": false
+  },
+  "reason": "initial assertion registration now admits accurately mapped verified acceptance items while the overall critical-path report remains incomplete"
+}

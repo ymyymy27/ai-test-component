@@ -21,6 +21,7 @@ from aitest.contracts.execution_facts import (
     MockVerificationStateFact,
     ProjectionStateFact,
     RedactionStateFact,
+    SourceVerificationFact,
     SourceVerificationStateFact,
     StepFact,
     StepStateFact,
@@ -86,8 +87,30 @@ class DecisionContextFacts:
             raise ValueError("policy_version must not be empty")
 
 
+def _current_sources(facts: ExecutionFacts) -> tuple[SourceVerificationFact, ...]:
+    """Exclude only source facts proven to belong exclusively to superseded attempts."""
+    evidence = {item.evidence_id: item for item in facts.evidence_refs}
+    attempts = {item.attempt_id: item for item in facts.attempts}
+    retained = []
+    for source in facts.source_verifications:
+        refs = [evidence.get(identity) for identity in source.evidence_refs]
+        historical = bool(refs)
+        for ref in refs:
+            attempt = attempts.get(ref.attempt_id) if ref is not None else None
+            if (ref is None or attempt is None or attempt.is_current
+                    or ref.project_id != facts.project_id or ref.run_id != facts.run_id
+                    or ref.step_id != attempt.step_id or ref.evidence_kind.value != "source_check"
+                    or not facts.current_attempt_by_step.get(attempt.step_id)
+                    or facts.current_attempt_by_step[attempt.step_id] == attempt.attempt_id):
+                historical = False
+                break
+        if not historical:
+            retained.append(source)
+    return tuple(retained)
+
+
 def _source_state(facts: ExecutionFacts) -> SourceIdentityState:
-    """来源身份状态：**同一快照内每条来源核验都必须为 verified**（D-10）。
+    """来源身份状态：当前及归属未证明的来源核验都必须为 verified（D-10）。
 
     既有实现用 ``VERIFIED in states`` 判定 matched，于是"同源 verified + unverified"
     会被当成匹配；核验带 gap（``gap_ids`` 非空）同样被忽略。这会把"至少有一条通过"
@@ -96,15 +119,16 @@ def _source_state(facts: ExecutionFacts) -> SourceIdentityState:
     就只能 UNVERIFIED——未核实不得升格为已匹配。
     """
 
-    if not facts.source_verifications:
+    sources = _current_sources(facts)
+    if not sources:
         return SourceIdentityState.UNVERIFIED
     if any(
-        item.state is SourceVerificationStateFact.MISMATCH for item in facts.source_verifications
+        item.state is SourceVerificationStateFact.MISMATCH for item in sources
     ):
         return SourceIdentityState.MISMATCHED
     if any(
         item.state is not SourceVerificationStateFact.VERIFIED or item.gap_ids
-        for item in facts.source_verifications
+        for item in sources
     ):
         return SourceIdentityState.UNVERIFIED
     return SourceIdentityState.MATCHED
@@ -451,7 +475,7 @@ def build_decision_facts(
         source_commit = next(
             (
                 item.observed_source_digest
-                for item in facts.source_verifications
+                for item in _current_sources(facts)
                 if item.state is SourceVerificationStateFact.VERIFIED
             ),
             None,

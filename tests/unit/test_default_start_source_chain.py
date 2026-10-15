@@ -174,7 +174,7 @@ def test_default_source_observation_is_atomic_and_readable_after_restart(tmp_pat
         assert source is not None and source.raw_output_object is not None
         assert source.source_instance_id == "authoritative-core"
         assert _saved_action(core, parameters["execution_action_id"])["schema_version"] == (
-            "aitest.resolved-execution-action/1.1"
+            "aitest.resolved-execution-action/1.2"
         )
         actor, challenge = review(service, inputs.project_id, action, parameters)
         save(service, inputs.project_id, action, parameters, actor, challenge)
@@ -257,7 +257,7 @@ def test_default_source_observation_is_atomic_and_readable_after_restart(tmp_pat
                 record_id=parameters["execution_action_id"],
                 revision=1,
             ).payload["schema_version"]
-            == "aitest.resolved-execution-action/1.1"
+            == "aitest.resolved-execution-action/1.2"
         )
     finally:
         restarted.lifetime_lock.release()

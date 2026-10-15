@@ -1,4 +1,4 @@
-> **历史快照，已被当前合同/交付说明取代。** 原路径 `docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md`；基线 `90baba0360f378eb5feaa3a7aa8c25dc2064fed6`；保留当时确认、实现和测试结论，不作为当前状态。原始字节/哈希见 `docs/validation/p1-interface-review-20261012/documents-before.json`，完整原文可从 Git 恢复。
+> **历史快照，已被当前合同/交付说明取代。** 原路径 `docs/接口对接/已完成/CD-001-ExecutionFacts/delivery-D.md`；基线 `90baba0360f378eb5feaa3a7aa8c25dc2064fed6`；保留当时确认、实现和测试结论，不作为当前状态。原始字节/哈希见 `docs/validation/p1-interface-review-20261012/documents-before.json`，完整原文可从 Git 恢复。
 
 # CD-001 D侧消费交付
 

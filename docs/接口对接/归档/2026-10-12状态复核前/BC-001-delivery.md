@@ -1,4 +1,4 @@
-> **历史快照，已被当前合同/交付说明取代。** 原路径 `docs/接口对接/进行中/BC-001-PreparedRun/delivery.md`；基线 `90baba0360f378eb5feaa3a7aa8c25dc2064fed6`；保留当时确认、实现和测试结论，不作为当前状态。原始字节/哈希见 `docs/validation/p1-interface-review-20261012/documents-before.json`，完整原文可从 Git 恢复。
+> **历史快照，已被当前合同/交付说明取代。** 原路径 `docs/接口对接/已完成/BC-001-PreparedRun/delivery.md`；基线 `90baba0360f378eb5feaa3a7aa8c25dc2064fed6`；保留当时确认、实现和测试结论，不作为当前状态。原始字节/哈希见 `docs/validation/p1-interface-review-20261012/documents-before.json`，完整原文可从 Git 恢复。
 
 # B→C 交接一：真实 `PreparedRun` 功能夹具
 
@@ -7,7 +7,7 @@
 提出方：B 包（项目与计划）
 接收方：C 包（赵）
 状态：**已完成；四个场景、Plain 键省略和失效规则均已由 C 确认**
-依据：组长实施方案第 4 节「只做两次业务交接」第 3 条；`docs/接口对接/进行中/BC-001-PreparedRun/contract.md` 第 13.3、14 节
+依据：组长实施方案第 4 节「只做两次业务交接」第 3 条；`docs/接口对接/已完成/BC-001-PreparedRun/contract.md` 第 13.3、14 节
 
 ---
 
@@ -148,7 +148,7 @@ prepared = PreparedRun.model_validate_json(
 3. `needs_reprepare` 场景的 `invalidation_rules.source_kind` 取值（如 `snapshot_revision`）
    对你侧够不够用？需要哪些取值请列出来。
 
-**回应方式**：直接在本文件下方追加"确认记录"，或改动 `docs/接口对接/进行中/BC-001-PreparedRun/contract.md`。
+**回应方式**：直接在本文件下方追加"确认记录"，或改动 `docs/接口对接/已完成/BC-001-PreparedRun/contract.md`。
 按对接流程，改动走 PR。
 
 ### 7.1 三条问题的当前状态（2026-09-28 复核）

@@ -39,6 +39,7 @@ from aitest.infrastructure.file_store.execution_handles import PersistedExecutio
 from aitest.infrastructure.security import UnsafeMaterialError
 
 from .redaction import StreamingRedactor
+from .runtime_source import PythonSourceChannel, source_channel
 
 SecretResolver = Callable[[str], Mapping[str, str]]
 
@@ -88,6 +89,7 @@ class _CommandRuntime:
     handle: ExecutionHandle
     process: subprocess.Popen[bytes]
     startup_token: str
+    source_channel: PythonSourceChannel | None = None
     writers: dict[OutputStreamName, SpoolStreamWriter] = field(default_factory=dict)
     redaction_summary_ids: dict[OutputStreamName, str] = field(default_factory=dict)
     output_blocks: list[OutputBlockRef] = field(default_factory=list)
@@ -199,29 +201,39 @@ class CommandAdapter:
         environment["PYTHONIOENCODING"] = "utf-8"
         environment["PYTHONUTF8"] = "1"
 
-        command = [registration.executable, *arguments]
-        if os.name == "nt":
-            process = subprocess.Popen(
-                command,
-                cwd=registration.cwd,
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004,
-            )
-        else:
-            process = subprocess.Popen(
-                command,
-                cwd=registration.cwd,
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-                start_new_session=True,
-            )
+        channel = source_channel(request, secrets)
+        command = (channel.command(registration.executable) if channel is not None
+                   else [registration.executable, *arguments])
+        capture_options = channel.popen_options() if channel is not None else {}
+        try:
+            if os.name == "nt":
+                process = subprocess.Popen(
+                    command,
+                    cwd=registration.cwd,
+                    env=environment,
+                    stdin=subprocess.PIPE if channel is not None else subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=False,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004,
+                    **capture_options,
+                )
+            else:
+                process = subprocess.Popen(
+                    command,
+                    cwd=registration.cwd,
+                    env=environment,
+                    stdin=subprocess.PIPE if channel is not None else subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=False,
+                    start_new_session=True,
+                    **capture_options,
+                )
+        except BaseException:
+            if channel is not None:
+                channel.close()
+            raise
 
         runtime: _CommandRuntime | None = None
         job_handle: int | None = None
@@ -261,6 +273,7 @@ class CommandAdapter:
                 handle=handle,
                 process=process,
                 startup_token=startup_token,
+                source_channel=channel,
                 captured_buffers={
                     OutputStreamName.STDOUT: bytearray(),
                     OutputStreamName.STDERR: bytearray(),
@@ -273,6 +286,8 @@ class CommandAdapter:
             # A failed reader startup must not activate a suspended Windows command.
             self._start_reader(runtime, OutputStreamName.STDOUT, process.stdout, secrets)
             self._start_reader(runtime, OutputStreamName.STDERR, process.stderr, secrets)
+            if channel is not None:
+                channel.attach(process, lambda pid: _owned_source_identity(handle, job_handle, pid))
             if request.timeout_ms is not None:
                 timer = threading.Timer(
                     request.timeout_ms / 1000, self._timeout_runtime, (runtime,)
@@ -290,6 +305,8 @@ class CommandAdapter:
                     self._abort_untracked_launch(process, job_handle)
                 else:
                     self._abort_launch(runtime)
+                if channel is not None:
+                    channel.close()
             except BaseException as cleanup_error:
                 # Preserve the actual startup cause while exposing failed cleanup.
                 raise error from cleanup_error
@@ -325,7 +342,7 @@ class CommandAdapter:
     def _close_failed_process_streams(
         process: subprocess.Popen[bytes], errors: list[BaseException]
     ) -> None:
-        for stream in (process.stdout, process.stderr):
+        for stream in (process.stdin, process.stdout, process.stderr):
             try:
                 if stream is not None:
                     stream.close()
@@ -524,6 +541,8 @@ class CommandAdapter:
             captured_blocks=captured_blocks,
             output_cursors=output_cursors,
             exit_fact_ref=exit_fact,
+            runtime_source=(runtime.source_channel.observation(handle)
+                            if runtime.source_channel is not None else None),
             structured_result_ref=f"command-result:{runtime.request.attempt_id}:{return_code}",
             capture_completeness=completeness,
             complete=True,
@@ -1180,6 +1199,28 @@ def _terminate_and_wait_windows_job(
             return True
         time.sleep(0.02)
     return False
+
+
+def _owned_source_identity(handle: ExecutionHandle, job: int | None, pid: int) -> str | None:
+    """Validate a live interpreter child of Windows' venv launcher in the owned Job."""
+    if os.name != "nt":
+        return handle.process_start_identity if str(pid) == handle.real_execution_id else None
+    if job is None:
+        return None
+    from ctypes import wintypes
+
+    kernel = _kernel32()
+    process = kernel.OpenProcess(0x1000, False, pid)
+    if not process:
+        return None
+    try:
+        belongs = wintypes.BOOL()
+        if not kernel.IsProcessInJob(process, job, ctypes.byref(belongs)) or not belongs.value:
+            return None
+        identity = _windows_handle_identity(process, pid)
+        return identity if ":created:" in identity else None
+    finally:
+        kernel.CloseHandle(process)
 
 
 def _kernel32() -> Any:
