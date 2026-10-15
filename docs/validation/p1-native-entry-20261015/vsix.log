@@ -12,8 +12,8 @@
 
  INFO  Files included in the VSIX:
 aitest-trae.vsix
-├─ [Content_Types].xml 
-├─ extension.vsixmanifest 
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
 └─ extension/
    ├─ package.json [2.34 KB]
    ├─ readme.md [2.1 KB]

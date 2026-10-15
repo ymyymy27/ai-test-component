@@ -100,7 +100,7 @@ SyntaxError: Unexpected end of JSON input
   1  | import { test, expect } from "@playwright/test";
   2  | import { resolve } from "node:path";
   3  | import { postHostMessage } from "./host-outcome";
-  4  | 
+  4  |
   5  | // Browser/host fixtures only; a fixture cannot grant an actual core approval.
   6  | test("controlled editor preserves intent through refusal and never sends a user-event assertion", async ({ page }) => {
   7  |   await page.addInitScript(() => {
@@ -129,12 +129,12 @@ SyntaxError: Unexpected end of JSON input
   29 |   await expect(page.getByTestId("controlled-entry")).toContainText("USER_DECLINED");
   30 |   expect(JSON.parse(await input.inputValue()).intent_id).toBe(draft.intent_id);
   31 | });
-  32 | 
+  32 |
   33 | test("old or disconnected core cannot enable the controlled entry", async ({ page }) => {
   34 |   await page.setContent("<ai-test-panel></ai-test-panel>");
   35 |   await page.addScriptTag({path:resolve("dist/index.js")});
   36 |   await expect(page.getByRole("button",{name:"请求核心确认并提交"})).toBeDisabled();
   37 |   await expect(page.getByRole("button",{name:"填写新建项目"})).toBeDisabled();
   38 | });
-  39 | 
+  39 |
 ```
