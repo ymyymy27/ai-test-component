@@ -1,0 +1,19 @@
+{
+  "result": "interrupted",
+  "observed_on": "2026-10-15 Asia/Shanghai client date",
+  "source_commit": "96d418a8b6ef4bd73e23c0488a9957125c4c835e",
+  "expected_nodes": 5427,
+  "completed_calls": 1707,
+  "passed_calls": 1705,
+  "skipped_calls": 2,
+  "failed_calls": 0,
+  "registered_runner_pid": 8908,
+  "registered_child_pid": 3464,
+  "registered_worker_pid": 17280,
+  "all_registered_processes_absent": true,
+  "complete_junit_present": false,
+  "final_exit_receipt_present": false,
+  "last_progress_at": "2026-10-14T13:21:11.752663+00:00",
+  "source_drift": [],
+  "cause": "unknown external interruption; no exit receipt, do not infer successful or failed completion"
+}

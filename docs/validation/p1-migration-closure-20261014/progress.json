@@ -1,0 +1,6 @@
+{
+  "state": "running",
+  "worker_pid": 17280,
+  "current_test": "tests/unit/test_binding_controlled_origin.py::test_binding_save_and_confirmation_share_exact_six_record_commit",
+  "updated_at": "2026-10-14T13:21:11.752663+00:00"
+}
