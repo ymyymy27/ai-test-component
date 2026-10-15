@@ -15,7 +15,7 @@ for (const part of ["aitest", "aitest/interfaces", "aitest/interfaces/tools"]) {
   await writeFile(join(fixture, part, "__init__.py"), "");
 }
 await writeFile(join(modulePath, "cli.py"), String.raw`
-import sys, json, time
+import sys, json, time, os
 mode = sys.argv[-1]
 if mode == 'timeout':
     time.sleep(10)
@@ -31,6 +31,7 @@ elif mode == 'array':
     print('[]')
 elif sys.argv[1] == 'ensure-core':
     data = dict(status='READY', workspace_id='w', instance_id='i')
+    if mode == 'carrier_config': data['carrier_config'] = os.environ.get('AITEST_PYTHON_CARRIERS')
     if mode == 'missing_identity': del data['instance_id']
     print(json.dumps(data))
     if mode == 'exit': sys.exit(1)
@@ -69,6 +70,13 @@ after(async () => {
 test("only exact successful receipts are accepted", async () => {
   const outcome = await dispatchReadOnly(python, "ok", { action: "doctor", projectId: "p" }, "r", 2000);
   assert.equal(outcome.status, "ok");
+});
+test("host carrier configuration is passed only as startup configuration", async () => {
+  const before = process.env.AITEST_PYTHON_CARRIERS;
+  const outcome = await ensureCore(python, "carrier_config", 5000, "C:/trusted/carriers.json");
+  assert.equal(outcome.status, "ok");
+  assert.equal(outcome.response.carrier_config, "C:/trusted/carriers.json");
+  assert.equal(process.env.AITEST_PYTHON_CARRIERS, before);
 });
 for (const mode of ["request", "protocol", "project", "missing_identity", "exit", "array", "result_array", "error_array"]) {
   test(`unverified ${mode} receipt is refused as success`, async () => {

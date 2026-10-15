@@ -18,9 +18,15 @@ test("controlled editor preserves intent through refusal and never sends a user-
   await postHostMessage(page, {kind:"outcome",action:"doctor",status:"ok",
     response:{workspace_id:"workspace",result:{status:"READY",transport_capabilities:["native-confirmation/1"]}}});
   await page.getByRole("button", {name:"填写新建项目"}).click();
+  await expect(page.getByTestId("controlled-entry")).toContainText("请填写项目名称和实际测试目标");
+  await page.getByRole("textbox",{name:"项目名称",exact:true}).fill("真实项目");
+  await page.getByRole("textbox",{name:"实际测试目标",exact:true}).fill("核对订单创建与查询");
+  await page.getByRole("button", {name:"填写新建项目"}).click();
   const input=page.getByRole("textbox", {name:"受控操作 JSON"});
   const draft=JSON.parse(await input.inputValue());
   expect(draft.parameters.project.workspace_id).toBe("workspace");
+  expect(draft.parameters.project.name).toBe("真实项目");
+  expect(draft.parameters.project.goal).toBe("核对订单创建与查询");
   expect(draft.parameters.project.created_at_commit).toBe("@core-assigned");
   await page.getByRole("button",{name:"请求核心确认并提交"}).click();
   const request=await page.evaluate(()=>(window as unknown as {__sent:Record<string,unknown>[]}).__sent.at(-1));

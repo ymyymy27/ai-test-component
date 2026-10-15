@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.86"
+contract_version: "1.87"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -15,6 +15,13 @@ blockers:
 next_owner: A/B/C/D
 next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。
 ---
+
+## 0.4.2 项目与环境登记入口（2026-10-15）
+
+核心启动新增宿主配置 AITEST_PYTHON_CARRIERS；只读入操作者明确指定的绝对路径，不从业务 Command、被测源码或模型输出自动发现。配置在装配时冻结；内容无效只阻塞环境相关动作，读取历史/其他独立动作保持可用。已有核心不热更，变更后须受控排空重启。
+
+实现与验证见[本批记录](../../../validation/p1-environment-entry-20261015/README.md)，reviewing/partial/not_run 与历史签署不改。
+
 
 ## 2026-10-15 全目录复核
 
@@ -37,7 +44,7 @@ next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.86；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+现行版本：1.87；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

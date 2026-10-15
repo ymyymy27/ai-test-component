@@ -28,10 +28,23 @@ def main() -> int:
     dispatch = sub.add_parser("dispatch", help="Forward one complete JSON Command on stdin")
     dispatch.add_argument("--workspace", required=True, type=Path)
     dispatch.add_argument(
-        "--native-confirmation", action="store_true",
+        "--native-confirmation",
+        action="store_true",
         help="Request the core-owned Windows confirmation window (never auto-confirms)",
     )
     sub.add_parser("templates", help="List installed draft template versions")
+    carrier = sub.add_parser(
+        "python-carrier", help="Generate host venv registration JSON; does not execute it"
+    )
+    carrier.add_argument("--project", required=True)
+    carrier.add_argument("--environment", required=True)
+    carrier.add_argument("--python", required=True, type=Path)
+    carrier.add_argument("--base-python", required=True, type=Path)
+    carrier.add_argument("--venv-root", required=True, type=Path)
+    carrier.add_argument("--dependencies", required=True, type=Path, action="append")
+    carrier.add_argument(
+        "--output", type=Path, help="Write a new UTF-8 config file; never overwrite"
+    )
     ensure = sub.add_parser(
         "ensure-core", help="Discover or start the single core for a workspace (host entry)"
     )
@@ -43,6 +56,34 @@ def main() -> int:
     relay.add_argument("--workspace", type=Path)
     relay.add_argument("--project")
     args = parser.parse_args()
+    if args.command == "python-carrier":
+        from aitest.bootstrap import carrier_configuration
+
+        try:
+            configuration = carrier_configuration(
+                project_id=args.project,
+                environment_id=args.environment,
+                executable=args.python,
+                base_executable=args.base_python,
+                dependency_roots=tuple(args.dependencies),
+                venv_root=args.venv_root,
+            )
+            if args.output is not None:
+                with args.output.open("x", encoding="utf-8", newline="\n") as stream:
+                    stream.write(json.dumps(configuration, ensure_ascii=False, indent=2) + "\n")
+        except (OSError, ValueError):
+            print(
+                json.dumps(
+                    {
+                        "code": "INVALID_ENVIRONMENT_CONFIGURATION",
+                        "message": "核对绝对路径、隔离虚拟环境与解释器文件",
+                    }
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        print(json.dumps(configuration, ensure_ascii=False, indent=2))
+        return 0
     if args.command == "templates":
         packs = []
         for directory in sorted(

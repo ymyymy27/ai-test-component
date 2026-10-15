@@ -1,4 +1,4 @@
-# Trae 薄扩展预览 0.4.1
+# Trae 薄扩展预览 0.4.2
 
 共享面板读取唯一核心的项目/运行/问题/报告/事件；新增受控高级操作入口和新建项目模板。扩展不直接写业务文件或生成确认事实。**真实Trae中国版/国际版的安装与完整用户流程仍未验收，完整自动测试向导与默认独立业务核验仍欠。**
 
@@ -12,4 +12,6 @@
 
 从仓库根先构建 `src/aitest/resources/panel`，再在本目录执行 `npm ci` 与 `npm run package`。候选制品为 `dist/aitest-trae.vsix`。CLI/MCP复用同一核心；普通relay仍不能签署人工动作。
 
-本次Node使用明确假CLI/宿主，浏览器为真实Chromium加模拟宿主；它们只证明入口组件，不证明实际Trae或实际人工点击。操作步骤与准确范围见仓库 `docs/一期工程整改/04-交接/0.4.1-受控入口预览安装与操作.md` 和 `docs/validation/p1-native-entry-20261015/README.md`。
+本次Node使用明确假CLI/宿主，浏览器为真实Chromium加模拟宿主；它们只证明入口组件，不证明实际Trae或实际人工点击。操作步骤与准确范围见仓库 `docs/一期工程整改/04-交接/0.4.2-受控入口预览安装与操作.md` 和 `docs/validation/p1-native-entry-20261015/README.md`。
+
+机器级设置 `aitest.pythonCarriersFile` 指向操作者核对的宿主 Python 载体登记文件，仅新核心启动时使用；既有核心需受控重启。CLI `python-carrier --help` 可生成实际虚拟环境登记，新建项目表单要求真实名称和测试目标。

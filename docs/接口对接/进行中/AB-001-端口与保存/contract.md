@@ -3,7 +3,7 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.46"
+contract_version: "1.47"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -15,6 +15,13 @@ blockers:
 next_owner: A/B/D
 next_action: 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。
 ---
+
+## 0.4.2 项目与环境登记入口（2026-10-15）
+
+宿主登记格式 aitest.python-carriers/1，顶层仅 schema_version/carriers；每项固定 project_id/environment_id/carrier_id/executable/expected_executable_digest/base_executable/expected_base_executable_digest/dependency_roots/isolation_mode/venv_root。配置限制256KiB、最多256项；重复JSON键、项目/环境重复、相对路径或未知字段拒绝。CLI python-carrier 从明确指定的虚拟环境路径计算文件摘要生成登记，不执行候选解释器，不代替保存业务环境声明。--output 仅创建新UTF-8文件，不覆盖既有配置。
+
+实现与验证见[本批记录](../../../validation/p1-environment-entry-20261015/README.md)，reviewing/partial/not_run 与历史签署不改。
+
 
 ## 2026-10-15 全目录复核
 
@@ -33,7 +40,7 @@ next_action: 同次有限记录页/全视图外层配对与准确交付提测关
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.46；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
+现行版本：1.47；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

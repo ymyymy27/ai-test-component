@@ -2,7 +2,7 @@
   "name": "aitest-trae",
   "displayName": "AI Test — Phase One Preview",
   "description": "Local core panel with core-owned confirmation. Real Trae workflow acceptance pending.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "aitest-local",
   "private": true,
   "engines": {
@@ -35,6 +35,12 @@
     "configuration": {
       "title": "AI 辅助测试",
       "properties": {
+        "aitest.pythonCarriersFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "由 python-carrier 生成并核对的宿主 Python 载体配置绝对路径。只在新核心启动时读取；变更后须安全排空并重启核心。不能用项目代码提供的配置代替实际解释器核对。"
+        },
         "aitest.pythonPath": {
           "type": "string",
           "default": "python",

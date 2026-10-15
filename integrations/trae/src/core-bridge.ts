@@ -190,6 +190,7 @@ export async function ensureCore(
   python: string,
   workspaceRoot: string,
   timeoutMs = 60_000,
+  pythonCarriersFile?: string,
 ): Promise<DispatchOutcome> {
   if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
@@ -205,7 +206,8 @@ export async function ensureCore(
     const child = spawn(
       python,
       ["-m", "aitest.interfaces.tools.cli", "ensure-core", "--workspace", workspaceRoot],
-      { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
+      { stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
+        ...(pythonCarriersFile ? {env:{...process.env, AITEST_PYTHON_CARRIERS:pythonCarriersFile}} : {}) },
     );
     let stdout = "";
     let stderr = "";

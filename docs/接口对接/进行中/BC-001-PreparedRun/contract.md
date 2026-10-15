@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.49"
+contract_version: "0.50"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -17,6 +17,13 @@ next_owner: B/C/D
 next_action: 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。
 ---
 
+## 0.4.2 项目与环境登记入口（2026-10-15）
+
+默认装配已接宿主登记的真实 Python 环境解析器。prepare/start 继续核对真实解释器版本/摘要、虚拟环境配置和依赖内容；冻结事实/内容漂移规则不变。宿主登记不是环境验证，也不授予动态 R/V 或独立业务核验资格；无登记仍阻塞，坏配置不回退核心解释器。
+
+实现与验证见[本批记录](../../../validation/p1-environment-entry-20261015/README.md)，reviewing/partial/not_run 与历史签署不改。
+
+
 ## 2026-10-15 全目录复核
 
 PreparedRun 准确来源/范围、准备与执行消费已有；可信动态环境/目标依赖和默认独立业务核验仍缺，不授予未知 R/V。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
@@ -28,7 +35,7 @@ PreparedRun 准确来源/范围、准备与执行消费已有；可信动态环�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：0.49；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
+现行版本：0.50；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

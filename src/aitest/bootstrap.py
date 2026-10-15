@@ -131,6 +131,12 @@ from aitest.infrastructure.connections import (
     LocalAPIConnectionBridge,
 )
 from aitest.infrastructure.credentials import SecretManager
+from aitest.infrastructure.environment_configuration import (
+    HostConfiguredEnvironmentResolver,
+)
+from aitest.infrastructure.environment_configuration import (
+    carrier_configuration as carrier_configuration,
+)
 from aitest.infrastructure.exports import FileReportArtifactPort
 from aitest.infrastructure.file_store.backup import FileBackupStore
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
@@ -157,7 +163,6 @@ from aitest.infrastructure.file_store.spool import FileSpoolStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.infrastructure.projections import SafeMaterialProjector
-from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
 from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
 from aitest.interfaces.local.api import Handler, LocalAPI, Session
@@ -1117,7 +1122,7 @@ def assemble_workspace_core(
         write_resolver.proof = controlled_writes
         environment_resolution = EnvironmentResolutionService(
             reader=reader,
-            resolver=environment_resolver or RegisteredPythonEnvironmentResolver(),
+            resolver=environment_resolver or HostConfiguredEnvironmentResolver(),
         )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,

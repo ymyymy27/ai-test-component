@@ -1,0 +1,51 @@
+[
+  {
+    "name": "final-ruff",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "final-mypy",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "final-wheel",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "build",
+      "--installer",
+      "uv"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "final-artifacts",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/verify_artifacts.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "final-isolated-wheel",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/smoke_wheel.py"
+    ],
+    "exit_code": 0
+  }
+]

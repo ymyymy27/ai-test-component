@@ -1,0 +1,12 @@
+
+> @aitest/panel@0.4.2 build
+> npm run check && esbuild src/index.ts --bundle --format=iife --outfile=dist/index.js
+
+
+> @aitest/panel@0.4.2 check
+> tsc --noEmit
+
+
+  dist\index.js  53.2kb
+
+Done in 5ms

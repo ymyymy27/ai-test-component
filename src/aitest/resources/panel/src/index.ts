@@ -143,6 +143,8 @@ class AITestPanel extends HTMLElement {
   private doctorOutcome: Outcome | null = null;
   private commandDraft = "";
   private commandNote = "";
+  private projectName = "";
+  private projectGoal = "";
   private viewOutcomes = new Map<string, Outcome>();
 
   private readonly receiveMessage = (event: MessageEvent): void => {
@@ -167,6 +169,7 @@ class AITestPanel extends HTMLElement {
           this.briefIssueId = this.briefNote = null;
           this.viewOutcomes.clear(); this.pendingQuery = null; this.outcome = null;
           this.commandDraft = ""; this.commandNote = "项目上下文变化，请重新核对操作输入。";
+          this.projectName = this.projectGoal = "";
           if (this.pendingRequest && !["doctor", "ensure-core"].includes(this.pendingRequest.action)) {
             this.pendingRequest = null; this.pending = false;
           }
@@ -421,20 +424,30 @@ class AITestPanel extends HTMLElement {
     note.textContent = "先配置项目编号。此处请求核心窗口确认完整输入；窗口确认前不会提交。"
       + "计划、环境和执行仍须满足核心门禁。未知结果保留原意图查询，不自动重跑。";
     const create = document.createElement("button"); create.textContent = "填写新建项目";
+    const name = document.createElement("input");
+    name.setAttribute("aria-label", "项目名称"); name.placeholder = "项目名称";
+    name.value = this.projectName; name.disabled = this.pending;
+    name.oninput = () => { this.projectName = name.value; };
+    const goal = document.createElement("textarea");
+    goal.setAttribute("aria-label", "实际测试目标"); goal.placeholder = "填写实际测试目标";
+    goal.rows = 3; goal.value = this.projectGoal; goal.disabled = this.pending;
+    goal.oninput = () => { this.projectGoal = goal.value; };
     create.disabled = this.pending || this.project === null || this.host === null || !nativeAvailable;
     create.onclick = () => {
       const workspaceId = this.doctorOutcome?.response?.["workspace_id"];
       if (typeof workspaceId !== "string" || this.project === null) {
         this.commandNote = "请先刷新核心状态，取得已核实的工作空间身份。";
+      } else if (!this.projectName.trim() || !this.projectGoal.trim()) {
+        this.commandNote = "请填写项目名称和实际测试目标。";
       } else {
         const intentId = Array.from(crypto.getRandomValues(new Uint8Array(16)),
           value => value.toString(16).padStart(2, "0")).join("");
         this.commandDraft = JSON.stringify({action:"save_context", intent_id:intentId,
           expected_revision:0, parameters:{project:{schema_version:"aitest.project/2.0",
             local_project_id:this.project.project_id, project_id:this.project.project_id,
-            workspace_id:workspaceId, name:"我的项目", goal:"请填写实际测试目标",
+            workspace_id:workspaceId, name:this.projectName.trim(), goal:this.projectGoal.trim(),
             revision:1, created_at_commit:"@core-assigned", modules:[]}}}, null, 2);
-        this.commandNote = "修改项目名称与测试目标，再请求核心确认。已有同编号项目会拒绝覆盖。";
+        this.commandNote = "项目输入已准备，请求核心确认后保存。已有同编号项目会拒绝覆盖。";
       }
       this.render();
     };
@@ -479,7 +492,7 @@ class AITestPanel extends HTMLElement {
         ? "核心已返回本次操作结果；请以回执中的具体业务状态为准。"
         : `${this.outcome.code ?? this.outcome.status}：${this.outcome.message ?? "操作结果尚未核实"}`;
     }
-    section.append(title, note, create, draft, submit, status, receipt);
+    section.append(title, note, name, goal, create, draft, submit, status, receipt);
     return section;
   }
 

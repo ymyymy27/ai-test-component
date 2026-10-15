@@ -1,6 +1,6 @@
 # AI 辅助测试插件（AI Test Component）
 
-面向 Windows 11 x64、Python 3.13 与 Trae 的本地测试插件，当前产品版本 0.4.1。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、门禁、验收与未验证范围统一见[项目现状](docs/现状.md)。**
+面向 Windows 11 x64、Python 3.13 与 Trae 的本地测试插件，当前产品版本 0.4.2。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、门禁、验收与未验证范围统一见[项目现状](docs/现状.md)。**
 
 [![CI](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml)
 
@@ -20,6 +20,8 @@ docs/validation/     按准确版本保存的实测与反例
 ```
 
 0.4.1 预览支持配置、连接、新建项目与高级受控命令，安装步骤见[操作说明](docs/一期工程整改/04-交接/0.4.1-受控入口预览安装与操作.md)。完整计划/执行向导与真实 Trae 验收仍待完成。
+
+0.4.2 补上宿主 Python 环境登记与项目创建表单，见[项目与环境操作说明](docs/一期工程整改/04-交接/0.4.2-项目创建与Python环境登记.md)。登记不代替实际环境观察与执行授权。
 
 ## 开发安装与验证
 

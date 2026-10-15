@@ -3,7 +3,7 @@ contract_id: BD-001
 title: 计划、范围与断言依据展示
 provider: B
 consumer: D
-contract_version: "0.9"
+contract_version: "0.10"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -15,6 +15,13 @@ blockers:
 next_owner: B/D
 next_action: 受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。
 ---
+
+## 0.4.2 项目与环境登记入口（2026-10-15）
+
+新建项目使用项目名称/实际测试目标表单，空值拒绝，不保存示例值；仍先准备准确输入再请求核心确认。机器级 aitest.pythonCarriersFile 只作为新核心启动配置，纳入宿主上下文身份；既有核心不热更。完整计划/执行向导仍欠，环境登记不代替环境声明/计划发布/依据确认/授权。
+
+实现与验证见[本批记录](../../../validation/p1-environment-entry-20261015/README.md)，reviewing/partial/not_run 与历史签署不改。
+
 
 ## 2026-10-15 全目录复核
 
@@ -35,7 +42,7 @@ next_action: 受控高级入口和提交前上下文核对已接；继续主动�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：0.9；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
+现行版本：0.10；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
