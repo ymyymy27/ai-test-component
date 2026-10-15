@@ -25,6 +25,7 @@ test("controlled editor preserves intent through refusal and never sends a user-
   await page.getByRole("button",{name:"请求核心确认并提交"}).click();
   const request=await page.evaluate(()=>(window as unknown as {__sent:Record<string,unknown>[]}).__sent.at(-1));
   expect(request?.kind).toBe("controlledDispatch"); expect(request?.intentId).toBe(draft.intent_id);
+  expect(request?.contextId).toBe("scope");
   expect(request?.projectId).toBe("project"); expect(request).not.toHaveProperty("user_confirmed");
   await postHostMessage(page,{kind:"outcome",action:"save_context",status:"refused",code:"USER_DECLINED",message:"取消"});
   await expect(page.getByTestId("controlled-entry")).toContainText("USER_DECLINED");

@@ -461,7 +461,7 @@ class AITestPanel extends HTMLElement {
         this.pendingRequest = {id:clientRequestId, action:command["action"]};
         this.pending = true;
         this.commandNote = "已请求核心窗口；请核对窗口里的准确输入和保存依据。";
-        this.host?.postMessage({kind:"controlledDispatch", clientRequestId,
+        this.host?.postMessage({kind:"controlledDispatch", clientRequestId, contextId:this.contextId,
           action:command["action"], intentId:command["intent_id"],
           expectedRevision:command["expected_revision"], bindingRevision:command["binding_revision"],
           target:command["target"], parameters:command["parameters"], projectId:this.project?.project_id});

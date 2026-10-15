@@ -162,6 +162,11 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
   if (raw["kind"] !== "dispatch" && raw["kind"] !== "controlledDispatch") {
     return;
   }
+  if (raw["kind"] === "controlledDispatch" && raw["contextId"] !== scope.id) {
+    post(panel, { kind: "outcome", action: textOrNull(raw["action"]), status: "refused",
+      code: "PROJECT_CONTEXT_MISMATCH", message: "提交时的宿主配置已失效，请刷新后核对工作空间与操作输入", clientRequestId });
+    return;
+  }
   const request = toDispatchRequest(raw);
   if (request === null) {
     post(panel, {

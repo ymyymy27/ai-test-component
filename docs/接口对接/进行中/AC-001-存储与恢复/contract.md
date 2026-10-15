@@ -14,12 +14,17 @@ blockers:
   - "C-03/C-05：默认核验/外部导入准确闭包与来源事实保存仍欠"
   - "真实业务保存→换核心→恢复及物理掉电未验收"
 next_owner: A/C
-next_action: 已知持久检查点重启写闸门已补；继续完整来源/核验闭包、独立备份位置、未知活动与实际 generation 迁移/恢复。
+next_action: 已知持久检查点重启写闸门已补；独立备份位置/冻结地址已补；继续完整来源/核验闭包、未知活动与实际 generation 迁移/恢复。
 ---
+
+## 2026-10-15 全目录复核
+
+迁移独立备份位置、周期内冻结地址、旧记录兼容与已知重启写闸门已补；未知活动、完整 generation 恢复及物理掉电仍未验证。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+
 
 ## 当前续修与验证范围（76ab7d2 起点）
 
-已知持久检查点重启写闸门已补；继续完整来源/核验闭包、独立备份位置、未知活动与实际 generation 迁移/恢复。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+已知持久检查点重启写闸门已补；独立备份位置/冻结地址已补；继续完整来源/核验闭包、未知活动与实际 generation 迁移/恢复。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 

@@ -1,0 +1,32 @@
+{
+  "baseline": "86cb554",
+  "paths": [
+    "docs/validation/p1-interface-review-20261015/README.md",
+    "docs/修改日志/2026-10-15-接口全目录整理与宿主上下文修复.md",
+    "docs/接口对接/README.md",
+    "docs/接口对接/归档/2026-10-15历史评审/AB-001-端口与保存/review-A.md",
+    "docs/接口对接/归档/2026-10-15历史评审/AC-001-存储与恢复/review-A.md",
+    "docs/接口对接/归档/2026-10-15历史评审/BD-001-计划与依据展示/review-D.md",
+    "docs/接口对接/归档/2026-10-15历史评审/CD-001-ExecutionFacts/review-D-http.md",
+    "docs/接口对接/归档/2026-10-15历史评审/CD-001-ExecutionFacts/review-D.md",
+    "docs/接口对接/归档/README.md",
+    "docs/接口对接/待裁定/README.md",
+    "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "docs/接口对接/进行中/AB-001-端口与保存/review-A.md",
+    "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "docs/接口对接/进行中/AC-001-存储与恢复/review-A.md",
+    "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "docs/接口对接/进行中/BD-001-计划与依据展示/review-D.md",
+    "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "docs/接口对接/进行中/CD-001-ExecutionFacts/review-D-http.md",
+    "docs/接口对接/进行中/CD-001-ExecutionFacts/review-D.md",
+    "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "docs/现状.md"
+  ],
+  "reason": "按现行一期合同同步代码修复/真实验收边界，保留历史与原失败"
+}

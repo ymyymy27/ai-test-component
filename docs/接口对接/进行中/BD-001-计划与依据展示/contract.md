@@ -3,18 +3,23 @@ contract_id: BD-001
 title: 计划、范围与断言依据展示
 provider: B
 consumer: D
-contract_version: "0.8"
+contract_version: "0.9"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "D-06：候选只读上下文/主屏已接，真实 Trae 与受控业务动作仍欠"
+  - "D-06：受控高级入口已接，完整业务向导与真实 Trae 仍欠"
   - "D-05/D-07/B-13：完整同源视图/双序列/交付验证投影与真实宿主未闭合"
 next_owner: B/D
-next_action: 显式宿主上下文/read_view 主屏只读消费已接；继续受控业务动作、主动作/工作台/设置、交付验证投影与真实 Trae。
+next_action: 受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。
 ---
+
+## 2026-10-15 全目录复核
+
+配置、新建项目模板与受控高级入口已接。写请求新增宿主 contextId 并在转发前核对，配置变化拒绝旧请求；完整业务向导和真实 Trae 尚未完成。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+
 
 ## 受控操作预览入口（2026-10-15）
 
@@ -26,11 +31,11 @@ next_action: 显式宿主上下文/read_view 主屏只读消费已接；继续�
 
 ## 当前续修与验证范围（76ab7d2 起点）
 
-显式宿主上下文/read_view 主屏只读消费已接；继续受控业务动作、主动作/工作台/设置、交付验证投影与真实 Trae。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：0.8；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
+现行版本：0.9；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -320,7 +325,7 @@ D 侧实现用户动作与导航时可直接接入这三个动作。
 | 4 | 上述三项是否影响 D 侧**已有的静态面板测试**（`D-08` 涉及的阶段卡与导航断言） | 回归影响 |
 | 5 | 接入排期：是否与 `D-09`（`reports.py` 空 full 范围）和 `D-02`（`ExecutionFacts→DecisionFacts` 适配）并入同一批 | 排期 |
 
-D 侧已于 2026-10-03 回复五项，确认动作表为 **18 项**；发布冲突、出站未知、Markdown 动作和人工确认的展示/入口边界见 [`review-D.md`](review-D.md)。该回复不表示 D 业务桥已经接入或 P1-AC 已验收。
+D 侧已于 2026-10-03 回复五项，确认动作表为 **18 项**；发布冲突、出站未知、Markdown 动作和人工确认的展示/入口边界见 [`review-D.md`](../../归档/2026-10-15历史评审/BD-001-计划与依据展示/review-D.md)。该回复不表示 D 业务桥已经接入或 P1-AC 已验收。
 
 **以上五项属合同闭环事项，不构成 B 侧阻塞**，按 D 现有工作节奏回复即可。
 **B 侧不改 D 的目录，也不代 D 决定展示口径**；本节仅登记动作与状态变化并列出待确认项。
@@ -336,3 +341,7 @@ D 侧已于 2026-10-03 回复五项，确认动作表为 **18 项**；发布冲�
 2026-10-14 同批参数合同补证：生成 ReadViewQuery Schema 用 oneOf 明确三种投影的必填/禁止组合，身份不得为空白或含控制字符；标准 JSON Schema 的尾换行宽松锚点不能扩大核心接受范围，增加显式否定控制字符。14 个向量与模型一致，接口/旧记录/人工边界不改，局部证据见[续检](../../../validation/p1-completion-repair-20261014/README.md)，不新增真实对拍。
 
 **2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、reviewing/partial/not_run、签署与 last_verified_commit 均不变。
+
+### 0.9 宿主提交前上下文绑定
+
+Webview 的 controlledDispatch 必须回传最近 projectContext.context_id 为 contextId。宿主读取当前配置并刷新 scope 后，先要求精确相等才转发；缺失或过期返回 PROJECT_CONTEXT_MISMATCH，不能仅比较 project_id。旧面板须随 VSIX 一起升级，不能降级省略字段；该字段不进入核心 Command/Response，不改变持久记录或人工授权。

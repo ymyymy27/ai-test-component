@@ -16,6 +16,11 @@ next_owner: D/C/B
 next_action: R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。
 ---
 
+## 2026-10-15 全目录复核
+
+报告/问题/复核/制品已有生产者，复用选择与准确来源消费已接；动态资格、独立预期/观察、真实业务恢复仍欠。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+
+
 ## 当前续修与验证范围（76ab7d2 起点）
 
 R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
@@ -66,11 +71,11 @@ R 准确源快照/证据冻结与原快照导出已补；继续准确独立预�
 历史正文版本：1.18（2026-10-12 状态复核；历史修订与确认按各自日期）
 日期：2026-10-12（历史记录保留原条目日期）
 状态：1.0历史确认保留；1.1—1.18增量评审中，D-10 守卫待修、完整复用/生产消费与统一对拍未完成
-提供方：C包（执行与证据）-赵  
-调用方：D包（判定、报告与用户入口）  
-保存方：A包（核心底座与存储）  
-Schema版本：aitest.execution-facts/1.0  
-合同源码：src/aitest/contracts/execution_facts.py  
+提供方：C包（执行与证据）-赵
+调用方：D包（判定、报告与用户入口）
+保存方：A包（核心底座与存储）
+Schema版本：aitest.execution-facts/1.0
+合同源码：src/aitest/contracts/execution_facts.py
 生成Schema：src/aitest/contracts/schemas/ExecutionFacts.json
 
 1.3 准确检查点来源：非空 Attempt 快照与不可变 `execution_checkpoint_refs@1`、当前指针在同一工作单元提交，快照仍为最后发布记录。引用表 Schema 为 `aitest.execution-checkpoint-refs/1.0`，身份由项目、运行、快照编号规范摘要生成，冻结 workspace、snapshot_cursor、snapshot_revision=1、snapshot_digest，以及完整 Attempt 身份到 `{record_id, revision, digest}` 的映射。revision 是实际 `stage_record` 返回的检查点仓储修订，不能由 Attempt 正文版本推算；digest 核对完整保存检查点正文。未改变的历史 Attempt 可保留上一快照准确检查点，当前事实变更须核对相应暂存或准确保存检查点投影。仓储修订必须为实际正整数，检查点项目/运行/步骤/Attempt及正文投影均须与快照一致。
@@ -254,10 +259,10 @@ AttemptFact.output_cursors为数组，每个元素对应一个OutputStreamName�
 
 ## 10 确认
 
-确认：[x] C包 赵    日期：2026-09-27  
-确认：[x] D包 郭    日期：2026-10-02  
+确认：[x] C包 赵    日期：2026-09-27
+确认：[x] D包 郭    日期：2026-10-02
 
-双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；消费方接入和真实夹具对拍由 `review-D.md` 跟踪。
+双方确认后，本文件作为 C-D ExecutionFacts 唯一对接依据；消费方接入与真实对拍由当前交付说明跟踪，旧评审已归档。
 
 ## 11 准确冻结来源读取（1.1增量）
 

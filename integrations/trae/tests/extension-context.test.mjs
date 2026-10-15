@@ -61,6 +61,7 @@ test("foreign project cannot reach the bridge", async () => {
 
 test("controlled operation preserves all write identities and is still a prompt request", async () => {
   state.receive({kind:"controlledDispatch",action:"save_binding",projectId:"p",target:"binding",
+    contextId:state.sent.findLast(x=>x.kind==="projectContext").context_id,
     intentId:"stable-intent",expectedRevision:2,bindingRevision:3,parameters:{binding:{binding_id:"binding"}},
     clientRequestId:"controlled-request"});
   await tick();
@@ -69,6 +70,21 @@ test("controlled operation preserves all write identities and is still a prompt 
   assert.equal(state.sent.at(-1).code,"USER_DECLINED");
   assert.equal(state.sent.at(-1).clientRequestId,"controlled-request");
 });
+test("queued writes cannot cross workspace changes even with the same project ID", async () => {
+  const oldContext=state.sent.findLast(x=>x.kind==="projectContext").context_id;
+  const previous=state.controlled;
+  state.settings.workspaceRoot="other-data-root";
+  for (const contextId of [oldContext, undefined]) {
+    state.receive({kind:"controlledDispatch",action:"save_binding",projectId:"p",target:"binding",
+      contextId,intentId:"queued-intent",expectedRevision:2,parameters:{},clientRequestId:"queued-write"});
+    await tick();
+    assert.equal(state.controlled,previous);
+    assert.equal(state.sent.at(-1).code,"PROJECT_CONTEXT_MISMATCH");
+  }
+  state.settings.workspaceRoot="data-root";
+  state.configuration({affectsConfiguration:()=>true});
+});
+
 test("configuration changes reject the in-flight receipt and publish fresh context", async () => {
   state.defer=true;
   state.receive({kind:"dispatch",action:"query",projectId:"p",parameters:{},clientRequestId:"request-3"});

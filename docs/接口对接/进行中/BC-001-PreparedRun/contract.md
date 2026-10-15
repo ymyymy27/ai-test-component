@@ -17,6 +17,11 @@ next_owner: B/C/D
 next_action: 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。
 ---
 
+## 2026-10-15 全目录复核
+
+PreparedRun 准确来源/范围、准备与执行消费已有；可信动态环境/目标依赖和默认独立业务核验仍缺，不授予未知 R/V。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+
+
 ## 当前续修与验证范围（76ab7d2 起点）
 
 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。reviewing/partial/not_run 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
