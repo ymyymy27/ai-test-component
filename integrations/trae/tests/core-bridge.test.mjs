@@ -31,7 +31,9 @@ elif mode == 'array':
     print('[]')
 elif sys.argv[1] == 'ensure-core':
     data = dict(status='READY', workspace_id='w', instance_id='i')
-    if mode == 'carrier_config': data['carrier_config'] = os.environ.get('AITEST_PYTHON_CARRIERS')
+    if mode == 'carrier_config':
+        data['carrier_config'] = os.environ.get('AITEST_PYTHON_CARRIERS')
+        data['query_config'] = os.environ.get('AITEST_BUSINESS_QUERIES')
     if mode == 'missing_identity': del data['instance_id']
     print(json.dumps(data))
     if mode == 'exit': sys.exit(1)
@@ -73,10 +75,13 @@ test("only exact successful receipts are accepted", async () => {
 });
 test("host carrier configuration is passed only as startup configuration", async () => {
   const before = process.env.AITEST_PYTHON_CARRIERS;
-  const outcome = await ensureCore(python, "carrier_config", 5000, "C:/trusted/carriers.json");
+  const beforeQueries = process.env.AITEST_BUSINESS_QUERIES;
+  const outcome = await ensureCore(python, "carrier_config", 5000, "C:/trusted/carriers.json", "C:/trusted/queries.json");
   assert.equal(outcome.status, "ok");
   assert.equal(outcome.response.carrier_config, "C:/trusted/carriers.json");
   assert.equal(process.env.AITEST_PYTHON_CARRIERS, before);
+  assert.equal(outcome.response.query_config, "C:/trusted/queries.json");
+  assert.equal(process.env.AITEST_BUSINESS_QUERIES, beforeQueries);
 });
 for (const mode of ["request", "protocol", "project", "missing_identity", "exit", "array", "result_array", "error_array"]) {
   test(`unverified ${mode} receipt is refused as success`, async () => {

@@ -1,0 +1,8 @@
+.................F                                                       [100%]
+================================== FAILURES ===================================
+________ test_published_plan_actual_execution_query_report_and_restart ________
+tests\unit\test_configured_business_verification.py:148: in test_published_plan_actual_execution_query_report_and_restart
+    )
+E   assert 2 == 0
+=========================== short test summary info ===========================
+FAILED tests/unit/test_configured_business_verification.py::test_published_plan_actual_execution_query_report_and_restart

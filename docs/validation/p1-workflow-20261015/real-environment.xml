@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="74.002" timestamp="2026-10-15T14:52:55.091027+08:00" hostname="d"><testcase classname="tests.unit.test_workflow_real_environment" name="test_real_registered_environment_operation_chain" time="73.087"><failure message="AssertionError: assert 'present_unconfirmed' == 'confirmed'&#10;  &#10;  - confirmed&#10;  + present_unconfirmed">tests\unit\test_workflow_real_environment.py:22: in test_real_registered_environment_operation_chain
+    run_chain(tmp_path, monkeypatch)
+tests\unit\test_configured_business_verification.py:174: in test_published_plan_actual_execution_query_report_and_restart
+    assert prepared.result["assertion_bases"][0]["assertion_basis_state"] == "confirmed"
+E   AssertionError: assert 'present_unconfirmed' == 'confirmed'
+E
+E     - confirmed
+E     + present_unconfirmed</failure></testcase></testsuite></testsuites>

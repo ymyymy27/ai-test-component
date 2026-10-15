@@ -36,6 +36,7 @@ from aitest.application.evidence.execution_outputs import SavedExecutionEvidence
 from aitest.application.evidence.external_imports import SavedExternalResultImport
 from aitest.application.evidence.manual_capture import SavedManualEvidenceCapture
 from aitest.application.evidence.saved_verification import SavedBusinessVerification
+from aitest.application.evidence.verification_resolver import SavedBusinessVerificationResolver
 from aitest.application.execution.action_resolver import build_saved_action_resolver
 from aitest.application.execution.authorization import (
     ExecutionAuthorizationService,
@@ -116,6 +117,7 @@ from aitest.infrastructure.adapters.execution.registered_entry import (
 from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
 from aitest.infrastructure.adapters.source_control import GitSourceControl
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
+from aitest.infrastructure.business_query_configuration import HostConfiguredBusinessQueries
 from aitest.infrastructure.capabilities import (
     CONNECTION,
     MODEL,
@@ -1270,6 +1272,14 @@ def assemble_workspace_core(
         run_schedule = SavedRunSchedule(
             execution_coordinator, step_execution, workspace.workspace_id, unit_of_work.repo
         )
+        if business_verification_resolver is None and business_verification_port is None:
+            configured_queries = HostConfiguredBusinessQueries.from_environment()
+            if configured_queries is not None:
+                business_verification_resolver = SavedBusinessVerificationResolver(
+                    execution_authorizations, cast(RecordRepository, unit_of_work.repo),
+                    configured_queries.validate,
+                )
+                business_verification_port = configured_queries
         business_verification = SavedBusinessVerification(
             execution_coordinator,
             execution_authorizations,

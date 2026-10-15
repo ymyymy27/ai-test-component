@@ -1,5 +1,6 @@
 /** Phase-one fact viewer and controlled command requester. The core owns
  * business outcomes and the independent human confirmation dialog. */
+import {workflowActions, workflowCommand} from "./workflow";
 type Detail = "current" | "plan" | "workbench" | "review" | "settings";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
@@ -145,6 +146,8 @@ class AITestPanel extends HTMLElement {
   private commandNote = "";
   private projectName = "";
   private projectGoal = "";
+  private workflowAction = "publish_plan";
+  private workflowValues: Record<string,string> = {expected_revision:"0"};
   private viewOutcomes = new Map<string, Outcome>();
 
   private readonly receiveMessage = (event: MessageEvent): void => {
@@ -170,6 +173,7 @@ class AITestPanel extends HTMLElement {
           this.viewOutcomes.clear(); this.pendingQuery = null; this.outcome = null;
           this.commandDraft = ""; this.commandNote = "项目上下文变化，请重新核对操作输入。";
           this.projectName = this.projectGoal = "";
+          this.workflowValues = {expected_revision:"0"};
           if (this.pendingRequest && !["doctor", "ensure-core"].includes(this.pendingRequest.action)) {
             this.pendingRequest = null; this.pending = false;
           }
@@ -416,7 +420,7 @@ class AITestPanel extends HTMLElement {
   private controlledSection(): HTMLElement {
     const section = document.createElement("section");
     section.dataset.testid = "controlled-entry";
-    const title = document.createElement("h2"); title.textContent = "受控操作（预览）";
+    const title = document.createElement("h2"); title.textContent = "受控操作";
     const note = document.createElement("p"); note.className = "muted";
     const capabilities = this.doctorOutcome?.response?.["result"] as Record<string, unknown> | undefined;
     const nativeAvailable = Array.isArray(capabilities?.["transport_capabilities"])
@@ -448,6 +452,7 @@ class AITestPanel extends HTMLElement {
             workspace_id:workspaceId, name:this.projectName.trim(), goal:this.projectGoal.trim(),
             revision:1, created_at_commit:"@core-assigned", modules:[]}}}, null, 2);
         this.commandNote = "项目输入已准备，请求核心确认后保存。已有同编号项目会拒绝覆盖。";
+        this.outcome = null;
       }
       this.render();
     };
@@ -492,7 +497,80 @@ class AITestPanel extends HTMLElement {
         ? "核心已返回本次操作结果；请以回执中的具体业务状态为准。"
         : `${this.outcome.code ?? this.outcome.status}：${this.outcome.message ?? "操作结果尚未核实"}`;
     }
-    section.append(title, note, name, goal, create, draft, submit, status, receipt);
+    section.append(title, note, name, goal, create, this.workflowSection(), draft, submit, status, receipt);
+    return section;
+  }
+
+  private workflowSection(): HTMLElement {
+    const section=document.createElement("section"); section.dataset.testid="workflow";
+    const title=document.createElement("h3"); title.textContent="计划 → 执行 → 核验 → 报告";
+    const note=document.createElement("p");
+    note.textContent="逐项准备输入，再请求核心确认。解析、授权、执行同一步骤必须沿用同一业务意图；"
+      + "其他动作使用各自意图。回执未知时保留原意图，不把新意图当重试。计划/准备仍需准确已保存材料。";
+    const choice=document.createElement("select"); choice.setAttribute("aria-label","流程动作");
+    choice.disabled=this.pending;
+    for (const item of workflowActions) {
+      const option=document.createElement("option"); option.value=item.action; option.textContent=item.title;
+      choice.append(option);
+    }
+    choice.value=this.workflowAction;
+    choice.onchange=()=>{
+      const execution=["prepare_execution","authorize_step","execute_step"];
+      if (!(execution.includes(this.workflowAction) && execution.includes(choice.value))) {
+        this.workflowValues["intent_id"]="";
+      }
+      this.workflowValues["expected_revision"]="0";
+      this.workflowAction=choice.value; this.render();
+    };
+    section.append(title,note,choice);
+    const fields=[{key:"intent_id",label:"本动作稳定业务意图"},
+      {key:"expected_revision",label:"预期仓库修订（首写为 0）"},
+      ...workflowActions.find(item=>item.action===this.workflowAction)!.fields];
+    for (const field of fields) {
+      const label=document.createElement("label"); label.textContent=field.label;
+      const input=document.createElement("textarea"); input.rows=("kind" in field && field.kind==="json") ? 5 : 1;
+      input.setAttribute("aria-label",field.label); input.value=this.workflowValues[field.key] ?? "";
+      input.disabled=this.pending; input.oninput=()=>{this.workflowValues[field.key]=input.value;};
+      label.append(input); section.append(label);
+    }
+    const fill=document.createElement("button"); fill.textContent="准备本步骤操作";
+    fill.disabled=this.pending || !this.project || !this.host;
+    fill.onclick=()=>{
+      try {
+        this.commandDraft=JSON.stringify(workflowCommand(this.workflowAction,this.workflowValues),null,2);
+        this.commandNote="本步骤输入已准备；核对下方内容后请求核心确认。尚未提交。";
+        this.outcome=null;
+      } catch(error) {this.commandNote=error instanceof Error ? error.message : "流程输入无效"; this.outcome=null;}
+      this.render();
+    };
+    const useReceipt=document.createElement("button"); useReceipt.textContent="从本次成功回执填入记录编号";
+    useReceipt.disabled=this.pending || this.outcome?.status!=="ok" || this.outcome?.action==="doctor";
+    useReceipt.onclick=()=>{
+      const result=this.outcome?.response?.["result"] as Record<string,unknown> | undefined;
+      if (result) {
+        if (this.outcome?.action==="prepare_run" && result["status"]==="prepared"
+            && typeof result["prepared_run_id"]==="string") {
+          this.workflowValues["prepared_run_id"]=result["prepared_run_id"];
+        }
+        if (this.outcome?.action==="prepare_execution" && typeof result["execution_action_id"]==="string") {
+          this.workflowValues["execution_action_id"]=result["execution_action_id"];
+        }
+        const facts=(result["execution_facts"] ?? (this.outcome?.action==="register_run" ? result : null)) as Record<string,unknown> | null;
+        if (facts && facts["project_id"]===this.project?.project_id) {
+          for (const key of ["run_id","snapshot_commit_id"]) {
+            if (typeof facts[key]==="string") {
+              this.workflowValues[key==="snapshot_commit_id" ? "base_snapshot_commit_id" : key]=facts[key];
+            }
+          }
+          const attempts=facts["current_attempt_by_step"] as Record<string,unknown> | undefined;
+          const attempt=attempts?.[this.workflowValues["step_id"] ?? ""];
+          if (typeof attempt==="string") {this.workflowValues["attempt_id"]=attempt;}
+        }
+      }
+      this.commandNote="已填入回执明确给出的编号；步骤选择和业务意图仍需核对。";
+      this.render();
+    };
+    section.append(fill,useReceipt);
     return section;
   }
 

@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.50"
+contract_version: "0.51"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -11,11 +11,23 @@ verification_status: not_run
 last_verified_commit: null
 blockers:
   - "C-17：准确读取与资格/公式已改，但动态环境/目标依赖摘要仍未知"
-  - "C-03：默认独立核验配置/端口未接"
+  - "C-03：无凭据 HTTP 默认核验已接；纯函数/凭据/动态对象 ID 与真实环境尚欠"
   - "真实半程、授权、宿主与完整 R 对拍未验收"
 next_owner: B/C/D
-next_action: 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。
+next_action: 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖、其他核验适配和真实验收，不以保存声明授予资格。
 ---
+
+## 结构化独立核验依据（0.51，兼容增量）
+
+按一期功能 §4、能力清单 §6 的同对象独立核验要求，新增显式选择的依据编码 `aitest.business-query-basis/1`：Case.assertion_basis.text 为严格 UTF-8 JSON 对象，恰含 schema_version、business_object_id、query_method、target_deployment_ref、expected_facts、query_interval、deadline_condition。expected_facts 为非空对象；query_method 使用 `<project_id>:<登记名>`。依据摘要仍按完整原文计算，原 Case/计划/确认修订保持不变；不解析自然语言、不从执行输出推测对象或预期。旧自由文本仍可保存，自动核验时明确阻塞。
+
+解析器只读取当前 StepRevisionRef 指向的已保存完整 Case，复核原计划、准备及当前 Attempt；运行修订沿既有准确内容读取。宿主以 AITEST_BUSINESS_QUERIES 指定绝对配置文件，在核心启动时冻结查询登记；配置版本 `aitest.business-queries/1`，queries 为数组，各项恰含 query_method、target_deployment_ref、url_template、object_id_field。只使用已有独立 HTTP GET 适配器；当前登记不支持凭据正文或凭据认证，不把核心变成 HTTP 服务。地址不能由 verify_pending 参数覆盖。未配置保留原缺口；坏配置仅阻塞核验；正常/不匹配/缺失沿原证据保存和报告规则派生，登记不授予 V。
+
+本增量仍 reviewing / partial / not_run，不代表真实宿主或一期验收。
+
+### 从已保存记录准备
+
+prepare_run 增加显式 `mode=from_saved` 输入形式（旧完整输入形式兼容）：project_revision、binding_id/binding_revision、plan_id/plan_revision、snapshot_id/snapshot_revision、environment_id/environment_revision、client_id、prepare_request_id、execution_source、selected_case_ids。所有修订为准确仓库修订；执行入口仍由用户明确给出，resolved_input_digest 由核心根据来源、环境、准确计划编号及正文摘要和入口重算；同一准备请求不得静默切换到内容相同的另一计划，须重新准备。核心从这些引用读取完整用例/范围/规则/模板并冻结步骤，不接受调用方重复填写冻结用例和预期。所选用例不得超出计划，原来源/发布/准备门禁仍全部执行。可选 confirmation_refs 仅接收 confirm_basis 的准确已保存回执引用，原依据修订/摘要及受控来源证明仍由准备门禁逐项校验；未提供仍保留未确认，不扫描历史代选、不代签、不自动开始执行。
 
 ## 0.4.2 项目与环境登记入口（2026-10-15）
 
@@ -35,7 +47,7 @@ PreparedRun 准确来源/范围、准备与执行消费已有；可信动态环�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：0.50；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
+现行版本：0.51；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

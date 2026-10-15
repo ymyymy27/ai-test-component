@@ -1,0 +1,10 @@
+{
+  "version": "0.4.3",
+  "modules": 241,
+  "lines": 74210,
+  "test_files": 358,
+  "test_lines": 83504,
+  "collected": 5504,
+  "mypy_files": 255,
+  "full_suite_passed": false
+}

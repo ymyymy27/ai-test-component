@@ -2,7 +2,7 @@
   "name": "aitest-trae",
   "displayName": "AI Test — Phase One Preview",
   "description": "Local core panel with core-owned confirmation. Real Trae workflow acceptance pending.",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "aitest-local",
   "private": true,
   "engines": {
@@ -35,6 +35,12 @@
     "configuration": {
       "title": "AI 辅助测试",
       "properties": {
+        "aitest.businessQueriesFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "宿主核对的独立 HTTP 查询登记绝对路径（aitest.business-queries/1）。启动时冻结，变更须安全重启核心；预期从准确 Case 依据读取，不能用执行响应代填。"
+        },
         "aitest.pythonCarriersFile": {
           "type": "string",
           "default": "",

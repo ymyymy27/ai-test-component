@@ -1404,7 +1404,26 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         from aitest.application.planning.preparation import preparation_identity_digest
         from aitest.application.project.source_analysis import SourceAnalysisError
 
-        inputs = _preparation_inputs(command)
+        if _command_parameters(command).get("mode") == "from_saved":
+            from aitest.application.planning.saved_preparation import from_saved
+
+            if deps.environment_resolution is None or deps.workspace_id is None:
+                raise CapabilityUnavailable("trusted preparation environment is unavailable")
+            try:
+                inputs = from_saved(
+                    _command_parameters(command), project_id=_command_project_id(command),
+                    workspace_id=deps.workspace_id, reader=deps.reader,
+                    environments=deps.environment_resolution,
+                )
+            except (ValueError, TypeError, KeyError) as error:
+                if getattr(error, "code", None):
+                    raise
+                raise BUseCaseError(
+                    "B_INVALID_PARAMETER",
+                    "saved preparation references or execution input are invalid",
+                ) from error
+        else:
+            inputs = _preparation_inputs(command)
         existing = None
         preparation = deps.reader.find_preparation(
             project_id=inputs.project_id,

@@ -1,0 +1,11 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+________ test_published_plan_actual_execution_query_report_and_restart ________
+tests\unit\test_configured_business_verification.py:183: in test_published_plan_actual_execution_query_report_and_restart
+    reported = core.api.dispatch(report_command, RELAY)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: ErrorDTO(schema_version='aitest.error/2.0', code='INVALID_REQUEST', message='the saved preparation has no frozen templ...ion', retryable=False, next_step='核对当前状态和诊断后继续；结果未知的动作先核实原意图。', request_id='report-request', intent_id='report-intent')
+E   assert ErrorDTO(schema_version='aitest.error/2.0', code='INVALID_REQUEST', message='the saved preparation has no frozen templ...ion', retryable=False, next_step='核对当前状态和诊断后继续；结果未知的动作先核实原意图。', request_id='report-request', intent_id='report-intent') is None
+E    +  where ErrorDTO(schema_version='aitest.error/2.0', code='INVALID_REQUEST', message='the saved preparation has no frozen templ...ion', retryable=False, next_step='核对当前状态和诊断后继续；结果未知的动作先核实原意图。', request_id='report-request', intent_id='report-intent') = Response(protocol_version='aitest.local/2.0', request_id='report-request', instance_id='authoritative-core', workspace...on', retryable=False, next_step='核对当前状态和诊断后继续；结果未知的动作先核实原意图。', request_id='report-request', intent_id='report-intent')).error
+=========================== short test summary info ===========================
+FAILED tests/unit/test_configured_business_verification.py::test_published_plan_actual_execution_query_report_and_restart

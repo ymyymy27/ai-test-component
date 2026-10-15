@@ -3,18 +3,24 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.87"
+contract_version: "1.88"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "C-17/C-03：动态资格与默认核验仍缺可信输入；未知不能授予 R/V"
+  - "C-17/C-03：动态复用仍缺可信输入；HTTP 核验已接，其他适配/真实验收仍欠；未知不能授予 R/V"
   - "A-05/A-07/D-06：跨进程维护、未知活动/恢复与真实宿主用户流程未闭合"
 next_owner: A/B/C/D
 next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。
 ---
+
+## 1.88 操作主线接入（2026-10-15）
+
+prepare_run 增加 from_saved 形式，准确引用与确认来源见 [BC-001 0.51](../BC-001-PreparedRun/contract.md)。输出仍为原 PreparedRun，不新增业务动作或跳过发布/来源/环境/授权门禁。宿主 AITEST_BUSINESS_QUERIES 在装配时冻结只读 HTTP 登记；默认核验从准确 Step/Case 依据解析，未配置/不适用仍拒绝，坏配置不阻断其他能力。核验结果沿原保存/回读合同，不扩充 V 或修改现有判定。
+
+面板增加分步输入与回执编号辅助，受控请求继续使用 native-confirmation/1 和宿主 contextId；每步显式确认、同执行意图三步复用、未知不自动重跑。完整计划编辑器/纯函数核验/鉴权和真实 Trae 仍欠。准确结果见[本批记录](../../../validation/p1-workflow-20261015/README.md)，reviewing/partial/not_run 与历史签署不变。
 
 ## 0.4.2 项目与环境登记入口（2026-10-15）
 
@@ -44,7 +50,7 @@ next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.87；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+现行版本：1.88；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -72,7 +78,7 @@ next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执�
 
 **已实现**：端口签名、真实文件底座、当前提交/引用/索引、C 默认命令执行/控制/调度以及 CLI/MCP/只读 Trae 桥已有实现；不再把“冻结全部签名”列为当前任务；默认 C 组件注入存在，仍须修 C-15/C-16 实际接线/核验缺陷。
 
-**仍缺／优先动作**：backup三模式与migrate五模式已有默认受控handler，迁移独立位置配置已补；宿主设置/真实恢复和verify_pending默认可信resolver/port仍缺，当前优先打通真实Trae操作闭环。业务结论继续由准确执行/独立核验事实派生，不能由底座或界面自证。
+**仍缺／优先动作**：backup三模式与migrate五模式已有默认受控handler，迁移独立位置配置已补；宿主设置/真实恢复仍待验；verify_pending已接无凭据HTTP登记，纯函数/鉴权/动态对象ID仍缺，当前优先打通真实Trae操作闭环。业务结论继续由准确执行/独立核验事实派生，不能由底座或界面自证。
 
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 

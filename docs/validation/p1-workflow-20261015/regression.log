@@ -1,0 +1,12 @@
+..................F..................................................... [ 69%]
+................................                                         [100%]
+================================== FAILURES ===================================
+________ test_published_plan_actual_execution_query_report_and_restart ________
+tests\unit\test_configured_business_verification.py:174: in test_published_plan_actual_execution_query_report_and_restart
+    assert prepared.result["assertion_bases"][0]["assertion_basis_state"] == "confirmed"
+E   AssertionError: assert 'present_unconfirmed' == 'confirmed'
+E
+E     - confirmed
+E     + present_unconfirmed
+=========================== short test summary info ===========================
+FAILED tests/unit/test_configured_business_verification.py::test_published_plan_actual_execution_query_report_and_restart

@@ -16,6 +16,9 @@ next_owner: A/B/D
 next_action: 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。
 ---
 
+> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
+
+
 ## 0.4.2 项目与环境登记入口（2026-10-15）
 
 宿主登记格式 aitest.python-carriers/1，顶层仅 schema_version/carriers；每项固定 project_id/environment_id/carrier_id/executable/expected_executable_digest/base_executable/expected_base_executable_digest/dependency_roots/isolation_mode/venv_root。配置限制256KiB、最多256项；重复JSON键、项目/环境重复、相对路径或未知字段拒绝。CLI python-carrier 从明确指定的虚拟环境路径计算文件摘要生成登记，不执行候选解释器，不代替保存业务环境声明。--output 仅创建新UTF-8文件，不覆盖既有配置。

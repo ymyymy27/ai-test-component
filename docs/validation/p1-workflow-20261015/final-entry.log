@@ -1,0 +1,23 @@
+..................FF                                                     [100%]
+================================== FAILURES ===================================
+________ test_published_plan_actual_execution_query_report_and_restart ________
+tests\unit\test_configured_business_verification.py:206: in test_published_plan_actual_execution_query_report_and_restart
+    assert switched.error is None and switched.result["status"] == "needs_reprepare"
+E   AssertionError: assert (None is None and 'blocked' == 'needs_reprepare'
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='switch-plan-same-prepare', instance_id='authoritative-core',...needs_reprepare', 'message': 'Basis needs re-preparation: resolved_input_digest'}], 'gaps': []}, page=None, error=None).error
+E
+E     - needs_reprepare
+E     + blocked)
+______________ test_real_registered_environment_operation_chain _______________
+tests\unit\test_workflow_real_environment.py:22: in test_real_registered_environment_operation_chain
+    run_chain(tmp_path, monkeypatch)
+tests\unit\test_configured_business_verification.py:206: in test_published_plan_actual_execution_query_report_and_restart
+    assert switched.error is None and switched.result["status"] == "needs_reprepare"
+E   AssertionError: assert (None is None and 'blocked' == 'needs_reprepare'
+E    +  where None = Response(protocol_version='aitest.local/2.0', request_id='switch-plan-same-prepare', instance_id='authoritative-core',...needs_reprepare', 'message': 'Basis needs re-preparation: resolved_input_digest'}], 'gaps': []}, page=None, error=None).error
+E
+E     - needs_reprepare
+E     + blocked)
+=========================== short test summary info ===========================
+FAILED tests/unit/test_configured_business_verification.py::test_published_plan_actual_execution_query_report_and_restart
+FAILED tests/unit/test_workflow_real_environment.py::test_real_registered_environment_operation_chain

@@ -376,14 +376,8 @@ def test_default_handler_rejects_injected_query_material_and_reports_missing_cap
         core.lifetime_lock.release()
 
 
-def test_missing_capability_message_names_the_unfrozen_declarations(tmp_path) -> None:
-    """C-03 缺口自述（能力清单 §6 独立核验 / 架构 01 §1.5 环境声明）。
-
-    默认装配没有核验解析器：只报"端口未配置"无法区分"能力没装"与"合同没定义声明点"。
-    这里从**已在手的冻结材料**列出环境身份与已登记的独立核验方式，并把没有声明点的
-    `business_object_id`/`url_template`（查询方法）/`expected_facts`（独立预期）点名，
-    同时给出分册引用——**不改变拒绝类型与错误码**。
-    """
+def test_missing_capability_message_names_required_host_and_case_configuration(tmp_path) -> None:
+    """Missing wiring names the supported registration without claiming case fields are absent."""
 
     core = assemble_workspace_core(tmp_path, instance_id="query-diagnosis-core")
     try:
@@ -420,14 +414,14 @@ def test_missing_capability_message_names_the_unfrozen_declarations(tmp_path) ->
     assert "env-1@3" in message
     assert '"independent_verification_registered": true' in message
     assert '"case_id": "case-1"' in message
-    # 未定义声明点：按路径细分点名（HTTP/数据库核验 vs 纯函数独立预期比对），并给出分册引用。
+    # 登记位置已有定义；缺宿主装配不等于所有用例都缺结构化依据。
     for name in ("business_object_id", "url_template", "expected_facts"):
         assert name in message
     assert (
-        '"http_or_database_verification_missing_declarations": ["business_object_id", '
+        '"http_verification_required_configuration": ["AITEST_BUSINESS_QUERIES: '
         in message
     )
     assert '"pure_function_comparison_missing_declarations": ["expected_facts"]' in message
     assert "能力与模板清单" in message and "架构 01" in message
-    # 两册清单不一致的事实也要如实给出（功能 §4 并列要求 vs 架构 01 §1.5 清单缺项）。
+    assert "BC-001 0.51" in message and "aitest.business-query-basis/1" in message
     assert "业务对象ID" in message and "目标服务身份/部署版本" in message

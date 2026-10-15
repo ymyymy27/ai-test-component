@@ -36,6 +36,8 @@ def _authoritative(
     step_timeout_seconds: int | None = 120,
     main_source: str = "VALUE = 1\n",
     environment_resolver=None,
+    basis_text=None,
+    template_versions=None,
 ):
     """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。
 
@@ -61,7 +63,10 @@ def _authoritative(
             assertion_basis=replace(
                 case.assertion_basis,
                 state=AssertionBasisState.PRESENT_UNCONFIRMED,
-                text_digest=text_digest(case.assertion_basis.text),
+                text=case.assertion_basis.text if basis_text is None else basis_text,
+                text_digest=text_digest(
+                    case.assertion_basis.text if basis_text is None else basis_text
+                ),
             ),
         )
         for case in scenario.cases
@@ -132,6 +137,7 @@ def _authoritative(
             "revision": 1,
             "scope": acceptance_scope_to_payload(scope, project_id=project.project_id),
             "cases": [case_to_payload(case, project_id=project.project_id) for case in cases],
+            "template_versions": template_versions or [],
         },
     )
     assert published.error is None, published.error

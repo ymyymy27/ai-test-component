@@ -12,7 +12,7 @@ import { dispatchControlled, dispatchReadOnly, ensureCore, type DispatchOutcome,
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
 
-function readSettings(): { python: string; workspaceRoot: string; pythonCarriersFile: string; projectId: string | null; runId: string | null } {
+function readSettings(): { python: string; workspaceRoot: string; pythonCarriersFile: string; businessQueriesFile: string; projectId: string | null; runId: string | null } {
   const configuration = vscode.workspace.getConfiguration("aitest");
   const python = configuration.get<unknown>("pythonPath", "python");
   const workspace = configuration.get<unknown>("workspaceRoot", "");
@@ -20,6 +20,7 @@ function readSettings(): { python: string; workspaceRoot: string; pythonCarriers
     python: typeof python === "string" ? python : "",
     workspaceRoot: typeof workspace === "string" ? workspace : "",
     pythonCarriersFile: textOrNull(configuration.get<unknown>("pythonCarriersFile", "")) ?? "",
+    businessQueriesFile: textOrNull(configuration.get<unknown>("businessQueriesFile", "")) ?? "",
     projectId: identityOrNull(configuration.get<string>("projectId", "")),
     runId: identityOrNull(configuration.get<string>("runId", "")),
   };
@@ -141,8 +142,8 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
   if (clientRequestId === null) { return; }
   const expectedContext = publishProject(panel, scope);
   if (raw["kind"] === "ensureCore") {
-    const { python, workspaceRoot, pythonCarriersFile } = readSettings();
-    const ensured = await ensureCore(python, workspaceRoot, 60_000, pythonCarriersFile);
+    const { python, workspaceRoot, pythonCarriersFile, businessQueriesFile } = readSettings();
+    const ensured = await ensureCore(python, workspaceRoot, 60_000, pythonCarriersFile, businessQueriesFile);
     if (JSON.stringify(readSettings()) !== expectedContext) {
       publishProject(panel, scope);
       post(panel, { kind: "outcome", action: "ensure-core", status: "unavailable",

@@ -95,29 +95,10 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
             )
 
     def _missing_verification_declarations(self, scope: Mapping[str, object]) -> str:
-        """C-03 缺口**自述**：说明哪些解析来源已冻结、哪些没有声明点。
+        """Report absent host wiring without guessing whether a case has a declaration.
 
-        默认装配没有核验解析器/适配器（`resolver`/`verifier` 为 None）。只报"端口未配置"
-        无法区分"能力没装"与"合同没定义声明点"，因此这里从**已在手的冻结材料**（准备投影）
-        列出事实，并把分册没定义的部分点名（出处见消息里的引用）：
-
-        - 已冻结：独立核验方式文本（`FrozenCase.independent_verification`，发布必填）、
-          环境身份（`EnvironmentRefFact`）、目标部署身份与按用途凭据的**声明**位置
-          （架构 01 §15 / 功能 §4）、只读查询配置形状（`HttpBusinessQuerySpec`：
-          `target_deployment_ref`/`url_template` 的 `{business_object_id}` 槽/`object_id_field`/
-          `credential_reference`/预算）；
-        - **未定义声明点**按路径细分（能力清单 §6 与 §5）：
-
-          * HTTP／数据库独立核验：`business_object_id`（业务对象标识）、`url_template`
-            的登记来源、`expected_facts`（独立预期）；
-          * 纯函数独立预期比对：只需 `expected_facts`——能力清单 §5 明确「python-library 的
-            纯函数没有持久化时，数据库核验条目不适用但**独立预期比对仍适用**」。
-
-          功能 §4 要求「数据来源/隔离/复位、**业务对象ID**、目标部署身份须可追溯」，而架构 01 §15
-          的环境声明清单并列了"目标服务身份/部署版本"却**没有业务对象ID**——两册清单不一致，
-          故本方法只如实点名，不自行选一种承载。
-
-        读不到准备投影时退回基础消息；本方法只构造**诊断文本**，不改变拒绝类型与错误码。
+        BC-001 0.51 defines explicit structured HTTP expectations and host targets.
+        Pure-function verification still needs its separate implementation.
         """
 
         base = "a trusted business query resolver/adapter is not configured"
@@ -144,17 +125,15 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
             ),
             "environment": f"{environment.environment_id}@{environment.revision}",
             "frozen_environment_fields": sorted(environment.model_fields),
-            "http_or_database_verification_missing_declarations": [
-                "business_object_id",
-                "url_template",
-                "expected_facts",
+            "http_verification_required_configuration": [
+                "AITEST_BUSINESS_QUERIES: url_template / target_deployment_ref",
+                "aitest.business-query-basis/1: business_object_id / expected_facts",
             ],
             "pure_function_comparison_missing_declarations": ["expected_facts"],
             "declaration_point_evidence": [
-                "功能 §4：数据来源/隔离/复位、业务对象ID、目标部署身份须可追溯",
-                "架构 01 §1.5：环境声明清单未列业务对象ID（只有目标服务身份/部署版本）",
-                "能力与模板清单 §6 独立核验：输入同一业务对象标识和独立预期",
-                "能力与模板清单 §5：纯函数仍适用独立预期比对",
+                "功能 §4：业务对象ID与目标服务身份/部署版本须可追溯",
+                "架构 01 / 能力与模板清单 §6：按准确来源独立核验",
+                "BC-001 0.51：结构化依据与宿主查询登记；不推断自然语言",
             ],
         }
         return f"{base}；冻结材料核对：{json.dumps(facts, ensure_ascii=False, sort_keys=True)}"
