@@ -8,7 +8,7 @@ contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
 verification_status: fixture_passed
-last_verified_commit: 12007d56951d5453ed8fcaa6b18e54901e31f524
+last_verified_commit: ec4ce323324514cb6296a0bf2a4184ce65ddd9aa
 blockers: []
 next_owner: A/B/C/D
 next_action: 现行接口已关闭；后续字段变更重新评审，真实产品验收继续按项目现状跟踪。

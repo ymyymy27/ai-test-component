@@ -33,3 +33,5 @@
 [发布检查](final-release-commands.json)及[生命周期修复后的重建/安装检查](lifecycle-commands.json)均退出0；宿主25、浏览器19、登记准备16分别通过。最终 VSIX 仅补同步交接 README 后重打包（final-vsix-repack.log，退出0），其源码与初次发布相同。[产物](artifacts.json)、[源码字节核对](wheel-source-parity.json)、[规模及仅收集结果](facts.json)单独留存；没有运行完整全量。
 
 等待解锁后才能继续真实 Trae 全功能操作；本轮 P1 验收结果保持，不以组件供应方成功代填 verified。
+
+最终代码提交：`ec4ce323324514cb6296a0bf2a4184ce65ddd9aa`。工作目录保持可继续真实界面测试；密钥只保存在系统凭据存储。
