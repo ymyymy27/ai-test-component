@@ -1,0 +1,17 @@
+{
+  "results": {
+    "chain-and-path-final": {
+      "tests": 166,
+      "skipped": 0,
+      "seconds": 1031.298
+    },
+    "existing-final": {
+      "tests": 520,
+      "skipped": 0,
+      "seconds": 2076.785
+    }
+  },
+  "full_suite_run": false,
+  "real_acceptance": false,
+  "release_checks": 12
+}

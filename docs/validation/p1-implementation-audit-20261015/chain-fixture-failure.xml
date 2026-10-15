@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="21" time="4.960" timestamp="2026-10-15T17:57:32.362479+08:00" hostname="d"><testcase classname="tests.unit.test_delivery_report_verification" name="test_report_projection_requires_matching_source_and_new_execution" time="0.744" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change0]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change1]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change2]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change3]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change4]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_delivery_report_rechecks_evidence_bytes" time="0.568" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_runtime_mapping_keeps_original_obligations_and_adds_effective_cases" time="0.586" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:5}-matched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:6}-mismatched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;passed&quot;:true}-no_result]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:true}-mismatched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes0]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes1]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes2]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes3]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes4]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[[]]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[{&quot;result&quot;:5,&quot;result&quot;:6}]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[{&quot;result&quot;:NaN}]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_real_function_plan_execution_verification_report_export_restart" time="2.158"><failure message="ValueError: a case requires at least one precondition">tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-41/test_real_function_plan_execut0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001900311B020&gt;
+
+    def test_real_function_plan_execution_verification_report_export_restart(tmp_path, monkeypatch):
+        from tests.unit.test_configured_business_verification import (
+            test_published_plan_actual_execution_query_report_and_restart as chain,
+        )
+    
+&gt;       chain(tmp_path, monkeypatch, pure=True)
+
+tests\unit\test_pure_function_verification.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_configured_business_verification.py:175: in test_published_plan_actual_execution_query_report_and_restart
+    with _authoritative(tmp_path, basis_text=declaration, main_source=source,
+F:\python\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+tests\unit\test_authoritative_preparation.py:76: in _authoritative
+    cases = tuple(case_transform(case) for case in cases)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_authoritative_preparation.py:76: in &lt;genexpr&gt;
+    cases = tuple(case_transform(case) for case in cases)
+                  ^^^^^^^^^^^^^^^^^^^^
+tests\unit\test_configured_business_verification.py:156: in function_case
+    return replace(case, objective="evaluate add(2, 3) against independent expected value",
+F:\python\Lib\dataclasses.py:1596: in replace
+    return _replace(obj, **changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+F:\python\Lib\dataclasses.py:1630: in _replace
+    return self.__class__(**changes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;string&gt;:17: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Case(case_id='case-create-ticket', revision=1, layer=&lt;CaseLayer.L2: 'L2'&gt;, objective='evaluate add(2, 3) against indep...nt_verification='compare saved output with frozen expected_facts', mock_scope=(), importance=&lt;CaseImportance.P0: 'P0'&gt;)
+
+    def __post_init__(self) -&gt; None:
+        _require_text(self.case_id, "case_id")
+        if self.revision &lt; 1:
+            raise ValueError("case revision must be &gt;= 1")
+        _require_text(self.objective, "case objective")
+        # 需求 P1-FR06：没有预期结果或前置条件不得标为可直接验收的完整用例。
+        _require_text(self.expected, "case expected")
+        _require_text(self.verification_method, "case verification_method")
+        if not self.preconditions:
+&gt;           raise ValueError("a case requires at least one precondition")
+E           ValueError: a case requires at least one precondition
+
+src\aitest\domain\planning\plans.py:285: ValueError</failure></testcase></testsuite></testsuites>

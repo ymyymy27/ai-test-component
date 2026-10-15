@@ -17,6 +17,20 @@ def saved_object_id(
             or not 1 <= len(source["json_path"]) <= 16
             or any(not isinstance(k, str) or not k.strip() for k in source["json_path"])):
         raise ValueError("invalid object identity selector")
+    value, refs = saved_stdout_json(facts, step_id, attempt_id, objects)
+    for key in source["json_path"]:
+        if not isinstance(value, dict) or key not in value:
+            raise ValueError("object identity field is unavailable")
+        value = value[key]
+    if not isinstance(value, str) or not value.strip() or len(value.encode("utf-8")) > 4096:
+        raise ValueError("object identity must be a bounded nonempty string")
+    return value, refs
+
+
+def saved_stdout_json(
+    facts: ExecutionFacts, step_id: str, attempt_id: str, objects: EvidenceObjectStore,
+) -> tuple[object, tuple[str, ...]]:
+    """Read exact permanent output without executing or trusting an asserted result."""
     matches = [a for a in facts.attempts if a.attempt_id == attempt_id]
     if len(matches) != 1:
         raise ValueError("object identity requires one saved attempt")
@@ -62,11 +76,4 @@ def saved_object_id(
     if (exit_fact.saved_bytes_by_stream.get("stdout") != len(raw)
             or exit_fact.last_block_index_by_stream.get("stdout") != blocks[-1].block_index):
         raise ValueError("object identity output is truncated")
-    value = decode_json(bytes(raw))
-    for key in source["json_path"]:
-        if not isinstance(value, dict) or key not in value:
-            raise ValueError("object identity field is unavailable")
-        value = value[key]
-    if not isinstance(value, str) or not value.strip() or len(value.encode("utf-8")) > 4096:
-        raise ValueError("object identity must be a bounded nonempty string")
-    return value, tuple(refs)
+    return decode_json(bytes(raw)), tuple(refs)

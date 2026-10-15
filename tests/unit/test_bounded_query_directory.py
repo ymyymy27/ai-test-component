@@ -479,8 +479,8 @@ def test_index_directory_link_is_rejected_before_any_tree_write(tmp_path, monkey
     from aitest.infrastructure.file_store.index import _ShardDirectory
 
     directory = tmp_path / "indexes/records-kind"
-    actual = compat.is_junction
-    monkeypatch.setattr(compat, "is_junction", lambda path: path == directory or actual(path))
+    actual = compat.is_link
+    monkeypatch.setattr(compat, "is_link", lambda path: path == directory or actual(path))
     with pytest.raises(ValueError, match="filesystem link"):
         _ShardDirectory(tmp_path, "records-kind", 8).bulk_build(
             [(("p",), {"record_id": "a"})],

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from copy import deepcopy
 from functools import cmp_to_key
 from pathlib import Path
@@ -47,8 +47,19 @@ class OrderedIndexTree:
 
     @staticmethod
     def _reject_links(path: Path) -> None:
-        if any(part.is_symlink() or compat.is_junction(part) for part in (path, *path.parents)):
-            raise ValueError("ordered index path contains a filesystem link")
+        OrderedIndexTree._reject_link_paths((path,))
+
+    @staticmethod
+    def _reject_link_paths(paths: Iterable[Path]) -> None:
+        # Deduplicate shared ancestors only within this one synchronous check.
+        # No path observation survives the call; actual node reads check again.
+        checked: set[Path] = set()
+        for path in paths:
+            for part in (path, *path.parents):
+                if part not in checked:
+                    if compat.is_link(part):
+                        raise ValueError("ordered index path contains a filesystem link")
+                    checked.add(part)
 
     @staticmethod
     def _key(value: object) -> Key:
@@ -59,6 +70,10 @@ class OrderedIndexTree:
         return tuple(value)
 
     def validate_ref(self, value: object) -> Ref:
+        return self.validate_reference(value, self.compare)
+
+    @staticmethod
+    def validate_reference(value: object, compare: Callable[[Key, Key], int]) -> Ref:
         if not isinstance(value, dict) or set(value) != {"file", "count", "first", "last", "level"}:
             raise ValueError("invalid ordered index reference")
         file = value["file"]
@@ -73,7 +88,8 @@ class OrderedIndexTree:
             raise ValueError("invalid ordered index count")
         if type(value["level"]) is not int or not 0 <= value["level"] <= _MAX_HEIGHT:
             raise ValueError("invalid ordered index height")
-        if self.compare(self._key(value["first"]), self._key(value["last"])) > 0:
+        if compare(OrderedIndexTree._key(value["first"]),
+                   OrderedIndexTree._key(value["last"])) > 0:
             raise ValueError("invalid ordered index interval")
         return value
 

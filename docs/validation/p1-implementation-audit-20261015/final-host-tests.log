@@ -1,0 +1,37 @@
+
+> aitest-trae@0.4.5 test
+> node --test tests/*.test.mjs
+
+✔ only exact successful receipts are accepted (194.2394ms)
+✔ host carrier configuration is passed only as startup configuration (94.1079ms)
+✔ unverified request receipt is refused as success (98.4587ms)
+✔ unverified protocol receipt is refused as success (97.5108ms)
+✔ unverified project receipt is refused as success (103.0897ms)
+✔ unverified missing_identity receipt is refused as success (97.4329ms)
+✔ unverified exit receipt is refused as success (100.625ms)
+✔ unverified array receipt is refused as success (102.1738ms)
+✔ unverified result_array receipt is refused as success (96.7717ms)
+✔ unverified error_array receipt is refused as success (97.2071ms)
+✔ large_stdout is limited by UTF8 bytes (277.6059ms)
+✔ large_stderr is limited by UTF8 bytes (278.1782ms)
+✔ raw stderr is never copied into the outcome (98.1855ms)
+✔ startup refusal cannot copy untrusted stderr code into its outcome (97.7408ms)
+✔ timeout cannot become success (322.9362ms)
+✔ ensure requires zero exit and complete core identity (280.525ms)
+✔ controlled refusal stays refusal and writes stay forbidden (96.5702ms)
+✔ controlled bridge preserves exact identities and refuses mismatched receipts (387.7362ms)
+✔ invalid startup configuration and budget fail before spawning (0.2425ms)
+✔ host publishes configured scope and preserves request correlation (3.6366ms)
+✔ foreign project cannot reach the bridge (0.5243ms)
+✔ controlled operation preserves all write identities and is still a prompt request (0.5553ms)
+✔ queued writes cannot cross workspace changes even with the same project ID (0.7778ms)
+✔ configuration changes reject the in-flight receipt and publish fresh context (0.7752ms)
+✔ missing project blocks scoped reads and panel disposal releases configuration watch (0.4203ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3161.6404

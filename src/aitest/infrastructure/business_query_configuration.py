@@ -45,6 +45,7 @@ class HostConfiguredBusinessQueries:
                     or row["query_method"].count(":") != 1
                     or any(not part.strip() for part in row["query_method"].split(":"))
                     or row["query_method"] in self.entries
+                    or row["query_method"].endswith(":pure-function-stdout")
                 ):
                     raise ValueError("invalid or duplicate query registration")
                 self.entries[row["query_method"]] = HttpBusinessQuerySpec(

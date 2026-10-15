@@ -581,6 +581,9 @@ class DeliveryViewDTO(BaseModel):
     verification_state: str
     submitted: bool
     submission: DeliverySubmissionViewDTO | None = None
+    verification_business_outcome: str | None = None
+    verification_run_id: str | None = None
+    verification_report_id: str | None = None
 
 
 def delivery_view_dto(
@@ -602,6 +605,9 @@ def delivery_view_dto(
                 _view_text_list(submission.get("acceptance_item_ids"), "acceptance_item_ids")
             ),
         )
+    from aitest.application.project.delivery_verification import delivery_projection
+
+    projection = delivery_projection(submission) if submission is not None else None
     return DeliveryViewDTO(
         project_id=project_id,
         delivery_id=delivery.delivery_id,
@@ -611,11 +617,18 @@ def delivery_view_dto(
         run_method=delivery.run_method,
         self_report_completed=tuple(delivery.self_report.completed),
         self_report_incomplete=tuple(delivery.self_report.incomplete),
-        verified_in_scope=tuple(delivery.verified_in_scope),
-        unverified_scope=tuple(delivery.unverified_scope),
-        verification_state=delivery.verification_state.value,
+        verified_in_scope=(tuple(_view_text_list(projection["verified_in_scope"], "verified scope"))
+                           if projection else tuple(delivery.verified_in_scope)),
+        unverified_scope=(tuple(_view_text_list(projection["unverified_scope"], "unverified scope"))
+                          if projection else tuple(delivery.unverified_scope)),
+        verification_state=(_view_text(projection, "verification_state") if projection
+                            else delivery.verification_state.value),
         submitted=parsed is not None,
         submission=parsed,
+        verification_business_outcome=(_view_text(projection, "business_outcome")
+                                       if projection else None),
+        verification_run_id=(_view_text(projection, "run_id") if projection else None),
+        verification_report_id=(_view_text(projection, "report_id") if projection else None),
     )
 
 

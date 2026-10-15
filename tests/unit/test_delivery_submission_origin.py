@@ -108,7 +108,7 @@ def prepare(core, base):
     return core.api.dispatch(
         Command(
             action="prepare_approval",
-            project_id="project",
+            project_id=base.project_id,
             request_id="review-" + base.request_id,
             intent_id="review-" + base.intent_id,
             expected_revision=0,
@@ -146,6 +146,24 @@ def test_default_submission_is_negotiated_but_labels_and_agents_cannot_confirm(d
         response = core.api.dispatch(base, session)
         assert response.error is not None
     assert core.unit_of_work.repo.current_revision("delivery_submission", "submission") == 0
+
+
+def test_real_saved_submission_view_reads_revision_from_record_envelope(delivery_core):
+    core, command, *_ = delivery_core
+    challenge = prepare(core, command)
+    assert challenge.error is None, challenge.error
+    result = confirm(core, command, challenge.result)
+    assert result.error is None, result.error
+    stored = core.unit_of_work.repo.read(
+        aggregate_kind="delivery_submission", record_id="submission", revision=1,
+    )
+    assert "revision" not in stored.payload
+    view = core.view_queries.delivery_view(
+        project_id=command.project_id, delivery_id="delivery", submission_id="submission",
+    )
+    assert view.submission.revision == stored.revision == 1
+    assert view.submission.submission_id == "submission"
+    assert view.verification_state == "required_verification_incomplete"
 
 
 def test_formal_record_freezes_five_materials_and_keeps_every_scope_unverified(delivery_core):

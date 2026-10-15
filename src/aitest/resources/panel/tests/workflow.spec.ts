@@ -61,3 +61,20 @@ test("saved preparation form creates explicit references without frozen case fab
   expect(command.parameters).not.toHaveProperty("frozen_cases");
   expect(()=>workflowCommand("prepare_run",{...values,plan_revision:"1.5"})).toThrow();
 });
+
+test("run controls bind the exact run snapshot and delivery keeps report references explicit",async()=>{
+  const {workflowCommand}=await import("../src/workflow");
+  for (const action of ["start_run","pause_run","resume_run","cancel_run"]) {
+    expect(workflowCommand(action,{intent_id:"control",expected_revision:"0",run_id:"run",
+      base_snapshot_commit_id:"snapshot"})).toEqual({action,intent_id:"control",expected_revision:0,
+      target:"run",parameters:{run_id:"run",base_snapshot_commit_id:"snapshot"}});
+    expect(()=>workflowCommand(action,{intent_id:"control",expected_revision:"0",run_id:"run"})).toThrow();
+  }
+  const values={intent_id:"submission",expected_revision:"0",project_revision:"1",submission_id:"s",
+    delivery_ref:'{"delivery_id":"d","record_revision":1}',
+    source_ref:'{"snapshot_id":"source","record_revision":2}'};
+  expect(workflowCommand("submit_delivery",values).parameters).not.toHaveProperty("verification_report_ref");
+  expect(workflowCommand("submit_delivery",{...values,
+    verification_report_ref:'{"report_id":"report","record_revision":3}'}).parameters)
+    .toMatchObject({verification_report_ref:{report_id:"report",record_revision:3},expected_revision:0});
+});

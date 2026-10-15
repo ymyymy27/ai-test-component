@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.25"
+contract_version: "1.26"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,8 +13,20 @@ blockers:
   - "C-17/C-03/D-02：动态 R、准确独立预期/观察与业务配置仍缺"
   - "真实 Trae/业务关闭、恢复与完整安全便携制品未验收"
 next_owner: D/C/B
-next_action: R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。
+next_action: 纯函数输出独立比对与报告交付投影已接；继续真实动态复用、业务/恢复和全同源对拍。
 ---
+
+## 本次技术决定与当前实现（2026-10-15）
+
+现行版本：1.26。纯函数输出独立比对与报告交付投影已接；继续真实动态复用、业务/恢复和全同源对拍。
+
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 reviewing/partial/not_run 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+
+
+## 纯函数核验兼容增量（2026-10-15）
+
+依据一期能力清单 §6，落实 [DEC-015](../../归档/裁定/DEC-015-纯函数独立预期比对.md)。依据 `aitest.pure-function-basis/1` 只包含 schema_version 与非空 expected_facts；从准确 Case 读取预期，与当前 Attempt 完整且未过滤的永久 stdout JSON 对象按既有领域规则比较。核验方法保留 `<project_id>:pure-function-stdout`，对象为 Attempt ID，目标为 `attempt:<attempt_id>`，证据引用随核验保存。无 HTTP/数据库/模型依赖，不重跑函数，不作为持久副作用的独立回读；原 verify_pending 形状、HTTP 依据与判定语义兼容。技术裁定由用户授权本次代理作出，实现和验证另记，不代签真实验收。
+
 
 > 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
 

@@ -1,5 +1,5 @@
 /** Entry forms only. Every result and permission remains owned by the core. */
-export type Field = {key:string; label:string; kind?:"json"|"number"};
+export type Field = {key:string; label:string; kind?:"json"|"number"; optional?:boolean};
 export const workflowActions: ReadonlyArray<{action:string; title:string; fields:Field[]}> = [
   {action:"confirm_basis", title:"确认准确断言依据（不代替执行/核验）", fields:[
     {key:"case_id",label:"用例编号"},{key:"case_revision",label:"用例仓库修订",kind:"number"},
@@ -37,6 +37,20 @@ export const workflowActions: ReadonlyArray<{action:string; title:string; fields
   {action:"export_report", title:"9. 导出报告", fields:[
     {key:"report_id",label:"报告编号"},{key:"kind",label:"制品类型（markdown_summary / evidence_bundle）"},
     {key:"review_ids",label:"复核编号列表 JSON（不附复核填 []）",kind:"json"}]},
+  ...[
+    ["start_run","按计划推进已授权步骤"], ["pause_run","暂停运行"],
+    ["resume_run","恢复运行"], ["cancel_run","请求取消运行"],
+  ].map(([action,title])=>({action:action!,title:title!,fields:[
+    {key:"run_id",label:"运行编号"},
+    {key:"base_snapshot_commit_id",label:"当前执行快照编号"},
+  ]})),
+  {action:"submit_delivery", title:"正式提测并关联报告", fields:[
+    {key:"project_revision",label:"项目仓库修订",kind:"number"},
+    {key:"submission_id",label:"本次提测编号"},
+    {key:"delivery_ref",label:"交付准确引用 JSON",kind:"json"},
+    {key:"source_ref",label:"源码准确引用 JSON",kind:"json"},
+    {key:"verification_report_ref",label:"核验报告准确引用 JSON（可留空）",kind:"json",optional:true},
+  ]},
 ];
 
 export function workflowCommand(action:string, values:Record<string,string>):Record<string,unknown> {
@@ -50,6 +64,7 @@ export function workflowCommand(action:string, values:Record<string,string>):Rec
   let parameters:Record<string,unknown> = {};
   for (const field of spec.fields) {
     const raw = values[field.key]?.trim();
+    if (!raw && field.optional) { continue; }
     if (!raw) { throw new Error(`请填写${field.label}`); }
     let value:unknown = raw;
     if (field.kind === "json") { value = JSON.parse(raw); }
@@ -61,6 +76,12 @@ export function workflowCommand(action:string, values:Record<string,string>):Rec
   }
   let target:unknown;
   if (action === "confirm_basis") {target=parameters["case_id"];}
+  if (["start_run","pause_run","resume_run","cancel_run"].includes(action)) {
+    target=parameters["run_id"];
+  }
+  if (action === "submit_delivery") {
+    target=parameters["submission_id"]; parameters["expected_revision"]=revision;
+  }
   if (action === "prepare_run") {
     const source=parameters["execution_source"];
     if (!source || typeof source!=="object" || Array.isArray(source)) {

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="21" time="54.404" timestamp="2026-10-15T17:57:51.257626+08:00" hostname="d"><testcase classname="tests.unit.test_delivery_report_verification" name="test_report_projection_requires_matching_source_and_new_execution" time="0.717" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change0]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change1]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change2]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change3]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change4]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_delivery_report_rechecks_evidence_bytes" time="0.637" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_runtime_mapping_keeps_original_obligations_and_adds_effective_cases" time="0.687" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:5}-matched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:6}-mismatched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;passed&quot;:true}-no_result]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:true}-mismatched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes0]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes1]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes2]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes3]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes4]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[[]]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[{&quot;result&quot;:5,&quot;result&quot;:6}]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[{&quot;result&quot;:NaN}]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_real_function_plan_execution_verification_report_export_restart" time="51.502"><failure message="pydantic_core._pydantic_core.ValidationError: 1 validation error for Command&#10;  Value error, request_id must not be used as intent_id [type=value_error, input_value={'action': 'confirm_basis... 'expected_revision': 0}, input_type=dict]&#10;    For further information visit https://errors.pydantic.dev/2.13/v/value_error">tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-42/test_real_function_plan_execut0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021AE8287020&gt;
+
+    def test_real_function_plan_execution_verification_report_export_restart(tmp_path, monkeypatch):
+        from tests.unit.test_configured_business_verification import (
+            test_published_plan_actual_execution_query_report_and_restart as chain,
+        )
+    
+&gt;       chain(tmp_path, monkeypatch, pure=True)
+
+tests\unit\test_pure_function_verification.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_configured_business_verification.py:187: in test_published_plan_actual_execution_query_report_and_restart
+    other = confirm(core, replace(inputs, assertion_bases=(entry,)),
+tests\unit\test_default_basis_confirmation.py:16: in confirm
+    command = basis_command(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+project = 'project-ticket'
+parameters = {'case_id': 'case-change-status', 'case_revision': 1, 'basis_revision': 1, 'basis_text_digest': 'sha256:b04924fc36488db69129520ddfbaa20968dc07e335aa5b74586a7965419e9778'}
+intent = 'pure-basis-1', request = 'pure-basis-1'
+
+    def basis_command(
+        project, parameters, *, intent="confirm_basis-intent", request="confirm_basis-request"
+    ):
+&gt;       return Command(
+            action="confirm_basis",
+            project_id=project,
+            parameters=parameters,
+            request_id=request,
+            intent_id=intent,
+            expected_revision=0,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for Command
+E         Value error, request_id must not be used as intent_id [type=value_error, input_value={'action': 'confirm_basis... 'expected_revision': 0}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+tests\support\controlled_confirmation.py:12: ValidationError</failure></testcase></testsuite></testsuites>

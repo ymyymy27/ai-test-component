@@ -1,10 +1,12 @@
 # 跨包接口对接规则与总台账
 
-版本：2.92
+版本：2.93
 
 更新日期：2026-10-15
 
 适用范围：A、B、C、D 包之间的合同、交付、评审、裁定与验证材料
+
+本次技术结论：DEC-015 纯函数独立预期、DEC-016 交付报告引用、DEC-017 full范围方向纠错已按用户授权决定并回写；状态不再等方案确认，实现回归与真实验收分列，见[本批记录](../validation/p1-implementation-audit-20261015/README.md)。
 
 ## 1. 目录职责
 
@@ -192,12 +194,12 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.89 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。 |
-| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.47 | A/B partial | not_run（局部自动化检查另记） | 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 |
-| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.52 | B/C partial | not_run（局部自动化检查另记） | 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。 |
+| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.90 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 纯函数默认核验、报告关联提测和运行控制表单已接；继续可信动态复用、完整恢复及真实宿主用户流。 |
+| [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.48 | A/B partial | not_run（局部自动化检查另记） | 报告关联提测与材料闭包已接；继续真实半程、供应方与宿主取证。 |
+| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.53 | B/C partial | not_run（局部自动化检查另记） | 独立纯函数预期来源已接；继续可信动态环境与目标依赖观察，不以保存声明授予复用资格。 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | reviewing，1.9 | A/C partial | not_run（局部自动化检查另记） | 已知持久检查点重启写闸门已补；独立备份位置/冻结地址已补；继续完整来源/核验闭包、未知活动与实际 generation 迁移/恢复。 |
-| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.10 | B partial；D partial | not_run（局部自动化检查另记） | 受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。 |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.25 | C/D partial | not_run（局部自动化检查另记） | R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 |
+| [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.11 | B partial；D partial | not_run（局部自动化检查另记） | 运行推进/暂停/恢复/取消及报告关联提测表单已接；继续完整编辑向导与真实 Trae。 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.26 | C/D partial | not_run（局部自动化检查另记） | 纯函数输出独立比对与报告交付投影已接；继续真实动态复用、业务/恢复和全同源对拍。 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 

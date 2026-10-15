@@ -3,18 +3,30 @@ contract_id: AB-001
 title: 端口与保存语义
 provider: A
 consumer: B
-contract_version: "1.47"
+contract_version: "1.48"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
 verification_status: not_run
 last_verified_commit: null
 blockers:
-  - "B-01/B-03/B-05/B-13：可信人工/供应方/半程及交付验证投影未闭合"
+  - "B-01/B-03/B-05/B-13：真实人工/供应方/半程与交付验收未闭合"
   - "真实宿主与业务来源/重启/物理掉电未验证"
 next_owner: A/B/D
-next_action: 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。
+next_action: 报告关联提测与材料闭包已接；继续真实半程、供应方与宿主取证。
 ---
+
+## 本次技术决定与当前实现（2026-10-15）
+
+现行版本：1.48。报告关联提测与材料闭包已接；继续真实半程、供应方与宿主取证。
+
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 reviewing/partial/not_run 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+
+
+## 交付核验报告引用增量（2026-10-15）
+
+按 [DEC-016](../../归档/裁定/DEC-016-交付核验报告关联.md) 增加 submit_delivery 可选 verification_report_ref（report_id、record_revision）；只从同源码的准确报告与冻结执行事实派生本次验收范围，随新提测保存，旧交付/报告不变。无新引用时原形状和未验证语义兼容。报告关联须纳入原受控确认，不从开发自述复制完成状态；实现与测试进行中，不代签。
+
 
 > 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
 

@@ -1,0 +1,332 @@
+[
+  {
+    "path": "docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md",
+    "sha256": "db12e51cc3d736d5f7b7b14a139c4f77ccef30dcb81e5334db649f0d41895df7",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md",
+    "sha256": "231fdbdc028abdc7810cb383f9f2529e55f0fa03d3ad98823f79b87ab98a7d7d",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/A包完整提交闭包整改设计-2026-10-04.md",
+    "sha256": "b5954c12acea7924b3a721b08368e9e0336680e3a4a4573169e186114d4752bc",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/动作解析器实施清单-2026-10-09.md",
+    "sha256": "8476a26e66b6eca253128171a06012318f1769d91172d3caa5b568fbfbf58139",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md",
+    "sha256": "aa91700393012eae7234f371634bc221c4239dd97dad093f7e8174c95a339edf",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md",
+    "sha256": "60d417575ba5c49760e6ce9853799e32f1c787190a72f1d79fe7f1322b4d397b",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md",
+    "sha256": "f421592d59091d314c7c2eb609a2e6d1f0a02cc41d1c8cd24d7ae13afe6ee568",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md",
+    "sha256": "f42f8a723fd3bb2dd779f18257114d61247afb8d1792dfa879c97470ba69c341",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md",
+    "sha256": "6d2991d7bc67fb2a76995f1dde560afe7bfec4210ef9e92c4086c8702e4591ef",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md",
+    "sha256": "d8ba8db2ec3edbb69a7a57028b0664dbc98d8bd08cec0913004b803fe16ed164",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C0105整用例复用消费规则.md",
+    "sha256": "878b6fff27d4b2719ad78aeda9fab793833bc1807f14190ace7caa69201f7867",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03声明点按路径细分.md",
+    "sha256": "18cd749ef48687965a3d9298334a57a775dd9a348a65597c9cbbf94db327c460",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C03核验声明点自述.md",
+    "sha256": "bf6efa9289d4f29e652d09e95abd75cc3e5622a88b349c346203db3bb7e15cb2",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控人工补证入口.md",
+    "sha256": "c52e8634f6c7fabe5bcae5ce3c95aa859ccecb8f3663967d095810cbb878ec40",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C受控备份入口backup.md",
+    "sha256": "b55bdaf5a173a12eaa3910d025fb871e85d90caaca14ebb442e9a1b9f1c65792",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C备份登记与恢复入口.md",
+    "sha256": "88fc53786c6ba4e2c8b5e748ffcf852de4362cdec2e1e84b9d344765f5a2cdd8",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C结构迁移入口与维护窗口.md",
+    "sha256": "60dc5639c8ae10b649ebfa5faef19400e719ea4c362ab3231885eadce3c29b10",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-C重试入口retry-step.md",
+    "sha256": "4120b1f2830ad1391cb874b4dc4ce22c8651da65b288b7fb76d6d056a3e6bc47",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D02断言结果生产者.md",
+    "sha256": "5d2ef96b3f7faf0e6452bdcebccc11002bc59d52d7e5ee1694bbc91b3019da3a",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D导出安全与可携带包验证.md",
+    "sha256": "4e7db9f3f51cc40fe28fe74ed07c5408e44800c42b7dd2b89ad1c8930c46cc20",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板只读业务投影.md",
+    "sha256": "eb06babf3c116d77b57ae614d3cbb37858bcec0f9a2ddd500405ce426e480442",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板复测简报只读视图.md",
+    "sha256": "5043b3a3f234e9865ed3e660d5c0d9581c4e814c026632889920e996c538ef05",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板已提交事件增量续读.md",
+    "sha256": "8a09771c82ab717e95e6926bc89f823c55da8c917b5d1f6644f3e48fb9c0bd8a",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-D面板问题详情业务闭环.md",
+    "sha256": "a2feb36aa9585772622785fc705d80dcbed95c078a4dd5ead88326abdaffc953",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02交付说明视图.md",
+    "sha256": "faa9fcd33d3f223047b25f40e9b51a14b3ff1802b579c7813ddbc568b516349e",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-FR02核验状态与自述分列.md",
+    "sha256": "0c0961731ff62c4754cefda92143b6c4ac50e7be568330ac29d5a7e41935095e",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-request-regression与return-stage.md",
+    "sha256": "09f2c5d144db3ab93ac298c2ffa18c59929be06768a9bf4523c547ce604b550f",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-列表与事件配对边界.md",
+    "sha256": "85d5bd80372fbcd2e5345cdff889647c4395e3deaa34e62eebe47d703175e7b6",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用保存侧收窄.md",
+    "sha256": "5b7eda55b9151357049d2fd0fa08135e73873ca2855875e34e11069727c85365",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-复用选择动作.md",
+    "sha256": "11473163b15ebf24bb3d7ebfc1141fe23b1c117a96db6c533adc0967fc8517c2",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-对象分块与按需范围读取.md",
+    "sha256": "31d46f956ecfdb83af8d5014c9fd8d76d4319d93ef554aba0d0f3fcf56d37e51",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-迁移前备份可追溯性.md",
+    "sha256": "44606aa03b0b764ed898ef4010d7f91fe49258bcbf033b420f494786ead93830",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-运行视图DTO与只读接缝.md",
+    "sha256": "1600f5243ce9bab8d757ccd0e71b689d839425e1f90ba12b9f232e1e2f352482",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-13-面板主屏当前段与情形事实.md",
+    "sha256": "8b317acbfddc8e39559d0a20d365bc005c02b40cd27842ff8e8709e4c558f047",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-14-备份闭包与清单安全续修.md",
+    "sha256": "38d25ead4808f859df5f9f6cd1a09b8057514d51794cb1b755ce07e01456ac50",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-14-来源准入与证据保存续检.md",
+    "sha256": "6ad2264a74f87c88f10f7f3bba026014341067ca30e4c5dbd64ecc6530f1eca0",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-14-状态读取与迁移计划身份续修.md",
+    "sha256": "adbb2a9c10123f112f36c7b8ea2653c3a23c867765587409404912dc3741ba92",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-14-迁移备份身份与回滚收尾续修.md",
+    "sha256": "dede79f0ed0a0e11c48aeb31a6498599eebade77eaa79203b11c4c7712230118",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-14-零字节永久引用回收守卫.md",
+    "sha256": "4bfa5a8328bd2178fd68a0ca99308ae2db2f6a0e5bf73a8479039040977a9fba",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/2026-10-15-迁移备份独立位置配置.md",
+    "sha256": "12cfadb771d0b3e43db024f58b5fb8d43bb9e6c6d899be5168559fa2ffc0266d",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
+    "sha256": "1213622974e550bbf6d91f5bdcbf6bf55c94c80c5e6c7cd3c654865edfe5ca0d",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md",
+    "sha256": "4468769aa5a4a83639810d6db0fbbf17d5ac1a7926a4d354f6ff5c774475a0a4",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/一期七项边界代码修复-2026-10-13.md",
+    "sha256": "b633a38d182af3cc6cd068334db3e74aa2502f9be3ad1d3d69989ffd65605ff2",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/0.4.1-受控入口预览安装与操作.md",
+    "sha256": "0c6e8d5fc4fd75f60735d42f82b8722d7a6cd7b7753e7d17359d41e6efcdcdd3",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/0.4.2-项目创建与Python环境登记.md",
+    "sha256": "7a30682725d1ec5eb85db6afd1fc966ec3818e91b2d65e86901003a7d2e65e0a",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/0.4.3-计划执行核验报告操作.md",
+    "sha256": "e12fb8fa59c361b3dc98f003b1b7c407c187408aba8fe03886084a45f4ef085b",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/0.4.4-鉴权与动态对象核验.md",
+    "sha256": "dfa8f0385e7aeba15f421e3efe99074bc44d2729e44d8ac9162d502ec930c28c",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/0.4.5-纯函数与报告关联提测.md",
+    "sha256": "52ba45cbd45a1186bec8667a0dc81b47ee6e921e8fc30c7212863d537981cfc4",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
+    "sha256": "7cec30b24081c0d4d52f5d7bf6bdcb0dc64dfa89389cb7736c9738342abc61e9",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/可用版本交付路径-2026-10-15.md",
+    "sha256": "342520149f3c74763337493ce9f9b45c9dde5bd62b97b8d4ebe45d31b8b8fe58",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/05-待裁定/2026-10-13-剩余合同缺口与所需决定.md",
+    "sha256": "17192862cbfcda793407b589421be89e12eac697296a413eea36c56df176e2ff",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/06-完成度审计/2026-10-13-目标项逐条完成度审计.md",
+    "sha256": "3e8d1c6fc4c9ceefca1773eed48add0eb16a58dbeb399678281e96edf8149f27",
+    "disposition": "updated_current",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/README.md",
+    "sha256": "167abc9c965f996e7df0bf9ba52691bc13dade2cc561e75824e5f42c2b8b83d5",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-12.md",
+    "sha256": "318544bba43e0557ecb9420ed9f3ad90e0e863812be95a896c650c14fdd1667e",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  },
+  {
+    "path": "docs/一期工程整改/文档清理与逐项变更记录-2026-10-13.md",
+    "sha256": "d41950022cb251e0e2ab03e2227e562b9778c7dd071b892d94cb4cb272de1d15",
+    "disposition": "retained_history_or_still_valid",
+    "current_entry": "docs/现状.md"
+  }
+]

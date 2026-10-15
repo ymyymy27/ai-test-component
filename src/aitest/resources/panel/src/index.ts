@@ -149,6 +149,7 @@ class AITestPanel extends HTMLElement {
   private workflowAction = "publish_plan";
   private workflowValues: Record<string,string> = {expected_revision:"0"};
   private viewOutcomes = new Map<string, Outcome>();
+  private deliveryLookup = {delivery_id:"", submission_id:""};
 
   private readonly receiveMessage = (event: MessageEvent): void => {
       const data = event.data as Outcome | ProjectContext | undefined;
@@ -174,6 +175,7 @@ class AITestPanel extends HTMLElement {
           this.commandDraft = ""; this.commandNote = "项目上下文变化，请重新核对操作输入。";
           this.projectName = this.projectGoal = "";
           this.workflowValues = {expected_revision:"0"};
+          this.deliveryLookup = {delivery_id:"", submission_id:""};
           if (this.pendingRequest && !["doctor", "ensure-core"].includes(this.pendingRequest.action)) {
             this.pendingRequest = null; this.pending = false;
           }
@@ -882,11 +884,63 @@ class AITestPanel extends HTMLElement {
     blocks.push(
       this.rowsBlock("问题清单（未关闭）", this.issueOutcome, "review-issues", true),
       this.rowsBlock("报告修订", this.reportOutcome, "review-reports"),
+      this.deliveryBlock(),
     );
     if (this.issueDetail !== null) {
       blocks.push(this.issueDetailBlock(this.issueDetail));
     }
     return blocks;
+  }
+
+  private deliveryBlock(): HTMLElement {
+    const section=document.createElement("section"); section.dataset.testid="delivery-verification";
+    const title=document.createElement("h2"); title.textContent="交付说明与实际验证";
+    section.append(title);
+    for (const [key,label] of [["delivery_id","读取交付编号"],["submission_id","正式提测编号（可留空）"]] as const) {
+      const field=document.createElement("label"); field.textContent=label;
+      const input=document.createElement("input"); input.setAttribute("aria-label",label);
+      input.value=this.deliveryLookup[key]; input.disabled=this.pending;
+      input.oninput=()=>{this.deliveryLookup[key]=input.value;this.viewOutcomes.delete("delivery");
+        section.querySelector('[data-testid="delivery-result"]')?.remove();};
+      field.append(input); section.append(field);
+    }
+    const read=document.createElement("button"); read.textContent="读取交付验证";
+    const capabilities=this.doctorOutcome?.response?.["result"] as Record<string,unknown>|undefined;
+    read.disabled=this.pending || this.host===null || !this.project
+      || !Array.isArray(capabilities?.["supported_actions"]) || !capabilities["supported_actions"].includes("read_view");
+    read.onclick=()=>{
+      if (!this.deliveryLookup.delivery_id.trim()) {return;}
+      this.viewOutcomes.delete("delivery");
+      this.dispatchScoped("read_view",{view:"delivery",delivery_id:this.deliveryLookup.delivery_id.trim(),
+        ...(this.deliveryLookup.submission_id.trim() ? {submission_id:this.deliveryLookup.submission_id.trim()}: {})});
+    };
+    section.append(read);
+    const result=this.viewOutcomes.get("delivery")?.response?.["result"] as Record<string,unknown>|undefined;
+    const view=result?.["view"] as Record<string,unknown>|undefined;
+    const submission=view?.["submission"] as Record<string,unknown>|null|undefined;
+    if (!view || view["delivery_id"]!==this.deliveryLookup.delivery_id.trim()
+        || (this.deliveryLookup.submission_id.trim()
+          ? submission?.["submission_id"]!==this.deliveryLookup.submission_id.trim()
+          : view["submitted"]!==false)) {return section;}
+    const values=document.createElement("div");values.dataset.testid="delivery-result";
+    for (const [label,key] of [
+      ["开发自述完成","self_report_completed"],["开发自述未完成","self_report_incomplete"],
+      ["实际验证范围","verified_in_scope"],["仍未验证范围","unverified_scope"],
+      ["核验状态","verification_state"],["业务结论","verification_business_outcome"],
+      ["核验报告编号","verification_report_id"],
+    ] as const) {
+      const row=document.createElement("p");const value=view[key];
+      const states:Record<string,string>={verification_valid:"核验有效",material_invalid:"材料无效",
+        required_verification_incomplete:"必要核验未完成",passed:"通过",failed:"失败",
+        incomplete:"未完成",not_applicable:"不适用"};
+      const text=typeof value==="string" && ["verification_state","verification_business_outcome"].includes(key)
+        ? `${states[value] ?? "未知"}（${value}）` : value==null ? "待核实"
+          : Array.isArray(value) ? value.join("、") || "无" : String(value);
+      row.textContent=`${label}：${text}`;
+      values.append(row);
+    }
+    const note=document.createElement("p");note.textContent="开发自述、核验有效与业务通过分别展示。";
+    values.append(note);section.append(values);return section;
   }
 
   /** 问题详情（设计 §10/§12）：**只读**回执原样展示 + 复制说明（不执行修复）。 */

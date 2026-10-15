@@ -1,0 +1,21 @@
+[
+  "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+  "-m",
+  "pytest",
+  "tests/unit/test_configured_business_verification.py",
+  "tests/unit/test_saved_business_verification.py",
+  "tests/unit/test_dynamic_object.py",
+  "tests/unit/test_authoritative_preparation.py",
+  "tests/unit/test_delivery_submission_origin.py",
+  "tests/unit/test_delivery_source_closure.py",
+  "tests/unit/test_delivery_view.py",
+  "tests/unit/test_delivery_verification_state.py",
+  "tests/unit/test_task_and_delivery_persistence.py",
+  "tests/unit/test_action_resolver.py",
+  "tests/unit/test_default_start_source_chain.py",
+  "tests/unit/test_acceptance_status.py",
+  "tests/unit/test_acceptance_status_phases.py",
+  "tests/contracts",
+  "tests/architecture",
+  "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-implementation-audit-20261015\\existing-final.xml"
+]

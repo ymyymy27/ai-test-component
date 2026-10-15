@@ -9,6 +9,7 @@ from aitest.application.ports import ApprovalRecords, ControlledWriteProof
 from aitest.domain.approvals import ApprovalMaterialRef, ApprovalRequired
 from aitest.domain.project.deliveries import DeliverySubmission
 
+from .delivery_verification import DeliveryVerificationReader
 from .serialization import delivery_from_payload, delivery_to_payload, task_from_payload
 from .source_analysis import SourceAnalysisService
 
@@ -34,9 +35,10 @@ def submission_content(
     workspace: str,
     proof: ControlledWriteProof | None,
     sources: SourceAnalysisService | None,
+    verification: DeliveryVerificationReader | None = None,
 ) -> tuple[dict[str, object], tuple[ApprovalMaterialRef, ...]]:
     if (
-        set(parameters)
+        set(parameters) - {"verification_report_ref"}
         != {"project_revision", "expected_revision", "submission_id", "delivery_ref", "source_ref"}
         or type(parameters["expected_revision"]) is not int
         or parameters["expected_revision"] != 0
@@ -116,4 +118,13 @@ def submission_content(
             ("binding", binding_id, binding_revision, binding_raw),
         )
     )
+    if "verification_report_ref" in parameters:
+        report_id, report_revision = _reference(parameters["verification_report_ref"], "report_id")
+        if verification is None:
+            raise ApprovalRequired("delivery verification report reader is unavailable")
+        projection, material = verification.read(
+            project, report_id, report_revision, content_identity, submission.acceptance_item_ids,
+        )
+        payload["verification_projection"] = projection
+        materials = (*materials, material)
     return payload, materials

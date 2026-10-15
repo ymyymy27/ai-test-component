@@ -4,8 +4,9 @@ import json
 from collections.abc import Callable
 from dataclasses import asdict, replace
 
-from aitest.application.evidence.dynamic_object import saved_object_id
+from aitest.application.evidence.dynamic_object import saved_object_id, saved_stdout_json
 from aitest.application.evidence.evidence_review import freeze_verification_request
+from aitest.application.evidence.pure_function import PURE_BASIS_VERSION, PURE_METHOD
 from aitest.application.evidence.query_materials import BusinessVerificationBlocked
 from aitest.application.execution.authorization import ExecutionAuthorizationService
 from aitest.application.execution.step_content import StepContentReader
@@ -70,6 +71,23 @@ class SavedBusinessVerificationResolver:
                 raise ValueError("independent query basis exceeds budget")
             data = decode_json(text)
             evidence_refs: tuple[str, ...] = ()
+            if isinstance(data, dict) and data.get("schema_version") == PURE_BASIS_VERSION:
+                if (set(data) != {"schema_version", "expected_facts"}
+                        or not isinstance(data["expected_facts"], dict)
+                        or not data["expected_facts"] or self.objects is None):
+                    raise ValueError("pure function basis requires independent expected fields")
+                actual, evidence_refs = saved_stdout_json(
+                    facts, step_id, attempt_id, self.objects,
+                )
+                if not isinstance(actual, dict):
+                    raise ValueError("pure function output requires a JSON object")
+                return freeze_verification_request(VerificationRequest(
+                    verification_of=attempt_id, business_object_id=attempt_id,
+                    query_method=f"{facts.project_id}:{PURE_METHOD}",
+                    target_deployment_ref=f"attempt:{attempt_id}",
+                    deadline_condition="immediate", evidence_refs=evidence_refs,
+                    expected_facts=data["expected_facts"],
+                ))
             if (isinstance(data, dict)
                     and data.get("schema_version") == "aitest.business-query-basis/2"):
                 if set(data) != (_FIELDS - {"business_object_id"}) | {"business_object_source"}:
@@ -85,10 +103,12 @@ class SavedBusinessVerificationResolver:
                 text, project_id=facts.project_id, attempt_id=attempt_id
             )
             request = replace(request, evidence_refs=evidence_refs)
+            if request.query_method == f"{facts.project_id}:{PURE_METHOD}":
+                raise ValueError("pure function method requires its dedicated basis")
             if self.validate_target is not None:
                 self.validate_target(request)
             return request
-        except (ValueError, TypeError) as error:
+        except (ValueError, TypeError, OSError, KeyError) as error:
             raise BusinessVerificationBlocked(
                 "exact case basis or trusted independent query registration is invalid"
             ) from error

@@ -365,6 +365,20 @@ def source_record_files(
             or source.get("binding_revision") != body.get("binding_record_revision")
         ):
             raise SourceMaterialError("formal delivery differs from its exact frozen source")
+        projection = body.get("verification_projection")
+        if projection is not None:
+            if not isinstance(projection, Mapping):
+                raise SourceMaterialError("formal delivery verification projection is unreadable")
+            report = _owned_record(
+                authority, "report", projection.get("report_id"),
+                projection.get("report_record_revision"), project_id,
+            )
+            if (projection.get("schema_version") != "aitest.delivery-verification/1"
+                    or _body_digest(report) != projection.get("report_digest")
+                    or report.get("execution_snapshot_ref")
+                    != projection.get("execution_snapshot_ref")
+                    or report.get("run_id") != projection.get("run_id")):
+                raise SourceMaterialError("formal delivery verification report differs")
         return verify_source_reference(root, source, project_id, require_verified=True)
     model_basis = body.get("generation_basis") if kind == "generated_content" else None
     if kind == "model_outbound_request":

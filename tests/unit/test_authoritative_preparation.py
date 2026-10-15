@@ -38,6 +38,7 @@ def _authoritative(
     environment_resolver=None,
     basis_text=None,
     template_versions=None,
+    case_transform=None,
 ):
     """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。
 
@@ -71,6 +72,8 @@ def _authoritative(
         )
         for case in scenario.cases
     )
+    if case_transform is not None:
+        cases = tuple(case_transform(case) for case in cases)
     assert (
         dispatch(
             core,

@@ -17,6 +17,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from aitest.application.ports import RecordQuery
+from aitest.application.project.delivery_verification import (
+    DeliveryVerificationReader,
+    delivery_projection,
+)
 from aitest.application.project.serialization import delivery_from_payload
 from aitest.application.review.saved_reports import SavedReportService
 from aitest.contracts.commands import Command
@@ -42,12 +46,14 @@ class CommittedViewReader:
         decisions: SavedReportService,
         reader: Any | None = None,
         records: Any | None = None,
+        delivery_verification: DeliveryVerificationReader | None = None,
     ) -> None:
         if decisions is None:
             raise ValueError("the view reader requires the live decision capability")
         self._decisions = decisions
         self._reader = reader
         self._records = records
+        self._delivery_verification = delivery_verification
 
     def dispatch(self, command: Command) -> Mapping[str, object]:
         """Finite DTO query with a single verified outer view/event boundary."""
@@ -179,6 +185,34 @@ class CommittedViewReader:
                 submission.get("submission_id") != submission_id
                 or submission.get("delivery_id") != delivery_id
                 or submission.get("delivery_record_revision") != exact
+                or submission_record.record_id != submission_id
+                or submission_record.aggregate_kind != "delivery_submission"
+                or submission_record.revision != submission_revision
             ):
                 raise ValueError("saved submission does not bind the exact delivery revision")
-        return delivery_view_dto(delivery, project_id=project_id, submission=submission)
+            # Record revision belongs to the verified envelope, not its business body.
+            submission["revision"] = submission_record.revision
+        view = delivery_view_dto(delivery, project_id=project_id, submission=submission)
+        projection = delivery_projection(submission) if submission is not None else None
+        if projection is not None and submission is not None:
+            try:
+                if self._delivery_verification is None:
+                    raise ValueError("delivery verification material reader is unavailable")
+                report_revision = projection["report_record_revision"]
+                if (type(report_revision) is not int or report_revision < 1
+                        or view.submission is None or view.verification_report_id is None):
+                    raise ValueError("delivery verification reference is unavailable")
+                current, _ = self._delivery_verification.read(
+                    project_id, view.verification_report_id, report_revision,
+                    view.submission.content_identity, view.submission.acceptance_item_ids,
+                )
+                if current != projection:
+                    raise ValueError("delivery verification material differs")
+            except (OSError, ValueError, KeyError, TypeError):
+                return view.model_copy(update={
+                    "verified_in_scope": (),
+                    "unverified_scope": (view.submission.acceptance_item_ids
+                                         if view.submission else ()),
+                    "verification_state": "material_invalid",
+                })
+        return view

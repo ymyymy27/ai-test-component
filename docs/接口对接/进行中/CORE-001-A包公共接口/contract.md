@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.89"
+contract_version: "1.90"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -13,8 +13,25 @@ blockers:
   - "C-17/C-03：动态复用仍缺可信输入；HTTP 核验已接，其他适配/真实验收仍欠；未知不能授予 R/V"
   - "A-05/A-07/D-06：跨进程维护、未知活动/恢复与真实宿主用户流程未闭合"
 next_owner: A/B/C/D
-next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。
+next_action: 纯函数默认核验、报告关联提测和运行控制表单已接；继续可信动态复用、完整恢复及真实宿主用户流。
 ---
+
+## 本次技术决定与当前实现（2026-10-15）
+
+现行版本：1.90。纯函数默认核验、报告关联提测和运行控制表单已接；继续可信动态复用、完整恢复及真实宿主用户流。
+
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 reviewing/partial/not_run 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+
+
+## 交付核验报告引用增量（2026-10-15）
+
+按 [DEC-016](../../归档/裁定/DEC-016-交付核验报告关联.md) 增加 submit_delivery 可选 verification_report_ref（report_id、record_revision）；只从同源码的准确报告与冻结执行事实派生本次验收范围，随新提测保存，旧交付/报告不变。无新引用时原形状和未验证语义兼容。报告关联须纳入原受控确认，不从开发自述复制完成状态；实现与测试进行中，不代签。
+
+
+## 纯函数核验兼容增量（2026-10-15）
+
+依据一期能力清单 §6，落实 [DEC-015](../../归档/裁定/DEC-015-纯函数独立预期比对.md)。依据 `aitest.pure-function-basis/1` 只包含 schema_version 与非空 expected_facts；从准确 Case 读取预期，与当前 Attempt 完整且未过滤的永久 stdout JSON 对象按既有领域规则比较。核验方法保留 `<project_id>:pure-function-stdout`，对象为 Attempt ID，目标为 `attempt:<attempt_id>`，证据引用随核验保存。无 HTTP/数据库/模型依赖，不重跑函数，不作为持久副作用的独立回读；原 verify_pending 形状、HTTP 依据与判定语义兼容。技术裁定由用户授权本次代理作出，实现和验证另记，不代签真实验收。
+
 
 ## 1.89 鉴权与动态对象核验
 

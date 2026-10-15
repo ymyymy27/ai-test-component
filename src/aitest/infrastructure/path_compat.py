@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -33,4 +34,19 @@ else:
         return bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT) and not os.path.islink(path)
 
 
-__all__ = ["is_junction"]
+def is_link(path: str | os.PathLike[str]) -> bool:
+    """Check symlink/junction with one fresh lstat; never cache filesystem facts."""
+    try:
+        status = os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    if stat.S_ISLNK(status.st_mode):
+        return True
+    tag = getattr(status, "st_reparse_tag", None)
+    if tag is not None:
+        return bool(tag == 0xA0000003)
+    # Older Windows metadata may omit the tag. Unknown reparse points remain blocked.
+    return bool(getattr(status, "st_file_attributes", 0) & 0x400)
+
+
+__all__ = ["is_junction", "is_link"]

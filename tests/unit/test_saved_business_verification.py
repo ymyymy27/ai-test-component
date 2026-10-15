@@ -346,7 +346,7 @@ def test_review_provider_cannot_mutate_the_original_request_basis():
     assert request.expected_facts == {"paid": True}
 
 
-def test_default_handler_rejects_injected_query_material_and_reports_missing_capability(tmp_path):
+def test_default_handler_rejects_injected_query_material_and_missing_operation(tmp_path):
     core = assemble_workspace_core(tmp_path, instance_id="query-default-core")
     try:
         saved = core.business_verification
@@ -371,7 +371,8 @@ def test_default_handler_rejects_injected_query_material_and_reports_missing_cap
         assert error.value.code == "INVALID_REQUEST"
         with pytest.raises(Exception) as error:
             saved.apply(cmd)
-        assert error.value.code == "CAPABILITY_UNAVAILABLE"
+        assert error.value.code == "BUSINESS_VERIFICATION_BLOCKED"
+        assert "saved current operation" in str(error.value)
     finally:
         core.lifetime_lock.release()
 
@@ -421,7 +422,7 @@ def test_missing_capability_message_names_required_host_and_case_configuration(t
         '"http_verification_required_configuration": ["AITEST_BUSINESS_QUERIES: '
         in message
     )
-    assert '"pure_function_comparison_missing_declarations": ["expected_facts"]' in message
+    assert '"pure_function_basis": "aitest.pure-function-basis/1: expected_facts"' in message
     assert "能力与模板清单" in message and "架构 01" in message
     assert "BC-001 0.51" in message and "aitest.business-query-basis/1" in message
     assert "业务对象ID" in message and "目标服务身份/部署版本" in message

@@ -83,6 +83,7 @@ from aitest.application.ports import (
     RecordRepository,
     SourceSnapshotPort,
 )
+from aitest.application.project.delivery_verification import DeliveryVerificationReader
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.persistence import load_project
 from aitest.application.project.serialization import source_manifest_from_payload
@@ -1276,12 +1277,12 @@ def assemble_workspace_core(
         )
         if business_verification_resolver is None and business_verification_port is None:
             configured_queries = HostConfiguredBusinessQueries.from_environment(secret_manager)
-            if configured_queries is not None:
-                business_verification_resolver = SavedBusinessVerificationResolver(
-                    execution_authorizations, cast(RecordRepository, unit_of_work.repo),
-                    configured_queries.validate, FileObjectStore(root),
-                )
-                business_verification_port = configured_queries
+            business_verification_resolver = SavedBusinessVerificationResolver(
+                execution_authorizations, cast(RecordRepository, unit_of_work.repo),
+                configured_queries.validate if configured_queries is not None else None,
+                FileObjectStore(root),
+            )
+            business_verification_port = configured_queries
         business_verification = SavedBusinessVerification(
             execution_coordinator,
             execution_authorizations,
@@ -1478,10 +1479,14 @@ def assemble_workspace_core(
         )
         # 宿主只读视图（架构 06 §1/§54）：面板读 DTO，判定复用 D 侧 live_decision，
         # 不新增协议动作、不写任何记录。
+        write_resolver.delivery_verification = DeliveryVerificationReader(
+            report_management, cast(RecordRepository, unit_of_work.repo), FileObjectStore(root),
+        )
         view_queries = CommittedViewReader(
             decisions=report_management,
             reader=reader,
             records=cast(RecordRepository, unit_of_work.repo),
+            delivery_verification=write_resolver.delivery_verification,
         )
         handlers["read_view"] = view_queries.dispatch
         # D 的导出（P1-FR14 §5/§8）：正文与附件都要脱敏，制品先写事务临时位置、

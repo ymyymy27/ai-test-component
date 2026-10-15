@@ -13,6 +13,10 @@ from aitest.application.ports import (
     StageableWorkspaceUnitOfWork,
 )
 from aitest.application.project.delivery_submission import submission_content
+from aitest.application.project.delivery_verification import (
+    DeliveryVerificationReader,
+    delivery_projection,
+)
 from aitest.application.project.serialization import (
     binding_from_payload,
     binding_to_payload,
@@ -130,6 +134,7 @@ class SavedControlledWriteResolver:
         self.materials = SavedBasisApprovalResolver(records, workspace_id)
         self.proof: ControlledWriteProof | None = None
         self.sources: SourceAnalysisService | None = None
+        self.delivery_verification: DeliveryVerificationReader | None = None
 
     def normalize(
         self, action: str, project: str, parameters: Mapping[str, object]
@@ -140,7 +145,8 @@ class SavedControlledWriteResolver:
                 raise ApprovalRequired("submission needs its exact project warehouse revision")
             try:
                 payload, materials = submission_content(
-                    project, parameters, self.records, self.workspace_id, self.proof, self.sources
+                    project, parameters, self.records, self.workspace_id, self.proof, self.sources,
+                    self.delivery_verification,
                 )
             except (ValueError, TypeError, KeyError, OSError, RuntimeError) as error:
                 raise ApprovalRequired("saved delivery/task/source cannot be verified") from error
@@ -160,6 +166,8 @@ class SavedControlledWriteResolver:
                         "snapshot_id": payload["snapshot_id"],
                         "record_revision": payload["snapshot_record_revision"],
                     },
+                    **({"verification_report_ref": parameters["verification_report_ref"]}
+                       if "verification_report_ref" in parameters else {}),
                 },
                 payload,
                 project_revision,
@@ -299,6 +307,7 @@ class ControlledWriteService:
                 _payload_identity(write.payload, "project_id"),
             )
             delivery = delivery_from_payload(delivery_raw)
+            projection = delivery_projection(write.payload)
             return {
                 "aggregate_kind": write.aggregate_kind,
                 "record_id": write.record_id,
@@ -306,9 +315,12 @@ class ControlledWriteService:
                 "status": "submitted",
                 "version": write.payload["version"],
                 "content_identity": write.payload["content_identity"],
-                "verification_state": delivery.verification_state.value,
-                "verified_in_scope": list(delivery.verified_in_scope),
-                "unverified_scope": write.payload["acceptance_item_ids"],
+                "verification_state": (projection["verification_state"] if projection
+                                       else delivery.verification_state.value),
+                "verified_in_scope": (projection["verified_in_scope"] if projection
+                                      else list(delivery.verified_in_scope)),
+                "unverified_scope": (projection["unverified_scope"] if projection
+                                     else write.payload["acceptance_item_ids"]),
                 "self_reported_completed": list(delivery.self_report.completed),
                 "self_reported_incomplete": list(delivery.self_report.incomplete),
             }

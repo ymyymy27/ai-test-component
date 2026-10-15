@@ -1,0 +1,122 @@
+[
+  {
+    "name": "ruff",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "mypy",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "versions",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/check_versions.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "lock",
+    "command": [
+      "C:/Users/86178/.local/bin/uv.exe",
+      "lock",
+      "--check"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "schemas",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/generate_schemas.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "host-tests",
+    "command": [
+      "F:/Node/node.exe",
+      "F:/Node/node_modules/npm/bin/npm-cli.js",
+      "--prefix",
+      "integrations/trae",
+      "test"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "panel-build",
+    "command": [
+      "F:/Node/node.exe",
+      "F:/Node/node_modules/npm/bin/npm-cli.js",
+      "--prefix",
+      "src/aitest/resources/panel",
+      "run",
+      "build"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "browser",
+    "command": [
+      "F:/Node/node.exe",
+      "F:/Node/node_modules/npm/bin/npm-cli.js",
+      "--prefix",
+      "src/aitest/resources/panel",
+      "test"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "vsix",
+    "command": [
+      "F:/Node/node.exe",
+      "F:/Node/node_modules/npm/bin/npm-cli.js",
+      "--prefix",
+      "integrations/trae",
+      "run",
+      "package"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "wheel",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "build",
+      "--installer",
+      "uv"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "artifacts",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/verify_artifacts.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "name": "isolated-wheel",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "scripts/smoke_wheel.py"
+    ],
+    "exit_code": 0
+  }
+]

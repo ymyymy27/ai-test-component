@@ -54,3 +54,41 @@ test("project switch clears pending scope and rejects its late reply", async ({ 
   await page.getByRole("button", { name: "问题与报告", exact: true }).click();
   await expect(page.getByTestId("review-issues")).not.toContainText("old-issue");
 });
+
+test("delivery separates self report and verified scope and clears stale results", async ({page})=>{
+  await mount(page);
+  await page.getByRole("button",{name:"问题与报告",exact:true}).click();
+  const delivery=page.getByRole("textbox",{name:"读取交付编号"});
+  await delivery.fill("delivery-1");
+  await page.getByRole("textbox",{name:"正式提测编号（可留空）"}).fill("submission-1");
+  await page.getByRole("button",{name:"读取交付验证",exact:true}).click();
+  const sent=await page.evaluate(()=>(window as unknown as {__sent:Record<string,unknown>[]}).__sent.at(-1));
+  expect(sent).toMatchObject({action:"read_view",projectId:"p",parameters:{view:"delivery",
+    delivery_id:"delivery-1",submission_id:"submission-1"}});
+  const outcome={kind:"outcome",action:"read_view",status:"ok",response:{result:{
+    view_type:"delivery",commit_id:10,event_cursor:"cursor-10",view:{project_id:"p",
+      delivery_id:"delivery-1",submitted:true,submission:{submission_id:"submission-1"},
+      self_report_completed:["developer says complete"],self_report_incomplete:[],
+      verified_in_scope:["acceptance-1"],unverified_scope:["acceptance-2"],
+      verification_state:"verification_valid",verification_business_outcome:"failed",
+      verification_report_id:"report-1"}}}};
+  await postHostMessage(page,outcome);
+  const result=page.getByTestId("delivery-result");
+  await expect(result).toContainText("开发自述完成：developer says complete");
+  await expect(result).toContainText("实际验证范围：acceptance-1");
+  await expect(result).toContainText("仍未验证范围：acceptance-2");
+  await expect(result).toContainText("业务结论：失败");
+  await page.getByRole("button",{name:"读取交付验证",exact:true}).click();
+  outcome.response.result.view.verification_state="material_invalid";
+  outcome.response.result.view.verified_in_scope=[];
+  await postHostMessage(page,outcome);
+  await expect(result).toContainText("核验状态：材料无效");
+  await expect(result).toContainText("实际验证范围：无");
+  await delivery.fill("delivery-2");
+  await expect(result).toHaveCount(0);
+  await page.getByRole("button",{name:"读取交付验证",exact:true}).click();
+  await postHostMessage(page,outcome);
+  await expect(result).toHaveCount(0);
+  await postHostMessage(page,{kind:"projectContext",project_id:"other"});
+  await expect(delivery).toHaveValue("");
+});

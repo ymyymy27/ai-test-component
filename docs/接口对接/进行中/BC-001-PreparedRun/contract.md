@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.52"
+contract_version: "0.53"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -14,8 +14,20 @@ blockers:
   - "C-03：HTTPS 凭据与当前 Attempt 动态对象 ID 已接；纯函数与真实业务/宿主验收尚欠"
   - "真实半程、授权、宿主与完整 R 对拍未验收"
 next_owner: B/C/D
-next_action: 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖、其他核验适配和真实验收，不以保存声明授予资格。
+next_action: 独立纯函数预期来源已接；继续可信动态环境与目标依赖观察，不以保存声明授予复用资格。
 ---
+
+## 本次技术决定与当前实现（2026-10-15）
+
+现行版本：0.53。独立纯函数预期来源已接；继续可信动态环境与目标依赖观察，不以保存声明授予复用资格。
+
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 reviewing/partial/not_run 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+
+
+## 纯函数核验兼容增量（2026-10-15）
+
+依据一期能力清单 §6，落实 [DEC-015](../../归档/裁定/DEC-015-纯函数独立预期比对.md)。依据 `aitest.pure-function-basis/1` 只包含 schema_version 与非空 expected_facts；从准确 Case 读取预期，与当前 Attempt 完整且未过滤的永久 stdout JSON 对象按既有领域规则比较。核验方法保留 `<project_id>:pure-function-stdout`，对象为 Attempt ID，目标为 `attempt:<attempt_id>`，证据引用随核验保存。无 HTTP/数据库/模型依赖，不重跑函数，不作为持久副作用的独立回读；原 verify_pending 形状、HTTP 依据与判定语义兼容。技术裁定由用户授权本次代理作出，实现和验证另记，不代签真实验收。
+
 
 ## 0.4.4 鉴权与动态对象绑定增量
 
@@ -693,6 +705,8 @@ B 侧的**领域门禁与决策结果**已实现并有回归测试
 **本节性质**：B 侧**草案**，是待 C 确认的提案，**不是已冻结口径**；C 确认并回写后方可作为夹具依据。
 本节**不改 `ExecutionFacts` 任何字段**，只固定"什么样的中间态记录算合法、算完整"。
 
+本节旧草案的范围方向已按 [DEC-017](../../归档/裁定/DEC-017-full必测范围包含方向.md) 纠正；现行主责 M⊆S，不以旧草案推翻领域规则。其他已定义时序继续按现行合同实施，样本和真实半程验收分别验证。
+
 ### 17.1 好消息：中间态在合同里**早已合法**，缺的只是样本
 
 `RunControlStateFact` / `StepStateFact` / `AttemptStateFact` 三个枚举的取值**完整覆盖**中间态，
@@ -734,7 +748,7 @@ B 侧的**领域门禁与决策结果**已实现并有回归测试
 
 ### 17.3 三份"半程运行"夹具的设计（草案）
 
-**共同前提**：`run.tier = full`、`required_scope` ⊇ 已选范围、必测项未被删除或弱化
+**共同前提**：`run.tier = full`、`required_scope` ⊆ `selected_scope`、必测项未被删除或弱化
 （否则运行中修订本就应被拒绝，见 `RuntimeRevisionRefusalCode`）。
 
 | # | 夹具 | 关键取值 | 用来验证什么 |

@@ -1,0 +1,15 @@
+[
+  "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+  "-m",
+  "pytest",
+  "tests/unit/test_delivery_submission_origin.py::test_real_saved_submission_view_reads_revision_from_record_envelope",
+  "tests/unit/test_pure_function_verification.py",
+  "tests/unit/test_delivery_report_verification.py",
+  "tests/unit/test_ordered_index_link_check.py",
+  "tests/unit/test_tree_material_immutability.py",
+  "tests/unit/test_current_pointer_proof_budget.py",
+  "tests/unit/test_canonical_commit_material.py",
+  "tests/unit/test_complete_commit_closure.py",
+  "tests/unit/test_bounded_query_directory.py",
+  "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-implementation-audit-20261015\\chain-and-path-final.xml"
+]

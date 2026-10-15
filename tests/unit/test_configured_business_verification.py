@@ -1,6 +1,7 @@
 """Exact saved basis and real HTTP; authorizations/environment remain explicit fixtures."""
 
 import json
+from contextlib import nullcontext
 from dataclasses import replace
 
 import pytest
@@ -81,6 +82,15 @@ def test_bad_registry_blocks_without_partial_registration(tmp_path, raw):
     assert not registry.valid and not registry.entries
 
 
+def test_http_registry_cannot_claim_the_pure_function_method(tmp_path):
+    path = config(tmp_path / "queries.json", "http://127.0.0.1:1/")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["queries"][0]["query_method"] = "project-ticket:pure-function-stdout"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    registry = HostConfiguredBusinessQueries(path)
+    assert not registry.valid and not registry.entries
+
+
 def test_default_resolver_reads_frozen_case_and_rejects_stale_attempt(tmp_path, monkeypatch):
     from tests.unit.test_authoritative_preparation import _authoritative, prepare
     from tests.unit.test_initial_run_registration import register
@@ -108,7 +118,8 @@ def test_default_resolver_reads_frozen_case_and_rejects_stale_attempt(tmp_path, 
 
 
 def test_published_plan_actual_execution_query_report_and_restart(
-    tmp_path, monkeypatch, *, dynamic=False, tls_context=None, credential_reference=None,
+    tmp_path, monkeypatch, *, dynamic=False, tls_context=None,
+    credential_reference=None, pure=False,
 ):
     from aitest.bootstrap import assemble_workspace_core
     from aitest.contracts.commands import Command
@@ -141,10 +152,25 @@ def test_published_plan_actual_execution_query_report_and_restart(
                     business_object_source={"stream": "stdout", "json_path": ["created", "id"]})
         declaration = json.dumps(data)
 
+    if pure:
+        source = ("import json\ndef add(a, b): return a + b\n"
+                  "print(json.dumps({\"result\": add(2, 3)}))\n")
+        declaration = json.dumps({"schema_version": "aitest.pure-function-basis/1",
+                                  "expected_facts": {"result": 5}})
+
     def reply(connection, stopped):
         body_reply(business_file.read_bytes())(connection, stopped)
 
-    with server(reply, tls_context) as (url, calls):
+    def function_case(case):
+        return replace(case, objective="evaluate add(2, 3) against independent expected value",
+                       preconditions=("the registered Python carrier is available",),
+                       inputs=("2", "3"),
+                       steps=("evaluate add(2, 3)", "repeat add(2, 3) independently"),
+                       expected="result equals 5", verification_method="pure-function-stdout",
+                       independent_verification="compare saved output with frozen expected_facts")
+
+    with (nullcontext(("http://127.0.0.1:1/", [])) if pure
+          else server(reply, tls_context)) as (url, calls):
         if tls_context is not None:
             url = ("https" + url[4:]).replace("127.0.0.1", "localhost")
         path = config(tmp_path / "queries.json", url)
@@ -152,14 +178,27 @@ def test_published_plan_actual_execution_query_report_and_restart(
             configured = json.loads(path.read_text(encoding="utf-8"))
             configured["queries"][0]["credential_reference"] = credential_reference
             path.write_text(json.dumps(configured), encoding="utf-8")
-        monkeypatch.setenv("AITEST_BUSINESS_QUERIES", str(path))
+        if pure:
+            monkeypatch.delenv("AITEST_BUSINESS_QUERIES", raising=False)
+        else:
+            monkeypatch.setenv("AITEST_BUSINESS_QUERIES", str(path))
         with _authoritative(tmp_path, basis_text=declaration, main_source=source,
+                            case_transform=function_case if pure else None,
                             template_versions=[
                                 {"template_id": "ticket-workflow", "version": "1.0.0"}
                             ],
                             environment_resolver=_chain_environment()) as (core, inputs, _):
             confirmed = confirm(core, inputs)
             assert confirmed.error is None, confirmed.error
+            confirmations = [confirmed.result]
+            if pure:
+                for index, entry in enumerate(inputs.assertion_bases[1:], 1):
+                    other = confirm(
+                        core, replace(inputs, assertion_bases=(entry,)),
+                        intent=f"pure-basis-{index}", request=f"pure-basis-request-{index}",
+                    )
+                    assert other.error is None, other.error
+                    confirmations.append(other.result)
             parameters = {
                 "mode": "from_saved", "project_revision": inputs.input_revisions.project_revision,
                 "binding_id": inputs.binding_id, "binding_revision": inputs.binding_revision,
@@ -175,9 +214,9 @@ def test_published_plan_actual_execution_query_report_and_restart(
                     "allowed_env_keys": (), "secret_refs": (),
                 }).model_dump(mode="json"),
                 "selected_case_ids": list(inputs.selected_case_ids),
-                "confirmation_refs": [{key: confirmed.result[key] for key in (
+                "confirmation_refs": [{key: saved[key] for key in (
                     "confirmation_id", "case_id", "basis_revision", "confirmed_at_commit",
-                )}],
+                )} for saved in confirmations],
             }
             preparation_command = Command(
                 action="prepare_run", project_id=inputs.project_id, request_id="prepare-workflow",
@@ -240,17 +279,50 @@ def test_published_plan_actual_execution_query_report_and_restart(
             )
             assert executed.error is None, executed.error
             assert executed.result["attempt"]["exit_fact"]["real_exit_code"] == 0
-            assert business_file.exists()
+            assert business_file.exists() is (not pure)
             facts = ExecutionFacts.model_validate(executed.result["execution_facts"])
             query_command = command(facts)
             verified = core.api.dispatch(query_command, RELAY)
             assert verified.error is None, verified.error
             assert verified.result["verification"]["observation"] == "matched"
-            assert len(calls) == 1
+            assert len(calls) == (0 if pure else 1)
             if dynamic:
                 identity = json.loads(business_file.read_text(encoding="utf-8"))["object_id"]
                 assert verified.result["verification"]["business_object_id"] == identity
                 assert calls[0].startswith(f"GET /orders/{identity} ".encode())
+            if pure:
+                for index, step in enumerate(initial.steps[1:], 1):
+                    parameters = service.prepare(
+                        project_id=inputs.project_id, run_id=initial.run_id,
+                        step_id=step.step_id, intent_id=f"pure-step-{index}",
+                        request_id=f"pure-prepare-{index}",
+                    )
+                    _, action = service.resolver.read(
+                        inputs.project_id, parameters["execution_action_id"],
+                    )
+                    actor, challenge = review(service, inputs.project_id, action, parameters)
+                    assert actor.interaction is not None
+                    actor = replace(actor, interaction=replace(
+                        actor.interaction, interaction_id=f"pure-gesture-{index}",
+                    ))
+                    save(service, inputs.project_id, action, parameters, actor, challenge,
+                         request=f"pure-authorization-request-{index}")
+                    executed = core.api.dispatch(execution_command(
+                        inputs.project_id, action, parameters, request=f"pure-execute-{index}",
+                    ), RELAY)
+                    assert executed.error is None, executed.error
+                    facts = ExecutionFacts.model_validate(executed.result["execution_facts"])
+                    query_command = Command(
+                        action="verify_pending", project_id=inputs.project_id,
+                        request_id=f"pure-query-request-{index}", intent_id=f"pure-query-{index}",
+                        expected_revision=0, target=step.step_id,
+                        parameters={"run_id": facts.run_id, "step_id": step.step_id,
+                                    "attempt_id": facts.current_attempt_by_step[step.step_id],
+                                    "base_snapshot_commit_id": facts.snapshot_commit_id},
+                    )
+                    verified = core.api.dispatch(query_command, RELAY)
+                    assert verified.error is None, verified.error
+                    assert verified.result["verification"]["observation"] == "matched"
             report_command = Command(
                 action="create_report", project_id=inputs.project_id,
                 request_id="report-request", intent_id="report-intent", expected_revision=0,
@@ -261,9 +333,16 @@ def test_published_plan_actual_execution_query_report_and_restart(
             report = core.unit_of_work.repo.read(
                 aggregate_kind="report", record_id="order-report", revision=1,
             ).payload
-            # Only one step ran: exact fixture consent and a query cannot complete other steps.
+            # Even all output comparisons cannot replace actual-process source proof.
             assert report["business_outcome"] == "incomplete"
             assert report["evidence_refs"]
+            if pure:
+                from tests.unit.test_delivery_report_verification import submit_report_delivery
+
+                assert len(facts.current_attempt_by_step) == 4
+                assert all("actual_execution_load_source_unverified" in item.gap_ids
+                           for item in facts.source_verifications)
+                submit_report_delivery(core, inputs, mapped=True)
             exported = core.api.dispatch(Command(
                 action="export_report", project_id=inputs.project_id, request_id="export-request",
                 intent_id="export-intent", expected_revision=0,
@@ -287,7 +366,7 @@ def test_published_plan_actual_execution_query_report_and_restart(
                 query_command.model_copy(update={"request_id": "query-replay"}), RELAY
             )
             assert replay.error is None and replay.result == verified.result
-            assert len(calls) == 1
+            assert len(calls) == (0 if pure else 1)
             saved_report = reopened.unit_of_work.repo.read(
                 aggregate_kind="report", record_id="order-report", revision=1,
             ).payload
