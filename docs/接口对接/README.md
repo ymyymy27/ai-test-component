@@ -1,6 +1,6 @@
 # 跨包接口对接规则与总台账
 
-版本：2.91
+版本：2.92
 
 更新日期：2026-10-15
 
@@ -192,12 +192,12 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.88 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。 |
+| [CORE-001](进行中/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | reviewing，1.89 | A partial；B/C/D partial | not_run（局部自动化检查另记） | 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。 |
 | [AB-001](进行中/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | reviewing，1.47 | A/B partial | not_run（局部自动化检查另记） | 同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 |
-| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.51 | B/C partial | not_run（局部自动化检查另记） | 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。 |
+| [BC-001](进行中/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | reviewing，0.52 | B/C partial | not_run（局部自动化检查另记） | 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖和默认核验结构化来源，不以保存声明授予资格。 |
 | [AC-001](进行中/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | reviewing，1.9 | A/C partial | not_run（局部自动化检查另记） | 已知持久检查点重启写闸门已补；独立备份位置/冻结地址已补；继续完整来源/核验闭包、未知活动与实际 generation 迁移/恢复。 |
 | [BD-001](进行中/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | reviewing，0.10 | B partial；D partial | not_run（局部自动化检查另记） | 受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。 |
-| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.24 | C/D partial | not_run（局部自动化检查另记） | R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 |
+| [CD-001](进行中/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | reviewing，1.25 | C/D partial | not_run（局部自动化检查另记） | R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 |
 
 表内实现状态按现有交付文档和仓库证据归类，不代表目标 Python 3.13、真实 Trae、真实掉电恢复或其他真实环境验收已经通过。
 
@@ -297,3 +297,7 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 ## 2026-10-15 操作主线续修
 
 CORE 1.88 / BC 0.51 接通已保存引用准备、结构化依据及宿主独立 HTTP 查询；分步操作表单复用原受控入口。其他合同字段/版本不变，未代签或转入已完成。当前实现与验证见[本批记录](../validation/p1-workflow-20261015/README.md)；旧章节中的“默认核验未接”仅为当时状态，现缺口为纯函数、鉴权、动态对象标识及真实业务/宿主取证。
+
+## 0.4.4 鉴权与动态对象核验
+
+CORE 1.89 / BC 0.52 / CD 1.25：HTTPS 凭据引用与当前 Attempt 已保存 stdout JSON 对象 ID 已接。旧固定 ID 与命令形状兼容；静态/组件结果见[本批记录](../validation/p1-query-auth-20261015/README.md)。纯函数、非 stdout 对象提取、真实业务与 Trae 验收仍开放，不代签。

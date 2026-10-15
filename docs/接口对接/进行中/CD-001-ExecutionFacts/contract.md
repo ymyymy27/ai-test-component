@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.24"
+contract_version: "1.25"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -19,6 +19,10 @@ next_action: R 准确源快照/证据冻结与原快照导出已补；继续准�
 > 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
 
 
+## 1.25 动态核验证据与可携带导出
+
+Verification.evidence_refs 保留动态对象 ID 提取所用的当前 Attempt 输出引用；对象提取合同见 BC 0.52。默认命令适配器接持久 spool，过滤摘要随证据保存，不能把缺摘要材料写成有效核验。ZIP 附件使用 evidence/加证据编号 UTF-8 的 SHA256 十六进制加 .bin，清单 attachments 新增 evidence_id 映射；业务编号不再直接拼接路径，保留路径安全校验及既有规范包回读。不改变原证据 ID 或摘要，不重写历史制品。
+
 ## 2026-10-15 全目录复核
 
 报告/问题/复核/制品已有生产者，复用选择与准确来源消费已接；动态资格、独立预期/观察、真实业务恢复仍欠。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
@@ -30,7 +34,7 @@ R 准确源快照/证据冻结与原快照导出已补；继续准确独立预�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.24；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
+现行版本：1.25；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

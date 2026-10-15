@@ -3,7 +3,7 @@ contract_id: BC-001
 title: PreparedRun 与运行词汇表
 provider: B
 consumer: C
-contract_version: "0.51"
+contract_version: "0.52"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -11,17 +11,23 @@ verification_status: not_run
 last_verified_commit: null
 blockers:
   - "C-17：准确读取与资格/公式已改，但动态环境/目标依赖摘要仍未知"
-  - "C-03：无凭据 HTTP 默认核验已接；纯函数/凭据/动态对象 ID 与真实环境尚欠"
+  - "C-03：HTTPS 凭据与当前 Attempt 动态对象 ID 已接；纯函数与真实业务/宿主验收尚欠"
   - "真实半程、授权、宿主与完整 R 对拍未验收"
 next_owner: B/C/D
 next_action: 复用来源内部冻结与有限读取已补；继续可信动态环境/目标依赖、其他核验适配和真实验收，不以保存声明授予资格。
 ---
 
-## 结构化独立核验依据（0.51，兼容增量）
+## 0.4.4 鉴权与动态对象绑定增量
+
+主责依据为一期执行与证据 §12—13 的同对象查询、SecretPort 用途隔离和落盘前过滤。查询登记新增可选 credential_reference，仅为凭据引用，必须 HTTPS；按 http 用途即时解析，用完清空，不向命令、面板或查询证据传递凭据正文。失败不回退匿名查询。
+
+依据版本 aitest.business-query-basis/2 将 business_object_id 替换为 business_object_source，精确包含 stream=stdout 和 json_path（1—16 个非空 JSON 对象键）。仅从本次当前 Attempt 完整、无缺口、未发生替换的已保存 stdout 分块重建单份 JSON 对象；按分块序号/偏移/摘要/长度、证据归属和最终 ExitFact 字节数校验，最多 1 MiB。必须提取非空字符串 ID；重复键、缺字段、截断、过期尝试、过滤过的材料均阻塞，不猜测或重执行业务。核验请求保存提取所用证据引用和实际 ID；预期仍来自准确 Case 依据，不能取执行输出作为预期或通过结论。旧 /1 固定 ID 保持兼容。
+
+## 结构化独立核验依据（0.52，兼容增量）
 
 按一期功能 §4、能力清单 §6 的同对象独立核验要求，新增显式选择的依据编码 `aitest.business-query-basis/1`：Case.assertion_basis.text 为严格 UTF-8 JSON 对象，恰含 schema_version、business_object_id、query_method、target_deployment_ref、expected_facts、query_interval、deadline_condition。expected_facts 为非空对象；query_method 使用 `<project_id>:<登记名>`。依据摘要仍按完整原文计算，原 Case/计划/确认修订保持不变；不解析自然语言、不从执行输出推测对象或预期。旧自由文本仍可保存，自动核验时明确阻塞。
 
-解析器只读取当前 StepRevisionRef 指向的已保存完整 Case，复核原计划、准备及当前 Attempt；运行修订沿既有准确内容读取。宿主以 AITEST_BUSINESS_QUERIES 指定绝对配置文件，在核心启动时冻结查询登记；配置版本 `aitest.business-queries/1`，queries 为数组，各项恰含 query_method、target_deployment_ref、url_template、object_id_field。只使用已有独立 HTTP GET 适配器；当前登记不支持凭据正文或凭据认证，不把核心变成 HTTP 服务。地址不能由 verify_pending 参数覆盖。未配置保留原缺口；坏配置仅阻塞核验；正常/不匹配/缺失沿原证据保存和报告规则派生，登记不授予 V。
+解析器只读取当前 StepRevisionRef 指向的已保存完整 Case，复核原计划、准备及当前 Attempt；运行修订沿既有准确内容读取。宿主以 AITEST_BUSINESS_QUERIES 指定绝对配置文件，在核心启动时冻结查询登记；配置版本 `aitest.business-queries/1`，queries 为数组，各项必含 query_method、target_deployment_ref、url_template、object_id_field，可选 credential_reference。只使用已有独立 HTTP GET 适配器；当前登记只接受凭据引用，支持 HTTPS Bearer，禁止凭据正文，不把核心变成 HTTP 服务。地址不能由 verify_pending 参数覆盖。未配置保留原缺口；坏配置仅阻塞核验；正常/不匹配/缺失沿原证据保存和报告规则派生，登记不授予 V。
 
 本增量仍 reviewing / partial / not_run，不代表真实宿主或一期验收。
 
@@ -47,7 +53,7 @@ PreparedRun 准确来源/范围、准备与执行消费已有；可信动态环�
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：0.51；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
+现行版本：0.52；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。选择修订/输入指纹及 R 当前性/统计已修；继续可信动态环境、目标依赖与默认业务核验，未知时拒绝资格。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

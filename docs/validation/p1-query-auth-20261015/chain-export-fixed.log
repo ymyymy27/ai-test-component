@@ -1,0 +1,27 @@
+.............FFFF...............................                         [100%]
+================================== FAILURES ===================================
+_ test_export_rejects_unsafe_member_identities_before_publication[identities0] _
+tests\unit\test_saved_exports.py:618: in test_export_rejects_unsafe_member_identities_before_publication
+    with pytest.raises(ExportRefused):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ExportRefused
+_ test_export_rejects_unsafe_member_identities_before_publication[identities1] _
+tests\unit\test_saved_exports.py:618: in test_export_rejects_unsafe_member_identities_before_publication
+    with pytest.raises(ExportRefused):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ExportRefused
+_ test_export_rejects_unsafe_member_identities_before_publication[identities2] _
+tests\unit\test_saved_exports.py:618: in test_export_rejects_unsafe_member_identities_before_publication
+    with pytest.raises(ExportRefused):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ExportRefused
+_ test_export_rejects_unsafe_member_identities_before_publication[identities3] _
+tests\unit\test_saved_exports.py:618: in test_export_rejects_unsafe_member_identities_before_publication
+    with pytest.raises(ExportRefused):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ExportRefused
+=========================== short test summary info ===========================
+FAILED tests/unit/test_saved_exports.py::test_export_rejects_unsafe_member_identities_before_publication[identities0]
+FAILED tests/unit/test_saved_exports.py::test_export_rejects_unsafe_member_identities_before_publication[identities1]
+FAILED tests/unit/test_saved_exports.py::test_export_rejects_unsafe_member_identities_before_publication[identities2]
+FAILED tests/unit/test_saved_exports.py::test_export_rejects_unsafe_member_identities_before_publication[identities3]

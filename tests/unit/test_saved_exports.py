@@ -152,9 +152,10 @@ def test_evidence_bundle_unzips_into_an_empty_directory(tmp_path) -> None:
 
     extracted = tmp_path / "unpacked"
     extracted.mkdir()
+    expected_path = "evidence/" + hashlib.sha256(b"evidence-1").hexdigest() + ".bin"
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         names = archive.namelist()
-        assert names == ["report.md", "manifest.json", "evidence/evidence-1.bin"]
+        assert names == ["report.md", "manifest.json", expected_path]
         for name in names:
             assert not name.startswith("/") and ".." not in name.split("/")
         archive.extractall(extracted)
@@ -165,13 +166,12 @@ def test_evidence_bundle_unzips_into_an_empty_directory(tmp_path) -> None:
     assert manifest["review_ids"] == ["review-1"]
     assert manifest["scope"]["scope_revision"].startswith("scope:")
     # 逐文件摘要必须与解压后的实际字节一致。
-    import hashlib
-
     for item in manifest["files"]:
         actual = (extracted / item["path"]).read_bytes()
         assert "sha256:" + hashlib.sha256(actual).hexdigest() == item["sha256"]
         assert len(actual) == item["size"]
-    assert manifest["attachments"][0]["path"] == "evidence/evidence-1.bin"
+    assert manifest["attachments"][0]["path"] == expected_path
+    assert manifest["attachments"][0]["evidence_id"] == "evidence-1"
     assert {item["evidence_id"] for item in manifest["missing"]} == {"evidence-2"}
     # 报告正文脱离插件可读。
     assert "业务结论：incomplete" in (extracted / "report.md").read_text(encoding="utf-8")
@@ -611,14 +611,25 @@ def test_extracted_bundle_is_readable_without_the_plugin(tmp_path) -> None:
     "identities",
     [("../../escape",), (r"..\..\escape",), ("CON",), ("Evidence-A", "evidence-a")],
 )
-def test_export_rejects_unsafe_member_identities_before_publication(tmp_path, identities) -> None:
+def test_export_encodes_business_identities_without_creating_unsafe_members(
+    tmp_path, identities,
+) -> None:
     harness = _Harness(tmp_path, evidence=identities)
     _report_with_review(harness)
-    sequence = harness.unit.current_commit_sequence()
-    with pytest.raises(ExportRefused):
-        _export(harness, kind="evidence_bundle")
-    assert harness.unit.current_commit_sequence() == sequence
-    assert not list((tmp_path / "artifacts").rglob("*.zip"))
+    result = _export(harness, kind="evidence_bundle")
+    saved = harness.saved_export(str(result["record_id"]))
+    raw = harness.artifact_bytes(str(saved["artifact_ref"]),
+                                expected_sha256=str(saved["artifact_digest"]))
+    _verify_bundle_paths(raw)
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        attachments = manifest["attachments"]
+        assert {item["evidence_id"] for item in attachments} == set(identities)
+        assert len({item["path"].casefold() for item in attachments}) == len(identities)
+        for item in attachments:
+            assert item["path"].startswith("evidence/")
+            assert len(item["path"].split("/")) == 2
+            assert archive.read(item["path"]) == b"abc"
 
 
 @pytest.mark.parametrize("vector_index", range(4))

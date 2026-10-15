@@ -107,7 +107,9 @@ def test_default_resolver_reads_frozen_case_and_rejects_stale_attempt(tmp_path, 
             resolver.resolve(facts=stale, step_id=step.step_id, attempt_id="attempt-1")
 
 
-def test_published_plan_actual_execution_query_report_and_restart(tmp_path, monkeypatch):
+def test_published_plan_actual_execution_query_report_and_restart(
+    tmp_path, monkeypatch, *, dynamic=False, tls_context=None, credential_reference=None,
+):
     from aitest.bootstrap import assemble_workspace_core
     from aitest.contracts.commands import Command
     from tests.unit.test_authoritative_preparation import _authoritative
@@ -125,14 +127,33 @@ def test_published_plan_actual_execution_query_report_and_restart(tmp_path, monk
         f"Path({str(business_file)!r}).write_text("
         "'{\"object_id\":\"order-1\",\"paid\":true}', encoding='utf-8')\n"
     )
+    declaration = basis()
+    if dynamic:
+        source = (
+            "import json, uuid\nfrom pathlib import Path\n"
+            "data = {'object_id': str(uuid.uuid4()), 'paid': True}\n"
+            f"Path({str(business_file)!r}).write_text(json.dumps(data), encoding='utf-8')\n"
+            "print(json.dumps({'created': {'id': data['object_id']}}))\n"
+        )
+        data = json.loads(declaration)
+        del data["business_object_id"]
+        data.update(schema_version="aitest.business-query-basis/2",
+                    business_object_source={"stream": "stdout", "json_path": ["created", "id"]})
+        declaration = json.dumps(data)
 
     def reply(connection, stopped):
         body_reply(business_file.read_bytes())(connection, stopped)
 
-    with server(reply) as (url, calls):
+    with server(reply, tls_context) as (url, calls):
+        if tls_context is not None:
+            url = ("https" + url[4:]).replace("127.0.0.1", "localhost")
         path = config(tmp_path / "queries.json", url)
+        if credential_reference:
+            configured = json.loads(path.read_text(encoding="utf-8"))
+            configured["queries"][0]["credential_reference"] = credential_reference
+            path.write_text(json.dumps(configured), encoding="utf-8")
         monkeypatch.setenv("AITEST_BUSINESS_QUERIES", str(path))
-        with _authoritative(tmp_path, basis_text=basis(), main_source=source,
+        with _authoritative(tmp_path, basis_text=declaration, main_source=source,
                             template_versions=[
                                 {"template_id": "ticket-workflow", "version": "1.0.0"}
                             ],
@@ -226,6 +247,10 @@ def test_published_plan_actual_execution_query_report_and_restart(tmp_path, monk
             assert verified.error is None, verified.error
             assert verified.result["verification"]["observation"] == "matched"
             assert len(calls) == 1
+            if dynamic:
+                identity = json.loads(business_file.read_text(encoding="utf-8"))["object_id"]
+                assert verified.result["verification"]["business_object_id"] == identity
+                assert calls[0].startswith(f"GET /orders/{identity} ".encode())
             report_command = Command(
                 action="create_report", project_id=inputs.project_id,
                 request_id="report-request", intent_id="report-intent", expected_revision=0,

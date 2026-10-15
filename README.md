@@ -1,6 +1,6 @@
 # AI 辅助测试插件（AI Test Component）
 
-面向 Windows 11 x64、Python 3.13 与 Trae 的本地测试插件，当前产品版本 0.4.3。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、门禁、验收与未验证范围统一见[项目现状](docs/现状.md)。**
+面向 Windows 11 x64、Python 3.13 与 Trae 的本地测试插件，当前产品版本 0.4.4。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、门禁、验收与未验证范围统一见[项目现状](docs/现状.md)。**
 
 [![CI](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml)
 
@@ -79,3 +79,5 @@ VSIX 在 `integrations/trae/dist/aitest-trae.vsix`，构建物不跟踪；浏览
 | [变更记录](CHANGELOG.md) | 历史版本与阶段摘要 |
 
 项目为内部工程，许可证以仓库和组织规定为准。
+
+0.4.4 鉴权与动态对象核验配置见[操作指南](docs/一期工程整改/04-交接/0.4.4-鉴权与动态对象核验.md)，准确自动化范围见[本批证据](docs/validation/p1-query-auth-20261015/README.md)。

@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.88"
+contract_version: "1.89"
 contract_status: reviewing
 provider_implementation: partial
 consumer_implementation: partial
@@ -15,6 +15,10 @@ blockers:
 next_owner: A/B/C/D
 next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执与持久迁移检查点闸门已补；继续可信动态资格、默认核验、完整恢复和真实宿主用户流。
 ---
+
+## 1.89 鉴权与动态对象核验
+
+默认装配向查询登记注入 SecretPort，向准确依据解析器注入永久对象只读端口。依据 /2 和 HTTPS credential_reference 见 [BC 0.52](../BC-001-PreparedRun/contract.md)。verify_pending 命令形状不变，不接收凭据正文、任意 URL 或临时对象 ID 覆盖。保存当前 Attempt 的输出证据引用与解析 ID；同意图回读原核验，不重新执行业务。纯函数与真实宿主验收仍欠；自动化证据见[本批记录](../../../validation/p1-query-auth-20261015/README.md)。
 
 ## 1.88 操作主线接入（2026-10-15）
 
@@ -50,7 +54,7 @@ prepare_run 增加 from_saved 形式，准确引用与确认来源见 [BC-001 0.
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.88；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
+现行版本：1.89；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。维护全写入口、选择修订/真正快照指纹与 D 权威边界已修；继续准确动态复用、默认核验、受控恢复和真实宿主对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，reviewing/partial/not_run 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 

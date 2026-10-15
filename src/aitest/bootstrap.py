@@ -106,6 +106,7 @@ from aitest.domain.execution.sources import (
     SourceVerificationState,
 )
 from aitest.domain.project.context import SourceFileDigest, source_content_identity
+from aitest.infrastructure.adapters.execution.command import CommandAdapter
 from aitest.infrastructure.adapters.execution.python_checks import (
     LoadSourceFact,
     PythonLoadSourceProbe,
@@ -1247,7 +1248,8 @@ def assemble_workspace_core(
             # 不因为"默认有端口"就变得不可达。
             execution_port
             if execution_port is not None
-            else (RegisteredEntryExecutionAdapter() if execution_enabled else None),
+            else (RegisteredEntryExecutionAdapter(CommandAdapter(spool_store=FileSpoolStore(root)))
+                  if execution_enabled else None),
         )
         execution_commands = ExecutionCommands(
             execution_authorizations, initial_run_registration, step_execution
@@ -1273,11 +1275,11 @@ def assemble_workspace_core(
             execution_coordinator, step_execution, workspace.workspace_id, unit_of_work.repo
         )
         if business_verification_resolver is None and business_verification_port is None:
-            configured_queries = HostConfiguredBusinessQueries.from_environment()
+            configured_queries = HostConfiguredBusinessQueries.from_environment(secret_manager)
             if configured_queries is not None:
                 business_verification_resolver = SavedBusinessVerificationResolver(
                     execution_authorizations, cast(RecordRepository, unit_of_work.repo),
-                    configured_queries.validate,
+                    configured_queries.validate, FileObjectStore(root),
                 )
                 business_verification_port = configured_queries
         business_verification = SavedBusinessVerification(

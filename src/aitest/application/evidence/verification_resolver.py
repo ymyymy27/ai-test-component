@@ -1,13 +1,15 @@
 """Resolve explicit structured expectations from the exact saved step basis."""
 
+import json
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
+from aitest.application.evidence.dynamic_object import saved_object_id
 from aitest.application.evidence.evidence_review import freeze_verification_request
 from aitest.application.evidence.query_materials import BusinessVerificationBlocked
 from aitest.application.execution.authorization import ExecutionAuthorizationService
 from aitest.application.execution.step_content import StepContentReader
-from aitest.application.ports import RecordRepository, VerificationRequest
+from aitest.application.ports import EvidenceObjectStore, RecordRepository, VerificationRequest
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.evidence.polling import query_polling_policy
 from aitest.domain.json_material import decode_json
@@ -45,10 +47,12 @@ class SavedBusinessVerificationResolver:
     def __init__(
         self, authorizations: ExecutionAuthorizationService, records: RecordRepository,
         validate_target: Callable[[VerificationRequest], None] | None = None,
+        objects: EvidenceObjectStore | None = None,
     ):
         self.authorizations = authorizations
         self.contents = StepContentReader(records)
         self.validate_target = validate_target
+        self.objects = objects
 
     def resolve(
         self, *, facts: ExecutionFacts, step_id: str, attempt_id: str
@@ -61,9 +65,26 @@ class SavedBusinessVerificationResolver:
             raise BusinessVerificationBlocked("independent query step basis changed")
         case = self.contents.read(run=run, step=step).checked_case()
         try:
+            text = case.assertion_basis.text
+            if len(text.encode("utf-8")) > 128 * 1024:
+                raise ValueError("independent query basis exceeds budget")
+            data = decode_json(text)
+            evidence_refs: tuple[str, ...] = ()
+            if (isinstance(data, dict)
+                    and data.get("schema_version") == "aitest.business-query-basis/2"):
+                if set(data) != (_FIELDS - {"business_object_id"}) | {"business_object_source"}:
+                    raise ValueError("dynamic query basis has unexpected fields")
+                if self.objects is None:
+                    raise ValueError("saved query identity reader unavailable")
+                identity, evidence_refs = saved_object_id(
+                    data.pop("business_object_source"), facts, step_id, attempt_id, self.objects,
+                )
+                data.update(schema_version=BASIS_VERSION, business_object_id=identity)
+                text = json.dumps(data)
             request = declared_request(
-                case.assertion_basis.text, project_id=facts.project_id, attempt_id=attempt_id
+                text, project_id=facts.project_id, attempt_id=attempt_id
             )
+            request = replace(request, evidence_refs=evidence_refs)
             if self.validate_target is not None:
                 self.validate_target(request)
             return request

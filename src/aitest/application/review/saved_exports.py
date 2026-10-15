@@ -907,7 +907,10 @@ class SavedExportService:
             except ExportRefused:
                 missing.append({"evidence_id": evidence_id, "reason": "evidence_unreadable"})
                 continue
-            relative = f"evidence/{evidence_id}.bin"
+            # Business identities (including command IDs with colons) are not filenames.
+            # A fixed digest also prevents aliases, reserved names and path traversal.
+            name = hashlib.sha256(evidence_id.encode("utf-8")).hexdigest()
+            relative = f"evidence/{name}.bin"
             member_key = _portable_member_key(relative)
             if member_key in member_keys:
                 raise ExportRefused("evidence bundle member paths collide")
@@ -915,6 +918,7 @@ class SavedExportService:
             contents[relative] = blob
             attachments.append(
                 {
+                    "evidence_id": evidence_id,
                     "path": relative,
                     "sha256": _bytes_digest(blob),
                     "size": len(blob),

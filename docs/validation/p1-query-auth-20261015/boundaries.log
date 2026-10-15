@@ -1,0 +1,19 @@
+..........................FF....                                         [100%]
+================================== FAILURES ===================================
+_____ test_real_tls_sends_bearer_and_clears_value_on_all_statuses[401-{}] _____
+tests\unit\test_query_authentication.py:49: in test_real_tls_sends_bearer_and_clears_value_on_all_statuses
+    assert captured.verification.observation.value == ("matched" if status == 200 else "error")
+E   AssertionError: assert 'query_error' == 'error'
+E
+E     - error
+E     + query_error
+_____ test_real_tls_sends_bearer_and_clears_value_on_all_statuses[403-{}] _____
+tests\unit\test_query_authentication.py:49: in test_real_tls_sends_bearer_and_clears_value_on_all_statuses
+    assert captured.verification.observation.value == ("matched" if status == 200 else "error")
+E   AssertionError: assert 'query_error' == 'error'
+E
+E     - error
+E     + query_error
+=========================== short test summary info ===========================
+FAILED tests/unit/test_query_authentication.py::test_real_tls_sends_bearer_and_clears_value_on_all_statuses[401-{}]
+FAILED tests/unit/test_query_authentication.py::test_real_tls_sends_bearer_and_clears_value_on_all_statuses[403-{}]

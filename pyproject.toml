@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-test-component"
-version = "0.4.3"
+version = "0.4.4"
 description = "Phase-one local AI-assisted testing component preview"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
