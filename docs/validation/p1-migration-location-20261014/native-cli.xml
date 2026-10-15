@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="6.317" timestamp="2026-10-15T11:36:40.870747+08:00" hostname="d"><testcase classname="tests.unit.test_cli_core_forwarding" name="test_actual_cli_doctor_and_dispatch_share_the_verified_core" time="5.650" /></testsuite></testsuites>

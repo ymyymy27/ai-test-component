@@ -24,9 +24,10 @@ from typing import Final
 from uuid import uuid4
 
 from aitest.domain.json_material import decode_json
+from aitest.infrastructure.security import guard_value
 
 from . import atomic
-from .backup import BackupError, FileBackupStore, manifest_facts
+from .backup import BackupError, FileBackupStore, _chain_has_symlink, manifest_facts
 from .commit_manifest import FileCommitStore
 from .commit_migration import migrate_commit_closure
 from .index import migrate_query_layout, rollback_query_layout
@@ -275,7 +276,10 @@ def _plan_token(steps: tuple[str, ...]) -> str:
 class FileMigrationManager:
     """inspect/plan/apply/resume/rollback 的文件实现。"""
 
-    def __init__(self, workspace_root: Path, *, maintenance: object | None = None) -> None:
+    def __init__(
+        self, workspace_root: Path, *, maintenance: object | None = None,
+        backup_root: Path | None = None,
+    ) -> None:
         self._root = workspace_root.resolve()
         self._maintenance = maintenance
         self._dir = self._root / "migrations"
@@ -283,9 +287,15 @@ class FileMigrationManager:
         self._journal_path = self._dir / _JOURNAL_NAME
         self._plans_dir = self._dir / _PLANS_DIR
         self._backups_dir = self._dir / _BACKUPS_DIR
+        if backup_root is not None:
+            configured = self._external_backup_root(backup_root) / self._backup_namespace()
+            self._backups_dir = self._external_backup_root(configured)
         self._steps_dir = self._dir / "steps"
         self._cycles_dir = self._dir / "cycles"
-        for path in (self._plans_dir, self._backups_dir, self._steps_dir, self._cycles_dir):
+        paths = [self._plans_dir, self._steps_dir, self._cycles_dir]
+        if backup_root is None:
+            paths.append(self._backups_dir)
+        for path in paths:
             path.mkdir(parents=True, exist_ok=True)
         if not self._registry_path.exists():
             self._save_registry(applied={})
@@ -563,6 +573,40 @@ class FileMigrationManager:
 
     # ----- 内部 -------------------------------------------------------
 
+    def _backup_namespace(self) -> str:
+        identity = _load_json(self._root / "workspace.json").get("workspace_id")
+        if not isinstance(identity, str) or not identity.strip():
+            raise MigrationError("独立迁移备份需要可核对的工作空间身份")
+        return "workspace-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+
+    def _external_backup_root(self, path: Path) -> Path:
+        if not path.is_absolute() or _chain_has_symlink(path):
+            raise MigrationError("迁移备份位置必须是无链接的绝对目录")
+        resolved = path.resolve()
+        if resolved == self._root or resolved.is_relative_to(self._root):
+            raise MigrationError("迁移备份位置必须独立于活动工作空间")
+        if resolved.exists() and not resolved.is_dir():
+            raise MigrationError("迁移备份位置不是目录")
+        _safe, changed = guard_value(str(resolved))
+        if changed:
+            raise MigrationError("迁移备份位置包含敏感材料，拒绝保存")
+        return resolved
+
+    def _frozen_backup_path(self, cycle: Mapping[str, object], name: str) -> Path:
+        if "backup_path" not in cycle:
+            # 此字段引入前的周期都使用工作空间内固定位置，配置不追改历史。
+            return self._dir / _BACKUPS_DIR / name
+        raw = cycle["backup_path"]
+        if not isinstance(raw, str):
+            raise MigrationError("冻结迁移备份位置无法核实")
+        path = Path(raw)
+        if not path.is_absolute() or path.name != name or _chain_has_symlink(path):
+            raise MigrationError("冻结迁移备份位置无法核实")
+        parent = self._external_backup_root(path.parent)
+        if parent.name != self._backup_namespace():
+            raise MigrationError("冻结迁移备份不属于当前工作空间")
+        return parent / name
+
     def _load_plan(self, plan_id: str) -> tuple[str, ...]:
         if (
             not plan_id.startswith("plan-")
@@ -633,7 +677,7 @@ class FileMigrationManager:
                 and all(character in "0123456789abcdef" for character in name[len(plan_id) + 1 :])
             ):
                 raise MigrationError("迁移备份引用损坏")
-            destination = self._backups_dir / name
+            destination = self._frozen_backup_path(cycle, name)
         elif states:
             raise MigrationError("迁移步骤已有前态但缺少冻结备份周期，拒绝重新采样")
         manifest = destination / "backup.json"
@@ -657,17 +701,17 @@ class FileMigrationManager:
             if not verification["ok"]:
                 raise MigrationError(f"迁移前备份校验失败: {verification['errors']}")
         # 在任何 forward 之前冻结本轮备份引用，重启不能切回第一轮备份。
-        atomic.write_json(
-            cycle_path,
-            {
-                "plan_id": plan_id,
-                "state": "active",
-                "backup_name": destination.name,
-                "backup_manifest_digest": manifest_facts(destination)[0],
-            },
-        )
+        frozen: dict[str, object] = {
+            "plan_id": plan_id,
+            "state": "active",
+            "backup_name": destination.name,
+            "backup_manifest_digest": manifest_facts(destination)[0],
+        }
+        if self._outside_workspace(destination):
+            frozen["backup_path"] = str(destination.resolve())
+        atomic.write_json(cycle_path, frozen)
         # 迁移前强制备份也进维护审计（架构 04 §9/§197）：维护记录/`backup inspect`
-        # 能看到它以及它落在哪里——当前位置在工作空间内，位置口径的裁定见待裁定清单。
+        # 能看到实际位置；未配置时仍是旧本地位置，不能谎称独立存储通过。
         self._record_backup(destination)
         return destination
 

@@ -321,6 +321,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--launch-claim", action="store_true")
     parser.add_argument("--instance-id-file", default=".core-instance-id")
     parser.add_argument(
+        "--migration-backup-root", type=Path, default=None,
+        help="显式迁移备份目录，须在活动工作空间之外；未指定时读取宿主配置环境变量",
+    )
+    parser.add_argument(
         "--max-clients",
         type=int,
         default=0,
@@ -396,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
             instance_id=args.instance_id,
             extra_handlers=registered_use_cases(),
             connection_endpoint=args.connection_endpoint,
+            migration_backup_root=args.migration_backup_root,
         )
     except CoreAssemblyBlocked as error:
         print(str(error), file=sys.stderr)

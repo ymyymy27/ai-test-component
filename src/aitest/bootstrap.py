@@ -905,6 +905,7 @@ def assemble_workspace_core(
     execution_port: ExecutionPort | None = None,
     business_verification_resolver: BusinessVerificationResolver | None = None,
     business_verification_port: BusinessVerificationCapturePort | None = None,
+    migration_backup_root: Path | None = None,
     verify_start_interpreter: bool = True,
     verify_start_source: bool = True,
     execution_enabled: bool = True,
@@ -942,17 +943,21 @@ def assemble_workspace_core(
             raise CoreAssemblyBlocked(f"工作空间恢复 blocked，核心拒绝启动: {recovery.actions}")
 
         # 格式变化仍在生命周期写锁内，且必须经过可校验备份与活动守卫。
-        migrations = FileMigrationManager(root)
-        migration_plan = migrations.plan(
-            (
-                "0003-sharded-record-authority",
-                "0004-bounded-query-directory",
-                "0005-complete-commit-closure",
-                "0006-canonical-current-publication",
-                "0007-canonical-manifest-and-business-changes",
-            )
-        )
         try:
+            if migration_backup_root is None:
+                configured_root = os.environ.get("AITEST_MIGRATION_BACKUP_ROOT")
+                if configured_root is not None:
+                    migration_backup_root = Path(configured_root)
+            migrations = FileMigrationManager(root, backup_root=migration_backup_root)
+            migration_plan = migrations.plan(
+                (
+                    "0003-sharded-record-authority",
+                    "0004-bounded-query-directory",
+                    "0005-complete-commit-closure",
+                    "0006-canonical-current-publication",
+                    "0007-canonical-manifest-and-business-changes",
+                )
+            )
             migration_report = migrations.apply(migration_plan.plan_id)
         except (OSError, ValueError, MigrationError) as error:
             raise CoreAssemblyBlocked("提交材料迁移无法核实，核心拒绝启动") from error
@@ -1415,7 +1420,9 @@ def assemble_workspace_core(
         # 不得迁移"，此前缺的是受控入口与维护窗口。维护窗口期间入口适配器拒绝新的
         # 写动作（§142「进入维护状态暂停新写入」）。
         maintenance_mode = MaintenanceMode()
-        migration_runner = FileMigrationManager(root, maintenance=FileMaintenanceService(root))
+        migration_runner = FileMigrationManager(
+            root, maintenance=FileMaintenanceService(root), backup_root=migration_backup_root
+        )
         migration_entry = SavedMigrationEntry(
             runner=migration_runner,
             actors=actors,

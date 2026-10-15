@@ -50,7 +50,7 @@ next_action: 只读 read_view/MCP、冻结 R 来源、入口安全/迟到回执�
 
 **已实现**：端口签名、真实文件底座、当前提交/引用/索引、C 默认命令执行/控制/调度以及 CLI/MCP/只读 Trae 桥已有实现；不再把“冻结全部签名”列为当前任务；默认 C 组件注入存在，仍须修 C-15/C-16 实际接线/核验缺陷。
 
-**仍缺／优先动作**：工作空间级 backup/migrate 虽有底层组件，尚无默认 handler；verify_pending 默认缺可信 resolver/port。D-10 是 CD 消费守卫缺陷，A 底座不能替 D 保证业务结论。
+**仍缺／优先动作**：backup三模式与migrate五模式已有默认受控handler，迁移独立位置配置已补；宿主设置/真实恢复和verify_pending默认可信resolver/port仍缺，当前优先打通真实Trae操作闭环。业务结论继续由准确执行/独立核验事实派生，不能由底座或界面自证。
 
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 
@@ -483,3 +483,6 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 
 
 本批最终范围更正：受控apply/resume已补准确检查点计划/步骤/已知状态及周期一致性，非字符串状态标准拒绝。最新两个完整受改文件58项（24新增）通过，5427仅收集；前47/5416为阶段范围，保留原回执。旧5397全量18:26因验证ledger误受os.fsync故障注入而exit3，1112/2非全量通过。新记录器实际故障注入38项通过，新全量另见[新闭环](../../../validation/p1-migration-closure-20261014/README.md)，不改版本/签署/not_run。
+
+
+2026-10-15独立位置实施续修：可信装配migration_backup_root、宿主环境AITEST_MIGRATION_BACKUP_ROOT及worker选项接入同一配置；外部工作空间目录隔离，活动周期冻结原backup_path，配置更改/取消仍核对原副本，旧周期固定位置不追改。三完整小型文件82通过、独立原生CLI1通过且外置备份现场校验通过，5451仅收集；旧5427已31.5%外部中断。未配置兼容模式仍回执本地位置，不假称独立存储满足。公开Command/DTO/端口/Schema/动作及版本、签署/not_run不变，宿主设置/完整历史/真实业务与恢复未闭合，见[本批范围](../../../validation/p1-migration-location-20261014/README.md)。

@@ -288,3 +288,6 @@ CORE 1.82 已定义 select_case_reuse 与 expected_revision，现有选择 @1 �
 
 
 本批最终范围：迁移身份/受控检查点的两份完整文件58项，5427仅收集；47/5416是前阶段。旧5397已1112/2/exit3结束，新记录器故障注入38项通过，[新全量](../validation/p1-migration-closure-20261014/README.md)另记，not_run及签署保持。
+
+
+2026-10-15实施更新：CORE/AB/AC同步独立位置配置和冻结地址兼容，82小型文件及原生CLI1分范围记录；旧5427已中断，5451仅收集，不改版本/签署/真实对接状态。[本批证据](../validation/p1-migration-location-20261014/README.md)。
