@@ -1,0 +1,10 @@
+{
+  "files": {
+    "dist/extension.js": true,
+    "dist/panel.js": true
+  },
+  "declared_manifest_matches": true,
+  "host_added_keys": [
+    "__metadata"
+  ]
+}

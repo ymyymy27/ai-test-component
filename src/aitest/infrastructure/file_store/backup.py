@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Final
 
+from aitest.domain.json_material import decode_json
 from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.security import (
     KnownSecretRegistry,
@@ -112,12 +113,25 @@ def _chain_has_symlink(raw_target: Path) -> bool:
     )
 
 
-def _read_manifest(backup: Path) -> dict[str, str]:
+def _read_backup_json(backup: Path) -> object:
     if _chain_has_symlink(backup / "backup.json"):
         raise BackupError("备份清单路径含链接")
-    raw = json.loads((backup / "backup.json").read_text(encoding="utf-8"))
+    try:
+        with (backup / "backup.json").open("rb") as source:
+            content = source.read(_MAX_JSON_BYTES + 1)
+        if len(content) > _MAX_JSON_BYTES:
+            raise BackupError("备份清单超出安全核对内存范围")
+        return decode_json(content)
+    except (OSError, ValueError) as error:
+        raise BackupError("备份清单无法可靠核对") from error
+
+
+def _read_manifest(backup: Path) -> dict[str, str]:
+    raw = _read_backup_json(backup)
     if not isinstance(raw, dict):
         raise BackupError("备份清单不是对象")
+    if raw.get("schema") != _BACKUP_SCHEMA:
+        raise BackupError("备份清单版本无法核实")
     files = raw.get("files")
     if not isinstance(files, dict):
         raise BackupError("备份清单损坏: files 不是对象")
@@ -159,15 +173,15 @@ class FileBackupStore:
                 raise BackupError("结构化备份材料超出安全核对内存范围")
             text = content.decode("utf-8")
             values = (
-                [json.loads(line) for line in text.splitlines() if line.strip()]
+                [decode_json(line) for line in text.splitlines() if line.strip()]
                 if path.suffix.lower() == ".jsonl"
-                else [json.loads(text)]
+                else [decode_json(text)]
             )
             _safe, changed = guard_value(values, self._registry)
             if changed:
                 raise BackupError("结构化备份材料含敏感材料")
             return content
-        except (UnicodeError, json.JSONDecodeError) as error:
+        except (UnicodeError, ValueError) as error:
             raise BackupError("结构化备份材料无法安全核对") from error
 
     def _copy_safe_file(self, source: Path, destination: Path, expected_digest: str) -> None:
@@ -273,15 +287,20 @@ class FileBackupStore:
         if changed:
             raise BackupError("备份路径包含敏感材料")
         errors: list[str] = []
+        resolved: set[Path] = set()
         for name, digest in manifest.items():
             path = _contained_path(backup, name)
             if (
                 path is None
+                or Path(name).as_posix() != name
+                or path in resolved
                 or not path.is_file()
                 or _chain_has_symlink(backup / name)
                 or self._safe_digest(path) != digest
             ):
                 errors.append(name)
+            if path is not None:
+                resolved.add(path)
         # 闭包双向核对：备份内任何未登记文件（事后塞入/残留）都使备份不再
         # 是冻结闭包，不得作为迁移前可校验备份验收（A-06）。
         manifested = set(manifest)
@@ -289,7 +308,7 @@ class FileBackupStore:
             if _chain_has_symlink(present):
                 errors.append("<linked material>")
                 continue
-            if not present.is_file() or present.name == "backup.json":
+            if not present.is_file() or present == backup / "backup.json":
                 continue
             try:
                 relative = present.relative_to(backup).as_posix()
@@ -317,10 +336,7 @@ class FileBackupStore:
             raise BackupError("恢复目标路径含符号链接，拒绝恢复")
         target = target.resolve()
 
-        try:
-            raw = json.loads((backup / "backup.json").read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise BackupError(f"备份清单不可读: {error}") from error
+        raw = _read_backup_json(backup)
         files = raw.get("files") if isinstance(raw, dict) else None
         if not isinstance(files, dict):
             raise BackupError("备份清单损坏: files 不是对象")
@@ -380,3 +396,28 @@ class FileBackupStore:
             verified=True,
             state=state,
         )
+
+
+def manifest_facts(destination: Path) -> tuple[str, int, int]:
+    """返回备份的 (清单摘要, 文件数, 总字节)（规范字节口径，与备份身份同一来源）。
+
+    迁移前强制备份也要能进入维护审计（架构 04 §9/§10/§197：维护记录给出检查范围、
+    已完成项与材料缺口），因此把清单读回、计数与摘要计算放在这里**一次**，
+    避免迁移模块另算一套口径。
+    """
+
+    manifest = _read_manifest(destination)
+    canonical = json.dumps(
+        dict(manifest), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
+    total = 0
+    for name in manifest:
+        path = _contained_path(destination, name)
+        if path is None or not path.is_file():
+            raise BackupError(f"备份材料不可读: {name}")
+        total += path.stat().st_size
+    return digest, len(manifest), total
+
+
+__all__ = ["FileBackupStore", "RestoreReport", "manifest_facts"]

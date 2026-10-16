@@ -1,0 +1,206 @@
+{
+  "scope": "Automated fixture with real registered Python child processes; not real user acceptance",
+  "report": {
+    "blocking_issue_ids": [],
+    "business_outcome": "incomplete",
+    "content_revision": 1,
+    "context": {
+      "acceptance_revision": "1",
+      "environment_ref": "env-local@1",
+      "plan_revision_refs": [
+        "plan-ticket@1"
+      ],
+      "policy_version": "1.0",
+      "project_id": "project-ticket",
+      "rules_revision": "rules:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "run_id": "run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b",
+      "run_revision": 13,
+      "scope_name": "ticket lifecycle scope",
+      "scope_revision": "scope:scope-ticket@1",
+      "source_identity": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "template_revision": "ticket-workflow@1.0.0"
+    },
+    "created_at": "2026-10-15T10:49:55.142078+00:00",
+    "decision": {
+      "business_outcome": "incomplete",
+      "case_ids_revision": "sha256:ebe0fa8ae669a1c564fb586d071b10261c0c3a2ebdb9746c3366fd2b6e119071",
+      "coverage": {
+        "executed": [
+          "case-change-status",
+          "case-create-ticket"
+        ],
+        "passed": [],
+        "required": [
+          "case-change-status",
+          "case-create-ticket"
+        ],
+        "reused": [],
+        "selected": [
+          "case-change-status",
+          "case-create-ticket"
+        ],
+        "verified": []
+      },
+      "decisive_failures": [],
+      "evidence_grade": "C",
+      "gaps": [
+        {
+          "code": "source_identity_unverified",
+          "safe_reason": "Source identity is not verified.",
+          "subject_id": null
+        },
+        {
+          "code": "critical_path_missing",
+          "safe_reason": "At least one required critical path lacks valid evidence.",
+          "subject_id": null
+        }
+      ],
+      "policy_version": "1.0",
+      "primary_gap": {
+        "code": "source_identity_unverified",
+        "safe_reason": "Source identity is not verified.",
+        "subject_id": null
+      },
+      "snapshot_commit_id": "commit-199",
+      "snapshot_cursor": 199,
+      "source_commit": null
+    },
+    "evidence_refs": [
+      "business-query-3edf764cf0984ea2ebe69341793dae08cfef0bca5e7af0423e063e825e7b30ea-evidence",
+      "business-query-94d1880e62d608e25538e8e5f43269d77f061c87544812e6883dac9b30776974-evidence",
+      "business-query-dbbd86993ce10379ace54479c47244470cf3ce44887f2185e2f12b563697cc4a-evidence",
+      "business-query-f2f71c2aab83da8d2b47fabe40f92cb98da47e2c44532725ee42164aac043a39-evidence",
+      "evidence:execution-attempt-24baf92a2a7f9e8c1ad60bc51b658ab90968f4c61d8ae99023f509afd98c4ff4:stdout:0",
+      "evidence:execution-attempt-2efb4203a46862979150e3e8409c5c44bba8750a944cbc037a320e6f840b30bf:stdout:0",
+      "evidence:execution-attempt-53fdec62443899567e22b0597fc977a61d1fce07788b856fb608a46f887594cd:stdout:0",
+      "evidence:execution-attempt-c561f68d75f9efe5fb1b5b08e1f95a6a5cb0a130ba31611f74fb9a09a7feab3d:stdout:0",
+      "source-evidence-execution-attempt-24baf92a2a7f9e8c1ad60bc51b658ab90968f4c61d8ae99023f509afd98c4ff4",
+      "source-evidence-execution-attempt-2efb4203a46862979150e3e8409c5c44bba8750a944cbc037a320e6f840b30bf",
+      "source-evidence-execution-attempt-53fdec62443899567e22b0597fc977a61d1fce07788b856fb608a46f887594cd",
+      "source-evidence-execution-attempt-c561f68d75f9efe5fb1b5b08e1f95a6a5cb0a130ba31611f74fb9a09a7feab3d"
+    ],
+    "execution_snapshot_ref": {
+      "digest": "sha256:f4d0b0cad9e0cc0227911c4e93c748d8db0b85d24e525c6d7b3f226483ce5622",
+      "snapshot_commit_id": "commit-199",
+      "snapshot_cursor": 199
+    },
+    "issue_revisions": [],
+    "project_id": "project-ticket",
+    "published_sequence": 202,
+    "report_id": "order-report",
+    "reuse": {
+      "candidates": 0,
+      "denials": [],
+      "references": [],
+      "reused": [],
+      "source_snapshots": []
+    },
+    "run_id": "run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b",
+    "schema_version": "aitest.report/1.0"
+  },
+  "current_attempt_by_step": {
+    "step-646f351993f2e4e8dfdae69735abf795cdfc5a0d3be7c92d362bdcafb35dcfc1": "execution-attempt-24baf92a2a7f9e8c1ad60bc51b658ab90968f4c61d8ae99023f509afd98c4ff4",
+    "step-851e847a4d747c7ca739878586fa9f25d2303322f9f5cbae2f5778a73d8030ed": "execution-attempt-53fdec62443899567e22b0597fc977a61d1fce07788b856fb608a46f887594cd",
+    "step-9b2d48aa6467204dfcae952cd2eeadfe52be17d99b5d46ba73f266068e148e19": "execution-attempt-2efb4203a46862979150e3e8409c5c44bba8750a944cbc037a320e6f840b30bf",
+    "step-d06280359c8dffe4299b5c12eec7d19922b19b612c3e856429a9272435052357": "execution-attempt-c561f68d75f9efe5fb1b5b08e1f95a6a5cb0a130ba31611f74fb9a09a7feab3d"
+  },
+  "source_verifications": [
+    {
+      "verification_id": "source-verification:execution-attempt-53fdec62443899567e22b0597fc977a61d1fce07788b856fb608a46f887594cd",
+      "project_id": "project-ticket",
+      "plan_revision": {
+        "revision_id": "plan-ticket",
+        "revision_no": 1,
+        "digest": "sha256:ebe0fa8ae669a1c564fb586d071b10261c0c3a2ebdb9746c3366fd2b6e119071"
+      },
+      "expected_source_binding_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "materialized_snapshot_ref": "C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-48/test_real_function_plan_execut0/workspace/workdirs/run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b",
+      "observed_source_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "state": "unverified",
+      "observed_entry_ref": "C:\\Users\\86178\\AppData\\Local\\Temp\\pytest-of-86178\\pytest-48\\test_real_function_plan_execut0\\workspace\\workdirs\\run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b\\main.py",
+      "observed_import_ref": null,
+      "observed_interpreter_ref": "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "failure_class": null,
+      "gap_ids": [
+        "actual_execution_load_source_unverified"
+      ],
+      "evidence_refs": [
+        "source-evidence-execution-attempt-53fdec62443899567e22b0597fc977a61d1fce07788b856fb608a46f887594cd"
+      ],
+      "verified_at": "2026-10-15T10:39:56.426284Z"
+    },
+    {
+      "verification_id": "source-verification:execution-attempt-2efb4203a46862979150e3e8409c5c44bba8750a944cbc037a320e6f840b30bf",
+      "project_id": "project-ticket",
+      "plan_revision": {
+        "revision_id": "plan-ticket",
+        "revision_no": 1,
+        "digest": "sha256:ebe0fa8ae669a1c564fb586d071b10261c0c3a2ebdb9746c3366fd2b6e119071"
+      },
+      "expected_source_binding_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "materialized_snapshot_ref": "C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-48/test_real_function_plan_execut0/workspace/workdirs/run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b",
+      "observed_source_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "state": "unverified",
+      "observed_entry_ref": "C:\\Users\\86178\\AppData\\Local\\Temp\\pytest-of-86178\\pytest-48\\test_real_function_plan_execut0\\workspace\\workdirs\\run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b\\main.py",
+      "observed_import_ref": null,
+      "observed_interpreter_ref": "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "failure_class": null,
+      "gap_ids": [
+        "actual_execution_load_source_unverified"
+      ],
+      "evidence_refs": [
+        "source-evidence-execution-attempt-2efb4203a46862979150e3e8409c5c44bba8750a944cbc037a320e6f840b30bf"
+      ],
+      "verified_at": "2026-10-15T10:42:18.340307Z"
+    },
+    {
+      "verification_id": "source-verification:execution-attempt-24baf92a2a7f9e8c1ad60bc51b658ab90968f4c61d8ae99023f509afd98c4ff4",
+      "project_id": "project-ticket",
+      "plan_revision": {
+        "revision_id": "plan-ticket",
+        "revision_no": 1,
+        "digest": "sha256:ebe0fa8ae669a1c564fb586d071b10261c0c3a2ebdb9746c3366fd2b6e119071"
+      },
+      "expected_source_binding_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "materialized_snapshot_ref": "C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-48/test_real_function_plan_execut0/workspace/workdirs/run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b",
+      "observed_source_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "state": "unverified",
+      "observed_entry_ref": "C:\\Users\\86178\\AppData\\Local\\Temp\\pytest-of-86178\\pytest-48\\test_real_function_plan_execut0\\workspace\\workdirs\\run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b\\main.py",
+      "observed_import_ref": null,
+      "observed_interpreter_ref": "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "failure_class": null,
+      "gap_ids": [
+        "actual_execution_load_source_unverified"
+      ],
+      "evidence_refs": [
+        "source-evidence-execution-attempt-24baf92a2a7f9e8c1ad60bc51b658ab90968f4c61d8ae99023f509afd98c4ff4"
+      ],
+      "verified_at": "2026-10-15T10:44:46.457580Z"
+    },
+    {
+      "verification_id": "source-verification:execution-attempt-c561f68d75f9efe5fb1b5b08e1f95a6a5cb0a130ba31611f74fb9a09a7feab3d",
+      "project_id": "project-ticket",
+      "plan_revision": {
+        "revision_id": "plan-ticket",
+        "revision_no": 1,
+        "digest": "sha256:ebe0fa8ae669a1c564fb586d071b10261c0c3a2ebdb9746c3366fd2b6e119071"
+      },
+      "expected_source_binding_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "materialized_snapshot_ref": "C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-48/test_real_function_plan_execut0/workspace/workdirs/run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b",
+      "observed_source_digest": "sha256:df4c71a26177f09e776a3dd6ad3f839db9fefad1d877298216d3d4070c0ba851",
+      "state": "unverified",
+      "observed_entry_ref": "C:\\Users\\86178\\AppData\\Local\\Temp\\pytest-of-86178\\pytest-48\\test_real_function_plan_execut0\\workspace\\workdirs\\run-26c02e59771b48bad03d6938f4ffa7eb1ae475f15047df17a2b51c7e6a3e837b\\main.py",
+      "observed_import_ref": null,
+      "observed_interpreter_ref": "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "failure_class": null,
+      "gap_ids": [
+        "actual_execution_load_source_unverified"
+      ],
+      "evidence_refs": [
+        "source-evidence-execution-attempt-c561f68d75f9efe5fb1b5b08e1f95a6a5cb0a130ba31611f74fb9a09a7feab3d"
+      ],
+      "verified_at": "2026-10-15T10:47:18.882606Z"
+    }
+  ],
+  "source_check_results": []
+}

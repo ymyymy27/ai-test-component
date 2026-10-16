@@ -1,0 +1,4 @@
+src\aitest\interfaces\local\api.py:26: error: Module "aitest.contracts.views" has no attribute "Response"  [attr-defined]
+src\aitest\interfaces\dto.py:14: error: Module "aitest.contracts.views" has no attribute "CoverageDTO"  [attr-defined]
+src\aitest\interfaces\local\core_worker.py:142: error: Returning Any from function declared to return "Response | ShutdownControl"  [no-any-return]
+Found 3 errors in 3 files (checked 248 source files)

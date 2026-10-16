@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="0.137" timestamp="2026-10-13T20:43:12.156073+08:00" hostname="d"><testcase classname="tests.contracts.test_generated_schemas" name="test_generated_schemas_match_contract_source" time="0.039" /></testsuite></testsuites>

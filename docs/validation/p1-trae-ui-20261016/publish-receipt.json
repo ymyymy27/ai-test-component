@@ -1,0 +1,51 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-310a19c0a49f4cf6b84bd53e273c48d1",
+  "instance_id": "core-9a87e8bfd0e1",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-live-publish",
+  "binding_revision": null,
+  "result": {
+    "published": true,
+    "kind": "plan",
+    "revision": 1,
+    "record_revision": 1,
+    "confirmation_id": "33",
+    "plan_id": "plan-library",
+    "scope_id": "scope-library",
+    "scope_revision": 1,
+    "case_revisions": [
+      {
+        "case_id": "library-boundary",
+        "digest": "sha256:101a49384359dbbef9e1afabbbbad66cc47ef6e4e9cec6aeb8424693107e0d81",
+        "revision": 1
+      },
+      {
+        "case_id": "library-error",
+        "digest": "sha256:e2ac97fbf7545b61c0b144731700223aaf564f44bc59ff277002986040cd097a",
+        "revision": 1
+      },
+      {
+        "case_id": "library-normal",
+        "digest": "sha256:030916873167d4a87ed103479e205ab2e0dd3ad40346f5d24fd3671420c92e07",
+        "revision": 1
+      },
+      {
+        "case_id": "library-syntax",
+        "digest": "sha256:1d6264f4da03627300082d7f94f43417cd0685a7f8bd908e4858ef35feecd238",
+        "revision": 1
+      }
+    ],
+    "rule_revisions": [],
+    "template_versions": [
+      {
+        "digest": "sha256:1ffeccfdfac199e2a71df03bce75030857ae003d453330d321af822f48e8fc80",
+        "template_id": "python-library",
+        "version": "1.0.0"
+      }
+    ]
+  },
+  "page": null,
+  "error": null
+}

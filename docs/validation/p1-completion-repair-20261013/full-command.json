@@ -1,0 +1,13 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests",
+    "--basetemp=E:\\ai-test-component\\.runtime\\tmp\\completion-full",
+    "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-completion-repair-20261013\\full.xml"
+  ],
+  "started_at": "2026-10-13T12:46:00.915639+00:00",
+  "baseline": "76ab7d24c68a590de44d12fd6f749f5f98fcc6f4",
+  "scope": "all collected tests, no other heavy tests concurrently"
+}

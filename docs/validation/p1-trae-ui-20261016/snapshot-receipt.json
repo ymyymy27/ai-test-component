@@ -1,0 +1,24 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-120148eb3eb24bf5ac5e64d76e46dbd1",
+  "instance_id": "core-f59e1111797c",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-live-snapshot",
+  "binding_revision": 1,
+  "result": {
+    "snapshot_id": "source-79227cf6a909ce0f99106bde58fe15ced2ba4f4e685565c6274ce5cc62f9e6d8",
+    "record_revision": 1,
+    "content_identity": "sha256:3403ebe616b2086ee806371800ae89291c606416cc7d04760a4aea3808ef138d",
+    "pinned_snapshot_id": "snap-db079f6bee914d06",
+    "binding_id": "binding-library",
+    "binding_revision": 1,
+    "purpose": "prepare",
+    "source_current_ref": {
+      "record_id": "source-current-08d55b8932ec1153ae62c1520c40f1418ed4d4ab74c6d6ed443fe34071407bce",
+      "record_revision": 1
+    }
+  },
+  "page": null,
+  "error": null
+}

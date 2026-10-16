@@ -1,0 +1,104 @@
+[
+  {
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_command_adapter.py",
+      "tests/unit/test_saved_exports.py",
+      "tests/unit/test_saved_reports.py",
+      "tests/unit/test_completion_boundaries.py",
+      "tests/unit/test_reuse_consumption.py",
+      "-ra",
+      "--basetemp=.runtime/tmp/zip-repair-verified",
+      "--junitxml=docs/validation/p1-completion-repair-20261014/repair-verified.xml"
+    ],
+    "exit_code": 0,
+    "tests": 98,
+    "log": "../p1-completion-repair-20261014/repair-verified.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_saved_exports.py",
+      "-ra",
+      "--basetemp=.runtime/tmp/zip-budget-final",
+      "--junitxml=docs/validation/p1-completion-repair-20261014/zip-budget-final.xml"
+    ],
+    "exit_code": 0,
+    "tests": 42,
+    "log": "../p1-completion-repair-20261014/zip-budget-final.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/generate_schemas.py"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/final-generation.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/check_docs_facts.py",
+      "--full"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/final-docs-facts.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/final-mypy.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/final-ruff.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "build"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/repair-build.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/smoke_wheel.py"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/repair-wheel-smoke.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/verify_artifacts.py"
+    ],
+    "exit_code": 0,
+    "log": "../p1-completion-repair-20261014/repair-artifacts.log"
+  },
+  {
+    "command": "full-command.json",
+    "state": "full-state.json",
+    "source_commit": "758124ad670c1ccda84ed9023312c26299d71352",
+    "scope": "running all 5331 collected tests; no exit code or passed count until finished"
+  }
+]

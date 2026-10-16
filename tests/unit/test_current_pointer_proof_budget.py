@@ -1,12 +1,13 @@
 """Current aliases reuse one verified manifest while retaining exact JSON types."""
 
+import hashlib
 import json
 from copy import deepcopy
 
 import pytest
 
 from aitest.bootstrap import assemble_workspace_core
-from aitest.infrastructure.file_store.business_changes import BusinessChangeIndex
+from aitest.infrastructure import path_compat
 from aitest.infrastructure.file_store.commit_manifest import CommitMaterialError, FileCommitStore
 from aitest.infrastructure.file_store.publication_backend import FilePublicationBackend
 from tests.unit.test_canonical_commit_material import stage
@@ -19,15 +20,17 @@ def test_one_current_read_checks_each_business_directory_once(tmp_path, monkeypa
         store = FileCommitStore(tmp_path)
         expected = store.read_current()
         checked = []
-        original = BusinessChangeIndex.tree
+        original = path_compat.is_link
 
-        def tree(self, kind):
-            checked.append(kind)
-            return original(self, kind)
+        def observed(path):
+            if path.parent == tmp_path / "indexes/business":
+                checked.append(path.name)
+            return original(path)
 
-        monkeypatch.setattr(BusinessChangeIndex, "tree", tree)
+        monkeypatch.setattr(path_compat, "is_link", observed)
         assert store.read_current() == expected
-        assert checked == list(expected["manifest"]["business_change_index_root"]["types"])
+        assert checked == [hashlib.sha256(kind.encode("utf-8")).hexdigest()
+                           for kind in expected["manifest"]["business_change_index_root"]["types"]]
     finally:
         core.lifetime_lock.release()
 

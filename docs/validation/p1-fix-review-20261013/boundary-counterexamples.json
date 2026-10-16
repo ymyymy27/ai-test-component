@@ -1,0 +1,114 @@
+{
+  "baseline": "a51c2b4",
+  "product_modified": false,
+  "probes": {
+    "D-11": {
+      "scope": "production closure derivation plus domain closure; real reference repository, explicit facts/basis/object fixtures",
+      "saved_observation": "mismatched",
+      "caller_assertion_outcome": "passed",
+      "satisfies_original_criteria": true,
+      "closed_status": "closed"
+    },
+    "C-17": {
+      "scope": "typed ExecutionFacts component boundary and pure consumption, source/evidence/basis readers are explicit fixtures",
+      "cases": {
+        "control": {
+          "reused": [
+            "case-1"
+          ],
+          "denials": []
+        },
+        "source_attempt_not_current": {
+          "reused": [
+            "case-1"
+          ],
+          "denials": []
+        },
+        "unrelated_no_result_verification": {
+          "reused": [
+            "case-1"
+          ],
+          "denials": []
+        },
+        "path_vs_content_identity": {
+          "reused": [],
+          "denials": [
+            [
+              "case-1",
+              [
+                "source_identity_unverified"
+              ]
+            ]
+          ]
+        },
+        "decision_consumption": {
+          "R": [
+            "case-1"
+          ],
+          "V": [],
+          "P": []
+        }
+      }
+    },
+    "C-18": {
+      "scope": "real default UOW/repository; inspection and controlled actor fixtures",
+      "first": {
+        "aggregate_kind": "reuse_decision",
+        "record_id": "reuse-a08c72f302afe4adf9267dd8",
+        "revision": 1
+      },
+      "stale_expected_revision": 0,
+      "second": {
+        "aggregate_kind": "reuse_decision",
+        "record_id": "reuse-a08c72f302afe4adf9267dd8",
+        "revision": 2
+      }
+    },
+    "D-12": {
+      "scope": "production issue-reading method with real issue repository; report facts/preparation component fixtures",
+      "saved_issue_blocking_state": "blocking",
+      "omitted_issue_ids": [],
+      "included_issue_ids": [
+        "issue-blocking"
+      ]
+    },
+    "D-13": {
+      "scope": "pending frozen-entry branch; confirmation reader mocked, static implementation separately reviewed",
+      "effective_confirmed": false,
+      "confirmation_reader_calls": 0
+    },
+    "D-14": {
+      "scope": "production report/export services, real UOW/object/artifact/projector; saved preparation/runtime fixtures",
+      "first_export": {
+        "aggregate_kind": "report_export",
+        "record_id": "export-7e039dfb0cf92e0ec50d7f06008df1c158992dc537116ac8883621d975ac7c93",
+        "revision": 1
+      },
+      "current_report_revision": 2,
+      "same_intent_same_command_replay": null,
+      "error": {
+        "type": "ExportIntentConflict",
+        "code": "INTENT_CONFLICT",
+        "message": "export intent has different frozen input"
+      }
+    },
+    "A-20": {
+      "scope": "actual LocalAPI maintenance dispatch; harmless marker handlers, no business files mutated",
+      "responses": {
+        "save_rules": {
+          "error": "maintenance_required",
+          "result": null
+        },
+        "import_rules": {
+          "error": null,
+          "result": {
+            "entered": true
+          }
+        }
+      },
+      "entered_handlers": [
+        "import_rules"
+      ]
+    }
+  }
+}

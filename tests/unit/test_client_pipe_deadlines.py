@@ -90,3 +90,58 @@ def test_client_large_frame_preserves_the_actual_received_bytes():
         server.close()
         client.close()
         worker.join(2)
+
+
+@pytest.mark.parametrize("native", [True, False], ids=["native-confirmation", "prepare-run"])
+def test_native_confirmation_receipt_survives_more_than_ten_seconds(native):
+    """Real pipe delay, synthetic response: not a human/Trae acceptance claim."""
+    import json
+
+    from aitest.contracts.commands import Command
+    from aitest.contracts.responses import Response
+    from aitest.interfaces.local.core_client import CoreClient
+    from aitest.interfaces.local.editor_host import CoreEndpoint
+    from aitest.interfaces.local.native_confirmation import NATIVE_CONFIRMATION_VERSION
+
+    server, channel = connected_pair()
+    failures = []
+
+    def serve():
+        try:
+            if native:
+                discovery = json.loads(server.read_message())
+                server.write_message(Response(
+                    request_id=discovery["request_id"], instance_id="core",
+                    workspace_id="workspace",
+                    result={"transport_capabilities": [NATIVE_CONFIRMATION_VERSION]},
+                ).model_dump_json().encode())
+                envelope = json.loads(server.read_message())
+                command = envelope["command"]
+                assert envelope["__aitest_control__"] == NATIVE_CONFIRMATION_VERSION
+            else:
+                command = json.loads(server.read_message())
+            time.sleep(10.5)
+            server.write_message(Response(
+                request_id=command["request_id"], instance_id="core", workspace_id="workspace",
+                project_id=command["project_id"], intent_id=command["intent_id"],
+                result={"committed_revision": 1},
+            ).model_dump_json().encode())
+        except Exception as error:
+            failures.append(error)
+
+    worker = threading.Thread(target=serve)
+    worker.start()
+    client = CoreClient(CoreEndpoint("workspace", "core", channel))
+    try:
+        result = (client.send_native if native else client.send)(Command(
+            request_id="late-receipt", action="save_context" if native else "prepare_run",
+            project_id="project",
+            intent_id="stable-intent", expected_revision=0,
+        ))
+        assert result.error is None and result.result == {"committed_revision": 1}
+        worker.join(2)
+        assert not worker.is_alive() and not failures
+    finally:
+        client.close()
+        server.close()
+        worker.join(2)

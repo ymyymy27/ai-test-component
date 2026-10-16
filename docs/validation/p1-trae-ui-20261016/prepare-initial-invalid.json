@@ -1,0 +1,20 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-1d4cbe8d484949f796d4288756a37354",
+  "instance_id": "core-9a87e8bfd0e1",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-library-prepare",
+  "binding_revision": null,
+  "result": null,
+  "page": null,
+  "error": {
+    "schema_version": "aitest.error/2.0",
+    "code": "B_INVALID_PARAMETER",
+    "message": "saved preparation references or execution input are invalid",
+    "retryable": false,
+    "next_step": "核对当前状态和诊断后继续；结果未知的动作先核实原意图。",
+    "request_id": "live-1d4cbe8d484949f796d4288756a37354",
+    "intent_id": "trae-library-prepare"
+  }
+}

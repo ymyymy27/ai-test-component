@@ -374,7 +374,10 @@ def _prepare_inputs(
         execution_source=ExecutionSourceBinding(
             registered_entry="python -m pytest",
             entry_arguments=("tests/acceptance",),
-            cwd_mapping="<project-root> -> workdirs/run-1",
+            # 裁定 1A（AB-001 1.35 / DEC-011）：`cwd_mapping` 取 `workdir:<安全相对路径>`，
+            # 固定 workdir 内解析并拒绝越界。旧自由文本（`<project-root> -> workdirs/run-1`）
+            # 不是可解析的映射，默认 start 准入会（且必须）拒绝它——夹具改用合同语法。
+            cwd_mapping="workdir:.",
             allowed_env_keys=("PYTHONPATH",),
             secret_refs=("MODEL_API_KEY",),
             test_config_ref="pyproject.toml#tool.pytest",

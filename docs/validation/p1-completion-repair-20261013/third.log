@@ -1,0 +1,40 @@
+F............                                                            [100%]
+================================== FAILURES ===================================
+______ test_report_freezes_reuse_source_and_exports_original_attachment _______
+
+tmp_path = WindowsPath('E:/ai-test-component/.runtime/tmp/completion-third/test_report_freezes_reuse_sour0')
+
+    def test_report_freezes_reuse_source_and_exports_original_attachment(tmp_path):
+        stack, target, source, reference = _reuse_stack(tmp_path)
+        assert _create(stack)["revision"] == 1
+        payload = stack.saved_report("report-1")
+        assert payload["reuse"]["source_snapshots"] == [
+            {
+                "run_id": source.run_id,
+                "snapshot_ref": SnapshotContentRef.of(source).model_dump(mode="json"),
+            },
+        ]
+        assert set(reference.evidence_refs) <= set(payload["evidence_refs"])
+        # Move the current source after publication; the original report must remain readable.
+        stack.facts_reader._by_run[source.run_id] = source.model_copy(update={"evidence_refs": ()})
+        result = stack.command(
+            action="export_report",
+            request_id="export-reuse",
+            intent_id="export-reuse-intent",
+            expected=0,
+            parameters={
+                "report_id": "report-1",
+                "kind": "evidence_bundle",
+                "attachment_refs": list(reference.evidence_refs),
+            },
+        )
+        with zipfile.ZipFile(
+>           io.BytesIO(stack.artifact_bytes(result["artifact_ref"], expected_sha256=result["sha256"]))
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+        ) as archive:
+E       KeyError: 'artifact_ref'
+
+tests\unit\test_completion_boundaries.py:82: KeyError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_completion_boundaries.py::test_report_freezes_reuse_source_and_exports_original_attachment
+1 failed, 12 passed in 4.24s

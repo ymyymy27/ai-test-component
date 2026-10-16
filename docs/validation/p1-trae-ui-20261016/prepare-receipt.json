@@ -1,0 +1,323 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-6c6c028253db404da31993e6d33f90cf",
+  "instance_id": "core-9a87e8bfd0e1",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-library-prepare",
+  "binding_revision": null,
+  "result": {
+    "schema_version": "aitest.prepared-run/1.0",
+    "prepared_run_id": "prepared-40c305228842d71a9e077f49cd101dbaa2300665",
+    "project_id": "trae-live-20261016",
+    "project_revision": 1,
+    "scope_id": "scope-library",
+    "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+    "binding_id": "binding-library",
+    "binding_revision": 1,
+    "binding_form": "plain",
+    "client_id": "trae-live-20261016",
+    "prepare_request_id": "trae-library-prepare",
+    "intent_id": "intent-40c305228842d71a9e077f49cd101dbaa2300665",
+    "payload_hash": "sha256:0f2c2453f49ae45ab67deabc7c1f729a634c73baa7295e5e08dc47c817f35668",
+    "status": "prepared",
+    "created_at": "2026-10-16T05:10:22.386266Z",
+    "created_at_commit": "63",
+    "snapshot": {
+      "source_snapshot_id": "source-79227cf6a909ce0f99106bde58fe15ced2ba4f4e685565c6274ce5cc62f9e6d8",
+      "purpose": "prepare",
+      "content_identity": "sha256:3403ebe616b2086ee806371800ae89291c606416cc7d04760a4aea3808ef138d",
+      "record_revision": 1
+    },
+    "git_base_commit": null,
+    "git_diff_digest": null,
+    "plain_manifest_digest": "sha256:b0eecffae977fe4f8263074f4491d69c801fed2f53b645f59fec6920a6a5a02a",
+    "selected_paths": [
+      "main.py"
+    ],
+    "exclusion_rules": [
+      ".git",
+      "__pycache__"
+    ],
+    "refetch_dependencies": [],
+    "environment": {
+      "environment_id": "env-library",
+      "revision": 1,
+      "isolation_mode": "venv",
+      "interpreter_identity": "sha256:8c0ae9a1b965c42bc9fe78f9134768018e847b6feeabb33505ecfe21e179cf3d",
+      "dependency_set_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "resolution": {
+        "carrier_id": "5ef36094a12c4a03a89832aa1453d5a7",
+        "executable_path": "E:\\AI-Test-userdata\\tested-python-library\\Scripts\\python.exe",
+        "executable_digest": "sha256:6f8c9878450765686ace476d2170b970761d68ace63f16092489c4c8bd5d7018",
+        "interpreter_version": "3.13.0",
+        "base_executable_path": "F:\\python\\python.exe",
+        "base_executable_digest": "sha256:62ebc90a2884bb63a0cd67e789cafdd51e771eee043587e2354327b4ccc9bb05",
+        "probe_prefix": "F:\\python",
+        "base_prefix": "F:\\python",
+        "configuration_digest": "sha256:b2e731252e8a15ca32189159750869d2c7b226028a24bcd84e88b709c13552eb",
+        "dependency_roots": [
+          "E:\\AI-Test-userdata\\tested-python-library\\Lib\\site-packages"
+        ],
+        "dependency_set_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "probe_policy": "python-isolated-no-site/1",
+        "project_id": "trae-live-20261016",
+        "binding_id": "binding-library",
+        "binding_revision": 1,
+        "binding_record_digest": "sha256:a0e694379cb8aeae3c7f503df690f1a59dc9c8a5a1ba68a7bdfe68d4ffe6c4f2",
+        "environment_id": "env-library",
+        "environment_revision": 1,
+        "environment_record_digest": "sha256:c38830f909b16aaca152a874e8ecf0324e7f779412b32466dd16e2cc14c8bec5"
+      }
+    },
+    "execution_source": {
+      "registered_entry": "python-main",
+      "entry_arguments": [
+        "main.py"
+      ],
+      "cwd_mapping": "workdir:.",
+      "allowed_env_keys": [],
+      "secret_refs": [],
+      "test_config_ref": "plan-library:1",
+      "adapter_versions": {
+        "command": "command/1.0"
+      },
+      "resolved_input_digest": "sha256:773e33e2a1cf57018180f292b7dcb7579ee6dcea71885c87a3f75c4e9ab1035e"
+    },
+    "plan_revision": {
+      "revision_id": "plan-library",
+      "revision_no": 1,
+      "digest": "sha256:e67f7c04de35178f4f60bb50b65a323c618f97476197227fc13cd5b87ea8ec96"
+    },
+    "acceptance_scope_revision": 1,
+    "rule_versions": [],
+    "template_versions": [
+      {
+        "template_id": "python-library",
+        "version": "1.0.0",
+        "digest": "sha256:1ffeccfdfac199e2a71df03bce75030857ae003d453330d321af822f48e8fc80"
+      }
+    ],
+    "case_revisions": [
+      {
+        "case_id": "library-boundary",
+        "revision": 1,
+        "digest": "sha256:101a49384359dbbef9e1afabbbbad66cc47ef6e4e9cec6aeb8424693107e0d81"
+      },
+      {
+        "case_id": "library-error",
+        "revision": 1,
+        "digest": "sha256:e2ac97fbf7545b61c0b144731700223aaf564f44bc59ff277002986040cd097a"
+      },
+      {
+        "case_id": "library-normal",
+        "revision": 1,
+        "digest": "sha256:030916873167d4a87ed103479e205ab2e0dd3ad40346f5d24fd3671420c92e07"
+      },
+      {
+        "case_id": "library-syntax",
+        "revision": 1,
+        "digest": "sha256:1d6264f4da03627300082d7f94f43417cd0685a7f8bd908e4858ef35feecd238"
+      }
+    ],
+    "run_tier": "full",
+    "initial_driver": "planned",
+    "conclusion_ceiling": "passable",
+    "template_required_case_ids": [
+      "library-boundary",
+      "library-error",
+      "library-normal",
+      "library-syntax"
+    ],
+    "frozen_required_case_ids": [
+      "library-boundary",
+      "library-error",
+      "library-normal",
+      "library-syntax"
+    ],
+    "selected_case_ids": [
+      "library-syntax",
+      "library-normal",
+      "library-boundary",
+      "library-error"
+    ],
+    "skipped_scope": [],
+    "applicability_exclusions": [],
+    "assertion_bases": [
+      {
+        "case_id": "library-boundary",
+        "basis_revision": 1,
+        "basis_text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1",
+        "assertion_basis_state": "confirmed",
+        "confirmation_refs": [
+          {
+            "confirmation_id": "confirmation-d0064b2681b78cce3f0cca45d1265ad9bd7daafdd6b3ce6d5e40af8f0d5e9631",
+            "case_id": "library-boundary",
+            "basis_revision": 1,
+            "confirmed_at_commit": "54"
+          }
+        ]
+      },
+      {
+        "case_id": "library-error",
+        "basis_revision": 1,
+        "basis_text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1",
+        "assertion_basis_state": "confirmed",
+        "confirmation_refs": [
+          {
+            "confirmation_id": "confirmation-0a5f381f63271462bfa4297f8b91a1304534ac4c7b9a6cb19cf59e979200b3a1",
+            "case_id": "library-error",
+            "basis_revision": 1,
+            "confirmed_at_commit": "61"
+          }
+        ]
+      },
+      {
+        "case_id": "library-normal",
+        "basis_revision": 1,
+        "basis_text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1",
+        "assertion_basis_state": "confirmed",
+        "confirmation_refs": [
+          {
+            "confirmation_id": "confirmation-943fed694609a3571f07d38987ec50df7935f39d4a6b2bba75ce3b30f21afd69",
+            "case_id": "library-normal",
+            "basis_revision": 1,
+            "confirmed_at_commit": "47"
+          }
+        ]
+      },
+      {
+        "case_id": "library-syntax",
+        "basis_revision": 1,
+        "basis_text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1",
+        "assertion_basis_state": "confirmed",
+        "confirmation_refs": [
+          {
+            "confirmation_id": "confirmation-a0d2733cbb5820d7cdc969dc22ab864691c94a0403fd453a87b41cd386485493",
+            "case_id": "library-syntax",
+            "basis_revision": 1,
+            "confirmed_at_commit": "40"
+          }
+        ]
+      }
+    ],
+    "frozen_cases": [
+      {
+        "case_id": "library-boundary",
+        "revision": 1,
+        "layer": "L2",
+        "required": true,
+        "independent_verification": "Independent comparison with frozen expected_facts; never infer expectations from output",
+        "mock_scope": [],
+        "importance": "P1",
+        "steps": [
+          {
+            "step_id": "step-1",
+            "layer": "L2",
+            "objective": "Execute the declared library checks",
+            "expected": "Exact integer results and TypeError match frozen mathematical expectations"
+          }
+        ],
+        "links": {
+          "acceptance_item_ids": [
+            "library-boundary"
+          ],
+          "module_ids": [],
+          "environment_ids": [
+            "env-library"
+          ],
+          "critical_path_ids": []
+        }
+      },
+      {
+        "case_id": "library-error",
+        "revision": 1,
+        "layer": "L2",
+        "required": true,
+        "independent_verification": "Independent comparison with frozen expected_facts; never infer expectations from output",
+        "mock_scope": [],
+        "importance": "P1",
+        "steps": [
+          {
+            "step_id": "step-1",
+            "layer": "L2",
+            "objective": "Execute the declared library checks",
+            "expected": "Exact integer results and TypeError match frozen mathematical expectations"
+          }
+        ],
+        "links": {
+          "acceptance_item_ids": [
+            "library-error"
+          ],
+          "module_ids": [],
+          "environment_ids": [
+            "env-library"
+          ],
+          "critical_path_ids": []
+        }
+      },
+      {
+        "case_id": "library-normal",
+        "revision": 1,
+        "layer": "L2",
+        "required": true,
+        "independent_verification": "Independent comparison with frozen expected_facts; never infer expectations from output",
+        "mock_scope": [],
+        "importance": "P1",
+        "steps": [
+          {
+            "step_id": "step-1",
+            "layer": "L2",
+            "objective": "Execute the declared library checks",
+            "expected": "Exact integer results and TypeError match frozen mathematical expectations"
+          }
+        ],
+        "links": {
+          "acceptance_item_ids": [
+            "library-normal"
+          ],
+          "module_ids": [],
+          "environment_ids": [
+            "env-library"
+          ],
+          "critical_path_ids": []
+        }
+      },
+      {
+        "case_id": "library-syntax",
+        "revision": 1,
+        "layer": "L1",
+        "required": true,
+        "independent_verification": "Independent comparison with frozen expected_facts; never infer expectations from output",
+        "mock_scope": [],
+        "importance": "P1",
+        "steps": [
+          {
+            "step_id": "step-1",
+            "layer": "L1",
+            "objective": "Execute the declared library checks",
+            "expected": "Exact integer results and TypeError match frozen mathematical expectations"
+          }
+        ],
+        "links": {
+          "acceptance_item_ids": [
+            "library-syntax"
+          ],
+          "module_ids": [],
+          "environment_ids": [
+            "env-library"
+          ],
+          "critical_path_ids": []
+        }
+      }
+    ],
+    "authorization_requirements": [],
+    "model_outbound_policy_revision": null,
+    "source_snippets_enabled": false,
+    "invalidation_rules": [],
+    "blocking_reasons": [],
+    "gaps": []
+  },
+  "page": null,
+  "error": null
+}

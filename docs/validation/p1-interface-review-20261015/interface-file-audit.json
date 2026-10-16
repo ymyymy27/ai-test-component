@@ -1,0 +1,247 @@
+[
+  {
+    "path": "docs/接口对接/AGENTS.md",
+    "sha256": "9fb44b0dd3202f137643bcabdfbc9367309e20f989453b4f0c759bf6949b697b",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "sha256": "5e2e5c32ffa18c055781b452ba3002550465b31a609253c557067bb4a83ba027",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-09-30/B-待裁定事项汇总.md",
+    "sha256": "45a86ba364569fe42727ef94b0c68e0f9d473bcf482d79b15616528fbb598a8d",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-12状态复核前/AB-001-delivery-B.md",
+    "sha256": "7109c3f6990967b389bc28dbbc028b2110f6ffb2b0776af7a28650ef663572a6",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-12状态复核前/BC-001-delivery.md",
+    "sha256": "1f230e5075fe61e99807148ee23651554a68e7cd189eb56b202bd33f01766e1c",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-12状态复核前/CD-001-delivery-D.md",
+    "sha256": "b8bd86bcdfe3b78c9e6299e97fae5cc30c1597f2106b4d68aa06c0e9e027b2b4",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-12状态复核前/CORE-001-delivery-A.md",
+    "sha256": "a427989b9a94ce962d01e09a87fcf9c7267c2ca8eea1fe81b9e98e541d73f162",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-12状态复核前/总台账-2.80.md",
+    "sha256": "4a07e4eb52b9c18b219c4574c788d532b20d44306f6d4cc07e6516833f63e23f",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-15历史评审/AB-001-端口与保存/review-A.md",
+    "sha256": "304993148814606dc7e627ba18ee9933b5b083734c322581f48a4f8de6d13c2b",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-15历史评审/AC-001-存储与恢复/review-A.md",
+    "sha256": "0d17d747514a2e06c3d6e58263b0384c210ca58cafac4dcb2cb0fe53f9e01b0a",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-15历史评审/BD-001-计划与依据展示/review-D.md",
+    "sha256": "c8d3398a8396ac30728c8c0c7e594ace3840696a5ab6ee2041ae735f5013d3f8",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-15历史评审/CD-001-ExecutionFacts/review-D-http.md",
+    "sha256": "595e5107cc823816e848b38d558503728eafad430d5211cfdedbaff24e36e1f4",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/2026-10-15历史评审/CD-001-ExecutionFacts/review-D.md",
+    "sha256": "cc6c0765d118ddd71851a25cd4947c5fdcf6f356a4cb24aea4cc1f9c0d05f286",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/README.md",
+    "sha256": "3b108541c671cb47ca45e4f9f5a3fe0838a1976d51244d62b8f9268de5057cdc",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-001-SourceSnapshot归属.md",
+    "sha256": "c81b01cbb3ee20b9f45494dfeda190b749e08629ef620883db2690ed0f6baa3e",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-002-端口定义与提交方式.md",
+    "sha256": "08f0679c086c82aea4392301e021af7c9a360569f1e9695fe34729df956df418",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-003-GitHub只读范围.md",
+    "sha256": "1d9433de03de43c52f3e406cf13f762debbb1f7dddacdb9bbe7398f01dabb39b",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-004-规则发布落盘类别.md",
+    "sha256": "3f5427f92649597000be82b97df7f1022f1c7bd8f4bbcf3b0fa6d7296e533536",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-005-准备摘要的用例修订配对.md",
+    "sha256": "8588fd567f0aa4191ee5ee692e8c250d1274cdbfa78130aa5c0b09041334d825",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-006-模块源码路径字段.md",
+    "sha256": "767c044896d83be5b963fc0a8999a655924c182912be0453c1c1712720a25178",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-007-规则与计划记录的修订配对.md",
+    "sha256": "896e15099005e7d872335656adcc5112afc3ed13513055de27849560f4e0c57e",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-008-验收范围标识是否冻结进PreparedRun.md",
+    "sha256": "abd0a0b340decf4f7126d3ca701fd827492992f0cd76ea88ff46945657dcbdb2",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-009-源码快照的修订语义.md",
+    "sha256": "69876f99da36fbcce43053afe6dd6abaae3def837e640937aec2168e8aa2ea6f",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md",
+    "sha256": "8008be147fc2f605c25724838e7d682e2bdb8a4dc88fbc4b5795c8f9ed25f95c",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-011-AB-001四项start侧来源绑定语义.md",
+    "sha256": "3eb133cd639b3f8e7bda85cea1c5840d994c33e9e9f30d9e49e641ea916c508e",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-012-start来源失败错误码与原因标识登记.md",
+    "sha256": "186e4e80927a703af3c09aa104975694520635d7533f82754f04b13cef0f6e04",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/归档/裁定/DEC-013-副作用类别的冻结来源与默认口径.md",
+    "sha256": "0ccad84ee5633015e9a7f7d3cdb4f3b09a54ea1fa67b6018d2b4c4fe494aa704",
+    "disposition": "retained_historical"
+  },
+  {
+    "path": "docs/接口对接/待裁定/README.md",
+    "sha256": "0481d38d65cfe507e9623e813f0c7523c1a6c7a7860b4b7caee15fd43d4cb36a",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/contract.md",
+    "sha256": "b693a5317b63743fa2ddfd9070bf7ccc1a813a8d6e0b468d4ec3a843ad965a27",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/AB-001-端口与保存/delivery-B.md",
+    "sha256": "cdd69c52afe8317b7bc8236e574c9657a994374b201889a0dbfe684ac001ced9",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/AC-001-存储与恢复/contract.md",
+    "sha256": "f1e91f65209ea23d9cf7a109670668a0c07edf56be7f39e0c31329f09ed9f4ea",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/contract.md",
+    "sha256": "31256701b80ae03084acf741cfdc5e63cccc54298e2c6ca89ed9fdf6f2a6ebec",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/BC-001-PreparedRun/delivery.md",
+    "sha256": "39c55a1dfaefb64804b8ae383dbbb97a14e9cdac834a8dbd9417d14c80a48be9",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/BD-001-计划与依据展示/contract.md",
+    "sha256": "ba96a8a047c669aadd7ffb4ee04d03b2ec1a6a926ccce5a4912d97e339f9fe47",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/contract.md",
+    "sha256": "98e66f281380efca410d720a69d8273e2fde5625a637d09d00d2c6c7a771c282",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/delivery-D.md",
+    "sha256": "d771ddd82e455a56a6dcf9c0ad436171ed8444e577831a64cbda3826ca279fba",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/business_failure.json",
+    "sha256": "3b1adb49019e48ec1d133c9d8c2d24fe6bb2285f8573822e767b9ee492a39316",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/failure.json",
+    "sha256": "537c5591e2949c0df9a808d48a1482bcdc947b1cfd52596e308837607da9216b",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/multistream.json",
+    "sha256": "a336311401fecb9860a9c383c9237fd249be8c37aaf82b66227fbb53935b602d",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/non_utf8.json",
+    "sha256": "cc2cdd1ed391f84fbd97bc18dfe612a50bedb18d8c564834b616637201abb944",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/non_utf8.stderr.bin",
+    "sha256": "fa0ecc21b24d5dd35b30cd740d72a9e98d2d2fb9a18f2d8a1d0cdbdb1a364ead",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/non_utf8.stdout.bin",
+    "sha256": "6e153708ea1302ccc480999bda6939c7aef6dd60531b7acfff00e81bde4986ab",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/quick.json",
+    "sha256": "7f607b7355d0054c193244bc20762ecc8f114d8edfdb1e435a8366e56c3be6d8",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/README.md",
+    "sha256": "f57e3e244335ef0367ab6aab727bc770c20a0a7de09fdf0657d5e98fa45bcccb",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/success.json",
+    "sha256": "f2b99f061405af225023c6fd3312423a7ec7264e7f91400c3d24bf29b1ba8df8",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/timeout.json",
+    "sha256": "a5a6ebb9f0de8bf08ae5bb6e23b83ac73da77dd2df0504dc37aead9a5784a5da",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/unknown.json",
+    "sha256": "788ee977d9a6bd6e6e8b9dca199cb28ac6bc34446790f2fd7b31ce708d815894",
+    "disposition": "public_fixture_verified"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/contract.md",
+    "sha256": "c333104d579f151b199f401b358e2e1c59abb489e2d8075b8506fb6b6ae8bce1",
+    "disposition": "reviewed_current"
+  },
+  {
+    "path": "docs/接口对接/进行中/CORE-001-A包公共接口/delivery-A.md",
+    "sha256": "ec4bcb1c44881b046f1708558e5422fceccd37f476592c5cd71ae4f00c735665",
+    "disposition": "reviewed_current"
+  }
+]

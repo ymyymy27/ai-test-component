@@ -1,0 +1,20 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-adad5e2d59c04438bfaeb32c1c340f97",
+  "instance_id": "core-890e376b9e7d",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-execute-library-normal",
+  "binding_revision": null,
+  "result": null,
+  "page": null,
+  "error": {
+    "schema_version": "aitest.error/2.0",
+    "code": "USER_DECLINED",
+    "message": "用户未在核心原生窗口确认，操作未提交",
+    "retryable": false,
+    "next_step": "核对当前状态和诊断后继续；结果未知的动作先核实原意图。",
+    "request_id": "live-adad5e2d59c04438bfaeb32c1c340f97",
+    "intent_id": "trae-execute-library-normal"
+  }
+}

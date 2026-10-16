@@ -1,0 +1,26 @@
+{
+  "topics": [
+    "AB-001-端口与保存",
+    "AC-001-存储与恢复",
+    "BC-001-PreparedRun",
+    "BD-001-计划与依据展示",
+    "CD-001-ExecutionFacts",
+    "CORE-001-A包公共接口"
+  ],
+  "production_changes": [
+    {
+      "path": "src/aitest/application/planning/substrate_adapter.py",
+      "before_sha256": "bb5c76c7dbe782feaa313812e7aad9d28f5affcee821aab620d899c0dfad49b7",
+      "only_contract_path_change": true,
+      "after_sha256": "72471795c605c13d538216af3829d7571f5a76a2cd818c017ed7f956ef68ad3c"
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "before_sha256": "6f9eee261ac022080b8308191eb801f6e9703756e052944b18c546e63a3dbf10",
+      "only_contract_path_change": true,
+      "after_sha256": "95ed9924bc95a8b575d758824985b58f5967b9a67cb104a8ebf40897ba523ac0"
+    }
+  ],
+  "historical_raw_receipts_preserved": true,
+  "acceptance_change": "evidence path only"
+}

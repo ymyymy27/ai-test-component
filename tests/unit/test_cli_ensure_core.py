@@ -11,7 +11,10 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -57,3 +60,32 @@ def test_ensure_core_refuses_a_file_path(tmp_path: Path, monkeypatch, capsys) ->
 
     assert code == 2
     assert json.loads(captured.err.strip())["code"] == "WORKSPACE_NOT_FOUND"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows named-pipe host lifecycle")
+def test_one_shot_startup_keeps_same_core_for_owning_host(tmp_path: Path) -> None:
+    from aitest.bootstrap import shutdown_endpoint
+
+    env = dict(os.environ, PYTHONUTF8="1")
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
+    cmd = [sys.executable, "-m", "aitest.interfaces.tools.cli"]
+    try:
+        startup = subprocess.run(
+            [*cmd, "ensure-core", "--workspace", str(tmp_path)],
+            env=env, capture_output=True, text=True, encoding="utf-8", timeout=90,
+        )
+        assert startup.returncode == 0, startup.stderr
+        identity = json.loads(startup.stdout)
+        # More than two watchdog intervals after the startup process has exited.
+        time.sleep(2.5)
+        read = subprocess.run(
+            [*cmd, "doctor", "--workspace", str(tmp_path)],
+            env=env, capture_output=True, text=True, encoding="utf-8", timeout=90,
+        )
+        assert read.returncode == 0, read.stderr
+        response = json.loads(read.stdout)
+        assert response["instance_id"] == identity["instance_id"]
+        assert response["workspace_id"] == identity["workspace_id"]
+        assert response["error"] is None
+    finally:
+        shutdown_endpoint(tmp_path)

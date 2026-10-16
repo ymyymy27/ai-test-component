@@ -13,9 +13,14 @@ from aitest.application.ports import (
     StageableWorkspaceUnitOfWork,
 )
 from aitest.application.project.delivery_submission import submission_content
+from aitest.application.project.delivery_verification import (
+    DeliveryVerificationReader,
+    delivery_projection,
+)
 from aitest.application.project.serialization import (
     binding_from_payload,
     binding_to_payload,
+    delivery_from_payload,
     environment_from_payload,
     environment_to_payload,
 )
@@ -129,6 +134,7 @@ class SavedControlledWriteResolver:
         self.materials = SavedBasisApprovalResolver(records, workspace_id)
         self.proof: ControlledWriteProof | None = None
         self.sources: SourceAnalysisService | None = None
+        self.delivery_verification: DeliveryVerificationReader | None = None
 
     def normalize(
         self, action: str, project: str, parameters: Mapping[str, object]
@@ -139,7 +145,8 @@ class SavedControlledWriteResolver:
                 raise ApprovalRequired("submission needs its exact project warehouse revision")
             try:
                 payload, materials = submission_content(
-                    project, parameters, self.records, self.workspace_id, self.proof, self.sources
+                    project, parameters, self.records, self.workspace_id, self.proof, self.sources,
+                    self.delivery_verification,
                 )
             except (ValueError, TypeError, KeyError, OSError, RuntimeError) as error:
                 raise ApprovalRequired("saved delivery/task/source cannot be verified") from error
@@ -159,6 +166,8 @@ class SavedControlledWriteResolver:
                         "snapshot_id": payload["snapshot_id"],
                         "record_revision": payload["snapshot_record_revision"],
                     },
+                    **({"verification_report_ref": parameters["verification_report_ref"]}
+                       if "verification_report_ref" in parameters else {}),
                 },
                 payload,
                 project_revision,
@@ -258,6 +267,24 @@ _ORIGIN_FIELDS = frozenset(
 )
 
 
+def _payload_identity(payload: Mapping[str, object], key: str) -> str:
+    """受控写载荷里的精确标识：缺失或非文本即拒绝，不猜。"""
+
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ApprovalRequired(f"controlled write payload has no exact {key}")
+    return value
+
+
+def _payload_revision(payload: Mapping[str, object], key: str) -> int:
+    """受控写载荷里的精确记录修订：必须是 >=1 的整数。"""
+
+    value = payload.get(key)
+    if type(value) is not int or value < 1:
+        raise ApprovalRequired(f"controlled write payload has no exact {key}")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class ControlledWriteService:
     unit: StageableWorkspaceUnitOfWork
@@ -269,6 +296,18 @@ class ControlledWriteService:
 
     def _result(self, write: ControlledWrite, revision: int) -> Mapping[str, object]:
         if write.action == "submit_delivery":
+            # 核验状态来自**已保存的交付说明**（功能 §14 三态 + BD-001 §7.2 展示要求）：
+            # 过去这里硬编码 "unverified"——它既不是分册冻结的取值，也会让"自述称完成、
+            # 实际无验证"的交付看起来只差一个中性状态。现在按冻结词汇派生，且
+            # `verified_in_scope` 同样从记录读出（不写死空列表）。
+            delivery_raw = self.resolver.materials._read(
+                "delivery",
+                _payload_identity(write.payload, "delivery_id"),
+                _payload_revision(write.payload, "delivery_record_revision"),
+                _payload_identity(write.payload, "project_id"),
+            )
+            delivery = delivery_from_payload(delivery_raw)
+            projection = delivery_projection(write.payload)
             return {
                 "aggregate_kind": write.aggregate_kind,
                 "record_id": write.record_id,
@@ -276,9 +315,14 @@ class ControlledWriteService:
                 "status": "submitted",
                 "version": write.payload["version"],
                 "content_identity": write.payload["content_identity"],
-                "verification_state": "unverified",
-                "verified_in_scope": [],
-                "unverified_scope": write.payload["acceptance_item_ids"],
+                "verification_state": (projection["verification_state"] if projection
+                                       else delivery.verification_state.value),
+                "verified_in_scope": (projection["verified_in_scope"] if projection
+                                      else list(delivery.verified_in_scope)),
+                "unverified_scope": (projection["unverified_scope"] if projection
+                                     else write.payload["acceptance_item_ids"]),
+                "self_reported_completed": list(delivery.self_report.completed),
+                "self_reported_incomplete": list(delivery.self_report.incomplete),
             }
         if write.action in {"publish_rules", "publish_plan"}:
             payload = self.resolver.materials._read(

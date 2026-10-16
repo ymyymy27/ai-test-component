@@ -89,6 +89,7 @@ class BusinessChangeIndex:
         if not isinstance(header["types"], dict) or len(header["types"]) > 128:
             raise ValueError("invalid business change type directory")
         self.header = header
+        directories = []
         for kind, meta in header["types"].items():
             if not isinstance(kind, str) or not 1 <= len(kind) <= 128:
                 raise ValueError("invalid business change type")
@@ -101,11 +102,13 @@ class BusinessChangeIndex:
                 or meta["last_business_commit"] < 1
             ):
                 raise ValueError("invalid business change type metadata")
-            tree = self.tree(kind)
-            if tree.root is None or tree.root["last"][0] != meta["last_business_commit"]:
+            reference = OrderedIndexTree.validate_reference(meta["root"], compare)
+            if reference["last"][0] != meta["last_business_commit"]:
                 raise ValueError("business high water does not match its root")
-            self._key(tree.root["first"])
-            self._key(tree.root["last"])
+            self._key(reference["first"])
+            self._key(reference["last"])
+            directories.append(self.directory / hashlib.sha256(kind.encode("utf-8")).hexdigest())
+        OrderedIndexTree._reject_link_paths(directories)
 
     @staticmethod
     def empty() -> dict[str, Any]:

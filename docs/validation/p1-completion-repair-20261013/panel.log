@@ -1,0 +1,68 @@
+
+> @aitest/panel@0.4.0 test
+> playwright test --workers=1
+
+
+Running 13 tests using 1 worker
+
+(node:14692) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 tests\event-stream.spec.ts:51:1 › event stream threads the cursor and appends only new committed events (818ms)
+  x   2 tests\event-stream.spec.ts:99:1 › a refused cursor keeps the previous cursor and never rewinds silently (5.3s)
+(node:17780) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  3 tests\issue-detail.spec.ts:41:1 › issue detail renders authoritative fields and never executes a fix (599ms)
+  ok  4 tests\issue-detail.spec.ts:139:1 › rows-only detail outcome never fabricates fields or copyable text (414ms)
+  ok  5 tests\issue-detail.spec.ts:189:1 › issue detail stays blocked without a project and shows refusals verbatim (503ms)
+  ok  6 tests\panel.spec.ts:5:1 › prototype follows current-test panel and same-panel detail flow (351ms)
+  ok  7 tests\panel.spec.ts:39:1 › host outcome is rendered verbatim without recalculating conclusions (237ms)
+  ok  8 tests\panel.spec.ts:73:1 › project context gates read-only queries and rows render verbatim (444ms)
+  ok  9 tests\repair-brief.spec.ts:63:1 › repair brief reads by the open issue identity and renders it verbatim (502ms)
+  ok 10 tests\repair-brief.spec.ts:119:1 › a refused brief shows the code and offers no body to copy (443ms)
+  ok 11 tests\view-correlation.spec.ts:24:1 › owned core view and outer boundary are rendered without changing doctor capability (275ms)
+  ok 12 tests\view-correlation.spec.ts:34:1 › wrong correlation and foreign view never replace the current scoped view (293ms)
+  ok 13 tests\view-correlation.spec.ts:46:1 › project switch clears pending scope and rejects its late reply (304ms)
+
+
+  1) tests\event-stream.spec.ts:99:1 › a refused cursor keeps the previous cursor and never rewinds silently 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByTestId('event-stream')
+    Expected substring: "核心未通过 · invalid_cursor"
+    Received string:    "已提交事件（增量续读）当前游标：cursor-9#7 · 提交 107 · record_written · record-7@1已追加 1 条事件（去重按事件序号）。"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" getByTestId('event-stream') with timeout 5000ms
+      - waiting for getByTestId('event-stream')
+        14 × locator resolved to <section data-testid="event-stream">…</section>
+           - unexpected value "已提交事件（增量续读）当前游标：cursor-9#7 · 提交 107 · record_written · record-7@1已追加 1 条事件（去重按事件序号）。"
+
+
+      121 |   });
+      122 |   await expect(page.getByTestId("event-cursor")).toContainText("当前游标：cursor-9");
+    > 123 |   await expect(page.getByTestId("event-stream")).toContainText("核心未通过 · invalid_cursor");
+          |                                                  ^
+      124 |   await expect(page.getByTestId("event-stream")).toContainText("游标与既有事件行保持不变");
+      125 |   await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
+      126 |
+        at E:\ai-test-component\src\aitest\resources\panel\tests\event-stream.spec.ts:123:50
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\event-stream-a-refused-cur-dc5cf--and-never-rewinds-silently\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\event-stream-a-refused-cur-dc5cf--and-never-rewinds-silently\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\event-stream-a-refused-cur-dc5cf--and-never-rewinds-silently\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\event-stream-a-refused-cur-dc5cf--and-never-rewinds-silently\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    tests\event-stream.spec.ts:99:1 › a refused cursor keeps the previous cursor and never rewinds silently 
+  12 passed (13.0s)

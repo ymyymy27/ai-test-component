@@ -1,0 +1,9 @@
+{
+  "modules": 236,
+  "lines": 73266,
+  "test_files": 353,
+  "test_lines": 82115,
+  "nodes": 5397,
+  "mypy_files": 250,
+  "scope": "merged current main fix source; one new 5397 collection/execution required; old 734/2 internal-error batch not summed"
+}

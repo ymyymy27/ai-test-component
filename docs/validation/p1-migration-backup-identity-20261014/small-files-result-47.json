@@ -1,0 +1,15 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/unit/test_a_migrations.py",
+    "tests/unit/test_a_a16_migration_rollback.py",
+    "-q",
+    "--junitxml=docs\\validation\\p1-migration-backup-identity-20261014\\small-files.xml",
+    "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/migration-identity-complete-tests"
+  ],
+  "exit_code": 0,
+  "seconds": 9.608660221099854,
+  "scope": "two complete affected files after rollback-cycle fix"
+}

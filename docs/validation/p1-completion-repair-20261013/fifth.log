@@ -1,0 +1,42 @@
+...............F.....................                                    [100%]
+================================== FAILURES ===================================
+_ test_unresolved_migration_blocks_writes_after_restart_but_allows_diagnostics _
+
+tmp_path = WindowsPath('E:/ai-test-component/.runtime/tmp/completion-fifth/test_unresolved_migration_bloc0')
+
+    def test_unresolved_migration_blocks_writes_after_restart_but_allows_diagnostics(tmp_path):
+        from aitest.bootstrap import assemble_workspace_core
+        from aitest.infrastructure.file_store.migrations import FileMigrationManager
+    
+        core = assemble_workspace_core(tmp_path, instance_id="maintenance-before")
+        manager = FileMigrationManager(tmp_path)
+        migration_id = "0001-workspace-schema-version"
+        plan = manager.plan([migration_id])
+        step = tmp_path / "migrations" / "steps" / plan.plan_id / f"{migration_id}.json"
+        step.parent.mkdir(parents=True, exist_ok=True)
+        step.write_text(json.dumps({"state": "prepared", "plan_id": plan.plan_id}), encoding="utf-8")
+        assert manager.maintenance_reason()
+        core.lifetime_lock.release()
+        restarted = assemble_workspace_core(tmp_path, instance_id="maintenance-after")
+        try:
+            response = restarted.api.dispatch(
+                Command(
+                    action="save_project",
+                    request_id="blocked-write",
+                    project_id="p",
+                    intent_id="blocked-intent",
+                    expected_revision=0,
+                    parameters={},
+                ),
+                RELAY,
+            )
+>           assert response.error.code == "MAINTENANCE_REQUIRED"
+E           AssertionError: assert 'maintenance_required' == 'MAINTENANCE_REQUIRED'
+E             
+E             - MAINTENANCE_REQUIRED
+E             + maintenance_required
+
+tests\unit\test_completion_boundaries.py:246: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_completion_boundaries.py::test_unresolved_migration_blocks_writes_after_restart_but_allows_diagnostics
+1 failed, 36 passed in 164.58s (0:02:44)

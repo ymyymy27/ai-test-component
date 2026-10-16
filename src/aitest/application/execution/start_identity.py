@@ -10,6 +10,8 @@ from aitest.domain.execution.runs import Attempt, ExecutionRequest
 
 def execution_start_fingerprint(attempt: Attempt, request: ExecutionRequest) -> str:
     request_payload = TypeAdapter(ExecutionRequest).dump_python(request, mode="json")
+    if request.source_capture is None:
+        request_payload.pop("source_capture")
     request_payload["authorization_ref"].pop("consumed_by_attempt_id", None)
     attempt_payload = TypeAdapter(Attempt).dump_python(attempt, mode="json")
     payload = {

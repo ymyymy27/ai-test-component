@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="2.063" timestamp="2026-10-14T18:33:21.804674+08:00" hostname="d"><testcase classname="tests.unit.test_a_migrations" name="test_controlled_resume_rejects_conflicting_checkpoint_identity[wrong_plan]" time="0.289"><failure message="Failed: DID NOT RAISE MigrationError">manager = &lt;aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x00000240A19B4440&gt;
+damage = 'wrong_plan'
+
+    @pytest.mark.parametrize("damage", ["wrong_plan", "unknown_state", "wrong_step", "cycle_conflict"])
+    def test_controlled_resume_rejects_conflicting_checkpoint_identity(
+        manager: FileMigrationManager, damage: str
+    ) -&gt; None:
+        plan_id, _backup = _pending_second_step(manager)
+        state_path = manager._steps_dir / plan_id / f"{_BOTH_STEPS[1]}.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if damage == "wrong_plan":
+            state["plan_id"] = "another-plan"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "unknown_state":
+            state["state"] = "unknown"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "wrong_step":
+            (state_path.parent / "unknown-step.json").write_text(json.dumps(state), encoding="utf-8")
+        else:
+            cycle_path = manager._cycles_dir / f"{plan_id}.json"
+            cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+            cycle["state"] = "rolled_back"
+            cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+        tracked = [manager._registry_path, manager._journal_path, manager._root / "workspace.json"]
+        tracked += list(manager._steps_dir.rglob("*.json"))
+        tracked += list(manager._cycles_dir.glob("*.json"))
+        before = {path: path.read_bytes() for path in tracked}
+        backup_names = sorted(path.name for path in manager._backups_dir.iterdir())
+&gt;       with pytest.raises(MigrationError, match="检查点|冲突"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests\unit\test_a_migrations.py:448: Failed</failure></testcase><testcase classname="tests.unit.test_a_migrations" name="test_controlled_resume_rejects_conflicting_checkpoint_identity[unknown_state]" time="0.298"><failure message="Failed: DID NOT RAISE MigrationError">manager = &lt;aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x00000240A1BB5E50&gt;
+damage = 'unknown_state'
+
+    @pytest.mark.parametrize("damage", ["wrong_plan", "unknown_state", "wrong_step", "cycle_conflict"])
+    def test_controlled_resume_rejects_conflicting_checkpoint_identity(
+        manager: FileMigrationManager, damage: str
+    ) -&gt; None:
+        plan_id, _backup = _pending_second_step(manager)
+        state_path = manager._steps_dir / plan_id / f"{_BOTH_STEPS[1]}.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if damage == "wrong_plan":
+            state["plan_id"] = "another-plan"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "unknown_state":
+            state["state"] = "unknown"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "wrong_step":
+            (state_path.parent / "unknown-step.json").write_text(json.dumps(state), encoding="utf-8")
+        else:
+            cycle_path = manager._cycles_dir / f"{plan_id}.json"
+            cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+            cycle["state"] = "rolled_back"
+            cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+        tracked = [manager._registry_path, manager._journal_path, manager._root / "workspace.json"]
+        tracked += list(manager._steps_dir.rglob("*.json"))
+        tracked += list(manager._cycles_dir.glob("*.json"))
+        before = {path: path.read_bytes() for path in tracked}
+        backup_names = sorted(path.name for path in manager._backups_dir.iterdir())
+&gt;       with pytest.raises(MigrationError, match="检查点|冲突"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests\unit\test_a_migrations.py:448: Failed</failure></testcase><testcase classname="tests.unit.test_a_migrations" name="test_controlled_resume_rejects_conflicting_checkpoint_identity[wrong_step]" time="0.301"><failure message="Failed: DID NOT RAISE MigrationError">manager = &lt;aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x00000240A1EACE90&gt;
+damage = 'wrong_step'
+
+    @pytest.mark.parametrize("damage", ["wrong_plan", "unknown_state", "wrong_step", "cycle_conflict"])
+    def test_controlled_resume_rejects_conflicting_checkpoint_identity(
+        manager: FileMigrationManager, damage: str
+    ) -&gt; None:
+        plan_id, _backup = _pending_second_step(manager)
+        state_path = manager._steps_dir / plan_id / f"{_BOTH_STEPS[1]}.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if damage == "wrong_plan":
+            state["plan_id"] = "another-plan"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "unknown_state":
+            state["state"] = "unknown"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "wrong_step":
+            (state_path.parent / "unknown-step.json").write_text(json.dumps(state), encoding="utf-8")
+        else:
+            cycle_path = manager._cycles_dir / f"{plan_id}.json"
+            cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+            cycle["state"] = "rolled_back"
+            cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+        tracked = [manager._registry_path, manager._journal_path, manager._root / "workspace.json"]
+        tracked += list(manager._steps_dir.rglob("*.json"))
+        tracked += list(manager._cycles_dir.glob("*.json"))
+        before = {path: path.read_bytes() for path in tracked}
+        backup_names = sorted(path.name for path in manager._backups_dir.iterdir())
+&gt;       with pytest.raises(MigrationError, match="检查点|冲突"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests\unit\test_a_migrations.py:448: Failed</failure></testcase><testcase classname="tests.unit.test_a_migrations" name="test_controlled_resume_rejects_conflicting_checkpoint_identity[cycle_conflict]" time="0.663"><failure message="Failed: DID NOT RAISE MigrationError">manager = &lt;aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x00000240A1D2CF30&gt;
+damage = 'cycle_conflict'
+
+    @pytest.mark.parametrize("damage", ["wrong_plan", "unknown_state", "wrong_step", "cycle_conflict"])
+    def test_controlled_resume_rejects_conflicting_checkpoint_identity(
+        manager: FileMigrationManager, damage: str
+    ) -&gt; None:
+        plan_id, _backup = _pending_second_step(manager)
+        state_path = manager._steps_dir / plan_id / f"{_BOTH_STEPS[1]}.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if damage == "wrong_plan":
+            state["plan_id"] = "another-plan"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "unknown_state":
+            state["state"] = "unknown"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        elif damage == "wrong_step":
+            (state_path.parent / "unknown-step.json").write_text(json.dumps(state), encoding="utf-8")
+        else:
+            cycle_path = manager._cycles_dir / f"{plan_id}.json"
+            cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+            cycle["state"] = "rolled_back"
+            cycle_path.write_text(json.dumps(cycle), encoding="utf-8")
+        tracked = [manager._registry_path, manager._journal_path, manager._root / "workspace.json"]
+        tracked += list(manager._steps_dir.rglob("*.json"))
+        tracked += list(manager._cycles_dir.glob("*.json"))
+        before = {path: path.read_bytes() for path in tracked}
+        backup_names = sorted(path.name for path in manager._backups_dir.iterdir())
+&gt;       with pytest.raises(MigrationError, match="检查点|冲突"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests\unit\test_a_migrations.py:448: Failed</failure></testcase></testsuite></testsuites>

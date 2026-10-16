@@ -160,6 +160,32 @@ class WindowsCredentialProvider:
         finally:
             advapi32.CredFree(ctypes.cast(credential_pointer, ctypes.c_void_p))
 
+    def save(self, *, purpose: str, reference: str, value: str) -> None:
+        """Store a host password-input value in the OS vault, never a file fallback."""
+        if not self._supported or purpose not in KNOWN_PURPOSES:
+            raise SecretUnavailable("安全凭据存储不可用")
+        target = self._build_target(purpose, reference)
+        raw = value.encode("utf-8")
+        if not raw or len(raw) > 2560 or any(ord(c) < 32 for c in value):
+            raise SecretUnavailable("密钥为空或格式无效")
+        known_secrets().register(value)
+        blob = (wintypes.BYTE * len(raw)).from_buffer_copy(raw)
+        credential = _CredentialW()
+        credential.Type = self._CRED_TYPE_GENERIC
+        credential.TargetName = target
+        credential.CredentialBlobSize = len(raw)
+        credential.CredentialBlob = ctypes.cast(blob, ctypes.POINTER(wintypes.BYTE))
+        credential.Persist = 2
+        credential.UserName = "AI Test"
+        library = ctypes.WinDLL("advapi32", use_last_error=True)
+        library.CredWriteW.argtypes = [ctypes.POINTER(_CredentialW), wintypes.DWORD]
+        library.CredWriteW.restype = wintypes.BOOL
+        try:
+            if not library.CredWriteW(ctypes.byref(credential), 0):
+                raise SecretUnavailable("无法保存到系统凭据管理器")
+        finally:
+            ctypes.memset(ctypes.addressof(blob), 0, len(raw))
+
 
 class SecretManager:
     """按用途聚合来源的 SecretPort 实现；无文件回退。"""

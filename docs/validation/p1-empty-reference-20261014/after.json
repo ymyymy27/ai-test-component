@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "atomic",
+    "listed": [],
+    "state": "reclaimed",
+    "removed": [],
+    "referenced_empty_file_preserved": true,
+    "audit_written": false
+  },
+  {
+    "kind": "staging",
+    "listed": [],
+    "state": "reclaimed",
+    "removed": [],
+    "referenced_empty_file_preserved": true,
+    "audit_written": false
+  }
+]

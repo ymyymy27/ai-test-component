@@ -1,0 +1,128 @@
+[
+  {
+    "path": "docs/一期工程整改/01-现状检查/一期修复复核-2026-10-03.md",
+    "git_bytes": 22795,
+    "git_sha256": "e7ac6cbed1f8b8e4df30652cd8a893b3e667bbde28232733a041527d15b60c19",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/01-现状检查/一期端到端深入检查-2026-10-03.md",
+    "git_bytes": 36893,
+    "git_sha256": "7c5753fe75277d5f0359dd50cb9755be48a52aa2e2b7c3c7e0c703291fe7ccc5",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md",
+    "git_bytes": 88561,
+    "git_sha256": "5b592376ff924db0e9fca1cafb509e6c8a640bd263c28033df674e1846528ff5",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC剩余问题整改计划-2026-10-04.md",
+    "git_bytes": 51337,
+    "git_sha256": "f79b50143c4d3f1d6d5995d45a020ae2f6a707977ed0b7e89ac306f16e00ff4c",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/ABC包根因整改计划-2026-10-03.md",
+    "git_bytes": 6635,
+    "git_sha256": "9abca84f6c22d6f59c31ef5596c638a10ae0f45ad053dd12671eabb25a25a7a2",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/A包完整提交闭包整改设计-2026-10-04.md",
+    "git_bytes": 7315,
+    "git_sha256": "af3d179ad76193de063ba5001a7de3d434b98e12ee22b76b0e529111b0d864ed",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/会话改动合规自审-2026-10-09.md",
+    "git_bytes": 7547,
+    "git_sha256": "41907983570ce78943c6434ace36539a86ee57075a068ec3db48ae111b1806b4",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/动作解析器实施清单-2026-10-09.md",
+    "git_bytes": 13541,
+    "git_sha256": "9f01cfac8c1947a61bf5caab09a1d54ecf779926c0bf9e5312fb7eddea1584e3",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/待裁定项草案-2026-10-09.md",
+    "git_bytes": 8282,
+    "git_sha256": "6dbad9d50052e9994ae96da96e07a0819882ed8dfbe877a133cd728ad8fb5564",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/生产动作解析器缺口分析-2026-10-09.md",
+    "git_bytes": 8887,
+    "git_sha256": "88b57ce8d752c05f608dac59a1b0230ddbe14134a3ec39fc4c379eed65102352",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md",
+    "git_bytes": 6852,
+    "git_sha256": "0a66982f368e2b83a76c53f100b583aef2264d9da3695f22df773840985e2e00",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC剩余问题修复证据-2026-10-04.md",
+    "git_bytes": 81740,
+    "git_sha256": "9e962f9bef3dd887cdefbba0084758f3835eedbaa5184c62c00a009cc9cb5d45",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md",
+    "git_bytes": 76764,
+    "git_sha256": "75895a1f8a5dca12062232b30329b6bbdcae5d1d628f16abb3f2352cb5ab8ce7",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-08.md",
+    "git_bytes": 12775,
+    "git_sha256": "004b5da4db06d0ddde6b1d845b2ae66784fc70351e42ca3140fb9019b717f711",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-09.md",
+    "git_bytes": 16621,
+    "git_sha256": "fbf17c2d8da3e23385cfde4091dc89b7fd2a0bcc4dd772da7d7080b52288d31f",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/04-交接/交接说明-2026-10-11.md",
+    "git_bytes": 21227,
+    "git_sha256": "bd4d9adfb44a054c5e8f65d0945bc285a8b2e52a10a6efcaad794e3b03101fd3",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程整改/README.md",
+    "git_bytes": 6254,
+    "git_sha256": "702391ea3a7b91e17bea814e800b69d1a718b11359f01335d6ba424ea755efc7",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程检查-A包.md",
+    "git_bytes": 33400,
+    "git_sha256": "c01a041b924cc5697bc41d8949f5234495c252eb001ba7fc59e650a4ae7b86dc",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程检查-B包.md",
+    "git_bytes": 27741,
+    "git_sha256": "e4bde9f01a9d18363c7542fc4504a69ccd42e305b8633a8cf431cad422923e68",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程检查-C包.md",
+    "git_bytes": 38141,
+    "git_sha256": "a88ec44d4fe6e7036142fe45e9d50fabe934bca566059b499454e94add539779",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  },
+  {
+    "path": "docs/一期工程检查-D包.md",
+    "git_bytes": 12278,
+    "git_sha256": "f131b29d8eea0c5e1af5bc5b48384b54ca227eeecbb9635ac942d838c7638f03",
+    "baseline": "845e6978d522def651d5fec5a0b046126ffaaadd"
+  }
+]

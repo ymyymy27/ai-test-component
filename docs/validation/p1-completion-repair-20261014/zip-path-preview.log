@@ -1,0 +1,27 @@
+[
+  {
+    "input": [
+      "../../escape"
+    ],
+    "refused": true
+  },
+  {
+    "input": [
+      "..\\..\\escape"
+    ],
+    "refused": true
+  },
+  {
+    "input": [
+      "CON"
+    ],
+    "refused": true
+  },
+  {
+    "input": [
+      "Evidence-A",
+      "evidence-a"
+    ],
+    "refused": true
+  }
+]

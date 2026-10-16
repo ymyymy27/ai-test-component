@@ -1,0 +1,6 @@
+{
+  "ruff": 0,
+  "mypy": 0,
+  "collection": 0,
+  "scope": "static and collection only; no second pytest execution"
+}

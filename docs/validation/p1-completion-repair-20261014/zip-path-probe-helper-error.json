@@ -1,0 +1,6 @@
+{
+  "exit_code": 1,
+  "scope": "First diagnostic helper invocation, not a product counterexample",
+  "reason": "The helper passed snapshot/reviews/markdown in the wrong argument order to _bundle; markdown.encode raised AttributeError before archive creation.",
+  "repair": "Correct the helper to the declared markdown/snapshot/reviews order; product source unchanged."
+}

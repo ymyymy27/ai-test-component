@@ -22,7 +22,7 @@ B 的用例（`prepare_run` / `publish_*` / `model_orchestration`）只依赖
 | `current_revision(...)` | **有实现，未进 `ports.py`** | 身份查询与冲突提示要用 |
 | `commit_seq()` / `next_commit_seq()` | **尚无** | 业务顺序按提交序号判断 |
 
-后三项已写入 `docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 8.8 节，
+后三项已写入 `docs/接口对接/已完成/AB-001-端口与保存/contract.md` 第 8.8 节，
 由 A 冻结签名；本模块**不猜测、不自造**，缺哪个就在调用点明确报出
 （`SubstrateContractError`），不用默认值顶替。
 
@@ -91,7 +91,7 @@ from aitest.application.planning.substrate import (
 )
 
 #: AB-001 中记录本模块所需端口签名的小节。
-_PORT_REQUEST = "docs/接口对接/进行中/AB-001-端口与保存/contract.md 第 8.8 节"
+_PORT_REQUEST = "docs/接口对接/已完成/AB-001-端口与保存/contract.md 第 8.8 节"
 _PORT_OWNER = "A"
 
 #: 单页最多读多少行；与 `contracts.queries.QuerySpec.limit` 的上限一致。
@@ -246,16 +246,38 @@ class PortsRecordReader:
         return revision
 
     def query(self, query: RecordQuery) -> RecordPage:
-        _require(self._repository, "query")
-        result = self._repository.query(
-            RecordQuery(
-                project_id=query.project_id,
-                aggregate_kind=query.aggregate_kind,
-                record_id=query.record_id,
-                limit=min(query.limit, _PAGE_LIMIT),
-                cursor=query.cursor,
-            )
+        # 完整转发有限查询选择器：`view`/`facet`/`facet_value`/`severity`/`sort` 等
+        # 由 `QuerySpec` 的 `Literal` 与 `ensure_finite_route()` 唯一判定。
+        # 只转发五个字段会让 `issues.list` 之类固定目录查询丢条件，退化成通用目录
+        # 查询（例如把 intent 记录一并返回），与"按固定掩码查询"的合同不符。
+        request = RecordQuery(
+            project_id=query.project_id,
+            aggregate_kind=query.aggregate_kind,
+            record_id=query.record_id,
+            limit=min(query.limit, _PAGE_LIMIT),
+            cursor=query.cursor,
+            revision=query.revision,
+            sort=query.sort,
+            descending=query.descending,
+            business_outcome=query.business_outcome,
+            run_id=query.run_id,
+            report_id=query.report_id,
+            view=query.view,
+            facet=query.facet,
+            facet_value=query.facet_value,
+            severity=query.severity,
         )
+        page = getattr(self._repository, "query_page", None)
+        boundary: object | None = None
+        if callable(page):
+            # Payload and watermarks MUST come from the same repository read.
+            boundary = page(request)
+            result = getattr(boundary, "result", None)
+            if result is None:
+                raise IndexMaintenanceRequired("the paired query result cannot be verified")
+        else:
+            _require(self._repository, "query")
+            result = self._repository.query(request)
         status = getattr(result, "status", "ok")
         if status == "maintenance_required":
             raise IndexMaintenanceRequired(
@@ -263,9 +285,15 @@ class PortsRecordReader:
             )
         if status == "invalid_cursor":
             raise InvalidQueryCursor(str(query.cursor))
+        if status != "ok":
+            raise IndexMaintenanceRequired("the query result status cannot be verified")
         return RecordPage(
             items=tuple(getattr(result, "items", ())),
             next_cursor=getattr(result, "next_cursor", None),
+            commit_id=_boundary_int(boundary, "commit_id"),
+            event_cursor=_boundary_text(boundary, "event_cursor"),
+            generation=_boundary_int(boundary, "generation"),
+            index_version=_boundary_int(boundary, "index_version"),
         )
 
     def find_preparation(
@@ -436,14 +464,22 @@ class PortsUnitOfWork:
             raise
 
     def stage_record_exact(
-        self, *, aggregate_kind: AggregateKind, record_id: str,
-        expected_revision: int | None, payload: Mapping[str, object],
+        self,
+        *,
+        aggregate_kind: AggregateKind,
+        record_id: str,
+        expected_revision: int | None,
+        payload: Mapping[str, object],
     ) -> StagedRevision:
         self._require_open()
         try:
-            return self._stage(aggregate_kind=aggregate_kind, record_id=record_id,
-                               expected_revision=expected_revision, payload=payload,
-                               require_unchanged=True)
+            return self._stage(
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=payload,
+                require_unchanged=True,
+            )
         except BaseException:
             self._abandon()
             raise
@@ -480,14 +516,21 @@ class PortsUnitOfWork:
         if require_unchanged:
             exact = getattr(self._ports, "stage_record_exact", None)
             if not callable(exact):
-                raise SubstrateContractError("stage_record_exact", owner=_PORT_OWNER,
-                                             request=_PORT_REQUEST)
-            revision = exact(aggregate_kind=aggregate_kind, record_id=record_id,
-                             expected_revision=expected_revision, payload=dict(payload))
+                raise SubstrateContractError(
+                    "stage_record_exact", owner=_PORT_OWNER, request=_PORT_REQUEST
+                )
+            revision = exact(
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=dict(payload),
+            )
         else:
             revision = self._ports.stage_record(
-                aggregate_kind=aggregate_kind, record_id=record_id,
-                expected_revision=expected_revision, payload=dict(payload),
+                aggregate_kind=aggregate_kind,
+                record_id=record_id,
+                expected_revision=expected_revision,
+                payload=dict(payload),
             )
         if type(revision) is not int or revision != current + 1:
             raise SubstrateContractError(
@@ -656,6 +699,24 @@ def _created_rows(
         seen.add(row)
         rows.append(row)
     return tuple(rows)
+
+
+def _boundary_int(boundary: object | None, name: str) -> int | None:
+    """从存储页里取整数边界；缺失或类型不符一律 `None`（未知，不猜）。"""
+
+    if boundary is None:
+        return None
+    value = getattr(boundary, name, None)
+    return value if type(value) is int else None
+
+
+def _boundary_text(boundary: object | None, name: str) -> str | None:
+    """从存储页里取文本边界（事件游标）；缺失或空文本一律 `None`。"""
+
+    if boundary is None:
+        return None
+    value = getattr(boundary, name, None)
+    return value if isinstance(value, str) and value.strip() else None
 
 
 __all__ = [

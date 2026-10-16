@@ -31,6 +31,9 @@ from aitest.domain.project.context import IsolationMode
 
 _DIGEST = "sha256:" + "a" * 64
 _SNAPSHOT = "step-revision-1"
+#: 业务来源快照身份与技术固定清单身份是**两个**东西（C-15）。
+_BUSINESS_SNAPSHOT = "source-business-1"
+_TECHNICAL_SNAPSHOT = "snap-technical-1"
 
 
 def _plan() -> PlanRevisionRef:
@@ -84,7 +87,11 @@ def _prepared(*, adapter_versions: Mapping[str, str] | None = None) -> dict[str,
             "adapter_versions": dict(adapter_versions or {"command": "1.0.0"}),
             "resolved_input_digest": _DIGEST,
         },
-        "snapshot": {"source_snapshot_id": _SNAPSHOT, "content_identity": _DIGEST},
+        "snapshot": {
+            "source_snapshot_id": _BUSINESS_SNAPSHOT,
+            "content_identity": _DIGEST,
+            "record_revision": 1,
+        },
         "environment": {
             "resolution": {
                 "carrier_id": "carrier-1",
@@ -104,8 +111,13 @@ def _prepared(*, adapter_versions: Mapping[str, str] | None = None) -> dict[str,
     }
 
 
-def _admission(digest: str = _DIGEST, snapshot: str = _SNAPSHOT) -> dict[str, object]:
+def _admission(
+    digest: str = _DIGEST, snapshot: str = _TECHNICAL_SNAPSHOT
+) -> dict[str, object]:
     return {"snapshot_id": snapshot, "source_binding_digest": digest, "workdir": "C:/work"}
+
+
+_UNSET = object()
 
 
 def _resolver(
@@ -113,11 +125,18 @@ def _resolver(
     admission: Mapping[str, object] | None = None,
     index: object = 1,
     side_effect: object = SideEffectClass.READ_ONLY,
+    pinned_snapshot_ref: object = _UNSET,
 ) -> SavedActionResolver:
+    pinned = (
+        (lambda project, snapshot, revision: _TECHNICAL_SNAPSHOT)
+        if pinned_snapshot_ref is _UNSET
+        else pinned_snapshot_ref
+    )
     return SavedActionResolver(
         attempt_index=lambda run, step: index,  # type: ignore[return-value]
         side_effect_class=lambda run, step: side_effect,  # type: ignore[return-value]
         admission=lambda run, step, **kwargs: admission if admission is not None else _admission(),
+        pinned_snapshot_ref=pinned,  # type: ignore[arg-type]
     )
 
 
@@ -141,6 +160,51 @@ def test_resolves_a_self_consistent_action() -> None:
     assert action.attempt.authorization_ref == action.request.authorization_ref
     assert action.request.authorization_ref.consumed_by_attempt_id is None
     assert action.environment_content_identity and action.source_content_identity
+    # C-15：实际物化引用必须是**固定 workdir**（默认注册入口把它当执行目录），
+    # 既不是业务 source-ID，也不是技术 snap-ID。
+    assert action.request.materialized_snapshot_ref == "C:/work"
+
+
+def test_the_business_snapshot_id_is_never_used_as_the_technical_identity() -> None:
+    """解析器只接受业务→技术映射的结果；把业务 ID 当地址即失败关闭。"""
+
+    seen: list[tuple[str, str, int]] = []
+
+    def pinned(project: str, snapshot: str, revision: int) -> str:
+        seen.append((project, snapshot, revision))
+        return _TECHNICAL_SNAPSHOT
+
+    admitted: list[str] = []
+
+    def admission(run, step, *, binding, snapshot_id):  # type: ignore[no-untyped-def]
+        admitted.append(snapshot_id)
+        return _admission()
+
+    resolver = SavedActionResolver(
+        attempt_index=lambda run, step: 1,
+        side_effect_class=lambda run, step: SideEffectClass.READ_ONLY,
+        admission=admission,
+        pinned_snapshot_ref=pinned,
+    )
+    resolver.resolve(
+        run=_run(),
+        step=_step(),
+        intent_id="intent-1",
+        prepared=_prepared(),
+        step_content={},
+    )
+
+    assert seen == [("project-1", _BUSINESS_SNAPSHOT, 1)]
+    assert admitted == [_TECHNICAL_SNAPSHOT]
+
+
+def test_a_missing_business_to_technical_mapping_fails_closed() -> None:
+    for pinned in (None, lambda project, snapshot, revision: ""):
+        with pytest.raises(ActionResolutionBlocked):
+            _resolver(pinned_snapshot_ref=pinned).resolve(
+                run=_run(), step=_step(), intent_id="intent-1",
+                prepared=_prepared(), step_content={},
+            )
 
 
 def test_step_entry_adapter_must_match_the_frozen_binding() -> None:
@@ -173,8 +237,18 @@ def test_arguments_and_adapter_key_come_from_the_frozen_binding() -> None:
         {"execution_source": _prepared()["execution_source"], "snapshot": {}},
         {
             "execution_source": _prepared()["execution_source"],
-            "snapshot": {"source_snapshot_id": _SNAPSHOT, "content_identity": _DIGEST},
+            "snapshot": {
+                "source_snapshot_id": _BUSINESS_SNAPSHOT,
+                "content_identity": _DIGEST,
+            },
             "environment": {},
+        },
+        {
+            "execution_source": _prepared()["execution_source"],
+            # 缺 record_revision：无法按准确修订读回业务记录，必须拒绝。
+            "snapshot": {"source_snapshot_id": _BUSINESS_SNAPSHOT, "content_identity": _DIGEST,
+                         "record_revision": 0},
+            "environment": {"resolution": {}},
         },
     ],
 )
@@ -189,6 +263,7 @@ def test_missing_start_admission_is_refused() -> None:
     resolver = SavedActionResolver(
         attempt_index=lambda run, step: 1,
         side_effect_class=lambda run, step: SideEffectClass.READ_ONLY,
+        pinned_snapshot_ref=lambda project, snapshot, revision: _TECHNICAL_SNAPSHOT,
     )
     with pytest.raises(ActionResolutionBlocked):
         resolver.resolve(
@@ -200,8 +275,10 @@ def test_missing_start_admission_is_refused() -> None:
     "admission",
     [
         _admission(snapshot="other-snapshot"),
-        {"snapshot_id": _SNAPSHOT, "source_binding_digest": "sha256:short"},
-        {"snapshot_id": _SNAPSHOT},
+        {"snapshot_id": _TECHNICAL_SNAPSHOT, "source_binding_digest": "sha256:short"},
+        {"snapshot_id": _TECHNICAL_SNAPSHOT},
+        # 物化端口回执的技术身份与业务→技术映射不一致：拒绝，不"就近取信"。
+        _admission(snapshot=_BUSINESS_SNAPSHOT),
     ],
 )
 def test_admission_must_match_snapshot_and_carry_exact_digest(
@@ -251,6 +328,7 @@ def test_step_content_and_intent_must_match_the_frozen_scope() -> None:
                 step_content=content,
             )
 
+
 def test_default_side_effect_class_is_unknown_not_read_only() -> None:
     from aitest.application.execution.action_resolver import default_side_effect_class
 
@@ -290,3 +368,233 @@ def test_facts_attempt_index_fails_closed() -> None:
     ):
         with pytest.raises(ActionResolutionBlocked):
             FactsAttemptIndex(reader)(_run(), _step())
+
+
+def _source_observation():
+    from aitest.domain.execution.sources import ExecutionSourceVerification, SourceVerificationState
+
+    return ExecutionSourceVerification(
+        verification_id="observed-source",
+        project_id=_run().project_id,
+        plan_revision_ref=_plan(),
+        expected_source_content_digest=_DIGEST,
+        materialized_snapshot_ref="C:/work",
+        observed_source_digest=_DIGEST,
+        state=SourceVerificationState.VERIFIED,
+        evidence_refs=("objects/project-1/" + "a" * 64,),
+    )
+
+
+def test_resolver_preserves_exact_source_observation_and_legacy_payload() -> None:
+    from aitest.application.execution.authorization import _action_payload
+
+    resolver = _resolver()
+    legacy = resolver.resolve(
+        run=_run(),
+        step=_step(),
+        intent_id="intent-1",
+        prepared=_prepared(),
+        step_content={"step_id": "step-1", "run_id": "run-1"},
+    )
+    assert legacy.source_verification is None
+    assert "source_verification" not in _action_payload(legacy)
+    observed = _source_observation()
+    resolver._source_verification_provider = lambda *_args: observed
+    action = resolver.resolve(
+        run=_run(),
+        step=_step(),
+        intent_id="intent-1",
+        prepared=_prepared(),
+        step_content={"step_id": "step-1", "run_id": "run-1"},
+    )
+    assert action.source_verification == observed
+    assert _action_payload(action)["source_verification"]["evidence_refs"] == list(
+        observed.evidence_refs
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"project_id": "foreign-project"},
+        {"materialized_snapshot_ref": "C:/foreign"},
+        {"expected_source_content_digest": "sha256:" + "b" * 64},
+        {"observed_source_digest": "sha256:" + "b" * 64},
+        {"plan_revision_ref": PlanRevisionRef("foreign-plan", 1, _DIGEST)},
+    ],
+)
+def test_resolver_refuses_source_observation_from_another_execution_scope(change) -> None:
+    from dataclasses import replace
+
+    resolver = _resolver()
+    resolver._source_verification_provider = lambda *_args: replace(_source_observation(), **change)
+    with pytest.raises(ActionResolutionBlocked):
+        resolver.resolve(
+            run=_run(),
+            step=_step(),
+            intent_id="intent-1",
+            prepared=_prepared(),
+            step_content={"step_id": "step-1", "run_id": "run-1"},
+        )
+
+
+@pytest.mark.parametrize("state", ["unknown", "unverified", "blocked", "mismatch"])
+def test_resolver_keeps_unverified_source_blocked(state) -> None:
+    from dataclasses import replace
+
+    from aitest.domain.execution.sources import SourceVerificationState
+
+    resolver = _resolver()
+    resolver._source_verification_provider = lambda *_args: replace(
+        _source_observation(), state=SourceVerificationState(state)
+    )
+    with pytest.raises(ActionResolutionBlocked):
+        resolver.resolve(
+            run=_run(),
+            step=_step(),
+            intent_id="intent-1",
+            prepared=_prepared(),
+            step_content={"step_id": "step-1", "run_id": "run-1"},
+        )
+
+
+def test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture():
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from aitest.application.execution.commit import ExecutionCommitCoordinator
+    from aitest.domain.evidence.evidence import EvidenceKind, StoredObjectRef
+    from aitest.domain.execution.sources import SourceVerificationState
+    from tests.unit.test_current_execution_snapshot import _batch
+
+    batch = _batch()
+    content = b'{"observed":"source"}'
+    reference = StoredObjectRef(
+        project_id=batch.facts.project_id,
+        digest="sha256:" + hashlib.sha256(content).hexdigest(),
+        size=len(content), media_type="application/json",
+        relative_path="objects/project-1/" + hashlib.sha256(content).hexdigest(),
+    )
+    source = replace(
+        _source_observation(), raw_output_object=reference,
+        source_instance_id="synthetic-source-component",
+        evidence_refs=(reference.relative_path,),
+    )
+    coordinator = ExecutionCommitCoordinator(
+        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
+    )
+    observed, evidence = coordinator._source_material(
+        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+    )
+    assert observed is not None and evidence is not None
+    assert evidence.evidence_kind is EvidenceKind.SOURCE_CHECK
+    assert evidence.attempt_id == batch.checkpoint.attempt.attempt_id
+    assert evidence.object_digest == reference.digest and evidence.object_size == len(content)
+    assert evidence.code_identity == _source_code_fixture(batch)
+    assert observed.evidence_refs == (evidence.evidence_id,)
+    assert observed.state is SourceVerificationState.UNVERIFIED
+    assert "actual_execution_load_source_unverified" in observed.gap_ids
+    from aitest.application.execution.facts import _source_verification_fact
+    from aitest.application.review.execution_decision_adapter import _source_state
+
+    projected = batch.facts.model_copy(update={
+        "source_verifications": (_source_verification_fact(observed),),
+    })
+    assert _source_state(projected).value == "unverified"
+    missing, no_evidence = coordinator._source_material(
+        replace(source, raw_output_object=None), batch.facts, batch.checkpoint.attempt,
+        _source_code_fixture(batch)
+    )
+    assert missing is not None and missing.state is SourceVerificationState.UNVERIFIED
+    assert "source_probe_material_unavailable" in missing.gap_ids
+    assert no_evidence is None and not missing.evidence_refs
+
+
+@pytest.mark.parametrize("mutation", ["digest", "size", "scope", "reference", "budget"])
+def test_source_material_refuses_changed_or_foreign_saved_objects(mutation):
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from aitest.application.execution.commit import ExecutionCommitCoordinator
+    from aitest.domain.evidence.evidence import StoredObjectRef
+    from tests.unit.test_current_execution_snapshot import _batch
+
+    batch = _batch()
+    content = b'{"observed":"source"}'
+    reference = StoredObjectRef(
+        "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
+        "application/json", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
+    )
+    source = replace(
+        _source_observation(), raw_output_object=reference,
+        source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),
+    )
+    seen = []
+
+    def read(ref):
+        seen.append(ref)
+        return b'changed same length!!' if mutation == "digest" else content
+
+    if mutation == "size":
+        source = replace(source, raw_output_object=replace(reference, size=reference.size + 1))
+    if mutation == "scope":
+        source = replace(source, raw_output_object=replace(reference, project_id="foreign-project"))
+    if mutation == "reference":
+        source = replace(source, evidence_refs=("objects/foreign-project/unknown",))
+    if mutation == "budget":
+        source = replace(source, raw_output_object=replace(reference, size=8 * 1024 * 1024 + 1))
+    coordinator = ExecutionCommitCoordinator(
+        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=read)
+    )
+    with pytest.raises(ValueError):
+        coordinator._source_material(
+        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+    )
+    if mutation in {"scope", "reference", "budget"}:
+        assert not seen
+
+
+@pytest.mark.parametrize("state", ["mismatch", "blocked", "unknown"])
+def test_source_material_preserves_stronger_states(state):
+    import hashlib
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from aitest.application.execution.commit import ExecutionCommitCoordinator
+    from aitest.domain.evidence.evidence import StoredObjectRef
+    from aitest.domain.execution.sources import SourceVerificationState
+    from tests.unit.test_current_execution_snapshot import _batch
+
+    batch = _batch()
+    content = b"source observation"
+    reference = StoredObjectRef(
+        "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
+        "text/plain", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
+    )
+    source = replace(
+        _source_observation(), state=SourceVerificationState(state), raw_output_object=reference,
+        source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),
+    )
+    coordinator = ExecutionCommitCoordinator(
+        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
+    )
+    observed, evidence = coordinator._source_material(
+        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+    )
+    assert observed is not None and evidence is not None
+    assert observed.state is source.state
+    assert "actual_execution_load_source_unverified" in observed.gap_ids
+
+
+def _source_code_fixture(batch):
+    from aitest.domain.evidence.evidence import CodeIdentity
+    from aitest.domain.execution.sources import SourceBindingKind
+
+    identity = batch.facts.evidence_refs[0].code_identity
+    return CodeIdentity(
+        SourceBindingKind(identity.binding_kind.value), batch.facts.run.origin_workspace_id,
+        commit_id=identity.commit_id, file_manifest_digest=identity.file_manifest_digest,
+        revision_ref=identity.revision_ref,
+    )

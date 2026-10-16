@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from aitest.domain.execution.runtime_source import RuntimeSourceObservation, RuntimeSourcePlan
 from aitest.domain.project.context import IsolationMode
 
 
@@ -298,6 +299,7 @@ class ExecutionRequest:
     side_effect_class: SideEffectClass
     timeout_ms: int | None = None
     expected_plan_revision_ref: PlanRevisionRef | None = None
+    source_capture: RuntimeSourcePlan | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -588,6 +590,7 @@ class Attempt:
     started_at: datetime | None = None
     ended_at: datetime | None = None
     revision: int = 0
+    runtime_source: RuntimeSourceObservation | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -838,6 +841,7 @@ class ExecutionCollectionResult:
     capture_completeness: CaptureCompleteness = CaptureCompleteness.UNKNOWN
     error_ref: StructuredExecutionError | None = None
     complete: bool = False
+    runtime_source: RuntimeSourceObservation | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.attempt_id, "attempt_id")

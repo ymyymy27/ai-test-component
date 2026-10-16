@@ -1,0 +1,140 @@
+{
+  "baseline": "708439bf0152008ea981cfb89c68d64538b2e57d",
+  "scope": "real default chain plus source provider boundary; downstream false verification uses explicitly marked compatibility fixture",
+  "default_chain": {
+    "scope": "real core/UOW/source analysis/preparation/registration/default resolver; controlled-authority and environment fixtures; no real Trae acceptance",
+    "prepared_status": "prepared",
+    "business_source_id": "source-50342cf03bb0a513a38122509a3a8cb65a1451afde8afdaf899f0d58773a794c",
+    "technical_pinned_id": "snap-a74c9e94dc15ee4d",
+    "prepared_snapshot_fields": {
+      "source_snapshot_id": "source-50342cf03bb0a513a38122509a3a8cb65a1451afde8afdaf899f0d58773a794c",
+      "purpose": "prepare",
+      "content_identity": "sha256:3b353870ca8bb7c7e1d5a3d08b8840932764226c6f2bbeaf7ade6ed236c8a91a",
+      "record_revision": 1
+    },
+    "pinned_fields": [
+      "canonical_path",
+      "exclusion_rules",
+      "files",
+      "purpose",
+      "schema",
+      "selected_paths",
+      "snapshot_id"
+    ],
+    "prepare_execution_error": {
+      "type": "SnapshotError",
+      "code": null,
+      "message": "源码快照清单无法核实: pinned source snapshot identity is invalid"
+    },
+    "result": null
+  },
+  "cases": [
+    {
+      "case": "invalid_flat_entry",
+      "fixture": "E:\\ai-test-component\\.runtime\\source-audit-84018150f8034e48ab42c9aaaa42fca1",
+      "pinned_identity": "sha256:1810113af2cd0f743a7ab9f4c77102309db216cd323c72e38b2545c2fc10b27d",
+      "materialization_verified": true,
+      "syntax_errors": [
+        {
+          "path": "entry.py",
+          "error": "invalid syntax"
+        }
+      ],
+      "actual_imports": [],
+      "provider_state": "verified",
+      "provider_gaps": [],
+      "provider_selected_import": null,
+      "real_provider_errors": {
+        "actual_SnapshotRef_fields": {
+          "type": "SourceBindingUnverified",
+          "message": "snapshot.snapshot_id must be nonempty text"
+        },
+        "fixture_snapshot_id_fields_real_store": {
+          "type": "SourceBindingUnverified",
+          "message": "pinned.content_identity must be nonempty text"
+        }
+      },
+      "compatibility_fixture_used_for_downstream_state": true
+    },
+    {
+      "case": "good_and_broken_packages",
+      "fixture": "E:\\ai-test-component\\.runtime\\source-audit-7314d79da6a5431098e887228e78f9be",
+      "pinned_identity": "sha256:db04bd729755108af9c66f18d7e1949a9a1b8b79729cf4793744d89fb6958d31",
+      "materialization_verified": true,
+      "syntax_errors": [
+        {
+          "path": "bad/__init__.py",
+          "error": "invalid syntax"
+        }
+      ],
+      "actual_imports": [
+        {
+          "module": "good",
+          "file": "E:\\ai-test-component\\.runtime\\source-audit-7314d79da6a5431098e887228e78f9be\\fixed\\good\\__init__.py",
+          "digest": "5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189",
+          "error": null
+        },
+        {
+          "module": "bad",
+          "file": null,
+          "digest": null,
+          "error": "SyntaxError: invalid syntax (__init__.py, line 1)"
+        }
+      ],
+      "provider_state": "verified",
+      "provider_gaps": [],
+      "provider_selected_import": "E:\\ai-test-component\\.runtime\\source-audit-7314d79da6a5431098e887228e78f9be\\fixed\\good\\__init__.py",
+      "real_provider_errors": {
+        "actual_SnapshotRef_fields": {
+          "type": "SourceBindingUnverified",
+          "message": "snapshot.snapshot_id must be nonempty text"
+        },
+        "fixture_snapshot_id_fields_real_store": {
+          "type": "SourceBindingUnverified",
+          "message": "pinned.content_identity must be nonempty text"
+        }
+      },
+      "compatibility_fixture_used_for_downstream_state": true
+    },
+    {
+      "case": "namespace_with_broken_child",
+      "fixture": "E:\\ai-test-component\\.runtime\\source-audit-096b576f24554a4caa4aa068dd3726e4",
+      "pinned_identity": "sha256:8cced7db4b5ab3b1cbdb0243ec1cf8d1a331e3490da7e8a0243553e3511189c5",
+      "materialization_verified": true,
+      "syntax_errors": [
+        {
+          "path": "pkg/child.py",
+          "error": "invalid syntax"
+        }
+      ],
+      "actual_imports": [
+        {
+          "module": "pkg",
+          "file": null,
+          "digest": null,
+          "error": null
+        },
+        {
+          "module": "good",
+          "file": "E:\\ai-test-component\\.runtime\\source-audit-096b576f24554a4caa4aa068dd3726e4\\fixed\\good\\__init__.py",
+          "digest": "5d51eb2857a20ccf636f995d626569aa5237da347cf4c682e5d83611db36e189",
+          "error": null
+        }
+      ],
+      "provider_state": "verified",
+      "provider_gaps": [],
+      "provider_selected_import": "E:\\ai-test-component\\.runtime\\source-audit-096b576f24554a4caa4aa068dd3726e4\\fixed\\good\\__init__.py",
+      "real_provider_errors": {
+        "actual_SnapshotRef_fields": {
+          "type": "SourceBindingUnverified",
+          "message": "snapshot.snapshot_id must be nonempty text"
+        },
+        "fixture_snapshot_id_fields_real_store": {
+          "type": "SourceBindingUnverified",
+          "message": "pinned.content_identity must be nonempty text"
+        }
+      },
+      "compatibility_fixture_used_for_downstream_state": true
+    }
+  ]
+}

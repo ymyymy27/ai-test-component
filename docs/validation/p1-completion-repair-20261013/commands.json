@@ -1,0 +1,163 @@
+[
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_completion_boundaries.py",
+      "tests/unit/test_read_view_relay.py",
+      "tests/unit/test_mcp_stdio_read.py",
+      "tests/unit/test_mcp_stdio_write.py",
+      "tests/unit/test_a_migrations.py",
+      "tests/unit/test_a_a16_migration_rollback.py",
+      "tests/unit/test_migration_backup_traceability.py",
+      "tests/unit/test_view_queries.py",
+      "tests/unit/test_panel_view_dto.py",
+      "tests/unit/test_run_view_dto.py",
+      "tests/unit/test_delivery_view.py",
+      "tests/unit/test_saved_reports.py",
+      "tests/unit/test_saved_exports.py",
+      "tests/unit/test_reuse_consumption.py",
+      "tests/unit/test_trae_read_only_allowlist.py",
+      "tests/unit/test_panel_read_only_allowlist.py",
+      "tests/contracts/test_generated_schemas.py",
+      "tests/unit/test_query_boundary_pairing.py",
+      "tests/unit/test_query_spec_bridge.py",
+      "--basetemp=.runtime/tmp/completion-final-targeted",
+      "--junitxml=docs/validation/p1-completion-repair-20261013/targeted.xml"
+    ],
+    "exit_code": 0,
+    "log": "targeted.log",
+    "scope": "202 targeted tests, source before two extra maintenance state parameters"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_completion_boundaries.py",
+      "-k",
+      "unresolved_migration",
+      "--basetemp=.runtime/tmp/completion-maintenance-verified",
+      "--junitxml=docs/validation/p1-completion-repair-20261013/maintenance-verified.xml"
+    ],
+    "exit_code": 0,
+    "log": "maintenance-verified.log"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "cwd": "src/aitest/resources/panel",
+    "exit_code": 0,
+    "log": "panel-build.log"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "test",
+      "--",
+      "--workers=1"
+    ],
+    "cwd": "src/aitest/resources/panel",
+    "exit_code": 0,
+    "log": "panel-verified.log"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "test"
+    ],
+    "cwd": "integrations/trae",
+    "exit_code": 0,
+    "log": "host-final.log"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "package"
+    ],
+    "cwd": "integrations/trae",
+    "exit_code": 0,
+    "log": "vsix-final.log"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0,
+    "log": "ruff-verified.log"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0,
+    "log": "mypy-verified.log"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "scripts/generate_schemas.py"
+    ],
+    "exit_code": 0,
+    "scope": "Generated ReadViewQuery; existing schema model source equality tested"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "scripts/check_versions.py"
+    ],
+    "exit_code": 0,
+    "log": "versions.log"
+  },
+  {
+    "command": [
+      "uv",
+      "lock",
+      "--check"
+    ],
+    "exit_code": 0,
+    "log": "lock.log"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "-m",
+      "build"
+    ],
+    "exit_code": 0,
+    "log": "build.log"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "scripts/smoke_wheel.py"
+    ],
+    "exit_code": 0,
+    "log": "wheel-smoke.log",
+    "scope": "new venv, non-editable wheel; CLI templates and unavailable endpoint/MCP smoke only"
+  },
+  {
+    "command": [
+      ".venv/Scripts/python.exe",
+      "scripts/verify_artifacts.py"
+    ],
+    "exit_code": 0,
+    "log": "artifacts.log",
+    "scope": "artifact contents and shared panel exact bytes"
+  }
+]

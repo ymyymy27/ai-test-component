@@ -1,0 +1,12 @@
+{
+  "result": "passed",
+  "checks": {
+    "shared_fsync_injection_does_not_touch_reporter": true,
+    "path_open_replacement_does_not_fake_ledger": true,
+    "shared_io_open_injection_does_not_touch_reporter": true,
+    "shared_replace_injection_does_not_touch_reporter": true,
+    "actual_ledger_sync_failure_is_fatal": true,
+    "actual_critical_snapshot_failure_is_fatal": true
+  },
+  "scope": "validation reporter only; mandatory I/O failure is not hidden"
+}

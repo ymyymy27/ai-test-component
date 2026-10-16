@@ -1,0 +1,32 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-2d38ad8d679046a58f42c353414cd462",
+  "instance_id": "core-890e376b9e7d",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-execute-library-error",
+  "binding_revision": null,
+  "result": {
+    "authorization_id": "execution-grant-09cf7703d67e6d29f5265a3749cdfdb5935b998c6f45fb475ce6a3d1615f0244",
+    "intent_id": "trae-execute-library-error",
+    "step_id": "step-08528cb64ad86b8ea89747a4cdc6941161d2196faeedcff152c5899dd94aa439",
+    "resolved_input_digest": "sha256:773e33e2a1cf57018180f292b7dcb7579ee6dcea71885c87a3f75c4e9ab1035e",
+    "target_ref": "E:\\AI-Test-userdata\\tested-python-library\\Scripts\\python.exe",
+    "credential_scope_ref": "plan-library:1",
+    "plan_revision_ref": {
+      "revision_id": "plan-library",
+      "revision_no": 1,
+      "digest": "sha256:e67f7c04de35178f4f60bb50b65a323c618f97476197227fc13cd5b87ea8ec96"
+    },
+    "consumed_by_attempt_id": null,
+    "step_revision_ref": {
+      "step_revision_id": "step-revision-7e0dc7d7f59344113a036e6e781932f87460c44308ad01d6d30360beb81e4479",
+      "revision_no": 1,
+      "digest": "sha256:65b56f0de0c9c1d8e5906e6f54e60a8f5cb5feb76ea3da66ea5f3519972cf5d5",
+      "inherited": false,
+      "base_step_revision_id": null
+    }
+  },
+  "page": null,
+  "error": null
+}

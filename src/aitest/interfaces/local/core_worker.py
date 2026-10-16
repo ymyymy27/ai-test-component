@@ -44,6 +44,7 @@ from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
+from aitest.interfaces.local.native_confirmation import NATIVE_CONFIRMATION_VERSION, dispatch_native
 
 #: 停机控制键；不出现在 ``contracts.commands`` 的业务 Command 中
 #: （``Command`` 为 extra=forbid，业务帧携带该键会直接判非法命令）。
@@ -100,7 +101,13 @@ def _protocol_error(api: LocalAPI, request_id: str, code: str, message: str) -> 
     )
 
 
-def dispatch_frame(api: LocalAPI, session: Session, payload: bytes) -> Response | ShutdownControl:
+def dispatch_frame(
+    api: LocalAPI,
+    session: Session,
+    payload: bytes,
+    *,
+    native_dispatch: Callable[[Command], Response] | None = None,
+) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
     - 非法 UTF-8 / JSON / 非对象帧 → ``MALFORMED_MESSAGE`` 错误响应；
@@ -121,6 +128,26 @@ def dispatch_frame(api: LocalAPI, session: Session, payload: bytes) -> Response 
 
     if CONTROL_KEY in obj:
         action = obj.get(CONTROL_KEY)
+        if action == NATIVE_CONFIRMATION_VERSION and native_dispatch is not None:
+            try:
+                command = Command.model_validate(obj.get("command"))
+            except ValidationError:
+                return _protocol_error(
+                    api, _safe_request_id(obj), "INVALID_COMMAND", "原生操作命令无效"
+                )
+            if (
+                set(obj) != {CONTROL_KEY, "request_id", "command"}
+                or obj["request_id"] != command.request_id
+            ):
+                return api._error(command, "INVALID_COMMAND", "原生操作信封或请求号无效")
+            try:
+                return native_dispatch(command)
+            except Exception as error:
+                # A finalizer can fail after a business commit. Keep the sole core
+                # alive and report uncertainty; never replay or acknowledge success.
+                return api._error(
+                    command, "NATIVE_SESSION_FINALIZATION_UNVERIFIED", api._safe_message(error)
+                )
         if action == _CONTROL_SHUTDOWN:
             return ShutdownControl(request_id=_safe_request_id(obj))
         return _protocol_error(
@@ -139,7 +166,17 @@ def dispatch_frame(api: LocalAPI, session: Session, payload: bytes) -> Response 
             "INVALID_COMMAND",
             f"命令不符合合同: {error.error_count()} 个字段错误",
         )
-    return api.dispatch(command, session)
+    response = api.dispatch(command, session)
+    if command.action == "doctor" and response.result is not None and native_dispatch is not None:
+        return response.model_copy(
+            update={
+                "result": dict(response.result)
+                | {
+                    "transport_capabilities": [NATIVE_CONFIRMATION_VERSION],
+                }
+            }
+        )
+    return response
 
 
 def classify_entry_kind(image_basename: str | None, human_host_images: frozenset[str]) -> EntryKind:
@@ -174,6 +211,7 @@ def serve_connection(
     entry_kind: EntryKind = EntryKind.AGENT_RELAY,
     shutdown_blocker: Callable[[], str | None] | None = None,
     on_wait: Callable[[], None] | None = None,
+    native_dispatch: Callable[[Command], Response] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -197,7 +235,7 @@ def serve_connection(
             except Exception:
                 # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
                 return "disconnected"
-            outcome = dispatch_frame(api, session, payload)
+            outcome = dispatch_frame(api, session, payload, native_dispatch=native_dispatch)
             if isinstance(outcome, ShutdownControl):
                 reason = prepare_core_shutdown(shutdown_blocker, lambda: ())
                 if reason is not None:
@@ -321,6 +359,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--launch-claim", action="store_true")
     parser.add_argument("--instance-id-file", default=".core-instance-id")
     parser.add_argument(
+        "--migration-backup-root",
+        type=Path,
+        default=None,
+        help="显式迁移备份目录，须在活动工作空间之外；未指定时读取宿主配置环境变量",
+    )
+    parser.add_argument(
         "--max-clients",
         type=int,
         default=0,
@@ -396,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
             instance_id=args.instance_id,
             extra_handlers=registered_use_cases(),
             connection_endpoint=args.connection_endpoint,
+            migration_backup_root=args.migration_backup_root,
         )
     except CoreAssemblyBlocked as error:
         print(str(error), file=sys.stderr)
@@ -487,6 +532,11 @@ def main(argv: list[str] | None = None) -> int:
                     entry_kind=entry_kind,
                     shutdown_blocker=shutdown_blocker,
                     on_wait=continue_work,
+                    native_dispatch=lambda command: dispatch_native(
+                        api,
+                        command,
+                        records=assembly.unit_of_work.repo,
+                    ),
                 )
                 served += 1
                 if outcome == "shutdown":

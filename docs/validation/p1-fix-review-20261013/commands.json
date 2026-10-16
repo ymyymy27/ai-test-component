@@ -1,0 +1,101 @@
+{
+  "baseline": "a51c2b48ab5595fd74daf7ab4c99ad8efa354df2",
+  "commands": [
+    {
+      "label": "ruff",
+      "command": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "src",
+        "tests",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "seconds": 1.28,
+      "log": "ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "label": "mypy",
+      "command": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "seconds": 3.84,
+      "log": "mypy.log",
+      "sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa"
+    },
+    {
+      "label": "lock-check",
+      "command": [
+        "C:/Users/86178/.local/bin/uv.exe",
+        "lock",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.8,
+      "log": "lock-check.log",
+      "sha256": "fb9855d49d0e0fd2bf27bb379b717ee2e83794cff562af179ac3efb0397248b8"
+    },
+    {
+      "label": "changed-paths",
+      "command": [
+        "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/contracts/test_execution_facts_decision_adapter.py",
+        "tests/contracts/test_query_boundary_response.py",
+        "tests/contracts/test_save_plan_and_rules_entrypoints.py",
+        "tests/contracts/test_view_preference_entrypoint.py",
+        "tests/unit/test_action_resolver.py",
+        "tests/unit/test_assertion_outcome_producer.py",
+        "tests/unit/test_authoritative_preparation.py",
+        "tests/unit/test_case_reuse_selection.py",
+        "tests/unit/test_default_backup_entry.py",
+        "tests/unit/test_default_backup_modes.py",
+        "tests/unit/test_default_defect_management.py",
+        "tests/unit/test_default_maintenance_actions.py",
+        "tests/unit/test_default_manual_evidence.py",
+        "tests/unit/test_default_migrate_entry.py",
+        "tests/unit/test_default_retry_step.py",
+        "tests/unit/test_default_return_stage.py",
+        "tests/unit/test_default_start_source_chain.py",
+        "tests/unit/test_delivery_submission_origin.py",
+        "tests/unit/test_delivery_verification_state.py",
+        "tests/unit/test_delivery_view.py",
+        "tests/unit/test_migration_backup_traceability.py",
+        "tests/unit/test_object_chunk_reads.py",
+        "tests/unit/test_panel_read_only_allowlist.py",
+        "tests/unit/test_panel_view_dto.py",
+        "tests/unit/test_prepare_run.py",
+        "tests/unit/test_prepare_run_flow.py",
+        "tests/unit/test_query_boundary_pairing.py",
+        "tests/unit/test_request_regression.py",
+        "tests/unit/test_reuse_consumption.py",
+        "tests/unit/test_reuse_reference_contract.py",
+        "tests/unit/test_run_view_dto.py",
+        "tests/unit/test_saved_business_verification.py",
+        "tests/unit/test_saved_defect_management.py",
+        "tests/unit/test_saved_exports.py",
+        "tests/unit/test_saved_reports.py",
+        "tests/unit/test_source_checks.py",
+        "tests/unit/test_start_source_verification.py",
+        "tests/unit/test_substrate_adapter.py",
+        "tests/unit/test_view_queries.py",
+        "tests/architecture",
+        "tests/unit/test_acceptance_status.py",
+        "--basetemp=E:\\ai-test-component\\.runtime\\tmp\\review-6ad5eb58b7a94fc9b103043ed21bd10f",
+        "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-fix-review-20261013\\changed-paths.xml"
+      ],
+      "exit_code": 0,
+      "seconds": 1280.26,
+      "log": "changed-paths.log",
+      "sha256": "170535f7112b5160a4bc8c62085284e3cbf32399e087e2dca9efb648e0784c38"
+    }
+  ]
+}

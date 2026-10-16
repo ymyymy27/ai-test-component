@@ -196,9 +196,40 @@ def test_policy_origin_business_record_and_receipt_share_one_commit_before_send(
     first = core.api.dispatch(generation_command(), RELAY)
     assert first.error is None, first.error
     assert first.result["status"] == "draft_ready", first.result
+    assert first.result["draft_text"] == "safe policy draft"
     replay = core.api.dispatch(generation_command(request="generation-retry"), RELAY)
     assert replay.error is None
     assert replay.result["content"] == first.result["content"]
+    assert replay.result["draft_text"] == first.result["draft_text"]
+    assert len(calls) == 1
+
+
+def test_model_timeout_is_bounded_and_bound_to_saved_generation_intent(policy_core, monkeypatch):
+    core, calls = policy_core
+    assert controlled_policy_confirm(core, policy_command(), session=HUMAN).error is None
+    budgets = []
+    transport = core.model_provider._transport
+    original = transport.post
+
+    def capture(url, *, headers, body, timeout_seconds):
+        budgets.append(timeout_seconds)
+        return original(url, headers=headers, body=body, timeout_seconds=timeout_seconds)
+
+    monkeypatch.setattr(transport, "post", capture)
+    command = generation_command()
+    extended = command.model_copy(update={"parameters": {**command.parameters,
+                                                         "timeout_seconds": 90}})
+    response = core.api.dispatch(extended, RELAY)
+    assert response.error is None
+    assert response.result["draft_text"] == "safe policy draft"
+    assert len(budgets) == 1 and 0 < budgets[0] <= 90
+    changed = extended.model_copy(update={"request_id": "changed-timeout",
+        "parameters": {**extended.parameters, "timeout_seconds": 91}})
+    assert core.api.dispatch(changed, RELAY).error is not None
+    invalid = extended.model_copy(update={"request_id": "invalid-timeout",
+        "intent_id": "invalid-timeout-intent",
+        "parameters": {**extended.parameters, "timeout_seconds": 121}})
+    assert core.api.dispatch(invalid, RELAY).error is not None
     assert len(calls) == 1
 
 

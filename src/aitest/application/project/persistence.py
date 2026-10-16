@@ -115,6 +115,10 @@ def _stage_and_commit(
             original = record_intent.original()
             if original is not None:
                 return original
+        if aggregate_kind == "project" and payload.get("created_at_commit") == "@core-assigned":
+            if expected_revision not in (None, 0):
+                raise ValueError("core-assigned creation is only available for a new project")
+            payload = dict(payload, created_at_commit=tx.next_commit_seq())
         staged = tx.stage_record(
             aggregate_kind=aggregate_kind,
             record_id=record_id,

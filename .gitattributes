@@ -2,3 +2,28 @@
 docs/validation/p1-abc-fix-20261003/** -text -whitespace
 docs/validation/p1-fix-recheck-20261003/** -text -whitespace
 docs/validation/p1-abc-remaining-20261004/** -text -whitespace
+docs/validation/p1-completion-repair-20261013/** -text -whitespace
+docs/validation/p1-completion-repair-20261014/** -text -whitespace
+docs/validation/p1-final-closure-20261014/** -text -whitespace
+docs/validation/p1-unproven-audit-20261014/** -text -whitespace
+docs/validation/p1-fix-recovery-20261014/** -text -whitespace
+
+docs/validation/p1-fix-recovery2-20261014/** -text -whitespace
+
+docs/validation/p1-state-reader-security-20261014/** -text -whitespace
+
+docs/validation/p1-current-closure-20261014/** -text -whitespace
+
+docs/validation/p1-empty-reference-20261014/** -text -whitespace
+
+docs/validation/p1-migration-backup-identity-20261014/** -text -whitespace
+
+docs/validation/p1-migration-closure-20261014/** -text -whitespace
+
+docs/validation/p1-migration-location-20261014/** -text -whitespace
+
+docs/validation/p1-implementation-audit-20261015/** -text -whitespace
+
+docs/validation/p1-runtime-source-20261015/** -text -whitespace
+
+docs/validation/p1-trae-live-20261016/** -text -whitespace

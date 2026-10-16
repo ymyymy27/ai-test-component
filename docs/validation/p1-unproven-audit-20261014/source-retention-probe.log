@@ -1,0 +1,13 @@
+{
+  "scope": "component, synthetic facts; no real acceptance",
+  "rows": [
+    {
+      "source": "before",
+      "observation_preserved": false
+    },
+    {
+      "source": "repair",
+      "observation_preserved": true
+    }
+  ]
+}

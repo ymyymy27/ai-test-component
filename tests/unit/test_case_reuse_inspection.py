@@ -40,6 +40,7 @@ def inspection(saved):
         raw = {"run": run, "extra": extra}
         return SimpleNamespace(
             snapshot_commit_id=run + "-snapshot", snapshot_cursor=5, attempts=(),
+            evidence_refs=(),
             runtime_revision_refs=(),
             model_dump=lambda **_: deepcopy(raw),
         )

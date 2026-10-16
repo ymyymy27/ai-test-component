@@ -1,0 +1,18 @@
+{
+  "ui_blocker": "Windows desktop locked; user asked to unlock",
+  "installed_extension_initial": "aitest-local.aitest-trae@0.4.6",
+  "initial_runtime": "C:\\Users\\86178\\AppData\\Local\\AI-Test\\runtime-0.4.6",
+  "credential_storage": "Windows Generic Credential, UTF-8, readback matched",
+  "credential_body_in_repo": false,
+  "workspace": "C:\\Users\\86178\\AppData\\Local\\AI-Test\\trae-acceptance-20261016\\workspace",
+  "model_configuration": "C:\\Users\\86178\\AppData\\Local\\AI-Test\\trae-acceptance-20261016\\model.json",
+  "real_Trae_workflow_verified": false,
+  "installed_extension": "aitest-local.aitest-trae@0.4.7",
+  "runtime": "C:\\Users\\86178\\AppData\\Local\\AI-Test\\runtime-0.4.7",
+  "settings_configured": true,
+  "settings_backup": "C:\\Users\\86178\\AppData\\Roaming\\Trae CN\\User\\settings.before-aitest-20261016.json",
+  "core_probe_completed": true,
+  "same_instance_after_startup_cli_exit": true,
+  "model_capability": "ready",
+  "probe_host_lifetime": "core may gracefully exit when this setup host exits; Trae owns its next startup"
+}

@@ -1,0 +1,16 @@
+Using CPython 3.13.0 interpreter at: F:\python\python.exe
+Creating virtual environment at: C:\Users\86178\AppData\Local\Temp\aitest-wheel-y3vt9y92\venv
+Activate with: C:\Users\86178\AppData\Local\Temp\aitest-wheel-y3vt9y92\venv\Scripts\activate
+Using Python 3.13.0 environment at: C:\Users\86178\AppData\Local\Temp\aitest-wheel-y3vt9y92\venv
+Resolved 8 packages in 1.02s
+Prepared 1 package in 186ms
+Installed 8 packages in 745ms
+ + ai-test-component==0.4.0 (from file:///E:/ai-test-component/dist/ai_test_component-0.4.0-py3-none-any.whl)
+ + annotated-types==0.8.0
+ + portalocker==3.2.0
+ + pydantic==2.14.1
+ + pydantic-core==2.50.1
+ + pywin32==312
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+Isolated wheel smoke checks passed

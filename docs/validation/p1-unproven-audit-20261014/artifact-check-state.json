@@ -1,0 +1,8 @@
+{
+  "state": "interrupted",
+  "runner_pid": 32660,
+  "started_at": "2026-10-14T04:10:12.341573+00:00",
+  "detected_at": "2026-10-14T06:32:04.465161+00:00",
+  "reason": "registered runner absent; pending state was stale; replaced by latest main fix full suite",
+  "exit_code": null
+}

@@ -1,0 +1,34 @@
+E501 Line too long (107 > 100)
+  --> tests\unit\test_completion_boundaries.py:87:101
+   |
+85 |     stored = stack.saved_export(result["record_id"])
+86 |     with zipfile.ZipFile(
+87 |         io.BytesIO(stack.artifact_bytes(stored["artifact_ref"], expected_sha256=stored["artifact_digest"]))
+   |                                                                                                     ^^^^^^^
+88 |     ) as archive:
+89 |         assert archive.read("evidence/evidence-1.bin") == b"abc"
+   |
+
+E501 Line too long (105 > 100)
+   --> tests\unit\test_completion_boundaries.py:228:101
+    |
+226 |             project_id="p", intent_id="blocked-intent", expected_revision=0, parameters={}), RELAY)
+227 |         assert response.error.code == "MAINTENANCE_REQUIRED"
+228 |         doctor = restarted.api.dispatch(Command(action="doctor", request_id="maintenance-doctor"), RELAY)
+    |                                                                                                     ^^^^^
+229 |         assert doctor.error is None
+230 |         step.write_text(json.dumps({"state": "rolled_back", "plan_id": plan.plan_id}), encoding="utf-8")
+    |
+
+E501 Line too long (104 > 100)
+   --> tests\unit\test_completion_boundaries.py:230:101
+    |
+228 |         doctor = restarted.api.dispatch(Command(action="doctor", request_id="maintenance-doctor"), RELAY)
+229 |         assert doctor.error is None
+230 |         step.write_text(json.dumps({"state": "rolled_back", "plan_id": plan.plan_id}), encoding="utf-8")
+    |                                                                                                     ^^^^
+231 |         assert FileMigrationManager(tmp_path).maintenance_reason() is None
+232 |     finally:
+    |
+
+Found 4 errors (1 fixed, 3 remaining).

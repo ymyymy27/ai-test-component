@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "C:\Users\86178\.codex\worktrees\p1-unproven-boundaries\ai-test-component\docs\validation\p1-state-reader-security-20261014\wait_and_verify.py", line 62, in <module>
+    raise RuntimeError('baseline failed or drifted; stop for actual failure review')
+RuntimeError: baseline failed or drifted; stop for actual failure review

@@ -1,0 +1,23 @@
+E501 Line too long (104 > 100)
+   --> tests\unit\test_configured_business_verification.py:188:101
+    |
+186 |                 for index, entry in enumerate(inputs.assertion_bases[1:], 1):
+187 |                     other = confirm(core, replace(inputs, assertion_bases=(entry,)),
+188 |                                     intent=f"pure-basis-{index}", request=f"pure-basis-request-{index}")
+    |                                                                                                     ^^^^
+189 |                     assert other.error is None, other.error
+190 |                     confirmations.append(other.result)
+    |
+
+E501 Line too long (104 > 100)
+  --> tests\unit\test_delivery_report_verification.py:86:101
+   |
+84 |     ]:
+85 |         response = core.api.dispatch(Command(
+86 |             action=action, project_id=inputs.project_id, request_id=action+"-request", intent_id=action,
+   |                                                                                                     ^^^^
+87 |             expected_revision=0, parameters=parameters,
+88 |         ), RELAY)
+   |
+
+Found 2 errors.

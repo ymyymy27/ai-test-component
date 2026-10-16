@@ -1,0 +1,15 @@
+{
+  "version": "0.4.4",
+  "result": "passed",
+  "scope": "artifact_contents_and_shared_panel_identity_only",
+  "artifacts": [
+    {
+      "path": "dist\\ai_test_component-0.4.4-py3-none-any.whl",
+      "sha256": "053c5ac595ed4701c511ce3583e28fb6ba2b168860ddf90e2cb8507c941e4f6b"
+    },
+    {
+      "path": "integrations\\trae\\dist\\aitest-trae.vsix",
+      "sha256": "79d911d87b2ae5aeba79f6a4d2079fbf348aa0d9e2fbfe1064d750d2866cec3d"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "E:\\ai-test-component\\.runtime\\completion_final_audit.py"
+  ],
+  "exit_code": 0,
+  "started_at": "2026-10-13T18:06:08.178907+00:00",
+  "duration_seconds": 4.35,
+  "log": "document-audit.log",
+  "scope": "Document disposition/links/anchors/tables/interface metadata and original acceptance byte hashes; no test suite."
+}

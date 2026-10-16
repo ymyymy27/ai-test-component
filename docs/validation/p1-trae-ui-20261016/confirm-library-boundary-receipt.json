@@ -1,0 +1,19 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-c9dbd4b746cb4b018118a10516dfe71e",
+  "instance_id": "core-9a87e8bfd0e1",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-confirm-library-boundary",
+  "binding_revision": null,
+  "result": {
+    "project_id": "trae-live-20261016",
+    "confirmation_id": "confirmation-d0064b2681b78cce3f0cca45d1265ad9bd7daafdd6b3ce6d5e40af8f0d5e9631",
+    "case_id": "library-boundary",
+    "basis_revision": 1,
+    "basis_text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1",
+    "confirmed_at_commit": "54"
+  },
+  "page": null,
+  "error": null
+}

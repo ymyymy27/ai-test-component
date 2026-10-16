@@ -8,7 +8,13 @@ from pathlib import Path
 from uuid import uuid4
 
 from aitest.application.errors import CapabilityUnavailable
-from aitest.bootstrap import acquire_endpoint, acquire_existing_endpoint, create_api
+from aitest.bootstrap import (
+    SystemProcessLauncher,
+    acquire_endpoint,
+    acquire_existing_endpoint,
+    cli_host_pid,
+    create_api,
+)
 from aitest.contracts.commands import Command
 from aitest.contracts.templates import TemplatePack
 from aitest.interfaces.local.api import EntryKind, Session
@@ -27,7 +33,24 @@ def main() -> int:
     doctor.add_argument("--workspace", type=Path)
     dispatch = sub.add_parser("dispatch", help="Forward one complete JSON Command on stdin")
     dispatch.add_argument("--workspace", required=True, type=Path)
+    dispatch.add_argument(
+        "--native-confirmation",
+        action="store_true",
+        help="Request the core-owned Windows confirmation window (never auto-confirms)",
+    )
     sub.add_parser("templates", help="List installed draft template versions")
+    carrier = sub.add_parser(
+        "python-carrier", help="Generate host venv registration JSON; does not execute it"
+    )
+    carrier.add_argument("--project", required=True)
+    carrier.add_argument("--environment", required=True)
+    carrier.add_argument("--python", required=True, type=Path)
+    carrier.add_argument("--base-python", required=True, type=Path)
+    carrier.add_argument("--venv-root", required=True, type=Path)
+    carrier.add_argument("--dependencies", required=True, type=Path, action="append")
+    carrier.add_argument(
+        "--output", type=Path, help="Write a new UTF-8 config file; never overwrite"
+    )
     ensure = sub.add_parser(
         "ensure-core", help="Discover or start the single core for a workspace (host entry)"
     )
@@ -39,6 +62,34 @@ def main() -> int:
     relay.add_argument("--workspace", type=Path)
     relay.add_argument("--project")
     args = parser.parse_args()
+    if args.command == "python-carrier":
+        from aitest.bootstrap import carrier_configuration
+
+        try:
+            configuration = carrier_configuration(
+                project_id=args.project,
+                environment_id=args.environment,
+                executable=args.python,
+                base_executable=args.base_python,
+                dependency_roots=tuple(args.dependencies),
+                venv_root=args.venv_root,
+            )
+            if args.output is not None:
+                with args.output.open("x", encoding="utf-8", newline="\n") as stream:
+                    stream.write(json.dumps(configuration, ensure_ascii=False, indent=2) + "\n")
+        except (OSError, ValueError):
+            print(
+                json.dumps(
+                    {
+                        "code": "INVALID_ENVIRONMENT_CONFIGURATION",
+                        "message": "核对绝对路径、隔离虚拟环境与解释器文件",
+                    }
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        print(json.dumps(configuration, ensure_ascii=False, indent=2))
+        return 0
     if args.command == "templates":
         packs = []
         for directory in sorted(
@@ -77,7 +128,14 @@ def main() -> int:
             )
             return 2
         try:
-            endpoint = acquire_endpoint(args.workspace)
+            # The one-shot startup CLI exits after READY. Its OS parent is the
+            # owning editor/host, not a caller-supplied business field.
+            endpoint = acquire_endpoint(
+                args.workspace,
+                launcher=SystemProcessLauncher(
+                    args.workspace, lifecycle_parent_pid=cli_host_pid(),
+                ),
+            )
         except Exception as error:
             code = getattr(error, "code", "CORE_UNAVAILABLE")
             print(
@@ -109,7 +167,11 @@ def main() -> int:
                 else Command(request_id=str(uuid4()), action="doctor")
             )
             client = CoreClient(acquire_existing_endpoint(args.workspace))
-            response = client.send(command)
+            response = (
+                client.send_native(command)
+                if args.command == "dispatch" and args.native_confirmation
+                else client.send(command)
+            )
         except Exception as error:
             code = getattr(error, "code", "CLI_INPUT_OR_CONNECTION_UNVERIFIED")
             print(

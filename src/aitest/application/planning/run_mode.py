@@ -11,7 +11,7 @@ B 提供守卫规则"。因此本模块只做两件事：
 2. **编排**：`request_runtime_revision()` 组装领域入参并调用 `evaluate_runtime_revision()`；
    `assert_runtime_revision_accepted()` 把拒绝变成异常。
 
-**产品代码不读文件系统**：事实夹具（`docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures/`）
+**产品代码不读文件系统**：事实夹具（`docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures/`）
 只在测试侧用 `json.loads` 读取并校验成合同对象，再传进来。产品路径不按路径找夹具，
 也不解释文件名——"D 不能直接读取未发布的 spool 文件或以文件名推断证据"是同一条理由。
 

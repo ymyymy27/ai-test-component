@@ -1,0 +1,13 @@
+{
+  "progress_nodes": 1553,
+  "failure_positions": [
+    1471
+  ],
+  "files": [
+    [
+      1462,
+      1474,
+      "tests/unit/test_command_adapter.py"
+    ]
+  ]
+}

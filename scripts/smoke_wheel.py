@@ -4,24 +4,26 @@ import json
 import os
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
-    wheels = list((ROOT / "dist").glob("*.whl"))
-    if len(wheels) != 1:
-        raise RuntimeError("Expected exactly one built wheel in dist")
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
+    wheel = ROOT / "dist" / f"ai_test_component-{version}-py3-none-any.whl"
+    if not wheel.is_file():
+        raise RuntimeError("The current project version has not been built")
     with tempfile.TemporaryDirectory(prefix="aitest-wheel-") as directory:
         root = Path(directory)
         environment = root / "venv"
         subprocess.run(["uv", "venv", str(environment), "--python", "3.13"], check=True)
         binary = environment / ("Scripts" if os.name == "nt" else "bin")
         python = binary / ("python.exe" if os.name == "nt" else "python")
-        subprocess.run(
-            ["uv", "pip", "install", "--python", str(python), str(wheels[0])], check=True
-        )
+        subprocess.run(["uv", "pip", "install", "--python", str(python), str(wheel)], check=True)
         for args, expected in [
             (["templates"], 0),
             (["doctor"], 2),

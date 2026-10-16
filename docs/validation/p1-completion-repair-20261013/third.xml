@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="13" time="4.116" timestamp="2026-10-13T17:04:40.081688+08:00" hostname="d"><testcase classname="tests.unit.test_completion_boundaries" name="test_report_freezes_reuse_source_and_exports_original_attachment" time="0.951"><failure message="KeyError: 'artifact_ref'">tmp_path = WindowsPath('E:/ai-test-component/.runtime/tmp/completion-third/test_report_freezes_reuse_sour0')
+
+    def test_report_freezes_reuse_source_and_exports_original_attachment(tmp_path):
+        stack, target, source, reference = _reuse_stack(tmp_path)
+        assert _create(stack)["revision"] == 1
+        payload = stack.saved_report("report-1")
+        assert payload["reuse"]["source_snapshots"] == [
+            {
+                "run_id": source.run_id,
+                "snapshot_ref": SnapshotContentRef.of(source).model_dump(mode="json"),
+            },
+        ]
+        assert set(reference.evidence_refs) &lt;= set(payload["evidence_refs"])
+        # Move the current source after publication; the original report must remain readable.
+        stack.facts_reader._by_run[source.run_id] = source.model_copy(update={"evidence_refs": ()})
+        result = stack.command(
+            action="export_report",
+            request_id="export-reuse",
+            intent_id="export-reuse-intent",
+            expected=0,
+            parameters={
+                "report_id": "report-1",
+                "kind": "evidence_bundle",
+                "attachment_refs": list(reference.evidence_refs),
+            },
+        )
+        with zipfile.ZipFile(
+&gt;           io.BytesIO(stack.artifact_bytes(result["artifact_ref"], expected_sha256=result["sha256"]))
+                                            ^^^^^^^^^^^^^^^^^^^^^^
+        ) as archive:
+E       KeyError: 'artifact_ref'
+
+tests\unit\test_completion_boundaries.py:82: KeyError</failure></testcase><testcase classname="tests.unit.test_completion_boundaries" name="test_legacy_reuse_report_has_named_gap_not_latest_source_fallback" time="0.543" /><testcase classname="tests.unit.test_completion_boundaries" name="test_frozen_reuse_metadata_cannot_change_ownership[target]" time="0.526" /><testcase classname="tests.unit.test_completion_boundaries" name="test_frozen_reuse_metadata_cannot_change_ownership[case]" time="0.535" /><testcase classname="tests.unit.test_completion_boundaries" name="test_frozen_reuse_metadata_cannot_change_ownership[duplicate]" time="0.510" /><testcase classname="tests.unit.test_completion_boundaries" name="test_frozen_reuse_metadata_cannot_change_ownership[foreign_evidence]" time="0.536" /><testcase classname="tests.unit.test_completion_boundaries" name="test_conflicting_reuse_discards_its_frozen_source_material" time="0.001" /><testcase classname="tests.unit.test_completion_boundaries" name="test_view_read_uses_one_unchanged_outer_pair" time="0.001" /><testcase classname="tests.unit.test_completion_boundaries" name="test_view_read_refuses_a_changed_outer_pair" time="0.001" /><testcase classname="tests.unit.test_completion_boundaries" name="test_view_read_rejects_unsupported_selectors_before_io[parameters0]" time="0.001" /><testcase classname="tests.unit.test_completion_boundaries" name="test_view_read_rejects_unsupported_selectors_before_io[parameters1]" time="0.001" /><testcase classname="tests.unit.test_completion_boundaries" name="test_view_read_rejects_unsupported_selectors_before_io[parameters2]" time="0.001" /><testcase classname="tests.unit.test_completion_boundaries" name="test_reuse_selection_is_classified_as_human" time="0.003" /></testsuite></testsuites>

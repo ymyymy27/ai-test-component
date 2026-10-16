@@ -23,8 +23,11 @@ from pathlib import Path
 from typing import Final
 from uuid import uuid4
 
+from aitest.domain.json_material import decode_json
+from aitest.infrastructure.security import guard_value
+
 from . import atomic
-from .backup import FileBackupStore
+from .backup import BackupError, FileBackupStore, _chain_has_symlink, manifest_facts
 from .commit_manifest import FileCommitStore
 from .commit_migration import migrate_commit_closure
 from .index import migrate_query_layout, rollback_query_layout
@@ -40,6 +43,8 @@ _REGISTRY_NAME: Final = "registry.json"
 _JOURNAL_NAME: Final = "journal.jsonl"
 _PLANS_DIR: Final = "plans"
 _BACKUPS_DIR: Final = "backups"
+#: 迁移前强制备份在维护审计里的类型标记（审计事实，不是协议字段）。
+MIGRATION_BACKUP_KIND: Final = "migration_pre_apply"
 _REGISTRY_SCHEMA: Final = "aitest.migration-registry/1.0"
 _PLAN_SCHEMA: Final = "aitest.migration-plan/1.0"
 
@@ -76,6 +81,9 @@ class ApplyReport:
     executed: tuple[str, ...]
     skipped: tuple[str, ...]
     backup_path: Path | None
+    #: 迁移前备份是否落在活动工作空间之外（架构 04 §140/§230 要求备份位置独立于活动目录）。
+    #: 只读事实，便于维护记录/界面显式呈现"当前备份与活动目录同盘"的风险。
+    backup_outside_active_workspace: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +97,10 @@ class RollbackReport:
 
 
 def _load_json(path: Path) -> dict[str, object]:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw = decode_json(path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise MigrationError("迁移材料无法可靠核对，拒绝猜测状态") from error
     if not isinstance(raw, dict):
         raise MigrationError(f"{path.name} 顶层不是对象，拒绝迁移")
     return raw
@@ -265,16 +276,26 @@ def _plan_token(steps: tuple[str, ...]) -> str:
 class FileMigrationManager:
     """inspect/plan/apply/resume/rollback 的文件实现。"""
 
-    def __init__(self, workspace_root: Path) -> None:
+    def __init__(
+        self, workspace_root: Path, *, maintenance: object | None = None,
+        backup_root: Path | None = None,
+    ) -> None:
         self._root = workspace_root.resolve()
+        self._maintenance = maintenance
         self._dir = self._root / "migrations"
         self._registry_path = self._dir / _REGISTRY_NAME
         self._journal_path = self._dir / _JOURNAL_NAME
         self._plans_dir = self._dir / _PLANS_DIR
         self._backups_dir = self._dir / _BACKUPS_DIR
+        if backup_root is not None:
+            configured = self._external_backup_root(backup_root) / self._backup_namespace()
+            self._backups_dir = self._external_backup_root(configured)
         self._steps_dir = self._dir / "steps"
         self._cycles_dir = self._dir / "cycles"
-        for path in (self._plans_dir, self._backups_dir, self._steps_dir, self._cycles_dir):
+        paths = [self._plans_dir, self._steps_dir, self._cycles_dir]
+        if backup_root is None:
+            paths.append(self._backups_dir)
+        for path in paths:
             path.mkdir(parents=True, exist_ok=True)
         if not self._registry_path.exists():
             self._save_registry(applied={})
@@ -299,7 +320,32 @@ class FileMigrationManager:
                 "unknown_applied": sorted(applied_ids - known_ids),
             },
             "plans": plans,
+            "maintenance_reason": self.maintenance_reason(),
         }
+
+    def maintenance_reason(self) -> str | None:
+        """Persisted uncertain steps block ordinary writes across core restarts.
+
+        Prepared step files deliberately remain after success; the durable registry
+        distinguishes those from a forward operation whose result is still unknown.
+        This only reads progress and never automatically replays a migration.
+        """
+        applied = self._load_registry()
+        for path in sorted(self._steps_dir.glob("*/*.json")):
+            state = _load_json(path)
+            if state.get("plan_id") != path.parent.name or path.stem not in _BUILT_IN:
+                raise MigrationError("迁移检查点身份无法核实，拒绝新业务写入")
+            status = state.get("state")
+            if not isinstance(status, str):
+                raise MigrationError("迁移检查点状态无法核实，拒绝新业务写入")
+            registered = applied.get(path.stem)
+            if status == "rollback_pending" or status == "prepared" and (
+                registered is None or registered.get("plan_id") != path.parent.name
+            ):
+                return f"migration recovery required: {path.parent.name}/{path.stem}"
+            if status not in {"prepared", "rolled_back"}:
+                raise MigrationError("迁移检查点状态无法核实，拒绝新业务写入")
+        return None
 
     # ----- plan -------------------------------------------------------
 
@@ -361,7 +407,10 @@ class FileMigrationManager:
                 backup_path=None,
             )
         self._records_watermark()  # 不把不可读业务水位当成空工作空间。
-        backup_path = self._ensure_backup(plan_id)
+        try:
+            backup_path = self._ensure_backup(plan_id)
+        except BackupError as error:
+            raise MigrationError("迁移前备份无法可靠核对，拒绝继续") from error
         executed: list[str] = []
         for migration_id in pending:
             migration = _BUILT_IN[migration_id]
@@ -423,7 +472,19 @@ class FileMigrationManager:
             executed=tuple(executed),
             skipped=tuple(migration_id for migration_id in steps if migration_id not in executed),
             backup_path=backup_path,
+            backup_outside_active_workspace=self._outside_workspace(backup_path),
         )
+
+    def _outside_workspace(self, backup_path: Path | None) -> bool | None:
+        """备份位置是否在活动工作空间之外；没有备份就返回 None（未知，不猜）。"""
+
+        if backup_path is None:
+            return None
+        try:
+            resolved = backup_path.resolve()
+        except OSError:  # pragma: no cover - 极端路径错误
+            return None
+        return resolved != self._root and not resolved.is_relative_to(self._root)
 
     # ----- resume -----------------------------------------------------
 
@@ -512,6 +573,40 @@ class FileMigrationManager:
 
     # ----- 内部 -------------------------------------------------------
 
+    def _backup_namespace(self) -> str:
+        identity = _load_json(self._root / "workspace.json").get("workspace_id")
+        if not isinstance(identity, str) or not identity.strip():
+            raise MigrationError("独立迁移备份需要可核对的工作空间身份")
+        return "workspace-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+
+    def _external_backup_root(self, path: Path) -> Path:
+        if not path.is_absolute() or _chain_has_symlink(path):
+            raise MigrationError("迁移备份位置必须是无链接的绝对目录")
+        resolved = path.resolve()
+        if resolved == self._root or resolved.is_relative_to(self._root):
+            raise MigrationError("迁移备份位置必须独立于活动工作空间")
+        if resolved.exists() and not resolved.is_dir():
+            raise MigrationError("迁移备份位置不是目录")
+        _safe, changed = guard_value(str(resolved))
+        if changed:
+            raise MigrationError("迁移备份位置包含敏感材料，拒绝保存")
+        return resolved
+
+    def _frozen_backup_path(self, cycle: Mapping[str, object], name: str) -> Path:
+        if "backup_path" not in cycle:
+            # 此字段引入前的周期都使用工作空间内固定位置，配置不追改历史。
+            return self._dir / _BACKUPS_DIR / name
+        raw = cycle["backup_path"]
+        if not isinstance(raw, str):
+            raise MigrationError("冻结迁移备份位置无法核实")
+        path = Path(raw)
+        if not path.is_absolute() or path.name != name or _chain_has_symlink(path):
+            raise MigrationError("冻结迁移备份位置无法核实")
+        parent = self._external_backup_root(path.parent)
+        if parent.name != self._backup_namespace():
+            raise MigrationError("冻结迁移备份不属于当前工作空间")
+        return parent / name
+
     def _load_plan(self, plan_id: str) -> tuple[str, ...]:
         if (
             not plan_id.startswith("plan-")
@@ -522,7 +617,9 @@ class FileMigrationManager:
         path = self._plans_dir / f"{plan_id}.json"
         if not path.exists():
             raise MigrationError(f"计划不存在: {plan_id}")
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = _load_json(path)
+        if raw.get("schema") != _PLAN_SCHEMA or raw.get("plan_id") != plan_id:
+            raise MigrationError("迁移计划版本或身份无法核实")
         steps = raw.get("steps")
         if not isinstance(steps, list) or not all(isinstance(step, str) for step in steps):
             raise MigrationError("计划内容损坏")
@@ -539,42 +636,108 @@ class FileMigrationManager:
     def _ensure_backup(self, plan_id: str) -> Path:
         cycle_path = self._cycles_dir / f"{plan_id}.json"
         cycle = _load_json(cycle_path) if cycle_path.exists() else {}
+        cycle_status = cycle.get("state")
         if cycle and (
-            cycle.get("plan_id") != plan_id or cycle.get("state") not in {"active", "rolled_back"}
+            cycle.get("plan_id") != plan_id
+            or not isinstance(cycle_status, str)
+            or cycle_status not in {"active", "rolled_back"}
         ):
             raise MigrationError("迁移周期状态损坏，拒绝沿用未知前态")
         destination = self._backups_dir / plan_id
         states = list((self._steps_dir / plan_id).glob("*.json"))
-        if cycle.get("state") == "active":
-            name = cycle.get("backup_name")
-            if not isinstance(name, str) or Path(name).name != name:
-                raise MigrationError("迁移备份引用损坏")
-            destination = self._backups_dir / name
-        elif cycle.get("state") == "rolled_back" or (
-            states and all(_load_json(path).get("state") == "rolled_back" for path in states)
+        planned_steps = set(self._load_plan(plan_id))
+        checkpoint_states = []
+        for path in states:
+            checkpoint = _load_json(path)
+            status = checkpoint.get("state")
+            if (
+                path.stem not in planned_steps
+                or checkpoint.get("plan_id") != plan_id
+                or not isinstance(status, str)
+                or status not in {"prepared", "rolled_back", "rollback_pending"}
+            ):
+                raise MigrationError("迁移检查点身份或状态无法核实，拒绝受控续跑")
+            checkpoint_states.append(status)
+        if cycle.get("state") == "rolled_back" and any(
+            status != "rolled_back" for status in checkpoint_states
         ):
-            # 新一轮迁移留独立备份，不覆盖旧备份也不沿用过时前态。
+            raise MigrationError("迁移周期与检查点回滚事实冲突，拒绝重新采样")
+        rolled_back = cycle.get("state") == "rolled_back" or (
+            bool(states) and all(status == "rolled_back" for status in checkpoint_states)
+        )
+        if rolled_back:
+            # 最后一步回滚已保存但周期收尾中断，也必须冻结当前新一轮前态。
             destination = self._backups_dir / f"{plan_id}-{uuid4().hex}"
+        elif cycle.get("state") == "active":
+            name = cycle.get("backup_name")
+            if not isinstance(name, str) or not (
+                name == plan_id
+                or name.startswith(plan_id + "-")
+                and len(name) == len(plan_id) + 33
+                and all(character in "0123456789abcdef" for character in name[len(plan_id) + 1 :])
+            ):
+                raise MigrationError("迁移备份引用损坏")
+            destination = self._frozen_backup_path(cycle, name)
+        elif states:
+            raise MigrationError("迁移步骤已有前态但缺少冻结备份周期，拒绝重新采样")
         manifest = destination / "backup.json"
-        if manifest.exists():
+        if cycle.get("state") == "active" and not rolled_back:
+            expected_digest = cycle.get("backup_manifest_digest")
+            if not isinstance(expected_digest, str) or not manifest.is_file():
+                raise MigrationError("冻结迁移备份身份或材料缺失，拒绝重新备份")
             # 复用既有备份前必须重新核对，绝不信任未校验副本。
             verification = FileBackupStore(self._root).verify(destination)
             if not verification["ok"]:
                 raise MigrationError(f"复用备份校验失败: {verification['errors']}")
+            actual_digest, _count, _bytes = manifest_facts(destination)
+            if actual_digest != expected_digest:
+                raise MigrationError("冻结迁移备份摘要不一致，拒绝替换本轮前态")
         else:
+            if destination.exists():
+                # 无本轮引用的同名材料不能冒充迁移前备份，原材料永久保留。
+                destination = self._backups_dir / f"{plan_id}-{uuid4().hex}"
             FileBackupStore(self._root).create(destination)
             verification = FileBackupStore(self._root).verify(destination)
             if not verification["ok"]:
                 raise MigrationError(f"迁移前备份校验失败: {verification['errors']}")
         # 在任何 forward 之前冻结本轮备份引用，重启不能切回第一轮备份。
-        atomic.write_json(
-            cycle_path,
-            {"plan_id": plan_id, "state": "active", "backup_name": destination.name},
-        )
+        frozen: dict[str, object] = {
+            "plan_id": plan_id,
+            "state": "active",
+            "backup_name": destination.name,
+            "backup_manifest_digest": manifest_facts(destination)[0],
+        }
+        if self._outside_workspace(destination):
+            frozen["backup_path"] = str(destination.resolve())
+        atomic.write_json(cycle_path, frozen)
+        # 迁移前强制备份也进维护审计（架构 04 §9/§197）：维护记录/`backup inspect`
+        # 能看到实际位置；未配置时仍是旧本地位置，不能谎称独立存储通过。
+        self._record_backup(destination)
         return destination
 
+    def _record_backup(self, destination: Path) -> None:
+        if self._maintenance is None:
+            return
+        try:
+            digest, file_count, total_bytes = manifest_facts(destination)
+            self._maintenance.record_backup(  # type: ignore[attr-defined]
+                destination=str(destination),
+                kind=MIGRATION_BACKUP_KIND,
+                verified=True,
+                complete=True,
+                known_missing=(),
+                file_count=file_count,
+                total_bytes=total_bytes,
+                manifest_digest=digest,
+            )
+        except (OSError, ValueError, RuntimeError) as error:
+            # 审计登记失败不能把"已校验的迁移前备份"说成不存在；记入迁移日志后继续。
+            self._append_journal("", "backup_audit_failed", str(error))
+
     def _load_registry(self) -> dict[str, dict[str, object]]:
-        raw = json.loads(self._registry_path.read_text(encoding="utf-8"))
+        raw = _load_json(self._registry_path)
+        if raw.get("schema") != _REGISTRY_SCHEMA:
+            raise MigrationError("迁移注册表版本无法核实，拒绝猜测状态")
         applied = raw.get("applied")
         if not isinstance(applied, dict):
             raise MigrationError("迁移注册表损坏，拒绝猜测已执行状态")
@@ -610,8 +773,8 @@ class FileMigrationManager:
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8")).get(field)
-        except json.JSONDecodeError:
+            return _load_json(path).get(field)
+        except MigrationError:
             return None
 
     def _records_watermark(self) -> int:
@@ -623,7 +786,7 @@ class FileMigrationManager:
             return 0
         try:
             data = _load_json(path)
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, MigrationError) as error:
             raise MigrationError("权威业务提交水位不可读取，拒绝迁移") from error
         if "commit" not in data and not data.get("records"):
             return 0

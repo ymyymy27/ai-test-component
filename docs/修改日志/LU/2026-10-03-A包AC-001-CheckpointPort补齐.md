@@ -1,7 +1,7 @@
 # A包AC-001 CheckpointPort补齐与对齐核对（对应 review-A.md 评审意见）
 
 修改日期：2026-10-03。分支：`A包-LU-defect-fix-r2`（未 commit、未推送，等待人工审核后新建独立契约分支提交 PR）。
-评审依据：[review-A.md](file:///c:/Users/Lenovo/Desktop/zhiyin/ai-test-component/docs/接口对接/进行中/AC-001-存储与恢复/review-A.md) §3 风险项第 1 条与 §4 待确认事项第 4 条（CheckpointPort Protocol 写入 ports.py 属一期交付范围）；评审文档仅作需求依据，未在其中写代码。
+评审依据：[review-A.md](file:///c:/Users/Lenovo/Desktop/zhiyin/ai-test-component/docs/接口对接/已完成/AC-001-存储与恢复/review-A.md) §3 风险项第 1 条与 §4 待确认事项第 4 条（CheckpointPort Protocol 写入 ports.py 属一期交付范围）；评审文档仅作需求依据，未在其中写代码。
 
 ## 1. 评审意见逐项响应
 

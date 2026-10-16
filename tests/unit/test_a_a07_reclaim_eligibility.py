@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.maintenance import (
     FileMaintenanceService,
+    ReclaimCandidate,
     detect_activity_blocker,
 )
 from aitest.infrastructure.file_store.migrations import FileMigrationManager
@@ -93,6 +94,66 @@ def test_mkstemp_leftover_without_published_target_is_kept(root: Path) -> None:
 # ------------------------------------------------------------ 引用事实
 
 
+def _empty_leftover(root: Path, kind: str) -> Path:
+    if kind == "staging":
+        path = root / "event-log" / "staging" / "1.jsonl"
+        path.write_bytes(b"")
+        return path
+    return _stale_leftover(root, ".records.json.AbCdEf12", target="records.json", content=b"")
+
+
+def _reference_empty(root: Path) -> None:
+    (root / "records.json").write_text(
+        json.dumps({"object_digest": f"sha256:{hashlib.sha256(b'').hexdigest()}"}),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize("kind", ["atomic", "staging"])
+def test_referenced_empty_material_is_never_reclaimed(root: Path, kind: str) -> None:
+    path = _empty_leftover(root, kind)
+    _reference_empty(root)
+    service = _service(root)
+    assert service.reclaimable() == ()
+    report = service.reclaim(relative_paths=(path.relative_to(root).as_posix(),), dry_run=False)
+    assert report.removed == ()
+    assert path.read_bytes() == b""
+    assert not (root / "maintenance" / "audit.jsonl").exists()
+
+
+@pytest.mark.parametrize("kind", ["atomic", "staging"])
+def test_new_empty_reference_after_selection_prevents_delete(root: Path, kind: str) -> None:
+    path = _empty_leftover(root, kind)
+    service = _service(root)
+    assert path.relative_to(root).as_posix() in {
+        candidate.relative_path for candidate in service.reclaimable()
+    }
+
+    class ReferenceAddedService(FileMaintenanceService):
+        def reclaimable(self) -> tuple[ReclaimCandidate, ...]:
+            candidates = super().reclaimable()
+            _reference_empty(root)
+            return candidates
+
+    report = ReferenceAddedService(root).reclaim(
+        relative_paths=(path.relative_to(root).as_posix(),), dry_run=False
+    )
+    assert report.removed == ()
+    assert path.read_bytes() == b""
+    assert not (root / "maintenance" / "audit.jsonl").exists()
+
+
+@pytest.mark.parametrize("kind", ["atomic", "staging"])
+def test_unreferenced_empty_material_can_still_be_reclaimed(root: Path, kind: str) -> None:
+    path = _empty_leftover(root, kind)
+    relative = path.relative_to(root).as_posix()
+    report = _service(root).reclaim(relative_paths=(relative,), dry_run=False)
+    assert report.removed == (relative,)
+    assert not path.exists()
+    audit = (root / "maintenance" / "audit.jsonl").read_text(encoding="utf-8")
+    assert relative in audit
+
+
 def test_candidate_bytes_referenced_by_permanent_record_is_refused(root: Path) -> None:
     content = b"still referenced bytes"
     digest = hashlib.sha256(content).hexdigest()
@@ -105,6 +166,44 @@ def test_candidate_bytes_referenced_by_permanent_record_is_refused(root: Path) -
     _set_mtime(leftover, ns_delta=-10_000_000)
     # 同名目标存在 + 暂存更旧仍不够：字节被永久引用，拒绝回收。
     assert _service(root).reclaimable() == ()
+
+
+@pytest.mark.parametrize("suffix", ["json", "jsonl"])
+def test_duplicate_permanent_reference_blocks_actual_reclaim(root: Path, suffix: str) -> None:
+    content = b"still referenced bytes"
+    digest = hashlib.sha256(content).hexdigest()
+    (root / "records.json").write_text("{}", encoding="utf-8")
+    path = root / f"permanent.{suffix}"
+    material = ('{"object_digest":"sha256:' + digest + '","object_digest":null}\n').encode()
+    path.write_bytes(material)
+    leftover = root / ".records.json.AbCdEf12"
+    leftover.write_bytes(content)
+    _set_mtime(leftover, ns_delta=-10_000_000)
+    report = _service(root).reclaim(relative_paths=(leftover.name,), dry_run=False)
+    assert report.state == "blocked"
+    assert report.removed == ()
+    assert leftover.read_bytes() == content
+    assert path.read_bytes() == material
+
+
+@pytest.mark.parametrize(
+    "material",
+    [
+        b'{"state":"capturing","state":"sealed"}',
+        b'{"state":"sealed","detail":NaN}',
+        b'{"state":"sealed","detail":1e9999}',
+        b'{"state":"sealed","detail":"\\ud800"}',
+        '{"state":"sealed"}'.encode("utf-16"),
+    ],
+)
+def test_ambiguous_capture_state_cannot_release_activity(root: Path, material: bytes) -> None:
+    path = root / "spool" / "attempt-1" / "capture-1.json"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(material)
+    assert detect_activity_blocker(root) is not None
+    report = _service(root).reclaim(dry_run=False)
+    assert report.state == "blocked"
+    assert path.read_bytes() == material
 
 
 # ------------------------------------------------------------ 位置白名单

@@ -1,0 +1,10 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "scripts/smoke_wheel.py"
+  ],
+  "source_commit": "77451faeec5d0af07cb7bf54be35562bbff52748",
+  "started_at": "2026-10-14T07:01:06.292901+00:00",
+  "ended_at": "2026-10-14T07:01:14.914171+00:00",
+  "exit_code": 0
+}

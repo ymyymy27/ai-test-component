@@ -1,0 +1,101 @@
+[
+  {
+    "input": [
+      "../../escape"
+    ],
+    "refused": false,
+    "members": [
+      "report.md",
+      "manifest.json",
+      "evidence/../../escape.bin"
+    ],
+    "manifest_files": [
+      {
+        "path": "report.md",
+        "sha256": "sha256:ba9c736f19e7f60b7f6764adb0b7908c0a2b394e09b6c09863528c7f2bc86095",
+        "size": 5
+      },
+      {
+        "path": "evidence/../../escape.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      }
+    ]
+  },
+  {
+    "input": [
+      "..\\..\\escape"
+    ],
+    "refused": false,
+    "members": [
+      "report.md",
+      "manifest.json",
+      "evidence/../../escape.bin"
+    ],
+    "manifest_files": [
+      {
+        "path": "report.md",
+        "sha256": "sha256:ba9c736f19e7f60b7f6764adb0b7908c0a2b394e09b6c09863528c7f2bc86095",
+        "size": 5
+      },
+      {
+        "path": "evidence/..\\..\\escape.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      }
+    ]
+  },
+  {
+    "input": [
+      "CON"
+    ],
+    "refused": false,
+    "members": [
+      "report.md",
+      "manifest.json",
+      "evidence/CON.bin"
+    ],
+    "manifest_files": [
+      {
+        "path": "report.md",
+        "sha256": "sha256:ba9c736f19e7f60b7f6764adb0b7908c0a2b394e09b6c09863528c7f2bc86095",
+        "size": 5
+      },
+      {
+        "path": "evidence/CON.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      }
+    ]
+  },
+  {
+    "input": [
+      "Evidence-A",
+      "evidence-a"
+    ],
+    "refused": false,
+    "members": [
+      "report.md",
+      "manifest.json",
+      "evidence/Evidence-A.bin",
+      "evidence/evidence-a.bin"
+    ],
+    "manifest_files": [
+      {
+        "path": "report.md",
+        "sha256": "sha256:ba9c736f19e7f60b7f6764adb0b7908c0a2b394e09b6c09863528c7f2bc86095",
+        "size": 5
+      },
+      {
+        "path": "evidence/Evidence-A.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      },
+      {
+        "path": "evidence/evidence-a.bin",
+        "sha256": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3
+      }
+    ]
+  }
+]

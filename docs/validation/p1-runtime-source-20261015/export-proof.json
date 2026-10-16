@@ -1,0 +1,9 @@
+{
+  "result": "passed",
+  "artifact_digest": "sha256:800a6ad02f46da3fb4898a1b673599b916948732bc467269ca2d5c8954541c08",
+  "files_verified": 17,
+  "attachments": 16,
+  "runtime_source_attachments": 4,
+  "missing": [],
+  "report_contains_passed": true
+}

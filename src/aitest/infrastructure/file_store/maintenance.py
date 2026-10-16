@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from aitest.domain.json_material import decode_json
+
 from .integrity import _iter_digest_refs, check_workspace
 
 _AUDIT_NAME: Final = "audit.jsonl"
@@ -34,6 +36,7 @@ _MAINTENANCE_DIR: Final = "maintenance"
 _AUDIT_SCHEMA: Final = "aitest.maintenance-audit/1.0"
 _ACTIVE_MARKER: Final = Path("transactions") / "active.json"
 _STAGING_DIR: Final = Path("event-log") / "staging"
+_EMPTY_DIGEST: Final = hashlib.sha256(b"").hexdigest()
 _MKSTEMP_TAIL: Final = re.compile(r"[A-Za-z0-9_-]{8}")
 _PID_TMP: Final = re.compile(r"^\.(?P<base>.+)\.(?P<pid>\d+)\.tmp$")
 
@@ -123,7 +126,7 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
             if path.stem.endswith(("-result", "-stop")):
                 continue
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload = decode_json(path.read_bytes())
                 handle_id = payload["handle"]["handle_id"]
                 saved = handle_store.load(handle_id)
                 if handle_store.load_collection(saved.handle) is None:
@@ -149,7 +152,7 @@ def detect_activity_blocker(workspace_root: Path) -> str | None:
                 continue
             for capture in attempt.glob("capture-*.json"):
                 try:
-                    state = json.loads(capture.read_text(encoding="utf-8"))
+                    state = decode_json(capture.read_bytes())
                     if state.get("state") not in {"sealed", "recovered"}:
                         return f"执行输出采集尚未核实: {capture.relative_to(root)}"
                 except (OSError, ValueError, AttributeError):
@@ -292,16 +295,16 @@ class FileMaintenanceService:
                 continue
             if suffix == ".json":
                 try:
-                    referenced.update(_iter_digest_refs(json.loads(text)))
-                except json.JSONDecodeError:
+                    referenced.update(_iter_digest_refs(decode_json(text)))
+                except ValueError:
                     unreadable.append(path.relative_to(self._root).as_posix())
             else:
                 for line in text.splitlines():
                     if not line.strip():
                         continue
                     try:
-                        referenced.update(_iter_digest_refs(json.loads(line)))
-                    except json.JSONDecodeError:
+                        referenced.update(_iter_digest_refs(decode_json(line)))
+                    except ValueError:
                         unreadable.append(path.relative_to(self._root).as_posix())
                         break
         if unreadable:
@@ -323,6 +326,8 @@ class FileMaintenanceService:
             return None
         relative_posix = relative.as_posix()
 
+        if size == 0 and _EMPTY_DIGEST in referenced:
+            return None
         if _is_empty_staging(path, self._root):
             return ReclaimCandidate(relative_posix, size, "零字节空暂存文件")
 
@@ -483,6 +488,8 @@ class FileMaintenanceService:
         path = self._resolve_within_root(relative)
         if not path.exists() or not path.is_file():
             return False
+        if path.stat().st_size == 0 and _EMPTY_DIGEST in self._referenced_digests():
+            return False
         if _is_empty_staging(path, self._root):
             return True
         if not path.name.startswith("."):
@@ -495,6 +502,77 @@ class FileMaintenanceService:
             path, path.stat().st_mtime_ns, digest if path.stat().st_size else ""
         )
         return candidate is not None
+
+    def record_backup(
+        self,
+        *,
+        destination: str,
+        kind: str,
+        verified: bool,
+        complete: bool,
+        known_missing: tuple[str, ...],
+        file_count: int,
+        total_bytes: int,
+        manifest_digest: str,
+    ) -> None:
+        """把备份时间、校验结果与缺失内容写入维护审计（架构 04 §9/§10）。
+
+        与回收审计同一份 `maintenance/audit.jsonl`：这是维护事实，不是业务记录；
+        只追加，不轮换删除。
+        """
+
+        if not isinstance(destination, str) or not destination.strip():
+            raise MaintenanceError("备份审计需要目标位置")
+        if not isinstance(kind, str) or not kind.strip():
+            raise MaintenanceError("备份审计需要类型")
+        if type(verified) is not bool or type(complete) is not bool:
+            raise MaintenanceError("备份审计需要明确的校验/完整性布尔")
+        if type(file_count) is not int or file_count < 0 or type(total_bytes) is not int:
+            raise MaintenanceError("备份审计需要非负计数")
+        if any(not isinstance(item, str) or not item.strip() for item in known_missing):
+            raise MaintenanceError("备份审计的缺失清单必须是非空文本项")
+        entry = {
+            "schema": _AUDIT_SCHEMA,
+            "action": "backed_up",
+            "destination": destination,
+            "kind": kind,
+            "verified": verified,
+            "complete": complete,
+            "known_missing": sorted(known_missing),
+            "file_count": file_count,
+            "total_bytes": total_bytes,
+            "manifest_digest": manifest_digest,
+        }
+        self._audit_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._audit_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def backup_facts(self) -> tuple[dict[str, object], ...]:
+        """读回维护审计里的备份事实（架构 04 §10：备份登记与诊断可核对）。
+
+        只解析 `maintenance/audit.jsonl` 里 `action="backed_up"` 的完整行；损坏行与
+        其它动作跳过，不猜测、不补造。返回按写入顺序（即时间顺序）的事实。
+        """
+
+        if not self._audit_path.exists():
+            return ()
+        facts: list[dict[str, object]] = []
+        try:
+            with self._audit_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = decode_json(line)
+                    except ValueError:
+                        continue
+                    if isinstance(entry, dict) and entry.get("action") == "backed_up":
+                        facts.append(entry)
+        except OSError as error:
+            raise MaintenanceError(f"备份审计不可读: {error}") from error
+        return tuple(facts)
 
     def _audit(self, relative: str, size: int) -> None:
         entry = {

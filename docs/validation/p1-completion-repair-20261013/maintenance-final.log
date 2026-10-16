@@ -1,0 +1,51 @@
+..F                                                                      [100%]
+================================== FAILURES ===================================
+_ test_unresolved_migration_blocks_writes_after_restart_but_allows_diagnostics[corrupt] _
+
+tmp_path = WindowsPath('E:/ai-test-component/.runtime/tmp/completion-maintenance-final/test_unresolved_migration_bloc2')
+state = 'corrupt'
+
+    @pytest.mark.parametrize("state", ["prepared", "rollback_pending", "corrupt"])
+    def test_unresolved_migration_blocks_writes_after_restart_but_allows_diagnostics(tmp_path, state):
+        from aitest.bootstrap import assemble_workspace_core
+        from aitest.infrastructure.file_store.migrations import FileMigrationManager
+    
+        core = assemble_workspace_core(tmp_path, instance_id="maintenance-before")
+        manager = FileMigrationManager(tmp_path)
+        migration_id = "0001-workspace-schema-version"
+        plan = manager.plan([migration_id])
+        step = tmp_path / "migrations" / "steps" / plan.plan_id / f"{migration_id}.json"
+        step.parent.mkdir(parents=True, exist_ok=True)
+        step.write_text(json.dumps({"state": state, "plan_id": plan.plan_id}), encoding="utf-8")
+        if state == "corrupt":
+            with pytest.raises(ValueError):
+>               manager.maintenance_reason()
+
+tests\unit\test_completion_boundaries.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x000001A07F2357E0>
+
+    def maintenance_reason(self) -> str | None:
+        """Persisted uncertain steps block ordinary writes across core restarts.
+    
+        Prepared step files deliberately remain after success; the durable registry
+        distinguishes those from a forward operation whose result is still unknown.
+        This only reads progress and never automatically replays a migration.
+        """
+        applied = self._load_registry()
+        for path in sorted(self._steps_dir.glob("*/*.json")):
+            state = _load_json(path)
+            if state.get("plan_id") != path.parent.name or path.stem not in _BUILT_IN:
+                raise MigrationError("Ǩ�Ƽ��������޷���ʵ���ܾ���ҵ��д��")
+            status = state.get("state")
+            if status == "rollback_pending" or status == "prepared" and path.stem not in applied:
+                return f"migration recovery required: {path.parent.name}/{path.stem}"
+            if status not in {"prepared", "rolled_back"}:
+>               raise MigrationError("Ǩ�Ƽ���״̬�޷���ʵ���ܾ���ҵ��д��")
+E               aitest.infrastructure.file_store.migrations.MigrationError: Ǩ�Ƽ���״̬�޷���ʵ���ܾ���ҵ��д��
+
+src\aitest\infrastructure\file_store\migrations.py:327: MigrationError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_completion_boundaries.py::test_unresolved_migration_blocks_writes_after_restart_but_allows_diagnostics[corrupt]
+1 failed, 2 passed, 16 deselected in 4.04s

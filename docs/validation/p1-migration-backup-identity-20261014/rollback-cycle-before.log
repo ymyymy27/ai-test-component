@@ -1,0 +1,37 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+______ test_finished_rollback_before_cycle_publish_requires_a_new_backup ______
+
+manager = <aitest.infrastructure.file_store.migrations.FileMigrationManager object at 0x000001F1DE9B4440>
+
+    def test_finished_rollback_before_cycle_publish_requires_a_new_backup(
+        manager: FileMigrationManager,
+    ) -> None:
+        records = manager._root / "records.json"
+        records.write_text('{"records":{},"commit":0}', encoding="utf-8")
+        plan_id = _plan(manager)
+        first = manager.apply(plan_id)
+        assert first.backup_path is not None
+        cycle_path = manager._cycles_dir / f"{plan_id}.json"
+        active_cycle = cycle_path.read_bytes()
+        manager.rollback(plan_id)
+        # 模拟最后一个 rolled_back 已保存，但周期收尾写入前中断。
+        cycle_path.write_bytes(active_cycle)
+        records.write_text(
+            '{"records":{"saved_after_rollback":{"retained":true}},"commit":1}',
+            encoding="utf-8",
+        )
+        current_records = records.read_bytes()
+        first_identity = manifest_facts(first.backup_path)
+    
+        second = FileMigrationManager(manager._root).apply(plan_id)
+    
+>       assert second.backup_path is not None and second.backup_path != first.backup_path
+E       AssertionError: assert (WindowsPath('C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348') is not None and WindowsPath('C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348') != WindowsPath('C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348'))
+E        +  where WindowsPath('C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348') = ApplyReport(plan_id='plan-72011b2348', state='applied', executed=('0001-workspace-schema-version', '0002-records-inten...cle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348'), backup_outside_active_workspace=False).backup_path
+E        +  and   WindowsPath('C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348') = ApplyReport(plan_id='plan-72011b2348', state='applied', executed=('0001-workspace-schema-version', '0002-records-inten...cle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348'), backup_outside_active_workspace=False).backup_path
+E        +  and   WindowsPath('C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348') = ApplyReport(plan_id='plan-72011b2348', state='applied', executed=('0001-workspace-schema-version', '0002-records-inten...cle-before/test_finished_rollback_before_0/migrations/backups/plan-72011b2348'), backup_outside_active_workspace=False).backup_path
+
+tests\unit\test_a_migrations.py:417: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/unit/test_a_migrations.py::test_finished_rollback_before_cycle_publish_requires_a_new_backup

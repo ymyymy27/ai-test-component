@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="21" time="480.279" timestamp="2026-10-15T17:59:49.522619+08:00" hostname="d"><testcase classname="tests.unit.test_delivery_report_verification" name="test_report_projection_requires_matching_source_and_new_execution" time="0.695" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change0]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change1]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change2]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change3]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_projection_refuses_conflicting_or_unknown_scope[change4]" time="0.001" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_delivery_report_rechecks_evidence_bytes" time="0.571" /><testcase classname="tests.unit.test_delivery_report_verification" name="test_runtime_mapping_keeps_original_obligations_and_adds_effective_cases" time="0.617" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:5}-matched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:6}-mismatched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;passed&quot;:true}-no_result]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_saved_output_compared_to_independent_expected[{&quot;result&quot;:true}-mismatched]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes0]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes1]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes2]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes3]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_wrong_scope_rejected[changes4]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[[]]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[{&quot;result&quot;:5,&quot;result&quot;:6}]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_nonobject_and_ambiguous_output_rejected[{&quot;result&quot;:NaN}]" time="0.001" /><testcase classname="tests.unit.test_pure_function_verification" name="test_real_function_plan_execution_verification_report_export_restart" time="477.629"><failure message="aitest.domain.approvals.ApprovalConflict: this user interaction already confirmed another action">tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-43/test_real_function_plan_execut0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021506FDB020&gt;
+
+    def test_real_function_plan_execution_verification_report_export_restart(tmp_path, monkeypatch):
+        from tests.unit.test_configured_business_verification import (
+            test_published_plan_actual_execution_query_report_and_restart as chain,
+        )
+    
+&gt;       chain(tmp_path, monkeypatch, pure=True)
+
+tests\unit\test_pure_function_verification.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_configured_business_verification.py:293: in test_published_plan_actual_execution_query_report_and_restart
+    )
+tests\unit\test_execution_authorization_origin.py:112: in save
+    return service.grant(
+src\aitest\application\execution\authorization.py:587: in grant
+    confirmation = self.approvals.stage_confirmation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;aitest.application.approval_service.ApprovalService object at 0x0000021508703B60&gt;
+project_id = 'project-ticket'
+challenge_id = 'approval-challenge-4078f51cb3cd4457879e24f5b36943df'
+confirmation_intent_id = 'pure-step-1'
+parameters = {'execution_action_id': 'execution-action-99ea362734240acdd536f8dec6b41fe06a99b7610d4f595e2efe8b19c3e42b9a', 'record_revision': 1}
+trailing_records = 3
+
+    def stage_confirmation(
+        self,
+        *,
+        project_id: str,
+        challenge_id: str,
+        confirmation_intent_id: str,
+        parameters: Mapping[str, object],
+        trailing_records: int = 0,
+    ) -&gt; ActionConfirmation:
+        """Stage inside the caller's owned transaction, before its atomic effect.
+    
+        ``trailing_records`` is the caller's fixed batch layout, never a command
+        parameter. The basis-confirmation use case appends exactly one record.
+        Authorization requires its own effect adapter and is not exposed by the
+        current saved-basis resolver.
+        """
+        if type(trailing_records) is not int or trailing_records &lt; 0:
+            raise ValueError("the atomic confirmation layout must be exact")
+        actor = self.actors.current()
+        self.require_actor(project_id)
+        identity, fingerprint = self._confirmation_identity(
+            project_id, confirmation_intent_id, challenge_id, parameters
+        )
+        original = self._confirmed(project_id, identity, fingerprint)
+        if original is not None:
+            return original
+        challenge = self.read_challenge(project_id=project_id, challenge_id=challenge_id)
+        basis = self.resolver.resolve(
+            project_id=project_id,
+            intent_id=challenge.basis.intent_id,
+            action=challenge.basis.action,
+            target=challenge.basis.target,
+            parameters=parameters,
+        )
+        interaction = require_challenge_confirmation(challenge, actor, basis)
+        interaction_id = self._interaction_identity(
+            project_id, actor.session_id, interaction.interaction_id
+        )
+        if self._current("approval_interaction", interaction_id, project_id) is not None:
+&gt;           raise ApprovalConflict("this user interaction already confirmed another action")
+E           aitest.domain.approvals.ApprovalConflict: this user interaction already confirmed another action
+
+src\aitest\application\approval_service.py:419: ApprovalConflict</failure></testcase></testsuite></testsuites>

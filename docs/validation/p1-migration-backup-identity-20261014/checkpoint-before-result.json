@@ -1,0 +1,14 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/unit/test_a_migrations.py::test_controlled_resume_rejects_conflicting_checkpoint_identity",
+    "-q",
+    "--junitxml=docs\\validation\\p1-migration-backup-identity-20261014\\checkpoint-before.xml",
+    "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/controlled-checkpoint-before"
+  ],
+  "exit_code": 1,
+  "scope": "after backup/rollback fixes; before controlled checkpoint guard",
+  "migration_source_sha256": "25d119f9af3d80447195cf3cf66eba27d67038350c6a5c417964493111a3f292"
+}

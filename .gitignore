@@ -20,6 +20,19 @@ build/
 /tmp????????
 # 同为 TEMP 回退的残迹：smoke_wheel.py 的 TemporaryDirectory（前缀 aitest-wheel-）。
 /aitest-wheel-*/
+# 同类 TEMP 回退残迹：备份/迁移/重试/退回用例造"工作空间之外"的外部目标或工作空间
+# （aitest-backup-dest-*、aitest-backup-ws-*、aitest-backup2-*、aitest-migrate-ws-*、
+# aitest-retry-entry-*、aitest-return-entry-*）。tests/conftest.py 会按会话清理，
+# 这里再锚定根目录忽略一次，避免会话中出现于 git status。
+/aitest-backup-dest-*/
+/aitest-backup-ws-*/
+/aitest-backup2-*/
+/aitest-migrate-ws-*/
+/aitest-retry-entry-*/
+/aitest-return-entry-*/
+# 调试/冒烟脚本的临时目录同样会因 TEMP 回退落到仓库根。
+/dsh-*/
+/dbg-*/
 dist/
 .DS_Store
 Thumbs.db

@@ -1,0 +1,12 @@
+F821 Undefined name `hashlib`
+   --> tests\unit\test_a_a08_load_source_probe.py:302:42
+    |
+300 |     assert observed.probe_error is None
+301 |     assert b"ATTEST_BYTECODE_CANARY" not in observed.raw_output
+302 |     assert observed.modules[0].sha256 == hashlib.sha256(source.read_bytes()).hexdigest()
+    |                                          ^^^^^^^
+303 |     assert cache.read_bytes() == content
+304 |     assert sorted(p.name for p in cache.parent.iterdir()) == [cache.name]
+    |
+
+Found 1 error.

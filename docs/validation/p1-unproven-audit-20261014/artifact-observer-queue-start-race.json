@@ -1,0 +1,6 @@
+{
+  "state": "not_verified",
+  "exception_type": "FileNotFoundError",
+  "safe_reason": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\86178\\\\.codex\\\\worktrees\\\\p1-unproven-boundaries\\\\ai-test-component\\\\docs\\\\validation\\\\p1-unproven-audit-20261014\\\\queue-state.json'",
+  "ended_at": "2026-10-14T03:49:46.571443+00:00"
+}

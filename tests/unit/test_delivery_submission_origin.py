@@ -108,7 +108,7 @@ def prepare(core, base):
     return core.api.dispatch(
         Command(
             action="prepare_approval",
-            project_id="project",
+            project_id=base.project_id,
             request_id="review-" + base.request_id,
             intent_id="review-" + base.intent_id,
             expected_revision=0,
@@ -148,6 +148,24 @@ def test_default_submission_is_negotiated_but_labels_and_agents_cannot_confirm(d
     assert core.unit_of_work.repo.current_revision("delivery_submission", "submission") == 0
 
 
+def test_real_saved_submission_view_reads_revision_from_record_envelope(delivery_core):
+    core, command, *_ = delivery_core
+    challenge = prepare(core, command)
+    assert challenge.error is None, challenge.error
+    result = confirm(core, command, challenge.result)
+    assert result.error is None, result.error
+    stored = core.unit_of_work.repo.read(
+        aggregate_kind="delivery_submission", record_id="submission", revision=1,
+    )
+    assert "revision" not in stored.payload
+    view = core.view_queries.delivery_view(
+        project_id=command.project_id, delivery_id="delivery", submission_id="submission",
+    )
+    assert view.submission.revision == stored.revision == 1
+    assert view.submission.submission_id == "submission"
+    assert view.verification_state == "required_verification_incomplete"
+
+
 def test_formal_record_freezes_five_materials_and_keeps_every_scope_unverified(delivery_core):
     core, base, _, draft, *_ = delivery_core
     challenge = prepare(core, base)
@@ -164,9 +182,14 @@ def test_formal_record_freezes_five_materials_and_keeps_every_scope_unverified(d
     response = confirm(core, base, challenge.result)
     assert response.error is None
     assert response.result["status"] == "submitted"
-    assert response.result["verification_state"] == "unverified"
+    # 核验状态按功能 §14 的冻结词汇派生：草稿只有自述完成、没有任何已验证范围
+    # ⇒ 「必要核验未完成」；BD-001 §7.2 要求此时**不得显示为已完成**。
+    assert response.result["verification_state"] == "required_verification_incomplete"
     assert response.result["verified_in_scope"] == []
     assert response.result["unverified_scope"] == ["ticket-created", "ticket-rejected"]
+    # 自述与验证分列（BD-001 §7.2 第 1 条）：自述内容原样回执，不并入验证结论。
+    assert response.result["self_reported_completed"] == ["developer says ticket is complete"]
+    assert response.result["self_reported_incomplete"] == []
     assert core.unit_of_work.current_commit_sequence() == before + 6
     saved = core.unit_of_work.repo.read(
         aggregate_kind="delivery_submission", record_id="submission", revision=1
@@ -301,7 +324,8 @@ def test_lost_reply_and_restart_read_original_after_draft_and_current_source_cha
         )
         assert replay.error is None
         assert replay.result["version"] == draft.version
-        assert replay.result["verification_state"] == "unverified"
+        # 重启后按同一原意图读回：核验状态同样由已保存交付说明派生（不是固定值）。
+        assert replay.result["verification_state"] == "required_verification_incomplete"
         assert restarted.unit_of_work.current_commit_sequence() == before
         assert (
             restarted.unit_of_work.repo.current_revision("delivery_submission", "submission") == 1

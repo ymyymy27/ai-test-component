@@ -8,7 +8,7 @@ from aitest.contracts.execution_facts import ExecutionFacts
 
 FIXTURES = (
     Path(__file__).resolve().parents[2]
-    / "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures"
+    / "docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures"
 )
 
 
@@ -22,12 +22,15 @@ FIXTURES = (
         "timeout.json",
         "multistream.json",
         "non_utf8.json",
+        "business_failure.json",
     ],
 )
 def test_public_execution_facts_fixture_validates(fixture_name: str) -> None:
     payload = json.loads((FIXTURES / fixture_name).read_text(encoding="utf-8"))
     facts = ExecutionFacts.model_validate(payload)
     assert facts.schema_version == "aitest.execution-facts/1.0"
+    consumer = Path(__file__).parent / "fixtures/execution_facts" / fixture_name
+    assert payload == json.loads(consumer.read_text(encoding="utf-8"))
 
 
 def test_public_non_utf8_fixture_matches_sidecar_bytes() -> None:

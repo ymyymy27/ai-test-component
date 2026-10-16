@@ -346,7 +346,7 @@ def test_review_provider_cannot_mutate_the_original_request_basis():
     assert request.expected_facts == {"paid": True}
 
 
-def test_default_handler_rejects_injected_query_material_and_reports_missing_capability(tmp_path):
+def test_default_handler_rejects_injected_query_material_and_missing_operation(tmp_path):
     core = assemble_workspace_core(tmp_path, instance_id="query-default-core")
     try:
         saved = core.business_verification
@@ -371,6 +371,58 @@ def test_default_handler_rejects_injected_query_material_and_reports_missing_cap
         assert error.value.code == "INVALID_REQUEST"
         with pytest.raises(Exception) as error:
             saved.apply(cmd)
-        assert error.value.code == "CAPABILITY_UNAVAILABLE"
+        assert error.value.code == "BUSINESS_VERIFICATION_BLOCKED"
+        assert "saved current operation" in str(error.value)
     finally:
         core.lifetime_lock.release()
+
+
+def test_missing_capability_message_names_required_host_and_case_configuration(tmp_path) -> None:
+    """Missing wiring names the supported registration without claiming case fields are absent."""
+
+    core = assemble_workspace_core(tmp_path, instance_id="query-diagnosis-core")
+    try:
+        saved = core.business_verification
+        assert saved is not None
+        prepared = SimpleNamespace(
+            frozen_cases=(
+                SimpleNamespace(
+                    case_id="case-1",
+                    independent_verification="只读HTTP查询同一业务对象",
+                    steps=(SimpleNamespace(step_id="step"),),
+                ),
+            ),
+            environment=SimpleNamespace(
+                environment_id="env-1",
+                revision=3,
+                model_fields={
+                    "environment_id": None,
+                    "revision": None,
+                    "isolation_mode": None,
+                },
+            ),
+        )
+        saved.authorizations = Mock()
+        saved.authorizations._context.return_value = (None, None, prepared, None)
+        message = saved._missing_verification_declarations(  # noqa: SLF001
+            {"project_id": "project", "run_id": "run", "step_id": "step"}
+        )
+    finally:
+        core.lifetime_lock.release()
+
+    assert message.startswith("a trusted business query resolver/adapter is not configured")
+    # 已冻结材料：环境身份与独立核验方式登记情况。
+    assert "env-1@3" in message
+    assert '"independent_verification_registered": true' in message
+    assert '"case_id": "case-1"' in message
+    # 登记位置已有定义；缺宿主装配不等于所有用例都缺结构化依据。
+    for name in ("business_object_id", "url_template", "expected_facts"):
+        assert name in message
+    assert (
+        '"http_verification_required_configuration": ["AITEST_BUSINESS_QUERIES: '
+        in message
+    )
+    assert '"pure_function_basis": "aitest.pure-function-basis/1: expected_facts"' in message
+    assert "能力与模板清单" in message and "架构 01" in message
+    assert "BC-001 0.51" in message and "aitest.business-query-basis/1" in message
+    assert "业务对象ID" in message and "目标服务身份/部署版本" in message

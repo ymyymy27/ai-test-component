@@ -1,0 +1,120 @@
+{
+  "reports": [
+    {
+      "record_sha256": "cc63be8b5717e2ee2fa866af641f27b5d2dca47da0b9f9cea2ee3c21d2ec8e6d",
+      "decision": {
+        "business_outcome": "passed",
+        "case_ids_revision": "sha256:1801258bc32ed622a6f2b8d42555fce5e0e6eef6c74df336678b19b3a7281c34",
+        "coverage": {
+          "executed": [
+            "library-boundary",
+            "library-error",
+            "library-normal",
+            "library-syntax"
+          ],
+          "passed": [
+            "library-boundary",
+            "library-error",
+            "library-normal",
+            "library-syntax"
+          ],
+          "required": [
+            "library-boundary",
+            "library-error",
+            "library-normal",
+            "library-syntax"
+          ],
+          "reused": [],
+          "selected": [
+            "library-boundary",
+            "library-error",
+            "library-normal",
+            "library-syntax"
+          ],
+          "verified": [
+            "library-boundary",
+            "library-error",
+            "library-normal",
+            "library-syntax"
+          ]
+        },
+        "decisive_failures": [],
+        "evidence_grade": "A",
+        "gaps": [],
+        "policy_version": "1.0",
+        "primary_gap": null,
+        "snapshot_commit_id": "commit-219",
+        "snapshot_cursor": 219,
+        "source_commit": "sha256:2eadb0801efb9205dd55d9873481151752c060f7bb6891b5c8e5849235a85124"
+      }
+    }
+  ],
+  "observations": [
+    {
+      "attempt_id": "execution-attempt-1ba70bae61f80b777b8467d7ff924442fdf4a2f256f2386566bfaeb996d4a224",
+      "process_start_identity": "win32-pid:45388:created:134365592902892387",
+      "executing_process_start_identity": "win32-pid:29896:created:134365592903229978",
+      "complete": true,
+      "gaps": [],
+      "files": [
+        {
+          "content_digest": "sha256:1a4963b20a7416bada1f4469b57cdeb3b3b9071b59ff572ffefeb5b01d2da30d",
+          "relative_path": "main.py"
+        }
+      ],
+      "policy": "python-script/1"
+    },
+    {
+      "attempt_id": "execution-attempt-142d2be56f8f94c0597ec588a3755e865a8795958844abd4c9013ea74f753201",
+      "process_start_identity": "win32-pid:39660:created:134365596902956793",
+      "executing_process_start_identity": "win32-pid:48076:created:134365596903289044",
+      "complete": true,
+      "gaps": [],
+      "files": [
+        {
+          "content_digest": "sha256:1a4963b20a7416bada1f4469b57cdeb3b3b9071b59ff572ffefeb5b01d2da30d",
+          "relative_path": "main.py"
+        }
+      ],
+      "policy": "python-script/1"
+    },
+    {
+      "attempt_id": "execution-attempt-50d69f101a2a7bbed8d3aef212269a03f27f21176155a81997c3d773e3d3b4ad",
+      "process_start_identity": "win32-pid:42984:created:134365599024094884",
+      "executing_process_start_identity": "win32-pid:45576:created:134365599024416595",
+      "complete": true,
+      "gaps": [],
+      "files": [
+        {
+          "content_digest": "sha256:1a4963b20a7416bada1f4469b57cdeb3b3b9071b59ff572ffefeb5b01d2da30d",
+          "relative_path": "main.py"
+        }
+      ],
+      "policy": "python-script/1"
+    },
+    {
+      "attempt_id": "execution-attempt-7b30e67936e2c3d1d18c928e13fe85885cfe3fb6878462229729f697c71ddfe5",
+      "process_start_identity": "win32-pid:33764:created:134365594809610574",
+      "executing_process_start_identity": "win32-pid:45744:created:134365594809947990",
+      "complete": true,
+      "gaps": [],
+      "files": [
+        {
+          "content_digest": "sha256:1a4963b20a7416bada1f4469b57cdeb3b3b9071b59ff572ffefeb5b01d2da30d",
+          "relative_path": "main.py"
+        }
+      ],
+      "policy": "python-script/1"
+    }
+  ],
+  "carriers": [
+    "sha256:53871133982f3611f9850c608eee98b73894985c78947dab7965e009be479528"
+  ],
+  "delivery_projections": [
+    {
+      "verified_in_scope": [],
+      "unverified_scope": []
+    }
+  ],
+  "scope": "component sample; human approvals are fixtures; not real Trae acceptance"
+}

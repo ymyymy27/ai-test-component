@@ -16,6 +16,18 @@ from aitest.infrastructure.adapters.source_snapshot import (
 from aitest.infrastructure.file_store.workspace import Workspace
 
 
+def test_explicit_root_selection_keeps_nested_files_and_detects_additions(tmp_path):
+    source = tmp_path / "source"
+    (source / "package").mkdir(parents=True)
+    (source / "main.py").write_text("import package.module", encoding="utf-8")
+    (source / "package/module.py").write_text("VALUE = 1", encoding="utf-8")
+    store = FileSourceSnapshotStore(tmp_path / "workspace")
+    snapshot = store.pin(canonical_path=str(source), purpose="prepare", selected_paths=["."])
+    assert {item["relative_path"] for item in snapshot["files"]} == {"main.py", "package/module.py"}
+    assert store.detect_changes(snapshot["snapshot_id"])["state"] == "unchanged"
+    (source / "package/new.py").write_text("VALUE = 2", encoding="utf-8")
+    assert store.detect_changes(snapshot["snapshot_id"])["state"] != "unchanged"
+
 @pytest.fixture
 def source(tmp_path: Path) -> Path:
     directory = tmp_path / "project-src"

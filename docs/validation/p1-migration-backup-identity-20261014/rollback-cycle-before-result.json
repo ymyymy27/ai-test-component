@@ -1,0 +1,14 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/unit/test_a_migrations.py::test_finished_rollback_before_cycle_publish_requires_a_new_backup",
+    "-q",
+    "--junitxml=docs\\validation\\p1-migration-backup-identity-20261014\\rollback-cycle-before.xml",
+    "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/rollback-cycle-before"
+  ],
+  "exit_code": 1,
+  "scope": "after initial identity patch, before rollback-cycle ordering fix",
+  "migration_source_sha256": "31a3d7dbb40048b6475f4dfb3bedc7c32440e454f3efc1227033584ad807224c"
+}

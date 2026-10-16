@@ -1,0 +1,143 @@
+[
+  {
+    "command": [
+      "uv",
+      "sync",
+      "--extra",
+      "dev",
+      "--locked",
+      "--python",
+      "3.13"
+    ],
+    "environment": ".runtime/completion-clean313",
+    "exit_code": 0,
+    "log": "locked-install.log"
+  },
+  {
+    "command": [
+      "uv",
+      "python",
+      "install",
+      "3.11",
+      "3.12"
+    ],
+    "exit_code": 0,
+    "log": "python-install.log",
+    "scope": "Managed interpreter directories; existing user executable aliases retained, not forced"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "test"
+    ],
+    "cwd": "integrations/trae",
+    "exit_code": 0,
+    "log": "host.log",
+    "tests": 21
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "package"
+    ],
+    "cwd": "integrations/trae",
+    "exit_code": 0,
+    "log": "vsix-verified.log",
+    "prior_failure_log": "vsix.log"
+  },
+  {
+    "command": [
+      "uv",
+      "run",
+      "--no-project",
+      "--with",
+      "jsonschema",
+      "--with",
+      "pydantic==2.13.5",
+      "--python",
+      "3.13",
+      "python",
+      ".runtime/check_read_schema.py"
+    ],
+    "exit_code": 0,
+    "log": "schema-validator-verified.log",
+    "vectors": 14,
+    "prior_failure_log": "schema-validator-before.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0,
+    "log": "ruff.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0,
+    "log": "mypy.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/generate_schemas.py"
+    ],
+    "exit_code": 0,
+    "scope": "ReadViewQuery regenerated from source; existing contract schemas remain generated"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "-m",
+      "build"
+    ],
+    "exit_code": 0,
+    "log": "build.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/smoke_wheel.py"
+    ],
+    "exit_code": 0,
+    "log": "wheel-smoke.log"
+  },
+  {
+    "command": [
+      ".runtime/completion-clean313/Scripts/python.exe",
+      "scripts/verify_artifacts.py"
+    ],
+    "exit_code": 0,
+    "log": "artifacts.log"
+  },
+  {
+    "command": "compat311-command.json",
+    "result": "compat311-result.json",
+    "log": "compat311.log",
+    "tests": 107
+  },
+  {
+    "command": "compat312-command.json",
+    "result": "compat312-result.json",
+    "log": "compat312.log",
+    "tests": 107
+  },
+  {
+    "command": "full-command.json",
+    "state": "full-state.json",
+    "scope": "completed original source dba1d4b: 5290 passed / 1 failed / 6 skipped; repaired source full suite recorded separately",
+    "result": "full-result.json",
+    "exit_code": 1
+  }
+]

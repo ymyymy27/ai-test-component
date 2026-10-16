@@ -1,0 +1,8 @@
+{
+  "python": "3.13.0 (tags/v3.13.0:60403a5, Oct  7 2024, 09:38:07) [MSC v.1941 64 bit (AMD64)]",
+  "core_modules": 234,
+  "core_lines": 71778,
+  "test_files": 350,
+  "test_lines": 80089,
+  "acceptance_sha256": "2dfc7fcbe7e90c5cd0d5968b6d984b291a9a5350936b649898bcf64e6328efb7"
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "input": [
+      "parent",
+      "parent.bin/child"
+    ],
+    "refused": true
+  },
+  {
+    "input": [
+      "parent.bin/child",
+      "PARENT"
+    ],
+    "refused": true
+  }
+]

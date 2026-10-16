@@ -1,0 +1,16 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/unit/test_migration_backup_location.py",
+    "tests/unit/test_a_migrations.py",
+    "tests/unit/test_a_a16_migration_rollback.py",
+    "-q",
+    "--junitxml=docs\\validation\\p1-migration-location-20261014\\components.xml",
+    "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/migration-location-final-tests"
+  ],
+  "exit_code": 0,
+  "seconds": 25.84104633331299,
+  "scope": "three complete small files; bootstrap/worker probes reject before heavy assembly"
+}

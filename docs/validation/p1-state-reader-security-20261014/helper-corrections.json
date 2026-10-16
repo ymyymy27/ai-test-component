@@ -1,0 +1,22 @@
+{
+  "scope": "validation helper/lint mistakes, not product counterexamples",
+  "events": [
+    {
+      "issue": "relative copy source resolved inside worktree instead of main root",
+      "resolution": "used explicit E:/ai-test-component source paths"
+    },
+    {
+      "issue": "new test decorator exceeded line limit",
+      "resolution": "split decorator; ruff recheck passed"
+    },
+    {
+      "issue": "new adapter fixture used nonexistent EntryKind.CLI",
+      "exception_type": "AttributeError",
+      "resolution": "used actual AGENT_RELAY; all 23 direct vectors and 56 whole-file tests then passed"
+    },
+    {
+      "issue": "startup fixture assumed every corrupt registry reaches migration instead of earlier integrity recovery rejection",
+      "resolution": "assert standard CoreAssemblyBlocked and original bytes/lock release; injected MigrationError separately verifies migration translation"
+    }
+  ]
+}

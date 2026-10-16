@@ -5,7 +5,7 @@ from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.records import FileRecordRepository
 
-FIXTURE_DIR = Path("docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures")
+FIXTURE_DIR = Path("docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures")
 
 
 def test_real_object_and_snapshot_round_trip(tmp_path: Path) -> None:

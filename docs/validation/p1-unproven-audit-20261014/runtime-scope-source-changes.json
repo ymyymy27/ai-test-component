@@ -1,0 +1,10 @@
+{
+  "previous_source_commit": "b55374aa0e4e0027d74bf35bb7dce50d5e2d68d5",
+  "intentional_changed_paths": [
+    "src/aitest/application/execution/commit.py",
+    "tests/unit/test_action_resolver.py",
+    "tests/unit/test_default_start_source_chain.py"
+  ],
+  "waiting_queue_only_stopped": true,
+  "main_full_untouched": true
+}

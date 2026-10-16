@@ -1,0 +1,223 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-5b2ec685207c49ceaafb86320d781dad",
+  "instance_id": "core-890e376b9e7d",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-library-register",
+  "binding_revision": null,
+  "result": {
+    "schema_version": "aitest.execution-facts/1.0",
+    "facts_id": "initial-run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+    "project_id": "trae-live-20261016",
+    "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+    "snapshot_commit_id": "commit-75",
+    "snapshot_cursor": 75,
+    "snapshot_revision": 1,
+    "committed_at": "2026-10-16T05:16:05.407026Z",
+    "run_revision": 1,
+    "plan_revision": {
+      "revision_id": "plan-library",
+      "revision_no": 1,
+      "digest": "sha256:e67f7c04de35178f4f60bb50b65a323c618f97476197227fc13cd5b87ea8ec96"
+    },
+    "runtime_revision_refs": [],
+    "run": {
+      "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+      "run_revision": 1,
+      "origin_workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+      "intent_id": "intent-40c305228842d71a9e077f49cd101dbaa2300665",
+      "tier": "full",
+      "driver": "planned",
+      "conclusion_ceiling": "passable",
+      "plan_revision": {
+        "revision_id": "plan-library",
+        "revision_no": 1,
+        "digest": "sha256:e67f7c04de35178f4f60bb50b65a323c618f97476197227fc13cd5b87ea8ec96"
+      },
+      "environment_ref": "env-library@1",
+      "environment_isolation_mode": "venv",
+      "rules_revision": "rules:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "control_state": "not_started",
+      "evidence_level": null,
+      "primary_gap_ids": [],
+      "coverage_summary": null,
+      "runtime_revision_refs": [],
+      "required_scope": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "selected_scope": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "source_binding_digest": null,
+      "result_ref": null,
+      "started_at": null,
+      "ended_at": null
+    },
+    "steps": [
+      {
+        "step_id": "step-ae03b58a9238ce19d81ded43f81ada96cba783e60512701030c00d4dc45ad40c",
+        "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+        "step_revision": 1,
+        "step_revision_ref": {
+          "step_revision_id": "step-revision-97c6baf4811191e11c4b4f78d9cce2326eabe0cd88c8d1820cad7f6865dda025",
+          "revision_no": 1,
+          "digest": "sha256:d1c949bccf6b0f46415146bb34f6c6311f032312fc304c50b2cd30be8dc1e1a3",
+          "inherited": false,
+          "base_step_revision_id": null
+        },
+        "ordinal": 1,
+        "case_id": "library-boundary",
+        "required_for_case": true,
+        "level": "L2",
+        "state": "pending",
+        "dependency_step_ids": [],
+        "registered_entry_ref": null,
+        "assertion_refs": [
+          "step-assertion-a4b2b85a18e25a042f2af4481d06069992c8b97bd65f59586acd9ba1121cc3b9"
+        ],
+        "evidence_requirement_ids": [],
+        "current_attempt_id": null,
+        "invalidated": false,
+        "invalidated_by": null,
+        "gap_ids": []
+      },
+      {
+        "step_id": "step-08528cb64ad86b8ea89747a4cdc6941161d2196faeedcff152c5899dd94aa439",
+        "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+        "step_revision": 1,
+        "step_revision_ref": {
+          "step_revision_id": "step-revision-7e0dc7d7f59344113a036e6e781932f87460c44308ad01d6d30360beb81e4479",
+          "revision_no": 1,
+          "digest": "sha256:65b56f0de0c9c1d8e5906e6f54e60a8f5cb5feb76ea3da66ea5f3519972cf5d5",
+          "inherited": false,
+          "base_step_revision_id": null
+        },
+        "ordinal": 2,
+        "case_id": "library-error",
+        "required_for_case": true,
+        "level": "L2",
+        "state": "pending",
+        "dependency_step_ids": [],
+        "registered_entry_ref": null,
+        "assertion_refs": [
+          "step-assertion-69345f5822a61cb72ecf21eee36f8cf945f9c04476bc466296a64f39414ab656"
+        ],
+        "evidence_requirement_ids": [],
+        "current_attempt_id": null,
+        "invalidated": false,
+        "invalidated_by": null,
+        "gap_ids": []
+      },
+      {
+        "step_id": "step-66f5f155ff64de845c3f51708fb48c7e2538b4904d1662dfa16906e64311a662",
+        "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+        "step_revision": 1,
+        "step_revision_ref": {
+          "step_revision_id": "step-revision-78be89cfcd6fa37a63b93c3210771c1159d549b8674ac67925abe49355eb197e",
+          "revision_no": 1,
+          "digest": "sha256:d33662efc1639209c13cd47fc2dffddd99d90a8814dc5b806c85a618a1e8ca50",
+          "inherited": false,
+          "base_step_revision_id": null
+        },
+        "ordinal": 3,
+        "case_id": "library-normal",
+        "required_for_case": true,
+        "level": "L2",
+        "state": "pending",
+        "dependency_step_ids": [],
+        "registered_entry_ref": null,
+        "assertion_refs": [
+          "step-assertion-61d6ecf83f17fad0f70fa49d6496f9befb5c8ba9044b4d8568d58e58786de5d8"
+        ],
+        "evidence_requirement_ids": [],
+        "current_attempt_id": null,
+        "invalidated": false,
+        "invalidated_by": null,
+        "gap_ids": []
+      },
+      {
+        "step_id": "step-ffccfcef8d2fc329166aef7e498eff83beda81bc2eaee217f6514bb97f370c1a",
+        "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+        "step_revision": 1,
+        "step_revision_ref": {
+          "step_revision_id": "step-revision-e414213066085fab00635209b07bc1812c8d674f8d725448f9f4232a1404f55c",
+          "revision_no": 1,
+          "digest": "sha256:d2df041a997082fc5acd7d13620ff45132e77c4d72f96954282f04dce1c4104d",
+          "inherited": false,
+          "base_step_revision_id": null
+        },
+        "ordinal": 4,
+        "case_id": "library-syntax",
+        "required_for_case": true,
+        "level": "L1",
+        "state": "pending",
+        "dependency_step_ids": [],
+        "registered_entry_ref": null,
+        "assertion_refs": [
+          "step-assertion-8f464aa776e4a0625baa92cfe2ea36f4e749ac1f14d9c95627ba4a4c96c1e007"
+        ],
+        "evidence_requirement_ids": [],
+        "current_attempt_id": null,
+        "invalidated": false,
+        "invalidated_by": null,
+        "gap_ids": []
+      }
+    ],
+    "attempts": [],
+    "current_attempt_by_step": {
+      "step-ae03b58a9238ce19d81ded43f81ada96cba783e60512701030c00d4dc45ad40c": null,
+      "step-08528cb64ad86b8ea89747a4cdc6941161d2196faeedcff152c5899dd94aa439": null,
+      "step-66f5f155ff64de845c3f51708fb48c7e2538b4904d1662dfa16906e64311a662": null,
+      "step-ffccfcef8d2fc329166aef7e498eff83beda81bc2eaee217f6514bb97f370c1a": null
+    },
+    "evidence_refs": [],
+    "source_check_results": [],
+    "source_verifications": [],
+    "verifications": [],
+    "mock_declarations": [],
+    "dependency_invalidations": [],
+    "unknowns": [],
+    "gaps": [
+      {
+        "gap_id": "execution-source-unverified-run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+        "kind": "source_verification",
+        "subject_ref": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+        "reason_code": "execution_not_started",
+        "safe_reason": "Actual interpreter, environment and business loading have not been verified.",
+        "critical": true,
+        "requires_user_action": false,
+        "created_at": null
+      }
+    ],
+    "coverage": {
+      "mandatory_case_ids": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "selected_case_ids": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "executed_attempt_ids": [],
+      "blocked_step_ids": [],
+      "invalidated_step_ids": [],
+      "unknown_step_ids": [],
+      "evidence_gap_count": 1,
+      "critical_gap_count": 1
+    },
+    "completeness": "unknown"
+  },
+  "page": null,
+  "error": null
+}

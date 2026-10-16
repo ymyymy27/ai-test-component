@@ -1,0 +1,11 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "mypy"
+  ],
+  "source_commit": "e7d6cb2da3fe7734a00a8864aca8754b28e8b4dc",
+  "started_at": "2026-10-14T10:45:48.937229+00:00",
+  "ended_at": "2026-10-14T10:45:49.783265+00:00",
+  "exit_code": 0
+}

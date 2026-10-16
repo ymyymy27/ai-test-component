@@ -1,0 +1,302 @@
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:1: trailing whitespace.
++# 当前代码分析与一期工程对比
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:2: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:3: trailing whitespace.
++2026-10-12 全源码完成性复核，Git 起点 `fix@708439b`；产品源码与 `develop@845e6978d522def651d5fec5a0b046126ffaaadd` 相同。当前状态与数字只读[项目现状](../../现状.md)。本轮不修产品代码，不修改一期范围或代填真实验收。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:4: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:5: trailing whitespace.
++## 1. 结论与判定方式
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:6: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:7: trailing whitespace.
++**一期没有全部完成，不能交付为“完整本地测试闭环”。** 项目/规划、文件底座及执行组件已有大量真实实现；报告/问题/安全导出/业务面板仍缺生产闭环。此外，本轮真实文件核对发现默认执行准备被快照身份/字段错接阻断（C-15），以及下游来源核验错误授予 verified（C-16）。前轮“默认注入即链路接通”的表述在本报告中更正。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:8: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:9: trailing whitespace.
++完成判断逐项使用：现行需求/功能义务 → 默认入口 → 应用用例 → 领域规则/端口 → 权威保存和重启读取 → DTO/界面/制品 → 异常验证 → 真实 AC。定义类、存在适配器、生成 Schema、组件测试或构建成功只证明其中一段。FR 状态不由源码行数或测试数量计算；不得将“验收登记为零”解释成“代码都没实现”。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:10: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:11: trailing whitespace.
++依据为[一期需求](../../项目文档/一期/需求文档/01-需求文档.md)、[功能逐项合同](../../项目文档/一期/功能文档/01-功能文档.md#10-逐功能操作合同)、[能力清单](../../项目文档/一期/功能文档/02-能力与模板清单.md)、一期架构 00—06 与[界面设计](../../项目文档/一期/设计文档/01-面板与工作台.md)。AC 场景和预期仍以需求第 5 节唯一维护；后续补充的 H、确认、问题查询、可携带证据等边界同样纳入，不截断为最初一句场景。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:12: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:13: trailing whitespace.
++## 2. 全源码核对范围与边界
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:14: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:15: trailing whitespace.
++以 Git 跟踪文件为范围：核心 Python、共享面板 TypeScript、Trae 扩展/桥、构建脚本及配置、工程脚本、示例均纳入清点。每个产品/工程 Python 文件读取全文并进行 AST 定义/导入/调用结构检查，逐模块核对职责与默认装配；核心执行、授权、证据、判定、持久提交和恢复风险函数深入阅读，TypeScript 入口全文核对。逐文件哈希/行数/符号/调用见[源码清单](../../validation/p1-source-completion-20261012/source-inventory.json)，人读入口见[逐文件模块表](../../validation/p1-source-completion-20261012/module-map.md)。该表的保存调用标记只是 AST 语法信号：协议/领域函数无需保存，委托保存也可能标 false，不能作为独立缺陷结论。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:16: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:17: trailing whitespace.
++模板版本数据与生成 Schema 单列核对；不把数据文件当执行引擎。tests 与历史 validation 探针只做清点、AST 解析和相关验证证据检索，没有逐行人工审计所有测试/历史脚本。node_modules、.venv、dist、.runtime 为依赖或生成/本机材料，不视作本项目新实现。**本轮完成性核对不等于逐行安全审计、所有潜在缺陷已排除或所有真实环境已验收。**
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:18: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:19: trailing whitespace.
++## 3. 新增缺陷与已知产品阻断
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:20: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:21: trailing whitespace.
++### C-15：默认快照身份/字段与执行目录接错（已复现默认阻断）
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:22: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:23: trailing whitespace.
++- 真实 B `analyze_project` 保存业务 `source-*`，记录另有技术 `pinned_snapshot_id=snap-*`。`SnapshotRef` 保存 `source_snapshot_id`；默认 `SavedActionResolver._snapshot` 把业务 ID 直接交 `StartMaterializer`/`FileSourceSnapshotStore`，后者只接受技术 snap-ID，报 `SnapshotError: pinned source snapshot identity is invalid`。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:24: trailing whitespace.
++- 用真实核心/UOW/固定字节、已有受控材料/环境夹具执行 prepare_run→register_run→未替换的默认解析器：准备状态为 prepared，但 prepare_execution 即失败，未启动业务。这是默认装配级证据，未冒充真实 Trae 人工验收。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:25: trailing whitespace.
++- 绕过前一层单独核对 provider：它读取 `snapshot.snapshot_id`，正式 DTO 实际是 `source_snapshot_id`；真实 verify_pinned 返回技术清单，没有 provider 要求的 `content_identity`。两个不匹配分别复现。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:26: trailing whitespace.
++- 同族静态缺陷：解析器虽计算 `workdir`/`cwd`，`ExecutionRequest.materialized_snapshot_ref` 却填 snapshot_id；默认 RegisteredEntryExecutionAdapter 将其当文件目录。此项当前被前置阻断遮挡，不宣称真实 start 已执行。需统一准确业务记录→技术清单/内容身份→实际固定 cwd 的端到端来源，不能关闭来源核验来绕开。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:27: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:28: trailing whitespace.
++### C-16：来源核验丢弃失败事实，SYNTAX 未实际检查（边界反例已复现）
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:29: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:30: trailing whitespace.
++为检查被 C-15 遮挡的逻辑，反例显式使用兼容字段替身；真实 blob 固定/物化和 Python 子进程仍执行。不得把该替身当已修生产桥接。三个反例分别为：平铺 entry.py 语法错误；一个正常包加一个导入 SyntaxError 的包；命名空间包内子文件语法错误加正常包。三组都返回 `verified`、空 gap。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:31: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:32: trailing whitespace.
++根因是无模块时仅核摘要/文件存在而未 compile；有模块时只取第一个非空 `item.file`，丢弃其他模块 `load_error`/无文件/摘要、probe_error 和实际解释器事实，且没有逐模块比较冻结内容。PythonLoadSourceProbe/evaluate_source_binding 组件存在并不表示 provider 消费了全部结果。关闭条件须覆盖语法、全部登记模块和入口的实际来源/摘要、失败分类以及永久原始输出。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:33: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:34: trailing whitespace.
++### 其他当前阻断
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:35: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:36: trailing whitespace.
++| 主题 | 直接代码证据 | 对完成性的影响 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:37: trailing whitespace.
++| --- | --- | --- |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:38: trailing whitespace.
++| A-19 锁定安装 | pyproject 与 uv.lock 的 Python 范围不同，--locked 真实失败 | 无法证明声明支持范围内可复现干净安装；--frozen 只为诊断 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:39: trailing whitespace.
++| D-10 事实适配 | 必需证据 conflict 仍 passed/A；同源 verified+unverified 仍 matched；非 current Attempt 仍计 E | 已复现规则适配缺陷，不能接生产报告后假报完整通过 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:40: trailing whitespace.
++| D 报告/问题/导出 | reporting/defect_management 无持久用例；exports.py 只有职责说明 | 无完整报告、独立复核、新执行关闭、Markdown/证据包产品闭环 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:41: trailing whitespace.
++| C 默认业务核验 | SavedBusinessVerification 已注册，但 resolver/port 默认 None | verify_pending 在真实核验依赖缺失时拒绝；不能声称默认 HTTP/数据库/多类业务已可用 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:42: trailing whitespace.
++| C 整用例复用 | inspect_case_reuse 只读；无选择保存动作；D adapted reused_case_ids 为空 | 合法 R 的持久选择/权威消费和 AC21/27 复用统计未实现闭环 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:43: trailing whitespace.
++| D 面板/受控宿主 | 静态三段，当前项目未选择；主要按钮 disabled，详情为空骨架 | 无计划/人工挑战/执行/问题/报告/设置真实用户流程；真实 Trae 未验 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:44: trailing whitespace.
++| A 产品恢复/完整留存 | 底层备份/迁移/活动守卫存在 | 未知发布人工入口、完整 C/D 永久材料闭包、物理掉电和真实宿主恢复仍欠验证 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:45: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:46: trailing whitespace.
++新增反例的脚本、JSON、原 stdout 与验证边界见[本轮证据](../../validation/p1-source-completion-20261012/README.md)。既有 A/B/C/D 稳定问题编号保持，详见四包检查；C-15/C-16 为新增，不重编号掩盖变化。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:47: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:48: trailing whitespace.
++## 4. 一期 17 FR 完成性对照
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:49: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:50: trailing whitespace.
++路径以 `src/aitest/` 为根，Trae 以仓库根为起点；测试文件是证据检索入口，不表示该 FR 全部测试/验收通过。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:51: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:52: trailing whitespace.
++| FR／功能 | 判断 | 已有代码 | 仍欠工作／不满足之处 | 主要触点 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:53: trailing whitespace.
++| --- | --- | --- | --- | --- |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:54: trailing whitespace.
++| P1-FR01 · 项目与模块 | 部分实现 | 项目/模块/绑定/依赖的纯模型、受控保存和 Git/plain 字节固定已存在。 | 缺当前项目选择、目录切换与设置产品链；默认执行来源被 C-15 阻断。 | `project/context.py、project/persistence.py、project/source_analysis.py；test_default_source_analysis.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:56: trailing whitespace.
++| P1-FR03 · 变更与回归 | 部分实现 | 反向依赖传播、循环去重、文件→模块映射、漂移和保存修订已存在。 | 真实变化→用户确认回归→新执行→问题/报告的闭环未贯通；单模块不免除本模块回归。 | `planning/regression_graph.py、planning/drift.py、domain/execution/dependencies.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:57: trailing whitespace.
++| P1-FR04 · 模板与草稿 | 组件较完整／产品未闭合 | 六份版本化模板、必测/关键链路校验、草稿来源与定向失效、受控模型编排已存在。 | 人工/模型草稿编辑和发布的真实宿主入口未完成；真实供应方故障与材料缺口仍待验收。 | `planning/draft.py、planning/model_orchestration.py、resources/templates/；test_template_content.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:58: trailing whitespace.
++| P1-FR05 · 规则版本 | 组件较完整／入口缺口 | 规则草稿/发布版本、JSON 和 Markdown 往返、来源保留、受控发布已存在。 | save_rules 默认名称未接；已有 import_rules/publish_rules 不能据此误写成完全无规则功能。缺用户编辑/确认与新旧版本产品对照。 | `planning/rules_markdown.py、planning/portable.py、planning/publish.py；test_rule_import_export_entrypoint.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:59: trailing whitespace.
++| P1-FR06 · 计划与用例 | 部分实现 | Case/AcceptanceScope、计划发布门禁、独立依据确认、prepare_run 与运行中修订材料已存在。 | save_plan 名称未接；面板实际编辑/确认/发布欠缺。执行被 C-15 阻断，D 权威结果消费未贯通。 | `planning/basis_confirmation.py、planning/prepare_run.py、execution/runtime_actions.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:60: trailing whitespace.
++| P1-FR07 · 档位与驱动 | 部分实现 | quick/on_demand/full 上限、planned→stepwise、范围冻结、非空 full 守卫与 H 失败优先已有规则。 | 整用例 R 选择/保存/判定消费缺失；D-10 当前性/必需证据守卫有已复现反例；真实三个档位和双驱动未验收。 | `domain/planning/plans.py、domain/review/reports.py、execution/reuse_inspection.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:61: trailing whitespace.
++| P1-FR08 · L1 源码检查 | 默认链阻断／核验缺陷 | 固定源码、物化映射、解释器探针和 PythonChecksAdapter 组件存在。 | C-15 默认编号/字段不匹配；C-16 无实际语法编译的 fallback、部分导入失败仍 verified。适用构建和显式最小启动缺产品配置，不能宣布豁免。 | `bootstrap.py:412、execution/action_resolver.py、infrastructure/adapters/execution/python_checks.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:62: trailing whitespace.
++| P1-FR09 · 工作台与控制 | 部分实现 | Run/Step/Attempt、原许可占用、检查点、串行有界调度和持久暂停/恢复/取消已有组件。 | 默认运行准备受 C-15 阻断；retry_step/attach_evidence/return_stage 未注册；工作台仍空骨架，半程操作/宿主恢复未验收。 | `execution/runner.py、execution/run_schedule.py、execution/saved_control.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:63: trailing whitespace.
++| P1-FR10 · L2 函数模块 | 部分实现 | 真实命令组件、独立预期比较规则与安全输出保存已存在，退出码不会自行成为业务通过。 | 默认实际执行受 C-15 阻断；独立核验默认端口缺配置。组件测试更换解析器/端口的事实必须单列。 | `infrastructure/adapters/execution/command.py、registered_entry.py、domain/execution/assertions.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:64: trailing whitespace.
++| P1-FR11 · L2 接口集成 | 部分实现 | HTTP 单次受控传输/断言、同对象只读查询/轮询与 saved verification 材料组件已存在。 | 默认执行端口为命令端口，缺完整 HTTP 流程产品装配；business_verification_resolver/port 默认 None，串联同对象→最终持久核验→报告未闭合。 | `infrastructure/adapters/execution/http.py、business_query.py、application/evidence/saved_verification.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:65: trailing whitespace.
++| P1-FR12 · Mock 与真实性 | 部分实现 | Mock/混合/未知事实、独立证据规则与真实性约束模型已存在。 | 缺完整生产采集/核验配置和实际呈现；D-10 适配不能可靠反映必需证据/来源缺口。声明与组件测试均不证明真实链路。 | `domain/evidence/evidence.py、application/review/execution_decision_adapter.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:66: trailing whitespace.
++| P1-FR13 · L3 业务场景 | 部分实现 | 人工七类操作结构、Agent 工具材料、外部导入验证和附件永久保存已有组件。 | 人工 adapter 只构造记录/TraceNode，Agent 不产生独立通过；缺受控人工补证入口与完整业务对象/最终核验产品链，外部导入不等于本地实际执行。 | `infrastructure/adapters/execution/manual_evidence.py、agent.py、application/evidence/external_imports.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:67: trailing whitespace.
++| P1-FR14 · 报告与导出 | 关键产品用例未实现 | 纯判定、不可变报告/复核/导出键规则、DecisionDTO/S/M/H 投影已有。 | reporting.py 明确不实现持久化；create_report/record_local_review/export_report 没有 handler；exports.py 只有职责说明，无 Markdown/可携带证据包制品。 | `application/review/reporting.py、domain/review/reports.py、infrastructure/exports.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:68: trailing whitespace.
++| P1-FR15 · 缺陷与回归 | 关键产品用例未实现 | 问题状态/处置/阻塞纯规则、issues.list 有限查询/DTO 已存在。 | update_issue/record_fix/request_regression/close_issue/copy_repair_brief 未接默认入口；门面接收调用方 ClosureEvidence，没有权威读取新实际回归并持久关闭的生产用例。 | `application/review/defect_management.py、domain/review/defects.py、infrastructure/file_store/index.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:69: trailing whitespace.
++| P1-FR16 · 永久留存 | 底座已实现／产品与实测未闭合 | 不可变记录、单写锁、current/清单、永久对象、有界索引/事件、备份/迁移/活动恢复已有实现。 | 完整报告/复核/导出尚无永久材料；backup/migrate 缺受控产品入口，未知发布处置/全历史闭包/物理掉电未验收；A-19 干净锁定安装失败。 | `infrastructure/file_store/*；test_atomic_and_lock.py、test_execution_closure.py` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:70: trailing whitespace.
++| P1-FR17 · 面板与宿主 | 原型／只读诊断桥 | 共享面板三段/详情骨架、doctor/空间/事件回执、Trae 经既有 CLI 的只读桥和 ensure-core 已存在。 | 当前项目固定为未选择；生成/开始按钮 disabled；详情是静态说明，无业务 DTO、配对快照订阅、人工挑战/计划/问题/报告/设置流程；真实 Trae 未验收。 | `resources/panel/src/index.ts、integrations/trae/src/extension.ts、core-bridge.ts` |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:71: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:72: trailing whitespace.
++未将任何一项标成“全部完成并验收”。这不否定已实现组件；每项尚欠的生产或真实验收边界已逐项列出，不给虚假的整体百分比。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:73: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:74: trailing whitespace.
++## 5. 一期 35 AC：源码支撑与未完成条件
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:75: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:76: trailing whitespace.
++登记状态来自 `tests/acceptance/p1/status.json`，保持原结果和证据路径。表中场景名是检索摘要，完整场景、expected、related_frs 沿用需求与台账原文；没有重写或降低主责合同。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:77: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:78: trailing whitespace.
++| AC | 场景摘要 | 现登记 | 代码支撑 | 尚缺／阻断 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:79: trailing whitespace.
++| --- | --- | --- | --- | --- |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:80: trailing whitespace.
++| P1-AC01 | 交付必填信息 | not_verified | B 任务/提测校验与保存 | 缺真实用户缺字段提测、提示与阻止推进证据；不可据组件通过关闭。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:81: trailing whitespace.
++| P1-AC02 | 外部绿色但业务失败 | untested | D 领域失败优先／C HTTP 组件 | 缺权威业务断言→报告→面板链；D-10 守卫缺陷。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:82: trailing whitespace.
++| P1-AC03 | 单模块检查与回归 | not_verified | B 单模块/回归规则与 plain 分析 | C-15 阻断默认执行；缺单模块真实适用检查与回归证据。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:83: trailing whitespace.
++| P1-AC04 | 无页面的两后端模块 | untested | C 命令/HTTP 组件、B 适用性 | 缺多模块 L1/L2/业务 L3 生产装配；无前端仅网页不适用。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:84: trailing whitespace.
++| P1-AC05 | 允许 Mock 的局部通过 | untested | C Mock 模型、D 领域限制 | 缺实际 Mock 采集/核验/报告，不能由声明证明集成。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:85: trailing whitespace.
++| P1-AC06 | 未声明模拟、未知与冲突 | untested | C 真实性事实、D 缺口规则 | 缺真实候选→取证→混合/未知呈现和对应拒绝场景。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:86: trailing whitespace.
++| P1-AC07 | 假成功与写前过滤 | untested | C 安全采集/独立业务查询组件 | 默认核验 resolver/port 缺失；D 报告未接，全制品安全链未闭合。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:87: trailing whitespace.
++| P1-AC08 | 七类人工操作与问题查询 | untested | C ManualOperationType、D issues.list 索引/DTO | 无人工工作台/补证 handler 和持久问题链；14 掩码组件不等于 UI/真实七类操作验收。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:88: trailing whitespace.
++| P1-AC09 | 同次请求和日志关联 | untested | C Evidence/TraceNode 事实 | 缺真实请求/后端日志产品采集与证据详情；不得以时间猜关联。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:89: trailing whitespace.
++| P1-AC10 | AI 根因是假设 | untested | B 模型草稿边界、D 问题结构 | 缺事实/假设编辑、驳回留痕及持久缺陷产品流程。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:90: trailing whitespace.
++| P1-AC11 | 修复后复测仍失败 | untested | D defects.record_failed_regression 纯规则 | 缺 record_fix/request_regression 与权威新执行读取/持久重开。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:91: trailing whitespace.
++| P1-AC12 | 变化绑定新版本 | not_verified | B 修订、来源检查/漂移 | 缺真实新执行与新旧报告；C-15 阻断默认生产消费。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:92: trailing whitespace.
++| P1-AC13 | 环境与 editable/PYTHONPATH 来源 | untested | C 来源探针/准入 | C-15 默认接线阻断；C-16 语法/多模块错误仍 verified；实际来源对拍未验收。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:93: trailing whitespace.
++| P1-AC14 | 阻塞问题与处置 | untested | D 有效阻塞/归并/处置纯规则 | 缺受控持久人工处置和关联报告，归并主问题重开需产品对拍。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:94: trailing whitespace.
++| P1-AC15 | 模型失败仍人工处理 | untested | B 按动作降级/已有证据保存 | 缺人工结论和问题提交入口，真实供应方失败未验收。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:95: trailing whitespace.
++| P1-AC16 | 统一报告、安全导出 | untested | D ReportExport 规则；A 投影 | 实际 export_report/制品实现缺失。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:96: trailing whitespace.
++| P1-AC17 | 模板草稿与发布门禁 | not_verified | B 六模板/缺口/受控发布 | 缺两个真实项目的用户修改/确认/消费证据。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:97: trailing whitespace.
++| P1-AC18 | 档位上限与跳过 | untested | B 范围冻结；D quick/on_demand 规则 | 缺三档真实报告/面板及逐步重跑；默认执行 C-15。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:98: trailing whitespace.
++| P1-AC19 | 控制、重试、双入口与恢复 | untested | C 持久控制/幂等/定向失效 | retry/return_stage 缺入口；默认 C-15；真实宿主/停止未核实/H 与整用例统计链未验收。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:99: trailing whitespace.
++| P1-AC20 | 半程修订与收窄 | blocked | B/C 保存修订、旧依据与拒绝规则 | 机器台账 blocked；缺真实半程业务 UI 和 D 过期依据报告，不能改成 verified。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:100: trailing whitespace.
++| P1-AC21 | 完成与有效验证、补确认、复用 | untested | B exact basis confirmation；D S/M 与报告纯规则 | C-01 没有保存 R；D-10/D 生产判定缺口；报告/面板计数与旧字节对拍欠缺。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:101: trailing whitespace.
++| P1-AC22 | 业务结果与 A/B/C/D | untested | D 唯一领域判定与 DTO | 纯规则已有；D-10 事实到规则不可靠，生产报告未接。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:102: trailing whitespace.
++| P1-AC23 | 三档快速范围与单模块 | untested | B 档位/回归准备规则 | 首次 quick 保守范围到实际执行/独立核验/报告仍需贯通。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:103: trailing whitespace.
++| P1-AC24 | 漏必测/链路、多步骤聚合 | untested | B 发布门禁；C 依赖/聚合；D 规则 | 默认核验缺失、R 无保存、D-10 必需证据/current 守卫；UI 待补事实欠缺。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:104: trailing whitespace.
++| P1-AC25 | 非 Git 也可完成闭环 | untested | B plain 与省略仓库字段 | 建项目/固定字节已有；C-15 和 D 无导出阻断完整 L1/L2/L3→报告，UI plain 真实对照未验。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:105: trailing whitespace.
++| P1-AC26 | 三段信息与业务动作 | untested | D 面板/Trae 只读桥 | 按钮禁用/业务详情空骨架，开始/控制/导出/计划/按需范围不存在真实用户流程。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:106: trailing whitespace.
++| P1-AC27 | 同源 DTO/报告/事件 | untested | A 快照游标/事件；D DTO | A 组件存在；面板无配对快照消费、报告未持久发布，重复/epoch/计数真实对拍欠缺。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:107: trailing whitespace.
++| P1-AC28 | 全历史保留与备份迁移 | untested | A 清单/对象/闭包/活动守卫 | D 永久报告/复核/导出缺材料；未知发布产品恢复/全历史真实备份迁移/掉电未验。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:108: trailing whitespace.
++| P1-AC29 | 独立本地复核 | untested | D LocalReview 纯对象/准确修订校验 | record_local_review 未注册、无受控人工保存/报告变更后新修订/含复核安全导出。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:109: trailing whitespace.
++| P1-AC30 | 最小输入、无模型分析 | not_verified | B 显式 analyze_project/人工材料保存 | 用户首次向导缺失；默认执行 C-15/L1 C-16；无模型到实际人工计划/运行欠真实证据。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:110: trailing whitespace.
++| P1-AC31 | 范围与逐项人工授权 | not_verified | B/C 受控挑战、输入修订绑定；MCP 禁人工 | 组件与安全守卫存在；受控 Trae 人工交互未实现，默认 C-15；两范围/改输入真实取证欠缺。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:111: trailing whitespace.
++| P1-AC32 | 出站策略与关 AI | not_verified | B ModelOutboundPolicy/安全投影/模型编排 | 缺真实设置/首次确认/换目标交互；无 AI 的人工报告流程未闭合。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:112: trailing whitespace.
++| P1-AC33 | 下一步与复制修复说明 | untested | C 未知不重放；D 问题规则 | primary_action/RepairBrief 生产投影及 copy_repair_brief handler 缺失；静态下一步不是原因驱动。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:113: trailing whitespace.
++| P1-AC34 | 历史、隐藏、关闭重开 | untested | A 有限查询/保活/排空组件 | save_project_view_preference 和真实历史/修订 UI 缺失；真实 Trae 重开/键盘/索引异常链未验。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:114: trailing whitespace.
++| P1-AC35 | 可携带证据包与安全失败 | untested | A 对象/投影；D 导出键规则 | 无实际 export_report 制品，搬目录/跨机/附件摘要/排除清单/越界拒绝整体发布尚无法验收。 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:115: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:116: trailing whitespace.
++共同前提：真实 Windows 11 x64/Python 3.13/Trae 上的用户输入、制品/配置版本、预期/实际和原始材料须逐 AC 登记；真实子进程/真实文件组件不是完整 AC。机器台账中的旧 prerequisites 有阶段快照，本次差异以本报告和项目现状说明；本轮未把这些新反例代填为任何验收通过。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:117: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:118: trailing whitespace.
++## 6. 按层核对：已经实现什么，哪里断开
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:119: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:120: trailing whitespace.
++| 源码组 | 核对结果 | 默认生产链与剩余边界 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:121: trailing whitespace.
++| --- | --- | --- |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:122: trailing whitespace.
++| contracts/、domain/json_material | 稳定身份、严格 JSON/Schema、版本/有限查询和来源字段已存在 | 合同接受的字段形状不是当前事实真实性证明；C-15 展现同仓组件字段仍可错接 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:123: trailing whitespace.
++| domain/project、planning | 项目/绑定/环境/来源、规则/范围/Case、档位/修订和确认纯规则 | 规则对象不代替人工来源、实际环境或 UOW/产品入口 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:124: trailing whitespace.
++| application/project、planning | 精确修订保存/提测、实际分析固定、发布/准备、依据确认和模型策略/响应旁录 | B 组件较完整；save_plan/save_rules 名称缺口与替代路径单列；从准备到默认 C 受 C-15 阻断 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:125: trailing whitespace.
++| domain/execution、application/execution | 状态/原许可/占用/intent、当前快照、实际依赖失效、暂停取消、串行切片/重启组件 | 正常组件支持依赖顺序和未知不重放；默认源身份/目录错接、retry/退回入口和 R 保存缺口仍存在 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:126: trailing whitespace.
++| domain/evidence、application/evidence | 安全对象/脱敏摘要/证据发布、外部附件、同对象查询与有界轮询保存 | 独立核验默认依赖空；人工入口/完整业务采集未闭合；导入事实不伪造本地执行 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:127: trailing whitespace.
++| adapters/execution | 命令/Python、HTTP、只读核验、人工、Agent、外部导入组件已存在 | 默认只装配 RegisteredEntry 命令端口；其他适配器不是可自动选用的完整流程，需真实配置/受控输入/保存链 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:128: trailing whitespace.
++| domain/review、application/review、interfaces/dto | 唯一纯领域结论/等级/S/M/H、缺陷状态和投影已存在 | D-10 适配错误；生产报告/问题/复核/制品缺应用事务与原意图回读 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:129: trailing whitespace.
++| file_store 全组 | current/不可变清单、对象/记录/索引/事件、单写/活动/完整性/备份迁移/恢复真实代码 | 正常轻量读取有有限 QuerySpec；底层组件不能代替完整 C/D 材料或未知发布的人工处置/掉电证明 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:130: trailing whitespace.
++| security/projections/credentials/connections | 已知凭据写前过滤/流尾保护、安全投影、OS 凭据及按动作能力/连接状态 | 永久全制品与默认业务动作还未闭合；test_connection 为已配置 connector 时的 API 内建分支，默认未配不能宣称可用 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:131: trailing whitespace.
++| bootstrap/interfaces/local/CLI/MCP | 唯一核心装配、用户/会话命名管道、回执身份、有限 stdio、普通保存和非交互人工禁令 | handler 库存仅证明路由；需每动作实际依赖、受控宿主用户来源与准确业务字段对拍 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:132: trailing whitespace.
++| panel/Trae | 共用一份面板源码、既有 CLI 桥、只读白名单/回执和核心连接 | 原型/只读诊断已存在，业务视图/动作/事件订阅仍未实现；VSIX 可构建不证明 Trae 兼容 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:133: trailing whitespace.
++| scripts/examples/模板与生成 Schema | 版本/Schema/打包核对、夹具生成、真实模型组件脚本及最小 Python 示例 | 脚本验证边界按各自输出；示例/模板期望不是实际业务执行证据，生成物不手工修 |
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:134: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:135: trailing whitespace.
++## 7. 门禁、测试和验收分别报告
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:136: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:137: trailing whitespace.
++- **已有实现**：上面的组件与原始触点，不用“已完成一期”概括。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:138: trailing whitespace.
++- **本次静态/组件检查**：全跟踪清点/AST；指定规则、来源、解析器、合同/Schema/模板/架构测试通过。具体数字/版本只见项目现状和[checks.json](../../validation/p1-source-completion-20261012/checks.json)。新增反例退出 0 表示缺陷复现，不能列成修复通过。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:139: trailing whitespace.
++- **真实完整验收**：台账没有可据本轮新填 verified 的结果；真实文件/子进程默认阻断已经取证，但受控交互/环境 fixture 明确单列。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:140: trailing whitespace.
++- **未验证**：完整全套最终结果、真实 Trae 全业务、真实业务对象/供应方故障、物理掉电与完整可携带导出。前轮全套中止与历史成功归属原记录，不能累计专项测试冒充全量。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:141: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:142: trailing whitespace.
++本轮产品源码与测试代码未改；初次广路径 Git diff 的非零仅来自前轮 `tests/acceptance/p1/README.md` 文档导航修改，修正代码路径后 diff 退出 0，两个原输出均保留。未重跑数小时全套；当前缺口不能由再跑既有绿测试消除。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:143: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:144: trailing whitespace.
++## 8. 建议的实施先后与复核关闭条件
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:145: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:146: trailing whitespace.
++1. C-15 修默认源编号/字段/实际 cwd；A-19 重新生成锁并证明干净 --locked 安装。用无解析器/端口替换的真实保存材料→prepare→register→prepare_execution→逐项授权→start→保存/重启回读证明贯通。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:147: trailing whitespace.
++2. C-16 修实际语法和逐模块/入口来源核对；D-10 修当前性/必需证据/同源覆盖。把已复现反例变成业务拒绝/缺口，不只调测试断言。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:148: trailing whitespace.
++3. 默认 HTTP/纯函数等核验配置与 R 选择保存；权威 C→D 发布、缺陷新回归/复核、实际安全 Markdown 和可携带包。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:149: trailing whitespace.
++4. 真实用户/宿主计划、授权、半程修订、补证、控制、问题/报告/设置和事件消费；按动作依赖正确降级。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:150: trailing whitespace.
++5. 逐 AC 补实际输入/版本/证据，保留失败/取消/阻塞/重跑/中断场景；完整恢复、永久闭包、真实 Trae 与物理掉电独立核实。
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:151: trailing whitespace.
++
+docs/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md:152: trailing whitespace.
++细化待办见[整改计划](../02-整改计划/ABC剩余问题整改计划-2026-10-04.md)，恢复旧报告以[修改前哈希/Git 版本](../../validation/p1-source-completion-20261012/documents-before.json)为准。主责规范、生成 Schema、历史验证原输出与验收台账不因本轮审查而改写。

@@ -124,7 +124,14 @@ def freeze_initial_step_contents(
                 revision_no=1,
                 digest=payload_digest(body.model_dump(mode="json")),
             )
-            result.append(FrozenStepContent(replace(step, step_revision_ref=reference), body))
+            # A frozen expected value is one conjunction for this exact step revision.
+            # Binding its identity here does not confirm its basis or imply execution.
+            assertion_ref = "step-assertion-" + payload_digest(
+                [reference.step_revision_id, reference.digest, item.expected]
+            )[7:]
+            result.append(FrozenStepContent(replace(
+                step, step_revision_ref=reference, assertion_refs=(assertion_ref,),
+            ), body))
     if len(result) != len(steps):
         raise ValueError("frozen content and initial steps differ")
     return tuple(result)

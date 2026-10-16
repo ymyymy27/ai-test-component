@@ -4,7 +4,7 @@
 
 ## 1. 差异
 
-[AB-001 第 3.4 节](../../接口对接/进行中/AB-001-端口与保存/contract.md) 一直要求
+[AB-001 第 3.4 节](../../接口对接/已完成/AB-001-端口与保存/contract.md) 一直要求
 `SourceSnapshotPort.materialize(snapshot_id, destination)`"返回**实际路径映射与内容摘要**"，
 但未固定键名；现行 [FileSourceSnapshotStore.materialize](../../../src/aitest/infrastructure/adapters/source_snapshot.py)
 成功时只返回 `snapshot_id`/`destination`/`materialized`（相对路径列表）/`verified`/`state`，
@@ -17,7 +17,7 @@
 - 第 3.4 节签名文档补全成功/拒绝返回形状：
   - 成功：`snapshot_id`、`destination`、`verified`、`state`（既有键不变）＋ `paths`（按固定清单顺序，每项 `relative_path` 期望来源路径、`actual_path` workdir 内解析出的实际路径、`sha256`、`size`）＋ `content_digest`（对 `paths` 规范 JSON 字节取 `sha256:` 摘要，证明本次物化出的实际来源字节集合）；
   - 拒绝：保持 `refused`，不返回 `content_digest`。
-- 明确用途与边界：该摘要供 C 在 start 生成 `source_binding_digest`（[BC-001 第 6 节](../../接口对接/进行中/BC-001-PreparedRun/contract.md)：固定 workdir 的"期望→实际路径映射"摘要），**不替代** B 在 prepare 冻结的 `resolved_input_digest`；
+- 明确用途与边界：该摘要供 C 在 start 生成 `source_binding_digest`（[BC-001 第 6 节](../../接口对接/已完成/BC-001-PreparedRun/contract.md)：固定 workdir 的"期望→实际路径映射"摘要），**不替代** B 在 prepare 冻结的 `resolved_input_digest`；
 - 台账同步：接口总台账 AB-001 行版本改 `1.34`，并按目录约定追加 2026-10-09 修改日志；
 - 状态不变：`reviewing` / `partial` / `not_run`，真实 AC 未改变；B 侧忽略未知键即可接入，属**兼容新增**。
 

@@ -1,5 +1,6 @@
 """Save independent business reads before publishing their verification facts."""
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -11,6 +12,7 @@ from aitest.application.evidence.evidence_review import (
     EvidenceReviewService,
     freeze_verification_request,
 )
+from aitest.application.evidence.pure_function import capture_pure_output, is_pure_request
 from aitest.application.evidence.query_materials import (
     BusinessVerificationBlocked as BusinessVerificationBlocked,
 )
@@ -93,17 +95,64 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
                 )
             )
 
+    def _missing_verification_declarations(self, scope: Mapping[str, object]) -> str:
+        """Report absent host wiring without guessing whether a case has a declaration.
+
+        BC-001 0.51 defines explicit structured HTTP expectations and host targets.
+        Pure-function saved-output comparison does not require this HTTP adapter.
+        """
+
+        base = "a trusted business query resolver/adapter is not configured"
+        try:
+            project, run, step = (
+                str(scope[key]) for key in ("project_id", "run_id", "step_id")
+            )
+            _, _, prepared, _ = self.authorizations._context(project, run, step)
+            case = next(
+                (
+                    item
+                    for item in prepared.frozen_cases
+                    if any(frozen.step_id == step for frozen in item.steps)
+                ),
+                None,
+            )
+        except Exception:
+            return base
+        environment = prepared.environment
+        facts = {
+            "case_id": None if case is None else case.case_id,
+            "independent_verification_registered": (
+                None if case is None else bool(case.independent_verification)
+            ),
+            "environment": f"{environment.environment_id}@{environment.revision}",
+            "frozen_environment_fields": sorted(environment.model_fields),
+            "http_verification_required_configuration": [
+                "AITEST_BUSINESS_QUERIES: url_template / target_deployment_ref",
+                "aitest.business-query-basis/1: business_object_id / expected_facts",
+            ],
+            "pure_function_basis": "aitest.pure-function-basis/1: expected_facts",
+            "declaration_point_evidence": [
+                "功能 §4：业务对象ID与目标服务身份/部署版本须可追溯",
+                "架构 01 / 能力与模板清单 §6：按准确来源独立核验",
+                "BC-001 0.51：结构化依据与宿主查询登记；不推断自然语言",
+            ],
+        }
+        return f"{base}；冻结材料核对：{json.dumps(facts, ensure_ascii=False, sort_keys=True)}"
+
     def _claim(
         self, identity: str, scope: Mapping[str, object], request_id: str
     ) -> Mapping[str, object]:
-        if self.resolver is None or self.verifier is None:
-            raise CapabilityUnavailable(
-                "a trusted business query resolver/adapter is not configured"
-            )
+        if self.resolver is None:
+            raise CapabilityUnavailable(self._missing_verification_declarations(scope))
         project, run, step, attempt_id = (
             str(scope[key]) for key in ("project_id", "run_id", "step_id", "attempt_id")
         )
-        facts = self.coordinator.read_runtime_revision_facts(project_id=project, run_id=run)
+        try:
+            facts = self.coordinator.read_runtime_revision_facts(project_id=project, run_id=run)
+        except (ValueError, OSError, KeyError) as error:
+            raise BusinessVerificationBlocked(
+                "the saved current operation is unavailable"
+            ) from error
         if (
             facts.run.origin_workspace_id,
             facts.snapshot_commit_id,
@@ -140,6 +189,8 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
                 facts=facts.model_copy(deep=True), step_id=step, attempt_id=attempt_id
             )
         )
+        if self.verifier is None and not is_pure_request(request, project):
+            raise CapabilityUnavailable(self._missing_verification_declarations(scope))
         if request.verification_of != attempt_id:
             raise BusinessVerificationBlocked(
                 "resolved query does not verify the original operation"
@@ -375,7 +426,16 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
                 "original query outcome is unverified; a new query requires a new intent"
             )
         admission = self._claim(identity, scope, command.request_id)
-        assert self.verifier is not None
-        # Even a trusted adapter gets a separate copy of the frozen request.
-        capture = self.verifier.capture(_request(admission["request"]))
+        request = _request(admission["request"])
+        if is_pure_request(request, project):
+            try:
+                capture = capture_pure_output(
+                    request, self._base(admission), str(admission["step_id"]), self.objects,
+                )
+            except (ValueError, OSError, KeyError) as error:
+                raise BusinessVerificationBlocked("saved function output is unavailable") from error
+        else:
+            assert self.verifier is not None
+            # Even a trusted adapter gets a separate copy of the frozen request.
+            capture = self.verifier.capture(request)
         return self._publish(identity, admission, self._material(admission, capture))

@@ -72,6 +72,8 @@ class IssueRecord:
     fix_version: str | None = None
     regression_method: str | None = None
     closure_criteria: str | None = None
+    #: 最近一次"安排回归"的身份（架构 03 §117 回归关联）；安排不改状态机状态。
+    regression_request_id: str | None = None
     evidence_refs: tuple[str, ...] = ()
     attempt_ids: frozenset[str] = frozenset()
 
@@ -245,6 +247,38 @@ def close_issue(issue: IssueRecord, *, evidence: IssueClosureEvidence) -> IssueR
         evidence_refs=issue.evidence_refs + evidence.evidence_refs,
         attempt_ids=issue.attempt_ids | frozenset({evidence.attempt_id}),
     )
+
+
+def request_regression(
+    issue: IssueRecord,
+    *,
+    regression_request_id: str,
+) -> IssueRecord:
+    """安排回归（架构 03 §66/§117/§149、功能 §542）：登记**回归关联**，不改状态、不执行。
+
+    分册冻结的语义：
+
+    - §66「处理中 → 待复测 | 登记修复版本与回归方式」→ 安排回归的前提是**已登记修复**
+      （`status is READY_FOR_RETEST` 且修复三元组齐备），因此这里只接受该状态；
+    - §12.2/§50「非缺陷/重复/暂缓停止原修复流程，撤销上述处置回到待确认」→
+      处置非 `active` 时不得安排回归（那会把已核实的处置偷偷翻回处理中）；
+    - §117「回归关联：原证据、事实/假设/待验证项、修复版本、新Attempt/证据、原关闭条件」
+      → 关联内容由应用层写进问题记录的 `links`（本对象只保存安排身份与修订）；
+    - §149「修复关闭读取指定**新回归 Attempt** 及可读证据」→ 安排回归**不创建 Attempt、
+      不执行、不关闭**，新尝试仍由受控执行入口产生。
+    """
+
+    if issue.status is not IssueStatus.READY_FOR_RETEST:
+        raise ValueError(
+            "regression can only be arranged after a fix is recorded (ready_for_retest)"
+        )
+    if issue.disposition is not IssueDisposition.ACTIVE:
+        raise ValueError(
+            "a non-active disposition stops the fix flow; undo it before arranging a regression"
+        )
+    issue._require_fix_fields()
+    _require_text(regression_request_id, "regression_request_id")
+    return _new_revision(issue, regression_request_id=regression_request_id)
 
 
 def record_failed_regression(
@@ -452,6 +486,7 @@ __all__ = [
     "mark_non_defect",
     "record_failed_regression",
     "record_fix",
+    "request_regression",
     "resolve_canonical_issue_id",
     "start_issue",
     "undo_disposition",

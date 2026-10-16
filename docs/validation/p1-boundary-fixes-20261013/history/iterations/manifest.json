@@ -1,0 +1,177 @@
+[
+  {
+    "source": ".runtime/repair-collection.log",
+    "archive": "repair-collection.log.gz",
+    "bytes": 4724,
+    "raw_sha256": "3d6c94505e1139bb5ca4bd57281277eee5077f0c753179c649e77c98edf98271",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-eighth.log",
+    "archive": "repair-eighth.log.gz",
+    "bytes": 162,
+    "raw_sha256": "395138a05b769b809ac2f8e28b8de9b514f5f4e9be3e4f64a63232a984d1b0f4",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-eleventh.log",
+    "archive": "repair-eleventh.log.gz",
+    "bytes": 81,
+    "raw_sha256": "5a49f7818b06d6d18fbfa7a45891d644e6962481f7f9ea3d86fa5f66ea71b2a0",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-fifth.log",
+    "archive": "repair-fifth.log.gz",
+    "bytes": 7593,
+    "raw_sha256": "37a16ae75f9d9138c00052fa79e3627a0f4d438e159cf876c0e3620a46860dc5",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-fourth.log",
+    "archive": "repair-fourth.log.gz",
+    "bytes": 3862,
+    "raw_sha256": "e027f79cdb89e4fab7d061aaf6bf3710c99f313aeb845286f28b274a60475bac",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-inspection-isolated-all.log",
+    "archive": "repair-inspection-isolated-all.log.gz",
+    "bytes": 81,
+    "raw_sha256": "cb18da0b6f22f66dcc3b91519f2731f34b02c843e4e4517d002e65d87a1ecdaf",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-inspection-isolated.log",
+    "archive": "repair-inspection-isolated.log.gz",
+    "bytes": 8681,
+    "raw_sha256": "466eb19f7dffb24f36b6475d8ebad91301817a304b0aabd89f2825f76d5796a7",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-eighth.log",
+    "archive": "repair-mypy-eighth.log.gz",
+    "bytes": 2549,
+    "raw_sha256": "33d542263a975d2e775e6bf8c5f070d96047654cd21e7f965e58f35935850e67",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-fifth.log",
+    "archive": "repair-mypy-fifth.log.gz",
+    "bytes": 46,
+    "raw_sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-first.log",
+    "archive": "repair-mypy-first.log.gz",
+    "bytes": 705,
+    "raw_sha256": "c7b7e8796d793188dc9141cf59e5746a77708c693ef0d6ca99c6d6b7378ed3fa",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-fourth.log",
+    "archive": "repair-mypy-fourth.log.gz",
+    "bytes": 387,
+    "raw_sha256": "e21fbad4d436acf678885f766912e295478a3aff943ce3ce9857a7b8e53624bd",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-last.log",
+    "archive": "repair-mypy-last.log.gz",
+    "bytes": 46,
+    "raw_sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-second.log",
+    "archive": "repair-mypy-second.log.gz",
+    "bytes": 355,
+    "raw_sha256": "bbb88982137bd43e1abe9a2fe13feaa378335cc87aad23ea6587a6e35f957ff8",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-seventh.log",
+    "archive": "repair-mypy-seventh.log.gz",
+    "bytes": 46,
+    "raw_sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-sixth.log",
+    "archive": "repair-mypy-sixth.log.gz",
+    "bytes": 46,
+    "raw_sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-mypy-third.log",
+    "archive": "repair-mypy-third.log.gz",
+    "bytes": 46,
+    "raw_sha256": "90ce8c2b537c54d32baa5765284fd2b50c31f9eaad56d2d5a00018441005d5fa",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-ninth.log",
+    "archive": "repair-ninth.log.gz",
+    "bytes": 1563,
+    "raw_sha256": "0549cc6750d1bd550afaaf39b8a8797fca0ffca89ae483db16ee23a85446768a",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-ruff-full.log",
+    "archive": "repair-ruff-full.log.gz",
+    "bytes": 20,
+    "raw_sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-ruff-last.log",
+    "archive": "repair-ruff-last.log.gz",
+    "bytes": 20,
+    "raw_sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-ruff.log",
+    "archive": "repair-ruff.log.gz",
+    "bytes": 13892,
+    "raw_sha256": "67c3fa652c742b5ad62e2e74342fd8fbac739aa5387b2f3c805b796509193381",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-second.log",
+    "archive": "repair-second.log.gz",
+    "bytes": 3992,
+    "raw_sha256": "dc81510d42d914eefcbb6f366b38ade33999b7f55c739f93596fdbb456e3ddeb",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-seventh.log",
+    "archive": "repair-seventh.log.gz",
+    "bytes": 1732,
+    "raw_sha256": "d67f1f0fdd3e59b4417d509a2797eb08599fc0c9fc821fb693931167e9271719",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-sixth.log",
+    "archive": "repair-sixth.log.gz",
+    "bytes": 664,
+    "raw_sha256": "c191030d3621ebbf527161939eb20d3ce7ca70d2de35b6cce9d1f208debd7a5c",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-tenth.log",
+    "archive": "repair-tenth.log.gz",
+    "bytes": 162,
+    "raw_sha256": "395138a05b769b809ac2f8e28b8de9b514f5f4e9be3e4f64a63232a984d1b0f4",
+    "scope": "local_iteration_only_not_final_regression"
+  },
+  {
+    "source": ".runtime/repair-third.log",
+    "archive": "repair-third.log.gz",
+    "bytes": 7417,
+    "raw_sha256": "6f7b10066d06cdf5e3aa57783ce7b9317a3eb9335a3d8002cd4a8bef99e51030",
+    "scope": "local_iteration_only_not_final_regression"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "action": "execute_step",
+  "project_id": "trae-live-20261016",
+  "request_id": "live-7e9f80f81ff84dbbb1f934a821eb1159",
+  "intent_id": "trae-execute-library-error",
+  "expected_revision": 0,
+  "target": "step-08528cb64ad86b8ea89747a4cdc6941161d2196faeedcff152c5899dd94aa439",
+  "parameters": {
+    "execution_action_id": "execution-action-09cf7703d67e6d29f5265a3749cdfdb5935b998c6f45fb475ce6a3d1615f0244",
+    "record_revision": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "baseline": "a51c2b4",
+  "command": [
+    "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+    "E:\\ai-test-component\\docs\\validation\\p1-fix-review-20261013\\boundary-counterexamples.py"
+  ],
+  "exit_code": 0,
+  "seconds": 5.0,
+  "meaning": "退出 0 = 七个未修缺陷成立，不是测试通过或真实 AC",
+  "log": "probe-run.log",
+  "sha256": "d11b541c82e431317f0fd2ff6e6c4bed04386cb21a2a76d979d841ce8a405465"
+}

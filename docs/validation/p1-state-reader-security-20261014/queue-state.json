@@ -1,0 +1,7 @@
+{
+  "state": "blocked",
+  "exception_type": "RuntimeError",
+  "reason": "baseline failed or drifted; stop for actual failure review",
+  "source_commit": "21d887dcb264bb7edcaec0e9f52bfa5b48b4e0fd",
+  "ended_at": "2026-10-14T08:08:08.475521+00:00"
+}

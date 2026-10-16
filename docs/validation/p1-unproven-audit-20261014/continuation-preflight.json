@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-14T03:49:06.696549+00:00",
+  "candidate_source_commit": "recorded when the renewed queue starts",
+  "source_files": 601,
+  "source_drift": [],
+  "source_inventory_sha256": "e8d2cb33a78f86e26697deb49ec0ead0d74e4549a0a30d85d7cce709ad28eec6",
+  "node_version": "v24.15.0",
+  "npm_cli_exists": true,
+  "backup_security_file_result": "32 passed; entire affected file",
+  "main_full_untouched": true,
+  "heavy_candidate_checks": "not started; queued after baseline full",
+  "acceptance": "unchanged; no real-environment verdict inferred"
+}

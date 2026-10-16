@@ -1,0 +1,57 @@
+[
+  {
+    "label": "docs-facts",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/check_docs_facts.py",
+      "--full"
+    ],
+    "exit_code": 0,
+    "seconds": 5.59,
+    "log": "docs-facts.log",
+    "sha256": "aa26604672268a81b41acfa05eca7ebc725e19fc0521227271ff80834dc482ed"
+  },
+  {
+    "label": "diff-check",
+    "command": [
+      "git",
+      "-c",
+      "core.safecrlf=false",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.06,
+    "log": "diff-check.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "first-staged-whitespace-check",
+    "command": [
+      "git",
+      "-c",
+      "core.safecrlf=false",
+      "diff",
+      "HEAD^",
+      "HEAD",
+      "--check"
+    ],
+    "exit_code": 2,
+    "log": "staged-diff-initial.log",
+    "sha256": "5bb3a76ec196f1f779ec972faa293fc86f62fd0d8865b4fba8d2a4b1ebed9d31"
+  },
+  {
+    "label": "final-whitespace-check",
+    "command": [
+      "git",
+      "-c",
+      "core.safecrlf=false",
+      "diff",
+      "a51c2b4",
+      "--check"
+    ],
+    "exit_code": 0,
+    "log": "final-diff-check.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

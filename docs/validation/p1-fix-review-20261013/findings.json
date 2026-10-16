@@ -1,0 +1,72 @@
+[
+  {
+    "id": "A-20",
+    "title": "维护窗口漏拦表外写动作",
+    "observed": "接口维护闸门仅检查 PHASE_ONE_ACTIONS；import_rules 等已注册写别名可进入 handler，而 save_rules 被维护错误拦截。",
+    "source": "interfaces/local/api.py::_maintenance_reason；bootstrap.py",
+    "closure": "覆盖全部注册动作的真实写属性/依赖，不用一期名称表替代；迁移内外、模型/导入别名均不得趁维护写入。",
+    "ac": "AC28/32/34",
+    "scope": "协议维护闸门 + 无害 marker handler，未改业务文件",
+    "fixed": false
+  },
+  {
+    "id": "C-17",
+    "title": "复用消费仍未满足完整资格与统计",
+    "observed": "源 is_current=False 或无关 Attempt 的 no_result 核验仍计 R；materialized 路径错比 content_identity；即使 R 存在也不带入 V/P，M 的未完成处理未贯通。",
+    "source": "application/review/reuse_consumption.py；execution_decision_adapter.py",
+    "closure": "准确源/目标版本、实际当前映射、同用例核验/证据字节/动态环境资格；合法整用例 R 对 V/P/H/M 的同源投影，不能把任意源核验当资格。",
+    "ac": "AC19/20/21/24/27",
+    "scope": "严格类型 ExecutionFacts，来源/材料/确认读取为明确组件替身",
+    "fixed": false
+  },
+  {
+    "id": "C-18",
+    "title": "复用选择忽略 expected_revision",
+    "observed": "已有选择 @1 时，新 intent 仍给 expected_revision=0，被追加为 @2；代码自行取 current_revision，未比较请求期望。",
+    "source": "application/review/saved_reuse.py::apply/_commit",
+    "closure": "按 CORE-001 1.82 已冻结的当前选择记录修订（首写 0）拒绝陈旧写；锁内复核，原意图回读不改，输入摘要涵盖写语义。",
+    "ac": "AC19/21/27",
+    "scope": "真实核心/UOW/仓储，核对器和受控来源为明确替身",
+    "fixed": false
+  },
+  {
+    "id": "D-11",
+    "title": "关闭问题采信自报断言结果",
+    "observed": "代表保存事实的 ExecutionFacts 夹具中 VerificationFact.observation=mismatched，调用方 assertion_outcome=passed 仍派生 satisfies_original_criteria=True，领域关闭为 closed；未核对实际修复版本/原标准。",
+    "source": "application/review/saved_defects.py::_closure_evidence",
+    "closure": "从原问题/新实际回归/同对象断言核验及准确标准修订派生，不能用用户传入结果覆盖已知失败；关闭和失败重开同源保存。",
+    "ac": "AC11/14/33",
+    "scope": "生产关闭派生 + 领域关闭，真实证据引用仓储；执行/依据/对象为明确组件夹具",
+    "fixed": false
+  },
+  {
+    "id": "D-12",
+    "title": "报告阻塞问题集合由调用方过滤",
+    "observed": "已保存同范围 P1 问题，_issues 只取请求 issue_ids；省略或空集合返回零问题。live_decision 默认 issue_ids=()，会漏掉应阻塞的问题。",
+    "source": "application/review/saved_reports.py::_issues/_live",
+    "closure": "在固定提交边界按验收范围/模块/用例派生完整有效阻塞集合，归并主问题重开及最强级别按唯一领域规则；不接受调用方白名单规避。",
+    "ac": "AC14/27/34",
+    "scope": "真实 issue 仓储 + 生产读取方法；未声称真实完整报告发生 passed",
+    "fixed": false
+  },
+  {
+    "id": "D-13",
+    "title": "后补依据确认未进入 D 权威路径",
+    "observed": "SavedCaseBasisCheck 先读冻结 PreparedRun.assertion_bases 的标签；present_unconfirmed 直接 False，不读取后补准确确认；运行修订依据也只取原准备。",
+    "source": "application/review/authoritative_basis.py::__call__/_entry",
+    "closure": "按准确 Case/依据修订与已保存有效 ConfirmationRecord 计算 effective 状态，并核对实际核验证据；不改冻结 Case/Plan/旧报告。",
+    "ac": "AC20/21/27",
+    "scope": "静态调用链 + pending 分支探针；没有伪造真实人工确认验收",
+    "fixed": false
+  },
+  {
+    "id": "D-14",
+    "title": "导出意图恢复受最新报告漂移影响",
+    "observed": "报告 @1 导出成功后生成 @2，完全相同 export intent/参数重传却 INTENT_CONFLICT；回读在取最新报告并重新派生键之后。",
+    "source": "application/review/saved_exports.py::export_report/_recall",
+    "closure": "先读取原意图及冻结报告/复核/附件/策略，再核对原制品返回；新输入才冲突。既有键复用也要保存本 intent，证据取冻结来源而非任意当前 run。",
+    "ac": "AC16/19/29/35",
+    "scope": "生产服务 + 真实 UOW/对象/制品/投影；准备/运行来源为明确夹具",
+    "fixed": false
+  }
+]

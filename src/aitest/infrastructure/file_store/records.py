@@ -58,6 +58,33 @@ class RecordQueryResult:
     next_cursor: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class RecordQueryPage:
+    """存储合同三字段结果 + **同一已提交边界的配对信息**（架构 06 §4/§136）。
+
+    `commit_id`/`event_cursor`/`generation`/`index_version` 取自同一次索引读取，
+    调用方不得改用"此刻最新"水位（那会把列表与游标配到不同边界）。
+    """
+
+    result: RecordQueryResult
+    commit_id: int | None = None
+    event_cursor: str | None = None
+    generation: int | None = None
+    index_version: int | None = None
+
+
+def replace_boundary(page: RecordQueryPage, result: RecordQueryResult) -> RecordQueryPage:
+    """换掉结果而保留边界（同一已提交边界的配对不能因为重算而漂移）。"""
+
+    return RecordQueryPage(
+        result=result,
+        commit_id=page.commit_id,
+        event_cursor=page.event_cursor,
+        generation=page.generation,
+        index_version=page.index_version,
+    )
+
+
 class FileRecordRepository:
     def __init__(
         self,
@@ -395,10 +422,27 @@ class FileRecordRepository:
         return tuple(entries[key] for key in sorted(entries))
 
     def query(self, query: RecordQuery) -> RecordQueryResult:
+        return self.query_page(query).result
+
+    def query_page(self, query: RecordQuery) -> RecordQueryPage:
+        """列表查询并**带上同一已提交边界的配对信息**（架构 06 §4/§8/§136）。
+
+        `RecordQueryResult` 的三字段形状由存储合同冻结（AC-001 §147），因此边界
+        （`commit_id`/`event_cursor`）不塞进它，而是由本方法一并返回：调用方据此把
+        "这一页"与"事件续读游标"配对，而不是先读列表再取"此刻最新"游标。
+        """
+
         index = FileQueryIndex(self.root, journal=self._journal)
         result = index.query_spec(self._finite_query_spec(query))
+        boundary = RecordQueryPage(
+            result=RecordQueryResult(status=result.status),
+            commit_id=result.commit_id,
+            event_cursor=result.event_cursor,
+            generation=result.generation,
+            index_version=result.index_version,
+        )
         if result.status != "ok":
-            return RecordQueryResult(status=result.status)
+            return boundary
         # 列表只读取摘要索引；整页载荷一次性从权威边界水合，避免每条记录
         # 都整读一次 records.json。
         items: list[CommittedRecord] = []
@@ -464,8 +508,11 @@ class FileRecordRepository:
                     )
                 )
         except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError):
-            return RecordQueryResult(status="maintenance_required")
-        return RecordQueryResult(status="ok", items=tuple(items), next_cursor=result.next_cursor)
+            return replace_boundary(boundary, RecordQueryResult(status="maintenance_required"))
+        return replace_boundary(
+            boundary,
+            RecordQueryResult(status="ok", items=tuple(items), next_cursor=result.next_cursor),
+        )
 
     @staticmethod
     def _finite_query_spec(query: RecordQuery) -> QuerySpec:

@@ -130,6 +130,7 @@ def test_actual_cli_doctor_and_dispatch_share_the_verified_core(tmp_path):
         assert result["instance_id"] == endpoint.instance_id
         assert result["workspace_id"] == endpoint.workspace_id
         assert result["result"]["status"] == "READY"
+        assert "native-confirmation/1" in result["result"]["transport_capabilities"]
         command = Command(request_id="original-request", action="doctor")
         query = cli(["dispatch", "--workspace", str(root)], command.model_dump_json().encode())
         assert query.returncode == 0
@@ -149,6 +150,19 @@ def test_actual_cli_doctor_and_dispatch_share_the_verified_core(tmp_path):
         assert denied.returncode == 2
         assert denied.stdout, denied.stderr.decode(errors="replace")
         assert json.loads(denied.stdout)["error"]["code"] == "AWAITING_USER_CONFIRMATION"
+        # Actual pipe/worker opt-in is reachable; invalid targets fail before any dialog.
+        command = command.model_copy(
+            update={"action": "save_binding", "request_id": "native-request"}
+        )
+        refused = cli(
+            ["dispatch", "--native-confirmation", "--workspace", str(root)],
+            command.model_dump_json().encode(),
+        )
+        assert refused.returncode == 2, refused.stderr.decode(errors="replace")
+        receipt = json.loads(refused.stdout)
+        assert receipt["error"]["code"] == "INVALID_COMMAND"
+        assert receipt["request_id"] == "native-request"
+        assert receipt["instance_id"] == endpoint.instance_id
         assert (root / "workspace.json").read_bytes() == identity_before
     finally:
         shutdown_endpoint(root)

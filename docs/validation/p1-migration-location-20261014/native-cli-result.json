@@ -1,0 +1,15 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/unit/test_cli_core_forwarding.py::test_actual_cli_doctor_and_dispatch_share_the_verified_core",
+    "-q",
+    "--junitxml=docs\\validation\\p1-migration-location-20261014\\native-cli.xml",
+    "--basetemp=C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014\\migration-location-native-cli"
+  ],
+  "exit_code": 0,
+  "seconds": 6.98579216003418,
+  "configured_backup_root": "C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014\\migration-location-native-backups",
+  "scope": "actual Windows core child, verified native pipe, CLI doctor/dispatch and denied human authorization; no Trae/AC claim"
+}

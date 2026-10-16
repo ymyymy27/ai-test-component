@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2319.300" timestamp="2026-10-15T20:18:00.396763+08:00" hostname="d"><testcase classname="tests.unit.test_runtime_source_complete_chain" name="test_library_plan_execution_verification_passed_report_delivery_and_restart" time="2318.434"><failure message="AssertionError: assert 'incomplete' == 'passed'&#10;  &#10;  - passed&#10;  + incomplete">tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-56/test_library_plan_execution_ve0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EAAE568050&gt;
+
+    def test_library_plan_execution_verification_passed_report_delivery_and_restart(
+        tmp_path, monkeypatch,
+    ):
+&gt;       _chain(tmp_path, monkeypatch, pure=True, complete_library=True)
+
+tests\unit\test_runtime_source_complete_chain.py:11: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-56/test_library_plan_execution_ve0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EAAE568050&gt;
+dynamic = False, tls_context = None, credential_reference = None, pure = True
+complete_library = True
+
+    def test_published_plan_actual_execution_query_report_and_restart(
+        tmp_path, monkeypatch, *, dynamic=False, tls_context=None,
+        credential_reference=None, pure=False, complete_library=False,
+    ):
+        from aitest.bootstrap import assemble_workspace_core
+        from aitest.contracts.commands import Command
+        from tests.unit.test_authoritative_preparation import _authoritative
+        from tests.unit.test_default_basis_confirmation import confirm
+        from tests.unit.test_default_execution_authorization import RELAY
+        from tests.unit.test_default_start_source_chain import _chain_environment
+        from tests.unit.test_default_step_execution import execution_command
+        from tests.unit.test_execution_authorization_origin import review, save
+        from tests.unit.test_initial_run_registration import register
+        from tests.unit.test_saved_business_verification import command
+    
+        business_file = tmp_path / "order.json"
+        source = (
+            "from pathlib import Path\n"
+            f"Path({str(business_file)!r}).write_text("
+            "'{\"object_id\":\"order-1\",\"paid\":true}', encoding='utf-8')\n"
+        )
+        declaration = basis()
+        if dynamic:
+            source = (
+                "import json, uuid\nfrom pathlib import Path\n"
+                "data = {'object_id': str(uuid.uuid4()), 'paid': True}\n"
+                f"Path({str(business_file)!r}).write_text(json.dumps(data), encoding='utf-8')\n"
+                "print(json.dumps({'created': {'id': data['object_id']}}))\n"
+            )
+            data = json.loads(declaration)
+            del data["business_object_id"]
+            data.update(schema_version="aitest.business-query-basis/2",
+                        business_object_source={"stream": "stdout", "json_path": ["created", "id"]})
+            declaration = json.dumps(data)
+    
+        if pure:
+            source = ("import json\ndef add(a, b): return a + b\n"
+                      "print(json.dumps({\"result\": add(2, 3)}))\n")
+            declaration = json.dumps({"schema_version": "aitest.pure-function-basis/1",
+                                      "expected_facts": {"result": 5}})
+        if complete_library:
+            source = (
+                "import json\n"
+                "def add(a, b):\n"
+                "    if type(a) is not int or type(b) is not int: raise TypeError('integers required')\n"
+                "    return a+b\n"
+                "try: add(None, 1)\n"
+                "except TypeError as error: failure=type(error).__name__\n"
+                "print(json.dumps({'normal':add(2,3), 'zero':add(0,0), 'negative':add(-1,1),\n"
+                " 'large':add(2**64,1), 'error':failure}))\n"
+            )
+            declaration = json.dumps({"schema_version": "aitest.pure-function-basis/1", "expected_facts": {
+                "normal": 5, "zero": 0, "negative": 0, "large": 18446744073709551617,
+                "error": "TypeError",
+            }})
+        templates = [{"template_id": "python-library" if complete_library else "ticket-workflow",
+                      "version": "1.0.0"}]
+    
+        def library_cases(cases):
+            from aitest.domain.planning.plans import CaseLayer
+    
+            return tuple(replace(
+                cases[0], case_id=f"library-{name}",
+                layer=CaseLayer.L1 if name == "syntax" else CaseLayer.L2,
+                objective=f"Python library {name}: frozen normal, boundary and exception expectations",
+                preconditions=("registered Python interpreter and frozen main.py",),
+                inputs=("(2,3), (0,0), (-1,1), (2**64,1), (None,1)",),
+                steps=("execute declared library check suite",),
+                expected="frozen integers and TypeError match exactly",
+                verification_method="pure-function-stdout",
+                independent_verification="independent frozen expected_facts comparison",
+                links=replace(cases[0].links, critical_path_ids=frozenset(),
+                              no_critical_path_reason="local arithmetic library has no external chain"),
+            ) for name in ("syntax", "normal", "boundary", "error"))
+    
+        def reply(connection, stopped):
+            body_reply(business_file.read_bytes())(connection, stopped)
+    
+        def function_case(case):
+            return replace(case, objective="evaluate add(2, 3) against independent expected value",
+                           preconditions=("the registered Python carrier is available",),
+                           inputs=("2", "3"),
+                           steps=("evaluate add(2, 3)", "repeat add(2, 3) independently"),
+                           expected="result equals 5", verification_method="pure-function-stdout",
+                           independent_verification="compare saved output with frozen expected_facts")
+    
+        with (nullcontext(("http://127.0.0.1:1/", [])) if pure
+              else server(reply, tls_context)) as (url, calls):
+            if tls_context is not None:
+                url = ("https" + url[4:]).replace("127.0.0.1", "localhost")
+            path = config(tmp_path / "queries.json", url)
+            if credential_reference:
+                configured = json.loads(path.read_text(encoding="utf-8"))
+                configured["queries"][0]["credential_reference"] = credential_reference
+                path.write_text(json.dumps(configured), encoding="utf-8")
+            if pure:
+                monkeypatch.delenv("AITEST_BUSINESS_QUERIES", raising=False)
+            else:
+                monkeypatch.setenv("AITEST_BUSINESS_QUERIES", str(path))
+            with _authoritative(tmp_path, basis_text=declaration, main_source=source,
+                                case_transform=function_case if pure else None,
+                                template_versions=templates,
+                                case_set_transform=library_cases if complete_library else None,
+                                environment_resolver=_chain_environment()) as (core, inputs, _):
+                confirmed = confirm(core, inputs)
+                assert confirmed.error is None, confirmed.error
+                confirmations = [confirmed.result]
+                if pure:
+                    for index, entry in enumerate(inputs.assertion_bases[1:], 1):
+                        other = confirm(
+                            core, replace(inputs, assertion_bases=(entry,)),
+                            intent=f"pure-basis-{index}", request=f"pure-basis-request-{index}",
+                        )
+                        assert other.error is None, other.error
+                        confirmations.append(other.result)
+                parameters = {
+                    "mode": "from_saved", "project_revision": inputs.input_revisions.project_revision,
+                    "binding_id": inputs.binding_id, "binding_revision": inputs.binding_revision,
+                    "plan_id": inputs.plan_revision.revision_id,
+                    "plan_revision": inputs.plan_revision.revision_no,
+                    "snapshot_id": inputs.snapshot.source_snapshot_id,
+                    "snapshot_revision": inputs.snapshot.record_revision,
+                    "environment_id": inputs.environment.environment_id,
+                    "environment_revision": inputs.environment.revision,
+                    "client_id": "workflow-test", "prepare_request_id": "workflow-prepare",
+                    "execution_source": inputs.execution_source.model_copy(update={
+                        "registered_entry": "python-main", "entry_arguments": ("main.py",),
+                        "allowed_env_keys": (), "secret_refs": (),
+                    }).model_dump(mode="json"),
+                    "selected_case_ids": list(inputs.selected_case_ids),
+                    "confirmation_refs": [{key: saved[key] for key in (
+                        "confirmation_id", "case_id", "basis_revision", "confirmed_at_commit",
+                    )} for saved in confirmations],
+                }
+                preparation_command = Command(
+                    action="prepare_run", project_id=inputs.project_id, request_id="prepare-workflow",
+                    intent_id="prepare-workflow-intent", expected_revision=0, parameters=parameters,
+                )
+                before = core.unit_of_work.current_commit_sequence()
+                invalid = core.api.dispatch(preparation_command.model_copy(update={
+                    "parameters": {**parameters, "selected_case_ids": ["outside-plan"]},
+                    "request_id": "invalid-selection",
+                }), RELAY)
+                assert invalid.error is not None and invalid.error.code == "B_INVALID_PARAMETER"
+                assert core.unit_of_work.current_commit_sequence() == before
+                prepared = core.api.dispatch(preparation_command, RELAY)
+                assert prepared.error is None and prepared.result["status"] == "prepared"
+                selected_basis = next(item for item in prepared.result["assertion_bases"]
+                                      if item["case_id"] == confirmed.result["case_id"])
+                assert selected_basis["assertion_basis_state"] == "confirmed"
+                again = core.api.dispatch(preparation_command.model_copy(update={
+                    "request_id": "same-preparation-replay",
+                }), RELAY)
+                assert again.error is None and again.result == prepared.result
+                from tests.support.controlled_publication import controlled_publication_save
+    
+                original_plan = core.unit_of_work.repo.read(
+                    aggregate_kind="plan", record_id=parameters["plan_id"], revision=1,
+                ).payload
+                alternative = controlled_publication_save(
+                    core, "publish_plan", project=inputs.project_id,
+                    request="alternative-plan", intent="alternative-plan-intent",
+                    parameters={
+                        "plan_id": "alternative-plan", "revision": 1,
+                        "scope": dict(core.unit_of_work.repo.read(
+                            aggregate_kind="acceptance_scope", record_id=original_plan["scope_id"],
+                            revision=original_plan["scope_revision"],
+                        ).payload),
+                        "cases": [dict(core.unit_of_work.repo.read(
+                            aggregate_kind="case", record_id=ref["case_id"], revision=ref["revision"],
+                        ).payload) for ref in original_plan["case_revisions"]],
+                        "template_versions": templates,
+                    },
+                )
+                assert alternative.error is None and alternative.result["published"]
+                switched = core.api.dispatch(preparation_command.model_copy(update={
+                    "request_id": "switch-plan-same-prepare",
+                    "parameters": {**parameters, "plan_id": "alternative-plan"},
+                }), RELAY)
+                assert switched.error is None and switched.result["status"] == "blocked"
+                assert "needs_reprepare" in str(switched.result)
+                initial = register(core, prepared.result)
+                service = core.execution_authorizations
+                parameters = service.prepare(
+                    project_id=inputs.project_id, run_id=initial.run_id,
+                    step_id=initial.steps[0].step_id, intent_id="actual-order", request_id="resolve",
+                )
+                _, action = service.resolver.read(inputs.project_id, parameters["execution_action_id"])
+                actor, challenge = review(service, inputs.project_id, action, parameters)
+                save(service, inputs.project_id, action, parameters, actor, challenge)
+                executed = core.api.dispatch(
+                    execution_command(inputs.project_id, action, parameters), RELAY
+                )
+                assert executed.error is None, executed.error
+                assert executed.result["attempt"]["exit_fact"]["real_exit_code"] == 0
+                assert business_file.exists() is (not pure)
+                facts = ExecutionFacts.model_validate(executed.result["execution_facts"])
+                query_command = command(facts)
+                verified = core.api.dispatch(query_command, RELAY)
+                assert verified.error is None, verified.error
+                assert verified.result["verification"]["observation"] == "matched"
+                assert len(calls) == (0 if pure else 1)
+                if dynamic:
+                    identity = json.loads(business_file.read_text(encoding="utf-8"))["object_id"]
+                    assert verified.result["verification"]["business_object_id"] == identity
+                    assert calls[0].startswith(f"GET /orders/{identity} ".encode())
+                if pure:
+                    for index, step in enumerate(initial.steps[1:], 1):
+                        parameters = service.prepare(
+                            project_id=inputs.project_id, run_id=initial.run_id,
+                            step_id=step.step_id, intent_id=f"pure-step-{index}",
+                            request_id=f"pure-prepare-{index}",
+                        )
+                        _, action = service.resolver.read(
+                            inputs.project_id, parameters["execution_action_id"],
+                        )
+                        actor, challenge = review(service, inputs.project_id, action, parameters)
+                        assert actor.interaction is not None
+                        actor = replace(actor, interaction=replace(
+                            actor.interaction, interaction_id=f"pure-gesture-{index}",
+                        ))
+                        save(service, inputs.project_id, action, parameters, actor, challenge,
+                             request=f"pure-authorization-request-{index}")
+                        executed = core.api.dispatch(execution_command(
+                            inputs.project_id, action, parameters, request=f"pure-execute-{index}",
+                        ), RELAY)
+                        assert executed.error is None, executed.error
+                        facts = ExecutionFacts.model_validate(executed.result["execution_facts"])
+                        query_command = Command(
+                            action="verify_pending", project_id=inputs.project_id,
+                            request_id=f"pure-query-request-{index}", intent_id=f"pure-query-{index}",
+                            expected_revision=0, target=step.step_id,
+                            parameters={"run_id": facts.run_id, "step_id": step.step_id,
+                                        "attempt_id": facts.current_attempt_by_step[step.step_id],
+                                        "base_snapshot_commit_id": facts.snapshot_commit_id},
+                        )
+                        verified = core.api.dispatch(query_command, RELAY)
+                        assert verified.error is None, verified.error
+                        assert verified.result["verification"]["observation"] == "matched"
+                report_command = Command(
+                    action="create_report", project_id=inputs.project_id,
+                    request_id="report-request", intent_id="report-intent", expected_revision=0,
+                    parameters={"report_id": "order-report", "run_id": facts.run_id, "issue_ids": []},
+                )
+                reported = core.api.dispatch(report_command, RELAY)
+                assert reported.error is None, reported.error
+                report = core.unit_of_work.repo.read(
+                    aggregate_kind="report", record_id="order-report", revision=1,
+                ).payload
+&gt;               assert report["business_outcome"] == ("passed" if complete_library else "incomplete")
+E               AssertionError: assert 'incomplete' == 'passed'
+E                 
+E                 - passed
+E                 + incomplete
+
+tests\unit\test_configured_business_verification.py:369: AssertionError</failure></testcase></testsuite></testsuites>

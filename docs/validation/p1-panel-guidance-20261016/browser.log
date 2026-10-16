@@ -1,0 +1,35 @@
+
+> @aitest/panel@0.4.9 test
+> playwright test --workers=2 --timeout=10000
+
+
+Running 22 tests using 2 workers
+
+(node:51000) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:33368) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 tests\controlled-entry.spec.ts:6:1 › controlled editor preserves intent through refusal and never sends a user-event assertion (868ms)
+  ok  2 tests\event-stream.spec.ts:52:1 › event stream threads the cursor and appends only new committed events (841ms)
+  ok  3 tests\controlled-entry.spec.ts:43:1 › old or disconnected core cannot enable the controlled entry (272ms)
+  ok  4 tests\event-stream.spec.ts:100:1 › a refused cursor keeps the previous cursor and never rewinds silently (581ms)
+  ok  5 tests\guided.spec.ts:20:1 › novice run carries exact identities, never auto executes and retains retry intent (750ms)
+  ok  6 tests\issue-detail.spec.ts:42:1 › issue detail renders authoritative fields and never executes a fix (589ms)
+  ok  7 tests\guided.spec.ts:50:1 › normal navigation hides technical forms and preserves fold choices (566ms)
+  ok  8 tests\issue-detail.spec.ts:140:1 › rows-only detail outcome never fabricates fields or copyable text (473ms)
+  ok  9 tests\panel.spec.ts:5:1 › successful connection refreshes capabilities without another user click (368ms)
+  ok 10 tests\issue-detail.spec.ts:190:1 › issue detail stays blocked without a project and shows refusals verbatim (608ms)
+  ok 11 tests\panel.spec.ts:29:1 › prototype follows current-test panel and same-panel detail flow (425ms)
+  ok 13 tests\panel.spec.ts:62:1 › host outcome is rendered verbatim without recalculating conclusions (306ms)
+  ok 12 tests\repair-brief.spec.ts:64:1 › repair brief reads by the open issue identity and renders it verbatim (598ms)
+  ok 14 tests\panel.spec.ts:97:1 › project context gates read-only queries and rows render verbatim (623ms)
+  ok 15 tests\repair-brief.spec.ts:120:1 › a refused brief shows the code and offers no body to copy (474ms)
+  ok 16 tests\view-correlation.spec.ts:24:1 › owned core view and outer boundary are rendered without changing doctor capability (399ms)
+  ok 17 tests\workflow.spec.ts:5:1 › workflow keeps execution identity, separates other intents and never auto submits (729ms)
+  ok 18 tests\view-correlation.spec.ts:35:1 › wrong correlation and foreign view never replace the current scoped view (337ms)
+  ok 19 tests\workflow.spec.ts:51:1 › saved preparation form creates explicit references without frozen case fabrication (189ms)
+  ok 21 tests\workflow.spec.ts:66:1 › run controls bind the exact run snapshot and delivery keeps report references explicit (5ms)
+  ok 20 tests\view-correlation.spec.ts:47:1 › project switch clears pending scope and rejects its late reply (393ms)
+  ok 22 tests\view-correlation.spec.ts:60:1 › delivery separates self report and verified scope and clears stale results (437ms)
+
+  22 passed (6.8s)

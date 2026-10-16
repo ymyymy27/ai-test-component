@@ -77,7 +77,7 @@ CLI 转发 ───────────────────────
 | --- | --- |
 | 项目/内容 | bind_project、save_context、save_delivery、save_acceptance、analyze_project、save_model_outbound_policy、save_project_view_preference、save_rules、publish_rules、generate_draft |
 | 计划 | save_plan、publish_plan、prepare_run、start_run、revise_pending_steps、narrow_driver、authorize_step |
-| 执行 | pause_run、resume_run、cancel_run、retry_step、attach_evidence、verify_pending、return_stage |
+| 执行 | pause_run、resume_run、cancel_run、retry_step、attach_evidence、verify_pending、return_stage、select_case_reuse |
 | 问题/报告 | update_issue、record_fix、request_regression、close_issue、create_report、record_local_review、export_report、copy_repair_brief |
 | 查询/维护 | query、events、doctor、test_connection、storage_usage、backup、migrate |
 

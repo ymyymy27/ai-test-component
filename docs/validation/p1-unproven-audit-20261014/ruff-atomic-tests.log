@@ -1,0 +1,45 @@
+E501 Line too long (104 > 100)
+   --> tests\unit\test_default_start_source_chain.py:205:101
+    |
+203 |                 )
+204 |             assert core.unit_of_work.current_commit_sequence() == before
+205 |             assert service._state(inputs.project_id, attempt.authorization_ref.authorization_id)[1] is (
+    |                                                                                                     ^^^^
+206 |                 AuthorizationState.UNUSED
+207 |             )
+    |
+
+E501 Line too long (109 > 100)
+   --> tests\unit\test_default_start_source_chain.py:222:101
+    |
+220 |         ))
+221 |         assert observed.state.value == "verified" and not observed.gap_ids
+222 |         evidence = next(item for item in current.evidence_refs if item.evidence_id in observed.evidence_refs)
+    |                                                                                                     ^^^^^^^^^
+223 |         assert evidence.evidence_kind.value == "source_check"
+224 |         assert evidence.attempt_id == attempt.attempt_id
+    |
+
+E501 Line too long (104 > 100)
+   --> tests\unit\test_default_start_source_chain.py:231:101
+    |
+229 |         workspace = core.workspace.root
+230 |         core.lifetime_lock.release()
+231 |     restarted = assemble_workspace_core(workspace, instance_id="source-reopen", execution_enabled=False)
+    |                                                                                                     ^^^^
+232 |     try:
+233 |         saved = restarted.execution_coordinator.read_runtime_revision_facts(
+    |
+
+E501 Line too long (109 > 100)
+   --> tests\unit\test_default_start_source_chain.py:240:101
+    |
+238 |         assert FileObjectStore(workspace).read_bytes(source.raw_output_object) == original
+239 |         assert restarted.unit_of_work.repo.read(
+240 |             aggregate_kind="execution_authorization", record_id=parameters["execution_action_id"], revision=1
+    |                                                                                                     ^^^^^^^^^
+241 |         ).payload["schema_version"] == "aitest.resolved-execution-action/1.1"
+242 |     finally:
+    |
+
+Found 6 errors (2 fixed, 4 remaining).

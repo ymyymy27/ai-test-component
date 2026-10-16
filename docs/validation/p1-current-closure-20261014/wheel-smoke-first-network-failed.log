@@ -1,0 +1,30 @@
+Using CPython 3.13.0 interpreter at: F:\python\python.exe
+Creating virtual environment at: C:\Users\86178\AppData\Local\Temp\aitest-p1-completion-20261014\aitest-wheel-b0qq8kyo\venv
+Activate with: C:\Users\86178\AppData\Local\Temp\aitest-p1-completion-20261014\aitest-wheel-b0qq8kyo\venv\Scripts\activate
+Using Python 3.13.0 environment at: C:\Users\86178\AppData\Local\Temp\aitest-p1-completion-20261014\aitest-wheel-b0qq8kyo\venv
+WARN Retry attempt #0. Sleeping 1.0044048s before the next attempt
+WARN Retry attempt #0. Sleeping 1.326966s before the next attempt
+WARN Retry attempt #1. Sleeping 3.4603737s before the next attempt
+WARN Retry attempt #1. Sleeping 3.0910604s before the next attempt
+WARN Retry attempt #2. Sleeping 7.9242095s before the next attempt
+WARN Retry attempt #2. Sleeping 6.3402608s before the next attempt
+error: Request failed after 3 retries in 47.5s
+  Caused by: Failed to fetch: `https://pypi.org/simple/pydantic/`
+  Caused by: error sending request for url (https://pypi.org/simple/pydantic/)
+  Caused by: client error (Connect)
+  Caused by: tls handshake eof
+Traceback (most recent call last):
+  File "E:\ai-test-component\scripts\smoke_wheel.py", line 50, in <module>
+    main()
+    ~~~~^^
+  File "E:\ai-test-component\scripts\smoke_wheel.py", line 22, in main
+    subprocess.run(
+    ~~~~~~~~~~~~~~^
+        ["uv", "pip", "install", "--python", str(python), str(wheels[0])], check=True
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "F:\python\Lib\subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['uv', 'pip', 'install', '--python', 'C:\\Users\\86178\\AppData\\Local\\Temp\\aitest-p1-completion-20261014\\aitest-wheel-b0qq8kyo\\venv\\Scripts\\python.exe', 'E:\\ai-test-component\\dist\\ai_test_component-0.4.0-py3-none-any.whl']' returned non-zero exit status 2.

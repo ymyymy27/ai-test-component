@@ -1,0 +1,11 @@
+{
+  "scope": "real_provider_component_only_not_Trae_or_user_policy_acceptance",
+  "endpoint": "https://api.deepseek.com",
+  "model": "deepseek-flash",
+  "input": "Connectivity test for AI Test plugin. Reply with exactly AITEST_OK. No other text.",
+  "status": "ok",
+  "error_kind": null,
+  "exact_reply": true,
+  "output_sha256": "46af5b37c4b2c831577111744e6cde71625d3426e4b3a17fef2b7b58dd50cc89",
+  "provider_request_id": "779ba6f3-cc81-4ee2-8632-c1fd6d0a990c"
+}

@@ -1,0 +1,168 @@
+[
+  {
+    "path": "src/aitest/application/execution/reuse_inspection.py",
+    "changed_symbols": [
+      "CaseReuseInspection",
+      "consumption_basis",
+      "_verify"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/authoritative_basis.py",
+    "changed_symbols": [
+      "SavedCaseBasisCheck",
+      "__init__",
+      "__call__",
+      "for_facts",
+      "_confirmed",
+      "revision",
+      "text",
+      "_material",
+      "_preparation"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/execution_decision_adapter.py",
+    "changed_symbols": [
+      "build_decision_facts"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/reuse_consumption.py",
+    "changed_symbols": [
+      "ReuseOutcome",
+      "derive_reuse_outcome",
+      "_denials_for",
+      "_source_identity_matches",
+      "_source_attempts_verified",
+      "_verification_present",
+      "__post_init__",
+      "read_source"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/saved_defects.py",
+    "changed_symbols": [
+      "blocking_state",
+      "SavedDefectManagement",
+      "_transition",
+      "_attempt_case",
+      "_original_criteria",
+      "_closure_evidence",
+      "_facts"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/saved_exports.py",
+    "changed_symbols": [
+      "SavedExportService",
+      "export_report",
+      "_evidence_index",
+      "_issue_titles",
+      "_bundle",
+      "_read_object_bytes",
+      "_recall",
+      "_verify_saved_artifact",
+      "_commit"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/saved_reports.py",
+    "changed_symbols": [
+      "ReportRecordRepository",
+      "report_to_payload",
+      "_LiveDecision",
+      "SavedReportService",
+      "__init__",
+      "query",
+      "_live",
+      "_create_report",
+      "_reuse_outcome",
+      "_issues",
+      "_commit"
+    ]
+  },
+  {
+    "path": "src/aitest/application/review/saved_reuse.py",
+    "changed_symbols": [
+      "ReuseRevisionConflict",
+      "SavedCaseReuseSelection",
+      "_snapshot_digest",
+      "apply",
+      "_reference",
+      "_recall"
+    ]
+  },
+  {
+    "path": "src/aitest/bootstrap.py",
+    "changed_symbols": [
+      "assemble_workspace_core"
+    ]
+  },
+  {
+    "path": "src/aitest/interfaces/local/api.py",
+    "changed_symbols": [
+      "LocalAPI",
+      "_maintenance_reason"
+    ]
+  },
+  {
+    "path": "tests/unit/test_case_reuse_inspection.py",
+    "changed_symbols": [
+      "inspection",
+      "facts"
+    ]
+  },
+  {
+    "path": "tests/unit/test_case_reuse_selection.py",
+    "changed_symbols": [
+      "_verification",
+      "_command",
+      "test_same_intent_replays_and_different_input_conflicts",
+      "test_second_case_appends_a_new_revision_for_the_same_run",
+      "test_parameter_and_target_shape_is_refused"
+    ]
+  },
+  {
+    "path": "tests/unit/test_reuse_consumption.py",
+    "changed_symbols": [
+      "_facts",
+      "_verified_source",
+      "_outcome",
+      "_complete_basis",
+      "test_source_identity_or_verification_missing_is_denied"
+    ]
+  },
+  {
+    "path": "tests/unit/test_saved_defect_management.py",
+    "changed_symbols": [
+      "_facts",
+      "_evidence",
+      "_Harness",
+      "_ready_issue",
+      "_FixtureBasis",
+      "test_close_issue_derives_every_fact_from_saved_execution",
+      "__init__",
+      "__call__",
+      "revision",
+      "text"
+    ]
+  },
+  {
+    "path": "tests/unit/test_saved_exports.py",
+    "changed_symbols": [
+      "test_evidence_bundle_unzips_into_an_empty_directory"
+    ]
+  },
+  {
+    "path": "tests/unit/test_saved_reports.py",
+    "changed_symbols": [
+      "_Harness",
+      "test_create_report_derives_decision_and_frozen_inputs_from_saved_facts",
+      "test_report_freezes_issue_revisions_read_from_the_warehouse",
+      "test_report_records_reuse_denials_with_named_reasons",
+      "__init__",
+      "save_facts"
+    ]
+  }
+]

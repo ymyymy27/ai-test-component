@@ -1,0 +1,35 @@
+{
+  "artifact_digest": "sha256:906bf76725f2f29da6afe0a79aee75db79bd28df13322e3b0ea6239e392be0bf",
+  "artifact_ref": "artifacts/reports/trae-library-report/evidence_bundle-906bf76725f2f29d.zip",
+  "attachment_refs": [],
+  "content_revision": 1,
+  "created_at": "2026-10-16T05:38:51.849269+00:00",
+  "excluded": [],
+  "export_id": "export-0de2dca3c3df4e2c4522d7230ef61bc04e134b49c8b8b1a4ae2e0f8300500e1b",
+  "key": {
+    "attachment_refs": [],
+    "kind": "evidence_bundle",
+    "redaction_policy_version": "aitest.redaction/1.0",
+    "report_id": "trae-library-report",
+    "report_revision": 1,
+    "review_ids": []
+  },
+  "kind": "evidence_bundle",
+  "media_type": "application/zip",
+  "missing": [],
+  "object_ref": {
+    "digest": "sha256:906bf76725f2f29da6afe0a79aee75db79bd28df13322e3b0ea6239e392be0bf",
+    "media_type": "application/zip",
+    "project_id": "trae-live-20261016",
+    "relative_path": "objects/trae-live-20261016/906bf76725f2f29da6afe0a79aee75db79bd28df13322e3b0ea6239e392be0bf",
+    "size": 27479
+  },
+  "project_id": "trae-live-20261016",
+  "redaction_policy_version": "aitest.redaction/1.0",
+  "report_id": "trae-library-report",
+  "report_revision": 1,
+  "review_ids": [],
+  "review_revisions": {},
+  "schema_version": "aitest.report-export/1.0",
+  "size_bytes": 27479
+}

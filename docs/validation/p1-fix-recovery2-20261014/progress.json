@@ -1,0 +1,6 @@
+{
+  "state": "running",
+  "worker_pid": 15764,
+  "current_test": "tests/recovery/test_execution_recovery.py::test_runner_startup_scan_persists_recovery_decision",
+  "updated_at": "2026-10-14T08:07:30.704778+00:00"
+}

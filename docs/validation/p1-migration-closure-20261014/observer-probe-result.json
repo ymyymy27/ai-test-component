@@ -1,0 +1,22 @@
+{
+  "result": "passed",
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "C:\\Users\\86178\\.codex\\worktrees\\p1-unproven-boundaries\\ai-test-component\\docs\\validation\\p1-migration-closure-20261014\\run_full.py",
+    "--probe"
+  ],
+  "pytest_arguments": [
+    "-q",
+    "tests/unit/test_a_a08_snapshot_durability.py",
+    "tests/unit/test_tree_material_immutability.py",
+    "tests/recovery/test_atomic_and_lock.py",
+    "-q",
+    "--basetemp=C:/Users/86178/AppData/Local/Temp/aitest-p1-completion-20261014/reporter-probe",
+    "--junitxml=C:\\Users\\86178\\.codex\\worktrees\\p1-unproven-boundaries\\ai-test-component\\docs\\validation\\p1-migration-closure-20261014\\observer-probe\\probe.xml"
+  ],
+  "exit_code": 0,
+  "nodes": 38,
+  "junit_cases": 38,
+  "ledger_records": 114,
+  "scope": "three complete real fault-injection files with the exact new reporter; not full or real AC"
+}

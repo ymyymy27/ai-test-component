@@ -71,6 +71,7 @@ class FileExecutionHandleStore:
         original = self.load(handle.handle_id)
         if original.handle != handle or result.attempt_id != original.attempt_id:
             raise ValueError("execution collection identity mismatch")
+        _check_source_identity(result, handle)
         if result.complete is not True or result.exit_fact_ref is None:
             raise ValueError("only a confirmed exit collection may be frozen")
         if (
@@ -83,12 +84,16 @@ class FileExecutionHandleStore:
             if previous != result:
                 raise ValueError("confirmed execution collection is immutable")
             return
+        payload = TypeAdapter(ExecutionCollectionResult).dump_python(result, mode="json")
+        if result.runtime_source is None:
+            payload.pop("runtime_source")
         atomic.write_json(
             self._result_path(handle.handle_id),
             {
-                "schema_version": "aitest.execution-collection/1.0",
+                "schema_version": ("aitest.execution-collection/1.1" if result.runtime_source
+                                   else "aitest.execution-collection/1.0"),
                 "startup_token": original.startup_token,
-                "result": TypeAdapter(ExecutionCollectionResult).dump_python(result, mode="json"),
+                "result": payload,
             },
         )
 
@@ -100,12 +105,18 @@ class FileExecutionHandleStore:
         raw = _read_json(path)
         if (
             set(raw) != {"schema_version", "startup_token", "result"}
-            or raw.get("schema_version") != "aitest.execution-collection/1.0"
+            or raw.get("schema_version") not in {
+                "aitest.execution-collection/1.0", "aitest.execution-collection/1.1",
+            }
             or raw.get("startup_token") != record.startup_token
             or record.handle != handle
         ):
             raise ValueError("confirmed execution collection identity mismatch")
         result = _strict_result(TypeAdapter(ExecutionCollectionResult), raw["result"])
+        _check_source_identity(result, handle)
+        if raw["schema_version"] != ("aitest.execution-collection/1.1" if result.runtime_source
+                                     else "aitest.execution-collection/1.0"):
+            raise ValueError("execution collection version does not match its source observation")
         if (
             result.attempt_id != record.attempt_id
             or result.complete is not True
@@ -231,6 +242,16 @@ class FileExecutionHandleStore:
         return self._root / "execution-handles" / f"{digest}.json"
 
 
+def _check_source_identity(result: ExecutionCollectionResult, handle: ExecutionHandle) -> None:
+    source = result.runtime_source
+    if source is not None and (
+        source.attempt_id != result.attempt_id
+        or source.process_id != handle.real_execution_id
+        or source.process_start_identity != handle.process_start_identity
+    ):
+        raise ValueError("execution source observation identity mismatch")
+
+
 def _handle_id(payload: dict[str, object]) -> str:
     raw_handle = payload.get("handle")
     if not isinstance(raw_handle, dict):
@@ -249,7 +270,11 @@ _StrictT = TypeVar("_StrictT")
 
 def _strict_result(adapter: TypeAdapter[_StrictT], raw: object) -> _StrictT:
     result = adapter.validate_json(json.dumps(raw, allow_nan=False), strict=True)
-    if adapter.dump_python(result, mode="json") != raw:
+    canonical = adapter.dump_python(result, mode="json")
+    if (isinstance(raw, dict) and "runtime_source" not in raw and isinstance(canonical, dict)
+            and canonical.get("runtime_source") is None):
+        canonical.pop("runtime_source", None)
+    if canonical != raw:
         raise ValueError("execution receipt has unknown or noncanonical fields")
     return result
 

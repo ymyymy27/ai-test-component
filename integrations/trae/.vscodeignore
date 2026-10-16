@@ -4,3 +4,5 @@ scripts/**
 tsconfig.json
 package-lock.json
 dist/*.vsix
+
+tests/**

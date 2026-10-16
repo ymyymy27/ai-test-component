@@ -1,0 +1,17 @@
+{
+  "approval_action": "save_binding",
+  "approval_commit_seq": "10",
+  "approval_confirmation_id": "approval-confirm-61675174ae48743e4ccfc2c13fef81d3c57a1f7faf6a6ef594e03c3cb4479737",
+  "approval_expected_revision": 0,
+  "approval_intent_id": "trae-live-binding",
+  "approval_project_revision": 1,
+  "binding_form": "plain",
+  "binding_id": "binding-library",
+  "binding_revision": 1,
+  "canonical_path": "E:/AI-Test-samples/python-library-20261016",
+  "confirmed": true,
+  "manifest_digest": "pending-source-analysis",
+  "project_id": "trae-live-20261016",
+  "schema_version": "aitest.binding/2.0",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391"
+}

@@ -1,0 +1,6 @@
+{
+  "state": "running",
+  "worker_pid": 3612,
+  "current_test": "tests/recovery/test_atomic_and_lock.py::test_real_second_process_cannot_acquire_writer_lock",
+  "updated_at": "2026-10-14T10:43:09.925534+00:00"
+}

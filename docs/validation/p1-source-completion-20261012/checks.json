@@ -1,0 +1,62 @@
+[
+  {
+    "name": "scope-regression",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/unit/test_start_source_verification.py",
+      "tests/unit/test_action_resolver.py",
+      "tests/unit/test_review_decision.py",
+      "tests/contracts/test_execution_facts_decision_adapter.py",
+      "tests/contracts/test_generated_schemas.py",
+      "tests/contracts/test_template_content.py",
+      "tests/architecture/test_boundaries.py",
+      "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-source-completion-20261012\\scope-regression.xml"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 2.86,
+    "log": "scope-regression.log",
+    "sha256": "82a3a258c6f69f2a8d5e4821da8ff03dedc871d780293b208337ea9327d3b163"
+  },
+  {
+    "name": "product-source-diff",
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "845e6978d522def651d5fec5a0b046126ffaaadd",
+      "--",
+      "src",
+      "integrations",
+      "pyproject.toml",
+      "uv.lock",
+      "tests"
+    ],
+    "exit_code": 1,
+    "duration_seconds": 0.05,
+    "log": "product-source-diff.log",
+    "sha256": "f8be346a2300f15546ca7f02bb0a8e52a3d4647a71ce40829094954b523fb92c"
+  },
+  {
+    "name": "product-code-diff",
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "845e6978d522def651d5fec5a0b046126ffaaadd",
+      "--",
+      "src",
+      "integrations",
+      "pyproject.toml",
+      "uv.lock",
+      "tests",
+      ":(exclude)tests/acceptance/p1/README.md"
+    ],
+    "exit_code": 0,
+    "log": "product-code-diff.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reason": "Initial wide path included prior navigation-only README changes; original nonzero log preserved."
+  }
+]

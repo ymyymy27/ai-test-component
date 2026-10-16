@@ -1,0 +1,50 @@
+<testsuites id="" name="" tests="17" failures="0" skipped="0" errors="0" time="6.285465">
+<testsuite name="controlled-entry.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="2" failures="0" skipped="0" time="3.866" errors="0">
+<testcase name="controlled editor preserves intent through refusal and never sends a user-event assertion" classname="controlled-entry.spec.ts" time="3.361">
+</testcase>
+<testcase name="old or disconnected core cannot enable the controlled entry" classname="controlled-entry.spec.ts" time="0.505">
+</testcase>
+</testsuite>
+<testsuite name="event-stream.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="2" failures="0" skipped="0" time="3.965" errors="0">
+<testcase name="event stream threads the cursor and appends only new committed events" classname="event-stream.spec.ts" time="3.118">
+</testcase>
+<testcase name="a refused cursor keeps the previous cursor and never rewinds silently" classname="event-stream.spec.ts" time="0.847">
+</testcase>
+</testsuite>
+<testsuite name="issue-detail.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="3" failures="0" skipped="0" time="4.965" errors="0">
+<testcase name="issue detail renders authoritative fields and never executes a fix" classname="issue-detail.spec.ts" time="3.589">
+</testcase>
+<testcase name="rows-only detail outcome never fabricates fields or copyable text" classname="issue-detail.spec.ts" time="0.767">
+</testcase>
+<testcase name="issue detail stays blocked without a project and shows refusals verbatim" classname="issue-detail.spec.ts" time="0.609">
+</testcase>
+</testsuite>
+<testsuite name="panel.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="3" failures="0" skipped="0" time="4.036" errors="0">
+<testcase name="prototype follows current-test panel and same-panel detail flow" classname="panel.spec.ts" time="2.776">
+</testcase>
+<testcase name="host outcome is rendered verbatim without recalculating conclusions" classname="panel.spec.ts" time="0.555">
+</testcase>
+<testcase name="project context gates read-only queries and rows render verbatim" classname="panel.spec.ts" time="0.705">
+</testcase>
+</testsuite>
+<testsuite name="repair-brief.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="2" failures="0" skipped="0" time="3.834" errors="0">
+<testcase name="repair brief reads by the open issue identity and renders it verbatim" classname="repair-brief.spec.ts" time="3.119">
+</testcase>
+<testcase name="a refused brief shows the code and offers no body to copy" classname="repair-brief.spec.ts" time="0.715">
+</testcase>
+</testsuite>
+<testsuite name="view-correlation.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="3" failures="0" skipped="0" time="3.872" errors="0">
+<testcase name="owned core view and outer boundary are rendered without changing doctor capability" classname="view-correlation.spec.ts" time="2.585">
+</testcase>
+<testcase name="wrong correlation and foreign view never replace the current scoped view" classname="view-correlation.spec.ts" time="0.685">
+</testcase>
+<testcase name="project switch clears pending scope and rejects its late reply" classname="view-correlation.spec.ts" time="0.602">
+</testcase>
+</testsuite>
+<testsuite name="workflow.spec.ts" timestamp="2026-10-15T08:28:34.038Z" hostname="" tests="2" failures="0" skipped="0" time="3.457" errors="0">
+<testcase name="workflow keeps execution identity, separates other intents and never auto submits" classname="workflow.spec.ts" time="2.991">
+</testcase>
+<testcase name="saved preparation form creates explicit references without frozen case fabrication" classname="workflow.spec.ts" time="0.466">
+</testcase>
+</testsuite>
+</testsuites>

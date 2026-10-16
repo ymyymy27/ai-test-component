@@ -1,0 +1,19 @@
+[
+  {
+    "name": "regression",
+    "command": [
+      "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/unit/test_cli_ensure_core.py",
+      "tests/unit/test_a_bootstrap_acquire.py",
+      "tests/unit/test_core_startup_integrity.py",
+      "tests/unit/test_core_exit_admission.py",
+      "tests/unit/test_core_discovery_path_integrity.py",
+      "tests/unit/test_host_model_configuration.py",
+      "-vv",
+      "--junitxml=docs\\validation\\p1-trae-live-20261016\\lifecycle.xml"
+    ],
+    "exit_code": 1
+  }
+]

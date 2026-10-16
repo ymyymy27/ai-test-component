@@ -1,0 +1,6 @@
+Installing extensions...
+[AbstractNetworkChecker] setValue: isFirstSet=true, isChange=true, suppressFirstEvent=true, value=false, cachedValue=undefined
+[AbstractNetworkChecker] suppressing first event
+[AbstractNetworkChecker] setValue: isFirstSet=true, isChange=true, suppressFirstEvent=true, value="none", cachedValue=undefined
+[AbstractNetworkChecker] suppressing first event
+Extension 'aitest-trae.vsix' was successfully installed.

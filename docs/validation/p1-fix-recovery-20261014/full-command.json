@@ -1,0 +1,10 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "E:\\ai-test-component\\docs\\validation\\p1-fix-recovery-20261014\\run_full.py",
+    "--worker"
+  ],
+  "source_commit": "77451faeec5d0af07cb7bf54be35562bbff52748",
+  "started_at": "2026-10-14T06:34:06.656690+00:00",
+  "scope": "all 5370 unique nodes; new atomic cases and all affected paths first; stop on first failure; no concurrent heavy test"
+}

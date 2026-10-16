@@ -1,0 +1,38 @@
+[
+  {
+    "scope": "3.13-source",
+    "junit": "runtime-scope-final.xml",
+    "tests": 64,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code_scope": "3.13 exact exit captured; 3.11/3.12 JUnit complete, shell continuation output not fully retained"
+  },
+  {
+    "scope": "3.13-backup",
+    "junit": "backup-final-small.xml",
+    "tests": 32,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code_scope": "3.13 exact exit captured; 3.11/3.12 JUnit complete, shell continuation output not fully retained"
+  },
+  {
+    "scope": "3.11-selection",
+    "junit": "runtime-backup-311.xml",
+    "tests": 96,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code_scope": "3.13 exact exit captured; 3.11/3.12 JUnit complete, shell continuation output not fully retained"
+  },
+  {
+    "scope": "3.12-selection",
+    "junit": "runtime-backup-312.xml",
+    "tests": 96,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code_scope": "3.13 exact exit captured; 3.11/3.12 JUnit complete, shell continuation output not fully retained"
+  }
+]

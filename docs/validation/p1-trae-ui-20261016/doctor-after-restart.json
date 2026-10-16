@@ -1,0 +1,180 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "restart-44f6156fd41643bbadb379a536d93498",
+  "instance_id": "core-fe7a74fb4403",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": null,
+  "intent_id": null,
+  "binding_revision": null,
+  "result": {
+    "status": "READY",
+    "protocol": "aitest.local/2.0",
+    "supported_actions": [
+      "analyze_project",
+      "attach_evidence",
+      "authorize_step",
+      "backup",
+      "bind_project",
+      "cancel_run",
+      "check_source",
+      "close_issue",
+      "confirm_basis",
+      "copy_repair_brief",
+      "create_report",
+      "doctor",
+      "events",
+      "execute_step",
+      "export_report",
+      "export_rules",
+      "export_rules_markdown",
+      "generate_draft",
+      "import_external_result",
+      "import_rules",
+      "import_rules_markdown",
+      "inspect_case_reuse",
+      "migrate",
+      "narrow_driver",
+      "pause_run",
+      "prepare_approval",
+      "prepare_execution",
+      "prepare_run",
+      "publish_plan",
+      "publish_rules",
+      "query",
+      "read_view",
+      "record_fix",
+      "record_local_review",
+      "register_run",
+      "request_model_draft",
+      "request_regression",
+      "resolve_model_response",
+      "resume_run",
+      "retry_step",
+      "return_stage",
+      "revise_pending_steps",
+      "revoke_approval",
+      "save_acceptance",
+      "save_binding",
+      "save_case",
+      "save_context",
+      "save_delivery",
+      "save_dependency_graph",
+      "save_environment",
+      "save_model_outbound_policy",
+      "save_plan",
+      "save_project_view_preference",
+      "save_rules",
+      "save_task",
+      "select_case_reuse",
+      "start_run",
+      "storage_usage",
+      "submit_delivery",
+      "update_issue",
+      "verify_pending"
+    ],
+    "phase": 1,
+    "intent_contracts": {
+      "save_context": "aitest.record-write-intent/1.0",
+      "save_dependency_graph": "aitest.record-write-intent/1.0",
+      "save_environment": "aitest.record-write-intent/1.0",
+      "save_case": "aitest.record-write-intent/1.0",
+      "save_task": "aitest.record-write-intent/1.0",
+      "save_delivery": "aitest.record-write-intent/1.0",
+      "save_acceptance": "aitest.record-write-intent/1.0"
+    },
+    "dependencies": {
+      "dependencies": [
+        {
+          "key": "connection",
+          "state": "not_configured",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": null
+        },
+        {
+          "key": "model",
+          "state": "ready",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": "2026-10-16T05:40:13.605465+00:00"
+        },
+        {
+          "key": "secret",
+          "state": "ready",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": "2026-10-16T05:40:13.584437+00:00"
+        },
+        {
+          "key": "source",
+          "state": "ready",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": "2026-10-16T05:40:13.588372+00:00"
+        }
+      ],
+      "automatic_conditions": [
+        {
+          "key": "connection",
+          "state": "not_configured",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": null
+        },
+        {
+          "key": "model",
+          "state": "ready",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": "2026-10-16T05:40:13.605465+00:00"
+        },
+        {
+          "key": "secret",
+          "state": "ready",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": "2026-10-16T05:40:13.584437+00:00"
+        },
+        {
+          "key": "source",
+          "state": "ready",
+          "reason": null,
+          "classification": null,
+          "manual": false,
+          "updated_at": "2026-10-16T05:40:13.588372+00:00"
+        }
+      ],
+      "manual_controls": [],
+      "action_dependencies": {
+        "request_model_draft": [
+          "model",
+          "secret"
+        ]
+      },
+      "conditional_action_dependencies": {
+        "generate_draft": [
+          {
+            "parameter": "generation_mode",
+            "equals": "model",
+            "keys": [
+              "model",
+              "secret"
+            ]
+          }
+        ]
+      }
+    },
+    "transport_capabilities": [
+      "native-confirmation/1"
+    ]
+  },
+  "page": null,
+  "error": null
+}

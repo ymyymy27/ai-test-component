@@ -1,0 +1,6 @@
+{
+  "state": "running",
+  "worker_pid": 1088,
+  "current_test": "tests/unit/test_completion_boundaries.py::test_default_core_advertises_and_reads_committed_view_without_writes",
+  "updated_at": "2026-10-14T06:41:47.490670+00:00"
+}

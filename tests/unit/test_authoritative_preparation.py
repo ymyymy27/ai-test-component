@@ -30,16 +30,33 @@ from tests.unit.test_default_source_analysis import dispatch
 
 
 @contextmanager
-def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
-    """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。"""
+def _authoritative(
+    tmp_path,
+    *,
+    step_timeout_seconds: int | None = 120,
+    main_source: str = "VALUE = 1\n",
+    environment_resolver=None,
+    basis_text=None,
+    template_versions=None,
+    case_transform=None,
+    case_set_transform=None,
+):
+    """与冻结环境声明一致的权威夹具；步骤截止由调用方按测试真实需要声明。
+
+    `main_source` 是固定源码文件的实际字节：C-16 的语法反例需要**真的**固定一份含语法
+    错误的源码，而不是改内存里的期望值。
+
+    `environment_resolver` 只在需要真实解释器取值（真实来源探针）时替换；默认仍是
+    显式合成环境端口。
+    """
     core = assemble_workspace_core(
         tmp_path / "workspace",
         instance_id="authoritative-core",
-        environment_resolver=FixtureEnvironmentResolver(),
+        environment_resolver=environment_resolver or FixtureEnvironmentResolver(),
     )
     source = tmp_path / "tested"
     source.mkdir()
-    (source / "main.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (source / "main.py").write_text(main_source, encoding="utf-8")
     scenario = build_scenario("plain")
     project = replace(scenario.project, workspace_id=core.workspace.workspace_id)
     cases = tuple(
@@ -48,11 +65,18 @@ def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
             assertion_basis=replace(
                 case.assertion_basis,
                 state=AssertionBasisState.PRESENT_UNCONFIRMED,
-                text_digest=text_digest(case.assertion_basis.text),
+                text=case.assertion_basis.text if basis_text is None else basis_text,
+                text_digest=text_digest(
+                    case.assertion_basis.text if basis_text is None else basis_text
+                ),
             ),
         )
         for case in scenario.cases
     )
+    if case_transform is not None:
+        cases = tuple(case_transform(case) for case in cases)
+    if case_set_transform is not None:
+        cases = tuple(case_set_transform(cases))
     assert (
         dispatch(
             core,
@@ -80,6 +104,9 @@ def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
         is None
     )
     scope = scenario.plan.scope
+    if case_set_transform is not None:
+        scope = replace(scope, required_case_ids=frozenset(c.case_id for c in cases),
+                        template_case_ids=frozenset(c.case_id for c in cases))
     unit = core.unit_of_work
     unit.begin("fixture-material-request", project.project_id, intent_id="fixture-material-intent")
     for case in cases:
@@ -119,6 +146,7 @@ def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
             "revision": 1,
             "scope": acceptance_scope_to_payload(scope, project_id=project.project_id),
             "cases": [case_to_payload(case, project_id=project.project_id) for case in cases],
+            "template_versions": template_versions or [],
         },
     )
     assert published.error is None, published.error
@@ -171,9 +199,21 @@ def _authoritative(tmp_path, *, step_timeout_seconds: int | None = 120):
                     "confirmation_refs": (),
                 }
             )
-            for basis in scenario.inputs.assertion_bases
+            for basis in (scenario.inputs.assertion_bases if case_set_transform is None else ())
         ),
     )
+    if case_set_transform is not None:
+        inputs = replace(
+            inputs, template_required_case_ids=tuple(c.case_id for c in cases),
+            frozen_required_case_ids=tuple(c.case_id for c in cases),
+            selected_case_ids=tuple(c.case_id for c in cases),
+            assertion_bases=tuple(scenario.inputs.assertion_bases[0].model_copy(update={
+                "case_id": c.case_id, "basis_revision": c.assertion_basis.revision,
+                "basis_text_digest": c.assertion_basis.text_digest,
+                "assertion_basis_state": AssertionBasisStateFact.PRESENT_UNCONFIRMED,
+                "confirmation_refs": (),
+            }) for c in cases),
+        )
     try:
         yield core, inputs, source
     finally:

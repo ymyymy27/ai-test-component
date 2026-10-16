@@ -1,0 +1,19 @@
+{
+  "action": "analyze_project",
+  "intent_id": "trae-live-snapshot",
+  "expected_revision": 0,
+  "parameters": {
+    "binding_id": "binding-library",
+    "purpose": "prepare",
+    "source_scope": ".",
+    "selected_paths": [
+      "main.py"
+    ],
+    "exclusion_rules": [
+      "__pycache__"
+    ]
+  },
+  "binding_revision": 1,
+  "project_id": "trae-live-20261016",
+  "request_id": "live-120148eb3eb24bf5ac5e64d76e46dbd1"
+}

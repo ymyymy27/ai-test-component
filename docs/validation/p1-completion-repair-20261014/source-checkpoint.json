@@ -1,0 +1,7 @@
+{
+  "source_commit": "dba1d4b51d681cdc5f2e2bacf89a50773a0693ae",
+  "test_started_before_checkpoint_commit": true,
+  "frozen_paths": 600,
+  "changed_since_test_start": [],
+  "scope": "The checkpoint preserves current source; it does not supply the unfinished full-suite verdict."
+}

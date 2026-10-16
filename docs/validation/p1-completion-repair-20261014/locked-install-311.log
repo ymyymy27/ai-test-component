@@ -1,0 +1,35 @@
+Using CPython 3.11.15 interpreter at: C:\Users\86178\AppData\Roaming\uv\python\cpython-3.11.15-windows-x86_64-none\python.exe
+Creating virtual environment at: .runtime\completion-clean311
+Resolved 21 packages in 2ms
+Downloading pydantic-core (1.9MiB)
+Downloading pywin32 (6.6MiB)
+Downloading mypy (10.3MiB)
+ Downloaded pydantic-core
+ Downloaded pywin32
+ Downloaded mypy
+Prepared 4 packages in 4.81s
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 21 packages in 2.75s
+ + ai-test-component==0.4.0 (from file:///E:/ai-test-component)
+ + annotated-types==0.8.0
+ + build==1.6.0
+ + colorama==0.4.6
+ + iniconfig==2.3.0
+ + librt==0.15.0
+ + mypy==1.20.2
+ + mypy-extensions==1.1.0
+ + packaging==26.3
+ + pathspec==1.1.1
+ + pluggy==1.6.0
+ + portalocker==3.2.0
+ + pydantic==2.13.5
+ + pydantic-core==2.46.5
+ + pygments==2.21.0
+ + pyproject-hooks==1.2.0
+ + pytest==9.1.1
+ + pywin32==312
+ + ruff==0.16.6
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4

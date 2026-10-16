@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -65,7 +66,7 @@ from aitest.domain.execution.sources import (
 from aitest.domain.project.context import IsolationMode
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_DIR = ROOT / "docs/接口对接/进行中/CD-001-ExecutionFacts/fixtures"
+FIXTURE_DIR = ROOT / "docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures"
 PROJECT_ID = "project-1"
 RUN_ID = "run-1"
 COMMIT_ID = "commit-1"
@@ -332,7 +333,7 @@ def _source_verification(
         verification_id="source-verify-1",
         project_id=PROJECT_ID,
         plan_revision_ref=PLAN_REVISION,
-        expected_source_binding_digest="sha256:source-1",
+        expected_source_content_digest="sha256:source-1",
         materialized_snapshot_ref="snapshot-1",
         observed_source_digest="sha256:source-1",
         state=state,
@@ -490,7 +491,67 @@ def _success_like(
     )
 
 
+HALFWAY_NAMES = ("running", "pause_requested", "paused", "revision_invalidated")
+
+
+def _halfway(name: str) -> ExecutionFactsAssembly:
+    """Public synthetic boundary samples, not evidence of a real persisted run."""
+    base = _success_like("running")
+    index = HALFWAY_NAMES.index(name)
+    paused = name in {"paused", "revision_invalidated"}
+    invalidated = name == "revision_invalidated"
+    state = (RunControlState.PAUSED if paused else RunControlState.PAUSE_REQUESTED
+             if name == "pause_requested" else RunControlState.RUNNING)
+    second = replace(
+        base.attempts[0], attempt_id="attempt-2", step_id="step-2",
+        intent_id="intent-2", intent_digest="sha256:intent-2",
+        authorization_ref=replace(AUTHORIZATION, authorization_id="authorization-2",
+                                  intent_id="intent-2", step_id="step-2"),
+        execution_handle_ref=replace(_handle(), handle_id="handle-2",
+                                     real_execution_id="proc-2", process_start_identity="start-2"),
+        state=(AttemptState.INVALIDATED if invalidated else AttemptState.COMPLETED
+               if paused else AttemptState.RUNNING),
+        output_cursors=(), output_block_refs=(),
+        exit_fact_ref=(replace(base.attempts[0].exit_fact_ref, attempt_id="attempt-2",
+                              startup_token="token-2", process_start_identity="start-2",
+                              last_block_index_by_stream=(), saved_bytes_by_stream=())
+                       if paused and base.attempts[0].exit_fact_ref is not None else None),
+        capture_completeness=(
+            CaptureCompleteness.COMPLETE if paused else CaptureCompleteness.PARTIAL
+        ),
+        ended_at=COMMITTED_AT if paused else None,
+    )
+    pending = _step("step-3", StepState.READY, ordinal=3)
+    if invalidated:
+        pending = replace(pending, step_revision_ref=StepRevisionRef(
+            step_revision_id="step-rev-3-v2", revision_no=2, digest="sha256:step-3-v2",
+        ))
+    commit, cursor, revision = f"halfway-commit-{index + 1}", CURSOR + index, index + 1
+    return replace(
+        base, facts_id=f"facts-{name}", snapshot_commit_id=commit,
+        snapshot_cursor=cursor, snapshot_revision=revision,
+        boundary=ExecutionFactsBoundary(commit, cursor, revision),
+        run=replace(base.run, control_state=state, evidence_level=None, ended_at=None,
+                    runtime_revision_refs=("runtime-revision-1@1",) if invalidated else ()),
+        steps=(base.steps[0], _step(
+            "step-2", StepState.INVALIDATED if invalidated else StepState.COMPLETED
+            if paused else StepState.RUNNING, ordinal=2, current_attempt_id="attempt-2",
+            invalidated_by="runtime-revision-1@1" if invalidated else None,
+        ), pending),
+        attempts=(base.attempts[0], second), completeness=FactCompleteness.PARTIAL,
+        coverage=CoverageSummary(
+            mandatory_case_ids=("case-1",), selected_case_ids=("case-1",),
+            executed_attempt_ids=(
+                ("attempt-1", "attempt-2") if paused and not invalidated else ("attempt-1",)
+            ),
+            invalidated_step_ids=("step-2",) if invalidated else (),
+        ),
+    )
+
+
 def _build(name: str) -> ExecutionFactsAssembly:
+    if name in HALFWAY_NAMES:
+        return _halfway(name)
     if name == "success":
         return _success_like(
             name,
@@ -666,6 +727,7 @@ def main() -> int:
         "multistream",
         "non_utf8",
         "business_failure",
+        *HALFWAY_NAMES,
     ]
     assembler = ExecutionFactsAssembler()
     for name in names:
@@ -675,6 +737,10 @@ def main() -> int:
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        if name in HALFWAY_NAMES:
+            (ROOT / "tests/contracts/fixtures/execution_facts" / f"{name}.json").write_bytes(
+                (FIXTURE_DIR / f"{name}.json").read_bytes(),
+            )
         print(f"wrote {name}.json")
     return 0
 

@@ -1,0 +1,43 @@
+
+> @aitest/panel@0.4.8 test
+> playwright test
+
+
+Running 20 tests using 7 workers
+
+(node:50240) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:49712) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:44892) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:50896) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36212) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:27656) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:44812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 tests\event-stream.spec.ts:51:1 › event stream threads the cursor and appends only new committed events (4.0s)
+  ok  2 tests\controlled-entry.spec.ts:6:1 › controlled editor preserves intent through refusal and never sends a user-event assertion (4.0s)
+  ok  4 tests\issue-detail.spec.ts:41:1 › issue detail renders authoritative fields and never executes a fix (4.1s)
+  ok  6 tests\view-correlation.spec.ts:24:1 › owned core view and outer boundary are rendered without changing doctor capability (4.2s)
+  ok  3 tests\panel.spec.ts:5:1 › successful connection refreshes capabilities without another user click (4.3s)
+  ok  7 tests\repair-brief.spec.ts:63:1 › repair brief reads by the open issue identity and renders it verbatim (4.2s)
+  ok  5 tests\workflow.spec.ts:5:1 › workflow keeps execution identity, separates other intents and never auto submits (4.2s)
+  ok  9 tests\controlled-entry.spec.ts:42:1 › old or disconnected core cannot enable the controlled entry (558ms)
+  ok 10 tests\issue-detail.spec.ts:139:1 › rows-only detail outcome never fabricates fields or copyable text (892ms)
+  ok 11 tests\view-correlation.spec.ts:34:1 › wrong correlation and foreign view never replace the current scoped view (912ms)
+  ok 14 tests\workflow.spec.ts:50:1 › saved preparation form creates explicit references without frozen case fabrication (821ms)
+  ok  8 tests\event-stream.spec.ts:99:1 › a refused cursor keeps the previous cursor and never rewinds silently (1.1s)
+  ok 17 tests\workflow.spec.ts:65:1 › run controls bind the exact run snapshot and delivery keeps report references explicit (18ms)
+  ok 13 tests\repair-brief.spec.ts:119:1 › a refused brief shows the code and offers no body to copy (924ms)
+  ok 12 tests\panel.spec.ts:28:1 › prototype follows current-test panel and same-panel detail flow (1.1s)
+  ok 18 tests\panel.spec.ts:62:1 › host outcome is rendered verbatim without recalculating conclusions (382ms)
+  ok 16 tests\view-correlation.spec.ts:46:1 › project switch clears pending scope and rejects its late reply (607ms)
+  ok 15 tests\issue-detail.spec.ts:189:1 › issue detail stays blocked without a project and shows refusals verbatim (768ms)
+  ok 19 tests\panel.spec.ts:96:1 › project context gates read-only queries and rows render verbatim (665ms)
+  ok 20 tests\view-correlation.spec.ts:58:1 › delivery separates self report and verified scope and clears stale results (732ms)
+
+  20 passed (8.9s)

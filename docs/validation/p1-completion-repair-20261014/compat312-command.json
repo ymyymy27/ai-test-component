@@ -1,0 +1,21 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean312\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/contracts/test_generated_schemas.py",
+    "tests/unit/test_read_view_relay.py",
+    "tests/unit/test_query_spec_bridge.py",
+    "tests/unit/test_acceptance_status.py",
+    "tests/unit/test_review_decision.py",
+    "tests/unit/test_a_migrations.py",
+    "tests/unit/test_delivery_view.py",
+    "tests/unit/test_mcp_stdio_read.py",
+    "-ra",
+    "--basetemp=E:\\ai-test-component\\.runtime\\tmp\\completion-compat312",
+    "--junitxml=E:\\ai-test-component\\docs\\validation\\p1-completion-repair-20261014\\compat312.xml"
+  ],
+  "python": "3.12.13 (main, Apr 14 2026, 14:31:26) [MSC v.1944 64 bit (AMD64)]",
+  "started_at": "2026-10-13T16:40:01.356057+00:00",
+  "scope": "schema/finite MCP/query/acceptance registry/domain review/migration/delivery and stdio components only, not all tests"
+}

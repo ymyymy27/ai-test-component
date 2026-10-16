@@ -2,9 +2,9 @@
 
 依据现行接口合同：
 
-- `docs/接口对接/进行中/AB-001-端口与保存/contract.md` 第 3.4 节（1.34）：`materialize`
+- `docs/接口对接/已完成/AB-001-端口与保存/contract.md` 第 3.4 节（1.34）：`materialize`
   成功时返回 `paths`（期望来源路径→workdir 实际路径，含 `sha256`/`size`）与 `content_digest`；
-- `docs/接口对接/进行中/BC-001-PreparedRun/contract.md` 第 6 节：
+- `docs/接口对接/已完成/BC-001-PreparedRun/contract.md` 第 6 节：
   `source_binding_digest` 由 **C 在 start** 计算，是"在固定 workdir 中解析出的
   期望→实际路径映射"摘要，**不可**与 B 在 prepare 冻结的 `resolved_input_digest` 合并或互替。
 

@@ -15,6 +15,7 @@ from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.bootstrap import acquire_existing_endpoint
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.queries import QuerySpec
+from aitest.contracts.read_views import ReadViewQuery
 from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.core_client import MAX_COMMAND_BYTES, CoreClient
@@ -93,6 +94,7 @@ class McpRelay:
             if contracts.get(action) == _WRITE_CONTRACT
         ))
         self._reuse_inspection = "inspect_case_reuse" in actions
+        self._view_reading = "read_view" in actions
         self.binding_revision = self._binding_revision()
         self._client_factory = client_factory
         if client_factory is not None:
@@ -169,6 +171,13 @@ class McpRelay:
                 "annotations": {"readOnlyHint": True},
             },
         ]
+        if self._view_reading:
+            tools.append({
+                "name": "aitest_read_view",
+                "description": "读取所选项目准确运行/面板/交付 DTO 与提交事件边界；不执行业务",
+                "inputSchema": ReadViewQuery.model_json_schema(),
+                "annotations": {"readOnlyHint": True, "destructiveHint": False},
+            })
         if self._reuse_inspection:
             tools.append({
                 "name": "aitest_inspect_case_reuse",
@@ -305,8 +314,9 @@ class McpRelay:
         if name == "aitest_dispatch":
             return self._dispatch(arguments)
         inspection = name == "aitest_inspect_case_reuse" and self._reuse_inspection
+        view_reading = name == "aitest_read_view" and self._view_reading
         if not isinstance(name, str) or (
-            name not in {"aitest_doctor", "aitest_query"} and not inspection
+            name not in {"aitest_doctor", "aitest_query"} and not inspection and not view_reading
         ):
             raise _RpcError(-32602, "Tool unavailable")
         if (
@@ -321,6 +331,11 @@ class McpRelay:
                 QuerySpec.model_validate({"project_id": self.project_id, **arguments})
             except ValueError as error:
                 raise _RpcError(-32602, "Invalid finite query arguments") from error
+        if view_reading:
+            try:
+                ReadViewQuery.model_validate(arguments)
+            except ValueError as error:
+                raise _RpcError(-32602, "Invalid finite view arguments") from error
         if inspection:
             if set(arguments) != _INSPECT_FIELDS or any(
                 not isinstance(arguments[key], str) or not arguments[key].strip()
@@ -338,7 +353,7 @@ class McpRelay:
                     "B_REPREPARE_REQUIRED", "绑定修订已变化，请重新选择MCP上下文"
                 )
             response = self._send(
-                "inspect_case_reuse" if inspection else (
+                "read_view" if view_reading else "inspect_case_reuse" if inspection else (
                     "doctor" if name == "aitest_doctor" else "query"
                 ), arguments, binding=True,
                 target=arguments["case_id"] if inspection else None,

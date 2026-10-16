@@ -24,6 +24,7 @@ HUMAN_ACTIONS = frozenset(
         "confirm_basis",
         "prepare_approval",
         "revoke_approval",
+        "select_case_reuse",
     }
 )
 PHASE_ONE_ACTIONS = frozenset(
@@ -53,6 +54,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "prepare_run",
         "register_run",
         "inspect_case_reuse",
+        "select_case_reuse",
         "prepare_execution",
         "execute_step",
         "start_run",
@@ -76,6 +78,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "export_report",
         "copy_repair_brief",
         "query",
+        "read_view",
         "events",
         "doctor",
         "test_connection",
@@ -85,8 +88,16 @@ PHASE_ONE_ACTIONS = frozenset(
     }
 )
 READ_ACTIONS = frozenset(
-    {"query", "events", "doctor", "storage_usage", "copy_repair_brief", "check_source",
-     "inspect_case_reuse"}
+    {
+        "query",
+        "read_view",
+        "events",
+        "doctor",
+        "storage_usage",
+        "copy_repair_brief",
+        "check_source",
+        "inspect_case_reuse",
+    }
 )
 
 

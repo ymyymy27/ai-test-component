@@ -1,0 +1,14 @@
+{
+  "result": "passed",
+  "checks": {
+    "normal_critical_snapshot": true,
+    "transient_permission_retried": true,
+    "critical_lock_failure_not_hidden": true,
+    "advisory_lock_cannot_abort_suite": true,
+    "locked_snapshot_unchanged": true,
+    "advisory_error_recorded": true,
+    "replacement_after_reader_closed": true,
+    "no_owned_temp_leftovers": true
+  },
+  "scope": "validation writer only; actual Windows read-sharing lock and error injection; not product acceptance"
+}

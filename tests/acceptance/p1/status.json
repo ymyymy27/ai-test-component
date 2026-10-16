@@ -740,7 +740,7 @@
       "source_evidence": [
         "src/aitest/application/ports.py:535-555（SourceSnapshotPort 7 个方法）",
         "src/aitest/infrastructure/adapters/source_snapshot.py:155 FileSourceSnapshotStore",
-        "docs/接口对接/进行中/BC-001-PreparedRun/contract.md:491-512（B-Q01/C-Q08 已裁定）"
+        "docs/接口对接/已完成/BC-001-PreparedRun/contract.md:491-512（B-Q01/C-Q08 已裁定）"
       ]
     },
     {

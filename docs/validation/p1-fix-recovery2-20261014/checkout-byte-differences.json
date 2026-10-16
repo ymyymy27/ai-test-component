@@ -1,0 +1,32 @@
+[
+  {
+    "path": "src/aitest/contracts/read_views.py",
+    "previous_sha256": "b53cce224d607454d3d38b6bd163c8d4ab03d8fa145523ff2ab6be58d79fcfce",
+    "current_sha256": "f18c8141fbb2fffb60ae47e8d990755dfcdb970e5780a0b788da64ef1f979086",
+    "reason": "Git checkout line endings only; normalized content identical"
+  },
+  {
+    "path": "src/aitest/contracts/views.py",
+    "previous_sha256": "b3afe1eb9860ab80db201534f856972b4d057a2e0b1786c0acfeefa14520d926",
+    "current_sha256": "ceb1ff3a85d0401d8d4b67de238ecedcfb1b1b491f3a46fd01e1cfca82e34522",
+    "reason": "Git checkout line endings only; normalized content identical"
+  },
+  {
+    "path": "src/aitest/domain/evidence/objects.py",
+    "previous_sha256": "0e2a51dda8fa1ede2a988ede6552c4c19363db9372b876e1e3bdbd46801f789d",
+    "current_sha256": "93e881d72737fe8d2fa69341009b81c4c19ecd79a09f307b66752b14b46a29d8",
+    "reason": "Git checkout line endings only; normalized content identical"
+  },
+  {
+    "path": "tests/unit/test_a_a08_load_source_probe.py",
+    "previous_sha256": "e8abdacb194e7350dbd8039f2d3d26e7938a24b3eaae9c3ccd74fbd3e0ee778a",
+    "current_sha256": "0dc582f5f3399409794c2a89e8945cfd02803638ee6d1c533fd15dd32741f287",
+    "reason": "Git checkout line endings only; normalized content identical"
+  },
+  {
+    "path": "tests/unit/test_read_view_relay.py",
+    "previous_sha256": "fa06ecd68542f91c9c44d31ad67ce95fbeb89d9ff5ee159ba778c1039d421d74",
+    "current_sha256": "86766b1c5b5b88c650335e0a69a1638fb15582978c79c8f73b6af7fad38855a5",
+    "reason": "Git checkout line endings only; normalized content identical"
+  }
+]

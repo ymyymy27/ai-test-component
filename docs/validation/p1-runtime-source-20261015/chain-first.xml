@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="171.612" timestamp="2026-10-15T20:13:32.354062+08:00" hostname="d"><testcase classname="tests.unit.test_runtime_source_complete_chain" name="test_library_plan_execution_verification_passed_report_delivery_and_restart" time="170.730"><failure message="ValueError: permanent object reference identity/size/project is invalid">tmp_path = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-54/test_library_plan_execution_ve0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F044094180&gt;
+
+    def test_library_plan_execution_verification_passed_report_delivery_and_restart(tmp_path, monkeypatch):
+&gt;       _chain(tmp_path, monkeypatch, pure=True, complete_library=True)
+
+tests\unit\test_runtime_source_complete_chain.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_configured_business_verification.py:303: in test_published_plan_actual_execution_query_report_and_restart
+    parameters = service.prepare(
+src\aitest\application\execution\authorization.py:544: in prepare
+    self.unit.commit(request_id)
+src\aitest\infrastructure\file_store\unit_of_work.py:238: in commit
+    created, commit_sequence = self.repo.commit_transaction(
+src\aitest\infrastructure\file_store\records.py:906: in commit_transaction
+    verify_record_objects(self.root, body, project_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/86178/AppData/Local/Temp/pytest-of-86178/pytest-54/test_library_plan_execution_ve0/workspace')
+body = {'schema_version': 'aitest.resolved-execution-action/1.1', 'workspace_id': 'c0c9f43b-8afb-4f49-8dbd-38199458be7c', 'pr...d371', 'source_content_identity': 'sha256:2eadb0801efb9205dd55d9873481151752c060f7bb6891b5c8e5849235a85124', ...}, ...}
+project_id = 'project-ticket'
+
+    def verify_record_objects(root: Path, body: Mapping[str, object], project_id: str) -&gt; None:
+        """Check changed-record closure with streaming safety/digest verification.
+    
+        Work is bounded by this record's explicit references. Existing unrelated
+        history and unattached objects are not visited; duplicate references share
+        one verification. Nothing is written, redacted in place, or guessed.
+        """
+        references: dict[str, int | None] = {}
+        pending: list[object] = [body]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, Mapping):
+                structured = "relative_path" in value and "digest" in value
+                if structured:
+                    if (
+                        not _OBJECT_FIELDS.issubset(value)
+                        or value["project_id"] != project_id
+                        or type(value["size"]) is not int
+                        or value["size"] &lt; 0
+                        or not isinstance(value["media_type"], str)
+                        or not value["media_type"].strip()
+                    ):
+&gt;                       raise ValueError("permanent object reference identity/size/project is invalid")
+E                       ValueError: permanent object reference identity/size/project is invalid
+
+src\aitest\infrastructure\file_store\references.py:39: ValueError</failure></testcase></testsuite></testsuites>

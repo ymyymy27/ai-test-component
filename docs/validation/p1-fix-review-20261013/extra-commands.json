@@ -1,0 +1,71 @@
+[
+  {
+    "label": "panel-build",
+    "command": [
+      "F:/Node/npm.cmd",
+      "run",
+      "build"
+    ],
+    "cwd": "E:\\ai-test-component\\src\\aitest\\resources\\panel",
+    "exit_code": 0,
+    "seconds": 7.43,
+    "log": "panel-build.log",
+    "sha256": "4977344a491cffae5b34c6b4ff1c38a01bd3965ff962d34c518d63272c95fc9d"
+  },
+  {
+    "label": "panel-tests",
+    "command": [
+      "F:/Node/npm.cmd",
+      "test"
+    ],
+    "cwd": "E:\\ai-test-component\\src\\aitest\\resources\\panel",
+    "exit_code": 0,
+    "seconds": 10.8,
+    "log": "panel-tests.log",
+    "sha256": "b7e5a26e398adb4dde6ff4bac44a895af0ce0a24ed33ffe057420d7af2869d80"
+  },
+  {
+    "label": "versions",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/check_versions.py"
+    ],
+    "cwd": "E:\\ai-test-component",
+    "exit_code": 0,
+    "seconds": 0.13,
+    "log": "versions.log",
+    "sha256": "be36d0066e8b6749a88a1c6bf1ce96482157ec618cb7f2aab162d3efae41f4d9"
+  },
+  {
+    "label": "schemas",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "scripts/generate_schemas.py"
+    ],
+    "cwd": "E:\\ai-test-component",
+    "exit_code": 0,
+    "seconds": 0.34,
+    "log": "schemas.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "label": "collect",
+    "command": [
+      "E:\\ai-test-component\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "--collect-only",
+      "-q",
+      "tests"
+    ],
+    "cwd": "E:\\ai-test-component",
+    "exit_code": 0,
+    "seconds": 3.29,
+    "log": "collect.log",
+    "sha256": "224b91e487af67a23cf0ec5f35285e68060372adaae2160e929b99b403c6a0d2",
+    "raw_output_gzip": "collect.raw.gz",
+    "raw_output_sha256": "cb875c4c1711cd5f8377dc814cfa114bb7d1390a6eb0ce068a649a1f71f7b11e",
+    "raw_gzip_sha256": "39a379838f42ce99298e8b3e9e37f2efe998ec5cdeb89ea983b239fbd7468937",
+    "readable_log_note": "只移除末尾多余空行；原始 stdout/stderr 字节完整保存在 collect.raw.gz。"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "previous_instance": "core-890e376b9e7d",
+  "new_instance": "core-fe7a74fb4403",
+  "report_unchanged": true,
+  "export_unchanged": true,
+  "scope": "graceful_restart_not_crash_or_power_loss"
+}

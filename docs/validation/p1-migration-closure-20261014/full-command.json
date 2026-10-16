@@ -1,0 +1,11 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "E:\\ai-test-component\\docs\\validation\\p1-migration-closure-20261014\\run_full.py",
+    "--worker"
+  ],
+  "source_commit": "96d418a8b6ef4bd73e23c0488a9957125c4c835e",
+  "started_at": "2026-10-14T10:50:01.817805+00:00",
+  "expected_unique_nodes": 5427,
+  "scope": "one whole collection; fault-injection and affected files first; no concurrent heavy test"
+}

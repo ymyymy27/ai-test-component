@@ -1,0 +1,11 @@
+{
+  "command": [
+    "uv",
+    "lock",
+    "--check"
+  ],
+  "source_commit": "77451faeec5d0af07cb7bf54be35562bbff52748",
+  "started_at": "2026-10-14T06:58:17.826669+00:00",
+  "ended_at": "2026-10-14T06:58:20.123323+00:00",
+  "exit_code": 0
+}

@@ -1,0 +1,7 @@
+src\aitest\application\execution\action_resolver.py:322: error: Return value expected  [return-value]
+src\aitest\application\execution\commit.py:801: error: Incompatible types in assignment (expression has type "ExecutionFacts", variable has type "RecoveryRecord")  [assignment]
+src\aitest\application\execution\commit.py:812: error: "RecoveryRecord" has no attribute "source_verifications"  [attr-defined]
+src\aitest\application\execution\commit.py:820: error: "RecoveryRecord" has no attribute "model_copy"  [attr-defined]
+src\aitest\application\execution\commit.py:822: error: "RecoveryRecord" has no attribute "source_verifications"  [attr-defined]
+src\aitest\application\execution\commit.py:826: error: Argument 1 to "_stage_snapshot" of "ExecutionCommitCoordinator" has incompatible type "RecoveryRecord"; expected "ExecutionFacts"  [arg-type]
+Found 6 errors in 2 files (checked 247 source files)

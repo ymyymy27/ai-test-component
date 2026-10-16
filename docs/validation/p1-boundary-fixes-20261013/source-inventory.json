@@ -1,0 +1,1177 @@
+{
+  "baseline": "7b931af",
+  "files": [
+    {
+      "path": "src/aitest/__init__.py",
+      "sha256": "344b541f96ee148d47973498a8644a7a2e1052b1dbe42675aff8dc1e089f3d7e",
+      "lines": 3
+    },
+    {
+      "path": "src/aitest/application/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/application/ai_assistance.py",
+      "sha256": "c5fea2bbee5589346cdf1dcdd548e449cf0892e824b439f4870bf58b2c398f03",
+      "lines": 43
+    },
+    {
+      "path": "src/aitest/application/approval_service.py",
+      "sha256": "dea80d2284645a5d21a76339968c4503f3d8051f589e772957f606999fc4a4a6",
+      "lines": 675
+    },
+    {
+      "path": "src/aitest/application/connectivity.py",
+      "sha256": "669e8d7caefc9cf5d89dacd530a66ec74a4e87ed461f3de9c9d667393dcf5a81",
+      "lines": 9
+    },
+    {
+      "path": "src/aitest/application/controlled_write.py",
+      "sha256": "00d1b6327211239d9415a39f5e489be521bde0fac9e18d6a7ea38004e893e637",
+      "lines": 585
+    },
+    {
+      "path": "src/aitest/application/errors.py",
+      "sha256": "b6d397f237d167f8b41422611f98bddd4f59ad2fe965dd612ea1253bd9c3f77d",
+      "lines": 13
+    },
+    {
+      "path": "src/aitest/application/evidence/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/application/evidence/evidence_review.py",
+      "sha256": "dfba20885472661480d78e46134087454d6fcbf01099f5ca6442c4ff949b3ae0",
+      "lines": 98
+    },
+    {
+      "path": "src/aitest/application/evidence/execution_outputs.py",
+      "sha256": "04bb0f9077da71769c3e10295f48af6f861d15d79ba0471f4b01b4596cc95c2a",
+      "lines": 273
+    },
+    {
+      "path": "src/aitest/application/evidence/external_imports.py",
+      "sha256": "edb319af7415134882cd72fc2d13f6822310197a41efa52582ff1c3bf8ee80ef",
+      "lines": 371
+    },
+    {
+      "path": "src/aitest/application/evidence/manual_capture.py",
+      "sha256": "e2554d9a50fefb7cc364b30ed98baf34d2daee7e7d874426fdcd30eb871c2f0b",
+      "lines": 497
+    },
+    {
+      "path": "src/aitest/application/evidence/publication.py",
+      "sha256": "17c60bd8923c52966cf7c3c11721b015096d808f3c59aadb0a129c20655b15cb",
+      "lines": 164
+    },
+    {
+      "path": "src/aitest/application/evidence/query_materials.py",
+      "sha256": "fb64a31b5f655eae866d2fb89f8e463f4837393b41b127c3fa73da9076271a2d",
+      "lines": 559
+    },
+    {
+      "path": "src/aitest/application/evidence/redaction_materials.py",
+      "sha256": "db75316780a25eb61f0f9cab36dd22f47ec6686e1a21540277a2381cef766309",
+      "lines": 189
+    },
+    {
+      "path": "src/aitest/application/evidence/saved_verification.py",
+      "sha256": "cddabb29db78106f0d4868d9855be35d41aec898d6c7d99fb5385ee7e8870492",
+      "lines": 445
+    },
+    {
+      "path": "src/aitest/application/execution/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/application/execution/action_resolver.py",
+      "sha256": "43712e819b2f86212b7c45c060bcda6227442cda4024af81e7e0df0d8ce32314",
+      "lines": 616
+    },
+    {
+      "path": "src/aitest/application/execution/authorization.py",
+      "sha256": "64674441ddd57c1b07152230814eb8b0d65713cc0a3a93ae63e500b908cb8f1e",
+      "lines": 982
+    },
+    {
+      "path": "src/aitest/application/execution/authorization_index.py",
+      "sha256": "92ac3935ab7f0c0951c461c27cad39f4378d18f1240fd6fb71691e1c6f26c53f",
+      "lines": 75
+    },
+    {
+      "path": "src/aitest/application/execution/checkpoint_refs.py",
+      "sha256": "55aa6970fc543a45d8bfc4805d6842bf16a3123839efcbc603f484f49f8796cd",
+      "lines": 200
+    },
+    {
+      "path": "src/aitest/application/execution/commands.py",
+      "sha256": "44c2b747aea87f344b445ae775c9bd8e861fe5930f8971152dc704b979836250",
+      "lines": 306
+    },
+    {
+      "path": "src/aitest/application/execution/commit.py",
+      "sha256": "5a519585cea8145e2fa8f81a1d75f26716a550a6c5b4095ea3b1b3ac1b494653",
+      "lines": 1850
+    },
+    {
+      "path": "src/aitest/application/execution/continuation.py",
+      "sha256": "164204391311c7995ac00a61e634c5b17e94305d7e955a6ec583f5ec57b013cf",
+      "lines": 41
+    },
+    {
+      "path": "src/aitest/application/execution/control.py",
+      "sha256": "e924718740c4d887c85440dadf391298d24b97afb138e2cc8231d1fc384d2a2c",
+      "lines": 184
+    },
+    {
+      "path": "src/aitest/application/execution/current.py",
+      "sha256": "f126822fd3c5f7c1b40323623b1b03bc21c8889b97a2e26743c1c31ddbe9dcef",
+      "lines": 163
+    },
+    {
+      "path": "src/aitest/application/execution/facts.py",
+      "sha256": "925ae0862a893204a7edf8fac8433979aa316726140de5a7825c17f6cea677d6",
+      "lines": 706
+    },
+    {
+      "path": "src/aitest/application/execution/frozen_plan.py",
+      "sha256": "f272250e3d0f6de9ff1f55425769c512064619aaf56fb7954dd72774bbd87798",
+      "lines": 109
+    },
+    {
+      "path": "src/aitest/application/execution/output_material.py",
+      "sha256": "7086a865d76a8cba8244a697fd5e955e8e04cd59f73ec5d29caffd5fd4dcb4b1",
+      "lines": 50
+    },
+    {
+      "path": "src/aitest/application/execution/recovery.py",
+      "sha256": "691b86a3ab319c90ebf8878c053a99ca3317aef22f1aa96e28614f13caac7b5e",
+      "lines": 345
+    },
+    {
+      "path": "src/aitest/application/execution/registration.py",
+      "sha256": "022f2852b4ef98d7ea734bc6dbc886fbdb9c9e033107a1f405d0cba3b30a76b0",
+      "lines": 276
+    },
+    {
+      "path": "src/aitest/application/execution/reuse_basis.py",
+      "sha256": "b2e8e41e126a5bde3d9ccbfcc6ea8e3848e4cae2cbb7956501be1b8e169c5809",
+      "lines": 73
+    },
+    {
+      "path": "src/aitest/application/execution/reuse_inspection.py",
+      "sha256": "669da39909f8ecf7a107ece22bea0cc0d5131fbf9c31a3807e2390219f176160",
+      "lines": 529
+    },
+    {
+      "path": "src/aitest/application/execution/reuse_material.py",
+      "sha256": "be103fae92d216f1deb3432bd37eef146774f45a1ecfe56381e5d29b2f6cd239",
+      "lines": 327
+    },
+    {
+      "path": "src/aitest/application/execution/reuse_sources.py",
+      "sha256": "b119c22f0bc0be706626d2f482520c7af4f2f0fb3bdcc04a73497d7f33fa2722",
+      "lines": 190
+    },
+    {
+      "path": "src/aitest/application/execution/run_record.py",
+      "sha256": "31a964b4ccfdfe5b0aac637995c02d945a65f46e004665f2c0c644046de86e32",
+      "lines": 36
+    },
+    {
+      "path": "src/aitest/application/execution/run_schedule.py",
+      "sha256": "25af89abf32d6c562275a7bfa9c7298e2e82a9af9b3e247020002c076d905e62",
+      "lines": 589
+    },
+    {
+      "path": "src/aitest/application/execution/runner.py",
+      "sha256": "93f6dbd789d1f52974e8eeaf08c035d9e9aa889b591429bb656e653bc558a424",
+      "lines": 995
+    },
+    {
+      "path": "src/aitest/application/execution/runtime_actions.py",
+      "sha256": "98e44973dc9b0b267b5d14b6710abbc6d78ab4bdf6080a49aa37dbe834276d34",
+      "lines": 445
+    },
+    {
+      "path": "src/aitest/application/execution/runtime_revision.py",
+      "sha256": "f67d7c2a3d7b69ccc1a86cba5a3946c7a166820d38bc3e9fde678c7b9fc44ad1",
+      "lines": 711
+    },
+    {
+      "path": "src/aitest/application/execution/runtime_revision_service.py",
+      "sha256": "f5fdae879e4dc9146075289ec4af322743a02f74903c5e8bde45dfe6f5b167d2",
+      "lines": 70
+    },
+    {
+      "path": "src/aitest/application/execution/saved_control.py",
+      "sha256": "3bf2a3f092641348b96221566541d22f07af12c868e509ed63b21ed3e95b5a9f",
+      "lines": 427
+    },
+    {
+      "path": "src/aitest/application/execution/snapshots.py",
+      "sha256": "22feb172ce7b3d36bc9385712dd1ae06f493ae42cad3be2c1e24478b3f67fdfc",
+      "lines": 51
+    },
+    {
+      "path": "src/aitest/application/execution/source_checks.py",
+      "sha256": "701e1408e203d814578fb84a1e68ee135f71415daaac6e87c2379f6cc880eecd",
+      "lines": 356
+    },
+    {
+      "path": "src/aitest/application/execution/start_identity.py",
+      "sha256": "bee359b6c8c6215d1022a9a5e687487d252ca78ec40e29223df52569ff7fb477",
+      "lines": 33
+    },
+    {
+      "path": "src/aitest/application/execution/start_materialization.py",
+      "sha256": "6b053d4559e109362e8cdffb1b5a16c3a5fe4e821d43b93160d8e28ba23e73d6",
+      "lines": 154
+    },
+    {
+      "path": "src/aitest/application/execution/start_source_binding.py",
+      "sha256": "378242572d698607ac642859e163ed12998a1d2bba9e52abd9bf133bf0393514",
+      "lines": 463
+    },
+    {
+      "path": "src/aitest/application/execution/step_content.py",
+      "sha256": "b0a0ca9df75fd0bbb9f3897493d7ec54ff797662429ba95b178ed0dc65a08ffb",
+      "lines": 177
+    },
+    {
+      "path": "src/aitest/application/execution/step_execution.py",
+      "sha256": "8cbfed765aa15d0148b1c327a185883f7a1f93f0660503b76bb42128f7c801bf",
+      "lines": 71
+    },
+    {
+      "path": "src/aitest/application/maintenance/__init__.py",
+      "sha256": "c101ddea973041d4e75a88320c7f48eb44b28c6df644fe6edd615f563e6ada7b",
+      "lines": 1
+    },
+    {
+      "path": "src/aitest/application/maintenance/backup.py",
+      "sha256": "6dc2520c455a9ab87a8d2f3da59e21d9a18f90161835886c30059dbb644b85c1",
+      "lines": 478
+    },
+    {
+      "path": "src/aitest/application/maintenance/migration.py",
+      "sha256": "06bf95a220db8ec8e77187a729b85dd2c49b9e710ed34af95d13fd032e868290",
+      "lines": 179
+    },
+    {
+      "path": "src/aitest/application/maintenance/mode.py",
+      "sha256": "f07d128baf5d805f32ff6ae3e2b530531e44c4621ed6e5eefdeaf842c58b7109",
+      "lines": 71
+    },
+    {
+      "path": "src/aitest/application/planning/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/application/planning/basis_approval.py",
+      "sha256": "7f9b6021bb3f698824ee6abe983c2af1dc1b6b2744554dd8638d42a473dbfa62",
+      "lines": 100
+    },
+    {
+      "path": "src/aitest/application/planning/basis_confirmation.py",
+      "sha256": "d4df295a65e415d55356f14763d19131790e5bf91a049df7d2c0c4e8f8ace576",
+      "lines": 155
+    },
+    {
+      "path": "src/aitest/application/planning/basis_proof.py",
+      "sha256": "69285e160078ae878fe1283e449d3deb482c49073c83248d1b380b4608f950bd",
+      "lines": 92
+    },
+    {
+      "path": "src/aitest/application/planning/basis_validation.py",
+      "sha256": "ccfb6a6c81cd2282c92d7ad958063601514c6722f0583a3ae51e6b742e125ae4",
+      "lines": 242
+    },
+    {
+      "path": "src/aitest/application/planning/controlled_publication.py",
+      "sha256": "9069c97462c2a4d6167ed80fa9b65a1eacf11ea33af9e97d42a0ae52312fa095",
+      "lines": 238
+    },
+    {
+      "path": "src/aitest/application/planning/draft.py",
+      "sha256": "1cd261218280dd7e15663342c76630a4e4689bf499c0edc09588cbdc1a821ac3",
+      "lines": 416
+    },
+    {
+      "path": "src/aitest/application/planning/drift.py",
+      "sha256": "40d0aa3eb360d576dda7ff89c4ff62d40696ee8a59bb343c884facac8c2b8155",
+      "lines": 328
+    },
+    {
+      "path": "src/aitest/application/planning/model_basis.py",
+      "sha256": "7f5c5e03741ced5e01a37c37927993a0d4d2ad65725513fd585515a9151213f6",
+      "lines": 247
+    },
+    {
+      "path": "src/aitest/application/planning/model_orchestration.py",
+      "sha256": "5492e77cfe588a2ad20d732ba5e4b15d4c8d3d4eb6339c3e826d030a76e7334c",
+      "lines": 1189
+    },
+    {
+      "path": "src/aitest/application/planning/model_policy_confirmation.py",
+      "sha256": "04d9392cb4dd9d8b366046d08a80acd6f3192ec2696742e21e0e2759a1bab7ff",
+      "lines": 426
+    },
+    {
+      "path": "src/aitest/application/planning/model_ports.py",
+      "sha256": "29277568badf579ecaf929e5cdb4f7caeed191c8102243dfe84f92d7bf3b414a",
+      "lines": 234
+    },
+    {
+      "path": "src/aitest/application/planning/model_response_resolution.py",
+      "sha256": "36949e7debb1f03b340e4e719c76737e1eb0076650bd1a223ceedd5082ffbcc6",
+      "lines": 281
+    },
+    {
+      "path": "src/aitest/application/planning/persistence.py",
+      "sha256": "44e0376fb38674c13475c6c9c5036831e3dd060b2c2ac8a6b7fc23151c9f5634",
+      "lines": 327
+    },
+    {
+      "path": "src/aitest/application/planning/plan_builder.py",
+      "sha256": "2de14792a53f98b5d2dbd5c77c6836b0b8421ca5c44572465fbabda5322b31c7",
+      "lines": 127
+    },
+    {
+      "path": "src/aitest/application/planning/portable.py",
+      "sha256": "7fae515b4f3fd82e495395848f080320b9d728046ede9dc1ddedd3169ebc9452",
+      "lines": 264
+    },
+    {
+      "path": "src/aitest/application/planning/preparation.py",
+      "sha256": "dce1fd12ef436a4151c7f16d676214a3c77d9f5c6be29e126b0d7985367feb57",
+      "lines": 486
+    },
+    {
+      "path": "src/aitest/application/planning/preparation_origin.py",
+      "sha256": "761eb227b4b77767023449bed3b1da0f416b70ff2a652e79d8246d3c32432588",
+      "lines": 101
+    },
+    {
+      "path": "src/aitest/application/planning/prepare_run.py",
+      "sha256": "b06e26ed7e2858c66bdbefbfb83d6d5100b7140156e7771f0b8be96cd6868362",
+      "lines": 514
+    },
+    {
+      "path": "src/aitest/application/planning/publish.py",
+      "sha256": "d44450b0dbd7933111541e08fdc4cad9d30688a97901f0a92ccfc8e77d4f54ca",
+      "lines": 395
+    },
+    {
+      "path": "src/aitest/application/planning/regression.py",
+      "sha256": "a3ad99295b6f414bda71bdc5c516fdff0fde1e891d8f664d9476e2f386771aa7",
+      "lines": 18
+    },
+    {
+      "path": "src/aitest/application/planning/regression_graph.py",
+      "sha256": "81b33e44e09740e3e77751781d5e14d8e19e38ab265a4c84396a4d28c3565e8a",
+      "lines": 169
+    },
+    {
+      "path": "src/aitest/application/planning/rules_markdown.py",
+      "sha256": "1dd14cdc850dad8a2907ae3d22ae09d35563e2d1dcd5aac2b45d5270862fa8ae",
+      "lines": 419
+    },
+    {
+      "path": "src/aitest/application/planning/run_mode.py",
+      "sha256": "2da5a85332e2bbb5927b2a561a2505bed9f878660b5182c2bcef76e9dd67b009",
+      "lines": 187
+    },
+    {
+      "path": "src/aitest/application/planning/saved_runtime_revision.py",
+      "sha256": "7d332305018964d8c4314e56cad8e1dfd5317c1df8973c8ae0d6970485507ef4",
+      "lines": 295
+    },
+    {
+      "path": "src/aitest/application/planning/serialization.py",
+      "sha256": "d25a82ffeb3444fba35ab919ebd4c947a19f548f29582f20492e0d5299039af0",
+      "lines": 331
+    },
+    {
+      "path": "src/aitest/application/planning/substrate.py",
+      "sha256": "89ead08b483129876a2ec12cc2ccc40bc611036ef7d916a387da4c388b9512b1",
+      "lines": 669
+    },
+    {
+      "path": "src/aitest/application/planning/substrate_adapter.py",
+      "sha256": "784f92a222f27b2b9d29e11f03bba059178fe60f8845ab3321ef94ba30bfaf79",
+      "lines": 727
+    },
+    {
+      "path": "src/aitest/application/ports.py",
+      "sha256": "1c4aa51aac543fd39ead38e81d6eab522b2b33cc8e5e23a8a8fde7f318b104a3",
+      "lines": 904
+    },
+    {
+      "path": "src/aitest/application/project/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/application/project/context.py",
+      "sha256": "777524c9ea573b6421a954d3025b7e7419ba3f021b0607a677f5d6af878f0d6f",
+      "lines": 509
+    },
+    {
+      "path": "src/aitest/application/project/delivery_submission.py",
+      "sha256": "f04d8d49f6f3d80d00d86503e2d14062317f7c979982501cba3ae0de259ea797",
+      "lines": 119
+    },
+    {
+      "path": "src/aitest/application/project/environment_resolution.py",
+      "sha256": "530d6f77c527951047add5f7f650b1aeb65b071666764d89da1e29b4f83f0d8b",
+      "lines": 161
+    },
+    {
+      "path": "src/aitest/application/project/persistence.py",
+      "sha256": "953b0b3dac9bb49476cf1125f5c899891e7e7c7600a1504b80ad446a397ee6ea",
+      "lines": 520
+    },
+    {
+      "path": "src/aitest/application/project/serialization.py",
+      "sha256": "0207d9176bdefcbdab0ee03b750713cc23e5cdd9171a9f7b0bcea7dd8e75fe5e",
+      "lines": 785
+    },
+    {
+      "path": "src/aitest/application/project/source_analysis.py",
+      "sha256": "d3dfd64c1570612a7f2c8833c07cf337424428cdcb28d4a75a55319d1b96fe91",
+      "lines": 585
+    },
+    {
+      "path": "src/aitest/application/project/view_preference.py",
+      "sha256": "30055563209e083e7276a055bc8d75607ce541eca482d003e57d4242afbe5201",
+      "lines": 174
+    },
+    {
+      "path": "src/aitest/application/record_write.py",
+      "sha256": "097f721d5cd685d917a8797d5cabec6b97666530b4940942a2ab826728a98620",
+      "lines": 238
+    },
+    {
+      "path": "src/aitest/application/review/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/application/review/authoritative_basis.py",
+      "sha256": "37542392bdd11fb7c1ed9d769945772f431df42910984dca4cafa2dd6f5fa8c8",
+      "lines": 233
+    },
+    {
+      "path": "src/aitest/application/review/defect_management.py",
+      "sha256": "da53c76ff7cc9aefdc488acdb921b9ed907dbf1cc9bbd2e3b2ffb25d52acfbd8",
+      "lines": 201
+    },
+    {
+      "path": "src/aitest/application/review/execution_decision_adapter.py",
+      "sha256": "fb832018a6b4f527e4c8beed12b571e747756facca2aa9a4e6f51734f08ebf67",
+      "lines": 508
+    },
+    {
+      "path": "src/aitest/application/review/issue_queries.py",
+      "sha256": "87757ceb391e439e4ec0e24e86f735d3fabff6e9fb91d6be5ab7a2fbb12456d8",
+      "lines": 24
+    },
+    {
+      "path": "src/aitest/application/review/repair_brief.py",
+      "sha256": "691c1ad9d41f83c2f87d35276f2a9e12aaea6f4ca5a42c379237617ee3420e40",
+      "lines": 272
+    },
+    {
+      "path": "src/aitest/application/review/reporting.py",
+      "sha256": "5998fc70c3e2b2375f00205bfeeb039f9445beb93044fa9b7f2464c113ff98fe",
+      "lines": 111
+    },
+    {
+      "path": "src/aitest/application/review/reuse_consumption.py",
+      "sha256": "105bd1ecd9d896f38b69db0f9120b55e10f07ac1d82430f13ff8015dd34ba1bf",
+      "lines": 403
+    },
+    {
+      "path": "src/aitest/application/review/saved_defects.py",
+      "sha256": "bacc51811e1db3e47a8a7df34dd4a71e92b9f646e788e21bf8009d70c3b17fa2",
+      "lines": 1289
+    },
+    {
+      "path": "src/aitest/application/review/saved_exports.py",
+      "sha256": "b1048e48b965080fc32daefe00119769644b7c954dcb3c732b2fb5180de6cd94",
+      "lines": 1026
+    },
+    {
+      "path": "src/aitest/application/review/saved_reports.py",
+      "sha256": "fcc6002e5da5b5d51d1d63b2e7a9b0e2d8c6afd4dc8466f778ada9315196b232",
+      "lines": 1162
+    },
+    {
+      "path": "src/aitest/application/review/saved_reuse.py",
+      "sha256": "a65dbf3e9ba8b8ef3a07b7a15a486174a57d33f99c21669a4363e6a990c792d8",
+      "lines": 462
+    },
+    {
+      "path": "src/aitest/application/usecase_registry.py",
+      "sha256": "eb2d12a81f764370b00a72a8a3f958772de0a00a9b501c1cdaf67b102802fcb2",
+      "lines": 2502
+    },
+    {
+      "path": "src/aitest/bootstrap.py",
+      "sha256": "b784e259c96ffd0209c0e9c8a0416ccdd6af5d79c7b2d56a83319611c93cd742",
+      "lines": 2176
+    },
+    {
+      "path": "src/aitest/contracts/__init__.py",
+      "sha256": "9d96abce9f03461ae0affe5050fbf6967bb0e0bc3ab11ae012917a251b8e67c8",
+      "lines": 24
+    },
+    {
+      "path": "src/aitest/contracts/capabilities.py",
+      "sha256": "e17ad2cba814193d422944e892e2418ffc93a3699d4c0a1f6b97160585b4f1d5",
+      "lines": 35
+    },
+    {
+      "path": "src/aitest/contracts/commands.py",
+      "sha256": "b26fadcc90452acc388285227c240d0a31cc967184af7a51e6b97c8a8820443b",
+      "lines": 114
+    },
+    {
+      "path": "src/aitest/contracts/errors.py",
+      "sha256": "7e91e0ef73dcb579b257159e0ecf7340cfca5cf76bc9003c4fd7603b18ba22af",
+      "lines": 49
+    },
+    {
+      "path": "src/aitest/contracts/events.py",
+      "sha256": "ffca4a831d5107f88c74a110e1723dbe234d7e8faacd4b9957de308cdd78c176",
+      "lines": 25
+    },
+    {
+      "path": "src/aitest/contracts/execution_facts.py",
+      "sha256": "4f69e10c193a5665a0658b4917a1a52916379cefcf49dfbcddb85a3c412d4b78",
+      "lines": 600
+    },
+    {
+      "path": "src/aitest/contracts/identity.py",
+      "sha256": "c160b00ed18ac906ee4e9cdb1316ffa9bfb1ff2362eba2d23841a2d76034d54b",
+      "lines": 28
+    },
+    {
+      "path": "src/aitest/contracts/prepared_run.py",
+      "sha256": "c94f2e9f400a82132c7ccc5279c3e5dc6574ea4643378f280eb86b0e9e44cc3d",
+      "lines": 512
+    },
+    {
+      "path": "src/aitest/contracts/queries.py",
+      "sha256": "ea966430a4bcced52836c4e9af43045da29a70ba0daf90127892d8e0d5eaaa37",
+      "lines": 140
+    },
+    {
+      "path": "src/aitest/contracts/redaction.py",
+      "sha256": "781aa94936ffd19327766c737c2638d7815c1cc01ffbcbd889d130dec6c962fb",
+      "lines": 177
+    },
+    {
+      "path": "src/aitest/contracts/responses.py",
+      "sha256": "49981c3ad511c6c1bc596cf90bab898d9ba76c8f8d0d4b543370de4a3780245d",
+      "lines": 29
+    },
+    {
+      "path": "src/aitest/contracts/reuse_reference.py",
+      "sha256": "5b7aeb22d51e8943a6808e3b2b13200a5b91b11d9a7220a797b81677161cd088",
+      "lines": 170
+    },
+    {
+      "path": "src/aitest/contracts/secrets.py",
+      "sha256": "ec79f13d63fb1f6ac073bb04ded2ca5e1db70051096d32da92d2c9a73fd4627f",
+      "lines": 49
+    },
+    {
+      "path": "src/aitest/contracts/templates.py",
+      "sha256": "39303d90d3d21d6148c4cc0d5a1daae112e34700cf40a38e47027bd54481c941",
+      "lines": 87
+    },
+    {
+      "path": "src/aitest/contracts/verification.py",
+      "sha256": "783a3b7526be809c6601f0c5d7962dab874fba6bc5636ee7cbbbdcec14083c16",
+      "lines": 35
+    },
+    {
+      "path": "src/aitest/contracts/versions.py",
+      "sha256": "18df2f7c7d158d846b02d9a4b69f1017b96cd57e9c5a93bb95cf63b230035815",
+      "lines": 10
+    },
+    {
+      "path": "src/aitest/contracts/views.py",
+      "sha256": "b3afe1eb9860ab80db201534f856972b4d057a2e0b1786c0acfeefa14520d926",
+      "lines": 19
+    },
+    {
+      "path": "src/aitest/domain/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/domain/approvals.py",
+      "sha256": "0f705984ff554094a39d51d201607629ad2c8caff6e05fd42e48ef112acb2754",
+      "lines": 170
+    },
+    {
+      "path": "src/aitest/domain/evidence/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/domain/evidence/evidence.py",
+      "sha256": "0314c302711f61ef2519e9eba5c0df39aaf32931dc889aa576655754f524d11a",
+      "lines": 370
+    },
+    {
+      "path": "src/aitest/domain/evidence/polling.py",
+      "sha256": "39acb9c960e5f634b3300f488e2e32a1d045e0d6a5930cfdd280c2417ae5d579",
+      "lines": 129
+    },
+    {
+      "path": "src/aitest/domain/evidence/redaction_material.py",
+      "sha256": "c652aaa883ddfe6ff76864eff3b3cef83fb59d269420076bb053a9932398b9f9",
+      "lines": 101
+    },
+    {
+      "path": "src/aitest/domain/evidence/verification.py",
+      "sha256": "78b2ac284bca441987da70c178dadec7e17b40e90f5edecc746a052e8cc4604a",
+      "lines": 34
+    },
+    {
+      "path": "src/aitest/domain/execution/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/domain/execution/assertions.py",
+      "sha256": "8222a3a62892afe5eeba6a9957eeb01cb9ec1d1c294b9142804e03d3ebcef556",
+      "lines": 132
+    },
+    {
+      "path": "src/aitest/domain/execution/authorization.py",
+      "sha256": "d3046b8871a8b2d784d3eece49949b33269737357d019c261572b51eec834a29",
+      "lines": 79
+    },
+    {
+      "path": "src/aitest/domain/execution/cases.py",
+      "sha256": "bacc258c4fcb22d1e37fa38f6bd747e982129a832ff6f996a0150b2dce70fc06",
+      "lines": 163
+    },
+    {
+      "path": "src/aitest/domain/execution/continuation.py",
+      "sha256": "e37534c53c2a0884412088824417297477a7d3a8dbe2871f4a00f3fdf2a02e7f",
+      "lines": 49
+    },
+    {
+      "path": "src/aitest/domain/execution/dependencies.py",
+      "sha256": "965ace10688b5cbc3d539f3970abea1a95e8fce12c16935a72a27cc438593738",
+      "lines": 127
+    },
+    {
+      "path": "src/aitest/domain/execution/output.py",
+      "sha256": "9d4854c0b422866ad8a234feffcb8387787d53c24501da4b406f92b6db667bac",
+      "lines": 47
+    },
+    {
+      "path": "src/aitest/domain/execution/payload_identity.py",
+      "sha256": "1d83978696f216410a1658b526627f7e5811a7a02e1637e5088b2de52e1a5926",
+      "lines": 12
+    },
+    {
+      "path": "src/aitest/domain/execution/reuse.py",
+      "sha256": "fd88d8faf6ded906c44b37c500690f4b7e9335329d0386e7e395d001bb50ff7e",
+      "lines": 133
+    },
+    {
+      "path": "src/aitest/domain/execution/runs.py",
+      "sha256": "83f6a099a21b8438a517805ec4fd13cc00a7e3995a919b1f13d10b0b1b24a4b3",
+      "lines": 908
+    },
+    {
+      "path": "src/aitest/domain/execution/scheduling.py",
+      "sha256": "966fbcd3d9db92b217970c63bf0b05b909a721d048d20dd9eca2fc9e353b63db",
+      "lines": 50
+    },
+    {
+      "path": "src/aitest/domain/execution/sources.py",
+      "sha256": "1d670ca1d26f1ed89b2f64de79b8704463a78ab35430fb5e8c80cbd29db544c0",
+      "lines": 137
+    },
+    {
+      "path": "src/aitest/domain/json_material.py",
+      "sha256": "859962fb8c47ae0fb73a86d7078d5364e78ded2b3b56d06b622767de3a73c9b6",
+      "lines": 56
+    },
+    {
+      "path": "src/aitest/domain/planning/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/domain/planning/model_outbound.py",
+      "sha256": "5cb3529fba1ea63fd96df908203695d0c1f956617f31c0ad2f3f2bd07acb7c6b",
+      "lines": 438
+    },
+    {
+      "path": "src/aitest/domain/planning/plans.py",
+      "sha256": "05502184d4b897f87f766bc06200fe8b0de6a1f8502f60b64b779cd734320fdb",
+      "lines": 512
+    },
+    {
+      "path": "src/aitest/domain/planning/rules.py",
+      "sha256": "baf51f37b27f59f8f7adf8168c32a2b133947bf410eb016ed01fa8d14c1a25a8",
+      "lines": 155
+    },
+    {
+      "path": "src/aitest/domain/planning/runtime_revision.py",
+      "sha256": "5a1cbd34369fefb62fee143437d003cf1ff66ce929a78bdf50803bb3a16880e9",
+      "lines": 714
+    },
+    {
+      "path": "src/aitest/domain/planning/templates.py",
+      "sha256": "772b4dab6cc14ff8421183948ca79309bac9beb4e7b2c3da6c413e72ed3048fc",
+      "lines": 9
+    },
+    {
+      "path": "src/aitest/domain/project/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/domain/project/context.py",
+      "sha256": "615155ba463511bdc2c8f713834d90aec65558d88a1fcff1d7a573498cb63360",
+      "lines": 787
+    },
+    {
+      "path": "src/aitest/domain/project/deliveries.py",
+      "sha256": "f8a7fd4739db29bbdfd2f918e2706f1b5f54b500046b55e44473cea5796ad589",
+      "lines": 52
+    },
+    {
+      "path": "src/aitest/domain/project/source_identity.py",
+      "sha256": "188a3228741c9fdc1ecadfcf64148572c6a4d99de2b5b33461951b9682d8bc6b",
+      "lines": 22
+    },
+    {
+      "path": "src/aitest/domain/review/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/domain/review/defects.py",
+      "sha256": "1a815999d0b4c4c316644b0c075e629d41f3f48949d2b96f3c5d4ae0c24fe09a",
+      "lines": 493
+    },
+    {
+      "path": "src/aitest/domain/review/issue_queries.py",
+      "sha256": "a69df8b77cf5b975bf624aa7efdecbfc96ff6158a541443183e4523d044cb719",
+      "lines": 403
+    },
+    {
+      "path": "src/aitest/domain/review/reports.py",
+      "sha256": "e04af2e2cab06ed392defd94a5219c88472b20c6202493a1769629f97ed9a72d",
+      "lines": 803
+    },
+    {
+      "path": "src/aitest/infrastructure/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/deepseek.py",
+      "sha256": "4084702e968d481a1f350be423da0a39489782aee23eb108b0b3e3e76af4cb0c",
+      "lines": 72
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/agent.py",
+      "sha256": "2ca440780db3fec1da607f74bb7ec41ed15b2924d4058c0a141e06c6f5ce80ff",
+      "lines": 127
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/business_query.py",
+      "sha256": "33cc11706ac2b7e51f9610823c021674861976de9338bc4b01d5f9564c36122f",
+      "lines": 182
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/command.py",
+      "sha256": "01a9295b09d3730ec1a56443eababb12b32448fb521cf6bc6dea0c5d8058a1ae",
+      "lines": 1322
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/external_result.py",
+      "sha256": "751f46e8d08762d514cceb984694d7aa36e693ef13a66ab8e721565c7c3d3181",
+      "lines": 143
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/http.py",
+      "sha256": "0875c15d00cbbedef058b5332dc324e33e7af16fa4c3cb4dc725dcaabc6fdb5c",
+      "lines": 269
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/http_transport.py",
+      "sha256": "07cfcfc7fe9938d064f531e30e4d3e465976998b77334b7a575e7c63a8521ce5",
+      "lines": 250
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/manual_evidence.py",
+      "sha256": "64163e0cc4d8f6c4825434c084e1f8863f9272812782d04b7e83b09227f0c5c1",
+      "lines": 94
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/python_checks.py",
+      "sha256": "378e0f20def4c91e79487aa368813851a33ce9aa6e62a5f431dbad8ebe7d9cb2",
+      "lines": 593
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/redaction.py",
+      "sha256": "6b53649058cca5bf5676bf37c247e898ead8b9d436f389102025abf4c7def87c",
+      "lines": 129
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/registered_entry.py",
+      "sha256": "e837a5542c18d65a098ff8a2aa56fc0b5807fa56390f652f55651bf038aa7cfe",
+      "lines": 94
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/execution/verification.py",
+      "sha256": "7db56651c48322bfb5c69cfffa26da982feb88c76de76aa344e3840a7e3eeece",
+      "lines": 328
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/model.py",
+      "sha256": "c8154271b86e0419fe7c131e5b4435fe91a2c2817c71c0a4c3493c753e2e90d7",
+      "lines": 326
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_control.py",
+      "sha256": "b8f2ad049eab55e0bf34ad26822ebefa700ff1817d8201f348ed53b5409eb0b4",
+      "lines": 367
+    },
+    {
+      "path": "src/aitest/infrastructure/adapters/source_snapshot.py",
+      "sha256": "3aaf3e54a06a7ddf2a1a557874da1d3cd2f37b30405b0a099f8ef5d2efbfc5b7",
+      "lines": 496
+    },
+    {
+      "path": "src/aitest/infrastructure/capabilities.py",
+      "sha256": "bb695a730c13b037f8f2f0a6336dd16b62609a3795b8178707c4752ad4a17035",
+      "lines": 435
+    },
+    {
+      "path": "src/aitest/infrastructure/clock.py",
+      "sha256": "592c9cd0b8a04b60e2924471504cb2c597c6d9f77fc436a978950a7312f36c70",
+      "lines": 10
+    },
+    {
+      "path": "src/aitest/infrastructure/connections.py",
+      "sha256": "23036cc62c58e862b8efd67959dcf43b948b29ddfde166f5976b8a74658bd2b9",
+      "lines": 432
+    },
+    {
+      "path": "src/aitest/infrastructure/credential_resolver.py",
+      "sha256": "f5e914acfc0c6ef80d097d97f761f9eb56b426229cf6f35a432a9d2d56b234d9",
+      "lines": 63
+    },
+    {
+      "path": "src/aitest/infrastructure/credentials.py",
+      "sha256": "e1c1fdc1aade4fc886427340819e0a974ea4ff1fa0ba9585bf9e15ecbd53237c",
+      "lines": 232
+    },
+    {
+      "path": "src/aitest/infrastructure/exports.py",
+      "sha256": "066cd94355a64b72d3a1b1ba8762ba38d3416f44538274f00b568a2edf63dad0",
+      "lines": 274
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/atomic.py",
+      "sha256": "80811bf3140942a22d906323faa6a6600d14192b11fd41db6742a6cc10a629a4",
+      "lines": 87
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/backup.py",
+      "sha256": "ab1b98cc9b5e1a345f614dabe876ff5e6cc8a5b82c51b2c2f3974230ba886843",
+      "lines": 407
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/business_changes.py",
+      "sha256": "099749a45f146b924cbe2855b14022eec1ee3363da17da8927042e313d3998a1",
+      "lines": 335
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/canonical_manifest.py",
+      "sha256": "a66776547df486ece8d521314873da32471a18972ad66ef2c5865a338f31fdd2",
+      "lines": 328
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/checkpoints.py",
+      "sha256": "8122136fc6259fc1c51d24bf26c261d4eb765ef15a3993d6b3fdf35bc233d6a5",
+      "lines": 89
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/commit_manifest.py",
+      "sha256": "aea183fea960f45f0f7a12dc4e5e444cf4b037a40654e793520fccf80635756f",
+      "lines": 603
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/commit_migration.py",
+      "sha256": "f60fc81c02fe4a169bc1eb5b5c821760c2f664b81f224d76da356ba0ae57f8a6",
+      "lines": 209
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/continuations.py",
+      "sha256": "459544e5c093adc0c889c183934b90662048f5745c9c2f1ba244245a667351fc",
+      "lines": 159
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/core_exit.py",
+      "sha256": "43766caa52637ff6dc2528487368db9ea3605a35abdc9b94ac4f8da326b97a1c",
+      "lines": 84
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/core_launch.py",
+      "sha256": "46f93a498039b19a06527e9d4e23373351954923fec8afe349a9ab0a8be8f777",
+      "lines": 289
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/events.py",
+      "sha256": "f611842aae5e305559b21efb54ed891153db8cf390caae0b8d55e7d932cd1bdc",
+      "lines": 759
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/execution_handles.py",
+      "sha256": "9e3b0e6a6592045911b0f6d40f783ade23d0a2058f34e2405e95d56b5ace7fa8",
+      "lines": 285
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/fake.py",
+      "sha256": "2493f37c81dbefa25e73b1b9224c671ca3faa8c37fd3250054e09503ebe420f3",
+      "lines": 91
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/index.py",
+      "sha256": "22a4faee851fbb84cc557a5e99c10d967ce504b289c7f80206d2042dafdbc9d1",
+      "lines": 1462
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/integrity.py",
+      "sha256": "14b134ac7b27b1dcae95d099b72d2cff9a0dac7a46eea6b8e3ee71935e058b6f",
+      "lines": 424
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/locking.py",
+      "sha256": "27ea19e5ec4e9014be0a2132bc8cfaaaac03ee507a873d2095269efcffd43567",
+      "lines": 181
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/maintenance.py",
+      "sha256": "4cea4e07cfbf87bf35b4de1a192a552e8facf0d942c86a44e1f123cfb5a4436a",
+      "lines": 590
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/manifest_migration.py",
+      "sha256": "c754ec2f79694116b9e2925c46dad99c5b12f9691067b2e61e8c7527978fc12f",
+      "lines": 119
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/material_json.py",
+      "sha256": "bd7db44188c5dd767a12473f09f628fff7ba0a9b96b49c99f73e049d59aaf6b2",
+      "lines": 22
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/migrations.py",
+      "sha256": "70e2f6279650e98e64f62819871c46d3a872c0539ee43973a804b67ef9067a53",
+      "lines": 683
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/model_responses.py",
+      "sha256": "868750c549ddd0cdaeae55dc747cd8a8ff306ea86927b14f683423b30485d97d",
+      "lines": 187
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/object_chunks.py",
+      "sha256": "77bf26912db348f01299f5dd61637fdd738acb92218e6f4d4fbfcf2f47cb551f",
+      "lines": 215
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/objects.py",
+      "sha256": "4bb46d74c2419317ea0f4444bcc105f4e153e14a285f593b33f4ca674f083eb9",
+      "lines": 216
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/ordered_events.py",
+      "sha256": "8c620f9148d1f459e7a8ed65de84244b9b04f617ba1cdc82a4f7b993fc90b569",
+      "lines": 196
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/ordered_index.py",
+      "sha256": "36df216e7c4f5af9e7d07218ba049771d46dd452a8032297d40d7d60e9cc5134",
+      "lines": 325
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/publication_backend.py",
+      "sha256": "35b46c6a28579738ef888f450db3a27e051db8f9b7d63a50695d39d0996f9c02",
+      "lines": 361
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/records.py",
+      "sha256": "671f67902d98647e8a94917b280326719c633384041e5fb8a5e7a24fe62f72db",
+      "lines": 1248
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/recovery.py",
+      "sha256": "421a4d616a5fed422df65abd6711fb89e702b8a6f176faa85f40f64e38cd0caf",
+      "lines": 443
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/references.py",
+      "sha256": "76f135001e18d69d4bc37256f46be479a646218bf591f8f1cc16159e6671f6db",
+      "lines": 97
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/sharded_records.py",
+      "sha256": "e482a077e2f10105ad228c1a994b8f01587d46da7d80d71fc32b322ba4b73106",
+      "lines": 449
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/source_material.py",
+      "sha256": "93b3719147d761c5ae3b794e444a3ccd9fd47cdce0c9d116130946643edb5d07",
+      "lines": 557
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/spool.py",
+      "sha256": "1a659057f3f62a75609b544a6268d42c582e40edec11c07c8925ee524e50c7e8",
+      "lines": 824
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/unit_of_work.py",
+      "sha256": "cd370df3bdf4c07dca6854cf76e2719a46a14687d6a00a44437700c773b19caa",
+      "lines": 366
+    },
+    {
+      "path": "src/aitest/infrastructure/file_store/workspace.py",
+      "sha256": "952ba8769dfc062d1c85067c62df5626d15588624e4f1ca60372bb4df4b7c29d",
+      "lines": 119
+    },
+    {
+      "path": "src/aitest/infrastructure/path_compat.py",
+      "sha256": "aa186865eb819f24a87afd74b45793f7a5040149266cf385094cfc4a1fa3c98a",
+      "lines": 36
+    },
+    {
+      "path": "src/aitest/infrastructure/projections.py",
+      "sha256": "08628607c5ae6cc313bcff2f34dd33bbcf03907af9eecfcdb547c077dee330aa",
+      "lines": 192
+    },
+    {
+      "path": "src/aitest/infrastructure/python_environment.py",
+      "sha256": "b4a4c3d1ef974ed20883d9af73e41fbddf95b85d449abc6b7d73824c5f76f598",
+      "lines": 353
+    },
+    {
+      "path": "src/aitest/infrastructure/security.py",
+      "sha256": "ba225746e6115696ce30d9f8bd5a6672cd58dbeb38c39c7ccaa980c440dc024a",
+      "lines": 439
+    },
+    {
+      "path": "src/aitest/interfaces/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/interfaces/dto.py",
+      "sha256": "711575048b8334d70d00aa02aa3f2dd2411ee5ebf44311da1e065cff7a0fe72f",
+      "lines": 641
+    },
+    {
+      "path": "src/aitest/interfaces/local/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/interfaces/local/actor_context.py",
+      "sha256": "b6514e70fde501cbc6fa7fc708669255a92ec178dc21483e9ec7eb51405dff6a",
+      "lines": 26
+    },
+    {
+      "path": "src/aitest/interfaces/local/api.py",
+      "sha256": "4b45ced557ae6621dd155144d761aa47a9688ff41d6e30e35c7613e02369edc4",
+      "lines": 638
+    },
+    {
+      "path": "src/aitest/interfaces/local/b_registration.py",
+      "sha256": "761c22f47694a90b117cfc4cff42b42eb4902dc02cf489ef79885e879c8fb4f5",
+      "lines": 73
+    },
+    {
+      "path": "src/aitest/interfaces/local/core_client.py",
+      "sha256": "84fe5ba4c348a6736f5d5553f6567fce9a6475d655b92a8ffbff354190be2533",
+      "lines": 60
+    },
+    {
+      "path": "src/aitest/interfaces/local/core_worker.py",
+      "sha256": "4936a459442ff712d71589ab2f527829f9c3b824a4a94dd7d0eadebc1a85315f",
+      "lines": 507
+    },
+    {
+      "path": "src/aitest/interfaces/local/d_registration.py",
+      "sha256": "0662b17d793bee80575177acd17ea2fdeb2d31d259211cd3cb49af76789d7671",
+      "lines": 114
+    },
+    {
+      "path": "src/aitest/interfaces/local/editor_host.py",
+      "sha256": "1e1648e3d64eba2c644ba7705ff6203d075995d9d1123e6f825b2a962ebd1d51",
+      "lines": 134
+    },
+    {
+      "path": "src/aitest/interfaces/local/pipe.py",
+      "sha256": "d1315cf5e43c6e988d381420c7cce428bb58ef21345e6f9772cc9371e5ca11f5",
+      "lines": 765
+    },
+    {
+      "path": "src/aitest/interfaces/local/view_queries.py",
+      "sha256": "3df61fa925e2ac12d5cbdcb8e5e685f24128487c06a406cc4c292a9d96917265",
+      "lines": 125
+    },
+    {
+      "path": "src/aitest/interfaces/tools/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "lines": 0
+    },
+    {
+      "path": "src/aitest/interfaces/tools/agent_relay.py",
+      "sha256": "ec1e24dcf59e0153eb9445f8b99f7cc62c2fd738af423f340e94dcbbcd0ab80c",
+      "lines": 454
+    },
+    {
+      "path": "src/aitest/interfaces/tools/cli.py",
+      "sha256": "a26b26e1b8b88ed32532753317f5c1a5dc0132e99a9225148e0ee8465e3ed191",
+      "lines": 148
+    }
+  ],
+  "comment_only_after_regression": "comment-cleanup.json",
+  "tested_inventory": "tested-source-inventory.json"
+}

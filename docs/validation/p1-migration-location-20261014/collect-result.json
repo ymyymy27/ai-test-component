@@ -1,0 +1,10 @@
+{
+  "command": [
+    "E:\\ai-test-component\\.runtime\\completion-clean313\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "--collect-only",
+    "-q"
+  ],
+  "exit_code": 0
+}

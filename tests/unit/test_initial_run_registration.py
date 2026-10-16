@@ -38,6 +38,8 @@ def test_initial_run_step_and_current_snapshot_publish_once_without_attempt(auth
     assert set(facts.run.required_scope) == set(prepared["frozen_required_case_ids"])
     assert set(facts.run.selected_scope) == set(prepared["selected_case_ids"])
     assert not facts.attempts and not facts.verifications and not facts.evidence_refs
+    assert all(len(step.assertion_refs) == 1 for step in facts.steps)
+    assert len({step.assertion_refs[0] for step in facts.steps}) == len(facts.steps)
     assert all(
         step.current_attempt_id is None and step.state.value == "pending" for step in facts.steps
     )
