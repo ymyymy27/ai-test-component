@@ -1,0 +1,12 @@
+{
+  "action": "prepare_execution",
+  "project_id": "trae-live-20261016",
+  "request_id": "live-e78b02bb309c401eb3e0e819805967c9",
+  "intent_id": "trae-execute-library-boundary",
+  "expected_revision": 0,
+  "target": "step-ae03b58a9238ce19d81ded43f81ada96cba783e60512701030c00d4dc45ad40c",
+  "parameters": {
+    "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+    "step_id": "step-ae03b58a9238ce19d81ded43f81ada96cba783e60512701030c00d4dc45ad40c"
+  }
+}

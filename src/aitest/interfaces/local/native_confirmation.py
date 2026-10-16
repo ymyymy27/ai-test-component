@@ -17,6 +17,7 @@ from aitest.contracts.responses import Response
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
 NATIVE_CONFIRMATION_VERSION = "native-confirmation/1"
+NATIVE_CONFIRMATION_TIMEOUT_MS = 120_000
 CHALLENGE_ACTIONS = frozenset(
     {
         "save_binding",
@@ -105,7 +106,7 @@ def windows_prompt(text: str) -> bool:
         root.protocol("WM_DELETE_WINDOW", root.quit)
         root.bind("<Escape>", lambda event: root.quit())
         root.bind("<Return>", lambda event: root.quit())
-        root.after(120_000, root.quit)
+        root.after(NATIVE_CONFIRMATION_TIMEOUT_MS, root.quit)
         cancel.focus_set()
         root.mainloop()
         return accepted

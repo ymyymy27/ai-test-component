@@ -2,6 +2,29 @@ import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
 import { postHostMessage } from "./host-outcome";
 
+test("successful connection refreshes capabilities without another user click", async ({ page }) => {
+  await page.setContent('<ai-test-panel></ai-test-panel>');
+  await page.evaluate(() => {
+    const host = window as unknown as {__sent: unknown[]; acquireVsCodeApi: () => unknown};
+    host.__sent = [];
+    host.acquireVsCodeApi = () => ({postMessage: (message: unknown) => host.__sent.push(message)});
+  });
+  await page.addScriptTag({path: resolve("dist/index.js")});
+  await postHostMessage(page, {kind:"outcome", action:"doctor", status:"unavailable",
+    code:"CORE_RESULT_UNVERIFIED", message:"not connected"});
+  await page.getByRole("button", {name:"连接核心", exact:true}).click();
+  await postHostMessage(page, {kind:"outcome", action:"ensure-core", status:"ok",
+    response:{status:"READY", workspace_id:"workspace", instance_id:"core"}});
+  await expect.poll(() => page.evaluate(() => {
+    const sent = (window as unknown as {__sent: Array<Record<string, unknown>>}).__sent;
+    return sent.at(-1)?.action;
+  })).toBe("doctor");
+  await postHostMessage(page, {kind:"outcome", action:"doctor", status:"ok",
+    response:{result:{status:"READY", supported_actions:["doctor", "query"]}}});
+  await expect(page.getByTestId("panel-status")).toContainText("READY");
+  await expect(page.getByTestId("core-capability")).toContainText("query");
+});
+
 test("prototype follows current-test panel and same-panel detail flow", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));

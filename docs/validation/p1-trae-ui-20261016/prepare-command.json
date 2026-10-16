@@ -1,0 +1,67 @@
+{
+  "action": "prepare_run",
+  "intent_id": "trae-library-prepare",
+  "expected_revision": 0,
+  "parameters": {
+    "mode": "from_saved",
+    "project_revision": 1,
+    "binding_id": "binding-library",
+    "binding_revision": 1,
+    "plan_id": "plan-library",
+    "plan_revision": 1,
+    "snapshot_id": "source-79227cf6a909ce0f99106bde58fe15ced2ba4f4e685565c6274ce5cc62f9e6d8",
+    "snapshot_revision": 1,
+    "environment_id": "env-library",
+    "environment_revision": 1,
+    "client_id": "trae-live-20261016",
+    "prepare_request_id": "trae-library-prepare",
+    "execution_source": {
+      "registered_entry": "python-main",
+      "entry_arguments": [
+        "main.py"
+      ],
+      "cwd_mapping": "workdir:.",
+      "allowed_env_keys": [],
+      "secret_refs": [],
+      "test_config_ref": "plan-library:1",
+      "adapter_versions": {
+        "command": "command/1.0"
+      },
+      "resolved_input_digest": "core-resolves-from-saved"
+    },
+    "selected_case_ids": [
+      "library-syntax",
+      "library-normal",
+      "library-boundary",
+      "library-error"
+    ],
+    "confirmation_refs": [
+      {
+        "confirmation_id": "confirmation-d0064b2681b78cce3f0cca45d1265ad9bd7daafdd6b3ce6d5e40af8f0d5e9631",
+        "case_id": "library-boundary",
+        "basis_revision": 1,
+        "confirmed_at_commit": "54"
+      },
+      {
+        "confirmation_id": "confirmation-0a5f381f63271462bfa4297f8b91a1304534ac4c7b9a6cb19cf59e979200b3a1",
+        "case_id": "library-error",
+        "basis_revision": 1,
+        "confirmed_at_commit": "61"
+      },
+      {
+        "confirmation_id": "confirmation-943fed694609a3571f07d38987ec50df7935f39d4a6b2bba75ce3b30f21afd69",
+        "case_id": "library-normal",
+        "basis_revision": 1,
+        "confirmed_at_commit": "47"
+      },
+      {
+        "confirmation_id": "confirmation-a0d2733cbb5820d7cdc969dc22ab864691c94a0403fd453a87b41cd386485493",
+        "case_id": "library-syntax",
+        "basis_revision": 1,
+        "confirmed_at_commit": "40"
+      }
+    ]
+  },
+  "project_id": "trae-live-20261016",
+  "request_id": "live-6c6c028253db404da31993e6d33f90cf"
+}

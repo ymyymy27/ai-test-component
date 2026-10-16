@@ -1,0 +1,9 @@
+Using Python 3.13.0 environment at: E:\AI-Test-userdata\runtime-0.4.8
+Resolved 1 package in 17ms
+Prepared 1 package in 309ms
+Uninstalled 1 package in 99ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 1 package in 395ms
+ ~ ai-test-component==0.4.8 (from file:///E:/ai-test-component/dist/ai_test_component-0.4.8-py3-none-any.whl)

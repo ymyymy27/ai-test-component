@@ -1,0 +1,16 @@
+{
+  "baseline": "8d7dcd1",
+  "paths": [
+    "docs/validation/p1-trae-ui-20261016/README.md",
+    "docs/一期工程整改/04-交接/0.4.8-Trae实测与连接修复.md",
+    "docs/一期工程整改/README.md",
+    "docs/一期工程检查-A包.md",
+    "docs/一期工程检查-B包.md",
+    "docs/一期工程检查-C包.md",
+    "docs/一期工程检查-D包.md",
+    "docs/修改日志/2026-10-16-Trae真实界面与回执修复.md",
+    "docs/接口对接/README.md",
+    "docs/现状.md"
+  ],
+  "reason": "按现行一期合同同步代码修复/真实验收边界，保留历史与原失败"
+}

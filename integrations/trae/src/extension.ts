@@ -182,7 +182,7 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
     });
     return;
   }
-  const { python, workspaceRoot, projectId } = readSettings();
+  const { python, workspaceRoot, projectId, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = readSettings();
   if ((request.projectId !== null && request.projectId !== projectId)
       || (["query", "read_view", "check_source", "inspect_case_reuse", "copy_repair_brief"].includes(request.action) && projectId === null)) {
     post(panel, { kind: "outcome", action: request.action, status: "refused",
@@ -191,6 +191,20 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
   }
   let outcome: DispatchOutcome;
   try {
+    // Even the first doctor request must use the configured, host-owned launcher.
+    // A dispatch CLI can otherwise start an unconfigured core owned by that short-lived CLI.
+    const connected = await ensureCore(python, workspaceRoot, 60_000,
+      pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
+    if (JSON.stringify(readSettings()) !== expectedContext) {
+      publishProject(panel, scope);
+      post(panel, { kind: "outcome", action: request.action, status: "unavailable",
+        code: "PROJECT_CONTEXT_CHANGED", message: "连接期间宿主配置变化，操作尚未派发，请重新核对", clientRequestId });
+      return;
+    }
+    if (connected.status !== "ok") {
+      post(panel, { kind: "outcome", action: request.action, ...connected, clientRequestId });
+      return;
+    }
     outcome = raw["kind"] === "controlledDispatch"
       ? await dispatchControlled(python, workspaceRoot, { ...request, projectId }, clientRequestId)
       : await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);

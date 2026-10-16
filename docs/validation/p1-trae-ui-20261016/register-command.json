@@ -1,0 +1,12 @@
+{
+  "action": "register_run",
+  "intent_id": "trae-library-register",
+  "expected_revision": 0,
+  "target": "prepared-40c305228842d71a9e077f49cd101dbaa2300665",
+  "parameters": {
+    "prepared_run_id": "prepared-40c305228842d71a9e077f49cd101dbaa2300665",
+    "record_revision": 1
+  },
+  "project_id": "trae-live-20261016",
+  "request_id": "live-5b2ec685207c49ceaafb86320d781dad"
+}

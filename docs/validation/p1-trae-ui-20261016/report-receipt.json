@@ -1,0 +1,16 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-b3c3967c14c14c46976af57f5b38d7f3",
+  "instance_id": "core-890e376b9e7d",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-library-report",
+  "binding_revision": null,
+  "result": {
+    "aggregate_kind": "report",
+    "record_id": "trae-library-report",
+    "revision": 1
+  },
+  "page": null,
+  "error": null
+}

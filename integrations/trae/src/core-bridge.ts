@@ -9,6 +9,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 
 /** 一期只读动作（`contracts/commands.py::READ_ACTIONS` 的子集，按扩展需要列明）。 */
 export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
@@ -96,6 +97,15 @@ interface SpawnResult {
   readonly stderr: string;
   readonly timedOut: boolean;
   readonly oversized?: boolean;
+  readonly spawnFailure?: string;
+}
+
+/** Only fixed OS classifications may cross the UI boundary, never raw stderr/path/env. */
+function spawnFailure(error: unknown, python: string): string {
+  const code = (error as NodeJS.ErrnoException | null)?.code;
+  const classification = typeof code === "string" && ["ENOENT", "EACCES", "EPERM", "EINVAL", "ENOMEM", "UNKNOWN"].includes(code)
+    ? code : "UNCLASSIFIED";
+  return `${classification}; ${process.platform}; executable_exists=${existsSync(python)}`;
 }
 
 function runCli(
@@ -152,7 +162,7 @@ function runCli(
       stderr += chunk;
     });
     child.on("error", (error: Error) => {
-      finish({ code: null, stdout, stderr: `${stderr}${error.message}`, timedOut: false });
+      finish({ code: null, stdout: "", stderr: "", timedOut: false, spawnFailure: spawnFailure(error, python) });
     });
     child.on("close", (code: number | null) => {
       finish({ code, stdout, stderr, timedOut: false });
@@ -253,8 +263,8 @@ export async function ensureCore(
       }
       stderr += chunk;
     });
-    child.on("error", () => {
-      finish({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: "无法启动已配置的本地核心入口" });
+    child.on("error", (error: Error) => {
+      finish({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: `无法启动已配置的本地核心入口（${spawnFailure(error, python)}）` });
     });
     child.on("close", (code: number | null) => {
       const parsed = parseResponse(stdout);
@@ -271,7 +281,8 @@ export async function ensureCore(
           "核心未能在限定时间内核实并连接，请查看受控诊断",
       });
     });
-  }).catch(() => ({ status: "unavailable", code: "ENTRY_SPAWN_FAILED", message: "无法启动已配置的本地核心入口" }));
+  }).catch((error: unknown) => ({ status: "unavailable", code: "ENTRY_SPAWN_FAILED",
+    message: `无法启动已配置的本地核心入口（${spawnFailure(error, python)}）` }));
 }
 
 /**
@@ -294,7 +305,7 @@ export async function dispatchReadOnly(
 /** This requests a core-owned dialog; it never sends an assertion of human approval. */
 export async function dispatchControlled(
   python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
-  timeoutMs = 150_000,
+  timeoutMs = 270_000,
 ): Promise<DispatchOutcome> {
   if (READ_ONLY_ACTIONS.has(request.action) || !request.projectId || !request.intentId
       || request.intentId === requestId || !Number.isSafeInteger(request.expectedRevision)
@@ -309,7 +320,7 @@ async function dispatchCommand(
   timeoutMs: number, nativeConfirmation: boolean,
 ): Promise<DispatchOutcome> {
   if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0
-      || timeoutMs > (nativeConfirmation ? 150_000 : 60_000)) {
+      || timeoutMs > (nativeConfirmation ? 270_000 : 60_000)) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
   }
   if (!workspaceRoot.trim()) {
@@ -323,16 +334,20 @@ async function dispatchCommand(
   let result: SpawnResult;
   try {
     result = await runCli(python, workspaceRoot, command, timeoutMs, nativeConfirmation);
-  } catch {
+  } catch (error) {
     return {
       status: "unavailable",
       code: "ENTRY_SPAWN_FAILED",
-      message: "无法启动已配置的本地核心入口",
+      message: `无法启动已配置的本地核心入口（${spawnFailure(error, python)}）`,
     };
   }
   if (result.timedOut) {
     return { status: "unavailable", code: "ENTRY_TIMEOUT",
       message: "核心入口在限定时间内无回执；请查询原业务意图，勿自动创建新意图重试" };
+  }
+  if (result.spawnFailure) {
+    return { status: "unavailable", code: "ENTRY_SPAWN_FAILED",
+      message: `无法启动已配置的本地核心入口（${result.spawnFailure}）` };
   }
   if (result.oversized) {
     return { status: "unavailable", code: "ENTRY_OUTPUT_LIMIT", message: "核心入口输出超出允许预算，结果未核实" };

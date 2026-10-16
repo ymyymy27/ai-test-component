@@ -283,6 +283,7 @@ def test_control_requires_negotiated_adapter_and_exact_envelope(core):
 
 def test_client_negotiates_then_uses_verified_core_control_without_approval_claim(core):
     commands = []
+    budgets = []
 
     class Channel:
         def write_message(self, payload):
@@ -296,7 +297,8 @@ def test_client_negotiates_then_uses_verified_core_control_without_approval_clai
                 ),
             )
 
-        def read_message(self):
+        def read_message(self, *, timeout_ms=10000):
+            budgets.append(timeout_ms)
             return self.response.model_dump_json().encode()
 
         def close(self):
@@ -308,6 +310,7 @@ def test_client_negotiates_then_uses_verified_core_control_without_approval_clai
     assert commands[0]["action"] == "doctor"
     assert commands[1][CONTROL_KEY] == NATIVE_CONFIRMATION_VERSION
     assert set(commands[1]) == {CONTROL_KEY, "request_id", "command"}
+    assert budgets == [10000, 250000]
 
 
 def test_old_core_does_not_receive_new_control(core):

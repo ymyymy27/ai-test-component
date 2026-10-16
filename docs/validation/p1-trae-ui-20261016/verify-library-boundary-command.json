@@ -1,0 +1,14 @@
+{
+  "action": "verify_pending",
+  "project_id": "trae-live-20261016",
+  "request_id": "live-01e03d03015840b9b144af1246e2374a",
+  "intent_id": "trae-verify-library-boundary",
+  "expected_revision": 0,
+  "target": "step-ae03b58a9238ce19d81ded43f81ada96cba783e60512701030c00d4dc45ad40c",
+  "parameters": {
+    "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+    "step_id": "step-ae03b58a9238ce19d81ded43f81ada96cba783e60512701030c00d4dc45ad40c",
+    "attempt_id": "execution-attempt-f57240032357fc355f7bec1125e51db67e2e69abed5640522f010b233eeb00df",
+    "base_snapshot_commit_id": "commit-105"
+  }
+}

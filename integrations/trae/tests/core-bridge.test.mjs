@@ -144,3 +144,13 @@ test("invalid startup configuration and budget fail before spawning", async () =
     assert.equal((await dispatchReadOnly(python, "ok", { action: "doctor" }, "r", budget)).code, "ENTRY_INVALID_CONFIG");
   }
 });
+
+test("missing interpreter has a bounded OS diagnosis without exposing its path", async () => {
+  const missing = join(fixture, "private-credential-marker", "missing-python.exe");
+  for (const outcome of [await ensureCore(missing, "ok", 2000),
+    await dispatchReadOnly(missing, "ok", {action:"doctor"}, "r", 2000)]) {
+    assert.equal(outcome.code, "ENTRY_SPAWN_FAILED");
+    assert.match(outcome.message, /ENOENT/);
+    assert.ok(!JSON.stringify(outcome).includes("private-credential-marker"));
+  }
+});

@@ -1,0 +1,16 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-b5010b4a5b3a44ea9a8252dbdef4350e",
+  "instance_id": "core-7fc97cad5351",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-live-library-boundary",
+  "binding_revision": null,
+  "result": {
+    "aggregate_kind": "case",
+    "record_id": "library-boundary",
+    "revision": 1
+  },
+  "page": null,
+  "error": null
+}

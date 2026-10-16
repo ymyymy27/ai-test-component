@@ -1,0 +1,36 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "restart-9e9a531235ee43d5aa4e03296d72f4b5",
+  "instance_id": "core-fe7a74fb4403",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": null,
+  "binding_revision": null,
+  "result": {
+    "view_type": "panel",
+    "view": {
+      "schema_version": "aitest.panel-view/1.0",
+      "project_id": "trae-live-20261016",
+      "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+      "stage": "runtime",
+      "control_state": "running",
+      "run_revision": 13,
+      "snapshot_commit_id": "commit-225",
+      "snapshot_cursor": 225,
+      "tier": "full",
+      "driver": "planned",
+      "conclusion_ceiling": "passable",
+      "business_outcome": "passed",
+      "decisive_failure_case_ids": [],
+      "gap_codes": [],
+      "manual_pending_step_ids": [],
+      "pending_verification_step_ids": []
+    },
+    "commit_id": 231,
+    "event_cursor": "eyJ2IjoxLCJ3IjoiNzcyMWUxYWYtODkwNS00NGYzLWI5YTgtYTI0MTZhYmUwMzkxIiwiZyI6IjgzMGRlZjM5ODUyYjQyZGM5MzUzMmZkOTU4YTRkYTJjIiwiZSI6MSwicyI6MjMxfQ==",
+    "generation": 1,
+    "index_version": 3
+  },
+  "page": null,
+  "error": null
+}

@@ -1,0 +1,47 @@
+{
+  "action": "save_case",
+  "intent_id": "trae-live-library-syntax",
+  "expected_revision": 0,
+  "parameters": {
+    "case": {
+      "project_id": "trae-live-20261016",
+      "case_id": "library-syntax",
+      "revision": 1,
+      "layer": "L1",
+      "objective": "Python library syntax",
+      "preconditions": [
+        "Registered isolated CPython 3.13 and frozen main.py"
+      ],
+      "inputs": [
+        "(2,3), (0,0), (-1,1), (2**64,1), (None,1)"
+      ],
+      "steps": [
+        "Execute the declared library checks"
+      ],
+      "expected": "Exact integer results and TypeError match frozen mathematical expectations",
+      "verification_method": "pure-function-stdout",
+      "links": {
+        "acceptance_item_ids": [
+          "library-syntax"
+        ],
+        "module_ids": [],
+        "environment_ids": [
+          "env-library"
+        ],
+        "critical_path_ids": [],
+        "no_critical_path_reason": "Pure arithmetic library; no cross-system chain or persistent external state"
+      },
+      "assertion_basis": {
+        "revision": 1,
+        "state": "present_unconfirmed",
+        "text": "{\"schema_version\": \"aitest.pure-function-basis/1\", \"expected_facts\": {\"normal\": 5, \"zero\": 0, \"negative\": 0, \"large\": 18446744073709551617, \"error\": \"TypeError\"}}",
+        "text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1"
+      },
+      "independent_verification": "Independent comparison with frozen expected_facts; never infer expectations from output",
+      "mock_scope": [],
+      "importance": "P1"
+    }
+  },
+  "project_id": "trae-live-20261016",
+  "request_id": "live-984854d21e2643cba9ece8cac513cf99"
+}

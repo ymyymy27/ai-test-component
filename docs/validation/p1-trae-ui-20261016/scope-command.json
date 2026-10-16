@@ -1,0 +1,32 @@
+{
+  "action": "save_acceptance",
+  "intent_id": "trae-live-scope",
+  "expected_revision": 0,
+  "parameters": {
+    "acceptance_scope": {
+      "project_id": "trae-live-20261016",
+      "scope_id": "scope-library",
+      "revision": 1,
+      "name": "Library full scope",
+      "required_case_ids": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "template_case_ids": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "objective": "Validate syntax, normal inputs, numeric boundaries and invalid-type exceptions",
+      "excluded_case_ids": [],
+      "exclusion_reasons": [],
+      "dependency_closure_ids": [],
+      "applicability_exclusions": []
+    }
+  },
+  "project_id": "trae-live-20261016",
+  "request_id": "live-63b440c583504e568405963170de851a"
+}

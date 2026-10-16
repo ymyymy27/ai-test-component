@@ -2,7 +2,7 @@
   "name": "aitest-trae",
   "displayName": "AI Test — Phase One Preview",
   "description": "Local core panel with core-owned confirmation. Real Trae workflow acceptance pending.",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "publisher": "aitest-local",
   "private": true,
   "engines": {

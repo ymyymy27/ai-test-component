@@ -1,0 +1,14 @@
+{
+  "action": "confirm_basis",
+  "intent_id": "trae-confirm-library-syntax",
+  "expected_revision": 0,
+  "target": "library-syntax",
+  "parameters": {
+    "case_id": "library-syntax",
+    "case_revision": 1,
+    "basis_revision": 1,
+    "basis_text_digest": "sha256:ea1f231c5cd74df41a251035917f5e588e9635bad2915adea7eeb1b598c9b8b1"
+  },
+  "project_id": "trae-live-20261016",
+  "request_id": "live-c40f005b1dc342ec9815d79ae64540b4"
+}

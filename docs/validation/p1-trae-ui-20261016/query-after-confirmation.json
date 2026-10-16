@@ -1,0 +1,23 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "ui-evidence-query",
+  "instance_id": "core-d0abace1eb46",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": null,
+  "binding_revision": null,
+  "result": {
+    "items": [
+      {
+        "aggregate_kind": "project",
+        "record_id": "trae-live-20261016",
+        "revision": 1
+      }
+    ],
+    "next_cursor": null,
+    "commit_id": 2,
+    "event_cursor": "eyJ2IjoxLCJ3IjoiNzcyMWUxYWYtODkwNS00NGYzLWI5YTgtYTI0MTZhYmUwMzkxIiwiZyI6IjgzMGRlZjM5ODUyYjQyZGM5MzUzMmZkOTU4YTRkYTJjIiwiZSI6MSwicyI6Mn0="
+  },
+  "page": null,
+  "error": null
+}

@@ -1,0 +1,103 @@
+{
+  "blocking_issue_ids": [],
+  "business_outcome": "passed",
+  "content_revision": 1,
+  "context": {
+    "acceptance_revision": "1",
+    "environment_ref": "env-library@1",
+    "plan_revision_refs": [
+      "plan-library@1"
+    ],
+    "policy_version": "1.0",
+    "project_id": "trae-live-20261016",
+    "rules_revision": "rules:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+    "run_revision": 13,
+    "scope_name": "Library full scope",
+    "scope_revision": "scope:scope-library@1",
+    "source_identity": "sha256:3403ebe616b2086ee806371800ae89291c606416cc7d04760a4aea3808ef138d",
+    "template_revision": "python-library@1.0.0"
+  },
+  "created_at": "2026-10-16T05:37:56.918875+00:00",
+  "decision": {
+    "business_outcome": "passed",
+    "case_ids_revision": "sha256:e67f7c04de35178f4f60bb50b65a323c618f97476197227fc13cd5b87ea8ec96",
+    "coverage": {
+      "executed": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "passed": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "required": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "reused": [],
+      "selected": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ],
+      "verified": [
+        "library-boundary",
+        "library-error",
+        "library-normal",
+        "library-syntax"
+      ]
+    },
+    "decisive_failures": [],
+    "evidence_grade": "A",
+    "gaps": [],
+    "policy_version": "1.0",
+    "primary_gap": null,
+    "snapshot_commit_id": "commit-225",
+    "snapshot_cursor": 225,
+    "source_commit": "sha256:3403ebe616b2086ee806371800ae89291c606416cc7d04760a4aea3808ef138d"
+  },
+  "evidence_refs": [
+    "business-query-035535b6fa3432173287dcb28640e8ff28e541854b948b0096de6e1aa3ab3492-evidence",
+    "business-query-1a5620f75798e3c94d16bd4c268b789bfddbc896dc1042ae0cdb20e1bbaa09bc-evidence",
+    "business-query-370e1a96f307853b2e6900937b5dccceff5591c16e7c355280104cd9b775ba8c-evidence",
+    "business-query-7893d9f6e1849a74dc00adfec6108383aae911e6e0bf6c2f203d2dadff1401f9-evidence",
+    "evidence:execution-attempt-09cf7703d67e6d29f5265a3749cdfdb5935b998c6f45fb475ce6a3d1615f0244:stdout:0",
+    "evidence:execution-attempt-6800db295bed89ed1f70aff777cdeccfb94a7a35103cd1827cd1c6d68f54041d:stdout:0",
+    "evidence:execution-attempt-8fb37d9e9efe517e69c0d6236d38695a953943021268d0a5c680efbacd8be6f9:stdout:0",
+    "evidence:execution-attempt-f57240032357fc355f7bec1125e51db67e2e69abed5640522f010b233eeb00df:stdout:0",
+    "runtime-source-evidence-execution-attempt-09cf7703d67e6d29f5265a3749cdfdb5935b998c6f45fb475ce6a3d1615f0244",
+    "runtime-source-evidence-execution-attempt-6800db295bed89ed1f70aff777cdeccfb94a7a35103cd1827cd1c6d68f54041d",
+    "runtime-source-evidence-execution-attempt-8fb37d9e9efe517e69c0d6236d38695a953943021268d0a5c680efbacd8be6f9",
+    "runtime-source-evidence-execution-attempt-f57240032357fc355f7bec1125e51db67e2e69abed5640522f010b233eeb00df",
+    "source-evidence-execution-attempt-09cf7703d67e6d29f5265a3749cdfdb5935b998c6f45fb475ce6a3d1615f0244",
+    "source-evidence-execution-attempt-6800db295bed89ed1f70aff777cdeccfb94a7a35103cd1827cd1c6d68f54041d",
+    "source-evidence-execution-attempt-8fb37d9e9efe517e69c0d6236d38695a953943021268d0a5c680efbacd8be6f9",
+    "source-evidence-execution-attempt-f57240032357fc355f7bec1125e51db67e2e69abed5640522f010b233eeb00df"
+  ],
+  "execution_snapshot_ref": {
+    "digest": "sha256:3d0625b9399e767794a3bd9bb7c7876644aecb4a37478d52e18efe7d1708b533",
+    "snapshot_commit_id": "commit-225",
+    "snapshot_cursor": 225
+  },
+  "issue_revisions": [],
+  "project_id": "trae-live-20261016",
+  "published_sequence": 228,
+  "report_id": "trae-library-report",
+  "reuse": {
+    "candidates": 0,
+    "denials": [],
+    "references": [],
+    "reused": [],
+    "source_snapshots": []
+  },
+  "run_id": "run-78a1a4c6d0cbe1897eca3bbf54150e339d99a1cf6ddab38707f377f2a90fef74",
+  "schema_version": "aitest.report/1.0"
+}

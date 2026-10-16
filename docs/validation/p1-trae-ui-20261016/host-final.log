@@ -1,0 +1,41 @@
+
+> aitest-trae@0.4.8 test
+> node --test tests/*.test.mjs
+
+✔ only exact successful receipts are accepted (123.0797ms)
+✔ host carrier configuration is passed only as startup configuration (104.8781ms)
+✔ unverified request receipt is refused as success (104.8556ms)
+✔ unverified protocol receipt is refused as success (110.1182ms)
+✔ unverified project receipt is refused as success (111.9863ms)
+✔ unverified missing_identity receipt is refused as success (111.7062ms)
+✔ unverified exit receipt is refused as success (111.1954ms)
+✔ unverified array receipt is refused as success (102.8065ms)
+✔ unverified result_array receipt is refused as success (103.6865ms)
+✔ unverified error_array receipt is refused as success (103.7993ms)
+✔ large_stdout is limited by UTF8 bytes (268.0819ms)
+✔ large_stderr is limited by UTF8 bytes (261.8101ms)
+✔ raw stderr is never copied into the outcome (116.8369ms)
+✔ startup refusal cannot copy untrusted stderr code into its outcome (102.6274ms)
+✔ timeout cannot become success (324.9551ms)
+✔ ensure requires zero exit and complete core identity (313.1974ms)
+✔ controlled refusal stays refusal and writes stay forbidden (109.5542ms)
+✔ controlled bridge preserves exact identities and refuses mismatched receipts (458.8724ms)
+✔ invalid startup configuration and budget fail before spawning (0.2936ms)
+✔ missing interpreter has a bounded OS diagnosis without exposing its path (4.5933ms)
+✔ host publishes configured scope and preserves request correlation (5.7061ms)
+✔ initial doctor starts through all configured host capabilities (0.7425ms)
+✔ failed host startup never dispatches a fallback unconfigured CLI (0.7762ms)
+✔ configuration change during startup prevents dispatch of a queued write (0.6912ms)
+✔ foreign project cannot reach the bridge (1.0083ms)
+✔ controlled operation preserves all write identities and is still a prompt request (0.89ms)
+✔ queued writes cannot cross workspace changes even with the same project ID (0.6268ms)
+✔ configuration changes reject the in-flight receipt and publish fresh context (1.0113ms)
+✔ missing project blocks scoped reads and panel disposal releases configuration watch (0.5415ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3235.0406

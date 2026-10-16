@@ -11,9 +11,9 @@ const details: ReadonlyArray<readonly [Detail, string, string]> = [
 ];
 
 const phases: ReadonlyArray<readonly [string, string, string]> = [
-  ["运行前", "等待准备计划", "确认范围、来源、环境、依据和逐项动作授权。"],
-  ["运行时", "尚未开始", "显示当前步骤、尝试、待处理事项和准确阻塞原因。"],
-  ["运行后", "暂无报告修订", "显示业务结论、证据等级、未验证范围和下一步。"],
+  ["运行前", "计划状态待查询", "在计划详情核对范围、来源、环境、依据和逐项动作授权。"],
+  ["运行时", "执行状态待查询", "刷新本次视图，核对当前步骤、尝试、待处理事项和阻塞原因。"],
+  ["运行后", "报告状态待查询", "在问题与报告中查询已保存修订；当前阶段摘要不包含报告列表。"],
 ];
 
 type Outcome = {
@@ -227,6 +227,9 @@ class AITestPanel extends HTMLElement {
       this.pendingRequest = null;
       this.pending = false;
       this.render();
+      if (data.action === "ensure-core" && data.status === "ok") {
+        this.dispatch("doctor");
+      }
   };
 
   connectedCallback(): void {

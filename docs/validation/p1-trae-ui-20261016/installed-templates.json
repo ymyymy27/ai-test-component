@@ -1,0 +1,38 @@
+[
+  {
+    "template_id": "agent-workflow",
+    "version": "1.0.0",
+    "status": "released",
+    "delivery_method": "registered_command"
+  },
+  {
+    "template_id": "http-workflow",
+    "version": "1.0.0",
+    "status": "released",
+    "delivery_method": "automatic"
+  },
+  {
+    "template_id": "manual-web-workflow",
+    "version": "1.0.0",
+    "status": "released",
+    "delivery_method": "manual"
+  },
+  {
+    "template_id": "python-library",
+    "version": "1.0.0",
+    "status": "released",
+    "delivery_method": "registered_command"
+  },
+  {
+    "template_id": "python-service",
+    "version": "1.0.0",
+    "status": "released",
+    "delivery_method": "registered_command"
+  },
+  {
+    "template_id": "ticket-workflow",
+    "version": "1.0.0",
+    "status": "released",
+    "delivery_method": "automatic"
+  }
+]

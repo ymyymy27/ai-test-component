@@ -1,0 +1,15 @@
+{
+  "protocol_version": "aitest.local/2.0",
+  "request_id": "live-0741eab9161545439fb0d50689f24ea3",
+  "instance_id": "core-890e376b9e7d",
+  "workspace_id": "7721e1af-8905-44f3-b9a8-a2416abe0391",
+  "project_id": "trae-live-20261016",
+  "intent_id": "trae-execute-library-syntax",
+  "binding_revision": null,
+  "result": {
+    "execution_action_id": "execution-action-8fb37d9e9efe517e69c0d6236d38695a953943021268d0a5c680efbacd8be6f9",
+    "record_revision": 1
+  },
+  "page": null,
+  "error": null
+}

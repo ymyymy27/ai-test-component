@@ -25,7 +25,9 @@ export async function dispatchReadOnly(python,root,request,id) {state.calls.push
   return {status:"ok",response:{result:{status:"READY"}}};}
 export async function dispatchControlled(python,root,request,id){state.controlled={python,root,request,id};
   return {status:"refused",code:"USER_DECLINED",message:"fixture decline"};}
-export async function ensureCore(){return {status:"ok",response:{status:"READY"}};}
+export async function ensureCore(...args){state.startup=args;
+  if(state.deferStartup) return await new Promise(resolve=>{state.resolveStartup=resolve});
+  return state.startupOutcome??{status:"ok",response:{status:"READY"}};}
 `);
 await build({ entryPoints: ["src/extension.ts"], bundle: true, platform: "node", format: "esm",
   outfile: join(fixture, "extension.mjs"), plugins: [{ name: "explicit-host-fixture", setup(builder) {
@@ -50,6 +52,41 @@ test("host publishes configured scope and preserves request correlation", async 
   assert.deepEqual(state.calls.at(-1),{python:"configured-python",root:"data-root",
     request:{action:"read_view",projectId:"p",parameters:{view:"panel",run_id:"r"}},id:"request-1"});
   assert.equal(state.sent.at(-1).clientRequestId,"request-1");
+});
+
+test("initial doctor starts through all configured host capabilities", async () => {
+  Object.assign(state.settings,{pythonCarriersFile:"carriers.json",businessQueriesFile:"queries.json",modelConfigurationFile:"model.json"});
+  state.receive({kind:"dispatch",action:"doctor",parameters:{},clientRequestId:"first-doctor"});
+  await tick();
+  assert.deepEqual(state.startup,["configured-python","data-root",60000,"carriers.json","queries.json","model.json"]);
+  assert.equal(state.calls.at(-1).id,"first-doctor");
+});
+
+test("failed host startup never dispatches a fallback unconfigured CLI", async () => {
+  const count=state.calls.length;
+  state.startupOutcome={status:"unavailable",code:"CORE_UNAVAILABLE"};
+  state.receive({kind:"dispatch",action:"doctor",parameters:{},clientRequestId:"startup-failed"});
+  await tick();
+  assert.equal(state.calls.length,count);
+  assert.equal(state.sent.at(-1).code,"CORE_UNAVAILABLE");
+  delete state.startupOutcome;
+});
+
+test("configuration change during startup prevents dispatch of a queued write", async () => {
+  const previous=state.controlled;
+  state.deferStartup=true;
+  state.receive({kind:"controlledDispatch",action:"save_binding",projectId:"p",target:"binding",
+    contextId:state.sent.findLast(x=>x.kind==="projectContext").context_id,
+    intentId:"startup-change",expectedRevision:0,parameters:{},clientRequestId:"startup-change"});
+  await tick();
+  state.settings.pythonPath="changed-python";
+  state.resolveStartup({status:"ok"});
+  await tick();
+  assert.equal(state.controlled,previous);
+  assert.equal(state.sent.at(-1).code,"PROJECT_CONTEXT_CHANGED");
+  state.settings.pythonPath="configured-python";
+  state.deferStartup=false;
+  state.configuration({affectsConfiguration:()=>true});
 });
 test("foreign project cannot reach the bridge", async () => {
   const count=state.calls.length;
