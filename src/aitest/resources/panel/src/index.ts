@@ -128,7 +128,7 @@ class AITestPanel extends HTMLElement {
   private selectedRecord:Row|null=null;
   private recordOutcome:Outcome|null=null;
   private planOutcome:Outcome|null=null;
-  private expanded:Record<string,boolean>={current:true,pending:true,plan:true,records:false};
+  private expanded:Record<string,boolean>={current:true,records:false};
   private homeScroll=0;
   private selectedStep:string|null=null;
   private intents=new Map<string,string>();
@@ -422,9 +422,9 @@ class AITestPanel extends HTMLElement {
 
   private currentView(): HTMLElement {
     const fragment=document.createElement("div");fragment.className="dashboard";
-    const fold=(label:string,key:string,...children:HTMLElement[])=>group(label,key,this.expanded[key]??false,open=>{this.expanded[key]=open;},...children);
+    const fold=(label:string,key:string,...children:HTMLElement[])=>group(label,key,this.expanded[key]??(key==="pending"?!!this.project?.run_id:key==="plan"?!!this.project:false),open=>{this.expanded[key]=open;},...children);
     const links=document.createElement("div");links.className="link-row";
-    links.append(action("查看准备详情",()=>this.navigate("plan")),action("问题与报告",()=>this.navigate("review")));
+    if(this.project)links.append(action("查看准备详情",()=>this.navigate("plan")),action("问题与报告",()=>this.navigate("review")));
     const plan=document.createElement("div");
     const openPlan=action("打开计划与用例",()=>this.navigate("plan"));openPlan.className="link-button";
     plan.append(openPlan,this.caseTree());
@@ -835,7 +835,7 @@ class AITestPanel extends HTMLElement {
     const section=document.createElement("section");section.dataset.testid="detail-view";
     const back=action("返回本次测试",()=>this.navigate("current"));back.dataset.action="back";
     const heading=document.createElement("div");heading.className="detail-heading";
-    heading.append(back,text("h1",selected[1]));section.append(heading);
+    heading.append(back,text("h1",this.detail==="settings"?"模型 API 设置":this.detail==="setup"?"准备本次测试":selected[1]));section.append(heading);
     if(this.detail==="diagnostics")section.append(this.detailSection());
     if(this.detail==="setup")section.append(this.onboarding.view(String(this.doctorOutcome?.response?.["workspace_id"]??""),this.pending));
     else if(this.detail==="review")section.append(this.reportActions(),...this.reviewDetail());

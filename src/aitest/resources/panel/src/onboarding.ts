@@ -92,7 +92,6 @@ export class Onboarding {
   view(workspace:string,busy:boolean):HTMLElement {
     this.workspace=workspace;
     const section=document.createElement("section");section.dataset.testid="onboarding";
-    section.append(text("h2","开始第一次测试"));
     const steps=document.createElement("ol");steps.className="wizard-steps";steps.setAttribute("aria-label","测试准备进度");
     const active=this.stage==="choose"?0:this.stage==="configure"?this.configurationPage:this.stage==="project"?2:3;
     ["选择项目","模型 API","测试环境","核对计划"].forEach((label,index)=>{const item=text("li",`${index+1} ${label}`);if(active===index)item.setAttribute("aria-current","step");steps.append(item);});
