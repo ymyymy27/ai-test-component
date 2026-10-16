@@ -1,0 +1,19 @@
+{
+  "version": "0.4.9",
+  "installed_in_trae": false,
+  "shared_panel_byte_equal": true,
+  "changed_files_secret_pattern_scan": "passed",
+  "markdown_file_links": "passed",
+  "artifacts": [
+    {
+      "path": "integrations/trae/dist/aitest-trae.vsix",
+      "sha256": "42dbfd6fcdff54d053a170ba9e49092b6796987c6a890a5e81e67dd0510f20bb",
+      "bytes": 33821
+    },
+    {
+      "path": "dist/ai_test_component-0.4.9-py3-none-any.whl",
+      "sha256": "9abec1d914b52988f9fa0ba7695ced209648d968a443e326a12cb2d08e97e9df",
+      "bytes": 997043
+    }
+  ]
+}

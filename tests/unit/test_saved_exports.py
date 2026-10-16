@@ -833,3 +833,31 @@ def test_bundle_guard_refuses_encryption_before_opening_members(monkeypatch, fla
     monkeypatch.setattr(zipfile.ZipFile, "open", must_not_open)
     with pytest.raises(ExportRefused, match="encrypted"):
         _verify_bundle_paths(bytes(content))
+
+
+def test_exact_old_report_export_does_not_follow_latest_revision(tmp_path) -> None:
+    harness = _Harness(tmp_path, evidence=("evidence-1",))
+    _report_with_review(harness)
+    _create(harness, expected=1, intent_id="new-report", request_id="request-new-report")
+    parameters = {"report_id": "report-1", "report_revision": 1,
+                  "kind": "markdown_summary", "review_ids": ["review-1"]}
+    result = harness.command(action="export_report", expected=0, parameters=parameters,
+                             intent_id="exact-old", request_id="exact-old-1")
+    assert harness.saved_export(str(result["record_id"]))["report_revision"] == 1
+    assert harness.command(action="export_report", expected=0, parameters=parameters,
+                           intent_id="exact-old", request_id="exact-old-2") == result
+    with pytest.raises(ExportIntentConflict):
+        harness.command(action="export_report", expected=0,
+                        parameters={**parameters, "report_revision": 2},
+                        intent_id="exact-old", request_id="changed-revision")
+
+
+@pytest.mark.parametrize("revision", [None, 0, -1, True, "1"])
+def test_exact_report_revision_must_be_positive_integer(tmp_path, revision) -> None:
+    harness = _Harness(tmp_path, evidence=("evidence-1",))
+    _create(harness)
+    with pytest.raises(ExportManagementError):
+        harness.command(action="export_report", expected=0,
+                        parameters={"report_id":"report-1", "report_revision":revision,
+                                    "kind":"markdown_summary", "review_ids":[]},
+                        intent_id="bad-revision", request_id="request-bad-revision")

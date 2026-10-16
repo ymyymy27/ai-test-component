@@ -28,6 +28,7 @@ async function mountPanel(page: import("@playwright/test").Page): Promise<void> 
     });
   });
   await page.addScriptTag({ path: resolve("dist/index.js") });
+  await page.getByRole("button",{name:"更多",exact:true}).click();
 }
 
 function outcome(
@@ -199,6 +200,7 @@ test("issue detail stays blocked without a project and shows refusals verbatim",
   await page.getByRole("button", { name: "问题与报告", exact: true }).click();
   await expect(page.getByTestId("review-blocked")).toContainText("不猜项目身份");
   await page.getByRole("button", { name: "返回本次测试" }).click();
+  await page.getByRole("button",{name:"更多",exact:true}).click();
 
   await outcome(page, {
     kind: "projectContext",

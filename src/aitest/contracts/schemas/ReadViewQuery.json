@@ -6,6 +6,49 @@
         "anyOf": [
           {
             "required": [
+              "run_id"
+            ]
+          },
+          {
+            "required": [
+              "delivery_id"
+            ]
+          },
+          {
+            "required": [
+              "submission_id"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "view": {
+          "enum": [
+            "plan",
+            "report",
+            "case",
+            "issue"
+          ]
+        },
+        "record_id": {
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "view",
+        "record_id",
+        "revision"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
               "delivery_id"
             ]
           },
@@ -17,6 +60,11 @@
           {
             "required": [
               "submission_id"
+            ]
+          },
+          {
+            "required": [
+              "record_id"
             ]
           }
         ]
@@ -39,8 +87,17 @@
     },
     {
       "not": {
-        "required": [
-          "run_id"
+        "anyOf": [
+          {
+            "required": [
+              "run_id"
+            ]
+          },
+          {
+            "required": [
+              "record_id"
+            ]
+          }
         ]
       },
       "properties": {
@@ -62,10 +119,32 @@
       "enum": [
         "run",
         "panel",
-        "delivery"
+        "delivery",
+        "plan",
+        "report",
+        "case",
+        "issue"
       ],
       "title": "View",
       "type": "string"
+    },
+    "record_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "[\\x00-\\x1f]"
+          },
+          "pattern": "^[^\\x00-\\x1f]*[^\\x00-\\x1f\\s][^\\x00-\\x1f]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Record Id"
     },
     "run_id": {
       "anyOf": [

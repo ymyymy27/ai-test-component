@@ -1,8 +1,10 @@
 # 跨包接口对接规则与总台账
 
-版本：2.97
+版本：2.98
 
 更新日期：2026-10-16
+
+0.4.9：有限记录详情与准确修订导出已同步 CORE-001/BD-001/CD-001；步骤引导自动携带已有身份。见[本批范围与未验证项](../validation/p1-panel-guidance-20261016/README.md)。
 
 适用范围：A、B、C、D 包之间的合同、交付、评审、裁定与验证材料
 
@@ -204,12 +206,12 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](已完成/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | frozen，1.92 | A done；B/C/D done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
+| [CORE-001](已完成/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | frozen，1.93 | A done；B/C/D done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 | [AB-001](已完成/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | frozen，1.50 | A/B done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 | [BC-001](已完成/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | frozen，0.55 | B/C done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 | [AC-001](已完成/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | frozen，1.10 | A/C done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
-| [BD-001](已完成/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | frozen，0.11 | B done；D done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
-| [CD-001](已完成/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | frozen，1.28 | C/D done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
+| [BD-001](已完成/BD-001-计划与依据展示/contract.md) | 计划与依据展示 | B → D | frozen，0.12 | B done；D done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
+| [CD-001](已完成/CD-001-ExecutionFacts/contract.md) | ExecutionFacts | C → D | frozen，1.29 | C/D done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 
 接口关闭不表示真实 Trae、物理掉电或整个一期产品验收通过。
 

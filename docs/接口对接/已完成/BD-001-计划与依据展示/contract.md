@@ -3,7 +3,7 @@ contract_id: BD-001
 title: 计划、范围与断言依据展示
 provider: B
 consumer: D
-contract_version: "0.11"
+contract_version: "0.12"
 contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
@@ -367,7 +367,7 @@ D 侧已于 2026-10-03 回复五项，确认动作表为 **18 项**；发布冲�
 
 复用报告保存准确源执行快照引用与所采用 ReuseReference，证据集合包含已核对的整用例来源引用；导出仅从报告冻结的原目标/源快照读取对应证据，不回落最新源运行。缺来源引用或材料列缺口，身份不一致或重复冲突拒绝。动态环境/目标依赖仍须可信真实观察，不从配置或路径推断。此为既有一期功能15/报告架构03冻结输入的内部伴随记录，不改变旧公开 DTO，旧无来源材料仍可读但不给完整证据。
 
-新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限三种投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
+新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`；`view=plan|case|report|issue` 必须且仅带准确 `record_id`、正整数 `revision`。记录视图返回项目归属、准确身份与公开字段投影，不返回任意仓库记录。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
 
 `select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 原批次 reviewing/partial/not_run（非当前状态），原 last_verified_commit 和确认记录保持。
 
@@ -378,3 +378,12 @@ D 侧已于 2026-10-03 回复五项，确认动作表为 **18 项**；发布冲�
 ### 0.9 宿主提交前上下文绑定
 
 Webview 的 controlledDispatch 必须回传最近 projectContext.context_id 为 contextId。宿主读取当前配置并刷新 scope 后，先要求精确相等才转发；缺失或过期返回 PROJECT_CONTEXT_MISMATCH，不能仅比较 project_id。旧面板须随 VSIX 一起升级，不能降级省略字段；该字段不进入核心 Command/Response，不改变持久记录或人工授权。
+
+
+## 0.4.9 面板引导与准确修订增量（2026-10-16）
+
+按用户指定设计与简化操作要求，新增有限记录详情选择器，沿用同一 `read_view` 动作。旧选择器语义不变；旧核心拒绝新选择器时不得改为扫描记录或读取最新正文。外层读取前后提交边界核对不变；记录信封、正文项目及记录编号必须匹配。消费方核对当前选择的类型、编号、修订和项目，迟到或跨项目回执不替换详情。
+
+`export_report` 新增可选 `report_revision`（正整数）；传入时只导出该报告准确修订，复核仍须匹配该修订。省略时保留原最新报告语义及旧意图指纹。显式修订参与指纹，同一意图更换修订拒绝。面板从当前报告选择传入，无需用户填写编号或修订。
+
+步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。

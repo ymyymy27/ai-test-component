@@ -2,7 +2,7 @@
   "name": "aitest-trae",
   "displayName": "AI Test — Phase One Preview",
   "description": "Local core panel with core-owned confirmation. Real Trae workflow acceptance pending.",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "publisher": "aitest-local",
   "private": true,
   "engines": {
@@ -14,7 +14,8 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:aitest.openPanel",
-    "onCommand:aitest.configureEntry"
+    "onCommand:aitest.configureEntry",
+    "onView:aitest.sidebar"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -22,10 +23,16 @@
     }
   },
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [{"id":"aitest-container","title":"AI 测试","icon":"media/testing.svg"}]
+    },
+    "views": {
+      "aitest-container": [{"id":"aitest.sidebar","name":"AI 测试","type":"webview"}]
+    },
     "commands": [
       {
         "command": "aitest.openPanel",
-        "title": "AI Test: 打开一期面板（预览）"
+        "title": "AI Test: 打开测试面板"
       },
       {
         "command": "aitest.configureEntry",

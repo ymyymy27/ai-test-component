@@ -23,6 +23,17 @@ class ReadViewQuery(BaseModel):
             "oneOf": [
                 {
                     "properties": {
+                        "view": {"enum": ["plan", "report", "case", "issue"]},
+                        "record_id": {"type": "string"},
+                        "revision": {"type": "integer", "minimum": 1},
+                    },
+                    "required": ["view", "record_id", "revision"],
+                    "not": {"anyOf": [{"required": [name]} for name in (
+                        "run_id", "delivery_id", "submission_id",
+                    )]},
+                },
+                {
+                    "properties": {
                         "view": {"enum": ["run", "panel"]},
                         "run_id": {"type": "string"},
                     },
@@ -34,6 +45,7 @@ class ReadViewQuery(BaseModel):
                                 "delivery_id",
                                 "revision",
                                 "submission_id",
+                                "record_id",
                             )
                         ]
                     },
@@ -44,13 +56,16 @@ class ReadViewQuery(BaseModel):
                         "delivery_id": {"type": "string"},
                     },
                     "required": ["view", "delivery_id"],
-                    "not": {"required": ["run_id"]},
+                    "not": {"anyOf": [
+                        {"required": ["run_id"]}, {"required": ["record_id"]},
+                    ]},
                 },
             ],
         },
     )
 
-    view: Literal["run", "panel", "delivery"]
+    view: Literal["run", "panel", "delivery", "plan", "report", "case", "issue"]
+    record_id: ViewIdentity | None = None
     run_id: ViewIdentity | None = None
     delivery_id: ViewIdentity | None = None
     revision: Annotated[StrictInt, Field(gt=0)] | None = None
@@ -61,12 +76,16 @@ class ReadViewQuery(BaseModel):
         if self.view in {"run", "panel"}:
             if self.model_fields_set != {"view", "run_id"} or self.run_id is None:
                 raise ValueError("run/panel views require only view and run_id")
+        elif self.view in {"plan", "report", "case", "issue"}:
+            if (self.model_fields_set != {"view", "record_id", "revision"}
+                    or self.record_id is None or self.revision is None):
+                raise ValueError("record views require an exact record_id and revision")
         elif (
             self.model_fields_set - {"view", "delivery_id", "revision", "submission_id"}
             or self.delivery_id is None
         ):
             raise ValueError("delivery views require their finite delivery fields")
-        for identity in (self.run_id, self.delivery_id, self.submission_id):
+        for identity in (self.run_id, self.delivery_id, self.submission_id, self.record_id):
             if identity is not None and not identity.strip():
                 raise ValueError("read_view requires a bounded nonblank identity")
         return self

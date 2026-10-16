@@ -22,6 +22,7 @@ test("successful connection refreshes capabilities without another user click", 
   await postHostMessage(page, {kind:"outcome", action:"doctor", status:"ok",
     response:{result:{status:"READY", supported_actions:["doctor", "query"]}}});
   await expect(page.getByTestId("panel-status")).toContainText("READY");
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByTestId("core-capability")).toContainText("query");
 });
 
@@ -34,6 +35,7 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
 
   await expect(page.getByTestId("panel-status")).toContainText("未连接核心");
   // 非宿主环境必须如实降级：不假装已连核心，也不让只读入口可点。
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByTestId("core-capability")).toContainText("核心未通过");
   const readOnly = page.getByTestId("read-only-actions").getByRole("button");
   await expect(readOnly).toHaveCount(4);
@@ -43,15 +45,13 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
   // 没有回执时不得伪造结果体：只显示未取得结果的原因。
   await expect(page.getByTestId("last-result")).toContainText("未取得结果");
   await expect(page.getByTestId("last-result-body")).toHaveCount(0);
-  await expect(page.getByTestId("phase-summary").getByRole("heading")).toHaveCount(3);
-  await expect(page.getByText("运行前", { exact: true })).toBeVisible();
-  await expect(page.getByText("运行时", { exact: true })).toBeVisible();
-  await expect(page.getByText("运行后", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("primary-actions").getByRole("button")).toHaveCount(3);
+  await page.getByRole("button",{name:"返回本次测试"}).click();
+  await expect(page.getByTestId("phase-summary").getByRole("heading")).toHaveCount(1);
+  await expect(page.getByTestId("primary-actions").getByRole("button")).toHaveCount(1);
 
   // 「计划」必须精确匹配：否则会同时命中 AI 区的「生成计划草稿」（strict mode 冲突）。
   await page.getByRole("button", { name: "计划", exact: true }).click();
-  await expect(page.getByTestId("detail-view").getByRole("heading", { name: "计划" })).toBeVisible();
+  await expect(page.getByTestId("detail-view").getByRole("heading", { name: "计划", exact:true })).toBeVisible();
   await page.getByRole("button", { name: "返回本次测试" }).click();
   await expect(page.getByText("当前测试", { exact: true })).toBeVisible();
 
@@ -85,6 +85,7 @@ test("host outcome is rendered verbatim without recalculating conclusions", asyn
 
   await expect(page.getByTestId("panel-status")).toContainText("READY");
   await expect(page.getByTestId("panel-status")).toContainText("可派发动作 4");
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByTestId("core-capability")).toContainText("storage_usage");
   const body = page.getByTestId("last-result-body");
   await expect(body).toContainText('"status": "READY"');
@@ -126,6 +127,7 @@ test("project context gates read-only queries and rows render verbatim", async (
         response: { result: { status: "READY", supported_actions: ["doctor", "query"] } },
       });
   // 有宿主但未声明项目：问题清单不可点，点了也不派发（不猜项目身份）。
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByTestId("read-only-actions").getByRole("button").first()).toBeDisabled();
   await page.getByRole("button", { name: "问题与报告", exact: true }).click();
   await expect(page.getByTestId("review-blocked")).toContainText("不猜项目身份");
@@ -138,7 +140,7 @@ test("project context gates read-only queries and rows render verbatim", async (
     );
   });
   await expect(page.getByTestId("project-context")).toContainText("当前项目：project-ticket");
-  await expect(page.getByTestId("project-context")).toContainText("运行 run-1");
+  await page.getByRole("button",{name:"更多",exact:true}).click();
 
   const issues = page
     .getByTestId("read-only-actions")

@@ -27,7 +27,8 @@ test("owned core view and outer boundary are rendered without changing doctor ca
   await postHostMessage(page, viewOutcome());
   await expect(page.getByTestId("panel-view-boundary")).toContainText("9");
   await expect(page.getByTestId("panel-view-boundary")).toContainText("cursor-9");
-  await expect(page.getByTestId("phase-summary").locator('[aria-current="step"]')).toContainText("running");
+  await expect(page.getByTestId("phase-summary").locator('[aria-current="step"]')).toContainText("运行中");
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByTestId("core-capability")).toContainText("read_view");
 });
 
@@ -45,6 +46,7 @@ test("wrong correlation and foreign view never replace the current scoped view",
 
 test("project switch clears pending scope and rejects its late reply", async ({ page }) => {
   await mount(page);
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await page.getByRole("button", { name: "问题清单（未关闭）" }).click();
   const old = await page.evaluate(() => (window as unknown as { __sent: Record<string, unknown>[] }).__sent.at(-1)!);
   await postHostMessage(page, { kind: "projectContext", project_id: "new-project", run_id: "new-run" });

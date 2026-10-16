@@ -74,3 +74,35 @@ def test_missing_run_and_invalid_identity_are_refused(tmp_path) -> None:
 def test_view_reader_requires_the_decision_capability() -> None:
     with pytest.raises(ValueError):
         CommittedViewReader(decisions=None)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("kind", ["plan", "case", "report", "issue"])
+def test_exact_record_view_is_scoped_and_omits_private_fields(kind) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    record = SimpleNamespace(aggregate_kind=kind, record_id="saved", revision=2,
+                             payload={"project_id":PROJECT, f"{kind}_id":"saved",
+                                      "status":"draft", "private_note":"not public"})
+    store = Mock()
+    store.read.return_value = record
+    reader = CommittedViewReader(decisions=Mock(), reader=store)
+    result = reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=2)
+    assert result["record_revision"] == 2
+    assert result["historical_snapshot"] is True
+    assert "private_note" not in result["record"]
+    store.read.assert_called_once_with(aggregate_kind=kind, record_id="saved", revision=2)
+    with pytest.raises(ValueError):
+        reader.record_view(project_id="other", kind=kind, record_id="saved", revision=2)
+    with pytest.raises(ValueError):
+        reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=1)
+
+
+def test_record_selector_requires_exact_revision_and_rejects_mixed_selectors() -> None:
+    from aitest.contracts.read_views import ReadViewQuery
+    valid = {"view":"report", "record_id":"report-1", "revision":1}
+    assert ReadViewQuery.model_validate(valid).revision == 1
+    for invalid in ({"view":"report", "record_id":"report-1"},
+                    {**valid, "run_id":"run-1"}, {**valid, "revision":True},
+                    {**valid, "record_id":None}, {**valid, "revision":None}):
+        with pytest.raises(ValueError):
+            ReadViewQuery.model_validate(invalid)

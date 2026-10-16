@@ -1,0 +1,182 @@
+[
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/README.md",
+    "sha256": "c00f721dc0a534980bccf7ecca125be7c97d9c85a7da5d7ce673ce76ff142c0c"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/browser.log",
+    "sha256": "9cea8aed877e80762d576709e9af657e9c5a7fc6f708526e48bcaeab046f4d4a"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/contracts.log",
+    "sha256": "f9625fa864540078dfbc154b66be1683a2e84871707130d5e36b784b36fc43e7"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/contracts.xml",
+    "sha256": "4e95f6c9d005ccfedb0a3e8576fff28007b4ee83fd745ab2b8c9fa0dc46e5720"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/host.log",
+    "sha256": "ad24d90f257016f0cc2590383dada78ce6b43373d1ac2b45b15bb03f50136733"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/mypy.log",
+    "sha256": "ccbf94a2882b2cbb3f0f62ed8653d9b7bd1090ce1be8d408a440eddd92bc3c1d"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/package.log",
+    "sha256": "84ac846304aced412be66d07040801734c33830ab49d5841b2dd94851337886d"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/python.log",
+    "sha256": "134369496c274994acf75283a90f997896d30eaee672d0cb4c49ee90d7dd15c6"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/python.xml",
+    "sha256": "a8dec42d94597a29c6334fc27a97ac93d532e028f085f8a1766ccb64ff3ca456"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/wheel-retry.log",
+    "sha256": "38079134c9fa36d719fb60370c0b517893049efb5f859d5a3d56705646b71d0d"
+  },
+  {
+    "path": "docs/validation/p1-panel-guidance-20261016/wheel.log",
+    "sha256": "5ddaa033db6010a05b3ef12ef1fa869a1dc9d13804a751e3eb3ab67abad66dd7"
+  },
+  {
+    "path": "docs/修改日志/2026-10-16-面板引导与准确报告修订.md",
+    "sha256": "86888cd53ff05e0de220a8f762db2333ec6577597c2343452c5f6cd4648ca741"
+  },
+  {
+    "path": "docs/接口对接/README.md",
+    "sha256": "edad3abe2a5ef2fcc2a448d136821ff9e74d36e1424ecb4bc318da657095aa0d"
+  },
+  {
+    "path": "docs/接口对接/已完成/BD-001-计划与依据展示/contract.md",
+    "sha256": "9b3bdf5d6758faa4e2d6c74ee2835b8b5e6df23648cae5e6c7d2814e42d302e8"
+  },
+  {
+    "path": "docs/接口对接/已完成/CD-001-ExecutionFacts/contract.md",
+    "sha256": "3039e1db9819f6482979163d3ec5ad7bf12047f068e4b57b16de9fa3446b04ef"
+  },
+  {
+    "path": "docs/接口对接/已完成/CORE-001-A包公共接口/contract.md",
+    "sha256": "57d0539d9c9b69db584972371775210961716d5a0dd838c6f676dbe2eef509c2"
+  },
+  {
+    "path": "docs/现状.md",
+    "sha256": "7b220fd52f058f8f7ef98c55109d8ac508418fa96a356bb551d228db8d7a8a89"
+  },
+  {
+    "path": "integrations/trae/README.md",
+    "sha256": "d16da58ceaff10454079ea0e6ac1d8e125d7a8b263301bb7e301482a43df05bd"
+  },
+  {
+    "path": "integrations/trae/media/testing.svg",
+    "sha256": "02c9dd6088f27d42687d2ab67fe95f2912b1ea06fa6d037507f66a31a81d8da1"
+  },
+  {
+    "path": "integrations/trae/package-lock.json",
+    "sha256": "e047a4669ef7bb3c3bb5b6990de890f3552477b08b6c3d5696056dea0df43801"
+  },
+  {
+    "path": "integrations/trae/package.json",
+    "sha256": "b3d6214010a17790da68ddd11721372fd8c77b7824e6e122349bacf4e0c15371"
+  },
+  {
+    "path": "integrations/trae/src/extension.ts",
+    "sha256": "916a5efe1e17a13f54b7692ce7ea8a29e9e16cf6eb08ceaf5bd20028d2bf2a86"
+  },
+  {
+    "path": "integrations/trae/tests/extension-context.test.mjs",
+    "sha256": "a8b3b7ecb53783e217a211d78a53b975c0b528853b1111dcd881482058facd0c"
+  },
+  {
+    "path": "pyproject.toml",
+    "sha256": "7d36d420d8f8dc06567861158f1d5357f06037bf1cf0bb675415481faecb1f4d"
+  },
+  {
+    "path": "src/aitest/__init__.py",
+    "sha256": "7b7eac72fc6b43b833ce414a0c731cacebae3226cc503b0647658aeade8fb62b"
+  },
+  {
+    "path": "src/aitest/application/review/saved_exports.py",
+    "sha256": "b943f43c7aa592cefd7cd2c3ede511d7eaf12b33602850dc6f7aa556b1ac705a"
+  },
+  {
+    "path": "src/aitest/contracts/read_views.py",
+    "sha256": "450c28ccd1316669cf751865a716bb6f6f24aea81532a4bdf9eb04c6a3e4540a"
+  },
+  {
+    "path": "src/aitest/contracts/schemas/ReadViewQuery.json",
+    "sha256": "b24228dd0e18b091ac2c533aa0859039a7fd2de6a89c034a6871cd764ece54c9"
+  },
+  {
+    "path": "src/aitest/interfaces/local/view_queries.py",
+    "sha256": "812236477adf9008f60575393147b756eecb9222bc8dd25c89ad7d2484e523ff"
+  },
+  {
+    "path": "src/aitest/resources/panel/package-lock.json",
+    "sha256": "035844afd000bf3eaab516577183e894322c697fc247b45e0e77c742630fbe19"
+  },
+  {
+    "path": "src/aitest/resources/panel/package.json",
+    "sha256": "a5f7b55b265e632d5341b6d2278cb3461eadf67ab4427c7610b4d4755202716d"
+  },
+  {
+    "path": "src/aitest/resources/panel/src/guided.ts",
+    "sha256": "d85cdb0e9b4e00f0265cd4ccded7d19cc1050655323fc3506070f98119256b5d"
+  },
+  {
+    "path": "src/aitest/resources/panel/src/index.ts",
+    "sha256": "ae16c4514b54e8d1845495be7c2677434c04c414a7d3386f3be4dd884ef8457a"
+  },
+  {
+    "path": "src/aitest/resources/panel/src/shell.ts",
+    "sha256": "286f383f67d62d4cacf2bc1b6d48d86f50ea13bc60f2c08c03c18474df84df9b"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/controlled-entry.spec.ts",
+    "sha256": "3575ade1324f6c204bbc15a55d0d0309ec7c64710abc8ef70e56460e20f57b93"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/event-stream.spec.ts",
+    "sha256": "e824911c471fa3aac6c6667b9ac00a328e8edde2561d5251d4c74c3d740e84bc"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/guided.spec.ts",
+    "sha256": "e1ec7b8e83e4d7744c8bdd0d29d61cbd1428178cf1b39404d7840b8e57915db3"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/issue-detail.spec.ts",
+    "sha256": "74d6d79d93ebfca0bcc1bccf6c08eab1ca158836bcaf20ddbacc0a0760227d3d"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/panel.spec.ts",
+    "sha256": "d15b57f40666c0f068b74760b218206756f4f7ebf330d3ae837a15237dff61eb"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/repair-brief.spec.ts",
+    "sha256": "0348b8a6ec9bb21f4413c5d7d85256b9e0abe915df61e6b68f7f54ba8be0c1f5"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/view-correlation.spec.ts",
+    "sha256": "db4074c78da10e62d2e9187a967d78960fcdf0bc4eb9ead3fe6efe5c73e9ae8b"
+  },
+  {
+    "path": "src/aitest/resources/panel/tests/workflow.spec.ts",
+    "sha256": "7ecdae030ba13c079545dfc9cb71dea68bd1d41190b4c393a766f8812d5faf32"
+  },
+  {
+    "path": "tests/unit/test_saved_exports.py",
+    "sha256": "fed371b253b4578f198efea305835837dd9eaa46533e779e890e2d166f7068fc"
+  },
+  {
+    "path": "tests/unit/test_view_queries.py",
+    "sha256": "af71079c184ce74682e9d3e28d30adde0da17aba964476115d986fde6c99e063"
+  },
+  {
+    "path": "uv.lock",
+    "sha256": "e8f78732a58c143997249f3a397674fa3bf15c5d07b8aa2d1897e6c2d5bda906"
+  }
+]

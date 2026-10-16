@@ -11,6 +11,7 @@ import { dispatchControlled, dispatchReadOnly, ensureCore, type DispatchOutcome,
 
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
+type PanelHost = Pick<vscode.WebviewPanel, "webview" | "onDidDispose">;
 
 function readSettings(): { python: string; workspaceRoot: string; pythonCarriersFile: string; businessQueriesFile: string; modelConfigurationFile: string; projectId: string | null; runId: string | null } {
   const configuration = vscode.workspace.getConfiguration("aitest");
@@ -28,9 +29,21 @@ function readSettings(): { python: string; workspaceRoot: string; pythonCarriers
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  const docked = typeof vscode.window.registerWebviewViewProvider === "function";
+  if (docked) {
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider("aitest.sidebar", {
+      resolveWebviewView(view) {
+        if (!vscode.workspace.isTrusted) { return; }
+        view.webview.options = {enableScripts:true,
+          localResourceRoots:[vscode.Uri.joinPath(context.extensionUri,"dist")]};
+        attachPanel(context, view);
+      },
+    }, {webviewOptions:{retainContextWhenHidden:true}}));
+  }
   context.subscriptions.push(
     vscode.commands.registerCommand("aitest.openPanel", () => {
-      openPanel(context);
+      if (docked) { void vscode.commands.executeCommand("aitest.sidebar.focus"); }
+      else { openPanel(context); }
     }),
     vscode.commands.registerCommand("aitest.configureEntry", async () => {
       if (!vscode.workspace.isTrusted) {
@@ -68,6 +81,11 @@ function openPanel(context: vscode.ExtensionContext): void {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
   });
+  attachPanel(context, panel);
+  context.subscriptions.push(panel);
+}
+
+function attachPanel(context: vscode.ExtensionContext, panel: PanelHost): void {
   const script = panel.webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "dist", "panel.js"),
   );
@@ -86,7 +104,6 @@ function openPanel(context: vscode.ExtensionContext): void {
     if (event.affectsConfiguration("aitest")) { publishProject(panel, scope); }
   });
   panel.onDidDispose(() => configurationWatch.dispose());
-  context.subscriptions.push(panel);
 }
 
 function textOrNull(value: unknown): string | null {
@@ -100,7 +117,7 @@ function identityOrNull(value: unknown): string | null {
 
 interface PanelScope { key: string; id: string }
 
-function publishProject(panel: vscode.WebviewPanel, scope: PanelScope): string {
+function publishProject(panel: PanelHost, scope: PanelScope): string {
   const settings = readSettings();
   const key = JSON.stringify(settings);
   if (key !== scope.key) { scope.key = key; scope.id = randomUUID(); }
@@ -133,12 +150,16 @@ function toDispatchRequest(raw: Record<string, unknown>): DispatchRequest | null
   };
 }
 
-async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown, scope: PanelScope): Promise<void> {
+async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: PanelScope): Promise<void> {
   if (!vscode.workspace.isTrusted) { return; }
   if (typeof message !== "object" || message === null) {
     return;
   }
   const raw = message as Record<string, unknown>;
+  if (raw["kind"] === "openSettings") {
+    await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:aitest-local.aitest-trae");
+    return;
+  }
   const clientRequestId = identityOrNull(raw["clientRequestId"]);
   if (clientRequestId === null) { return; }
   const expectedContext = publishProject(panel, scope);
@@ -225,7 +246,7 @@ async function handleWebviewMessage(panel: vscode.WebviewPanel, message: unknown
   post(panel, { kind: "outcome", action: request.action, ...outcome, clientRequestId });
 }
 
-function post(panel: vscode.WebviewPanel, payload: Record<string, unknown>): void {
+function post(panel: PanelHost, payload: Record<string, unknown>): void {
   void panel.webview.postMessage(payload);
 }
 

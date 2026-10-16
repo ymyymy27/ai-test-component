@@ -441,6 +441,7 @@ class SavedExportService:
             raise ExportManagementError("parameters must be an object")
         allowed = {
             "report_id",
+            "report_revision",
             "kind",
             "review_ids",
             "attachment_refs",
@@ -464,6 +465,11 @@ class SavedExportService:
             raise ExportRefused("requested export redaction policy is unavailable")
         run_id = parameters.get("run_id")
         run_id = None if run_id is None else _text(run_id, "run_id")
+        report_revision = parameters.get("report_revision")
+        if "report_revision" in parameters and (
+            type(report_revision) is not int or report_revision < 1
+        ):
+            raise ExportManagementError("report_revision must be a positive integer")
 
         command_input = {
             "report_id": report_id,
@@ -473,18 +479,28 @@ class SavedExportService:
             "redaction_policy_version": policy,
             "run_id": run_id,
         }
+        if report_revision is not None:
+            command_input["report_revision"] = report_revision
         fingerprint = _digest(["export_report", command_input])
         intent_record_id = "export-intent-" + _digest([project_id, intent_id])[7:]
         recalled = self._recall(project_id, intent_record_id, fingerprint, command_input)
         if recalled is not None:
             return recalled
 
-        record = self._current(REPORT_AGGREGATE, report_id)
+        record = (
+            self._exact(REPORT_AGGREGATE, report_id, report_revision)
+            if report_revision is not None
+            else self._current(REPORT_AGGREGATE, report_id)
+        )
         if record is None:
             raise ExportNotSaved(f"report {report_id} is not saved")
         if record.get("project_id") != project_id:
             raise ExportNotSaved(f"report {report_id} belongs to another project")
         snapshot = report_from_payload(record)
+        if snapshot.report_id != report_id or (
+            report_revision is not None and snapshot.content_revision != report_revision
+        ):
+            raise ExportRefused("report identity differs from the requested revision")
         if run_id is not None and run_id != snapshot.context.run_id:
             raise ExportRefused("export evidence must belong to the frozen report run")
         reviews = self._reviews(project_id, snapshot, review_ids)
@@ -1119,6 +1135,9 @@ class SavedExportService:
             raise ExportManagementError("warehouse revision cannot be verified")
         if revision == 0:
             return None
+        return self._exact(aggregate_kind, record_id, revision)
+
+    def _exact(self, aggregate_kind: str, record_id: str, revision: int) -> dict[str, Any]:
         record = self._records.read(
             aggregate_kind=aggregate_kind, record_id=record_id, revision=revision
         )

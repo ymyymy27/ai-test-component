@@ -14,6 +14,7 @@ test("controlled editor preserves intent through refusal and never sends a user-
   await page.goto("about:blank");
   await page.setContent("<ai-test-panel></ai-test-panel>");
   await page.addScriptTag({path:resolve("dist/index.js")});
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await postHostMessage(page, {kind:"projectContext",project_id:"project",context_id:"scope"});
   await postHostMessage(page, {kind:"outcome",action:"doctor",status:"ok",
     response:{workspace_id:"workspace",result:{status:"READY",transport_capabilities:["native-confirmation/1"]}}});
@@ -42,6 +43,7 @@ test("controlled editor preserves intent through refusal and never sends a user-
 test("old or disconnected core cannot enable the controlled entry", async ({ page }) => {
   await page.setContent("<ai-test-panel></ai-test-panel>");
   await page.addScriptTag({path:resolve("dist/index.js")});
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByRole("button",{name:"请求核心确认并提交"})).toBeDisabled();
   await expect(page.getByRole("button",{name:"填写新建项目"})).toBeDisabled();
 });

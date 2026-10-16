@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from aitest.application.planning.substrate import require_record_identity
 from aitest.application.ports import RecordQuery
 from aitest.application.project.delivery_verification import (
     DeliveryVerificationReader,
@@ -62,6 +63,16 @@ class CommittedViewReader:
             raise ValueError("read_view requires an explicit project")
         selector = ReadViewQuery.model_validate(command.parameters)
         view = selector.view
+        if view in {"plan", "report", "case", "issue"}:
+            assert selector.record_id is not None and selector.revision is not None
+            boundary = self._boundary(project)
+            record_view = self.record_view(
+                project_id=project, kind=view, record_id=selector.record_id,
+                revision=selector.revision,
+            )
+            if self._boundary(project) != boundary:
+                raise ValueError("the committed view boundary changed while reading")
+            return {"view_type": view, "view": record_view, **boundary}
         identity = selector.run_id if view in {"run", "panel"} else selector.delivery_id
         assert identity is not None
         boundary = self._boundary(project)
@@ -80,6 +91,39 @@ class CommittedViewReader:
         if self._boundary(project) != boundary:
             raise ValueError("the committed view boundary changed while reading")
         return {"view_type": view, "view": result.model_dump(mode="json"), **boundary}
+
+    def record_view(
+        self, *, project_id: str, kind: str, record_id: str, revision: int,
+    ) -> dict[str, object]:
+        """Exact project-owned public fields; no paths, credentials or generic record dump."""
+        fields = {
+            "plan": ("plan_id", "revision", "scope", "cases", "template_versions",
+                     "run_tier", "initial_driver", "status", "scope_id", "scope_revision",
+                     "required_case_ids", "case_revisions", "rule_revisions"),
+            "case": ("case_id", "revision", "layer", "objective", "preconditions", "inputs",
+                     "steps", "expected", "verification_method", "links", "assertion_basis",
+                     "independent_verification", "mock_scope", "importance"),
+            "report": ("report_id", "content_revision", "run_id", "context", "decision",
+                       "business_outcome", "evidence_refs", "issue_revisions", "reuse",
+                       "created_at", "execution_snapshot_ref", "blocking_issue_ids"),
+            "issue": ("issue_id", "title", "description", "severity", "status", "state",
+                      "expected", "actual", "evidence_refs", "owner", "facts", "hypotheses",
+                      "project_id", "run_id", "case_id", "step_id", "attempt_id"),
+        }
+        if kind not in fields or self._reader is None:
+            raise ValueError("record view is unavailable")
+        record = self._reader.read(aggregate_kind=kind, record_id=record_id, revision=revision)
+        require_record_identity(
+            record, aggregate_kind=kind, record_id=record_id, revision=revision,
+        )
+        payload = record.payload
+        if payload.get("project_id") != project_id or payload.get(f"{kind}_id") != record_id:
+            raise ValueError("record view does not match its project and identity")
+        return {
+            "project_id": project_id, "record_id": record_id, "record_revision": revision,
+            "record_kind": kind, "historical_snapshot": True,
+            "record": {key: payload[key] for key in fields[kind] if key in payload},
+        }
 
     def _boundary(self, project_id: str) -> dict[str, object]:
         query = getattr(self._reader, "query", None)

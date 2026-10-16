@@ -11,6 +11,7 @@ test("workflow keeps execution identity, separates other intents and never auto 
   });
   await page.goto("about:blank"); await page.setContent("<ai-test-panel></ai-test-panel>");
   await page.addScriptTag({path:resolve("dist/index.js")});
+  await page.getByRole("button",{name:"更多",exact:true}).click();
   await postHostMessage(page,{kind:"projectContext",project_id:"project",context_id:"scope"});
   await postHostMessage(page,{kind:"outcome",action:"doctor",status:"ok",response:{
     workspace_id:"workspace",result:{status:"READY",transport_capabilities:["native-confirmation/1"]},

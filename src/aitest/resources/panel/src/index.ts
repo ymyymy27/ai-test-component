@@ -1,20 +1,18 @@
 /** Phase-one fact viewer and controlled command requester. The core owns
  * business outcomes and the independent human confirmation dialog. */
 import {workflowActions, workflowCommand} from "./workflow";
-type Detail = "current" | "plan" | "workbench" | "review" | "settings";
+import {GuidedRun, friendly} from "./guided";
+import {newIntent, shellStyles, text, action, group, object, strings} from "./shell";
+type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
   ["plan", "计划", "查看范围、用例树、依据确认和发布状态。"],
   ["workbench", "测试工作台", "查看步骤、当前尝试、证据、人工待办和阻塞原因。"],
   ["review", "问题与报告", "查看问题清单、修复回归、报告修订和本地导出。"],
   ["settings", "设置", "配置模型、环境、凭据引用、存储和显示偏好。"],
+  ["diagnostics", "诊断", "连接能力、技术回执与高级操作。"],
 ];
 
-const phases: ReadonlyArray<readonly [string, string, string]> = [
-  ["运行前", "计划状态待查询", "在计划详情核对范围、来源、环境、依据和逐项动作授权。"],
-  ["运行时", "执行状态待查询", "刷新本次视图，核对当前步骤、尝试、待处理事项和阻塞原因。"],
-  ["运行后", "报告状态待查询", "在问题与报告中查询已保存修订；当前阶段摘要不包含报告列表。"],
-];
 
 type Outcome = {
   kind: "outcome";
@@ -114,11 +112,39 @@ const issueFields: ReadonlyArray<readonly [string, string]> = [
 ];
 
 class AITestPanel extends HTMLElement {
+  private readonly guided = new GuidedRun();
   private detail: Detail = "current";
   private readonly root = this.attachShadow({ mode: "open" });
   private readonly host = hostApi();
   private outcome: Outcome | null = null;
   private pending = false;
+  private selectedRecord:Row|null=null;
+  private recordOutcome:Outcome|null=null;
+  private planOutcome:Outcome|null=null;
+  private expanded:Record<string,boolean>={current:true,pending:true,plan:true,records:false};
+  private homeScroll=0;
+  private selectedStep:string|null=null;
+  private intents=new Map<string,string>();
+  private navigate(detail:Detail):void {
+    if(this.detail==="current")this.homeScroll=window.scrollY;
+    this.detail=detail;this.render();
+    window.scrollTo(0,detail==="current" ? this.homeScroll : 0);
+  }
+  private view(kind:string):Record<string,unknown>|undefined {
+    return object(object(this.viewOutcomes.get(kind)?.response?.["result"])?.["view"]);
+  }
+  private available(name:string):boolean {
+    return !this.pending && this.host!==null && this.project!==null
+      && strings(object(this.doctorOutcome?.response?.["result"])?.["supported_actions"]).includes(name);
+  }
+  private requestOperation(name:string,parameters:Record<string,unknown>,target?:string):void {
+    const key=JSON.stringify([this.contextId,name,target,parameters]);
+    let intent=this.intents.get(key);
+    if(!intent){intent=newIntent();this.intents.set(key,intent);}
+    this.commandDraft=JSON.stringify({action:name,intent_id:intent,expected_revision:0,...(target?{target}:{}),parameters});
+    this.submitCommand();
+  }
+
   private project: ProjectContext | null = null;
   private contextId: string | null = null;
   private issueOutcome: Outcome | null = null;
@@ -137,7 +163,7 @@ class AITestPanel extends HTMLElement {
   private briefIssueId: string | null = null;
   private briefNote: string | null = null;
   /** 最近一次只读查询的作用域：回执只有动作名，靠它把结果归位（不猜）。 */
-  private pendingQuery: "issues" | "reports" | "issue-detail" | null = null;
+  private pendingQuery: "issues" | "reports" | "issue-detail" | "plans" | null = null;
   private pendingRequest: { id: string; action: string } | null = null;
   private requestSequence = 0;
   private readonly requestPrefix = `panel-${Date.now().toString(36)}`;
@@ -168,10 +194,12 @@ class AITestPanel extends HTMLElement {
             this.doctorOutcome = null;
           }
           this.issueOutcome = this.reportOutcome = this.issueDetailOutcome = null;
+          this.selectedRecord=null;this.recordOutcome=this.planOutcome=null;
           this.eventOutcome = this.briefOutcome = null;
           this.eventLog = []; this.eventCursor = this.eventNote = null;
           this.briefIssueId = this.briefNote = null;
-          this.viewOutcomes.clear(); this.pendingQuery = null; this.outcome = null;
+          this.guided.reset();
+          this.viewOutcomes.clear(); this.selectedStep=null; this.intents.clear(); this.pendingQuery = null; this.outcome = null;
           this.commandDraft = ""; this.commandNote = "项目上下文变化，请重新核对操作输入。";
           this.projectName = this.projectGoal = "";
           this.workflowValues = {expected_revision:"0"};
@@ -194,8 +222,10 @@ class AITestPanel extends HTMLElement {
         if (correlation !== this.pendingRequest.id || data.action !== this.pendingRequest.action) { return; }
       } else if (this.host !== null || data.action !== "doctor") { return; }
       this.outcome = data;
+      if(data.action!=="read_view")this.guided.receive(data.action ?? "",data.status,object(data.response?.["result"]));
       if (data.action === "doctor") { this.doctorOutcome = data; }
       if (data.action === "query") {
+        if (this.pendingQuery === "plans") { this.planOutcome=data; }
         // 按**本次查询的作用域**归位；没有待归位作用域时只更新最近回执。
         if (this.pendingQuery === "issues") { this.issueOutcome = data; }
         if (this.pendingQuery === "reports") { this.reportOutcome = data; }
@@ -213,6 +243,12 @@ class AITestPanel extends HTMLElement {
         const result = data.response?.["result"] as Record<string, unknown> | undefined;
         const view = result?.["view"] as Record<string, unknown> | undefined;
         const kind = result?.["view_type"];
+        if(this.selectedRecord && view && this.project && data.status==="ok" && view["project_id"]===this.project.project_id
+          && kind===this.selectedRecord.aggregate_kind && view["record_id"]===this.selectedRecord.record_id
+          && view["record_revision"]===this.selectedRecord.revision
+          && Number.isSafeInteger(result?.["commit_id"]) && typeof result?.["event_cursor"]==="string") {
+          this.recordOutcome=data;
+        }
         if (data.status === "ok" && this.project && typeof kind === "string"
             && ["run", "panel", "delivery"].includes(kind)
             && typeof view === "object" && view !== null && !Array.isArray(view)
@@ -222,7 +258,15 @@ class AITestPanel extends HTMLElement {
             && Number(result?.["commit_id"]) >= 0
             && typeof result?.["event_cursor"] === "string" && result["event_cursor"].length > 0) {
           this.viewOutcomes.set(kind, data);
+          this.guided.receive("read_view",data.status,object(data.response?.["result"]));
         }
+      }
+      if(data.action && !["doctor","query","events","read_view","ensure-core","copy_repair_brief"].includes(data.action)){
+        const saved=object(data.response?.["result"]);
+        this.commandNote=data.status!=="ok" ? `操作未完成：${data.message ?? "请刷新状态后重试同一操作，或打开诊断查看原因。"}`
+          : saved?.["blocked"]===true ? "操作受阻，请检查所需材料。"
+          : data.action==="create_report" ? "报告已保存。点击“读取报告修订”查看。"
+          : data.action==="export_report" ? "导出请求已完成，可在诊断中查看制品位置。" : "本次请求已返回，请查看步骤结果。";
       }
       this.pendingRequest = null;
       this.pending = false;
@@ -332,68 +376,26 @@ class AITestPanel extends HTMLElement {
   private render(): void {
     this.root.replaceChildren();
     const style = document.createElement("style");
-    style.textContent = `
-      :host { display:block; color:var(--vscode-foreground,#222); font:13px/1.5 system-ui; }
-      * { box-sizing:border-box; }
-      main { max-width:760px; margin:auto; padding:12px; }
-      header, section { border:1px solid var(--vscode-widget-border,#bbb); border-radius:6px;
-        padding:12px; margin-bottom:10px; }
-      h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:15px; margin:0 0 8px; }
-      h3 { font-size:13px; margin:0 0 4px; } p { margin:4px 0; }
-      .muted { opacity:.75; } .scope { font-weight:600; }
-      .phases { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-      .phase { border:1px solid var(--vscode-widget-border,#ccc); border-radius:4px; padding:8px; }
-      button, textarea { font:inherit; color:inherit; }
-      button { padding:7px 10px; background:transparent; border:1px solid currentColor;
-        border-radius:4px; cursor:pointer; }
-      button[disabled] { cursor:not-allowed; opacity:.55; }
-      button:focus-visible, textarea:focus-visible { outline:3px solid var(--vscode-focusBorder,#2678d8); }
-      .actions, .details { display:flex; flex-wrap:wrap; gap:8px; }
-      .actions button:first-child { font-weight:700; }
-      textarea { width:100%; min-height:64px; resize:vertical; padding:8px;
-        color:inherit; background:transparent; border:1px solid currentColor; border-radius:4px; }
-      .next { border-left:4px solid var(--vscode-focusBorder,#2678d8); padding-left:10px; }
-      @media (max-width:520px) { .phases { grid-template-columns:1fr; } }
-    `;
+    style.textContent = shellStyles;
     const main = document.createElement("main");
     main.append(this.header(), this.detail === "current" ? this.currentView() : this.detailView());
     this.root.append(style, main);
   }
 
   private header(): HTMLElement {
-    const header = document.createElement("header");
-    const title = document.createElement("h1"); title.textContent = "AI 辅助测试";
-    const status = document.createElement("p");
-    status.dataset.testid = "panel-status";
-    status.className = "muted";
-    status.textContent = this.statusText();
-    const connect = document.createElement("button");
-    connect.textContent = "连接核心";
-    connect.dataset.action = "ensure-core";
-    connect.disabled = this.pending || this.host === null;
-    connect.title = this.host === null
-      ? "不在编辑器宿主中，面板未连接核心"
-      : "发现或启动该工作空间的唯一核心（宿主职责，不派发业务动作）";
-    connect.onclick = () => { this.ensureCore(); };
-    const refresh = document.createElement("button");
-    refresh.textContent = "刷新核心状态";
-    refresh.dataset.action = "refresh-core";
-    refresh.disabled = this.pending;
-    refresh.onclick = () => { this.dispatch("doctor"); };
-    const scope = document.createElement("p"); scope.className = "scope";
-    scope.dataset.testid = "project-context";
-    if (this.project === null) {
-      scope.textContent = "当前项目：未选择（宿主尚未声明项目上下文）· 一期只读入口";
-    } else {
-      const run = this.project.run_id ? ` · 运行 ${this.project.run_id}` : "";
-      const name = this.project.scope_name ? ` · 范围 ${this.project.scope_name}` : "";
-      scope.textContent = `当前项目：${this.project.project_id}${run}${name}`;
-    }
-    header.append(title, status, connect, refresh, scope);
-    return header;
+    const header=document.createElement("header");
+    const bar=document.createElement("div");bar.className="toolbar";
+    bar.append(text("h1","AI 测试"),action("设置",()=>this.navigate("settings")),action("更多",()=>this.navigate("diagnostics")));
+    const project=text("p",this.project ? `当前项目：${this.project.project_id}` : "当前项目：未选择","scope");
+    project.dataset.testid="project-context";
+    const model=object(object(this.doctorOutcome?.response?.["result"])?.["model"]);
+    const modelStatus=text("p",`插件模型 API · ${model?.["status"] ?? "配置与连接状态见设置"}`,"muted");
+    const status=text("p",this.statusText(),"status");status.dataset.testid="panel-status";status.setAttribute("role","status");
+    const controls=document.createElement("div");controls.className="actions";
+    controls.append(action("连接核心",()=>this.ensureCore(),this.pending||!this.host),action("刷新核心状态",()=>this.dispatch("doctor"),this.pending||!this.host));
+    header.append(bar,project,modelStatus,status,controls);return header;
   }
 
-  /** 宿主职责：发现或启动唯一核心；本动作不派发业务动作、不写业务记录。 */
   private ensureCore(): void {
     if (this.host === null) {
       return;
@@ -406,20 +408,43 @@ class AITestPanel extends HTMLElement {
   }
 
   private currentView(): HTMLElement {
-    const fragment = document.createElement("div");
-    fragment.append(
-      this.phaseSection(),
-      this.capabilitySection(),
-      this.controlledSection(),
-      this.readOnlySection(),
-      this.eventStreamSection(),
-      this.resultSection(),
-      this.aiSection(),
-      this.actionSection(),
-      this.nextSection(),
-      this.detailSection(),
-    );
-    return fragment;
+    const fragment=document.createElement("div");
+    const fold=(label:string,key:string,...children:HTMLElement[])=>group(label,key,this.expanded[key]??false,open=>{this.expanded[key]=open;},...children);
+    const links=document.createElement("div");links.className="actions";
+    links.append(action("计划",()=>this.navigate("plan")),action("测试工作台",()=>this.navigate("workbench")),action("问题与报告",()=>this.navigate("review")));
+    const plan=document.createElement("div");
+    plan.append(action("打开计划与用例",()=>this.navigate("plan")),this.caseTree());
+    const records=document.createElement("div");records.append(action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
+    fragment.append(fold("当前测试","current",this.phaseSection(),this.actionSection(),links),
+      fold("待处理","pending",this.pendingSection()),fold("测试计划","plan",plan),fold("测试记录","records",records));
+    const footer=text("footer",this.doctorOutcome?.status==="ok" ? "核心已连接 · 本地工作空间" : "核心状态待核实","muted");
+    fragment.append(footer);return fragment;
+  }
+
+  private pendingSection():HTMLElement {
+    const section=document.createElement("div");const view=this.view("run") ?? this.view("panel");
+    if(!view){section.append(text("p","刷新运行详情后查看待处理事项。","muted"));}
+    else {
+      for(const [key,label] of [["manual_pending_step_ids","待人工"],["pending_verification_step_ids","待核验"],["blocked_step_ids","阻塞"],["invalidated_step_ids","依据过期"],["gap_codes","证据缺口"]]) {
+        for(const id of strings(view[key!]))section.append(action(`${label} · ${id}`,()=>{this.selectedStep=id;this.navigate("workbench");}));
+      }
+      if(!section.childElementCount)section.append(text("p","本次视图未列出待处理项；其他未查询事实保持待核实。","muted"));
+    }
+    section.append(action("读取运行详情",()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id));return section;
+  }
+
+  private caseTree():HTMLElement {
+    const list=document.createElement("ul");list.setAttribute("aria-label","计划用例");
+    const view=this.view("run");const steps=Array.isArray(view?.["steps"]) ? view["steps"] : [];
+    const cases=strings(view?.["selected_case_ids"]);
+    if(!view){list.append(text("li","尚未读取本次计划和步骤。","muted"));return list;}
+    for(const [caseIndex,id] of cases.entries()){
+      const item=document.createElement("li");const children=document.createElement("ul");
+      item.append(text("strong",`用例 ${caseIndex+1}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
+      for(const raw of steps){const step=object(raw);if(step?.["case_id"]!==id)continue;
+        const child=document.createElement("li");child.append(action(`步骤 ${children.childElementCount+1} · ${friendly(step["state"])}`,()=>{this.selectedStep=String(step["step_id"]);this.navigate("workbench");}));children.append(child);}
+      item.append(children);list.append(item);
+    }return list;
   }
 
   private controlledSection(): HTMLElement {
@@ -469,7 +494,22 @@ class AITestPanel extends HTMLElement {
     const submit = document.createElement("button"); submit.textContent = "请求核心确认并提交";
     submit.disabled = this.pending || this.project === null || this.host === null || !nativeAvailable;
     if (!nativeAvailable) { note.textContent += " 当前核心尚未声明原生确认能力，请连接并刷新新版核心。"; }
-    submit.onclick = () => {
+    submit.onclick = () => this.submitCommand();
+    const status = document.createElement("p"); status.textContent = this.commandNote;
+    const receipt = document.createElement("pre");
+    receipt.style.whiteSpace = "pre-wrap"; receipt.style.overflowWrap = "anywhere";
+    receipt.textContent = this.outcome?.response ? JSON.stringify(this.outcome.response, null, 2) : "";
+    if (this.outcome && this.outcome.action !== "doctor") {
+      status.textContent = this.outcome.status === "ok"
+        ? "核心已返回本次操作结果；请以回执中的具体业务状态为准。"
+        : `${this.outcome.code ?? this.outcome.status}：${this.outcome.message ?? "操作结果尚未核实"}`;
+    }
+    section.append(title, note, name, goal, create, this.workflowSection(), draft, submit, status, receipt);
+    return section;
+  }
+
+  private submitCommand():void {
+
       try {
         const raw: unknown = JSON.parse(this.commandDraft);
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) { throw new Error("输入须为 JSON 对象"); }
@@ -492,18 +532,6 @@ class AITestPanel extends HTMLElement {
         this.commandNote = error instanceof Error ? error.message : "操作输入无效";
       }
       this.render();
-    };
-    const status = document.createElement("p"); status.textContent = this.commandNote;
-    const receipt = document.createElement("pre");
-    receipt.style.whiteSpace = "pre-wrap"; receipt.style.overflowWrap = "anywhere";
-    receipt.textContent = this.outcome?.response ? JSON.stringify(this.outcome.response, null, 2) : "";
-    if (this.outcome && this.outcome.action !== "doctor") {
-      status.textContent = this.outcome.status === "ok"
-        ? "核心已返回本次操作结果；请以回执中的具体业务状态为准。"
-        : `${this.outcome.code ?? this.outcome.status}：${this.outcome.message ?? "操作结果尚未核实"}`;
-    }
-    section.append(title, note, name, goal, create, this.workflowSection(), draft, submit, status, receipt);
-    return section;
   }
 
   private workflowSection(): HTMLElement {
@@ -740,81 +768,30 @@ class AITestPanel extends HTMLElement {
   }
 
   private phaseSection(): HTMLElement {
-    // “当前测试”是区块标题，不属于阶段摘要本身：phase-summary 内只允许
-    // 三个阶段标题（运行前/运行时/运行后），标题放在外层（Playwright 按
-    // role=heading 核对阶段数时不得把区块标题计入）。
-    const fragment = document.createElement("div");
-    const title = document.createElement("h2"); title.textContent = "当前测试";
-    const section = document.createElement("section");
-    section.dataset.testid = "phase-summary";
-    const response = this.viewOutcomes.get("panel")?.response;
-    const result = response?.["result"] as Record<string, unknown> | undefined;
-    const view = result?.["view"] as Record<string, unknown> | undefined;
-    const stageNames: Record<string, string> = { pre_run: "运行前", runtime: "运行时", post_run: "运行后" };
-    const active = typeof view?.["stage"] === "string" ? stageNames[view["stage"]] : undefined;
-    const grid = document.createElement("div"); grid.className = "phases";
-    for (const [phase, state, description] of phases) {
-      const card = document.createElement("article"); card.className = "phase";
-      card.dataset.phase = phase;
-      const name = document.createElement("h3"); name.textContent = phase;
-      const current = document.createElement("p"); current.textContent = state;
-      const detail = document.createElement("p"); detail.className = "muted"; detail.textContent = description;
-      if (active === phase && view) {
-        card.setAttribute("aria-current", "step");
-        current.textContent = `当前 · ${String(view["control_state"] ?? "待核实")}`;
-        detail.textContent = `业务结论：${String(view["business_outcome"] ?? "待核实")} · 档位：${String(view["tier"] ?? "待核实")} · 驱动：${String(view["driver"] ?? "待核实")}`;
-      }
-      card.append(name, current, detail); grid.append(card);
+    const section=document.createElement("section");section.dataset.testid="phase-summary";
+    const view=this.view("panel");
+    const names:Record<string,string>={pre_run:"准备检查",runtime:"正在处理本次运行",post_run:"本次结果"};
+    const state=text("div","");state.className="phase";
+    if(view){state.setAttribute("aria-current","step");
+      state.append(text("h2",names[String(view["stage"])]??"阶段待核实"),text("p",`执行控制：${friendly(view["control_state"])}`),
+        text("p",`业务结论：${friendly(view["business_outcome"])}`),text("p",`${friendly(view["tier"])} · ${friendly(view["driver"])}`,"muted"));
+    }else state.append(text("h2","准备本次测试"),text("p","选择项目并准备计划，或读取已保存运行。","muted"));
+    const run=this.view("run");if(run && run["snapshot_commit_id"]===view?.["snapshot_commit_id"]){
+      const summary=object(run["selected_summary"]);
+      if(summary){const labels:Record<string,string>={denominator:"本轮范围",executed_count:"已执行",reused_count:"已复用",verified_count:"已核验",passed_count:"通过",failed_count:"失败",unverified_count:"未核验"};for(const [key,label] of Object.entries(labels))if(key in summary)state.append(text("p",`${label}：${summary[key] ?? "未知"}`));}
     }
-    section.append(grid);
-    const refresh = document.createElement("button"); refresh.textContent = "刷新本次视图";
-    refresh.dataset.testid = "refresh-panel-view";
-    const capabilities = this.doctorOutcome?.response?.["result"] as Record<string, unknown> | undefined;
-    refresh.disabled = this.pending || this.host === null || !this.project?.run_id
-      || !Array.isArray(capabilities?.["supported_actions"]) || !capabilities["supported_actions"].includes("read_view");
-    refresh.onclick = () => this.dispatchScoped("read_view", { view: "panel", run_id: this.project?.run_id ?? "" });
-    const observed = document.createElement("p"); observed.className = "muted"; observed.dataset.testid = "panel-view-boundary";
-    observed.textContent = active && result ? `已保存视图 · 提交 ${String(result["commit_id"])} · 事件边界 ${String(result["event_cursor"])}` : "尚未取得当前运行的准确视图。";
-    section.append(refresh, observed);
-    fragment.append(title, section);
-    return fragment;
-  }
-
-  private aiSection(): HTMLElement {
-    const section = document.createElement("section");
-    const title = document.createElement("h2"); title.textContent = "让 AI 准备什么";
-    const input = document.createElement("textarea");
-    input.placeholder = "描述本次测试目标，或改为人工/模板创建计划。";
-    input.disabled = true;
-    const button = document.createElement("button");
-    button.textContent = "生成计划草稿"; button.disabled = true;
-    button.title = "等待统一核心和模型接口接入";
-    section.append(title, input, button);
-    return section;
+    const refresh=action("刷新本次视图",()=>this.dispatchScoped("read_view",{view:"panel",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id);
+    refresh.dataset.testid="refresh-panel-view";
+    const boundary=document.createElement("details");boundary.append(text("summary","来源与提交边界"));
+    const result=object(this.viewOutcomes.get("panel")?.response?.["result"]);
+    const note=text("p",result ? `已保存视图 · 提交 ${String(result["commit_id"])} · 事件边界 ${String(result["event_cursor"])}` : "尚未取得当前运行的准确视图。","record-id");note.dataset.testid="panel-view-boundary";
+    boundary.append(note);section.append(state,refresh,boundary);return section;
   }
 
   private actionSection(): HTMLElement {
-    const section = document.createElement("section");
-    section.dataset.testid = "primary-actions";
-    const title = document.createElement("h2"); title.textContent = "运行测试";
-    const actions = document.createElement("div"); actions.className = "actions";
-    for (const label of ["运行快速检查", "运行所选检查", "运行完整验证"]) {
-      const button = document.createElement("button");
-      button.textContent = label; button.disabled = true;
-      button.title = "等待统一核心接入";
-      actions.append(button);
-    }
-    section.append(title, actions);
-    return section;
-  }
-
-  private nextSection(): HTMLElement {
-    const section = document.createElement("section");
-    const title = document.createElement("h2"); title.textContent = "下一步";
-    const next = document.createElement("p"); next.className = "next";
-    next.textContent = "配置模型或人工创建计划；发布计划后，动作区才会获得真实范围与授权。";
-    section.append(title, next);
-    return section;
+    const section=document.createElement("div");section.dataset.testid="primary-actions";section.className="actions";
+    const button=action(this.project?.run_id ? "打开本次工作台" : "完善并发布计划",()=>this.navigate(this.project?.run_id ? "workbench":"plan"),!this.project);button.className="primary";
+    section.append(button);return section;
   }
 
   private detailSection(): HTMLElement {
@@ -832,21 +809,68 @@ class AITestPanel extends HTMLElement {
   }
 
   private detailView(): HTMLElement {
-    const selected = details.find(([id]) => id === this.detail)!;
-    const section = document.createElement("section");
-    section.dataset.testid = "detail-view";
-    const back = document.createElement("button"); back.textContent = "返回本次测试";
-    back.dataset.action = "back"; back.onclick = () => { this.detail = "current"; this.render(); };
-    const title = document.createElement("h1"); title.textContent = selected[1];
-    section.append(back, title);
-    if (this.detail === "review") {
-      section.append(...this.reviewDetail());
-      return section;
+    const selected=details.find(([id])=>id===this.detail)!;
+    const section=document.createElement("section");section.dataset.testid="detail-view";
+    const back=action("返回本次测试",()=>this.navigate("current"));back.dataset.action="back";
+    section.append(back,text("h1",selected[1]));
+    if(this.detail==="diagnostics")section.append(this.detailSection());
+    if(this.detail==="review")section.append(this.reportActions(),...this.reviewDetail());
+    else if(this.detail==="diagnostics")section.append(this.capabilitySection(),this.controlledSection(),this.readOnlySection(),this.eventStreamSection(),this.resultSection());
+    else if(this.detail==="workbench")section.append(this.guided.render(this.view("run"),this.selectedStep,
+      name=>this.available(name)&&!!this.project?.run_id, command=>{
+        this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
+      },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id})),this.pendingSection(),this.caseTree());
+    else if(this.detail==="plan")section.append(text("p","先核对准确的计划、范围和用例修订，发布与运行授权分别确认。","muted"),
+      action("读取已保存计划",()=>{this.pendingQuery="plans";this.dispatchScoped("query",{aggregate_kind:"plan",limit:20});},!this.available("query")),
+      this.rowsBlock("计划修订",this.planOutcome,"plan-records"),this.caseTree());
+    else section.append(this.settingsSection());
+    if(this.commandNote && this.detail!=="diagnostics") {const status=text("p",this.commandNote);status.setAttribute("role","status");section.append(status);}
+    if(this.selectedRecord && this.recordOutcome)section.append(this.recordDetail());
+    return section;
+  }
+
+  private settingsSection():HTMLElement {
+    const section=document.createElement("section");
+    section.append(text("h2","连接与项目"),text("p","连接已配置的测试核心后，即可读取当前项目、计划和运行。"),
+      action("连接测试核心",()=>this.ensureCore(),this.pending||!this.host),
+      text("h2","模型 API"),text("p","模型用于准备草稿和分析证据。API 登录与编辑器聊天登录分别配置；发送材料前需要确认。"),
+      action("打开插件设置",()=>this.host?.postMessage({kind:"openSettings"}),!this.host),
+      text("p","设置中的密钥使用安全凭据引用。测试执行和结果核验不以模型建议代替。","muted"));
+    return section;
+  }
+
+  private reportActions():HTMLElement {
+    const section=document.createElement("section");
+    section.append(text("p","保存本次运行的真实结果。未完成的检查和证据缺口会保留在报告中。"),
+      action("保存本次测试报告",()=>{
+        const run=this.view("run");if(!run)return;
+        const key=JSON.stringify([this.contextId,"report",run["snapshot_commit_id"]]);
+        let id=this.intents.get(key);if(!id){id=newIntent();this.intents.set(key,id);}
+        this.requestOperation("create_report",{run_id:run["run_id"],report_id:`report-${id}`,issue_ids:[]});
+      },!this.available("create_report")||!this.view("run")));
+    const status=text("p",this.pending?"正在处理，请稍候。":this.commandNote);status.setAttribute("role","status");section.append(status);
+    return section;
+  }
+
+  private recordDetail():HTMLElement {
+    const section=document.createElement("section");section.dataset.testid="record-detail";
+    const view=object(object(this.recordOutcome?.response?.["result"])?.["view"]);
+    const record=object(view?.["record"]);
+    if(!record || !this.selectedRecord)return section;
+    section.append(text("h2",`${this.selectedRecord.aggregate_kind==="report"?"测试报告":"已保存内容"} · 修订 ${this.selectedRecord.revision}`),text("p","已保存快照 · 不随当前运行变化","muted"));
+    const labels:Record<string,string>={business_outcome:"业务结论",decision:"判定与覆盖",context:"范围与来源",created_at:"保存时间",evidence_refs:"证据索引",scope:"验收范围",cases:"用例",objective:"目标",expected:"预期",actual:"实际",state:"状态",title:"标题",run_tier:"检查档位",initial_driver:"执行方式",status:"状态",required_case_ids:"必测用例",preconditions:"前置条件",steps:"检查步骤",verification_method:"核验方式",independent_verification:"独立核验",importance:"重要程度"};
+    const present=(value:unknown):HTMLElement=>{
+      if(Array.isArray(value)){const list=document.createElement("ul");for(const item of value){const li=document.createElement("li");li.append(present(item));list.append(li);}return list;}
+      const values=object(value);if(values){const dl=document.createElement("dl");for(const [key,child] of Object.entries(values)){const dd=document.createElement("dd");dd.append(present(child));dl.append(text("dt",labels[key]??key),dd);}return dl;}
+      return text("span",value==null?"未提供":friendly(value));
+    };
+    const technical=document.createElement("details");technical.append(text("summary","技术来源（排障用）"));
+    for(const [key,value] of Object.entries(record)){if(!(key in labels)){technical.append(text("p",key),present(value));continue;}const group=document.createElement("details");group.open=["business_outcome","decision","scope","cases","objective"].includes(key);group.append(text("summary",labels[key]??key),present(value));section.append(group);}
+    section.append(technical);
+    if(this.selectedRecord.aggregate_kind==="report"){
+      section.append(action("导出 Markdown 摘要",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:this.selectedRecord!.revision,kind:"markdown_summary",review_ids:[]}),!this.available("export_report")),
+        action("导出证据包",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:this.selectedRecord!.revision,kind:"evidence_bundle",review_ids:[]}),!this.available("export_report")));
     }
-    const description = document.createElement("p"); description.textContent = selected[2];
-    const note = document.createElement("p"); note.className = "muted";
-    note.textContent = "详情骨架：等待核心 DTO 与事件接入；本面板不计算业务结论。";
-    section.append(description, note);
     return section;
   }
 
@@ -1189,6 +1213,11 @@ class AITestPanel extends HTMLElement {
           });
         };
         item.append(open);
+      } else if(["plan","report","case"].includes(row.aggregate_kind)) {
+        item.append(action(`${row.record_id} · 修订 ${row.revision}`,()=>{
+          this.selectedRecord=row;this.recordOutcome=null;
+          this.dispatchScoped("read_view",{view:row.aggregate_kind,record_id:row.record_id,revision:row.revision});
+        },!this.available("read_view")));
       } else {
         item.textContent = `${row.record_id}@${row.revision}（${row.aggregate_kind}）`;
       }

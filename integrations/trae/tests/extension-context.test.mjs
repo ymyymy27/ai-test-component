@@ -14,7 +14,7 @@ await writeFile(shim, `
 export const state = {settings:{pythonPath:"configured-python",workspaceRoot:"data-root",projectId:"p",runId:"r"},sent:[],calls:[],disposed:false};
 export const workspace = {isTrusted:true,getConfiguration:()=>({get:(key,fallback)=>state.settings[key]??fallback}),
   onDidChangeConfiguration:cb=>{state.configuration=cb;return {dispose:()=>{state.disposed=true}}}};
-export const commands = {registerCommand:(name,cb)=>{if(name==='aitest.openPanel') state.open=cb;return {dispose(){}}}};
+export const commands = {executeCommand:(...args)=>state.executed=args,registerCommand:(name,cb)=>{if(name==='aitest.openPanel') state.open=cb;return {dispose(){}}}};
 export const Uri = {joinPath:(...parts)=>parts.join("/")};
 export const ViewColumn = {One:1};
 export const window = {showWarningMessage:()=>{},createWebviewPanel:()=>({webview:{asWebviewUri:x=>x,
@@ -33,7 +33,7 @@ await build({ entryPoints: ["src/extension.ts"], bundle: true, platform: "node",
   outfile: join(fixture, "extension.mjs"), plugins: [{ name: "explicit-host-fixture", setup(builder) {
     builder.onResolve({ filter: /^(vscode|\.\/core-bridge)$/ }, () => ({ path: pathToFileURL(shim).href, external: true }));
   } }] });
-const { state } = await import(pathToFileURL(shim).href);
+const { state, window: hostWindow } = await import(pathToFileURL(shim).href);
 const { activate } = await import(pathToFileURL(join(fixture, "extension.mjs")).href);
 activate({ subscriptions: [], extensionUri: "extension-root" });
 state.open();
@@ -147,4 +147,26 @@ test("missing project blocks scoped reads and panel disposal releases configurat
   assert.equal(state.sent.findLast(x=>x.kind==="projectContext").project_id,"");
   assert.equal(state.sent.findLast(x=>x.kind==="projectContext").run_id,null);
   state.close(); assert.equal(state.disposed,true);
+});
+
+
+test("docked host registers a retained view and opens settings without a business dispatch", async () => {
+  hostWindow.registerWebviewViewProvider=(id,provider,options)=>{
+    state.provider={id,provider,options};return {dispose(){}};
+  };
+  const subscriptions=[];
+  activate({subscriptions,extensionUri:"extension-root"});
+  state.open();
+  assert.deepEqual(state.executed,["aitest.sidebar.focus"]);
+  assert.equal(state.provider.id,"aitest.sidebar");
+  assert.equal(state.provider.options.webviewOptions.retainContextWhenHidden,true);
+  const view=hostWindow.createWebviewPanel();
+  state.provider.provider.resolveWebviewView(view);
+  assert.equal(view.webview.options.enableScripts,true);
+  assert.ok(view.webview.html.includes("ai-test-panel"));
+  const count=state.calls.length;
+  state.receive({kind:"openSettings"});await tick();
+  assert.deepEqual(state.executed,["workbench.action.openSettings","@ext:aitest-local.aitest-trae"]);
+  assert.equal(state.calls.length,count);
+  delete hostWindow.registerWebviewViewProvider;
 });

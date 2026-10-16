@@ -3,7 +3,7 @@ contract_id: CD-001
 title: ExecutionFacts
 provider: C
 consumer: D
-contract_version: "1.28"
+contract_version: "1.29"
 contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
@@ -364,7 +364,7 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 
 复用报告保存准确源执行快照引用与所采用 ReuseReference，证据集合包含已核对的整用例来源引用；导出仅从报告冻结的原目标/源快照读取对应证据，不回落最新源运行。缺来源引用或材料列缺口，身份不一致或重复冲突拒绝。动态环境/目标依赖仍须可信真实观察，不从配置或路径推断。此为既有一期功能15/报告架构03冻结输入的内部伴随记录，不改变旧公开 DTO，旧无来源材料仍可读但不给完整证据。
 
-新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限三种投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
+新增协商式只读动作 `read_view`，仅广告已装配能力，`project_id` 必填。参数为有限投影：`view=run|panel` 必带 `run_id`；`view=delivery` 必带 `delivery_id`、可选准确 `revision` 与 `submission_id`；`view=plan|case|report|issue` 必须且仅带准确 `record_id`、正整数 `revision`。记录视图返回项目归属、准确身份与公开字段投影，不返回任意仓库记录。拒绝其他字段/组合，经同一核心 CommittedViewReader 返回既有 DTO，宿主不得重算判定或写文件。读取检查提交边界漂移，未知不伪造完整视图；旧核心未广告时显式降级，不伪装有新能力。
 
 `select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 原批次 reviewing/partial/not_run（非当前状态），原 last_verified_commit 和确认记录保持。
 
@@ -377,3 +377,12 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 2026-10-14 准入/实际运行来源发布边界：准入原始证据保存不等于后续业务进程加载范围已证明；当前快照保留 unverified/actual_execution_load_source_unverified，原授权准入观察不追改，mismatch/blocked/unknown 不降级。64项轻量选择通过，真实事务和实际加载仍待；公开DTO字段、接口版本/签署/not_run保持，见[准确反例](../../../validation/p1-unproven-audit-20261014/README.md#准入与实际运行来源不得混同)。
 
 本批持久化兼容：包含实际来源策略的动作使用 `aitest.resolved-execution-action/1.2`，包含实际来源观察的采集回执使用 `aitest.execution-collection/1.1`；旧动作/回执按原版本读取，不补造来源。首次登记步骤以冻结正文摘要和期望生成唯一断言引用；核验结果仍须满足当前 Attempt、准确依据确认、证据完整和依赖有效才能进入 V。旧运行缺引用时不追溯补写。
+
+
+## 0.4.9 面板引导与准确修订增量（2026-10-16）
+
+按用户指定设计与简化操作要求，新增有限记录详情选择器，沿用同一 `read_view` 动作。旧选择器语义不变；旧核心拒绝新选择器时不得改为扫描记录或读取最新正文。外层读取前后提交边界核对不变；记录信封、正文项目及记录编号必须匹配。消费方核对当前选择的类型、编号、修订和项目，迟到或跨项目回执不替换详情。
+
+`export_report` 新增可选 `report_revision`（正整数）；传入时只导出该报告准确修订，复核仍须匹配该修订。省略时保留原最新报告语义及旧意图指纹。显式修订参与指纹，同一意图更换修订拒绝。面板从当前报告选择传入，无需用户填写编号或修订。
+
+步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。

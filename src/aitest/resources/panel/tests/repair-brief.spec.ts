@@ -28,6 +28,7 @@ async function mount(page: import("@playwright/test").Page): Promise<void> {
     });
   });
   await page.addScriptTag({ path: resolve("dist/index.js") });
+  await page.getByRole("button",{name:"更多",exact:true}).click();
 }
 
 function send(page: import("@playwright/test").Page, message: Record<string, unknown>) {
