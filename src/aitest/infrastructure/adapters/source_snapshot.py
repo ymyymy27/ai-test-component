@@ -182,7 +182,7 @@ class FileSourceSnapshotStore:
             raise SnapshotError(f"源码目录不存在: {canonical_path}")
         selection = tuple(dict.fromkeys(selected_paths))
         for item in selection:
-            if not _is_safe_relative(item):
+            if item != "." and not _is_safe_relative(item):
                 raise SnapshotError(f"选定路径越界或非法: {item}")
         rules = tuple(dict.fromkeys((*_DEFAULT_EXCLUSIONS, *exclusion_rules)))
         self._require_safe_metadata([source.as_posix(), purpose, selection, rules])
@@ -488,7 +488,7 @@ class FileSourceSnapshotStore:
     @staticmethod
     def _matches_selection(relative: str, selected_paths: tuple[str, ...] | list[str]) -> bool:
         return any(
-            relative == item or relative.startswith(item.rstrip("/") + "/")
+            item == "." or relative == item or relative.startswith(item.rstrip("/") + "/")
             for item in selected_paths
         )
 

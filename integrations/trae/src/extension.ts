@@ -5,6 +5,7 @@
  * 扩展不计算业务结论、不代签确认、不复制协议。
  */
 import * as vscode from "vscode";
+import {wizardMessage, type WizardSession} from "./onboarding";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { dispatchControlled, dispatchReadOnly, ensureCore, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
@@ -98,7 +99,7 @@ function attachPanel(context: vscode.ExtensionContext, panel: PanelHost): void {
       <script nonce="${nonceValue}" src="${script}"></script></body></html>`;
   const scope: PanelScope = { key: "", id: randomUUID() };
   panel.webview.onDidReceiveMessage((message: unknown) => {
-    void handleWebviewMessage(panel, message, scope);
+    void handleWebviewMessage(panel, message, scope, context);
   });
   const configurationWatch = vscode.workspace.onDidChangeConfiguration(event => {
     if (event.affectsConfiguration("aitest")) { publishProject(panel, scope); }
@@ -115,7 +116,7 @@ function identityOrNull(value: unknown): string | null {
     && !/[\u0000-\u001f]/.test(value) ? value : null;
 }
 
-interface PanelScope { key: string; id: string }
+interface PanelScope { key: string; id: string; wizard?:WizardSession; wizardBusy?:boolean }
 
 function publishProject(panel: PanelHost, scope: PanelScope): string {
   const settings = readSettings();
@@ -150,12 +151,19 @@ function toDispatchRequest(raw: Record<string, unknown>): DispatchRequest | null
   };
 }
 
-async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: PanelScope): Promise<void> {
+async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: PanelScope, context:vscode.ExtensionContext): Promise<void> {
   if (!vscode.workspace.isTrusted) { return; }
   if (typeof message !== "object" || message === null) {
     return;
   }
   const raw = message as Record<string, unknown>;
+  if(typeof raw.kind==="string" && raw.kind.startsWith("wizard")){
+    if(!identityOrNull(raw.clientRequestId)||scope.wizardBusy)return;
+    scope.wizardBusy=true;
+    try{scope.wizard=await wizardMessage(context,raw,scope.wizard,readSettings(),payload=>post(panel,payload));}
+    finally{scope.wizardBusy=false;}
+    return;
+  }
   if (raw["kind"] === "openSettings") {
     await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:aitest-local.aitest-trae");
     return;
@@ -244,6 +252,13 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
     return;
   }
   post(panel, { kind: "outcome", action: request.action, ...outcome, clientRequestId });
+  if(request.action==="register_run" && outcome.status==="ok" && scope.wizard?.project_id===projectId){
+    const result=outcome.response?.result as Record<string,unknown>|undefined;
+    if(result?.project_id===projectId && identityOrNull(result?.run_id)){
+      await vscode.workspace.getConfiguration("aitest").update("runId",result!.run_id,vscode.ConfigurationTarget.Global);
+      publishProject(panel,scope);
+    }
+  }
 }
 
 function post(panel: PanelHost, payload: Record<string, unknown>): void {

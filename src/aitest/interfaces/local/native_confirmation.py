@@ -42,6 +42,53 @@ NATIVE_ACTIONS = (
 )
 MAX_PROMPT_CHARS = 128_000
 
+_ACTION_LABELS = {
+    "save_context": "保存项目名称与测试目标",
+    "save_binding": "绑定被测项目目录",
+    "save_environment": "保存测试环境与数据复位说明",
+    "save_model_outbound_policy": "确认模型接收方与允许发送的材料",
+    "generate_draft": "请求模型准备测试建议",
+    "save_case": "保存待核对的测试用例",
+    "confirm_basis": "确认本用例的独立预期结果",
+    "save_acceptance": "保存本次必测范围",
+    "publish_plan": "发布核对后的测试计划",
+    "analyze_project": "保存本次被测源码快照",
+    "prepare_run": "冻结本次测试的计划、环境和来源",
+    "register_run": "创建本次测试运行",
+    "prepare_execution": "准备并查看本步骤将执行的操作",
+    "authorize_step": "授权本步骤的准确操作",
+    "execute_step": "执行已授权的测试步骤",
+    "verify_pending": "依据已保存证据核验独立预期",
+    "create_report": "保存本次测试报告",
+    "export_report": "导出已保存的报告修订",
+}
+
+
+def _friendly_preview(projected: Mapping[str, object]) -> str:
+    """Readable introduction from the same redacted projection, without new facts."""
+    command = projected.get("command")
+    if not isinstance(command, Mapping):
+        return ""
+    action = str(command.get("action", ""))
+    lines = [_ACTION_LABELS.get(action, "核对本次操作"),
+             "项目：" + str(command.get("project_id", "未知"))]
+    parameters = command.get("parameters")
+    if isinstance(parameters, Mapping):
+        for key, fields in {
+            "project": (("name", "名称"), ("goal", "测试目标")),
+            "binding": (("canonical_path", "被测目录"),),
+            "case": (("objective", "检查目标"), ("expected", "独立预期")),
+            "environment": (("data_reset_policy", "数据复位"),),
+        }.items():
+            material = parameters.get(key)
+            if isinstance(material, Mapping):
+                for field, label in fields:
+                    if field in material:
+                        lines.append(label + "：" + str(material[field]))
+    lines.extend(["确认只适用于下面列出的准确输入，不代表测试已经通过。",
+                  "如内容与预期不同，请取消并返回向导核对。", "", "完整输入与已保存依据："])
+    return "\n".join(lines) + "\n"
+
 if TYPE_CHECKING:
     import tkinter
 
@@ -215,7 +262,8 @@ def dispatch_native(
             "请核对以下操作、项目、输入和已保存依据。点击“确认本次操作”才会提交。\n"
             "测试、网络或外部命令可能产生副作用；仅在理解准确输入后确认。\n"
             "取消或两分钟未响应将取消；不代表任何业务验证通过。\n\n"
-            + json.dumps(projected, ensure_ascii=False, indent=2, allow_nan=False).translate(
+            + (_friendly_preview(projected)
+               + json.dumps(projected, ensure_ascii=False, indent=2, allow_nan=False)).translate(
                 {
                     code: f"\\u{code:04x}"
                     for code in (

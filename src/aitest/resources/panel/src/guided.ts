@@ -37,17 +37,27 @@ export class GuidedRun {
     const request=(name:string,parameters:Record<string,unknown>,intent=execution!.intent)=>{
       this.waiting={step:id,action:name};send({action:name,parameters,target:id,intent});
     };
-    section.append(text("p",`当前步骤：第 ${steps.indexOf(step)+1} 步`),text("p",`步骤状态：${friendly(step["state"])}`),
-      text("p","先查看操作，再确认是否允许执行。完成执行后，还需要核对结果。","muted"));
-    if(!execution.actionId)section.append(action("查看将执行的操作",()=>request("prepare_execution",{run_id:run["run_id"],step_id:id}),!enabled("prepare_execution")));
-    else if(!execution.authorized)section.append(action("查看并确认操作授权",()=>request("authorize_step",{execution_action_id:execution!.actionId,record_revision:1}),!enabled("authorize_step")));
-    else if(!execution.executed)section.append(action("执行已确认的操作",()=>request("execute_step",{execution_action_id:execution!.actionId,record_revision:1}),!enabled("execute_step")));
+    section.append(text("h3",`第 ${steps.indexOf(step)+1} 步`));
+    const facts=document.createElement("dl");facts.className="facts";
+    facts.append(text("dt","步骤状态"),text("dd",friendly(step.state)),text("dt","本次尝试"),text("dd",step.current_attempt_id?friendly(step.attempt_state):"尚无执行记录"),text("dt","依据"),text("dd",step.invalidated===true?"已过期，需要处理后重新核对":"以已保存计划为准"));section.append(facts);
+    const operation=document.createElement("section");operation.className="workbench-part";
+    operation.append(text("h3","执行操作"),text("p","先查看操作内容和影响，再确认并执行。","muted"));
+    let primary:HTMLButtonElement|undefined;
+    if(!execution.actionId)primary=action("查看将执行的操作",()=>request("prepare_execution",{run_id:run["run_id"],step_id:id}),!enabled("prepare_execution"));
+    else if(!execution.authorized)primary=action("查看并确认操作授权",()=>request("authorize_step",{execution_action_id:execution!.actionId,record_revision:1}),!enabled("authorize_step"));
+    else if(!execution.executed)primary=action("执行已确认的操作",()=>request("execute_step",{execution_action_id:execution!.actionId,record_revision:1}),!enabled("execute_step"));
+    if(primary){primary.className="primary";operation.append(primary);}else operation.append(text("p","执行请求已返回，请读取最新结果。","muted"));
+    section.append(operation);
+    const verification=document.createElement("section");verification.className="workbench-part";
+    verification.append(text("h3","结果核验"),text("p","按独立预期核对本次实际执行。执行完成和验证通过分别记录。","muted"));
     const attempt=step["current_attempt_id"];
     if(!this.needsRefresh && typeof attempt==="string" && attempt && typeof run["snapshot_commit_id"]==="string"){
-      section.append(action("核验这次执行结果",()=>request("verify_pending",{run_id:run["run_id"],step_id:id,attempt_id:attempt,base_snapshot_commit_id:run["snapshot_commit_id"]},`verify-${execution!.intent}-${String(run["snapshot_commit_id"]).slice(-32)}`),!enabled("verify_pending")));
+      verification.append(action("核验这次执行结果",()=>request("verify_pending",{run_id:run["run_id"],step_id:id,attempt_id:attempt,base_snapshot_commit_id:run["snapshot_commit_id"]},`verify-${execution!.intent}-${String(run["snapshot_commit_id"]).slice(-32)}`),!enabled("verify_pending")));
     }
+    else verification.append(text("p",this.needsRefresh?"先刷新步骤，取得本次执行的最新记录。":"尚无可核验的执行记录，请先完成执行。","muted"));
+    section.append(verification);
     section.append(action("刷新步骤与结果",refresh,!enabled("read_view")));
-    if(this.note){const status=text("p",this.note);status.setAttribute("role","status");section.append(status);}
+    if(this.note){const status=text("p",this.note,"notice");status.setAttribute("role","status");section.append(status);}
     return section;
   }
 }

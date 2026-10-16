@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.93"
+contract_version: "1.94"
 contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
@@ -13,6 +13,12 @@ blockers: []
 next_owner: A/B/C/D
 next_action: 现行接口已关闭；后续字段变更重新评审，真实产品验收继续按项目现状跟踪。
 ---
+
+## 0.4.10 向导消费与源码根选择（2026-10-16）
+
+本次按用户授权复核兼容增量：模型草稿正文/超时、新手命令与凭据边界以 [AB-001 1.51](../AB-001-端口与保存/contract.md) 为唯一增量定义。公开选择列表中的 `.` 表示根范围，快照建立、变化检测及已保存元数据回读一致处理；文件路径、链接与越界守卫不放宽。空选择与非空 PreparedRun 合同不能混用。
+
+面板在宿主默认配置、核心业务命令及已保存结果之间保持边界。模型配置保存不等于连接检查通过；确认窗口的中文摘要来自同一安全投影，完整准确输入与授权时序不变。验证与尚未完成的真实宿主范围见[本批记录](../../../validation/p1-onboarding-live-20261016/README.md)，不提升验收登记。
 
 ## 0.4.7 宿主模型配置增量（2026-10-16）
 

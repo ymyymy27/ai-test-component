@@ -1,11 +1,14 @@
 /** Phase-one fact viewer and controlled command requester. The core owns
  * business outcomes and the independent human confirmation dialog. */
 import {workflowActions, workflowCommand} from "./workflow";
+import {Onboarding} from "./onboarding";
+import {ModelSettings} from "./model-settings";
 import {GuidedRun, friendly} from "./guided";
 import {newIntent, shellStyles, text, action, group, object, strings} from "./shell";
-type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics";
+type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics" | "setup";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
+  ["setup", "开始测试", "新建项目、配置环境与模型、发布计划。"],
   ["plan", "计划", "查看范围、用例树、依据确认和发布状态。"],
   ["workbench", "测试工作台", "查看步骤、当前尝试、证据、人工待办和阻塞原因。"],
   ["review", "问题与报告", "查看问题清单、修复回归、报告修订和本地导出。"],
@@ -116,6 +119,10 @@ class AITestPanel extends HTMLElement {
   private detail: Detail = "current";
   private readonly root = this.attachShadow({ mode: "open" });
   private readonly host = hostApi();
+  private readonly modelSettings=new ModelSettings(message=>this.host?.postMessage(message),()=>this.render());
+  private readonly onboarding=new Onboarding(message=>this.host?.postMessage(message),command=>{
+    this.commandDraft=JSON.stringify(command, (key,value)=>key==="key"?undefined:value);this.submitCommand();
+  },()=>this.dispatch("doctor"),()=>this.render(),()=>this.navigate("workbench"));
   private outcome: Outcome | null = null;
   private pending = false;
   private selectedRecord:Row|null=null;
@@ -127,6 +134,7 @@ class AITestPanel extends HTMLElement {
   private intents=new Map<string,string>();
   private navigate(detail:Detail):void {
     if(this.detail==="current")this.homeScroll=window.scrollY;
+    if(detail==="settings"&&this.host)this.modelSettings.open();
     this.detail=detail;this.render();
     window.scrollTo(0,detail==="current" ? this.homeScroll : 0);
   }
@@ -178,6 +186,8 @@ class AITestPanel extends HTMLElement {
   private deliveryLookup = {delivery_id:"", submission_id:""};
 
   private readonly receiveMessage = (event: MessageEvent): void => {
+      if(this.modelSettings.receive(event.data as Record<string,unknown>))return;
+      if(this.onboarding.receive(event.data as Record<string,unknown>))return;
       const data = event.data as Outcome | ProjectContext | undefined;
       if (!data || typeof data !== "object") { return; }
       if (data.kind === "projectContext") {
@@ -200,7 +210,7 @@ class AITestPanel extends HTMLElement {
           this.briefIssueId = this.briefNote = null;
           this.guided.reset();
           this.viewOutcomes.clear(); this.selectedStep=null; this.intents.clear(); this.pendingQuery = null; this.outcome = null;
-          this.commandDraft = ""; this.commandNote = "项目上下文变化，请重新核对操作输入。";
+          this.commandDraft = ""; this.commandNote = this.pendingRequest ? "项目已切换，请核对当前步骤后继续。" : "";
           this.projectName = this.projectGoal = "";
           this.workflowValues = {expected_revision:"0"};
           this.deliveryLookup = {delivery_id:"", submission_id:""};
@@ -212,7 +222,7 @@ class AITestPanel extends HTMLElement {
         this.contextId = typeof data.context_id === "string" ? data.context_id : null;
         this.project = next;
         this.render();
-        if (contextChanged && !this.pending) { this.dispatch("doctor"); }
+        if (contextChanged && !this.pending && !this.onboarding.isConfiguring()) { this.dispatch("doctor"); }
         return;
       }
       if (data.kind !== "outcome") { return; }
@@ -271,6 +281,7 @@ class AITestPanel extends HTMLElement {
       this.pendingRequest = null;
       this.pending = false;
       this.render();
+      this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]));
       if (data.action === "ensure-core" && data.status === "ok") {
         this.dispatch("doctor");
       }
@@ -379,6 +390,7 @@ class AITestPanel extends HTMLElement {
     style.textContent = shellStyles;
     const main = document.createElement("main");
     main.append(this.header(), this.detail === "current" ? this.currentView() : this.detailView());
+    if(this.detail!=="current")main.append(this.connectionFooter());
     this.root.append(style, main);
   }
 
@@ -386,14 +398,15 @@ class AITestPanel extends HTMLElement {
     const header=document.createElement("header");
     const bar=document.createElement("div");bar.className="toolbar";
     bar.append(text("h1","AI 测试"),action("设置",()=>this.navigate("settings")),action("更多",()=>this.navigate("diagnostics")));
-    const project=text("p",this.project ? `当前项目：${this.project.project_id}` : "当前项目：未选择","scope");
+    const project=document.createElement("details");project.className="project-picker";
+    project.append(text("summary",this.project ? this.project.scope_name || "当前测试项目" : "选择测试项目"));
+    project.append(text("p",this.project ? `项目编号：${this.project.project_id}` : "从本地目录开始，按向导准备测试。","muted subtle"),
+      action("新建测试",()=>this.navigate("setup")),action("管理项目连接",()=>this.host?.postMessage({kind:"openSettings"}),!this.host));
     project.dataset.testid="project-context";
     const model=object(object(this.doctorOutcome?.response?.["result"])?.["model"]);
-    const modelStatus=text("p",`插件模型 API · ${model?.["status"] ?? "配置与连接状态见设置"}`,"muted");
-    const status=text("p",this.statusText(),"status");status.dataset.testid="panel-status";status.setAttribute("role","status");
-    const controls=document.createElement("div");controls.className="actions";
-    controls.append(action("连接核心",()=>this.ensureCore(),this.pending||!this.host),action("刷新核心状态",()=>this.dispatch("doctor"),this.pending||!this.host));
-    header.append(bar,project,modelStatus,status,controls);return header;
+    const modelStatus=document.createElement("div");modelStatus.className="model-line";
+    modelStatus.append(text("span",`插件模型 API · ${model?.["status"] ?? this.modelSettings.status()}`,"muted"),action("配置",()=>this.navigate("settings")));
+    header.append(bar,project,modelStatus);return header;
   }
 
   private ensureCore(): void {
@@ -408,36 +421,44 @@ class AITestPanel extends HTMLElement {
   }
 
   private currentView(): HTMLElement {
-    const fragment=document.createElement("div");
+    const fragment=document.createElement("div");fragment.className="dashboard";
     const fold=(label:string,key:string,...children:HTMLElement[])=>group(label,key,this.expanded[key]??false,open=>{this.expanded[key]=open;},...children);
-    const links=document.createElement("div");links.className="actions";
-    links.append(action("计划",()=>this.navigate("plan")),action("测试工作台",()=>this.navigate("workbench")),action("问题与报告",()=>this.navigate("review")));
+    const links=document.createElement("div");links.className="link-row";
+    links.append(action("查看准备详情",()=>this.navigate("plan")),action("问题与报告",()=>this.navigate("review")));
     const plan=document.createElement("div");
-    plan.append(action("打开计划与用例",()=>this.navigate("plan")),this.caseTree());
+    const openPlan=action("打开计划与用例",()=>this.navigate("plan"));openPlan.className="link-button";
+    plan.append(openPlan,this.caseTree());
     const records=document.createElement("div");records.append(action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
     fragment.append(fold("当前测试","current",this.phaseSection(),this.actionSection(),links),
       fold("待处理","pending",this.pendingSection()),fold("测试计划","plan",plan),fold("测试记录","records",records));
-    const footer=text("footer",this.doctorOutcome?.status==="ok" ? "核心已连接 · 本地工作空间" : "核心状态待核实","muted");
-    fragment.append(footer);return fragment;
+    fragment.append(this.connectionFooter());return fragment;
+  }
+
+  private connectionFooter():HTMLElement {
+    const footer=text("footer",this.pending ? "正在处理，请稍候…" : this.doctorOutcome?.status==="ok" ? "核心已连接 · 本地工作空间" : "尚未连接核心 · 可在设置中连接","muted");
+    footer.dataset.testid="panel-status";footer.setAttribute("role","status");return footer;
   }
 
   private pendingSection():HTMLElement {
     const section=document.createElement("div");const view=this.view("run") ?? this.view("panel");
-    if(!view){section.append(text("p","刷新运行详情后查看待处理事项。","muted"));}
+    if(!view){section.append(text("p",this.project?.run_id ? "读取本次运行后，显示需要你处理的事项。" : "先完成测试准备，再核对操作授权。","muted"));}
     else {
-      for(const [key,label] of [["manual_pending_step_ids","待人工"],["pending_verification_step_ids","待核验"],["blocked_step_ids","阻塞"],["invalidated_step_ids","依据过期"],["gap_codes","证据缺口"]]) {
-        for(const id of strings(view[key!]))section.append(action(`${label} · ${id}`,()=>{this.selectedStep=id;this.navigate("workbench");}));
+      const steps=Array.isArray(view.steps)?view.steps.map(object):[];
+      for(const [key,label] of [["manual_pending_step_ids","待人工"],["pending_verification_step_ids","待核验"],["blocked_step_ids","阻塞"],["invalidated_step_ids","依据过期"]]) {
+        for(const id of strings(view[key!])){const index=steps.findIndex(step=>step?.step_id===id);
+          const item=action(`${label} · ${index>=0?`第 ${index+1} 步`:"打开对应步骤"}`,()=>{this.selectedStep=id;this.navigate("workbench");});item.className="link-button";section.append(item);}
       }
+      for(const code of strings(view.gap_codes)){const item=text("p",`证据缺口：${friendly(code)}`,"muted");section.append(item);}
       if(!section.childElementCount)section.append(text("p","本次视图未列出待处理项；其他未查询事实保持待核实。","muted"));
     }
-    section.append(action("读取运行详情",()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id));return section;
+    if(this.project?.run_id)section.append(action("读取运行详情",()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),!this.available("read_view")));return section;
   }
 
   private caseTree():HTMLElement {
-    const list=document.createElement("ul");list.setAttribute("aria-label","计划用例");
+    const list=document.createElement("ul");list.className="case-tree";list.setAttribute("aria-label","计划用例");
     const view=this.view("run");const steps=Array.isArray(view?.["steps"]) ? view["steps"] : [];
     const cases=strings(view?.["selected_case_ids"]);
-    if(!view){list.append(text("li","尚未读取本次计划和步骤。","muted"));return list;}
+    if(!view){list.append(text("li",this.project?.run_id ? "读取运行后显示本次计划与用例。" : "发布计划后，用例会显示在这里。","empty"));return list;}
     for(const [caseIndex,id] of cases.entries()){
       const item=document.createElement("li");const children=document.createElement("ul");
       item.append(text("strong",`用例 ${caseIndex+1}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
@@ -775,22 +796,23 @@ class AITestPanel extends HTMLElement {
     if(view){state.setAttribute("aria-current","step");
       state.append(text("h2",names[String(view["stage"])]??"阶段待核实"),text("p",`执行控制：${friendly(view["control_state"])}`),
         text("p",`业务结论：${friendly(view["business_outcome"])}`),text("p",`${friendly(view["tier"])} · ${friendly(view["driver"])}`,"muted"));
-    }else state.append(text("h2","准备本次测试"),text("p","选择项目并准备计划，或读取已保存运行。","muted"));
+    }else state.append(text("h2",this.project?.run_id?"读取本次测试":"准备本次测试"),text("p",this.project?.run_id?"读取已保存的运行，查看进度与下一步。":"从项目和测试目标开始，按提示准备检查计划。","muted"));
     const run=this.view("run");if(run && run["snapshot_commit_id"]===view?.["snapshot_commit_id"]){
       const summary=object(run["selected_summary"]);
-      if(summary){const labels:Record<string,string>={denominator:"本轮范围",executed_count:"已执行",reused_count:"已复用",verified_count:"已核验",passed_count:"通过",failed_count:"失败",unverified_count:"未核验"};for(const [key,label] of Object.entries(labels))if(key in summary)state.append(text("p",`${label}：${summary[key] ?? "未知"}`));}
+      if(summary){const facts=document.createElement("dl");facts.className="facts";const labels:Record<string,string>={denominator:"本轮范围",executed_count:"已执行",reused_count:"已复用",verified_count:"已核验",passed_count:"通过",failed_count:"失败",unverified_count:"未核验"};for(const [key,label] of Object.entries(labels))if(key in summary)facts.append(text("dt",label),text("dd",String(summary[key] ?? "未知")));state.append(facts);}
     }
     const refresh=action("刷新本次视图",()=>this.dispatchScoped("read_view",{view:"panel",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id);
     refresh.dataset.testid="refresh-panel-view";
     const boundary=document.createElement("details");boundary.append(text("summary","来源与提交边界"));
     const result=object(this.viewOutcomes.get("panel")?.response?.["result"]);
     const note=text("p",result ? `已保存视图 · 提交 ${String(result["commit_id"])} · 事件边界 ${String(result["event_cursor"])}` : "尚未取得当前运行的准确视图。","record-id");note.dataset.testid="panel-view-boundary";
-    boundary.append(note);section.append(state,refresh,boundary);return section;
+    boundary.className="technical";boundary.append(note);section.append(state);
+    if(this.project?.run_id)section.append(refresh,boundary);return section;
   }
 
   private actionSection(): HTMLElement {
     const section=document.createElement("div");section.dataset.testid="primary-actions";section.className="actions";
-    const button=action(this.project?.run_id ? "打开本次工作台" : "完善并发布计划",()=>this.navigate(this.project?.run_id ? "workbench":"plan"),!this.project);button.className="primary";
+    const button=action(this.project?.run_id ? "打开本次工作台" : "开始第一次测试",()=>this.navigate(this.project?.run_id ? "workbench":"setup"),!this.host);button.className="primary";
     section.append(button);return section;
   }
 
@@ -812,10 +834,12 @@ class AITestPanel extends HTMLElement {
     const selected=details.find(([id])=>id===this.detail)!;
     const section=document.createElement("section");section.dataset.testid="detail-view";
     const back=action("返回本次测试",()=>this.navigate("current"));back.dataset.action="back";
-    section.append(back,text("h1",selected[1]));
+    const heading=document.createElement("div");heading.className="detail-heading";
+    heading.append(back,text("h1",selected[1]));section.append(heading);
     if(this.detail==="diagnostics")section.append(this.detailSection());
-    if(this.detail==="review")section.append(this.reportActions(),...this.reviewDetail());
-    else if(this.detail==="diagnostics")section.append(this.capabilitySection(),this.controlledSection(),this.readOnlySection(),this.eventStreamSection(),this.resultSection());
+    if(this.detail==="setup")section.append(this.onboarding.view(String(this.doctorOutcome?.response?.["workspace_id"]??""),this.pending));
+    else if(this.detail==="review")section.append(this.reportActions(),...this.reviewDetail());
+    else if(this.detail==="diagnostics")section.append(action("连接核心",()=>this.ensureCore(),this.pending||!this.host),action("刷新核心状态",()=>this.dispatch("doctor"),this.pending||!this.host),text("p",this.statusText(),"muted"),this.capabilitySection(),this.controlledSection(),this.readOnlySection(),this.eventStreamSection(),this.resultSection());
     else if(this.detail==="workbench")section.append(this.guided.render(this.view("run"),this.selectedStep,
       name=>this.available(name)&&!!this.project?.run_id, command=>{
         this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
@@ -831,11 +855,13 @@ class AITestPanel extends HTMLElement {
 
   private settingsSection():HTMLElement {
     const section=document.createElement("section");
-    section.append(text("h2","连接与项目"),text("p","连接已配置的测试核心后，即可读取当前项目、计划和运行。"),
+    section.append(this.modelSettings.view(!!this.host));
+    const advanced=document.createElement("details");advanced.className="technical";
+    advanced.append(text("summary","项目、测试环境与本地数据"),text("p","连接已配置的测试核心后，即可读取当前项目、计划和运行。"),
+      action("新建测试",()=>this.navigate("setup")),
       action("连接测试核心",()=>this.ensureCore(),this.pending||!this.host),
-      text("h2","模型 API"),text("p","模型用于准备草稿和分析证据。API 登录与编辑器聊天登录分别配置；发送材料前需要确认。"),
       action("打开插件设置",()=>this.host?.postMessage({kind:"openSettings"}),!this.host),
-      text("p","设置中的密钥使用安全凭据引用。测试执行和结果核验不以模型建议代替。","muted"));
+      text("p","高级设置用于已有核心连接和数据目录。","muted"));section.append(advanced);
     return section;
   }
 
@@ -859,9 +885,10 @@ class AITestPanel extends HTMLElement {
     if(!record || !this.selectedRecord)return section;
     section.append(text("h2",`${this.selectedRecord.aggregate_kind==="report"?"测试报告":"已保存内容"} · 修订 ${this.selectedRecord.revision}`),text("p","已保存快照 · 不随当前运行变化","muted"));
     const labels:Record<string,string>={business_outcome:"业务结论",decision:"判定与覆盖",context:"范围与来源",created_at:"保存时间",evidence_refs:"证据索引",scope:"验收范围",cases:"用例",objective:"目标",expected:"预期",actual:"实际",state:"状态",title:"标题",run_tier:"检查档位",initial_driver:"执行方式",status:"状态",required_case_ids:"必测用例",preconditions:"前置条件",steps:"检查步骤",verification_method:"核验方式",independent_verification:"独立核验",importance:"重要程度"};
+    Object.assign(labels,{evidence_grade:"证据等级",primary_gap:"首要缺口",gaps:"未完成原因",safe_reason:"原因",selected_summary:"本轮所选范围",required_summary:"冻结必测范围",denominator:"范围内用例",executed_count:"已执行",reused_count:"已复用",verified_count:"有效验证",passed_count:"通过",failed_count:"失败",unverified_count:"未验证",decisive_failure_count:"已确认失败",scope_kind:"统计范围",project_name:"项目",scope_name:"测试范围",tier:"检查档位",driver:"执行方式",inputs:"输入",layer:"检查层级",name:"名称",description:"说明",evidence_refs:"证据引用"});
     const present=(value:unknown):HTMLElement=>{
       if(Array.isArray(value)){const list=document.createElement("ul");for(const item of value){const li=document.createElement("li");li.append(present(item));list.append(li);}return list;}
-      const values=object(value);if(values){const dl=document.createElement("dl");for(const [key,child] of Object.entries(values)){const dd=document.createElement("dd");dd.append(present(child));dl.append(text("dt",labels[key]??key),dd);}return dl;}
+      const values=object(value);if(values){const wrapper=document.createElement("div");const dl=document.createElement("dl");dl.className="facts";const more=document.createElement("details");more.className="technical";more.append(text("summary","查看字段与引用"));for(const [key,child] of Object.entries(values)){const dd=document.createElement("dd");dd.append(present(child));if(key in labels)dl.append(text("dt",labels[key]!),dd);else more.append(text("dt",key),dd);}wrapper.append(dl);if(more.childElementCount>1)wrapper.append(more);return wrapper;}
       return text("span",value==null?"未提供":friendly(value));
     };
     const technical=document.createElement("details");technical.append(text("summary","技术来源（排障用）"));

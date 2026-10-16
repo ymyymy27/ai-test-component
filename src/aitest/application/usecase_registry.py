@@ -2040,6 +2040,9 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         )
 
     def handle_model_draft(command: object) -> Mapping[str, object]:
+        timeout = _command_parameters(command).get("timeout_seconds", 60)
+        if type(timeout) is not int or not 10 <= timeout <= 120:
+            raise BUseCaseError("B_INVALID_PARAMETER", "model timeout must be 10 to 120 seconds")
         if (
             deps.model_provider is None
             or deps.model_credentials is None
@@ -2161,8 +2164,24 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             basis_is_current=basis_is_current,
             basis=basis,
             response_store=deps.model_responses,
+            timeout_seconds=timeout,
         )
+        draft_text = None
+        if result.content is not None:
+            saved_draft = read_scoped_record(
+                deps.reader, project_id=project_id, aggregate_kind="generated_content",
+                record_id=result.content.generated_content_id, revision=1,
+            ).payload
+            if (saved_draft.get("generated_content_id") != result.content.generated_content_id
+                    or saved_draft.get("content_digest") != result.content.content_digest):
+                raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft identity differs")
+            draft_text = saved_draft.get("draft_text")
+            if not isinstance(draft_text, str):
+                raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft text is unavailable")
+            if text_digest(draft_text) != result.content.content_digest:
+                raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft digest differs")
         return {
+            "draft_text": draft_text,
             "blocked": result.content is None,
             "status": result.status,
             "blocked_by": list(result.blocked_by),

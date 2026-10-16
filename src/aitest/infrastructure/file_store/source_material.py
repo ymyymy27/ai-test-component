@@ -145,7 +145,7 @@ def read_metadata(
         or not Path(record["canonical_path"]).is_absolute()
         or any(ord(c) < 32 for c in record["canonical_path"])
         or not isinstance(record.get("selected_paths"), list)
-        or any(not _relative(p) for p in record["selected_paths"])
+        or any(p != "." and not _relative(p) for p in record["selected_paths"])
         or len(set(record["selected_paths"])) != len(record["selected_paths"])
         or not isinstance(record.get("exclusion_rules"), list)
         or any(not _relative(p) for p in record["exclusion_rules"])

@@ -129,3 +129,38 @@ def test_windows_provider_unavailable_off_windows(monkeypatch: pytest.MonkeyPatc
     assert provider.available is False
     with pytest.raises(SecretUnavailable):
         provider.resolve(purpose="model", reference="deepseek/v1")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows vault API fixture")
+@pytest.mark.parametrize("success", [True, False])
+def test_windows_save_uses_scoped_vault_and_clears_buffer(monkeypatch, success):
+    import ctypes
+    from types import SimpleNamespace
+
+    import aitest.infrastructure.credentials as module
+
+    seen = []
+    buffers = []
+    original_memset = ctypes.memset
+
+    def write(pointer, flags):
+        value = ctypes.cast(pointer, ctypes.POINTER(module._CredentialW)).contents
+        seen.append((value.TargetName, value.Persist,
+                     ctypes.string_at(value.CredentialBlob, value.CredentialBlobSize)))
+        return success
+
+    def clear(address, value, size):
+        original_memset(address, value, size)
+        buffers.append(ctypes.string_at(address, size))
+
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: SimpleNamespace(CredWriteW=write))
+    monkeypatch.setattr(ctypes, "memset", clear)
+    if success:
+        WindowsCredentialProvider().save(
+            purpose="model", reference="fixture-save", value="fake-key")
+    else:
+        with pytest.raises(SecretUnavailable):
+            WindowsCredentialProvider().save(
+                purpose="model", reference="fixture-save", value="fake-key")
+    assert seen == [("aitest/model/fixture-save", 2, b"fake-key")]
+    assert buffers == [b"\x00" * len(b"fake-key")]

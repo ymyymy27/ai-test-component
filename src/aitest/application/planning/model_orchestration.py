@@ -598,6 +598,9 @@ def request_model_draft(
     }
     if basis is not None:
         identity["basis_identity"] = basis.identity()
+    # Preserve identity of historical requests using the established 60-second default.
+    if timeout_seconds != 60:
+        identity["timeout_seconds"] = timeout_seconds
 
     def current_currency() -> ResponseCurrency:
         other_current = basis_is_current is None or basis_is_current()
