@@ -2,7 +2,7 @@
   "name": "aitest-trae",
   "displayName": "AI Test Panel",
   "description": "Editor-native AI test panel. Shared Web Component, read-only core queries, controlled write boundary.",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "publisher": "aitest-local",
   "private": true,
   "engines": {

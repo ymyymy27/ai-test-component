@@ -193,7 +193,7 @@ export const mockupCss = String.raw`
   font:12px/1.35 "Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif; }
 * { box-sizing:border-box; }
 button { font:inherit; color:inherit; }
-.app { width:1024px; height:1110px; display:flex; flex-direction:column; overflow:hidden; background:#191b20;
+.app { position:relative; width:1024px; height:1110px; display:flex; flex-direction:column; overflow:hidden; background:#191b20;
   border:1px solid #343944; border-radius:7px; }
 .titlebar { position:relative; z-index:20; flex:none; height:35px; display:flex; align-items:center; background:#272a31; border-bottom:1px solid #30343b; }
 .menu-items { display:flex; align-items:center; gap:2px; padding-left:8px; color:#dce0e8; font-size:12px; }
@@ -219,6 +219,34 @@ ai-test-panel { display:block; width:300px; height:100%; min-width:0; overflow:h
 .activity-panel p { margin:0 0 14px; color:#8992a2; font-size:11px; line-height:1.55; }
 .activity-panel button { width:100%; padding:7px 8px; border-radius:3px; color:#c8cdd7; text-align:left; }
 .activity-panel button:hover,.activity-panel button.selected { background:#343944; color:#dce0e8; }
+.activity-panel { overflow-y:auto; scrollbar-width:thin; scrollbar-color:#3a3f49 transparent; }
+.panel-heading { margin:0 0 10px; color:#dce0e8; font-size:12px; font-weight:600; }
+.panel-project,.scm-branch { display:flex; align-items:center; gap:6px; margin:4px 0 8px; color:#dce0e8; }
+.panel-project span,.scm-branch span { margin-left:auto; color:#8992a2; font-size:10px; }
+.tree-folder { padding:4px 2px; color:#a0a8b6; font-size:11px; }
+.file-row { display:flex; align-items:center; gap:6px; width:100%; min-height:24px; padding:2px 4px; border-radius:3px; color:#c8cdd7; text-align:left; }
+.file-row:hover,.file-row.active { background:#343944; color:#e3e6ed; }
+.file-icon { display:inline-grid; place-items:center; width:14px; height:14px; color:#8fb4ef; font-size:9px; }
+.file-icon svg { width:14px; height:14px; }
+.panel-actions { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; }
+.panel-actions button { width:auto; padding:5px 7px; border:1px solid #414753; border-radius:3px; background:#292d34; color:#dce0e8; font-size:10px; }
+.panel-actions button:hover { background:#343944; }
+.search-box { display:flex; gap:5px; }
+.search-box input,.panel-input { min-width:0; flex:1; height:28px; padding:4px 7px; border:1px solid #414753; border-radius:3px; background:#292d34; color:#dce0e8; }
+.search-box button { width:auto; min-height:28px; padding:2px 8px; border:1px solid #414753; border-radius:3px; background:#292d34; color:#dce0e8; }
+.search-summary { margin:8px 0 5px; color:#8992a2; font-size:10px; }
+.search-list { display:flex; flex-direction:column; gap:3px; }
+.search-result { width:100%; padding:5px 6px; border-radius:3px; color:#c8cdd7; text-align:left; }
+.search-result:hover { background:#343944; }
+.search-result strong { display:block; color:#86b7ff; font-size:10px; font-weight:500; }
+.search-result span { display:block; overflow:hidden; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+.panel-input { width:100%; margin-top:10px; }
+.extension-list { display:flex; flex-direction:column; gap:4px; margin-top:9px; }
+.extension-row { display:flex; align-items:center; gap:8px; width:100%; padding:6px; border-radius:3px; color:#dce0e8; text-align:left; }
+.extension-row:hover { background:#343944; }
+.extension-badge { display:grid; place-items:center; flex:none; width:25px; height:25px; border-radius:4px; background:#315d9d; color:#fff; font-size:9px; }
+.extension-row strong { display:block; font-size:11px; font-weight:500; }
+.extension-row small { display:block; color:#8992a2; font-size:9px; }
 .editor { display:flex; flex-direction:column; min-width:0; min-height:0; background:#191b20; }
 .tabbar { flex:none; height:44px; display:flex; align-items:flex-end; gap:2px; padding:0 9px; background:#272a31; border-bottom:1px solid #30343b; }
 .tab { height:37px; max-width:230px; display:flex; align-items:center; gap:7px; padding:0 12px; color:#a0a8b6; background:#24272d; border-right:1px solid #30343b; border-top:1px solid transparent; font-size:12px; }
@@ -229,16 +257,46 @@ ai-test-panel { display:block; width:300px; height:100%; min-width:0; overflow:h
 .tab-close { margin-left:5px; color:#7d8492; font-size:13px; }
 .editor-main { flex:1; min-height:0; overflow:hidden; }
 .source-breadcrumb { height:27px; display:flex; align-items:center; padding:0 22px; border-bottom:1px solid #24272d; color:#8992a2; font-size:10px; }
+.source-editor { display:flex; height:calc(100% - 27px); overflow:hidden; }
+.line-gutter { flex:none; width:52px; padding:8px 15px 8px 0; overflow:hidden; color:#596172; font:12px/18px "Cascadia Code","Consolas",monospace; text-align:right; user-select:none; }
+.source-textarea { flex:1; min-width:0; margin:0; padding:8px 12px 8px 0; border:0; outline:0; resize:none; overflow:auto; background:transparent; color:#d3d7df; caret-color:#dce0e8; font:calc(12px * var(--editor-zoom,1))/18px "Cascadia Code","Consolas",monospace; white-space:pre; tab-size:4; }
+.source-textarea:focus { box-shadow:inset 0 0 0 1px #3679d4; }
 .source-code { padding:8px 0 0; font:12px/18px "Cascadia Code","Consolas",monospace; }
 .source-line { display:flex; min-height:18px; }
 .source-line.active { background:#292e36; }
 .line-no { width:52px; padding-right:15px; color:#596172; text-align:right; user-select:none; }
 .line-text { color:#d3d7df; white-space:pre; }
 .terminal { flex:none; height:57px; display:flex; flex-direction:column; border-top:1px solid #30343b; background:#191b20; }
+.terminal.expanded { height:160px; }
 .terminal-tabs { height:27px; display:flex; align-items:center; gap:17px; padding:0 38px; color:#8992a2; font-size:10px; }
 .terminal-tabs button.active { color:#dce0e8; }
 .terminal-note { margin-left:auto; color:#6f7786; }
-.terminal pre { margin:0; padding:1px 38px 0; color:#a9b0bc; font:10px/13px "Cascadia Code","Consolas",monospace; }
+.terminal-tabs .terminal-action { margin-left:2px; padding:0 4px; color:#8992a2; font-size:9px; }
+.terminal-tabs .terminal-action:hover { color:#dce0e8; }
+.terminal pre { margin:0; padding:1px 38px 0; color:#a9b0bc; font:10px/13px "Cascadia Code","Consolas",monospace; overflow:auto; white-space:pre-wrap; }
+.terminal-input-row { display:flex; align-items:center; gap:6px; padding:2px 38px; color:#dce0e8; font:10px/14px "Cascadia Code","Consolas",monospace; }
+.terminal-input-row input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:#dce0e8; font:inherit; }
+.terminal-split { display:grid; grid-template-columns:1fr 1fr; gap:1px; height:70px; background:#30343b; }
+.terminal-split pre { margin:0; padding:2px 14px; background:#191b20; }
+.source-code { height:calc(100% - 27px); overflow:auto; outline:none; font-size:calc(12px * var(--editor-zoom,1)); }
+.source-code:focus { box-shadow:inset 0 0 0 1px #3679d4; }
+.tab-close { cursor:pointer; }
+.diff-view { padding:18px 24px; font:12px/22px "Cascadia Code","Consolas",monospace; }
+.diff-line { padding:0 9px; white-space:pre; }
+.diff-line.removed { background:#3a2226; color:#ef9a9a; }
+.diff-line.added { background:#1e3427; color:#8ed39a; }
+.diff-line.context { color:#9aa3b2; }
+.extension-detail { display:flex; gap:16px; padding:24px; color:#dce0e8; }
+.extension-detail .extension-icon { display:grid; place-items:center; flex:none; width:56px; height:56px; border-radius:8px; background:#315d9d; font-weight:700; }
+.extension-detail h2 { margin:0 0 5px; font-size:18px; font-weight:600; }
+.extension-detail p { margin:4px 0; color:#a0a8b6; }
+.command-overlay { position:absolute; z-index:100; inset:35px 0 0; display:flex; justify-content:center; align-items:flex-start; padding-top:38px; background:rgba(0,0,0,.28); }
+.command-palette { width:520px; max-width:calc(100% - 40px); overflow:hidden; border:1px solid #414753; border-radius:5px; background:#252931; box-shadow:0 15px 40px rgba(0,0,0,.5); }
+.command-palette input { width:100%; height:36px; padding:6px 12px; border:0; border-bottom:1px solid #3a3f49; outline:0; background:#292d34; color:#dce0e8; }
+.command-list { max-height:360px; overflow:auto; padding:4px; }
+.command-list button { display:flex; width:100%; align-items:center; padding:6px 8px; border-radius:3px; color:#dce0e8; text-align:left; }
+.command-list button:hover { background:#343944; }
+.command-list button small { margin-left:auto; color:#8992a2; }
 .statusbar { flex:none; height:14px; display:flex; align-items:center; gap:18px; padding:0 8px; background:#272a31; color:#a9b0bc; font-size:10px; }
 .status-spacer { flex:1; }
 .branch { color:#dce0e8; }

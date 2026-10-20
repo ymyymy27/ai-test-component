@@ -95,7 +95,7 @@ for (const [view, expected, sidebarTail, tabOrSource] of cases) {
   mockup.shadowRoot.querySelector('[data-menu="file"]').click();
   assert.match(text(mockup.shadowRoot), /新建文本文件/);
   mockup.shadowRoot.querySelector('[data-menu-action="new"]').click();
-  assert.match(text(mockup.shadowRoot), /已新建文本文件/);
+  assert.match(text(mockup.shadowRoot), /已新建 untitled-/);
 
   mockup.shadowRoot.querySelector('[data-menu="edit"]').click();
   assert.match(text(mockup.shadowRoot), /撤销/);
@@ -114,8 +114,45 @@ for (const [view, expected, sidebarTail, tabOrSource] of cases) {
 
   mockup.shadowRoot.querySelector('[data-activity="files"]').click();
   assert.match(text(mockup.shadowRoot), /资源管理器/);
+  mockup.shadowRoot.querySelector('[data-file="tests/test_status.py"]').click();
+  assert.match(text(mockup.shadowRoot), /def test_update_status/);
+
+  mockup.shadowRoot.querySelector('[data-activity="search"]').click();
+  assert.match(text(mockup.shadowRoot), /输入关键词后搜索/);
+  const searchInput = mockup.shadowRoot.querySelector('[data-search-input]');
+  searchInput.value = "update_status";
+  mockup.shadowRoot.querySelector('[data-run-search]').click();
+  assert.match(text(mockup.shadowRoot), /个结果/);
+  mockup.shadowRoot.querySelector('[data-search-result]').click();
+  assert.match(text(mockup.shadowRoot), /def update_status/);
+
+  mockup.shadowRoot.querySelector('[data-activity="git"]').click();
+  assert.match(text(mockup.shadowRoot), /源代码管理/);
+  mockup.shadowRoot.querySelector('[data-scm-file="src/ticket_service.py"]').click();
+  assert.match(text(mockup.shadowRoot), /工作区差异/);
+  mockup.shadowRoot.querySelector('[data-activity="git"]').click();
+  mockup.shadowRoot.querySelector('[data-stage-all]').click();
+  assert.match(text(mockup.shadowRoot), /已暂存全部更改/);
+
+  mockup.shadowRoot.querySelector('[data-activity="apps"]').click();
+  assert.match(text(mockup.shadowRoot), /AI Test Panel/);
+  mockup.shadowRoot.querySelector('[data-extension="aitest-local.aitest-trae"]').click();
+  assert.match(text(mockup.shadowRoot), /只读核心桥/);
+
+  mockup.shadowRoot.querySelector('[data-terminal-tab-item="终端"]').click();
+  const terminalInput = mockup.shadowRoot.querySelector('[data-terminal-input]');
+  terminalInput.value = "help";
+  terminalInput.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  assert.match(text(mockup.shadowRoot), /可用预览命令/);
+
+  mockup.shadowRoot.querySelector('[data-menu="view"]').click();
+  mockup.shadowRoot.querySelector('[data-menu-action="palette"]').click();
+  assert.match(text(mockup.shadowRoot), /文件: 新建文本文件/);
+  mockup.shadowRoot.querySelector('[data-command="source"]').click();
+  assert.match(text(mockup.shadowRoot), /已切回源码编辑器/);
+
   mockup.shadowRoot.querySelector('[data-activity="aitest"]').click();
   assert.match(text(mockup.shadowRoot.querySelector("ai-test-panel").shadowRoot), /工单状态修改/);
 }
 
-console.log("PASS 10 reference states and all visible sidebar controls");
+console.log("PASS 10 reference states, editor menus, activity views, search, SCM, extensions and terminal");

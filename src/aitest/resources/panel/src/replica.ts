@@ -514,8 +514,29 @@ const sourceLines = [
   " # 本次测试还将独立核验持久化结果", " # 源码编辑区与测试侧栏可以同时保留",
 ];
 
-function sourcePane(crumbs: string): string {
-  return `<div class="source-breadcrumb">${crumbs}</div><div class="source-code">${sourceLines.map((line, index) => `<div class="source-line${index === 10 ? " active" : ""}"><span class="line-no">${index + 1}</span><span class="line-text">${line.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span></div>`).join("")}</div>`;
+const defaultFiles: Readonly<Record<string, string>> = {
+  "src/ticket_service.py": sourceLines.join("\n"),
+  "tests/test_status.py": [
+    "from ticket_service import Ticket, update_status", "", "def test_update_status():", "    ticket = update_status('ticket-042', 'resolved')", "    assert ticket['status'] == 'resolved'", "",
+  ].join("\n"),
+  "README.md": "# ticket-service\n\n本地工单服务示例。\n\n## 测试\n\n运行 `pytest`。\n",
+};
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function sourcePane(crumbs: string, content = sourceLines.join("\n"), highlight = 10): string {
+  const lines = content.split("\n");
+  return `<div class="source-breadcrumb">${crumbs}</div><div class="source-editor"><div class="line-gutter">${lines.map((_line, index) => index + 1).join("<br>")}</div><textarea class="source-textarea${highlight >= 0 ? " has-highlight" : ""}" data-source-editor spellcheck="false">${escapeHtml(content)}</textarea></div>`;
+}
+
+function diffPane(path: string): string {
+  return `<div class="source-breadcrumb">ticket-service › ${path} › 工作区差异</div><div class="diff-view"><div class="diff-line removed">- old_status = ticket.status</div><div class="diff-line added">+ ticket.status = status</div><div class="diff-line context">  repository.save(ticket)</div><div class="diff-line added">+ # 本次测试还将独立核验持久化结果</div></div>`;
+}
+
+function extensionPane(): string {
+  return `<div class="source-breadcrumb">扩展 › AI Test Panel</div><div class="extension-detail"><div class="extension-icon">AI</div><div><h2>AI Test Panel</h2><p>aitest-local.aitest-trae · v0.7.0</p><p>参考图侧栏、详情标签页、参考图预览和只读核心桥。</p><div class="button-row"><button class="btn" data-extension-toggle>禁用</button><button class="btn primary" data-extension-settings>扩展设置</button></div></div></div>`;
 }
 
 function iconForActivity(kind: string): string {
@@ -563,68 +584,391 @@ class AITestMockup extends HTMLElement {
   private statusMessage = "";
   private viewOverride: string | null = null;
   private terminalCleared = false;
+  private terminalVisible = true;
+  private terminalSplit = false;
+  private terminalExpanded = false;
+  private terminalTab: "问题" | "终端" | "输出" = "终端";
+  private activeTerminal = 0;
+  private terminalTabs: Array<{ title: string; lines: string[] }> = [{
+    title: "终端 1",
+    lines: ["PS ticket-service> git status --short", " M src/ticket_service.py", " M tests/test_status.py"],
+  }];
+  private activeFile = "src/ticket_service.py";
+  private fileContents: Record<string, string> = { ...defaultFiles };
+  private editorMode: "source" | "diff" | "extension" = "source";
+  private searchQuery = "";
+  private searchResults: Array<{ file: string; line: number; text: string }> = [];
+  private extensionQuery = "";
+  private showPalette = false;
+  private highlightLine = 10;
+
+  private readonly menuCommands = [
+    ["new", "文件: 新建文本文件", "Ctrl+N"], ["open", "文件: 打开文件…", "Ctrl+O"],
+    ["save", "文件: 保存", "Ctrl+S"], ["source", "查看: 源码编辑器", "Ctrl+1"],
+    ["ai-panel", "查看: AI 测试面板", "Ctrl+2"], ["palette", "查看: 命令面板", "Ctrl+Shift+P"],
+    ["clear-terminal", "终端: 清空", ""], ["toggle-terminal", "终端: 显示/隐藏", "Ctrl+`"],
+  ] as const;
 
   connectedCallback(): void {
-    this.root.addEventListener("click", (event) => {
-      const target = event.target as Element | null;
-      const menu = target?.closest<HTMLElement>("[data-menu]");
-      if (menu) {
-        const id = menu.getAttribute("data-menu");
-        this.activeMenu = this.activeMenu === id ? null : id;
-        this.render();
-        return;
-      }
-      const action = target?.closest<HTMLElement>("[data-menu-action]");
-      if (action) {
-        this.runMenuAction(action.getAttribute("data-menu-action") || "");
-        return;
-      }
-      const activity = target?.closest<HTMLElement>("[data-activity]");
-      if (activity) {
-        this.activity = activity.getAttribute("data-activity") || "aitest";
-        this.activeMenu = null;
-        this.render();
-        return;
-      }
-      if (this.activeMenu !== null) {
-        this.activeMenu = null;
-        this.render();
-      }
-    });
-    this.render();
+    this.root.addEventListener("click", (event) => this.handleClick(event));
+    this.root.addEventListener("input", (event) => this.handleInput(event));
+    this.root.addEventListener("keydown", (event) => this.handleKeydown(event as KeyboardEvent));
     window.addEventListener("aitest-open-detail", ((event: CustomEvent<{ view: string }>) => {
       const view = event.detail?.view;
       if (!view) return;
       this.viewOverride = null;
+      this.editorMode = "source";
       this.activeMenu = null;
+      this.showPalette = false;
       const url = new URL(window.location.href);
       url.searchParams.set("view", view);
       window.history.replaceState(null, "", url);
       this.render();
     }) as EventListener);
+    this.render();
+  }
+
+  private handleClick(event: Event): void {
+    const target = event.target as Element | null;
+    const menu = target?.closest<HTMLElement>("[data-menu]");
+    if (menu) {
+      const id = menu.getAttribute("data-menu");
+      this.activeMenu = this.activeMenu === id ? null : id;
+      this.render();
+      return;
+    }
+    const menuAction = target?.closest<HTMLElement>("[data-menu-action]");
+    if (menuAction) { this.runMenuAction(menuAction.getAttribute("data-menu-action") || ""); return; }
+    const command = target?.closest<HTMLElement>("[data-command]");
+    if (command) { this.showPalette = false; this.runMenuAction(command.getAttribute("data-command") || ""); return; }
+    const activity = target?.closest<HTMLElement>("[data-activity]");
+    if (activity) {
+      this.activity = activity.getAttribute("data-activity") || "aitest";
+      this.editorMode = "source";
+      this.viewOverride = this.activity === "aitest" ? null : "prepare";
+      this.activeMenu = null;
+      this.showPalette = false;
+      this.render();
+      return;
+    }
+    const file = target?.closest<HTMLElement>("[data-file]");
+    if (file) {
+      this.activeFile = file.getAttribute("data-file") || "src/ticket_service.py";
+      this.editorMode = "source";
+      this.viewOverride = "prepare";
+      this.highlightLine = 0;
+      this.render();
+      return;
+    }
+    const result = target?.closest<HTMLElement>("[data-search-result]");
+    if (result) {
+      this.activeFile = result.getAttribute("data-file") || this.activeFile;
+      this.highlightLine = Number(result.getAttribute("data-line") || "0") - 1;
+      this.editorMode = "source";
+      this.viewOverride = "prepare";
+      this.render();
+      this.selectEditorLine(this.highlightLine);
+      return;
+    }
+    const scmFile = target?.closest<HTMLElement>("[data-scm-file]");
+    if (scmFile) {
+      this.activeFile = scmFile.getAttribute("data-scm-file") || this.activeFile;
+      this.editorMode = "diff";
+      this.viewOverride = "prepare";
+      this.render();
+      return;
+    }
+    const extension = target?.closest<HTMLElement>("[data-extension]");
+    if (extension) {
+      this.editorMode = "extension";
+      this.viewOverride = "prepare";
+      this.render();
+      return;
+    }
+    if (target?.closest("[data-run-search]")) { this.runWorkspaceSearch(); return; }
+    if (target?.closest("[data-run-extension-search]")) {
+      const input = this.root.querySelector<HTMLInputElement>("[data-extension-input]");
+      this.extensionQuery = input?.value.trim() ?? "";
+      this.render();
+      return;
+    }
+    if (target?.closest("[data-stage-all]")) { this.statusMessage = "已暂存全部更改"; this.render(); return; }
+    if (target?.closest("[data-commit]")) {
+      const input = this.root.querySelector<HTMLInputElement>("[data-commit-input]");
+      this.statusMessage = input?.value.trim() ? "提交已创建（预览）" : "请输入提交说明";
+      this.render();
+      return;
+    }
+    if (target?.closest("[data-extension-toggle]")) { this.statusMessage = "扩展已禁用（预览）"; this.render(); return; }
+    if (target?.closest("[data-extension-settings]")) { this.statusMessage = "已打开扩展设置"; this.render(); return; }
+    if (target?.closest("[data-terminal-tab-item]")) {
+      this.terminalTab = (target?.closest<HTMLElement>("[data-terminal-tab-item]")?.getAttribute("data-terminal-tab-item") as typeof this.terminalTab) || "终端";
+      this.terminalExpanded = this.terminalTab === "终端";
+      this.render();
+      return;
+    }
+    if (target?.closest("[data-terminal-new]")) { this.newTerminal(); return; }
+    if (target?.closest("[data-terminal-split]")) { this.terminalSplit = !this.terminalSplit; this.render(); return; }
+    if (target?.closest("[data-terminal-clear]")) { this.clearTerminal(); return; }
+    if (target?.closest("[data-palette-close]")) { this.showPalette = false; this.render(); return; }
+    if (this.activeMenu !== null || this.showPalette) { this.activeMenu = null; this.showPalette = false; this.render(); }
+  }
+
+  private handleInput(event: Event): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.matches("[data-source-editor]")) {
+      const text = (target as HTMLTextAreaElement).value;
+      this.fileContents[this.activeFile] = text;
+    }
+    if (target?.matches("[data-search-input]")) this.searchQuery = (target as HTMLInputElement).value;
+    if (target?.matches("[data-extension-input]")) this.extensionQuery = (target as HTMLInputElement).value;
+  }
+
+  private handleKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.matches("[data-terminal-input]") && event.key === "Enter") {
+      event.preventDefault();
+      this.runTerminalCommand((target as HTMLInputElement).value);
+      return;
+    }
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "p") {
+      event.preventDefault(); this.showPalette = true; this.activeMenu = null; this.render(); return;
+    }
+    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "s") {
+      event.preventDefault(); this.runMenuAction("save"); return;
+    }
+    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "b") {
+      event.preventDefault(); this.activity = this.activity === "aitest" ? "files" : "aitest"; this.editorMode = "source"; this.viewOverride = this.activity === "aitest" ? null : "prepare"; this.render(); return;
+    }
+    if (event.ctrlKey && event.key === "`") {
+      event.preventDefault(); this.toggleTerminal(); return;
+    }
+    if (event.key === "Escape" && (this.showPalette || this.activeMenu !== null)) {
+      this.showPalette = false; this.activeMenu = null; this.render();
+    }
   }
 
   private runMenuAction(action: string): void {
-    if (action === "ai-panel") this.activity = "aitest";
-    if (action === "source") { this.activity = "files"; this.viewOverride = "prepare"; }
-    if (action === "close") { this.activity = "files"; this.viewOverride = "prepare"; }
-    if (action === "clear-terminal") this.terminalCleared = true;
-    if (action === "new-terminal") this.terminalCleared = false;
-    const labels: Readonly<Record<string, string>> = {
-      new: "已新建文本文件", open: "打开文件命令已触发", save: "当前源码已保存（预览）",
-      close: "已关闭当前详情，返回源码编辑器", undo: "已撤销上一步", redo: "已重做",
-      cut: "已剪切当前选择", copy: "已复制当前选择", paste: "已粘贴",
-      "ai-panel": "已切换到 AI 测试面板", source: "已切回源码编辑器", palette: "命令面板已打开",
-      "zoom-in": "编辑器已放大", "zoom-out": "编辑器已缩小", "new-terminal": "已新建终端",
-      "split-terminal": "终端已拆分", "clear-terminal": "终端已清空",
-    };
-    this.statusMessage = labels[action] ?? `已执行：${action}`;
+    if (action === "new") { this.newFile(); return; }
+    if (action === "open") { this.openFile(); return; }
+    if (action === "save") { this.saveFile(); return; }
+    if (action === "close") { this.editorMode = "source"; this.viewOverride = "prepare"; this.statusMessage = "已关闭当前详情"; }
+    if (action === "ai-panel") { this.activity = "aitest"; this.viewOverride = null; this.editorMode = "source"; this.statusMessage = "已切换到 AI 测试面板"; }
+    if (action === "source") { this.activity = "files"; this.viewOverride = "prepare"; this.editorMode = "source"; this.statusMessage = "已切回源码编辑器"; }
+    if (action === "palette") { this.showPalette = true; this.activeMenu = null; this.statusMessage = ""; this.render(); return; }
+    if (action === "undo" || action === "redo" || action === "cut" || action === "copy" || action === "paste") {
+      const command = action === "paste" ? "paste" : action;
+      const editor = this.root.querySelector<HTMLElement>("[data-source-editor]");
+      editor?.focus();
+      try {
+        document.execCommand(command);
+      } catch {
+        // The editor and clipboard APIs are host-dependent; feedback still reflects the requested command.
+      }
+      const labels: Readonly<Record<string, string>> = { undo: "已撤销上一步", redo: "已重做", cut: "已剪切当前选择", copy: "已复制当前选择", paste: "已粘贴" };
+      this.statusMessage = labels[action] ?? "";
+    }
+    if (action === "zoom-in") { this.zoom(0.1); return; }
+    if (action === "zoom-out") { this.zoom(-0.1); return; }
+    if (action === "new-terminal") { this.newTerminal(); return; }
+    if (action === "split-terminal") { this.terminalSplit = !this.terminalSplit; this.terminalVisible = true; this.terminalTab = "终端"; this.terminalExpanded = true; this.statusMessage = this.terminalSplit ? "终端已拆分" : "已取消拆分"; }
+    if (action === "clear-terminal") { this.clearTerminal(); return; }
+    if (action === "toggle-terminal") { this.toggleTerminal(); return; }
+    this.activeMenu = null;
+    this.showPalette = false;
+    this.render();
+  }
+
+  private newFile(): void {
+    const id = `untitled-${Object.keys(this.fileContents).filter((path) => path.startsWith("untitled-")).length + 1}.txt`;
+    this.fileContents[id] = "";
+    this.activeFile = id;
+    this.editorMode = "source";
+    this.viewOverride = "prepare";
+    this.activity = "files";
+    this.statusMessage = `已新建 ${id}`;
     this.activeMenu = null;
     this.render();
   }
 
+  private openFile(): void {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "text/*,.py,.ts,.js,.md,.json";
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void file.text().then((text) => {
+        this.fileContents[file.name] = text;
+        this.activeFile = file.name;
+        this.activity = "files";
+        this.editorMode = "source";
+        this.viewOverride = "prepare";
+        this.statusMessage = `已打开 ${file.name}`;
+        this.render();
+      });
+    });
+    input.click();
+    this.activeMenu = null;
+    this.render();
+  }
+
+  private saveFile(): void {
+    const content = this.fileContents[this.activeFile] ?? "";
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = this.activeFile.split("/").pop() || "untitled.txt";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    this.statusMessage = `已保存 ${this.activeFile}`;
+    this.activeMenu = null;
+    this.render();
+  }
+
+  private zoom(delta: number): void {
+    const current = Number(this.style.getPropertyValue("--editor-zoom") || "1");
+    const next = Math.max(0.8, Math.min(1.3, current + delta));
+    this.style.setProperty("--editor-zoom", String(next));
+    this.statusMessage = `编辑器缩放 ${Math.round(next * 100)}%`;
+    this.activeMenu = null;
+    this.render();
+  }
+
+  private runWorkspaceSearch(): void {
+    const input = this.root.querySelector<HTMLInputElement>("[data-search-input]");
+    this.searchQuery = input?.value.trim() ?? "";
+    this.searchResults = [];
+    if (this.searchQuery) {
+      for (const [file, content] of Object.entries(this.fileContents)) {
+        content.split("\n").forEach((line, index) => {
+          if (line.toLowerCase().includes(this.searchQuery.toLowerCase())) {
+            this.searchResults.push({ file, line: index + 1, text: line });
+          }
+        });
+      }
+    }
+    this.render();
+  }
+
+  private selectEditorLine(line: number): void {
+    const editor = this.root.querySelector<HTMLTextAreaElement>("[data-source-editor]");
+    if (!editor || line < 0) return;
+    const lines = editor.value.split("\n");
+    const start = lines.slice(0, line).reduce((total, value) => total + value.length + 1, 0);
+    editor.focus();
+    editor.setSelectionRange(start, start + (lines[line]?.length ?? 0));
+  }
+
+  private newTerminal(): void {
+    this.terminalTabs.push({ title: `终端 ${this.terminalTabs.length + 1}`, lines: [`PS ticket-service>`] });
+    this.activeTerminal = this.terminalTabs.length - 1;
+    this.terminalVisible = true;
+    this.terminalExpanded = true;
+    this.terminalTab = "终端";
+    this.statusMessage = "已新建终端";
+    this.activeMenu = null;
+    this.render();
+  }
+
+  private clearTerminal(): void {
+    if (this.terminalTabs[this.activeTerminal]) this.terminalTabs[this.activeTerminal].lines = ["PS ticket-service>"];
+    this.terminalCleared = true;
+    this.statusMessage = "终端已清空";
+    this.activeMenu = null;
+    this.render();
+  }
+
+  private toggleTerminal(): void {
+    this.terminalVisible = !this.terminalVisible;
+    this.statusMessage = this.terminalVisible ? "终端已显示" : "终端已隐藏";
+    this.render();
+  }
+
+  private runTerminalCommand(raw: string): void {
+    const command = raw.trim();
+    if (!command) return;
+    this.terminalVisible = true; this.terminalTab = "终端"; this.terminalExpanded = true;
+    const tab = this.terminalTabs[this.activeTerminal] ?? this.terminalTabs[0];
+    tab.lines.push(`PS ticket-service> ${command}`);
+    if (command === "clear" || command === "cls") { tab.lines = ["PS ticket-service>"]; }
+    else if (command === "git status" || command === "git status --short") tab.lines.push(" M src/ticket_service.py", " M tests/test_status.py");
+    else if (command === "ls" || command === "dir") tab.lines.push("src  tests  README.md  pyproject.toml");
+    else if (command === "pwd") tab.lines.push("C:\\work\\ticket-service");
+    else if (command === "help") tab.lines.push("可用预览命令: git status, ls, pwd, clear, help");
+    else tab.lines.push(`'${command}' 已执行（预览）`);
+    this.statusMessage = `终端命令已执行：${command}`;
+    this.render();
+    requestAnimationFrame(() => {
+      const input = this.root.querySelector<HTMLInputElement>("[data-terminal-input]");
+      input?.focus();
+    });
+  }
+
   private currentView(): string {
     return this.viewOverride || this.getAttribute("view") || new URL(window.location.href).searchParams.get("view") || "prepare";
+  }
+
+  private fileExplorerPanel(): string {
+    const row = (path: string, label: string, depth = 0): string => `<button class="file-row ${path === this.activeFile ? "active" : ""}" data-file="${path}" style="padding-left:${14 + depth * 16}px"><span class="file-icon">${ic.file}</span><span>${label}</span></button>`;
+    return `<aside class="activity-panel" data-panel="files"><div class="panel-heading">资源管理器</div><div class="panel-project">⌄ 工单服务 <span>本地项目</span></div>
+      <div class="tree-folder">⌄ src</div>${row("src/ticket_service.py", "ticket_service.py", 1)}
+      <div class="tree-folder">⌄ tests</div>${row("tests/test_status.py", "test_status.py", 1)}${row("README.md", "README.md")}
+      <div class="panel-actions"><button data-menu="file">新建文件</button><button data-command="open">打开文件</button><button data-command="save">保存</button></div></aside>`;
+  }
+
+  private searchPanel(): string {
+    const results = this.searchResults.map((item) => `<button class="search-result" data-search-result data-file="${item.file}" data-line="${item.line}"><strong>${item.file}:${item.line}</strong><span>${escapeHtml(item.text.trim()) || "(空行)"}</span></button>`).join("");
+    return `<aside class="activity-panel" data-panel="search"><div class="panel-heading">搜索</div><div class="search-box"><input data-search-input value="${escapeHtml(this.searchQuery)}" placeholder="搜索工作区"><button data-run-search>搜索</button></div><div class="search-summary">${this.searchQuery ? `${this.searchResults.length} 个结果` : "输入关键词后搜索"}</div><div class="search-list">${results}</div></aside>`;
+  }
+
+  private scmPanel(): string {
+    return `<aside class="activity-panel" data-panel="git"><div class="panel-heading">源代码管理</div><div class="scm-branch">⎇ main* <span>2 个更改</span></div><div class="tree-folder">更改</div>
+      <button class="file-row" data-scm-file="src/ticket_service.py"><span class="file-icon">M</span><span>ticket_service.py</span></button>
+      <button class="file-row" data-scm-file="tests/test_status.py"><span class="file-icon">M</span><span>test_status.py</span></button>
+      <input class="panel-input" data-commit-input placeholder="提交说明">
+      <div class="panel-actions"><button data-stage-all>暂存全部</button><button data-commit>提交</button></div></aside>`;
+  }
+
+  private extensionsPanel(): string {
+    const items = [
+      ["AI Test Panel", "aitest-local.aitest-trae", true],
+      ["Python", "ms-python.python", true],
+      ["Pylance", "ms-python.vscode-pylance", true],
+    ].filter(([name, id]) => !this.extensionQuery || `${name} ${id}`.toLowerCase().includes(this.extensionQuery.toLowerCase()));
+    return `<aside class="activity-panel" data-panel="apps"><div class="panel-heading">扩展</div><div class="search-box"><input data-extension-input value="${escapeHtml(this.extensionQuery)}" placeholder="搜索扩展"><button data-run-extension-search>搜索</button></div>
+      <div class="extension-list">${items.map(([name, id]) => `<button class="extension-row" data-extension="${id}"><span class="extension-badge">${String(name).slice(0, 2)}</span><span><strong>${name}</strong><small>${id}</small></span></button>`).join("")}</div>
+      <div class="panel-actions"><button data-extension-toggle>禁用/启用</button><button data-extension-settings>扩展设置</button></div></aside>`;
+  }
+
+  private leftPanelHtml(sidebar: SidebarState): string {
+    if (this.activity === "files") return this.fileExplorerPanel();
+    if (this.activity === "search") return this.searchPanel();
+    if (this.activity === "git") return this.scmPanel();
+    if (this.activity === "apps") return this.extensionsPanel();
+    return `<ai-test-panel demo state="${sidebar}"></ai-test-panel>`;
+  }
+
+  private terminalHtml(): string {
+    if (!this.terminalVisible) return "";
+    const tab = this.terminalTabs[this.activeTerminal] ?? this.terminalTabs[0];
+    const terminalPane = `<pre data-terminal-pane>${escapeHtml(tab.lines.join("\n"))}</pre><div class="terminal-input-row"><span>PS ticket-service&gt;</span><input data-terminal-input autocomplete="off" spellcheck="false" placeholder="输入命令，Enter 执行"></div>`;
+    const issuePane = `<pre>当前没有已保存的问题。\n可从工作台或证据详情创建问题草稿。</pre>`;
+    const outputPane = `<pre>[AI Test] 面板已就绪\n[Extension] aitest-local.aitest-trae@0.7.0\n[Core] 只读查询入口可用</pre>`;
+    let pane = issuePane;
+    if (this.terminalTab === "终端") pane = this.terminalSplit ? `<div class="terminal-split"><pre>${escapeHtml(tab.lines.join("\n"))}</pre><pre>终端 2\nPS ticket-service></pre></div><div class="terminal-input-row"><span>PS ticket-service&gt;</span><input data-terminal-input autocomplete="off" spellcheck="false" placeholder="输入命令，Enter 执行"></div>` : terminalPane;
+    if (this.terminalTab === "输出") pane = outputPane;
+    return `<div class="terminal ${this.terminalExpanded ? "expanded" : ""}"><div class="terminal-tabs">
+      <button data-terminal-tab-item="问题" class="${this.terminalTab === "问题" ? "active" : ""}">问题</button>
+      <button data-terminal-tab-item="终端" class="${this.terminalTab === "终端" ? "active" : ""}">终端</button>
+      <button data-terminal-tab-item="输出" class="${this.terminalTab === "输出" ? "active" : ""}">输出</button>
+      <span class="terminal-note">编辑器原有工具区</span><button class="terminal-action" data-terminal-new>新建</button><button class="terminal-action" data-terminal-split>拆分</button><button class="terminal-action" data-terminal-clear>清空</button></div>${pane}</div>`;
+  }
+
+  private commandPalette(): string {
+    if (!this.showPalette) return "";
+    return `<div class="command-overlay" data-palette-close><section class="command-palette"><input placeholder="输入命令或功能名称" autofocus><div class="command-list">${this.menuCommands.map(([id, label, key]) => `<button data-command="${id}"><span>${label}</span><small>${key}</small></button>`).join("")}<button data-command="new-terminal"><span>终端: 新建终端</span><small></small></button></div></section></div>`;
   }
 
   private render(): void {
@@ -635,26 +979,31 @@ class AITestMockup extends HTMLElement {
     const mapped = viewMap[view] ?? viewMap.prepare;
     const hasDetail = mapped.detail !== "source";
     const active = (id: string): string => this.activity === id ? "active" : "";
-    const activityLabels: Readonly<Record<string, string>> = {
-      files: "资源管理器", search: "搜索", git: "源代码管理", apps: "扩展",
-    };
-    const leftPanel = this.activity === "aitest"
-      ? `<ai-test-panel demo state="${mapped.sidebar}"></ai-test-panel>`
-      : `<aside class="activity-panel"><h2>${activityLabels[this.activity] ?? "编辑器"}</h2><p>这是编辑器原有工具区，参考图中仅展示它与 AI 测试侧栏并存。</p><button class="${this.activity === "files" ? "selected" : ""}">${this.activity === "search" ? "搜索文件与内容" : this.activity === "git" ? "ticket-service · main*" : this.activity === "apps" ? "已安装扩展" : "ticket-service"}</button></aside>`;
     const wrapper = document.createElement("div");
+    const zoom = Number(this.style.getPropertyValue("--editor-zoom") || "1");
+    const editorMain = this.editorMode === "diff"
+      ? diffPane(this.activeFile)
+      : this.editorMode === "extension"
+        ? extensionPane()
+        : hasDetail
+          ? `<ai-test-detail demo view="${mapped.detail}"></ai-test-detail>`
+          : sourcePane(`ticket-service › ${this.activeFile.replace(/\//g, " › ")}`, this.fileContents[this.activeFile] ?? "", this.highlightLine);
+    const detailTab = this.editorMode === "diff" ? "工作区差异" : this.editorMode === "extension" ? "扩展 · AI Test Panel" : mapped.title;
+    const showSecondaryTab = hasDetail || this.editorMode !== "source";
     wrapper.innerHTML = `
-      <div class="app" data-view="${view}">
-        <div class="titlebar">${menuBar(this.activeMenu)}<div class="window-title">${hasDetail ? "ticket-service — Trae" : "ticket-service — 编辑器"}</div><div class="scene-label">交互草图 · 示例数据</div></div>
+      <div class="app" data-view="${view}" style="--editor-zoom:${zoom}">
+        <div class="titlebar">${menuBar(this.activeMenu)}<div class="window-title">${showSecondaryTab ? "ticket-service — Trae" : "ticket-service — 编辑器"}</div><div class="scene-label">交互草图 · 示例数据</div></div>
         <div class="workspace">
           <aside class="activitybar"><button data-activity="files" class="${active("files")}" aria-label="文件">${iconForActivity("files")}</button><button data-activity="search" class="${active("search")}" aria-label="搜索">${iconForActivity("search")}</button><button data-activity="git" class="${active("git")}" aria-label="源代码管理">${iconForActivity("git")}</button><button data-activity="apps" class="${active("apps")}" aria-label="扩展">${iconForActivity("apps")}</button><button data-activity="aitest" class="${active("aitest")}" aria-label="AI 测试">${iconForActivity("flask")}</button></aside>
-          ${leftPanel}
+          ${this.leftPanelHtml(mapped.sidebar)}
           <main class="editor">
-            <div class="tabbar"><div class="tab ${hasDetail ? "" : "active"}">${ic.file}<span>ticket_service.py</span></div>${hasDetail ? `<div class="tab active detail-tab">${ic.flask}<span>${mapped.title}</span><span class="tab-close">×</span></div>` : ""}</div>
-            <div class="editor-main">${hasDetail ? `<ai-test-detail demo view="${mapped.detail}"></ai-test-detail>` : sourcePane("ticket-service › src › ticket_service.py")}</div>
-            <div class="terminal"><div class="terminal-tabs"><button class="active">问题</button><button>终端</button><button>输出</button><span class="terminal-note">编辑器原有工具区</span></div><pre>${this.terminalCleared ? "终端已清空" : `PS ticket-service&gt; git status --short\n M src/ticket_service.py\n M tests/test_status.py`}</pre></div>
+            <div class="tabbar"><div class="tab active">${ic.file}<span>${this.activeFile.split("/").pop()}</span><span class="tab-close" data-command="close">×</span></div>${showSecondaryTab ? `<div class="tab active detail-tab">${ic.flask}<span>${detailTab}</span><span class="tab-close" data-command="close">×</span></div>` : ""}</div>
+            <div class="editor-main">${editorMain}</div>
+            ${this.terminalHtml()}
           </main>
         </div>
-        <div class="statusbar"><span class="branch">⎇ main*</span><span>本地测试核心 · 已连接</span>${this.statusMessage ? `<span class="status-action">${this.statusMessage}</span>` : ""}<span class="status-spacer"></span><span>Python 3.13</span><span>UTF-8</span></div>
+        <div class="statusbar"><span class="branch">⎇ main*</span><span>本地测试核心 · 已连接</span>${this.statusMessage ? `<span class="status-action">${escapeHtml(this.statusMessage)}</span>` : ""}<span class="status-spacer"></span><span>Python 3.13</span><span>UTF-8</span></div>
+        ${this.commandPalette()}
       </div>`;
     this.root.append(style, wrapper);
   }
