@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI 测试面板 · 宿主桥预览</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; background: #181818; }
+    body { display: flex; justify-content: flex-end; }
+    .shell { width: min(420px, 100%); height: 100%; border-left: 1px solid #333; }
+  </style>
+</head>
+<body>
+  <div class="shell"><ai-test-panel></ai-test-panel></div>
+  <script>
+    window.acquireVsCodeApi = function () {
+      return {
+        postMessage: function (message) {
+          window.setTimeout(function () {
+            if (message.kind === "ensureCore") {
+              window.postMessage({ kind: "hostInfo", projectId: "preview-project", workspaceRoot: "C:\\aitest-preview", demoAvailable: false }, "*");
+              window.postMessage({ kind: "outcome", action: "ensure-core", status: "unavailable", code: "PREVIEW_NO_CORE", message: "本地预览没有启动真实核心" }, "*");
+              return;
+            }
+            window.postMessage({
+              kind: "outcome",
+              action: message.action,
+              status: "ok",
+              response: {
+                protocol_version: "aitest.local/2.0",
+                request_id: "preview-request",
+                result: {
+                  status: "READY",
+                  protocol: "aitest.local/2.0",
+                  supported_actions: ["doctor", "storage_usage", "events", "query"],
+                  phase: 1
+                },
+                error: null
+              }
+            }, "*");
+          }, 120);
+        }
+      };
+    };
+  </script>
+  <script src="../dist/index.js"></script>
+</body>
+</html>

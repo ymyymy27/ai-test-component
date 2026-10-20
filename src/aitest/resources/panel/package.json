@@ -1,12 +1,16 @@
 {
   "name": "@aitest/panel",
-  "version": "0.4.0",
+  "version": "0.6.2",
   "private": true,
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
     "build": "npm run check && esbuild src/index.ts --bundle --format=iife --outfile=dist/index.js",
-    "test": "playwright test"
+    "test": "playwright test",
+    "preview": "npm run build && node preview/server.mjs",
+    "test:dom": "node tests/verify-dom.mjs",
+    "test:preview": "node tests/verify-preview.mjs",
+    "test:replica": "node tests/verify-replica.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

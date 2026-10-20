@@ -1,17 +1,80 @@
 {
   "name": "aitest-trae",
-  "displayName": "AI Test — Phase One Skeleton",
-  "description": "Local AI test panel skeleton. Trae compatibility untested; no execution enabled.",
-  "version": "0.4.0",
+  "displayName": "AI Test Panel",
+  "description": "Editor-native AI test panel. Shared Web Component, read-only core queries, controlled write boundary.",
+  "version": "0.6.2",
   "publisher": "aitest-local",
   "private": true,
-  "engines": {"vscode": "^1.85.0"},
-  "categories": ["Testing"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing"
+  ],
   "main": "./dist/extension.js",
-  "activationEvents": ["onCommand:aitest.openPanel"],
-  "capabilities": {"untrustedWorkspaces": {"supported": false}},
+  "activationEvents": [
+    "onView:aitest.panel",
+    "onCommand:aitest.openPanel"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
   "contributes": {
-    "commands": [{"command": "aitest.openPanel", "title": "AI Test: 打开一期骨架面板"}]
+    "commands": [
+      {
+        "command": "aitest.openPanel",
+        "title": "AI Test: 打开 AI 测试面板"
+      },
+      {
+        "command": "aitest.openReferencePreview",
+        "title": "AI Test: 打开参考图预览"
+      }
+    ],
+    "configuration": {
+      "title": "AI 辅助测试",
+      "properties": {
+        "aitest.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "markdownDescription": "启动本地核心入口用的解释器（需已安装本包，或把 `PYTHONPATH` 指向 `src`）。"
+        },
+        "aitest.workspaceRoot": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "**用户数据工作空间**根目录，不是被打开的源码目录。留空时入口如实返回未配置，不会猜测位置。"
+        },
+        "aitest.projectId": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "当前项目的稳定项目 ID。留空时不猜测项目，报告与问题查询会明确拒绝。"
+        },
+        "aitest.demoMode": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "在详情标签页显示参考图演示夹具。只用于界面评审，不代表真实核心数据。"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aitest",
+          "title": "AI 测试",
+          "icon": "media/aitest.svg"
+        }
+      ]
+    },
+    "views": {
+      "aitest": [
+        {
+          "type": "webview",
+          "id": "aitest.panel",
+          "name": "AI 测试面板"
+        }
+      ]
+    }
   },
   "scripts": {
     "check": "tsc --noEmit",
@@ -19,7 +82,10 @@
     "package": "npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0", "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.3.0", "esbuild": "^0.25.0", "typescript": "^5.8.0"
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.3.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
   }
 }

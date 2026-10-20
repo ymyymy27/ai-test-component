@@ -1,18 +1,32 @@
-# Trae 薄扩展骨架
+# Trae / VS Code 兼容宿主适配
 
-仅提供命令和共享面板容器，不写业务文件、不启动第二核心、不生成 MCP 配置。
-采用候选 VSIX API 编译，**尚未在真实 Trae 中国版/国际版安装验证**。
-编译成功不代表宿主兼容；安装、Webview、信任、目录切换和生命周期均待验证。
+本目录提供共享面板的薄宿主适配，不写业务文件、不启动第二个核心、不实现判定规则。
 
-从仓库根目录先构建 `src/aitest/resources/panel`，再在本目录执行：
+- 侧栏视图：`aitest.panel`（Activity Bar 的「AI 测试」容器）
+- 命令：`AI Test: 打开 AI 测试面板`、`AI Test: 打开参考图预览`
+- 共享面板：`../../src/aitest/resources/panel/dist/index.js` 复制为 `dist/panel.js`
+- 只读桥：`doctor`、`query`、`events`、`storage_usage`、`check_source`、`inspect_case_reuse`、`copy_repair_brief`
+- 写动作、确认、运行、发布和导出不从 Webview 直接发起；未接入受控用户入口时按钮保持禁用
 
-```sh
+配置项：
+
+| 配置 | 说明 |
+| --- | --- |
+| `aitest.pythonPath` | 已安装本包的解释器，或通过 `PYTHONPATH` 指向 `src` |
+| `aitest.workspaceRoot` | 用户数据工作空间根目录，不是被打开的源码目录 |
+| `aitest.projectId` | 当前稳定项目 ID；留空时不会猜测项目 |
+| `aitest.demoMode` | 详情标签页显示参考图演示夹具；默认关闭，只用于界面评审 |
+
+构建：
+
+```powershell
+cd src/aitest/resources/panel
+npm ci
+npm run build
+
+cd ../../../../integrations/trae
 npm ci
 npm run package
 ```
 
-制品为 `dist/aitest-trae.vsix`。命令：`AI Test: 打开一期骨架面板`。
-不提供假执行按钮；命名管道和业务用例完成后再连接核心。
-
-未来手动 stdio 配置为 `aitest mcp-relay --binding <binding_id>`，当前该命令明确返回不可用。
-不要将骨架配置登记为已可工作的 MCP 服务，也不要覆盖已有编辑器配置。
+产物：`dist/aitest-trae.vsix`。VSIX 编译和安装成功不等于真实 Trae 兼容验收；真实 Trae 版本、Webview 生命周期、信任、目录切换和核心恢复仍需登记实测证据。
