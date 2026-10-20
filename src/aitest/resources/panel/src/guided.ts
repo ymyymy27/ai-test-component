@@ -8,7 +8,8 @@ export class GuidedRun {
   private waiting: {step:string; action:string}|null=null;
   private note="";
   private needsRefresh=false;
-  reset():void {this.executions.clear();this.waiting=null;this.note="";this.needsRefresh=false;}
+  private conclusions=new Map<string,string>();
+  reset():void {this.executions.clear();this.conclusions.clear();this.waiting=null;this.note="";this.needsRefresh=false;}
   receive(name:string,status:string,result:Record<string,unknown>|undefined):void {
     if(name==="read_view" && status==="ok" && result?.["view_type"]==="run")this.needsRefresh=false;
     if(!this.waiting || this.waiting.action!==name)return;
@@ -20,7 +21,13 @@ export class GuidedRun {
       // A transport receipt alone is insufficient; execution still checks the saved grant.
       current.authorized=true;this.note="授权请求已返回；执行时核心仍会核对已保存授权。";
     }else if(name==="execute_step"){if(current)current.executed=true;this.needsRefresh=true;this.note="执行请求已返回。请刷新步骤，按最新结果进行独立核验。";}
-    else if(name==="verify_pending")this.note="核验请求已返回。刷新后查看实际核验结论与未完成原因。";
+    else if(name==="verify_pending"){
+      // 核验回执带 verification.observation（匹配/不匹配/无结果），此前未展示。
+      const verification=object(result?.["verification"]);
+      const observation=verification?.["observation"];
+      if(this.waiting && typeof observation==="string")this.conclusions.set(this.waiting.step,observation);
+      this.note="核验请求已返回。刷新后查看实际核验结论与未完成原因。";
+    }
     this.waiting=null;
   }
   render(run:Record<string,unknown>|undefined,selected:string|null,enabled:(name:string)=>boolean,
@@ -39,7 +46,8 @@ export class GuidedRun {
     };
     section.append(text("h3",`第 ${steps.indexOf(step)+1} 步`));
     const facts=document.createElement("dl");facts.className="facts";
-    facts.append(text("dt","步骤状态"),text("dd",friendly(step.state)),text("dt","本次尝试"),text("dd",step.current_attempt_id?friendly(step.attempt_state):"尚无执行记录"),text("dt","依据"),text("dd",step.invalidated===true?"已过期，需要处理后重新核对":"以已保存计划为准"));section.append(facts);
+    const conclusion=this.conclusions.get(id);
+    facts.append(text("dt","步骤状态"),text("dd",friendly(step.state)),text("dt","本次尝试"),text("dd",step.current_attempt_id?friendly(step.attempt_state):"尚无执行记录"),text("dt","核验结论"),text("dd",conclusion?friendly(conclusion):"尚未核验"),text("dt","依据"),text("dd",step.invalidated===true?"已过期，需要处理后重新核对":"以已保存计划为准"));section.append(facts);
     const operation=document.createElement("section");operation.className="workbench-part";
     operation.append(text("h3","执行操作"),text("p","先查看操作内容和影响，再确认并执行。","muted"));
     let primary:HTMLButtonElement|undefined;
@@ -63,6 +71,6 @@ export class GuidedRun {
 }
 
 export function friendly(value:unknown):string {
-  const labels:Record<string,string>={passed:"通过",failed:"失败",incomplete:"未完成",not_applicable:"不适用",full:"完整验证",quick:"快速检查",on_demand:"所选检查",planned:"按计划执行",stepwise:"逐步执行",running:"运行中",paused:"已暂停",completed:"已完成",pending:"待处理",blocked:"受阻",cancelled:"已取消",ready:"准备就绪",verified:"已核验",unverified:"待核验"};
+  const labels:Record<string,string>={passed:"通过",failed:"失败",incomplete:"未完成",not_applicable:"不适用",full:"完整验证",quick:"快速检查",on_demand:"所选检查",planned:"按计划执行",stepwise:"逐步执行",running:"运行中",paused:"已暂停",completed:"已完成",pending:"待处理",blocked:"受阻",cancelled:"已取消",ready:"准备就绪",verified:"已核验",unverified:"待核验",matched:"匹配",mismatched:"不匹配",no_result:"无结果",pending_verification:"待核验"};
   return value==null?"待核实":labels[String(value)]??String(value);
 }

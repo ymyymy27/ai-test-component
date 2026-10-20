@@ -461,7 +461,10 @@ class AITestPanel extends HTMLElement {
     if(!view){list.append(text("li",this.project?.run_id ? "读取运行后显示本次计划与用例。" : "发布计划后，用例会显示在这里。","empty"));return list;}
     for(const [caseIndex,id] of cases.entries()){
       const item=document.createElement("li");const children=document.createElement("ul");
-      item.append(text("strong",`用例 ${caseIndex+1}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
+      // 用例编号后不带名称时，用户无法分辨四项检查；按用例编号后缀映射到检查名称。
+      const kind=id.slice(id.lastIndexOf("-")+1);
+      const caseName=({syntax:"加载与语法",normal:"正常输入",boundary:"边界输入",error:"异常输入"} as Record<string,string>)[kind]??"";
+      item.append(text("strong",`用例 ${caseIndex+1}${caseName?` · ${caseName}`:""}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
       for(const raw of steps){const step=object(raw);if(step?.["case_id"]!==id)continue;
         const child=document.createElement("li");child.append(action(`步骤 ${children.childElementCount+1} · ${friendly(step["state"])}`,()=>{this.selectedStep=String(step["step_id"]);this.navigate("workbench");}));children.append(child);}
       item.append(children);list.append(item);
