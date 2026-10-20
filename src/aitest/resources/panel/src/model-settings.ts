@@ -5,7 +5,7 @@ export class ModelSettings {
   private request:string|null=null;
   private loaded=false;
   private endpoint="https://api.deepseek.com";
-  private model="deepseek-chat";
+  private model="deepseek-flash";
   private timeout="60";
   private reference="";
   private note="";
