@@ -32,6 +32,15 @@ export class Onboarding {
     this.send({kind,clientRequestId:this.request,...extra});this.render();
   }
   isConfiguring():boolean{return this.stage==="configure";}
+  restart():void {
+    // 失败后无入口可重来：清空本轮向导状态，回到选择项目；不触碰已保存的项目或运行。
+    this.stage="choose";this.configurationPage=0;this.request=null;this.busy=false;
+    this.queue=[];this.index=0;this.queueStage="";this.receipts={};this.session=null;
+    this.name="";this.goal="";this.dataPolicy="";this.confirmed=false;this.workspace="";
+    this.suggestions="";this.openCheck=0;
+    this.checks=["加载与语法","正常输入","边界输入","异常输入"].map(objective=>({objective,inputs:"",key:"",value:"",type:"text"}));
+    this.note="已重新开始，请重新选择项目。";this.render();
+  }
   receive(data:Record<string,unknown>):boolean {
     if(!data||typeof data!=="object")return false;
     if(!this.request||data.kind!=="wizardResult"||data.clientRequestId!==this.request)return false;
@@ -47,12 +56,15 @@ export class Onboarding {
     }
     this.render();return true;
   }
-  outcome(name:string,status:string,result:Record<string,unknown>|undefined):void {
+  outcome(name:string,status:string,result:Record<string,unknown>|undefined,code?:string,message?:string):void {
     if(name==="doctor" && status==="ok"){this.render();return;}
     const command=this.queue[this.index];if(!this.busy||!command||command.action!==name)return;
     this.busy=false;
     if(status!=="ok" || !result || result.blocked===true || result.published===false&&name==="publish_plan"){
-      this.note="这一步尚未完成。请处理确认窗口或所缺材料，再继续原步骤。";this.render();return;
+      // 固定文案无法区分超时取消、被拒绝与参数错误；回执带原因时如实展示。
+      const reason=(message??"").trim();
+      this.note=reason?`这一步尚未完成：${reason}${code?`（${code}）`:""}`:"这一步尚未完成。请处理确认窗口或所缺材料，再继续原步骤。";
+      this.render();return;
     }
     this.receipts[command.key]=result;
     if(command.key==="suggestions")this.suggestions=plain(result.draft_text??"模型未返回可展示的草稿正文");
@@ -162,6 +174,7 @@ export class Onboarding {
       });
       section.append(action("确认计划并准备测试",()=>this.start("plan"),locked||frozen));
     }else section.append(action("进入测试工作台",()=>this.complete(),locked));
+    if(this.stage!=="choose"&&!locked)section.append(action("重新开始",()=>this.restart()));
     if(this.queue[this.index]&&!locked)section.append(action("继续当前步骤",()=>this.next()));
     const status=text("p",this.note,this.note?"notice":"");status.setAttribute("role","status");section.append(status);return section;
   }

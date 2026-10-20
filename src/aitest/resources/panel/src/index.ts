@@ -281,7 +281,7 @@ class AITestPanel extends HTMLElement {
       this.pendingRequest = null;
       this.pending = false;
       this.render();
-      this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]));
+      this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]),data.code,data.message);
       if (data.action === "ensure-core" && data.status === "ok") {
         this.dispatch("doctor");
       }
