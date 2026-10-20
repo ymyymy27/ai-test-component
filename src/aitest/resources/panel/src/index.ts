@@ -276,7 +276,7 @@ class AITestPanel extends HTMLElement {
         this.commandNote=data.status!=="ok" ? `操作未完成：${data.message ?? "请刷新状态后重试同一操作，或打开诊断查看原因。"}`
           : saved?.["blocked"]===true ? "操作受阻，请检查所需材料。"
           : data.action==="create_report" ? "报告已保存。点击“读取报告修订”查看。"
-          : data.action==="export_report" ? "导出请求已完成，可在诊断中查看制品位置。" : "本次请求已返回，请查看步骤结果。";
+          : data.action==="export_report" ? exportNote(saved) : "本次请求已返回，请查看步骤结果。";
       }
       this.pendingRequest = null;
       this.pending = false;
@@ -1256,6 +1256,13 @@ class AITestPanel extends HTMLElement {
     block.append(list);
     return block;
   }
+}
+
+/** 导出回执带 artifact_ref（相对用户数据工作空间）；直接告知位置，避免用户无从查找。 */
+function exportNote(result:Record<string,unknown>|null|undefined):string {
+  const ref=result?.["artifact_ref"];
+  if(typeof ref!=="string"||!ref.startsWith("artifacts/"))return "导出请求已完成，可在诊断中查看制品位置。";
+  return `导出已完成：${ref}（相对用户数据工作空间）`;
 }
 
 customElements.define("ai-test-panel", AITestPanel);
