@@ -46,6 +46,12 @@ export function activate(context: vscode.ExtensionContext): void {
       if (docked) { void vscode.commands.executeCommand("aitest.sidebar.focus"); }
       else { openPanel(context); }
     }),
+    vscode.commands.registerCommand("aitest.openReferencePreview", () => {
+      if (!vscode.workspace.isTrusted) {
+        void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。"); return;
+      }
+      openReferencePreview(context);
+    }),
     vscode.commands.registerCommand("aitest.configureEntry", async () => {
       if (!vscode.workspace.isTrusted) {
         void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。"); return;
@@ -83,6 +89,33 @@ function openPanel(context: vscode.ExtensionContext): void {
     localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
   });
   attachPanel(context, panel);
+  context.subscriptions.push(panel);
+}
+
+/** Opens the static interaction-reference surface. It is a demo only and does
+ * not send commands, read records, or represent product acceptance evidence. */
+function openReferencePreview(context: vscode.ExtensionContext): void {
+  const panel = vscode.window.createWebviewPanel(
+    "aitest.reference",
+    "AI 测试 · 参考图预览",
+    vscode.ViewColumn.Active,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
+    },
+  );
+  const script = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "dist", "reference.js"),
+  );
+  const nonce = randomBytes(24).toString("hex");
+  panel.webview.html = `<!doctype html><html lang="zh-CN"><head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">
+    <title>AI 测试参考图预览</title></head>
+    <body style="margin:0;background:#111318"><aitest-mockup></aitest-mockup>
+    <script nonce="${nonce}">window.__AITEST_DEMO__=true;</script>
+    <script nonce="${nonce}" src="${script}"></script></body></html>`;
   context.subscriptions.push(panel);
 }
 
