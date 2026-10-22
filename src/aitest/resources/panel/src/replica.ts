@@ -536,7 +536,7 @@ function diffPane(path: string): string {
 }
 
 function extensionPane(): string {
-  return `<div class="source-breadcrumb">扩展 › AI Test Panel</div><div class="extension-detail"><div class="extension-icon">AI</div><div><h2>AI Test Panel</h2><p>aitest-local.aitest-trae · v0.7.0</p><p>参考图侧栏、详情标签页、参考图预览和只读核心桥。</p><div class="button-row"><button class="btn" data-extension-toggle>禁用</button><button class="btn primary" data-extension-settings>扩展设置</button></div></div></div>`;
+  return `<div class="source-breadcrumb">扩展 › AI Test Panel</div><div class="extension-detail"><div class="extension-icon">AI</div><div><h2>AI Test Panel</h2><p>aitest-local.aitest-trae · v0.7.1</p><p>参考图侧栏、详情标签页、参考图预览和只读核心桥。</p><div class="button-row"><button class="btn" data-extension-toggle>禁用</button><button class="btn primary" data-extension-settings>扩展设置</button></div></div></div>`;
 }
 
 function iconForActivity(kind: string): string {
@@ -630,6 +630,25 @@ class AITestMockup extends HTMLElement {
 
   private handleClick(event: Event): void {
     const target = event.target as Element | null;
+    const closeTab = target?.closest<HTMLElement>("[data-close-tab]");
+    if (closeTab) {
+      event.stopPropagation();
+      const kind = closeTab.getAttribute("data-close-tab");
+      if (kind === "detail") {
+        this.editorMode = "source";
+        this.viewOverride = "prepare";
+        this.statusMessage = "已关闭详情标签页";
+      } else if (kind === "source") {
+        const closed = this.activeFile;
+        this.activeFile = "";
+        this.editorMode = "source";
+        this.viewOverride = this.currentView() === "prepare" ? "prepare" : null;
+        this.statusMessage = closed ? `已关闭 ${closed.split("/").pop()}` : "编辑器已关闭";
+      }
+      this.activeMenu = null;
+      this.render();
+      return;
+    }
     const menu = target?.closest<HTMLElement>("[data-menu]");
     if (menu) {
       const id = menu.getAttribute("data-menu");
@@ -955,7 +974,7 @@ class AITestMockup extends HTMLElement {
     const tab = this.terminalTabs[this.activeTerminal] ?? this.terminalTabs[0];
     const terminalPane = `<pre data-terminal-pane>${escapeHtml(tab.lines.join("\n"))}</pre><div class="terminal-input-row"><span>PS ticket-service&gt;</span><input data-terminal-input autocomplete="off" spellcheck="false" placeholder="输入命令，Enter 执行"></div>`;
     const issuePane = `<pre>当前没有已保存的问题。\n可从工作台或证据详情创建问题草稿。</pre>`;
-    const outputPane = `<pre>[AI Test] 面板已就绪\n[Extension] aitest-local.aitest-trae@0.7.0\n[Core] 只读查询入口可用</pre>`;
+    const outputPane = `<pre>[AI Test] 面板已就绪\n[Extension] aitest-local.aitest-trae@0.7.1\n[Core] 只读查询入口可用</pre>`;
     let pane = issuePane;
     if (this.terminalTab === "终端") pane = this.terminalSplit ? `<div class="terminal-split"><pre>${escapeHtml(tab.lines.join("\n"))}</pre><pre>终端 2\nPS ticket-service></pre></div><div class="terminal-input-row"><span>PS ticket-service&gt;</span><input data-terminal-input autocomplete="off" spellcheck="false" placeholder="输入命令，Enter 执行"></div>` : terminalPane;
     if (this.terminalTab === "输出") pane = outputPane;
@@ -981,15 +1000,24 @@ class AITestMockup extends HTMLElement {
     const active = (id: string): string => this.activity === id ? "active" : "";
     const wrapper = document.createElement("div");
     const zoom = Number(this.style.getPropertyValue("--editor-zoom") || "1");
+    const hasSourceTab = this.activeFile.length > 0;
+    const showSecondaryTab = hasDetail || this.editorMode !== "source";
     const editorMain = this.editorMode === "diff"
       ? diffPane(this.activeFile)
       : this.editorMode === "extension"
         ? extensionPane()
         : hasDetail
           ? `<ai-test-detail demo view="${mapped.detail}"></ai-test-detail>`
-          : sourcePane(`ticket-service › ${this.activeFile.replace(/\//g, " › ")}`, this.fileContents[this.activeFile] ?? "", this.highlightLine);
+          : hasSourceTab
+            ? sourcePane(`ticket-service › ${this.activeFile.replace(/\//g, " › ")}`, this.fileContents[this.activeFile] ?? "", this.highlightLine)
+            : `<div class="editor-empty"><h2>编辑器已关闭</h2><p>从资源管理器打开文件，或使用“文件 → 新建文本文件”。</p></div>`;
     const detailTab = this.editorMode === "diff" ? "工作区差异" : this.editorMode === "extension" ? "扩展 · AI Test Panel" : mapped.title;
-    const showSecondaryTab = hasDetail || this.editorMode !== "source";
+    const sourceTab = hasSourceTab
+      ? `<div class="tab ${showSecondaryTab ? "" : "active"}">${ic.file}<span>${this.activeFile.split("/").pop()}</span><span class="tab-close" data-close-tab="source" title="关闭编辑器">×</span></div>`
+      : "";
+    const secondaryTab = showSecondaryTab
+      ? `<div class="tab active detail-tab">${ic.flask}<span>${detailTab}</span><span class="tab-close" data-close-tab="detail" title="关闭详情">×</span></div>`
+      : "";
     wrapper.innerHTML = `
       <div class="app" data-view="${view}" style="--editor-zoom:${zoom}">
         <div class="titlebar">${menuBar(this.activeMenu)}<div class="window-title">${showSecondaryTab ? "ticket-service — Trae" : "ticket-service — 编辑器"}</div><div class="scene-label">交互草图 · 示例数据</div></div>
@@ -997,7 +1025,7 @@ class AITestMockup extends HTMLElement {
           <aside class="activitybar"><button data-activity="files" class="${active("files")}" aria-label="文件">${iconForActivity("files")}</button><button data-activity="search" class="${active("search")}" aria-label="搜索">${iconForActivity("search")}</button><button data-activity="git" class="${active("git")}" aria-label="源代码管理">${iconForActivity("git")}</button><button data-activity="apps" class="${active("apps")}" aria-label="扩展">${iconForActivity("apps")}</button><button data-activity="aitest" class="${active("aitest")}" aria-label="AI 测试">${iconForActivity("flask")}</button></aside>
           ${this.leftPanelHtml(mapped.sidebar)}
           <main class="editor">
-            <div class="tabbar"><div class="tab active">${ic.file}<span>${this.activeFile.split("/").pop()}</span><span class="tab-close" data-command="close">×</span></div>${showSecondaryTab ? `<div class="tab active detail-tab">${ic.flask}<span>${detailTab}</span><span class="tab-close" data-command="close">×</span></div>` : ""}</div>
+            <div class="tabbar">${sourceTab}${secondaryTab}</div>
             <div class="editor-main">${editorMain}</div>
             ${this.terminalHtml()}
           </main>

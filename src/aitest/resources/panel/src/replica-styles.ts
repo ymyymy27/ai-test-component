@@ -254,8 +254,12 @@ ai-test-panel { display:block; width:300px; height:100%; min-width:0; overflow:h
 .tab svg { width:15px; height:15px; flex:none; color:#a7b1c0; }
 .tab span:nth-child(2) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .detail-tab { max-width:270px; }
-.tab-close { margin-left:5px; color:#7d8492; font-size:13px; }
+.tab-close { display:grid; place-items:center; flex:none; width:18px; height:18px; margin-left:5px; border-radius:3px; color:#7d8492; font-size:13px; cursor:pointer; }
+.tab-close:hover { background:#3a3f49; color:#dce0e8; }
 .editor-main { flex:1; min-height:0; overflow:hidden; }
+.editor-empty { display:flex; height:100%; flex-direction:column; align-items:center; justify-content:center; padding:24px; color:#8992a2; text-align:center; }
+.editor-empty h2 { margin:0 0 8px; color:#c8cdd7; font-size:16px; font-weight:500; }
+.editor-empty p { margin:0; }
 .source-breadcrumb { height:27px; display:flex; align-items:center; padding:0 22px; border-bottom:1px solid #24272d; color:#8992a2; font-size:10px; }
 .source-editor { display:flex; height:calc(100% - 27px); overflow:hidden; }
 .line-gutter { flex:none; width:52px; padding:8px 15px 8px 0; overflow:hidden; color:#596172; font:12px/18px "Cascadia Code","Consolas",monospace; text-align:right; user-select:none; }

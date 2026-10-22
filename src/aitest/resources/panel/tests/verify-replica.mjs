@@ -116,6 +116,11 @@ for (const [view, expected, sidebarTail, tabOrSource] of cases) {
   assert.match(text(mockup.shadowRoot), /资源管理器/);
   mockup.shadowRoot.querySelector('[data-file="tests/test_status.py"]').click();
   assert.match(text(mockup.shadowRoot), /def test_update_status/);
+  mockup.shadowRoot.querySelector('[data-close-tab="source"]').click();
+  assert.match(text(mockup.shadowRoot), /编辑器已关闭/);
+  assert.equal(mockup.shadowRoot.querySelector('[data-close-tab="source"]'), null);
+  mockup.shadowRoot.querySelector('[data-activity="files"]').click();
+  mockup.shadowRoot.querySelector('[data-file="tests/test_status.py"]').click();
 
   mockup.shadowRoot.querySelector('[data-activity="search"]').click();
   assert.match(text(mockup.shadowRoot), /输入关键词后搜索/);
@@ -150,6 +155,13 @@ for (const [view, expected, sidebarTail, tabOrSource] of cases) {
   assert.match(text(mockup.shadowRoot), /文件: 新建文本文件/);
   mockup.shadowRoot.querySelector('[data-command="source"]').click();
   assert.match(text(mockup.shadowRoot), /已切回源码编辑器/);
+  mockup.setAttribute("view", "result");
+  mockup.viewOverride = null;
+  mockup.render();
+  assert.ok(mockup.shadowRoot.querySelector('[data-close-tab="detail"]'));
+  mockup.shadowRoot.querySelector('[data-close-tab="detail"]').click();
+  assert.match(text(mockup.shadowRoot), /已关闭详情标签页/);
+  assert.equal(mockup.shadowRoot.querySelector('[data-close-tab="detail"]'), null);
 
   mockup.shadowRoot.querySelector('[data-activity="aitest"]').click();
   assert.match(text(mockup.shadowRoot.querySelector("ai-test-panel").shadowRoot), /工单状态修改/);
