@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.facts import ExecutionFactsAssembler, ExecutionFactsAssembly
-from aitest.application.execution.step_content import freeze_initial_step_contents
+from aitest.application.execution.step_content import (
+    FrozenStepContent,
+    freeze_initial_step_contents,
+)
 from aitest.application.planning.basis_validation import validate_prepared_material
 from aitest.application.planning.preparation_origin import (
     load_saved_preparation,
@@ -29,10 +33,12 @@ from aitest.contracts.execution_facts import (
     ExecutionFacts,
     FactCompleteness,
 )
-from aitest.contracts.prepared_run import PreparedRun, PreparedRunStatusFact
+from aitest.contracts.prepared_run import ExecutionSourceBinding, PreparedRun, PreparedRunStatusFact
 from aitest.domain.execution.runs import (
+    AdapterKind,
     InputRef,
     PlanRevisionRef,
+    RegisteredEntryRef,
     Run,
     RunTier,
     Step,
@@ -112,6 +118,7 @@ class InitialRunRegistration:
             prepared=prepared, run=run, steps=steps, reader=self.reader
         )
         steps = tuple(item.step for item in material)
+        projected_steps = _project_step_entries(prepared, material)
         facts = ExecutionFactsAssembler().assemble(
             ExecutionFactsAssembly(
                 facts_id="initial-" + run_id,
@@ -120,7 +127,7 @@ class InitialRunRegistration:
                 snapshot_revision=1,
                 committed_at=datetime.now(UTC),
                 run=run,
-                steps=steps,
+                steps=projected_steps,
                 attempts=(),
                 completeness=FactCompleteness.UNKNOWN,
                 coverage=CoverageSummary(
@@ -181,7 +188,7 @@ class InitialRunRegistration:
                 )
             registered = self.coordinator.stage_initial_run(
                 run=run,
-                steps=steps,
+                steps=projected_steps,
                 facts=facts,
                 fingerprint=fingerprint,
                 prepared_run_id=prepared_run_id,
@@ -219,6 +226,58 @@ class InitialRunRegistration:
                 "saved preparation basis cannot be verified: "
                 + "; ".join(p.message for p in problems)
             )
+
+
+def _frozen_adapter_kind(binding: ExecutionSourceBinding) -> AdapterKind:
+    """按裁定 3A：适配器由 `adapter_versions` 的**唯一键**决定（与解析器同一口径）。"""
+
+    versions = binding.adapter_versions
+    if len(versions) != 1:
+        raise ValueError("frozen execution source must declare exactly one adapter version key")
+    try:
+        return AdapterKind(next(iter(versions)))
+    except ValueError as error:
+        raise ValueError("frozen adapter version key is not a known adapter kind") from error
+
+
+def _project_step_entries(
+    prepared: PreparedRun, material: tuple[FrozenStepContent, ...]
+) -> tuple[Step, ...]:
+    """把**逐用例入口**写进步骤冻结投影（口径见 #95）。
+
+    一次 prepare 只冻结**一份**执行来源绑定（`registered_entry` 与参数数组），而向导为每个
+    用例冻结了各自的 `inputs`。逐用例差异因此只能落在**步骤投影**上——
+
+    - 入口身份取冻结绑定的 `registered_entry`（`_require_registered_entry` 逐字核对）；
+    - 适配器取冻结 `adapter_versions` 的唯一键（`_adapter_kind` 逐字核对）；
+    - 可执行文件取**核心观测**的环境事实 `executable_path`（不是客户端自述，也不在此发明命令）；
+    - 参数 = **冻结绑定参数 + 该用例在冻结用例记录里的 `inputs`**。
+
+    解析器据此把两段都当冻结事实逐字比对（`SavedActionResolver._arguments`）：既不做代入，
+    也不接受绑定之外的追加。未投影的旧记录仍走"仅比对绑定参数"的原有路径。
+    """
+
+    binding = prepared.execution_source
+    resolution = prepared.environment.resolution
+    if resolution is None or not resolution.executable_path.strip():
+        raise ValueError("initial registration requires the observed carrier identity")
+    kind = _frozen_adapter_kind(binding)
+    executable = resolution.executable_path
+    projected: list[Step] = []
+    for item in material:
+        arguments = tuple(binding.entry_arguments) + tuple(item.content.checked_case().inputs)
+        projected.append(
+            replace(
+                item.step,
+                registered_entry_ref=RegisteredEntryRef(
+                    entry_id=binding.registered_entry,
+                    adapter_kind=kind,
+                    entrypoint=executable,
+                    arguments=arguments,
+                ),
+            )
+        )
+    return tuple(projected)
 
 
 def _initial_domain(

@@ -2,7 +2,14 @@
 
 面板是**展示与只读查询**入口：写动作必须经受控用户入口并携带授权，界面点击不等于
 用户确认（`docs/项目文档/一期/设计文档/01-面板与工作台.md`、`05-Trae接入.md`）。
-本文件把该边界锁在源码上：任何写动作名出现在面板派发路径都视为回归。
+本文件把该边界锁在源码上：任何写动作名进入面板的**派发通道**都视为回归。
+
+口径（2026-10 复核）：安全边界是 **Trae 桥白名单**（`integrations/trae/src/core-bridge.ts`
+的 `READ_ONLY_ACTIONS == READ_ACTIONS`，保持不变）与**核心原生确认窗口**
+（`native_confirmation.NATIVE_ACTIONS`）。面板允许为用户**构造命令草稿**（含写动作名与
+参数），但**不得自行派发**——写命令只能经「受控用户入口」提交，由核心原生窗口强制确认。
+因此这里锁的是「写动作名不得出现在只读入口表，也不得出现在 `this.dispatch("…")` /
+`this.dispatchScoped("…")` 字面量里」，而非「源码里不得出现写动作名」。
 
 与 `test_trae_read_only_allowlist.py` 同一口径：那份锁 Trae 桥的白名单，这份锁面板的
 实际派发调用与动作表。
@@ -55,13 +62,20 @@ def test_panel_dispatches_only_read_actions() -> None:
     )
 
 
-def test_panel_source_never_names_a_write_action() -> None:
-    """再单独锁一遍：写动作名不得出现在面板源码里（含注释与提示文案）。"""
+def test_panel_never_routes_a_write_action_through_its_dispatch_channel() -> None:
+    """口径锁：写动作名不得进入面板的**派发通道**（只读入口表 + 派发字面量）。
+
+    面板可以出现写动作名（例如为用户构造 `publish_plan` / `export_report` 的命令草稿），
+    但那只是**草稿**：真正的提交走受控用户入口，由核心原生确认窗口强制确认。这里不允许
+    的是面板把写动作名写进只读入口表、或写成 `this.dispatch("…")` / `this.dispatchScoped("…")`
+    字面量——那等于绕开确认直接把写命令送到核。
+    """
 
     source = _panel_source()
     writes = frozenset(PHASE_ONE_ACTIONS) - frozenset(READ_ACTIONS)
-    present = sorted(name for name in writes if name in source)
-    assert not present, f"面板源码出现写动作名：{present}"
+    routed = set(_DISPATCH_LITERAL.findall(source)) | _entries_table_actions(source)
+    present = sorted(routed & writes)
+    assert not present, f"写动作进入面板派发通道（易绕开确认）：{present}"
 
 
 def test_panel_scopes_project_queries_to_the_host_context() -> None:

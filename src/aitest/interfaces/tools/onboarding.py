@@ -9,10 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from aitest.application.project.onboarding import OnboardingForm, wizard_commands
-from aitest.infrastructure.credentials import SecretManager, WindowsCredentialProvider
-from aitest.infrastructure.environment_configuration import carrier_configuration
-from aitest.infrastructure.model_configuration import validate_model_configuration
-from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
+from aitest.bootstrap import (
+    carrier_configuration,
+    reject_path_links,
+    save_purpose_credential,
+    validate_model_configuration,
+    verify_purpose_credential,
+)
 
 
 def setup(data: dict[str, Any]) -> dict[str, Any]:
@@ -22,8 +25,8 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("项目身份无效")
     if not root.is_absolute() or not source.is_absolute() or root.name != project:
         raise ValueError("请选择独立的测试数据目录")
-    RegisteredPythonEnvironmentResolver._no_links(root)
-    RegisteredPythonEnvironmentResolver._no_links(source)
+    reject_path_links(root)
+    reject_path_links(source)
     if (root.resolve().is_relative_to(source.resolve())
             or source.resolve().is_relative_to(root.resolve())):
         raise ValueError("测试数据和被测源码目录必须分开")
@@ -45,10 +48,22 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
         with marker.open("x", encoding="utf-8") as stream:
             json.dump(configuration, stream)
     workspace = root / "workspace"
-    RegisteredPythonEnvironmentResolver._no_links(workspace)
+    reject_path_links(workspace)
     workspace.mkdir(exist_ok=True)
-    return {"carriers_file": str(marker), "workspace": str(workspace),
-            "environment_ready": True, "dependencies": "独立 Python 3.13 环境，仅标准库"}
+    return {
+        "carriers_file": str(marker),
+        "workspace": str(workspace),
+        "environment_ready": True,
+        "dependencies": "独立 Python 3.13 环境，仅标准库",
+        # 登记文件只是材料：必须由宿主把环境变量指向它并受控重启核心，
+        # 否则环境相关动作（如 prepare_run）会被门禁拒绝且看不出原因。
+        "env_var": "AITEST_PYTHON_CARRIERS",
+        "env_value": str(marker),
+        "restart_hint": (
+            "把 AITEST_PYTHON_CARRIERS 设为上面的 env_value，然后受控重启核心，"
+            "环境依赖动作才会生效"
+        ),
+    }
 
 
 def main() -> int:
@@ -64,19 +79,18 @@ def main() -> int:
             result = {"commands": wizard_commands(OnboardingForm.model_validate(data["form"]),
                 data["stage"], data.get("receipts", {}))}
         elif operation == "credential":
-            WindowsCredentialProvider().save(purpose="model", reference=data["reference"],
-                                             value=data["value"])
+            save_purpose_credential(purpose="model", reference=data["reference"],
+                                    value=data["value"])
             result = {"configured": True, "reference": data["reference"]}
         elif operation == "model":
             target = Path(data["root"]) / "model.json"
             if not target.is_absolute():
                 raise ValueError("模型配置位置无效")
-            RegisteredPythonEnvironmentResolver._no_links(target)
+            reject_path_links(target)
             config = {"schema_version": "aitest.model-provider/1", "endpoint": data["endpoint"],
                       "credential_reference": data["reference"]}
             validate_model_configuration(config)
-            secret = SecretManager.default().resolve(data["reference"], purpose="model")
-            secret.clear()
+            verify_purpose_credential(purpose="model", reference=data["reference"])
             if target.exists() and json.loads(target.read_text(encoding="utf-8")) != config:
                 raise ValueError("已有配置不同，请在无活动执行的新项目中配置")
             target.parent.mkdir(parents=True, exist_ok=True)

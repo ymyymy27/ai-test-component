@@ -27,6 +27,9 @@ _GENERIC_READ = 0x80000000
 _GENERIC_WRITE = 0x40000000
 _OPEN_EXISTING = 3
 _ERROR_PIPE_BUSY = 231
+#: 服务端在两次连接之间重建同名管道实例时，管道名短暂不存在；
+#: 该窗口内 CreateFileW 返回的是「文件未找到」而不是「管道忙」。
+_ERROR_FILE_NOT_FOUND = 2
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _TOKEN_QUERY = 0x8
 _TOKEN_USER = 1
@@ -558,7 +561,12 @@ class NamedPipeClient(_PipeIO):
         self._peer_pid: int | None = None
 
     def connect(self, *, timeout_ms: int = 2000) -> None:
-        """连接服务端管道，超时内重试 ``ERROR_PIPE_BUSY``。
+        """连接服务端管道，超时内重试 ``ERROR_PIPE_BUSY`` 与实例重建间隙。
+
+        服务端每处理完一条连接就重建同名管道实例，两实例之间存在管道名
+        短暂不存在的窗口（``ERROR_FILE_NOT_FOUND``）。它与 ``ERROR_PIPE_BUSY``
+        同属「核心仍在、只是暂时连不上」，必须在限定时间内同样重试，
+        否则客户端会把重建间隙误判为「核心不存在」而去启动新核心。
 
         原实现遇 ``ERROR_PIPE_BUSY`` 后递归调用自身，并发场景会
         ``RecursionError``。改为基于 ``time.monotonic`` 的有限循环。
@@ -586,7 +594,7 @@ class NamedPipeClient(_PipeIO):
                     self.close()
                     raise PipeUnavailable("核心管道服务端身份无法核实") from error
                 return
-            if ctypes.get_last_error() != _ERROR_PIPE_BUSY:
+            if ctypes.get_last_error() not in (_ERROR_PIPE_BUSY, _ERROR_FILE_NOT_FOUND):
                 raise PipeUnavailable("核心管道不存在或不可连接")
             remaining_ms = int((deadline - time.monotonic()) * 1000)
             if remaining_ms <= 0:

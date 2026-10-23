@@ -106,7 +106,7 @@ def wizard_commands(
                                 "expected_facts": check.expected}, ensure_ascii=False)
             case = Case(identity, 1, CaseLayer.L1 if name == "syntax" else CaseLayer.L2,
                 check.objective, (form.data_policy,), (check.inputs,),
-                ("运行已选择的测试入口：" + form.entry,),
+                ("运行已选择的测试入口：" + form.entry + "，并把本用例输入作为命令行参数传入",),
                 "逐项比对已确认的独立预期：" + json.dumps(check.expected, ensure_ascii=False),
                 "pure-function-stdout",
                 CaseLink(frozenset({identity}), environment_ids=frozenset({environment_id}),

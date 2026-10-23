@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from contextlib import suppress
 from pathlib import Path
 from uuid import uuid4
 
@@ -130,15 +129,24 @@ class HostConfiguredEnvironmentResolver:
 
     def __init__(self) -> None:
         self.resolver: RegisteredPythonEnvironmentResolver | None = None
+        #: 配置无效的具体原因；只在环境相关动作失败时回指，避免静默降级后
+        #: 只报一句「配置无效」而没有任何可修复线索。
+        self.configuration_error: str | None = None
         configured = os.environ.get("AITEST_PYTHON_CARRIERS")
-        # Keep invalid configuration local to environment-dependent actions;
-        # raw file content never enters shared diagnostics.
-        with suppress(OSError, ValueError, TypeError):
-            self.resolver = (
-                _load(Path(configured)) if configured else RegisteredPythonEnvironmentResolver()
-            )
+        if configured:
+            try:
+                self.resolver = _load(Path(configured))
+            except (OSError, ValueError, TypeError) as error:
+                # 原始文件内容绝不进入共享诊断；只保留异常种类与消息。
+                self.configuration_error = f"{type(error).__name__}: {error}"
+        else:
+            self.resolver = RegisteredPythonEnvironmentResolver()
 
     def resolve(self, request: EnvironmentResolutionRequest) -> EnvironmentRefFact:
         if self.resolver is None:
-            raise ValueError("宿主 Python 载体配置无效；修正 AITEST_PYTHON_CARRIERS 后受控重启核心")
+            detail = self.configuration_error or "AITEST_PYTHON_CARRIERS 为空"
+            raise ValueError(
+                "宿主 Python 载体配置无效；修正 AITEST_PYTHON_CARRIERS 后受控重启核心"
+                f"（原因：{detail}）"
+            )
         return self.resolver.resolve(request)

@@ -63,7 +63,9 @@ class ExecutionCommands:
             or not command.target.strip()
         ):
             raise InvalidExecutionCommand(
-                "registration/preparation/consent requires project, intent, target and revision 0"
+                "执行类动作要求 非空 project_id、intent_id、target（登记/准备/授权/执行/核验），"
+                "并且 expected_revision 必须为 0、request_id 不得等于 intent_id；"
+                f"当前 expected_revision={command.expected_revision!r}"
             )
         return command.project_id, command.intent_id
 

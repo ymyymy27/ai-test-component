@@ -136,7 +136,7 @@ from aitest.infrastructure.connections import (
     EndpointConfig,
     LocalAPIConnectionBridge,
 )
-from aitest.infrastructure.credentials import SecretManager
+from aitest.infrastructure.credentials import SecretManager, WindowsCredentialProvider
 from aitest.infrastructure.environment_configuration import (
     HostConfiguredEnvironmentResolver,
 )
@@ -171,7 +171,11 @@ from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 from aitest.infrastructure.host_lifetime import cli_host_pid as cli_host_pid
 from aitest.infrastructure.model_configuration import host_model_configuration
+from aitest.infrastructure.model_configuration import (
+    validate_model_configuration as validate_model_configuration,
+)
 from aitest.infrastructure.projections import SafeMaterialProjector
+from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
 from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
 from aitest.interfaces.local.api import Handler, LocalAPI, Session
@@ -2086,6 +2090,26 @@ def make_editor_host(
         wait_timeout_seconds=wait_timeout_seconds,
         poll_interval_seconds=poll_interval_seconds,
     )
+
+
+def save_purpose_credential(*, purpose: str, reference: str, value: str) -> None:
+    """宿主装配入口：把凭据写入留给组合根，接口层不直接依赖基础设施实现。
+
+    依赖方向要求 `interfaces` 不导入 `aitest.infrastructure`（架构 00 第 11 节 /
+    `tests/architecture/test_boundaries.py`）；安全凭据的落盘实现只在这里装配。
+    """
+    WindowsCredentialProvider().save(purpose=purpose, reference=reference, value=value)
+
+
+def verify_purpose_credential(*, purpose: str, reference: str) -> None:
+    """只做「能否解析」的能力探测：解析后立刻清理，明文不离开本函数。"""
+    secret = SecretManager.default().resolve(reference, purpose=purpose)
+    secret.clear()
+
+
+def reject_path_links(path: Path) -> None:
+    """路径级「拒绝符号链接/交接点」检查的装配入口（接口层不直接依赖基础设施）。"""
+    RegisteredPythonEnvironmentResolver._no_links(path)
 
 
 def acquire_endpoint(

@@ -125,10 +125,11 @@ class SavedActionResolver:
         environment_identity = _environment_identity(prepared)
         timeout_ms = self._frozen_timeout_ms(run.project_id, prepared)
         _step_content_scope(step_content, run, step)
+        case_inputs = _frozen_case_inputs(step_content)
         environment_fact = _environment_resolution(prepared)
         entry = self._frozen_entry(step, binding, environment_fact)
         adapter_kind = self._adapter_kind(binding, entry.adapter_kind)
-        arguments = self._arguments(binding, entry)
+        arguments = self._arguments(binding, step, entry, case_inputs)
         source_binding_digest, workdir, admitted = _admission_digest(
             self._admission, run, step, snapshot_id, binding
         )
@@ -409,12 +410,25 @@ class SavedActionResolver:
         return selected
 
     def _arguments(
-        self, binding: ExecutionSourceBinding, entry: RegisteredEntryRef
+        self,
+        binding: ExecutionSourceBinding,
+        step: Step,
+        entry: RegisteredEntryRef,
+        case_inputs: tuple[str, ...],
     ) -> tuple[str, ...]:
+        """核对执行参数（裁定 2A：逐字取自冻结事实，不接受代入或改写）。
+
+        步骤侧携带 `registered_entry_ref` 时，它是 prepare 写入的**逐用例投影**：参数 =
+        「冻结绑定参数 + 该用例在冻结用例记录里的 `inputs`」。两段都是冻结事实，因此仍按
+        **逐字**比对（`require_frozen_arguments`）——既不接受代入，也不接受绑定之外的追加。
+        步骤未携带投影时（旧记录或合成内容），维持仅比对冻结绑定参数。
+        """
+
+        frozen = tuple(binding.entry_arguments)
+        if step.registered_entry_ref is not None:
+            frozen = frozen + tuple(case_inputs)
         try:
-            return self._validators.require_frozen_arguments(
-                frozen=binding.entry_arguments, actual=entry.arguments
-            )
+            return self._validators.require_frozen_arguments(frozen=frozen, actual=entry.arguments)
         except SourceBindingUnverified as error:
             raise ActionResolutionBlocked(str(error)) from error
 
@@ -521,6 +535,24 @@ def _step_content_scope(step_content: Mapping[str, object], run: Run, step: Step
         raise ActionResolutionBlocked("step content belongs to another step")
     if step_content.get("run_id") not in (None, run.run_id):
         raise ActionResolutionBlocked("step content belongs to another run")
+
+
+def _frozen_case_inputs(step_content: Mapping[str, object]) -> tuple[str, ...]:
+    """步骤内容里**冻结用例记录**的 `inputs`；无用例正文时为空。
+
+    与冻结绑定参数同属冻结事实（用例正文由 `StepContent.checked_case()` 逐字核对），因此
+    解析器把两段拼接后按逐字比对。这里只接受精确文本序列：非文本元素失败关闭，不做转换。
+    """
+
+    case = step_content.get("case_content")
+    if not isinstance(case, Mapping):
+        return ()
+    raw = case.get("inputs")
+    if raw is None:
+        return ()
+    if not isinstance(raw, (list, tuple)) or any(not isinstance(item, str) for item in raw):
+        raise ActionResolutionBlocked("frozen case inputs must be exact text sequences")
+    return tuple(raw)
 
 
 def _admission_digest(
