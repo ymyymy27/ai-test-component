@@ -33,7 +33,7 @@ export async function wizardMessage(
       const saved=context.globalState.get<Record<string,unknown>>("modelDefaults");
       let configuration:Record<string,unknown>={};
       if(settings.modelConfigurationFile){try{configuration=JSON.parse(await readFile(settings.modelConfigurationFile,"utf8"));}catch{/* show unconfigured */}}
-      respond({modelSettings:saved??{endpoint:configuration.endpoint??"https://api.deepseek.com",reference:configuration.credential_reference??"",model:"deepseek-chat",timeout:60}});return session;
+      respond({modelSettings:saved??{endpoint:configuration.endpoint??"https://api.deepseek.com",reference:configuration.credential_reference??"",model:"deepseek-flash",timeout:60}});return session;
     }
     if(raw.kind==="wizardModelCredential"){
       const key=await vscode.window.showInputBox({title:"保存模型 API 密钥",prompt:"密钥只保存在 Windows 安全存储中。",password:true,ignoreFocusOut:true});

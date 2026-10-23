@@ -16,7 +16,7 @@ export class Onboarding {
   private name="";
   private goal="";
   private endpoint="https://api.deepseek.com";
-  private model="deepseek-chat";
+  private model="deepseek-flash";
   private modelTimeout="60";
   private useModel=true;
   private confirmed=false;
