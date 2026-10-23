@@ -42,7 +42,8 @@ class OnboardingForm(BaseModel):
     data_policy: str = Field(min_length=1, max_length=2000)
     dependency_declaration: str = Field(min_length=1, max_length=2000)
     endpoint: str = "https://api.deepseek.com"
-    model: str = "deepseek-chat"
+    # 供应商公告：deepseek-chat 与 deepseek-reasoner 自 2026-07-24 停止使用。
+    model: str = "deepseek-flash"
     model_timeout: int = Field(default=60, ge=10, le=120)
     checks: list[CheckForm] = Field(default_factory=list, max_length=4)
 

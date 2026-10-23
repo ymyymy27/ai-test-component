@@ -132,6 +132,13 @@ class AITestPanel extends HTMLElement {
   private homeScroll=0;
   private selectedStep:string|null=null;
   private intents=new Map<string,string>();
+  /** 同一运行复用同一报告标识；预期修订按该标识的当前内容修订发送（#105）。 */
+  private reportIds=new Map<string,string>();
+  private reportRevisions=new Map<string,number>();
+  private reportLookedUp=new Set<string>();
+  private reportLookupRun:string|null=null;
+  private pendingReportSaveRun:string|null=null;
+  private autoReadKey:string|null=null;
   private navigate(detail:Detail):void {
     if(this.detail==="current")this.homeScroll=window.scrollY;
     if(detail==="settings"&&this.host)this.modelSettings.open();
@@ -145,12 +152,62 @@ class AITestPanel extends HTMLElement {
     return !this.pending && this.host!==null && this.project!==null
       && strings(object(this.doctorOutcome?.response?.["result"])?.["supported_actions"]).includes(name);
   }
-  private requestOperation(name:string,parameters:Record<string,unknown>,target?:string):void {
-    const key=JSON.stringify([this.contextId,name,target,parameters]);
+  private requestOperation(name:string,parameters:Record<string,unknown>,target?:string,expected=0):void {
+    const key=JSON.stringify([this.contextId,name,target,expected,parameters]);
     let intent=this.intents.get(key);
     if(!intent){intent=newIntent();this.intents.set(key,intent);}
-    this.commandDraft=JSON.stringify({action:name,intent_id:intent,expected_revision:0,...(target?{target}:{}),parameters});
+    this.commandDraft=JSON.stringify({action:name,intent_id:intent,expected_revision:expected,...(target?{target}:{}),parameters});
     this.submitCommand();
+  }
+
+  /** 按**运行身份**取报告标识：同一运行的多份报告修订共用一个标识（#105）。 */
+  private reportIdFor(runId:string):string {
+    const known=this.reportIds.get(runId);
+    if(known)return known;
+    const created=`report-${newIntent()}`;
+    this.reportIds.set(runId,created);
+    return created;
+  }
+
+  /** 保存报告：身份未知时先按运行读取既有报告，复用标识与当前内容修订。 */
+  private saveReport():void {
+    const run=this.view("run");
+    const runId=typeof run?.["run_id"]==="string" ? run["run_id"] : null;
+    if(!runId)return;
+    if(!this.available("create_report")){this.commandNote="核心未声明报告保存能力；先刷新核心状态或完成所需材料。";this.render();return;}
+    const knownId=this.reportIds.get(runId);
+    if(knownId!==undefined&&this.reportRevisions.has(knownId)){
+      this.requestOperation("create_report",{run_id:runId,report_id:knownId,issue_ids:[]},undefined,this.reportRevisions.get(knownId)!);
+      return;
+    }
+    if(!this.reportLookedUp.has(runId)){
+      // 面板重启后本地没有身份缓存：先只读该运行的报告，按回执确定标识与修订，
+      // 不猜报告编号，也不把新旧报告混成一条。
+      this.reportLookupRun=runId;
+      this.pendingQuery="reports";
+      this.dispatchScoped("query",{run_id:runId,limit:5});
+      return;
+    }
+    // 该运行确实还没有报告（回执为空）：首次保存使用新的业务身份。
+    const reportId=knownId ?? this.reportIdFor(runId);
+    this.reportRevisions.set(reportId,0);
+    this.requestOperation("create_report",{run_id:runId,report_id:reportId,issue_ids:[]},undefined,0);
+  }
+
+  /** 从真实回执吸收报告身份：同一运行保留一个标识，修订取回执行给出的值。 */
+  private absorbReportRows(data:Outcome):void {
+    if(data.status!=="ok")return;
+    const runId=this.reportLookupRun ?? this.project?.run_id ?? null;
+    let latest:Row|null=null;
+    for(const row of rowsOf(data.response)){
+      if(row.aggregate_kind!=="report")continue;
+      const known=this.reportRevisions.get(row.record_id) ?? 0;
+      if(row.revision>known)this.reportRevisions.set(row.record_id,row.revision);
+      if(latest===null||row.revision>latest.revision)latest=row;
+    }
+    // 同一运行历史遗留的多条报告只取修订最高的一条作为后续修订的载体；
+    // 其余行保持可读，不被删除或合并。
+    if(runId!==null&&latest!==null)this.reportIds.set(runId,latest.record_id);
   }
 
   private project: ProjectContext | null = null;
@@ -210,6 +267,8 @@ class AITestPanel extends HTMLElement {
           this.briefIssueId = this.briefNote = null;
           this.guided.reset();
           this.viewOutcomes.clear(); this.selectedStep=null; this.intents.clear(); this.pendingQuery = null; this.outcome = null;
+          this.reportIds.clear(); this.reportRevisions.clear(); this.reportLookedUp.clear();
+          this.reportLookupRun = null; this.pendingReportSaveRun = null; this.autoReadKey = null;
           this.commandDraft = ""; this.commandNote = this.pendingRequest ? "项目已切换，请核对当前步骤后继续。" : "";
           this.projectName = this.projectGoal = "";
           this.workflowValues = {expected_revision:"0"};
@@ -223,6 +282,7 @@ class AITestPanel extends HTMLElement {
         this.project = next;
         this.render();
         if (contextChanged && !this.pending && !this.onboarding.isConfiguring()) { this.dispatch("doctor"); }
+        this.maybeAutoRead();
         return;
       }
       if (data.kind !== "outcome") { return; }
@@ -238,7 +298,20 @@ class AITestPanel extends HTMLElement {
         if (this.pendingQuery === "plans") { this.planOutcome=data; }
         // 按**本次查询的作用域**归位；没有待归位作用域时只更新最近回执。
         if (this.pendingQuery === "issues") { this.issueOutcome = data; }
-        if (this.pendingQuery === "reports") { this.reportOutcome = data; }
+        if (this.pendingQuery === "reports") {
+          this.reportOutcome = data;
+          this.absorbReportRows(data);
+          // 保存前先读取既有报告：成功后在同一运行上继续保存下一修订，
+          // 失败时保留真实原因，不凭猜的修订号提交（#105）。
+          if (this.reportLookupRun !== null) {
+            if (data.status === "ok") {
+              this.reportLookedUp.add(this.reportLookupRun);
+              this.pendingReportSaveRun = this.reportLookupRun;
+            }
+            else { this.commandNote = `读取既有报告未完成：${data.code ?? data.status}：${data.message ?? ""}`; }
+            this.reportLookupRun = null;
+          }
+        }
         if (this.pendingQuery === "issue-detail") { this.issueDetailOutcome = data; }
         this.pendingQuery = null;
       }
@@ -276,16 +349,40 @@ class AITestPanel extends HTMLElement {
         this.commandNote=data.status!=="ok" ? `操作未完成：${data.message ?? "请刷新状态后重试同一操作，或打开诊断查看原因。"}`
           : saved?.["blocked"]===true ? "操作受阻，请检查所需材料。"
           : data.action==="create_report" ? "报告已保存。点击“读取报告修订”查看。"
-          : data.action==="export_report" ? "导出请求已完成，可在诊断中查看制品位置。" : "本次请求已返回，请查看步骤结果。";
+          : data.action==="export_report" ? exportNote(saved) : "本次请求已返回，请查看步骤结果。";
+      }
+      if (data.action === "create_report" && data.status === "ok") {
+        const saved=object(data.response?.["result"]);
+        const recordId=typeof saved?.["record_id"]==="string" ? saved["record_id"] : null;
+        const revision=saved?.["revision"];
+        if(recordId!==null&&Number.isSafeInteger(revision)&&Number(revision)>0){
+          this.reportRevisions.set(recordId,Number(revision));
+          if(this.project?.run_id)this.reportIds.set(this.project.run_id,recordId);
+        }
       }
       this.pendingRequest = null;
       this.pending = false;
       this.render();
-      this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]));
+      this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]),data.code,data.message);
       if (data.action === "ensure-core" && data.status === "ok") {
         this.dispatch("doctor");
       }
+      if (this.pendingReportSaveRun !== null) {
+        this.pendingReportSaveRun = null;
+        this.saveReport();
+      }
+      this.maybeAutoRead();
   };
+
+  /** 重启或切换运行后自动读取一次最近运行摘要，不再要求先手动刷新（#108）。 */
+  private maybeAutoRead():void {
+    const runId=this.project?.run_id;
+    if(!runId||this.host===null||this.pending||this.onboarding.isConfiguring())return;
+    const key=`${this.contextId ?? ""}:${runId}`;
+    if(this.autoReadKey===key||this.viewOutcomes.has("run")||!this.available("read_view"))return;
+    this.autoReadKey=key;
+    this.dispatchScoped("read_view",{view:"run",run_id:runId});
+  }
 
   connectedCallback(): void {
     window.addEventListener("message", this.receiveMessage);
@@ -461,7 +558,10 @@ class AITestPanel extends HTMLElement {
     if(!view){list.append(text("li",this.project?.run_id ? "读取运行后显示本次计划与用例。" : "发布计划后，用例会显示在这里。","empty"));return list;}
     for(const [caseIndex,id] of cases.entries()){
       const item=document.createElement("li");const children=document.createElement("ul");
-      item.append(text("strong",`用例 ${caseIndex+1}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
+      // 用例编号后不带名称时，用户无法分辨四项检查；按用例编号后缀映射到检查名称。
+      const kind=id.slice(id.lastIndexOf("-")+1);
+      const caseName=({syntax:"加载与语法",normal:"正常输入",boundary:"边界输入",error:"异常输入"} as Record<string,string>)[kind]??"";
+      item.append(text("strong",`用例 ${caseIndex+1}${caseName?` · ${caseName}`:""}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
       for(const raw of steps){const step=object(raw);if(step?.["case_id"]!==id)continue;
         const child=document.createElement("li");child.append(action(`步骤 ${children.childElementCount+1} · ${friendly(step["state"])}`,()=>{this.selectedStep=String(step["step_id"]);this.navigate("workbench");}));children.append(child);}
       item.append(children);list.append(item);
@@ -867,13 +967,14 @@ class AITestPanel extends HTMLElement {
 
   private reportActions():HTMLElement {
     const section=document.createElement("section");
-    section.append(text("p","保存本次运行的真实结果。未完成的检查和证据缺口会保留在报告中。"),
-      action("保存本次测试报告",()=>{
-        const run=this.view("run");if(!run)return;
-        const key=JSON.stringify([this.contextId,"report",run["snapshot_commit_id"]]);
-        let id=this.intents.get(key);if(!id){id=newIntent();this.intents.set(key,id);}
-        this.requestOperation("create_report",{run_id:run["run_id"],report_id:`report-${id}`,issue_ids:[]});
-      },!this.available("create_report")||!this.view("run")));
+    const run=this.view("run");
+    const snapshot=run?.["snapshot_commit_id"];
+    section.append(
+      text("p","保存本次运行的真实结果。未完成的检查和证据缺口会保留在报告中。"),
+      text("p",run
+        ? `当前快照 commit-${snapshot==null?"未知":String(snapshot)}；同一运行重复保存沿用同一报告标识，正文变化追加内容修订。`
+        : "先读取本次运行，再保存报告。","muted"),
+      action("保存本次测试报告",()=>this.saveReport(),!this.available("create_report")||!run));
     const status=text("p",this.pending?"正在处理，请稍候。":this.commandNote);status.setAttribute("role","status");section.append(status);
     return section;
   }
@@ -1253,6 +1354,13 @@ class AITestPanel extends HTMLElement {
     block.append(list);
     return block;
   }
+}
+
+/** 导出回执带 artifact_ref（相对用户数据工作空间）；直接告知位置，避免用户无从查找。 */
+function exportNote(result:Record<string,unknown>|null|undefined):string {
+  const ref=result?.["artifact_ref"];
+  if(typeof ref!=="string"||!ref.startsWith("artifacts/"))return "导出请求已完成，可在诊断中查看制品位置。";
+  return `导出已完成：${ref}（相对用户数据工作空间）`;
 }
 
 customElements.define("ai-test-panel", AITestPanel);

@@ -33,7 +33,7 @@ export async function wizardMessage(
       const saved=context.globalState.get<Record<string,unknown>>("modelDefaults");
       let configuration:Record<string,unknown>={};
       if(settings.modelConfigurationFile){try{configuration=JSON.parse(await readFile(settings.modelConfigurationFile,"utf8"));}catch{/* show unconfigured */}}
-      respond({modelSettings:saved??{endpoint:configuration.endpoint??"https://api.deepseek.com",reference:configuration.credential_reference??"",model:"deepseek-chat",timeout:60}});return session;
+      respond({modelSettings:saved??{endpoint:configuration.endpoint??"https://api.deepseek.com",reference:configuration.credential_reference??"",model:"deepseek-flash",timeout:60}});return session;
     }
     if(raw.kind==="wizardModelCredential"){
       const key=await vscode.window.showInputBox({title:"保存模型 API 密钥",prompt:"密钥只保存在 Windows 安全存储中。",password:true,ignoreFocusOut:true});
@@ -63,7 +63,11 @@ export async function wizardMessage(
       const defaults=context.globalState.get<Record<string,unknown>>("modelDefaults");
       if(typeof defaults?.reference==="string")reference=defaults.reference;
       if(typeof defaults?.endpoint==="string")endpoint=defaults.endpoint;
-      session={project_id,root:join(context.globalStorageUri.fsPath,"projects",project_id),source:folders[0].fsPath,entry:entry.replaceAll("\\","/"),reference,endpoint};
+      // 用户数据根目录改用较短的本地数据目录：全局存储前缀约 83 字符，叠加
+      // workspace/indexes/business/<摘要>/<摘要>.json 后超过 Windows 默认 MAX_PATH(260)，
+      // 会使首次保存项目必然失败。
+      const userDataBase=join(process.env.LOCALAPPDATA??context.globalStorageUri.fsPath,"aitest");
+      session={project_id,root:join(userDataBase,project_id),source:folders[0].fsPath,entry:entry.replaceAll("\\","/"),reference,endpoint};
       respond({session:{...session,name:basename(session.source),model:defaults?.model,timeout:defaults?.timeout}});return session;
     }
     if(!session)throw new Error("请先选择项目目录。");

@@ -204,6 +204,25 @@ def test_dto_has_two_scope_summaries_and_exact_h_references() -> None:
     assert view.snapshot_cursor == 42
 
 
+def test_executed_required_case_without_verification_names_the_gap() -> None:
+    """#106：必测用例已执行但未取得有效验证时，未完成必须能指出缺口。"""
+
+    coverage = _coverage(
+        frozenset({"case-1", "case-2"}),
+        frozenset({"case-1", "case-2"}),
+        verified=frozenset({"case-1"}),
+        passed=frozenset({"case-1"}),
+    )
+
+    result = evaluate_review(_complete_facts(coverage=coverage))
+
+    assert result.business_outcome is BusinessOutcome.INCOMPLETE
+    assert result.primary_gap is not None
+    assert result.primary_gap.code is ReviewGapCode.REQUIRED_CASE_UNVERIFIED
+    assert result.primary_gap.subject_id == "case-2"
+    assert result.evidence_grade is EvidenceGrade.C
+
+
 def test_unconfirmed_assertion_basis_is_incomplete_and_grade_b() -> None:
     coverage = _coverage(
         frozenset({"case-1", "case-2"}),

@@ -95,6 +95,7 @@ class ReviewGapCode(StrEnum):
     FULL_REQUIRED_SCOPE_MISSING = "full_required_scope_missing"
     REQUIRED_CASE_UNRESOLVED = "required_case_unresolved"
     REQUIRED_CASE_PENDING_VERIFICATION = "required_case_pending_verification"
+    REQUIRED_CASE_UNVERIFIED = "required_case_unverified"
     OUTDATED_BASIS = "outdated_basis"
     REQUIRED_EVIDENCE_INVALID = "required_evidence_invalid"
     ENVIRONMENT_EVIDENCE_INCOMPLETE = "environment_evidence_incomplete"
@@ -116,6 +117,7 @@ _GAP_GRADES: dict[ReviewGapCode, EvidenceGrade] = {
     ReviewGapCode.FULL_REQUIRED_SCOPE_MISSING: EvidenceGrade.C,
     ReviewGapCode.REQUIRED_CASE_UNRESOLVED: EvidenceGrade.C,
     ReviewGapCode.REQUIRED_CASE_PENDING_VERIFICATION: EvidenceGrade.C,
+    ReviewGapCode.REQUIRED_CASE_UNVERIFIED: EvidenceGrade.C,
     ReviewGapCode.OUTDATED_BASIS: EvidenceGrade.C,
     ReviewGapCode.REQUIRED_EVIDENCE_INVALID: EvidenceGrade.C,
     ReviewGapCode.ENVIRONMENT_EVIDENCE_INCOMPLETE: EvidenceGrade.C,
@@ -407,6 +409,22 @@ def _derive_gaps(facts: DecisionFacts) -> tuple[ReviewGap, ...]:
             "Required cases are pending verification.",
             facts.required_pending & coverage.required,
         )
+    # 必测用例已执行、依据也已确认，但没有取得任何有效验证（#106）：
+    # 旧口径只让 verified 少于 required 影响结论，却不产出缺口条目，
+    # 于是报告写“未完成”却给不出原因。这里把差值转成具名缺口。
+    # 已有决定性失败时直接从失败事实读取原因，不再用本缺口覆盖首要缺口；
+    # 断言依据未确认的情形已由 ASSERTION_BASIS_UNCONFIRMED 指名，不重复降级。
+    if not facts.decisive_failures:
+        required_unverified = (coverage.required & coverage.executed) - (
+            coverage.verified | coverage.reused | facts.pending_verification
+        )
+        required_unverified &= facts.assertion_basis_confirmed
+        if required_unverified:
+            add(
+                ReviewGapCode.REQUIRED_CASE_UNVERIFIED,
+                "Required cases have no valid verification for this run.",
+                required_unverified,
+            )
     if not facts.required_evidence_valid:
         add(
             ReviewGapCode.REQUIRED_EVIDENCE_INVALID,

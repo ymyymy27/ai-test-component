@@ -442,6 +442,32 @@ class _ShardDirectory:
             snapshot_meta=snapshot_meta,
         )
 
+    def advance(
+        self,
+        snapshot_meta: dict[str, Any] | None,
+        *,
+        generation: int,
+        commit_id: int,
+    ) -> dict[str, Any]:
+        """把空族/未变更族的提交号推进到本次发布边界，不改写任何节点。
+
+        ``publish`` 只为有候选行的目录写新元数据；没有候选的族（例如本运行
+        没有产生问题记录）会停留在建库提交上，使目录提交号与索引根不一致。
+        空族本身可查询，但“停留在初始提交”无法证明“空”属于当前边界；这里
+        只重写元数据，树根与页节点保持不变（A-05：不复制历史、不扫描全库）。
+        """
+        if snapshot_meta is None:
+            raise IndexMissing(f"index directory missing: {self.name}")
+        try:
+            if (
+                snapshot_meta["commit_id"] == commit_id
+                and snapshot_meta["generation"] == generation
+            ):
+                return snapshot_meta
+            return self._publish(self._tree(snapshot_meta), generation, commit_id)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise IndexMissing(f"query directory unavailable: {self.name}") from error
+
     def replace(
         self,
         entries_with_keys: list[tuple[Key, dict[str, Any]]],
@@ -1072,6 +1098,20 @@ class FileQueryIndex:
             self._publish_latest_replacements(
                 section, new_rows, snapshot, generation, commit_sequence
             )
+        # 本提交未触及的族（典型是“本次运行没有问题记录”的 issues）也要把
+        # 目录提交号推进到同一发布边界；否则空族停留在初始提交，索引根与
+        # 目录各自讲述不同的提交事实（#104）。
+        for family in _ALL_FAMILIES:
+            snapshot["families"][family] = self._directory(family).advance(
+                snapshot["families"].get(family),
+                generation=generation,
+                commit_id=commit_sequence,
+            )
+        snapshot["latest_keys"] = self._directory("latest-keys").advance(
+            snapshot["latest_keys"],
+            generation=generation,
+            commit_id=commit_sequence,
+        )
         return self._write_meta(
             generation,
             commit_sequence,
