@@ -49,6 +49,10 @@ class CoreEndpoint:
     connection: object
 
 
+#: 子进程已证明存活时的启动等待上限（超过仍失败关闭，不无限等待）。
+_MAX_CORE_STARTUP_SECONDS = 60.0
+
+
 class EditorHost:
     """发现并连接唯一核心；不直接创建业务进程。"""
 
@@ -77,6 +81,7 @@ class EditorHost:
             raise WorkspaceInUse("核心发现已超过限定时间")
 
         expected_instance = self._launcher.start(workspace_id)
+        startup_deadline = time.monotonic() + _MAX_CORE_STARTUP_SECONDS
 
         while time.monotonic() < deadline:
             connected = self._connect(workspace_id)
@@ -96,6 +101,10 @@ class EditorHost:
                         raise WorkspaceInUse(f"核心已退出，exit_code={code}")
                     if fact.state == "unknown":
                         raise WorkspaceInUse("核心启动进程身份无法核实，保留现场待恢复")
+                    if fact.state == "starting":
+                        # 子进程确实活着并在装配工作空间：重新武装等待窗口
+                        # （以固定上限封顶），而不是在「可证明存活」时判失败。
+                        deadline = min(startup_deadline, time.monotonic() + self._timeout)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break

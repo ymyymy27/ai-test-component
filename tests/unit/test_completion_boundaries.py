@@ -88,9 +88,15 @@ def test_report_freezes_reuse_source_and_exports_original_attachment(tmp_path):
             stack.artifact_bytes(stored["artifact_ref"], expected_sha256=stored["artifact_digest"])
         )
     ) as archive:
-        assert archive.read("evidence/evidence-1.bin") == b"abc"
         manifest = json.loads(archive.read("manifest.json"))
         assert manifest["missing"] == []
+        # 证据成员名以实现为准：`evidence/<sha256(evidence_id)>.bin`
+        # （不透明摘要，防止别名、保留名与路径穿越）。因此从 manifest 取真实成员，
+        # 而不是假设存在可读的 `evidence-1.bin`。
+        members = [str(item["path"]) for item in manifest["files"]]
+        evidence = [path for path in members if path.startswith("evidence/")]
+        assert evidence, f"证据包应含 evidence/ 成员：{members}"
+        assert archive.read(evidence[0]) == b"abc"
     assert stack.saved_report("report-1") == payload
     assert target.run_id != source.run_id
 

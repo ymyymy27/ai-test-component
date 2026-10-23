@@ -492,10 +492,14 @@ def test_publisher_cannot_drop_a_registered_current_step(tmp_path):
 def test_a_dependency_without_a_registered_run_is_blocked_before_any_effect(tmp_path):
     unit = FileUnitOfWork(tmp_path)
     port = FakeExecutionPort()
+    # 替身按被 Mock 对象的当前契约返回源观察结果：无源观察即 (None, None)
+    # （`ExecutionAuthorizations.source_at_start` 的返回形状）。
+    authorizations = Mock()
+    authorizations.source_at_start.return_value = (None, None)
     runner, attempt, request = _new_start(
         _batch().checkpoint.attempt,
         port,
-        ExecutionCommitCoordinator(unit, execution_authorizations=Mock()),
+        ExecutionCommitCoordinator(unit, execution_authorizations=authorizations),
     )
     attempt = replace(attempt, consumed_outputs=(ConsumedOutput("unknown", "sha256:x", "value:x"),))
     with pytest.raises(ValueError, match="registered current run"):

@@ -89,6 +89,22 @@ def main() -> int:
             )
             return 2
         print(json.dumps(configuration, ensure_ascii=False, indent=2))
+        if args.output is not None:
+            # 生成的登记文件本身不生效：必须由宿主设置环境变量并受控重启核心。
+            # 指引走 stderr，stdout 保持"只有登记 JSON"这一机器可读契约。
+            print(
+                json.dumps(
+                    {
+                        "next_step": (
+                            f"设置宿主环境变量 AITEST_PYTHON_CARRIERS={args.output}，"
+                            "然后受控重启核心，环境依赖动作（如 prepare_run）才会生效"
+                        ),
+                        "note": "登记文件只由宿主读取，核心不执行其中内容",
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
         return 0
     if args.command == "templates":
         packs = []

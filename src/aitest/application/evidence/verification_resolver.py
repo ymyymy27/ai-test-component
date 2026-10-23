@@ -109,6 +109,9 @@ class SavedBusinessVerificationResolver:
                 self.validate_target(request)
             return request
         except (ValueError, TypeError, OSError, KeyError) as error:
+            # 具体原因必须回指：否则「缺少执行输出证据」「依据字段不合法」
+            # 「纯函数方法与其专用依据冲突」等会压成同一句话，调用方无从修复。
             raise BusinessVerificationBlocked(
-                "exact case basis or trusted independent query registration is invalid"
+                "exact case basis or trusted independent query registration is invalid: "
+                f"{error}"
             ) from error
