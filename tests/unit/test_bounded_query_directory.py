@@ -246,6 +246,39 @@ def test_interrupted_publish_cannot_leak_into_a_later_root(tmp_path, monkeypatch
     assert all(row["revision"] == 1 and row["record_id"] != "r00009" for row in pinned.items)
 
 
+@pytest.mark.parametrize(
+    "spec",
+    [
+        QuerySpec(project_id="p", view="OPEN", sort="updated_sequence"),
+        QuerySpec(project_id="p", aggregate_kind="report"),
+    ],
+)
+def test_empty_families_advance_with_each_publication_and_query_empty(tmp_path, spec):
+    """#104：没有候选行的族也要随提交推进；查询空族返回空列表而不是待维护。"""
+    index = FileQueryIndex(tmp_path, shard_size=8)
+    index.rebuild([])
+    for sequence in (1, 2, 3):
+        index.publish([_row(sequence, sequence=sequence)], commit_sequence=sequence)
+
+    snapshot = index._snapshot(index._read_meta())
+    assert {meta["commit_id"] for meta in snapshot["families"].values()} == {3}
+    assert snapshot["latest_keys"]["commit_id"] == 3
+
+    page = index.query_spec(spec)
+    assert page.status == "ok" and page.items == () and page.commit_id == 3
+
+
+def test_empty_issue_family_still_verifies_after_restart(tmp_path):
+    """重启只读同一已发布根：空 issues 族不因提交号落后而报 maintenance_required。"""
+    index = FileQueryIndex(tmp_path, shard_size=8)
+    index.rebuild([])
+    index.publish([_row(1, sequence=1)], commit_sequence=1)
+    reopened = FileQueryIndex(tmp_path, shard_size=8)
+    page = reopened.query_spec(QuerySpec(project_id="p", view="OPEN", sort="updated_sequence"))
+    assert page.status == "ok" and page.items == () and page.commit_id == 1
+    assert reopened.is_healthy()
+
+
 @pytest.mark.parametrize("kind", ["report", "issue"])
 def test_late_older_rank_cannot_restore_old_current_keys(tmp_path, kind):
     index = FileQueryIndex(tmp_path)

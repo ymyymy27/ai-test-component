@@ -13,8 +13,15 @@ async function mount(page: Page) {
   await postHostMessage(page, { kind: "outcome", action: "doctor", status: "ok",
     response: { result: { status: "READY", supported_actions: ["doctor", "query", "read_view"] } } });
   await postHostMessage(page, { kind: "projectContext", project_id: "p", run_id: "r" });
+  // 面板检测到既有运行会自动读取一次（#108）；先按真实回执闭合这次只读请求。
+  await postHostMessage(page, runView());
   await expect(page.getByRole("button", { name: "刷新本次视图" })).toBeEnabled();
 }
+
+const runView = (project = "p", run = "r") => ({ kind: "outcome", action: "read_view", status: "ok",
+  response: { result: { view_type: "run", commit_id: 0, event_cursor: "cursor-0",
+    generation: 1, index_version: 1,
+    view: { project_id: project, run_id: run, snapshot_commit_id: "snapshot-0" } } } });
 
 const viewOutcome = (project = "p") => ({ kind: "outcome", action: "read_view", status: "ok",
   response: { result: { view_type: "panel", commit_id: 9, event_cursor: "cursor-9",

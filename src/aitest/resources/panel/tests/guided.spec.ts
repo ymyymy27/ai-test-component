@@ -9,6 +9,8 @@ async function mount(page:Page){
   await page.addScriptTag({path:resolve("dist/index.js")});
   await postHostMessage(page,{kind:"projectContext",project_id:"p",run_id:"r",context_id:"ctx"});
   await postHostMessage(page,{kind:"outcome",action:"doctor",status:"ok",response:{result:{supported_actions:["read_view","prepare_execution","authorize_step","execute_step","verify_pending","create_report"],transport_capabilities:["native-confirmation/1"]}}});
+  // 面板检测到既有运行会自动读取一次（#108）；先按真实回执闭合这次请求。
+  await view(page,"attempt-actual","snapshot-actual");
   await page.getByRole("button",{name:"读取运行详情",exact:true}).click();
   await view(page,"attempt-actual","snapshot-actual");
   await page.getByRole("button",{name:"步骤 1 · 待处理",exact:true}).click();
