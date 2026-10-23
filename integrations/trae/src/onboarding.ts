@@ -63,7 +63,11 @@ export async function wizardMessage(
       const defaults=context.globalState.get<Record<string,unknown>>("modelDefaults");
       if(typeof defaults?.reference==="string")reference=defaults.reference;
       if(typeof defaults?.endpoint==="string")endpoint=defaults.endpoint;
-      session={project_id,root:join(context.globalStorageUri.fsPath,"projects",project_id),source:folders[0].fsPath,entry:entry.replaceAll("\\","/"),reference,endpoint};
+      // 用户数据根目录改用较短的本地数据目录：全局存储前缀约 83 字符，叠加
+      // workspace/indexes/business/<摘要>/<摘要>.json 后超过 Windows 默认 MAX_PATH(260)，
+      // 会使首次保存项目必然失败。
+      const userDataBase=join(process.env.LOCALAPPDATA??context.globalStorageUri.fsPath,"aitest");
+      session={project_id,root:join(userDataBase,project_id),source:folders[0].fsPath,entry:entry.replaceAll("\\","/"),reference,endpoint};
       respond({session:{...session,name:basename(session.source),model:defaults?.model,timeout:defaults?.timeout}});return session;
     }
     if(!session)throw new Error("请先选择项目目录。");
