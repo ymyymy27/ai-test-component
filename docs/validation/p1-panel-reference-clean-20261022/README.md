@@ -25,6 +25,7 @@
 - `src/aitest/resources/panel/preview/server.mjs`
 - `src/aitest/resources/panel/tests/verify-reference.mjs`
 - `integrations/trae/src/extension.ts` 的 `aitest.openReferencePreview` 命令
+- 活动栏 Webview 视图 `aitest.reference`（交互面板）
 
 ## 构建与验证
 
@@ -38,6 +39,8 @@
 | 10 个参考状态 DOM 测试 | 通过 |
 | 菜单、活动栏、搜索、SCM、扩展、终端测试 | 通过 |
 | 独立预览端口 `4174` | 返回 200 |
+| VSIX 内容 | 包含 `panel.js`、`reference.js`、扩展脚本和图标 |
+| Cursor 兼容宿主安装 | `aitest-local.aitest-trae@0.4.11` |
 
 命令：
 

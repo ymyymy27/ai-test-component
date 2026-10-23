@@ -40,6 +40,14 @@ export function activate(context: vscode.ExtensionContext): void {
         attachPanel(context, view);
       },
     }, {webviewOptions:{retainContextWhenHidden:true}}));
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider("aitest.reference", {
+      resolveWebviewView(view) {
+        if (!vscode.workspace.isTrusted) { return; }
+        view.webview.options = {enableScripts:true,
+          localResourceRoots:[vscode.Uri.joinPath(context.extensionUri,"dist")]};
+        view.webview.html = referencePanelHtml(context, view.webview);
+      },
+    }, {webviewOptions:{retainContextWhenHidden:true}}));
   }
   context.subscriptions.push(
     vscode.commands.registerCommand("aitest.openPanel", () => {
@@ -105,18 +113,22 @@ function openReferencePreview(context: vscode.ExtensionContext): void {
       localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
     },
   );
-  const script = panel.webview.asWebviewUri(
+  panel.webview.html = referencePanelHtml(context, panel.webview);
+  context.subscriptions.push(panel);
+}
+
+function referencePanelHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
+  const script = webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "dist", "reference.js"),
   );
   const nonce = randomBytes(24).toString("hex");
-  panel.webview.html = `<!doctype html><html lang="zh-CN"><head>
+  return `<!doctype html><html lang="zh-CN"><head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">
     <title>AI 测试参考图预览</title></head>
     <body style="margin:0;background:#111318"><aitest-mockup></aitest-mockup>
     <script nonce="${nonce}">window.__AITEST_DEMO__=true;</script>
     <script nonce="${nonce}" src="${script}"></script></body></html>`;
-  context.subscriptions.push(panel);
 }
 
 function attachPanel(context: vscode.ExtensionContext, panel: PanelHost): void {

@@ -16,7 +16,8 @@
     "onCommand:aitest.openPanel",
     "onCommand:aitest.openReferencePreview",
     "onCommand:aitest.configureEntry",
-    "onView:aitest.sidebar"
+    "onView:aitest.sidebar",
+    "onView:aitest.reference"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -28,7 +29,10 @@
       "activitybar": [{"id":"aitest-container","title":"AI 测试","icon":"media/testing.svg"}]
     },
     "views": {
-      "aitest-container": [{"id":"aitest.sidebar","name":"AI 测试","type":"webview"}]
+      "aitest-container": [
+        {"id":"aitest.sidebar","name":"AI 测试","type":"webview"},
+        {"id":"aitest.reference","name":"交互面板","type":"webview"}
+      ]
     },
     "commands": [
       {
