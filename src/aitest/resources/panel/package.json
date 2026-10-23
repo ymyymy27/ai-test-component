@@ -1,11 +1,14 @@
 {
   "name": "@aitest/panel",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "private": true,
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
     "build": "npm run check && esbuild src/index.ts --bundle --format=iife --outfile=dist/index.js",
+    "build:reference": "npm run check && esbuild src/reference/replica.ts --bundle --format=iife --outfile=dist/reference.js",
+    "test:reference": "node tests/verify-reference.mjs",
+    "preview:reference": "npm run build:reference && node preview/server.mjs",
     "test": "playwright test"
   },
   "devDependencies": {
