@@ -6,8 +6,9 @@ import json
 import os
 import sys
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 from uuid import uuid4
 
 from aitest.application.approval_service import _digest
@@ -64,30 +65,106 @@ _ACTION_LABELS = {
 }
 
 
-def _friendly_preview(projected: Mapping[str, object]) -> str:
-    """Readable introduction from the same redacted projection, without new facts."""
+@dataclass(frozen=True, slots=True)
+class ConfirmationPrompt:
+    """What the human confirms: readable facts first, exact input on demand.
+
+    ``details`` keeps the frozen exact material, so the gesture still binds to
+    something verifiable; it is simply no longer the first thing shown.
+    """
+
+    title: str
+    note: str
+    facts: tuple[tuple[str, str], ...]
+    details: str
+
+
+_HUMAN_FIELDS: Final = {
+    "binding": (("canonical_path", "被测目录"),),
+    "case": (("objective", "检查目标"), ("expected", "独立预期")),
+    "environment": (("data_reset_policy", "数据复位"),),
+}
+
+_ACTION_IMPACT = {
+    "execute_step": "会在本机执行被测程序，可能产生副作用。",
+    "save_binding": "会把本项目绑定到下面列出的实际目录。",
+    "publish_plan": "发布后计划冻结，后续修改会产生新的修订。",
+    "analyze_project": "会保存被测目录的源码快照。",
+    "confirm_basis": "确认后本用例的独立预期冻结，不能用运行结果改写。",
+    "authorize_step": "授权只对本次列出的准确操作有效。",
+    "export_report": "会把报告与证据导出到本机目录。",
+    "verify_pending": "只依据已保存证据核验，不会重新执行程序。",
+}
+
+_DEFAULT_IMPACT = "仅在理解下面内容后确认；取消不会提交任何更改。"
+
+
+def _plain(value: object) -> str:
+    """Render one JSON value without code punctuation."""
+    if value is True:
+        return "是"
+    if value is False:
+        return "否"
+    if value is None:
+        return "（空）"
+    return str(value)
+
+
+def _readable(value: object) -> str:
+    if isinstance(value, Mapping):
+        return "；".join(f"{key} = {_plain(item)}" for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return "、".join(_readable(item) for item in value)
+    return _plain(value)
+
+
+def _short_project(command: Mapping[str, object]) -> str:
+    text = str(command.get("project_id") or "")
+    return "…" + text[-8:] if len(text) > 8 else (text or "未知")
+
+
+def _confirmation_prompt(projected: Mapping[str, object]) -> ConfirmationPrompt:
+    """Build the human view from the same redacted projection, adding no new facts."""
     command = projected.get("command")
     if not isinstance(command, Mapping):
-        return ""
+        command = {}
     action = str(command.get("action", ""))
-    lines = [_ACTION_LABELS.get(action, "核对本次操作"),
-             "项目：" + str(command.get("project_id", "未知"))]
     parameters = command.get("parameters")
-    if isinstance(parameters, Mapping):
-        for key, fields in {
-            "project": (("name", "名称"), ("goal", "测试目标")),
-            "binding": (("canonical_path", "被测目录"),),
-            "case": (("objective", "检查目标"), ("expected", "独立预期")),
-            "environment": (("data_reset_policy", "数据复位"),),
-        }.items():
-            material = parameters.get(key)
-            if isinstance(material, Mapping):
-                for field, label in fields:
-                    if field in material:
-                        lines.append(label + "：" + str(material[field]))
-    lines.extend(["确认只适用于下面列出的准确输入，不代表测试已经通过。",
-                  "如内容与预期不同，请取消并返回向导核对。", "", "完整输入与已保存依据："])
-    return "\n".join(lines) + "\n"
+    if not isinstance(parameters, Mapping):
+        parameters = {}
+    facts: list[tuple[str, str]] = []
+    project = parameters.get("project")
+    if isinstance(project, Mapping):
+        for field, label in (("name", "项目名称"), ("goal", "测试目标")):
+            if field in project:
+                facts.append((label, _readable(project[field])))
+    if not facts:
+        facts.append(("项目", _short_project(command)))
+    for key, fields in _HUMAN_FIELDS.items():
+        material = parameters.get(key)
+        if not isinstance(material, Mapping):
+            continue
+        for field, label in fields:
+            if field in material:
+                facts.append((label, _readable(material[field])))
+    details = json.dumps(projected, ensure_ascii=False, indent=2, allow_nan=False).translate(
+        {
+            code: f"\\u{code:04x}"
+            for code in (
+                *range(0x202A, 0x202F),
+                *range(0x2066, 0x206A),
+                0x200E,
+                0x200F,
+            )
+        }
+    )
+    return ConfirmationPrompt(
+        title=_ACTION_LABELS.get(action, "核对本次操作"),
+        note=_ACTION_IMPACT.get(action, _DEFAULT_IMPACT),
+        facts=tuple(facts),
+        details=details,
+    )
+
 
 if TYPE_CHECKING:
     import tkinter
@@ -121,9 +198,9 @@ def _create_windows_root() -> tkinter.Tk:
                 os.environ[key] = value
 
 
-def windows_prompt(text: str) -> bool:
+def windows_prompt(prompt: ConfirmationPrompt) -> bool:
     """A bounded core-owned dialog. Timeout, inaccessible desktop and No all deny."""
-    if os.name != "nt" or len(text) > MAX_PROMPT_CHARS:
+    if os.name != "nt":
         return False
     # Lazy import: headless installations keep every noninteractive entry usable.
     from tkinter import scrolledtext, ttk
@@ -131,30 +208,67 @@ def windows_prompt(text: str) -> bool:
     accepted = False
     root = _create_windows_root()
     try:
-        root.title("AI Test · 核心操作确认")
-        root.geometry("900x650")
-        root.minsize(600, 400)
-        ttk.Label(root, text="核对完整输入与已保存依据；两分钟未确认将取消。", padding=12).pack()
-        preview = scrolledtext.ScrolledText(root, wrap="word", width=100, height=30)
-        preview.pack(fill="both", expand=True, padx=12)
-        preview.insert("1.0", text)
+        root.title("AI 测试 · 确认这一步")
+        root.minsize(560, 280)
+        header = ttk.Frame(root, padding=(18, 16, 18, 4))
+        header.pack(fill="x")
+        ttk.Label(header, text=prompt.title, font=("Microsoft YaHei UI", 14, "bold")).pack(
+            anchor="w"
+        )
+        ttk.Label(
+            header, text=prompt.note, wraplength=620, justify="left", foreground="#8a4b00"
+        ).pack(anchor="w", pady=(8, 0))
+        body = ttk.Frame(root, padding=(18, 8, 18, 4))
+        body.pack(fill="both", expand=True)
+        table = ttk.Frame(body)
+        table.pack(fill="x")
+        for row, (label, value) in enumerate(prompt.facts):
+            ttk.Label(table, text=label, width=9).grid(row=row, column=0, sticky="nw", pady=3)
+            ttk.Label(table, text=value, wraplength=520, justify="left").grid(
+                row=row, column=1, sticky="w", pady=3
+            )
+        preview = scrolledtext.ScrolledText(body, wrap="word", height=10)
+        open_state = {"shown": False}
+
+        def fit() -> None:
+            """按当前内容定高，避免固定尺寸留下的空白。"""
+            root.update_idletasks()
+            root.geometry(f"640x{min(720, max(300, root.winfo_reqheight()))}")
+
+        def toggle() -> None:
+            open_state["shown"] = not open_state["shown"]
+            if open_state["shown"]:
+                preview.pack(fill="both", expand=True, pady=(8, 0))
+                detailed.configure(text="收起技术细节")
+            else:
+                preview.pack_forget()
+                detailed.configure(text="查看技术细节（完整输入）")
+            fit()
+
+        detailed = ttk.Button(body, text="查看技术细节（完整输入）", command=toggle)
+        detailed.pack(anchor="w", pady=(10, 0))
+        preview.insert("1.0", prompt.details)
         preview.configure(state="disabled")
-        buttons = ttk.Frame(root, padding=12)
-        buttons.pack(fill="x")
+        footer = ttk.Frame(root, padding=(18, 8, 18, 14))
+        footer.pack(fill="x")
+        ttk.Label(footer, text="两分钟内未确认将自动取消；取消不代表测试通过。").pack(side="left")
 
         def accept() -> None:
             nonlocal accepted
             accepted = True
             root.quit()
 
-        cancel = ttk.Button(buttons, text="取消", command=root.quit)
-        cancel.pack(side="right", padx=8)
-        ttk.Button(buttons, text="确认本次操作", command=accept).pack(side="right")
+        # Windows 习惯：确认在左、取消在右；回车仍绑定取消，误按不提交。
+        cancel = ttk.Button(footer, text="取消", command=root.quit)
+        cancel.pack(side="right")
+        confirm = ttk.Button(footer, text="确认本次操作", command=accept)
+        confirm.pack(side="right", padx=8)
         root.protocol("WM_DELETE_WINDOW", root.quit)
         root.bind("<Escape>", lambda event: root.quit())
         root.bind("<Return>", lambda event: root.quit())
         root.after(NATIVE_CONFIRMATION_TIMEOUT_MS, root.quit)
         cancel.focus_set()
+        fit()
         root.mainloop()
         return accepted
     finally:
@@ -165,7 +279,7 @@ def dispatch_native(
     api: LocalAPI,
     command: Command,
     *,
-    prompt: Callable[[str], bool] = windows_prompt,
+    prompt: Callable[[ConfirmationPrompt], bool] = windows_prompt,
     records: ApprovalRecords | None = None,
 ) -> Response:
     """Allocate a private UI session, freeze a challenge, then await an actual gesture.
@@ -258,28 +372,12 @@ def dispatch_native(
                 "saved_materials": saved_materials,
             }
         )
-        text = (
-            "请核对以下操作、项目、输入和已保存依据。点击“确认本次操作”才会提交。\n"
-            "测试、网络或外部命令可能产生副作用；仅在理解准确输入后确认。\n"
-            "取消或两分钟未响应将取消；不代表任何业务验证通过。\n\n"
-            + (_friendly_preview(projected)
-               + json.dumps(projected, ensure_ascii=False, indent=2, allow_nan=False)).translate(
-                {
-                    code: f"\\u{code:04x}"
-                    for code in (
-                        *range(0x202A, 0x202F),
-                        *range(0x2066, 0x206A),
-                        0x200E,
-                        0x200F,
-                    )
-                }
-            )
-        )
-        if len(text) > MAX_PROMPT_CHARS:
+        view = _confirmation_prompt(projected)
+        if len(view.details) > MAX_PROMPT_CHARS:
             return api._error(
                 command, "CONFIRMATION_PREVIEW_LIMIT", "操作材料过大，无法完整展示确认"
             )
-        if prompt(text) is not True:
+        if prompt(view) is not True:
             return api._error(command, "USER_DECLINED", "用户未在核心原生窗口确认，操作未提交")
         if challenge_id is not None and input_digest is not None:
             approved = command.model_copy(
