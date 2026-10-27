@@ -20,17 +20,15 @@ DEFAULT_BASE_DELAY = 0.02
 MAX_DELAY = 0.5
 #: 暂存路径必须留在这个长度以内（260 含终止符，留 1 个余量）。
 _MAX_STAGE_PATH = 259
-#: Windows ``MAX_PATH``（含终止符）：目标路径本身超过它、且宿主未启用长路径支持时无法创建。
+#: Windows ``MAX_PATH``（含终止符）仅用于在**真实失败后**补充可操作说明。
 _MAX_TARGET_PATH = 259
 #: 越界时用于截断目标名提示的字符数。
 _STAGE_HINT_CHARS = 24
 #: 仍越界时使用的定长短名前缀（不含 mkstemp 的 8 位随机尾）。
 _SHORT_STAGE_PREFIX = ".aitest-stage."
-#: 超长路径是不可重试的宿主限制，必须说清原因而不是回一个裸 ENOENT。
-_LONG_PATH_REASON = (
-    "目标路径过长：Windows 未启用长路径支持时（MAX_PATH=260）无法创建该文件；"
-    "请把工作空间放到更短的基准目录（例如 C:\\aitest-tmp），或启用系统长路径支持"
-)
+#: 系统长路径开关在注册表中的位置。
+_LONG_PATHS_KEY = r"SYSTEM\CurrentControlSet\Control\FileSystem"
+_LONG_PATHS_VALUE = "LongPathsEnabled"
 
 
 def is_transient(error: OSError) -> bool:
@@ -112,47 +110,64 @@ def _stage_prefix(*, directory: str, target_name: str) -> str:
 
 
 def _long_path_failure(error: OSError, target: Path) -> OSError:
-    """把「超长路径导致的 ENOENT」改写成可定位的宿主限制说明；其它错误原样返回。
+    """把「超长路径导致的创建失败」改写成可定位的说明；其它错误原样返回。
 
-    未启用长路径支持的 Windows 上，``CreateFileW`` 对超过 ``MAX_PATH``(260) 的路径直接
-    回 ``ENOENT``——错误信息完全不指向真实原因，用户无从修复（实测：目标 277 字符必失败、
-    257 字符成功）。这里只在**确实越界**时补上原因，宿主支持长路径时行为不变。
+    只在**真实写入已经失败**之后改写，不再按路径长度提前拒绝：已启用长路径
+    支持的宿主本来就能创建这些路径（#117）。提示按注册表中的
+    ``LongPathsEnabled`` 区分「宿主未启用（可开启）」与「已启用但仍失败」。
     """
 
-    if os.name != "nt" or getattr(error, "errno", None) != errno_module.ENOENT:
+    if os.name != "nt" or getattr(error, "errno", None) not in {
+        errno_module.ENOENT,
+        errno_module.ENAMETOOLONG,
+    }:
         return error
     resolved = str(target.absolute())
     if len(resolved) <= _MAX_TARGET_PATH:
         return error
     return OSError(
         error.errno,
-        f"{error.strerror}：{_LONG_PATH_REASON}（本目标 {len(resolved)} 字符）",
+        f"{error.strerror}：{_long_path_message(len(resolved))}",
         resolved,
     )
 
 
-def _refuse_uncreatable_target(path: Path) -> None:
-    """目标路径本身已超 ``MAX_PATH`` 时**提前**失败，并说清是宿主限制。
-
-    这种失败与暂存名长度无关（暂存名已在 ``_stage_prefix`` 里缩短过），重试也不会有
-    不同结果：继续走 14 次指数退避只会让用户多等约 7 秒，仍拿到一句「找不到路径」。
-    因此在写暂存之前直接给出可操作的原因。
-    """
+def _long_paths_enabled() -> bool | None:
+    """读取系统长路径开关；读不到时返回 ``None``，不据此拒绝任何写入。"""
 
     if os.name != "nt":
-        return
-    resolved = str(path.absolute())
-    if len(resolved) > _MAX_TARGET_PATH:
-        raise OSError(
-            errno_module.ENAMETOOLONG,
-            f"{_LONG_PATH_REASON}（本目标 {len(resolved)} 字符）",
-            resolved,
+        return None
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _LONG_PATHS_KEY) as key:
+            value, _kind = winreg.QueryValueEx(key, _LONG_PATHS_VALUE)
+    except (ImportError, OSError, ValueError):
+        return None
+    return bool(value == 1)
+
+
+def _long_path_message(length: int) -> str:
+    enabled = _long_paths_enabled()
+    if enabled:
+        return (
+            f"目标路径过长且创建失败（本目标 {length} 字符）：系统已启用长路径支持，"
+            "请缩短工作空间基准目录后重试，或核对该目录是否可写"
         )
+    if enabled is False:
+        return (
+            "目标路径过长：Windows 未启用长路径支持时（MAX_PATH=260）无法创建该文件；"
+            "请把工作空间放到更短的基准目录（例如 C:\\aitest-tmp），或启用系统长路径支持"
+            f"（本目标 {length} 字符）"
+        )
+    return (
+        f"目标路径过长（本目标 {length} 字符）：请缩短工作空间基准目录；"
+        "如需保留长路径，请启用系统长路径支持"
+    )
 
 
 def _stage_json(path: Path, value: dict[str, Any]) -> str:
     """把内容写进目标同目录的暂存文件并落盘，返回该暂存路径。"""
-    _refuse_uncreatable_target(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     prefix = _stage_prefix(directory=str(path.parent), target_name=path.name)
     try:

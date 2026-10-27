@@ -409,6 +409,7 @@ def main(argv: list[str] | None = None) -> int:
         CoreAssemblyBlocked,
         assemble_workspace_core,
         await_core_launch_claim,
+        record_core_startup_failure,
         registered_use_cases,
     )
     from aitest.interfaces.local.pipe import (
@@ -443,6 +444,8 @@ def main(argv: list[str] | None = None) -> int:
             migration_backup_root=args.migration_backup_root,
         )
     except CoreAssemblyBlocked as error:
+        # 父进程把 stderr 置为 DEVNULL，真实原因必须由核心自己在退出前落盘（#118）。
+        record_core_startup_failure(workspace_root, str(error))
         print(str(error), file=sys.stderr)
         return 5
     api = assembly.api

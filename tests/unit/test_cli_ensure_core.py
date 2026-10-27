@@ -62,6 +62,52 @@ def test_ensure_core_refuses_a_file_path(tmp_path: Path, monkeypatch, capsys) ->
     assert json.loads(captured.err.strip())["code"] == "WORKSPACE_NOT_FOUND"
 
 
+def test_rebuild_index_refuses_a_missing_workspace_without_creating_it(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    target = tmp_path / "typo-workspace"
+
+    code, captured = _run(
+        ["rebuild-index", "--workspace", str(target)], monkeypatch, capsys
+    )
+
+    assert code == 2
+    assert not target.exists(), "维护入口同样不得把写错的路径创建成工作空间"
+    assert json.loads(captured.err.strip())["code"] == "WORKSPACE_NOT_FOUND"
+
+
+def test_rebuild_index_does_not_turn_a_plain_directory_into_a_workspace(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    code, captured = _run(
+        ["rebuild-index", "--workspace", str(plain)], monkeypatch, capsys
+    )
+
+    assert code == 2
+    assert list(plain.iterdir()) == [], "维护命令不得在普通目录写入锁或身份文件"
+    assert json.loads(captured.err.strip())["code"] == "INDEX_REBUILD_FAILED"
+
+
+def test_rebuild_index_reports_new_generation_for_a_real_workspace(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from tests.unit.test_sharded_record_authority import _legacy, _migrate
+
+    _legacy(tmp_path, count=2)
+    _migrate(tmp_path)
+
+    code, captured = _run(
+        ["rebuild-index", "--workspace", str(tmp_path)], monkeypatch, capsys
+    )
+
+    assert code == 0, captured.err
+    payload = json.loads(captured.out)
+    assert payload["status"] == "REBUILT" and payload["generation"] >= 1
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows named-pipe host lifecycle")
 def test_one_shot_startup_keeps_same_core_for_owning_host(tmp_path: Path) -> None:
     from aitest.bootstrap import shutdown_endpoint

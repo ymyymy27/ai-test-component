@@ -14,6 +14,8 @@ from aitest.bootstrap import (
     acquire_existing_endpoint,
     cli_host_pid,
     create_api,
+    read_core_startup_diagnostic,
+    rebuild_query_index,
 )
 from aitest.contracts.commands import Command
 from aitest.contracts.templates import TemplatePack
@@ -55,6 +57,11 @@ def main() -> int:
         "ensure-core", help="Discover or start the single core for a workspace (host entry)"
     )
     ensure.add_argument("--workspace", required=True, type=Path)
+    rebuild = sub.add_parser(
+        "rebuild-index",
+        help="Rebuild query projections from the authority while no core is running",
+    )
+    rebuild.add_argument("--workspace", required=True, type=Path)
     relay = sub.add_parser(
         "mcp-relay", help="stdio diagnostics and finite queries through the verified core"
     )
@@ -154,13 +161,18 @@ def main() -> int:
             )
         except Exception as error:
             code = getattr(error, "code", "CORE_UNAVAILABLE")
-            print(
-                json.dumps(
-                    {"code": code, "message": "核心未能在限定时间内核实并连接，保留现场待恢复"},
-                    ensure_ascii=False,
-                ),
-                file=sys.stderr,
-            )
+            detail = str(error) or "无法核实核心启动事实"
+            payload: dict[str, object] = {
+                "code": code,
+                "message": f"核心未能在限定时间内核实并连接：{detail}；保留现场待恢复",
+            }
+            diagnostic = read_core_startup_diagnostic(args.workspace)
+            if diagnostic is not None:
+                payload["startup_diagnostic"] = diagnostic
+                payload["startup_diagnostic_path"] = str(
+                    args.workspace / "core" / "startup-diagnostic.json"
+                )
+            print(json.dumps(payload, ensure_ascii=False), file=sys.stderr)
             return 2
         print(
             json.dumps(
@@ -169,6 +181,40 @@ def main() -> int:
                     "workspace_id": endpoint.workspace_id,
                     "instance_id": endpoint.instance_id,
                 },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "rebuild-index":
+        # 显式维护，不是日常查询：必须由用户/宿主主动执行，且核心未运行时才可写。
+        if not args.workspace.is_dir():
+            print(
+                json.dumps(
+                    {
+                        "code": "WORKSPACE_NOT_FOUND",
+                        "message": "工作空间路径不存在或不是目录；不据此创建数据工作空间",
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            generation = rebuild_query_index(args.workspace)
+        except Exception as error:
+            code = getattr(error, "code", "INDEX_REBUILD_FAILED")
+            print(
+                json.dumps(
+                    {"code": code, "message": f"查询索引重建失败：{error}"},
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        print(
+            json.dumps(
+                {"status": "REBUILT", "generation": generation},
                 ensure_ascii=False,
                 indent=2,
             )

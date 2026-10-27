@@ -152,6 +152,8 @@ from aitest.infrastructure.file_store.core_launch import (
     ProcessFact,
     probe_process,
     python_launch_program,
+    read_startup_diagnostic,
+    record_startup_diagnostic,
     valid_instance_filename,
 )
 from aitest.infrastructure.file_store.events import FileEventJournal
@@ -2110,6 +2112,36 @@ def verify_purpose_credential(*, purpose: str, reference: str) -> None:
 def reject_path_links(path: Path) -> None:
     """路径级「拒绝符号链接/交接点」检查的装配入口（接口层不直接依赖基础设施）。"""
     RegisteredPythonEnvironmentResolver._no_links(path)
+
+
+def record_core_startup_failure(workspace_root: Path, message: str) -> bool:
+    """核心启动失败诊断的装配入口：落盘前脱敏、有界、原子替换（#118）。"""
+    return record_startup_diagnostic(workspace_root, message)
+
+
+def read_core_startup_diagnostic(workspace_root: Path) -> str | None:
+    """读取核心启动失败诊断（只含可读结论，不含原始日志或凭据）。"""
+    return read_startup_diagnostic(workspace_root)
+
+
+def rebuild_query_index(workspace_root: Path) -> int:
+    """显式维护：无活动核心时从权威边界全量重建查询索引（#119）。
+
+    先取得工作空间的全生命周期写锁，避免与活动核心形成双写；核心正在运行时
+    以 ``WORKSPACE_IN_USE`` 拒绝，调用方必须先关闭核心再重建。
+    """
+    from aitest.infrastructure.file_store.records import FileRecordRepository
+
+    # 只维护已登记的工作空间：普通目录不得因维护命令被写成数据目录。
+    root = Workspace(workspace_root, create=False).root
+    FileCoreLaunchStore.reject_links(root)
+    FileCommitStore.reject_links(root)
+    lock = LifetimeWriterLock(root / "writer.lock")
+    lock.acquire()
+    try:
+        return FileRecordRepository(root).rebuild_query_index()
+    finally:
+        lock.release()
 
 
 def acquire_endpoint(

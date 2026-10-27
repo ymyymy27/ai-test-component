@@ -281,7 +281,8 @@ class PortsRecordReader:
         status = getattr(result, "status", "ok")
         if status == "maintenance_required":
             raise IndexMaintenanceRequired(
-                "the query index is missing or stale; rebuild it before querying"
+                "the query index is missing, stale or differs from its authority material; "
+                "run `aitest rebuild-index --workspace <workspace>` before querying"
             )
         if status == "invalid_cursor":
             raise InvalidQueryCursor(str(query.cursor))

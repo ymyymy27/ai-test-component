@@ -191,6 +191,20 @@ class FilePublicationBackend:
                     raise PublicationUncertainError(
                         "existing immutable publication was changed"
                     ) from error
+            except OSError as error:
+                # 部分 Windows 文件系统/过滤驱动在目标已存在时返回
+                # ERROR_INVALID_FUNCTION(1) 而不是 ERROR_ALREADY_EXISTS。
+                # 已保存对象仍然只能「内容相同才可复用」，不得直接覆盖。
+                if not (
+                    os.name == "nt"
+                    and getattr(error, "winerror", None) == 1
+                    and path.exists()
+                ):
+                    raise
+                if _read(path, max(len(raw), 1)) != raw:
+                    raise PublicationUncertainError(
+                        "existing immutable publication was changed"
+                    ) from error
             self._flush_directory(path.parent)
         finally:
             temporary.unlink(missing_ok=True)

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from aitest.application.planning.substrate import RecordQuery
 from aitest.infrastructure.file_store import atomic
 from aitest.infrastructure.file_store.backup import FileBackupStore
 from aitest.infrastructure.file_store.events import FileEventJournal
@@ -47,6 +48,22 @@ def _migrate(root: Path) -> tuple[FileMigrationManager, str]:
     assert report.backup_path is not None
     assert FileBackupStore(root).verify(report.backup_path)["ok"]
     return manager, plan.plan_id
+
+
+def test_explicit_maintenance_rebuild_advances_generation_and_keeps_queries(tmp_path):
+    _legacy(tmp_path, count=4)
+    _migrate(tmp_path)
+    repo = FileRecordRepository(tmp_path)
+    generation = repo.rebuild_query_index()
+    after = repo.query(RecordQuery(project_id="project-a"))
+    assert after.status == "ok" and len(after.items) == 4
+    assert generation >= 1
+
+
+def test_explicit_rebuild_refuses_workspace_without_committed_entries(tmp_path):
+    Workspace(tmp_path)
+    with pytest.raises(ValueError, match="no commit"):
+        FileRecordRepository(tmp_path).rebuild_query_index()
 
 
 def test_migration_preserves_every_revision_intent_commit_owner_and_unknown_field(tmp_path):
