@@ -546,6 +546,20 @@ class AITestPanel extends HTMLElement {
           const item=action(`${label} · ${index>=0?`第 ${index+1} 步`:"打开对应步骤"}`,()=>{this.selectedStep=id;this.navigate("workbench");});item.className="link-button";section.append(item);}
       }
       for(const code of strings(view.gap_codes)){const item=text("p",`证据缺口：${friendly(code)}`,"muted");section.append(item);}
+      // 还没跑过的步骤也要出现在待处理里，否则用户以为"没事可做"。
+      const unfinished=steps.filter(step=>step && step["state"]==="pending");
+      if(unfinished.length){
+        section.append(text("p",`待执行：${unfinished.length} 个步骤`,"muted"));
+        // 竖排：横向排列会在窄侧栏里把两条挤在同一行并断字。
+        const list=document.createElement("div");list.className="pending-list";
+        for(const step of unfinished.slice(0,10)){
+          const stepId=String(step?.["step_id"]??"");
+          const name=caseKindName(step?.["case_id"]);
+          const item=action(`待执行 · ${name||"步骤"}`,()=>{this.selectedStep=stepId;this.navigate("workbench");});
+          item.className="link-button";list.append(item);
+        }
+        section.append(list);
+      }
       if(!section.childElementCount)section.append(text("p","本次视图未列出待处理项；其他未查询事实保持待核实。","muted"));
     }
     if(this.project?.run_id)section.append(action("读取运行详情",()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),!this.available("read_view")));return section;
@@ -559,8 +573,7 @@ class AITestPanel extends HTMLElement {
     for(const [caseIndex,id] of cases.entries()){
       const item=document.createElement("li");const children=document.createElement("ul");
       // 用例编号后不带名称时，用户无法分辨四项检查；按用例编号后缀映射到检查名称。
-      const kind=id.slice(id.lastIndexOf("-")+1);
-      const caseName=({syntax:"加载与语法",normal:"正常输入",boundary:"边界输入",error:"异常输入"} as Record<string,string>)[kind]??"";
+      const caseName=caseKindName(id);
       item.append(text("strong",`用例 ${caseIndex+1}${caseName?` · ${caseName}`:""}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
       for(const raw of steps){const step=object(raw);if(step?.["case_id"]!==id)continue;
         const child=document.createElement("li");child.append(action(`步骤 ${children.childElementCount+1} · ${friendly(step["state"])}`,()=>{this.selectedStep=String(step["step_id"]);this.navigate("workbench");}));children.append(child);}
@@ -893,14 +906,30 @@ class AITestPanel extends HTMLElement {
     const view=this.view("panel");
     const names:Record<string,string>={pre_run:"准备检查",runtime:"正在处理本次运行",post_run:"本次结果"};
     const state=text("div","");state.className="phase";
+    const run=this.view("run");
+    const summary=object(run?.["selected_summary"]);
     if(view){state.setAttribute("aria-current","step");
-      state.append(text("h2",names[String(view["stage"])]??"阶段待核实"),text("p",`执行控制：${friendly(view["control_state"])}`),
-        text("p",`业务结论：${friendly(view["business_outcome"])}`),text("p",`${friendly(view["tier"])} · ${friendly(view["driver"])}`,"muted"));
+      // 标题用项目名，而不是"正在处理本次运行"这类占位语：用户要一眼看出在测什么。
+      const title=this.project?.scope_name || this.projectName || names[String(view["stage"])] || "阶段待核实";
+      state.append(text("h2",title),
+        text("p",`执行控制：${friendly(view["control_state"])} · ${friendly(view["tier"])} · ${friendly(view["driver"])}`,"muted"),
+        text("p",`业务结论：${friendly(view["business_outcome"])}`));
+      if(summary){
+        const n=(key:string)=>String(summary[key] ?? "未知");
+        const total=n("denominator");
+        state.append(
+          text("p",`执行 ${n("executed_count")}/${total} · 复用 ${n("reused_count")}/${total} · 验证 ${n("verified_count")}/${total}`,"muted"),
+          text("p",`未验证 ${n("unverified_count")} · 已确认失败 ${n("failed_count")}`,"muted"));
+      } else state.append(text("p","点下方『读取运行详情』后可看到本轮执行与核验计数。","muted"));
+      // 独立动作区：看见按钮就知道下一步去哪，不用先读文档。
+      if(this.project?.run_id){
+        const actions=document.createElement("div");actions.className="actions";
+        actions.append(
+          action("去核验",()=>this.navigate("workbench"),!this.host),
+          action("查看报告",()=>this.navigate("review"),!this.host));
+        state.append(actions);
+      }
     }else state.append(text("h2",this.project?.run_id?"读取本次测试":"准备本次测试"),text("p",this.project?.run_id?"读取已保存的运行，查看进度与下一步。":"从项目和测试目标开始，按提示准备检查计划。","muted"));
-    const run=this.view("run");if(run && run["snapshot_commit_id"]===view?.["snapshot_commit_id"]){
-      const summary=object(run["selected_summary"]);
-      if(summary){const facts=document.createElement("dl");facts.className="facts";const labels:Record<string,string>={denominator:"本轮范围",executed_count:"已执行",reused_count:"已复用",verified_count:"已核验",passed_count:"通过",failed_count:"失败",unverified_count:"未核验"};for(const [key,label] of Object.entries(labels))if(key in summary)facts.append(text("dt",label),text("dd",String(summary[key] ?? "未知")));state.append(facts);}
-    }
     const refresh=action("刷新本次视图",()=>this.dispatchScoped("read_view",{view:"panel",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id);
     refresh.dataset.testid="refresh-panel-view";
     const boundary=document.createElement("details");boundary.append(text("summary","来源与提交边界"));
@@ -979,12 +1008,56 @@ class AITestPanel extends HTMLElement {
     return section;
   }
 
+  /** 报告摘要：先给结论与下一步，再给覆盖表与缺口，最后才是字段细节。 */
+  private reportSummary(record:Record<string,unknown>, revision:number):HTMLElement {
+    const block=document.createElement("section");block.dataset.testid="report-summary";
+    const decision=object(record["decision"]) ?? {};
+    const context=object(record["context"]) ?? {};
+    const coverage=object(decision["coverage"]) ?? {};
+    const list=(key:string):unknown[]=>Array.isArray(coverage[key])?coverage[key] as unknown[]:[];
+    const selected=list("selected"),required=list("required");
+    const executed=list("executed"),reused=list("reused"),verified=list("verified"),passed=list("passed");
+    const failures=Array.isArray(decision["decisive_failures"])?decision["decisive_failures"]:[];
+    const counted=(scope:unknown[],pool:unknown[])=>scope.filter(item=>pool.includes(item)).length;
+    const outcome=record["business_outcome"] ?? decision["business_outcome"];
+    const grade=record["evidence_grade"] ?? decision["evidence_grade"];
+    const badge=document.createElement("p");badge.className="report-outcome";
+    badge.textContent=`${friendly(outcome)}${grade?` · 证据 ${String(grade)}`:""}`;
+    block.append(badge);
+    const gaps=Array.isArray(decision["gaps"])?decision["gaps"]:[];
+    const primary=object(decision["primary_gap"]) ?? object(gaps[0]);
+    const reason=primary?gapText(primary["code"],primary["safe_reason"]):"";
+    block.append(text("p",reason||"没有影响结论的缺口。",reason?"":"muted"));
+    const actions=document.createElement("div");actions.className="actions";
+    actions.append(
+      action("去核验",()=>this.navigate("workbench"),!this.host),
+      action("导出 Markdown 摘要",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:revision,kind:"markdown_summary",review_ids:[]}),!this.available("export_report")),
+      action("导出证据包",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:revision,kind:"evidence_bundle",review_ids:[]}),!this.available("export_report")));
+    block.append(actions);
+    block.append(text("p",`本轮执行 ${executed.length}/${selected.length} · 有效复用 ${reused.length}/${selected.length} · 有效验证 ${verified.length}/${selected.length}`,"muted"));
+    // 侧栏只有约 300px，表格会挤成竖排；改成两行文字更易读。
+    const scopeLine=(label:string,scope:unknown[])=>
+      `${label}：通过 ${counted(scope,passed)} · 失败 ${scope.filter(item=>failures.includes(item)).length} · 未验证 ${scope.filter(item=>!verified.includes(item)).length}`;
+    block.append(text("h3","覆盖与结论"),
+      text("p",scopeLine("本轮所选",selected)),
+      text("p",scopeLine("完整必测",required)));
+    const gapList=Array.isArray(decision["gaps"])?decision["gaps"]:[];
+    block.append(text("h3","需要补齐的证据"));
+    if(gapList.length===0)block.append(text("p","没有缺口。","muted"));
+    else for(const raw of gapList){const item=object(raw);block.append(text("p",gapText(item?.["code"],item?.["safe_reason"])));}
+    const scope=typeof context["scope_name"]==="string"?String(context["scope_name"]):"";
+    if(scope)block.append(text("p",`范围：${scope}`,"muted"));
+    block.append(text("p","此为报告冻结快照；核验更新将形成新的报告修订。","muted"));
+    return block;
+  }
+
   private recordDetail():HTMLElement {
     const section=document.createElement("section");section.dataset.testid="record-detail";
     const view=object(object(this.recordOutcome?.response?.["result"])?.["view"]);
     const record=object(view?.["record"]);
     if(!record || !this.selectedRecord)return section;
     section.append(text("h2",`${this.selectedRecord.aggregate_kind==="report"?"测试报告":"已保存内容"} · 修订 ${this.selectedRecord.revision}`),text("p","已保存快照 · 不随当前运行变化","muted"));
+    if(this.selectedRecord.aggregate_kind==="report")section.append(this.reportSummary(record,this.selectedRecord.revision));
     const labels:Record<string,string>={business_outcome:"业务结论",decision:"判定与覆盖",context:"范围与来源",created_at:"保存时间",evidence_refs:"证据索引",scope:"验收范围",cases:"用例",objective:"目标",expected:"预期",actual:"实际",state:"状态",title:"标题",run_tier:"检查档位",initial_driver:"执行方式",status:"状态",required_case_ids:"必测用例",preconditions:"前置条件",steps:"检查步骤",verification_method:"核验方式",independent_verification:"独立核验",importance:"重要程度"};
     Object.assign(labels,{evidence_grade:"证据等级",primary_gap:"首要缺口",gaps:"未完成原因",safe_reason:"原因",selected_summary:"本轮所选范围",required_summary:"冻结必测范围",denominator:"范围内用例",executed_count:"已执行",reused_count:"已复用",verified_count:"有效验证",passed_count:"通过",failed_count:"失败",unverified_count:"未验证",decisive_failure_count:"已确认失败",scope_kind:"统计范围",project_name:"项目",scope_name:"测试范围",tier:"检查档位",driver:"执行方式",inputs:"输入",layer:"检查层级",name:"名称",description:"说明",evidence_refs:"证据引用"});
     const present=(value:unknown):HTMLElement=>{
@@ -993,12 +1066,9 @@ class AITestPanel extends HTMLElement {
       return text("span",value==null?"未提供":friendly(value));
     };
     const technical=document.createElement("details");technical.append(text("summary","技术来源（排障用）"));
-    for(const [key,value] of Object.entries(record)){if(!(key in labels)){technical.append(text("p",key),present(value));continue;}const group=document.createElement("details");group.open=["business_outcome","decision","scope","cases","objective"].includes(key);group.append(text("summary",labels[key]??key),present(value));section.append(group);}
+    const autoOpen=this.selectedRecord.aggregate_kind==="report" ? ["scope"] : ["business_outcome","decision","scope","cases","objective"];
+    for(const [key,value] of Object.entries(record)){if(!(key in labels)){technical.append(text("p",key),present(value));continue;}const group=document.createElement("details");group.open=autoOpen.includes(key);group.append(text("summary",labels[key]??key),present(value));section.append(group);}
     section.append(technical);
-    if(this.selectedRecord.aggregate_kind==="report"){
-      section.append(action("导出 Markdown 摘要",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:this.selectedRecord!.revision,kind:"markdown_summary",review_ids:[]}),!this.available("export_report")),
-        action("导出证据包",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:this.selectedRecord!.revision,kind:"evidence_bundle",review_ids:[]}),!this.available("export_report")));
-    }
     return section;
   }
 
@@ -1354,6 +1424,40 @@ class AITestPanel extends HTMLElement {
     block.append(list);
     return block;
   }
+}
+
+/** 缺口代码在领域里是英文；面板显示中文说明，原始代码仍留在字段细节中。 */const GAP_TEXT:Record<string,string>={
+  source_identity_mismatch:"源码与登记身份不一致",
+  no_valid_execution_basis:"没有可用的执行依据",
+  source_identity_unverified:"源码身份尚未核实",
+  template_required_below_floor:"必测项低于模板要求",
+  full_required_scope_missing:"完整验证缺少必测范围",
+  required_case_unresolved:"必测用例尚未得出结论",
+  required_case_pending_verification:"必测用例待核验",
+  required_case_unverified:"必测用例本轮没有取得有效验证",
+  outdated_basis:"断言依据已过期",
+  required_evidence_invalid:"必需证据缺失、损坏或无效",
+  environment_evidence_incomplete:"环境证据不完整",
+  critical_path_missing:"缺少关键链路覆盖",
+  critical_unknown:"关键链路结果未知",
+  critical_mock:"关键链路使用了模拟",
+  full_skipped_scope:"完整验证跳过了部分范围",
+  assertion_basis_unconfirmed:"断言依据尚未确认",
+  noncritical_unknown:"非关键项结果未知",
+  noncritical_verification_gap:"非关键项缺少验证",
+  unclassified_gap:"未分类的缺口",
+};
+
+const CASE_KIND_NAMES:Record<string,string>={syntax:"加载与语法",normal:"正常输入",boundary:"边界输入",error:"异常输入"};
+
+function caseKindName(id:unknown):string {
+  if(typeof id!=="string")return "";
+  return CASE_KIND_NAMES[id.slice(id.lastIndexOf("-")+1)] ?? "";
+}
+
+function gapText(code:unknown, fallback:unknown):string {
+  if(typeof code==="string" && GAP_TEXT[code])return GAP_TEXT[code];
+  return typeof fallback==="string" && fallback.trim() ? fallback : "缺口";
 }
 
 /** 导出回执带 artifact_ref（相对用户数据工作空间）；直接告知位置，避免用户无从查找。 */
