@@ -797,6 +797,26 @@ class FileRecordRepository:
                 actions.append("从 records 权威边界重建旧版事件 events.json")
         return actions
 
+    def rebuild_query_index(self) -> int:
+        """显式维护：不从「是否健康」推断，直接按权威边界全量重建查询索引（#119）。
+
+        旧版本写入的索引行可能与本版本的摘要规则不同：提交号一致、根快照可读，
+        但行级字节比对失败，查询因此永久降级为 ``maintenance_required``。这里沿用
+        既有的维护重建路径（晋升代次、作废旧游标），只重写投影，不改写业务记录。
+        """
+        data = self._load()
+        ledger = data.get("commits")
+        if not isinstance(ledger, list):
+            raise ValueError("records authority has no commit ledger")
+        entries = [entry for entry in ledger if isinstance(entry, dict)]
+        if not entries:
+            raise ValueError("records authority has no committed entries")
+        index = FileQueryIndex(self.root, journal=self._journal)
+        if index.requires_layout_migration():
+            raise ValueError("legacy query directory requires backed up migration")
+        rows = self._summary_rows_from_authority(data, entries)
+        return index.rebuild_for_maintenance(rows)
+
     def _write_active_marker(
         self,
         *,

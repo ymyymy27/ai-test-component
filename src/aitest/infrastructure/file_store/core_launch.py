@@ -19,7 +19,7 @@ import portalocker
 
 from aitest.application.errors import WorkspaceInUse
 from aitest.infrastructure import path_compat as compat
-from aitest.infrastructure.security import guard_bytes, guard_value
+from aitest.infrastructure.security import guard_bytes, guard_value, scrub_text
 
 from . import atomic
 
@@ -65,6 +65,51 @@ def valid_instance_filename(name: str) -> bool:
         and not any(c in name for c in "/\\")
         and not isreserved_name(name)
     )
+
+
+DIAGNOSTIC_SCHEMA = "aitest.core-startup-diagnostic/1"
+#: 启动诊断只保留可读结论，落盘前脱敏并按字符数封顶。
+_DIAGNOSTIC_MAX_CHARS = 4096
+_DIAGNOSTIC_MAX_BYTES = 64 * 1024
+
+
+def startup_diagnostic_path(root: Path) -> Path:
+    return root / "core/startup-diagnostic.json"
+
+
+def record_startup_diagnostic(root: Path, message: str) -> bool:
+    """把核心启动失败的原因写成受限、脱敏的诊断文件（#118）。
+
+    核心自己的 stderr 被父进程置为 DEVNULL，因此诊断必须由核心在退出前落盘。
+    只保留启动期结论（不含原始日志/凭据），失败时静默放弃，不影响退出码。
+    """
+    text, _changed = scrub_text(str(message))
+    text = text[:_DIAGNOSTIC_MAX_CHARS]
+    try:
+        atomic.write_json(
+            startup_diagnostic_path(Path(root)),
+            {"schema": DIAGNOSTIC_SCHEMA, "message": text},
+        )
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def read_startup_diagnostic(root: Path) -> str | None:
+    """读取有界启动诊断；缺失、越界或形状不符都返回 ``None``。"""
+    path = startup_diagnostic_path(Path(root))
+    try:
+        if path.stat().st_size > _DIAGNOSTIC_MAX_BYTES:
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict) or raw.get("schema") != DIAGNOSTIC_SCHEMA:
+        return None
+    message = raw.get("message")
+    if not isinstance(message, str) or not message or len(message) > _DIAGNOSTIC_MAX_CHARS:
+        return None
+    return message
 
 
 def python_launch_program(requested: str) -> tuple[str, str | None]:

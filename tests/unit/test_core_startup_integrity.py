@@ -399,6 +399,20 @@ def test_known_credentials_block_before_any_startup_history_write(tmp_path, secr
     assert list(tmp_path.rglob("*")) == []
 
 
+def test_startup_diagnostic_is_redacted_bounded_and_never_guessed(tmp_path):
+    known_secrets().register("startup-secret-value")
+    assert bootstrap.record_core_startup_failure(
+        tmp_path, "assembly blocked: token=startup-secret-value " + "x" * 8000
+    )
+    text = bootstrap.read_core_startup_diagnostic(tmp_path)
+    assert text is not None
+    assert "startup-secret-value" not in text and len(text) <= 4096
+    (tmp_path / "core" / "startup-diagnostic.json").write_text(
+        '{"schema": "unknown", "message": "x"}', encoding="utf-8"
+    )
+    assert bootstrap.read_core_startup_diagnostic(tmp_path) is None
+
+
 def test_junction_ancestor_is_rejected_before_claim_or_spawn(tmp_path, monkeypatch):
     original = path_compat.is_junction
     monkeypatch.setattr(
@@ -596,6 +610,9 @@ def test_real_worker_reports_blocked_recovery_exit_to_host(tmp_path):
         value = FileCoreLaunchStore(tmp_path).read()
         assert value["state"] == "exited" and value["exit_code"] == 5
         assert authority.read_text(encoding="utf-8") == "{not-json"
+        # stderr 被父进程置为 DEVNULL，失败原因只能由核心自己落盘（#118）。
+        diagnostic = bootstrap.read_core_startup_diagnostic(tmp_path)
+        assert diagnostic is not None and diagnostic.strip()
     finally:
         for child in launcher._children.values():
             if child.poll() is None:

@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, NoReturn, Protocol, cast
 
-from aitest.application.errors import WorkspaceInUse
+from aitest.application.errors import CoreStartupFailed, WorkspaceInUse
 
 #: 连接器：返回已连接对象及其实例 id；不可连接返回 None。
 Connector = Callable[[str], tuple[object, str] | None]
@@ -98,7 +98,10 @@ class EditorHost:
                 if isinstance(fact, CoreStartupObservation):
                     if fact.state == "exited":
                         code = str(fact.exit_code) if fact.exit_code is not None else "unknown"
-                        raise WorkspaceInUse(f"核心已退出，exit_code={code}")
+                        reason = fact.reason or "unknown"
+                        raise CoreStartupFailed(
+                            f"核心启动后已退出，exit_code={code}，reason={reason}"
+                        )
                     if fact.state == "unknown":
                         raise WorkspaceInUse("核心启动进程身份无法核实，保留现场待恢复")
                     if fact.state == "starting":

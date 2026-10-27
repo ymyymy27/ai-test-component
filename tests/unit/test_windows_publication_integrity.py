@@ -316,6 +316,27 @@ def test_immutable_material_never_overwrites_a_collision(tmp_path):
     assert path.read_bytes() == b"original"
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows ERROR_INVALID_FUNCTION collision")
+def test_invalid_function_collision_still_requires_identical_bytes(tmp_path, monkeypatch):
+    """目标已存在时部分文件系统回 ERROR_INVALID_FUNCTION，仍只复用相同内容。"""
+    from aitest.infrastructure.file_store import publication_backend
+
+    path = tmp_path / "immutable.pointer"
+    path.write_bytes(b"original")
+    error = OSError(1, "incorrect function")
+    error.winerror = 1  # type: ignore[misc]
+
+    def collide(source: str, target: str) -> None:
+        raise error
+
+    monkeypatch.setattr(publication_backend.os, "link", collide)
+    backend = FilePublicationBackend(tmp_path)
+    backend.publish_immutable(path, b"original")
+    with pytest.raises(PublicationUncertainError):
+        backend.publish_immutable(path, b"different")
+    assert path.read_bytes() == b"original"
+
+
 def test_known_credentials_never_reach_candidate_previous_or_manifest(tmp_path, monkeypatch):
     registry = security.KnownSecretRegistry()
     registry.register("fictional-publication-credential")
