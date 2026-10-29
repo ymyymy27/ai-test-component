@@ -46,6 +46,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (docked) { void vscode.commands.executeCommand("aitest.sidebar.focus"); }
       else { openPanel(context); }
     }),
+    vscode.commands.registerCommand("aitest.openWorkbench", () => openDetail(context, "workbench")),
+    vscode.commands.registerCommand("aitest.openReport", () => openDetail(context, "review")),
     vscode.commands.registerCommand("aitest.configureEntry", async () => {
       if (!vscode.workspace.isTrusted) {
         void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。"); return;
@@ -86,17 +88,40 @@ function openPanel(context: vscode.ExtensionContext): void {
   context.subscriptions.push(panel);
 }
 
-function attachPanel(context: vscode.ExtensionContext, panel: PanelHost): void {
+/** 在编辑器里打开工作台或报告：同一份面板代码，带一个初始视图标记。已有的同类页签直接复用。 */
+let detailPanels: Partial<Record<"workbench" | "review", vscode.WebviewPanel>> = {};
+
+function openDetail(context: vscode.ExtensionContext, detail: "workbench" | "review"): void {
+  if (!vscode.workspace.isTrusted) {
+    void vscode.window.showWarningMessage("请先通过编辑器确认工作区信任。");
+    return;
+  }
+  const existing = detailPanels[detail];
+  if (existing) { existing.reveal(vscode.ViewColumn.Active); return; }
+  const title = detail === "review" ? "AI 测试 · 报告与问题" : "AI 测试 · 测试工作台";
+  const panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, title, vscode.ViewColumn.Active, {
+    enableScripts: true,
+    localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "dist")],
+    retainContextWhenHidden: true,
+  });
+  detailPanels[detail] = panel;
+  panel.onDidDispose(() => { if (detailPanels[detail] === panel) { delete detailPanels[detail]; } });
+  attachPanel(context, panel, detail);
+  context.subscriptions.push(panel);
+}
+
+function attachPanel(context: vscode.ExtensionContext, panel: PanelHost, detail?: "workbench" | "review"): void {
   const script = panel.webview.asWebviewUri(
     vscode.Uri.joinPath(context.extensionUri, "dist", "panel.js"),
   );
   const nonceValue = randomBytes(24).toString("hex");
+  const preset = detail ? `<script nonce="${nonceValue}">window.__AITEST_DETAIL="${detail}";</script>` : "";
   panel.webview.html = `<!doctype html><html lang="zh-CN"><head>
       <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none';
         script-src 'nonce-${nonceValue}'; style-src 'unsafe-inline';">
       <title>AI 辅助测试</title></head><body><ai-test-panel></ai-test-panel>
-      <script nonce="${nonceValue}" src="${script}"></script></body></html>`;
+      ${preset}<script nonce="${nonceValue}" src="${script}"></script></body></html>`;
   const scope: PanelScope = { key: "", id: randomUUID() };
   panel.webview.onDidReceiveMessage((message: unknown) => {
     void handleWebviewMessage(panel, message, scope, context);
@@ -157,6 +182,7 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
     return;
   }
   const raw = message as Record<string, unknown>;
+  if(raw.kind === "openDetail"){ openDetail(context, raw.detail === "review" ? "review" : "workbench"); return; }
   if(typeof raw.kind==="string" && raw.kind.startsWith("wizard")){
     if(!identityOrNull(raw.clientRequestId)||scope.wizardBusy)return;
     scope.wizardBusy=true;
