@@ -25,17 +25,25 @@ from aitest.application.project.delivery_verification import (
 from aitest.application.project.serialization import delivery_from_payload
 from aitest.application.review.saved_reports import SavedReportService
 from aitest.contracts.commands import Command
+from aitest.contracts.errors import ErrorCode
 from aitest.contracts.read_views import ReadViewQuery
 from aitest.interfaces.dto import (
     DeliveryViewDTO,
-    PanelViewDTO,
-    RunViewDTO,
+    PanelDTO,
+    PlanDTO,
+    RunDTO,
     delivery_view_dto,
     panel_view_dto,
     run_view_dto,
 )
 
 __all__ = ["CommittedViewReader"]
+
+
+class SnapshotRequiredError(RuntimeError):
+    """读取期间提交边界变化：返回 `SNAPSHOT_REQUIRED`，要求重建成对快照。"""
+
+    code = ErrorCode.SNAPSHOT_REQUIRED.value
 
 
 class CommittedViewReader:
@@ -58,6 +66,7 @@ class CommittedViewReader:
 
     def dispatch(self, command: Command) -> Mapping[str, object]:
         """Finite DTO query with a single verified outer view/event boundary."""
+
         project = command.project_id
         if not isinstance(project, str) or not project.strip() or len(project) > 128:
             raise ValueError("read_view requires an explicit project")
@@ -71,12 +80,12 @@ class CommittedViewReader:
                 revision=selector.revision,
             )
             if self._boundary(project) != boundary:
-                raise ValueError("the committed view boundary changed while reading")
+                raise SnapshotRequiredError("the committed view boundary changed while reading")
             return {"view_type": view, "view": record_view, **boundary}
         identity = selector.run_id if view in {"run", "panel"} else selector.delivery_id
         assert identity is not None
         boundary = self._boundary(project)
-        result: RunViewDTO | PanelViewDTO | DeliveryViewDTO
+        result: RunDTO | PanelDTO | DeliveryViewDTO
         if view == "run":
             result = self.run_view(project_id=project, run_id=identity)
         elif view == "panel":
@@ -89,7 +98,7 @@ class CommittedViewReader:
                 submission_id=selector.submission_id,
             )
         if self._boundary(project) != boundary:
-            raise ValueError("the committed view boundary changed while reading")
+            raise SnapshotRequiredError("the committed view boundary changed while reading")
         return {"view_type": view, "view": result.model_dump(mode="json"), **boundary}
 
     def record_view(
@@ -125,6 +134,31 @@ class CommittedViewReader:
             "record": {key: payload[key] for key in fields[kind] if key in payload},
         }
 
+    def plan_view(self, *, project_id: str, plan_id: str, revision: int) -> PlanDTO:
+        """计划视图（架构 06 §1 `PlanDTO`）：只投影已保存计划记录的公开事实。"""
+
+        record_view = self.record_view(
+            project_id=project_id, kind="plan", record_id=plan_id, revision=revision
+        )
+        record = record_view["record"]
+        assert isinstance(record, Mapping)
+        return PlanDTO(
+            project_id=project_id,
+            plan_id=plan_id,
+            revision=revision,
+            scope_id=record.get("scope_id"),
+            scope_revision=record.get("scope_revision"),
+            required_case_ids=tuple(record.get("required_case_ids", ())),
+            case_revisions=record.get("case_revisions", {}),
+            rule_revisions=record.get("rule_revisions", {}),
+            template_versions=record.get("template_versions", {}),
+            run_tier=record.get("run_tier"),
+            initial_driver=record.get("initial_driver"),
+            status=record.get("status"),
+            uncovered_reasons=tuple(record.get("uncovered_reasons", ())),
+            not_applicable_reasons=tuple(record.get("not_applicable_reasons", ())),
+        )
+
     def _boundary(self, project_id: str) -> dict[str, object]:
         query = getattr(self._reader, "query", None)
         if not callable(query):
@@ -143,8 +177,8 @@ class CommittedViewReader:
             raise ValueError("the exact committed view/event boundary is unverified")
         return values
 
-    def run_view(self, *, project_id: str, run_id: str) -> RunViewDTO:
-        """运行视图：事实 + 同一次领域判定 → `RunViewDTO`（含快照边界与配对游标）。"""
+    def run_view(self, *, project_id: str, run_id: str) -> RunDTO:
+        """运行视图：事实 + 同一次领域判定 → `RunDTO`（含快照边界与配对游标）。"""
 
         if not isinstance(project_id, str) or not project_id.strip():
             raise ValueError("the run view requires an explicit project identity")
@@ -153,7 +187,7 @@ class CommittedViewReader:
         facts, decision = self._decisions.live_decision(project_id, run_id)
         return run_view_dto(facts, decision)
 
-    def panel_view(self, *, project_id: str, run_id: str) -> PanelViewDTO:
+    def panel_view(self, *, project_id: str, run_id: str) -> PanelDTO:
         """面板主屏视图（架构 06 §1 的「当前段 + 信息区」）：同一次判定 + 运行视图。
 
         只读已提交事实与**同一次**领域判定；`primary_action` 的动作标识未冻结，故不给候选

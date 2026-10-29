@@ -146,7 +146,7 @@ def test_query_spec_invalid_cursor_is_explicit(tmp_path: Path) -> None:
         QuerySpec(project_id="project-1", cursor="invalid", limit=20)
     )
 
-    assert result.status == "invalid_cursor"
+    assert result.status == "snapshot_required"
     assert result.items == ()
 
 

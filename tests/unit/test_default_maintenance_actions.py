@@ -73,7 +73,7 @@ def test_events_result_shape_is_the_panel_contract(tmp_path: Path) -> None:
     """`events` 的结果形状是**共享面板**的消费契约（`event-stream.spec.ts` 逐字解析）。
 
     - 成功：`status == "ok"`，`events` 为数组，`next_cursor` 为字符串或 null；
-    - 游标非法：`status == "invalid_cursor"`（**在 result 里**，不是宿主层错误），
+    - 游标非法：`status == "snapshot_required"`（**在 result 里**，不是宿主层错误），
       面板据此保持原游标并显示代码，绝不静默重置成"从头开始"。
     """
 
@@ -98,7 +98,7 @@ def test_events_result_shape_is_the_panel_contract(tmp_path: Path) -> None:
     )
     assert bad.error is None, bad.error
     assert bad.result is not None
-    assert bad.result["status"] == "invalid_cursor"
+    assert bad.result["status"] == "snapshot_required"
 
 
 def test_doctor_advertises_the_maintenance_actions(tmp_path: Path) -> None:

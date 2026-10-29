@@ -264,7 +264,7 @@ def test_event_cursor_rejects_wrong_identity_generation_and_future(workspace: Pa
     }[change]
     body[key] = value
     token = base64.urlsafe_b64encode(json.dumps(body).encode()).decode()
-    assert journal.read(cursor=token).status == "invalid_cursor"
+    assert journal.read(cursor=token).status == "snapshot_required"
 
 
 def test_unpublished_new_root_cannot_overwrite_a_later_complete_commit(workspace: Path):

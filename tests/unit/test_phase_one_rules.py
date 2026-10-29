@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import pytest
 
 from aitest.application.connectivity import retry_delay
 from aitest.application.planning.regression import affected_modules
+from aitest.domain.evidence.evidence import TruthClass, derive_truth_class
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     ConclusionCeiling,
@@ -11,6 +14,7 @@ from aitest.domain.planning.plans import (
     narrow_driver,
 )
 from aitest.domain.review.reports import Coverage
+from aitest.infrastructure.paths import default_workspace_root, is_user_data_workspace
 from aitest.interfaces.dto import coverage_dto
 
 
@@ -18,10 +22,10 @@ def test_new_execution_is_not_inflated_by_reuse() -> None:
     selected = frozenset(str(i) for i in range(12))
     reused = frozenset({"10", "11"})
     dto = coverage_dto(Coverage(selected, selected, selected - reused, reused, selected, selected))
-    assert dto.executed_count == 10
-    assert dto.reused_count == 2
-    assert dto.verified_count == 12
-    assert dto.required_verified_count == 12
+    assert dto.selected_summary.executed_count == 10
+    assert dto.selected_summary.reused_count == 2
+    assert dto.selected_summary.verified_count == 12
+    assert dto.required_summary.verified_count == 12
 
 
 def test_supplemental_failure_and_unselected_required_cases() -> None:
@@ -35,7 +39,7 @@ def test_supplemental_failure_and_unselected_required_cases() -> None:
         frozenset({"extra-1", "extra-2"}),
     )
     assert value.failed == {"extra-3"}
-    assert coverage_dto(value).required_verified_count == 0
+    assert coverage_dto(value).required_summary.verified_count == 0
 
 
 def test_unconfirmed_basis_is_executed_but_not_verified() -> None:
@@ -48,7 +52,7 @@ def test_unconfirmed_basis_is_executed_but_not_verified() -> None:
         frozenset({"a"}),
     )
     assert value.unverified == {"b"}
-    assert coverage_dto(value).executed_count == 2
+    assert coverage_dto(value).selected_summary.executed_count == 2
 
 
 def test_reuse_cannot_overlap_new_attempt() -> None:
@@ -90,3 +94,24 @@ def test_transport_retry_never_replays_unproven_side_effects() -> None:
         None,
     ]
     assert retry_delay(0, read_only=False, idempotency_proven=False) is None
+
+
+
+def test_truth_class_evidence_overrides_declaration() -> None:
+    assert derive_truth_class(TruthClass.REAL) is TruthClass.REAL
+    assert derive_truth_class(TruthClass.REAL, (TruthClass.MOCK,)) is TruthClass.MOCK
+    assert (
+        derive_truth_class(TruthClass.MOCK, (TruthClass.REAL, TruthClass.MOCK))
+        is TruthClass.MIXED
+    )
+    assert derive_truth_class(TruthClass.REAL, (TruthClass.UNKNOWN,)) is TruthClass.UNKNOWN
+    assert derive_truth_class(None) is TruthClass.UNKNOWN
+
+
+def test_default_workspace_root_lives_in_os_user_data() -> None:
+    root = default_workspace_root()
+
+    assert root.name == "workspace"
+    assert root.parent.name == "aitest"
+    assert is_user_data_workspace(root)
+    assert not is_user_data_workspace(Path.cwd() / "src")

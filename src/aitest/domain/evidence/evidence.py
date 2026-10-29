@@ -6,6 +6,7 @@ verification facts are stored here. Business assertion outcomes are not.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -92,6 +93,29 @@ class TruthClass(StrEnum):
 
 
 Authenticity = TruthClass
+
+
+def derive_truth_class(
+    declared: TruthClass | None, observed: Iterable[TruthClass] = ()
+) -> TruthClass:
+    """Derive the chain truth class from the declaration and this run's evidence.
+
+    Evidence wins: real and mock evidence together are ``MIXED`` even when a
+    declaration claims a single class. With no evidence the declaration stands;
+    with neither, or with only unknown evidence, the result stays ``UNKNOWN`` so
+    real-chain admission is never inferred from a label alone (P1 FR05).
+    """
+
+    values = set(observed)
+    if TruthClass.REAL in values and TruthClass.MOCK in values:
+        return TruthClass.MIXED
+    if TruthClass.MOCK in values:
+        return TruthClass.MOCK
+    if TruthClass.REAL in values:
+        return TruthClass.REAL
+    if values:
+        return TruthClass.UNKNOWN
+    return declared if declared is not None else TruthClass.UNKNOWN
 
 
 class MockDeclarationSource(StrEnum):

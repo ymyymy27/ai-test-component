@@ -39,6 +39,10 @@ class TemplateNotFoundError(LookupError):
     """
 
 
+class TemplateImportError(ValueError):
+    """导入的外部模板不符合模板合同（可向用户展示，不是内部故障）。"""
+
+
 # ------------------------------------------------------------------ 模板加载
 
 
@@ -63,22 +67,116 @@ class TemplateSummary:
                 raise ValueError(f"template summary {name} must not be empty")
 
 
+def _template_directory(template_id: str) -> Any:
+    # 逐段 joinpath：3.11 的 `MultiplexedPath.joinpath` 只接受一个参数（多参数自 3.12 起）。
+    return (
+        files(TEMPLATE_RESOURCE_PACKAGE)
+        .joinpath(TEMPLATE_RESOURCE_DIR)
+        .joinpath(template_id)
+    )
+
+
 def load_template(template_ref: TemplateRef) -> TemplatePack:
     """按**准确版本**读取模板正文；不返回"最新版本"。
 
-    当前发布布局是 `<template_id>/<version>.json` 单文件
-    （架构文档第 3 节描述的 `manifest.json` + 子目录与仓库实际不一致，已登记为 D-01，以代码为准）。
+    发布布局为 `<template_id>/manifest.json` + `steps/ · issues/ · reports/`
+    （架构文档第 3 节：`manifest.json` 登记版本、适用性与必测/关键链路集合）。
     """
-    # 逐段 joinpath：3.11 的 `MultiplexedPath.joinpath` 只接受一个参数（多参数自 3.12 起）。
-    directory = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(TEMPLATE_RESOURCE_DIR).joinpath(
-        template_ref.template_id
-    )
-    source = directory.joinpath(f"{template_ref.version}.json")
+    source = _template_directory(template_ref.template_id).joinpath("manifest.json")
     if not source.is_file():
+        raise TemplateNotFoundError(f"unknown template: {template_ref.template_id}")
+    pack = TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
+    if pack.version != template_ref.version:
         raise TemplateNotFoundError(
             f"unknown template version: {template_ref.template_id}@{template_ref.version}"
         )
-    return TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
+    return pack
+
+
+@dataclass(frozen=True, slots=True)
+class TemplateFragments:
+    """模板的步骤/问题/报告片段；与 `manifest.json` 同源并逐项核对。"""
+
+    steps: Mapping[str, Any]
+    issues: Mapping[str, Any]
+    reports: Mapping[str, Any]
+
+
+def load_template_fragments(template_ref: TemplateRef) -> TemplateFragments:
+    """读取 `<template_id>/{steps,issues,reports}/*.json` 片段并核对引用（架构 01 §3）。"""
+
+    directory = _template_directory(template_ref.template_id)
+    pack = load_template(template_ref)
+    item_ids = {item.item_id for item in pack.items}
+    fragments: dict[str, Mapping[str, Any]] = {}
+    for section, filename in (
+        ("steps", "checks.json"),
+        ("issues", "catalog.json"),
+        ("reports", "sections.json"),
+    ):
+        source = directory.joinpath(section).joinpath(filename)
+        if not source.is_file():
+            raise TemplateNotFoundError(
+                f"template fragment missing: {template_ref.template_id}/{section}/{filename}"
+            )
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise TemplateImportError(f"template fragment {section} must be a JSON object")
+        if payload.get("template_id") != pack.template_id or payload.get("version") != pack.version:
+            raise TemplateImportError(
+                f"template fragment {section} does not match manifest identity"
+            )
+        fragments[section] = payload
+    checks = fragments["steps"].get("checks")
+    check_ids = {
+        str(entry.get("item_id"))
+        for entry in checks
+        if isinstance(entry, Mapping)
+    } if isinstance(checks, list) else set()
+    if check_ids != item_ids:
+        raise TemplateImportError("template steps fragment does not cover the manifest items")
+    for entry in fragments["issues"].get("issue_templates", ()):  # type: ignore[union-attr]
+        if isinstance(entry, Mapping) and str(entry.get("source_item_id")) not in item_ids:
+            raise TemplateImportError("template issues fragment references unknown item")
+    for entry in fragments["reports"].get("sections", ()):  # type: ignore[union-attr]
+        if not isinstance(entry, Mapping):
+            continue
+        referenced = {str(item) for item in entry.get("item_ids", ())}
+        if not referenced <= item_ids:
+            raise TemplateImportError("template reports fragment references unknown item")
+    return TemplateFragments(
+        steps=fragments["steps"],
+        issues=fragments["issues"],
+        reports=fragments["reports"],
+    )
+
+
+def import_template(
+    raw: bytes | str | Mapping[str, object],
+    *,
+    source: str | None = None,
+) -> TemplatePack:
+    """导入外部模板（架构 01 §3）：未知字段保留在扩展字段，不静默丢弃。
+
+    导入成功只代表**模板合同**成立，不代表已确认或可执行；导入不写入工作空间。
+    """
+
+    if isinstance(raw, Mapping):
+        payload: object = dict(raw)
+    else:
+        try:
+            payload = json.loads(raw)
+        except (ValueError, UnicodeError) as error:
+            raise TemplateImportError("template payload is not valid JSON") from error
+    if not isinstance(payload, dict):
+        raise TemplateImportError("template payload must be a JSON object")
+    mapping: dict[str, object] = dict(payload)
+    if source is not None and not str(mapping.get("source") or "").strip():
+        mapping["source"] = source
+    try:
+        return TemplatePack.model_validate(mapping)
+    except ValueError as error:
+        raise TemplateImportError(str(error)) from error
 
 
 def list_templates() -> tuple[TemplateSummary, ...]:
@@ -92,19 +190,20 @@ def list_templates() -> tuple[TemplateSummary, ...]:
     for directory in sorted(root.iterdir(), key=lambda item: item.name):
         if not directory.is_dir():
             continue
-        for source in sorted(directory.iterdir(), key=lambda item: item.name):
-            if not source.name.endswith(".json"):
-                continue
-            pack = TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
-            summaries.append(
-                TemplateSummary(
-                    template_ref=TemplateRef(template_id=pack.template_id, version=pack.version),
-                    name=pack.name,
-                    implementation_status=pack.implementation_status.value,
-                    delivery_method=pack.delivery_method,
-                    applicability=pack.applicability,
-                )
+        # 每个模板目录只有一个 `manifest.json`；步骤/问题/报告片段不是版本入口。
+        source = directory.joinpath("manifest.json")
+        if not source.is_file():
+            continue
+        pack = TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
+        summaries.append(
+            TemplateSummary(
+                template_ref=TemplateRef(template_id=pack.template_id, version=pack.version),
+                name=pack.name,
+                implementation_status=pack.implementation_status.value,
+                delivery_method=pack.delivery_method,
+                applicability=pack.applicability,
             )
+        )
     return tuple(
         sorted(
             summaries,

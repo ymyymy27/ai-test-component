@@ -1,0 +1,84 @@
+{
+  "schema": "aitest.template.steps/1.0",
+  "template_id": "agent-workflow",
+  "version": "1.0.0",
+  "checks": [
+    {
+      "item_id": "input",
+      "layer": "L2",
+      "objective": "实际输入与发布评价规则：以用户确认的真实输入调用智能体，且评价规则在执行前已发布",
+      "preconditions": [
+        "用户已确认智能体入口、调用方式与实际输入",
+        "评价规则已在执行前发布并冻结版本",
+        "已确认本次评价对应的业务验收项"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "agent",
+      "expected": "使用已确认的真实输入调用入口；评价所依据的规则版本必须是执行前已发布的那一版，不得事后调整规则",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际输入与冻结记录；评价规则版本与执行时间先后关系须可核对",
+      "evidence_requirements": [
+        "实际输入",
+        "入口调用记录",
+        "评价规则版本与发布时间",
+        "原始响应"
+      ]
+    },
+    {
+      "item_id": "calls",
+      "layer": "L2",
+      "objective": "真实工具调用与逐次结果：采集实际发生的工具事件，逐次记录其输入与结果",
+      "preconditions": [
+        "用户已确认可用的工具事件采集方式",
+        "已确认本次预期涉及的工具与调用范围",
+        "已确认采集缺失时的缺口登记方式"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "agent",
+      "expected": "每次工具调用的实际事件与其结果被逐次采集并留存；未采集到的部分登记为证据缺口，不得以文字自述补造",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "比对实际工具事件与冻结预期；采集缺失须显式列缺口，不得默认通过",
+      "evidence_requirements": [
+        "逐次工具事件（名称、参数、结果）",
+        "事件采集来源",
+        "证据缺口清单及原因"
+      ]
+    },
+    {
+      "item_id": "repeat",
+      "layer": "L3",
+      "objective": "随机输出默认三次分别保存并独立评价：对随机性输出按计划执行三次，各自留存并分别评价",
+      "preconditions": [
+        "用户已确认本次输出是否具有随机性",
+        "已确认三次执行的输入是否相同",
+        "已确认三次结果的评价方式与汇总口径"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "agent",
+      "expected": "随机输出按默认三次分别执行、分别留证、分别评价；三次结果不得合并成一次结论，也不得择优保留",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "三次执行的证据相互独立且可追溯；评价按已发布规则分别进行",
+      "evidence_requirements": [
+        "三次执行的输入与输出",
+        "三次各自的评价结果",
+        "评价规则版本",
+        "汇总口径说明"
+      ]
+    }
+  ]
+}

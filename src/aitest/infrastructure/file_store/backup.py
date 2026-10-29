@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Final
@@ -27,6 +28,9 @@ _BACKUP_SCHEMA: Final = "aitest.backup/1.0"
 _ACTIVE_MARKER: Final = Path("transactions") / "active.json"
 _SPOOL_DIR: Final = "spool"
 _MAX_JSON_BYTES: Final = 16 * 1024 * 1024
+#: 恢复副本的只读隔离标记；存在即表示不得与仍持有活动的活核心双接管。
+_ISOLATION_NAME: Final = "restore-isolation.json"
+_ISOLATION_SCHEMA: Final = "aitest.restore-isolation/1.0"
 
 # 永久业务材料：以白名单闭包逐项复制，缺目录跳过，缺文件不伪造。
 _PERMANENT_FILES: Final = frozenset(
@@ -84,6 +88,14 @@ class RestoreReport:
     bytes_restored: int
     verified: bool
     state: str  # restored | empty | rejected
+    #: 活动核实：原空间仍有在途执行时的阻塞原因（无活动为 None）。
+    source_activity: str | None = None
+    #: 原空间有活动执行时，恢复副本被标为只读隔离，不得与活核心双接管。
+    isolated: bool = False
+    #: 恢复副本中需要按待核实处理的执行材料（历史活动步骤不恢复成已完成）。
+    pending_verification: tuple[str, ...] = ()
+    #: 恢复副本的索引是否可直接使用；缺失即要求显式重建。
+    index_rebuild_required: bool = False
 
 
 def _contained_path(base: Path, relative: object) -> Path | None:
@@ -109,8 +121,119 @@ def _chain_has_symlink(raw_target: Path) -> bool:
     最近的现存祖先，再根→叶逐层检查；不存在的层 lstat 失败返回 False。
     """
     return any(
-        path.is_symlink() or compat.is_junction(path) for path in (raw_target, *raw_target.parents)
+        _long_path(path).is_symlink() or compat.is_junction(_long_path(path))
+        for path in (raw_target, *raw_target.parents)
     )
+
+
+def _text(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
+
+
+def _long_path(path: Path) -> Path:
+    """Windows 长路径：超过 MAX_PATH 时改用扩展长度前缀读写。
+
+    未启用长路径的 Windows 上，深层迁移步骤/分代材料的绝对路径可能超过
+    260 字符：``is_file()`` 会静默返回 False、``open()`` 抛 WinError 206。
+    备份/恢复核对与复制统一经此转换，避免"写入成功却读不回"或"建目录失败"。
+    """
+
+    if sys.platform != "win32":
+        return path
+    absolute = str(path.absolute())
+    if absolute.startswith("\\\\?\\") or len(absolute) < 240:
+        return path
+    return Path("\\\\?\\" + absolute)
+
+
+def _integer(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+def _load_json(root: Path, name: str) -> dict[str, object]:
+    """读回根级结构化事实；缺失/损坏返回空对象（调用方据此登记"未知"）。"""
+
+    try:
+        payload = decode_json((root / name).read_bytes())
+    except (OSError, ValueError, UnicodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def closure_facts(root: Path) -> dict[str, object]:
+    """备份清单必须登记的冻结上下文（架构 04 §6/§10）。
+
+    登记 `root_commit`、工作空间身份、`generation`、`writer_epoch` 与事件有效
+    边界；读不到的项显式写 `None`，不猜测、不补造。
+    """
+
+    current = _load_json(root, "current.json")
+    workspace = _load_json(root, "workspace.json")
+    commit_id = _integer(current.get("commit_id"))
+    cursor = _text(current.get("event_cursor"))
+    index_root = current.get("index_root")
+    event_root = current.get("event_root")
+    generation = (
+        _integer(current.get("generation"))
+        or _integer(index_root.get("generation") if isinstance(index_root, dict) else None)
+        or _integer(event_root.get("generation") if isinstance(event_root, dict) else None)
+    )
+    # root_commit 是 current 指针指向的已提交清单的内容身份（manifest_digest）；
+    # 旧指针没有该字段时退回提交序号，读不到才显式写 None。
+    root_commit = (
+        _text(current.get("root_commit"))
+        or _text(current.get("manifest_digest"))
+        or (str(commit_id) if commit_id is not None else None)
+        or (_text(current.get("commit_sequence")))
+    )
+    return {
+        "root_commit": root_commit,
+        "workspace_id": _text(workspace.get("workspace_id"))
+        or _text(current.get("workspace_id")),
+        "generation": generation,
+        "writer_epoch": _integer(workspace.get("writer_epoch")),
+        "event_boundary": {
+            "commit_id": commit_id,
+            "cursor": cursor,
+        },
+    }
+
+
+def _pending_verification(target: Path) -> tuple[str, ...]:
+    """列出恢复副本中必须按"待核实"处理的活动材料（不恢复成已完成）。"""
+
+    found: list[str] = []
+    active = target / _ACTIVE_MARKER
+    if active.is_file():
+        found.append(_ACTIVE_MARKER.as_posix())
+    for directory in ("checkpoints", "execution-handles"):
+        base = target / directory
+        if not base.is_dir():
+            continue
+        for entry in sorted(base.rglob("*")):
+            if entry.is_file() and not entry.is_symlink():
+                found.append(entry.relative_to(target).as_posix())
+    return tuple(found[:64])
+
+
+def backup_closure(backup: Path) -> dict[str, object]:
+    """读回备份清单登记的冻结上下文；缺失/损坏如实返回空对象。"""
+
+    raw = _read_backup_json(backup)
+    if not isinstance(raw, dict):
+        return {}
+    boundary = raw.get("event_boundary")
+    return {
+        "root_commit": raw.get("root_commit"),
+        "workspace_id": raw.get("workspace_id"),
+        "generation": raw.get("generation"),
+        "writer_epoch": raw.get("writer_epoch"),
+        "event_boundary": boundary if isinstance(boundary, dict) else {},
+    }
 
 
 def _read_backup_json(backup: Path) -> object:
@@ -154,7 +277,7 @@ class FileBackupStore:
         if _chain_has_symlink(path):
             raise BackupError("永久材料路径含链接")
         try:
-            with path.open("rb") as source:
+            with _long_path(path).open("rb") as source:
                 content = self._safe_json_bytes(path, source)
                 digest, _size = copy_unchanged_safe_bytes(
                     io.BytesIO(content) if content is not None else source,
@@ -188,9 +311,13 @@ class FileBackupStore:
         if _chain_has_symlink(source) or _chain_has_symlink(destination):
             raise BackupError("备份复制路径含链接")
         try:
-            with source.open("rb") as input_file:
+            # Windows 未启用长路径时，深层迁移步骤文件会超过 MAX_PATH：用扩展
+            # 前缀读写同一路径，避免恢复/迁移备份在嵌套目录上静默缺文件。
+            target = _long_path(destination)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with _long_path(source).open("rb") as input_file:
                 content = self._safe_json_bytes(source, input_file)
-                with destination.open("xb") as output_file:
+                with target.open("xb") as output_file:
                     digest, _size = copy_unchanged_safe_bytes(
                         io.BytesIO(content) if content is not None else input_file,
                         output_file,
@@ -200,7 +327,7 @@ class FileBackupStore:
                     os.fsync(output_file.fileno())
             if digest != expected_digest:
                 raise BackupError("备份材料在核对后变化，拒绝发布")
-            shutil.copystat(source, destination, follow_symlinks=False)
+            shutil.copystat(_long_path(source), target, follow_symlinks=False)
         except UnsafeMaterialError as error:
             raise BackupError(str(error)) from error
 
@@ -258,7 +385,7 @@ class FileBackupStore:
         destination.mkdir(parents=True, exist_ok=True)
         for name, source in planned.items():
             target = destination / name
-            target.parent.mkdir(parents=True, exist_ok=True)
+            _long_path(target).parent.mkdir(parents=True, exist_ok=True)
             self._copy_safe_file(source, target, manifest[name])
         atomic.write_json(
             destination / "backup.json",
@@ -266,6 +393,7 @@ class FileBackupStore:
                 "schema": _BACKUP_SCHEMA,
                 "files": manifest,
                 "excluded_active": [_SPOOL_DIR] if activity is not None else [],
+                **closure_facts(self.root),
             },
         )
         return destination
@@ -276,7 +404,7 @@ class FileBackupStore:
 
     @staticmethod
     def _digest(path: Path) -> str:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+        return hashlib.sha256(_long_path(path).read_bytes()).hexdigest()
 
     def verify(self, backup: Path) -> dict[str, object]:
         if _chain_has_symlink(backup):
@@ -294,7 +422,7 @@ class FileBackupStore:
                 path is None
                 or Path(name).as_posix() != name
                 or path in resolved
-                or not path.is_file()
+                or not _long_path(path).is_file()
                 or _chain_has_symlink(backup / name)
                 or self._safe_digest(path) != digest
             ):
@@ -356,7 +484,7 @@ class FileBackupStore:
                 or destination is None
                 or _chain_has_symlink(backup / name)
                 or _chain_has_symlink(target / name)
-                or not source.is_file()
+                or not _long_path(source).is_file()
             ):
                 return RestoreReport(
                     backup=backup,
@@ -379,14 +507,35 @@ class FileBackupStore:
         bytes_restored = 0
         for name, digest in manifest.items():
             destination = destinations[name]
-            destination.parent.mkdir(parents=True, exist_ok=True)
+            _long_path(destination).parent.mkdir(parents=True, exist_ok=True)
             self._copy_safe_file(backup / name, destination, digest)
             files_restored += 1
-            bytes_restored += destination.stat().st_size
+            bytes_restored += _long_path(destination).stat().st_size
             if self._digest(destination) != digest:
                 post_errors.append(name)
         if post_errors:
             raise BackupError(f"恢复后核对失败: {post_errors}")
+        # 恢复到新空目标后按合同核实活动并隔离双接管（架构 04 §9/§10）：
+        # 原空间仍有在途执行时，副本标只读隔离；副本内的历史活动材料保持待核实，
+        # 不恢复成"已完成"。
+        from .maintenance import detect_activity_blocker
+
+        source_activity = detect_activity_blocker(self.root)
+        isolated = False
+        if source_activity is not None:
+            atomic.write_json(
+                target / _ISOLATION_NAME,
+                {
+                    "schema": _ISOLATION_SCHEMA,
+                    "read_only": True,
+                    "reason": source_activity,
+                    "source_workspace_id": str(
+                        self._load_workspace_id() or "unknown"
+                    ),
+                },
+            )
+            isolated = True
+        pending = _pending_verification(target)
         state = "restored" if files_restored else "empty"
         return RestoreReport(
             backup=backup,
@@ -395,7 +544,18 @@ class FileBackupStore:
             bytes_restored=bytes_restored,
             verified=True,
             state=state,
+            source_activity=source_activity,
+            isolated=isolated,
+            pending_verification=pending,
+            index_rebuild_required=not (
+                _long_path(target / "indexes.json").is_file()
+                or _long_path(target / "indexes").is_dir()
+            ),
         )
+
+    def _load_workspace_id(self) -> str | None:
+        value = _text(_load_json(self.root, "workspace.json").get("workspace_id"))
+        return value
 
 
 def manifest_facts(destination: Path) -> tuple[str, int, int]:
@@ -414,10 +574,16 @@ def manifest_facts(destination: Path) -> tuple[str, int, int]:
     total = 0
     for name in manifest:
         path = _contained_path(destination, name)
-        if path is None or not path.is_file():
+        if path is None or not _long_path(path).is_file():
             raise BackupError(f"备份材料不可读: {name}")
-        total += path.stat().st_size
+        total += _long_path(path).stat().st_size
     return digest, len(manifest), total
 
 
-__all__ = ["FileBackupStore", "RestoreReport", "manifest_facts"]
+__all__ = [
+    "FileBackupStore",
+    "RestoreReport",
+    "backup_closure",
+    "closure_facts",
+    "manifest_facts",
+]

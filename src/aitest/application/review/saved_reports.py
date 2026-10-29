@@ -59,6 +59,9 @@ from aitest.domain.review.reports import (
     DecisiveFailure,
     EvidenceGrade,
     LocalReview,
+    OutdatedBasis,
+    OutdatedBasisReason,
+    OutdatedBasisSubject,
     ReportContext,
     ReportDraft,
     ReportSnapshot,
@@ -162,6 +165,50 @@ def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ReportManagementError(f"{name} must be nonempty text")
     return value
+
+
+def _iso(value: datetime | None) -> str | None:
+    return None if value is None else value.isoformat()
+
+
+def _optional_int(value: object, name: str) -> int | None:
+    if value is None:
+        return None
+    if type(value) is not int or value < 0:
+        raise ReportManagementError(f"{name} must be a nonnegative integer")
+    return value
+
+
+def _optional_datetime(value: object, name: str) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.fromisoformat(_text(value, name))
+
+
+def _attempt_pairs(value: object) -> tuple[tuple[str, str], ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ReportManagementError("current_attempts must be a list")
+    pairs: list[tuple[str, str]] = []
+    for item in value:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ReportManagementError("current_attempts entries must be pairs")
+        pairs.append((_text(item[0], "step_id"), _text(item[1], "attempt_id")))
+    return tuple(pairs)
+
+
+def _outdated_basis_from_payload(raw: object) -> OutdatedBasis:
+    if not isinstance(raw, Mapping):
+        raise ReportManagementError("saved outdated basis entry is unreadable")
+    marked = raw.get("marked_at")
+    return OutdatedBasis(
+        subject_kind=OutdatedBasisSubject(_text(raw.get("subject_kind"), "subject_kind")),
+        subject_id=_text(raw.get("subject_id"), "subject_id"),
+        original_basis_revision=_text(
+            raw.get("original_basis_revision"), "original_basis_revision"
+        ),
+        reason=OutdatedBasisReason(_text(raw.get("reason"), "reason")),
+        marked_at=None if marked is None else datetime.fromisoformat(_text(marked, "marked_at")),
+    )
 
 
 def _text_list(value: object, name: str) -> tuple[str, ...]:
@@ -333,6 +380,30 @@ def report_to_payload(
         if reuse is not None
         else {"candidates": None, "reason": "reuse_candidate_source_not_configured"},
         "created_at": None if snapshot.created_at is None else snapshot.created_at.isoformat(),
+        # 架构 03 §2：断言可信度、追溯时间戳、冻结计划引用与各层当前尝试。
+        "assertion_basis": {
+            "confirmed": snapshot.assertion_basis_confirmed,
+            "total": snapshot.assertion_basis_total,
+            "scored": snapshot.scored,
+        },
+        "traceability": {
+            "started_at": _iso(snapshot.started_at),
+            "finished_at": _iso(snapshot.finished_at),
+            "captured_at": _iso(snapshot.captured_at),
+        },
+        "base_plan_revision": snapshot.base_plan_revision,
+        "runtime_plan_revisions": list(snapshot.runtime_plan_revisions),
+        "current_attempts": [list(item) for item in snapshot.current_attempts],
+        "outdated_bases": [
+            {
+                "subject_kind": item.subject_kind.value,
+                "subject_id": item.subject_id,
+                "original_basis_revision": item.original_basis_revision,
+                "reason": item.reason.value,
+                "marked_at": _iso(item.marked_at),
+            }
+            for item in snapshot.outdated_bases
+        ],
         # 存储侧最小摘要白名单使用的事实：
         "run_id": snapshot.context.run_id,
         "business_outcome": snapshot.decision.business_outcome.value,
@@ -381,6 +452,8 @@ def report_from_payload(payload: Mapping[str, object]) -> ReportSnapshot:
     created_at = payload.get("created_at")
     if created_at is not None:
         created_at = _text(created_at, "created_at")
+    basis = payload.get("assertion_basis")
+    trace = payload.get("traceability")
     return ReportSnapshot(
         report_id=_text(payload.get("report_id"), "report_id"),
         content_revision=content_revision,
@@ -389,6 +462,35 @@ def report_from_payload(payload: Mapping[str, object]) -> ReportSnapshot:
         evidence_refs=_text_list(payload.get("evidence_refs"), "evidence_refs"),
         issue_revisions=tuple(issue_revisions),
         created_at=None if created_at is None else datetime.fromisoformat(created_at),
+        assertion_basis_confirmed=_optional_int(basis.get("confirmed"), "assertion_basis.confirmed")
+        if isinstance(basis, Mapping)
+        else None,
+        assertion_basis_total=_optional_int(basis.get("total"), "assertion_basis.total")
+        if isinstance(basis, Mapping)
+        else None,
+        scored=(basis.get("scored") is not False) if isinstance(basis, Mapping) else True,
+        started_at=_optional_datetime(trace.get("started_at"), "started_at")
+        if isinstance(trace, Mapping)
+        else None,
+        finished_at=_optional_datetime(trace.get("finished_at"), "finished_at")
+        if isinstance(trace, Mapping)
+        else None,
+        captured_at=_optional_datetime(trace.get("captured_at"), "captured_at")
+        if isinstance(trace, Mapping)
+        else None,
+        base_plan_revision=(
+            None
+            if payload.get("base_plan_revision") is None
+            else _text(payload.get("base_plan_revision"), "base_plan_revision")
+        ),
+        runtime_plan_revisions=_text_list(
+            payload.get("runtime_plan_revisions") or [], "runtime_plan_revisions"
+        ),
+        current_attempts=_attempt_pairs(payload.get("current_attempts") or []),
+        outdated_bases=tuple(
+            _outdated_basis_from_payload(item)
+            for item in (payload.get("outdated_bases") or [])
+        ),
     )
 
 
@@ -469,6 +571,13 @@ class _LiveDecision:
     decision: DecisionResult
     source_sequence: int
     blocking_issue_ids: frozenset[str]
+    #: 断言可信度（已确认／本轮 selected 用例）与追溯时间戳（架构 03 §2）。
+    assertion_basis_confirmed: int
+    assertion_basis_total: int
+    started_at: Any
+    base_plan_revision: str
+    runtime_plan_revisions: tuple[str, ...]
+    current_attempts: tuple[tuple[str, str], ...]
 
 
 class SavedReportService:
@@ -603,6 +712,14 @@ class SavedReportService:
             decision=decision,
             source_sequence=source_sequence,
             blocking_issue_ids=blocking,
+            assertion_basis_confirmed=len(confirmed_cases & decision.coverage.selected),
+            assertion_basis_total=len(decision.coverage.selected),
+            started_at=facts.run.started_at,
+            base_plan_revision=(
+                f"{facts.plan_revision.revision_id}@{facts.plan_revision.revision_no}"
+            ),
+            runtime_plan_revisions=tuple(facts.runtime_revision_refs),
+            current_attempts=tuple(sorted(facts.current_attempt_by_step.items())),
         )
 
     # ------------------------------------------------------------ 报告修订
@@ -660,6 +777,13 @@ class SavedReportService:
                 decision=decision,
                 evidence_refs=self._report_evidence(facts, reuse),
                 issue_revisions=tuple(sorted((issue.issue_id, issue.revision) for issue in issues)),
+                assertion_basis_confirmed=live.assertion_basis_confirmed,
+                assertion_basis_total=live.assertion_basis_total,
+                scored=decision.evidence_grade is not None,
+                started_at=live.started_at,
+                base_plan_revision=live.base_plan_revision,
+                runtime_plan_revisions=live.runtime_plan_revisions,
+                current_attempts=live.current_attempts,
             ),
             created_at=self._clock.now(),
         )

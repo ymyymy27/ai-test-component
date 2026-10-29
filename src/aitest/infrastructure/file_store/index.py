@@ -173,6 +173,8 @@ def build_index_row(
 def _condition_binding(spec: QuerySpec) -> tuple[object, ...]:
     """参与游标绑定的完整查询条件；页大小不在绑定内。"""
     return (
+        spec.schema_version,
+        spec.query_id,
         spec.project_id,
         spec.aggregate_kind,
         spec.record_id,
@@ -1220,6 +1222,18 @@ class FileQueryIndex:
     def _plan(spec: QuerySpec) -> _QueryPlan:
         project = spec.project_id
 
+        if spec.query_id == "reports.revisions":
+            # 报告修订展开：project＋report_id 精确范围，按 content_revision 降序，
+            # 不继承列表的业务结果过滤（存储与恢复第 13 节）。
+            # 通用“按修订”有序目录保留全部历史修订；前缀限定报告类型，
+            # 再按 report_id 精确过滤，避免折叠成只读当前修订。
+            return _QueryPlan(
+                _SORT_TO_FAMILY["revision"],
+                (project, "report"),
+                True,
+                lambda row: row.get("report_id") == spec.report_id,
+            )
+
         if spec.view is not None:
             mask = _issue_mask(spec.facet, spec.severity)
             issue_prefix: Key = (
@@ -1286,7 +1300,7 @@ class FileQueryIndex:
         return _QueryPlan(family, generic_prefix, spec.descending, _generic_extra)
 
     def query_spec(self, spec: QuerySpec) -> IndexQueryResult:
-        """执行有限查询；损坏/缺目录→maintenance_required，游标不符→invalid_cursor。"""
+        """执行有限查询；损坏/缺目录→maintenance_required，游标无法继续→snapshot_required。"""
         try:
             # model_copy/model_construct do not run pydantic validators. Do not
             # let internal callers bypass finite routing with those objects.
@@ -1306,19 +1320,19 @@ class FileQueryIndex:
                 try:
                     decoded = decode_cursor(spec.cursor)
                 except ValueError:
-                    return IndexQueryResult(status="invalid_cursor")
+                    return IndexQueryResult(status="snapshot_required")
                 if decoded.query_id != query_id or decoded.generation != generation:
-                    return IndexQueryResult(status="invalid_cursor")
+                    return IndexQueryResult(status="snapshot_required")
                 if decoded.commit_id > current_commit or decoded.commit_id < 0:
-                    return IndexQueryResult(status="invalid_cursor")
+                    return IndexQueryResult(status="snapshot_required")
                 try:
                     stored = json.loads(
                         self._cursor_path(decoded.cursor_id).read_text(encoding="utf-8")
                     )
                 except (OSError, json.JSONDecodeError, TypeError):
-                    return IndexQueryResult(status="invalid_cursor")
+                    return IndexQueryResult(status="snapshot_required")
                 if not isinstance(stored, dict):
-                    return IndexQueryResult(status="invalid_cursor")
+                    return IndexQueryResult(status="snapshot_required")
                 if (
                     stored.get("cid") != decoded.cursor_id
                     or stored.get("qid") != query_id
@@ -1326,7 +1340,7 @@ class FileQueryIndex:
                     or stored.get("commit") != decoded.commit_id
                     or not isinstance(stored.get("key"), list)
                 ):
-                    return IndexQueryResult(status="invalid_cursor")
+                    return IndexQueryResult(status="snapshot_required")
                 start_after = tuple(stored["key"])
                 bound = decoded.commit_id
                 snapshot_root = stored.get("snapshot_root")

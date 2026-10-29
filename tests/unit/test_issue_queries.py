@@ -188,7 +188,7 @@ def test_module_filter_does_not_duplicate_multimodule_issue() -> None:
         commit_id=COMMIT_ID,
     )
 
-    assert [item.issue_id for item in page.items] == ["active", "duplicate-active"]
+    assert [item.issue_id for item in page.items] == ["duplicate-active", "active"]
 
 
 def test_severity_can_be_used_alone_or_stacked_on_main_facet() -> None:
@@ -261,13 +261,34 @@ def test_cursor_pages_same_commit_without_duplicates_or_gaps() -> None:
         cursor = page.next_cursor
 
     assert seen == [
-        "active",
-        "fixed",
-        "deferred",
-        "duplicate-active",
-        "duplicate-fixed",
         "orphan-duplicate",
+        "duplicate-fixed",
+        "duplicate-active",
+        "deferred",
+        "fixed",
+        "active",
     ]
+
+
+def test_stable_order_is_updated_sequence_descending_then_issue_id_ascending() -> None:
+    projections = tuple(
+        _projection(
+            issue_id,
+            modules=("module-a",),
+            layers=("L1",),
+            severity=IssueSeverity.P2,
+            workflow=IssueStatus.CONFIRMED,
+            review=IssueReviewState.UNREVIEWED,
+            disposition=IssueDisposition.ACTIVE,
+            blocking=IssueBlockingState.NON_BLOCKING,
+            sequence=sequence,
+        )
+        for issue_id, sequence in (("b", 7), ("a", 7), ("c", 9))
+    )
+
+    page = list_issues(projections, _query(scope=IssueListScope.ALL), commit_id=COMMIT_ID)
+
+    assert [item.issue_id for item in page.items] == ["c", "a", "b"]
 
 
 def test_cursor_rejects_condition_or_commit_change() -> None:

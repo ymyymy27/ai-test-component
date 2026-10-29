@@ -387,9 +387,8 @@ def test_legacy_migration_backup_resume_rollback_and_refresh(tmp_path, monkeypat
     assert index.is_healthy() and index._read_meta()["generation"] == 2
     result = index.query_spec(spec.model_copy(update={"limit": 50}))
     assert result.status == "ok" and len(result.items) == 20
-    assert (
-        index.query_spec(spec.model_copy(update={"cursor": old_cursor})).status == "invalid_cursor"
-    )
+    stale = index.query_spec(spec.model_copy(update={"cursor": old_cursor}))
+    assert stale.status == "snapshot_required"
     manager.rollback(plan.plan_id)
     assert index.meta_path.read_bytes() == header_before
     manager.apply(plan.plan_id)

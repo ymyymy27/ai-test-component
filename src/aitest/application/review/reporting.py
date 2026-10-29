@@ -11,6 +11,7 @@ from datetime import datetime
 from aitest.domain.review.reports import (
     DecisionResult,
     LocalReview,
+    OutdatedBasis,
     ReportContext,
     ReportDraft,
     ReportExport,
@@ -30,6 +31,15 @@ def create_report(
     evidence_refs: tuple[str, ...] = (),
     issue_revisions: tuple[tuple[str, int], ...] = (),
     created_at: datetime | None = None,
+    assertion_basis_confirmed: int | None = None,
+    assertion_basis_total: int | None = None,
+    scored: bool = True,
+    started_at: datetime | None = None,
+    finished_at: datetime | None = None,
+    base_plan_revision: str | None = None,
+    runtime_plan_revisions: tuple[str, ...] = (),
+    current_attempts: tuple[tuple[str, str], ...] = (),
+    outdated_bases: tuple[OutdatedBasis, ...] = (),
 ) -> ReportSnapshot:
     """Freeze a new report revision and leave earlier revisions untouched."""
 
@@ -41,6 +51,15 @@ def create_report(
         decision=decision,
         evidence_refs=evidence_refs,
         issue_revisions=issue_revisions,
+        assertion_basis_confirmed=assertion_basis_confirmed,
+        assertion_basis_total=assertion_basis_total,
+        scored=scored,
+        started_at=started_at,
+        finished_at=finished_at,
+        base_plan_revision=base_plan_revision,
+        runtime_plan_revisions=runtime_plan_revisions,
+        current_attempts=current_attempts,
+        outdated_bases=outdated_bases,
     )
     return create_report_revision(previous, draft, created_at=created_at)
 

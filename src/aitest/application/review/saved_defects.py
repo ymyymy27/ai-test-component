@@ -11,9 +11,12 @@ is only a consistency check. The observed source digest must prove fix_version;
 an unbound version label or missing original criteria refuses closure.
 
 request_regression saves the original case/run/attempt, fix version, method and
-criteria. It does not create an Attempt, authorize execution or close an issue.
-The controlled session supplies confirmed_by. Issue review_state remains
-UNREVIEWED until independent issue-fact confirmation records exist.
+      criteria. It does not create an Attempt, authorize execution or close an issue.
+The controlled session supplies confirmed_by. Issue review_state is derived from
+that confirmation fact: no confirmation record (draft/awaiting confirmation)
+stays UNREVIEWED, a confirmed fact is REVIEWED, and an unreadable confirmation
+is UNKNOWN. Facts that move the issue back to draft/awaiting confirmation
+return it to UNREVIEWED.
 """
 
 from __future__ import annotations
@@ -280,6 +283,25 @@ def issue_from_payload(payload: Mapping[str, object]) -> IssueRecord:
         raise DefectManagementError(f"saved issue record is unreadable: {error}") from error
 
 
+def issue_review_state(issue: IssueRecord) -> IssueReviewState:
+    """复核状态由问题事实的人工确认记录派生（架构文档 03 §14）。
+
+    - 无确认人：没有确认记录，保持 `UNREVIEWED`；
+    - 事实变化后回到草稿/待确认：旧确认不再代表当前事实，回到 `UNREVIEWED`；
+    - 有确认人且已越过待确认：`REVIEWED`；
+    - 确认人字段存在但无法解释为已确认事实：显式 `UNKNOWN`，不猜 `REVIEWED`。
+    """
+
+    confirmed_by = issue.confirmed_by
+    if confirmed_by is None:
+        return IssueReviewState.UNREVIEWED
+    if not isinstance(confirmed_by, str) or not confirmed_by.strip():
+        return IssueReviewState.UNKNOWN
+    if issue.status in {IssueStatus.DRAFT, IssueStatus.AWAITING_CONFIRMATION}:
+        return IssueReviewState.UNREVIEWED
+    return IssueReviewState.REVIEWED
+
+
 def _facet_values(
     issue: IssueRecord, links: Mapping[str, object], blocking: str
 ) -> dict[str, tuple[str, ...]]:
@@ -290,7 +312,7 @@ def _facet_values(
     return {
         "module": modules,
         "layer": layers,
-        "review_state": (IssueReviewState.UNREVIEWED.value,),
+        "review_state": (issue_review_state(issue).value,),
         "workflow_state": (issue.status.value,),
         "disposition": (issue.disposition.value,),
         "blocking": (blocking,),
@@ -415,7 +437,7 @@ def issue_to_payload(
         # 以下键是存储侧最小摘要白名单（`index.py::_SUMMARY_*`）使用的事实。
         "updated_sequence": updated_sequence,
         "workflow_state": issue.status.value,
-        "review_state": IssueReviewState.UNREVIEWED.value,
+        "review_state": issue_review_state(issue).value,
         "blocking": blocking,
         "layer": (tuple(cast(tuple[str, ...], links["layers"])) or ("unknown",))[0],
         "module_ids": list(cast(tuple[str, ...], links["module_ids"])) or ["unknown"],

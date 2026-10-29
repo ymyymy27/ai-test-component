@@ -1366,6 +1366,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 facet=_as_text(parameters.get("facet", "NONE"), "facet"),
                 facet_value=_optional_text(parameters.get("facet_value"), "facet_value"),
                 severity=_optional_text(parameters.get("severity"), "severity"),
+                query_id=_optional_text(parameters.get("query_id"), "query_id"),
             )
         except ValueError as error:
             # 已登记错误码（如 `QUERY_UNSUPPORTED_FILTER`）原样抛出；其余是参数问题。

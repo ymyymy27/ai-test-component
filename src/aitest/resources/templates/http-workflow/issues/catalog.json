@@ -1,0 +1,55 @@
+{
+  "schema": "aitest.template.issues/1.0",
+  "template_id": "http-workflow",
+  "version": "1.0.0",
+  "issue_templates": [
+    {
+      "source_item_id": "chain",
+      "layer": "L2",
+      "title_template": "同一业务对象请求串联与变量提取：前一步响应中提取的标识必须用于后续步骤，全链保持同一业务对象",
+      "expected": "各步骤按序执行，提取的标识实际传入下一步；全链指向同一业务对象，不得各步骤各自新建对象",
+      "evidence_requirements": [
+        "各步骤实际请求与响应",
+        "提取的标识与其使用位置",
+        "业务对象标识",
+        "原始输出"
+      ]
+    },
+    {
+      "source_item_id": "assertions",
+      "layer": "L2",
+      "title_template": "字段与业务断言：对响应字段与业务含义逐项比对冻结预期，不只是检查响应可解析",
+      "expected": "每个断言字段的实际值与冻结预期一致；类型、结构与数值同等核对；仅状态码或可解析不构成业务断言通过",
+      "evidence_requirements": [
+        "实际响应体",
+        "逐字段比对结果",
+        "冻结的独立预期",
+        "断言与验收项对应关系"
+      ]
+    },
+    {
+      "source_item_id": "errors",
+      "layer": "L2",
+      "title_template": "错误路径与会话差异：核验无效输入、鉴权失败与状态冲突等错误路径的响应与副作用",
+      "expected": "各错误路径返回已确认的响应与错误标识；失败请求不得留下未预期的持久化副作用",
+      "evidence_requirements": [
+        "各错误路径的实际请求与响应",
+        "错误标识",
+        "失败后的持久化状态",
+        "原始输出"
+      ]
+    },
+    {
+      "source_item_id": "persistence",
+      "layer": "L3",
+      "title_template": "同对象独立持久化核验：以独立只读查询确认写请求的实际落库结果，同一业务对象贯穿",
+      "expected": "写请求的结果经独立只读查询确认；成功 HTTP 状态码不代替持久化证据；重放恢复须依据已登记的端点幂等合同",
+      "evidence_requirements": [
+        "写请求的实际请求与响应",
+        "独立只读查询的实际结果",
+        "业务对象标识",
+        "幂等合同引用"
+      ]
+    }
+  ]
+}

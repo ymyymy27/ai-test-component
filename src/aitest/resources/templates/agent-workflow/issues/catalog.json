@@ -1,0 +1,42 @@
+{
+  "schema": "aitest.template.issues/1.0",
+  "template_id": "agent-workflow",
+  "version": "1.0.0",
+  "issue_templates": [
+    {
+      "source_item_id": "input",
+      "layer": "L2",
+      "title_template": "实际输入与发布评价规则：以用户确认的真实输入调用智能体，且评价规则在执行前已发布",
+      "expected": "使用已确认的真实输入调用入口；评价所依据的规则版本必须是执行前已发布的那一版，不得事后调整规则",
+      "evidence_requirements": [
+        "实际输入",
+        "入口调用记录",
+        "评价规则版本与发布时间",
+        "原始响应"
+      ]
+    },
+    {
+      "source_item_id": "calls",
+      "layer": "L2",
+      "title_template": "真实工具调用与逐次结果：采集实际发生的工具事件，逐次记录其输入与结果",
+      "expected": "每次工具调用的实际事件与其结果被逐次采集并留存；未采集到的部分登记为证据缺口，不得以文字自述补造",
+      "evidence_requirements": [
+        "逐次工具事件（名称、参数、结果）",
+        "事件采集来源",
+        "证据缺口清单及原因"
+      ]
+    },
+    {
+      "source_item_id": "repeat",
+      "layer": "L3",
+      "title_template": "随机输出默认三次分别保存并独立评价：对随机性输出按计划执行三次，各自留存并分别评价",
+      "expected": "随机输出按默认三次分别执行、分别留证、分别评价；三次结果不得合并成一次结论，也不得择优保留",
+      "evidence_requirements": [
+        "三次执行的输入与输出",
+        "三次各自的评价结果",
+        "评价规则版本",
+        "汇总口径说明"
+      ]
+    }
+  ]
+}

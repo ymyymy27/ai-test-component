@@ -32,7 +32,7 @@ B 的用例（`prepare_run` / `publish_*` / `model_orchestration`）只依赖
    ↔ A 的 `expected_revision`（`None` 与 `0` 同义）。A 冲突时只抛
    `ValueError("revision conflict")`，**不带当前修订**；B 的
    `ConcurrentEditError` 要求携带当前修订与差异提示，因此本模块**先比对再暂存**。
-2. **错误类型**：A 的查询结果里 `maintenance_required` / `invalid_cursor` 是**状态值**，
+2. **错误类型**：A 的查询结果里 `maintenance_required` / `snapshot_required` 是**状态值**，
    不是异常。B 侧必须抛 `IndexMaintenanceRequired` / `InvalidQueryCursor`——
    把"索引缺失"当成空页会让调用方把"查不到"读成"没有"。
 3. **身份与 payload**：准备记录的记录标识、意图标识与落盘形状**由 B 的身份合同唯一决定**
@@ -266,6 +266,7 @@ class PortsRecordReader:
             facet=query.facet,
             facet_value=query.facet_value,
             severity=query.severity,
+            query_id=query.query_id,
         )
         page = getattr(self._repository, "query_page", None)
         boundary: object | None = None
@@ -284,7 +285,7 @@ class PortsRecordReader:
                 "the query index is missing, stale or differs from its authority material; "
                 "run `aitest rebuild-index --workspace <workspace>` before querying"
             )
-        if status == "invalid_cursor":
+        if status in {"snapshot_required", "invalid_cursor"}:
             raise InvalidQueryCursor(str(query.cursor))
         if status != "ok":
             raise IndexMaintenanceRequired("the query result status cannot be verified")

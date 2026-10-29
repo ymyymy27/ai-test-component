@@ -73,7 +73,7 @@ def test_cursor_rejected_when_project_changes(index: FileQueryIndex) -> None:
     foreign = index.query_spec(
         QuerySpec(project_id="project-2", limit=1, cursor=first.next_cursor)
     )
-    assert foreign.status == "invalid_cursor"
+    assert foreign.status == "snapshot_required"
     assert foreign.items == ()
 
 
@@ -104,7 +104,7 @@ def test_cursor_rejected_when_any_binding_condition_changes(
     changed.update(mutated)
     changed["cursor"] = first.next_cursor
     reused = index.query_spec(QuerySpec(**changed))  # type: ignore[arg-type]
-    assert reused.status == "invalid_cursor"
+    assert reused.status == "snapshot_required"
 
 
 def test_cursor_stays_valid_across_normal_commit_rebuild(tmp_path: Path) -> None:
@@ -153,7 +153,7 @@ def test_cursor_invalidated_by_maintenance_rebuild(tmp_path: Path) -> None:
             cursor=first.next_cursor,
         )
     )
-    assert stale.status == "invalid_cursor"
+    assert stale.status == "snapshot_required"
 
 
 def test_new_commit_during_pagination_does_not_leak_into_snapshot(
@@ -262,7 +262,7 @@ def test_foreign_cursor_file_is_rejected(tmp_path: Path) -> None:
             cursor=first.next_cursor,
         )
     )
-    assert continued.status == "invalid_cursor"
+    assert continued.status == "snapshot_required"
 
 
 # --------------------------------------------------------------- 仓库侧
@@ -295,7 +295,7 @@ def test_repository_pagination_is_project_scoped(tmp_path: Path) -> None:
     crossed = repo.query(
         RecordQuery(project_id="project-b", limit=10, cursor=first.next_cursor)
     )
-    assert crossed.status == "invalid_cursor"
+    assert crossed.status == "snapshot_required"
     only_b = repo.query(RecordQuery(project_id="project-b"))
     assert [item.record_id for item in only_b.items] == ["b-1"]
 
@@ -522,6 +522,42 @@ def test_incremental_report_revision_replaces_old_state_keys(tmp_path: Path) -> 
         )
     )
     assert [item["revision"] for item in history.items] == [1, 2]
+
+
+def test_reports_revisions_expand_all_history_without_outcome_filter(tmp_path: Path) -> None:
+    index = FileQueryIndex(tmp_path)
+    index.rebuild([_report_row("r1", 1, "passed", 1)])
+    index.publish([_report_row("r1", 2, "failed", 2)], commit_sequence=2)
+
+    revisions = index.query_spec(
+        QuerySpec(project_id="project-1", report_id="r1", query_id="reports.revisions", limit=10)
+    )
+
+    assert [item["content_revision"] for item in revisions.items] == [2, 1]
+
+
+def test_query_spec_declares_query_id_and_schema_version() -> None:
+    assert QuerySpec(project_id="project-1").schema_version == "aitest.query-spec/1.0"
+    assert QuerySpec(project_id="project-1").query_id is None
+    assert QuerySpec(project_id="project-1", view="OPEN").query_id == "issues.list"
+    assert QuerySpec(project_id="project-1", report_id="r1").query_id == "reports.by_id"
+    assert QuerySpec(project_id="project-1", aggregate_kind="report").query_id == "reports.latest"
+    assert (
+        QuerySpec(project_id="project-1", report_id="r1", query_id="reports.revisions").query_id
+        == "reports.revisions"
+    )
+
+    with pytest.raises(ValidationError, match="does not match"):
+        QuerySpec(project_id="project-1", report_id="r1", query_id="issues.list")
+    with pytest.raises(ValidationError, match="requires one exact report_id"):
+        QuerySpec(project_id="project-1", query_id="reports.revisions")
+    with pytest.raises(ValidationError, match="requires one exact report_id"):
+        QuerySpec(
+            project_id="project-1",
+            report_id="r1",
+            business_outcome="passed",
+            query_id="reports.revisions",
+        )
 
 
 # --------------------------------------------------------------- 问题目录

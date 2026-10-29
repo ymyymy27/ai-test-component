@@ -41,6 +41,14 @@ from aitest.application.ports import BackupAuditPort, BackupStorePort
 
 BACKUP_KIND: Final = "online"
 BACKUP_SCHEMA: Final = "aitest.backup/1.0"
+#: 备份清单登记的冻结上下文键（架构 04 §6/§10）。
+CLOSURE_KEYS: Final[tuple[str, ...]] = (
+    "root_commit",
+    "workspace_id",
+    "generation",
+    "writer_epoch",
+    "event_boundary",
+)
 #: 备份闭包的最低必需永久文件：缺一即"有缺口备份"（不是完整备份）。
 REQUIRED_PERMANENT_FILES: Final[tuple[str, ...]] = (
     "workspace.json",
@@ -76,6 +84,11 @@ class BackupOutcome:
     excluded_active: tuple[str, ...]
     known_missing: tuple[str, ...]
     gaps: tuple[str, ...]
+    #: 备份清单登记的冻结上下文（§6/§10）：工作空间身份、generation、epoch 与事件边界。
+    workspace_id: str | None = None
+    generation: int | None = None
+    writer_epoch: int | None = None
+    event_boundary: tuple[tuple[str, object], ...] = ()
 
     def payload(self) -> dict[str, object]:
         return {
@@ -93,6 +106,10 @@ class BackupOutcome:
             "file_count": self.file_count,
             "total_bytes": self.total_bytes,
             "manifest_digest": self.manifest_digest,
+            "workspace_id": self.workspace_id,
+            "generation": self.generation,
+            "writer_epoch": self.writer_epoch,
+            "event_boundary": dict(self.event_boundary),
             "excluded_active": list(self.excluded_active),
             "known_missing": list(self.known_missing),
             "gaps": list(self.gaps),
@@ -106,8 +123,8 @@ class SavedBackupEntry:
       （清单摘要即身份）+ 如实结论；
     - `inspect`：读回登记事实并可要求现场复核（只读，任何受控会话可用）；
     - `restore`：从登记的 `backup_id` 恢复到**新的空目标**（受控会话）；
-      只做恢复本身与完整性核对，**索引重建与"活动步骤保持待核实"交给打开该副本时的
-      启动恢复流程**，并在回执里如实登记这些后置条件。
+      恢复后立即核实原空间活动、按需隔离双接管，并登记副本内待核实的活动材料；
+      索引缺失时才要求由启动恢复流程重建。
     """
 
     def __init__(
@@ -156,6 +173,8 @@ class SavedBackupEntry:
         destination = self._destination(parameters)
         outcome = self._run(destination)
         # §9.3：诊断记录包含备份时间、校验结果与缺失内容（维护审计，不是业务记录）。
+        # §6/§10：同时登记冻结上下文（root_commit、workspace/generation/epoch、
+        # 事件有效边界），使恢复与去重都能按同一份事实核对。
         self.maintenance.record_backup(
             destination=outcome.destination,
             kind=outcome.kind,
@@ -165,6 +184,11 @@ class SavedBackupEntry:
             file_count=outcome.file_count,
             total_bytes=outcome.total_bytes,
             manifest_digest=outcome.manifest_digest,
+            root_commit=outcome.root_commit,
+            workspace_id=outcome.workspace_id,
+            generation=outcome.generation,
+            writer_epoch=outcome.writer_epoch,
+            event_boundary=dict(outcome.event_boundary),
         )
         return outcome.payload()
 
@@ -243,6 +267,19 @@ class SavedBackupEntry:
         payload = _plain(report)
         if payload.get("state") == "rejected":
             raise BackupBlocked("restore target or manifest paths are out of bounds")
+        source_activity = payload.get("source_activity")
+        isolated = payload.get("isolated") is True
+        pending = list(cast(list[object], payload.get("pending_verification") or ()))
+        index_rebuild_required = payload.get("index_rebuild_required") is True
+        next_steps: list[str] = []
+        if index_rebuild_required:
+            next_steps.append(
+                "open the restored copy with a core so startup recovery rebuilds the "
+                "missing index before any business read"
+            )
+        gaps: list[str] = []
+        if index_rebuild_required:
+            gaps.append("index_rebuild_pending")
         return {
             "mode": "restore",
             "backup_id": backup_id,
@@ -252,16 +289,13 @@ class SavedBackupEntry:
             "files_restored": payload.get("files_restored"),
             "bytes_restored": payload.get("bytes_restored"),
             "verified": payload.get("verified") is True,
-            # 后置条件如实登记：不在本动作里假装已完成。
-            "next_steps": [
-                "open the restored copy with a core so startup recovery and index "
-                "rebuild run before any business read",
-            ],
-            "gaps": [
-                "index_rebuild_not_performed",
-                "active_attempts_pending_verification_via_startup_recovery",
-                "double_takeover_check_not_performed",
-            ],
+            # §9/§10：活动核实与双接管隔离已在本动作内完成，如实登记结果。
+            "source_activity": source_activity if isinstance(source_activity, str) else None,
+            "isolated_read_only": isolated,
+            "pending_verification": [str(item) for item in pending],
+            "index_rebuild_required": index_rebuild_required,
+            "next_steps": next_steps,
+            "gaps": gaps,
         }
 
     def _registered_backup(self, backup_id: str) -> Path:
@@ -342,6 +376,16 @@ class SavedBackupEntry:
         total_bytes = self._total_bytes(created, manifest)
         excluded_active = self._excluded_active(created)
         root_commit = self._root_commit()
+        closure = self._closure(created)
+        workspace_id = closure.get("workspace_id")
+        generation = closure.get("generation")
+        writer_epoch = closure.get("writer_epoch")
+        boundary = closure.get("event_boundary")
+        event_boundary = (
+            tuple(sorted((str(name), value) for name, value in boundary.items()))
+            if isinstance(boundary, dict)
+            else ()
+        )
         gaps: list[str] = []
         if errors:
             gaps.append("closure_verification_failed")
@@ -365,6 +409,10 @@ class SavedBackupEntry:
             excluded_active=excluded_active,
             known_missing=known_missing,
             gaps=tuple(gaps),
+            workspace_id=workspace_id if isinstance(workspace_id, str) else None,
+            generation=generation if isinstance(generation, int) else None,
+            writer_epoch=writer_epoch if isinstance(writer_epoch, int) else None,
+            event_boundary=event_boundary,
         )
 
     def _known_missing(self) -> tuple[str, ...]:
@@ -372,6 +420,24 @@ class SavedBackupEntry:
             name for name in REQUIRED_PERMANENT_FILES if not (self.root / name).is_file()
         ]
         return tuple(sorted(missing))[:_MAX_KNOWN_MISSING]
+
+    @staticmethod
+    def _closure(destination: Path) -> dict[str, object]:
+        """读回备份清单登记的冻结上下文；缺失/损坏如实返回空对象。"""
+
+        try:
+            payload = json.loads((destination / "backup.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            "root_commit": payload.get("root_commit"),
+            "workspace_id": payload.get("workspace_id"),
+            "generation": payload.get("generation"),
+            "writer_epoch": payload.get("writer_epoch"),
+            "event_boundary": payload.get("event_boundary"),
+        }
 
     @staticmethod
     def _manifest(destination: Path) -> dict[str, str]:

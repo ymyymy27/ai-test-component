@@ -1,0 +1,34 @@
+{
+  "schema": "aitest.template.reports/1.0",
+  "template_id": "agent-workflow",
+  "version": "1.0.0",
+  "sections": [
+    {
+      "section_id": "coverage",
+      "title": "分层统计与缺口",
+      "item_ids": [
+        "input",
+        "calls",
+        "repeat"
+      ]
+    },
+    {
+      "section_id": "evidence",
+      "title": "证据索引",
+      "item_ids": [
+        "input",
+        "calls",
+        "repeat"
+      ]
+    },
+    {
+      "section_id": "defects",
+      "title": "问题与修复回归",
+      "item_ids": [
+        "input",
+        "calls",
+        "repeat"
+      ]
+    }
+  ]
+}

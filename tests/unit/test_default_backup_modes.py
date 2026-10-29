@@ -133,10 +133,36 @@ def test_restore_replays_a_registered_backup_into_an_empty_target(workspace: Any
         restored = target / name
         assert restored.is_file()
         assert hashlib.sha256(restored.read_bytes()).hexdigest() == digest
-    # 后置条件如实登记，不当成已完成。
-    assert result["next_steps"]
-    assert "index_rebuild_not_performed" in result["gaps"]
-    assert "double_takeover_check_not_performed" in result["gaps"]
+    # 活动核实、双接管隔离与索引状态在恢复动作内已核实，如实登记结果。
+    assert result["source_activity"] is None
+    assert result["isolated_read_only"] is False
+    assert result["pending_verification"] == []
+    assert result["index_rebuild_required"] is False
+    assert result["gaps"] == []
+    # 清单登记的冻结上下文与源工作空间一致，可由恢复侧核对。
+    assert manifest["root_commit"] is not None
+    assert manifest["workspace_id"]
+    assert isinstance(manifest["generation"], int)
+    assert isinstance(manifest["event_boundary"], dict)
+
+
+def test_backup_manifest_registers_the_frozen_closure_context(workspace: Any) -> None:
+    """清单须登记 root_commit、工作空间、generation、writer epoch 与事件边界。"""
+
+    root, outer = workspace
+    _entry(root).apply(_command(destination=str(outer / "b1")))
+    manifest = json.loads((outer / "b1" / "backup.json").read_text(encoding="utf-8"))
+    current = json.loads((root / "current.json").read_text(encoding="utf-8"))
+    workspace_facts = json.loads((root / "workspace.json").read_text(encoding="utf-8"))
+
+    assert manifest["root_commit"] == current["manifest_digest"]
+    assert manifest["workspace_id"] == workspace_facts["workspace_id"]
+    assert manifest["writer_epoch"] == workspace_facts["writer_epoch"]
+    assert manifest["generation"] == current["index_root"]["generation"]
+    assert manifest["event_boundary"] == {
+        "commit_id": current["commit_id"],
+        "cursor": current["event_cursor"],
+    }
 
 
 def test_restore_refuses_unknown_id_tampered_source_and_non_empty_target(

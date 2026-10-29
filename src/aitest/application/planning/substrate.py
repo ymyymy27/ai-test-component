@@ -205,6 +205,9 @@ class RecordQuery:
     facet: str = "NONE"
     facet_value: str | None = None
     severity: str | None = None
+    #: 固定目录身份（`issues.list` / `reports.latest` / `reports.by_id` /
+    #: `reports.revisions`）。缺省时由选择器组合派生。
+    query_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.project_id.strip():
@@ -224,6 +227,7 @@ class RecordQuery:
             "view",
             "facet_value",
             "severity",
+            "query_id",
         ):
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value.strip()):

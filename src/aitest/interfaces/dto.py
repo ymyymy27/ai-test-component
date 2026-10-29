@@ -8,10 +8,10 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from aitest.contracts.execution_facts import ExecutionFacts
-from aitest.contracts.views import CoverageDTO
+from aitest.contracts.views import CoverageDTO, CoverageSummaryDTO, DecisiveFailureRef
 from aitest.domain.project.context import Delivery
 from aitest.domain.review.defects import (
     IssueDisposition,
@@ -40,17 +40,52 @@ from aitest.domain.review.reports import (
 )
 
 
-def coverage_dto(value: Coverage) -> CoverageDTO:
+def coverage_dto(value: Coverage, *, decision: DecisionResult | None = None) -> CoverageDTO:
+    """双摘要覆盖投影；缺失来源/decisive 事实时显式置 None 并给出原因。"""
+
+    def summary(scope_kind: Literal["selected", "required"]) -> CoverageSummaryDTO:
+        cases = value.selected if scope_kind == "selected" else value.required
+        verified = value.verified if scope_kind == "selected" else value.verified & value.required
+        return CoverageSummaryDTO(
+            scope_kind=scope_kind,
+            denominator=len(cases),
+            executed_count=len(value.executed & cases),
+            reused_count=len(value.reused & cases),
+            verified_count=len(verified),
+            passed_count=len(value.passed & cases),
+            failed_count=len(value.failed & cases),
+            unverified_count=len(cases - verified),
+            case_ids_revision=decision.case_ids_revision if decision is not None else None,
+            source_commit=decision.source_commit if decision is not None else None,
+            policy_version=decision.policy_version if decision is not None else None,
+        )
+
+    failures: tuple[DecisiveFailureRef, ...] = ()
+    failure_count: int | None = None
+    if decision is not None:
+        unique: dict[tuple[str, str, str], DecisiveFailure] = {}
+        for failure in decision.decisive_failures:
+            unique.setdefault((failure.case_id, failure.step_id, failure.attempt_id), failure)
+        failures = tuple(
+            DecisiveFailureRef(
+                case_id=failure.case_id,
+                step_id=failure.step_id,
+                attempt_id=failure.attempt_id,
+            )
+            for _, failure in sorted(unique.items())
+        )
+        failure_count = len(failures)
     return CoverageDTO(
-        selected_applicable_count=len(value.selected),
-        required_applicable_count=len(value.required),
-        executed_count=len(value.executed),
-        reused_count=len(value.reused),
-        verified_count=len(value.verified),
-        passed_count=len(value.passed),
-        failed_count=len(value.failed),
-        unverified_count=len(value.unverified),
-        required_verified_count=len(value.verified & value.required),
+        selected_summary=summary("selected"),
+        required_summary=summary("required"),
+        decisive_failure_count=failure_count,
+        decisive_failures=failures,
+        case_ids_revision=decision.case_ids_revision if decision is not None else None,
+        source_commit=decision.source_commit if decision is not None else None,
+        policy_version=decision.policy_version if decision is not None else None,
+        unknown_reason=(
+            None if decision is not None else "coverage_source_facts_not_in_scope"
+        ),
     )
 
 
@@ -68,70 +103,26 @@ class ReviewGapDTO(BaseModel):
         return cls(code=value.code, safe_reason=value.safe_reason, subject_id=value.subject_id)
 
 
-class DecisiveFailureDTO(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    case_id: str
-    step_id: str
-    attempt_id: str
-    assertion_ref: str
-    basis_revision: int
-    evidence_refs: tuple[str, ...]
-
-    @classmethod
-    def from_domain(cls, value: DecisiveFailure) -> "DecisiveFailureDTO":
-        return cls(
-            case_id=value.case_id,
-            step_id=value.step_id,
-            attempt_id=value.attempt_id,
-            assertion_ref=value.assertion_ref,
-            basis_revision=value.basis_revision,
-            evidence_refs=value.evidence_refs,
-        )
-
-
-class CoverageSummaryDTO(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    scope_kind: Literal["selected", "required"]
-    case_ids_revision: str | None = None
-    denominator: int
-    executed_count: int
-    reused_count: int
-    verified_count: int
-    passed_count: int
-    failed_count: int
-    unverified_count: int
-    decisive_failure_count: int
-    decisive_failures: tuple[DecisiveFailureDTO, ...]
-    source_commit: str | None = None
-    policy_version: str
-
-
 def _coverage_summary_dto(
     value: Coverage,
     *,
     scope_kind: Literal["selected", "required"],
     result: DecisionResult,
 ) -> CoverageSummaryDTO:
+    """单一覆盖事实按所选/必测范围切片；决定性命中只汇总到 CoverageDTO。"""
+
     scope = value.selected if scope_kind == "selected" else value.required
-    failures = tuple(
-        DecisiveFailureDTO.from_domain(failure)
-        for failure in result.decisive_failures
-        if failure.case_id in scope
-    )
+    verified = value.verified & scope
     return CoverageSummaryDTO(
         scope_kind=scope_kind,
         case_ids_revision=result.case_ids_revision,
         denominator=len(scope),
         executed_count=len(value.executed & scope),
         reused_count=len(value.reused & scope),
-        verified_count=len(value.verified & scope),
+        verified_count=len(verified),
         passed_count=len(value.passed & scope),
         failed_count=len(value.failed & scope),
-        unverified_count=len(scope - value.verified),
-        decisive_failure_count=len({failure.case_id for failure in failures}),
-        decisive_failures=failures,
+        unverified_count=len(scope - verified),
         source_commit=result.source_commit,
         policy_version=result.policy_version,
     )
@@ -152,6 +143,38 @@ class DecisionDTO(BaseModel):
     snapshot_cursor: int | None = None
     coverage: CoverageDTO
     policy_version: str
+    #: 来源绑定状态：verified / mismatch / unverified；无来源事实时为 None。
+    source_binding_status: str | None = None
+
+
+
+_SOURCE_STATUS_PRIORITY = ("blocked", "mismatch", "unverified", "verified", "unknown")
+_DECISION_SOURCE_STATUS = {
+    "matched": "verified",
+    "mismatched": "mismatch",
+    "unverified": "unverified",
+}
+
+
+def _decision_source_binding_status(value: DecisionResult) -> str | None:
+    """判定结果只携带来源身份三态；映射为视图绑定状态，未给事实则 None。"""
+
+    state = value.source_identity_state
+    if state is None:
+        return None
+    return _DECISION_SOURCE_STATUS.get(str(state.value))
+
+
+def _run_source_binding_status(facts: ExecutionFacts) -> str | None:
+    """按已保存的来源核对事实汇总；多值取最严重者，无事实时显式 None。"""
+
+    states = {str(verification.state.value) for verification in facts.source_verifications}
+    if not states:
+        return None
+    for candidate in _SOURCE_STATUS_PRIORITY:
+        if candidate in states:
+            return candidate
+    return "unknown"
 
 
 def decision_dto(value: DecisionResult) -> DecisionDTO:
@@ -171,8 +194,9 @@ def decision_dto(value: DecisionResult) -> DecisionDTO:
         required_summary=_coverage_summary_dto(value.coverage, scope_kind="required", result=value),
         snapshot_commit_id=value.snapshot_commit_id,
         snapshot_cursor=value.snapshot_cursor,
-        coverage=coverage_dto(value.coverage),
+        coverage=coverage_dto(value.coverage, decision=value),
         policy_version=value.policy_version,
+        source_binding_status=_decision_source_binding_status(value),
     )
 
 
@@ -334,7 +358,7 @@ class RunStepDTO(BaseModel):
     gap_ids: tuple[str, ...] = ()
 
 
-class RunViewDTO(BaseModel):
+class RunDTO(BaseModel):
     """`RunDTO`（架构 06 §1/§5）：运行/步骤/当前尝试 + 用例 S/M 两组 E/R/V/P/F/U 与分母。
 
     - `selected_summary`/`required_summary` 由领域 `DecisionResult` 派生
@@ -375,9 +399,12 @@ class RunViewDTO(BaseModel):
     pending_verification_step_ids: tuple[str, ...]
     invalidated_step_ids: tuple[str, ...]
     steps: tuple[RunStepDTO, ...]
+    #: 来源绑定状态：verified / mismatch / unverified / blocked / unknown；
+    #: 没有任何来源核对事实时为 None（不猜 verified）。
+    source_binding_status: str | None = None
 
 
-def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
+def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunDTO:
     """把**已提交事实 + 同一次领域判定**投影成运行视图 DTO（不做任何领域判断）。"""
 
     coverage = decision.coverage
@@ -418,7 +445,7 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
                 gap_ids=tuple(step.gap_ids),
             )
         )
-    return RunViewDTO(
+    return RunDTO(
         project_id=facts.project_id,
         run_id=facts.run_id,
         run_revision=facts.run_revision,
@@ -434,7 +461,7 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
         conclusion_ceiling=str(facts.run.conclusion_ceiling.value),
         selected_case_ids=tuple(sorted(coverage.selected)),
         required_case_ids=tuple(sorted(coverage.required)),
-        coverage=coverage_dto(coverage),
+        coverage=coverage_dto(coverage, decision=decision),
         selected_summary=_coverage_summary_dto(
             coverage, scope_kind="selected", result=decision
         ),
@@ -454,6 +481,7 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
         pending_verification_step_ids=tuple(sorted(pending_verification)),
         invalidated_step_ids=tuple(sorted(invalidated)),
         steps=tuple(steps),
+        source_binding_status=_run_source_binding_status(facts),
     )
 
 
@@ -475,7 +503,33 @@ _RUNTIME_STATES = frozenset(
 _POST_RUN_STATES = frozenset({"completed", "cancelled", "execution_error"})
 
 
-class PanelViewDTO(BaseModel):
+class PlanDTO(BaseModel):
+    """计划视图（架构 06 §1 `PlanDTO`）：范围/规则/模板/验收修订与必测事实。
+
+    只投影已保存计划记录中的公开事实；未覆盖/不适用原因缺失时给空元组，
+    视图中不补算判定、不读取业务文件。
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["aitest.plan-view/1.0"] = "aitest.plan-view/1.0"
+    project_id: str
+    plan_id: str
+    revision: int
+    scope_id: str | None = None
+    scope_revision: int | None = None
+    required_case_ids: tuple[str, ...] = ()
+    case_revisions: Mapping[str, int] = Field(default_factory=dict)
+    rule_revisions: Mapping[str, int] = Field(default_factory=dict)
+    template_versions: Mapping[str, str] = Field(default_factory=dict)
+    run_tier: str | None = None
+    initial_driver: str | None = None
+    status: str | None = None
+    uncovered_reasons: tuple[str, ...] = ()
+    not_applicable_reasons: tuple[str, ...] = ()
+
+
+class PanelDTO(BaseModel):
     """面板主屏视图（架构 06 §1 PanelDTO 的可落地部分：**当前段**与信息区事实）。
 
     - `stage` 只由已提交的 `control_state` 判定（三段名取文档用词）；判不出即拒绝，
@@ -509,8 +563,8 @@ class PanelViewDTO(BaseModel):
 
 
 def panel_view_dto(
-    facts: ExecutionFacts, decision: DecisionResult, run_view: RunViewDTO
-) -> PanelViewDTO:
+    facts: ExecutionFacts, decision: DecisionResult, run_view: RunDTO
+) -> PanelDTO:
     """当前段 + 信息区事实（判定与运行视图都取自**同一次**已提交读数）。"""
 
     control_state = str(facts.run.control_state.value)
@@ -522,7 +576,7 @@ def panel_view_dto(
         stage = "post_run"
     else:
         raise ValueError(f"panel view cannot derive a stage from control_state {control_state!r}")
-    return PanelViewDTO(
+    return PanelDTO(
         project_id=facts.project_id,
         run_id=facts.run_id,
         stage=cast(Any, stage),

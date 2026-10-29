@@ -114,7 +114,7 @@
       ],
       "artifact_versions": [
         "模块与依赖图修订号（domain/project/context.py）",
-        "模板修订（resources/templates/*/1.0.0.json）"
+        "模板修订（resources/templates/*/manifest.json）"
       ],
       "actual": "未执行。单模块项目、依赖边方向与循环／自环规则已有单元测试（tests/unit/test_modules_and_dependencies.py）；跨模块传播的『不适用并说明原因』纯规则在应用层具备。未接真实存储与真实执行，无验收证据。",
       "evidence": {
@@ -183,7 +183,7 @@
       "real_environment_verified": false,
       "source_evidence": [
         "src/aitest/infrastructure/adapters/execution/command.py、http.py（真实进程实现）",
-        "src/aitest/resources/templates/*/1.0.0.json（layer/entry_type 声明）"
+        "src/aitest/resources/templates/*/manifest.json（layer/entry_type 声明）"
       ]
     },
     {

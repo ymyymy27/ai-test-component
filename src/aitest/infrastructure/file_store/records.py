@@ -19,6 +19,7 @@ from aitest.contracts.queries import (
     BusinessOutcomeFilter,
     IssueFacet,
     IssueView,
+    QueryId,
     QuerySpec,
     QueryUnsupportedFilter,
     SortKey,
@@ -29,6 +30,7 @@ from . import atomic
 from .commit_manifest import FileCommitStore, canonical_bytes
 from .continuations import active_catalog, update_catalog
 from .events import FileEventJournal, derive_event_id
+from .generation_layout import record_generation
 from .index import FileQueryIndex, build_index_row
 from .material_json import decode_material
 from .ordered_events import OrderedEventStore
@@ -53,7 +55,7 @@ PendingRecordEntry = tuple[str, str, int | None, Mapping[str, object]]
 class RecordQueryResult:
     """Structured query outcome; never raises on missing/corrupt index."""
 
-    status: str  # "ok" | "maintenance_required" | "invalid_cursor"
+    status: str  # "ok" | "maintenance_required" | "snapshot_required"
     items: tuple[CommittedRecord, ...] = ()
     next_cursor: str | None = None
 
@@ -542,6 +544,7 @@ class FileRecordRepository:
                 facet=cast("IssueFacet", query.facet),
                 facet_value=query.facet_value,
                 severity=query.severity,
+                query_id=cast("QueryId | None", query.query_id),
             )
         except ValidationError as error:
             marker = f"{QueryUnsupportedFilter.code}: "
@@ -1265,4 +1268,6 @@ class FileRecordRepository:
                 result=result,
             )
         store.publish(store.prepare(manifest))
+        # 分代布局：每次提交刷新 generations/<g>/ 下的记录、清单、索引与事件引用。
+        record_generation(self.root, manifest)
         return created, sequence

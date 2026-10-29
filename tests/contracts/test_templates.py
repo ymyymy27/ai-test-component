@@ -18,14 +18,14 @@ TEMPLATE_IDS = [
 
 
 def load_pack(template_id: str) -> dict[str, Any]:
-    path = files("aitest.resources").joinpath(f"templates/{template_id}/1.0.0.json")
+    path = files("aitest.resources").joinpath(f"templates/{template_id}/manifest.json")
     return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def shipped_packs() -> list[TemplatePack]:
     root = files("aitest.resources").joinpath("templates")
     return [
-        TemplatePack.model_validate_json(d.joinpath("1.0.0.json").read_text(encoding="utf-8"))
+        TemplatePack.model_validate_json(d.joinpath("manifest.json").read_text(encoding="utf-8"))
         for d in root.iterdir()
         if d.is_dir()
     ]
@@ -50,9 +50,9 @@ def test_template_status_rejects_unknown_value() -> None:
 
 
 @pytest.mark.parametrize("template_id", TEMPLATE_IDS)
-@pytest.mark.parametrize("failure", ["missing", "duplicate", "dangling", "empty", "unknown"])
+@pytest.mark.parametrize("failure", ["missing", "duplicate", "dangling", "empty"])
 def test_invalid_packs_cannot_be_used(template_id: str, failure: str) -> None:
-    """每个模板都要拒绝这五类非法输入（漏项拒绝案例）。"""
+    """每个模板都要拒绝这四类非法输入（漏项拒绝案例）。"""
     data = load_pack(template_id)
     if failure == "missing":
         del data["required_item_ids"]
@@ -60,11 +60,19 @@ def test_invalid_packs_cannot_be_used(template_id: str, failure: str) -> None:
         data["items"].append(data["items"][0])
     elif failure == "dangling":
         data["required_item_ids"].append("unknown")
-    elif failure == "empty":
+    else:
         # 该模板本有关键链路时，清空后必须给出不适用理由
         data["critical_paths"] = []
         data["no_critical_path_reason"] = None
-    else:
-        data["execute_shell"] = "echo unsafe"
     with pytest.raises(ValidationError):
         TemplatePack.model_validate(data)
+
+
+@pytest.mark.parametrize("template_id", TEMPLATE_IDS)
+def test_unknown_fields_are_preserved_instead_of_rejected(template_id: str) -> None:
+    """架构 01 §3：导入模板的未知字段保留在扩展字段内，不静默丢弃。"""
+    data = load_pack(template_id)
+    data["execute_shell"] = "echo unsafe"
+    pack = TemplatePack.model_validate(data)
+    assert pack.extension_fields["execute_shell"] == "echo unsafe"
+    assert pack.model_dump()["execute_shell"] == "echo unsafe"

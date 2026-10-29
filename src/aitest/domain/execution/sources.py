@@ -36,6 +36,81 @@ class SourceCheckType(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class L1CheckOutcome:
+    """L1 检查项结论；不通过不升级为真实链路，未知保持未知。"""
+
+    check_type: SourceCheckType
+    state: SourceVerificationState
+    reason: str
+
+    def __post_init__(self) -> None:
+        if not self.reason.strip():
+            raise ValueError("reason must not be empty")
+
+
+def evaluate_l1_checks(
+    *,
+    build_descriptors: tuple[str, ...] = (),
+    entry_compiled: bool | None = None,
+    entry_imported: bool | None = None,
+) -> tuple[L1CheckOutcome, ...]:
+    """Evaluate the two L1 checks the probe facts can actually support.
+
+    ``APPLICABLE_BUILD`` only passes when the materialized source carries a
+    recognised build descriptor; otherwise it stays ``UNKNOWN`` instead of
+    pretending minimal compilation equals an applicable build.
+    ``MINIMAL_START`` passes when the entry was imported, or when a module-free
+    entry compiled cleanly; a known failure is ``BLOCKED``, missing facts stay
+    ``UNKNOWN``.
+    """
+
+    if build_descriptors:
+        build = L1CheckOutcome(
+            SourceCheckType.APPLICABLE_BUILD,
+            SourceVerificationState.VERIFIED,
+            "build descriptor present: " + ", ".join(build_descriptors),
+        )
+    else:
+        build = L1CheckOutcome(
+            SourceCheckType.APPLICABLE_BUILD,
+            SourceVerificationState.UNKNOWN,
+            "no build descriptor in materialized source; applicable build not proven",
+        )
+
+    if entry_imported is True:
+        start = L1CheckOutcome(
+            SourceCheckType.MINIMAL_START,
+            SourceVerificationState.VERIFIED,
+            "entry imported successfully",
+        )
+    elif entry_imported is False:
+        start = L1CheckOutcome(
+            SourceCheckType.MINIMAL_START,
+            SourceVerificationState.BLOCKED,
+            "entry import failed",
+        )
+    elif entry_compiled is True:
+        start = L1CheckOutcome(
+            SourceCheckType.MINIMAL_START,
+            SourceVerificationState.VERIFIED,
+            "module-free entry compiled without starting side effects",
+        )
+    elif entry_compiled is False:
+        start = L1CheckOutcome(
+            SourceCheckType.MINIMAL_START,
+            SourceVerificationState.BLOCKED,
+            "entry did not compile",
+        )
+    else:
+        start = L1CheckOutcome(
+            SourceCheckType.MINIMAL_START,
+            SourceVerificationState.UNKNOWN,
+            "no entry import or compile fact was captured",
+        )
+    return (build, start)
+
+
+@dataclass(frozen=True, slots=True)
 class SourceFile:
     relative_path: str
     size: int
@@ -87,6 +162,8 @@ class ExecutionSourceVerification:
     raw_output_object: StoredObjectRef | None = None
     source_instance_id: str | None = None
     capture_plan: RuntimeSourcePlan | None = None
+    #: L1 检查项结论（适用构建、最小启动）；缺事实时保持 UNKNOWN。
+    l1_checks: tuple[L1CheckOutcome, ...] = ()
 
     def __post_init__(self) -> None:
         for name in (

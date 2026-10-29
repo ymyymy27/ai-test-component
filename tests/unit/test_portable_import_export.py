@@ -87,9 +87,7 @@ def test_all_installed_templates_round_trip_byte_for_byte() -> None:
     for ref in refs:
         exported = export_template(ref)
         on_disk = json.loads(
-            root.joinpath(ref.template_id, f"{ref.version}.json").read_text(
-                encoding="utf-8"
-            )
+            root.joinpath(ref.template_id, "manifest.json").read_text(encoding="utf-8")
         )
         assert exported == on_disk, ref
 

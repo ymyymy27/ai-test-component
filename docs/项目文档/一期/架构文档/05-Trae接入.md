@@ -101,9 +101,9 @@ Webview仅包内资源，CSP、Schema消息校验、净化文本；不直接模�
 
 ## 5 验证与兼容清单
 
-doctor统一返回READY/DEGRADED/NOT_READY及原因，检查核心/锁/提交指针、索引/证据可用性、环境和可选连接；模型失败只降AI。完整扫描为显式维护，不为面板刷新扫描全部历史。
+doctor统一返回READY/DEGRADED/NOT_READY三值，由`src/aitest/application/health.py`的`evaluate_doctor`派生；结果至少含`status`、`checked_at`、`reason`、`next_step`、`checks`（逐项检查）、`dependencies[]`（逐项能力状态），以及`workspace_root`与`user_data_location`（运行数据位置证明）。检查核心/锁/提交指针、索引/证据可用性、环境和可选连接；模型不可用时只把AI能力降为`DEGRADED`，不把核心整体判`NOT_READY`。完整扫描为显式维护，不为面板刷新扫描全部历史。
 
-compatibility.json是将来实现时维护的实测制品，不用文档推测填pass。字段：os/os_version/runtime/editor/editor_distribution/editor_version/core_version/adapter_versions/artifact_digest/evidence_path/verified_at/result。覆盖安装、面板、命令、stdio MCP、目录切换、停用升级卸载、管道权限/实例校验、进程停止、文件系统刷新和恢复；未测untested。
+`docs/compatibility.json`是已落盘的工程接入证据清单（`schema_version`为`aitest.compatibility/1.0`），不用文档推测填pass。字段：os/os_version/runtime/editor/editor_distribution/editor_version/core_version/adapter_versions/artifact_digest/evidence_path/verified_at/result，每条另附`reason`说明未测原因。当前登记Windows11/Py3.13/Trae、Windows/Py3.11/CLI、Windows/Py3.12/stdio MCP、Linux、macOS五条组合，`result`全部为`untested`、`evidence_path`为null。覆盖安装、面板、命令、stdio MCP、目录切换、停用升级卸载、管道权限/实例校验、进程停止、文件系统刷新和恢复；未测untested。
 
 P1-AC01—35全部按需求执行；提交中断、同意图/明确重跑、同元数据异内容、密钥不外泄、双入口单写等专项分别由本册和存储、项目分册规定。
 
@@ -124,8 +124,8 @@ P1-AC01—35全部按需求执行；提交中断、同意图/明确重跑、同�
 
 ### 诊断、安装与维护
 
-- `aitest doctor`、面板诊断与健康检查使用同一健康模型，返回 `READY`、`DEGRADED` 或 `NOT_READY`、检查时间及原因；检查核心生命周期、写入就绪、索引与对象完整性、模型连接、GitHub 只读接入、最近备份结果，以及**工作空间是否位于同步盘／网络盘**（命中即 `NOT_READY` 并给出"移出同步目录"的下一步）。
-- 模型失败只降级 AI，不将全部本地功能标为不可用。
+- `aitest doctor`、面板诊断与健康检查使用同一健康模型，返回 `READY`、`DEGRADED` 或 `NOT_READY`，并带检查时间（`checked_at`）、原因（`reason`）、`next_step`、逐项`checks`、能力`dependencies[]`、`workspace_root` 与 `user_data_location`；检查核心生命周期、写入就绪、索引与对象完整性、模型连接、GitHub 只读接入、最近备份结果，以及**工作空间是否位于同步盘／网络盘**（命中即 `NOT_READY` 并给出"移出同步目录"的下一步）。
+- 模型不可用时只把 AI 能力降为 `DEGRADED`，不把核心整体判为 `NOT_READY`。
 - 结构化日志记录请求、运行、尝试、本地项目、错误分类及相关修订；本地写 stderr 与诊断文件。诊断不返回私有正文、敏感地址参数或模型密钥。
 - 自检使用配置的截止时间，超时返回已完成阶段及具体卡点。
 - 停用或升级先保存检查点与未保存材料，注销本插件的 MCP 登记与视图订阅；升级执行结构兼容检查，迁移失败保持可诊断的只读状态。
@@ -251,7 +251,7 @@ core由既有bootstrap/editor_host按工作空间发现和启动；所有入口�
 | 无客户端、无活动工作、无未提交收尾 | 正常退出，退出前发布必要检查点，停止接纳新动作并排空写队列 | 后续入口重新发现/启动，业务记录不变 |
 | 活动执行器状态不明，可能仍占用workdir | 先完成有限核实；无法证明停止时保留目录和待核实记录，可在安全持久化后退出，但禁止维护切换/回收 | 重启再次核实，不把进程退出当业务停止 |
 
-退出与新连接串行裁决：进入draining后拒绝新写动作并返回可重连原因；新入口等待发现信息和真实锁状态确认后重连或启动，不夺活锁。核心只清理自己的发现登记，不删除其他实例登记或业务材料。正常退出不得主动杀掉仍需保活的执行组；维护退出必须先满足执行与输出收尾门禁。
+退出与新连接串行裁决：核心七态（`SERVING`、`PAUSED_HOLD`、`BACKLOG_HOLD`、`IDLE_EXIT_READY`、`DRAINING`、`STOPPED`、`EXECUTOR_UNKNOWN`）由`src/aitest/application/lifecycle.py`的`CoreLifecycle`持有并校验迁移，与上表逐行对应；退出协调在`src/aitest/interfaces/local/core_worker.py`。进入`DRAINING`后入口拒绝新写动作并返回`CORE_DRAINING`及可重连原因，只读动作继续可用；新入口等待发现信息和真实锁状态确认后重连或启动，不夺活锁。核心只清理自己的发现登记，不删除其他实例登记或业务材料。正常退出不得主动杀掉仍需保活的执行组；维护退出必须先满足执行与输出收尾门禁。
 
 客户端重开按workspace/run取得既有事实，既不新建Attempt也不改变暂停/待核实/上传许可。P1-AC19/34覆盖关窗、宿主崩溃、CLI先退出、双窗口退出、draining期间重连、暂停无人连接、失联执行器和上传退避。未通过某系统生命周期验证，不得在该组合宣称“关闭后继续执行”；二期新增系统沿同合同逐组合取证。
 

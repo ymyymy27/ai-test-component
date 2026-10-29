@@ -898,6 +898,11 @@ class BackupAuditPort(Protocol):
         file_count: int,
         total_bytes: int,
         manifest_digest: str,
+        root_commit: str = "unknown",
+        workspace_id: str | None = None,
+        generation: int | None = None,
+        writer_epoch: int | None = None,
+        event_boundary: Mapping[str, object] | None = None,
     ) -> None: ...
 
     def backup_facts(self) -> tuple[Mapping[str, object], ...]: ...

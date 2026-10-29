@@ -218,8 +218,10 @@ class AITestPanel extends HTMLElement {
   private issueDetail: Row | null = null;
   private issueDetailOutcome: Outcome | null = null;
   private copyNote: string | null = null;
-  /** 事件续读：游标只在回执明确给出新游标时前移，拒绝时保持原游标。 */
+  /** 事件续读：游标只在回执明确给出新游标时前移；拒绝时保持原游标。 */
   private eventCursor: string | null = null;
+  /** 核心返回 snapshot_required 后，等待下一次 read_view 重建成对的快照与游标。 */
+  private eventSnapshotPending = false;
   private eventOutcome: Outcome | null = null;
   private eventLog: EventRow[] = [];
   private eventNote: string | null = null;
@@ -341,6 +343,7 @@ class AITestPanel extends HTMLElement {
             && Number(result?.["commit_id"]) >= 0
             && typeof result?.["event_cursor"] === "string" && result["event_cursor"].length > 0) {
           this.viewOutcomes.set(kind, data);
+          this.pairEventCursor(result ?? {});
           this.guided.receive("read_view",data.status,object(data.response?.["result"]));
         }
       }
@@ -396,17 +399,41 @@ class AITestPanel extends HTMLElement {
   }
 
   /**
-   * 事件续读的归位（设计 §12「已提交事件增量刷新」）：
-   * - 成功：把回执行**追加**到事件流（去重按事件序号），并把游标前移到回执给出的 `next_cursor`；
-   * - 拒绝（游标非法/需维护）：原样显示状态与代码，**保持原游标与既有事件行**，绝不静默重置；
+   * 事件续读的归位（设计 §12「已提交事件增量刷新」、架构 06 §4）：
+   * - 快照配对：`read_view` 成功即取该提交边界的 `event_cursor` 作为起始游标；
+   * - `snapshot_required`：重新读取视图快照，用配对游标重建续读位置并清掉旧行，
+   *   不从"此刻最新"静默续接；
+   * - 其它拒绝（如 `maintenance_required`）：原样显示状态与代码，保持原游标与既有事件行；
    * - 界面不重算业务顺序：业务顺序看 `commit_sequence`，只如实展示。
    */
+  /** 用 `read_view` 回执的配对游标定位事件续读；重建快照时清掉旧行。 */
+  private pairEventCursor(result: Record<string, unknown>): void {
+    const cursor = result["event_cursor"];
+    if (typeof cursor !== "string" || cursor.length === 0) return;
+    if (this.eventSnapshotPending) {
+      this.eventLog = [];
+      this.eventNote = "已按 SNAPSHOT_REQUIRED 重建快照，并从配对游标重新续读。";
+      this.eventSnapshotPending = false;
+    }
+    this.eventCursor = cursor;
+  }
+
   private applyEventOutcome(data: Outcome): void {
     this.eventOutcome = data;
     const resultStatus = (data.response?.["result"] as Record<string, unknown> | undefined)
       ?.["status"];
-    // 真实 `events` 动作把 `invalid_cursor`/`maintenance_required` 放在 result.status 里
-    // （宿主层 status 仍是 ok）：两者都必须原样显示，并保持游标与既有事件行。
+    // 架构 06 §4：游标无法继续 / 实例或 epoch 变化时重建快照，不静默续接。
+    if (resultStatus === "snapshot_required" || data.code === "snapshot_required") {
+      this.eventSnapshotPending = true;
+      this.eventNote = "核心要求重建快照（SNAPSHOT_REQUIRED）：重新读取视图快照与配对游标。";
+      const runId = this.project?.run_id;
+      if (!this.pending && this.host !== null && runId) {
+        this.dispatchScoped("read_view", { view: "panel", run_id: runId });
+      }
+      return;
+    }
+    // 真实 `events` 动作把拒绝状态放在 result.status 里（宿主层 status 仍是 ok）：
+    // 其它错误原样显示，并保持游标与既有事件行。
     if (data.status !== "ok" || (typeof resultStatus === "string" && resultStatus !== "ok")) {
       const code = data.code ?? (typeof resultStatus === "string" ? resultStatus : data.status);
       this.eventNote = `核心未通过 · ${code}：${data.message ?? ""}`

@@ -355,13 +355,15 @@ def query_issue_list(
         and _matches_facet(projection, query)
         and _matches_severity(projection, query.severity)
     ]
-    filtered.sort(key=lambda projection: (projection.updated_sequence, projection.issue_id))
+    # 固定排序：updated_sequence 降序、issue_id 升序（架构 03 §14 / 存储 04 §13）。
+    # 游标保存的是末尾完整排序键，续读取排序序中严格位于其后的项。
+    filtered.sort(key=lambda projection: (-projection.updated_sequence, projection.issue_id))
     if cursor is not None:
-        cursor_key = (cursor.last_updated_sequence, cursor.last_issue_id)
+        cursor_key = (-cursor.last_updated_sequence, cursor.last_issue_id)
         filtered = [
             projection
             for projection in filtered
-            if (projection.updated_sequence, projection.issue_id) > cursor_key
+            if (-projection.updated_sequence, projection.issue_id) > cursor_key
         ]
 
     page_items = tuple(filtered[: query.page_size])

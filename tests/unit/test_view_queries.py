@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 
 from aitest.application.review.saved_reports import ReportGuardRefused
-from aitest.interfaces.dto import RunViewDTO
+from aitest.interfaces.dto import RunDTO
 from aitest.interfaces.local.view_queries import CommittedViewReader
 from tests.support.prepared_run_factory import PROJECT_ID
 from tests.unit.test_saved_reports import _RUN_ID, _Harness
@@ -30,7 +30,7 @@ def test_run_view_uses_the_same_decision_as_the_report_and_writes_nothing(tmp_pa
 
     view = reader.run_view(project_id=PROJECT, run_id=_RUN_ID)
 
-    assert isinstance(view, RunViewDTO)
+    assert isinstance(view, RunDTO)
     # 同一已提交边界 + 配对游标（§4：不能先读视图再取"此刻最新"游标）。
     assert view.snapshot_commit_id == harness.facts.snapshot_commit_id
     assert view.snapshot_cursor == harness.facts.snapshot_cursor
@@ -38,7 +38,6 @@ def test_run_view_uses_the_same_decision_as_the_report_and_writes_nothing(tmp_pa
     # S/M 与覆盖来自领域判定（与报告同一口径），不是视图层重算。
     assert view.selected_case_ids == tuple(sorted(harness.facts.run.selected_scope))
     assert view.required_case_ids == tuple(sorted(harness.facts.run.required_scope))
-    assert view.coverage.selected_applicable_count == len(harness.facts.run.selected_scope)
     assert view.selected_summary.denominator == len(harness.facts.run.selected_scope)
     assert view.required_summary.denominator == len(harness.facts.run.required_scope)
     # 每个步骤都来自已提交事实，且当前尝试与尝试状态一一对应。

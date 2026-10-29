@@ -59,6 +59,7 @@ from aitest.application.execution.source_checks import (
 )
 from aitest.application.execution.start_source_binding import SourceBindingUnverified
 from aitest.application.execution.step_execution import SavedStepExecution
+from aitest.application.lifecycle import CoreLifecycle
 from aitest.application.maintenance.backup import SavedBackupEntry
 from aitest.application.maintenance.migration import SavedMigrationEntry
 from aitest.application.maintenance.mode import MaintenanceMode
@@ -106,6 +107,7 @@ from aitest.domain.execution.sources import (
     ExecutionSourceVerification,
     SourceCheckType,
     SourceVerificationState,
+    evaluate_l1_checks,
 )
 from aitest.domain.project.context import SourceFileDigest, source_content_identity
 from aitest.infrastructure.adapters.execution.command import CommandAdapter
@@ -382,6 +384,8 @@ class CoreAssembly:
     maintenance_mode: MaintenanceMode | None = None
     #: 宿主只读视图查询（架构 06 §1/§54：面板读 DTO，不读原始记录载荷）。
     view_queries: CommittedViewReader | None = None
+    #: 核心七态生命周期（架构 05 §11）：draining 期间拒绝新写动作。
+    lifecycle: CoreLifecycle | None = None
 
 
 def _interpreter_verifier() -> Callable[[str, EnvironmentResolutionFact], str]:
@@ -641,12 +645,14 @@ def _source_verification_provider(
     这是**一期**要求：需求 P1-FR08 明确 L1 覆盖「Python 语法、适用构建、加载或最小启动」，
     P1-AC13 要求 start 准入核对实际来源。
 
-    **本轮实现 `SYNTAX` + `LOAD` 两类，并说明仍未覆盖的一点**：
+    **L1 四类检查的派生口径**：
 
-    1. `MINIMAL_START`／`APPLICABLE_BUILD` 需要显式构建配置与最小启动脚本来源，合同尚未冻结
-       该字段来源，故仍不实现；这是**已知的范围缺口**，在登记里如实记录，不得当成完整 L1 通过。
-    2. 有登记模块时用 `LOAD`（真实导入 + 逐模块摘要），无登记模块时用 `SYNTAX`（实际编译
-       物化范围内全部 `.py` 文件）；两类都**实际执行**，不再只核"文件存在/摘要非空"。
+    1. `SYNTAX`／`LOAD` 由登记解释器实际编译与导入得出；有登记模块时用 `LOAD`，无登记模块时用
+       `SYNTAX`，两类都**实际执行**，不再只核"文件存在/摘要非空"。
+    2. `APPLICABLE_BUILD`／`MINIMAL_START` 由 `evaluate_l1_checks()` 按已采集事实派生：物化源码
+       含 `pyproject.toml`／`setup.py`／`setup.cfg` 时构建检查为 `VERIFIED`，否则 `UNKNOWN`；
+       入口导入或编译成功为 `VERIFIED`，明确失败为 `BLOCKED`，缺事实保持 `UNKNOWN`。缺少事实
+       时如实登记，不当成完整 L1 通过。
 
     **非空转**：
     - 业务 `SnapshotRef` → 技术 `pinned_snapshot_id` 走 `SourceAnalysisService.verify_saved`
@@ -795,6 +801,31 @@ def _source_verification_provider(
             raw_output_evidence_ref=raw_reference,
         )
         verification = service.verify(request, observation)
+        # L1 不能只靠语法/加载冒充：适用构建与最小启动也要给出可核对结论，
+        # 缺事实时保持 UNKNOWN 并随验证记录保存（FR05 / 执行来源合同 1.2）。
+        build_descriptors = tuple(
+            name
+            for name in ("pyproject.toml", "setup.py", "setup.cfg")
+            if (Path(workdir) / name).is_file()
+        )
+        entry_imported = (
+            fact.probe_error is None
+            and all(
+                item.load_error is None
+                for item in fact.modules
+                if item.module in expected_modules
+            )
+            if expected_modules
+            else None
+        )
+        verification = replace(
+            verification,
+            l1_checks=evaluate_l1_checks(
+                build_descriptors=build_descriptors,
+                entry_compiled=fact.probe_error is None and not fact.syntax_errors,
+                entry_imported=entry_imported,
+            ),
+        )
         if raw_object is not None and raw_object.digest != (
             "sha256:" + hashlib.sha256(fact.raw_output).hexdigest()
         ):
@@ -1583,6 +1614,7 @@ def assemble_workspace_core(
                         intent_id="close-session-" + challenge_id,
                     )
 
+        lifecycle = CoreLifecycle()
         api = LocalAPI(
             instance_id=instance_id,
             workspace_id=workspace.workspace_id,
@@ -1599,6 +1631,8 @@ def assemble_workspace_core(
                 maintenance_mode.reason if maintenance_mode.active
                 else migration_runner.maintenance_reason()
             ),
+            workspace_root=str(root),
+            lifecycle=lifecycle,
         )
     except BaseException:
         lifetime_lock.release()
@@ -1606,6 +1640,7 @@ def assemble_workspace_core(
     return CoreAssembly(
         api=api,
         workspace=workspace,
+        lifecycle=lifecycle,
         unit_of_work=unit_of_work,
         recovery=recovery,
         lifetime_lock=lifetime_lock,

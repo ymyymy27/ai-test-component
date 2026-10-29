@@ -33,7 +33,7 @@ BASELINE_ITEM_IDS = {
 
 
 def pack(template_id: str) -> dict[str, Any]:
-    path = files("aitest.resources").joinpath(f"templates/{template_id}/1.0.0.json")
+    path = files("aitest.resources").joinpath(f"templates/{template_id}/manifest.json")
     return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 

@@ -30,7 +30,9 @@
         "CONNECTIVITY_FAILED",
         "INTERNAL_ERROR",
         "invalid_cursor",
-        "maintenance_required"
+        "snapshot_required",
+        "maintenance_required",
+        "core_draining"
       ],
       "title": "ErrorCode",
       "type": "string"

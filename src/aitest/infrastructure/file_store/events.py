@@ -45,7 +45,7 @@ _BOUNDARY_SCHEMA: Final = "aitest.event-boundary/1.0"
 _DEFAULT_LIMIT: Final = 100
 _MAX_LIMIT: Final = 500
 
-ReadStatus = Literal["ok", "maintenance_required", "invalid_cursor"]
+ReadStatus = Literal["ok", "maintenance_required", "snapshot_required"]
 
 
 class EventMaintenanceRequired(RuntimeError):
@@ -196,7 +196,9 @@ class FileEventJournal:
             try:
                 after_sequence = decode_cursor(cursor)
             except ValueError:
-                return EventReadResult(status="invalid_cursor")
+                # 架构 06 §4：实例/epoch 变化或游标无法继续 → SNAPSHOT_REQUIRED，
+                # 调用方必须重新取得成对的快照与游标，不能从最新位置静默续接。
+                return EventReadResult(status="snapshot_required")
         bounded = max(1, min(limit, _MAX_LIMIT))
         try:
             events = self._parse_journal()

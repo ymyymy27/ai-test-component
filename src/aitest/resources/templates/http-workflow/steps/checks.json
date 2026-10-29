@@ -1,0 +1,113 @@
+{
+  "schema": "aitest.template.steps/1.0",
+  "template_id": "http-workflow",
+  "version": "1.0.0",
+  "checks": [
+    {
+      "item_id": "chain",
+      "layer": "L2",
+      "objective": "同一业务对象请求串联与变量提取：前一步响应中提取的标识必须用于后续步骤，全链保持同一业务对象",
+      "preconditions": [
+        "用户已确认目标地址、方法与各步骤顺序",
+        "用户已确认变量提取位置与后续引用方式",
+        "用户已确认关联的业务对象标识字段"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref",
+        "secret_refs"
+      ],
+      "entry_type": "http",
+      "expected": "各步骤按序执行，提取的标识实际传入下一步；全链指向同一业务对象，不得各步骤各自新建对象",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对各步骤实际请求与冻结预期；串联断链须显式记录，不得以单步成功代替",
+      "evidence_requirements": [
+        "各步骤实际请求与响应",
+        "提取的标识与其使用位置",
+        "业务对象标识",
+        "原始输出"
+      ]
+    },
+    {
+      "item_id": "assertions",
+      "layer": "L2",
+      "objective": "字段与业务断言：对响应字段与业务含义逐项比对冻结预期，不只是检查响应可解析",
+      "preconditions": [
+        "用户已逐字段填写独立预期",
+        "已确认字段提取路径与类型",
+        "已确认业务断言与验收项的对应关系"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref"
+      ],
+      "entry_type": "http",
+      "expected": "每个断言字段的实际值与冻结预期一致；类型、结构与数值同等核对；仅状态码或可解析不构成业务断言通过",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "逐字段独立比对；断言与验收项的对应关系须登记，不得只断言请求成功",
+      "evidence_requirements": [
+        "实际响应体",
+        "逐字段比对结果",
+        "冻结的独立预期",
+        "断言与验收项对应关系"
+      ]
+    },
+    {
+      "item_id": "errors",
+      "layer": "L2",
+      "objective": "错误路径与会话差异：核验无效输入、鉴权失败与状态冲突等错误路径的响应与副作用",
+      "preconditions": [
+        "用户已确认各错误路径的预期响应与错误标识",
+        "已确认鉴权与会话失效的构造方式",
+        "已确认错误路径下可接受的副作用范围"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "input",
+        "expected",
+        "environment_ref",
+        "secret_refs"
+      ],
+      "entry_type": "http",
+      "expected": "各错误路径返回已确认的响应与错误标识；失败请求不得留下未预期的持久化副作用",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "独立比对实际错误响应与冻结预期；错误路径下的持久化状态须另行核验",
+      "evidence_requirements": [
+        "各错误路径的实际请求与响应",
+        "错误标识",
+        "失败后的持久化状态",
+        "原始输出"
+      ]
+    },
+    {
+      "item_id": "persistence",
+      "layer": "L3",
+      "objective": "同对象独立持久化核验：以独立只读查询确认写请求的实际落库结果，同一业务对象贯穿",
+      "preconditions": [
+        "用户已确认可用的独立只读查询方式",
+        "已确认同一业务对象的标识字段",
+        "写请求的端点幂等合同已登记"
+      ],
+      "input_fields": [
+        "registered_entry",
+        "expected",
+        "environment_ref",
+        "verification_method"
+      ],
+      "entry_type": "verification",
+      "expected": "写请求的结果经独立只读查询确认；成功 HTTP 状态码不代替持久化证据；重放恢复须依据已登记的端点幂等合同",
+      "assertion_basis": "待用户补齐并确认，模板不是断言依据",
+      "verification": "以独立只读路径查询同一业务对象；不能证明状态未变时不得复用旧结论",
+      "evidence_requirements": [
+        "写请求的实际请求与响应",
+        "独立只读查询的实际结果",
+        "业务对象标识",
+        "幂等合同引用"
+      ]
+    }
+  ]
+}

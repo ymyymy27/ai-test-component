@@ -138,10 +138,10 @@ class OrderedEventStore:
             try:
                 after = 0 if cursor is None else self._decode_cursor(cursor, manifest)
             except ValueError:
-                return EventReadResult(status="invalid_cursor")
+                return EventReadResult(status="snapshot_required")
             header = manifest["event_root"]
             if type(limit) is not int or not 1 <= limit <= 500:
-                return EventReadResult(status="invalid_cursor")
+                return EventReadResult(status="snapshot_required")
             selected: list[Event] = []
             for key, value in islice(
                 self.tree(header).scan(

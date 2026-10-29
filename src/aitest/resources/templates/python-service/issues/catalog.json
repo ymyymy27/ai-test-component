@@ -1,0 +1,55 @@
+{
+  "schema": "aitest.template.issues/1.0",
+  "template_id": "python-service",
+  "version": "1.0.0",
+  "issue_templates": [
+    {
+      "source_item_id": "startup",
+      "layer": "L1",
+      "title_template": "构建、加载与最小启动：按已登记入口启动服务，确认构建成功、可加载并达到可接受请求的最小状态",
+      "expected": "服务在冻结环境与已登记入口下真实启动并达到最小就绪状态；已存在运行进程不等于服务已就绪",
+      "evidence_requirements": [
+        "实际启动命令与工作目录",
+        "进程句柄与退出事实",
+        "就绪判据的实际观察",
+        "原始输出"
+      ]
+    },
+    {
+      "source_item_id": "health",
+      "layer": "L2",
+      "title_template": "健康与关键入口：调用健康检查与本次改动涉及的每个关键入口，核验请求与响应事实",
+      "expected": "健康检查与每个关键入口的实际响应与冻结预期一致；连接失败、超时与业务错误必须区分",
+      "evidence_requirements": [
+        "实际请求方法与路径",
+        "响应码与响应体",
+        "独立预期",
+        "比对结果"
+      ]
+    },
+    {
+      "source_item_id": "dependency-failure",
+      "layer": "L2",
+      "title_template": "依赖失败行为：在已确认的依赖不可用条件下，核验服务的降级、报错或重试行为符合预期",
+      "expected": "依赖不可用时的行为与冻结预期一致；声明的 Mock 进入本次依赖清单，且不得因此宣称该依赖真实可用",
+      "evidence_requirements": [
+        "依赖不可用的构造方式",
+        "实际服务行为",
+        "Mock 声明",
+        "原始输出"
+      ]
+    },
+    {
+      "source_item_id": "state",
+      "layer": "L3",
+      "title_template": "状态变化核验：对本次改动引起的状态变化，以独立只读方式核验，不使用服务自身的自述",
+      "expected": "状态变化经独立只读查询确认；进程内自报或日志自述不作为状态已变化的证据",
+      "evidence_requirements": [
+        "触发变化的操作",
+        "独立只读查询的实际结果",
+        "业务对象标识",
+        "核验来源"
+      ]
+    }
+  ]
+}

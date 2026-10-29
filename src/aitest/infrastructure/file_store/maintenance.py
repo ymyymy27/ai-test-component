@@ -514,6 +514,11 @@ class FileMaintenanceService:
         file_count: int,
         total_bytes: int,
         manifest_digest: str,
+        root_commit: str = "unknown",
+        workspace_id: str | None = None,
+        generation: int | None = None,
+        writer_epoch: int | None = None,
+        event_boundary: dict[str, object] | None = None,
     ) -> None:
         """把备份时间、校验结果与缺失内容写入维护审计（架构 04 §9/§10）。
 
@@ -542,6 +547,12 @@ class FileMaintenanceService:
             "file_count": file_count,
             "total_bytes": total_bytes,
             "manifest_digest": manifest_digest,
+            # 架构 04 §6/§10：冻结上下文与清单摘要一并登记，恢复与去重按同一份事实核对。
+            "root_commit": root_commit,
+            "workspace_id": workspace_id,
+            "generation": generation,
+            "writer_epoch": writer_epoch,
+            "event_boundary": dict(event_boundary or {}),
         }
         self._audit_path.parent.mkdir(parents=True, exist_ok=True)
         with self._audit_path.open("a", encoding="utf-8") as handle:

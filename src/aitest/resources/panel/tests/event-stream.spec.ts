@@ -112,35 +112,99 @@ test("a refused cursor keeps the previous cursor and never rewinds silently", as
   await expect(page.getByTestId("event-cursor")).toContainText("当前游标：cursor-9");
   await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
 
-  // 游标非法：显示代码原文、保持原游标与既有事件行。
+  // 维护拒绝：显示代码原文、保持原游标与既有事件行。
   await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
   await send(page, {
     kind: "outcome",
     action: "events",
     status: "refused",
-    code: "invalid_cursor",
-    message: "游标无法解码",
+    code: "maintenance_required",
+    message: "索引需维护",
   });
   await expect(page.getByTestId("event-cursor")).toContainText("当前游标：cursor-9");
-  await expect(page.getByTestId("event-stream")).toContainText("核心未通过 · invalid_cursor");
+  await expect(page.getByTestId("event-stream")).toContainText(
+    "核心未通过 · maintenance_required",
+  );
   await expect(page.getByTestId("event-stream")).toContainText("游标与既有事件行保持不变");
-  await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
-
-  // 真实 `events` 形状：`invalid_cursor` 在 result.status 里（宿主层 status 仍是 ok）。
-  await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
-  await send(page, {
-    kind: "outcome",
-    action: "events",
-    status: "ok",
-    response: { result: { status: "invalid_cursor", events: [], next_cursor: null } },
-  });
-  await expect(page.getByTestId("event-stream")).toContainText("核心未通过 · invalid_cursor");
-  await expect(page.getByTestId("event-cursor")).toContainText("当前游标：cursor-9");
   await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
 
   // 再读仍带原游标（没有被重置成"从头开始"）。
   await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
   const last = (await sent(page)).at(-1)!;
   expect(last["parameters"]).toEqual({ limit: 20, cursor: "cursor-9" });
+  expect(errors).toEqual([]);
+});
+
+test("snapshot_required rebuilds the view snapshot and re-pairs the cursor", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await mount(page);
+  await send(page, {
+    kind: "projectContext",
+    project_id: "project",
+    run_id: "run-1",
+    context_id: "ctx-1",
+  });
+  await send(page, {
+    kind: "outcome",
+    action: "doctor",
+    status: "ok",
+    response: {
+      result: { status: "READY", supported_actions: ["doctor", "events", "read_view"] },
+    },
+  });
+  // 快照配对：`read_view` 回执的 event_cursor 成为续读起始游标（架构 06 §4）。
+  await send(page, {
+    kind: "outcome",
+    action: "read_view",
+    status: "ok",
+    response: {
+      result: {
+        view_type: "run",
+        view: { run_id: "run-1" },
+        commit_id: 5,
+        event_cursor: "snapshot-1",
+        generation: 1,
+        index_version: 1,
+      },
+    },
+  });
+  await expect(page.getByTestId("event-cursor")).toContainText("当前游标：snapshot-1");
+
+  // 增量续读一次，产生一行旧事件。
+  await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
+  await send(page, eventOutcome("cursor-9", [7]));
+  await expect(page.getByTestId("event-cursor")).toContainText("当前游标：cursor-9");
+  await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(1);
+
+  // 核心返回 snapshot_required：面板重新读取视图快照，不静默续接最新位置。
+  await page.getByTestId("read-only-actions").getByRole("button", { name: "事件续读" }).click();
+  await send(page, {
+    kind: "outcome",
+    action: "events",
+    status: "ok",
+    response: { result: { status: "snapshot_required", events: [], next_cursor: null } },
+  });
+  await expect(page.getByTestId("event-stream")).toContainText("SNAPSHOT_REQUIRED");
+  const rebuild = (await sent(page)).filter(message => message["action"] === "read_view").at(-1)!;
+  expect(rebuild["parameters"]).toMatchObject({ view: "panel", run_id: "run-1" });
+
+  await send(page, {
+    kind: "outcome",
+    action: "read_view",
+    status: "ok",
+    response: {
+      result: {
+        view_type: "panel",
+        view: { run_id: "run-1" },
+        commit_id: 9,
+        event_cursor: "snapshot-42",
+        generation: 2,
+        index_version: 1,
+      },
+    },
+  });
+  await expect(page.getByTestId("event-cursor")).toContainText("当前游标：snapshot-42");
+  await expect(page.getByTestId("event-stream").locator("li")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

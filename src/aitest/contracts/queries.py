@@ -16,6 +16,15 @@ QueryName = Literal[
     "workspace.status",
     "integrity.check",
 ]
+#: `QuerySpec.query_id` 的固定目录标识（存储与恢复第 13 节“页面控件与 QuerySpec 固定目录”）。
+#: 只登记一期已承诺的有限查询；二期的 history.* 不在一期合同内。
+QueryId = Literal[
+    "issues.list",
+    "reports.latest",
+    "reports.by_id",
+    "reports.revisions",
+]
+QUERY_SPEC_SCHEMA = "aitest.query-spec/1.0"
 SortKey = Literal[
     "aggregate_kind",
     "record_id",
@@ -60,6 +69,10 @@ class QuerySpec(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    #: QuerySpec 自身的版本与固定目录身份（存储与恢复第 13 节）。
+    #: `query_id` 缺省时由所选字段组合派生，显式给出时必须与组合一致。
+    schema_version: Literal["aitest.query-spec/1.0"] = QUERY_SPEC_SCHEMA
+    query_id: QueryId | None = None
     project_id: str = Field(min_length=1, max_length=128)
     aggregate_kind: str | None = Field(default=None, min_length=1, max_length=128)
     record_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -94,7 +107,42 @@ class QuerySpec(BaseModel):
         if self.view is None and (self.facet != "NONE" or self.severity is not None):
             object.__setattr__(self, "view", "OPEN")
         self.ensure_finite_route()
+        self._resolve_query_id()
         return self
+
+    def _derive_query_id(self) -> QueryId | None:
+        """由字段组合派生固定目录身份；通用记录查询不进入一期固定目录。"""
+
+        if self.view is not None:
+            return "issues.list"
+        if self.report_id is not None or self.run_id is not None:
+            return "reports.by_id"
+        if self.aggregate_kind == "report" or self.business_outcome is not None:
+            return "reports.latest"
+        return None
+
+    def _resolve_query_id(self) -> None:
+        """缺省时派生 `query_id`；显式声明时必须与所选字段组合一致。"""
+
+        derived = self._derive_query_id()
+        if self.query_id is None:
+            object.__setattr__(self, "query_id", derived)
+            return
+        if self.query_id == "reports.revisions":
+            if (
+                self.report_id is None
+                or self.run_id is not None
+                or self.business_outcome is not None
+                or self.aggregate_kind not in (None, "report")
+            ):
+                raise QueryUnsupportedFilter(
+                    "reports.revisions requires one exact report_id without outcome filters"
+                )
+            return
+        if derived != self.query_id:
+            raise QueryUnsupportedFilter(
+                f"query_id={self.query_id} does not match the supplied selectors"
+            )
 
     def ensure_finite_route(self) -> None:
         """Every supplied selector must belong to the chosen fixed directory."""

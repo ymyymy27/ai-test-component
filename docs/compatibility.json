@@ -1,0 +1,88 @@
+{
+  "schema_version": "aitest.compatibility/1.0",
+  "generated_at": "2026-10-29",
+  "note": "工程接入证据清单。只有真实环境实测组合才能登记 pass；未实测一律 untested，不得用文档推测填 pass（架构文档 05 §5）。",
+  "entries": [
+    {
+      "os": "windows",
+      "os_version": "11 x64",
+      "runtime": "Python 3.13",
+      "editor": "trae",
+      "editor_distribution": "official",
+      "editor_version": null,
+      "core_version": "workspace-core/1.0",
+      "adapter_versions": {
+        "trae": "aitest.trae/1.0"
+      },
+      "artifact_digest": null,
+      "evidence_path": null,
+      "verified_at": null,
+      "result": "untested",
+      "reason": "未在本机完成真实 Trae 安装、面板、命令、stdio MCP、目录切换、停用升级卸载、管道权限/实例校验、进程停止、文件系统刷新与恢复的全链路实测"
+    },
+    {
+      "os": "windows",
+      "os_version": "11 x64",
+      "runtime": "Python 3.11",
+      "editor": "cli",
+      "editor_distribution": "stdio",
+      "editor_version": null,
+      "core_version": "workspace-core/1.0",
+      "adapter_versions": {
+        "cli": "aitest.cli/1.0"
+      },
+      "artifact_digest": null,
+      "evidence_path": null,
+      "verified_at": null,
+      "result": "untested",
+      "reason": "仅完成组件级与合同级检查，未登记真实宿主运行证据"
+    },
+    {
+      "os": "windows",
+      "os_version": "11 x64",
+      "runtime": "Python 3.12",
+      "editor": "stdio_mcp",
+      "editor_distribution": "generic",
+      "editor_version": null,
+      "core_version": "workspace-core/1.0",
+      "adapter_versions": {
+        "mcp": "aitest.mcp/1.0"
+      },
+      "artifact_digest": null,
+      "evidence_path": null,
+      "verified_at": null,
+      "result": "untested",
+      "reason": "未在真实宿主注册 stdio MCP 并复跑目录切换、停止与恢复场景"
+    },
+    {
+      "os": "linux",
+      "os_version": null,
+      "runtime": "Python 3.13",
+      "editor": null,
+      "editor_distribution": null,
+      "editor_version": null,
+      "core_version": "workspace-core/1.0",
+      "adapter_versions": {},
+      "artifact_digest": null,
+      "evidence_path": null,
+      "verified_at": null,
+      "result": "untested",
+      "reason": "一期交付范围不包含 Linux 宿主实测"
+    },
+    {
+      "os": "macos",
+      "os_version": null,
+      "runtime": "Python 3.13",
+      "editor": null,
+      "editor_distribution": null,
+      "editor_version": null,
+      "core_version": "workspace-core/1.0",
+      "adapter_versions": {},
+      "artifact_digest": null,
+      "evidence_path": null,
+      "verified_at": null,
+      "result": "untested",
+      "reason": "一期交付范围不包含 macOS 宿主实测"
+    }
+  ]
+}

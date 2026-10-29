@@ -35,7 +35,11 @@ class ErrorCode(StrEnum):
     CONNECTIVITY_FAILED = "CONNECTIVITY_FAILED"
     INTERNAL_ERROR = "INTERNAL_ERROR"
     INVALID_CURSOR = "invalid_cursor"
+    #: 游标无法与当前索引/提交边界配对：调用方必须重建快照（架构 06 §4）。
+    SNAPSHOT_REQUIRED = "snapshot_required"
     MAINTENANCE_REQUIRED = "maintenance_required"
+    #: 核心已进入 draining：新写动作被拒绝，调用方应按可重连原因重试。
+    CORE_DRAINING = "core_draining"
 
 class ErrorDTO(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

@@ -27,10 +27,13 @@ from aitest.application.review.saved_defects import (
     IssueIntentConflict,
     IssueRevisionConflict,
     SavedDefectManagement,
+    issue_review_state,
+    issue_to_payload,
 )
 from aitest.contracts.commands import Command
 from aitest.domain.approvals import EntryKind
 from aitest.domain.review.defects import IssueRecord, IssueSeverity, IssueStatus
+from aitest.domain.review.issue_queries import IssueReviewState
 from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import LocalAPI, Session
@@ -428,7 +431,8 @@ def test_issue_lifecycle_persists_revisions_and_list_index_entries(tmp_path) -> 
     assert third["status"] == "confirmed" and third["severity"] == "P1"
     assert third["confirmed_by"] == "session:session-user-1"
     assert third["blocking"] == "blocking"
-    assert third["review_state"] == "unreviewed"
+    # 受控会话已提供 confirmed_by，复核状态由确认记录派生为 reviewed。
+    assert third["review_state"] == "reviewed"
 
     assert (
         harness.command(
@@ -822,3 +826,48 @@ def test_issue_index_entries_match_the_documented_upper_bound(tmp_path) -> None:
 
     closed = issue_index_entries(issue, links=links, open_state=False, blocking="non_blocking")
     assert {entry["view"] for entry in closed} == {"ALL"}
+
+
+def test_review_state_is_derived_from_confirmation_facts() -> None:
+    """架构 03 §14：review_state 由人工确认记录派生，事实变化回 UNREVIEWED。"""
+
+    links = {
+        "module_ids": ("module-a",),
+        "layers": ("L2",),
+        "case_id": None,
+        "run_id": None,
+        "attempt_id": None,
+        "regressions": (),
+    }
+    draft = IssueRecord(issue_id="i-1", project_id="p", revision=1, title="t")
+    awaiting = IssueRecord(
+        issue_id="i-2",
+        project_id="p",
+        revision=2,
+        title="t",
+        status=IssueStatus.AWAITING_CONFIRMATION,
+        confirmed_by="session:u1",
+    )
+    confirmed = IssueRecord(
+        issue_id="i-3",
+        project_id="p",
+        revision=2,
+        title="t",
+        status=IssueStatus.CONFIRMED,
+        severity=IssueSeverity.P2,
+        owner="owner",
+        confirmed_by="session:u1",
+    )
+
+    assert issue_review_state(draft) is IssueReviewState.UNREVIEWED
+    assert issue_review_state(awaiting) is IssueReviewState.UNREVIEWED
+    assert issue_review_state(confirmed) is IssueReviewState.REVIEWED
+
+    payload = issue_to_payload(
+        confirmed, links=links, updated_sequence=3, open_state=True, blocking="non_blocking"
+    )
+    assert payload["review_state"] == "reviewed"
+    assert any(
+        entry.get("mask") == 6 and entry.get("facet_value") == "reviewed"
+        for entry in payload["issue_index_entries"]
+    )

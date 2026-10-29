@@ -118,7 +118,7 @@ def main() -> int:
         for directory in sorted(
             files("aitest.resources").joinpath("templates").iterdir(), key=lambda item: item.name
         ):
-            source = directory.joinpath("1.0.0.json")
+            source = directory.joinpath("manifest.json")
             if directory.is_dir() and source.is_file():
                 pack = TemplatePack.model_validate_json(source.read_text(encoding="utf-8"))
                 packs.append(

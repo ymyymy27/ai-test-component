@@ -6,12 +6,15 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
+from pathlib import Path
 from typing import cast
 from uuid import uuid4
 
 from pydantic import JsonValue
 
 from aitest.application.connectivity import retry_delay
+from aitest.application.health import DoctorInputs, evaluate_doctor
+from aitest.application.lifecycle import CoreLifecycle
 from aitest.contracts.commands import (
     HUMAN_ACTIONS,
     READ_ACTIONS,
@@ -26,6 +29,7 @@ from aitest.contracts.redaction import (
 from aitest.contracts.views import Response
 from aitest.domain.approvals import ApprovalRequired, TrustedActor, UserInteraction
 from aitest.domain.approvals import EntryKind as EntryKind
+from aitest.infrastructure.paths import is_user_data_workspace
 from aitest.interfaces.local.actor_context import CoreActorContext
 
 #: 维护窗口期间仍允许执行的写入类动作：维护动作本身（否则无法完成迁移）。
@@ -86,6 +90,8 @@ class LocalAPI:
         session_finalizer: Callable[[Session], None] | None = None,
         intent_contracts: Mapping[str, str] | None = None,
         maintenance: Callable[[], str | None] | None = None,
+        workspace_root: str | None = None,
+        lifecycle: CoreLifecycle | None = None,
     ) -> None:
         """本地协议适配器。
 
@@ -124,6 +130,9 @@ class LocalAPI:
         #: 拒绝新的**写动作**；只读动作与维护动作本身继续可用。装配时注入，
         #: 接口层只按结构调用，不导入应用/基础设施。
         self._maintenance = maintenance
+        #: 工作空间根（用于"同步盘/网络盘"诊断）与核心七态生命周期（架构 05 §11）。
+        self.workspace_root = workspace_root
+        self.lifecycle = lifecycle
         if connection_persistence is not None:
             try:
                 recovered = connection_persistence.load()  # type: ignore[attr-defined]
@@ -159,6 +168,17 @@ class LocalAPI:
             return None
         return str(reason) or "maintenance window"
 
+    def _draining_reason(self, action: str) -> str | None:
+        """draining 期间拒绝新写动作；只读动作继续可用（架构 05 §11）。"""
+
+        if self.lifecycle is None or action in READ_ACTIONS:
+            return None
+        if not self.lifecycle.rejects_new_writes:
+            return None
+        state = self.lifecycle.state.value
+        reason = self.lifecycle.reason or "core is shutting down"
+        return f"core lifecycle is {state}: {reason}; reconnect after the core exits"
+
     def dispatch(self, command: Command, session: Session) -> Response:
         fingerprint = sha256(json.dumps(command.model_dump(), sort_keys=True).encode()).hexdigest()
         key = (*session.origin, command.request_id)
@@ -184,6 +204,8 @@ class LocalAPI:
             response = self._transaction(command, session)
         elif command.action == "test_connection" and self.connector is not None:
             response = self._connect(command)
+        elif (draining_reason := self._draining_reason(command.action)) is not None:
+            response = self._error(command, ErrorCode.CORE_DRAINING.value, draining_reason)
         elif (maintenance_reason := self._maintenance_reason(command.action)) is not None:
             # 维护窗口期间暂停**新写入**（迁移等结构性动作正在改写工作空间结构）。
             response = self._error(
@@ -220,18 +242,51 @@ class LocalAPI:
                     self._safe_message(exc),
                 )
         elif command.action == "doctor":
-            ready = "READY" if self.workspace_id else "NOT_READY"
             # 能力声明（架构 05 §3）：`test_connection` 是**已配置连接器**时的 API
             # 内建分支，因此只在连接器存在时广告；未配置时不得声称可用（调用它得到
             # 的是未知动作/CAPABILITY_UNAVAILABLE，而不是"测试通过"）。
             advertised = set(self.handlers) | {"doctor"}
             if self.connector is not None:
                 advertised.add("test_connection")
+            dependency_snapshot: Mapping[str, object] = (
+                self.capability_gate.snapshot()  # type: ignore[attr-defined]
+                if self.capability_gate is not None
+                else {}
+            )
+            raw_conditions = dependency_snapshot.get("dependencies", ())
+            conditions = (
+                tuple(item for item in raw_conditions if isinstance(item, Mapping))
+                if isinstance(raw_conditions, (list, tuple, frozenset))
+                else ()
+            )
+            # §5：doctor、面板诊断与 CLI 使用同一健康模型；状态为
+            # READY/DEGRADED/NOT_READY 且带检查时间与原因，模型失败只降 AI。
+            health = evaluate_doctor(
+                DoctorInputs(
+                    workspace_id=self.workspace_id,
+                    workspace_root=self.workspace_root,
+                    lifecycle_state=(
+                        self.lifecycle.state.value if self.lifecycle is not None else None
+                    ),
+                    dependencies=conditions,
+                )
+            )
             doctor_result: dict[str, JsonValue] = {
-                "status": ready,
+                "status": health["status"],
+                "checked_at": health["checked_at"],
+                "reason": health["reason"],
+                "next_step": health["next_step"],
+                "checks": cast(list[JsonValue], health["checks"]),
                 "protocol": "aitest.local/2.0",
                 "supported_actions": cast(list[JsonValue], sorted(advertised)),
                 "phase": 1,
+                # 运行数据位置证明：OS 用户数据工作空间，而非安装包/被测源码/src。
+                "workspace_root": self.workspace_root,
+                "user_data_location": (
+                    is_user_data_workspace(Path(self.workspace_root))
+                    if self.workspace_root is not None
+                    else False
+                ),
             }
             if self._intent_contracts:
                 doctor_result["intent_contracts"] = cast(
@@ -245,10 +300,7 @@ class LocalAPI:
             if self.capability_gate is not None:
                 # A-10：显式报告各项外部能力条件与动作依赖，调用方据此做
                 # 动作级降级判断，而不是把单个适配器故障当成整体不可用。
-                doctor_result["dependencies"] = cast(
-                    JsonValue,
-                    self.capability_gate.snapshot(),  # type: ignore[attr-defined]
-                )
+                doctor_result["dependencies"] = cast(JsonValue, dependency_snapshot)
             response = Response(
                 request_id=command.request_id,
                 instance_id=self.instance_id,

@@ -315,6 +315,8 @@ class DecisionResult:
     policy_version: str
     case_ids_revision: str | None = None
     source_commit: str | None = None
+    #: 来源绑定状态（matched/mismatched/unverified）；未知时保持 None。
+    source_identity_state: SourceIdentityState | None = None
     snapshot_commit_id: str | None = None
     snapshot_cursor: int | None = None
 
@@ -545,6 +547,7 @@ def evaluate_review(facts: DecisionFacts) -> DecisionResult:
         policy_version=facts.policy_version,
         case_ids_revision=facts.case_ids_revision,
         source_commit=facts.source_commit,
+        source_identity_state=facts.source_identity_state,
         snapshot_commit_id=facts.snapshot_commit_id,
         snapshot_cursor=facts.snapshot_cursor,
     )
@@ -593,6 +596,37 @@ class ReportContext:
             raise ValueError("plan_revision_refs must not contain empty values")
 
 
+class OutdatedBasisSubject(StrEnum):
+    """过期依据的判定对象（架构 03 §2 表格）。"""
+
+    STEP = "step"
+    ASSERTION = "assertion"
+    ISSUE = "issue"
+
+
+class OutdatedBasisReason(StrEnum):
+    """依据失效原因；只登记合同给出的四类，不新增自由文本分类。"""
+
+    REQUIREMENT_OR_ACCEPTANCE_CHANGED = "requirement_or_acceptance_changed"
+    RUNTIME_PLAN_REVISED = "runtime_plan_revised"
+    SOURCE_OR_RULE_CHANGED = "source_or_rule_changed"
+
+
+@dataclass(frozen=True, slots=True)
+class OutdatedBasis:
+    """标记为过期依据的事实；不改原断言，也不能作为当前通过依据。"""
+
+    subject_kind: OutdatedBasisSubject
+    subject_id: str
+    original_basis_revision: str
+    reason: OutdatedBasisReason
+    marked_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        _require_text(self.subject_id, "subject_id")
+        _require_text(self.original_basis_revision, "original_basis_revision")
+
+
 @dataclass(frozen=True, slots=True)
 class ReportSnapshot:
     """Immutable report revision.
@@ -608,6 +642,21 @@ class ReportSnapshot:
     evidence_refs: tuple[str, ...] = ()
     issue_revisions: tuple[tuple[str, int], ...] = ()
     created_at: datetime | None = None
+    #: 断言可信度（已确认／总数）；None 表示缺失，不补零（架构 03 §2）。
+    assertion_basis_confirmed: int | None = None
+    assertion_basis_total: int | None = None
+    #: 非完整验证（快速检查/按需自测）标注"未打分"。
+    scored: bool = True
+    #: 必要追溯时间戳：开始、结束或采集时间。
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    captured_at: datetime | None = None
+    #: 基础计划修订与运行中修订序列、各层当前尝试。
+    base_plan_revision: str | None = None
+    runtime_plan_revisions: tuple[str, ...] = ()
+    current_attempts: tuple[tuple[str, str], ...] = ()
+    #: 过期依据与"未验证"并列展示。
+    outdated_bases: tuple[OutdatedBasis, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.report_id, "report_id")
@@ -622,6 +671,32 @@ class ReportSnapshot:
         for issue_id, revision in self.issue_revisions:
             _require_text(issue_id, "issue_id")
             _require_positive(revision, "issue_revision")
+        for value, name in (
+            (self.assertion_basis_confirmed, "assertion_basis_confirmed"),
+            (self.assertion_basis_total, "assertion_basis_total"),
+        ):
+            if value is not None and value < 0:
+                raise ValueError(f"{name} must be non-negative")
+        if (
+            self.assertion_basis_confirmed is not None
+            and self.assertion_basis_total is not None
+            and self.assertion_basis_confirmed > self.assertion_basis_total
+        ):
+            raise ValueError("confirmed assertions cannot exceed the total")
+        if (
+            self.started_at is not None
+            and self.finished_at is not None
+            and self.finished_at < self.started_at
+        ):
+            raise ValueError("finished_at cannot precede started_at")
+        if any(not step.strip() or not attempt.strip() for step, attempt in self.current_attempts):
+            raise ValueError("current attempts must carry step and attempt identities")
+        if any(not ref.strip() for ref in self.runtime_plan_revisions):
+            raise ValueError("runtime plan revisions must not contain empty values")
+        if len({(item.subject_kind, item.subject_id) for item in self.outdated_bases}) != len(
+            self.outdated_bases
+        ):
+            raise ValueError("outdated basis entries must be unique per subject")
 
     @property
     def business_outcome(self) -> BusinessOutcome:
@@ -643,6 +718,15 @@ class ReportDraft:
     decision: DecisionResult
     evidence_refs: tuple[str, ...] = ()
     issue_revisions: tuple[tuple[str, int], ...] = ()
+    assertion_basis_confirmed: int | None = None
+    assertion_basis_total: int | None = None
+    scored: bool = True
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    base_plan_revision: str | None = None
+    runtime_plan_revisions: tuple[str, ...] = ()
+    current_attempts: tuple[tuple[str, str], ...] = ()
+    outdated_bases: tuple[OutdatedBasis, ...] = ()
 
 
 def create_report_revision(
@@ -669,6 +753,16 @@ def create_report_revision(
         evidence_refs=draft.evidence_refs,
         issue_revisions=draft.issue_revisions,
         created_at=created_at,
+        assertion_basis_confirmed=draft.assertion_basis_confirmed,
+        assertion_basis_total=draft.assertion_basis_total,
+        scored=draft.scored,
+        started_at=draft.started_at,
+        finished_at=draft.finished_at,
+        captured_at=created_at or draft.finished_at or draft.started_at,
+        base_plan_revision=draft.base_plan_revision,
+        runtime_plan_revisions=draft.runtime_plan_revisions,
+        current_attempts=draft.current_attempts,
+        outdated_bases=draft.outdated_bases,
     )
 
 

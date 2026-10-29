@@ -50,7 +50,8 @@ class DraftExample(BaseModel):
 
 
 class TemplatePack(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    #: 未知字段保留（架构 01 §3：导入模板时"未知字段保留在扩展字段内，不静默丢弃"）。
+    model_config = ConfigDict(extra="allow")
     schema_version: Literal["aitest.template/1.0"]
     template_id: str
     version: str
@@ -64,6 +65,12 @@ class TemplatePack(BaseModel):
     critical_paths: list[CriticalPath]
     no_critical_path_reason: str | None = None
     examples: list[DraftExample]
+
+    @property
+    def extension_fields(self) -> dict[str, object]:
+        """导入模板时保留的未知字段（未被核心解释，也不被丢弃）。"""
+
+        return dict(self.model_extra or {})
 
     @model_validator(mode="after")
     def references(self) -> "TemplatePack":

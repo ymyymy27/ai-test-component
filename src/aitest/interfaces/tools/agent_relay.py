@@ -36,6 +36,7 @@ _QUERY_FIELDS = {
     "facet",
     "facet_value",
     "severity",
+    "query_id",
 }
 _MAX_REQUESTS = 4096
 _WRITE_FIELDS = {"action", "intent_id", "expected_revision", "target", "parameters"}

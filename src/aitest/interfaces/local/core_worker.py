@@ -449,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         return 5
     api = assembly.api
+    lifecycle = assembly.lifecycle
     next_work_tick = 0.0
     next_work_warning = 0.0
 
@@ -479,6 +480,11 @@ def main(argv: list[str] | None = None) -> int:
         if reason is not None:
             assert coordinator is not None
             coordinator.retain_activity()
+            # §11：执行器状态不明时保留材料与待核实记录，不把进程退出当业务停止。
+            if lifecycle is not None:
+                from aitest.application.lifecycle import CoreLifecycleState
+
+                lifecycle.transition(CoreLifecycleState.EXECUTOR_UNKNOWN, reason=reason)
             print(reason, file=sys.stderr)
             return None
         return _PARENT_EXIT_CODE
@@ -488,6 +494,9 @@ def main(argv: list[str] | None = None) -> int:
         connection_no = 0
         while True:
             if coordinator is not None and coordinator.exit_requested:
+                # §11：先进入 draining 拒绝新写，再在命令边界排空退出。
+                if lifecycle is not None:
+                    lifecycle.begin_drain(coordinator.reason or "parent_exited")
                 code = _parent_lost_exit()
                 if code is not None:
                     return code

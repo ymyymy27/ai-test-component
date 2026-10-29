@@ -1,0 +1,54 @@
+{
+  "schema": "aitest.template.issues/1.0",
+  "template_id": "python-library",
+  "version": "1.0.0",
+  "issue_templates": [
+    {
+      "source_item_id": "syntax",
+      "layer": "L1",
+      "title_template": "适用语法与加载：按已登记解释器实际导入目标模块，确认无语法错误、无导入失败",
+      "expected": "目标模块可被已登记解释器导入，且实际加载来源为项目内模块；语法错误与导入失败必须区分",
+      "evidence_requirements": [
+        "解释器身份与版本",
+        "实际加载来源",
+        "原始导入输出",
+        "退出事实"
+      ]
+    },
+    {
+      "source_item_id": "normal",
+      "layer": "L2",
+      "title_template": "正常输入独立预期比对：以用户确认的正常输入调用被测函数，与冻结的独立预期逐项比对",
+      "expected": "实际返回值与冻结的独立预期逐项一致；返回值类型、结构与数值同等核对",
+      "evidence_requirements": [
+        "实际输入",
+        "原始返回值",
+        "冻结的独立预期",
+        "比对结果"
+      ]
+    },
+    {
+      "source_item_id": "boundary",
+      "layer": "L2",
+      "title_template": "边界输入独立预期比对：覆盖空集合、极值、临界值与最后一项等实际边界",
+      "expected": "每个边界输入的结果与冻结的独立预期一致；边界判定依据须记录，不得只测一个代表值",
+      "evidence_requirements": [
+        "边界取值与选取理由",
+        "原始返回值",
+        "冻结的独立预期",
+        "比对结果"
+      ]
+    },
+    {
+      "source_item_id": "error",
+      "layer": "L2",
+      "title_template": "异常输入与异常类型核验：确认无效输入产生明确异常，且无未预期副作用",
+      "expected": "无效输入得到已确认的异常类型或错误返回；不得静默吞掉或返回含糊结果；无未预期副作用",
+      "evidence_requirements": [
+        "无效输入",
+        "实际异常类型与消息",
+        "副作用检查结论"
+      ]
+    }
+  ]
+}

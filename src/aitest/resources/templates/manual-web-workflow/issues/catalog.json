@@ -1,0 +1,42 @@
+{
+  "schema": "aitest.template.issues/1.0",
+  "template_id": "manual-web-workflow",
+  "version": "1.0.0",
+  "issue_templates": [
+    {
+      "source_item_id": "navigation",
+      "layer": "L3",
+      "title_template": "适用按钮、分页、跳转、滚动与鼠标交互：按业务实际覆盖本次改动涉及的可交互元素",
+      "expected": "清单内每个可交互元素的实际表现与冻结预期一致；未覆盖的元素须显式列出而非默认为通过",
+      "evidence_requirements": [
+        "步骤清单与实际操作记录",
+        "各元素的观察结果",
+        "页面材料（截图或附件）",
+        "未覆盖项清单"
+      ]
+    },
+    {
+      "source_item_id": "form",
+      "layer": "L3",
+      "title_template": "表单正常、边界与异常提示：覆盖有效提交、边界取值与无效输入的提示信息",
+      "expected": "正常提交与边界取值被正确接受或拒绝；无效输入得到已确认的提示信息，且不产生未预期的数据写入",
+      "evidence_requirements": [
+        "各输入样例与提交结果",
+        "实际提示文案",
+        "无效提交后的数据状态",
+        "页面材料"
+      ]
+    },
+    {
+      "source_item_id": "refresh",
+      "layer": "L3",
+      "title_template": "刷新与重新进入后的最终核验：确认操作结果在页面重载后仍然成立",
+      "expected": "刷新与重新进入后，同一业务对象的状态与操作前的预期一致；仅当次页面显示不作为最终结论",
+      "evidence_requirements": [
+        "刷新前后的页面材料",
+        "业务对象标识",
+        "独立只读查询结果（若适用）"
+      ]
+    }
+  ]
+}

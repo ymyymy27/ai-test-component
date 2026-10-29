@@ -121,7 +121,7 @@ def test_event_continuation_with_cursor(journal: FileEventJournal) -> None:
 
 def test_invalid_cursor_returns_structured_status(journal: FileEventJournal) -> None:
     result = journal.read(cursor="garbage-token")
-    assert result.status == "invalid_cursor"
+    assert result.status == "snapshot_required"
 
 
 def test_duplicate_event_in_boundary_is_idempotent(journal: FileEventJournal) -> None:

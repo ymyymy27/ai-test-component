@@ -1,61 +1,215 @@
 {
+  "$defs": {
+    "CoverageSummaryDTO": {
+      "additionalProperties": false,
+      "description": "同一份覆盖事实的 selected / required 双摘要（架构 06 §5）。",
+      "properties": {
+        "scope_kind": {
+          "enum": [
+            "selected",
+            "required"
+          ],
+          "title": "Scope Kind",
+          "type": "string"
+        },
+        "denominator": {
+          "minimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "executed_count": {
+          "minimum": 0,
+          "title": "Executed Count",
+          "type": "integer"
+        },
+        "reused_count": {
+          "minimum": 0,
+          "title": "Reused Count",
+          "type": "integer"
+        },
+        "verified_count": {
+          "minimum": 0,
+          "title": "Verified Count",
+          "type": "integer"
+        },
+        "passed_count": {
+          "minimum": 0,
+          "title": "Passed Count",
+          "type": "integer"
+        },
+        "failed_count": {
+          "minimum": 0,
+          "title": "Failed Count",
+          "type": "integer"
+        },
+        "unverified_count": {
+          "minimum": 0,
+          "title": "Unverified Count",
+          "type": "integer"
+        },
+        "case_ids_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Case Ids Revision"
+        },
+        "source_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Commit"
+        },
+        "policy_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Version"
+        }
+      },
+      "required": [
+        "scope_kind",
+        "denominator",
+        "executed_count",
+        "reused_count",
+        "verified_count",
+        "passed_count",
+        "failed_count",
+        "unverified_count"
+      ],
+      "title": "CoverageSummaryDTO",
+      "type": "object"
+    },
+    "DecisiveFailureRef": {
+      "additionalProperties": false,
+      "description": "决定性失败的最小引用；细节按引用读取，不在列表里展开。",
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "step_id",
+        "attempt_id"
+      ],
+      "title": "DecisiveFailureRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "覆盖计数：selected/required 双摘要 + 决定性失败 + 来源修订（架构 03 §11）。",
   "properties": {
-    "selected_applicable_count": {
-      "minimum": 0,
-      "title": "Selected Applicable Count",
-      "type": "integer"
+    "schema_version": {
+      "const": "aitest.coverage/1.0",
+      "default": "aitest.coverage/1.0",
+      "title": "Schema Version",
+      "type": "string"
     },
-    "required_applicable_count": {
-      "minimum": 0,
-      "title": "Required Applicable Count",
-      "type": "integer"
+    "selected_summary": {
+      "$ref": "#/$defs/CoverageSummaryDTO"
     },
-    "executed_count": {
-      "minimum": 0,
-      "title": "Executed Count",
-      "type": "integer"
+    "required_summary": {
+      "$ref": "#/$defs/CoverageSummaryDTO"
     },
-    "reused_count": {
-      "minimum": 0,
-      "title": "Reused Count",
-      "type": "integer"
+    "decisive_failure_count": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decisive Failure Count"
     },
-    "verified_count": {
-      "minimum": 0,
-      "title": "Verified Count",
-      "type": "integer"
+    "decisive_failures": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DecisiveFailureRef"
+      },
+      "title": "Decisive Failures",
+      "type": "array"
     },
-    "passed_count": {
-      "minimum": 0,
-      "title": "Passed Count",
-      "type": "integer"
+    "case_ids_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Case Ids Revision"
     },
-    "failed_count": {
-      "minimum": 0,
-      "title": "Failed Count",
-      "type": "integer"
+    "source_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Commit"
     },
-    "unverified_count": {
-      "minimum": 0,
-      "title": "Unverified Count",
-      "type": "integer"
+    "policy_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy Version"
     },
-    "required_verified_count": {
-      "minimum": 0,
-      "title": "Required Verified Count",
-      "type": "integer"
+    "unknown_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unknown Reason"
     }
   },
   "required": [
-    "selected_applicable_count",
-    "required_applicable_count",
-    "executed_count",
-    "reused_count",
-    "verified_count",
-    "passed_count",
-    "failed_count",
-    "unverified_count",
-    "required_verified_count"
+    "selected_summary",
+    "required_summary"
   ],
   "title": "CoverageDTO",
   "type": "object"

@@ -1,0 +1,75 @@
+{
+  "schema": "aitest.template.issues/1.0",
+  "template_id": "ticket-workflow",
+  "version": "1.0.0",
+  "issue_templates": [
+    {
+      "source_item_id": "create",
+      "layer": "L3",
+      "title_template": "创建并保存工单ID：创建一张工单，保存返回的业务标识供后续步骤贯穿使用",
+      "expected": "创建成功并返回唯一业务标识；该标识被完整保存并用于后续全部步骤，不得各步骤各自新建工单",
+      "evidence_requirements": [
+        "创建请求与响应",
+        "工单业务标识",
+        "幂等合同引用",
+        "原始输出"
+      ]
+    },
+    {
+      "source_item_id": "page",
+      "layer": "L3",
+      "title_template": "分页找到相同ID：在列表中通过分页检索到同一条工单，确认列表与创建结果一致",
+      "expected": "在分页结果中检索到同一业务标识；分页边界（首页、末页、空页）行为与冻结预期一致",
+      "evidence_requirements": [
+        "各页请求与响应",
+        "命中页的工单字段",
+        "业务标识匹配结果"
+      ]
+    },
+    {
+      "source_item_id": "detail",
+      "layer": "L3",
+      "title_template": "详情字段一致：按业务标识读取详情，逐字段与创建时的输入及冻结预期比对",
+      "expected": "详情中各字段的实际值与创建时提交及冻结预期一致；不得只确认详情可打开",
+      "evidence_requirements": [
+        "详情请求与响应",
+        "逐字段比对结果",
+        "冻结的独立预期"
+      ]
+    },
+    {
+      "source_item_id": "update",
+      "layer": "L3",
+      "title_template": "修改状态：对同一工单执行状态变更，确认变更被接受且返回符合预期",
+      "expected": "状态变更被接受，返回与冻结预期一致；非法状态迁移被拒绝且不留副作用",
+      "evidence_requirements": [
+        "变更请求与响应",
+        "变更前后的状态值",
+        "非法迁移的实际响应"
+      ]
+    },
+    {
+      "source_item_id": "refresh",
+      "layer": "L3",
+      "title_template": "刷新或重新进入：在页面刷新或重新进入后，确认工单状态与刚提交的变更一致",
+      "expected": "刷新或重新进入后展示的状态与新提交的变更一致；当次页面显示不作为最终结论",
+      "evidence_requirements": [
+        "刷新前后的页面材料或查询结果",
+        "工单业务标识",
+        "观察到的状态值"
+      ]
+    },
+    {
+      "source_item_id": "verify",
+      "layer": "L3",
+      "title_template": "同ID最终状态独立持久化核验：以独立只读查询确认同一工单的最终状态已真实持久化",
+      "expected": "同一业务标识的最终状态经独立只读查询确认为预期值；成功 HTTP 状态码不代替持久化证据",
+      "evidence_requirements": [
+        "独立只读查询的实际结果",
+        "工单业务标识",
+        "最终状态值",
+        "核验来源"
+      ]
+    }
+  ]
+}

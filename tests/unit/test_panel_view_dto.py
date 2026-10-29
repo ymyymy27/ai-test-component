@@ -26,7 +26,7 @@ import pytest
 
 from aitest.application.review.execution_decision_adapter import build_decision_facts
 from aitest.domain.review.reports import evaluate_review
-from aitest.interfaces.dto import PanelViewDTO, panel_view_dto
+from aitest.interfaces.dto import PanelDTO, panel_view_dto
 from tests.unit.test_run_view_dto import _facts as _run_facts
 
 
@@ -36,7 +36,7 @@ def _panel(
     control_state: str,
     selected: tuple[str, ...] = ("case-1",),
     required: tuple[str, ...] | None = None,
-) -> PanelViewDTO:
+) -> PanelDTO:
     from aitest.contracts.execution_facts import ExecutionFacts
     from aitest.interfaces.dto import run_view_dto
 
@@ -84,7 +84,7 @@ def test_panel_carries_the_frozen_case_facts_for_the_design_tables() -> None:
         selected=("case-1",),
         required=("case-1",),
     )
-    assert isinstance(view, PanelViewDTO)
+    assert isinstance(view, PanelDTO)
     assert view.manual_pending_step_ids == ("step-1",)
     assert view.pending_verification_step_ids == ("step-2",)
     # 缺口码取自领域判定（本例：未执行 ⇒ 无有效执行依据／未完成范围）。
@@ -136,3 +136,25 @@ def test_panel_view_is_json_serializable_and_has_no_action_candidates() -> None:
 
 def _unused(value: Any) -> None:  # pragma: no cover - 保持 import 语义清晰
     return None
+
+
+
+def test_plan_dto_projects_saved_plan_facts_without_recomputing() -> None:
+    from aitest.interfaces.dto import PlanDTO
+
+    dto = PlanDTO(
+        project_id="project-1",
+        plan_id="plan-1",
+        revision=2,
+        scope_id="scope-1",
+        scope_revision=3,
+        required_case_ids=("case-1",),
+        case_revisions={"case-1": 4},
+        run_tier="full",
+    )
+
+    assert dto.schema_version == "aitest.plan-view/1.0"
+    payload = dto.model_dump()
+    assert payload["scope_revision"] == 3
+    assert payload["required_case_ids"] == ("case-1",)
+    assert payload["uncovered_reasons"] == ()

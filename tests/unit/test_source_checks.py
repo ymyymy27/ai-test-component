@@ -12,6 +12,7 @@ from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
 from aitest.domain.execution.sources import (
     SourceCheckType,
     SourceVerificationState,
+    evaluate_l1_checks,
 )
 
 _FILE_DIGEST = "d" * 64
@@ -277,3 +278,26 @@ def test_probe_failure_never_yields_verified(tmp_path: Path) -> None:
 
     assert verification.state is SourceVerificationState.BLOCKED
     assert verification.gap_ids == ("environment_unreachable",)
+
+
+
+def test_l1_checks_do_not_claim_build_or_start_without_facts() -> None:
+    outcomes = evaluate_l1_checks()
+
+    assert [item.check_type for item in outcomes] == [
+        SourceCheckType.APPLICABLE_BUILD,
+        SourceCheckType.MINIMAL_START,
+    ]
+    assert all(item.state is SourceVerificationState.UNKNOWN for item in outcomes)
+
+    verified = evaluate_l1_checks(build_descriptors=("pyproject.toml",), entry_imported=True)
+    assert all(item.state is SourceVerificationState.VERIFIED for item in verified)
+
+    assert (
+        evaluate_l1_checks(entry_compiled=False)[1].state
+        is SourceVerificationState.BLOCKED
+    )
+    assert (
+        evaluate_l1_checks(entry_imported=False)[1].state
+        is SourceVerificationState.BLOCKED
+    )
