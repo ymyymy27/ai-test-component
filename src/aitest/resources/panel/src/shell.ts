@@ -27,10 +27,93 @@ footer{border-top:1px solid var(--vscode-panel-border,#363b44);margin:12px -14px
 .report-outcome{display:block;font-size:15px;font-weight:600;margin:2px 0 6px}
 .pending-list{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin:4px 0 6px}
 .pending-list button{text-align:left}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;border:1px solid var(--vscode-panel-border,#4a505a);font-size:12px;margin:2px 0 6px}
+.badge[data-control=running]{color:#7fd1a0;border-color:#3d6b52}
+.badge[data-control=paused],.badge[data-control=pause_requested]{color:#e0c07a;border-color:#6b5f33}
+.badge[data-control=cancelled],.badge[data-control=cancelling]{color:#e08a7a;border-color:#6b3d35}
+.badge[data-outcome=passed]{color:#7fd1a0;border-color:#3d6b52}
+.badge[data-outcome=failed]{color:#e08a7a;border-color:#6b3d35}
+.badge[data-outcome=incomplete]{color:#e0c07a;border-color:#6b5f33}
+.progress{height:4px;background:var(--vscode-panel-border,#3a4048);border-radius:2px;margin:2px 0 8px;overflow:hidden}
+.progress>div{height:100%;background:var(--vscode-progressBar-background,#0e70c0)}
+.stat-row{display:flex;gap:10px;margin:10px 0 8px}
+.stat{flex:1;min-width:0}
+.stat b{display:block;font-size:18px;font-weight:600;line-height:1.2}
+.stat span{display:block;font-size:11px;color:var(--vscode-descriptionForeground,#a6aebc)}
+.hint{padding-left:10px;font-size:12px;color:var(--vscode-descriptionForeground,#a6aebc);margin:0 0 6px}
+/* 窄侧栏用文字行，宽页面（编辑器标签页）用表格；同一份数据两种呈现。 */
+.coverage-table{display:none}
+.tag{font-size:11px;color:var(--vscode-descriptionForeground,#a6aebc);margin-left:6px}
+/* 编辑器标签页：隐藏只属于侧栏的头部（面板用影子树，必须用 :host(...) 选择器）。 */
+:host(.detail-only) header{display:none}
+.gap-box{border-left:3px solid var(--vscode-editorWarning-foreground,#d7a23a);background:var(--vscode-input-background,#191d23);padding:8px 12px;margin:10px 0;border-radius:2px}
+.pending-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+@media(min-width:620px){
+  main{max-width:1080px}
+  .coverage-lines{display:none}
+  table.coverage-table{display:table;width:100%;border-collapse:collapse;margin:8px 0;font-size:12px}
+  table.coverage-table th,table.coverage-table td{padding:6px 8px;border-bottom:1px solid var(--vscode-panel-border,#363b44);text-align:left}
+  table.coverage-table tr:first-child th{color:var(--vscode-descriptionForeground,#a6aebc);font-weight:500}
+  table.coverage-table td{text-align:right}
+  table.coverage-table tr:first-child th:not(:first-child){text-align:right}
+  /* 宽页面里事实表排成两列，和设计稿的"执行状态 | 断言与核验"一致。 */
+  .facts{grid-template-columns:max-content 1fr max-content 1fr;gap:8px 16px}
+}
 `;
 
 export function text(tag:string, value:string, className=""):HTMLElement {
   const element=document.createElement(tag);element.textContent=value;element.className=className;return element;
+}
+/** 缺口代码在领域里是英文；面板显示中文说明，原始代码仍留在字段细节中。 */
+const GAP_TEXT:Record<string,string>={
+  source_identity_mismatch:"源码与登记身份不一致",
+  no_valid_execution_basis:"没有可用的执行依据",
+  source_identity_unverified:"源码身份尚未核实",
+  template_required_below_floor:"必测项低于模板要求",
+  full_required_scope_missing:"完整验证缺少必测范围",
+  required_case_unresolved:"必测用例尚未得出结论",
+  required_case_pending_verification:"必测用例待核验",
+  required_case_unverified:"必测用例本轮没有取得有效验证",
+  outdated_basis:"断言依据已过期",
+  required_evidence_invalid:"必需证据缺失、损坏或无效",
+  environment_evidence_incomplete:"环境证据不完整",
+  critical_path_missing:"缺少关键链路覆盖",
+  critical_unknown:"关键链路结果未知",
+  critical_mock:"关键链路使用了模拟",
+  full_skipped_scope:"完整验证跳过了部分范围",
+  assertion_basis_unconfirmed:"断言依据尚未确认",
+  noncritical_unknown:"非关键项结果未知",
+  noncritical_verification_gap:"非关键项缺少验证",
+  unclassified_gap:"未分类的缺口",
+};
+export function gapText(code:unknown, fallback:unknown):string {
+  if(typeof code==="string" && GAP_TEXT[code])return GAP_TEXT[code];
+  return typeof fallback==="string" && fallback.trim() ? fallback : "缺口";
+}
+/** 每个缺口下一步该做什么；只描述动作，不替用户判断结论。 */
+const GAP_HINT:Record<string,string>={
+  source_identity_mismatch:"重新分析源码，确认被测内容与登记一致后再执行。",
+  no_valid_execution_basis:"先确认计划与断言依据，再开始执行。",
+  source_identity_unverified:"重新分析源码，让核心登记当前来源。",
+  template_required_below_floor:"按模板补齐必测项后再发布计划。",
+  full_required_scope_missing:"检查必测范围是否被排除，恢复后再执行。",
+  required_case_unresolved:"先执行该用例并记录实际结果。",
+  required_case_pending_verification:"打开该步骤，执行“核验这次执行结果”。",
+  required_case_unverified:"核验通过后再保存一次报告。",
+  outdated_basis:"上游结果已变化，重新执行受影响的用例。",
+  required_evidence_invalid:"重新执行以产生新的证据，再核验。",
+  environment_evidence_incomplete:"在环境页补充说明，然后重新准备本次运行。",
+  critical_path_missing:"补上关键链路的执行记录。",
+  critical_unknown:"关键链路结果未知，需要重新执行确认。",
+  critical_mock:"关键链路使用了模拟，改用真实执行。",
+  full_skipped_scope:"把被跳过的范围重新纳入本轮。",
+  assertion_basis_unconfirmed:"先确认断言依据，再进行核验。",
+  noncritical_unknown:"重新执行该用例以取得明确结果。",
+  noncritical_verification_gap:"补充该用例的核验。",
+  unclassified_gap:"按缺口说明补齐对应材料。",
+};
+export function gapHint(code:unknown):string {
+  return typeof code==="string" ? (GAP_HINT[code] ?? "") : "";
 }
 export function action(label:string, click:()=>void, disabled=false):HTMLButtonElement {
   const button=document.createElement("button");button.textContent=label;button.onclick=click;button.disabled=disabled;return button;

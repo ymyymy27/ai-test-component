@@ -4,7 +4,7 @@ import {workflowActions, workflowCommand} from "./workflow";
 import {Onboarding} from "./onboarding";
 import {ModelSettings} from "./model-settings";
 import {GuidedRun, friendly} from "./guided";
-import {newIntent, shellStyles, text, action, group, object, strings} from "./shell";
+import {newIntent, shellStyles, text, action, group, object, strings, gapText, gapHint} from "./shell";
 type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics" | "setup";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
@@ -44,6 +44,18 @@ function hostApi(): HostApi | null {
 }
 
 type Row = { record_id: string; revision: number; aggregate_kind: string };
+
+/** 只读动作：核心不弹确认窗口，超时阈值可以短。 */
+const READ_ONLY_ACTIONS = new Set([
+  "read_view", "query", "events", "doctor", "storage_usage",
+  "copy_repair_brief", "check_source", "inspect_case_reuse",
+]);
+
+/** 会改变运行状态或判定的动作：完成后要重读视图，否则缺口不会出现在待处理里。 */
+const STATE_CHANGING_ACTIONS = new Set([
+  "execute_step", "verify_pending", "create_report", "import_external_result",
+  "attach_evidence", "pause_run", "resume_run", "cancel_run", "record_local_review",
+]);
 
 /** 只读回执里的记录行；面板原样展示，不补造字段、不重算结论。 */
 function rowsOf(response: Record<string, unknown> | undefined): Row[] {
@@ -117,6 +129,10 @@ const issueFields: ReadonlyArray<readonly [string, string]> = [
 class AITestPanel extends HTMLElement {
   private readonly guided = new GuidedRun();
   private detail: Detail = "current";
+  /** 由宿主注入的编辑器标签页视图：详情页，不渲染侧栏头部。 */
+  private standalone = false;
+  private doctorRetries = 0;
+  private pendingTimer: number | null = null;
   private readonly root = this.attachShadow({ mode: "open" });
   private readonly host = hostApi();
   private readonly modelSettings=new ModelSettings(message=>this.host?.postMessage(message),()=>this.render());
@@ -128,9 +144,23 @@ class AITestPanel extends HTMLElement {
   private selectedRecord:Row|null=null;
   private recordOutcome:Outcome|null=null;
   private planOutcome:Outcome|null=null;
+  /** 用例层级（L1/L2/L3）只存在于已发布的计划记录里；按计划引用读取一次后缓存。 */
+  private planLayers:Record<string,string>={};
+  /** 每个用例的断言依据状态（missing / present_unconfirmed / confirmed），同样来自计划记录。 */
+  private planBasis:Record<string,string>={};
+  /** 计划里的 scope.name 就是用户给这次验证起的名字；用它当标题，比"本次测试"可读。 */
+  private planScopeName="";
+  private planRevision=0;
+  /** 计划读取失败时把原因显示出来，避免静默降级成"没有层级"。 */
+  private planNote="";
+  private planAwait=false;
+  private planLookup:string|null=null;
+  /** 查询计划记录行时用的修订标识；用它避免对同一计划重复发起查询。 */
+  private planQueryRef:string|null=null;
   private expanded:Record<string,boolean>={current:true,records:false};
   private homeScroll=0;
   private selectedStep:string|null=null;
+  private selectedStepRun="";
   private intents=new Map<string,string>();
   /** 同一运行复用同一报告标识；预期修订按该标识的当前内容修订发送（#105）。 */
   private reportIds=new Map<string,string>();
@@ -139,6 +169,8 @@ class AITestPanel extends HTMLElement {
   private reportLookupRun:string|null=null;
   private pendingReportSaveRun:string|null=null;
   private autoReadKey:string|null=null;
+  private autoPanelKey:string|null=null;
+  private autoReportKey:string|null=null;
   private navigate(detail:Detail):void {
     if(this.detail==="current")this.homeScroll=window.scrollY;
     if(detail==="settings"&&this.host)this.modelSettings.open();
@@ -262,13 +294,14 @@ class AITestPanel extends HTMLElement {
           }
           this.issueOutcome = this.reportOutcome = this.issueDetailOutcome = null;
           this.selectedRecord=null;this.recordOutcome=this.planOutcome=null;
+          this.planLayers={};this.planBasis={};this.planScopeName="";this.planRevision=0;this.planNote="";this.planAwait=false;this.planLookup=null;this.planQueryRef=null;
           this.eventOutcome = this.briefOutcome = null;
           this.eventLog = []; this.eventCursor = this.eventNote = null;
           this.briefIssueId = this.briefNote = null;
           this.guided.reset();
           this.viewOutcomes.clear(); this.selectedStep=null; this.intents.clear(); this.pendingQuery = null; this.outcome = null;
           this.reportIds.clear(); this.reportRevisions.clear(); this.reportLookedUp.clear();
-          this.reportLookupRun = null; this.pendingReportSaveRun = null; this.autoReadKey = null;
+          this.reportLookupRun = null; this.pendingReportSaveRun = null; this.autoReadKey = this.autoPanelKey = this.autoReportKey = null;
           this.commandDraft = ""; this.commandNote = this.pendingRequest ? "项目已切换，请核对当前步骤后继续。" : "";
           this.projectName = this.projectGoal = "";
           this.workflowValues = {expected_revision:"0"};
@@ -293,7 +326,14 @@ class AITestPanel extends HTMLElement {
       } else if (this.host !== null || data.action !== "doctor") { return; }
       this.outcome = data;
       if(data.action!=="read_view")this.guided.receive(data.action ?? "",data.status,object(data.response?.["result"]));
-      if (data.action === "doctor") { this.doctorOutcome = data; }
+      if (data.action === "doctor") {
+        this.doctorOutcome = data;
+        // 两个面板（侧栏 + 编辑器页）可能同时连接核心，抢输的一方等一会儿再试。
+        if (data.status !== "ok" && this.host !== null && this.doctorRetries < 3) {
+          this.doctorRetries += 1;
+          window.setTimeout(() => { if (this.host !== null) { this.dispatch("doctor"); } }, 1200 * this.doctorRetries);
+        }
+      }
       if (data.action === "query") {
         if (this.pendingQuery === "plans") { this.planOutcome=data; }
         // 按**本次查询的作用域**归位；没有待归位作用域时只更新最近回执。
@@ -342,6 +382,36 @@ class AITestPanel extends HTMLElement {
             && typeof result?.["event_cursor"] === "string" && result["event_cursor"].length > 0) {
           this.viewOutcomes.set(kind, data);
           this.guided.receive("read_view",data.status,object(data.response?.["result"]));
+          // 换运行后旧的步骤选择不再有效，清掉避免工作台指向已不存在的步骤。
+          if(kind==="run"&&typeof view["run_id"]==="string"){
+            const runRef=String(view["run_id"]);
+            if(runRef!==this.selectedStepRun){this.selectedStepRun=runRef;this.selectedStep=null;}
+          }
+        }
+        if(data.status==="ok" && kind==="plan" && view && this.project && view["project_id"]===this.project.project_id){
+          // 记录视图把载荷包在 record 下；层级与范围名都在里面。
+          const payload=object(view["record"]) ?? view;
+          const cases=Array.isArray(payload["cases"])?payload["cases"]:[];
+          const layers:Record<string,string>={};
+          const basis:Record<string,string>={};
+          for(const raw of cases){
+            const item=object(raw);
+            if(!item || typeof item["case_id"]!=="string")continue;
+            if(typeof item["layer"]==="string")layers[item["case_id"]]=item["layer"];
+            if(typeof item["assertion_basis_state"]==="string")basis[item["case_id"]]=item["assertion_basis_state"];
+          }
+          if(Object.keys(layers).length){this.planLayers=layers;}
+          if(Object.keys(basis).length){this.planBasis=basis;}
+          const scope=object(payload["scope"]);
+          if(typeof scope?.["name"]==="string" && scope["name"].trim())this.planScopeName=String(scope["name"]);
+          if(Number.isSafeInteger(payload["revision"]))this.planRevision=Number(payload["revision"]);
+          else if(Number.isSafeInteger(view["record_revision"]))this.planRevision=Number(view["record_revision"]);
+          this.planNote="";
+        }
+        if(this.planAwait && data.action==="read_view"){
+          this.planAwait=false;
+          if(!(data.status==="ok" && kind==="plan"))
+            this.planNote=`计划读取未完成：${data.code ?? data.status}${data.message?`：${data.message}`:""}`;
         }
       }
       if(data.action && !["doctor","query","events","read_view","ensure-core","copy_repair_brief"].includes(data.action)){
@@ -362,7 +432,13 @@ class AITestPanel extends HTMLElement {
       }
       this.pendingRequest = null;
       this.pending = false;
+      this.disarmWatchdog();
       this.render();
+      this.pumpPlanLookup();
+      // 能力协商（doctor）通常在首屏之后才回来；回来后要再试一次自动读取，否则一直停在空状态。
+      this.maybeAutoRead();
+      // 执行/核验/存报告会改变判定与缺口：立刻重读运行与面板视图，让"待处理"反映最新缺口。
+      if (STATE_CHANGING_ACTIONS.has(String(data.action ?? ""))) { this.refreshViews(); }
       this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]),data.code,data.message);
       if (data.action === "ensure-core" && data.status === "ok") {
         this.dispatch("doctor");
@@ -379,12 +455,34 @@ class AITestPanel extends HTMLElement {
     const runId=this.project?.run_id;
     if(!runId||this.host===null||this.pending||this.onboarding.isConfiguring())return;
     const key=`${this.contextId ?? ""}:${runId}`;
-    if(this.autoReadKey===key||this.viewOutcomes.has("run")||!this.available("read_view"))return;
+    if(this.autoReadKey===key||this.viewOutcomes.has("run")||!this.available("read_view")){
+      // 运行视图到手后补读一次面板视图：缺口分类与业务结论都只在面板视图里。
+      if(this.viewOutcomes.has("run") && !this.viewOutcomes.has("panel")
+          && this.autoPanelKey!==key && this.available("read_view")){
+        this.autoPanelKey=key;
+        this.dispatchScoped("read_view",{view:"panel",run_id:runId});
+        return;
+      }
+      // 再读一次报告修订列表，「测试记录」里的最近报告才有内容；失败时原样显示回执。
+      if(this.viewOutcomes.has("run") && this.reportOutcome===null
+          && this.autoReportKey!==key && this.available("query")){
+        this.autoReportKey=key;
+        this.pendingQuery="reports";
+        this.dispatchScoped("query",{run_id:runId,limit:5});
+      }
+      return;
+    }
     this.autoReadKey=key;
     this.dispatchScoped("read_view",{view:"run",run_id:runId});
   }
 
   connectedCallback(): void {
+    // 宿主在编辑器页面里会写入初始视图标记，让它直接落在工作台或报告页。
+    const preset=(window as unknown as {__AITEST_DETAIL?:unknown}).__AITEST_DETAIL;
+    if(preset==="workbench"||preset==="review"){
+      this.detail=preset;
+      this.standalone=true;
+    }
     window.addEventListener("message", this.receiveMessage);
     this.render();
     this.dispatch("doctor");
@@ -433,6 +531,30 @@ class AITestPanel extends HTMLElement {
   }
 
   /** 面板只发起**只读**查询；写动作由受控用户入口发起，界面点击不等于确认。 */
+  /** 状态变化后重读运行视图；面板视图会随后自动补读，于是缺口立刻可见。 */
+  private refreshViews(): void {
+    if (this.host === null || this.pending) { return; }
+    if (!this.available("read_view") || !this.project?.run_id) { return; }
+    this.autoPanelKey = null;
+    this.dispatchScoped("read_view", { view: "run", run_id: this.project.run_id });
+  }
+
+  /** 回执看门狗：读操作短、需要原生确认窗口的写操作长（窗口本身最长 2 分钟）。 */
+  private armWatchdog(timeoutMs: number): void {
+    this.disarmWatchdog();
+    this.pendingTimer = window.setTimeout(() => {
+      this.pendingTimer = null;
+      if (!this.pending) { return; }
+      this.pending = false; this.pendingRequest = null; this.pendingQuery = null;
+      this.commandNote = "请求未在限定时间内返回。可以重试同一操作；核心结果未知时不会自动重跑。";
+      this.render();
+    }, timeoutMs);
+  }
+
+  private disarmWatchdog(): void {
+    if (this.pendingTimer !== null) { window.clearTimeout(this.pendingTimer); this.pendingTimer = null; }
+  }
+
   private dispatch(action: string, parameters?: Record<string, unknown>): void {
     if (this.host === null) {
       this.outcome = {
@@ -443,6 +565,8 @@ class AITestPanel extends HTMLElement {
       return;
     }
     this.pending = true;
+    // 只读动作应当很快返回；写动作可能等用户在原生确认窗口里点确认。
+    this.armWatchdog(READ_ONLY_ACTIONS.has(action) ? 30_000 : 180_000);
     const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
     this.pendingRequest = { id: clientRequestId, action };
     const message: Record<string, unknown> = {
@@ -486,7 +610,9 @@ class AITestPanel extends HTMLElement {
     const style = document.createElement("style");
     style.textContent = shellStyles;
     const main = document.createElement("main");
-    main.append(this.header(), this.detail === "current" ? this.currentView() : this.detailView());
+    // 编辑器标签页是详情页：不渲染侧栏头部，避免重复出现项目选择与模型状态。
+    if(!this.standalone)main.append(this.header());
+    main.append(this.detail === "current" ? this.currentView() : this.detailView());
     if(this.detail!=="current")main.append(this.connectionFooter());
     this.root.append(style, main);
   }
@@ -513,6 +639,7 @@ class AITestPanel extends HTMLElement {
     this.pending = true;
     const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
     this.pendingRequest = { id: clientRequestId, action: "ensure-core" };
+    this.armWatchdog(90_000);
     this.host.postMessage({ kind: "ensureCore", clientRequestId });
     this.render();
   }
@@ -525,7 +652,14 @@ class AITestPanel extends HTMLElement {
     const plan=document.createElement("div");
     const openPlan=action("打开计划与用例",()=>this.navigate("plan"));openPlan.className="link-button";
     plan.append(openPlan,this.caseTree());
-    const records=document.createElement("div");records.append(action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
+    const records=document.createElement("div");
+    // 自动读取之外的显式入口：即使自动那次失败或被能力门禁挡住，也能手动取一次。
+    const loadReports=action("读取最近报告",()=>{
+      if(!this.project?.run_id)return;
+      this.pendingQuery="reports";
+      this.dispatchScoped("query",{run_id:this.project.run_id,limit:5});
+    },!this.available("query")||!this.project?.run_id);
+    records.append(loadReports,action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
     fragment.append(fold("当前测试","current",this.phaseSection(),this.actionSection(),links),
       fold("待处理","pending",this.pendingSection()),fold("测试计划","plan",plan),fold("测试记录","records",records));
     fragment.append(this.connectionFooter());return fragment;
@@ -540,22 +674,75 @@ class AITestPanel extends HTMLElement {
     const section=document.createElement("div");const view=this.view("run") ?? this.view("panel");
     if(!view){section.append(text("p",this.project?.run_id ? "读取本次运行后，显示需要你处理的事项。" : "先完成测试准备，再核对操作授权。","muted"));}
     else {
-      const steps=Array.isArray(view.steps)?view.steps.map(object):[];
-      for(const [key,label] of [["manual_pending_step_ids","待人工"],["pending_verification_step_ids","待核验"],["blocked_step_ids","阻塞"],["invalidated_step_ids","依据过期"]]) {
-        for(const id of strings(view[key!])){const index=steps.findIndex(step=>step?.step_id===id);
-          const item=action(`${label} · ${index>=0?`第 ${index+1} 步`:"打开对应步骤"}`,()=>{this.selectedStep=id;this.navigate("workbench");});item.className="link-button";section.append(item);}
+      const steps=Array.isArray(view.steps)
+        ? view.steps.map(object).filter((item):item is Record<string,unknown>=>item!==undefined)
+        : [];
+      const groups:[string,string][]=[
+        ["manual_pending_step_ids","待人工"],
+        ["pending_verification_step_ids","待核验"],
+        ["blocked_step_ids","阻塞"],
+        ["invalidated_step_ids","依据过期"],
+      ];
+      const gaps=strings(view.gap_codes);
+      // 缺口分两类，和设计里的"缺证据 / 真实性未知"对应：结果未知或身份未核实的算后者。
+      const unknownGaps=gaps.filter(code=>/unknown|unverified/.test(String(code)));
+      const missingGaps=gaps.filter(code=>!unknownGaps.includes(code));
+      const unfinished=steps.filter(step=>step["state"]==="pending");
+      // 先给一行总量，再看明细：侧栏一屏放不下逐条清单。
+      const counts=groups.map(([key,label])=>[label,strings(view[key]??[]).length] as const).filter(([,n])=>n>0);
+      if(unfinished.length)counts.push(["待执行",unfinished.length] as const);
+      if(missingGaps.length)counts.push(["缺证据",missingGaps.length] as const);
+      if(unknownGaps.length)counts.push(["真实性未知",unknownGaps.length] as const);
+      if(counts.length){
+        const countLine=text("p",counts.map(([label,n])=>`${label} ${n}`).join(" · "),"muted");
+        countLine.dataset.testid="pending-counts";
+        section.append(countLine);
       }
-      for(const code of strings(view.gap_codes)){const item=text("p",`证据缺口：${friendly(code)}`,"muted");section.append(item);}
+      const groupHints:Record<string,string>={
+        manual_pending_step_ids:"需要你在本机完成操作，然后记录实际结果。",
+        pending_verification_step_ids:"打开该步骤，按独立预期核验这次执行结果。",
+        blocked_step_ids:"先处理阻塞原因，再继续执行。",
+        invalidated_step_ids:"上游结果已变化，需要重新执行该步骤。",
+      };
+      for(const [key,label] of groups){
+        for(const id of strings(view[key]??[])){
+          const index=steps.findIndex(step=>step["step_id"]===id);
+          const name=caseKindName(steps[index]?.["case_id"]);
+          const item=action(`${label} · ${name||(index>=0?`第 ${index+1} 步`:"打开对应步骤")}`,()=>{this.selectedStep=id;this.navigate("workbench");});
+          item.className="link-button";
+          const row=document.createElement("div");row.className="pending-row";
+          row.append(item,text("span",label,"tag"));
+          section.append(row);
+          const hint=groupHints[key];
+          if(hint)section.append(text("p",hint,"hint"));
+        }
+      }
+      if(gaps.length){
+        const list=document.createElement("div");list.className="pending-list";
+        // 报告判定说"有用例未取得有效验证"时，即使 step 状态已完成，也必须提示回去核验。
+        const verifyGap=gaps.some(code=>/required_case_unverified|required_case_pending_verification/.test(String(code)));
+        if(verifyGap){
+          const item=action("待核验 · 有已执行用例未取得有效验证",()=>{this.selectedStep=this.attention()?.stepId ?? null;this.navigate("workbench");});
+          item.className="link-button";
+          const row=document.createElement("div");row.className="pending-row";
+          row.append(item,text("span","待核验","tag"));
+          section.append(row);
+        }
+        for(const code of gaps){
+          list.append(text("p",`证据缺口：${gapText(code,"")}`,"muted"));
+          const hint=gapHint(code);
+          if(hint)list.append(text("p",hint,"hint"));
+        }
+        section.append(list);
+      }
       // 还没跑过的步骤也要出现在待处理里，否则用户以为"没事可做"。
-      const unfinished=steps.filter(step=>step && step["state"]==="pending");
       if(unfinished.length){
         section.append(text("p",`待执行：${unfinished.length} 个步骤`,"muted"));
         // 竖排：横向排列会在窄侧栏里把两条挤在同一行并断字。
         const list=document.createElement("div");list.className="pending-list";
         for(const step of unfinished.slice(0,10)){
-          const stepId=String(step?.["step_id"]??"");
-          const name=caseKindName(step?.["case_id"]);
-          const item=action(`待执行 · ${name||"步骤"}`,()=>{this.selectedStep=stepId;this.navigate("workbench");});
+          const stepId=String(step["step_id"]??"");
+          const item=action(`待执行 · ${caseKindName(step["case_id"])||"步骤"}`,()=>{this.selectedStep=stepId;this.navigate("workbench");});
           item.className="link-button";list.append(item);
         }
         section.append(list);
@@ -566,19 +753,33 @@ class AITestPanel extends HTMLElement {
   }
 
   private caseTree():HTMLElement {
+    const wrap=document.createElement("div");
+    // 计划名与修订来自计划记录；没有就只显示用例列表，不编造计划信息。
+    if(this.planScopeName||this.planRevision){
+      const total=Object.keys(this.planLayers).length;
+      const planHead=text("p",`${this.planScopeName||"本次计划"}${this.planRevision?` · 修订 ${this.planRevision}`:""}${total?` · ${total} 项`:""}`,"muted");
+      planHead.dataset.testid="plan-heading";
+      wrap.append(planHead);
+    }
+    if(this.planNote)wrap.append(text("p",this.planNote,"muted"));
     const list=document.createElement("ul");list.className="case-tree";list.setAttribute("aria-label","计划用例");
     const view=this.view("run");const steps=Array.isArray(view?.["steps"]) ? view["steps"] : [];
     const cases=strings(view?.["selected_case_ids"]);
-    if(!view){list.append(text("li",this.project?.run_id ? "读取运行后显示本次计划与用例。" : "发布计划后，用例会显示在这里。","empty"));return list;}
+    if(!view){list.append(text("li",this.project?.run_id ? "读取运行后显示本次计划与用例。" : "发布计划后，用例会显示在这里。","empty"));wrap.append(list);return wrap;}
     for(const [caseIndex,id] of cases.entries()){
       const item=document.createElement("li");const children=document.createElement("ul");
       // 用例编号后不带名称时，用户无法分辨四项检查；按用例编号后缀映射到检查名称。
       const caseName=caseKindName(id);
-      item.append(text("strong",`用例 ${caseIndex+1}${caseName?` · ${caseName}`:""}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
+      // 读到计划记录后显示 L1/L2/L3；读不到时退回编号 + 检查名称，不猜层级。
+      const layer=this.planLayers[id];
+      const head=layer ? `${layer} · ${caseName||`用例 ${caseIndex+1}`}` : `用例 ${caseIndex+1}${caseName?` · ${caseName}`:""}`;
+      item.append(text("strong",`${head}${strings(view["required_case_ids"]).includes(id)?" · 必测":""}`));
       for(const raw of steps){const step=object(raw);if(step?.["case_id"]!==id)continue;
         const child=document.createElement("li");child.append(action(`步骤 ${children.childElementCount+1} · ${friendly(step["state"])}`,()=>{this.selectedStep=String(step["step_id"]);this.navigate("workbench");}));children.append(child);}
       item.append(children);list.append(item);
-    }return list;
+    }
+    wrap.append(list);
+    return wrap;
   }
 
   private controlledSection(): HTMLElement {
@@ -657,6 +858,7 @@ class AITestPanel extends HTMLElement {
         const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
         this.pendingRequest = {id:clientRequestId, action:command["action"]};
         this.pending = true;
+        this.armWatchdog(180_000);
         this.commandNote = "已请求核心窗口；请核对窗口里的准确输入和保存依据。";
         this.host?.postMessage({kind:"controlledDispatch", clientRequestId, contextId:this.contextId,
           action:command["action"], intentId:command["intent_id"],
@@ -894,55 +1096,132 @@ class AITestPanel extends HTMLElement {
         }
       };
       actions.append(button);
-    }    const note = document.createElement("p"); note.className = "muted";
+    }
+    const note = document.createElement("p"); note.className = "muted";
     note.textContent =
       "只读入口：写动作必须经受控用户入口并携带授权，界面点击不等于用户确认。";
     section.append(title, actions, note);
     return section;
   }
 
+  /** 计划层级与名字只在计划记录里；记录视图把内容包在 record 下。 */
+  private pumpPlanLookup():void {
+    const run=this.view("run");
+    const ref=typeof run?.["plan_revision_ref"]==="string"?String(run["plan_revision_ref"]):"";
+    if(!ref||this.pending||!this.available("read_view"))return;
+    if(this.planLookup===ref)return;
+    const at=ref.lastIndexOf("@");
+    const revision=at>0?Number(ref.slice(at+1)):Number.NaN;
+    if(!(at>0)||!Number.isSafeInteger(revision)||revision<1)return;
+    this.planLookup=ref;
+    this.planAwait=true;
+    this.dispatchScoped("read_view",{view:"plan",record_id:ref.slice(0,at),revision});
+  }
+
+  /** 下一步该处理的步骤：待人工 → 待核验 → 阻塞 → 首个未执行。 */
+  private attention(): {label:string; stepId:string} | null {
+    const run=this.view("run"); if(!run)return null;
+    const steps=Array.isArray(run["steps"])
+      ? run["steps"].map(object).filter((item):item is Record<string,unknown>=>item!==undefined)
+      : [];
+    const describe=(id:string,word:string)=>{
+      const index=steps.findIndex(step=>step["step_id"]===id);
+      const name=caseKindName(steps.find(step=>step["step_id"]===id)?.["case_id"]);
+      return `${word}${name?` · ${name}`:""}${index>=0?`（第 ${index+1} 步）`:""}`;
+    };
+    for(const [key,word] of [["manual_pending_step_ids","待人工"],["pending_verification_step_ids","待核验"],["blocked_step_ids","阻塞"]] as const){
+      const id=strings(run[key])[0];
+      if(id)return {label:describe(id,word),stepId:id};
+    }
+    const pending=steps.find(step=>step["state"]==="pending");
+    if(pending&&typeof pending["step_id"]==="string")return {label:describe(pending["step_id"],"待执行"),stepId:pending["step_id"]};
+    return null;
+  }
+
   private phaseSection(): HTMLElement {
     const section=document.createElement("section");section.dataset.testid="phase-summary";
-    const view=this.view("panel");
+    const panel=this.view("panel");
+    const run=this.view("run");
+    // 运行视图已经带控制状态、档位与驱动；面板视图额外带业务结论。有哪个用哪个，不要求两个都到。
+    const source=panel ?? run;
     const names:Record<string,string>={pre_run:"准备检查",runtime:"正在处理本次运行",post_run:"本次结果"};
     const state=text("div","");state.className="phase";
-    const run=this.view("run");
     const summary=object(run?.["selected_summary"]);
-    if(view){state.setAttribute("aria-current","step");
+    const runId=this.project?.run_id ?? "";
+    const base=typeof run?.["snapshot_commit_id"]==="string"?String(run["snapshot_commit_id"]):"";
+    if(source){state.setAttribute("aria-current","step");
       // 标题用项目名，而不是"正在处理本次运行"这类占位语：用户要一眼看出在测什么。
-      const title=this.project?.scope_name || this.projectName || names[String(view["stage"])] || "阶段待核实";
+      const title=this.project?.scope_name || this.projectName || this.planScopeName || "本次测试";
       state.append(text("h2",title),
-        text("p",`执行控制：${friendly(view["control_state"])} · ${friendly(view["tier"])} · ${friendly(view["driver"])}`,"muted"),
-        text("p",`业务结论：${friendly(view["business_outcome"])}`));
-      if(summary){
-        const n=(key:string)=>String(summary[key] ?? "未知");
-        const total=n("denominator");
-        state.append(
-          text("p",`执行 ${n("executed_count")}/${total} · 复用 ${n("reused_count")}/${total} · 验证 ${n("verified_count")}/${total}`,"muted"),
-          text("p",`未验证 ${n("unverified_count")} · 已确认失败 ${n("failed_count")}`,"muted"));
-      } else state.append(text("p","点下方『读取运行详情』后可看到本轮执行与核验计数。","muted"));
-      // 独立动作区：看见按钮就知道下一步去哪，不用先读文档。
-      if(this.project?.run_id){
-        const actions=document.createElement("div");actions.className="actions";
-        actions.append(
-          action("去核验",()=>this.navigate("workbench"),!this.host),
-          action("查看报告",()=>this.navigate("review"),!this.host));
-        state.append(actions);
+        text("p",`${friendly(source["tier"])} · ${friendly(source["driver"])}`,"muted"));
+      // 控制状态既是徽标，也是能否暂停/取消的前提：只显示当前状态下合法的动作。
+      const control=String(source["control_state"] ?? "");
+      const badge=text("p",friendly(control),"badge");badge.dataset.testid="run-control-state";
+      badge.dataset.control=control;state.append(badge);
+      // 业务结论也用徽标呈现；文案保持"业务结论：X"，便于外部断言与阅读。
+      if(panel?.["business_outcome"]!=null){
+        const outcome=String(panel["business_outcome"]);
+        const outcomeBadge=text("p",`业务结论：${friendly(outcome)}`,"badge");
+        outcomeBadge.dataset.outcome=outcome;
+        state.append(outcomeBadge);
       }
-    }else state.append(text("h2",this.project?.run_id?"读取本次测试":"准备本次测试"),text("p",this.project?.run_id?"读取已保存的运行，查看进度与下一步。":"从项目和测试目标开始，按提示准备检查计划。","muted"));
-    const refresh=action("刷新本次视图",()=>this.dispatchScoped("read_view",{view:"panel",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id);
-    refresh.dataset.testid="refresh-panel-view";
-    const boundary=document.createElement("details");boundary.append(text("summary","来源与提交边界"));
+      const canControl=!!runId && !!base && !!this.host;
+      const send=(actionName:string)=>{
+        this.commandDraft=JSON.stringify({action:actionName,intent_id:newIntent(),expected_revision:0,target:runId,parameters:{run_id:runId,base_snapshot_commit_id:base}});
+        this.submitCommand();
+      };
+      const controls=document.createElement("div");controls.className="actions";
+      if(control==="running")controls.append(action("暂停",()=>send("pause_run"),!canControl));
+      if(control==="paused"||control==="pause_requested")controls.append(action("继续",()=>send("resume_run"),!canControl));
+      if(["not_started","running","paused","pause_requested","pending_verification"].includes(control))
+        controls.append(action("取消",()=>send("cancel_run"),!canControl));
+      const attention=this.attention();
+      controls.append(action("打开当前步骤",()=>{this.selectedStep=attention?.stepId ?? null;this.navigate("workbench");},!this.host));
+      state.append(controls);
+      const autoTotal=Number(run?.["automatic_step_count"] ?? 0);
+      const autoDone=Number(run?.["automatic_completed_count"] ?? 0);
+      if(Number.isFinite(autoTotal) && autoTotal>0){
+        const bar=document.createElement("div");bar.className="progress";
+        const fill=document.createElement("div");
+        fill.style.width=`${Math.round((Math.min(autoDone,autoTotal)/autoTotal)*100)}%`;bar.append(fill);
+        state.append(text("p",`自动步骤 ${autoDone}/${autoTotal}`,"muted"),bar);
+      }
+      if(attention)state.append(text("p",`待你操作：${attention.label}`));
+      if(control==="running")state.append(text("p","活动执行在关闭编辑器后由核心继续管理。","muted"));
+    }else{
+      state.append(text("h2",this.project?.run_id?"读取本次测试":"准备本次测试"),text("p",this.project?.run_id?"读取已保存的运行，查看进度与下一步。":"从项目和测试目标开始，按提示准备检查计划。","muted"));
+      // 空状态也必须有一条能走的路：此前只有依赖能力协商的"刷新本次视图"，未协商完就会卡住。
+      if(this.project?.run_id){
+        const read=action("读取本次运行",()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),!this.host);
+        read.className="primary";state.append(read);
+      }
+    }
+    // 统计收进折叠区：默认展开会让侧栏一屏放不下，但数据必须能查到。
+    const stats=document.createElement("details");stats.className="technical";
+    stats.append(text("summary","完整统计与来源"));
+    if(summary){
+      const n=(key:string)=>String(summary[key] ?? "未知");
+      const total=n("denominator");
+      stats.append(
+        text("p",`执行 ${n("executed_count")}/${total} · 复用 ${n("reused_count")}/${total} · 验证 ${n("verified_count")}/${total}`,"muted"),
+        text("p",`未验证 ${n("unverified_count")} · 已确认失败 ${n("failed_count")}`,"muted"));
+    } else stats.append(text("p","读取运行详情后显示本轮执行与核验计数。","muted"));
     const result=object(this.viewOutcomes.get("panel")?.response?.["result"]);
     const note=text("p",result ? `已保存视图 · 提交 ${String(result["commit_id"])} · 事件边界 ${String(result["event_cursor"])}` : "尚未取得当前运行的准确视图。","record-id");note.dataset.testid="panel-view-boundary";
-    boundary.className="technical";boundary.append(note);section.append(state);
-    if(this.project?.run_id)section.append(refresh,boundary);return section;
+    stats.append(note);section.append(state,stats);
+    const refresh=action("刷新本次视图",()=>this.dispatchScoped("read_view",{view:"panel",run_id:this.project?.run_id}),!this.available("read_view")||!this.project?.run_id);
+    refresh.dataset.testid="refresh-panel-view";
+    if(this.project?.run_id)section.append(refresh);
+    return section;
   }
 
   private actionSection(): HTMLElement {
     const section=document.createElement("div");section.dataset.testid="primary-actions";section.className="actions";
     const button=action(this.project?.run_id ? "打开本次工作台" : "开始第一次测试",()=>this.navigate(this.project?.run_id ? "workbench":"setup"),!this.host);button.className="primary";
-    section.append(button);return section;
+    // 侧栏放不下宽版工作台：提供在编辑器标签页里打开同一视图的入口。
+    const inEditor=action("在编辑器中打开",()=>this.host?.postMessage({kind:"openDetail",detail:"workbench"}),!this.host);
+    inEditor.dataset.testid="open-workbench-panel";
+    section.append(button,inEditor);return section;
   }
 
   private detailSection(): HTMLElement {
@@ -969,10 +1248,30 @@ class AITestPanel extends HTMLElement {
     if(this.detail==="setup")section.append(this.onboarding.view(String(this.doctorOutcome?.response?.["workspace_id"]??""),this.pending));
     else if(this.detail==="review")section.append(this.reportActions(),...this.reviewDetail());
     else if(this.detail==="diagnostics")section.append(action("连接核心",()=>this.ensureCore(),this.pending||!this.host),action("刷新核心状态",()=>this.dispatch("doctor"),this.pending||!this.host),text("p",this.statusText(),"muted"),this.capabilitySection(),this.controlledSection(),this.readOnlySection(),this.eventStreamSection(),this.resultSection());
-    else if(this.detail==="workbench")section.append(this.guided.render(this.view("run"),this.selectedStep,
-      name=>this.available(name)&&!!this.project?.run_id, command=>{
-        this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
-      },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id})),this.pendingSection(),this.caseTree());
+    else if(this.detail==="workbench"){
+      // 工作台要知道自己在处理哪个用例：层级与名称来自计划记录，必测与否来自运行视图。
+      const runView=this.view("run");
+      const runSteps=Array.isArray(runView?.["steps"])
+        ? runView["steps"].map(object).filter((item):item is Record<string,unknown>=>item!==undefined) : [];
+      // 没选步骤时直接落在"该处理的那一步"，省掉"先点一下步骤"这一步。
+      const activeStep=this.selectedStep ?? this.attention()?.stepId ?? null;
+      this.selectedStep=activeStep;
+      const current=runSteps.find(item=>item["step_id"]===activeStep);
+      const caseId=typeof current?.["case_id"]==="string"?String(current["case_id"]):"";
+      const stepLabel=[this.planLayers[caseId],caseKindName(caseId)].filter(Boolean).join(" · ");
+      const isRequired=!!caseId && strings(runView?.["required_case_ids"]).includes(caseId);
+      // 工作台顶部一行来路：当前运行、计划修订、当前尝试，和设计稿的三段式抬头一致。
+      const runRef=typeof runView?.["run_id"]==="string"?String(runView["run_id"]):"";
+      const attemptRef=typeof current?.["current_attempt_id"]==="string"?String(current["current_attempt_id"]):"";
+      const contextLine=[runRef?`当前运行 ${runRef.slice(0,14)}…`:"",
+        this.planRevision?`计划修订 ${this.planRevision}`:"",
+        attemptRef?`当前尝试 ${attemptRef.slice(-6)}`:""].filter(Boolean).join(" · ");
+      if(contextLine)section.append(text("p",contextLine,"muted"));
+      section.append(this.guided.render(runView,activeStep,
+        name=>this.available(name)&&!!this.project?.run_id, command=>{
+          this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
+        },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? ""),this.pendingSection(),this.caseTree());
+    }
     else if(this.detail==="plan")section.append(text("p","先核对准确的计划、范围和用例修订，发布与运行授权分别确认。","muted"),
       action("读取已保存计划",()=>{this.pendingQuery="plans";this.dispatchScoped("query",{aggregate_kind:"plan",limit:20});},!this.available("query")),
       this.rowsBlock("计划修订",this.planOutcome,"plan-records"),this.caseTree());
@@ -1029,24 +1328,76 @@ class AITestPanel extends HTMLElement {
     const reason=primary?gapText(primary["code"],primary["safe_reason"]):"";
     block.append(text("p",reason||"没有影响结论的缺口。",reason?"":"muted"));
     const actions=document.createElement("div");actions.className="actions";
+    // 本地复核写成一条独立记录，不修改报告正文；结论与说明都由人填。
+    const reviewBox=document.createElement("div");reviewBox.className="form-part";reviewBox.hidden=true;
+    const conclusion=document.createElement("select");
+    for(const value of ["本地复核通过","本地复核不通过","需要补充证据"]){
+      const option=document.createElement("option");option.value=value;option.textContent=value;conclusion.append(option);
+    }
+    const explanation=document.createElement("textarea");
+    explanation.placeholder="说明你是怎么核对的，例如：在本地重跑同一输入，持久化结果与预期一致。";
+    const submitReview=action("记录本地复核",()=>{
+      const detail=explanation.value.trim();
+      if(!detail){explanation.focus();return;}
+      this.commandDraft=JSON.stringify({action:"record_local_review",intent_id:newIntent(),expected_revision:0,
+        parameters:{review_id:`review-${newIntent().slice(0,24)}`,report_id:this.selectedRecord!.record_id,report_revision:revision,conclusion:conclusion.value,explanation:detail}});
+      this.submitCommand();
+    },!this.host);
+    reviewBox.append(text("p","复核结论","muted"),conclusion,text("p","说明","muted"),explanation,submitReview);
     actions.append(
-      action("去核验",()=>this.navigate("workbench"),!this.host),
+      action("去核验",()=>{this.selectedStep=this.attention()?.stepId ?? null;this.navigate("workbench");},!this.host),
+      action("本地复核",()=>{reviewBox.hidden=!reviewBox.hidden;},!this.host),
       action("导出 Markdown 摘要",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:revision,kind:"markdown_summary",review_ids:[]}),!this.available("export_report")),
       action("导出证据包",()=>this.requestOperation("export_report",{report_id:this.selectedRecord!.record_id,report_revision:revision,kind:"evidence_bundle",review_ids:[]}),!this.available("export_report")));
-    block.append(actions);
-    block.append(text("p",`本轮执行 ${executed.length}/${selected.length} · 有效复用 ${reused.length}/${selected.length} · 有效验证 ${verified.length}/${selected.length}`,"muted"));
-    // 侧栏只有约 300px，表格会挤成竖排；改成两行文字更易读。
+    block.append(actions,reviewBox);
+    // 三个分母相同的计数并排放，比一句长文本更容易一眼比较。
+    const stats=document.createElement("div");stats.className="stat-row";stats.dataset.testid="report-stats";
+    const cell=(label:string,value:string)=>{
+      const box=document.createElement("div");box.className="stat";
+      box.append(text("b",value),text("span",label));return box;
+    };
+    stats.append(
+      cell("本轮执行",`${executed.length}/${selected.length}`),
+      cell("有效复用",`${reused.length}/${selected.length}`),
+      cell("有效验证",`${verified.length}/${selected.length}`));
+    block.append(stats);
+    // 覆盖与结论：窄侧栏用文字行，宽页面（编辑器标签页）用表格，两者同时存在由 CSS 决定。
     const scopeLine=(label:string,scope:unknown[])=>
       `${label}：通过 ${counted(scope,passed)} · 失败 ${scope.filter(item=>failures.includes(item)).length} · 未验证 ${scope.filter(item=>!verified.includes(item)).length}`;
-    block.append(text("h3","覆盖与结论"),
-      text("p",scopeLine("本轮所选",selected)),
-      text("p",scopeLine("完整必测",required)));
+    const lines=document.createElement("div");lines.className="coverage-lines";
+    lines.append(text("p",scopeLine("本轮所选",selected)),text("p",scopeLine("完整必测",required)));
+    const table=document.createElement("table");table.className="coverage-table";
+    const head=document.createElement("tr");
+    for(const label of ["范围","有效通过","整用例失败","未验证"]){const th=document.createElement("th");th.textContent=label;head.append(th);}
+    table.append(head);
+    const row=(label:string,scope:unknown[])=>{
+      const tr=document.createElement("tr");
+      const cells=[label,String(counted(scope,passed)),String(scope.filter(item=>failures.includes(item)).length),String(scope.filter(item=>!verified.includes(item)).length)];
+      cells.forEach((value,index)=>{const cell=document.createElement(index===0?"th":"td");cell.textContent=value;tr.append(cell);});
+      return tr;
+    };
+    table.append(row("本轮所选",selected),row("完整必测",required));
+    block.append(text("h3","覆盖与结论"),lines,table);
     const gapList=Array.isArray(decision["gaps"])?decision["gaps"]:[];
     block.append(text("h3","需要补齐的证据"));
     if(gapList.length===0)block.append(text("p","没有缺口。","muted"));
-    else for(const raw of gapList){const item=object(raw);block.append(text("p",gapText(item?.["code"],item?.["safe_reason"])));}
+    else for(const raw of gapList){
+      const item=object(raw);
+      block.append(text("p",gapText(item?.["code"],item?.["safe_reason"])));
+      const hint=gapHint(item?.["code"]);
+      if(hint)block.append(text("p",hint,"hint"));
+    }
     const scope=typeof context["scope_name"]==="string"?String(context["scope_name"]):"";
     if(scope)block.append(text("p",`范围：${scope}`,"muted"));
+    // 结果来源：只列报告里真实存在的来源字段，缺哪项就少哪项。
+    const source=typeof context["source_identity"]==="string"?String(context["source_identity"]):"";
+    const environment=typeof context["environment_ref"]==="string"
+      ? `环境 ${String(context["environment_ref"]).replace(/^env-/,"").split("@")[0].slice(0,8)}` : "";
+    const planRefs=Array.isArray(context["plan_revision_refs"])?context["plan_revision_refs"]:[];
+    const lastPlan=planRefs.length?String(planRefs[planRefs.length-1]):"";
+    const planRevision=lastPlan.includes("@")?lastPlan.slice(lastPlan.lastIndexOf("@")+1):"";
+    const origin=[source?`源码 ${source.replace(/^sha256:/,"").slice(0,8)}`:"",environment,planRevision?`计划修订 ${planRevision}`:""].filter(Boolean);
+    if(origin.length)block.append(text("p",`结果来源：${origin.join(" · ")}`,"muted"));
     block.append(text("p","此为报告冻结快照；核验更新将形成新的报告修订。","muted"));
     return block;
   }
@@ -1426,38 +1777,11 @@ class AITestPanel extends HTMLElement {
   }
 }
 
-/** 缺口代码在领域里是英文；面板显示中文说明，原始代码仍留在字段细节中。 */const GAP_TEXT:Record<string,string>={
-  source_identity_mismatch:"源码与登记身份不一致",
-  no_valid_execution_basis:"没有可用的执行依据",
-  source_identity_unverified:"源码身份尚未核实",
-  template_required_below_floor:"必测项低于模板要求",
-  full_required_scope_missing:"完整验证缺少必测范围",
-  required_case_unresolved:"必测用例尚未得出结论",
-  required_case_pending_verification:"必测用例待核验",
-  required_case_unverified:"必测用例本轮没有取得有效验证",
-  outdated_basis:"断言依据已过期",
-  required_evidence_invalid:"必需证据缺失、损坏或无效",
-  environment_evidence_incomplete:"环境证据不完整",
-  critical_path_missing:"缺少关键链路覆盖",
-  critical_unknown:"关键链路结果未知",
-  critical_mock:"关键链路使用了模拟",
-  full_skipped_scope:"完整验证跳过了部分范围",
-  assertion_basis_unconfirmed:"断言依据尚未确认",
-  noncritical_unknown:"非关键项结果未知",
-  noncritical_verification_gap:"非关键项缺少验证",
-  unclassified_gap:"未分类的缺口",
-};
-
 const CASE_KIND_NAMES:Record<string,string>={syntax:"加载与语法",normal:"正常输入",boundary:"边界输入",error:"异常输入"};
 
 function caseKindName(id:unknown):string {
   if(typeof id!=="string")return "";
   return CASE_KIND_NAMES[id.slice(id.lastIndexOf("-")+1)] ?? "";
-}
-
-function gapText(code:unknown, fallback:unknown):string {
-  if(typeof code==="string" && GAP_TEXT[code])return GAP_TEXT[code];
-  return typeof fallback==="string" && fallback.trim() ? fallback : "缺口";
 }
 
 /** 导出回执带 artifact_ref（相对用户数据工作空间）；直接告知位置，避免用户无从查找。 */

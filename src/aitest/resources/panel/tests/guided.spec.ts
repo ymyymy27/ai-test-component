@@ -39,10 +39,10 @@ test("novice run carries exact identities, never auto executes and retains retry
   expect(await sent(page)).toMatchObject({intentId:prepared.intentId,parameters:{execution_action_id:"action-saved",record_revision:1}});
   await postHostMessage(page,{kind:"outcome",action:"execute_step",status:"ok",response:{result:{}}});
   await expect(page.getByRole("button",{name:"核验这次执行结果",exact:true})).toHaveCount(0);
-  await page.getByRole("button",{name:"刷新步骤与结果",exact:true}).click();
+  await page.getByRole("button",{name:"核实执行状态",exact:true}).click();
   await postHostMessage(page,{kind:"outcome",action:"read_view",status:"ok",response:{result:{view_type:"run",commit_id:2,event_cursor:"foreign",view:{project_id:"other",run_id:"r"}}}});
   await expect(page.getByRole("button",{name:"核验这次执行结果",exact:true})).toHaveCount(0);
-  await page.getByRole("button",{name:"刷新步骤与结果",exact:true}).click();
+  await page.getByRole("button",{name:"核实执行状态",exact:true}).click();
   await view(page,"new-attempt","new-snapshot");
   await page.getByRole("button",{name:"核验这次执行结果",exact:true}).click();
   expect(await sent(page)).toMatchObject({action:"verify_pending",parameters:{run_id:"r",step_id:"step-actual",attempt_id:"new-attempt",base_snapshot_commit_id:"new-snapshot"}});

@@ -1,5 +1,5 @@
 /** Presentation state only; core receipts remain authoritative. */
-import {newIntent, action, object, text} from "./shell";
+import {newIntent, action, object, strings, text, gapText, gapHint} from "./shell";
 
 export type GuidedCommand = {action:string; parameters:Record<string,unknown>; target?:string; intent:string};
 type Execution = {intent:string; actionId?:string; authorized:boolean; executed?:boolean};
@@ -31,7 +31,7 @@ export class GuidedRun {
     this.waiting=null;
   }
   render(run:Record<string,unknown>|undefined,selected:string|null,enabled:(name:string)=>boolean,
-    send:(command:GuidedCommand)=>void,refresh:()=>void):HTMLElement {
+    send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis=""):HTMLElement {
     const section=document.createElement("section");section.dataset.testid="guided-run";
     section.append(text("h2","按步骤完成测试"));
     if(!run){section.append(text("p","先读取本次运行，插件会自动取得步骤和核验所需信息。"),action("读取本次运行",refresh,!enabled("read_view")));return section;}
@@ -44,10 +44,24 @@ export class GuidedRun {
     const request=(name:string,parameters:Record<string,unknown>,intent=execution!.intent)=>{
       this.waiting={step:id,action:name};send({action:name,parameters,target:id,intent});
     };
-    section.append(text("h3",`第 ${steps.indexOf(step)+1} 步`));
+    section.append(text("h3",`第 ${steps.indexOf(step)+1} 步${label?` · ${label}`:""}${required?" · 必测":""}`));
     const facts=document.createElement("dl");facts.className="facts";
     const conclusion=this.conclusions.get(id);
-    facts.append(text("dt","步骤状态"),text("dd",friendly(step.state)),text("dt","本次尝试"),text("dd",step.current_attempt_id?friendly(step.attempt_state):"尚无执行记录"),text("dt","核验结论"),text("dd",conclusion?friendly(conclusion):"尚未核验"),text("dt","依据"),text("dd",step.invalidated===true?"已过期，需要处理后重新核对":"以已保存计划为准"));section.append(facts);
+    facts.append(text("dt","步骤状态"),text("dd",friendly(step.state)),text("dt","本次尝试"),text("dd",step.current_attempt_id?friendly(step.attempt_state):"尚无执行记录"),text("dt","核验结论"),text("dd",conclusion?friendly(conclusion):"尚未核验"),text("dt","断言依据"),text("dd",basis?friendly(basis):"待核实"),text("dt","依据"),text("dd",step.invalidated===true?"已过期，需要处理后重新核对":"以已保存计划为准"));section.append(facts);
+    // 这一步为什么还没通过：直接用核心给出的缺口代码，面板只做中文说明。
+    const gaps=strings(step["gap_ids"]);
+    if(gaps.length){
+      const block=document.createElement("section");block.className="workbench-part gap-box";
+      block.dataset.testid="step-gaps";
+      block.append(text("h3","当前缺口"));
+      for(const code of gaps){
+        block.append(text("p",gapText(code,"")));
+        const hint=gapHint(code);
+        if(hint)block.append(text("p",hint,"hint"));
+      }
+      block.append(text("p","接口响应成功不能代替持久化核验；请记录实际操作与同一业务对象的证据。","hint"));
+      section.append(block);
+    }
     const operation=document.createElement("section");operation.className="workbench-part";
     operation.append(text("h3","执行操作"),text("p","先查看操作内容和影响，再确认并执行。","muted"));
     let primary:HTMLButtonElement|undefined;
@@ -64,13 +78,13 @@ export class GuidedRun {
     }
     else verification.append(text("p",this.needsRefresh?"先刷新步骤，取得本次执行的最新记录。":"尚无可核验的执行记录，请先完成执行。","muted"));
     section.append(verification);
-    section.append(action("刷新步骤与结果",refresh,!enabled("read_view")));
+    section.append(action("核实执行状态",refresh,!enabled("read_view")));
     if(this.note){const status=text("p",this.note,"notice");status.setAttribute("role","status");section.append(status);}
     return section;
   }
 }
 
 export function friendly(value:unknown):string {
-  const labels:Record<string,string>={passed:"通过",failed:"失败",incomplete:"未完成",not_applicable:"不适用",full:"完整验证",quick:"快速检查",on_demand:"所选检查",planned:"按计划执行",stepwise:"逐步执行",running:"运行中",paused:"已暂停",completed:"已完成",pending:"待处理",blocked:"受阻",cancelled:"已取消",ready:"准备就绪",verified:"已核验",unverified:"待核验",matched:"匹配",mismatched:"不匹配",no_result:"无结果",pending_verification:"待核验"};
+  const labels:Record<string,string>={passed:"通过",failed:"失败",incomplete:"未完成",not_applicable:"不适用",full:"完整验证",quick:"快速检查",on_demand:"所选检查",planned:"按计划执行",stepwise:"逐步执行",running:"运行中",paused:"已暂停",completed:"已完成",pending:"待处理",blocked:"受阻",cancelled:"已取消",ready:"准备就绪",verified:"已核验",unverified:"待核验",matched:"匹配",mismatched:"不匹配",no_result:"无结果",pending_verification:"待核验",not_started:"未开始",pause_requested:"暂停请求中",cancelling:"取消中",missing:"未填",present_unconfirmed:"未确认",confirmed:"已确认"};
   return value==null?"待核实":labels[String(value)]??String(value);
 }
