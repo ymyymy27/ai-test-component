@@ -31,7 +31,8 @@ export class GuidedRun {
     this.waiting=null;
   }
   render(run:Record<string,unknown>|undefined,selected:string|null,enabled:(name:string)=>boolean,
-    send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis=""):HTMLElement {
+    send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis="",
+    onSelect:(stepId:string)=>void=()=>{}):HTMLElement {
     const section=document.createElement("section");section.dataset.testid="guided-run";
     section.append(text("h2","按步骤完成测试"));
     if(!run){section.append(text("p","先读取本次运行，插件会自动取得步骤和核验所需信息。"),action("读取本次运行",refresh,!enabled("read_view")));return section;}
@@ -44,6 +45,20 @@ export class GuidedRun {
     const request=(name:string,parameters:Record<string,unknown>,intent=execution!.intent)=>{
       this.waiting={step:id,action:name};send({action:name,parameters,target:id,intent});
     };
+    // 同一用例的步骤条：一个用例几步就画几条，点哪个跳到哪个。单步用例只显示一条，不造阶段。
+    const caseId=typeof step["case_id"]==="string"?String(step["case_id"]):"";
+    const siblings=steps.filter((item):item is Record<string,unknown>=>item!==undefined && item["case_id"]===caseId);
+    if(siblings.length>1){
+      const strip=document.createElement("div");strip.className="step-strip";strip.dataset.testid="step-strip";
+      for(const [index,item] of siblings.entries()){
+        const siblingId=String(item["step_id"]);
+        const done=item["state"]==="completed";
+        const tab=action(`${done?"✓":"○"} 步骤 ${index+1} · ${friendly(item["state"])}`,()=>onSelect(siblingId),siblingId===id);
+        tab.className=siblingId===id?"step-tab active":"step-tab";
+        strip.append(tab);
+      }
+      section.append(strip);
+    }
     section.append(text("h3",`第 ${steps.indexOf(step)+1} 步${label?` · ${label}`:""}${required?" · 必测":""}`));
     const facts=document.createElement("dl");facts.className="facts";
     const conclusion=this.conclusions.get(id);
@@ -73,12 +88,19 @@ export class GuidedRun {
     const verification=document.createElement("section");verification.className="workbench-part";
     verification.append(text("h3","结果核验"),text("p","按独立预期核对本次实际执行。执行完成和验证通过分别记录。","muted"));
     const attempt=step["current_attempt_id"];
-    if(!this.needsRefresh && typeof attempt==="string" && attempt && typeof run["snapshot_commit_id"]==="string"){
-      verification.append(action("核验这次执行结果",()=>request("verify_pending",{run_id:run["run_id"],step_id:id,attempt_id:attempt,base_snapshot_commit_id:run["snapshot_commit_id"]},`verify-${execution!.intent}-${String(run["snapshot_commit_id"]).slice(-32)}`),!enabled("verify_pending")));
+    const canVerify=!this.needsRefresh && typeof attempt==="string" && attempt && typeof run["snapshot_commit_id"]==="string";
+    if(canVerify){
+      // 核验是"执行完成后唯一的下一步"：设成主按钮，避免用户以为执行完就结束了。
+      const verify=action("核验这次执行结果",()=>request("verify_pending",{run_id:run["run_id"],step_id:id,attempt_id:attempt,base_snapshot_commit_id:run["snapshot_commit_id"]},`verify-${execution!.intent}-${String(run["snapshot_commit_id"]).slice(-32)}`),!enabled("verify_pending"));
+      verify.className="primary";
+      verification.append(verify);
     }
-    else verification.append(text("p",this.needsRefresh?"先刷新步骤，取得本次执行的最新记录。":"尚无可核验的执行记录，请先完成执行。","muted"));
+    else verification.append(text("p",this.needsRefresh?"先核实执行状态，取得本次执行的最新记录。":"尚无可核验的执行记录，请先完成执行。","muted"));
     section.append(verification);
-    section.append(action("核实执行状态",refresh,!enabled("read_view")));
+    const checkState=action("核实执行状态",refresh,!enabled("read_view"));
+    // 需要先刷新时，把"核实执行状态"作为主按钮，形成一条明确路径：核实 → 核验。
+    if(this.needsRefresh)checkState.className="primary";
+    section.append(checkState);
     if(this.note){const status=text("p",this.note,"notice");status.setAttribute("role","status");section.append(status);}
     return section;
   }
