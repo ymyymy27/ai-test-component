@@ -31,7 +31,8 @@ export class GuidedRun {
     this.waiting=null;
   }
   render(run:Record<string,unknown>|undefined,selected:string|null,enabled:(name:string)=>boolean,
-    send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis=""):HTMLElement {
+    send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis="",
+    onSelect:(stepId:string)=>void=()=>{}):HTMLElement {
     const section=document.createElement("section");section.dataset.testid="guided-run";
     section.append(text("h2","按步骤完成测试"));
     if(!run){section.append(text("p","先读取本次运行，插件会自动取得步骤和核验所需信息。"),action("读取本次运行",refresh,!enabled("read_view")));return section;}
@@ -44,6 +45,20 @@ export class GuidedRun {
     const request=(name:string,parameters:Record<string,unknown>,intent=execution!.intent)=>{
       this.waiting={step:id,action:name};send({action:name,parameters,target:id,intent});
     };
+    // 同一用例的步骤条：一个用例几步就画几条，点哪个跳到哪个。单步用例只显示一条，不造阶段。
+    const caseId=typeof step["case_id"]==="string"?String(step["case_id"]):"";
+    const siblings=steps.filter((item):item is Record<string,unknown>=>item!==undefined && item["case_id"]===caseId);
+    if(siblings.length>1){
+      const strip=document.createElement("div");strip.className="step-strip";strip.dataset.testid="step-strip";
+      for(const [index,item] of siblings.entries()){
+        const siblingId=String(item["step_id"]);
+        const done=item["state"]==="completed";
+        const tab=action(`${done?"✓":"○"} 步骤 ${index+1} · ${friendly(item["state"])}`,()=>onSelect(siblingId),siblingId===id);
+        tab.className=siblingId===id?"step-tab active":"step-tab";
+        strip.append(tab);
+      }
+      section.append(strip);
+    }
     section.append(text("h3",`第 ${steps.indexOf(step)+1} 步${label?` · ${label}`:""}${required?" · 必测":""}`));
     const facts=document.createElement("dl");facts.className="facts";
     const conclusion=this.conclusions.get(id);

@@ -1280,7 +1280,7 @@ class AITestPanel extends HTMLElement {
       section.append(this.guided.render(runView,activeStep,
         name=>this.available(name)&&!!this.project?.run_id, command=>{
           this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
-        },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? ""),this.pendingSection(),this.caseTree());
+        },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? "",(stepId:string)=>{this.selectedStep=stepId;this.render();}),this.pendingSection(),this.caseTree());
     }
     else if(this.detail==="plan")section.append(text("p","先核对准确的计划、范围和用例修订，发布与运行授权分别确认。","muted"),
       action("读取已保存计划",()=>{this.pendingQuery="plans";this.dispatchScoped("query",{aggregate_kind:"plan",limit:20});},!this.available("query")),

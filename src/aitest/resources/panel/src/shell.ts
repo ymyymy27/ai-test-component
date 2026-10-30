@@ -47,6 +47,9 @@ footer{border-top:1px solid var(--vscode-panel-border,#363b44);margin:12px -14px
 /* 编辑器标签页：隐藏只属于侧栏的头部（面板用影子树，必须用 :host(...) 选择器）。 */
 :host(.detail-only) header{display:none}
 .gap-box{border-left:3px solid var(--vscode-editorWarning-foreground,#d7a23a);background:var(--vscode-input-background,#191d23);padding:8px 12px;margin:10px 0;border-radius:2px}
+.step-strip{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--vscode-panel-border,#363b44)}
+.step-tab{background:transparent;border:1px solid var(--vscode-panel-border,#4a505a);border-radius:2px;padding:3px 8px;font-size:12px}
+.step-tab.active{border-color:var(--vscode-focusBorder,#3686d7);color:var(--vscode-focusBorder,#3686d7);font-weight:600}
 .pending-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 @media(min-width:620px){
   main{max-width:1080px}
