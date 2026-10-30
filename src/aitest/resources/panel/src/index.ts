@@ -719,10 +719,11 @@ class AITestPanel extends HTMLElement {
       }
       if(gaps.length){
         const list=document.createElement("div");list.className="pending-list";
-        // 报告判定说"有用例未取得有效验证"时，即使 step 状态已完成，也必须提示回去核验。
-        const verifyGap=gaps.some(code=>/required_case_unverified|required_case_pending_verification/.test(String(code)));
-        if(verifyGap){
-          const item=action("待核验 · 有已执行用例未取得有效验证",()=>{this.selectedStep=this.attention()?.stepId ?? null;this.navigate("workbench");});
+        // 已执行但没有取得有效核验的用例：用 selected - verified 两个数组算，和报告口径一致。
+        const verifiedCases=strings(view["verified_case_ids"]);
+        const unverifiedCases=strings(view["selected_case_ids"]).filter(caseId=>!verifiedCases.includes(caseId));
+        if(unverifiedCases.length){
+          const item=action(`待核验 · ${unverifiedCases.length} 个用例未取得有效验证`,()=>{this.selectedStep=this.attention()?.stepId ?? null;this.navigate("workbench");});
           item.className="link-button";
           const row=document.createElement("div");row.className="pending-row";
           row.append(item,text("span","待核验","tag"));
@@ -1132,6 +1133,13 @@ class AITestPanel extends HTMLElement {
     for(const [key,word] of [["manual_pending_step_ids","待人工"],["pending_verification_step_ids","待核验"],["blocked_step_ids","阻塞"]] as const){
       const id=strings(run[key])[0];
       if(id)return {label:describe(id,word),stepId:id};
+    }
+    // 已执行但没有取得有效核验的用例：运行视图的 selected - verified，和报告口径一致。
+    const verifiedCases=strings(run["verified_case_ids"]);
+    const unverifiedCase=strings(run["selected_case_ids"]).find(caseId=>!verifiedCases.includes(caseId));
+    if(unverifiedCase){
+      const step=steps.find(item=>item["case_id"]===unverifiedCase);
+      if(step && typeof step["step_id"]==="string")return {label:describe(step["step_id"],"待核验"),stepId:step["step_id"]};
     }
     const pending=steps.find(step=>step["state"]==="pending");
     if(pending&&typeof pending["step_id"]==="string")return {label:describe(pending["step_id"],"待执行"),stepId:pending["step_id"]};
