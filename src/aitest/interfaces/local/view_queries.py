@@ -165,7 +165,27 @@ class CommittedViewReader:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("the panel view requires an explicit run identity")
         facts, decision = self._decisions.live_decision(project_id, run_id)
-        return panel_view_dto(facts, decision, run_view_dto(facts, decision))
+        return panel_view_dto(
+            facts, decision, run_view_dto(facts, decision),
+            project_name=self._project_name(project_id),
+        )
+
+    def _project_name(self, project_id: str) -> str | None:
+        """项目记录里的名称（只读投影）；读不到就返回 None，界面回退到通用标题。"""
+        records = self._records
+        if records is None:
+            return None
+        try:
+            revision = records.current_revision(aggregate_kind="project", record_id=project_id)
+            if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+                return None
+            record = records.read(
+                aggregate_kind="project", record_id=project_id, revision=revision,
+            )
+            name = record.payload.get("name")
+        except (OSError, KeyError, TypeError, ValueError):
+            return None
+        return name.strip() if isinstance(name, str) and name.strip() else None
 
     def delivery_view(
         self,

@@ -1151,7 +1151,9 @@ class AITestPanel extends HTMLElement {
     const base=typeof run?.["snapshot_commit_id"]==="string"?String(run["snapshot_commit_id"]):"";
     if(source){state.setAttribute("aria-current","step");
       // 标题用项目名，而不是"正在处理本次运行"这类占位语：用户要一眼看出在测什么。
-      const title=this.project?.scope_name || this.projectName || this.planScopeName || "本次测试";
+      // 标题优先用核心投影过来的项目名称，其次计划名，最后退回通用标题。
+      const coreName=typeof panel?.["project_name"]==="string"?String(panel["project_name"]):"";
+      const title=coreName || this.project?.scope_name || this.projectName || this.planScopeName || "本次测试";
       state.append(text("h2",title),
         text("p",`${friendly(source["tier"])} · ${friendly(source["driver"])}`,"muted"));
       // 控制状态既是徽标，也是能否暂停/取消的前提：只显示当前状态下合法的动作。
