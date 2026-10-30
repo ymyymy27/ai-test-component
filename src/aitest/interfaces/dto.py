@@ -492,6 +492,8 @@ class PanelViewDTO(BaseModel):
 
     schema_version: Literal["aitest.panel-view/1.0"] = "aitest.panel-view/1.0"
     project_id: str
+    # 项目名称：来自项目记录，供界面直接显示"在测什么"；不可得时为 None。
+    project_name: str | None = None
     run_id: str
     stage: Literal["pre_run", "runtime", "post_run"]
     control_state: str
@@ -509,7 +511,8 @@ class PanelViewDTO(BaseModel):
 
 
 def panel_view_dto(
-    facts: ExecutionFacts, decision: DecisionResult, run_view: RunViewDTO
+    facts: ExecutionFacts, decision: DecisionResult, run_view: RunViewDTO,
+    project_name: str | None = None,
 ) -> PanelViewDTO:
     """当前段 + 信息区事实（判定与运行视图都取自**同一次**已提交读数）。"""
 
@@ -524,6 +527,7 @@ def panel_view_dto(
         raise ValueError(f"panel view cannot derive a stage from control_state {control_state!r}")
     return PanelViewDTO(
         project_id=facts.project_id,
+        project_name=project_name,
         run_id=facts.run_id,
         stage=cast(Any, stage),
         control_state=control_state,
