@@ -164,7 +164,10 @@ class SourceAnalysisService:
             ):
                 raise SourceAnalysisError("source port returned a different binding or selection")
         except (OSError, RuntimeError, ValueError) as error:
-            raise SourceAnalysisError("actual source material could not be verified") from error
+            # 带上底层原因：否则用户只看到"无法核实"，无法判断是被凭据过滤拒绝还是路径问题。
+            raise SourceAnalysisError(
+                f"actual source material could not be verified: {error}"
+            ) from error
         if self._git_identity(binding) != git:
             raise SourceAnalysisError("git source changed during pinning")
         files = self._files(pinned)
