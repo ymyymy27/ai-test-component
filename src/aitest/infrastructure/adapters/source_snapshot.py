@@ -426,9 +426,15 @@ class FileSourceSnapshotStore:
             os.replace(temporary, blob)
             # 持久化 rename 目录项（POSIX）；不支持的平台尽力而为。
             _fsync_directory(blob.parent)
-        except BaseException:
+        except BaseException as error:
             with suppress(FileNotFoundError):
                 temporary.unlink()
+            # 凭据过滤拒绝某份材料时，报出是哪个文件被拒：否则上层只剩一句"无法核实"。
+            if (
+                isinstance(error, (UnsafeMaterialError, SnapshotError))
+                and source.name not in str(error)
+            ):
+                raise SnapshotError(f"{error}：{source.name}") from error
             raise
 
     @staticmethod
