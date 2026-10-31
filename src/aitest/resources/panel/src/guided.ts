@@ -21,6 +21,10 @@ export class GuidedRun {
       // A transport receipt alone is insufficient; execution still checks the saved grant.
       current.authorized=true;this.note="授权请求已返回；执行时核心仍会核对已保存授权。";
     }else if(name==="execute_step"){if(current)current.executed=true;this.needsRefresh=true;this.note="执行请求已返回。请刷新步骤，按最新结果进行独立核验。";}
+    else if(name==="import_external_result"){
+      this.needsRefresh=true;
+      this.note="外部结果已提交。请核实执行状态后重新核验。";
+    }
     else if(name==="verify_pending"){
       // 核验回执带 verification.observation（匹配/不匹配/无结果），此前未展示。
       const verification=object(result?.["verification"]);
@@ -32,7 +36,7 @@ export class GuidedRun {
   }
   render(run:Record<string,unknown>|undefined,selected:string|null,enabled:(name:string)=>boolean,
     send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis="",
-    onSelect:(stepId:string)=>void=()=>{}):HTMLElement {
+    onSelect:(stepId:string)=>void=()=>{},layer=""):HTMLElement {
     const section=document.createElement("section");section.dataset.testid="guided-run";
     section.append(text("h2","按步骤完成测试"));
     if(!run){section.append(text("p","先读取本次运行，插件会自动取得步骤和核验所需信息。"),action("读取本次运行",refresh,!enabled("read_view")));return section;}
@@ -101,6 +105,43 @@ export class GuidedRun {
     // 需要先刷新时，把"核实执行状态"作为主按钮，形成一条明确路径：核实 → 核验。
     if(this.needsRefresh)checkState.className="primary";
     section.append(checkState);
+
+    // 用例无法自动核验时的补证入口：身份字段由面板带，实际操作与断言值由人填。
+    const importBox=document.createElement("details");importBox.className="workbench-part";
+    importBox.dataset.testid="external-import";
+    importBox.append(text("summary","填写实际操作与补证"));
+    const outputArea=document.createElement("textarea");
+    outputArea.placeholder='实际输出（JSON 对象），例如 {"status":"resolved"}';
+    const assertionArea=document.createElement("textarea");
+    assertionArea.placeholder='自报断言值（JSON 对象），例如 {"status":"resolved"}';
+    const identityArea=document.createElement("textarea");
+    identityArea.placeholder='来源身份（JSON 对象，可留空；留空时核心会记"来源未知"缺口）';
+    const importNote=text("p","","muted");
+    const submitImport=action("提交外部结果",()=>{
+      const parse=(raw:string)=>{try{return JSON.parse(raw.trim()||"{}") as unknown;}catch{return undefined;}};
+      const output=parse(outputArea.value);
+      const values=parse(assertionArea.value);
+      const identity=parse(identityArea.value);
+      if(!output||typeof output!=="object"||Array.isArray(output)){importNote.textContent="实际输出必须是 JSON 对象。";return;}
+      if(!values||typeof values!=="object"||Array.isArray(values)){importNote.textContent="断言值必须是 JSON 对象。";return;}
+      if(!identity||typeof identity!=="object"||Array.isArray(identity)){importNote.textContent="来源身份必须是 JSON 对象（可留空）。";return;}
+      const document={
+        schema_version:"aitest.external-result/1.0",
+        source_instance_id:null, source_record_id:null,
+        source_identity:Object.keys(identity).length?identity:null,
+        run_id:run["run_id"] ?? null, step_id:id,
+        attempt_id:step["current_attempt_id"] ?? null,
+        layer:layer||"L2",
+        actual_output:output, assertion_values:values,
+        mock_declarations:[], attachments:[],
+      };
+      this.waiting={step:id,action:"import_external_result"};
+      send({action:"import_external_result",parameters:{document},target:"external-result",intent:execution!.intent});
+    },!enabled("import_external_result"));
+    importBox.append(
+      text("p","用例无法自动核验时，在这里记录实际操作与证据；提交后由核心判定缺口。","muted"),
+      outputArea,assertionArea,identityArea,submitImport,importNote);
+    section.append(importBox);
     if(this.note){const status=text("p",this.note,"notice");status.setAttribute("role","status");section.append(status);}
     return section;
   }
