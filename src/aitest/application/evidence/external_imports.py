@@ -84,6 +84,51 @@ def _object_ref(raw: object) -> StoredObjectRef:
     return StoredObjectRef(**raw)
 
 
+def build_external_result_document(
+    *,
+    source_instance_id: str | None,
+    source_record_id: str | None,
+    layer: str,
+    run_id: str | None,
+    step_id: str | None,
+    attempt_id: str | None,
+    actual_output: Mapping[str, object],
+    assertion_values: Mapping[str, object],
+    source_identity: Mapping[str, object] | None = None,
+    mock_declarations: list[Mapping[str, object]] | None = None,
+    attachments: list[Mapping[str, object]] | None = None,
+) -> dict[str, object]:
+    """构造符合 external_imports 校验的外部结果文档（补证表单入口）。
+
+    与 ``SavedExternalResultImport._document`` 落盘校验同口径，表单应按下列来源
+    填充参数，避免手动拼字典导致字段名/取值偏差：
+
+    1. ``actual_output`` / ``assertion_values`` 必须是 JSON 对象（dict），不接受
+       JSON 字符串；
+    2. ``layer`` 取自计划数据（仅 ``L1``/``L2``/``L3``）；
+    3. ``run_id`` / ``step_id`` / ``attempt_id`` 取自运行视图，外部结果未绑定
+       运行时传 ``None``；
+    4. ``source_identity`` 允许为 ``None``，保存时由 ``_gaps`` 标记
+       ``source_identity_unknown``（来源未知）。
+    """
+    document: dict[str, object] = {
+        "schema_version": "aitest.external-result/1.0",
+        "source_instance_id": source_instance_id,
+        "source_record_id": source_record_id,
+        "layer": layer,
+        "source_identity": source_identity,
+        "run_id": run_id,
+        "step_id": step_id,
+        "attempt_id": attempt_id,
+        "actual_output": actual_output,
+        "assertion_values": assertion_values,
+        "mock_declarations": mock_declarations or [],
+        "attachments": attachments or [],
+    }
+    # 复用落盘校验，保证表单构造结果与保存校验严格一致。
+    return SavedExternalResultImport._document(document)
+
+
 class SavedExternalResultImport:
     def __init__(
         self,
@@ -107,7 +152,8 @@ class SavedExternalResultImport:
             raise ExternalImportBlocked("external material exceeds the safe JSON budget")
         return safe
 
-    def _document(self, raw: object) -> dict[str, object]:
+    @staticmethod
+    def _document(raw: object) -> dict[str, object]:
         document = freeze_json_value(raw)
         if not isinstance(document, dict) or set(document) != _DOCUMENT_FIELDS:
             raise ExternalImportBlocked("external result has unknown or missing fields")

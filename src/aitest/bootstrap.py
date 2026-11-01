@@ -1547,6 +1547,7 @@ def assemble_workspace_core(
             reader=reader,
             records=cast(RecordRepository, unit_of_work.repo),
             delivery_verification=write_resolver.delivery_verification,
+            objects=FileObjectStore(root),
         )
         handlers["read_view"] = view_queries.dispatch
         # D 的导出（P1-FR14 §5/§8）：正文与附件都要脱敏，制品先写事务临时位置、

@@ -105,3 +105,186 @@ def test_record_selector_requires_exact_revision_and_rejects_mixed_selectors() -
                     {**valid, "record_id":None}, {**valid, "revision":None}):
         with pytest.raises(ValueError):
             ReadViewQuery.model_validate(invalid)
+
+
+# ---------------------------------------------------------------------------
+# 证据正文只读视图（Issue #125）：严格脱敏门控
+# ---------------------------------------------------------------------------
+
+_EVIDENCE_DIGEST = "sha256:" + "a" * 64
+
+
+def _evidence_record(payload_override: dict | None = None) -> object:
+    from types import SimpleNamespace
+
+    payload = {
+        "project_id": PROJECT, "evidence_id": "ev-1", "evidence_revision": 2,
+        "run_id": "run-1", "step_id": "step-1", "attempt_id": "attempt-1",
+        "source_instance_id": "instance-1", "evidence_kind": "command_output",
+        "capture_source": "plugin_runtime", "object_digest": _EVIDENCE_DIGEST,
+        "object_size": 5, "integrity": "complete", "redaction_state": "redacted",
+        "projection_state": "displayable", "evidence_level": "full_link",
+        "gap_ids": [], "media_type": "text/plain", "created_at": "2026-01-01T00:00:00",
+        "code_identity": {"workspace_ref": "C:/secret/path", "commit_id": "c1"},
+    }
+    if payload_override:
+        payload.update(payload_override)
+    return SimpleNamespace(
+        aggregate_kind="evidence_ref", record_id="ev-1", revision=2, payload=payload,
+    )
+
+
+def test_evidence_view_returns_filtered_body_and_strips_code_identity() -> None:
+    """安全态（redacted）：返回正文；白名单剔除 code_identity 中的 workspace_ref。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record()
+    objects = Mock()
+    objects.read_bytes.return_value = b"hello"
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=objects)
+
+    view = reader.evidence_view(project_id=PROJECT, record_id="ev-1", revision=2)
+
+    assert view["record_kind"] == "evidence"
+    assert view["body"] == "hello"
+    assert "body_omitted_reason" not in view
+    assert "code_identity" not in view["record"]
+    assert "workspace_ref" not in str(view["record"])
+
+
+@pytest.mark.parametrize("redaction_state", ["blocked", "unknown", None, "garbage"])
+def test_evidence_view_unsafe_redaction_returns_metadata_only(redaction_state) -> None:
+    """redaction_state 非安全态：不返回正文，给出 body_omitted_reason。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record({"redaction_state": redaction_state})
+    objects = Mock()
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=objects)
+
+    view = reader.evidence_view(project_id=PROJECT, record_id="ev-1", revision=2)
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "redaction_unsafe"
+
+
+def test_evidence_view_rejects_cross_project_identity() -> None:
+    """project_id / evidence_id 不匹配则拒绝（不返回空视图冒充没有记录）。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record()
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=Mock())
+
+    with pytest.raises(ValueError):
+        reader.evidence_view(project_id="other-project", record_id="ev-1", revision=2)
+
+
+def test_evidence_view_digest_mismatch_is_silently_omitted() -> None:
+    """对象仓摘要不符（ValueError）：不抛原始异常，只标 object_unreadable。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record()
+    objects = Mock()
+    objects.read_bytes.side_effect = ValueError("digest mismatch")
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=objects)
+
+    view = reader.evidence_view(project_id=PROJECT, record_id="ev-1", revision=2)
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "object_unreadable"
+
+
+def test_evidence_view_binary_content_is_not_returned() -> None:
+    """二进制正文：面板不渲染，仅返回元数据。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record(
+        {"object_size": 4, "media_type": "image/png"},
+    )
+    objects = Mock()
+    objects.read_bytes.return_value = b"\xff\xd8\xff\xe0"
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=objects)
+
+    view = reader.evidence_view(project_id=PROJECT, record_id="ev-1", revision=2)
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "binary_content"
+
+
+def test_evidence_view_without_object_store_degrades_to_metadata() -> None:
+    """对象仓未接线：降级为只返元数据，不抛错。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record()
+    reader = CommittedViewReader(decisions=Mock(), reader=store)  # objects=None
+
+    view = reader.evidence_view(project_id=PROJECT, record_id="ev-1", revision=2)
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "object_unavailable"
+
+
+def test_evidence_view_oversized_object_returns_metadata_only() -> None:
+    """超大对象（>4MB）：不读正文，避免面板负载失控。"""
+    from unittest.mock import Mock
+
+    store = Mock()
+    store.read.return_value = _evidence_record({"object_size": 5 * 1024 * 1024})
+    objects = Mock()
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=objects)
+
+    view = reader.evidence_view(project_id=PROJECT, record_id="ev-1", revision=2)
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "body_too_large"
+
+
+def test_evidence_selector_contract() -> None:
+    """ReadViewQuery 接受 evidence 选择器，并拒绝缺字段或混 run_id 等混用。"""
+    from aitest.contracts.read_views import ReadViewQuery
+
+    valid = {"view": "evidence", "record_id": "ev-1", "revision": 2}
+    query = ReadViewQuery.model_validate(valid)
+    assert query.view == "evidence" and query.record_id == "ev-1" and query.revision == 2
+
+    for invalid in (
+        {"view": "evidence", "record_id": "ev-1"},
+        {"view": "evidence", "revision": 2},
+        {**valid, "run_id": "run-1"},
+        {**valid, "revision": None},
+        {**valid, "record_id": None},
+    ):
+        with pytest.raises(ValueError):
+            ReadViewQuery.model_validate(invalid)
+
+
+def test_evidence_view_through_dispatch_carries_snapshot_boundary() -> None:
+    """dispatch evidence 路由到 evidence_view，并带出配对快照边界。"""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from aitest.contracts.commands import Command
+
+    store = Mock()
+    store.read.return_value = _evidence_record({"object_size": 3})
+    store.query.return_value = SimpleNamespace(
+        commit_id=1, event_cursor="cursor-1", generation=1, index_version=1,
+    )
+    objects = Mock()
+    objects.read_bytes.return_value = b"abc"
+    reader = CommittedViewReader(decisions=Mock(), reader=store, objects=objects)
+
+    command = Command(
+        project_id=PROJECT, action="read_view", request_id="req-1",
+        parameters={"view": "evidence", "record_id": "ev-1", "revision": 2},
+    )
+    result = reader.dispatch(command)
+
+    assert result["view_type"] == "evidence"
+    assert result["view"]["body"] == "abc"
+    assert "commit_id" in result and "event_cursor" in result

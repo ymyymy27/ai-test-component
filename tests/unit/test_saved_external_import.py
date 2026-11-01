@@ -283,3 +283,63 @@ def test_attachment_disappearing_after_preflight_blocks_the_entire_commit(core, 
     with pytest.raises((OSError, ValueError)):
         core.external_imports.apply(cmd(document(attachments=[asdict(ref)])))
     assert core.unit_of_work.commit_seq() == before
+
+
+# ---------------------------------------------------------------------------
+# 补证表单构造器 build_external_result_document：与落盘校验同口径
+# ---------------------------------------------------------------------------
+
+def test_build_document_accepts_json_objects_and_optional_source_identity() -> None:
+    """规则 1+4：actual_output/assertion_values 必须是对象；source_identity 可为空。"""
+    from aitest.application.evidence.external_imports import build_external_result_document
+
+    doc = build_external_result_document(
+        source_instance_id="external-tool",
+        source_record_id="result-1",
+        layer="L3",                              # 来自计划数据
+        run_id=None, step_id=None, attempt_id=None,  # 来自运行视图（未绑定运行）
+        actual_output={"paid": False},
+        assertion_values={"paid": True},
+        source_identity=None,                    # 来源未知，保存时标记 source_identity_unknown
+    )
+    assert doc["layer"] == "L3"
+    assert doc["actual_output"] == {"paid": False}
+    assert doc["assertion_values"] == {"paid": True}
+    assert doc["source_identity"] is None
+    assert doc["run_id"] is None and doc["attempt_id"] is None
+
+
+@pytest.mark.parametrize(
+    "field,bad",
+    [("actual_output", "{\"paid\": true}"), ("assertion_values", [1, 2]),
+     ("layer", "L4"), ("layer", "l1"), ("run_id", "   "), ("attempt_id", "")],
+)
+def test_build_document_rejects_misaligned_field_values(field, bad) -> None:
+    """规则 1/2/3：JSON 对象、layer 取值、运行标识格式均按落盘校验拒绝。"""
+    from aitest.application.evidence.external_imports import (
+        ExternalImportBlocked,
+        build_external_result_document,
+    )
+
+    kwargs = dict(
+        source_instance_id="external-tool", source_record_id="result-1", layer="L3",
+        run_id="run-1", step_id="step-1", attempt_id="attempt-1",
+        actual_output={"paid": False}, assertion_values={"paid": True},
+    )
+    kwargs[field] = bad
+    with pytest.raises(ExternalImportBlocked):
+        build_external_result_document(**kwargs)
+
+
+def test_build_document_source_identity_unknown_is_recorded_as_gap(core) -> None:
+    """规则 4：source_identity 为空时，保存记录的 gap_ids 包含 source_identity_unknown。"""
+    from aitest.application.evidence.external_imports import build_external_result_document
+
+    doc = build_external_result_document(
+        source_instance_id="external-tool", source_record_id="result-1", layer="L2",
+        run_id=None, step_id=None, attempt_id=None,
+        actual_output={"paid": False}, assertion_values={"paid": True},
+        source_identity=None,
+    )
+    result = core.external_imports.apply(cmd(doc=doc))
+    assert "source_identity_unknown" in result["gap_ids"]
