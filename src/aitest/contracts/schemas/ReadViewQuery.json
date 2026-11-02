@@ -27,7 +27,8 @@
             "plan",
             "report",
             "case",
-            "issue"
+            "issue",
+            "evidence"
           ]
         },
         "record_id": {
@@ -123,7 +124,8 @@
         "plan",
         "report",
         "case",
-        "issue"
+        "issue",
+        "evidence"
       ],
       "title": "View",
       "type": "string"
