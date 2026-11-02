@@ -118,6 +118,15 @@ const GAP_HINT:Record<string,string>={
 export function gapHint(code:unknown):string {
   return typeof code==="string" ? (GAP_HINT[code] ?? "") : "";
 }
+/** 证据视图没返回正文时，核心给出的具体原因（按 read_views 契约）。 */
+export const EVIDENCE_OMITTED:Record<string,string>={
+  redaction_unsafe:"这条证据未通过脱敏校验，只提供元数据，不返回正文。",
+  object_unavailable:"对象仓不可用，暂时读取不到正文。",
+  body_too_large:"正文超过 4MB，不在界面上直接展示，可导出证据包查看。",
+  object_unreadable:"正文对象读取失败，可能已损坏或被占用。",
+  object_corrupted:"正文对象与登记摘要不一致，已停止展示。",
+  binary_content:"这条证据是二进制材料，不支持文本展示。",
+};
 export function action(label:string, click:()=>void, disabled=false):HTMLButtonElement {
   const button=document.createElement("button");button.textContent=label;button.onclick=click;button.disabled=disabled;return button;
 }

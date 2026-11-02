@@ -36,7 +36,8 @@ export class GuidedRun {
   }
   render(run:Record<string,unknown>|undefined,selected:string|null,enabled:(name:string)=>boolean,
     send:(command:GuidedCommand)=>void,refresh:()=>void,label="",required=false,basis="",
-    onSelect:(stepId:string)=>void=()=>{},layer=""):HTMLElement {
+    onSelect:(stepId:string)=>void=()=>{},layer="",
+    onEvidence:(evidenceId:string,revision:number)=>void=()=>{}):HTMLElement {
     const section=document.createElement("section");section.dataset.testid="guided-run";
     section.append(text("h2","按步骤完成测试"));
     if(!run){section.append(text("p","先读取本次运行，插件会自动取得步骤和核验所需信息。"),action("读取本次运行",refresh,!enabled("read_view")));return section;}
@@ -142,6 +143,20 @@ export class GuidedRun {
       text("p","用例无法自动核验时，在这里记录实际操作与证据；提交后由核心判定缺口。","muted"),
       outputArea,assertionArea,identityArea,submitImport,importNote);
     section.append(importBox);
+    // 已保存证据：步骤带出证据编号时逐个可点，正文由 evidence 视图按需读取。
+    const evidenceIds=Array.isArray(step["evidence_ids"])?step["evidence_ids"].map(String):[];
+    const evidenceRevisions=Array.isArray(step["evidence_revisions"])?step["evidence_revisions"]:[];
+    if(evidenceIds.length){
+      const box=document.createElement("div");box.className="workbench-part";box.dataset.testid="step-evidence";
+      box.append(text("h3","已保存证据"));
+      const list=document.createElement("div");list.className="pending-list";
+      for(const [index,evidenceId] of evidenceIds.entries()){
+        const revision=Number(evidenceRevisions[index] ?? 1);
+        list.append(action(`查看证据 ${evidenceId}`,()=>onEvidence(evidenceId,Number.isFinite(revision)?revision:1)));
+      }
+      box.append(list);
+      section.append(box);
+    }
     if(this.note){const status=text("p",this.note,"notice");status.setAttribute("role","status");section.append(status);}
     return section;
   }

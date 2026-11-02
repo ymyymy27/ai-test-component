@@ -4,7 +4,7 @@ import {workflowActions, workflowCommand} from "./workflow";
 import {Onboarding} from "./onboarding";
 import {ModelSettings} from "./model-settings";
 import {GuidedRun, friendly} from "./guided";
-import {newIntent, shellStyles, text, action, group, object, strings, gapText, gapHint} from "./shell";
+import {newIntent, shellStyles, text, action, group, object, strings, gapText, gapHint, EVIDENCE_OMITTED} from "./shell";
 type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics" | "setup";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
@@ -1280,7 +1280,12 @@ class AITestPanel extends HTMLElement {
       section.append(this.guided.render(runView,activeStep,
         name=>this.available(name)&&!!this.project?.run_id, command=>{
           this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
-        },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? "",(stepId:string)=>{this.selectedStep=stepId;this.render();},this.planLayers[caseId] ?? ""),this.pendingSection(),this.caseTree());
+        },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? "",(stepId:string)=>{this.selectedStep=stepId;this.render();},this.planLayers[caseId] ?? "",
+        (evidenceId:string,revision:number)=>{
+          this.selectedRecord={aggregate_kind:"evidence",record_id:evidenceId,revision};
+          this.recordOutcome=null;
+          this.dispatchScoped("read_view",{view:"evidence",record_id:evidenceId,revision});
+        }),this.pendingSection(),this.caseTree());
     }
     else if(this.detail==="plan")section.append(text("p","先核对准确的计划、范围和用例修订，发布与运行授权分别确认。","muted"),
       action("读取已保存计划",()=>{this.pendingQuery="plans";this.dispatchScoped("query",{aggregate_kind:"plan",limit:20});},!this.available("query")),
@@ -1397,8 +1402,23 @@ class AITestPanel extends HTMLElement {
       const hint=gapHint(item?.["code"]);
       if(hint)block.append(text("p",hint,"hint"));
     }
-    const scope=typeof context["scope_name"]==="string"?String(context["scope_name"]):"";
-    if(scope)block.append(text("p",`范围：${scope}`,"muted"));
+    const scope=typeof context["scope_name"]==="string"?String(context["scope_name"]):"";      // 决定性失败是报告里唯一带证据编号的地方；点开按 evidence 视图读正文（核心未提供该视图时会如实报错）。
+      const failureEvidence=failures.map(object)
+        .filter((item):item is Record<string,unknown>=>item!==undefined)
+        .flatMap(item=>strings(item["evidence_refs"]));
+      if(failureEvidence.length){
+        block.append(text("h3","决定性失败与证据"));
+        const evidenceList=document.createElement("div");evidenceList.className="pending-list";
+        for(const evidenceId of [...new Set(failureEvidence)]){
+          evidenceList.append(action(`查看证据 ${evidenceId}`,()=>{
+            this.selectedRecord={aggregate_kind:"evidence",record_id:evidenceId,revision:1};
+            this.recordOutcome=null;
+            this.dispatchScoped("read_view",{view:"evidence",record_id:evidenceId,revision:1});
+          },!this.available("read_view")));
+        }
+        block.append(evidenceList);
+      }
+      if(scope)block.append(text("p",`范围：${scope}`,"muted"));
     // 结果来源：只列报告里真实存在的来源字段，缺哪项就少哪项。
     const source=typeof context["source_identity"]==="string"?String(context["source_identity"]):"";
     const environment=typeof context["environment_ref"]==="string"
@@ -1417,6 +1437,22 @@ class AITestPanel extends HTMLElement {
     const view=object(object(this.recordOutcome?.response?.["result"])?.["view"]);
     const record=object(view?.["record"]);
     if(!record || !this.selectedRecord)return section;
+    // 证据视图：核心只返回白名单元数据，正文仅在脱敏安全态返回；未返回时给出具体原因。
+    if(this.selectedRecord.aggregate_kind==="evidence"){
+      section.append(text("h2",`证据正文 · 修订 ${this.selectedRecord.revision}`),
+        text("p",`证据编号：${this.selectedRecord.record_id}`,"muted"));
+      const body=typeof view?.["body"]==="string"?String(view["body"]):"";
+      const omitted=typeof view?.["body_omitted_reason"]==="string"?String(view["body_omitted_reason"]):"";
+      if(body){const pre=document.createElement("pre");pre.textContent=body;pre.dataset.testid="evidence-body";section.append(pre);}
+      else section.append(text("p",EVIDENCE_OMITTED[omitted] ?? "核心未返回证据正文。","muted"));
+      const dl=document.createElement("dl");dl.className="facts";
+      for(const key of ["evidence_kind","capture_source","object_size","integrity","redaction_state","evidence_level","media_type","created_at"]){
+        if(record[key]===undefined)continue;
+        dl.append(text("dt",key),text("dd",friendly(record[key])));
+      }
+      if(dl.childElementCount)section.append(dl);
+      return section;
+    }
     section.append(text("h2",`${this.selectedRecord.aggregate_kind==="report"?"测试报告":"已保存内容"} · 修订 ${this.selectedRecord.revision}`),text("p","已保存快照 · 不随当前运行变化","muted"));
     if(this.selectedRecord.aggregate_kind==="report")section.append(this.reportSummary(record,this.selectedRecord.revision));
     const labels:Record<string,string>={business_outcome:"业务结论",decision:"判定与覆盖",context:"范围与来源",created_at:"保存时间",evidence_refs:"证据索引",scope:"验收范围",cases:"用例",objective:"目标",expected:"预期",actual:"实际",state:"状态",title:"标题",run_tier:"检查档位",initial_driver:"执行方式",status:"状态",required_case_ids:"必测用例",preconditions:"前置条件",steps:"检查步骤",verification_method:"核验方式",independent_verification:"独立核验",importance:"重要程度"};
