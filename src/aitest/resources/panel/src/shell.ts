@@ -14,6 +14,7 @@ details.group{border-bottom:1px solid var(--vscode-panel-border,#555)}summary{cu
 ul{list-style:none;padding:0;margin:0}li{padding:4px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto}dd{margin:0 0 8px;overflow-wrap:anywhere}dt{color:var(--vscode-descriptionForeground,#aaa)}
 .phase{padding:4px 0}.next{padding:6px 0}.actions{margin:8px 0}.record-id{overflow-wrap:anywhere}footer{padding-top:10px;font-size:12px}.diagnostics{margin-top:12px}
 .workbench-part,.check-form{border-top:1px solid var(--vscode-panel-border,#363b44);padding:12px 0}.workbench-part h3{margin-bottom:6px;font-weight:500}.workbench-part p{font-size:12px}.check-form{padding:0}.check-form>summary{font-weight:500}.check-form .form-part{padding:0 4px 12px}
+.evidence-body{white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;background:var(--vscode-textCodeBlock-background,#191d23);border:1px solid var(--vscode-panel-border,#363b44);border-radius:2px;padding:10px;margin:8px 0;user-select:text}
 main{min-height:100vh;display:flex;flex-direction:column}.dashboard{display:flex;flex-direction:column;flex:1}.dashboard>footer,main>footer{margin-top:auto}section[data-testid=detail-view]{flex:1}
 .field-error{display:block;margin-top:5px;color:var(--vscode-errorForeground,#f48771);font-size:12px}input[aria-invalid=true]{border-color:var(--vscode-inputValidation-errorBorder,#be5555)}.link-row:empty{display:none}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
