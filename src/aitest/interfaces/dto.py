@@ -332,6 +332,9 @@ class RunStepDTO(BaseModel):
     adapter_kind: str | None = None
     invalidated: bool = False
     gap_ids: tuple[str, ...] = ()
+    # 当前尝试引用的证据编号与各自修订（与 evidence_ids 一一对应）；没有证据时为空。
+    evidence_ids: tuple[str, ...] = ()
+    evidence_revisions: tuple[int, ...] = ()
 
 
 class RunViewDTO(BaseModel):
@@ -382,6 +385,12 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
 
     coverage = decision.coverage
     attempts_by_step = {attempt.attempt_id: attempt for attempt in facts.attempts}
+    # 步骤带出当前尝试的证据编号：面板据此读 evidence 视图，不必自己猜记录。
+    evidence_by_attempt: dict[str, list[tuple[str, int]]] = {}
+    for evidence in facts.evidence_refs:
+        evidence_by_attempt.setdefault(evidence.attempt_id, []).append(
+            (evidence.evidence_id, evidence.evidence_revision)
+        )
     steps: list[RunStepDTO] = []
     automatic_total = 0
     automatic_completed = 0
@@ -393,6 +402,9 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
         current_attempt_id = facts.current_attempt_by_step.get(step.step_id)
         attempt = attempts_by_step.get(current_attempt_id or step.current_attempt_id or "")
         adapter_kind = None if attempt is None else str(attempt.adapter_kind.value)
+        evidence_pairs = evidence_by_attempt.get(current_attempt_id or "", [])
+        evidence_ids = tuple(item[0] for item in evidence_pairs)
+        evidence_revisions = tuple(item[1] for item in evidence_pairs)
         state = str(step.state.value)
         if step.invalidated:
             invalidated.append(step.step_id)
@@ -416,6 +428,8 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
                 adapter_kind=adapter_kind,
                 invalidated=bool(step.invalidated),
                 gap_ids=tuple(step.gap_ids),
+                evidence_ids=evidence_ids,
+                evidence_revisions=evidence_revisions,
             )
         )
     return RunViewDTO(

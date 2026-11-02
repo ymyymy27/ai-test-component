@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from aitest.application.planning.substrate import require_record_identity
-from aitest.application.ports import RecordQuery
+from aitest.application.ports import EvidenceObjectStore, RecordQuery
 from aitest.application.project.delivery_verification import (
     DeliveryVerificationReader,
     delivery_projection,
@@ -26,6 +26,7 @@ from aitest.application.project.serialization import delivery_from_payload
 from aitest.application.review.saved_reports import SavedReportService
 from aitest.contracts.commands import Command
 from aitest.contracts.read_views import ReadViewQuery
+from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.interfaces.dto import (
     DeliveryViewDTO,
     PanelViewDTO,
@@ -36,6 +37,9 @@ from aitest.interfaces.dto import (
 )
 
 __all__ = ["CommittedViewReader"]
+
+# 证据正文读取预算：超过该大小只返回元数据，避免面板负载失控。
+_MAX_EVIDENCE_BODY_BYTES = 4 * 1024 * 1024
 
 
 class CommittedViewReader:
@@ -48,6 +52,7 @@ class CommittedViewReader:
         reader: Any | None = None,
         records: Any | None = None,
         delivery_verification: DeliveryVerificationReader | None = None,
+        objects: EvidenceObjectStore | None = None,
     ) -> None:
         if decisions is None:
             raise ValueError("the view reader requires the live decision capability")
@@ -55,6 +60,7 @@ class CommittedViewReader:
         self._reader = reader
         self._records = records
         self._delivery_verification = delivery_verification
+        self._objects = objects
 
     def dispatch(self, command: Command) -> Mapping[str, object]:
         """Finite DTO query with a single verified outer view/event boundary."""
@@ -63,13 +69,19 @@ class CommittedViewReader:
             raise ValueError("read_view requires an explicit project")
         selector = ReadViewQuery.model_validate(command.parameters)
         view = selector.view
-        if view in {"plan", "report", "case", "issue"}:
+        if view in {"plan", "report", "case", "issue", "evidence"}:
             assert selector.record_id is not None and selector.revision is not None
             boundary = self._boundary(project)
-            record_view = self.record_view(
-                project_id=project, kind=view, record_id=selector.record_id,
-                revision=selector.revision,
-            )
+            if view == "evidence":
+                record_view = self.evidence_view(
+                    project_id=project, record_id=selector.record_id,
+                    revision=selector.revision,
+                )
+            else:
+                record_view = self.record_view(
+                    project_id=project, kind=view, record_id=selector.record_id,
+                    revision=selector.revision,
+                )
             if self._boundary(project) != boundary:
                 raise ValueError("the committed view boundary changed while reading")
             return {"view_type": view, "view": record_view, **boundary}
@@ -91,6 +103,82 @@ class CommittedViewReader:
         if self._boundary(project) != boundary:
             raise ValueError("the committed view boundary changed while reading")
         return {"view_type": view, "view": result.model_dump(mode="json"), **boundary}
+
+    def evidence_view(
+        self, *, project_id: str, record_id: str, revision: int,
+    ) -> dict[str, object]:
+        """证据正文只读视图（Issue #125）。
+
+        形状与 plan/report/case/issue 一致（record_id + revision + record），按需附带脱敏后的正文：
+        1. `redaction_state` 非安全态（非 redacted/not_required）→ 只返回元数据；
+        2. 正文来自对象仓（落盘前已过不可关闭的凭据过滤），不在此处二次加工；
+        3. 元数据用白名单，剔除 `code_identity`（含 workspace_ref 绝对路径）等敏感字段；
+        4. 超过 4MB 只返回元数据，避免面板负载失控。
+        """
+        if self._reader is None:
+            raise ValueError("record view is unavailable")
+        record = self._reader.read(
+            aggregate_kind="evidence_ref", record_id=record_id, revision=revision,
+        )
+        require_record_identity(
+            record, aggregate_kind="evidence_ref", record_id=record_id, revision=revision,
+        )
+        payload = record.payload
+        if payload.get("project_id") != project_id or payload.get("evidence_id") != record_id:
+            raise ValueError("evidence record does not match its project and identity")
+
+        whitelist = (
+            "evidence_id", "evidence_revision", "project_id", "run_id", "step_id",
+            "attempt_id", "source_instance_id", "evidence_kind", "capture_source",
+            "object_digest", "object_size", "integrity", "redaction_state",
+            "projection_state", "redaction_summary_ref", "evidence_level",
+            "gap_ids", "media_type", "created_at",
+        )
+        view: dict[str, object] = {
+            "project_id": project_id,
+            "record_id": record_id,
+            "record_revision": revision,
+            "record_kind": "evidence",
+            "historical_snapshot": True,
+            "record": {key: payload[key] for key in whitelist if key in payload},
+        }
+
+        redaction_state = payload.get("redaction_state")
+        if redaction_state not in {"redacted", "not_required"}:
+            view["body_omitted_reason"] = "redaction_unsafe"
+            return view
+
+        object_size = payload.get("object_size")
+        object_digest = payload.get("object_digest")
+        media_type = payload.get("media_type") or "application/octet-stream"
+        if (
+            self._objects is None or not isinstance(object_size, int)
+            or object_size < 0 or not isinstance(object_digest, str)
+            or not object_digest.startswith("sha256:")
+        ):
+            view["body_omitted_reason"] = "object_unavailable"
+            return view
+        if object_size > _MAX_EVIDENCE_BODY_BYTES:
+            view["body_omitted_reason"] = "body_too_large"
+            return view
+
+        try:
+            content = self._objects.read_bytes(StoredObjectRef(
+                project_id, object_digest, object_size, media_type,
+                f"objects/{project_id}/{object_digest.removeprefix('sha256:')}",
+            ))
+        except (OSError, ValueError):
+            view["body_omitted_reason"] = "object_unreadable"
+            return view
+        if type(content) is not bytes or len(content) != object_size:
+            view["body_omitted_reason"] = "object_corrupted"
+            return view
+
+        try:
+            view["body"] = content.decode("utf-8")
+        except UnicodeDecodeError:
+            view["body_omitted_reason"] = "binary_content"
+        return view
 
     def record_view(
         self, *, project_id: str, kind: str, record_id: str, revision: int,
