@@ -4,7 +4,8 @@ import {workflowActions, workflowCommand} from "./workflow";
 import {Onboarding} from "./onboarding";
 import {ModelSettings} from "./model-settings";
 import {GuidedRun, friendly} from "./guided";
-import {newIntent, shellStyles, text, action, group, object, strings, gapText, gapHint, EVIDENCE_OMITTED} from "./shell";
+import {evidenceBodyState, evidenceRefOf, evidenceRefsOf, evidenceRequest, type EvidenceRef} from "./evidence";
+import {newIntent, shellStyles, text, action, group, object, strings, gapText, gapHint} from "./shell";
 type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics" | "setup";
 
 const details: ReadonlyArray<readonly [Detail, string, string]> = [
@@ -184,6 +185,15 @@ class AITestPanel extends HTMLElement {
     return !this.pending && this.host!==null && this.project!==null
       && strings(object(this.doctorOutcome?.response?.["result"])?.["supported_actions"]).includes(name);
   }
+  /** Open one exact evidence revision; stale or mismatched receipts never replace it. */
+  private openEvidence(ref:EvidenceRef):void {
+    if(!this.available("read_view"))return;
+    this.selectedEvidence=ref;
+    this.evidenceOutcome=null;
+    this.evidenceNote=null;
+    this.evidenceReadPending=true;
+    this.dispatchScoped("read_view",evidenceRequest(ref));
+  }
   private requestOperation(name:string,parameters:Record<string,unknown>,target?:string,expected=0):void {
     const key=JSON.stringify([this.contextId,name,target,expected,parameters]);
     let intent=this.intents.get(key);
@@ -250,6 +260,11 @@ class AITestPanel extends HTMLElement {
   private issueDetail: Row | null = null;
   private issueDetailOutcome: Outcome | null = null;
   private copyNote: string | null = null;
+  /** 当前打开的证据引用（来自报告/问题/记录回执）；正文只按精确 evidence_id+revision 读取。 */
+  private selectedEvidence: EvidenceRef | null = null;
+  private evidenceOutcome: Outcome | null = null;
+  private evidenceNote: string | null = null;
+  private evidenceReadPending = false;
   /** 事件续读：游标只在回执明确给出新游标时前移，拒绝时保持原游标。 */
   private eventCursor: string | null = null;
   private eventOutcome: Outcome | null = null;
@@ -294,6 +309,7 @@ class AITestPanel extends HTMLElement {
           }
           this.issueOutcome = this.reportOutcome = this.issueDetailOutcome = null;
           this.selectedRecord=null;this.recordOutcome=this.planOutcome=null;
+          this.selectedEvidence=null;this.evidenceOutcome=this.evidenceNote=null;this.evidenceReadPending=false;
           this.planLayers={};this.planBasis={};this.planScopeName="";this.planRevision=0;this.planNote="";this.planAwait=false;this.planLookup=null;this.planQueryRef=null;
           this.eventOutcome = this.briefOutcome = null;
           this.eventLog = []; this.eventCursor = this.eventNote = null;
@@ -366,6 +382,28 @@ class AITestPanel extends HTMLElement {
         const result = data.response?.["result"] as Record<string, unknown> | undefined;
         const view = result?.["view"] as Record<string, unknown> | undefined;
         const kind = result?.["view_type"];
+        if (this.evidenceReadPending && this.selectedEvidence) {
+          this.evidenceReadPending = false;
+          const evidence = this.selectedEvidence;
+          if (data.status !== "ok") {
+            this.evidenceOutcome = data;
+            this.evidenceNote = null;
+          } else if (kind === "evidence" && view
+              && this.project && view["project_id"] === this.project.project_id
+              && view["record_id"] === evidence.evidenceId
+              && view["record_revision"] === evidence.revision
+              && Number.isSafeInteger(result?.["commit_id"])
+              && Number(result?.["commit_id"]) >= 0
+              && typeof result?.["event_cursor"] === "string"
+              && result["event_cursor"].length > 0) {
+            this.evidenceOutcome = data;
+            this.evidenceNote = null;
+          } else {
+            // A view for another project/record never replaces the selected evidence.
+            this.evidenceOutcome = null;
+            this.evidenceNote = "核心回执的身份与当前证据引用不一致，正文未展示。";
+          }
+        }
         if(this.selectedRecord && view && this.project && data.status==="ok" && view["project_id"]===this.project.project_id
           && kind===this.selectedRecord.aggregate_kind && view["record_id"]===this.selectedRecord.record_id
           && view["record_revision"]===this.selectedRecord.revision
@@ -546,6 +584,10 @@ class AITestPanel extends HTMLElement {
       this.pendingTimer = null;
       if (!this.pending) { return; }
       this.pending = false; this.pendingRequest = null; this.pendingQuery = null;
+      if (this.evidenceReadPending) {
+        this.evidenceReadPending = false;
+        this.evidenceNote = "证据正文读取未在限定时间内返回；可重新读取，未自动重试。";
+      }
       this.commandNote = "请求未在限定时间内返回。可以重试同一操作；核心结果未知时不会自动重跑。";
       this.render();
     }, timeoutMs);
@@ -1281,17 +1323,14 @@ class AITestPanel extends HTMLElement {
         name=>this.available(name)&&!!this.project?.run_id, command=>{
           this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
         },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? "",(stepId:string)=>{this.selectedStep=stepId;this.render();},this.planLayers[caseId] ?? "",
-        (evidenceId:string,revision:number)=>{
-          this.selectedRecord={aggregate_kind:"evidence",record_id:evidenceId,revision};
-          this.recordOutcome=null;
-          this.dispatchScoped("read_view",{view:"evidence",record_id:evidenceId,revision});
-        }),this.pendingSection(),this.caseTree());
+        (evidenceId:string,revision:number)=>this.openEvidence({evidenceId,revision})),this.pendingSection(),this.caseTree());
     }
     else if(this.detail==="plan")section.append(text("p","先核对准确的计划、范围和用例修订，发布与运行授权分别确认。","muted"),
       action("读取已保存计划",()=>{this.pendingQuery="plans";this.dispatchScoped("query",{aggregate_kind:"plan",limit:20});},!this.available("query")),
       this.rowsBlock("计划修订",this.planOutcome,"plan-records"),this.caseTree());
     else section.append(this.settingsSection());
     if(this.commandNote && this.detail!=="diagnostics") {const status=text("p",this.commandNote);status.setAttribute("role","status");section.append(status);}
+    if(this.selectedEvidence)section.append(this.evidenceDetail());
     if(this.selectedRecord && this.recordOutcome)section.append(this.recordDetail());
     return section;
   }
@@ -1408,15 +1447,7 @@ class AITestPanel extends HTMLElement {
         .flatMap(item=>strings(item["evidence_refs"]));
       if(failureEvidence.length){
         block.append(text("h3","决定性失败与证据"));
-        const evidenceList=document.createElement("div");evidenceList.className="pending-list";
-        for(const evidenceId of [...new Set(failureEvidence)]){
-          evidenceList.append(action(`查看证据 ${evidenceId}`,()=>{
-            this.selectedRecord={aggregate_kind:"evidence",record_id:evidenceId,revision:1};
-            this.recordOutcome=null;
-            this.dispatchScoped("read_view",{view:"evidence",record_id:evidenceId,revision:1});
-          },!this.available("read_view")));
-        }
-        block.append(evidenceList);
+        block.append(this.evidenceRefLinks([...new Set(failureEvidence)],"failure-evidence-refs"));
       }
       if(scope)block.append(text("p",`范围：${scope}`,"muted"));
     // 结果来源：只列报告里真实存在的来源字段，缺哪项就少哪项。
@@ -1432,27 +1463,138 @@ class AITestPanel extends HTMLElement {
     return block;
   }
 
+  /** 证据正文只读视图：精确引用、纯文本展示，缺正文时只显示核心给出的原因。 */
+  private evidenceDetail(): HTMLElement {
+    const section=document.createElement("section");
+    section.dataset.testid="evidence-detail";
+    const ref=this.selectedEvidence;
+    if(!ref)return section;
+    section.append(
+      text("h2",`证据 ${ref.evidenceId}@${ref.revision}`),
+      text("p","只读快照 · 正文不会被渲染为 HTML 或 Markdown","muted"),
+    );
+    const refresh=action("重新读取证据正文",()=>this.openEvidence(ref),!this.available("read_view"));
+    refresh.dataset.testid="evidence-refresh";
+    section.append(refresh);
+    if(this.evidenceNote)section.append(text("p",this.evidenceNote,"notice"));
+
+    const outcome=this.evidenceOutcome;
+    if(outcome===null){
+      section.append(text("p",this.evidenceReadPending?"正在读取证据正文…":"尚未读取证据正文。","muted"));
+      return section;
+    }
+    if(outcome.status!=="ok"){
+      section.append(text("p",`核心未通过 · ${outcome.code ?? outcome.status}：${outcome.message ?? ""}`,"muted"));
+      return section;
+    }
+    const result=object(outcome.response?.["result"]);
+    const view=object(result?.["view"]);
+    if(!view){
+      section.append(text("p","回执没有证据视图载荷，正文未展示。","muted"));
+      return section;
+    }
+
+    const record=object(view["record"]);
+    const fields:ReadonlyArray<readonly [string,string]>=[
+      ["evidence_id","证据编号"],
+      ["evidence_revision","证据修订"],
+      ["evidence_kind","证据类型"],
+      ["capture_source","采集来源"],
+      ["source_instance_id","来源实例"],
+      ["run_id","运行"],
+      ["step_id","步骤"],
+      ["attempt_id","尝试"],
+      ["media_type","媒体类型"],
+      ["evidence_level","证据等级"],
+      ["integrity","完整性"],
+      ["redaction_state","脱敏状态"],
+      ["projection_state","投影状态"],
+      ["redaction_summary_ref","脱敏摘要引用"],
+      ["object_digest","对象摘要"],
+      ["object_size","对象大小"],
+      ["gap_ids","关联缺口"],
+      ["created_at","创建时间"],
+    ];
+    const metadata=document.createElement("dl");
+    metadata.className="facts";
+    metadata.dataset.testid="evidence-metadata";
+    for(const [key,label] of fields){
+      const value=record?.[key];
+      if(value===undefined)continue;
+      const term=document.createElement("dt");term.textContent=label;
+      const detail=document.createElement("dd");detail.dataset.evidenceField=key;
+      detail.textContent=Array.isArray(value)
+        ? value.length ? value.map(item=>typeof item==="string"?item:JSON.stringify(item)).join("、") : "无"
+        : value===null ? "回执未提供"
+        : typeof value==="string" ? value
+        : typeof value==="object" ? JSON.stringify(value)
+        : String(value);
+      metadata.append(term,detail);
+    }
+    if(metadata.childElementCount)section.append(metadata);
+
+    const bodyState=evidenceBodyState(view);
+    if(bodyState.kind==="body"){
+      section.append(text("h3","证据正文"));
+      const body=document.createElement("pre");
+      body.className="evidence-body";
+      body.dataset.testid="evidence-body";
+      body.textContent=bodyState.text.length ? bodyState.text : "（正文为空）";
+      section.append(body);
+      return section;
+    }
+    const omitted=text("p",bodyState.text,"gap-box");
+    omitted.dataset.testid="evidence-omitted";
+    section.append(omitted);
+    if(bodyState.kind==="omitted" && bodyState.conflict){
+      section.append(text("p","回执同时给出正文和省略原因，形状冲突；正文未展示。","hint"));
+    }
+    return section;
+  }
+
+  /** Evidence references are actionable only when the receipt includes both identity and revision. */
+  private evidenceRefLinks(value:unknown,testId:string):HTMLElement {
+    const wrapper=document.createElement("div");
+    wrapper.dataset.testid=testId;
+    const rawRefs=Array.isArray(value)?value:[value];
+    const refs=evidenceRefsOf(value);
+    if(refs.length){
+      const links=document.createElement("div");
+      links.className="actions";
+      for(const evidenceRef of refs){
+        const open=action(
+          `查看证据 ${evidenceRef.evidenceId} · 修订 ${evidenceRef.revision}`,
+          ()=>this.openEvidence(evidenceRef),
+          !this.available("read_view"),
+        );
+        open.dataset.evidenceId=evidenceRef.evidenceId;
+        links.append(open);
+      }
+      wrapper.append(links);
+    }
+    const unresolved=rawRefs.filter(item=>evidenceRefOf(item)===null);
+    if(unresolved.length){
+      const list=document.createElement("ul");
+      list.className="evidence-unresolved";
+      for(const item of unresolved){
+        const entry=document.createElement("li");
+        entry.textContent=typeof item==="string"
+          ? `证据引用缺少可核对的证据编号或修订号：${item}（回执未提供修订号，无法打开）。`
+          : `证据引用缺少可核对的证据编号或修订号：${JSON.stringify(item)}`;
+        list.append(entry);
+      }
+      wrapper.append(list);
+    } else if(refs.length===0 && rawRefs.length===0){
+      wrapper.append(text("span","没有证据引用。","muted"));
+    }
+    return wrapper;
+  }
+
   private recordDetail():HTMLElement {
     const section=document.createElement("section");section.dataset.testid="record-detail";
     const view=object(object(this.recordOutcome?.response?.["result"])?.["view"]);
     const record=object(view?.["record"]);
     if(!record || !this.selectedRecord)return section;
-    // 证据视图：核心只返回白名单元数据，正文仅在脱敏安全态返回；未返回时给出具体原因。
-    if(this.selectedRecord.aggregate_kind==="evidence"){
-      section.append(text("h2",`证据正文 · 修订 ${this.selectedRecord.revision}`),
-        text("p",`证据编号：${this.selectedRecord.record_id}`,"muted"));
-      const body=typeof view?.["body"]==="string"?String(view["body"]):"";
-      const omitted=typeof view?.["body_omitted_reason"]==="string"?String(view["body_omitted_reason"]):"";
-      if(body){const pre=document.createElement("pre");pre.textContent=body;pre.dataset.testid="evidence-body";section.append(pre);}
-      else section.append(text("p",EVIDENCE_OMITTED[omitted] ?? "核心未返回证据正文。","muted"));
-      const dl=document.createElement("dl");dl.className="facts";
-      for(const key of ["evidence_kind","capture_source","object_size","integrity","redaction_state","evidence_level","media_type","created_at"]){
-        if(record[key]===undefined)continue;
-        dl.append(text("dt",key),text("dd",friendly(record[key])));
-      }
-      if(dl.childElementCount)section.append(dl);
-      return section;
-    }
     section.append(text("h2",`${this.selectedRecord.aggregate_kind==="report"?"测试报告":"已保存内容"} · 修订 ${this.selectedRecord.revision}`),text("p","已保存快照 · 不随当前运行变化","muted"));
     if(this.selectedRecord.aggregate_kind==="report")section.append(this.reportSummary(record,this.selectedRecord.revision));
     const labels:Record<string,string>={business_outcome:"业务结论",decision:"判定与覆盖",context:"范围与来源",created_at:"保存时间",evidence_refs:"证据索引",scope:"验收范围",cases:"用例",objective:"目标",expected:"预期",actual:"实际",state:"状态",title:"标题",run_tier:"检查档位",initial_driver:"执行方式",status:"状态",required_case_ids:"必测用例",preconditions:"前置条件",steps:"检查步骤",verification_method:"核验方式",independent_verification:"独立核验",importance:"重要程度"};
@@ -1463,8 +1605,19 @@ class AITestPanel extends HTMLElement {
       return text("span",value==null?"未提供":friendly(value));
     };
     const technical=document.createElement("details");technical.append(text("summary","技术来源（排障用）"));
-    const autoOpen=this.selectedRecord.aggregate_kind==="report" ? ["scope"] : ["business_outcome","decision","scope","cases","objective"];
-    for(const [key,value] of Object.entries(record)){if(!(key in labels)){technical.append(text("p",key),present(value));continue;}const group=document.createElement("details");group.open=autoOpen.includes(key);group.append(text("summary",labels[key]??key),present(value));section.append(group);}
+    const autoOpen=this.selectedRecord.aggregate_kind==="report" ? ["scope","evidence_refs"] : ["business_outcome","decision","scope","cases","objective"];
+    for(const [key,value] of Object.entries(record)){
+      if(!(key in labels)){technical.append(text("p",key),present(value));continue;}
+      const group=document.createElement("details");
+      group.open=autoOpen.includes(key);
+      group.append(
+        text("summary",labels[key]??key),
+        key==="evidence_refs"
+          ? this.evidenceRefLinks(value,"record-evidence-refs")
+          : present(value),
+      );
+      section.append(group);
+    }
     section.append(technical);
     return section;
   }
@@ -1618,6 +1771,10 @@ class AITestPanel extends HTMLElement {
       detail.textContent = value === undefined || value === null
         ? "回执未提供该字段（不推断）。"
         : typeof value === "string" ? value : JSON.stringify(value);
+      if (key === "evidence_refs" && value !== undefined && value !== null) {
+        detail.textContent = "";
+        detail.append(this.evidenceRefLinks(value, "issue-evidence-refs"));
+      }
       fields.append(term, detail);
     }
     const raw = document.createElement("pre");
@@ -1801,6 +1958,8 @@ class AITestPanel extends HTMLElement {
         open.onclick = () => {
           this.issueDetail = row;
           this.issueDetailOutcome = null;
+          this.selectedEvidence = this.evidenceOutcome = this.evidenceNote = null;
+          this.evidenceReadPending = false;
           this.copyNote = null;
           this.pendingQuery = "issue-detail";
           this.dispatchScoped("query", {
@@ -1811,8 +1970,15 @@ class AITestPanel extends HTMLElement {
       } else if(["plan","report","case"].includes(row.aggregate_kind)) {
         item.append(action(`${row.record_id} · 修订 ${row.revision}`,()=>{
           this.selectedRecord=row;this.recordOutcome=null;
+          this.selectedEvidence=this.evidenceOutcome=this.evidenceNote=null;this.evidenceReadPending=false;
           this.dispatchScoped("read_view",{view:row.aggregate_kind,record_id:row.record_id,revision:row.revision});
         },!this.available("read_view")));
+      } else if(["evidence_ref","evidence"].includes(row.aggregate_kind)) {
+        item.append(action(
+          `查看证据 ${row.record_id} · 修订 ${row.revision}`,
+          ()=>this.openEvidence({evidenceId:row.record_id,revision:row.revision}),
+          !this.available("read_view"),
+        ));
       } else {
         item.textContent = `${row.record_id}@${row.revision}（${row.aggregate_kind}）`;
       }
