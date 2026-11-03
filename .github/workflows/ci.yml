@@ -66,6 +66,7 @@ jobs:
           tests/unit/test_saved_reports.py
           tests/unit/test_panel_view_dto.py
           tests/unit/test_sharded_record_authority.py
+          tests/unit/test_source_identity_runtime_observation.py
           --junitxml="${{ runner.temp }}/aitest-pytest.xml"
       - name: Upload test diagnostics
         if: always()

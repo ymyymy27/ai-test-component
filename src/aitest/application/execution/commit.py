@@ -1753,7 +1753,15 @@ class ExecutionCommitCoordinator:
             is_current = current is not None and current.current_attempt_by_step.get(
                 checkpoint.attempt.step_id
             ) == checkpoint.attempt.attempt_id
-            if current is not None and (is_current or projected):
+            has_runtime_observation = (
+                runtime_source is not None and runtime_evidence is not None
+            )
+            # A saved runtime observation is a fact of its attempt even when a newer
+            # attempt has since become current; publish it instead of leaving the
+            # downgraded admission probe as the only source-verification fact.
+            if current is not None and (
+                is_current or projected or has_runtime_observation
+            ):
                 updated = current
                 if is_current:
                     updated = project_current_update(
@@ -1772,7 +1780,8 @@ class ExecutionCommitCoordinator:
                         item = item.model_copy(update={"redaction_summary": old.redaction_summary})
                     by_id[item.evidence_id] = item
                 updated = updated.model_copy(update={"evidence_refs": tuple(by_id.values())})
-                if is_current and runtime_source is not None and runtime_evidence is not None:
+                if has_runtime_observation:
+                    assert runtime_source is not None and runtime_evidence is not None
                     observed = _source_verification_fact(runtime_source)
                     if not any(item.verification_id == observed.verification_id
                                for item in updated.source_verifications):
