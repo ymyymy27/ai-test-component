@@ -176,3 +176,48 @@ test("foreign evidence receipts never replace the selected reference", async ({p
   await expect(page.getByTestId("evidence-body")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("report evidence refs open the exact evidence body", async ({page}) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await mountReady(page);
+  await page.getByRole("button", {name: "问题与报告", exact: true}).click();
+  await page.getByRole("button", {name: "读取报告修订", exact: true}).click();
+  await postHostMessage(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: {result: {items: [{aggregate_kind: "report", record_id: "report-1", revision: 2}]}},
+  });
+  await page.getByRole("button", {name: "report-1 · 修订 2"}).click();
+  let sent = await page.evaluate(() =>
+    (window as unknown as {__sent: Record<string, unknown>[]}).__sent.at(-1));
+  expect(sent).toMatchObject({
+    action: "read_view", projectId: "p",
+    parameters: {view: "report", record_id: "report-1", revision: 2},
+  });
+  await postHostMessage(page, {
+    kind: "outcome", action: "read_view", status: "ok",
+    response: {result: {
+      view_type: "report", commit_id: 10, event_cursor: "cursor-10",
+      view: {
+        project_id: "p", record_id: "report-1", record_revision: 2,
+        record_kind: "report", historical_snapshot: true,
+        record: {
+          report_id: "report-1", business_outcome: "passed",
+          decision: {coverage: {selected: [], required: [], executed: [], reused: [], verified: [], passed: []}},
+          context: {}, evidence_refs: ["evidence-1@2"],
+        },
+      },
+    }},
+  });
+  const refs = page.getByTestId("record-evidence-refs");
+  await refs.getByRole("button", {name: "查看证据 evidence-1 · 修订 2"}).click();
+  sent = await page.evaluate(() =>
+    (window as unknown as {__sent: Record<string, unknown>[]}).__sent.at(-1));
+  expect(sent).toMatchObject({
+    action: "read_view", projectId: "p",
+    parameters: {view: "evidence", record_id: "evidence-1", revision: 2},
+  });
+  await postHostMessage(page, evidenceOutcome("报告关联的证据正文"));
+  await expect(page.getByTestId("evidence-body")).toHaveText("报告关联的证据正文");
+  expect(errors).toEqual([]);
+});

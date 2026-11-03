@@ -1549,6 +1549,41 @@ class AITestPanel extends HTMLElement {
     return section;
   }
 
+  /** Evidence references are actionable only when the receipt includes both identity and revision. */
+  private evidenceRefLinks(value: unknown, testId: string): HTMLElement {
+    const wrapper=document.createElement("div");
+    wrapper.dataset.testid=testId;
+    const rawRefs=Array.isArray(value)?value:[value];
+    const refs=evidenceRefsOf(value);
+    const validRawCount=rawRefs.filter(item=>evidenceRefOf(item)!==null).length;
+    if(refs.length){
+      const links=document.createElement("div");
+      links.className="actions";
+      for(const evidenceRef of refs){
+        const open=action(
+          `查看证据 ${evidenceRef.evidenceId} · 修订 ${evidenceRef.revision}`,
+          ()=>this.openEvidence(evidenceRef),
+          !this.available("read_view"),
+        );
+        open.dataset.evidenceId=evidenceRef.evidenceId;
+        links.append(open);
+      }
+      wrapper.append(links);
+    }
+    if(validRawCount<rawRefs.length){
+      wrapper.append(text(
+        "span",
+        refs.length
+          ? "部分证据引用缺少可核对的证据编号或修订号，未提供打开入口。"
+          : "证据引用缺少可核对的证据编号或修订号，未提供打开入口。",
+        "hint",
+      ));
+    } else if(refs.length===0 && rawRefs.length===0){
+      wrapper.append(text("span","没有证据引用。","muted"));
+    }
+    return wrapper;
+  }
+
   private recordDetail():HTMLElement {
     const section=document.createElement("section");section.dataset.testid="record-detail";
     const view=object(object(this.recordOutcome?.response?.["result"])?.["view"]);
@@ -1564,8 +1599,19 @@ class AITestPanel extends HTMLElement {
       return text("span",value==null?"未提供":friendly(value));
     };
     const technical=document.createElement("details");technical.append(text("summary","技术来源（排障用）"));
-    const autoOpen=this.selectedRecord.aggregate_kind==="report" ? ["scope"] : ["business_outcome","decision","scope","cases","objective"];
-    for(const [key,value] of Object.entries(record)){if(!(key in labels)){technical.append(text("p",key),present(value));continue;}const group=document.createElement("details");group.open=autoOpen.includes(key);group.append(text("summary",labels[key]??key),present(value));section.append(group);}
+    const autoOpen=this.selectedRecord.aggregate_kind==="report" ? ["scope","evidence_refs"] : ["business_outcome","decision","scope","cases","objective"];
+    for(const [key,value] of Object.entries(record)){
+      if(!(key in labels)){technical.append(text("p",key),present(value));continue;}
+      const group=document.createElement("details");
+      group.open=autoOpen.includes(key);
+      group.append(
+        text("summary",labels[key]??key),
+        key==="evidence_refs"
+          ? this.evidenceRefLinks(value,"record-evidence-refs")
+          : present(value),
+      );
+      section.append(group);
+    }
     section.append(technical);
     return section;
   }
@@ -1720,29 +1766,7 @@ class AITestPanel extends HTMLElement {
         ? "回执未提供该字段（不推断）。"
         : typeof value === "string" ? value : JSON.stringify(value);
       if (key === "evidence_refs" && value !== undefined && value !== null) {
-        const rawRefs = Array.isArray(value) ? value : [value];
-        const refs = evidenceRefsOf(value);
-        const validRawCount = rawRefs.filter(item => evidenceRefOf(item) !== null).length;
-        if (refs.length) {
-          const links = document.createElement("div");
-          links.className = "actions";
-          links.dataset.testid = "issue-evidence-refs";
-          for (const evidenceRef of refs) {
-            const open = action(
-              `查看证据 ${evidenceRef.evidenceId} · 修订 ${evidenceRef.revision}`,
-              () => this.openEvidence(evidenceRef),
-              !this.available("read_view"),
-            );
-            open.dataset.evidenceId = evidenceRef.evidenceId;
-            links.append(open);
-          }
-          detail.append(links);
-          if (validRawCount < rawRefs.length) {
-            detail.append(text("span","部分证据引用缺少可核对的证据编号或修订号，未提供打开入口。","hint"));
-          }
-        } else if (rawRefs.length) {
-          detail.append(text("span","证据引用缺少可核对的证据编号或修订号，未提供打开入口。","hint"));
-        }
+        detail.append(this.evidenceRefLinks(value, "issue-evidence-refs"));
       }
       fields.append(term, detail);
     }
