@@ -1,6 +1,6 @@
 """默认 start 来源链的端到端回归（C-15 / C-16）。
 
-反例基线：`docs/validation/p1-source-completion-20261012/source-provider-counterexamples.py`
+反例基线：`docs/归档/validation/p1-source-completion-20261012/source-provider-counterexamples.py`
 在 `fix@708439b` 上复现了两件事：
 
 1. **C-15**：`prepare_run` 为 prepared，但默认 `prepare_execution` 在技术快照读取处抛

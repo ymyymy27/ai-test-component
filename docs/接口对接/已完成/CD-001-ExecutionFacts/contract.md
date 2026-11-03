@@ -18,7 +18,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 当前状态只读文件顶部元数据。下面带旧日期的实施记录保留原基线；其中旧状态数字和人员待答文字不构成当前待办。
 
-按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
+按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
 
 - 已实现：ExecutionFacts 当前 Attempt/来源事实消费、独立核验、报告/交付/ZIP 与重启回读已接；半程样例由 C 生产装配器生成并经 D 判定消费。
 - 产品实施/验收跟踪（未关闭）：可信动态复用、所有实际载体、真实业务问题关闭及恢复验收仍有缺口。
@@ -41,7 +41,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 最终来源元数据发布永久对象并回读核对，与当前检查点、source_check 证据、load 检查事实及新 ExecutionFacts 快照原子挂接。新快照可更新同一次 Attempt 的当前来源投影；旧快照、准入材料、旧报告不改。已经保存的实际观察不可被后续检查点重写。报告只排除有准确证据归属的已替换 Attempt 来源，归属未知或当前来源缺口继续阻断；这不修改 E/R/V、完整范围或关键链路规则。
 
-组件回归、完整样例链、产物与未验证范围统一见[本批证据](../../../validation/p1-runtime-source-20261015/README.md)。真实 Trae、客户业务、物理掉电和全部一期验收仍未通过；本增量不代填双方签署，整体 原批次 reviewing/partial/not_run（非当前状态） 保留。
+组件回归、完整样例链、产物与未验证范围统一见[本批证据](../../../归档/validation/p1-runtime-source-20261015/README.md)。真实 Trae、客户业务、物理掉电和全部一期验收仍未通过；本增量不代填双方签署，整体 原批次 reviewing/partial/not_run（非当前状态） 保留。
 
 
 
@@ -49,7 +49,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 现行版本：1.28。纯函数输出独立比对与报告交付投影已接；继续真实动态复用、业务/恢复和全同源对拍。
 
-用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../归档/validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
 
 
 ## 纯函数核验兼容增量（2026-10-15）
@@ -57,7 +57,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 依据一期能力清单 §6，落实 [DEC-015](../../归档/裁定/DEC-015-纯函数独立预期比对.md)。依据 `aitest.pure-function-basis/1` 只包含 schema_version 与非空 expected_facts；从准确 Case 读取预期，与当前 Attempt 完整且未过滤的永久 stdout JSON 对象按既有领域规则比较。核验方法保留 `<project_id>:pure-function-stdout`，对象为 Attempt ID，目标为 `attempt:<attempt_id>`，证据引用随核验保存。无 HTTP/数据库/模型依赖，不重跑函数，不作为持久副作用的独立回读；原 verify_pending 形状、HTTP 依据与判定语义兼容。技术裁定由用户授权本次代理作出，实现和验证另记，不代签真实验收。
 
 
-> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
+> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../归档/validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
 
 
 ## 1.25 动态核验证据与可携带导出
@@ -66,16 +66,16 @@ Verification.evidence_refs 保留动态对象 ID 提取所用的当前 Attempt �
 
 ## 2026-10-15 全目录复核
 
-报告/问题/复核/制品已有生产者，复用选择与准确来源消费已接；动态资格、独立预期/观察、真实业务恢复仍欠。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+报告/问题/复核/制品已有生产者，复用选择与准确来源消费已接；动态资格、独立预期/观察、真实业务恢复仍欠。 本批合同/消费方检查与未验证范围见[证据](../../../归档/validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
 
 
 ## 当前续修与验证范围（76ab7d2 起点）
 
-R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。原批次 reviewing/partial/not_run（非当前状态） 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+R 准确源快照/证据冻结与原快照导出已补；继续准确独立预期、真实动态 R、业务/恢复及全同源对拍。 [本次准确实现/证据](../../../归档/validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。原批次 reviewing/partial/not_run（非当前状态） 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.25；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
+现行版本：1.25；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../归档/validation/p1-boundary-fixes-20261013/README.md)。原标准/核验关闭、完整阻塞、后补确认、冻结导出回读已修；继续准确独立预期、动态 R 和真实业务/恢复对拍。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，原批次 reviewing/partial/not_run（非当前状态） 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -88,7 +88,7 @@ R 准确源快照/证据冻结与原快照导出已补；继续准确独立预�
 
 **已实现及原缺陷修复**：D-10 原当前 Attempt/来源/必需证据守卫已修；issue/report/local_review/report_export 生产用例、实际对象与摘要/ZIP 制品、复测简报已有。assertion_outcomes_from_facts 已有生产者，剩余是期望登记/同源有效依据及本轮四项反例，不能再写成无生产报告/问题/导出或 R 恒空。
 
-**当前阻塞与下一动作**：D 先修关闭依据、完整阻塞集合、有效确认和冻结导出意图回读；C 修 R 资格/统计及选择修订；按同一保存边界对拍报告/问题/制品。 具体反例、组件替身范围与原输出见[本轮验证](../../../validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
+**当前阻塞与下一动作**：D 先修关闭依据、完整阻塞集合、有效确认和冻结导出意图回读；C 修 R 资格/统计及选择修订；按同一保存边界对拍报告/问题/制品。 具体反例、组件替身范围与原输出见[本轮验证](../../../归档/validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../归档/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
 
 本轮未完成真实 Trae、实际业务对象/供应方故障、物理掉电或全部合同场景提供/消费方对拍，未新增双方签署。以下历史复核段中的旧缺项/数量只对应原日期；仍有效的正式字段和版本增量继续按正文消费。
 
@@ -101,15 +101,15 @@ R 准确源快照/证据冻结与原快照导出已补；继续准确独立预�
 
 **仍缺／优先动作**：D-10 已修（2026-10-12）：来源身份改为同一快照内集合级判定（任一非 verified 或带缺口即 `unverified`）；E／pending 只认 **当前** Attempt；必需证据逐项核对完整性/脱敏/投影/缺口并覆盖声明项数，引用存在不再等于满足。原三组反例现为拒绝/降级（`incomplete`、`unverified`、`executed=[]`），对照组仍 passed/A。**R 在 D 适配器仍恒空**；生产报告/问题/制品链仍未接。冻结外字段与 execution-facts/1.0 不迁移。
 
-**修复后状态（2026-10-12）**：本批只改 D 侧实现与回归，**不改端口签名/字段/枚举/协议版本/生成 Schema/夹具**；证据见[修复证据](../../../一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)与[修复轮验证](../../../validation/p1-defect-fix-20261012/README.md)。`verification_status` 保持 `not_run`，`last_verified_commit` 保持 `8d9883c`（旧阶段引用），不因局部回归标为对拍完成。
+**修复后状态（2026-10-12）**：本批只改 D 侧实现与回归，**不改端口签名/字段/枚举/协议版本/生成 Schema/夹具**；证据见[修复证据](../../../归档/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)与[修复轮验证](../../../归档/validation/p1-defect-fix-20261012/README.md)。`verification_status` 保持 `not_run`，`last_verified_commit` 保持 `8d9883c`（旧阶段引用），不因局部回归标为对拍完成。
 
-**问题侧接生产（2026-10-12 第二批）**：D 侧新增 `issue` 记录与 `issue_intent` 幂等（同一工作单元、按修订不可变），随 payload 写入 `issues.list` 的 `view/mask/facet_value/severity` 索引入口；`update_issue`／`record_fix`／`close_issue` 已并入默认装配，`close_issue` 的六项依据布尔改由**同一提交快照的执行事实 + 已保存准备与受控确认链 + 可读证据字节**派生，确认人取受控会话身份（AI 中继拒绝）。另修 `PortsRecordReader.query` 丢 `view/facet/severity` 条件导致 `issues.list` 退化为通用目录查询的问题。证据见[FR15 修复证据](../../../一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md)。
+**问题侧接生产（2026-10-12 第二批）**：D 侧新增 `issue` 记录与 `issue_intent` 幂等（同一工作单元、按修订不可变），随 payload 写入 `issues.list` 的 `view/mask/facet_value/severity` 索引入口；`update_issue`／`record_fix`／`close_issue` 已并入默认装配，`close_issue` 的六项依据布尔改由**同一提交快照的执行事实 + 已保存准备与受控确认链 + 可读证据字节**派生，确认人取受控会话身份（AI 中继拒绝）。另修 `PortsRecordReader.query` 丢 `view/facet/severity` 条件导致 `issues.list` 退化为通用目录查询的问题。证据见[FR15 修复证据](../../../归档/一期工程整改/03-修复证据/2026-10-12-FR15问题生命周期生产用例.md)。
 
-**报告/复核接生产（2026-10-12 第三批）**：新增 `report` 记录（判定由**已提交执行事实**经 `build_decision_facts` + `evaluate_review` 派生，冻结输入取自已保存准备与准确范围修订；`reports.list`／`reports.by_id` 摘要键齐备）与 `local_review` 记录（绑定准确报告修订、复核人取受控会话）；`create_report`／`record_local_review` 并入默认装配。依据确认核对抽成 `application/review/authoritative_basis.py::SavedCaseBasisCheck`，问题关闭与报告共用同一权威路径。证据见[FR14 报告证据](../../../一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md)。
+**报告/复核接生产（2026-10-12 第三批）**：新增 `report` 记录（判定由**已提交执行事实**经 `build_decision_facts` + `evaluate_review` 派生，冻结输入取自已保存准备与准确范围修订；`reports.list`／`reports.by_id` 摘要键齐备）与 `local_review` 记录（绑定准确报告修订、复核人取受控会话）；`create_report`／`record_local_review` 并入默认装配。依据确认核对抽成 `application/review/authoritative_basis.py::SavedCaseBasisCheck`，问题关闭与报告共用同一权威路径。证据见[FR14 报告证据](../../../归档/一期工程整改/03-修复证据/2026-10-12-FR14报告与复核生产用例.md)。
 
-**导出与复测简报接生产（2026-10-12 第四批，版本升至 1.21）**：实现 `ReportArtifactPort`（临时写入→摘要核对→原子发布，规范相对路径底线、篡改拒绝、幂等复用），导出制品**先入对象库**再发布交付副本；`export_report` 生成 Markdown 摘要与 ZIP 证据包（`report.md` + `manifest.json` + `evidence/`，逐文件 SHA-256、排除/缺失原因），导出身份由冻结输入派生、相同输入复用产物；只读 `copy_repair_brief` 输出脱敏复测指引且不含证据正文。默认可派发动作 50。证据见[FR14 导出证据](../../../一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md)。仍缺：`request_regression`（合同未定义）、断言结果生产者、R 的持久选择；`verification_status`/`last_verified_commit` 与 FR/AC 不变。
+**导出与复测简报接生产（2026-10-12 第四批，版本升至 1.21）**：实现 `ReportArtifactPort`（临时写入→摘要核对→原子发布，规范相对路径底线、篡改拒绝、幂等复用），导出制品**先入对象库**再发布交付副本；`export_report` 生成 Markdown 摘要与 ZIP 证据包（`report.md` + `manifest.json` + `evidence/`，逐文件 SHA-256、排除/缺失原因），导出身份由冻结输入派生、相同输入复用产物；只读 `copy_repair_brief` 输出脱敏复测指引且不含证据正文。默认可派发动作 50。证据见[FR14 导出证据](../../../归档/一期工程整改/03-修复证据/2026-10-12-FR14导出与复测简报生产用例.md)。仍缺：`request_regression`（合同未定义）、断言结果生产者、R 的持久选择；`verification_status`/`last_verified_commit` 与 FR/AC 不变。
 
-**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。原 last_verified_commit=8d9883c 仅为旧阶段引用，不代表本次统一对拍；本轮失败反例另存。真实 Trae/供应方/掉电与 AC 证据另验。
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../归档/validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。原 last_verified_commit=8d9883c 仅为旧阶段引用，不代表本次统一对拍；本轮失败反例另存。真实 Trae/供应方/掉电与 AC 证据另验。
 
 字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
 
@@ -368,13 +368,13 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 
 `select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 原批次 reviewing/partial/not_run（非当前状态），原 last_verified_commit 和确认记录保持。
 
-**2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、原批次 reviewing/partial/not_run（非当前状态）、签署与 last_verified_commit 均不变。
+**2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../归档/validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、原批次 reviewing/partial/not_run（非当前状态）、签署与 last_verified_commit 均不变。
 
 
-2026-10-14 隔离续检修复（本次 fix 发布）：准入源观察随内部 resolved-execution-action/1.1 保存原始对象元数据，旧 1.0 字节形状保留；原授权核对后与启动快照/evidence_ref 同事务发布。没有原始对象或过滤改变材料时不得升为已核实；普通 DTO ExecutionFacts 1.0 不新增字段。缓存、ZIP 父子冲突等证据与原子/重启未完成检查见[候选续检](../../../validation/p1-unproven-audit-20261014/README.md)。保持 原批次 reviewing/partial/not_run（非当前状态），不写双方实测或修改旧签署。
+2026-10-14 隔离续检修复（本次 fix 发布）：准入源观察随内部 resolved-execution-action/1.1 保存原始对象元数据，旧 1.0 字节形状保留；原授权核对后与启动快照/evidence_ref 同事务发布。没有原始对象或过滤改变材料时不得升为已核实；普通 DTO ExecutionFacts 1.0 不新增字段。缓存、ZIP 父子冲突等证据与原子/重启未完成检查见[候选续检](../../../归档/validation/p1-unproven-audit-20261014/README.md)。保持 原批次 reviewing/partial/not_run（非当前状态），不写双方实测或修改旧签署。
 
 
-2026-10-14 准入/实际运行来源发布边界：准入原始证据保存不等于后续业务进程加载范围已证明；当前快照保留 unverified/actual_execution_load_source_unverified，原授权准入观察不追改，mismatch/blocked/unknown 不降级。64项轻量选择通过，真实事务和实际加载仍待；公开DTO字段、接口版本/签署/not_run保持，见[准确反例](../../../validation/p1-unproven-audit-20261014/README.md#准入与实际运行来源不得混同)。
+2026-10-14 准入/实际运行来源发布边界：准入原始证据保存不等于后续业务进程加载范围已证明；当前快照保留 unverified/actual_execution_load_source_unverified，原授权准入观察不追改，mismatch/blocked/unknown 不降级。64项轻量选择通过，真实事务和实际加载仍待；公开DTO字段、接口版本/签署/not_run保持，见[准确反例](../../../归档/validation/p1-unproven-audit-20261014/README.md#准入与实际运行来源不得混同)。
 
 本批持久化兼容：包含实际来源策略的动作使用 `aitest.resolved-execution-action/1.2`，包含实际来源观察的采集回执使用 `aitest.execution-collection/1.1`；旧动作/回执按原版本读取，不补造来源。首次登记步骤以冻结正文摘要和期望生成唯一断言引用；核验结果仍须满足当前 Attempt、准确依据确认、证据完整和依赖有效才能进入 V。旧运行缺引用时不追溯补写。
 
@@ -385,4 +385,4 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 
 `export_report` 新增可选 `report_revision`（正整数）；传入时只导出该报告准确修订，复核仍须匹配该修订。省略时保留原最新报告语义及旧意图指纹。显式修订参与指纹，同一意图更换修订拒绝。面板从当前报告选择传入，无需用户填写编号或修订。
 
-步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。
+步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../归档/validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。

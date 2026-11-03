@@ -10,7 +10,7 @@ ExecutionFacts 当前 Attempt/来源事实消费、独立核验、报告/交付/
 
 tests/contracts/test_execution_facts.py、test_public_execution_facts_fixtures.py、test_execution_facts_decision_adapter.py、test_halfway_execution_fixtures.py。
 
-准确命令、JUnit、失败修正及发布回执见[本批验证](../../../validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)。
+准确命令、JUnit、失败修正及发布回执见[本批验证](../../../归档/validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)。
 
 ## 真实环境验收
 

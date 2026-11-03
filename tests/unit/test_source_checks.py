@@ -103,7 +103,7 @@ def test_source_check_preserves_environment_blocked_fact(tmp_path: Path) -> None
 
 
 # ------------------------------------------------------ C-16：语法与逐模块
-# 反例来自 docs/validation/p1-source-completion-20261012/source-provider-counterexamples.py：
+# 反例来自 docs/归档/validation/p1-source-completion-20261012/source-provider-counterexamples.py：
 # 语法错误、导入失败的多模块源码此前仍被判 verified 且无缺口。
 
 

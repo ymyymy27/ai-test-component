@@ -1,7 +1,7 @@
 """A-09/B-03：模型材料 JSON 投影的严格解码与编码变体过滤。
 
 本文件是交接反例
-``docs/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py``
+``docs/归档/validation/p1-abc-remaining-20261004/pending-model-projection-json-safety.py``
 （基线 2567bf9 上 14 failed / 1 passed）的正式回归：
 
 - JSON 键或值中的 ``\\uXXXX`` 转义不得隐藏已登记凭据（一期架构02第13节要求

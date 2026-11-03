@@ -1,7 +1,7 @@
 """规则 Markdown 导入导出（检查文档 B-04 的"规则 Markdown"一项）。
 
 依据：需求 P1-FR05（"人类步骤、AI 规则、证据和输出规范；**Markdown 导入导出**"）；
-功能文档第 4 节；`docs/文档-feix-a/B包/02-B包施工检查项清单.md` 第 39 节。
+功能文档第 4 节；`docs/归档/作者文档/文档-feix-a/B包/02-B包施工检查项清单.md` 第 39 节。
 
 方言由 `rules_markdown.py` 的模块 docstring 定义，本文件逐条锁定它：
 

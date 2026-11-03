@@ -10,7 +10,7 @@
 
 tests/contracts/test_prepared_run.py、test_prepared_run_functional_fixtures.py、test_halfway_execution_fixtures.py；本批授权/运行修订回归。
 
-准确命令、JUnit、失败修正及发布回执见[本批验证](../../../validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)。
+准确命令、JUnit、失败修正及发布回执见[本批验证](../../../归档/validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)。
 
 ## 真实环境验收
 

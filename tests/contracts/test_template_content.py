@@ -1,7 +1,7 @@
 """Template content regression tests for the six shipped packs.
 
 These assert the requirements recorded in
-`docs/文档-feix-a/B包/06-六个内置模板升级设计说明.md`; structural validity is
+`docs/归档/作者文档/文档-feix-a/B包/06-六个内置模板升级设计说明.md`; structural validity is
 already covered by `test_templates.py`.
 """
 

@@ -636,7 +636,7 @@ def test_export_encodes_business_identities_without_creating_unsafe_members(
 def test_saved_export_guard_refuses_actual_legacy_unsafe_archives(vector_index) -> None:
     """Permanent-object digest agreement alone must not authorize old unsafe ZIPs."""
     vectors_path = Path(__file__).resolve().parents[2] / (
-        "docs/validation/p1-completion-repair-20261014/zip-legacy-vectors.json"
+        "docs/归档/validation/p1-completion-repair-20261014/zip-legacy-vectors.json"
     )
     vector = json.loads(vectors_path.read_text(encoding="utf-8"))["vectors"][vector_index]
     content = base64.b64decode(vector["artifact_base64"], validate=True)

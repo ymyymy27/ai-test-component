@@ -18,7 +18,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 当前状态只读文件顶部元数据。下面带旧日期的实施记录保留原基线；其中旧状态数字和人员待答文字不构成当前待办。
 
-按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
+按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
 
 - 已实现：摘要/按引用详情、核心只读 DTO、受控确认和运行控制表单、交付验证投影已接；展示不重算判定。
 - 产品实施/验收跟踪（未关闭）：完整编辑向导、真实 Trae 交互、所有视图同源产品对拍仍未完成。
@@ -30,7 +30,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 现行版本：0.11。运行推进/暂停/恢复/取消及报告关联提测表单已接；继续完整编辑向导与真实 Trae。
 
-用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../归档/validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
 
 
 ## 交付核验报告引用增量（2026-10-15）
@@ -38,19 +38,19 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 按 [DEC-016](../../归档/裁定/DEC-016-交付核验报告关联.md) 增加 submit_delivery 可选 verification_report_ref（report_id、record_revision）；只从同源码的准确报告与冻结执行事实派生本次验收范围，随新提测保存，旧交付/报告不变。无新引用时原形状和未验证语义兼容。报告关联须纳入原受控确认，不从开发自述复制完成状态；实现与测试进行中，不代签。
 
 
-> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
+> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../归档/validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
 
 
 ## 0.4.2 项目与环境登记入口（2026-10-15）
 
 新建项目使用项目名称/实际测试目标表单，空值拒绝，不保存示例值；仍先准备准确输入再请求核心确认。机器级 aitest.pythonCarriersFile 只作为新核心启动配置，纳入宿主上下文身份；既有核心不热更。完整计划/执行向导仍欠，环境登记不代替环境声明/计划发布/依据确认/授权。
 
-实现与验证见[本批记录](../../../validation/p1-environment-entry-20261015/README.md)，原批次 reviewing/partial/not_run（非当前状态） 与历史签署不改。
+实现与验证见[本批记录](../../../归档/validation/p1-environment-entry-20261015/README.md)，原批次 reviewing/partial/not_run（非当前状态） 与历史签署不改。
 
 
 ## 2026-10-15 全目录复核
 
-配置、新建项目模板与受控高级入口已接。写请求新增宿主 contextId 并在转发前核对，配置变化拒绝旧请求；完整业务向导和真实 Trae 尚未完成。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+配置、新建项目模板与受控高级入口已接。写请求新增宿主 contextId 并在转发前核对，配置变化拒绝旧请求；完整业务向导和真实 Trae 尚未完成。 本批合同/消费方检查与未验证范围见[证据](../../../归档/validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
 
 
 ## 受控操作预览入口（2026-10-15）
@@ -59,15 +59,15 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 仅doctor声明CORE-001的 `native-confirmation/1` 后启用。网页点击只请求核心窗口，实际用户确认在核心私有会话发生；普通只读派发与MCP权限保持。取消/错误保留原意图草稿，界面不自动重试、不把传输成功当业务通过。新增宿主命令配置解释器、专用用户数据目录、项目编号；配置变化清空运行编号与旧投影。
 
-这是受控高级入口，完整计划/执行向导、默认独立核验及真实Trae用户流仍开放；候选VSIX与浏览器/宿主组件测试不证明真实安装兼容。原批次 reviewing/partial/not_run（非当前状态）和历史签署保持，见[准确证据](../../../validation/p1-native-entry-20261015/README.md)。
+这是受控高级入口，完整计划/执行向导、默认独立核验及真实Trae用户流仍开放；候选VSIX与浏览器/宿主组件测试不证明真实安装兼容。原批次 reviewing/partial/not_run（非当前状态）和历史签署保持，见[准确证据](../../../归档/validation/p1-native-entry-20261015/README.md)。
 
 ## 当前续修与验证范围（76ab7d2 起点）
 
-受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。原批次 reviewing/partial/not_run（非当前状态） 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+受控高级入口和提交前上下文核对已接；继续主动作/工作台/设置向导、交付验证投影与真实 Trae。 [本次准确实现/证据](../../../归档/validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。原批次 reviewing/partial/not_run（非当前状态） 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：0.10；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
+现行版本：0.10；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../归档/validation/p1-boundary-fixes-20261013/README.md)。后补有效确认已接核心；继续真实 Trae 项目/详情/业务动作、主屏同边界与交付验证投影。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，原批次 reviewing/partial/not_run（非当前状态） 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -80,7 +80,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 **已实现及原缺陷修复**：RunViewDTO/PanelViewDTO/DeliveryViewDTO、CommittedViewReader 与面板只读列表/详情/简报/事件已有部分消费，因此 D 实现从 not_started 更正为 partial。面板测试由模拟 host 提供 projectContext，实际 Trae 扩展没有对应接线；运行/生成按钮仍禁用，不能写成真实工作台完成。
 
-**当前阻塞与下一动作**：B/D 接真实宿主项目上下文与 CommittedViewReader 的详情查询、有效确认和受控用户动作，补主屏同边界与半程双序列；B 写准确交付验证投影。 具体反例、组件替身范围与原输出见[本轮验证](../../../validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
+**当前阻塞与下一动作**：B/D 接真实宿主项目上下文与 CommittedViewReader 的详情查询、有效确认和受控用户动作，补主屏同边界与半程双序列；B 写准确交付验证投影。 具体反例、组件替身范围与原输出见[本轮验证](../../../归档/validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../归档/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
 
 本轮未完成真实 Trae、实际业务对象/供应方故障、物理掉电或全部合同场景提供/消费方对拍，未新增双方签署。以下历史复核段中的旧缺项/数量只对应原日期；仍有效的正式字段和版本增量继续按正文消费。
 
@@ -93,7 +93,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 **仍缺／优先动作**：现行动作名为 confirm_basis（HUMAN_ACTIONS，relay 不自签），不是历史 confirm_assertion_basis。动作数量以实际库存协商，不能沿用历史 18/19 项。第 5 节第三、四项的统计由核心领域唯一计算、界面读 DTO；第 8 节历史 D 回复已存在，不能再笼统写“等待所有回复”。
 
-**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../归档/validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 
 字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
 
@@ -371,9 +371,9 @@ D 侧已于 2026-10-03 回复五项，确认动作表为 **18 项**；发布冲�
 
 `select_case_reuse` 保持人工动作，统一入口及 MCP 分类均排除 relay 自签；新读取/宿主配置不授权业务写入。宿主项目/运行选择显式声明、核对请求作用域，配置缺失清空上下文。状态仍 原批次 reviewing/partial/not_run（非当前状态），原 last_verified_commit 和确认记录保持。
 
-2026-10-14 同批参数合同补证：生成 ReadViewQuery Schema 用 oneOf 明确三种投影的必填/禁止组合，身份不得为空白或含控制字符；标准 JSON Schema 的尾换行宽松锚点不能扩大核心接受范围，增加显式否定控制字符。14 个向量与模型一致，接口/旧记录/人工边界不改，局部证据见[续检](../../../validation/p1-completion-repair-20261014/README.md)，不新增真实对拍。
+2026-10-14 同批参数合同补证：生成 ReadViewQuery Schema 用 oneOf 明确三种投影的必填/禁止组合，身份不得为空白或含控制字符；标准 JSON Schema 的尾换行宽松锚点不能扩大核心接受范围，增加显式否定控制字符。14 个向量与模型一致，接口/旧记录/人工边界不改，局部证据见[续检](../../../归档/validation/p1-completion-repair-20261014/README.md)，不新增真实对拍。
 
-**2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、原批次 reviewing/partial/not_run（非当前状态）、签署与 last_verified_commit 均不变。
+**2026-10-14 路径/旧制品续修（既有报告架构 03 第 5 节实现补齐）**：生成与旧意图/冻结键回读均核对 ZIP 规范相对成员、保留名、大小写/Unicode 重名及普通文件属性；清单路径与实际目录精确关联，元数据读取预算 8 MiB，仅支持 stored/deflate，未知投影策略不以当前 1.0 产物冒充。原材料/历史失败不改写；五文件 98、导出最终整文件 42 通过，修后全量见[新取证](../../../归档/validation/p1-final-closure-20261014/README.md)。此为实现与安全预算说明，公开 DTO/FR/AC、原批次 reviewing/partial/not_run（非当前状态）、签署与 last_verified_commit 均不变。
 
 ### 0.9 宿主提交前上下文绑定
 
@@ -386,4 +386,4 @@ Webview 的 controlledDispatch 必须回传最近 projectContext.context_id 为 
 
 `export_report` 新增可选 `report_revision`（正整数）；传入时只导出该报告准确修订，复核仍须匹配该修订。省略时保留原最新报告语义及旧意图指纹。显式修订参与指纹，同一意图更换修订拒绝。面板从当前报告选择传入，无需用户填写编号或修订。
 
-步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。
+步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../归档/validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。
