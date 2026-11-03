@@ -399,7 +399,8 @@ def test_corrupt_saved_policy_origin_cannot_reach_model_transport(policy_core, m
     # （`substrate.require_record_identity` 的 `type(record.revision) is not int`，`6951674` 引入）
     # 先拒绝，流程走不到策略来源证明，用例层按"非法输入"归一为 `B_INVALID_PARAMETER`。
     # 这是既定口径——**不以等待确认替代非法输入**（见
-    # `docs/修改日志/袁/2026-10-06-非默认隔离环境受控确认与持续消费.md` 与 AB-001 的输入守卫条目），
+    # `docs/归档/修改日志/袁/2026-10-06-非默认隔离环境受控确认与持续消费.md`
+    # 与 AB-001 的输入守卫条目），
     # 因此这里不是"该报 AWAITING_USER_CONFIRMATION 却报错"。
     # 其余损坏在策略来源证明处被拒，仍按受控确认返回 AWAITING_USER_CONFIRMATION。
     assert refused.error.code == (

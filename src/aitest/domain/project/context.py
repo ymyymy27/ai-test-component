@@ -1,6 +1,6 @@
 """Project, module, dependency, environment and delivery domain models.
 
-设计依据：`docs/文档-feix-a/B包/05-项目上下文领域层设计说明.md`
+设计依据：`docs/归档/作者文档/文档-feix-a/B包/05-项目上下文领域层设计说明.md`
 （一期架构文档《01-项目与计划》第 1、2、3、7 节）。
 
 本模块只使用标准库，零 I/O：

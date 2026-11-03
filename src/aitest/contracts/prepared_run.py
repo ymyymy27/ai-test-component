@@ -1,7 +1,7 @@
 """Versioned PreparedRun contract: the single business deliverable of package B.
 
 Frozen at prepare time; read by C and displayed by D. Design rationale and field
-semantics: `docs/文档-feix-a/B包/04-PreparedRun设计说明.md`.
+semantics: `docs/归档/作者文档/文档-feix-a/B包/04-PreparedRun设计说明.md`.
 
 The run vocabulary (tier / driver / conclusion ceiling) is declared here at the
 contract boundary and in `aitest.domain.planning.plans` for domain rules. The two

@@ -1,6 +1,6 @@
 """薄底座协议的九条不变量（Sprint 2／5／6 共用）。
 
-依据：`docs/文档-feix-a/B包/11-薄底座与prepare_run编排设计说明.md` 第 3.4 节。
+依据：`docs/归档/作者文档/文档-feix-a/B包/11-薄底座与prepare_run编排设计说明.md` 第 3.4 节。
 测试对象是内存实现（`tests/support/memory_substrate.py`），不是真实存储。
 """
 

@@ -2,7 +2,7 @@
 
 2026-10-16；现行[合同 1.94](contract.md)。本页替代旧的层叠“当前复核”；历史内容在[处理前快照](../../归档/2026-10-16逐项处理前/README.md)。
 
-0.4.10 兼容增量与面板消费以合同新增节及[本批记录](../../../validation/p1-onboarding-live-20261016/README.md)为准。根选择、配置校验与组件接线的通过不替代新版真实 Trae 验收。
+0.4.10 兼容增量与面板消费以合同新增节及[本批记录](../../../归档/validation/p1-onboarding-live-20261016/README.md)为准。根选择、配置校验与组件接线的通过不替代新版真实 Trae 验收。
 
 ## 已实现
 
@@ -12,7 +12,7 @@
 
 tests/contracts/test_local_api.py、test_identity.py、test_query_boundary_response.py；来源完整链见本批回执。
 
-准确命令、JUnit、失败修正及发布回执见[本批验证](../../../validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)。
+准确命令、JUnit、失败修正及发布回执见[本批验证](../../../归档/validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)。
 
 ## 真实环境验收
 
@@ -24,4 +24,4 @@ Windows 真实 Python 子进程属于组件取证；人类授权在自动化测�
 
 现行提供/消费接口已接线并通过最低对拍，按 DEC-020 在 fix 冻结并移入已完成。上列产品实施/真实验收仍开放，不能由本接口关闭推定通过。技术方案按用户授权处理；旧人员签署不改。
 
-0.4.7 补宿主模型配置启动通路，配置/接线 28 项通过；正式发布与真实供应方组件证据见[本批记录](../../../validation/p1-trae-live-20261016/README.md)。真实 Trae 用户流程仍未验证。
+0.4.7 补宿主模型配置启动通路，配置/接线 28 项通过；正式发布与真实供应方组件证据见[本批记录](../../../归档/validation/p1-trae-live-20261016/README.md)。真实 Trae 用户流程仍未验证。

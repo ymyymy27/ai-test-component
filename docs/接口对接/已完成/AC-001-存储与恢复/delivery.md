@@ -10,7 +10,7 @@
 
 本批 test_execution_commit、test_persisted_execution_receipts、test_runtime_revision_saved_material、完整报告重启链；历史维护证据保留。
 
-准确命令、JUnit、失败修正及发布回执见[本批验证](../../../validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)。
+准确命令、JUnit、失败修正及发布回执见[本批验证](../../../归档/validation/p1-runtime-source-20261015/README.md)。另有 237 项跨包关闭补测和 14 项双方半程夹具通过，见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)。
 
 ## 真实环境验收
 

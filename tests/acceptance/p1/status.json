@@ -82,7 +82,7 @@
         },
         {
           "kind": "execution_facts",
-          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/归档/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
           "resolved_by": "D"
         },
         {
@@ -772,7 +772,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/归档/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
           "resolved_by": "D"
         },
         {
@@ -909,7 +909,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/归档/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
           "resolved_by": "D"
         },
         {
@@ -952,7 +952,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/归档/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
           "resolved_by": "D"
         },
         {
@@ -997,7 +997,7 @@
       "blockers": [
         {
           "kind": "execution_facts",
-          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
+          "detail": "证据等级与判定未接运行时：domain/review/reports.py:486 evaluate_review() 与 :448 _derive_evidence_grade() 只在 tests/ 与 docs/归档/validation/ 被调用，src/ 内无调用点，『未打分』标注在全仓 grep 不到；默认装配没有把运行事实送进评审派生。",
           "resolved_by": "D"
         },
         {
@@ -1411,7 +1411,7 @@
       "source_evidence": [
         "src/aitest/application/ports.py（ProjectionPort/SecretPort/ModelProvider 均有方法签名）",
         "src/aitest/bootstrap.py:453（给出 model_endpoint 时构造 HttpModelProvider）",
-        "docs/文档-feix-a/B包/09-待解决问题清单.md:298（B-Q06 于 2026-09-28 结案）"
+        "docs/归档/作者文档/文档-feix-a/B包/09-待解决问题清单.md:298（B-Q06 于 2026-09-28 结案）"
       ]
     },
     {

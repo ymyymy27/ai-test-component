@@ -22,20 +22,20 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 明确源码选择 `.` 表示声明的项目根范围，含其合法子文件；此例外仅用于选择列表，不放宽实际文件路径、排除规则、链接或越界校验。快照元数据保存及回读必须识别同一根选择。无内容、未核验、真实来源不足仍保留原阻塞语义。
 
-本批范围与组件检查见[实施记录](../../../validation/p1-onboarding-live-20261016/README.md)。新增真实 Trae 全链路未验；本轮面板优先整理，不以同版本旧安装替代最新源码验收。既有字段保持兼容，不迁移或重写旧业务记录。
+本批范围与组件检查见[实施记录](../../../归档/validation/p1-onboarding-live-20261016/README.md)。新增真实 Trae 全链路未验；本轮面板优先整理，不以同版本旧安装替代最新源码验收。既有字段保持兼容，不迁移或重写旧业务记录。
 
 ## 0.4.7 宿主模型配置增量（2026-10-16）
 
 按用户授权补标准 Trae 启动的模型配置接线。机器级 modelConfigurationFile 通过 AITEST_MODEL_CONFIGURATION 传给新核心；严格有界 aitest.model-provider/1 只含 endpoint/credential_reference，密钥由原 model 用途 SecretManager 解析。无配置兼容旧行为，坏配置只降级模型动作；配置变化须受控重启。模型出站策略与材料确认仍独立，不以配置代签。
 
-接口不改 B/C/D DTO 或已保存记录；新增默认装配输入。28 项模型配置/既有接线检查通过，真实 DeepSeek 组件调用通过；实际 Trae 用户流程仍未验证，见[本批记录](../../../validation/p1-trae-live-20261016/README.md)。
+接口不改 B/C/D DTO 或已保存记录；新增默认装配输入。28 项模型配置/既有接线检查通过，真实 DeepSeek 组件调用通过；实际 Trae 用户流程仍未验证，见[本批记录](../../../归档/validation/p1-trae-live-20261016/README.md)。
 
 
 ## 当前逐项处理结论（2026-10-16）
 
 当前状态只读文件顶部元数据。下面带旧日期的实施记录保留原基线；其中旧状态数字和人员待答文字不构成当前待办。
 
-按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
+按用户明确授权代理完成六主题跨包技术确认，并在用户指定的 fix 集成分支冻结；不补写他人历史签名。提供/消费的现行接口实现记 done，验证保持 fixture_passed。关闭依据与逐包异常分支见[关闭核对](../../../归档/validation/p1-runtime-source-20261015/interface-closure.md)，不是一期产品全部完成或真实环境验收通过。
 
 - 已实现：模型端口按用途注入，凭据使用窄状态适配器；草稿/发布/运行修订动作已注册；报告关联提测与材料闭包已接。
 - 产品实施/验收跟踪（未关闭）：真实模型供应方、用户半程修订、非 Python 载体及宿主验收尚缺。
@@ -53,7 +53,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 最终来源元数据发布永久对象并回读核对，与当前检查点、source_check 证据、load 检查事实及新 ExecutionFacts 快照原子挂接。新快照可更新同一次 Attempt 的当前来源投影；旧快照、准入材料、旧报告不改。已经保存的实际观察不可被后续检查点重写。报告只排除有准确证据归属的已替换 Attempt 来源，归属未知或当前来源缺口继续阻断；这不修改 E/R/V、完整范围或关键链路规则。
 
-组件回归、完整样例链、产物与未验证范围统一见[本批证据](../../../validation/p1-runtime-source-20261015/README.md)。真实 Trae、客户业务、物理掉电和全部一期验收仍未通过；本增量不代填双方签署，整体 原批次 reviewing/partial/not_run（非当前状态） 保留。
+组件回归、完整样例链、产物与未验证范围统一见[本批证据](../../../归档/validation/p1-runtime-source-20261015/README.md)。真实 Trae、客户业务、物理掉电和全部一期验收仍未通过；本增量不代填双方签署，整体 原批次 reviewing/partial/not_run（非当前状态） 保留。
 
 
 
@@ -61,7 +61,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 现行版本：1.50。报告关联提测与材料闭包已接；继续真实半程、供应方与宿主取证。
 
-用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
+用户已授权代理决定本轮接口方案；DEC-015/016 已回写并归档，无需等待该两项技术选项确认。实现边界和回归见[本批记录](../../../归档/validation/p1-implementation-audit-20261015/README.md)。整体 原批次 reviewing/partial/not_run（非当前状态） 保留，历史双方签署与真实验收不代填。下文带日期的旧批次结论只证明其原版本。
 
 
 ## 交付核验报告引用增量（2026-10-15）
@@ -69,34 +69,34 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 按 [DEC-016](../../归档/裁定/DEC-016-交付核验报告关联.md) 增加 submit_delivery 可选 verification_report_ref（report_id、record_revision）；只从同源码的准确报告与冻结执行事实派生本次验收范围，随新提测保存，旧交付/报告不变。无新引用时原形状和未验证语义兼容。报告关联须纳入原受控确认，不从开发自述复制完成状态；实现与测试进行中，不代签。
 
 
-> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
+> 2026-10-15 当前实现补充：按保存引用准备、默认无凭据 HTTP 核验与分步输入已接，见 [CORE 1.88](../CORE-001-A包公共接口/contract.md)、[BC 0.51](../BC-001-PreparedRun/contract.md)及[本批证据](../../../归档/validation/p1-workflow-20261015/README.md)。本合同字段/版本未变，旧章节缺口按各自历史日期理解；真实宿主、其他核验适配与验收仍开放，不代签。
 
 
 ## 0.4.2 项目与环境登记入口（2026-10-15）
 
 宿主登记格式 aitest.python-carriers/1，顶层仅 schema_version/carriers；每项固定 project_id/environment_id/carrier_id/executable/expected_executable_digest/base_executable/expected_base_executable_digest/dependency_roots/isolation_mode/venv_root。配置限制256KiB、最多256项；重复JSON键、项目/环境重复、相对路径或未知字段拒绝。CLI python-carrier 从明确指定的虚拟环境路径计算文件摘要生成登记，不执行候选解释器，不代替保存业务环境声明。--output 仅创建新UTF-8文件，不覆盖既有配置。
 
-实现与验证见[本批记录](../../../validation/p1-environment-entry-20261015/README.md)，原批次 reviewing/partial/not_run（非当前状态） 与历史签署不改。
+实现与验证见[本批记录](../../../归档/validation/p1-environment-entry-20261015/README.md)，原批次 reviewing/partial/not_run（非当前状态） 与历史签署不改。
 
 
 ## 2026-10-15 全目录复核
 
-新建项目支持事务内分配创建提交号；草稿、发布、准确修订与有效依据链已有。权威交付验证投影、供应方与真实半程仍欠。 本批合同/消费方检查与未验证范围见[证据](../../../validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
+新建项目支持事务内分配创建提交号；草稿、发布、准确修订与有效依据链已有。权威交付验证投影、供应方与真实半程仍欠。 本批合同/消费方检查与未验证范围见[证据](../../../归档/validation/p1-interface-review-20261015/README.md)。历史章节只证明对应旧版本，签署与整体对拍状态不代填。
 
 
 ## 新建项目的提交身份占位（2026-10-15）
 
 `save_context.parameters.project.created_at_commit` 新增显式占位 `@core-assigned`，仅用于首次保存（expected_revision为0/无旧修订）的入口模板。应用在已开启事务内以 `next_commit_seq()` 分配本条项目记录的准确提交序号，落盘正文不保留占位；追加修订不得重新请求创建序号。同一业务意图仍按原输入摘要回读原提交，不因重传重新分配。已有非占位字段/记录保持原样可读，不做全库回写。
 
-受控宿主通过CORE-001的可选原生确认入口调用原动作，不直接写仓储，不代填真实验收。原批次 reviewing/partial/not_run（非当前状态）及签署保持，见[本批证据](../../../validation/p1-native-entry-20261015/README.md)。
+受控宿主通过CORE-001的可选原生确认入口调用原动作，不直接写仓储，不代填真实验收。原批次 reviewing/partial/not_run（非当前状态）及签署保持，见[本批证据](../../../归档/validation/p1-native-entry-20261015/README.md)。
 
 ## 当前续修与验证范围（76ab7d2 起点）
 
-同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 [本次准确实现/证据](../../../validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。原批次 reviewing/partial/not_run（非当前状态） 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
+同次有限记录页/全视图外层配对与准确交付提测关联已补；继续权威交付验证投影与真实半程/供应方/宿主取证。 [本次准确实现/证据](../../../归档/validation/p1-completion-repair-20261013/README.md)。生成 ReadViewQuery 来自 Python 源码；旧协议字段/历史记录可读，旧核心按能力显式降级。原批次 reviewing/partial/not_run（非当前状态） 和历史签署/last_verified_commit 保持，局部测试不等于真实对拍。
 
 ## 上一批实现修复（2026-10-13）
 
-现行版本：1.47；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
+现行版本：1.47；修复起点 fix@7b931af，准确代码指纹与原输出见[本轮修复](../../../归档/validation/p1-boundary-fixes-20261013/README.md)。D 有效确认/运行修订已消费，不改冻结 Case/Plan；B 继续交付验证投影、真实半程/供应方/宿主验收。
 
 本轮依一期功能第3/12/15节及架构01/03/04/05修实现，没有另定 FR/AC 或修改项目规范；历史签署/last_verified_commit 保留，原批次 reviewing/partial/not_run（非当前状态） 不变。新增报告内部伴随执行快照/阻塞引用可读旧记录，旧无来源指针的材料明确缺口，不落回最新运行；公开 Command/Response/生成 Schema 不改。select/inspect 使用既有执行 SnapshotContentRef 的 snapshot_commit_id/snapshot_cursor/digest，修复错误摘要字段读取，不混业务源码快照。
 
@@ -109,14 +109,14 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 **已实现及原缺陷修复**：C-15/C-16 原快照/字段/目录及实际编译/逐模块事实消费已修；save_plan/save_rules 和显示偏好默认入口已实现。受控补确认并不改冻结 Case/Plan，D-13 需要消费准确有效确认，而非再次要求修改冻结标签。
 
-**当前阻塞与下一动作**：保持草稿/发布/执行事实独立；B 接权威交付验证投影，B/D 对拍后补确认和运行修订依据；补真实半程及宿主来源证据。 具体反例、组件替身范围与原输出见[本轮验证](../../../validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
+**当前阻塞与下一动作**：保持草稿/发布/执行事实独立；B 接权威交付验证投影，B/D 对拍后补确认和运行修订依据；补真实半程及宿主来源证据。 具体反例、组件替身范围与原输出见[本轮验证](../../../归档/validation/p1-fix-review-20261013/README.md)和[逐 FR/AC 对照](../../../归档/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)，当前状态只查[项目现状](../../../现状.md)。
 
 本轮未完成真实 Trae、实际业务对象/供应方故障、物理掉电或全部合同场景提供/消费方对拍，未新增双方签署。以下历史复核段中的旧缺项/数量只对应原日期；仍有效的正式字段和版本增量继续按正文消费。
 
 
 ## 历史源码复核记录（2026-10-12）
 
-本次全源码完成性复核（文档起点 fix@708439b）更正前轮默认接线结论：真实保存材料经未替换默认解析器无法 prepare_execution（C-15），兼容字段替身下语法错/部分导入失败仍 verified（C-16）。组件已注入不等于可信默认链已贯通。[原脚本/实际输出及替身边界](../../../validation/p1-source-completion-20261012/README.md)与[逐 FR/AC 对照](../../../一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)分别说明；本次仅修实现状态/阻塞记录，字段签名/Schema/已存数据/历史确认保持，无数据迁移，不补签或标对拍完成。
+本次全源码完成性复核（文档起点 fix@708439b）更正前轮默认接线结论：真实保存材料经未替换默认解析器无法 prepare_execution（C-15），兼容字段替身下语法错/部分导入失败仍 verified（C-16）。组件已注入不等于可信默认链已贯通。[原脚本/实际输出及替身边界](../../../归档/validation/p1-source-completion-20261012/README.md)与[逐 FR/AC 对照](../../../归档/一期工程整改/01-现状检查/当前代码分析与一期工程对比.md)分别说明；本次仅修实现状态/阻塞记录，字段签名/Schema/已存数据/历史确认保持，无数据迁移，不补签或标对拍完成。
 
 本版 1.40 只同步实现状态、阻塞项及历史内容的生效边界；**不改变端口签名、字段/枚举、协议版本、生成 Schema/夹具或已保存记录语义**，无需数据迁移。取证 `develop@845e697`，整改/证据文档基线 `90baba0`。此记录为自动化源码复核，**不替代提供方/消费方确认**；reviewing/partial 与原确认历史保留。
 
@@ -124,7 +124,7 @@ next_action: 现行接口已关闭；后续字段变更重新评审，真实产�
 
 **仍缺／优先动作**：DEC-010 已按 CD-001 1.17 采用非破坏性实现：仅内部 expected_source_content_digest 改名，公开 expected_source_binding_digest 字段与 execution-facts/1.0 保持；旧 1.36 中“外字段改名未完成”预案不再是待办。实际供应方与完整业务 UI 未通过验收。
 
-**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
+**验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../归档/validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 
 ## 修复后状态（2026-10-12，本批）
 
@@ -133,9 +133,9 @@ C-15／C-16／A-19 的代码缺陷已修，**只改实现，不改端口签名/�
 - **C-15**：默认解析器经权威业务记录（`SourceAnalysisService.verify_saved`：按准确修订读回并逐 blob 复核）取技术 `pinned_snapshot_id`，不再把业务 `source-*` 当技术 `snap-*`；`ExecutionRequest.materialized_snapshot_ref` 改填**实际固定 workdir**；来源 provider 改读合同的 `snapshot.source_snapshot_id` + `record_revision`，内容身份按唯一口径重算而非回声。修复过程中同族暴露的**冻结步骤截止读取错位**（`EnvironmentRefFact` 投影不带 `step_timeout_seconds`，解析器读投影得 `None`，授权侧读环境记录得真实毫秒数）一并改为从**权威环境记录**读取。
 - **C-16**：来源核验在登记解释器下逐个 `.py` 实际 `compile`；逐**全部登记模块**核对实际加载文件（必须在固定 workdir 内）/字节摘要/失败分类；解释器取探针自报 realpath 与冻结值比对；探针原始输出按内容寻址永久保存。`APPLICABLE_BUILD`／显式 `MINIMAL_START` 仍未实现（字段来源未冻结），如实保留为缺口。
 - **A-19**：`uv.lock` 按声明范围重新生成（`>=3.11, <3.14`），`uv lock --check` 退出 0，全新环境 `uv sync --locked` 退出 0。
-- **save_plan／save_rules 草稿入口（1.42，2026-10-13）**：两个一期动作名补齐。计划草稿保存**不跑发布门禁**（草稿可尚未补齐），发布仍走 `publish_plan` 逐条门禁并产生下一修订，两者共用同一条"调用方所见修订"乐观锁（`0` = 新建），已发布计划不可当草稿覆盖；规则草稿与 `import_rules` 共用 `save_rule_draft` 落盘路径，**不产生 `rule_version`**（未发布不生效）。请求里自报 `status`/`confirmation_id` 不算数。默认可派发动作 52。证据见[草稿入口证据](../../../一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md)。
+- **save_plan／save_rules 草稿入口（1.42，2026-10-13）**：两个一期动作名补齐。计划草稿保存**不跑发布门禁**（草稿可尚未补齐），发布仍走 `publish_plan` 逐条门禁并产生下一修订，两者共用同一条"调用方所见修订"乐观锁（`0` = 新建），已发布计划不可当草稿覆盖；规则草稿与 `import_rules` 共用 `save_rule_draft` 落盘路径，**不产生 `rule_version`**（未发布不生效）。请求里自报 `status`/`confirmation_id` 不算数。默认可派发动作 52。证据见[草稿入口证据](../../../归档/一期工程整改/03-修复证据/2026-10-13-B计划与规则草稿入口.md)。
 
-证据见[修复证据](../../../一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)与[修复轮验证](../../../validation/p1-defect-fix-20261012/README.md)。**这不是真实验收**：合同 `verification_status` 保持 `not_run`、`last_verified_commit` 保持 `null`，reviewing/partial 与原确认历史不变。
+证据见[修复证据](../../../归档/一期工程整改/03-修复证据/2026-10-12-C15-C16-D10-A19修复证据.md)与[修复轮验证](../../../归档/validation/p1-defect-fix-20261012/README.md)。**这不是真实验收**：合同 `verification_status` 保持 `not_run`、`last_verified_commit` 保持 `null`，reviewing/partial 与原确认历史不变。
 
 字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查四包检查和[项目现状](../../../现状.md)。
 
@@ -147,7 +147,7 @@ C-15／C-16／A-19 的代码缺陷已修，**只改实现，不改端口签名/�
 1.37 默认装配注入可信动作解析器（2026-10-09）：assemble_workspace_core 在调用方未传入时，默认装配 build_saved_action_resolver（物化准入用 StartMaterializer：按架构01第12节物化到 workdirs/<run_id> 并保留期望→实际映射与 source_binding_digest；尝试序号读已保存运行事实；副作用类别取最严 unknown）。因此 prepare_execution 不再回答“无可信解析器”：中继（relay）入口诚实拒绝为 AWAITING_USER_CONFIRMATION（需受控用户确认）；重启后未登记载体时按 [DEC-012](../../归档/裁定/DEC-012-start来源失败错误码与原因标识登记.md) 返回 SOURCE_BINDING_UNVERIFIED（reason 取 environment_unregistered），**不再以 INTERNAL_ERROR 泄露无 code 的 ValueError**。实现仍为 partial：真实进程端到端与真实宿主验收未做，35 项 AC 未变。
 1.36 三项待裁定已裁定并归档（2026-10-09，负责人授权代决）：(a) [DEC-011](../../归档/裁定/DEC-011-AB-001四项start侧来源绑定语义.md)——**确认 1.35 的 1A/2A/3A/4A 四项语义**，1.35 中的"单方裁定待双方确认"标注作废；四项实现已就绪（31项回归）但**未接入默认装配**（前提是可信动作解析器，属 A-02/C-02/C-12）。(b) [DEC-012](../../归档/裁定/DEC-012-start来源失败错误码与原因标识登记.md)——登记**一个**不可重试错误码 `SOURCE_BINDING_UNVERIFIED`，四类原因作为结构化字段 `reason ∈ {entry_missing, source_mismatch, environment_unregistered, materialization_failed}`，缺口名沿用领域既有 `EvidenceGapKind.SOURCE_UNVERIFIED`，`next_step` 固定为"核对冻结来源与实际物化材料；如需更换入口或参数，请重新 prepare"；`CD-001` 引用不另起定义。(c) [DEC-010](../../归档/裁定/DEC-010-来源核验期望摘要字段命名与口径.md)——来源核验的期望侧**不得**复用 `BC-001` 第6节的 `source_binding_digest`（映射摘要），该内部/已发布字段须改为表达**来源内容期望摘要**；`CD-001` 的 `execution_facts@1` 字段改名属破坏性变更，须升版本并重新生成 Schema（**实现未完成，转记 CD-001 下一动作**）。三项均未改变已发布字段语义（(c) 的实施变更在 CD-001 完成后才生效）。FR/AC、原批次 reviewing/partial/not_run（非当前状态） 不变。
 
-1.35 start 侧来源绑定三项实现语义澄清（2026-10-09；四项已由 DEC-011 裁定确认，见 1.36）：据[裁定记录](../../../一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)（依据架构01第12节、架构02第7节、架构05第9节、需求P1-AC03/13/25）：(a) `ExecutionSourceBinding.cwd_mapping` 取 `workdir:<安全相对路径>`，解析结果必须落在固定 workdir 内，拒绝绝对路径/盘符/`..` 穿越/**链接逃逸**；(b) `entry_arguments` **逐字**为最终参数序列，不由用例正文或输入代入，提供代入即拒绝并要求重新 prepare；(c) 所选适配器由 `adapter_versions` 的**唯一键**决定，缺失或多键即拒绝，不新增字段。start 前四类来源失败（入口缺失/来源不符/环境未登记/物化失败）统一为不可重试阻塞并登记 `source_unverified` 缺口及对应 `next_step`；不依赖该动作的能力（登记/查询/模板/本地保存）不受影响。A 侧已实现为可测函数（`application/execution/start_source_binding.py`，31项回归，含真实物化端到端与失败反例），**尚未接入默认装配**；C 侧失败分类沿用本裁定。FR/AC、原批次 reviewing/partial/not_run（非当前状态） 不变。
+1.35 start 侧来源绑定三项实现语义澄清（2026-10-09；四项已由 DEC-011 裁定确认，见 1.36）：据[裁定记录](../../../归档/一期工程整改/02-整改计划/裁定-2026-10-09-start准入四项.md)（依据架构01第12节、架构02第7节、架构05第9节、需求P1-AC03/13/25）：(a) `ExecutionSourceBinding.cwd_mapping` 取 `workdir:<安全相对路径>`，解析结果必须落在固定 workdir 内，拒绝绝对路径/盘符/`..` 穿越/**链接逃逸**；(b) `entry_arguments` **逐字**为最终参数序列，不由用例正文或输入代入，提供代入即拒绝并要求重新 prepare；(c) 所选适配器由 `adapter_versions` 的**唯一键**决定，缺失或多键即拒绝，不新增字段。start 前四类来源失败（入口缺失/来源不符/环境未登记/物化失败）统一为不可重试阻塞并登记 `source_unverified` 缺口及对应 `next_step`；不依赖该动作的能力（登记/查询/模板/本地保存）不受影响。A 侧已实现为可测函数（`application/execution/start_source_binding.py`，31项回归，含真实物化端到端与失败反例），**尚未接入默认装配**；C 侧失败分类沿用本裁定。FR/AC、原批次 reviewing/partial/not_run（非当前状态） 不变。
 
 1.34 `SourceSnapshotPort.materialize` 返回实际路径映射与内容摘要（2026-10-09）：第 3.4 节一直要求 materialize"返回实际路径映射与内容摘要"，但未固定键名。本版澄清且**不改变现有键**：成功时除 `snapshot_id`/`destination`/`verified`/`state` 外返回 `paths`（按固定清单顺序，每项含 `relative_path` 期望来源路径、`actual_path` 在 workdir 内解析出的实际路径、`sha256`、`size`）与 `content_digest`（对该 `paths` 的规范 JSON 字节取 `sha256:` 摘要，证明本次物化出的实际来源字节集合）；拒绝时保持 `refused` 且不返回 `content_digest`。该摘要供 C 在 start 生成 `source_binding_digest`（BC-001 第 6 节：固定 workdir 的"期望→实际路径映射"摘要）时使用，不替代 `resolved_input_digest`（B 在 prepare 冻结）。A 侧实现与夹具随后对齐；B 侧忽略未知键即可接入。FR/AC、原批次 reviewing/partial/not_run（非当前状态） 不变。
 
@@ -1310,7 +1310,7 @@ C 于 2026-10-03 明确要求："请把函数所在模块、输入类型、编�
 - 当前模型配置已注入 B 默认依赖，`generate_draft(generation_mode=model)` 调用实际 provider；未配置时返回阻塞，人工模板路径仍可用。策略修改与发布依然属受控人工动作；这不表示真实供应方或 Trae 接入已验收。
 - 源码验证事实增加可选 `observed_interpreter_ref`，没有入口/加载/解释器事实不能因摘要或 PASSED 就证明来源一致。
 
-旧记录和故障分支回归、源码入口、日志见 [修复证据清单](../../../一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)。领域与基础设施不另起模型端口；基础设施经 `application/ports.py` 获取统一声明。
+旧记录和故障分支回归、源码入口、日志见 [修复证据清单](../../../归档/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)。领域与基础设施不另起模型端口；基础设施经 `application/ports.py` 获取统一声明。
 
 ### 12.1 C 启动认领的现行合同落实（2026-10-04）
 
@@ -1388,13 +1388,13 @@ shutdown_requested与实际exited分开保存。停机后的管道缺失不能�
 
 该原型只证明当前故障分支的组件修复，未完成主责current字段、Windows ReplaceFileW/候选与前指针恢复材料、对象/业务变更索引闭包、实际核心实例来源和有界正常启动。下一实施必须回到项目分册现行合同，不以内部schema/commit_sequence/parent_manifest等存储字段另立平行规范。18个B动作的公开端口签名和生成Schema未修改；状态继续原批次 reviewing/partial/not_run（非当前状态）。
 
-1928 passed、2 skipped（270.06s），根因专项573 passed（216.11s）；Ruff和mypy137文件、生成物、构建、制品对拍及隔离wheel冒烟通过；源码、节点、摘要及未验证范围见[证据清单](../../../一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)。组件对拍不是跨包完整验收。
+1928 passed、2 skipped（270.06s），根因专项573 passed（216.11s）；Ruff和mypy137文件、生成物、构建、制品对拍及隔离wheel冒烟通过；源码、节点、摘要及未验证范围见[证据清单](../../../归档/一期工程整改/03-修复证据/ABC包问题修复证据清单-2026-10-03.md)。组件对拍不是跨包完整验收。
 
 ### 12.12 主责七字段current与Windows发布组件（2026-10-04）
 
 按项目存储分册第2节落实schema_version/workspace_id/generation/commit_id/manifest_digest/index_root/event_cursor；七字段同清单核对，旧四字段只保留读取，通过活动守卫及可校验备份0006迁移而不改写业务根。Windows发布核对同一固定本地卷，检查FlushFileBuffers/ReplaceFileW及备份路径；候选/前指针/描述符摘要永久保留。未知发布不自动回退或提升候选；新根后flush失败不返回提交成功、不重复意图，默认装配拒绝新写。
 
-1967 passed、2 skipped（333.34s），解析修复前提交/Windows/迁移专项97 passed（98.37s），解析修复后新增2场景通过（2.42s）；Ruff和mypy138文件、生成物、wheel/sdist构建、制品字节对拍及隔离wheel冒烟通过。面板/VSIX源未改，沿用前轮日志并对拍字节，未声明重新构建。 39新增场景及源码字节证据见[Windows阶段](../../../validation/p1-abc-fix-20261003/WINDOWS-PUBLICATION.md)。完整主责CommitManifest及幂等结果引用/文件摘要合同、证据对象与business_change_index完整闭包、实际核心实例来源、普通启动有界恢复、未知发布人工恢复、目标设备名称元数据耐久/物理掉电、产品历史/固定排序、默认业务入口与真实AC仍需落实。 当前内部manifest/1不是完整规范清单；不得据API调用证明掉电耐久。18个B公开动作及生成Schema语义未变，状态继续原批次 reviewing/partial/not_run（非当前状态）。
+1967 passed、2 skipped（333.34s），解析修复前提交/Windows/迁移专项97 passed（98.37s），解析修复后新增2场景通过（2.42s）；Ruff和mypy138文件、生成物、wheel/sdist构建、制品字节对拍及隔离wheel冒烟通过。面板/VSIX源未改，沿用前轮日志并对拍字节，未声明重新构建。 39新增场景及源码字节证据见[Windows阶段](../../../归档/validation/p1-abc-fix-20261003/WINDOWS-PUBLICATION.md)。完整主责CommitManifest及幂等结果引用/文件摘要合同、证据对象与business_change_index完整闭包、实际核心实例来源、普通启动有界恢复、未知发布人工恢复、目标设备名称元数据耐久/物理掉电、产品历史/固定排序、默认业务入口与真实AC仍需落实。 当前内部manifest/1不是完整规范清单；不得据API调用证明掉电耐久。18个B公开动作及生成Schema语义未变，状态继续原批次 reviewing/partial/not_run（非当前状态）。
 
 ### 12.13 非默认隔离环境的准确确认与消费（2026-10-06）
 
@@ -1443,20 +1443,20 @@ prepare、C新初始登记及运行修订读取冻结的准确环境仓储材料
 
 ## 2026-10-14 状态读取与永久引用实现续修
 
-迁移/采集/永久引用/备份审计使用已有严格 JSON 解码，核对既有 registry/plan schema 与准确计划身份；prepared 不再借另一计划登记解除。异常材料保留，普通写/回收拒绝，重复审计不发布已核验事实。公开字段、DTO、Schema、签署和合同版本不变，原批次 reviewing/partial/not_run（非当前状态） 保持。三个完整小文件 56 项通过，重核心/制品与新全量尚待串行验证；[准确输入/源码/回执](../../../validation/p1-state-reader-security-20261014/README.md)保留，组件接缝不证明真实核心重启/宿主/物理掉电或完整对拍。
+迁移/采集/永久引用/备份审计使用已有严格 JSON 解码，核对既有 registry/plan schema 与准确计划身份；prepared 不再借另一计划登记解除。异常材料保留，普通写/回收拒绝，重复审计不发布已核验事实。公开字段、DTO、Schema、签署和合同版本不变，原批次 reviewing/partial/not_run（非当前状态） 保持。三个完整小文件 56 项通过，重核心/制品与新全量尚待串行验证；[准确输入/源码/回执](../../../归档/validation/p1-state-reader-security-20261014/README.md)保留，组件接缝不证明真实核心重启/宿主/物理掉电或完整对拍。
 
-后续补标准核心启动异常转换及拒绝后锁释放：三个完整受改小文件现为 60 项通过。旧源码全量因可选进度记录器内部错误提前结束（734 passed / 2 skipped，exit 3），原结果不算完整对拍；记录器经真实 Win32 读共享锁复现/修复，最新主工作区合并源码转入[独立闭环验证](../../../validation/p1-current-closure-20261014/README.md)，5397 新全量完成前不更新 not_run/签署/last_verified_commit。
-
-
-2026-10-14 零字节永久引用回收守卫续修：候选识别和删除前复核均核对空字节摘要，空事件暂存不得绕过永久引用。两份完整受改小型文件 37 项通过，新增六个节点；5403 节点仅收集，旧 14ea0ca/5397 全量仍在执行。此为既有不可回收永久材料条件的实现修复，公开字段/版本、原批次 reviewing/partial/not_run（非当前状态）、签署和 last_verified_commit 不变；完整历史闭包/迁移/真实恢复仍开放，见[本批证据](../../../validation/p1-empty-reference-20261014/README.md)。
+后续补标准核心启动异常转换及拒绝后锁释放：三个完整受改小文件现为 60 项通过。旧源码全量因可选进度记录器内部错误提前结束（734 passed / 2 skipped，exit 3），原结果不算完整对拍；记录器经真实 Win32 读共享锁复现/修复，最新主工作区合并源码转入[独立闭环验证](../../../归档/validation/p1-current-closure-20261014/README.md)，5397 新全量完成前不更新 not_run/签署/last_verified_commit。
 
 
-2026-10-14 迁移备份身份续修：内部周期冻结既有 manifest_facts 材料摘要，续跑拒绝副本改写/消失后重采样、旧活动周期无摘要和已有前态无周期；无本轮归属副本保留，新一轮创建自己的前态。最后一步回滚保存但周期收尾中断时，依据全部 rolled_back 为当前新一轮备份，不沿用旧前态。备份异常统一 MigrationError，13个新节点及两个完整小型文件47项通过，5416仅收集；公开DTO/动作/Schema/合同版本、原批次 reviewing/partial/not_run（非当前状态）及签署保持。旧5397全量不证明本批，真实恢复/完整历史/独立位置仍欠，见[本批证据](../../../validation/p1-migration-backup-identity-20261014/README.md)。
+2026-10-14 零字节永久引用回收守卫续修：候选识别和删除前复核均核对空字节摘要，空事件暂存不得绕过永久引用。两份完整受改小型文件 37 项通过，新增六个节点；5403 节点仅收集，旧 14ea0ca/5397 全量仍在执行。此为既有不可回收永久材料条件的实现修复，公开字段/版本、原批次 reviewing/partial/not_run（非当前状态）、签署和 last_verified_commit 不变；完整历史闭包/迁移/真实恢复仍开放，见[本批证据](../../../归档/validation/p1-empty-reference-20261014/README.md)。
 
 
-本批最终范围更正：受控apply/resume已补准确检查点计划/步骤/已知状态及周期一致性，非字符串状态标准拒绝。最新两个完整受改文件58项（24新增）通过，5427仅收集；前47/5416为阶段范围，保留原回执。旧5397全量18:26因验证ledger误受os.fsync故障注入而exit3，1112/2非全量通过。新记录器实际故障注入38项通过，新全量另见[新闭环](../../../validation/p1-migration-closure-20261014/README.md)，不改版本/签署/not_run。
+2026-10-14 迁移备份身份续修：内部周期冻结既有 manifest_facts 材料摘要，续跑拒绝副本改写/消失后重采样、旧活动周期无摘要和已有前态无周期；无本轮归属副本保留，新一轮创建自己的前态。最后一步回滚保存但周期收尾中断时，依据全部 rolled_back 为当前新一轮备份，不沿用旧前态。备份异常统一 MigrationError，13个新节点及两个完整小型文件47项通过，5416仅收集；公开DTO/动作/Schema/合同版本、原批次 reviewing/partial/not_run（非当前状态）及签署保持。旧5397全量不证明本批，真实恢复/完整历史/独立位置仍欠，见[本批证据](../../../归档/validation/p1-migration-backup-identity-20261014/README.md)。
 
 
-2026-10-15独立位置实施续修：可信装配migration_backup_root、宿主环境AITEST_MIGRATION_BACKUP_ROOT及worker选项接入同一配置；外部工作空间目录隔离，活动周期冻结原backup_path，配置更改/取消仍核对原副本，旧周期固定位置不追改。三完整小型文件82通过、独立原生CLI1通过且外置备份现场校验通过，5451仅收集；旧5427已31.5%外部中断。未配置兼容模式仍回执本地位置，不假称独立存储满足。公开Command/DTO/端口/Schema/动作及版本、签署/not_run不变，宿主设置/完整历史/真实业务与恢复未闭合，见[本批范围](../../../validation/p1-migration-location-20261014/README.md)。
+本批最终范围更正：受控apply/resume已补准确检查点计划/步骤/已知状态及周期一致性，非字符串状态标准拒绝。最新两个完整受改文件58项（24新增）通过，5427仅收集；前47/5416为阶段范围，保留原回执。旧5397全量18:26因验证ledger误受os.fsync故障注入而exit3，1112/2非全量通过。新记录器实际故障注入38项通过，新全量另见[新闭环](../../../归档/validation/p1-migration-closure-20261014/README.md)，不改版本/签署/not_run。
+
+
+2026-10-15独立位置实施续修：可信装配migration_backup_root、宿主环境AITEST_MIGRATION_BACKUP_ROOT及worker选项接入同一配置；外部工作空间目录隔离，活动周期冻结原backup_path，配置更改/取消仍核对原副本，旧周期固定位置不追改。三完整小型文件82通过、独立原生CLI1通过且外置备份现场校验通过，5451仅收集；旧5427已31.5%外部中断。未配置兼容模式仍回执本地位置，不假称独立存储满足。公开Command/DTO/端口/Schema/动作及版本、签署/not_run不变，宿主设置/完整历史/真实业务与恢复未闭合，见[本批范围](../../../归档/validation/p1-migration-location-20261014/README.md)。
 
 本批持久化兼容：包含实际来源策略的动作使用 `aitest.resolved-execution-action/1.2`，包含实际来源观察的采集回执使用 `aitest.execution-collection/1.1`；旧动作/回执按原版本读取，不补造来源。首次登记步骤以冻结正文摘要和期望生成唯一断言引用；核验结果仍须满足当前 Attempt、准确依据确认、证据完整和依赖有效才能进入 V。旧运行缺引用时不追溯补写。
