@@ -16,6 +16,7 @@ from aitest.contracts.execution_facts import (
     AttemptFact,
     AttemptStateFact,
     CaptureCompletenessFact,
+    EvidenceFact,
     EvidenceIntegrityFact,
     ExecutionFacts,
     MockVerificationStateFact,
@@ -87,12 +88,59 @@ class DecisionContextFacts:
             raise ValueError("policy_version must not be empty")
 
 
+_ADMISSION_PROBE_GAP = "actual_execution_load_source_unverified"
+_SOURCE_VERIFICATION_PREFIX = "source-verification:"
+
+
+def _verification_attempt_ids(
+    facts: ExecutionFacts,
+    source: SourceVerificationFact,
+    evidence: dict[str, EvidenceFact],
+) -> frozenset[str]:
+    """Attribute one source fact to its attempts without guessing.
+
+    Evidence refs are authoritative; the production verification id embeds the
+    attempt id as a fallback for facts whose probe material was not saved.
+    """
+
+    attempt_ids = {
+        evidence[identity].attempt_id
+        for identity in source.evidence_refs
+        if identity in evidence
+    }
+    if attempt_ids:
+        return frozenset(attempt_ids)
+    candidate = source.verification_id.removeprefix(_SOURCE_VERIFICATION_PREFIX)
+    if candidate != source.verification_id and any(
+        item.attempt_id == candidate for item in facts.attempts
+    ):
+        return frozenset({candidate})
+    return frozenset()
+
+
 def _current_sources(facts: ExecutionFacts) -> tuple[SourceVerificationFact, ...]:
-    """Exclude only source facts proven to belong exclusively to superseded attempts."""
+    """Exclude historical sources and admission probes superseded by runtime observation.
+
+    The admission probe is deliberately downgraded because it cannot certify the
+    process that actually ran. Once a verified runtime observation exists for the
+    same attempt it supersedes that probe; keeping both would cap every report at
+    ``source_identity_unverified`` (Issue #127).
+    """
+
     evidence = {item.evidence_id: item for item in facts.evidence_refs}
     attempts = {item.attempt_id: item for item in facts.attempts}
+    entries = [
+        (source, _verification_attempt_ids(facts, source, evidence))
+        for source in facts.source_verifications
+    ]
+    verified_attempts = {
+        attempt_id
+        for source, attempt_ids in entries
+        if source.state is SourceVerificationStateFact.VERIFIED and not source.gap_ids
+        for attempt_id in attempt_ids
+    }
     retained = []
-    for source in facts.source_verifications:
+    for source, attempt_ids in entries:
         refs = [evidence.get(identity) for identity in source.evidence_refs]
         historical = bool(refs)
         for ref in refs:
@@ -104,8 +152,24 @@ def _current_sources(facts: ExecutionFacts) -> tuple[SourceVerificationFact, ...
                     or facts.current_attempt_by_step[attempt.step_id] == attempt.attempt_id):
                 historical = False
                 break
-        if not historical:
-            retained.append(source)
+        if not historical and not refs and attempt_ids and all(
+            (attempt := attempts.get(attempt_id)) is not None
+            and not attempt.is_current
+            and facts.current_attempt_by_step.get(attempt.step_id) not in (None, attempt_id)
+            for attempt_id in attempt_ids
+        ):
+            # No evidence refs remain to prove the attempt; the canonical id still
+            # proves the fact belongs to a superseded attempt.
+            historical = True
+        if historical:
+            continue
+        if (
+            source.state is not SourceVerificationStateFact.VERIFIED
+            and _ADMISSION_PROBE_GAP in source.gap_ids
+            and attempt_ids & verified_attempts
+        ):
+            continue
+        retained.append(source)
     return tuple(retained)
 
 
