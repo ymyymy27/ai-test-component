@@ -407,6 +407,20 @@ def test_create_report_derives_decision_and_frozen_inputs_from_saved_facts(tmp_p
     assert again == payload
 
 
+def test_report_freezes_evidence_revisions_and_reads_legacy_without_guessing(tmp_path) -> None:
+    """报告冻结证据编号对应的修订；旧报告缺字段时保持空映射，不猜修订。"""
+
+    harness = _Harness(tmp_path, evidence=("evidence-1",))
+    _create(harness)
+    payload = harness.saved_report("report-1")
+    assert payload["evidence_refs"] == ["evidence-1"]
+    assert payload["evidence_revisions"] == {"evidence-1": 1}
+
+    legacy = dict(payload)
+    legacy.pop("evidence_revisions")
+    assert report_from_payload(legacy).evidence_revisions == {}
+
+
 def test_report_revision_is_immutable_and_revision_conflicts_are_structured(tmp_path) -> None:
     harness = _Harness(tmp_path)
     _create(harness)

@@ -752,7 +752,7 @@ def test_redeclaring_the_same_evidence_never_writes_an_unreadable_record(tmp_pat
     都会在 `issue_from_payload` 处整体失败（问题被写坏且无法读出）。
     """
 
-    harness = _Harness(tmp_path, facts=_facts())
+    harness = _Harness(tmp_path, facts=_facts(evidence=(_evidence(),)))
     harness.command(
         action="update_issue",
         issue_id="issue-1",
@@ -783,6 +783,7 @@ def test_redeclaring_the_same_evidence_never_writes_an_unreadable_record(tmp_pat
     )
     payload = harness.saved("issue-1")
     assert payload["evidence_refs"] == ["evidence-1"]
+    assert payload["evidence_revisions"] == {"evidence-1": 1}
 
     # 记录仍可读：下一次修订（start）必须成功；写坏则在读取处整体失败。
     harness.command(

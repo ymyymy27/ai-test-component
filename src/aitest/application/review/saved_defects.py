@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import fields
+from dataclasses import fields, replace
 from typing import Any, Protocol, cast
 
 from aitest.application.execution.run_record import read_run_record
@@ -180,6 +180,27 @@ def _text_tuple(value: object, name: str) -> tuple[str, ...]:
     return items
 
 
+def _revision_mapping(
+    value: object, evidence_refs: tuple[str, ...], name: str
+) -> dict[str, int]:
+    """Parse the optional evidence-id → revision map; old records return {}."""
+
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise DefectManagementError(f"{name} must be an object")
+    revisions: dict[str, int] = {}
+    for identity, revision in value.items():
+        if not isinstance(identity, str) or not identity.strip():
+            raise DefectManagementError(f"{name} keys must be nonempty strings")
+        if identity not in evidence_refs:
+            raise DefectManagementError(f"{name} references undeclared evidence")
+        if type(revision) is not int or revision < 1:
+            raise DefectManagementError(f"{name} values must be positive integers")
+        revisions[identity] = revision
+    return revisions
+
+
 def issue_links(payload: Mapping[str, object]) -> dict[str, object]:
     """问题记录的最小关联（模块/层级/用例/运行/尝试/回归关联）；未知显式表示。"""
 
@@ -268,6 +289,9 @@ def issue_from_payload(payload: Mapping[str, object]) -> IssueRecord:
     values["severity"] = None if severity is None else IssueSeverity(_text(severity, "severity"))
     values["disposition"] = IssueDisposition(_text(payload.get("disposition"), "disposition"))
     values["evidence_refs"] = _text_tuple(payload.get("evidence_refs", ()), "evidence_refs")
+    values["evidence_revisions"] = _revision_mapping(
+        payload.get("evidence_revisions"), values["evidence_refs"], "evidence_revisions"
+    )
     values["attempt_ids"] = frozenset(_text_tuple(payload.get("attempt_ids", ()), "attempt_ids"))
     values["revision"] = payload.get("revision")
     for name in ("owner", "confirmed_by", "disposition_reason", "canonical_issue_id"):
@@ -402,6 +426,7 @@ def issue_to_payload(
         # 证据引用是**引用集合**：调用方重复声明同一证据时必须合并，而不是写出
         # 一份读不回来的记录（读了会被 `issue_from_payload` 判为重复值而整体拒绝）。
         "evidence_refs": list(dict.fromkeys(issue.evidence_refs)),
+        "evidence_revisions": dict(issue.evidence_revisions),
         "attempt_ids": sorted(issue.attempt_ids),
         "links": {
             "module_ids": list(cast(tuple[str, ...], links["module_ids"])),
@@ -560,6 +585,7 @@ class SavedDefectManagement:
             return recalled
 
         current = self._current(project_id, issue_id)
+        previous_issue: IssueRecord | None = None
         if current is None:
             if expected_revision != 0:
                 raise IssueNotSaved(f"issue {issue_id} is not saved")
@@ -569,6 +595,7 @@ class SavedDefectManagement:
             if expected_revision != current.revision:
                 raise IssueRevisionConflict(expected=expected_revision, current=current.revision)
             issue = issue_from_payload(current.payload)
+            previous_issue = issue
             if issue.issue_id != issue_id or issue.project_id != project_id:
                 raise DefectManagementError("saved issue identity or owner differs")
             links = issue_links(current.payload)
@@ -576,6 +603,7 @@ class SavedDefectManagement:
 
         open_state = self._open_state(project_id, issue)
         blocking = self._blocking(project_id, issue)
+        issue = self._with_evidence_revisions(issue, previous=previous_issue)
         sequence = self._next_sequence()
         payload = issue_to_payload(
             issue,
@@ -1122,6 +1150,30 @@ class SavedDefectManagement:
         if dict(record.payload).get("project_id") != project_id:
             raise IssueNotSaved("saved issue belongs to another project")
         return record
+
+    def _with_evidence_revisions(
+        self, issue: IssueRecord, *, previous: IssueRecord | None
+    ) -> IssueRecord:
+        """Freeze the saved revision of evidence ids added by this revision.
+
+        Existing refs keep their frozen revision (old records stay unpaired);
+        ids whose evidence record is unavailable also stay unpaired and are
+        shown as "missing revision" by callers.
+        """
+
+        revisions = dict(issue.evidence_revisions)
+        known = set(previous.evidence_refs) if previous is not None else set()
+        for identity in issue.evidence_refs:
+            if identity in revisions or identity in known:
+                continue
+            revision = self._records.current_revision(
+                aggregate_kind="evidence_ref", record_id=identity
+            )
+            if type(revision) is int and revision >= 1:
+                revisions[identity] = revision
+        if revisions == dict(issue.evidence_revisions):
+            return issue
+        return replace(issue, evidence_revisions=revisions)
 
     def _open_state(self, project_id: str, issue: IssueRecord) -> bool:
         """OPEN 定义见存储合同 §issues.list：active/deferred 与未解决主问题的 duplicate。"""

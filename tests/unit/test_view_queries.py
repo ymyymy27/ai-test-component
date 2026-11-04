@@ -97,6 +97,35 @@ def test_exact_record_view_is_scoped_and_omits_private_fields(kind) -> None:
         reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=1)
 
 
+@pytest.mark.parametrize("kind", ["report", "issue"])
+def test_record_view_returns_paired_evidence_revisions(kind) -> None:
+    """报告/问题视图必须带出证据修订，面板才能按精确修订打开正文。"""
+
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    record = SimpleNamespace(
+        aggregate_kind=kind,
+        record_id="saved",
+        revision=2,
+        payload={
+            "project_id": PROJECT,
+            f"{kind}_id": "saved",
+            "status": "draft",
+            "evidence_refs": ["evidence-1", "evidence-2"],
+            "evidence_revisions": {"evidence-1": 2, "evidence-2": 1},
+        },
+    )
+    store = Mock()
+    store.read.return_value = record
+    reader = CommittedViewReader(decisions=Mock(), reader=store)
+    result = reader.record_view(
+        project_id=PROJECT, kind=kind, record_id="saved", revision=2
+    )
+    assert result["record"]["evidence_refs"] == ["evidence-1", "evidence-2"]
+    assert result["record"]["evidence_revisions"] == {"evidence-1": 2, "evidence-2": 1}
+
+
 def test_record_selector_requires_exact_revision_and_rejects_mixed_selectors() -> None:
     from aitest.contracts.read_views import ReadViewQuery
     valid = {"view":"report", "record_id":"report-1", "revision":1}

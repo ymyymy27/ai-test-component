@@ -1,8 +1,10 @@
 # 跨包接口对接规则与总台账
 
-版本：3.00
+版本：3.01
 
-更新日期：2026-11-03
+更新日期：2026-11-04
+
+2026-11-04：`record_view` 的 `report` / `issue` 记录新增 `evidence_revisions`（CORE-001 1.96），与 `evidence_refs` 配对；报告创建时冻结、问题保存时对新增引用冻结，旧记录无该字段时按空映射读取。面板据此打开报告/问题证据正文；裸编号仍显示缺修订号提示，不猜修订。实现与单测见[修改日志](../修改日志/ymy/2026-11-04.md)；真实 Trae 未验。
 
 2026-11-03：`read_view` 记录视图新增 `evidence`（CORE-001 1.95），按 `evidence_id + revision` 返回白名单元数据并在脱敏安全态附带正文；生成 `ReadViewQuery` Schema 已同步。运行视图步骤带出 `evidence_ids` / `evidence_revisions`。同一批修复运行时来源观察写回（#131），不改变合同字段、判定口径或旧记录读取。实现与单测见 [tests/unit/test_evidence_read_view.py](../../tests/unit/test_evidence_read_view.py) 与[修改日志](../修改日志/ymy/2026-11-03-运行时来源观察恢复证据等级.md)；真实 Trae 中打开证据正文仍未验证。
 
@@ -210,7 +212,7 @@ next_action: 补齐字段映射并请求 C 评审
 
 | ID | 主题 | 提供方 → 消费方 | 合同状态 | 实现状态 | 验证 | 下一动作 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CORE-001](已完成/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | frozen，1.95 | A done；B/C/D done | fixture_passed（准确范围见交付说明与本批记录） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
+| [CORE-001](已完成/CORE-001-A包公共接口/contract.md) | A 包公共接口 | A → B/C/D | frozen，1.96 | A done；B/C/D done | fixture_passed（准确范围见交付说明与本批记录） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 | [AB-001](已完成/AB-001-端口与保存/contract.md) | 端口与保存 | A ↔ B | frozen，1.51 | A/B done | fixture_passed（准确范围见交付说明与本批记录） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 | [BC-001](已完成/BC-001-PreparedRun/contract.md) | PreparedRun | B → C | frozen，0.55 | B/C done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |
 | [AC-001](已完成/AC-001-存储与恢复/contract.md) | 存储与恢复 | A → C | frozen，1.10 | A/C done | fixture_passed（准确范围见交付说明） | 接口已关闭；产品验收与后续实施见交付说明及项目现状。 |

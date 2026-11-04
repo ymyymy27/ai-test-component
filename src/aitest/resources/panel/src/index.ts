@@ -1447,7 +1447,7 @@ class AITestPanel extends HTMLElement {
         .flatMap(item=>strings(item["evidence_refs"]));
       if(failureEvidence.length){
         block.append(text("h3","决定性失败与证据"));
-        block.append(this.evidenceRefLinks([...new Set(failureEvidence)],"failure-evidence-refs"));
+        block.append(this.evidenceRefLinks([...new Set(failureEvidence)],"failure-evidence-refs",record["evidence_revisions"]));
       }
       if(scope)block.append(text("p",`范围：${scope}`,"muted"));
     // 结果来源：只列报告里真实存在的来源字段，缺哪项就少哪项。
@@ -1553,11 +1553,21 @@ class AITestPanel extends HTMLElement {
   }
 
   /** Evidence references are actionable only when the receipt includes both identity and revision. */
-  private evidenceRefLinks(value:unknown,testId:string):HTMLElement {
+  private evidenceRefLinks(value:unknown,testId:string,revisions?:unknown):HTMLElement {
     const wrapper=document.createElement("div");
     wrapper.dataset.testid=testId;
     const rawRefs=Array.isArray(value)?value:[value];
-    const refs=evidenceRefsOf(value);
+    const mapping=object(revisions) ?? {};
+    const normalized=rawRefs.map(item=>{
+      if(typeof item!=="string")return item;
+      const identity=item.trim();
+      if(!identity || identity.includes("@"))return item;
+      const revision=mapping[identity];
+      return Number.isSafeInteger(revision) && Number(revision)>0
+        ? {evidence_id:identity,evidence_revision:Number(revision)}
+        : item;
+    });
+    const refs=evidenceRefsOf(normalized);
     if(refs.length){
       const links=document.createElement("div");
       links.className="actions";
@@ -1572,7 +1582,7 @@ class AITestPanel extends HTMLElement {
       }
       wrapper.append(links);
     }
-    const unresolved=rawRefs.filter(item=>evidenceRefOf(item)===null);
+    const unresolved=rawRefs.filter((_,index)=>evidenceRefOf(normalized[index])===null);
     if(unresolved.length){
       const list=document.createElement("ul");
       list.className="evidence-unresolved";
@@ -1613,7 +1623,7 @@ class AITestPanel extends HTMLElement {
       group.append(
         text("summary",labels[key]??key),
         key==="evidence_refs"
-          ? this.evidenceRefLinks(value,"record-evidence-refs")
+          ? this.evidenceRefLinks(value,"record-evidence-refs",record["evidence_revisions"])
           : present(value),
       );
       section.append(group);
@@ -1773,7 +1783,7 @@ class AITestPanel extends HTMLElement {
         : typeof value === "string" ? value : JSON.stringify(value);
       if (key === "evidence_refs" && value !== undefined && value !== null) {
         detail.textContent = "";
-        detail.append(this.evidenceRefLinks(value, "issue-evidence-refs"));
+        detail.append(this.evidenceRefLinks(value, "issue-evidence-refs", record?.["evidence_revisions"]));
       }
       fields.append(term, detail);
     }

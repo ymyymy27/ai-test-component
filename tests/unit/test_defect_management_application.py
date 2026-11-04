@@ -28,6 +28,37 @@ from aitest.domain.review.defects import (
 from aitest.interfaces.dto import issue_summary_dto
 
 
+def test_issue_payload_round_trips_frozen_evidence_revisions() -> None:
+    """问题 payload 冻结证据修订；旧 payload 缺字段时保持空映射，不猜修订。"""
+
+    from aitest.application.review.saved_defects import issue_from_payload, issue_to_payload
+
+    issue = IssueRecord(
+        issue_id="issue-1",
+        project_id="project-1",
+        revision=1,
+        title="draft",
+        evidence_refs=("failure-evidence",),
+        evidence_revisions={"failure-evidence": 3},
+    )
+    payload = issue_to_payload(
+        issue,
+        links={
+            "module_ids": (), "layers": (), "case_id": None,
+            "run_id": None, "attempt_id": None, "regressions": [],
+        },
+        updated_sequence=1,
+        open_state=True,
+        blocking="unknown",
+    )
+    assert payload["evidence_revisions"] == {"failure-evidence": 3}
+    assert issue_from_payload(payload).evidence_revisions == {"failure-evidence": 3}
+
+    legacy = dict(payload)
+    legacy.pop("evidence_revisions")
+    assert issue_from_payload(legacy).evidence_revisions == {}
+
+
 def _draft() -> IssueRecord:
     return IssueRecord(
         issue_id="issue-1",

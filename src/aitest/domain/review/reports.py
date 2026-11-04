@@ -7,7 +7,8 @@ coverage sets; it does not persist records or render UI.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
@@ -606,6 +607,8 @@ class ReportSnapshot:
     context: ReportContext
     decision: DecisionResult
     evidence_refs: tuple[str, ...] = ()
+    #: 证据编号 → 报告修订冻结的证据修订；旧报告无此字段时为空，读取方不得猜修订。
+    evidence_revisions: Mapping[str, int] = field(default_factory=dict)
     issue_revisions: tuple[tuple[str, int], ...] = ()
     created_at: datetime | None = None
 
@@ -616,6 +619,11 @@ class ReportSnapshot:
             raise ValueError("report and decision policy versions must match")
         if any(not ref.strip() for ref in self.evidence_refs):
             raise ValueError("evidence_refs must not contain empty values")
+        unknown = set(self.evidence_revisions) - set(self.evidence_refs)
+        if unknown:
+            raise ValueError("evidence_revisions must reference declared evidence_refs")
+        if any(type(value) is not int or value < 1 for value in self.evidence_revisions.values()):
+            raise ValueError("evidence_revisions must be positive integers")
         issue_ids = [issue_id for issue_id, _ in self.issue_revisions]
         if len(issue_ids) != len(set(issue_ids)):
             raise ValueError("issue revisions must be unique per report")
@@ -642,6 +650,7 @@ class ReportDraft:
     context: ReportContext
     decision: DecisionResult
     evidence_refs: tuple[str, ...] = ()
+    evidence_revisions: Mapping[str, int] = field(default_factory=dict)
     issue_revisions: tuple[tuple[str, int], ...] = ()
 
 
@@ -667,6 +676,7 @@ def create_report_revision(
         context=draft.context,
         decision=draft.decision,
         evidence_refs=draft.evidence_refs,
+        evidence_revisions=draft.evidence_revisions,
         issue_revisions=draft.issue_revisions,
         created_at=created_at,
     )
