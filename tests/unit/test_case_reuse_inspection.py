@@ -499,3 +499,105 @@ def test_consumed_ancestors_follow_transitive_sources_outside_selected_case(insp
     assert ("source_dependency_basis_unverified" in result["denial_reasons"]) is (
         change != "unchanged"
     )
+
+
+def _resolution(dependency_digest: str):
+    from aitest.contracts.prepared_run import EnvironmentResolutionFact
+
+    return EnvironmentResolutionFact(
+        carrier_id="carrier-1",
+        executable_path=sys.executable,
+        executable_digest="sha256:exe",
+        interpreter_version="3.13.13",
+        base_executable_path=sys.executable,
+        base_executable_digest="sha256:base",
+        probe_prefix="/prefix",
+        base_prefix="/prefix",
+        configuration_digest="sha256:config",
+        dependency_roots=("/site-packages",),
+        dependency_set_digest=dependency_digest,
+    )
+
+
+def _environment_service(detail):
+    from aitest.contracts.prepared_run import (
+        EnvironmentIsolationModeFact,
+        EnvironmentRefFact,
+    )
+
+    class _Resolver:
+        def __init__(self):
+            self.detail = detail
+
+        def resolve(self, **kwargs):
+            return EnvironmentRefFact(
+                environment_id="env-1",
+                revision=1,
+                isolation_mode=EnvironmentIsolationModeFact.VENV,
+                interpreter_identity="cpython-3.13-windows-amd64",
+                dependency_set_digest=self.detail.dependency_set_digest,
+                resolution=self.detail,
+            )
+
+    return _Resolver()
+
+
+def _with_resolution(sources, detail):
+    prepared = sources["source-run"].original_preparation
+    prepared = prepared.model_copy(
+        update={
+            "environment": prepared.environment.model_copy(
+                update={"resolution": detail}
+            )
+        }
+    )
+    sources["source-run"].original_preparation = prepared
+    sources["target-run"].original_preparation = prepared
+
+
+def test_current_environment_probe_fills_dynamic_and_dependency_digests(inspection):
+    service, command, sources, _, _, _ = inspection
+    detail = _resolution("sha256:deps")
+    _with_resolution(sources, detail)
+    service.environment = _environment_service(detail)
+
+    result = service.inspect(command)
+
+    assert "environment_dynamic_digest_unverified" not in result["denial_reasons"]
+    assert "dependency_digest_unverified" not in result["denial_reasons"]
+    assert not any(
+        reason in {"environment_dynamic_digest_changed", "dependency_digest_changed"}
+        for reason in result["denial_reasons"]
+    )
+    # Other qualifications still require the actual source/verification material.
+    assert result["status"] == "unverified"
+
+
+def test_changed_current_environment_is_reported_as_changed(inspection):
+    service, command, sources, _, _, _ = inspection
+    detail = _resolution("sha256:deps")
+    _with_resolution(sources, detail)
+    resolver = _environment_service(detail)
+    service.environment = resolver
+
+    resolver.detail = _resolution("sha256:different-deps")
+    result = service.inspect(command)
+
+    assert "environment_dynamic_digest_changed" in result["denial_reasons"]
+    assert "dependency_digest_changed" in result["denial_reasons"]
+
+
+def test_environment_probe_failure_stays_unverified(inspection):
+    service, command, sources, _, _, _ = inspection
+    _with_resolution(sources, _resolution("sha256:deps"))
+    resolver = _environment_service(_resolution("sha256:deps"))
+
+    def fail(**kwargs):
+        raise OSError("probe unavailable")
+
+    resolver.resolve = fail
+    service.environment = resolver
+    result = service.inspect(command)
+
+    assert "environment_dynamic_digest_unverified" in result["denial_reasons"]
+    assert "dependency_digest_unverified" in result["denial_reasons"]
