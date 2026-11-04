@@ -243,25 +243,42 @@ class SavedBackupEntry:
         payload = _plain(report)
         if payload.get("state") == "rejected":
             raise BackupBlocked("restore target or manifest paths are out of bounds")
+        state = payload.get("state")
+        index_rebuilt = payload.get("index_rebuilt") is True
+        gaps = [
+            "active_attempts_pending_verification_via_startup_recovery",
+            "double_takeover_check_not_performed",
+        ]
+        if state != "restored":
+            next_steps = ["restore produced no records; nothing to open"]
+        elif index_rebuilt:
+            next_steps = [
+                "open the restored copy with a core so startup recovery and "
+                "activity checks run before any business read",
+            ]
+        else:
+            gaps.insert(
+                0,
+                str(payload.get("index_gap") or "index_rebuild_not_performed"),
+            )
+            next_steps = [
+                "open the restored copy with a core so startup recovery and index "
+                "rebuild run before any business read",
+            ]
         return {
             "mode": "restore",
             "backup_id": backup_id,
             "source": str(source),
             "target": str(target),
-            "state": payload.get("state"),
+            "state": state,
             "files_restored": payload.get("files_restored"),
             "bytes_restored": payload.get("bytes_restored"),
             "verified": payload.get("verified") is True,
+            "index_rebuilt": index_rebuilt,
+            "index_generation": payload.get("index_generation"),
             # 后置条件如实登记：不在本动作里假装已完成。
-            "next_steps": [
-                "open the restored copy with a core so startup recovery and index "
-                "rebuild run before any business read",
-            ],
-            "gaps": [
-                "index_rebuild_not_performed",
-                "active_attempts_pending_verification_via_startup_recovery",
-                "double_takeover_check_not_performed",
-            ],
+            "next_steps": next_steps,
+            "gaps": gaps,
         }
 
     def _registered_backup(self, backup_id: str) -> Path:

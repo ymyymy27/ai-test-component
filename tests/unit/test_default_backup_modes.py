@@ -135,7 +135,10 @@ def test_restore_replays_a_registered_backup_into_an_empty_target(workspace: Any
         assert hashlib.sha256(restored.read_bytes()).hexdigest() == digest
     # 后置条件如实登记，不当成已完成。
     assert result["next_steps"]
-    assert "index_rebuild_not_performed" in result["gaps"]
+    assert result["index_rebuilt"] is True, result.get("gaps")
+    generation = result["index_generation"]
+    assert generation is None or int(generation) >= 1
+    assert "index_rebuild_not_performed" not in result["gaps"]
     assert "double_takeover_check_not_performed" in result["gaps"]
 
 
