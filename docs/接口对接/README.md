@@ -4,7 +4,7 @@
 
 更新日期：2026-11-04
 
-2026-11-04：`record_view` 的 `report` / `issue` 记录新增 `evidence_revisions`（CORE-001 1.96），与 `evidence_refs` 配对；报告创建时冻结、问题保存时对新增引用冻结，旧记录无该字段时按空映射读取。面板据此打开报告/问题证据正文；裸编号仍显示缺修订号提示，不猜修订。实现与单测见[修改日志](../修改日志/ymy/2026-11-04.md)；真实 Trae 未验。
+2026-11-04（PR #136）：`record_view` 的 `report` / `issue` 记录新增 `evidence_revisions`（CORE-001 1.96），与 `evidence_refs` 配对；报告创建时冻结、问题保存时对新增引用冻结，旧记录无该字段时按空映射读取。面板据此打开报告/问题证据正文；裸编号仍显示缺修订号提示，不猜修订。实现与单测见[修改日志](../修改日志/ymy/2026-11-04.md)；真实 Trae 未验。
 
 2026-11-03：`read_view` 记录视图新增 `evidence`（CORE-001 1.95），按 `evidence_id + revision` 返回白名单元数据并在脱敏安全态附带正文；生成 `ReadViewQuery` Schema 已同步。运行视图步骤带出 `evidence_ids` / `evidence_revisions`。同一批修复运行时来源观察写回（#131），不改变合同字段、判定口径或旧记录读取。实现与单测见 [tests/unit/test_evidence_read_view.py](../../tests/unit/test_evidence_read_view.py) 与[修改日志](../修改日志/ymy/2026-11-03-运行时来源观察恢复证据等级.md)；真实 Trae 中打开证据正文仍未验证。
 
