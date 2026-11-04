@@ -84,6 +84,10 @@ class RestoreReport:
     bytes_restored: int
     verified: bool
     state: str  # restored | empty | rejected
+    #: 恢复副本的查询索引是否已按权威边界重建（A-06）。
+    index_rebuilt: bool = False
+    index_generation: int | None = None
+    index_gap: str | None = None
 
 
 def _contained_path(base: Path, relative: object) -> Path | None:
@@ -388,6 +392,23 @@ class FileBackupStore:
         if post_errors:
             raise BackupError(f"恢复后核对失败: {post_errors}")
         state = "restored" if files_restored else "empty"
+        index_rebuilt = False
+        index_generation: int | None = None
+        index_gap: str | None = None
+        if state == "restored":
+            try:
+                from .records import FileRecordRepository
+
+                index_generation = FileRecordRepository(target).rebuild_query_index()
+                index_rebuilt = True
+            except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+                if "records authority has no committed entries" in str(error):
+                    # An empty authority has no query index to rebuild.
+                    index_rebuilt = True
+                else:
+                    # Restored material stays usable, but the caller must not claim
+                    # the copy is ready for business reads without a rebuild.
+                    index_gap = f"index_rebuild_failed: {error}"
         return RestoreReport(
             backup=backup,
             target=target,
@@ -395,6 +416,9 @@ class FileBackupStore:
             bytes_restored=bytes_restored,
             verified=True,
             state=state,
+            index_rebuilt=index_rebuilt,
+            index_generation=index_generation,
+            index_gap=index_gap,
         )
 
 
