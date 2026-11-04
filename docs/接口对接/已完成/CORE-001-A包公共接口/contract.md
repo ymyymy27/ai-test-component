@@ -157,7 +157,7 @@ prepare_run 增加 from_saved 形式，准确引用与确认来源见 [BC-001 0.
 
 **验证范围**：本轮局部合同/Schema/夹具和文件往返按[接口复核证据](../../../归档/validation/p1-interface-review-20261012/README.md)登记。合同全部场景的统一提供/消费方对拍未完成，因此 verification_status 保持 not_run，不能因部分回归自动标为对接完成。last_verified_commit 保持 null，没有为未完成的统一对拍代填提交号。真实 Trae/供应方/掉电与 AC 证据另验。
 
-字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查[现状与问题汇总](../../../现状与问题汇总.md)和[项目现状](../../../现状.md)。
+字段和业务语义仍以对应主责分册与本合同正文为准；以下带日期的版本增量、草案、确认和实施记录保留其当时基线，其中“未注入／无签名／待接线”和旧动作数量不再作为今天的状态。当前关闭条件查[项目现状](../../../现状.md)。
 
 1.82 新增受控写动作 `select_case_reuse`（整用例复用**选择**，2026-10-13 裁定 DEC-014）：按一期架构 01《复用、回归与模型任务矩阵》「ReuseReference 登记 target_run/case_id、source_run/step/attempt、来源计划与源码/环境/入口参数/规则/适配器修订、证据引用、validity_checked_at_commit 及验证依据。**它是已有运行记录的引用关系，不创建虚假 Attempt**」登记该引用关系。参数严格为 `case_id` + 两对 `source_run_id`/`source_snapshot`、`target_run_id`/`target_snapshot`（与只读 `inspect_case_reuse` 1.69 同一组引用，`SnapshotContentRef` 三字段），命令 `target` 固定 `case_id`；`expected_revision` 为当前选择记录修订（首写 0）。来源身份（步骤/尝试映射、四类修订摘要与证据引用）由**同一个核对器** `CaseReuseInspection.verify` 派生，**不接受调用方自报**；未知来源修订保持未知（不补造摘要）。记录为 `reuse_decision@1`（每个 (项目, 目标运行) 一条，追加修订，正文含 `references` 列表），幂等按 `intent_id` + 输入摘要（同意图同输入回读原结果，同意图异输入报 `INTENT_CONFLICT`）；动作属**人工动作**，非受控交互会话（含 relay）拒绝且不落盘；**只登记引用关系、不授予复用资格**：R/V 仍由消费侧 `derive_reuse_outcome` 按当前事实派生，拒绝时给出具名原因。报告侧候选来源已接该记录（未选择时保持 `reuse_candidate_source_not_configured`）。stdio MCP 派发（`intent_contracts`/`aitest_dispatch`）**本轮未接**，按后续接入项处理；公开 Command/Response 与生成 Schema 不变，真实宿主与 D 侧消费对拍仍待完成。实现与用例见证据 [整用例复用选择动作](../../../归档/一期工程整改/03-修复证据/2026-10-13-复用选择动作.md)。
 
