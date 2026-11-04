@@ -250,6 +250,9 @@ def _statuses(prepared: dict[str, object], runner: object, layer: str = "L1"):
         interpreter=sys.executable,
         layer=layer,
         runner=cast(object, runner),  # type: ignore[arg-type]
+        environment_ref="env-1@1",
+        rules_revision="rules-1",
+        adapter_version="python-checks/1.0",
     )
 
 
@@ -263,13 +266,19 @@ def test_service_registration_runs_both_checks_and_requires_them() -> None:
         },
         "template_versions": [{"template_id": "python-service"}],
     }
-    statuses, failures = _statuses(prepared, _VerifiedRunner())
+    statuses, failures, results = _statuses(prepared, _VerifiedRunner())
     assert [item.check_type for item in statuses] == [
         SourceCheckType.APPLICABLE_BUILD,
         SourceCheckType.MINIMAL_START,
     ]
     assert all(item.state is SourceCheckStatusState.VERIFIED for item in statuses)
     assert failures == ()
+    assert [item.check_type for item in results] == [
+        SourceCheckType.APPLICABLE_BUILD,
+        SourceCheckType.MINIMAL_START,
+    ]
+    assert all(item.attempt_id == "pending-attempt" for item in results)
+    assert all(item.failure_class.value == "passed" for item in results)
 
 
 def test_new_record_without_plans_marks_library_checks_not_applicable() -> None:
@@ -277,7 +286,7 @@ def test_new_record_without_plans_marks_library_checks_not_applicable() -> None:
         "execution_source": {"source_checks": {"build": None, "minimal_start": None}},
         "template_versions": [{"template_id": "python-library"}],
     }
-    statuses, failures = _statuses(prepared, None)
+    statuses, failures, _ = _statuses(prepared, None)
     assert failures == ()
     assert all(item.state is SourceCheckStatusState.NOT_APPLICABLE for item in statuses)
     assert all("template_default_not_applicable" in (item.reason or "") for item in statuses)
@@ -288,7 +297,7 @@ def test_legacy_service_record_without_the_key_keeps_an_unknown_gap() -> None:
         "execution_source": {},
         "template_versions": [{"template_id": "python-service"}],
     }
-    statuses, failures = _statuses(prepared, None)
+    statuses, failures, _ = _statuses(prepared, None)
     assert failures == statuses
     assert all(item.state is SourceCheckStatusState.UNKNOWN for item in statuses)
     assert all(item.reason == "source_check_plan_unregistered" for item in statuses)
@@ -304,7 +313,8 @@ def test_non_l1_action_does_not_run_build_or_start() -> None:
         },
         "template_versions": [{"template_id": "python-service"}],
     }
-    statuses, failures = _statuses(prepared, _VerifiedRunner(), layer="L2")
+    statuses, failures, results = _statuses(prepared, _VerifiedRunner(), layer="L2")
     assert failures == ()
     assert all(item.state is SourceCheckStatusState.NOT_APPLICABLE for item in statuses)
     assert all(item.reason == "not_an_l1_action" for item in statuses)
+    assert results == ()

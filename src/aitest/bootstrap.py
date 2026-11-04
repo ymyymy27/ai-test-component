@@ -111,6 +111,7 @@ from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
 from aitest.domain.execution.runtime_source import RuntimeSourceFile, RuntimeSourcePlan
 from aitest.domain.execution.sources import (
     ExecutionSourceVerification,
+    SourceCheckResult,
     SourceCheckStatus,
     SourceCheckStatusState,
     SourceCheckType,
@@ -649,7 +650,14 @@ def _registered_source_check_statuses(
     interpreter: str,
     layer: str,
     runner: ControlledSourceCheckRunner | None,
-) -> tuple[tuple[SourceCheckStatus, ...], tuple[SourceCheckStatus, ...]]:
+    environment_ref: str,
+    rules_revision: str,
+    adapter_version: str,
+) -> tuple[
+    tuple[SourceCheckStatus, ...],
+    tuple[SourceCheckStatus, ...],
+    tuple[SourceCheckResult, ...],
+]:
     """按冻结登记运行 build/minimal_start，返回 `(全部子项, 必需失败子项)`（DEC-021）。
 
     - 服务模板缺登记：`UNKNOWN` + 必需失败，L1 不得整体 verified；
@@ -673,10 +681,11 @@ def _registered_source_check_statuses(
                 )
             ),
             (),
+            (),
         )
     execution_source = prepared.get("execution_source")
     if not isinstance(execution_source, Mapping):
-        return (), ()
+        return (), (), ()
     raw_templates = prepared.get("template_versions")
     template_ids = sorted(
         {
@@ -705,10 +714,11 @@ def _registered_source_check_statuses(
                     SourceCheckType.MINIMAL_START,
                 )
             )
-            return invalid, invalid
+            return invalid, invalid, ()
 
     statuses: list[SourceCheckStatus] = []
     failures: list[SourceCheckStatus] = []
+    results: list[SourceCheckResult] = []
     for slot, check_type in (
         ("build", SourceCheckType.APPLICABLE_BUILD),
         ("minimal_start", SourceCheckType.MINIMAL_START),
@@ -778,13 +788,34 @@ def _registered_source_check_statuses(
                     state=outcome.state,
                     reason=outcome.reason,
                     evidence_ref=outcome.evidence_ref,
+                    failure_class=outcome.failure_class,
+                )
+                results.append(
+                    SourceCheckResult(
+                        check_result_id=f"source-check:{technical_id}:{check_type.value}",
+                        attempt_id="pending-attempt",
+                        check_type=check_type,
+                        scope=workdir,
+                        source_snapshot_ref=technical_id,
+                        environment_ref=environment_ref,
+                        rules_revision=rules_revision,
+                        adapter_version=adapter_version,
+                        failure_class=outcome.failure_class,
+                        raw_output_evidence_ref=outcome.evidence_ref,
+                        evidence_refs=(
+                            (outcome.evidence_ref,)
+                            if outcome.evidence_ref is not None
+                            else ()
+                        ),
+                        argument_refs=plan.command[1:],
+                    )
                 )
         statuses.append(status)
         if plan.applicability is SourceCheckApplicability.REQUIRED and (
             status.state is not SourceCheckStatusState.VERIFIED
         ):
             failures.append(status)
-    return tuple(statuses), tuple(failures)
+    return tuple(statuses), tuple(failures), tuple(results)
 
 
 def _source_verification_provider(
@@ -960,7 +991,9 @@ def _source_verification_provider(
             expected_interpreter_ref=interpreter,
             raw_output_evidence_ref=raw_reference,
         )
-        verification = service.verify(request, observation)
+        checked = service.check(request, observation)
+        verification = checked.verification
+        admission_check_results = [checked.check_result]
         if raw_object is not None and raw_object.digest != (
             "sha256:" + hashlib.sha256(fact.raw_output).hexdigest()
         ):
@@ -968,7 +1001,7 @@ def _source_verification_provider(
                 verification, state=SourceVerificationState.UNVERIFIED,
                 gap_ids=(*verification.gap_ids, "source_probe_material_redacted"),
             )
-        statuses, required_failures = _registered_source_check_statuses(
+        statuses, required_failures, command_results = _registered_source_check_statuses(
             prepared,
             project_id=project_id,
             technical_id=technical_id,
@@ -976,11 +1009,18 @@ def _source_verification_provider(
             interpreter=interpreter,
             layer=layer,
             runner=runner,
+            environment_ref=_environment_ref(environment),
+            rules_revision=_rules_revision(prepared),
+            adapter_version=_frozen_adapter_version(prepared),
         )
+        admission_check_results.extend(command_results)
         verification = merge_source_checks(
             verification,
             statuses=statuses,
             required_failures=required_failures,
+        )
+        verification = replace(
+            verification, check_results=tuple(admission_check_results)
         )
         return replace(
             verification, raw_output_object=raw_object, source_instance_id=instance_id,
