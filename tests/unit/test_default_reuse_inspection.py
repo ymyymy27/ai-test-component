@@ -7,6 +7,7 @@ from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.commands import Command
 from aitest.contracts.prepared_run import AssertionBasisStateFact, ConfirmationRef
+from tests.support.environment_resolution import FixtureEnvironmentResolver
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_default_basis_confirmation import confirm
@@ -33,8 +34,9 @@ def test_default_read_inspection_survives_restart_and_never_mints_a_choice(autho
     assert response.error is None, response.error
     result = response.result
     assert result["status"] == "unverified"
-    assert "environment_dynamic_digest_unverified" in result["denial_reasons"]
-    assert "dependency_digest_unverified" in result["denial_reasons"]
+    # 目标环境由同一绑定/环境记录现场探测；摘要一致时不再以“未核实”拒绝。
+    assert "environment_dynamic_digest_unverified" not in result["denial_reasons"]
+    assert "dependency_digest_unverified" not in result["denial_reasons"]
     assert "source_attempts_missing" in result["denial_reasons"]
     assert not any(x.endswith("_changed") for x in result["denial_reasons"])
     assert all(item["source_attempt_id"] is None for item in result["step_mapping"])
@@ -43,7 +45,11 @@ def test_default_read_inspection_survives_restart_and_never_mints_a_choice(autho
     )
     assert core.unit_of_work.current_commit_sequence() == sequence
     core.lifetime_lock.release()
-    restarted = assemble_workspace_core(core.workspace.root, instance_id="reuse-inspection-restart")
+    restarted = assemble_workspace_core(
+        core.workspace.root,
+        instance_id="reuse-inspection-restart",
+        environment_resolver=FixtureEnvironmentResolver(),
+    )
     try:
         assert restarted.gate is not None
         restarted.gate.degrade("source", "saved inspection does not need a new source probe")
@@ -116,7 +122,11 @@ def test_default_late_basis_confirmation_reads_controlled_original_after_restart
     assert source_prepared["assertion_bases"][0]["assertion_basis_state"] == "present_unconfirmed"
     assert core.unit_of_work.current_commit_sequence() == sequence
     core.lifetime_lock.release()
-    restarted = assemble_workspace_core(core.workspace.root, instance_id="basis-proof-restart")
+    restarted = assemble_workspace_core(
+        core.workspace.root,
+        instance_id="basis-proof-restart",
+        environment_resolver=FixtureEnvironmentResolver(),
+    )
     try:
         restored = restarted.api.dispatch(command.model_copy(update={
             "request_id": "basis-proof-reopened-inspection",

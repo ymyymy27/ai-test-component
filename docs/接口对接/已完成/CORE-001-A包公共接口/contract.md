@@ -599,3 +599,7 @@ EnvironmentResolver主责签名和时序见AB-001 1.26 §12.14；冻结观察事
 `export_report` 新增可选 `report_revision`（正整数）；传入时只导出该报告准确修订，复核仍须匹配该修订。省略时保留原最新报告语义及旧意图指纹。显式修订参与指纹，同一意图更换修订拒绝。面板从当前报告选择传入，无需用户填写编号或修订。
 
 步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../归档/validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。
+
+## C-17 环境动态/依赖摘要实现（2026-11-04，非破坏性）
+
+`CaseReuseInspection` 的目标侧通过既有 `EnvironmentResolutionService` 对同一绑定/环境记录做一次现场解析，使用实际 `resolution.content_identity` 作为环境动态摘要、实际 `dependency_set_digest` 作为依赖摘要；源侧使用该源运行冻结的环境分辨率。探测失败、旧记录缺分辨率或两侧不一致时，摘要保持 `None` 或产生 `*_changed`，比较结果仍为 `*_unverified`，不授予 R。本实现不新增公开 DTO/Schema 字段，不改变 CORE-001 既有检索与 R/V 判定；真实业务/跨机复用证据仍待验收。

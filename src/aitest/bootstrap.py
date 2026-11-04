@@ -1471,6 +1471,7 @@ def assemble_workspace_core(
             FileObjectStore(root),
             FileSpoolStore(root),
             basis_proof=approvals,
+            environment=environment_resolution,
         )
         # 复用选择（裁定 DEC-014 / CORE-001 1.82）：只登记引用关系，不授予资格；
         # 同一核对器派生来源身份，报告侧据此把候选交给消费守卫。

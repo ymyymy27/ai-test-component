@@ -27,6 +27,7 @@ from aitest.application.ports import (
     RecordRepository,
     SpoolStore,
 )
+from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import (
     AttemptStateFact,
@@ -76,8 +77,10 @@ class CaseReuseInspection:
         spool: SpoolStore,
         *,
         basis_proof: BasisConfirmationProof | None = None,
+        environment: EnvironmentResolutionService | None = None,
     ) -> None:
         self.coordinator, self.records = coordinator, records
+        self.environment = environment
         self.sources = CaseReuseSourceReader(
             records,
             preparations,
@@ -114,7 +117,8 @@ class CaseReuseInspection:
                 reference=SnapshotContentRef.of(target),
             )
             prepared = saved_source.original_preparation
-            left, right = self._identity(saved_source), self._identity(saved_target)
+            left = self._identity(saved_source, current_environment=False)
+            right = self._identity(saved_target, current_environment=True)
             bindings = (
                 reference.source_plan_revision_digest
                 == payload_digest(prepared.plan_revision.model_dump(mode="json")),
@@ -181,7 +185,40 @@ class CaseReuseInspection:
         except (OSError, KeyError, TypeError, ValueError):
             return None
 
-    def _identity(self, source: CaseReuseSource) -> ReuseIdentity:
+    def _environment_identity(
+        self, source: CaseReuseSource, *, current_environment: bool
+    ) -> tuple[str | None, str | None]:
+        """Return `(环境动态摘要, 依赖摘要)` from an actual environment probe.
+
+        Source side uses the exact resolution frozen for that run. Target side
+        re-resolves the same binding/environment now; a probe failure stays
+        `None`, so comparison reports `*_unverified` instead of granting reuse.
+        """
+
+        prepared = source.original_preparation
+        if current_environment:
+            if self.environment is None:
+                return None, None
+            try:
+                resolved = self.environment.resolve(
+                    project_id=prepared.project_id,
+                    binding_id=prepared.binding_id,
+                    binding_revision=prepared.binding_revision,
+                    environment_id=prepared.environment.environment_id,
+                    environment_revision=prepared.environment.revision,
+                )
+            except (KeyError, OSError, TypeError, ValueError):
+                return None, None
+            detail = resolved.resolution
+        else:
+            detail = prepared.environment.resolution
+        if detail is None:
+            return None, None
+        return detail.content_identity, detail.dependency_set_digest
+
+    def _identity(
+        self, source: CaseReuseSource, *, current_environment: bool
+    ) -> ReuseIdentity:
         prepared = source.original_preparation
         case = source.steps[0].content.checked_case()
         frozen = FrozenRunPlanReader(self.records).read(prepared)
@@ -202,14 +239,15 @@ class CaseReuseInspection:
                 for item in source.steps
             ],
         }
+        environment_digest, dependency_digest = self._environment_identity(
+            source, current_environment=current_environment
+        )
         entry = prepared.execution_source.model_dump(mode="json", exclude={"adapter_versions"})
         return ReuseIdentity(
             project_id=prepared.project_id,
             case_id=case.case_id,
             source_content_identity=prepared.snapshot.content_identity,
-            # A frozen Python/dependency probe is not a current observation of
-            # business data, remote deployment or other dynamic conditions.
-            environment_dynamic_digest=None,
+            environment_dynamic_digest=environment_digest,
             check_scope_digest=payload_digest(scope),
             entry_input_digest=payload_digest(
                 {
@@ -231,9 +269,7 @@ class CaseReuseInspection:
             assertion_basis_digest=payload_digest(asdict(case.assertion_basis))
             if case.assertion_basis.text_digest
             else None,
-            # Target consumed-output/condition provenance is not established by
-            # the source's old dependency list or matching configuration names.
-            dependency_digest=None,
+            dependency_digest=dependency_digest,
         )
 
     def inspect(self, command: Command) -> Mapping[str, object]:
@@ -392,7 +428,8 @@ class CaseReuseInspection:
                 )
             )
         )
-        left, right = self._identity(source), self._identity(target)
+        left = self._identity(source, current_environment=False)
+        right = self._identity(target, current_environment=True)
         reasons = list(left.comparison_denials(right))
         source_layout = tuple(
             (x.content.case_step_index, x.content.frozen_step.step_id) for x in source.steps

@@ -462,7 +462,7 @@ def _resolve_argv(request: SourceCommandRequest, cwd: Path) -> tuple[list[str], 
         target = arguments[1]
         rest = arguments[2:]
         return (
-            [str(interpreter), "-E", "-s", "-c", _NETWORK_GUARD, "module", target, *rest],
+            [str(interpreter), "-s", "-c", _NETWORK_GUARD, "module", target, *rest],
             "module",
             target,
         )
@@ -476,7 +476,6 @@ def _resolve_argv(request: SourceCommandRequest, cwd: Path) -> tuple[list[str], 
         return (
             [
                 str(interpreter),
-                "-E",
                 "-s",
                 "-c",
                 _NETWORK_GUARD,
