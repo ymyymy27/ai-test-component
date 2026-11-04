@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -103,3 +104,19 @@ def test_the_same_entry_bound_to_another_workdir_is_refused(tmp_path: Path) -> N
     adapter.start(_request(first, ("-c", "pass")))
     with pytest.raises(ValueError):
         adapter.start(_request(second, ("-c", "pass")))
+
+
+def test_non_command_adapter_is_not_run_as_a_command(tmp_path: Path) -> None:
+    workdir = tmp_path / "fixed-workdir"
+    workdir.mkdir()
+    request = _request(workdir, ("-c", "pass"))
+    http_request = replace(
+        request,
+        registered_entry=replace(
+            request.registered_entry,
+            adapter_kind=AdapterKind.HTTP,
+            entrypoint="http://127.0.0.1:1/workflow",
+        ),
+    )
+    with pytest.raises(ValueError, match="does not support http"):
+        RegisteredEntryExecutionAdapter().start(http_request)

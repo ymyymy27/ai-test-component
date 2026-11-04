@@ -128,6 +128,7 @@ from aitest.domain.execution.runs import (
 )
 from aitest.domain.execution.sources import (
     ExecutionSourceVerification,
+    SourceCheckResult,
     SourceVerificationState,
 )
 from aitest.domain.planning.plans import Plan
@@ -900,6 +901,25 @@ class ExecutionCommitCoordinator:
                                 )
                             }
                         )
+                    for result in source.check_results:
+                        check = _admission_source_check_fact(
+                            result, attempt.attempt_id
+                        )
+                        previous_check = next(
+                            (
+                                item for item in updated_facts.source_check_results
+                                if item.check_result_id == check.check_result_id
+                            ),
+                            None,
+                        )
+                        if previous_check is not None and previous_check != check:
+                            raise ValueError("saved source check identity conflicts")
+                        if previous_check is None:
+                            updated_facts = updated_facts.model_copy(update={
+                                "source_check_results": (
+                                    *updated_facts.source_check_results, check
+                                )
+                            })
                 if source_evidence is not None:
                     _, projected_source = self._stage_collected_evidence(
                         project_id, checkpoint, (source_evidence,),
@@ -1679,19 +1699,21 @@ class ExecutionCommitCoordinator:
         """Commit one start/control intent before any external side effect."""
         runtime_source = None
         runtime_evidence = None
-        if checkpoint.attempt.runtime_source is not None:
-            if self._source_objects is None or not callable(
-                getattr(self._execution_authorizations, "source_at_start", None)
-            ):
-                raise ValueError("runtime source requires original authority and permanent objects")
-            original, identity = cast(
+        admission_source = None
+        admission_identity = None
+        source_at_start = getattr(self._execution_authorizations, "source_at_start", None)
+        if checkpoint.attempt.authorization_ref is not None and callable(source_at_start):
+            admission_source, admission_identity = cast(
                 ExecutionSourceProof, self._execution_authorizations
             ).source_at_start(project_id=project_id, attempt=checkpoint.attempt)
-            if original is None or identity is None:
+        if checkpoint.attempt.runtime_source is not None:
+            if self._source_objects is None or not callable(source_at_start):
+                raise ValueError("runtime source requires original authority and permanent objects")
+            if admission_source is None or admission_identity is None:
                 raise ValueError("runtime source has no original source binding")
             runtime_source, runtime_evidence = publish_runtime_source(
-                attempt=checkpoint.attempt, source=original, identity=identity,
-                objects=self._source_objects,
+                attempt=checkpoint.attempt, source=admission_source,
+                identity=admission_identity, objects=self._source_objects,
             )
         references = (
             self._evidence_collector.collect(project_id, checkpoint)
@@ -1808,6 +1830,26 @@ class ExecutionCommitCoordinator:
                             if item.check_result_id != check.check_result_id
                         ), check),
                     })
+                if admission_source is not None:
+                    for result in admission_source.check_results:
+                        check = _admission_source_check_fact(
+                            result, checkpoint.attempt.attempt_id
+                        )
+                        previous_check = next(
+                            (
+                                item for item in updated.source_check_results
+                                if item.check_result_id == check.check_result_id
+                            ),
+                            None,
+                        )
+                        if previous_check is not None and previous_check != check:
+                            raise ValueError("saved source check identity conflicts")
+                        if previous_check is None:
+                            updated = updated.model_copy(update={
+                                "source_check_results": (
+                                    *updated.source_check_results, check
+                                )
+                            })
                 snapshot_records, facts = self._stage_snapshot(
                     updated,
                     checkpoint_refs=checkpoint_refs,
@@ -1995,6 +2037,24 @@ def _run_pointer_id(project_id: str, run_id: str) -> str:
 
 def _payload_digest(payload: Mapping[str, object]) -> str:
     return execution_payload_digest(payload)
+
+
+def _admission_source_check_fact(
+    result: SourceCheckResult, attempt_id: str
+) -> SourceCheckFact:
+    return SourceCheckFact(
+        check_result_id=f"admission-{result.check_type.value}:{attempt_id}",
+        attempt_id=attempt_id,
+        check_type=result.check_type.value,
+        scope=result.scope,
+        source_snapshot_ref=result.source_snapshot_ref,
+        environment_ref=result.environment_ref,
+        rules_revision=result.rules_revision,
+        adapter_version=result.adapter_version,
+        failure_class=result.failure_class.value,
+        raw_output_evidence_ref=result.raw_output_evidence_ref,
+        evidence_refs=result.evidence_refs,
+    )
 
 
 def _validate_current_facts(facts: ExecutionFacts) -> None:

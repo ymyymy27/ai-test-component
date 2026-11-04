@@ -392,3 +392,7 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 按 [DEC-021](../../待裁定/DEC-021-适用构建与最小启动来源.md)，`ExecutionSourceVerification` 与 `SourceVerificationFact` 新增可选 `checks` 数组，逐项保存 `check_type`、`state`、`reason` 与 `evidence_ref`；`check_type` 沿用既有 `syntax / applicable_build / load / minimal_start`，`state` 为 `verified / not_applicable / mismatch / unverified / blocked / unknown`。新增字段只描述已执行的 L1 子项，不改变 `source_verification.state`、`gap_ids`、`evidence_refs` 的既有语义；`required` 子项失败由核心降级总状态并写入 `source_check_<state>:<type>:<reason>` 缺口，`optional` 失败与显式 `not_applicable` 只逐项记录。
 
 旧记录没有 `checks` 时按空数组读取；没有 `execution_source.source_checks` 的旧准备记录中，服务模板要求的两项按 `unknown` + `source_check_plan_unregistered` 处理，库/其他已知模板按 `not_applicable` 记录，均不追溯升级。`aitest.execution-facts/1.0`、DTO 向后兼容，原记录不迁移；真实 Trae 服务样例与掉电/跨机验收仍未完成。
+
+## L1 SourceCheckResult 落盘（2026-11-04，非破坏性）
+
+默认 start 来源核验现在把语法/加载的 `SourceCheckResult` 以及已执行的构建/最小启动结果随 `ExecutionSourceVerification.check_results` 冻结；`claim_start` / `commit_checkpoint` 按真实 Attempt 重映射为 `SourceCheckFact`，写入既有 `ExecutionFacts.source_check_results`。与既有实际运行 `runtime-load:<attempt>` 事实并存；同一 `check_result_id` 出现不同内容即拒绝。`SourceCheckFact`/`aitest.execution-facts/1.0` 形状不变，旧记录缺 admission 事实时保持为空，不追溯补造。

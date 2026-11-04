@@ -220,6 +220,14 @@ def test_default_source_observation_is_atomic_and_readable_after_restart(tmp_pat
         current = core.execution_coordinator.read_current_facts(
             project_id=inputs.project_id, run_id=attempt.run_id
         )
+        admission_check = next(
+            item
+            for item in current.source_check_results
+            if item.check_result_id == "admission-syntax:" + attempt.attempt_id
+        )
+        assert admission_check.attempt_id == attempt.attempt_id
+        assert admission_check.check_type == "syntax"
+        assert admission_check.failure_class == "passed"
         observed = next(
             item
             for item in current.source_verifications

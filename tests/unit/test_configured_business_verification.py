@@ -376,7 +376,16 @@ def test_published_plan_actual_execution_query_report_and_restart(
                 assert len(facts.current_attempt_by_step) == 4
                 assert all(item.state.value == "verified" and not item.gap_ids
                            for item in facts.source_verifications), facts.source_verifications
-                assert len(facts.source_check_results) == 4
+                admission_checks = [
+                    item for item in facts.source_check_results
+                    if item.check_result_id.startswith("admission-")
+                ]
+                runtime_checks = [
+                    item for item in facts.source_check_results
+                    if item.check_result_id.startswith("runtime-load:")
+                ]
+                assert len(admission_checks) == 4
+                assert len(runtime_checks) == 4
                 submit_report_delivery(core, inputs, mapped=True, complete=complete_library)
             exported = core.api.dispatch(Command(
                 action="export_report", project_id=inputs.project_id, request_id="export-request",

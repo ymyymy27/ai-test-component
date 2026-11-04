@@ -21,6 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from aitest.domain.execution.runs import (
+    AdapterKind,
     ExecutionCollectionResult,
     ExecutionHandle,
     ExecutionInspectionResult,
@@ -53,6 +54,14 @@ class RegisteredEntryExecutionAdapter:
         """
 
         entry = request.registered_entry
+        if entry.adapter_kind not in {
+            AdapterKind.COMMAND,
+            AdapterKind.PYTHON_CHECKS,
+        }:
+            raise ValueError(
+                "registered entry adapter does not support "
+                f"{entry.adapter_kind.value}; wire the dedicated adapter"
+            )
         binding = (entry.entrypoint, request.materialized_snapshot_ref)
         existing = self._bound.get(entry.entry_id)
         if existing is not None:

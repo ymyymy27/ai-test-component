@@ -54,6 +54,8 @@ class SourceCheckStatus:
     state: SourceCheckStatusState
     reason: str | None = None
     evidence_ref: str | None = None
+    #: 内部判定输入：写入 SourceCheckResult 时保留，不进入公开的 checks 投影。
+    failure_class: FailureClass | None = None
 
     def __post_init__(self) -> None:
         if self.state is SourceCheckStatusState.NOT_APPLICABLE and not self.reason:
@@ -151,6 +153,7 @@ class ExecutionSourceVerification:
     source_instance_id: str | None = None
     capture_plan: RuntimeSourcePlan | None = None
     checks: tuple[SourceCheckStatus, ...] = ()
+    check_results: tuple[SourceCheckResult, ...] = ()
 
     def __post_init__(self) -> None:
         for name in (
