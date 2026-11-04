@@ -21,12 +21,13 @@ from pathlib import Path
 from typing import IO, cast
 from uuid import uuid4
 
-from aitest.application.execution.source_checks import (
+from aitest.domain.execution.runs import FailureClass
+from aitest.domain.execution.sources import (
+    SourceCheckStatusState,
+    SourceCheckType,
     SourceCommandOutcome,
     SourceCommandRequest,
 )
-from aitest.domain.execution.runs import FailureClass
-from aitest.domain.execution.sources import SourceCheckStatusState, SourceCheckType
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.security import UnsafeMaterialError, known_secrets
 
