@@ -3,7 +3,7 @@ contract_id: CORE-001
 title: A 包公共事务、存储与查询接口
 provider: A
 consumer: B/C/D
-contract_version: "1.95"
+contract_version: "1.96"
 contract_status: frozen
 provider_implementation: done
 consumer_implementation: done
@@ -13,6 +13,15 @@ blockers: []
 next_owner: A/B/C/D
 next_action: 现行接口已关闭；后续字段变更重新评审，真实产品验收继续按项目现状跟踪。
 ---
+
+## 1.96 报告/问题证据修订配对（2026-11-04）
+
+`record_view` 的 `report` / `issue` 记录新增 `evidence_revisions`：对象键为 `evidence_id`，值为正整数证据修订，与同记录 `evidence_refs` 配对。
+
+- 报告创建时从已提交 `ExecutionFacts` 的 `EvidenceFact.evidence_revision` 冻结，随报告修订不可变；
+- 问题保存时对本次新增的证据引用读取已保存 `evidence_ref` 记录的当前修订并冻结；已有引用保留原修订；
+- 读取方只使用显式修订；缺修订号的引用继续显示缺口提示，不猜默认修订；
+- 字段为增量：旧报告/旧问题 payload 无此键时按空映射读取，不追溯补写，也不改变既有 `evidence_refs` 语义。
 
 ## 1.95 证据正文只读视图（2026-11-02）
 

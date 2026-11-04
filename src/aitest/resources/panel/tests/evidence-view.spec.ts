@@ -204,7 +204,8 @@ test("report evidence refs open the exact evidence body", async ({page}) => {
         record: {
           report_id: "report-1", business_outcome: "passed",
           decision: {coverage: {selected: [], required: [], executed: [], reused: [], verified: [], passed: []}},
-          context: {}, evidence_refs: ["evidence-1@2"],
+          context: {}, evidence_refs: ["evidence-1"],
+          evidence_revisions: {"evidence-1": 2},
         },
       },
     }},

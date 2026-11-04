@@ -177,6 +177,27 @@ def _text_list(value: object, name: str) -> tuple[str, ...]:
     return items
 
 
+def _revision_mapping(
+    value: object, evidence_refs: tuple[str, ...], name: str
+) -> dict[str, int]:
+    """Parse the optional evidence-id → revision map; old records return {}."""
+
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ReportManagementError(f"{name} must be an object")
+    revisions: dict[str, int] = {}
+    for identity, revision in value.items():
+        if not isinstance(identity, str) or not identity.strip():
+            raise ReportManagementError(f"{name} keys must be nonempty strings")
+        if identity not in evidence_refs:
+            raise ReportManagementError(f"{name} references undeclared evidence")
+        if type(revision) is not int or revision < 1:
+            raise ReportManagementError(f"{name} values must be positive integers")
+        revisions[identity] = revision
+    return revisions
+
+
 # ------------------------------------------------------------------ 编解码
 
 
@@ -328,6 +349,7 @@ def report_to_payload(
         "context": context,
         "decision": _decision_to_payload(snapshot.decision),
         "evidence_refs": list(snapshot.evidence_refs),
+        "evidence_revisions": dict(snapshot.evidence_revisions),
         "issue_revisions": [list(item) for item in snapshot.issue_revisions],
         "reuse": dict(reuse)
         if reuse is not None
@@ -381,12 +403,16 @@ def report_from_payload(payload: Mapping[str, object]) -> ReportSnapshot:
     created_at = payload.get("created_at")
     if created_at is not None:
         created_at = _text(created_at, "created_at")
+    evidence_refs = _text_list(payload.get("evidence_refs"), "evidence_refs")
     return ReportSnapshot(
         report_id=_text(payload.get("report_id"), "report_id"),
         content_revision=content_revision,
         context=context,
         decision=_decision_from_payload(payload.get("decision")),
-        evidence_refs=_text_list(payload.get("evidence_refs"), "evidence_refs"),
+        evidence_refs=evidence_refs,
+        evidence_revisions=_revision_mapping(
+            payload.get("evidence_revisions"), evidence_refs, "evidence_revisions"
+        ),
         issue_revisions=tuple(issue_revisions),
         created_at=None if created_at is None else datetime.fromisoformat(created_at),
     )
@@ -652,13 +678,15 @@ class SavedReportService:
             policy_version=DEFAULT_POLICY_VERSION,
         )
         previous = None if current is None else report_from_payload(current["payload"])
+        evidence = self._report_evidence(facts, reuse)
         snapshot = create_report_revision(
             previous,
             ReportDraft(
                 report_id=report_id,
                 context=context,
                 decision=decision,
-                evidence_refs=self._report_evidence(facts, reuse),
+                evidence_refs=tuple(sorted(evidence)),
+                evidence_revisions=dict(evidence),
                 issue_revisions=tuple(sorted((issue.issue_id, issue.revision) for issue in issues)),
             ),
             created_at=self._clock.now(),
@@ -686,11 +714,13 @@ class SavedReportService:
             source_sequence=live.source_sequence,
         )
 
-    def _report_evidence(self, facts: ExecutionFacts, reuse: _ReuseReading) -> tuple[str, ...]:
+    def _report_evidence(
+        self, facts: ExecutionFacts, reuse: _ReuseReading
+    ) -> Mapping[str, int]:
         evidence = {item.evidence_id: item for item in facts.evidence_refs}
         outcome = reuse.outcome
         if outcome is None or not outcome.reused:
-            return tuple(sorted(evidence))
+            return {identity: evidence[identity].evidence_revision for identity in sorted(evidence)}
         if {item.case_id for item in outcome.references} != outcome.reused:
             raise ReportGuardRefused("qualified reuse lacks its exact saved references")
         sources = {item.run_id: item for item in outcome.source_snapshots}
@@ -713,7 +743,7 @@ class SavedReportService:
                 if previous is not None and previous != item:
                     raise ReportGuardRefused("frozen evidence identity has conflicting sources")
                 evidence[identity] = item
-        return tuple(sorted(evidence))
+        return {identity: evidence[identity].evidence_revision for identity in sorted(evidence)}
 
     def _decision(
         self,

@@ -7,7 +7,7 @@ Disposition never changes the original assertion or evidence.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -75,6 +75,8 @@ class IssueRecord:
     #: 最近一次"安排回归"的身份（架构 03 §117 回归关联）；安排不改状态机状态。
     regression_request_id: str | None = None
     evidence_refs: tuple[str, ...] = ()
+    #: 证据编号 → 保存时冻结的证据修订；旧记录无此字段时为空，读取方不得猜修订。
+    evidence_revisions: Mapping[str, int] = field(default_factory=dict)
     attempt_ids: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
@@ -83,6 +85,11 @@ class IssueRecord:
         _require_text(self.title, "title")
         if self.revision < 1:
             raise ValueError("revision must be positive")
+        unknown = set(self.evidence_revisions) - set(self.evidence_refs)
+        if unknown:
+            raise ValueError("evidence_revisions must reference declared evidence_refs")
+        if any(type(value) is not int or value < 1 for value in self.evidence_revisions.values()):
+            raise ValueError("evidence_revisions must be positive integers")
         if self.canonical_issue_id == self.issue_id:
             raise ValueError("an issue cannot be a duplicate of itself")
         if self.disposition is IssueDisposition.DUPLICATE:

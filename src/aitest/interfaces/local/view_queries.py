@@ -192,10 +192,12 @@ class CommittedViewReader:
                      "steps", "expected", "verification_method", "links", "assertion_basis",
                      "independent_verification", "mock_scope", "importance"),
             "report": ("report_id", "content_revision", "run_id", "context", "decision",
-                       "business_outcome", "evidence_refs", "issue_revisions", "reuse",
+                       "business_outcome", "evidence_refs", "evidence_revisions",
+                       "issue_revisions", "reuse",
                        "created_at", "execution_snapshot_ref", "blocking_issue_ids"),
             "issue": ("issue_id", "title", "description", "severity", "status", "state",
-                      "expected", "actual", "evidence_refs", "owner", "facts", "hypotheses",
+                      "expected", "actual", "evidence_refs", "evidence_revisions", "owner",
+                      "facts", "hypotheses",
                       "project_id", "run_id", "case_id", "step_id", "attempt_id"),
         }
         if kind not in fields or self._reader is None:
