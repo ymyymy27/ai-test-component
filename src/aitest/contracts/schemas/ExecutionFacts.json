@@ -1550,6 +1550,69 @@
       "title": "SourceCheckFact",
       "type": "object"
     },
+    "SourceCheckStatusFact": {
+      "additionalProperties": false,
+      "properties": {
+        "check_type": {
+          "$ref": "#/$defs/SourceCheckTypeFact"
+        },
+        "state": {
+          "$ref": "#/$defs/SourceCheckStatusStateFact"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Ref"
+        }
+      },
+      "required": [
+        "check_type",
+        "state"
+      ],
+      "title": "SourceCheckStatusFact",
+      "type": "object"
+    },
+    "SourceCheckStatusStateFact": {
+      "enum": [
+        "verified",
+        "not_applicable",
+        "mismatch",
+        "unverified",
+        "blocked",
+        "unknown"
+      ],
+      "title": "SourceCheckStatusStateFact",
+      "type": "string"
+    },
+    "SourceCheckTypeFact": {
+      "enum": [
+        "syntax",
+        "applicable_build",
+        "load",
+        "minimal_start"
+      ],
+      "title": "SourceCheckTypeFact",
+      "type": "string"
+    },
     "SourceVerificationFact": {
       "additionalProperties": false,
       "properties": {
@@ -1653,6 +1716,13 @@
           ],
           "default": null,
           "title": "Verified At"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/SourceCheckStatusFact"
+          },
+          "title": "Checks",
+          "type": "array"
         }
       },
       "required": [

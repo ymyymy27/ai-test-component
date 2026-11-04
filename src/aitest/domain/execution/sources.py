@@ -35,6 +35,31 @@ class SourceCheckType(StrEnum):
     MINIMAL_START = "minimal_start"
 
 
+class SourceCheckStatusState(StrEnum):
+    """单个源码检查子项的实际结论；`not_applicable` 必须带原因（DEC-021）。"""
+
+    VERIFIED = "verified"
+    NOT_APPLICABLE = "not_applicable"
+    MISMATCH = "mismatch"
+    UNVERIFIED = "unverified"
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCheckStatus:
+    """一次 L1 子检查的可持久化结论，不把"未执行"折叠成"通过"。"""
+
+    check_type: SourceCheckType
+    state: SourceCheckStatusState
+    reason: str | None = None
+    evidence_ref: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.state is SourceCheckStatusState.NOT_APPLICABLE and not self.reason:
+            raise ValueError("a not_applicable source check requires a reason")
+
+
 @dataclass(frozen=True, slots=True)
 class SourceFile:
     relative_path: str
@@ -87,6 +112,7 @@ class ExecutionSourceVerification:
     raw_output_object: StoredObjectRef | None = None
     source_instance_id: str | None = None
     capture_plan: RuntimeSourcePlan | None = None
+    checks: tuple[SourceCheckStatus, ...] = ()
 
     def __post_init__(self) -> None:
         for name in (
@@ -135,6 +161,8 @@ __all__ = [
     "ExecutionSourceVerification",
     "SourceBindingKind",
     "SourceCheckResult",
+    "SourceCheckStatus",
+    "SourceCheckStatusState",
     "SourceCheckType",
     "SourceFile",
     "SourceSnapshot",

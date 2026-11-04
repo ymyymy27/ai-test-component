@@ -49,6 +49,17 @@ class BindingFormFact(StrEnum):
     PLAIN = "plain"
 
 
+class SourceCheckApplicability(StrEnum):
+    """适用构建/最小启动是否本轮必测（DEC-021）。
+
+    `NOT_APPLICABLE` 是**显式登记**的结论，必须带原因；缺失计划不是不适用。
+    """
+
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+    NOT_APPLICABLE = "not_applicable"
+
+
 class EnvironmentIsolationModeFact(StrEnum):
     """依赖环境隔离方式。
 
@@ -167,6 +178,85 @@ class EnvironmentRefFact(ContractModel):
     resolution: EnvironmentResolutionFact | None = None
 
 
+class SourceCheckPlan(ContractModel):
+    """一条显式登记的受控源码检查命令（DEC-021）。
+
+    命令是 argv 数组，不经过 shell；`descriptor` 是相对冻结 workdir 的登记文件/目录，
+    运行时以它所在目录为 cwd。`ready_when` 只接受 `stdout_contains:<文本>` 这类可机械
+    核对的判据，不接受自然语言。
+    """
+
+    applicability: SourceCheckApplicability
+    command: tuple[str, ...] = Field(default_factory=tuple)
+    descriptor: str | None = None
+    ready_when: str | None = None
+    timeout_ms: int = Field(default=120_000, ge=1_000, le=1_800_000)
+    #: `not_applicable` 必须说明原因；其余适用性不得携带。
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def _plan_is_executable_or_explained(self) -> Self:
+        if self.applicability is SourceCheckApplicability.NOT_APPLICABLE:
+            if self.command:
+                raise ValueError("not_applicable source check must not carry a command")
+            if not self.reason or not self.reason.strip():
+                raise ValueError("not_applicable source check requires a reason")
+            if self.ready_when is not None:
+                raise ValueError("not_applicable source check must not carry ready_when")
+            return self
+        if self.reason is not None:
+            raise ValueError("only a not_applicable source check may carry a reason")
+        if not self.command:
+            raise ValueError("an applicable source check requires an argv command")
+        for token in self.command:
+            if not token or "\x00" in token:
+                raise ValueError("source check command tokens must be nonempty text")
+        if self.descriptor is not None:
+            self._validate_descriptor(self.descriptor)
+        if self.ready_when is not None:
+            prefix = "stdout_contains:"
+            if not self.ready_when.startswith(prefix) or not self.ready_when[len(prefix) :].strip():
+                raise ValueError("ready_when only supports 'stdout_contains:<text>'")
+        return self
+
+    @staticmethod
+    def _validate_descriptor(value: str) -> None:
+        text = value.replace("\\", "/")
+        parts = tuple(part for part in text.split("/") if part)
+        if (
+            not text.strip()
+            or not parts
+            or text.startswith("/")
+            or ":" in parts[0]
+            or any(part in {".", ".."} for part in parts)
+            or "\x00" in text
+        ):
+            raise ValueError("descriptor must be a safe path relative to the frozen workdir")
+
+
+class SourceCheckPlans(ContractModel):
+    """`ExecutionSourceBinding.source_checks` 的两类显式登记。
+
+    缺省（`None`）表示用户没有登记，不是“不适用”：服务模板要求的两项检查缺失时
+    准备阶段阻塞；库模板默认不适用，由核验侧带原因记录。
+    """
+
+    build: SourceCheckPlan | None = None
+    minimal_start: SourceCheckPlan | None = None
+
+    @model_validator(mode="after")
+    def _plans_match_their_slot(self) -> Self:
+        if self.build is not None and self.build.ready_when is not None:
+            raise ValueError("build check must not carry a readiness observation")
+        if (
+            self.minimal_start is not None
+            and self.minimal_start.applicability is not SourceCheckApplicability.NOT_APPLICABLE
+            and self.minimal_start.ready_when is None
+        ):
+            raise ValueError("minimal_start check requires a mechanical ready_when")
+        return self
+
+
 class ExecutionSourceBinding(ContractModel):
     """prepare 冻结的预期执行来源；实际来源由 C 在 start 时核对。"""
 
@@ -178,6 +268,7 @@ class ExecutionSourceBinding(ContractModel):
     test_config_ref: str = Field(min_length=1)
     adapter_versions: dict[str, str] = Field(default_factory=dict)
     resolved_input_digest: str = Field(min_length=1)
+    source_checks: SourceCheckPlans = Field(default_factory=SourceCheckPlans)
 
     @model_validator(mode="after")
     def _binding_fields_are_exact(self) -> Self:

@@ -195,7 +195,9 @@ def _prepared(identity: str) -> dict[str, object]:
         "execution_source": {
             "adapter_versions": {"python": "python-checks/1.0"},
             "entry_arguments": ["entry.py"],
+            "source_checks": {"build": None, "minimal_start": None},
         },
+        "template_versions": [],
         "rule_versions": [{"rule_id": "rule-1", "revision": 1}],
     }
 
@@ -259,7 +261,7 @@ def test_the_business_record_is_resolved_to_the_technical_pinned_identity(
 ) -> None:
     provider, workdir, admitted, prepared, snapshots, analysis, computed = _provider(tmp_path)
 
-    verification = provider(workdir, admitted, prepared)
+    verification = provider(workdir, admitted, prepared, "L1")
 
     assert verification.state is SourceVerificationState.VERIFIED
     assert verification.gap_ids == ()
@@ -274,7 +276,7 @@ def test_a_registered_module_is_actually_imported_from_the_materialized_copy(
 ) -> None:
     provider, workdir, admitted, prepared, *_ = _provider(tmp_path)
 
-    verification = provider(workdir, admitted, prepared)
+    verification = provider(workdir, admitted, prepared, "L1")
 
     assert verification.state is SourceVerificationState.VERIFIED
     # 真的导入了登记模块，且实际加载路径落在固定 workdir 内。
@@ -291,7 +293,7 @@ def test_without_a_derivable_module_the_check_is_a_real_syntax_check(
         tmp_path, with_module=False, entry_source="def broken(:\n"
     )
 
-    verification = provider(workdir, admitted, prepared)
+    verification = provider(workdir, admitted, prepared, "L1")
 
     assert verification.state is SourceVerificationState.MISMATCH
     assert "source_syntax_error:entry.py" in verification.gap_ids
@@ -304,7 +306,7 @@ def test_a_different_pinned_identity_is_not_verified(tmp_path: Path) -> None:
         tmp_path, identity="sha256:" + "b" * 64
     )
 
-    verification = provider(workdir, admitted, prepared)
+    verification = provider(workdir, admitted, prepared, "L1")
 
     assert verification.state is not SourceVerificationState.VERIFIED
     assert "source_digest_mismatch" in verification.gap_ids
@@ -329,6 +331,7 @@ def test_an_entry_outside_the_fixed_workdir_is_refused(tmp_path: Path) -> None:
                 ]
             },
             prepared,
+            "L1",
         )
 
 
@@ -336,7 +339,7 @@ def test_an_empty_path_mapping_is_refused(tmp_path: Path) -> None:
     provider, workdir, _, prepared, *_ = _provider(tmp_path)
 
     with pytest.raises(SourceBindingUnverified):
-        provider(workdir, {"paths": []}, prepared)
+        provider(workdir, {"paths": []}, prepared, "L1")
 
 
 def test_a_legacy_snapshot_id_only_shape_is_refused(tmp_path: Path) -> None:
@@ -350,7 +353,7 @@ def test_a_legacy_snapshot_id_only_shape_is_refused(tmp_path: Path) -> None:
     }
 
     with pytest.raises(SourceBindingUnverified):
-        provider(workdir, admitted, legacy)
+        provider(workdir, admitted, legacy, "L1")
 
 
 @pytest.mark.parametrize(

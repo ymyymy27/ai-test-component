@@ -52,10 +52,12 @@ from aitest.application.execution.runtime_actions import SavedRuntimeRevisionAct
 from aitest.application.execution.saved_control import SavedRunControl
 from aitest.application.execution.source_checks import (
     SourceCheckRequest,
+    SourceCommandRequest,
     SourceModuleFact,
     SourceProbeObservation,
     SourceSyntaxErrorFact,
     SourceVerificationService,
+    merge_source_checks,
 )
 from aitest.application.execution.start_source_binding import SourceBindingUnverified
 from aitest.application.execution.step_execution import SavedStepExecution
@@ -97,13 +99,20 @@ from aitest.application.review.saved_reports import SavedReportService
 from aitest.application.review.saved_reuse import SavedCaseReuseSelection
 from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseError
 from aitest.contracts.commands import Command
-from aitest.contracts.prepared_run import EnvironmentResolutionFact
+from aitest.contracts.prepared_run import (
+    EnvironmentResolutionFact,
+    SourceCheckApplicability,
+    SourceCheckPlan,
+    SourceCheckPlans,
+)
 from aitest.domain.approvals import TrustedActor
 from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
 from aitest.domain.execution.runtime_source import RuntimeSourceFile, RuntimeSourcePlan
 from aitest.domain.execution.sources import (
     ExecutionSourceVerification,
+    SourceCheckStatus,
+    SourceCheckStatusState,
     SourceCheckType,
     SourceVerificationState,
 )
@@ -118,6 +127,9 @@ from aitest.infrastructure.adapters.execution.registered_entry import (
     RegisteredEntryExecutionAdapter,
 )
 from aitest.infrastructure.adapters.execution.runtime_source import carrier_digest
+from aitest.infrastructure.adapters.execution.source_check_commands import (
+    ControlledSourceCheckRunner,
+)
 from aitest.infrastructure.adapters.model import HttpModelProvider, ModelCredentialResolver
 from aitest.infrastructure.adapters.source_control import GitSourceControl
 from aitest.infrastructure.adapters.source_snapshot import FileSourceSnapshotStore
@@ -628,6 +640,153 @@ def _probe_output_reference(
     return stored
 
 
+def _registered_source_check_statuses(
+    prepared: Mapping[str, object],
+    *,
+    project_id: str,
+    technical_id: str,
+    workdir: str,
+    interpreter: str,
+    layer: str,
+    runner: ControlledSourceCheckRunner | None,
+) -> tuple[tuple[SourceCheckStatus, ...], tuple[SourceCheckStatus, ...]]:
+    """按冻结登记运行 build/minimal_start，返回 `(全部子项, 必需失败子项)`（DEC-021）。
+
+    - 服务模板缺登记：`UNKNOWN` + 必需失败，L1 不得整体 verified；
+    - 库/其他已知模板未登记：显式 `not_applicable` 并带原因，不静默跳过；
+    - 模板无法判断：`UNKNOWN`，不代判不适用；
+    - 只有 `required` 子项失败会降级总状态，`optional` 仍逐项保存。
+    """
+
+    if layer != "L1":
+        # 构建/最小启动是 L1 子项；L2/L3 动作不重复启动服务，也不把未执行写成通过。
+        return (
+            tuple(
+                SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.NOT_APPLICABLE,
+                    reason="not_an_l1_action",
+                )
+                for check_type in (
+                    SourceCheckType.APPLICABLE_BUILD,
+                    SourceCheckType.MINIMAL_START,
+                )
+            ),
+            (),
+        )
+    execution_source = prepared.get("execution_source")
+    if not isinstance(execution_source, Mapping):
+        return (), ()
+    raw_templates = prepared.get("template_versions")
+    template_ids = sorted(
+        {
+            str(item["template_id"])
+            for item in raw_templates
+            if isinstance(item, Mapping) and isinstance(item.get("template_id"), str)
+        }
+        if isinstance(raw_templates, (list, tuple))
+        else ()
+    )
+    is_service = "python-service" in template_ids
+    raw_plans = execution_source.get("source_checks")
+    plans = SourceCheckPlans()
+    if isinstance(raw_plans, Mapping):
+        try:
+            plans = SourceCheckPlans.model_validate(raw_plans)
+        except ValueError as error:
+            invalid = tuple(
+                SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.UNKNOWN,
+                    reason=f"source_check_plan_invalid: {error}",
+                )
+                for check_type in (
+                    SourceCheckType.APPLICABLE_BUILD,
+                    SourceCheckType.MINIMAL_START,
+                )
+            )
+            return invalid, invalid
+
+    statuses: list[SourceCheckStatus] = []
+    failures: list[SourceCheckStatus] = []
+    for slot, check_type in (
+        ("build", SourceCheckType.APPLICABLE_BUILD),
+        ("minimal_start", SourceCheckType.MINIMAL_START),
+    ):
+        plan: SourceCheckPlan | None = getattr(plans, slot)
+        if plan is None:
+            if is_service:
+                status = SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.UNKNOWN,
+                    reason="source_check_plan_unregistered",
+                )
+                failures.append(status)
+            elif template_ids:
+                status = SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.NOT_APPLICABLE,
+                    reason="template_default_not_applicable:" + ",".join(template_ids),
+                )
+            else:
+                status = SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.UNKNOWN,
+                    reason="source_check_template_unknown",
+                )
+            statuses.append(status)
+            continue
+        if plan.applicability is SourceCheckApplicability.NOT_APPLICABLE:
+            statuses.append(
+                SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.NOT_APPLICABLE,
+                    reason=plan.reason or "explicitly not applicable",
+                )
+            )
+            continue
+        if runner is None:
+            status = SourceCheckStatus(
+                check_type=check_type,
+                state=SourceCheckStatusState.BLOCKED,
+                reason="source_check_evidence_store_unavailable",
+            )
+        else:
+            try:
+                outcome = runner.run(
+                    SourceCommandRequest(
+                        check_type=check_type,
+                        check_id=f"source-check:{technical_id}:{check_type.value}",
+                        project_id=project_id,
+                        command=plan.command,
+                        workdir=workdir,
+                        interpreter=interpreter,
+                        timeout_ms=plan.timeout_ms,
+                        descriptor=plan.descriptor,
+                        ready_when=plan.ready_when,
+                    )
+                )
+            except ValueError as error:
+                status = SourceCheckStatus(
+                    check_type=check_type,
+                    state=SourceCheckStatusState.BLOCKED,
+                    reason=f"source_check_request_invalid: {error}",
+                )
+            else:
+                status = SourceCheckStatus(
+                    check_type=check_type,
+                    state=outcome.state,
+                    reason=outcome.reason,
+                    evidence_ref=outcome.evidence_ref,
+                )
+        statuses.append(status)
+        if plan.applicability is SourceCheckApplicability.REQUIRED and (
+            status.state is not SourceCheckStatusState.VERIFIED
+        ):
+            failures.append(status)
+    return tuple(statuses), tuple(failures)
+
+
 def _source_verification_provider(
     snapshots: SourceSnapshotPort,
     reader: RecordReader,
@@ -635,18 +794,23 @@ def _source_verification_provider(
     objects: FileObjectStore | None = None,
     *,
     instance_id: str | None = None,
-) -> Callable[[str, Mapping[str, object], Mapping[str, object]], ExecutionSourceVerification]:
+) -> Callable[
+    [str, Mapping[str, object], Mapping[str, object], str], ExecutionSourceVerification
+]:
     """装配层适配：合成「来源核验事实」（架构01 第 12 节 / P1-FR08 / P1-AC13）。
 
     这是**一期**要求：需求 P1-FR08 明确 L1 覆盖「Python 语法、适用构建、加载或最小启动」，
     P1-AC13 要求 start 准入核对实际来源。
 
-    **本轮实现 `SYNTAX` + `LOAD` 两类，并说明仍未覆盖的一点**：
+    **L1 子项**：
 
-    1. `MINIMAL_START`／`APPLICABLE_BUILD` 需要显式构建配置与最小启动脚本来源，合同尚未冻结
-       该字段来源，故仍不实现；这是**已知的范围缺口**，在登记里如实记录，不得当成完整 L1 通过。
-    2. 有登记模块时用 `LOAD`（真实导入 + 逐模块摘要），无登记模块时用 `SYNTAX`（实际编译
-       物化范围内全部 `.py` 文件）；两类都**实际执行**，不再只核"文件存在/摘要非空"。
+    1. `SYNTAX`／`LOAD`：有登记模块时用 `LOAD`（真实导入 + 逐模块摘要），无登记模块时用
+       `SYNTAX`（实际编译物化范围内全部 `.py` 文件）；两类都**实际执行**，不再只核
+       "文件存在/摘要非空"。
+    2. `APPLICABLE_BUILD`／`MINIMAL_START`：按 DEC-021 的 `ExecutionSourceBinding.source_checks`
+       显式登记，由 `ControlledSourceCheckRunner` 用冻结解释器实际执行；每个子项的状态、原因
+       和证据引用进入 `checks`。`required` 子项失败会降级总来源核验；服务模板缺登记在准备
+       阶段已阻塞，旧记录缺字段则保留 `unknown` 缺口，不追溯升级。
 
     **非空转**：
     - 业务 `SnapshotRef` → 技术 `pinned_snapshot_id` 走 `SourceAnalysisService.verify_saved`
@@ -660,11 +824,13 @@ def _source_verification_provider(
     """
 
     service = SourceVerificationService()
+    runner = ControlledSourceCheckRunner(objects) if objects is not None else None
 
     def provide(
         workdir: str,
         admitted: Mapping[str, object],
         prepared: Mapping[str, object],
+        layer: str,
     ) -> ExecutionSourceVerification:
         project_id = _required_text(prepared.get("project_id"), "project_id")
         snapshot = prepared.get("snapshot")
@@ -802,6 +968,20 @@ def _source_verification_provider(
                 verification, state=SourceVerificationState.UNVERIFIED,
                 gap_ids=(*verification.gap_ids, "source_probe_material_redacted"),
             )
+        statuses, required_failures = _registered_source_check_statuses(
+            prepared,
+            project_id=project_id,
+            technical_id=technical_id,
+            workdir=workdir,
+            interpreter=interpreter,
+            layer=layer,
+            runner=runner,
+        )
+        verification = merge_source_checks(
+            verification,
+            statuses=statuses,
+            required_failures=required_failures,
+        )
         return replace(
             verification, raw_output_object=raw_object, source_instance_id=instance_id,
             capture_plan=RuntimeSourcePlan(carrier_digest=carrier_digest(), files=tuple(

@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -17,6 +17,8 @@ from aitest.domain.execution.runs import FailureClass, PlanRevisionRef
 from aitest.domain.execution.sources import (
     ExecutionSourceVerification,
     SourceCheckResult,
+    SourceCheckStatus,
+    SourceCheckStatusState,
     SourceCheckType,
     SourceVerificationState,
 )
@@ -121,6 +123,140 @@ class SourceProbeObservation:
 class SourceCheckOutcome:
     verification: ExecutionSourceVerification
     check_result: SourceCheckResult
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCommandRequest:
+    """一条显式登记、由受控命令执行器运行的源码检查（DEC-021）。
+
+    只传 argv 与判据；解释器替换、cwd 约束、环境白名单、进程树回收由基础设施
+    适配器执行。应用层不拼接 shell 字符串。
+    """
+
+    check_type: SourceCheckType
+    check_id: str
+    project_id: str
+    command: tuple[str, ...]
+    workdir: str
+    interpreter: str
+    timeout_ms: int
+    descriptor: str | None = None
+    ready_when: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("check_id", "project_id", "workdir", "interpreter"):
+            if not getattr(self, name).strip():
+                raise ValueError(f"{name} must not be empty")
+        if not self.command:
+            raise ValueError("a source command check requires an argv command")
+        if self.timeout_ms < 1:
+            raise ValueError("timeout_ms must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCommandOutcome:
+    """一条源码检查的实际结论；未执行/未就绪不得写成通过。"""
+
+    state: SourceCheckStatusState
+    failure_class: FailureClass
+    reason: str | None = None
+    evidence_ref: str | None = None
+
+
+class SourceCommandPort(Protocol):
+    def run(self, request: SourceCommandRequest) -> SourceCommandOutcome: ...
+
+
+def merge_source_checks(
+    verification: ExecutionSourceVerification,
+    *,
+    statuses: tuple[SourceCheckStatus, ...],
+    required_failures: tuple[SourceCheckStatus, ...] = (),
+) -> ExecutionSourceVerification:
+    """把 build/minimal_start 的子结论并入总来源核验（DEC-021）。
+
+    只有 `required` 子项失败会降级总状态；`optional` 失败和显式
+    `not_applicable` 仍逐项保存，但不冒充“必需项通过”。
+    """
+
+    if not statuses:
+        return verification
+    gaps = list(verification.gap_ids)
+    state = verification.state
+    failure_class = verification.failure_class
+    for item in required_failures:
+        gaps.append(_check_gap(item))
+        state = _worse_source_state(state, _AGGREGATE_STATE[item.state])
+        failure_class = _worse_failure_class(
+            failure_class, _AGGREGATE_FAILURE_CLASS[item.state]
+        )
+    evidence = list(verification.evidence_refs)
+    for item in statuses:
+        if item.evidence_ref is not None and item.evidence_ref not in evidence:
+            evidence.append(item.evidence_ref)
+    return replace(
+        verification,
+        state=state,
+        failure_class=failure_class,
+        gap_ids=tuple(dict.fromkeys(gaps)),
+        evidence_refs=tuple(evidence),
+        checks=statuses,
+    )
+
+
+_AGGREGATE_STATE: dict[SourceCheckStatusState, SourceVerificationState] = {
+    SourceCheckStatusState.MISMATCH: SourceVerificationState.MISMATCH,
+    SourceCheckStatusState.BLOCKED: SourceVerificationState.BLOCKED,
+    SourceCheckStatusState.UNVERIFIED: SourceVerificationState.UNVERIFIED,
+    SourceCheckStatusState.UNKNOWN: SourceVerificationState.UNKNOWN,
+    SourceCheckStatusState.VERIFIED: SourceVerificationState.VERIFIED,
+    SourceCheckStatusState.NOT_APPLICABLE: SourceVerificationState.VERIFIED,
+}
+
+_AGGREGATE_FAILURE_CLASS: dict[SourceCheckStatusState, FailureClass] = {
+    SourceCheckStatusState.MISMATCH: FailureClass.SOURCE_ERROR,
+    SourceCheckStatusState.BLOCKED: FailureClass.ENVIRONMENT_UNREACHABLE,
+    SourceCheckStatusState.UNVERIFIED: FailureClass.TOOL_FAILURE,
+    SourceCheckStatusState.UNKNOWN: FailureClass.TOOL_FAILURE,
+    SourceCheckStatusState.VERIFIED: FailureClass.PASSED,
+    SourceCheckStatusState.NOT_APPLICABLE: FailureClass.PASSED,
+}
+
+_STATE_SEVERITY: dict[SourceVerificationState, int] = {
+    SourceVerificationState.VERIFIED: 0,
+    SourceVerificationState.UNKNOWN: 1,
+    SourceVerificationState.UNVERIFIED: 2,
+    SourceVerificationState.BLOCKED: 3,
+    SourceVerificationState.MISMATCH: 4,
+}
+
+_FAILURE_SEVERITY: dict[FailureClass, int] = {
+    FailureClass.PASSED: 0,
+    FailureClass.TOOL_FAILURE: 1,
+    FailureClass.DEPENDENCY_MISSING: 2,
+    FailureClass.ENVIRONMENT_UNREACHABLE: 3,
+    FailureClass.SOURCE_ERROR: 4,
+}
+
+
+def _worse_source_state(
+    current: SourceVerificationState, candidate: SourceVerificationState
+) -> SourceVerificationState:
+    return current if _STATE_SEVERITY[current] >= _STATE_SEVERITY[candidate] else candidate
+
+
+def _worse_failure_class(
+    current: FailureClass | None, candidate: FailureClass
+) -> FailureClass:
+    if current is None:
+        return candidate
+    return current if _FAILURE_SEVERITY[current] >= _FAILURE_SEVERITY[candidate] else candidate
+
+
+def _check_gap(item: SourceCheckStatus) -> str:
+    reason = (item.reason or "").replace("\r", " ").replace("\n", " ").strip()
+    base = f"source_check_{item.state.value}:{item.check_type.value}"
+    return f"{base}:{reason}" if reason else base
 
 
 class SourceProbePort(Protocol):
@@ -348,9 +484,13 @@ def _outside_materialized(reference: str | None, materialized_ref: str) -> bool:
 __all__ = [
     "SourceCheckOutcome",
     "SourceCheckRequest",
+    "SourceCommandOutcome",
+    "SourceCommandPort",
+    "SourceCommandRequest",
     "SourceModuleFact",
     "SourceProbeObservation",
     "SourceProbePort",
     "SourceSyntaxErrorFact",
     "SourceVerificationService",
+    "merge_source_checks",
 ]

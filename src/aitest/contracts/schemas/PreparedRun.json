@@ -484,6 +484,9 @@
           "minLength": 1,
           "title": "Resolved Input Digest",
           "type": "string"
+        },
+        "source_checks": {
+          "$ref": "#/$defs/SourceCheckPlans"
         }
       },
       "required": [
@@ -791,6 +794,110 @@
         "content_identity"
       ],
       "title": "SnapshotRef",
+      "type": "object"
+    },
+    "SourceCheckApplicability": {
+      "description": "适用构建/最小启动是否本轮必测（DEC-021）。\n\n`NOT_APPLICABLE` 是**显式登记**的结论，必须带原因；缺失计划不是不适用。",
+      "enum": [
+        "required",
+        "optional",
+        "not_applicable"
+      ],
+      "title": "SourceCheckApplicability",
+      "type": "string"
+    },
+    "SourceCheckPlan": {
+      "additionalProperties": false,
+      "description": "一条显式登记的受控源码检查命令（DEC-021）。\n\n命令是 argv 数组，不经过 shell；`descriptor` 是相对冻结 workdir 的登记文件/目录，\n运行时以它所在目录为 cwd。`ready_when` 只接受 `stdout_contains:<文本>` 这类可机械\n核对的判据，不接受自然语言。",
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/SourceCheckApplicability"
+        },
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Command",
+          "type": "array"
+        },
+        "descriptor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Descriptor"
+        },
+        "ready_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ready When"
+        },
+        "timeout_ms": {
+          "default": 120000,
+          "maximum": 1800000,
+          "minimum": 1000,
+          "title": "Timeout Ms",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "applicability"
+      ],
+      "title": "SourceCheckPlan",
+      "type": "object"
+    },
+    "SourceCheckPlans": {
+      "additionalProperties": false,
+      "description": "`ExecutionSourceBinding.source_checks` 的两类显式登记。\n\n缺省（`None`）表示用户没有登记，不是“不适用”：服务模板要求的两项检查缺失时\n准备阶段阻塞；库模板默认不适用，由核验侧带原因记录。",
+      "properties": {
+        "build": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCheckPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "minimal_start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCheckPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SourceCheckPlans",
       "type": "object"
     },
     "TemplateVersionRef": {

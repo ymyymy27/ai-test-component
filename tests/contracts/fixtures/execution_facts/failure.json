@@ -170,7 +170,8 @@
       "observed_entry_ref": "entry-1",
       "gap_ids": [],
       "evidence_refs": [],
-      "verified_at": "2026-10-07T10:01:00Z"
+      "verified_at": "2026-10-07T10:01:00Z",
+      "checks": []
     }
   ],
   "verifications": [

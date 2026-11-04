@@ -386,3 +386,9 @@ C内部读取一份准确源快照、原run@1、原prepared_run@1及原准备回
 `export_report` 新增可选 `report_revision`（正整数）；传入时只导出该报告准确修订，复核仍须匹配该修订。省略时保留原最新报告语义及旧意图指纹。显式修订参与指纹，同一意图更换修订拒绝。面板从当前报告选择传入，无需用户填写编号或修订。
 
 步骤引导复用原解析、授权、执行和核验动作：前三者沿用同一业务意图，核验绑定当前 Attempt 和执行快照。页面点击不产生确认事实，核心仍执行授权及并发门禁。本批单元/合同和宿主夹具范围见[验证记录](../../../归档/validation/p1-panel-guidance-20261016/README.md)；不更改历史 `last_verified_commit`，不登记真实 Trae 全流程通过。
+
+## DEC-021 构建/最小启动子项事实（2026-11-04，非破坏性）
+
+按 [DEC-021](../../待裁定/DEC-021-适用构建与最小启动来源.md)，`ExecutionSourceVerification` 与 `SourceVerificationFact` 新增可选 `checks` 数组，逐项保存 `check_type`、`state`、`reason` 与 `evidence_ref`；`check_type` 沿用既有 `syntax / applicable_build / load / minimal_start`，`state` 为 `verified / not_applicable / mismatch / unverified / blocked / unknown`。新增字段只描述已执行的 L1 子项，不改变 `source_verification.state`、`gap_ids`、`evidence_refs` 的既有语义；`required` 子项失败由核心降级总状态并写入 `source_check_<state>:<type>:<reason>` 缺口，`optional` 失败与显式 `not_applicable` 只逐项记录。
+
+旧记录没有 `checks` 时按空数组读取；没有 `execution_source.source_checks` 的旧准备记录中，服务模板要求的两项按 `unknown` + `source_check_plan_unregistered` 处理，库/其他已知模板按 `not_applicable` 记录，均不追溯升级。`aitest.execution-facts/1.0`、DTO 向后兼容，原记录不迁移；真实 Trae 服务样例与掉电/跨机验收仍未完成。
