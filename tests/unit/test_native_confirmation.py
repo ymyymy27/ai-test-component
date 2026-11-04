@@ -144,8 +144,9 @@ def test_binding_relay_cannot_authorize_but_core_gesture_has_saved_materials(cor
     assert relay.error.code == "AWAITING_USER_CONFIRMATION"
     previews = []
 
-    def gesture(text):
-        previews.append(text)
+    def gesture(view):
+        previews.append(view)
+        text = view.details
         assert core.unit_of_work.repo.current_revision("binding", "binding") == 0
         assert '"saved_materials"' in text and '"测试目标"' in text
         assert core.workspace.workspace_id in text and "bind-source" in text

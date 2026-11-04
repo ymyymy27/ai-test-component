@@ -43,6 +43,9 @@ from aitest.contracts.execution_facts import (
     SideEffectClassFact,
     SourceBindingKindFact,
     SourceCheckFact,
+    SourceCheckStatusFact,
+    SourceCheckStatusStateFact,
+    SourceCheckTypeFact,
     SourceVerificationFact,
     SourceVerificationStateFact,
     StepFact,
@@ -648,6 +651,15 @@ def _source_verification_fact(item: ExecutionSourceVerification) -> SourceVerifi
         gap_ids=item.gap_ids,
         evidence_refs=item.evidence_refs,
         verified_at=item.verified_at,
+        checks=tuple(
+            SourceCheckStatusFact(
+                check_type=_enum(SourceCheckTypeFact, check.check_type.value),
+                state=_enum(SourceCheckStatusStateFact, check.state.value),
+                reason=check.reason,
+                evidence_ref=check.evidence_ref,
+            )
+            for check in item.checks
+        ),
     )
 
 

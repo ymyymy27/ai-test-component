@@ -58,6 +58,7 @@ from aitest.contracts.prepared_run import (
     RunTierFact,
     SkippedScopeEntry,
     SnapshotRef,
+    SourceCheckApplicability,
     TemplateVersionRef,
     conclusion_ceiling_for,
 )
@@ -129,6 +130,49 @@ def _require_text(value: str, name: str) -> None:
         raise ValueError(f"{name} must not be empty")
 
 
+#: 服务模板要求的两项源码检查（DEC-021）。库/其他模板不强制，由核验侧带原因记录。
+_SERVICE_SOURCE_CHECKS: tuple[tuple[str, str], ...] = (
+    ("build", "applicable_build"),
+    ("minimal_start", "minimal_start"),
+)
+
+
+def _source_check_blockers(inputs: PreparationInputs) -> tuple[BlockingReason, ...]:
+    """服务模板缺少必需检查登记时，准备阶段直接阻塞（DEC-021）。
+
+    不在执行期猜构建/启动命令；也不把“没登记”保存成可执行准备。
+    """
+
+    template_ids = {ref.template_id for ref in inputs.template_versions}
+    if "python-service" not in template_ids:
+        return ()
+    reasons: list[BlockingReason] = []
+    plans = inputs.execution_source.source_checks
+    for slot, check_name in _SERVICE_SOURCE_CHECKS:
+        plan = getattr(plans, slot)
+        if plan is None:
+            reasons.append(
+                BlockingReason(
+                    code="source_check_plan_unregistered",
+                    message=(
+                        f"python-service requires an explicit {check_name} source check; "
+                        "register its argv, descriptor/readiness and timeout before preparing."
+                    ),
+                )
+            )
+        elif plan.applicability is not SourceCheckApplicability.REQUIRED:
+            reasons.append(
+                BlockingReason(
+                    code="source_check_plan_unregistered",
+                    message=(
+                        f"python-service requires {check_name} to be registered as required "
+                        f"(got {plan.applicability.value})."
+                    ),
+                )
+            )
+    return tuple(reasons)
+
+
 def preparation_payload(inputs: PreparationInputs | PreparedRun) -> dict[str, object]:
     """参与业务输入摘要的字段：**请求要什么**。
 
@@ -183,6 +227,18 @@ def preparation_payload(inputs: PreparationInputs | PreparedRun) -> dict[str, ob
             "secret_refs": list(inputs.execution_source.secret_refs),
             "test_config_ref": inputs.execution_source.test_config_ref,
             "adapter_versions": dict(inputs.execution_source.adapter_versions),
+            "source_checks": {
+                "build": (
+                    inputs.execution_source.source_checks.build.model_dump(mode="json")
+                    if inputs.execution_source.source_checks.build is not None
+                    else None
+                ),
+                "minimal_start": (
+                    inputs.execution_source.source_checks.minimal_start.model_dump(mode="json")
+                    if inputs.execution_source.source_checks.minimal_start is not None
+                    else None
+                ),
+            },
         },
     }
 
@@ -326,6 +382,19 @@ def prepare_run(
             blocking_reasons=tuple(
                 BlockingReason(code=gap.kind, message=gap.detail) for gap in inputs.context_gaps
             ),
+        )
+
+    # 步骤 2：服务模板的必需源码检查登记（DEC-021）→ 缺登记即阻塞，不猜命令。
+    source_check_reasons = _source_check_blockers(inputs)
+    if source_check_reasons:
+        return _build(
+            inputs,
+            intent_id=intent_id,
+            digest=digest,
+            created_at=now,
+            created_at_commit=unit_of_work.commit_seq(),
+            status=_STATUS_BLOCKED,
+            blocking_reasons=source_check_reasons,
         )
 
     # 步骤 3—4：按三元组查已有准备记录并判定。

@@ -257,7 +257,8 @@
         "evidence-1",
         "evidence-stderr"
       ],
-      "verified_at": "2026-10-07T10:01:00Z"
+      "verified_at": "2026-10-07T10:01:00Z",
+      "checks": []
     }
   ],
   "verifications": [

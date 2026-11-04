@@ -167,6 +167,22 @@ class SourceVerificationStateFact(StrEnum):
     UNKNOWN = "unknown"
 
 
+class SourceCheckStatusStateFact(StrEnum):
+    VERIFIED = "verified"
+    NOT_APPLICABLE = "not_applicable"
+    MISMATCH = "mismatch"
+    UNVERIFIED = "unverified"
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
+
+
+class SourceCheckTypeFact(StrEnum):
+    SYNTAX = "syntax"
+    APPLICABLE_BUILD = "applicable_build"
+    LOAD = "load"
+    MINIMAL_START = "minimal_start"
+
+
 class MockDeclarationSourceFact(StrEnum):
     DEVELOPMENT_DECLARATION = "development_declaration"
     RUNTIME_CONFIG = "runtime_config"
@@ -421,6 +437,13 @@ class SourceCheckFact(ContractModel):
     evidence_refs: tuple[str, ...] = Field(default_factory=tuple)
 
 
+class SourceCheckStatusFact(ContractModel):
+    check_type: SourceCheckTypeFact
+    state: SourceCheckStatusStateFact
+    reason: str | None = None
+    evidence_ref: str | None = None
+
+
 class SourceVerificationFact(ContractModel):
     verification_id: str
     project_id: str
@@ -436,6 +459,7 @@ class SourceVerificationFact(ContractModel):
     gap_ids: tuple[str, ...] = Field(default_factory=tuple)
     evidence_refs: tuple[str, ...] = Field(default_factory=tuple)
     verified_at: datetime | None = None
+    checks: tuple[SourceCheckStatusFact, ...] = Field(default_factory=tuple)
 
 
 class VerificationFact(ContractModel):
@@ -588,6 +612,9 @@ __all__ = [
     "SideEffectClassFact",
     "SourceBindingKindFact",
     "SourceCheckFact",
+    "SourceCheckStatusFact",
+    "SourceCheckStatusStateFact",
+    "SourceCheckTypeFact",
     "SourceVerificationFact",
     "SourceVerificationStateFact",
     "StepFact",

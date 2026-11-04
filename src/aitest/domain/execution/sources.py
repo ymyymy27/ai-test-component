@@ -35,6 +35,69 @@ class SourceCheckType(StrEnum):
     MINIMAL_START = "minimal_start"
 
 
+class SourceCheckStatusState(StrEnum):
+    """单个源码检查子项的实际结论；`not_applicable` 必须带原因（DEC-021）。"""
+
+    VERIFIED = "verified"
+    NOT_APPLICABLE = "not_applicable"
+    MISMATCH = "mismatch"
+    UNVERIFIED = "unverified"
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCheckStatus:
+    """一次 L1 子检查的可持久化结论，不把"未执行"折叠成"通过"。"""
+
+    check_type: SourceCheckType
+    state: SourceCheckStatusState
+    reason: str | None = None
+    evidence_ref: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.state is SourceCheckStatusState.NOT_APPLICABLE and not self.reason:
+            raise ValueError("a not_applicable source check requires a reason")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCommandRequest:
+    """一条显式登记、由受控命令执行器运行的源码检查（DEC-021）。
+
+    只传 argv 与判据；解释器替换、cwd 约束、环境白名单、进程树回收由基础设施
+    适配器执行。应用层不拼接 shell 字符串。
+    """
+
+    check_type: SourceCheckType
+    check_id: str
+    project_id: str
+    command: tuple[str, ...]
+    workdir: str
+    interpreter: str
+    timeout_ms: int
+    descriptor: str | None = None
+    ready_when: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("check_id", "project_id", "workdir", "interpreter"):
+            if not getattr(self, name).strip():
+                raise ValueError(f"{name} must not be empty")
+        if not self.command:
+            raise ValueError("a source command check requires an argv command")
+        if self.timeout_ms < 1:
+            raise ValueError("timeout_ms must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCommandOutcome:
+    """一条源码检查的实际结论；未执行/未就绪不得写成通过。"""
+
+    state: SourceCheckStatusState
+    failure_class: FailureClass
+    reason: str | None = None
+    evidence_ref: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class SourceFile:
     relative_path: str
@@ -87,6 +150,7 @@ class ExecutionSourceVerification:
     raw_output_object: StoredObjectRef | None = None
     source_instance_id: str | None = None
     capture_plan: RuntimeSourcePlan | None = None
+    checks: tuple[SourceCheckStatus, ...] = ()
 
     def __post_init__(self) -> None:
         for name in (
@@ -135,7 +199,11 @@ __all__ = [
     "ExecutionSourceVerification",
     "SourceBindingKind",
     "SourceCheckResult",
+    "SourceCheckStatus",
+    "SourceCheckStatusState",
     "SourceCheckType",
+    "SourceCommandOutcome",
+    "SourceCommandRequest",
     "SourceFile",
     "SourceSnapshot",
     "SourceVerificationState",

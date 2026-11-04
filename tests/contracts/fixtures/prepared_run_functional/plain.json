@@ -73,6 +73,10 @@
     "secret_refs": [
       "MODEL_API_KEY"
     ],
+    "source_checks": {
+      "build": null,
+      "minimal_start": null
+    },
     "test_config_ref": "pyproject.toml#tool.pytest"
   },
   "frozen_cases": [
@@ -162,7 +166,7 @@
   "intent_id": "intent-1accaf884dacfd962726b72f1451d82c10241a94",
   "invalidation_rules": [],
   "model_outbound_policy_revision": null,
-  "payload_hash": "sha256:823f30e5ed8b7f96d1a367dee7568cad7755d87d507c6d33e6169b79b2b27ead",
+  "payload_hash": "sha256:652066755c4021c4c63d4f4f4fbfc11bc244e9cd933bd24b6d21a844c8dc2687",
   "plain_manifest_digest": "sha256:manifest-plain-1",
   "plan_revision": {
     "digest": "sha256:plan-ticket",

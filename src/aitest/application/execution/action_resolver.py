@@ -72,7 +72,7 @@ class SavedActionResolver:
         interpreter_verifier: Callable[[str, EnvironmentResolutionFact], str] | None = None,
         source_verification_provider: (
             Callable[
-                [str, Mapping[str, object], Mapping[str, object]],
+                [str, Mapping[str, object], Mapping[str, object], str],
                 ExecutionSourceVerification,
             ]
             | None
@@ -135,7 +135,9 @@ class SavedActionResolver:
         )
         self._require_registered_entry(binding, entry)
         self._require_observed_interpreter(workdir, environment_fact)
-        source_verification = self._require_verified_source(workdir, admitted, prepared)
+        source_verification = self._require_verified_source(
+            workdir, admitted, prepared, layer=step.level.value
+        )
         index = self._attempt_index(run, step)
         if type(index) is not int or index < 1:
             raise ActionResolutionBlocked("attempt index must be a positive integer")
@@ -312,6 +314,8 @@ class SavedActionResolver:
         workdir: str,
         admitted: Mapping[str, object],
         prepared: Mapping[str, object],
+        *,
+        layer: str,
     ) -> ExecutionSourceVerification | None:
         """可选的「来源核验事实」核对（架构01 第 12 节 / P1-AC13）。
 
@@ -326,7 +330,9 @@ class SavedActionResolver:
         if self._source_verification_provider is None:
             return None
         try:
-            verification = self._source_verification_provider(workdir, admitted, prepared)
+            verification = self._source_verification_provider(
+                workdir, admitted, prepared, layer
+            )
         except SourceBindingUnverified as error:
             raise ActionResolutionBlocked(str(error)) from error
 
@@ -590,7 +596,7 @@ def build_saved_action_resolver(
     interpreter_verifier: Callable[[str, EnvironmentResolutionFact], str] | None = None,
     source_verification_provider: (
         Callable[
-            [str, Mapping[str, object], Mapping[str, object]],
+            [str, Mapping[str, object], Mapping[str, object], str],
             ExecutionSourceVerification,
         ]
         | None
