@@ -1936,6 +1936,161 @@
       "title": "StepStateFact",
       "type": "string"
     },
+    "TraceNodeFact": {
+      "additionalProperties": false,
+      "properties": {
+        "trace_node_id": {
+          "title": "Trace Node Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "actual_node_id": {
+          "title": "Actual Node Id",
+          "type": "string"
+        },
+        "node_type": {
+          "$ref": "#/$defs/TraceNodeTypeFact"
+        },
+        "state": {
+          "$ref": "#/$defs/TraceNodeStateFact"
+        },
+        "attempt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Id"
+        },
+        "actual_parent_node_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Parent Node Id"
+        },
+        "explicit_relation_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explicit Relation Ref"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "assertion_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assertion Refs",
+          "type": "array"
+        },
+        "truth_class": {
+          "$ref": "#/$defs/TruthClassFact",
+          "default": "unknown"
+        },
+        "gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gap Ids",
+          "type": "array"
+        },
+        "navigation_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Navigation Path"
+        },
+        "code_symbol_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Symbol Ref"
+        }
+      },
+      "required": [
+        "trace_node_id",
+        "run_id",
+        "actual_node_id",
+        "node_type",
+        "state"
+      ],
+      "title": "TraceNodeFact",
+      "type": "object"
+    },
+    "TraceNodeStateFact": {
+      "enum": [
+        "started",
+        "succeeded",
+        "failed",
+        "blocked",
+        "unknown"
+      ],
+      "title": "TraceNodeStateFact",
+      "type": "string"
+    },
+    "TraceNodeTypeFact": {
+      "enum": [
+        "request",
+        "span",
+        "business_operation",
+        "external_call",
+        "manual_step",
+        "unknown"
+      ],
+      "title": "TraceNodeTypeFact",
+      "type": "string"
+    },
+    "TruthClassFact": {
+      "enum": [
+        "real",
+        "mock",
+        "mixed",
+        "unknown"
+      ],
+      "title": "TruthClassFact",
+      "type": "string"
+    },
     "UnknownReasonFact": {
       "additionalProperties": false,
       "properties": {
@@ -2260,6 +2415,13 @@
         "$ref": "#/$defs/MockDeclarationFact"
       },
       "title": "Mock Declarations",
+      "type": "array"
+    },
+    "trace_nodes": {
+      "items": {
+        "$ref": "#/$defs/TraceNodeFact"
+      },
+      "title": "Trace Nodes",
       "type": "array"
     },
     "dependency_invalidations": {

@@ -32,6 +32,7 @@ from uuid import uuid4
 from aitest.application.approval_service import ApprovalService
 from aitest.application.controlled_write import ControlledWriteService, SavedControlledWriteResolver
 from aitest.application.errors import WorkspaceInUse
+from aitest.application.evidence.agent_evidence import SavedAgentEvidence
 from aitest.application.evidence.execution_outputs import SavedExecutionEvidence
 from aitest.application.evidence.external_imports import SavedExternalResultImport
 from aitest.application.evidence.manual_capture import SavedManualEvidenceCapture
@@ -1555,6 +1556,11 @@ def assemble_workspace_core(
             verifier=business_verification_port,
             protector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
         )
+        agent_evidence = SavedAgentEvidence(
+            execution_coordinator,
+            workspace_id=workspace.workspace_id,
+            instance_id=instance_id,
+        )
         external_imports = SavedExternalResultImport(
             execution_coordinator,
             FileObjectStore(root),
@@ -1594,6 +1600,7 @@ def assemble_workspace_core(
             start_run=run_schedule.apply,
             verify_pending=business_verification.apply,
             import_external_result=external_imports.apply,
+            record_agent_evidence=agent_evidence.apply,
             attach_evidence=manual_capture.apply,
             pause_run=run_control.apply,
             resume_run=run_control.apply,

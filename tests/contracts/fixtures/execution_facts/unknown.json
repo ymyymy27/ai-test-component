@@ -226,6 +226,7 @@
     }
   ],
   "mock_declarations": [],
+  "trace_nodes": [],
   "dependency_invalidations": [],
   "unknowns": [
     {

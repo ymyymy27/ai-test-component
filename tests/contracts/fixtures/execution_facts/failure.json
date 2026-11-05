@@ -194,6 +194,7 @@
     }
   ],
   "mock_declarations": [],
+  "trace_nodes": [],
   "dependency_invalidations": [
     {
       "invalidation_id": "invalidation-1",
