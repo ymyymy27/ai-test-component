@@ -13,7 +13,11 @@ from aitest.application.errors import CapabilityUnavailable
 from aitest.application.evidence.query_materials import _evidence_record
 from aitest.application.execution.authorization import ExecutionAuthorizationService
 from aitest.application.execution.commit import ExecutionCommitCoordinator
-from aitest.application.execution.facts import _evidence_fact, project_attempt_fact
+from aitest.application.execution.facts import (
+    _evidence_fact,
+    _trace_node_fact,
+    project_attempt_fact,
+)
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.execution.step_content import StepContentReader
 from aitest.application.ports import (
@@ -33,6 +37,10 @@ from aitest.domain.evidence.evidence import (
     EvidenceLevel,
     EvidenceRef,
     RedactionState,
+    TraceNode,
+    TraceNodeState,
+    TraceNodeType,
+    TruthClass,
 )
 from aitest.domain.execution.runs import (
     AdapterKind,
@@ -158,7 +166,7 @@ class SavedHttpWorkflowExecution:
             spec=spec,
             capture=capture,
         )
-        current = self._stage_evidence(project_id, completed, evidence)
+        current = self._stage_evidence(project_id, completed, evidence, capture)
         return {
             "attempt": project_attempt_fact(completed, is_current=True).model_dump(
                 mode="json"
@@ -242,7 +250,11 @@ class SavedHttpWorkflowExecution:
         return tuple(evidence)
 
     def _stage_evidence(
-        self, project_id: str, attempt: Attempt, evidence: tuple[EvidenceRef, ...]
+        self,
+        project_id: str,
+        attempt: Attempt,
+        evidence: tuple[EvidenceRef, ...],
+        capture: HttpWorkflowCapture,
     ) -> ExecutionFacts:
         unit = self.coordinator._uow
         unit.begin("http-workflow-" + uuid4().hex, project_id)
@@ -251,8 +263,36 @@ class SavedHttpWorkflowExecution:
                 project_id=project_id, run_id=attempt.run_id
             )
             facts = tuple(_evidence_fact(item, {}) for item in evidence)
+            traces = tuple(
+                TraceNode(
+                    trace_node_id=f"trace:{attempt.attempt_id}:{exchange.request_id}",
+                    run_id=attempt.run_id,
+                    actual_node_id=exchange.request_id,
+                    node_type=TraceNodeType.REQUEST,
+                    state=(
+                        TraceNodeState.FAILED
+                        if exchange.error_class is not None
+                        or (exchange.status is not None and exchange.status >= 400)
+                        else TraceNodeState.SUCCEEDED
+                        if exchange.status is not None and exchange.body_complete
+                        else TraceNodeState.UNKNOWN
+                    ),
+                    attempt_id=attempt.attempt_id,
+                    explicit_relation_ref=(
+                        f"evidence:{attempt.attempt_id}:http:{exchange.request_id}"
+                    ),
+                    assertion_refs=tuple(item[0] for item in exchange.assertion_results),
+                    truth_class=TruthClass.REAL,
+                    navigation_path=exchange.url,
+                )
+                for exchange in capture.exchanges
+            )
+            trace_facts = tuple(_trace_node_fact(item) for item in traces)
             updated = current.model_copy(
-                update={"evidence_refs": (*current.evidence_refs, *facts)}
+                update={
+                    "evidence_refs": (*current.evidence_refs, *facts),
+                    "trace_nodes": (*current.trace_nodes, *trace_facts),
+                }
             )
             self.coordinator._stage_snapshot(updated)
             for item in facts:

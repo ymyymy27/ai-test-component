@@ -183,6 +183,30 @@ class SourceCheckTypeFact(StrEnum):
     MINIMAL_START = "minimal_start"
 
 
+class TraceNodeTypeFact(StrEnum):
+    REQUEST = "request"
+    SPAN = "span"
+    BUSINESS_OPERATION = "business_operation"
+    EXTERNAL_CALL = "external_call"
+    MANUAL_STEP = "manual_step"
+    UNKNOWN = "unknown"
+
+
+class TraceNodeStateFact(StrEnum):
+    STARTED = "started"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
+
+
+class TruthClassFact(StrEnum):
+    REAL = "real"
+    MOCK = "mock"
+    MIXED = "mixed"
+    UNKNOWN = "unknown"
+
+
 class MockDeclarationSourceFact(StrEnum):
     DEVELOPMENT_DECLARATION = "development_declaration"
     RUNTIME_CONFIG = "runtime_config"
@@ -541,6 +565,23 @@ class CoverageSummary(ContractModel):
     critical_gap_count: int = Field(default=0, ge=0)
 
 
+class TraceNodeFact(ContractModel):
+    trace_node_id: str
+    run_id: str
+    actual_node_id: str
+    node_type: TraceNodeTypeFact
+    state: TraceNodeStateFact
+    attempt_id: str | None = None
+    actual_parent_node_id: str | None = None
+    explicit_relation_ref: str | None = None
+    duration_ms: int | None = None
+    assertion_refs: tuple[str, ...] = Field(default_factory=tuple)
+    truth_class: TruthClassFact = TruthClassFact.UNKNOWN
+    gap_ids: tuple[str, ...] = Field(default_factory=tuple)
+    navigation_path: str | None = None
+    code_symbol_ref: str | None = None
+
+
 class ExecutionFacts(ContractModel):
     schema_version: Literal["aitest.execution-facts/1.0"] = "aitest.execution-facts/1.0"
     facts_id: str
@@ -562,6 +603,7 @@ class ExecutionFacts(ContractModel):
     source_verifications: tuple[SourceVerificationFact, ...] = Field(default_factory=tuple)
     verifications: tuple[VerificationFact, ...] = Field(default_factory=tuple)
     mock_declarations: tuple[MockDeclarationFact, ...] = Field(default_factory=tuple)
+    trace_nodes: tuple[TraceNodeFact, ...] = Field(default_factory=tuple)
     dependency_invalidations: tuple[DependencyInvalidationFact, ...] = Field(default_factory=tuple)
     unknowns: tuple[UnknownReasonFact, ...] = Field(default_factory=tuple)
     gaps: tuple[EvidenceGapFact, ...] = Field(default_factory=tuple)
@@ -621,6 +663,10 @@ __all__ = [
     "StepLevelFact",
     "StepRevisionRefFact",
     "StepStateFact",
+    "TraceNodeFact",
+    "TraceNodeStateFact",
+    "TraceNodeTypeFact",
+    "TruthClassFact",
     "UnknownReasonFact",
     "VerificationFact",
     "VerificationObservationFact",

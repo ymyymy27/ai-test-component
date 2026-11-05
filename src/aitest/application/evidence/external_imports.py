@@ -7,10 +7,19 @@ from datetime import UTC, datetime
 
 from aitest.application.execution.commands import ExecutionCommands, InvalidExecutionCommand
 from aitest.application.execution.commit import ExecutionCommitCoordinator
-from aitest.application.execution.facts import execution_payload_digest
+from aitest.application.execution.facts import (
+    execution_payload_digest,
+    mock_declaration_fact,
+)
 from aitest.application.ports import EvidenceObjectStore
 from aitest.contracts.commands import Command
-from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.contracts.mock_declaration import MockDeclarationInput
+from aitest.domain.evidence.evidence import (
+    MockDeclaration,
+    MockDeclarationSource,
+    MockVerificationState,
+    StoredObjectRef,
+)
 from aitest.domain.execution.assertions import freeze_json_value, json_equal
 
 _MAX_BYTES = 4 * 1024 * 1024
@@ -138,6 +147,13 @@ class SavedExternalResultImport:
         mocks, attachments = document["mock_declarations"], document["attachments"]
         if not isinstance(mocks, list) or any(not isinstance(item, dict) for item in mocks):
             raise ExternalImportBlocked("external Mock declarations require JSON objects")
+        declared = [MockDeclarationInput.model_validate(item) for item in mocks]
+        if any(item.verification_state not in {"unverified", "unknown"} for item in declared):
+            raise ExternalImportBlocked(
+                "external Mock declarations cannot claim plugin verification"
+            )
+        if len({item.mock_declaration_id for item in declared}) != len(declared):
+            raise ExternalImportBlocked("external Mock declaration identities must be unique")
         if not isinstance(attachments, list) or len(attachments) > _MAX_ATTACHMENTS:
             raise ExternalImportBlocked("external attachment list exceeds its explicit budget")
         return document
@@ -178,6 +194,77 @@ class SavedExternalResultImport:
                 raise ExternalImportBlocked(
                     "external attachment is not safely readable text/JSON"
                 ) from error
+
+    def _stage_mock_facts(
+        self, project: str, import_id: str, document: Mapping[str, object]
+    ) -> None:
+        """Attach imported declarations as unverified facts to the exact local attempt.
+
+        External self-report cannot establish verification. If the document names
+        local run/step/attempt identities, they must match the current attempt;
+        otherwise the import remains external-only.
+        """
+
+        raw = document.get("mock_declarations")
+        if not isinstance(raw, list) or not raw:
+            return
+        run_id, step_id, attempt_id = (
+            document.get(key) for key in ("run_id", "step_id", "attempt_id")
+        )
+        if not all(
+            isinstance(item, str) and item.strip()
+            for item in (run_id, step_id, attempt_id)
+        ):
+            return
+        current = self.coordinator.read_runtime_revision_facts(
+            project_id=project, run_id=str(run_id)
+        )
+        if (
+            current.current_attempt_by_step.get(str(step_id)) != attempt_id
+            or not any(item.attempt_id == attempt_id for item in current.attempts)
+        ):
+            raise ExternalImportBlocked(
+                "external Mock declarations do not match the current local attempt"
+            )
+        known_evidence = {item.evidence_id for item in current.evidence_refs}
+        additions = []
+        for item in raw:
+            declaration = MockDeclarationInput.model_validate(item)
+            if any(ref not in known_evidence for ref in declaration.evidence_refs):
+                raise ExternalImportBlocked(
+                    "external Mock evidence must reference the imported local attempt"
+                )
+            additions.append(
+                mock_declaration_fact(
+                    MockDeclaration(
+                        mock_declaration_id=declaration.mock_declaration_id,
+                        content_revision=1,
+                        project_id=project,
+                        idempotency_key=f"{import_id}:{declaration.mock_declaration_id}",
+                        declaration_source=MockDeclarationSource(
+                            declaration.declaration_source
+                        ),
+                        replaced_object_ref=declaration.replaced_object_ref,
+                        replaced_behavior_ref=declaration.replaced_behavior_ref,
+                        scope=declaration.scope,
+                        verification_state=MockVerificationState.UNVERIFIED,
+                        verification_conclusion_ref=None,
+                        evidence_refs=declaration.evidence_refs,
+                    )
+                )
+            )
+        by_id = {item.mock_declaration_id: item for item in current.mock_declarations}
+        for item in additions:
+            previous = by_id.get(item.mock_declaration_id)
+            if previous is not None and previous != item:
+                raise ExternalImportBlocked(
+                    "external Mock declaration conflicts with the saved fact"
+                )
+            by_id[item.mock_declaration_id] = item
+        updated = current.model_copy(
+            update={"mock_declarations": tuple(by_id.values())}
+        )
+        self.coordinator._stage_snapshot(updated)
 
     def _owner(self, project: str) -> Mapping[str, object]:
         raw = self.coordinator._read_payload("project", project)
@@ -362,6 +449,7 @@ class SavedExternalResultImport:
                 expected_revision=0,
                 payload=receipt,
             )
+            self._stage_mock_facts(project, identity, safe)
             self.unit.commit()
         except BaseException:
             self.unit.rollback()
