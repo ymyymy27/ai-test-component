@@ -1511,7 +1511,7 @@ def assemble_workspace_core(
                 FileObjectStore(root),
                 workspace_id=workspace.workspace_id,
                 instance_id=instance_id,
-                adapter=HttpWorkflowAdapter(),
+                adapter=HttpWorkflowAdapter(secrets=secret_manager),
             ),
         )
         execution_commands = ExecutionCommands(

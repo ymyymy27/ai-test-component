@@ -114,3 +114,26 @@ def test_parse_requires_exactly_one_frozen_document() -> None:
         parse_http_workflow(())
     with pytest.raises(ValueError, match="exactly one"):
         parse_http_workflow(("{}", "{}"))
+
+
+def test_secret_placeholder_requires_a_registered_reference() -> None:
+    with pytest.raises(ValidationError, match="secret placeholder is not registered"):
+        HttpWorkflowSpec(
+            requests=(
+                _request(
+                    headers=(("Authorization", "Bearer {{secret:token}}"),),
+                ),
+            )
+        )
+
+
+def test_registered_secret_reference_is_accepted() -> None:
+    spec = HttpWorkflowSpec(
+        requests=(
+            _request(
+                headers=(("Authorization", "Bearer {{secret:token}}"),),
+            ),
+        ),
+        secret_refs={"token": "tested-http-token"},
+    )
+    assert spec.secret_refs == {"token": "tested-http-token"}

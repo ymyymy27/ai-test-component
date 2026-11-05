@@ -16,6 +16,7 @@ from aitest.contracts.prepared_run import ContractModel
 
 _HTTP_TOKEN = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
 _PLACEHOLDER = re.compile(r"\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}")
+_SECRET_PLACEHOLDER = re.compile(r"\{\{secret:([A-Za-z_][A-Za-z0-9_]*)\}\}")
 _JSON_PATH_PART = re.compile(r"[^.\[\]]+(?:\[(?:0|[1-9][0-9]*)\])?\Z")
 _PLACEHOLDER_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
@@ -83,6 +84,8 @@ class HttpWorkflowRequest(ContractModel):
 class HttpWorkflowSpec(ContractModel):
     schema_version: Literal["aitest.http-workflow/1.0"] = "aitest.http-workflow/1.0"
     requests: tuple[HttpWorkflowRequest, ...] = Field(min_length=1)
+    #: 占位名 -> SecretPort 引用；正文只保存引用，不保存凭据正文。
+    secret_refs: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _chain_is_resolvable(self) -> Self:
@@ -108,6 +111,20 @@ class HttpWorkflowSpec(ContractModel):
                         "HTTP workflow extraction names must be unique across the chain"
                     )
                 available.add(name)
+        for name, reference in self.secret_refs.items():
+            if not _PLACEHOLDER_NAME.fullmatch(name) or not reference.strip():
+                raise ValueError("HTTP secret references require a name and nonempty reference")
+        for request in self.requests:
+            for value in (
+                request.url,
+                request.body or "",
+                *(value for _, value in request.headers),
+            ):
+                for name in _SECRET_PLACEHOLDER.findall(value):
+                    if name not in self.secret_refs:
+                        raise ValueError(
+                            f"HTTP secret placeholder is not registered: {name}"
+                        )
         return self
 
 
