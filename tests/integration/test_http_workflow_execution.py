@@ -9,7 +9,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import AttemptStateFact
 from aitest.domain.execution.runs import AdapterKind, RegisteredEntryRef
