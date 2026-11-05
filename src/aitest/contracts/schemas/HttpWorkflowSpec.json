@@ -134,6 +134,13 @@
       "minItems": 1,
       "title": "Requests",
       "type": "array"
+    },
+    "secret_refs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Secret Refs",
+      "type": "object"
     }
   },
   "required": [

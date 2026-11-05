@@ -19,6 +19,7 @@ from aitest.contracts.execution_facts import (
     EvidenceFact,
     EvidenceIntegrityFact,
     ExecutionFacts,
+    MockDeclarationSourceFact,
     MockVerificationStateFact,
     ProjectionStateFact,
     RedactionStateFact,
@@ -573,6 +574,7 @@ def build_decision_facts(
         ),
         critical_mock=any(
             item.verification_state is not MockVerificationStateFact.VERIFIED
+            and item.declaration_source is not MockDeclarationSourceFact.STATIC_CANDIDATE
             for item in facts.mock_declarations
         ),
         blocking_issue_ids=context.blocking_issue_ids,
