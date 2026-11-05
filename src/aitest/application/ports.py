@@ -44,6 +44,7 @@ from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.events import Event
 from aitest.contracts.execution_facts import ExecutionFacts
+from aitest.contracts.http_workflow import HttpWorkflowSpec
 from aitest.contracts.identity import IntentId, RequestId
 from aitest.contracts.prepared_run import EnvironmentRefFact
 from aitest.contracts.queries import Query, QuerySpec
@@ -683,6 +684,36 @@ class CheckpointPort(Protocol):
         A 核心启动时调用；只读，不修改任何文件。
         """
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class HttpWorkflowExchange:
+    request_id: str
+    method: str
+    url: str
+    status: int | None
+    response_headers: tuple[tuple[str, str], ...]
+    body: bytes
+    body_complete: bool
+    error_class: str | None
+    error_detail: str | None
+    extracted: Mapping[str, object]
+    assertion_results: tuple[tuple[str, bool | None, object], ...] = ()
+    request_log_ref: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HttpWorkflowCapture:
+    exchanges: tuple[HttpWorkflowExchange, ...]
+    variables: Mapping[str, object]
+    observation: str
+    gaps: tuple[str, ...] = ()
+
+
+class HttpWorkflowPort(Protocol):
+    """Execute one frozen HTTP workflow and return actual exchanges only."""
+
+    def execute(self, spec: HttpWorkflowSpec) -> HttpWorkflowCapture: ...
 
 
 class VerificationPort(Protocol):

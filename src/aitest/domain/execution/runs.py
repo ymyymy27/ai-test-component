@@ -673,6 +673,32 @@ def is_verified_exit_fact(
     )
 
 
+_NON_PROCESS_ADAPTER_KINDS = frozenset(
+    {
+        AdapterKind.HTTP,
+        AdapterKind.AGENT,
+        AdapterKind.VERIFICATION,
+        AdapterKind.MANUAL_EVIDENCE,
+        AdapterKind.EXTERNAL_RESULT,
+    }
+)
+
+
+def is_non_process_attempt(attempt: Attempt) -> bool:
+    """HTTP/Agent/人工/导入事实由结构化结果终止，不以进程退出冒充完成。"""
+    return attempt.adapter_kind in _NON_PROCESS_ADAPTER_KINDS
+
+
+def has_completed_non_process_result(attempt: Attempt) -> bool:
+    return (
+        is_non_process_attempt(attempt)
+        and attempt.state is AttemptState.COMPLETED
+        and attempt.capture_completeness is CaptureCompleteness.COMPLETE
+        and bool(attempt.structured_result_ref)
+        and attempt.exit_fact_ref is None
+    )
+
+
 def has_verified_exit(attempt: Attempt) -> bool:
     """A saved exit belongs to this actual process and proves its termination."""
     handle = attempt.execution_handle_ref
@@ -685,6 +711,13 @@ def has_verified_exit(attempt: Attempt) -> bool:
 
 def execution_boundary_pending(attempt: Attempt) -> bool:
     """Active collection and an unknown execution exit both keep the core alive."""
+    if is_non_process_attempt(attempt):
+        return attempt.state not in {
+            AttemptState.COMPLETED,
+            AttemptState.CANCELLED,
+            AttemptState.EXECUTION_ERROR,
+            AttemptState.INVALIDATED,
+        }
     return attempt.state in {
         AttemptState.INTENT_RECORDED,
         AttemptState.STARTING,
@@ -701,6 +734,8 @@ def has_complete_capture(attempt: Attempt) -> bool:
     itself, sealed individual blocks, or an adapter's completeness flag cannot
     establish this closure. Empty output is valid when every stream map is empty.
     """
+    if is_non_process_attempt(attempt):
+        return has_completed_non_process_result(attempt)
     fact = attempt.exit_fact_ref
     if (
         attempt.capture_completeness is not CaptureCompleteness.COMPLETE
@@ -781,6 +816,12 @@ def _capture_counts(
 
 def has_reliable_terminal_fact(attempt: Attempt) -> bool:
     """Preserve only a terminal state supported by the original process exit."""
+    if is_non_process_attempt(attempt):
+        return has_completed_non_process_result(attempt) or attempt.state in {
+            AttemptState.CANCELLED,
+            AttemptState.EXECUTION_ERROR,
+            AttemptState.INVALIDATED,
+        }
     if not has_verified_exit(attempt):
         return False
     fact = attempt.exit_fact_ref

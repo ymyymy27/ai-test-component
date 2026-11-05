@@ -6,11 +6,14 @@ from aitest.application.errors import CapabilityUnavailable
 from aitest.application.execution.authorization import ExecutionAuthorizationService
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.facts import project_attempt_fact
+from aitest.application.execution.http_workflow_execution import (
+    SavedHttpWorkflowExecution,
+)
 from aitest.application.execution.runner import SerialRunner
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.ports import ExecutionPort, SpoolStore
 from aitest.domain.approvals import ApprovalRequired
-from aitest.domain.execution.runs import has_reliable_terminal_fact
+from aitest.domain.execution.runs import AdapterKind, has_reliable_terminal_fact
 
 
 class StepExecutionBlocked(ValueError):
@@ -24,9 +27,12 @@ class SavedStepExecution:
         coordinator: ExecutionCommitCoordinator,
         spool: SpoolStore,
         execution_port: ExecutionPort | None,
+        *,
+        http_workflow: SavedHttpWorkflowExecution | None = None,
     ) -> None:
         self.authorizations, self.coordinator = authorizations, coordinator
         self.spool, self.execution_port = spool, execution_port
+        self.http_workflow = http_workflow
 
     def execute(
         self, *, project_id: str, intent_id: str, action_id: str, step_id: str, max_polls: int = 100
@@ -36,6 +42,15 @@ class SavedStepExecution:
             raise ApprovalRequired("execution intent or target differs from its frozen action")
         # Both new execution and recovery must prove the original core consent.
         self.authorizations._origin(project_id, action.request.authorization_ref.authorization_id)
+        if action.request.registered_entry.adapter_kind is AdapterKind.HTTP:
+            if self.http_workflow is None:
+                raise CapabilityUnavailable("an HTTP workflow adapter is not configured")
+            return self.http_workflow.execute(
+                project_id=project_id,
+                intent_id=intent_id,
+                action_id=action_id,
+                step_id=step_id,
+            )
         try:
             saved = self.coordinator.find_start(
                 project_id=project_id,
