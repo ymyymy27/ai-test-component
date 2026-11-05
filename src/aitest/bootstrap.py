@@ -44,6 +44,9 @@ from aitest.application.execution.authorization import (
 )
 from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.http_workflow_execution import (
+    SavedHttpWorkflowExecution,
+)
 from aitest.application.execution.output_material import require_saved_output_material
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.execution.reuse_inspection import CaseReuseInspection
@@ -119,6 +122,7 @@ from aitest.domain.execution.sources import (
 )
 from aitest.domain.project.context import SourceFileDigest, source_content_identity
 from aitest.infrastructure.adapters.execution.command import CommandAdapter
+from aitest.infrastructure.adapters.execution.http_workflow import HttpWorkflowAdapter
 from aitest.infrastructure.adapters.execution.python_checks import (
     LoadSourceFact,
     PythonLoadSourceProbe,
@@ -1500,6 +1504,14 @@ def assemble_workspace_core(
                 spool_store=FileSpoolStore(root), handle_store=FileExecutionHandleStore(root),
             ))
                   if execution_enabled else None),
+            http_workflow=SavedHttpWorkflowExecution(
+                execution_authorizations,
+                execution_coordinator,
+                FileObjectStore(root),
+                workspace_id=workspace.workspace_id,
+                instance_id=instance_id,
+                adapter=HttpWorkflowAdapter(),
+            ),
         )
         execution_commands = ExecutionCommands(
             execution_authorizations, initial_run_registration, step_execution
