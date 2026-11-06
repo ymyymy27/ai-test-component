@@ -239,6 +239,20 @@ class LocalProjectBinding:
         return self.binding_form is BindingForm.PLAIN
 
 
+def workspace_location_rejection(
+    drive_kind: DriveKind,
+) -> WorkspaceLocationRejection | None:
+    """把已探测的盘类型映射为拒绝原因，不访问文件系统。
+
+    探测属 I/O，由基础设施层完成；领域层只保留判定规则，供不同入口共用。
+    """
+    if drive_kind is DriveKind.NETWORK:
+        return WorkspaceLocationRejection.NETWORK_DRIVE
+    if drive_kind is DriveKind.SYNC_FOLDER:
+        return WorkspaceLocationRejection.SYNC_FOLDER
+    return None
+
+
 def reject_workspace_location(
     canonical_path: str, drive_kind: DriveKind
 ) -> WorkspaceLocationRejection | None:
@@ -251,11 +265,7 @@ def reject_workspace_location(
     盘符与同步目录的探测属 I/O，由调用方完成。
     """
     _canonical_portable_path(canonical_path)
-    if drive_kind is DriveKind.NETWORK:
-        return WorkspaceLocationRejection.NETWORK_DRIVE
-    if drive_kind is DriveKind.SYNC_FOLDER:
-        return WorkspaceLocationRejection.SYNC_FOLDER
-    return None
+    return workspace_location_rejection(drive_kind)
 
 
 # ----------------------------------------------------------------- 模块与依赖

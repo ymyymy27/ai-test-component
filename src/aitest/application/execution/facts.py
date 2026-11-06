@@ -540,6 +540,7 @@ def project_attempt_fact(
             )
             for block in attempt.output_block_refs
         ),
+        structured_result_ref=attempt.structured_result_ref,
         exit_fact=(
             ExitFactDTO(
                 attempt_id=attempt.exit_fact_ref.attempt_id,
