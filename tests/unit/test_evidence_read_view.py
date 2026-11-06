@@ -35,6 +35,13 @@ class _Objects:
         return self.data
 
 
+class _BrokenObjects:
+    """对象仓存在但读取失败：视图必须降级为元数据，不能把异常抛给宿主。"""
+
+    def read_bytes(self, ref: Any) -> bytes:
+        raise OSError("object store is unavailable")
+
+
 def _payload(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "evidence_id": EVIDENCE,
@@ -106,6 +113,16 @@ def test_size_mismatch_reports_corrupted_object() -> None:
     view = _view(_payload(object_size=99), _Objects(b"hello"))
 
     assert view["body_omitted_reason"] == "object_corrupted"
+
+
+def test_unreadable_object_degrades_to_metadata() -> None:
+    """六类省略原因之一：对象仓读取失败时只返回白名单元数据。"""
+
+    view = _view(_payload(), _BrokenObjects())
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "object_unreadable"
+    assert view["record"]["evidence_id"] == EVIDENCE
 
 
 def test_binary_material_is_not_rendered() -> None:
