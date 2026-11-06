@@ -337,6 +337,26 @@ class RunStepDTO(BaseModel):
     evidence_revisions: tuple[int, ...] = ()
 
 
+class TraceNodeViewDTO(BaseModel):
+    """只读 TraceNode 投影；不重算调用树，不把时间近似写成父子关系。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    trace_node_id: str
+    run_id: str
+    attempt_id: str | None
+    actual_node_id: str
+    actual_parent_node_id: str | None
+    explicit_relation_ref: str | None
+    node_type: str
+    state: str
+    truth_class: str
+    assertion_refs: tuple[str, ...]
+    gap_ids: tuple[str, ...]
+    navigation_path: str | None
+    code_symbol_ref: str | None
+
+
 class RunViewDTO(BaseModel):
     """`RunDTO`（架构 06 §1/§5）：运行/步骤/当前尝试 + 用例 S/M 两组 E/R/V/P/F/U 与分母。
 
@@ -378,6 +398,7 @@ class RunViewDTO(BaseModel):
     pending_verification_step_ids: tuple[str, ...]
     invalidated_step_ids: tuple[str, ...]
     steps: tuple[RunStepDTO, ...]
+    trace_nodes: tuple[TraceNodeViewDTO, ...] = ()
 
 
 def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
@@ -468,6 +489,24 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
         pending_verification_step_ids=tuple(sorted(pending_verification)),
         invalidated_step_ids=tuple(sorted(invalidated)),
         steps=tuple(steps),
+        trace_nodes=tuple(
+            TraceNodeViewDTO(
+                trace_node_id=item.trace_node_id,
+                run_id=item.run_id,
+                attempt_id=item.attempt_id,
+                actual_node_id=item.actual_node_id,
+                actual_parent_node_id=item.actual_parent_node_id,
+                explicit_relation_ref=item.explicit_relation_ref,
+                node_type=item.node_type.value,
+                state=item.state.value,
+                truth_class=item.truth_class.value,
+                assertion_refs=item.assertion_refs,
+                gap_ids=item.gap_ids,
+                navigation_path=item.navigation_path,
+                code_symbol_ref=item.code_symbol_ref,
+            )
+            for item in facts.trace_nodes
+        ),
     )
 
 

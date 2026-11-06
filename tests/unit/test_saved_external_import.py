@@ -116,7 +116,18 @@ def test_same_source_with_new_intent_returns_original_import_once(core):
         ("source_identity", {"commit": "other"}),
         ("run_id", "external-run"),
         ("attempt_id", "external-attempt"),
-        ("mock_declarations", [{"scope": "other"}]),
+        (
+            "mock_declarations",
+            [
+                {
+                    "mock_declaration_id": "mock-1",
+                    "declaration_source": "development_declaration",
+                    "replaced_object_ref": "module:payment",
+                    "replaced_behavior_ref": "charge",
+                    "scope": "other",
+                }
+            ],
+        ),
     ],
 )
 def test_same_source_different_decisive_material_conflicts_without_a_second_import(

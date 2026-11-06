@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "HttpWorkflowAssertion": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion_id": {
+          "minLength": 1,
+          "title": "Assertion Id",
+          "type": "string"
+        },
+        "json_path": {
+          "title": "Json Path",
+          "type": "string"
+        },
+        "operator": {
+          "default": "equals",
+          "enum": [
+            "equals",
+            "contains",
+            "exists"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "expected": {
+          "default": null,
+          "title": "Expected"
+        }
+      },
+      "required": [
+        "assertion_id",
+        "json_path"
+      ],
+      "title": "HttpWorkflowAssertion",
+      "type": "object"
+    },
+    "HttpWorkflowRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "method": {
+          "minLength": 1,
+          "title": "Method",
+          "type": "string"
+        },
+        "url": {
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        },
+        "headers": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Headers",
+          "type": "array"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "extract": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Extract",
+          "type": "object"
+        },
+        "assertions": {
+          "items": {
+            "$ref": "#/$defs/HttpWorkflowAssertion"
+          },
+          "title": "Assertions",
+          "type": "array"
+        },
+        "timeout_seconds": {
+          "default": 10.0,
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "title": "Timeout Seconds",
+          "type": "number"
+        },
+        "max_response_bytes": {
+          "default": 4194304,
+          "maximum": 67108864,
+          "minimum": 1,
+          "title": "Max Response Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "request_id",
+        "method",
+        "url"
+      ],
+      "title": "HttpWorkflowRequest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "aitest.http-workflow/1.0",
+      "default": "aitest.http-workflow/1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "requests": {
+      "items": {
+        "$ref": "#/$defs/HttpWorkflowRequest"
+      },
+      "minItems": 1,
+      "title": "Requests",
+      "type": "array"
+    },
+    "secret_refs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Secret Refs",
+      "type": "object"
+    }
+  },
+  "required": [
+    "requests"
+  ],
+  "title": "HttpWorkflowSpec",
+  "type": "object"
+}

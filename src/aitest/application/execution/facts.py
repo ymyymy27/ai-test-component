@@ -52,6 +52,10 @@ from aitest.contracts.execution_facts import (
     StepLevelFact,
     StepRevisionRefFact,
     StepStateFact,
+    TraceNodeFact,
+    TraceNodeStateFact,
+    TraceNodeTypeFact,
+    TruthClassFact,
     UnknownReasonFact,
     VerificationFact,
     VerificationObservationFact,
@@ -66,6 +70,7 @@ from aitest.domain.evidence.evidence import (
     EvidenceRef,
     MockDeclaration,
     RedactionSummary,
+    TraceNode,
     Verification,
 )
 from aitest.domain.execution.payload_identity import execution_payload_digest as _payload_digest
@@ -240,6 +245,7 @@ class ExecutionFactsAssembly:
     source_verifications: tuple[ExecutionSourceVerification, ...] = ()
     verifications: tuple[Verification, ...] = ()
     mock_declarations: tuple[MockDeclaration, ...] = ()
+    trace_nodes: tuple[TraceNode, ...] = ()
     dependency_invalidations: tuple[DependencyInvalidationFact, ...] = ()
     unknowns: tuple[UnknownReasonFact, ...] = ()
     gaps: tuple[EvidenceGapFact, ...] = ()
@@ -308,6 +314,7 @@ class ExecutionFactsAssembler:
             ),
             verifications=tuple(_verification_fact(item) for item in assembly.verifications),
             mock_declarations=tuple(_mock_fact(item) for item in assembly.mock_declarations),
+            trace_nodes=tuple(_trace_node_fact(item) for item in assembly.trace_nodes),
             dependency_invalidations=assembly.dependency_invalidations,
             unknowns=assembly.unknowns,
             gaps=assembly.gaps,
@@ -663,6 +670,25 @@ def _source_verification_fact(item: ExecutionSourceVerification) -> SourceVerifi
     )
 
 
+def _trace_node_fact(item: TraceNode) -> TraceNodeFact:
+    return TraceNodeFact(
+        trace_node_id=item.trace_node_id,
+        run_id=item.run_id,
+        actual_node_id=item.actual_node_id,
+        node_type=_enum(TraceNodeTypeFact, item.node_type.value),
+        state=_enum(TraceNodeStateFact, item.state.value),
+        attempt_id=item.attempt_id,
+        actual_parent_node_id=item.actual_parent_node_id,
+        explicit_relation_ref=item.explicit_relation_ref,
+        duration_ms=item.duration_ms,
+        assertion_refs=item.assertion_refs,
+        truth_class=_enum(TruthClassFact, item.truth_class.value),
+        gap_ids=item.gap_ids,
+        navigation_path=item.navigation_path,
+        code_symbol_ref=item.code_symbol_ref,
+    )
+
+
 def _verification_fact(item: Verification) -> VerificationFact:
     return VerificationFact(
         verification_id=item.verification_id,
@@ -680,6 +706,11 @@ def _verification_fact(item: Verification) -> VerificationFact:
         gap_ids=item.gap_ids,
         verified_at=item.created_at,
     )
+
+
+def mock_declaration_fact(item: MockDeclaration) -> MockDeclarationFact:
+    """Public projection used by import/registration paths that stage Mock facts."""
+    return _mock_fact(item)
 
 
 def _mock_fact(item: MockDeclaration) -> MockDeclarationFact:

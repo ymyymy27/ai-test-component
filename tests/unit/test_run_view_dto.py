@@ -258,3 +258,45 @@ def test_run_view_is_json_serializable_and_carries_no_domain_objects() -> None:
     assert payload["schema_version"] == "aitest.run-view/1.0"
     assert payload["steps"][0]["step_id"] == "step-1"
     assert payload["selected_summary"]["scope_kind"] == "selected"
+
+
+def test_run_view_projects_trace_nodes_without_recomputing_relations() -> None:
+    from aitest.contracts.execution_facts import TraceNodeFact
+
+    facts = _facts(
+        (("step-1", "case-1", "completed", "http", False),),
+        selected=("case-1",),
+    )
+    facts = facts.model_copy(
+        update={
+            "trace_nodes": (
+                TraceNodeFact(
+                    trace_node_id="trace:attempt-step-1:call-1",
+                    run_id=RUN,
+                    attempt_id="attempt-step-1",
+                    actual_node_id="call-1",
+                    actual_parent_node_id=None,
+                    explicit_relation_ref="evidence-1",
+                    node_type="external_call",
+                    state="succeeded",
+                    truth_class="real",
+                    assertion_refs=("assertion-1",),
+                    gap_ids=(),
+                    navigation_path="http.get",
+                    code_symbol_ref=None,
+                ),
+            )
+        }
+    )
+    decision = evaluate_review(build_decision_facts(facts))
+    view = run_view_dto(facts, decision)
+    assert view.trace_nodes == (
+        view.trace_nodes[0],
+    )
+    node = view.trace_nodes[0]
+    assert node.trace_node_id == "trace:attempt-step-1:call-1"
+    assert node.actual_parent_node_id is None
+    assert node.explicit_relation_ref == "evidence-1"
+    assert node.node_type == "external_call"
+    assert node.state == "succeeded"
+    assert node.truth_class == "real"
