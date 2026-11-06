@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
@@ -26,7 +26,7 @@ from aitest.application.ports import (
     HttpWorkflowPort,
     RecordRepository,
 )
-from aitest.contracts.execution_facts import ExecutionFacts
+from aitest.contracts.execution_facts import EvidenceGapFact, ExecutionFacts
 from aitest.contracts.http_workflow import HttpWorkflowSpec, parse_http_workflow
 from aitest.contracts.prepared_run import PreparedRun
 from aitest.domain.evidence.evidence import (
@@ -49,12 +49,151 @@ from aitest.domain.execution.runs import (
     CaptureCompleteness,
     RecoveryCheckpoint,
     RecoveryRecord,
+    StructuredExecutionError,
+    TransportErrorClass,
 )
 from aitest.domain.execution.sources import SourceBindingKind
 
 
 class HttpWorkflowBlocked(ValueError):
     code = "EXECUTION_BLOCKED"
+
+
+@dataclass(frozen=True, slots=True)
+class HttpWorkflowOutcome:
+    """Actual Attempt outcome derived from what the adapter captured."""
+
+    state: AttemptState
+    completeness: CaptureCompleteness
+    error_ref: StructuredExecutionError | None
+    unknown_reason_ref: str | None
+
+
+_GAP_REASON_TEXT = {
+    "http_secret_port_unavailable": "HTTP credential resolution is not configured.",
+    "http_secret_unavailable": "A referenced HTTP credential is unavailable.",
+    "http_request_invalid": (
+        "The HTTP request could not be prepared from its frozen inputs."
+    ),
+    "http_request_failed": "The HTTP request did not complete.",
+    "http_response_incomplete": "The HTTP response body was truncated.",
+    "http_extraction_missing": "A declared response field could not be extracted.",
+    "http_assertions_missing": "The HTTP workflow declares no response assertion.",
+    "http_workflow_no_exchange": "The HTTP workflow produced no exchange.",
+}
+
+_GAP_ERROR_CLASS = {
+    "http_secret_port_unavailable": TransportErrorClass.AUTHENTICATION,
+    "http_secret_unavailable": TransportErrorClass.AUTHENTICATION,
+    "http_request_invalid": TransportErrorClass.SCHEMA_ERROR,
+    "http_request_failed": TransportErrorClass.NETWORK,
+    "http_response_incomplete": TransportErrorClass.RESPONSE_TRUNCATED,
+    "http_extraction_missing": TransportErrorClass.SCHEMA_ERROR,
+    "http_assertions_missing": TransportErrorClass.SCHEMA_ERROR,
+}
+
+_USER_ACTION_GAPS = {
+    "http_secret_port_unavailable",
+    "http_secret_unavailable",
+    "http_request_invalid",
+}
+
+#: Missing assertions cost the capture its completeness but do not invalidate
+#: the observed exchange; the independent verification remains the basis.
+_NON_CRITICAL_GAPS = {"http_assertions_missing"}
+
+
+def http_workflow_gaps(capture: HttpWorkflowCapture) -> tuple[str, ...]:
+    """Named gaps for this capture; an empty exchange is itself a gap."""
+    if capture.gaps:
+        return tuple(capture.gaps)
+    return ("http_workflow_no_exchange",) if not capture.exchanges else ()
+
+
+def http_workflow_outcome(
+    attempt_id: str, capture: HttpWorkflowCapture
+) -> HttpWorkflowOutcome:
+    """Only a complete capture may count as a completed non-process attempt.
+
+    A gap before any request means nothing was executed: the Attempt is an
+    execution error with no structured result. A gap after some exchanges kept
+    the Attempt completed but marks its capture partial so E never counts it.
+    """
+    gaps = http_workflow_gaps(capture)
+    if not capture.exchanges:
+        reason = gaps[0]
+        return HttpWorkflowOutcome(
+            state=AttemptState.EXECUTION_ERROR,
+            completeness=CaptureCompleteness.GAP,
+            error_ref=_http_workflow_error(attempt_id, reason),
+            unknown_reason_ref=_gap_code(reason),
+        )
+    if gaps:
+        return HttpWorkflowOutcome(
+            state=AttemptState.COMPLETED,
+            completeness=CaptureCompleteness.PARTIAL,
+            error_ref=None,
+            unknown_reason_ref=_gap_code(gaps[0]),
+        )
+    return HttpWorkflowOutcome(
+        state=AttemptState.COMPLETED,
+        completeness=CaptureCompleteness.COMPLETE,
+        error_ref=None,
+        unknown_reason_ref=None,
+    )
+
+
+def _gap_code(gap: str) -> str:
+    return gap.split(":", 1)[0]
+
+
+def _http_workflow_error(attempt_id: str, reason: str) -> StructuredExecutionError:
+    code = _gap_code(reason)
+    return StructuredExecutionError(
+        error_id="http-workflow-error:" + attempt_id,
+        error_class=_GAP_ERROR_CLASS.get(code, TransportErrorClass.UNKNOWN),
+        error_code=code,
+        message_code="http_workflow_capture_incomplete",
+        safe_message=(
+            "The HTTP workflow did not produce a complete, verifiable capture."
+        ),
+        adapter_kind=AdapterKind.HTTP,
+        created_at=datetime.now(UTC),
+    )
+
+
+def _gap_facts(
+    attempt_id: str, gaps: tuple[str, ...]
+) -> tuple[EvidenceGapFact, ...]:
+    return tuple(
+        EvidenceGapFact(
+            gap_id=f"http-workflow-gap:{attempt_id}:{index}",
+            kind="http_workflow",
+            subject_ref=attempt_id,
+            reason_code=_gap_code(gap),
+            safe_reason=_GAP_REASON_TEXT.get(
+                _gap_code(gap),
+                "The HTTP workflow capture is incomplete.",
+            ),
+            critical=_gap_code(gap) not in _NON_CRITICAL_GAPS,
+            requires_user_action=_gap_code(gap) in _USER_ACTION_GAPS,
+            created_at=datetime.now(UTC),
+        )
+        for index, gap in enumerate(gaps)
+    )
+
+
+def _evidence_gap_ids(
+    attempt_id: str, gaps: tuple[str, ...], request_id: str
+) -> tuple[str, ...]:
+    ids = []
+    for index, gap in enumerate(gaps):
+        parts = gap.split(":")
+        if parts[0] == "http_assertions_missing" or (
+            len(parts) > 1 and parts[1] == request_id
+        ):
+            ids.append(f"http-workflow-gap:{attempt_id}:{index}")
+    return tuple(ids)
 
 
 class SavedHttpWorkflowExecution:
@@ -136,11 +275,18 @@ class SavedHttpWorkflowExecution:
         started = datetime.now(UTC)
         capture = self.adapter.execute(spec)
         ended = datetime.now(UTC)
+        outcome = http_workflow_outcome(action.attempt.attempt_id, capture)
         completed = replace(
             attempt,
-            state=AttemptState.COMPLETED,
-            capture_completeness=CaptureCompleteness.COMPLETE,
-            structured_result_ref="http-workflow:" + action.attempt.attempt_id,
+            state=outcome.state,
+            capture_completeness=outcome.completeness,
+            structured_result_ref=(
+                "http-workflow:" + action.attempt.attempt_id
+                if outcome.state is AttemptState.COMPLETED
+                else None
+            ),
+            error_ref=outcome.error_ref,
+            unknown_reason_ref=outcome.unknown_reason_ref,
             started_at=started,
             ended_at=ended,
         )
@@ -148,7 +294,7 @@ class SavedHttpWorkflowExecution:
             project_id=project_id,
             checkpoint=RecoveryRecord(
                 RecoveryCheckpoint(
-                    last_committed_stage="completed",
+                    last_committed_stage=outcome.state.value,
                     run_id=completed.run_id,
                     step_id=completed.step_id,
                     attempt_id=completed.attempt_id,
@@ -192,6 +338,7 @@ class SavedHttpWorkflowExecution:
             revision_ref=prepared.snapshot.source_snapshot_id,
         )
         evidence: list[EvidenceRef] = []
+        gaps = http_workflow_gaps(capture)
         for exchange in capture.exchanges:
             request = by_id[exchange.request_id]
             material = {
@@ -236,7 +383,15 @@ class SavedHttpWorkflowExecution:
                     object_digest=ref.digest,
                     object_size=ref.size,
                     code_identity=identity,
-                    integrity=EvidenceIntegrity.COMPLETE,
+                    integrity=(
+                        EvidenceIntegrity.COMPLETE
+                        if exchange.body_complete is True
+                        and exchange.error_class is None
+                        else EvidenceIntegrity.PARTIAL
+                    ),
+                    gap_ids=_evidence_gap_ids(
+                        attempt.attempt_id, gaps, exchange.request_id
+                    ),
                     redaction_state=(
                         RedactionState.NOT_REQUIRED
                         if stored == content
@@ -262,6 +417,7 @@ class SavedHttpWorkflowExecution:
             current = self.coordinator.read_runtime_revision_facts(
                 project_id=project_id, run_id=attempt.run_id
             )
+            gaps = http_workflow_gaps(capture)
             facts = tuple(_evidence_fact(item, {}) for item in evidence)
             traces = tuple(
                 TraceNode(
@@ -283,24 +439,41 @@ class SavedHttpWorkflowExecution:
                     ),
                     assertion_refs=tuple(item[0] for item in exchange.assertion_results),
                     truth_class=TruthClass.REAL,
+                    gap_ids=_evidence_gap_ids(
+                        attempt.attempt_id, gaps, exchange.request_id
+                    ),
                     navigation_path=exchange.url,
                 )
                 for exchange in capture.exchanges
             )
             trace_facts = tuple(_trace_node_fact(item) for item in traces)
+            gap_facts = _gap_facts(attempt.attempt_id, gaps)
+            merged_gaps = {gap.gap_id: gap for gap in current.gaps}
+            for gap in gap_facts:
+                merged_gaps.setdefault(gap.gap_id, gap)
+            saved_gaps = tuple(merged_gaps.values())
             updated = current.model_copy(
                 update={
                     "evidence_refs": (*current.evidence_refs, *facts),
                     "trace_nodes": (*current.trace_nodes, *trace_facts),
+                    "gaps": saved_gaps,
+                    "coverage": current.coverage.model_copy(
+                        update={
+                            "evidence_gap_count": len(saved_gaps),
+                            "critical_gap_count": sum(
+                                1 for gap in saved_gaps if gap.critical
+                            ),
+                        }
+                    ),
                 }
             )
             self.coordinator._stage_snapshot(updated)
-            for item in facts:
+            for fact in facts:
                 unit.stage_record(
                     aggregate_kind="evidence_ref",
-                    record_id=item.evidence_id,
+                    record_id=fact.evidence_id,
                     expected_revision=0,
-                    payload={"project_id": project_id, **_evidence_record(item)},
+                    payload={"project_id": project_id, **_evidence_record(fact)},
                 )
             unit.commit()
             return updated
@@ -309,4 +482,10 @@ class SavedHttpWorkflowExecution:
             raise
 
 
-__all__ = ["HttpWorkflowBlocked", "SavedHttpWorkflowExecution"]
+__all__ = [
+    "HttpWorkflowBlocked",
+    "HttpWorkflowOutcome",
+    "SavedHttpWorkflowExecution",
+    "http_workflow_gaps",
+    "http_workflow_outcome",
+]

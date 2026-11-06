@@ -251,3 +251,98 @@ def test_http_workflow_runs_as_one_non_process_attempt_and_saves_exchange_eviden
         assert agent_trace.state.value == "succeeded"
         assert agent_trace.truth_class.value == "unknown"
         core.lifetime_lock.release()
+
+
+def test_http_workflow_transport_failure_keeps_a_partial_capture(
+    tmp_path,
+) -> None:
+    spec = {
+        "schema_version": "aitest.http-workflow/1.0",
+        "requests": [
+            {
+                "request_id": "read",
+                "method": "GET",
+                "url": "http://127.0.0.1:1/orders/order-1",
+                "assertions": [
+                    {
+                        "assertion_id": "status",
+                        "json_path": "data.status",
+                        "operator": "equals",
+                        "expected": "new",
+                    }
+                ],
+            }
+        ],
+    }
+
+    def transform(case):
+        return replace(case, inputs=(json.dumps(spec),))
+
+    with _authoritative(tmp_path, case_transform=transform) as (core, inputs, _):
+        prepared = prepare(core, inputs)
+        assert prepared.error is None, prepared.error
+        facts = register(core, prepared.result)
+        service = core.execution_authorizations
+        service.action_resolver = _HttpActionResolver(core.unit_of_work)
+        parameters = service.prepare(
+            project_id=inputs.project_id,
+            run_id=facts.run_id,
+            step_id=facts.steps[0].step_id,
+            intent_id="http-gap-execution-intent",
+            request_id="http-gap-resolve-action",
+        )
+        _, action = service.resolver.read(
+            inputs.project_id, parameters["execution_action_id"]
+        )
+        actor, challenge = review(service, inputs.project_id, action, parameters)
+        save(
+            service,
+            inputs.project_id,
+            action,
+            parameters,
+            actor,
+            challenge,
+        )
+
+        response = core.api.dispatch(
+            Command(
+                action="execute_step",
+                project_id=inputs.project_id,
+                request_id="http-gap-execute",
+                intent_id=action.request.intent_id,
+                expected_revision=0,
+                target=action.request.step_id,
+                parameters={
+                    "execution_action_id": parameters["execution_action_id"],
+                    "record_revision": 1,
+                },
+            ),
+            RELAY,
+        )
+        assert response.error is None, response.error
+        current = core.execution_coordinator.read_current_facts(
+            project_id=inputs.project_id, run_id=facts.run_id
+        )
+        attempt = next(
+            item for item in current.attempts
+            if item.step_id == action.request.step_id
+        )
+        step = next(
+            item for item in current.steps
+            if item.step_id == action.request.step_id
+        )
+        assert attempt.state == AttemptStateFact.COMPLETED
+        assert attempt.capture_completeness.value == "partial"
+        assert step.state.value == "pending_verification"
+        assert attempt.structured_result_ref is not None
+        assert any(
+            item.reason_code == "http_request_failed" for item in current.gaps
+        )
+        assert attempt.attempt_id not in current.coverage.executed_attempt_ids
+        captured = [
+            item for item in current.evidence_refs
+            if item.attempt_id == attempt.attempt_id
+        ]
+        assert captured
+        assert captured[0].integrity.value == "partial"
+        core.lifetime_lock.release()

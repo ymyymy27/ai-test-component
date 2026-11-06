@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from ..workspace_location import require_supported_workspace_location
 from . import atomic
 from .commit_manifest import FileCommitStore
 from .locking import LifetimeWriterLock, admitted_writer_epoch, writer_lock
@@ -17,6 +18,10 @@ class Workspace:
     def __init__(self, root: Path, *, create: bool = True) -> None:
         FileCommitStore.reject_links(root)
         self.root = root.resolve()
+        # P1-FR01: sync clients and network shares cannot preserve the
+        # exclusive lock and atomic replacement this workspace depends on.
+        # Check before mkdir so a refused location leaves no partial identity.
+        require_supported_workspace_location(self.root)
         if create:
             self.root.mkdir(parents=True, exist_ok=True)
         self.identity_path = self.root / "workspace.json"

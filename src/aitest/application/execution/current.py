@@ -5,6 +5,7 @@ from datetime import datetime
 from aitest.application.execution.facts import project_attempt_fact, project_attempt_update
 from aitest.contracts.execution_facts import (
     AttemptStateFact,
+    CaptureCompletenessFact,
     DependencyInvalidationFact,
     ExecutionFacts,
     FactCompleteness,
@@ -46,7 +47,7 @@ def project_current_update(
     for step in previous.steps:
         if step.step_id == attempt.step_id:
             fact = by_id[attempt.attempt_id]
-            state = _step_state(fact.state)
+            state = _step_state(fact.state, fact.capture_completeness)
             steps.append(
                 step.model_copy(
                     update={
@@ -148,7 +149,9 @@ def project_current_update(
     )
 
 
-def _step_state(state: AttemptStateFact) -> StepStateFact:
+def _step_state(
+    state: AttemptStateFact, completeness: CaptureCompletenessFact
+) -> StepStateFact:
     if state is AttemptStateFact.INTENT_RECORDED:
         return StepStateFact.PENDING
     if state in {
@@ -159,5 +162,12 @@ def _step_state(state: AttemptStateFact) -> StepStateFact:
     }:
         return StepStateFact.RUNNING
     if state is AttemptStateFact.UNKNOWN:
+        return StepStateFact.PENDING_VERIFICATION
+    if (
+        state is AttemptStateFact.COMPLETED
+        and completeness is not CaptureCompletenessFact.COMPLETE
+    ):
+        # A completed run with partial capture is not a completed Step: the
+        # missing material must stay visible as pending verification.
         return StepStateFact.PENDING_VERIFICATION
     return StepStateFact(state.value)
