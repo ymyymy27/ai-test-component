@@ -95,6 +95,11 @@ export async function wizardMessage(
       const form=raw.form;if(!form||typeof form!=="object"||Array.isArray(form))throw new Error("向导表单无效。");
       const result=await helper(settings.python,{operation:"commands",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry},stage:raw.stage,receipts:raw.receipts});
       respond(result);
+    }else if(raw.kind==="wizardReview"){
+      if(settings.projectId!==session.project_id)throw new Error("当前项目已变化，请回到原项目再继续。");
+      const form=raw.form;if(!form||typeof form!=="object"||Array.isArray(form))throw new Error("向导表单无效。");
+      const result=await helper(settings.python,{operation:"review",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry}});
+      respond(result);
     }else throw new Error("向导操作不受支持，请返回当前步骤。");
   }catch(error){respond({error:error instanceof Error?error.message:"向导操作未完成"});}
   finally{if(session)session.busy=false;}

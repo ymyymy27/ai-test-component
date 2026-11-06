@@ -30,7 +30,7 @@ import json
 import sys
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,7 +44,12 @@ from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
-from aitest.interfaces.local.native_confirmation import NATIVE_CONFIRMATION_VERSION, dispatch_native
+from aitest.interfaces.local.native_confirmation import (
+    NATIVE_BATCH_VERSION,
+    NATIVE_CONFIRMATION_VERSION,
+    dispatch_native,
+    dispatch_native_batch,
+)
 
 #: 停机控制键；不出现在 ``contracts.commands`` 的业务 Command 中
 #: （``Command`` 为 extra=forbid，业务帧携带该键会直接判非法命令）。
@@ -107,6 +112,7 @@ def dispatch_frame(
     payload: bytes,
     *,
     native_dispatch: Callable[[Command], Response] | None = None,
+    native_batch_dispatch: Callable[[Sequence[Command]], Response] | None = None,
 ) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
@@ -148,6 +154,32 @@ def dispatch_frame(
                 return api._error(
                     command, "NATIVE_SESSION_FINALIZATION_UNVERIFIED", api._safe_message(error)
                 )
+        if action == NATIVE_BATCH_VERSION and native_batch_dispatch is not None:
+            raw_commands = obj.get("commands")
+            if (
+                set(obj) != {CONTROL_KEY, "request_id", "commands"}
+                or not isinstance(obj.get("request_id"), str)
+                or not isinstance(raw_commands, list)
+            ):
+                return _protocol_error(
+                    api, _safe_request_id(obj), "INVALID_COMMAND", "批量原生操作信封无效"
+                )
+            try:
+                commands = [Command.model_validate(item) for item in raw_commands]
+            except ValidationError:
+                return _protocol_error(
+                    api, _safe_request_id(obj), "INVALID_COMMAND", "批量原生操作命令无效"
+                )
+            try:
+                response = native_batch_dispatch(commands)
+            except Exception as error:
+                return _protocol_error(
+                    api,
+                    _safe_request_id(obj),
+                    "NATIVE_BATCH_UNAVAILABLE",
+                    api._safe_message(error),
+                )
+            return response.model_copy(update={"request_id": str(obj["request_id"])})
         if action == _CONTROL_SHUTDOWN:
             return ShutdownControl(request_id=_safe_request_id(obj))
         return _protocol_error(
@@ -168,11 +200,14 @@ def dispatch_frame(
         )
     response = api.dispatch(command, session)
     if command.action == "doctor" and response.result is not None and native_dispatch is not None:
+        capabilities = [NATIVE_CONFIRMATION_VERSION]
+        if native_batch_dispatch is not None:
+            capabilities.append(NATIVE_BATCH_VERSION)
         return response.model_copy(
             update={
                 "result": dict(response.result)
                 | {
-                    "transport_capabilities": [NATIVE_CONFIRMATION_VERSION],
+                    "transport_capabilities": capabilities,
                 }
             }
         )
@@ -212,6 +247,7 @@ def serve_connection(
     shutdown_blocker: Callable[[], str | None] | None = None,
     on_wait: Callable[[], None] | None = None,
     native_dispatch: Callable[[Command], Response] | None = None,
+    native_batch_dispatch: Callable[[Sequence[Command]], Response] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -235,7 +271,13 @@ def serve_connection(
             except Exception:
                 # 对端关闭/管道故障：本连接结束，核心继续存活等待重连。
                 return "disconnected"
-            outcome = dispatch_frame(api, session, payload, native_dispatch=native_dispatch)
+            outcome = dispatch_frame(
+                api,
+                session,
+                payload,
+                native_dispatch=native_dispatch,
+                native_batch_dispatch=native_batch_dispatch,
+            )
             if isinstance(outcome, ShutdownControl):
                 reason = prepare_core_shutdown(shutdown_blocker, lambda: ())
                 if reason is not None:
@@ -538,6 +580,11 @@ def main(argv: list[str] | None = None) -> int:
                     native_dispatch=lambda command: dispatch_native(
                         api,
                         command,
+                        records=assembly.unit_of_work.repo,
+                    ),
+                    native_batch_dispatch=lambda commands: dispatch_native_batch(
+                        api,
+                        commands,
                         records=assembly.unit_of_work.repo,
                     ),
                 )

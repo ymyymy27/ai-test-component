@@ -117,6 +117,14 @@ def _joined_prompt(request: ModelCall) -> str:
     return "\n\n".join(item.projected_text for item in request.projected)
 
 
+def _messages(request: ModelCall) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    if request.system_prompt is not None:
+        messages.append({"role": "system", "content": request.system_prompt})
+    messages.append({"role": "user", "content": _joined_prompt(request)})
+    return messages
+
+
 class HttpModelProvider:
     """ModelProvider 的 OpenAI 兼容 HTTPS 实现。"""
 
@@ -169,12 +177,15 @@ class HttpModelProvider:
             )
         self._registry.register(self._secret.reveal())
         url = confirmed_endpoint + self._CHAT_PATH
-        body = json.dumps(
-            {
-                "model": request.model_id,
-                "messages": [{"role": "user", "content": _joined_prompt(request)}],
-            }
-        ).encode("utf-8")
+        payload: dict[str, object] = {
+            "model": request.model_id,
+            "messages": _messages(request),
+        }
+        if request.output_schema is not None:
+            # OpenAI-compatible JSON mode.  Providers that reject it fail the
+            # call honestly; the caller falls back to manual/template input.
+            payload["response_format"] = {"type": "json_object"}
+        body = json.dumps(payload).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -262,18 +273,21 @@ class HttpModelProvider:
                 error_kind="structure",
                 error_detail="成功正文缺少 choices[0].message.content 字符串",
             )
-        provider_id = payload.get("id") if isinstance(payload, dict) else None
+        provider_id_value = payload.get("id") if isinstance(payload, dict) else None
         if isinstance(payload, dict) and "id" in payload and (
-            not isinstance(provider_id, str) or not provider_id.strip()
+            not isinstance(provider_id_value, str) or not provider_id_value.strip()
         ):
             return ModelCallResult(
                 status=ModelCallStatus.FAILED, error_kind="structure",
                 error_detail="供应方请求号不是非空字符串",
             )
+        provider_id = provider_id_value if isinstance(provider_id_value, str) else None
         return ModelCallResult(
             status=ModelCallStatus.OK,
             draft_text=self._safe_detail(draft, limit=None),
-            provider_request_id=self._safe_detail(provider_id) if provider_id else None,
+            provider_request_id=(
+                self._safe_detail(provider_id) if provider_id is not None else None
+            ),
         )
 
     @staticmethod

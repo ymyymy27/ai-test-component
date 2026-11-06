@@ -4,6 +4,7 @@ import {workflowActions, workflowCommand} from "./workflow";
 import {Onboarding} from "./onboarding";
 import {ModelSettings} from "./model-settings";
 import {GuidedRun, friendly} from "./guided";
+import {RunAuthorization} from "./run-authorization";
 import {evidenceBodyState, evidenceRefOf, evidenceRefsOf, evidenceRequest, type EvidenceRef} from "./evidence";
 import {newIntent, shellStyles, text, action, group, object, strings, gapText, gapHint} from "./shell";
 type Detail = "current" | "plan" | "workbench" | "review" | "settings" | "diagnostics" | "setup";
@@ -56,6 +57,7 @@ const READ_ONLY_ACTIONS = new Set([
 const STATE_CHANGING_ACTIONS = new Set([
   "execute_step", "verify_pending", "create_report", "import_external_result",
   "attach_evidence", "pause_run", "resume_run", "cancel_run", "record_local_review",
+  "start_run",
 ]);
 
 /** 只读回执里的记录行；面板原样展示，不补造字段、不重算结论。 */
@@ -139,7 +141,17 @@ class AITestPanel extends HTMLElement {
   private readonly modelSettings=new ModelSettings(message=>this.host?.postMessage(message),()=>this.render());
   private readonly onboarding=new Onboarding(message=>this.host?.postMessage(message),command=>{
     this.commandDraft=JSON.stringify(command, (key,value)=>key==="key"?undefined:value);this.submitCommand();
+  },command=>{
+    this.commandDraft=JSON.stringify(command, (key,value)=>key==="key"?undefined:value);this.submitWriteCommand();
   },()=>this.dispatch("doctor"),()=>this.render(),()=>this.navigate("workbench"));
+  private readonly runAuth=new RunAuthorization(
+    message=>this.host?.postMessage(message),
+    command=>{this.commandDraft=JSON.stringify(command);this.submitWriteCommand();},
+    ()=>this.render(),
+    ()=>this.contextId??"",
+    ()=>`${this.requestPrefix}-${++this.requestSequence}`,
+    ()=>this.refreshViews(),
+  );
   private outcome: Outcome | null = null;
   private pending = false;
   private selectedRecord:Row|null=null;
@@ -315,6 +327,7 @@ class AITestPanel extends HTMLElement {
           this.eventLog = []; this.eventCursor = this.eventNote = null;
           this.briefIssueId = this.briefNote = null;
           this.guided.reset();
+          this.runAuth.reset();
           this.viewOutcomes.clear(); this.selectedStep=null; this.intents.clear(); this.pendingQuery = null; this.outcome = null;
           this.reportIds.clear(); this.reportRevisions.clear(); this.reportLookedUp.clear();
           this.reportLookupRun = null; this.pendingReportSaveRun = null; this.autoReadKey = this.autoPanelKey = this.autoReportKey = null;
@@ -336,6 +349,16 @@ class AITestPanel extends HTMLElement {
       }
       if (data.kind !== "outcome") { return; }
       if (!["ok", "refused", "unavailable"].includes(data.status)) { return; }
+      if (data.action === "authorize_batch") {
+        // The batch window is correlated by its envelope request id, not by the
+        // single pending command slot.
+        this.outcome = data;
+        this.runAuth.receive("authorize_batch", data.status,
+          object(data.response?.["result"]), data.code, data.message);
+        this.pending = false; this.pendingRequest = null; this.disarmWatchdog();
+        this.refreshViews(); this.render();
+        return;
+      }
       const correlation = data.clientRequestId ?? data.response?.["request_id"];
       if (this.pendingRequest) {
         if (correlation !== this.pendingRequest.id || data.action !== this.pendingRequest.action) { return; }
@@ -419,6 +442,7 @@ class AITestPanel extends HTMLElement {
             && Number(result?.["commit_id"]) >= 0
             && typeof result?.["event_cursor"] === "string" && result["event_cursor"].length > 0) {
           this.viewOutcomes.set(kind, data);
+          if(kind==="run"&&view&&typeof view==="object"&&!Array.isArray(view))this.runAuth.open(view as Record<string,unknown>);
           this.guided.receive("read_view",data.status,object(data.response?.["result"]));
           // 换运行后旧的步骤选择不再有效，清掉避免工作台指向已不存在的步骤。
           if(kind==="run"&&typeof view["run_id"]==="string"){
@@ -477,6 +501,7 @@ class AITestPanel extends HTMLElement {
       this.maybeAutoRead();
       // 执行/核验/存报告会改变判定与缺口：立刻重读运行与面板视图，让"待处理"反映最新缺口。
       if (STATE_CHANGING_ACTIONS.has(String(data.action ?? ""))) { this.refreshViews(); }
+      this.runAuth.receive(data.action??"",data.status,object(data.response?.["result"]),data.code,data.message);
       this.onboarding.outcome(data.action??"",data.status,object(data.response?.["result"]),data.code,data.message);
       if (data.action === "ensure-core" && data.status === "ok") {
         this.dispatch("doctor");
@@ -493,16 +518,21 @@ class AITestPanel extends HTMLElement {
     const runId=this.project?.run_id;
     if(!runId||this.host===null||this.pending||this.onboarding.isConfiguring())return;
     const key=`${this.contextId ?? ""}:${runId}`;
+    const runView=this.view("run");
+    // A run view without the committed phase fact is not a complete projection;
+    // do not chase secondary reads from it (and do not leave the UI pending on
+    // a fixture that cannot supply them).
+    const hasPhase=typeof runView?.["control_state"]==="string";
     if(this.autoReadKey===key||this.viewOutcomes.has("run")||!this.available("read_view")){
       // 运行视图到手后补读一次面板视图：缺口分类与业务结论都只在面板视图里。
-      if(this.viewOutcomes.has("run") && !this.viewOutcomes.has("panel")
+      if(this.viewOutcomes.has("run") && hasPhase && !this.viewOutcomes.has("panel")
           && this.autoPanelKey!==key && this.available("read_view")){
         this.autoPanelKey=key;
         this.dispatchScoped("read_view",{view:"panel",run_id:runId});
         return;
       }
       // 再读一次报告修订列表，「测试记录」里的最近报告才有内容；失败时原样显示回执。
-      if(this.viewOutcomes.has("run") && this.reportOutcome===null
+      if(this.viewOutcomes.has("run") && hasPhase && this.reportOutcome===null
           && this.autoReportKey!==key && this.available("query")){
         this.autoReportKey=key;
         this.pendingQuery="reports";
@@ -702,7 +732,7 @@ class AITestPanel extends HTMLElement {
       this.dispatchScoped("query",{run_id:this.project.run_id,limit:5});
     },!this.available("query")||!this.project?.run_id);
     records.append(loadReports,action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
-    fragment.append(fold("当前测试","current",this.phaseSection(),this.actionSection(),links),
+    fragment.append(fold("当前测试","current",this.phaseSection(),this.actionSection(),this.runAuth.view(this.view("run")??null),links),
       fold("待处理","pending",this.pendingSection()),fold("测试计划","plan",plan),fold("测试记录","records",records));
     fragment.append(this.connectionFooter());return fragment;
   }
@@ -904,6 +934,32 @@ class AITestPanel extends HTMLElement {
         this.armWatchdog(180_000);
         this.commandNote = "已请求核心窗口；请核对窗口里的准确输入和保存依据。";
         this.host?.postMessage({kind:"controlledDispatch", clientRequestId, contextId:this.contextId,
+          action:command["action"], intentId:command["intent_id"],
+          expectedRevision:command["expected_revision"], bindingRevision:command["binding_revision"],
+          target:command["target"], parameters:command["parameters"], projectId:this.project?.project_id});
+      } catch (error) {
+        this.commandNote = error instanceof Error ? error.message : "操作输入无效";
+      }
+      this.render();
+  }
+
+  private submitWriteCommand():void {
+      try {
+        const raw: unknown = JSON.parse(this.commandDraft);
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) { throw new Error("输入须为 JSON 对象"); }
+        const command = raw as Record<string, unknown>;
+        const allowed = ["action", "intent_id", "expected_revision", "binding_revision", "target", "parameters"];
+        if (Object.keys(command).some(key => !allowed.includes(key))
+            || typeof command["action"] !== "string" || typeof command["intent_id"] !== "string"
+            || !Number.isSafeInteger(command["expected_revision"]) || Number(command["expected_revision"]) < 0
+            || !command["parameters"] || typeof command["parameters"] !== "object"
+            || Array.isArray(command["parameters"])) { throw new Error("请核对动作、意图、预期修订和参数"); }
+        const clientRequestId = `${this.requestPrefix}-${++this.requestSequence}`;
+        this.pendingRequest = {id:clientRequestId, action:command["action"]};
+        this.pending = true;
+        this.armWatchdog(180_000);
+        this.commandNote = "普通写入已提交；涉及确认、发布或授权的动作仍会打开核心窗口。";
+        this.host?.postMessage({kind:"writeDispatch", clientRequestId, contextId:this.contextId,
           action:command["action"], intentId:command["intent_id"],
           expectedRevision:command["expected_revision"], bindingRevision:command["binding_revision"],
           target:command["target"], parameters:command["parameters"], projectId:this.project?.project_id});
@@ -1323,7 +1379,7 @@ class AITestPanel extends HTMLElement {
         name=>this.available(name)&&!!this.project?.run_id, command=>{
           this.commandDraft=JSON.stringify({action:command.action,intent_id:command.intent,expected_revision:0,target:command.target,parameters:command.parameters});this.submitCommand();
         },()=>this.dispatchScoped("read_view",{view:"run",run_id:this.project?.run_id}),stepLabel,isRequired,this.planBasis[caseId] ?? "",(stepId:string)=>{this.selectedStep=stepId;this.render();},this.planLayers[caseId] ?? "",
-        (evidenceId:string,revision:number)=>this.openEvidence({evidenceId,revision})),this.pendingSection(),this.caseTree());
+        (evidenceId:string,revision:number)=>this.openEvidence({evidenceId,revision})),this.pendingSection(),this.caseTree(),this.runAuth.view(runView??null));
     }
     else if(this.detail==="plan")section.append(text("p","先核对准确的计划、范围和用例修订，发布与运行授权分别确认。","muted"),
       action("读取已保存计划",()=>{this.pendingQuery="plans";this.dispatchScoped("query",{aggregate_kind:"plan",limit:20});},!this.available("query")),

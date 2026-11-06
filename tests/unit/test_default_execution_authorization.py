@@ -10,6 +10,7 @@ from aitest.contracts.commands import Command
 from aitest.domain.approvals import EntryKind
 from aitest.domain.execution.authorization import AuthorizationState
 from aitest.interfaces.local.api import Session
+from aitest.interfaces.local.native_confirmation import dispatch_native_batch
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_execution_authorization_origin import FixtureActionResolver
@@ -404,3 +405,76 @@ def test_default_chain_degrades_honestly_without_execution_port(tmp_path):
             assert core.unit_of_work.current_commit_sequence() == before, action
     finally:
         core.unit_of_work.rollback()
+
+
+def test_native_batch_uses_one_window_and_one_gesture_per_action(authoritative):
+    core, inputs, _ = authoritative
+    from aitest.contracts.execution_facts import ExecutionFacts
+
+    prepared = prepare(core, inputs).result
+    registered = core.api.dispatch(
+        command(
+            "register_run",
+            request="batch-registration",
+            intent="batch-registration-intent",
+            target=prepared["prepared_run_id"],
+            parameters={
+                "prepared_run_id": prepared["prepared_run_id"],
+                "record_revision": 1,
+            },
+        ).model_copy(update={"project_id": inputs.project_id}),
+        RELAY,
+    )
+    assert registered.error is None, registered.error
+    facts = ExecutionFacts.model_validate(registered.result)
+    core.execution_authorizations.action_resolver = FixtureActionResolver(core.unit_of_work)
+    step = facts.steps[0].step_id
+    prepared_action = command(
+        "prepare_execution",
+        request="batch-prepare",
+        intent="batch-prepare-intent",
+        target=step,
+        parameters={"run_id": facts.run_id, "step_id": step},
+    ).model_copy(update={"project_id": inputs.project_id})
+    response = core.api.dispatch(prepared_action, RELAY)
+    assert response.error is None, response.error
+    parameters = response.result
+    batch_command = command(
+        "authorize_step",
+        request="batch-gesture",
+        intent=prepared_action.intent_id,
+        target=step,
+        parameters=parameters,
+    ).model_copy(update={"project_id": inputs.project_id})
+
+    calls = []
+
+    def prompt(items, confirm):
+        calls.append(len(items))
+        assert len(items) == 1
+        assert items[0].state == "pending"
+        ok, message = confirm(0)
+        assert ok and message == "已确认"
+        assert items[0].state == "confirmed"
+        # Re-clicking an already confirmed row is idempotent, not a new gesture.
+        assert confirm(0)[0] is True
+        assert confirm(9)[0] is False
+
+    result = dispatch_native_batch(
+        core.api, [batch_command], prompt=prompt, records=core.unit_of_work.repo
+    )
+    assert result.error is None
+    assert result.result["confirmed_count"] == 1
+    assert result.result["pending_count"] == 0
+    assert calls == [1]
+    item = result.result["items"][0]
+    assert item["step_id"] == step
+    grant_id = item["response"]["result"]["authorization_id"]
+    assert core.execution_authorizations._state(
+        inputs.project_id, grant_id
+    ) == (1, AuthorizationState.UNUSED, None)
+
+    with pytest.raises(ValueError):
+        dispatch_native_batch(
+            core.api, [prepared_action], prompt=prompt, records=core.unit_of_work.repo
+        )

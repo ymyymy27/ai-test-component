@@ -4,10 +4,61 @@ from uuid import uuid4
 import pytest
 
 from aitest.application.planning.serialization import case_from_payload
-from aitest.application.project.onboarding import OnboardingForm, wizard_commands
+from aitest.application.project.onboarding import (
+    OnboardingForm,
+    wizard_commands,
+    wizard_review,
+)
 from aitest.contracts.commands import Command
 from aitest.infrastructure.model_configuration import validate_model_configuration
 from aitest.interfaces.tools.onboarding import setup
+
+
+def _proposal_case(item, layer, case_id):
+    return {
+        "case_id": case_id,
+        "template_item_id": item,
+        "layer": layer,
+        "objective": f"验证 {item}",
+        "preconditions": ["已登记入口"],
+        "inputs": ["输入"],
+        "steps": ["运行入口"],
+        "expected": "与独立预期一致",
+        "verification_method": "独立比对",
+        "links": {
+            "acceptance_item_ids": [item],
+            "module_ids": [],
+            "critical_path_ids": [],
+            "no_critical_path_reason": "纯函数无跨系统链路",
+        },
+        "assertion_basis_text": f"{item} 的断言依据",
+        "independent_verification": "比较保存输出与冻结预期",
+        "mock_scope": [],
+        "importance": "P1",
+    }
+
+
+def _proposal():
+    return {
+        "schema_version": "aitest.plan-proposal/1.0",
+        "template_id": "python-library",
+        "template_version": "1.0.0",
+        "scope": {
+            "name": "算术检查",
+            "objective": "检查正常、边界与异常结果",
+            "required_case_ids": [],
+            "excluded_case_ids": [],
+            "exclusion_reasons": [],
+            "dependency_closure_ids": [],
+            "applicability_exclusions": [],
+        },
+        "cases": [
+            _proposal_case("syntax", "L1", "case-syntax"),
+            _proposal_case("normal", "L2", "case-normal"),
+            _proposal_case("boundary", "L2", "case-boundary"),
+            _proposal_case("error", "L2", "case-error"),
+        ],
+    }
 
 
 def form(source="E:/sample"):
@@ -117,5 +168,82 @@ def test_wizard_project_and_plan_use_real_core_contracts(tmp_path):
         assert receipts["register"]["run_id"]
         prepare = wizard_commands(selection, "prepare", receipts)
         assert prepare[0]["parameters"]["snapshot_id"] == receipts["snapshot"]["snapshot_id"]
+    finally:
+        core.lifetime_lock.release()
+
+
+def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():
+    selection = form().model_copy(update={"proposal": _proposal(), "checks": []})
+    preview = wizard_review(selection)
+    assert preview["coverage"] == {
+        "template_items": 4,
+        "covered_items": 4,
+        "required_items": 4,
+    }
+    assert [case["case_id"] for case in preview["cases"]] == [
+        "case-boundary",
+        "case-error",
+        "case-normal",
+        "case-syntax",
+    ]
+    commit = wizard_commands(selection, "commit", {})
+    actions = [item["action"] for item in commit]
+    assert actions.count("save_case") == 4
+    assert actions.count("confirm_basis") == 4
+    assert "publish_plan" in actions
+    publish = next(item for item in commit if item["action"] == "publish_plan")
+    assert publish["parameters"]["run_tier"] == "full"
+    assert publish["parameters"]["initial_driver"] == "planned"
+    assert len(publish["parameters"]["cases"]) == 4
+
+
+def test_wizard_review_rejects_missing_template_item_without_writing():
+    payload = _proposal()
+    payload["cases"] = payload["cases"][:-1]
+    selection = form().model_copy(update={"proposal": payload, "checks": []})
+    with pytest.raises(Exception) as error:
+        wizard_review(selection)
+    assert "error" in str(error.value) or "template" in str(error.value)
+
+
+def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
+    from aitest.bootstrap import assemble_workspace_core
+    from aitest.interfaces.local.native_confirmation import dispatch_native
+    from tests.support.environment_resolution import FixtureEnvironmentResolver
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "main.py").write_text('print("{}")', encoding="utf-8")
+    core = assemble_workspace_core(
+        tmp_path / "workspace",
+        instance_id="wizard-proposal-fixture",
+        environment_resolver=FixtureEnvironmentResolver(),
+    )
+    selection = form(str(source)).model_copy(
+        update={
+            "workspace_id": core.workspace.workspace_id,
+            "proposal": _proposal(),
+            "checks": [],
+        }
+    )
+    receipts = {}
+    try:
+        for stage in ("project", "commit", "prepare", "register"):
+            for item in wizard_commands(selection, stage, receipts):
+                command = Command.model_validate(
+                    {key: value for key, value in item.items() if key != "key"}
+                    | {"request_id": uuid4().hex, "project_id": selection.project_id}
+                )
+                result = dispatch_native(
+                    core.api, command, prompt=lambda text: True,
+                    records=core.unit_of_work.repo,
+                )
+                assert result.error is None, (item["action"], result.error)
+                assert not result.result.get("blocked"), (item["action"], result.result)
+                receipts[item["key"]] = result.result
+        assert len([key for key in receipts if key.startswith("confirm-")]) == 4
+        assert receipts["register"]["run_id"]
+        assert receipts["prepare"]["run_tier"] == "full"
+        assert receipts["prepare"]["initial_driver"] == "planned"
     finally:
         core.lifetime_lock.release()

@@ -229,6 +229,8 @@ P1-AC01—35全部按需求执行；提交中断、同意图/明确重跑、同�
 
 ConfirmationRecord保留核心分配的入口/会话、用户交互来源、动作和冻结摘要、对象修订、提交序号；客户端提供的姓名仅为展示，不作授权凭据。不新增平台账号、服务或授权微服务。P1-AC31/32及P3-AC07覆盖伪造来源、挑战错配、重复确认与实际用户确认路径。
 
+**普通受控写入与批量授权（实现补充）**：不属于 `HUMAN_ACTIONS`/`CHALLENGE_ACTIONS` 的普通写入（如 `save_case`、`save_acceptance`、`analyze_project`、`prepare_run`、`register_run`、`prepare_execution`、`execute_step`、`verify_pending`、`start_run`、`create_report`、`export_report`）可经受控普通写入通道提交，不弹原生窗口；核心仍核验项目、意图、预期修订和全部领域门禁。确认、发布、授权、提交等动作仍必须原生交互。批量授权窗口可一次列出多个 `authorize_step`，每项独立点击、独立挑战/交互/确认记录；不提供“全部确认”单手势，未确认项在会话关闭时失效，不能由调用方提交挑战或摘要。
+
 ## 10 接口类型与兼容处理
 
 当前动作目录由第3节维护；新增动作通过能力协商暴露，已发布动作不改变既有语义。CoverageDTO以[报告与缺陷](03-报告与缺陷.md#11-coveragedto字段合同)为唯一字段定义；Attempt使用attempt_index、retry_count、transport_retry_count。旧retry_index仅在已知Schema明确为从1起的尝试序号时转换，不能把未知字段默认为0。

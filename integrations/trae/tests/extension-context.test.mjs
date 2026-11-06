@@ -25,6 +25,11 @@ export async function dispatchReadOnly(python,root,request,id) {state.calls.push
   return {status:"ok",response:{result:{status:"READY"}}};}
 export async function dispatchControlled(python,root,request,id){state.controlled={python,root,request,id};
   return {status:"refused",code:"USER_DECLINED",message:"fixture decline"};}
+export async function dispatchWrite(python,root,request,id){state.write={python,root,request,id};
+  return {status:"ok",response:{result:{status:"READY"}}};}
+export async function dispatchNativeBatch(python,root,items,id){state.batch={python,root,items,id};
+  return {status:"ok",response:{project_id:items[0]?.request?.projectId??null,
+    result:{items:[],confirmed_count:0,pending_count:items.length,failed_count:0}}};}
 export async function ensureCore(...args){state.startup=args;
   if(state.deferStartup) return await new Promise(resolve=>{state.resolveStartup=resolve});
   return state.startupOutcome??{status:"ok",response:{status:"READY"}};}
@@ -106,6 +111,21 @@ test("controlled operation preserves all write identities and is still a prompt 
     intentId:"stable-intent",expectedRevision:2,bindingRevision:3,parameters:{binding:{binding_id:"binding"}}});
   assert.equal(state.sent.at(-1).code,"USER_DECLINED");
   assert.equal(state.sent.at(-1).clientRequestId,"controlled-request");
+});
+test("native batch stays within the published project and preserves each action identity", async () => {
+  const contextId=state.sent.findLast(x=>x.kind==="projectContext").context_id;
+  state.receive({kind:"nativeBatch",contextId,clientRequestId:"batch-request",items:[{
+    action:"authorize_step",requestId:"item-request-1",intentId:"auth-intent-1",
+    expectedRevision:0,bindingRevision:null,target:"step-1",
+    parameters:{execution_action_id:"action-1",record_revision:1}}]});
+  await tick();
+  assert.equal(state.batch.id,"batch-request");
+  assert.equal(state.batch.items.length,1);
+  assert.deepEqual(state.batch.items[0].request,{action:"authorize_step",projectId:"p",
+    intentId:"auth-intent-1",target:"step-1",expectedRevision:0,bindingRevision:null,
+    parameters:{execution_action_id:"action-1",record_revision:1}});
+  assert.equal(state.sent.at(-1).action,"authorize_batch");
+  assert.equal(state.sent.at(-1).clientRequestId,"batch-request");
 });
 test("queued writes cannot cross workspace changes even with the same project ID", async () => {
   const oldContext=state.sent.findLast(x=>x.kind==="projectContext").context_id;

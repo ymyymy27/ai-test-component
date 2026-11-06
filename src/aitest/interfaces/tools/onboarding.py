@@ -8,7 +8,12 @@ import venv
 from pathlib import Path
 from typing import Any
 
-from aitest.application.project.onboarding import OnboardingForm, wizard_commands
+from aitest.application.planning.proposal import PlanProposalError
+from aitest.application.project.onboarding import (
+    OnboardingForm,
+    wizard_commands,
+    wizard_review,
+)
 from aitest.bootstrap import (
     carrier_configuration,
     reject_path_links,
@@ -75,6 +80,15 @@ def main() -> int:
         operation = data["operation"]
         if operation == "setup":
             result = setup(data)
+        elif operation == "review":
+            form = OnboardingForm.model_validate(data["form"])
+            try:
+                result = {"valid": True, "preview": wizard_review(form)}
+            except PlanProposalError as error:
+                result = {
+                    "valid": False,
+                    "issues": [issue.as_dict() for issue in error.issues],
+                }
         elif operation == "commands":
             result = {"commands": wizard_commands(OnboardingForm.model_validate(data["form"]),
                 data["stage"], data.get("receipts", {}))}
@@ -102,6 +116,12 @@ def main() -> int:
             raise ValueError("未知向导操作")
         print(json.dumps({"ok": True, "result": result}, ensure_ascii=False))
         return 0
+    except PlanProposalError as error:
+        # Structured proposal errors are safe to return: they name fields, not credentials.
+        print(json.dumps({"ok": False, "code": error.code, "message": str(error),
+                          "issues": [issue.as_dict() for issue in error.issues]},
+                         ensure_ascii=False))
+        return 2
     except Exception:
         # Provider/OS errors can contain credential material; never echo them.
         print(json.dumps({"ok": False,

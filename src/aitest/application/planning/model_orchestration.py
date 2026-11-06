@@ -60,6 +60,10 @@ from aitest.application.planning.model_ports import (
     Projection,
     ProjectionStatus,
 )
+from aitest.application.planning.proposal import (
+    PLAN_PROPOSAL_SCHEMA,
+    plan_proposal_system_prompt,
+)
 from aitest.application.planning.substrate import (
     RecordReader,
     UnitOfWork,
@@ -471,6 +475,7 @@ def request_model_draft(
     basis_is_current: Callable[[], bool] | None = None,
     basis: ModelGenerationBasis | None = None,
     response_store: ModelResponseStore | None = None,
+    output_schema: str | None = None,
 ) -> OutboundOutcome:
     """编排一次模型请求。
 
@@ -567,6 +572,12 @@ def request_model_draft(
         model_id=policy.endpoint.model_id,
         timeout_seconds=timeout_seconds,
         policy_revision=policy.revision,
+        output_schema=output_schema,
+        system_prompt=(
+            plan_proposal_system_prompt()
+            if output_schema == PLAN_PROPOSAL_SCHEMA
+            else None
+        ),
     )
 
     request = OutboundRequest(

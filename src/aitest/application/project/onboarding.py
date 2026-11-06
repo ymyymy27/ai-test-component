@@ -6,11 +6,20 @@ still passes the ordinary core guards, exact saved references and native approva
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aitest.application.planning.draft import text_digest
+from aitest.application.planning.draft import (
+    load_template,
+    template_draft_text,
+    text_digest,
+)
+from aitest.application.planning.proposal import (
+    materialize_plan_proposal,
+    proposal_from_mapping,
+    proposal_preview,
+)
 from aitest.application.planning.serialization import acceptance_scope_to_payload, case_to_payload
 from aitest.application.project.serialization import binding_to_payload, environment_to_payload
 from aitest.domain.planning.plans import (
@@ -21,6 +30,7 @@ from aitest.domain.planning.plans import (
     CaseLayer,
     CaseLink,
 )
+from aitest.domain.planning.templates import TemplateRef
 from aitest.domain.project.context import BindingForm, EnvironmentRef, LocalProjectBinding
 
 
@@ -46,6 +56,47 @@ class OnboardingForm(BaseModel):
     model: str = "deepseek-flash"
     model_timeout: int = Field(default=60, ge=10, le=120)
     checks: list[CheckForm] = Field(default_factory=list, max_length=4)
+    #: Structured AI proposal; when present, review/commit stages use it instead
+    #: of the fixed four beginner checks.
+    proposal: dict[str, Any] | None = None
+    run_tier: Literal["quick", "on_demand", "full"] = "full"
+    initial_driver: Literal["planned", "stepwise"] = "planned"
+
+
+def _proposal_for(form: OnboardingForm) -> Any:
+    if form.proposal is None:
+        raise ValueError("结构化计划提案缺失")
+    return proposal_from_mapping(form.proposal)
+
+
+def _proposal_materials(
+    form: OnboardingForm,
+) -> tuple[Any, Any, list[Any], dict[str, Any], list[dict[str, Any]]]:
+    """Validate the proposal and return domain objects plus their payloads."""
+
+    proposal = _proposal_for(form)
+    project = form.project_id
+    scope, cases = materialize_plan_proposal(
+        proposal,
+        project_id=project,
+        environment_id="env-" + project,
+        scope_id="scope-" + project,
+    )
+    scope_payload = acceptance_scope_to_payload(scope, project_id=project)
+    case_payloads = [case_to_payload(case, project_id=project) for case in cases]
+    return proposal, scope, list(cases), scope_payload, case_payloads
+
+
+def wizard_review(form: OnboardingForm) -> dict[str, Any]:
+    """Return the editable proposal preview; never writes a record."""
+
+    proposal = _proposal_for(form)
+    return proposal_preview(
+        proposal,
+        project_id=form.project_id,
+        environment_id="env-" + form.project_id,
+        scope_id="scope-" + form.project_id,
+    )
 
 
 def wizard_commands(
@@ -85,18 +136,47 @@ def wizard_commands(
         add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
             "environment": environment_to_payload(environment, project_id=project)}, environment_id)
     elif stage == "model":
+        template_ref = TemplateRef("python-library", "1.0.0")
+        template_text = template_draft_text(load_template(template_ref))
         add("policy", "save_model_outbound_policy", {"project_revision": 1, "policy": {
             "project_id": project, "revision": 1,
             "endpoint": {"provider": "openai-compatible", "address": form.endpoint,
                          "model_id": form.model, "purpose": "model"},
-            "allowed_material_kinds": ["project_context"], "source_snippets_enabled": False,
+            "allowed_material_kinds": ["project_context", "template_content"],
+            "source_snippets_enabled": False,
             "ai_enabled": True, "confirmation": None, "revoked_material_kinds": [],
         }}, "model-policy:" + project)
         add("suggestions", "generate_draft", {"generation_mode": "model",
             "project_revision": 1, "policy_revision": 1, "source_revision": 0,
-            "base_manual_revision": 0, "task_type": "check_content_draft", "draft_kind": "case",
+            "base_manual_revision": 0, "task_type": "case_suggestion",
+            "draft_kind": "plan_proposal",
+            "output_schema": "aitest.plan-proposal/1.0",
+            "template_ref": {"template_id": template_ref.template_id,
+                             "version": template_ref.version},
             "timeout_seconds": form.model_timeout,
-            "selected_material": {"project_context": form.name + "\n" + form.goal}})
+            "selected_material": {"project_context": form.name + "\n" + form.goal,
+                                  "template_content": template_text}})
+    elif stage == "commit":
+        proposal, _scope, cases, scope_payload, case_payloads = _proposal_materials(form)
+        for case, payload in zip(cases, case_payloads, strict=True):
+            add("case-" + case.case_id, "save_case", {"case": payload})
+        add("scope", "save_acceptance", {"acceptance_scope": scope_payload})
+        for case in cases:
+            add("confirm-" + case.case_id, "confirm_basis", {
+                "case_id": case.case_id,
+                "case_revision": case.revision,
+                "basis_revision": case.assertion_basis.revision,
+                "basis_text_digest": case.assertion_basis.text_digest,
+            }, case.case_id)
+        add("publish", "publish_plan", {"project_revision": 1, "expected_revision": 0,
+            "plan_id": plan_id, "revision": 1,
+            "scope": scope_payload, "cases": case_payloads,
+            "template_versions": [{"template_id": proposal.template_id,
+                                   "version": proposal.template_version}],
+            "run_tier": form.run_tier, "initial_driver": form.initial_driver}, plan_id)
+        add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
+            "source_scope": ".", "selected_paths": ["."],
+            "exclusion_rules": [".git", ".venv", "__pycache__"]})
     elif stage == "plan":
         if len(form.checks) != 4:
             raise ValueError("请核对加载、正常输入、边界和异常输入四项检查的独立预期")
@@ -134,8 +214,20 @@ def wizard_commands(
             "exclusion_rules": [".git", ".venv", "__pycache__"]})
     elif stage == "prepare":
         snapshot = receipts["snapshot"]
-        confirmations = [receipts["confirm-" + name] for name in
-                         ("syntax", "normal", "boundary", "error")]
+        if form.proposal is not None:
+            _proposal, _scope, cases, _scope_payload, _case_payloads = _proposal_materials(form)
+            confirmations = []
+            for case in cases:
+                item = receipts.get("confirm-" + case.case_id)
+                if not isinstance(item, dict):
+                    raise ValueError("缺少用例依据确认回执：" + case.case_id)
+                confirmations.append(item)
+            selected = [case.case_id for case in cases]
+        else:
+            confirmations = [receipts["confirm-" + name] for name in
+                             ("syntax", "normal", "boundary", "error")]
+            selected = [project + "-" + name for name in
+                        ("syntax", "normal", "boundary", "error")]
         add("prepare", "prepare_run", {"mode": "from_saved", "project_revision": 1,
             "binding_id": binding_id, "binding_revision": 1, "plan_id": plan_id,
             "plan_revision": 1, "snapshot_id": snapshot["snapshot_id"], "snapshot_revision": 1,
@@ -145,8 +237,7 @@ def wizard_commands(
                 "cwd_mapping": "workdir:.", "allowed_env_keys": [], "secret_refs": [],
                 "test_config_ref": plan_id + ":1", "adapter_versions": {"command": "command/1.0"},
                 "resolved_input_digest": "@core-assigned"},
-            "selected_case_ids": [project + "-" + name for name in
-                                  ("syntax", "normal", "boundary", "error")],
+            "selected_case_ids": selected,
             "confirmation_refs": [{key: item[key] for key in
                 ("confirmation_id", "case_id", "basis_revision", "confirmed_at_commit")}
                                   for item in confirmations]})

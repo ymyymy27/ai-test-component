@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 import {wizardMessage, type WizardSession} from "./onboarding";
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { dispatchControlled, dispatchReadOnly, ensureCore, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
+import { dispatchControlled, dispatchNativeBatch, dispatchReadOnly, dispatchWrite, ensureCore, type BatchDispatchItem, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
 
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
@@ -217,10 +217,101 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
     });
     return;
   }
-  if (raw["kind"] !== "dispatch" && raw["kind"] !== "controlledDispatch") {
+  if (raw["kind"] === "nativeBatch") {
+    if (raw["contextId"] !== scope.id) {
+      post(panel, { kind: "outcome", action: "authorize_batch", status: "refused",
+        code: "PROJECT_CONTEXT_MISMATCH", message: "提交时的宿主配置已失效，请刷新后核对工作空间与操作输入", clientRequestId });
+      return;
+    }
+    const rawItems = raw["items"];
+    if (!Array.isArray(rawItems) || rawItems.length === 0 || rawItems.length > 16) {
+      post(panel, { kind: "outcome", action: "authorize_batch", status: "refused",
+        code: "INVALID_REQUEST", message: "批量授权需要 1 至 16 个已解析动作", clientRequestId });
+      return;
+    }
+    const settings = readSettings();
+    const { python, workspaceRoot, projectId, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = settings;
+    if (!projectId) {
+      // The batch is always scoped to the host-published project; never accept a
+      // caller-supplied project override.
+      post(panel, { kind: "outcome", action: "authorize_batch", status: "refused",
+        code: "PROJECT_CONTEXT_MISMATCH", message: "批量授权必须属于宿主当前项目", clientRequestId });
+      return;
+    }
+    const items: BatchDispatchItem[] = [];
+    for (const entry of rawItems) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        post(panel, { kind: "outcome", action: "authorize_batch", status: "refused",
+          code: "INVALID_REQUEST", message: "批量授权项必须是对象", clientRequestId });
+        return;
+      }
+      const value = entry as Record<string, unknown>;
+      const action = textOrNull(value["action"]);
+      const requestId = identityOrNull(value["requestId"]);
+      const intentId = identityOrNull(value["intentId"]);
+      const target = identityOrNull(value["target"]);
+      const parameters = value["parameters"];
+      const expectedRevision = value["expectedRevision"];
+      const bindingRevision = value["bindingRevision"];
+      if (action !== "authorize_step" || requestId === null || intentId === null
+          || target === null || !Number.isSafeInteger(expectedRevision)
+          || Number(expectedRevision) < 0 || !parameters || typeof parameters !== "object"
+          || Array.isArray(parameters)
+          || (bindingRevision != null && typeof bindingRevision !== "number")) {
+        post(panel, { kind: "outcome", action: "authorize_batch", status: "refused",
+          code: "INVALID_REQUEST", message: "批量授权项缺少准确动作、意图、目标或预期修订", clientRequestId });
+        return;
+      }
+      items.push({
+        requestId,
+        request: {
+          action,
+          projectId,
+          intentId,
+          target,
+          expectedRevision: Number(expectedRevision),
+          bindingRevision: typeof bindingRevision === "number" ? bindingRevision : null,
+          parameters: parameters as Record<string, unknown>,
+        },
+      });
+    }
+    let outcome: DispatchOutcome;
+    try {
+      const connected = await ensureCore(python, workspaceRoot, 60_000,
+        pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
+      if (JSON.stringify(readSettings()) !== expectedContext) {
+        publishProject(panel, scope);
+        post(panel, { kind: "outcome", action: "authorize_batch", status: "unavailable",
+          code: "PROJECT_CONTEXT_CHANGED", message: "连接期间宿主配置变化，批量授权尚未派发", clientRequestId });
+        return;
+      }
+      if (connected.status !== "ok") {
+        post(panel, { kind: "outcome", action: "authorize_batch", ...connected, clientRequestId });
+        return;
+      }
+      outcome = await dispatchNativeBatch(python, workspaceRoot, items, clientRequestId);
+    } catch (error) {
+      outcome = {
+        status: "refused",
+        code: "ENTRY_ACTION_NOT_ALLOWED",
+        message: error instanceof Error ? error.message : "批量授权不能由面板发起",
+      };
+    }
+    if (JSON.stringify(readSettings()) !== expectedContext) {
+      publishProject(panel, scope);
+      post(panel, { kind: "outcome", action: "authorize_batch", status: "unavailable",
+        code: "PROJECT_CONTEXT_CHANGED", message: "操作期间宿主上下文变化，原回执未应用", clientRequestId });
+      return;
+    }
+    post(panel, { kind: "outcome", action: "authorize_batch", ...outcome, clientRequestId });
     return;
   }
-  if (raw["kind"] === "controlledDispatch" && raw["contextId"] !== scope.id) {
+  if (raw["kind"] !== "dispatch" && raw["kind"] !== "controlledDispatch"
+      && raw["kind"] !== "writeDispatch") {
+    return;
+  }
+  if ((raw["kind"] === "controlledDispatch" || raw["kind"] === "writeDispatch")
+      && raw["contextId"] !== scope.id) {
     post(panel, { kind: "outcome", action: textOrNull(raw["action"]), status: "refused",
       code: "PROJECT_CONTEXT_MISMATCH", message: "提交时的宿主配置已失效，请刷新后核对工作空间与操作输入", clientRequestId });
     return;
@@ -262,7 +353,9 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
     }
     outcome = raw["kind"] === "controlledDispatch"
       ? await dispatchControlled(python, workspaceRoot, { ...request, projectId }, clientRequestId)
-      : await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);
+      : raw["kind"] === "writeDispatch"
+        ? await dispatchWrite(python, workspaceRoot, { ...request, projectId }, clientRequestId)
+        : await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);
   } catch (error) {
     // 白名单外动作在此被拒：扩展不代签确认，也不把它降级成"可用"。
     outcome = {

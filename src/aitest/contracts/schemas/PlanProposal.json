@@ -1,0 +1,284 @@
+{
+  "$defs": {
+    "ProposalCase": {
+      "additionalProperties": false,
+      "description": "One case drafted from one template item.",
+      "properties": {
+        "case_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "template_item_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Template Item Id",
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "L1",
+            "L2",
+            "L3"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "objective": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "inputs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "expected": {
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        },
+        "verification_method": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Verification Method",
+          "type": "string"
+        },
+        "links": {
+          "$ref": "#/$defs/ProposalCaseLink"
+        },
+        "assertion_basis_text": {
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Assertion Basis Text",
+          "type": "string"
+        },
+        "independent_verification": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Independent Verification",
+          "type": "string"
+        },
+        "mock_scope": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mock Scope",
+          "type": "array"
+        },
+        "importance": {
+          "default": "P1",
+          "enum": [
+            "P0",
+            "P1",
+            "P2"
+          ],
+          "title": "Importance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "template_item_id",
+        "layer",
+        "objective",
+        "preconditions",
+        "steps",
+        "expected",
+        "verification_method",
+        "links",
+        "assertion_basis_text",
+        "independent_verification"
+      ],
+      "title": "ProposalCase",
+      "type": "object"
+    },
+    "ProposalCaseLink": {
+      "additionalProperties": false,
+      "description": "Links proposed by the model; the server injects the environment.",
+      "properties": {
+        "acceptance_item_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Acceptance Item Ids",
+          "type": "array"
+        },
+        "module_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Module Ids",
+          "type": "array"
+        },
+        "critical_path_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Critical Path Ids",
+          "type": "array"
+        },
+        "no_critical_path_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "No Critical Path Reason"
+        }
+      },
+      "required": [
+        "acceptance_item_ids"
+      ],
+      "title": "ProposalCaseLink",
+      "type": "object"
+    },
+    "ProposalScope": {
+      "additionalProperties": false,
+      "description": "Acceptance scope content the model may propose.",
+      "properties": {
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "objective": {
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "required_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Case Ids",
+          "type": "array"
+        },
+        "excluded_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excluded Case Ids",
+          "type": "array"
+        },
+        "exclusion_reasons": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Exclusion Reasons",
+          "type": "array"
+        },
+        "dependency_closure_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependency Closure Ids",
+          "type": "array"
+        },
+        "applicability_exclusions": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Applicability Exclusions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "objective"
+      ],
+      "title": "ProposalScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A complete, editable plan proposal.  Never a published plan.",
+  "properties": {
+    "schema_version": {
+      "const": "aitest.plan-proposal/1.0",
+      "default": "aitest.plan-proposal/1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "template_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Template Id",
+      "type": "string"
+    },
+    "template_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Template Version",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/ProposalScope"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/ProposalCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    }
+  },
+  "required": [
+    "template_id",
+    "template_version",
+    "scope",
+    "cases"
+  ],
+  "title": "PlanProposal",
+  "type": "object"
+}

@@ -100,6 +100,11 @@ from aitest.application.planning.portable import (
 )
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
+from aitest.application.planning.proposal import (
+    PLAN_PROPOSAL_SCHEMA,
+    PlanProposalError,
+    parse_plan_proposal,
+)
 from aitest.application.planning.publish import (
     PublicationResult,
     payload_digest,
@@ -2144,6 +2149,23 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 "status": "blocked",
                 "blocked_by": ["source_reference_required"],
             }
+        output_schema = parameters.get("output_schema")
+        if output_schema is not None:
+            output_schema = _as_text(output_schema, "output_schema")
+            if output_schema != PLAN_PROPOSAL_SCHEMA:
+                raise BUseCaseError("B_INVALID_PARAMETER", "unknown output_schema")
+        template_ref = None
+        raw_template = parameters.get("template_ref")
+        if raw_template is not None:
+            reference = _as_mapping(raw_template, "template_ref")
+            template_ref = TemplateRef(
+                template_id=_as_text(
+                    _required(reference, "template_id"), "template_ref.template_id"
+                ),
+                version=_as_text(
+                    _required(reference, "version"), "template_ref.version"
+                ),
+            )
         result = request_model_draft(
             project_id=project_id,
             policy=policy,
@@ -2165,8 +2187,10 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             basis=basis,
             response_store=deps.model_responses,
             timeout_seconds=timeout,
+            template_ref=template_ref,
+            output_schema=output_schema,
         )
-        draft_text = None
+        draft_text: str | None = None
         if result.content is not None:
             saved_draft = read_scoped_record(
                 deps.reader, project_id=project_id, aggregate_kind="generated_content",
@@ -2175,16 +2199,33 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             if (saved_draft.get("generated_content_id") != result.content.generated_content_id
                     or saved_draft.get("content_digest") != result.content.content_digest):
                 raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft identity differs")
-            draft_text = saved_draft.get("draft_text")
-            if not isinstance(draft_text, str):
+            raw_draft = saved_draft.get("draft_text")
+            if not isinstance(raw_draft, str):
                 raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft text is unavailable")
+            draft_text = raw_draft
             if text_digest(draft_text) != result.content.content_digest:
                 raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft digest differs")
+        proposal = None
+        proposal_error = None
+        if output_schema == PLAN_PROPOSAL_SCHEMA and draft_text is not None:
+            try:
+                proposal = parse_plan_proposal(draft_text)
+            except PlanProposalError as error:
+                proposal_error = error.as_result()
+        blocked = result.content is None or proposal_error is not None
         return {
             "draft_text": draft_text,
-            "blocked": result.content is None,
-            "status": result.status,
-            "blocked_by": list(result.blocked_by),
+            "blocked": blocked,
+            "status": "blocked" if proposal_error is not None else result.status,
+            "blocked_by": (
+                ["structured_output_invalid"]
+                if proposal_error is not None
+                else list(result.blocked_by)
+            ),
+            "proposal": (
+                proposal.model_dump(mode="json") if proposal is not None else None
+            ),
+            "proposal_error": proposal_error,
             "response_currency": result.response_currency,
             "saved_response_ref": result.saved_response_ref,
             "content": _generated_content(result.content) if result.content is not None else None,

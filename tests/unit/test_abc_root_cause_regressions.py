@@ -733,6 +733,126 @@ def test_default_core_model_flow_persists_filtered_draft_and_reuses_original_int
         core.lifetime_lock.release()
 
 
+def test_model_draft_returns_structured_plan_proposal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.unit.test_plan_proposal import _proposal
+
+    secret_value = "synthetic-proposal-credential-5678"
+    monkeypatch.setenv("AITEST_PROPOSAL_MODEL_SECRET", secret_value)
+    manager = SecretManager(
+        (
+            EnvironmentSecretProvider(
+                {
+                    ("model", "proposal-model"): "AITEST_PROPOSAL_MODEL_SECRET",
+                }
+            ),
+        )
+    )
+    policy = _policy()
+    core = assemble_workspace_core(
+        tmp_path,
+        instance_id="proposal-model",
+        model_endpoint=policy.endpoint.address,
+        model_secret_reference=("model", "proposal-model"),
+        secret_manager=manager,
+    )
+
+    class Transport:
+        def post(self, url, *, headers, body, timeout_seconds):
+            payload = json.loads(body)
+            assert payload["response_format"] == {"type": "json_object"}
+            assert any(message["role"] == "system" for message in payload["messages"])
+            assert headers["Authorization"] == "Bearer " + secret_value
+            return HttpResponse(
+                200,
+                json.dumps(
+                    {
+                        "id": "proposal-1",
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": json.dumps(_proposal(), ensure_ascii=False)
+                                }
+                            }
+                        ],
+                    }
+                ).encode(),
+            )
+
+    core.model_provider._transport = Transport()
+    human = Session(session_id="proposal-human", entry_kind=EntryKind.HUMAN_UI)
+    relay = Session(session_id="proposal-relay", entry_kind=EntryKind.AGENT_RELAY)
+    project = create_project(
+        project_id=policy.project_id,
+        workspace_id=core.workspace.workspace_id,
+        name="proposal regression",
+        goal="structured proposal",
+        created_at_commit="0",
+    )
+    try:
+        context = Command(
+            request_id="proposal-context",
+            intent_id="proposal-context-intent",
+            action="save_context",
+            project_id=policy.project_id,
+            expected_revision=0,
+            parameters={"project": project_to_payload(project)},
+        )
+        assert core.api.dispatch(context, human).error is None
+        policy_command = Command(
+            request_id="proposal-policy",
+            intent_id="proposal-policy-intent",
+            action="save_model_outbound_policy",
+            project_id=policy.project_id,
+            expected_revision=0,
+            parameters={
+                "project_revision": 1,
+                "policy": TypeAdapter(ModelOutboundPolicy).dump_python(policy, mode="json"),
+            },
+        )
+        assert core.api.dispatch(policy_command, relay).error is not None
+        from tests.support.controlled_model_policy import controlled_policy_confirm
+
+        policy_result = controlled_policy_confirm(
+            core,
+            policy_command.model_copy(update={"request_id": "proposal-policy-human"}),
+            session=Session("proposal-policy-human", EntryKind.HUMAN_UI, True),
+        )
+        assert policy_result.error is None, policy_result.error
+        command = Command(
+            request_id="proposal-draft",
+            intent_id="proposal-draft-intent",
+            action="generate_draft",
+            project_id=policy.project_id,
+            expected_revision=0,
+            parameters={
+                "generation_mode": "model",
+                "project_revision": 1,
+                "policy_revision": 1,
+                "source_revision": 0,
+                "base_manual_revision": 0,
+                "task_type": "case_suggestion",
+                "draft_kind": "plan_proposal",
+                "output_schema": "aitest.plan-proposal/1.0",
+                "template_ref": {"template_id": "python-library", "version": "1.0.0"},
+                "selected_material": {
+                    "project_context": "safe selected context",
+                    "template_content": "template skeleton",
+                },
+            },
+        )
+        result = core.api.dispatch(command, relay)
+        assert result.error is None, result.error
+        assert result.result["blocked"] is False
+        assert result.result["status"] == "draft_ready"
+        assert result.result["proposal"]["template_id"] == "python-library"
+        assert len(result.result["proposal"]["cases"]) == 4
+    finally:
+        core.lifetime_lock.release()
+
+
 def test_real_uow_freezes_execution_snapshot_at_actual_publication_boundary(tmp_path: Path) -> None:
     from tests.support.persistent_evidence_fixture import fixture_facts, save_fixture_bytes
 

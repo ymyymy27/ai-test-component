@@ -23,6 +23,48 @@ export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   "copy_repair_brief",
 ]);
 
+/**
+ * Ordinary controlled writes that do NOT require a per-action human gesture.
+ *
+ * This is deliberately an allowlist of `PHASE_ONE_ACTIONS` members that are
+ * neither `HUMAN_ACTIONS` nor `CHALLENGE_ACTIONS` in the core.  Adding an action
+ * here must be justified by the core contract: confirmations, publications,
+ * authorizations and delivery submission stay on `dispatchControlled`.
+ */
+export const PLAIN_WRITE_ACTIONS: ReadonlySet<string> = new Set([
+  "save_context",
+  "save_case",
+  "save_task",
+  "save_delivery",
+  "save_acceptance",
+  "save_dependency_graph",
+  "save_project_view_preference",
+  "save_rules",
+  "generate_draft",
+  "request_model_draft",
+  "resolve_model_response",
+  "save_plan",
+  "analyze_project",
+  "prepare_run",
+  "register_run",
+  "prepare_execution",
+  "execute_step",
+  "start_run",
+  "pause_run",
+  "resume_run",
+  "cancel_run",
+  "retry_step",
+  "return_stage",
+  "verify_pending",
+  "attach_evidence",
+  "record_agent_evidence",
+  "import_external_result",
+  "create_report",
+  "export_report",
+  "record_fix",
+  "request_regression",
+]);
+
 const PROTOCOL_VERSION = "aitest.local/2.0";
 const MAX_STDOUT_BYTES = 8 * 1024 * 1024;
 
@@ -111,14 +153,15 @@ function spawnFailure(error: unknown, python: string): string {
 function runCli(
   python: string,
   workspaceRoot: string,
-  command: CoreCommand,
+  payload: unknown,
   timeoutMs: number,
   nativeConfirmation = false,
+  batch = false,
 ): Promise<SpawnResult> {
   return new Promise<SpawnResult>((resolve) => {
     const child = spawn(
       python,
-      ["-m", "aitest.interfaces.tools.cli", "dispatch",
+      ["-m", "aitest.interfaces.tools.cli", batch ? "dispatch-batch" : "dispatch",
         ...(nativeConfirmation ? ["--native-confirmation"] : []), "--workspace", workspaceRoot],
       { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
     );
@@ -171,7 +214,7 @@ function runCli(
       child.kill();
       finish({ code: null, stdout: "", stderr: "", timedOut: false });
     });
-    child.stdin.end(`${JSON.stringify(command)}\n`, "utf8");
+    child.stdin.end(`${JSON.stringify(payload)}\n`, "utf8");
   });
 }
 
@@ -315,12 +358,118 @@ export async function dispatchControlled(
   return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, true);
 }
 
+/**
+ * Ordinary controlled write without a native dialog.
+ *
+ * Only actions that are neither human-confirmation nor challenge actions may
+ * use this path.  The core still verifies project/intent/revision and every
+ * domain guard; the difference is only that no human gesture is required.
+ */
+export async function dispatchWrite(
+  python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
+  timeoutMs = 180_000,
+): Promise<DispatchOutcome> {
+  if (!PLAIN_WRITE_ACTIONS.has(request.action) || READ_ONLY_ACTIONS.has(request.action)) {
+    throw new BridgeRefused("该动作需要人工确认，不能走普通写入");
+  }
+  if (!request.projectId || !request.intentId || request.intentId === requestId
+      || !Number.isSafeInteger(request.expectedRevision)
+      || (request.expectedRevision ?? -1) < 0) {
+    throw new BridgeRefused("普通写入需要项目、稳定业务意图和准确的预期修订");
+  }
+  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, false, 180_000);
+}
+
+export interface BatchDispatchItem {
+  readonly request: DispatchRequest;
+  readonly requestId: string;
+}
+
+/**
+ * One core-owned window, one gesture per `authorize_step`.
+ *
+ * The envelope request id is transport correlation only; every item keeps its
+ * own request/intent identity.  No caller-supplied challenge or interaction is
+ * accepted by the core.
+ */
+export async function dispatchNativeBatch(
+  python: string,
+  workspaceRoot: string,
+  items: readonly BatchDispatchItem[],
+  requestId: string,
+  timeoutMs = 730_000,
+): Promise<DispatchOutcome> {
+  if (!items.length) {
+    throw new BridgeRefused("批量授权至少需要一个动作");
+  }
+  const projectId = items[0].request.projectId;
+  if (!projectId || items.some(item => item.request.projectId !== projectId
+      || item.request.action !== "authorize_step"
+      || !item.request.intentId || item.request.intentId === item.requestId
+      || !Number.isSafeInteger(item.request.expectedRevision)
+      || (item.request.expectedRevision ?? -1) < 0)) {
+    throw new BridgeRefused("批量授权需要同一项目、稳定意图、准确目标与预期修订");
+  }
+  const envelope = {
+    __aitest_control__: "native-batch/1",
+    request_id: requestId,
+    commands: items.map(item => buildCommand(item.request, item.requestId)),
+  };
+  const result = await runCli(python, workspaceRoot, envelope, timeoutMs, false, true);
+  if (result.timedOut) {
+    return { status: "unavailable", code: "ENTRY_TIMEOUT",
+      message: "批量授权窗口在限定时间内无回执；未确认项不授权，请按原意图核对" };
+  }
+  if (result.spawnFailure) {
+    return { status: "unavailable", code: "ENTRY_SPAWN_FAILED",
+      message: `无法启动已配置的本地核心入口（${result.spawnFailure}）` };
+  }
+  if (result.oversized) {
+    return { status: "unavailable", code: "ENTRY_OUTPUT_LIMIT",
+      message: "批量授权输出超出允许预算，结果未核实" };
+  }
+  const response = parseResponse(result.stdout);
+  if (response === null) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
+      message: "核心未返回可核实的批量授权回执，请查看受控诊断" };
+  }
+  if (response["request_id"] !== requestId
+      || response["protocol_version"] !== PROTOCOL_VERSION
+      || typeof response["instance_id"] !== "string" || !response["instance_id"].trim()
+      || typeof response["workspace_id"] !== "string" || !response["workspace_id"].trim()
+      || response["project_id"] !== projectId) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
+      message: "批量授权回执身份或协议与请求不一致，结果未核实" };
+  }
+  if (response["error"] !== null && response["error"] !== undefined) {
+    const error = response["error"];
+    if (typeof error !== "object" || Array.isArray(error)) {
+      return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
+        message: "核心批量授权错误回执形状无法核实" };
+    }
+    const detail = error as Record<string, unknown>;
+    return {
+      status: "refused",
+      response,
+      code: typeof detail["code"] === "string" ? detail["code"] : "UNKNOWN_ERROR",
+      message: typeof detail["message"] === "string" ? detail["message"] : "核心拒绝批量授权",
+    };
+  }
+  if (result.code !== 0 || typeof response["result"] !== "object"
+      || response["result"] === null || Array.isArray(response["result"])) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
+      message: "核心退出状态或批量授权结果形状无法核实" };
+  }
+  return { status: "ok", response };
+}
+
 async function dispatchCommand(
   python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
-  timeoutMs: number, nativeConfirmation: boolean,
+  timeoutMs: number, nativeConfirmation: boolean, maxTimeoutMs?: number,
 ): Promise<DispatchOutcome> {
+  const budget = maxTimeoutMs ?? (nativeConfirmation ? 270_000 : 60_000);
   if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0
-      || timeoutMs > (nativeConfirmation ? 270_000 : 60_000)) {
+      || timeoutMs > budget) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
   }
   if (!workspaceRoot.trim()) {

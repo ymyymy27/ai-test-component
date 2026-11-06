@@ -7,6 +7,7 @@ from aitest.contracts.commands import Command
 from aitest.contracts.events import Event
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.http_workflow import HttpWorkflowSpec
+from aitest.contracts.plan_proposal import PlanProposal
 from aitest.contracts.prepared_run import PreparedRun
 from aitest.contracts.read_views import ReadViewQuery
 from aitest.contracts.templates import TemplatePack
@@ -22,6 +23,7 @@ def main() -> None:
         ExecutionFacts,
         HttpWorkflowSpec,
         TemplatePack,
+        PlanProposal,
         CoverageDTO,
         Response,
         PreparedRun,

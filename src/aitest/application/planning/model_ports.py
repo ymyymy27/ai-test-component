@@ -144,6 +144,10 @@ class ModelCall:
     model_id: str
     timeout_seconds: int
     policy_revision: int
+    #: 结构化任务的可选输出契约；`None` 保持既有自由文本行为。
+    output_schema: str | None = None
+    #: 结构化任务的系统提示；只含任务说明与输出形状，不含未授权材料。
+    system_prompt: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -160,6 +164,10 @@ class ModelCall:
             raise ValueError("timeout_seconds must be positive")
         if self.policy_revision < 1:
             raise ValueError("policy_revision must be >= 1")
+        if self.output_schema is not None and not self.output_schema.strip():
+            raise ValueError("output_schema must not be blank when given")
+        if self.system_prompt is not None and not self.system_prompt.strip():
+            raise ValueError("system_prompt must not be blank when given")
 
 
 @dataclass(frozen=True, slots=True)
