@@ -28,6 +28,7 @@
         "RECOVERY_REQUIRED",
         "CAPABILITY_UNAVAILABLE",
         "CONNECTIVITY_FAILED",
+        "SNAPSHOT_REQUIRED",
         "INTERNAL_ERROR",
         "invalid_cursor",
         "maintenance_required"
