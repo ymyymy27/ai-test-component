@@ -15,7 +15,7 @@ from aitest.application.review.saved_exports import ExportRefused
 from aitest.application.review.saved_reports import _ReuseReading
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.execution_facts import ExecutionFacts
-from aitest.interfaces.local.view_queries import CommittedViewReader
+from aitest.interfaces.local.view_queries import CommittedViewReader, ReadViewError
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_default_execution_authorization import RELAY
@@ -169,7 +169,7 @@ def test_view_read_uses_one_unchanged_outer_pair():
 def test_view_read_refuses_a_changed_outer_pair():
     page = RecordPage(items=(), commit_id=8, event_cursor="cursor-8", generation=2, index_version=1)
     view = _views((page, replace(page, commit_id=9, event_cursor="cursor-9")))
-    with pytest.raises(ValueError, match="boundary changed"):
+    with pytest.raises(ReadViewError, match="boundary changed") as error:
         view.dispatch(
             Command(
                 action="read_view",
@@ -178,6 +178,31 @@ def test_view_read_refuses_a_changed_outer_pair():
                 parameters={"view": "panel", "run_id": "r"},
             )
         )
+    # 架构05 §4：边界失效要求重新取同边界快照，不是内部错误。
+    assert error.value.code == "SNAPSHOT_REQUIRED"
+
+
+def test_read_view_error_code_and_retryability_reach_the_protocol() -> None:
+    from aitest.domain.approvals import EntryKind
+    from aitest.interfaces.local.api import LocalAPI, Session
+
+    def refuse(_command: Command) -> dict[str, object]:
+        raise ReadViewError("boundary changed while reading", code="SNAPSHOT_REQUIRED")
+
+    api = LocalAPI("instance", "workspace", {"read_view": refuse})
+    response = api.dispatch(
+        Command(
+            action="read_view",
+            request_id="view-1",
+            project_id="p",
+            parameters={"view": "panel", "run_id": "r"},
+        ),
+        Session("session", EntryKind.INTERACTIVE_CLI),
+    )
+    assert response.error is not None
+    assert response.error.code == "SNAPSHOT_REQUIRED"
+    assert response.error.retryable is True
+    assert "重新取得同边界快照" in response.error.next_step
 
 
 @pytest.mark.parametrize(

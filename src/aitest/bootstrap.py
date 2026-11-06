@@ -1757,6 +1757,8 @@ def assemble_workspace_core(
             records=cast(RecordRepository, unit_of_work.repo),
             delivery_verification=write_resolver.delivery_verification,
             objects=FileObjectStore(root),
+            # 证据正文显示态投影需要工作空间根前缀（CORE-001 1.95）。
+            workspace_root=root,
         )
         handlers["read_view"] = view_queries.dispatch
         # D 的导出（P1-FR14 §5/§8）：正文与附件都要脱敏，制品先写事务临时位置、

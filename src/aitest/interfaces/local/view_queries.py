@@ -13,7 +13,10 @@
 
 from __future__ import annotations
 
+import re
+import tempfile
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from aitest.application.planning.substrate import require_record_identity
@@ -25,6 +28,7 @@ from aitest.application.project.delivery_verification import (
 from aitest.application.project.serialization import delivery_from_payload
 from aitest.application.review.saved_reports import SavedReportService
 from aitest.contracts.commands import Command
+from aitest.contracts.errors import ErrorCode
 from aitest.contracts.read_views import ReadViewQuery
 from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.interfaces.dto import (
@@ -36,10 +40,58 @@ from aitest.interfaces.dto import (
     run_view_dto,
 )
 
-__all__ = ["CommittedViewReader"]
+__all__ = ["CommittedViewReader", "ReadViewError"]
 
 # 证据正文读取预算：超过该大小只返回元数据，避免面板负载失控。
 _MAX_EVIDENCE_BODY_BYTES = 4 * 1024 * 1024
+
+# 证据正文显示态投影（CORE-001 1.95：视图不返回绝对路径）。
+_QUOTED_ABSOLUTE_PATH = re.compile(r'"(?:[A-Za-z]:[\\/]|\\\\|//|/)[^"\r\n]*"')
+_UNQUOTED_UNC_PATH = re.compile(r"(?<![\w])\\\\[^\s\"'<>|\r\n]+")
+_UNQUOTED_POSIX_UNC_PATH = re.compile(r"(?<![\w:])//[^\s\"'<>|/]+/[^\s\"'<>|\r\n]*")
+_UNQUOTED_WINDOWS_PATH = re.compile(r"(?<![\w])[A-Za-z]:[\\/][^\s\"'<>|\r\n]*")
+_UNQUOTED_POSIX_PATH = re.compile(r"(?<![\w:/])/(?:[^\s\"'<>|/]+/)*[^\s\"'<>|/]+")
+
+
+class ReadViewError(ValueError):
+    """带结构化错误码的只读视图失败。
+
+    入口层用 ``getattr(exc, "code", "INTERNAL_ERROR")`` 取码；只读视图此前
+    统一抛裸 ``ValueError``，会把“参数错误/记录不存在/需重取快照”都报成
+    ``INTERNAL_ERROR``。这里补上已登记的 ``ErrorCode``（架构05 §3/§4）。
+    """
+
+    def __init__(self, message: str, *, code: str) -> None:
+        self.code = code
+        super().__init__(message)
+
+
+def _project_display_paths(text: str, workspace_root: str | None) -> str:
+    """把正文中的绝对路径替换为稳定占位符（CORE-001 1.95）。
+
+    证据正文来自安全捕获流，已过滤凭据，但仍可能包含工作空间、用户目录、
+    临时目录或被测进程栈里的绝对路径；视图合同要求不返回这些内部信息。
+    先替换已知根，再用保守模式覆盖引号内/未加引号的绝对路径；URL 不匹配。
+    """
+
+    roots: list[tuple[str, str]] = []
+    for root, token in (
+        (workspace_root, "<workspace>"),
+        (str(Path.home()), "<home>"),
+        (tempfile.gettempdir(), "<temp>"),
+    ):
+        if root and len(root) > 1:
+            roots.append((root, token))
+    projected = text
+    for root, token in roots:
+        projected = re.sub(re.escape(root), token, projected, flags=re.IGNORECASE)
+    projected = _QUOTED_ABSOLUTE_PATH.sub('"<absolute-path>"', projected)
+    projected = _UNQUOTED_UNC_PATH.sub("<absolute-path>", projected)
+    projected = _UNQUOTED_POSIX_UNC_PATH.sub("<absolute-path>", projected)
+    projected = _UNQUOTED_WINDOWS_PATH.sub("<absolute-path>", projected)
+    projected = _UNQUOTED_POSIX_PATH.sub("<absolute-path>", projected)
+    return projected
+
 
 
 class CommittedViewReader:
@@ -53,6 +105,7 @@ class CommittedViewReader:
         records: Any | None = None,
         delivery_verification: DeliveryVerificationReader | None = None,
         objects: EvidenceObjectStore | None = None,
+        workspace_root: Path | None = None,
     ) -> None:
         if decisions is None:
             raise ValueError("the view reader requires the live decision capability")
@@ -61,13 +114,24 @@ class CommittedViewReader:
         self._records = records
         self._delivery_verification = delivery_verification
         self._objects = objects
+        # 仅用于证据正文的显示态路径投影，不参与记录读取或判定。
+        self._workspace_root = None if workspace_root is None else str(workspace_root)
 
     def dispatch(self, command: Command) -> Mapping[str, object]:
         """Finite DTO query with a single verified outer view/event boundary."""
         project = command.project_id
         if not isinstance(project, str) or not project.strip() or len(project) > 128:
-            raise ValueError("read_view requires an explicit project")
-        selector = ReadViewQuery.model_validate(command.parameters)
+            # 参数问题应可纠正，不能报成 INTERNAL_ERROR（架构05 §3）。
+            raise ReadViewError(
+                "read_view requires an explicit project",
+                code=ErrorCode.INVALID_REQUEST.value,
+            )
+        try:
+            selector = ReadViewQuery.model_validate(command.parameters)
+        except ValueError as exc:
+            raise ReadViewError(
+                "invalid read_view selector", code=ErrorCode.INVALID_REQUEST.value
+            ) from exc
         view = selector.view
         if view in {"plan", "report", "case", "issue", "evidence"}:
             assert selector.record_id is not None and selector.revision is not None
@@ -83,7 +147,11 @@ class CommittedViewReader:
                     revision=selector.revision,
                 )
             if self._boundary(project) != boundary:
-                raise ValueError("the committed view boundary changed while reading")
+                # 架构05 §4：游标失效要求重新取同边界快照，不伪装成内部错误。
+                raise ReadViewError(
+                    "the committed view boundary changed while reading",
+                    code=ErrorCode.SNAPSHOT_REQUIRED.value,
+                )
             return {"view_type": view, "view": record_view, **boundary}
         identity = selector.run_id if view in {"run", "panel"} else selector.delivery_id
         assert identity is not None
@@ -101,7 +169,10 @@ class CommittedViewReader:
                 submission_id=selector.submission_id,
             )
         if self._boundary(project) != boundary:
-            raise ValueError("the committed view boundary changed while reading")
+            raise ReadViewError(
+                "the committed view boundary changed while reading",
+                code=ErrorCode.SNAPSHOT_REQUIRED.value,
+            )
         return {"view_type": view, "view": result.model_dump(mode="json"), **boundary}
 
     def evidence_view(
@@ -111,21 +182,47 @@ class CommittedViewReader:
 
         形状与 plan/report/case/issue 一致（record_id + revision + record），按需附带脱敏后的正文：
         1. `redaction_state` 非安全态（非 redacted/not_required）→ 只返回元数据；
-        2. 正文来自对象仓（落盘前已过不可关闭的凭据过滤），不在此处二次加工；
+        2. 正文来自对象仓（落盘前已过不可关闭的凭据过滤），这里只做显示态
+           绝对路径投影，不改动已保存字节；
         3. 元数据用白名单，剔除 `code_identity`（含 workspace_ref 绝对路径）等敏感字段；
         4. 超过 4MB 只返回元数据，避免面板负载失控。
         """
         if self._reader is None:
-            raise ValueError("record view is unavailable")
-        record = self._reader.read(
-            aggregate_kind="evidence_ref", record_id=record_id, revision=revision,
-        )
-        require_record_identity(
-            record, aggregate_kind="evidence_ref", record_id=record_id, revision=revision,
-        )
+            # 视图能力未装配：明确“能力不可用”，不报内部错误。
+            raise ReadViewError(
+                "record view is unavailable",
+                code=ErrorCode.CAPABILITY_UNAVAILABLE.value,
+            )
+        try:
+            record = self._reader.read(
+                aggregate_kind="evidence_ref", record_id=record_id, revision=revision,
+            )
+        except (KeyError, OSError, ValueError) as exc:
+            # 记录仓对缺失/未知修订抛 ValueError；入口需要可核对的 RECORD_NOT_FOUND。
+            raise ReadViewError(
+                "saved evidence is unavailable", code=ErrorCode.RECORD_NOT_FOUND.value
+            ) from exc
+        try:
+            require_record_identity(
+                record, aggregate_kind="evidence_ref", record_id=record_id, revision=revision,
+            )
+        except ValueError as exc:
+            raise ReadViewError(
+                "saved evidence envelope is inconsistent",
+                code=ErrorCode.INTEGRITY_CHECK_FAILED.value,
+            ) from exc
         payload = record.payload
         if payload.get("project_id") != project_id or payload.get("evidence_id") != record_id:
-            raise ValueError("evidence record does not match its project and identity")
+            # 跨项目/编号不符不暴露“记录是否存在”，统一按不可用处理。
+            raise ReadViewError(
+                "saved evidence is unavailable", code=ErrorCode.RECORD_NOT_FOUND.value
+            )
+        if payload.get("evidence_revision") != revision:
+            # CORE-001 1.95 的选择器 revision 就是 evidence_revision，不能返回不一致快照。
+            raise ReadViewError(
+                "saved evidence revision differs from the requested revision",
+                code=ErrorCode.INTEGRITY_CHECK_FAILED.value,
+            )
 
         whitelist = (
             "evidence_id", "evidence_revision", "project_id", "run_id", "step_id",
@@ -175,9 +272,12 @@ class CommittedViewReader:
             return view
 
         try:
-            view["body"] = content.decode("utf-8")
+            body = content.decode("utf-8")
         except UnicodeDecodeError:
             view["body_omitted_reason"] = "binary_content"
+        else:
+            # 正文保留业务内容，但按 CORE-001 1.95 移除绝对路径等内部信息。
+            view["body"] = _project_display_paths(body, self._workspace_root)
         return view
 
     def record_view(
@@ -209,16 +309,34 @@ class CommittedViewReader:
         payload = record.payload
         if payload.get("project_id") != project_id or payload.get(f"{kind}_id") != record_id:
             raise ValueError("record view does not match its project and identity")
+        record_fields = {key: payload[key] for key in fields[kind] if key in payload}
+        if kind in {"report", "issue"}:
+            # CORE-001 1.96：旧记录缺该键时按空映射读取；键存在但形状损坏时
+            # 不能静默当成空映射，否则会掩盖记录损坏。
+            revisions = record_fields.get("evidence_revisions")
+            if revisions is None:
+                record_fields["evidence_revisions"] = {}
+            elif isinstance(revisions, Mapping):
+                record_fields["evidence_revisions"] = dict(revisions)
+            else:
+                raise ReadViewError(
+                    "saved evidence_revisions is not an object",
+                    code=ErrorCode.INTEGRITY_CHECK_FAILED.value,
+                )
         return {
             "project_id": project_id, "record_id": record_id, "record_revision": revision,
             "record_kind": kind, "historical_snapshot": True,
-            "record": {key: payload[key] for key in fields[kind] if key in payload},
+            "record": record_fields,
         }
 
     def _boundary(self, project_id: str) -> dict[str, object]:
         query = getattr(self._reader, "query", None)
         if not callable(query):
-            raise ValueError("committed view/event pairing is unavailable")
+            # 取不到配对边界时要求客户端重取快照，不返回猜测值（架构05 §4）。
+            raise ReadViewError(
+                "committed view/event pairing is unavailable",
+                code=ErrorCode.SNAPSHOT_REQUIRED.value,
+            )
         page = query(RecordQuery(project_id=project_id, limit=1))
         values = {
             name: getattr(page, name, None)
@@ -227,10 +345,16 @@ class CommittedViewReader:
         for name in ("commit_id", "generation", "index_version"):
             value = values[name]
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-                raise ValueError("the exact committed view/event boundary is unverified")
+                raise ReadViewError(
+                    "the exact committed view/event boundary is unverified",
+                    code=ErrorCode.SNAPSHOT_REQUIRED.value,
+                )
         cursor = values["event_cursor"]
         if not isinstance(cursor, str) or not cursor.strip():
-            raise ValueError("the exact committed view/event boundary is unverified")
+            raise ReadViewError(
+                "the exact committed view/event boundary is unverified",
+                code=ErrorCode.SNAPSHOT_REQUIRED.value,
+            )
         return values
 
     def run_view(self, *, project_id: str, run_id: str) -> RunViewDTO:
