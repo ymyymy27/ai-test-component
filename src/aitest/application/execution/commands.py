@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 
 from aitest.application.execution.authorization import ExecutionAuthorizationService
+from aitest.application.execution.plan_grant import PlanExecutionGrantService
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.contracts.commands import Command
@@ -43,10 +44,12 @@ class ExecutionCommands:
         service: ExecutionAuthorizationService,
         registration: InitialRunRegistration | None = None,
         execution: SavedStepExecution | None = None,
+        plan_grants: PlanExecutionGrantService | None = None,
     ) -> None:
         self.service = service
         self.registration = registration
         self.execution = execution
+        self.plan_grants = plan_grants
 
     @staticmethod
     def _identity(command: Command) -> tuple[str, str]:
@@ -120,20 +123,42 @@ class ExecutionCommands:
     def grant(self, command: Command) -> Mapping[str, object]:
         project, intent = self._identity(command)
         values = command.parameters
-        identity, challenge = values.get("execution_action_id"), values.get("approval_challenge_id")
-        if (
-            set(values) != {"execution_action_id", "record_revision", "approval_challenge_id"}
-            or not isinstance(identity, str)
-            or not identity.strip()
-            or type(values.get("record_revision")) is not int
-            or values["record_revision"] != 1
-            or not isinstance(challenge, str)
-            or not challenge.strip()
-        ):
-            raise InvalidExecutionCommand("consent requires an exact saved action and challenge")
+        identity = values.get("execution_action_id")
+        revision = values.get("record_revision")
+        challenge = values.get("approval_challenge_id")
+        grant_id = values.get("grant_id")
+        base = (
+            set(values) in (
+                {"execution_action_id", "record_revision", "approval_challenge_id"},
+                {"execution_action_id", "record_revision", "grant_id"},
+            )
+            and isinstance(identity, str)
+            and bool(identity.strip())
+            and type(revision) is int
+            and revision == 1
+        )
+        if not base or (challenge is None) == (grant_id is None):
+            raise InvalidExecutionCommand(
+                "consent requires an exact saved action and either a challenge or a plan grant"
+            )
+        if challenge is not None and (not isinstance(challenge, str) or not challenge.strip()):
+            raise InvalidExecutionCommand("consent requires an exact saved challenge")
+        if grant_id is not None and (not isinstance(grant_id, str) or not grant_id.strip()):
+            raise InvalidExecutionCommand("consent requires an exact saved plan grant")
+        assert isinstance(identity, str)
         _, action = self.service.resolver.read(project, identity)
         if command.target != action.request.step_id:
             raise InvalidExecutionCommand("consent target differs from the frozen step")
+        if grant_id is not None:
+            assert isinstance(grant_id, str)
+            return self.service.grant(
+                project_id=project,
+                intent_id=intent,
+                request_id=command.request_id,
+                parameters=dict(values),
+                grant_id=grant_id,
+            )
+        assert isinstance(challenge, str)
         return self.service.grant(
             project_id=project,
             intent_id=intent,
@@ -141,6 +166,86 @@ class ExecutionCommands:
             parameters={"execution_action_id": identity, "record_revision": 1},
             challenge_id=challenge,
         )
+
+    def create_plan_grant(self, command: Command) -> Mapping[str, object]:
+        """一次受控计划确认落成独立许可；参数由服务逐项校验，不在这里补默认值。"""
+
+        if self.plan_grants is None:
+            from aitest.application.errors import CapabilityUnavailable
+
+            raise CapabilityUnavailable("plan execution grants are not configured")
+        if (
+            not command.project_id
+            or not command.project_id.strip()
+            or not command.intent_id
+            or not command.intent_id.strip()
+            or not command.request_id.strip()
+            or command.request_id == command.intent_id
+            or command.expected_revision != 0
+        ):
+            raise InvalidExecutionCommand(
+                "plan grant requires non-empty project_id, intent_id, request_id and "
+                "expected_revision == 0"
+            )
+        try:
+            return self.plan_grants.create(
+                project_id=command.project_id,
+                intent_id=command.intent_id,
+                request_id=command.request_id,
+                parameters=command.parameters,
+            )
+        except ValueError as error:
+            if getattr(error, "code", None):
+                raise
+            raise InvalidExecutionCommand(str(error)) from error
+
+    def revoke_plan_grant(self, command: Command) -> Mapping[str, object]:
+        """撤销一条计划级许可；只接受受控人工入口，原因由人给出。"""
+
+        if self.plan_grants is None:
+            from aitest.application.errors import CapabilityUnavailable
+
+            raise CapabilityUnavailable("plan execution grants are not configured")
+        if (
+            not command.project_id
+            or not command.project_id.strip()
+            or not command.intent_id
+            or not command.intent_id.strip()
+            or not command.request_id.strip()
+            or command.request_id == command.intent_id
+            or command.expected_revision != 0
+        ):
+            raise InvalidExecutionCommand(
+                "plan grant revocation requires non-empty project_id, intent_id, request_id "
+                "and expected_revision == 0"
+            )
+        values = command.parameters
+        grant_id = values.get("grant_id")
+        reason = values.get("reason")
+        if (
+            set(values) != {"grant_id", "reason"}
+            or not isinstance(grant_id, str)
+            or not grant_id.strip()
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
+            raise InvalidExecutionCommand(
+                "plan grant revocation requires only an exact grant_id and a non-empty reason"
+            )
+        if command.target is not None and command.target != grant_id:
+            raise InvalidExecutionCommand("revocation target differs from its grant_id")
+        try:
+            return self.plan_grants.revoke(
+                project_id=command.project_id,
+                intent_id=command.intent_id,
+                request_id=command.request_id,
+                grant_id=grant_id,
+                reason=reason,
+            )
+        except ValueError as error:
+            if getattr(error, "code", None):
+                raise
+            raise InvalidExecutionCommand(str(error)) from error
 
     def retry(self, command: Command) -> Mapping[str, object]:
         """重试测试：对**已有尝试**的步骤再执行一次，产生新尝试并立即成为当前尝试。
@@ -290,19 +395,39 @@ class ExecutionCommands:
         project, intent = self._identity(command)
         values = command.parameters
         identity = values.get("execution_action_id")
+        revision = values.get("record_revision")
+        grant_id = values.get("grant_id")
         if (
-            set(values) != {"execution_action_id", "record_revision"}
+            set(values) not in (
+                {"execution_action_id", "record_revision"},
+                {"execution_action_id", "record_revision", "grant_id"},
+            )
             or not isinstance(identity, str)
             or not identity.strip()
-            or type(values.get("record_revision")) is not int
-            or values["record_revision"] != 1
+            or type(revision) is not int
+            or revision != 1
         ):
             raise InvalidExecutionCommand("execution requires only an exact saved action reference")
+        if grant_id is not None and (
+            not isinstance(grant_id, str) or not grant_id.strip()
+        ):
+            raise InvalidExecutionCommand("execution requires an exact saved plan grant")
         if self.execution is None:
             from aitest.application.errors import CapabilityUnavailable
 
             raise CapabilityUnavailable("saved step execution is not configured")
         assert command.target is not None
+        if grant_id is not None:
+            assert isinstance(grant_id, str)
+            # Plan-internal action: the saved grant is the consent. The old
+            # two-step challenge path remains unchanged.
+            self.service.grant(
+                project_id=project,
+                intent_id=intent,
+                request_id=command.request_id,
+                parameters=dict(values),
+                grant_id=grant_id,
+            )
         return self.execution.execute(
             project_id=project, intent_id=intent, action_id=identity, step_id=command.target
         )

@@ -487,6 +487,10 @@ class PreparedRun(ContractModel):
     blocking_reasons: tuple[BlockingReason, ...] = Field(default_factory=tuple)
     gaps: tuple[GapEntry, ...] = Field(default_factory=tuple)
 
+    # 计划级执行许可绑定：准备时按计划读取（见设计 6.4/7.2）；旧 payload 缺该字段时为 None。
+    # 它只记录“准备时发现的许可身份”，不表示许可仍然有效；执行前由授权链重新核对。
+    plan_grant_id: str | None = Field(default=None, min_length=1)
+
     @model_validator(mode="after")
     def _validate(self) -> Self:
         self._check_source_identity()

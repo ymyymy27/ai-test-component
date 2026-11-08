@@ -15,11 +15,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 
 from aitest.domain.planning.rules import RuleRevisionRef as RuleRevisionRef
+from aitest.domain.planning.understanding import CoverageClaim as CoverageClaim
 
 
 class RunTier(StrEnum):
@@ -413,6 +414,160 @@ class TemplateVersionRef:
         _require_text(self.digest, "digest")
 
 
+# ------------------------------------------------------------------ 覆盖契约
+
+
+class TemplateApplicability(StrEnum):
+    """模板项适用性轴：项目是否需要这项检查（设计文档 03 第 5.2 节）。
+
+    与覆盖轴正交：`not_applicable` 仍需理由与证据，`unknown` 表示尚未判断，
+    不能与"本次未覆盖"折叠成同一个三态。
+    """
+
+    APPLICABLE = "applicable"
+    NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
+
+
+class TemplateCoverage(StrEnum):
+    """模板项覆盖轴：本次计划是否已有用例、证据和独立核验。"""
+
+    COVERED = "covered"
+    UNCOVERED = "uncovered"
+    DEFERRED = "deferred"
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionRequirement:
+    """一个业务功能的必要覆盖维度承诺。
+
+    `required_dimensions` 是设计文档 03 第 4.5 节的维度名称集合；本对象只保存
+    声明值，不在这里计算覆盖结果。空集合与重复维度由
+    `validate_coverage_contract()` 拒绝。
+    """
+
+    function_id: str
+    required_dimensions: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TemplateDisposition:
+    """模板项的适用性/覆盖两轴处置记录（设计文档 03 第 5.2 节）。
+
+    两轴必须分别给出：缺任一轴都算处置不完整，不能用一个三态混住
+    "项目是否需要"和"本次是否覆盖"。
+    """
+
+    template_item_id: str
+    applicability: TemplateApplicability
+    coverage: TemplateCoverage
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageContract:
+    """一次计划冻结的覆盖承诺：功能 × 必要维度 + 模板项处置 + 关键链路。
+
+    本对象是**被动记录**：构造时不丢弃原始输入，完整性由纯校验函数
+    `validate_coverage_contract()` 判定。这样反序列化/草稿装配可以先保留
+    未补齐的内容，再在计划门禁处统一拒绝，而不是在解析时就丢掉证据。
+    """
+
+    contract_id: str
+    understanding_revision: int
+    function_requirements: tuple[FunctionRequirement, ...] = ()
+    template_dispositions: tuple[TemplateDisposition, ...] = ()
+    critical_path_ids: tuple[str, ...] = ()
+    #: 用例到“功能 × 维度”的映射；旧契约没有该字段时为空元组。
+    coverage_claims: tuple[CoverageClaim, ...] = ()
+
+
+def _require_enum_value(
+    value: object,
+    members: Sequence[StrEnum],
+    name: str,
+) -> None:
+    """接受 StrEnum 成员或其字符串值（落盘形状），其余一律拒绝。"""
+    if not any(value == member for member in members):
+        allowed = ", ".join(member.value for member in members)
+        raise ValueError(f"{name} must be one of: {allowed}")
+
+
+def validate_coverage_contract(contract: CoverageContract) -> None:
+    """纯校验覆盖契约；不修改输入，不写任何状态。
+
+    逐条规则（设计文档 03 第 4.5、5.2、5.5 节）：
+
+    1. `contract_id` 非空、`understanding_revision >= 1`；
+    2. `function_id` 非空且唯一；
+    3. 每个功能的 `required_dimensions` 非空、无重复、无空值；
+    4. `claim_id` 唯一；claim 的 `function_id` 必须在 `function_requirements` 中，
+       `dimension` 必须在该功能的 `required_dimensions` 中；
+       `case_ids` 非空由 `CoverageClaim` 的构造校验保证；
+    5. 模板项处置的适用性/覆盖枚举合法（两轴分别校验）；
+    6. `critical_path_ids` 无空值且唯一。
+
+    本函数**不**判断模板项是否漏项、`full` 是否可放行或功能×维度是否真正
+    已覆盖；那些是需要用例/证据/核验输入的发布门禁，不能只看本对象。
+    """
+    _require_text(contract.contract_id, "coverage contract_id")
+    if contract.understanding_revision < 1:
+        raise ValueError("coverage understanding_revision must be >= 1")
+
+    function_ids = [
+        requirement.function_id for requirement in contract.function_requirements
+    ]
+    for function_id in function_ids:
+        _require_text(function_id, "function_id")
+    _require_unique(function_ids, "function_id")
+
+    for requirement in contract.function_requirements:
+        dimensions = requirement.required_dimensions
+        if not dimensions:
+            raise ValueError(
+                "required_dimensions must not be empty: "
+                f"{requirement.function_id}"
+            )
+        _require_items(dimensions, "required_dimensions")
+        _require_unique(dimensions, "required_dimensions")
+
+    claim_ids = [claim.claim_id for claim in contract.coverage_claims]
+    _require_unique(claim_ids, "claim_id")
+    requirements_by_function = {
+        requirement.function_id: requirement
+        for requirement in contract.function_requirements
+    }
+    for claim in contract.coverage_claims:
+        if not claim.case_ids:
+            raise ValueError("a coverage claim must map at least one case")
+        matched_requirement = requirements_by_function.get(claim.function_id)
+        if matched_requirement is None:
+            raise ValueError(
+                "coverage claim references an unknown function: "
+                f"{claim.function_id}"
+            )
+        if claim.dimension not in matched_requirement.required_dimensions:
+            raise ValueError(
+                "coverage claim dimension is not required for "
+                f"{claim.function_id}: {claim.dimension}"
+            )
+
+    for disposition in contract.template_dispositions:
+        _require_text(disposition.template_item_id, "template_item_id")
+        _require_enum_value(
+            disposition.applicability,
+            tuple(TemplateApplicability),
+            "template disposition applicability",
+        )
+        _require_enum_value(
+            disposition.coverage,
+            tuple(TemplateCoverage),
+            "template disposition coverage",
+        )
+
+    _require_items(contract.critical_path_ids, "critical_path_ids")
+    _require_unique(contract.critical_path_ids, "critical_path_ids")
+
+
 @dataclass(frozen=True, slots=True)
 class Plan:
     """冻结的计划。
@@ -432,6 +587,9 @@ class Plan:
     status: PlanPublicationStatus = PlanPublicationStatus.DRAFT
     confirmation_id: str | None = None
     record_revision: int | None = None
+    #: 可选覆盖契约。追加在末尾并带默认值，保持既有构造方式兼容；
+    #: 其完整性由 `validate_coverage_contract()` 判定，本字段存在不代表可用。
+    coverage_contract: CoverageContract | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.plan_id, "plan_id")
@@ -458,6 +616,43 @@ class Plan:
             _require_text(self.confirmation_id, "confirmation_id")
 
 
+def validate_coverage_completeness(
+    contract: CoverageContract,
+    *,
+    plan_revision: int,
+    frozen_case_ids: Iterable[str],
+) -> None:
+    """校验覆盖契约的完整性与引用；发布、准备和运行修订共用同一规则。
+
+    结构校验之后，要求每个功能×必要维度至少一条 claim，claim 指向本次计划
+    修订，且 claim 引用的用例都在冻结集合内。本函数不判断执行证据或核验结果。
+    """
+    validate_coverage_contract(contract)
+    frozen_ids = set(frozen_case_ids)
+    for requirement in contract.function_requirements:
+        for dimension in requirement.required_dimensions:
+            if not any(
+                claim.function_id == requirement.function_id
+                and claim.dimension == dimension
+                for claim in contract.coverage_claims
+            ):
+                raise ValueError(
+                    "coverage claim missing for "
+                    f"{requirement.function_id}×{dimension}"
+                )
+    for claim in contract.coverage_claims:
+        if claim.plan_revision != plan_revision:
+            raise ValueError(
+                "coverage claim plan revision differs from the plan: "
+                f"{claim.claim_id} ({claim.plan_revision} != {plan_revision})"
+            )
+        missing_cases = set(claim.case_ids) - frozen_ids
+        if missing_cases:
+            raise ValueError(
+                f"coverage claim references unfrozen cases: {sorted(missing_cases)}"
+            )
+
+
 def validate_plan_publication(plan: Plan, cases: Sequence[Case]) -> None:
     """计划发布门禁；不满足则抛 `ValueError`。
 
@@ -465,6 +660,8 @@ def validate_plan_publication(plan: Plan, cases: Sequence[Case]) -> None:
 
     门禁逐条：
 
+    0. 带 `coverage_contract` 时先校验其结构完整性，并校验每个功能×必要维度至少一条
+       claim、claim 引用的用例都在冻结集合内；没有契约时保持旧行为；
     1. `T ⊄ M` 拒绝；
     2. 冻结的每个用例都必须提供实际用例（缺一即拒绝）；
     3. 提供的用例必须与冻结的**修订号**一致（B-PUBLICATION-01：不能拿 `@2` 顶 `@1`）；
@@ -474,6 +671,13 @@ def validate_plan_publication(plan: Plan, cases: Sequence[Case]) -> None:
     7. 排除项或适用性排除缺理由 → 拒绝（构造 `AcceptanceScope` 时已强制）。
     """
     scope = plan.scope
+    contract = plan.coverage_contract
+    if contract is not None:
+        validate_coverage_completeness(
+            contract,
+            plan_revision=plan.revision,
+            frozen_case_ids=(ref.case_id for ref in plan.case_revisions),
+        )
     if not scope.template_case_ids <= scope.required_case_ids:
         raise ValueError("template requirements must be included in required cases")
 

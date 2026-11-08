@@ -168,6 +168,7 @@
   "model_outbound_policy_revision": null,
   "payload_hash": "sha256:652066755c4021c4c63d4f4f4fbfc11bc244e9cd933bd24b6d21a844c8dc2687",
   "plain_manifest_digest": "sha256:manifest-plain-1",
+  "plan_grant_id": null,
   "plan_revision": {
     "digest": "sha256:plan-ticket",
     "revision_id": "plan-ticket",

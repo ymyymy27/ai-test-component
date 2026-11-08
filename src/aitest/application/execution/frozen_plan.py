@@ -68,7 +68,7 @@ class FrozenRunPlanReader:
             raise ValueError("frozen plan scope differs from its exact saved body")
         # This status is a read projection of an already published record. It is
         # never a substitute for the caller's separate controlled-origin checks.
-        plan = TypeAdapter(Plan).validate_json(json.dumps({
+        plan_payload: dict[str, object] = {
             "plan_id": ref.revision_id, "revision": raw["revision"],
             "record_revision": ref.revision_no,
             "scope": json.loads(TypeAdapter(type(scope)).dump_json(scope)),
@@ -76,7 +76,12 @@ class FrozenRunPlanReader:
             "template_versions": raw["template_versions"], "run_tier": raw["run_tier"],
             "initial_driver": raw["initial_driver"], "status": "published",
             "confirmation_id": raw["approval_commit_seq"],
-        }, allow_nan=False), strict=True)
+        }
+        if "coverage_contract" in raw:
+            plan_payload["coverage_contract"] = raw["coverage_contract"]
+        plan = TypeAdapter(Plan).validate_json(
+            json.dumps(plan_payload, allow_nan=False), strict=True
+        )
         for name, references in (
             ("case_revisions", prepared.case_revisions),
             ("rule_revisions", prepared.rule_versions),

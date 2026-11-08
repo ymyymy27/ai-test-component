@@ -21,6 +21,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 
+from aitest.application.planning.serialization import coverage_contract_to_payload
 from aitest.application.planning.substrate import (
     ConcurrentEditError,
     RecordReader,
@@ -294,13 +295,17 @@ def publish_plan(
         status=PlanPublicationStatus.PUBLISHED,
         confirmation_id=result.commit_seq,
         record_revision=result.revision_of("plan", plan.plan_id).revision,
+        coverage_contract=plan.coverage_contract,
     )
     return PublicationResult(value=published)
 
 
 def _plan_payload(plan: Plan, cases: Sequence[Case], *, project_id: str) -> dict[str, object]:
-    """计划落盘用的 payload：冻结修订与**实际用例摘要**，便于事后核对。"""
-    return {
+    """计划落盘用的 payload：冻结修订与**实际用例摘要**，便于事后核对。
+
+    覆盖契约**只在非 None 时**追加；旧计划的键集合与规范字节完全不变。
+    """
+    payload: dict[str, object] = {
         "project_id": project_id,
         "plan_id": plan.plan_id,
         "revision": plan.revision,
@@ -338,6 +343,11 @@ def _plan_payload(plan: Plan, cases: Sequence[Case], *, project_id: str) -> dict
             for case in cases
         ],
     }
+    if plan.coverage_contract is not None:
+        payload["coverage_contract"] = coverage_contract_to_payload(
+            plan.coverage_contract
+        )
+    return payload
 
 
 def save_plan_draft(

@@ -49,6 +49,7 @@ from aitest.application.execution.http_workflow_execution import (
     SavedHttpWorkflowExecution,
 )
 from aitest.application.execution.output_material import require_saved_output_material
+from aitest.application.execution.plan_grant import PlanExecutionGrantService
 from aitest.application.execution.registration import InitialRunRegistration
 from aitest.application.execution.reuse_inspection import CaseReuseInspection
 from aitest.application.execution.run_schedule import SavedRunSchedule
@@ -1424,6 +1425,13 @@ def assemble_workspace_core(
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
         assert dependencies.source_analysis is not None
+        plan_grants = PlanExecutionGrantService(
+            unit=unit_of_work,
+            records=cast(RecordRepository, unit_of_work.repo),
+            workspace_id=workspace.workspace_id,
+            actors=actors,
+            clock=approvals.clock,
+        )
         execution_authorizations = ExecutionAuthorizationService(
             unit=unit_of_work,
             records=cast(RecordRepository, unit_of_work.repo),
@@ -1469,6 +1477,7 @@ def assemble_workspace_core(
                 )
             ),
             controlled_writes=controlled_writes,
+            plan_grants=plan_grants,
         )
         execution_coordinator = ExecutionCommitCoordinator(
             unit_of_work,
@@ -1515,7 +1524,7 @@ def assemble_workspace_core(
             ),
         )
         execution_commands = ExecutionCommands(
-            execution_authorizations, initial_run_registration, step_execution
+            execution_authorizations, initial_run_registration, step_execution, plan_grants
         )
         reuse_inspection = CaseReuseInspection(
             execution_coordinator,
@@ -1594,6 +1603,8 @@ def assemble_workspace_core(
             select_case_reuse=reuse_selection.apply,
             prepare_execution=execution_commands.prepare,
             authorize_step=execution_commands.grant,
+            create_plan_grant=execution_commands.create_plan_grant,
+            revoke_plan_grant=execution_commands.revoke_plan_grant,
             execute_step=execution_commands.execute,
             retry_step=execution_commands.retry,
             return_stage=execution_commands.return_stage,

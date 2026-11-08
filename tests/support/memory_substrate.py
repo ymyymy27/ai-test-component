@@ -336,6 +336,9 @@ class MemoryReader:
     def __init__(self, store: MemoryStore) -> None:
         self.store = store
 
+    def current_revision(self, *, aggregate_kind: AggregateKind, record_id: str) -> int:
+        return self.store.current_revision(aggregate_kind, record_id)
+
     def read(
         self,
         *,

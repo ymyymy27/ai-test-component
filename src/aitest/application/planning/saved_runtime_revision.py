@@ -2,6 +2,11 @@
 
 The supplied Plan is a view to verify, never the source of frozen material. The
 pure guard remains reusable, but cannot establish repository provenance itself.
+
+A `full` run returns the domain's structured
+``full_runtime_revision_not_allowed`` decision before any change material is read:
+the saved run tier is authoritative, and the refusal must not depend on parsing a
+message or on the stored `RunPlanRevision` history being rewritten.
 """
 
 from __future__ import annotations
@@ -11,12 +16,16 @@ from dataclasses import dataclass
 
 from aitest.application.planning.draft import text_digest
 from aitest.application.planning.publish import _plan_payload, payload_digest
-from aitest.application.planning.run_mode import request_runtime_revision
+from aitest.application.planning.run_mode import (
+    request_runtime_revision,
+    runtime_facts_from_execution_facts,
+)
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
     case_content_digest,
     case_from_payload,
     confirmation_from_payload,
+    plan_coverage_contract_from_payload,
 )
 from aitest.application.planning.substrate import AggregateKind, require_scoped_record
 from aitest.application.ports import (
@@ -26,10 +35,11 @@ from aitest.application.ports import (
     RuntimeExecutionReader,
     RuntimeRevisionBasisReader,
 )
-from aitest.domain.planning.plans import Case, CaseRevisionRef, ConfirmationRecord, Plan
+from aitest.domain.planning.plans import Case, CaseRevisionRef, ConfirmationRecord, Plan, RunTier
 from aitest.domain.planning.runtime_revision import (
     RuntimeRevisionDecision,
     RuntimeRevisionRequest,
+    full_runtime_revision_refusal,
 )
 
 
@@ -58,6 +68,14 @@ class SavedRuntimeRevisionAssessment:
         facts = self.execution.read_runtime_revision_facts(project_id=project_id, run_id=run_id)
         if (facts.project_id, facts.run_id) != (project_id, run_id):
             raise ValueError("runtime facts belong to another project or run")
+        if request.case_changes and (
+            plan.run_tier is RunTier.FULL or facts.run.tier.value == RunTier.FULL.value
+        ):
+            # P1-AC20：`full` 运行拒绝任何计划内容修订。已保存的事实是档位的权威来源，
+            # 计划视图只是待核对对象；必须在读取或评估变更材料前返回同一结构化拒绝，
+            # 不能把它降级成字符串，也不能触碰已记录的 `RunPlanRevision` 历史。
+            # 仅收窄驱动不是计划修改（设计 7.3），继续走正常材料核对。
+            return full_runtime_revision_refusal(runtime_facts_from_execution_facts(facts))
         if (facts.runtime_revision_refs or facts.run.runtime_revision_refs) and (
             self.runtime_basis is None
         ):
@@ -76,6 +94,10 @@ class SavedRuntimeRevisionAssessment:
             or saved.get("scope_revision") != plan.scope.revision
         ):
             raise ValueError("plan view does not use the exact saved plan revision")
+        # 覆盖契约是计划 payload 的一部分：视图缺它不能被当作"旧计划没有契约"，
+        # 否则运行中修订会在重建时静默丢失契约，严格 key 比较也无法发现。
+        if plan_coverage_contract_from_payload(saved) != plan.coverage_contract:
+            raise ValueError("plan view differs from the saved coverage contract")
         expected_refs = [
             {"case_id": ref.case_id, "revision": ref.revision, "digest": ref.digest}
             for ref in plan.case_revisions

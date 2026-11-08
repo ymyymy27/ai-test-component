@@ -1488,6 +1488,28 @@ class AITestPanel extends HTMLElement {
     };
     table.append(row("本轮所选",selected),row("完整必测",required));
     block.append(text("h3","覆盖与结论"),lines,table);
+    const functionCoverage=Array.isArray(coverage["function_coverage"])?coverage["function_coverage"] as unknown[]:[];
+    if(functionCoverage.length){
+      block.append(text("h3","业务功能覆盖"));
+      const functions=document.createElement("table");functions.className="coverage-table";functions.dataset.testid="function-coverage";
+      const functionHead=document.createElement("tr");
+      for(const label of ["业务功能","状态","维度","缺口"]){const th=document.createElement("th");th.textContent=label;functionHead.append(th);}
+      functions.append(functionHead);
+      for(const raw of functionCoverage){
+        const item=object(raw) ?? {};
+        const dimensions=object(item["dimensions"]) ?? {};
+        const tr=document.createElement("tr");
+        const cells=[
+          String(item["function_id"] ?? "未命名功能"),
+          friendly(item["overall_status"]),
+          Object.entries(dimensions).map(([key,value])=>`${key}: ${friendly(value)}`).join(" · "),
+          item["gap_reason"]?String(item["gap_reason"]):"—",
+        ];
+        cells.forEach((value,index)=>{const cell=document.createElement(index===0?"th":"td");cell.textContent=value;tr.append(cell);});
+        functions.append(tr);
+      }
+      block.append(functions);
+    }
     const gapList=Array.isArray(decision["gaps"])?decision["gaps"]:[];
     block.append(text("h3","需要补齐的证据"));
     if(gapList.length===0)block.append(text("p","没有缺口。","muted"));
@@ -1664,7 +1686,7 @@ class AITestPanel extends HTMLElement {
     section.append(text("h2",`${this.selectedRecord.aggregate_kind==="report"?"测试报告":"已保存内容"} · 修订 ${this.selectedRecord.revision}`),text("p","已保存快照 · 不随当前运行变化","muted"));
     if(this.selectedRecord.aggregate_kind==="report")section.append(this.reportSummary(record,this.selectedRecord.revision));
     const labels:Record<string,string>={business_outcome:"业务结论",decision:"判定与覆盖",context:"范围与来源",created_at:"保存时间",evidence_refs:"证据索引",scope:"验收范围",cases:"用例",objective:"目标",expected:"预期",actual:"实际",state:"状态",title:"标题",run_tier:"检查档位",initial_driver:"执行方式",status:"状态",required_case_ids:"必测用例",preconditions:"前置条件",steps:"检查步骤",verification_method:"核验方式",independent_verification:"独立核验",importance:"重要程度"};
-    Object.assign(labels,{evidence_grade:"证据等级",primary_gap:"首要缺口",gaps:"未完成原因",safe_reason:"原因",selected_summary:"本轮所选范围",required_summary:"冻结必测范围",denominator:"范围内用例",executed_count:"已执行",reused_count:"已复用",verified_count:"有效验证",passed_count:"通过",failed_count:"失败",unverified_count:"未验证",decisive_failure_count:"已确认失败",scope_kind:"统计范围",project_name:"项目",scope_name:"测试范围",tier:"检查档位",driver:"执行方式",inputs:"输入",layer:"检查层级",name:"名称",description:"说明",evidence_refs:"证据引用"});
+    Object.assign(labels,{evidence_grade:"证据等级",primary_gap:"首要缺口",gaps:"未完成原因",safe_reason:"原因",selected_summary:"本轮所选范围",required_summary:"冻结必测范围",denominator:"范围内用例",executed_count:"已执行",reused_count:"已复用",verified_count:"有效验证",passed_count:"通过",failed_count:"失败",unverified_count:"未验证",decisive_failure_count:"已确认失败",scope_kind:"统计范围",project_name:"项目",scope_name:"测试范围",tier:"检查档位",driver:"执行方式",inputs:"输入",layer:"检查层级",name:"名称",description:"说明",evidence_refs:"证据引用",proven:"已验证",partial:"部分覆盖",not_proven:"未验证",unsupported:"未支持",unknown:"未识别",planned:"将验证",not_applicable:"不适用"});
     const present=(value:unknown):HTMLElement=>{
       if(Array.isArray(value)){const list=document.createElement("ul");for(const item of value){const li=document.createElement("li");li.append(present(item));list.append(li);}return list;}
       const values=object(value);if(values){const wrapper=document.createElement("div");const dl=document.createElement("dl");dl.className="facts";const more=document.createElement("details");more.className="technical";more.append(text("summary","查看字段与引用"));for(const [key,child] of Object.entries(values)){const dd=document.createElement("dd");dd.append(present(child));if(key in labels)dl.append(text("dt",labels[key]!),dd);else more.append(text("dt",key),dd);}wrapper.append(dl);if(more.childElementCount>1)wrapper.append(more);return wrapper;}

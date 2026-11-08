@@ -28,13 +28,14 @@ from aitest.domain.execution.runs import (
     SideEffectClass,
     StepRevisionRef,
 )
-from aitest.domain.planning.plans import PlanPublicationStatus, RunDriver
+from aitest.domain.planning.plans import PlanPublicationStatus, RunDriver, RunTier
 from aitest.domain.planning.runtime_revision import CaseRuntimeChange, RuntimeRevisionRequest
 from tests.support.controlled_confirmation import basis_command, controlled_basis_confirm
 from tests.support.legacy_execution_snapshot import stage_legacy_snapshot
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_initial_run_registration import register, service
+from tests.unit.test_persisted_runtime_revision import on_demand_inputs
 
 
 def publish_snapshot(core, coordinator, facts, request="assessment-controlled-snapshot"):
@@ -51,6 +52,10 @@ def publish_snapshot(core, coordinator, facts, request="assessment-controlled-sn
 @pytest.fixture
 def runtime(authoritative):
     core, inputs, _ = authoritative
+    # Runtime revisions are only legal for on_demand runs (P1-AC20). Republish the
+    # shared authoritative fixture's full plan as on_demand and bind the preparation
+    # inputs to it, so the plan view and the registered run facts agree on the tier.
+    inputs = on_demand_inputs(core, inputs)
     prepared = prepare(core, inputs).result
     initial = register(core, prepared)
     coordinator = ExecutionCommitCoordinator(core.unit_of_work, records=core.unit_of_work.repo)
@@ -69,7 +74,9 @@ def runtime(authoritative):
     )
     reader = PortsRecordReader(core.unit_of_work.repo)
     raw = reader.read(
-        aggregate_kind="plan", record_id=inputs.plan_revision.revision_id, revision=1
+        aggregate_kind="plan",
+        record_id=inputs.plan_revision.revision_id,
+        revision=inputs.plan_revision.revision_no,
     ).payload
     cases = tuple(
         case_from_payload(
@@ -94,14 +101,16 @@ def runtime(authoritative):
             scope=scope,
             cases=cases,
             project_id=inputs.project_id,
+            run_tier=RunTier(raw["run_tier"]),
+            initial_driver=RunDriver(raw["initial_driver"]),
         ),
         status=PlanPublicationStatus.PUBLISHED,
         confirmation_id="view-label",
-        record_revision=1,
+        record_revision=inputs.plan_revision.revision_no,
     )
     request = RuntimeRevisionRequest(
         base_plan_revision_id=plan.plan_id,
-        base_plan_revision_no=1,
+        base_plan_revision_no=inputs.plan_revision.revision_no,
         base_plan_revision_digest=inputs.plan_revision.digest,
         observed_snapshot_cursor=facts.snapshot_cursor,
         case_changes=(CaseRuntimeChange(replace(cases[0], revision=2)),),
@@ -144,7 +153,10 @@ def test_saved_assessment_is_read_only_and_freezes_the_exact_snapshot(runtime):
     }
     assert not decision.preserved_step_ids and not decision.invalidated_basis_step_ids
     assert core.unit_of_work.current_commit_sequence() == sequence
-    assert plan.record_revision == 1 and request.case_changes[0].next_case.revision == 2
+    assert (
+        plan.record_revision == request.base_plan_revision_no
+        and request.case_changes[0].next_case.revision == 2
+    )
 
 
 @pytest.mark.parametrize("change", ["independent", "mandatory_link"])
@@ -213,7 +225,7 @@ def test_newer_case_and_plan_records_do_not_replace_frozen_history(runtime):
     core.unit_of_work.stage_record(
         aggregate_kind="plan",
         record_id=plan.plan_id,
-        expected_revision=1,
+        expected_revision=plan.record_revision,
         payload={"project_id": runtime[4].project_id, "revision": 99},
     )
     core.unit_of_work.commit("later-content")
@@ -591,7 +603,7 @@ def test_frozen_run_basis_cannot_change_even_when_current_attempt_change_is_allo
         else:
             raw["run"][field] = {
                 "environment_isolation_mode": "none",
-                "conclusion_ceiling": "partial",
+                "conclusion_ceiling": "passable",
             }.get(field, "changed")
         for allow_current_change in (False, True):
             core.unit_of_work.begin(
@@ -641,6 +653,7 @@ def test_frozen_step_edits_leave_the_actual_current_snapshot_unchanged(runtime):
 
 def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(authoritative):
     from aitest.contracts.prepared_run import PlanRevisionRef as PreparedPlanRef
+    from aitest.contracts.prepared_run import RunTierFact
     from tests.support.controlled_publication import controlled_publication_save
 
     core, inputs, _ = authoritative
@@ -673,6 +686,7 @@ def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(author
             "revision": 7,
             "scope": dict(scope_record.payload),
             "cases": [case_to_payload(case, project_id=inputs.project_id) for case in cases],
+            "run_tier": "on_demand",
         },
     )
     assert response.error is None
@@ -683,6 +697,7 @@ def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(author
     )
     inputs = replace(
         inputs,
+        run_tier=RunTierFact.ON_DEMAND,
         plan_revision=PreparedPlanRef(
             revision_id=saved.record_id, revision_no=2, digest=payload_digest(saved.payload)
         ),
@@ -711,6 +726,7 @@ def test_saved_plan_body_version_seven_is_read_at_repository_revision_two(author
             scope=acceptance_scope_from_payload(scope_record.payload),
             cases=cases,
             project_id=inputs.project_id,
+            run_tier=RunTier.ON_DEMAND,
         ),
         status=PlanPublicationStatus.PUBLISHED,
         confirmation_id=response.result["confirmation_id"],

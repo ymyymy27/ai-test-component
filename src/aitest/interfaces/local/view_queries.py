@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from aitest.application.planning.serialization import plan_coverage_contract_from_payload
 from aitest.application.planning.substrate import require_record_identity
 from aitest.application.ports import EvidenceObjectStore, RecordQuery
 from aitest.application.project.delivery_verification import (
@@ -23,10 +24,14 @@ from aitest.application.project.delivery_verification import (
     delivery_projection,
 )
 from aitest.application.project.serialization import delivery_from_payload
+from aitest.application.review.function_coverage_run import build_run_function_coverage
 from aitest.application.review.saved_reports import SavedReportService
 from aitest.contracts.commands import Command
+from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.read_views import ReadViewQuery
 from aitest.domain.evidence.evidence import StoredObjectRef
+from aitest.domain.review.function_coverage import FunctionCoverage
+from aitest.domain.review.reports import DecisionResult
 from aitest.interfaces.dto import (
     DeliveryViewDTO,
     PanelViewDTO,
@@ -233,6 +238,41 @@ class CommittedViewReader:
             raise ValueError("the exact committed view/event boundary is unverified")
         return values
 
+    def _function_coverage(
+        self, project_id: str, facts: ExecutionFacts, decision: DecisionResult
+    ) -> tuple[FunctionCoverage, ...]:
+        """从运行所冻结的计划契约生成功能×维度覆盖投影。
+
+        计划没有覆盖契约、记录不可读或契约损坏时返回空元组：这是只读视图，
+        不能因为附加收据不可用就让整份运行视图失败；运行事实与判定仍可读。
+        """
+        if self._records is None:
+            return ()
+        try:
+            ref = facts.plan_revision
+            record = self._records.read(
+                aggregate_kind="plan",
+                record_id=ref.revision_id,
+                revision=ref.revision_no,
+            )
+            payload = getattr(record, "payload", None)
+            if not isinstance(payload, Mapping):
+                return ()
+            contract = plan_coverage_contract_from_payload(payload)
+            if contract is None:
+                return ()
+            plan_revision = payload.get("revision")
+            if type(plan_revision) is not int or plan_revision < 1:
+                return ()
+            return build_run_function_coverage(
+                contract,
+                coverage=decision.coverage,
+                plan_revision=plan_revision,
+                run_id=facts.run_id,
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            return ()
+
     def run_view(self, *, project_id: str, run_id: str) -> RunViewDTO:
         """运行视图：事实 + 同一次领域判定 → `RunViewDTO`（含快照边界与配对游标）。"""
 
@@ -241,7 +281,11 @@ class CommittedViewReader:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("the run view requires an explicit run identity")
         facts, decision = self._decisions.live_decision(project_id, run_id)
-        return run_view_dto(facts, decision)
+        return run_view_dto(
+            facts,
+            decision,
+            function_coverage=self._function_coverage(project_id, facts, decision),
+        )
 
     def panel_view(self, *, project_id: str, run_id: str) -> PanelViewDTO:
         """面板主屏视图（架构 06 §1 的「当前段 + 信息区」）：同一次判定 + 运行视图。
@@ -255,8 +299,11 @@ class CommittedViewReader:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("the panel view requires an explicit run identity")
         facts, decision = self._decisions.live_decision(project_id, run_id)
+        function_coverage = self._function_coverage(project_id, facts, decision)
         return panel_view_dto(
-            facts, decision, run_view_dto(facts, decision),
+            facts,
+            decision,
+            run_view_dto(facts, decision, function_coverage=function_coverage),
             project_name=self._project_name(project_id),
         )
 

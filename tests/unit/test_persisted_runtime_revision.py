@@ -8,14 +8,20 @@ from dataclasses import replace
 import pytest
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
+from aitest.application.execution.runtime_actions import SavedRuntimeRevisionActions
 from aitest.application.execution.runtime_revision import SavedRuntimeRevisionReader
 from aitest.application.execution.runtime_revision_service import RuntimeRevisionService
+from aitest.application.planning.publish import _plan_payload, payload_digest
+from aitest.application.planning.saved_runtime_revision import SavedRuntimeRevisionAssessment
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
+    acceptance_scope_to_payload,
     case_from_payload,
     case_to_payload,
 )
-from aitest.contracts.execution_facts import RunControlStateFact
+from aitest.application.planning.substrate import CommittedRecord
+from aitest.contracts.execution_facts import ExecutionFacts, RunControlStateFact
+from aitest.contracts.prepared_run import RunTierFact
 from aitest.domain.planning.plans import (
     CaseRevisionRef,
     Plan,
@@ -30,13 +36,89 @@ from aitest.domain.planning.runtime_revision import (
     RuntimeRevisionRefused,
     RuntimeRevisionRequest,
 )
+from tests.support.controlled_publication import controlled_publication_save
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
 from tests.unit.test_authoritative_preparation import prepare
 from tests.unit.test_default_source_analysis import dispatch
 from tests.unit.test_initial_run_registration import register, service
+from tests.unit.test_plan_coverage_contract import _case as coverage_case
+from tests.unit.test_plan_coverage_contract import _contract
+from tests.unit.test_plan_coverage_contract import _plan as coverage_plan
+from tests.unit.test_runtime_revision import _payload
 
 
-def initial_basis(core, inputs):
+def on_demand_inputs(core, inputs):
+    """Republish the frozen plan as `on_demand` and bind the preparation inputs to it.
+
+    The shared authoritative fixture publishes a `full` plan; runtime revisions are
+    only legal for `on_demand` (P1-AC20). A new plan revision keeps the original
+    `full` revision intact for the explicit full-refusal test, while the prepared
+    run facts and the plan view now agree on the same tier.
+    """
+    unit = core.unit_of_work
+    raw = unit.repo.read(
+        aggregate_kind="plan",
+        record_id=inputs.plan_revision.revision_id,
+        revision=inputs.plan_revision.revision_no,
+    ).payload
+    scope = unit.repo.read(
+        aggregate_kind="acceptance_scope",
+        record_id=raw["scope_id"],
+        revision=raw["scope_revision"],
+    ).payload
+    cases = [
+        unit.repo.read(
+            aggregate_kind="case",
+            record_id=ref["case_id"],
+            revision=ref["revision"],
+        ).payload
+        for ref in raw["case_revisions"]
+    ]
+    response = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=inputs.project_id,
+        parameters={
+            "plan_id": raw["plan_id"],
+            "revision": raw["revision"] + 1,
+            "scope": dict(scope),
+            "cases": [dict(case) for case in cases],
+            "rule_revisions": [
+                {"rule_id": ref["rule_id"], "revision": ref["revision"]}
+                for ref in raw["rule_revisions"]
+            ],
+            "template_versions": [
+                {"template_id": ref["template_id"], "version": ref["version"]}
+                for ref in raw["template_versions"]
+            ],
+            "run_tier": "on_demand",
+            "initial_driver": raw["initial_driver"],
+        },
+        expected=inputs.plan_revision.revision_no,
+        request="republish-on-demand",
+        intent="republish-on-demand-intent",
+    )
+    assert response.error is None, response.error
+    assert response.result["published"] is True, response.result
+    revision_no = response.result["record_revision"]
+    saved = unit.repo.read(
+        aggregate_kind="plan",
+        record_id=inputs.plan_revision.revision_id,
+        revision=revision_no,
+    ).payload
+    return replace(
+        inputs,
+        run_tier=RunTierFact.ON_DEMAND,
+        plan_revision=inputs.plan_revision.model_copy(
+            update={"revision_no": revision_no, "digest": payload_digest(saved)}
+        ),
+        input_revisions=replace(inputs.input_revisions, plan_revision=revision_no),
+    )
+
+
+def initial_basis(core, inputs, *, tier=RunTier.ON_DEMAND):
+    if tier is RunTier.ON_DEMAND:
+        inputs = on_demand_inputs(core, inputs)
     prepared = prepare(core, inputs).result
     facts = register(core, prepared)
     paused = facts.model_copy(
@@ -259,3 +341,128 @@ def test_committed_runtime_response_loss_recalls_original_result(authoritative, 
     after = apply(core, plan, before, request, request_id="response-replay")
     assert len(after.runtime_revision_refs) == 1
     assert core.unit_of_work.current_commit_sequence() == sequence
+
+
+def test_full_run_rejects_a_pending_step_revision(authoritative):
+    """P1-AC20: a full run rejects the change and keeps its history untouched."""
+    core, inputs, _ = authoritative
+    plan, cases, before = initial_basis(core, inputs, tier=RunTier.FULL)
+    case2 = saved_next_case(
+        core,
+        inputs,
+        replace(cases[0], revision=2, steps=tuple(text + " updated" for text in cases[0].steps)),
+    )
+    request = revision_request(before, case2)
+    sequence = core.unit_of_work.current_commit_sequence()
+    with pytest.raises(RuntimeRevisionRefused) as raised:
+        apply(core, plan, before, request)
+    assert raised.value.code == "full_runtime_revision_not_allowed"
+    assert [refusal.code.value for refusal in raised.value.decision.refusals] == [
+        "full_runtime_revision_not_allowed"
+    ]
+    assert raised.value.decision.new_run_required is True
+    assert core.unit_of_work.current_commit_sequence() == sequence
+    assert (
+        ExecutionCommitCoordinator(
+            core.unit_of_work, records=core.unit_of_work.repo
+        ).read_current_facts(project_id=inputs.project_id, run_id=before.run_id)
+        == before
+    )
+    # The original full plan revision remains readable; nothing was rewritten.
+    assert (
+        core.unit_of_work.repo.read(
+            aggregate_kind="plan",
+            record_id=before.plan_revision.revision_id,
+            revision=before.plan_revision.revision_no,
+        ).payload["run_tier"]
+        == "full"
+    )
+
+
+class _SavedPlanOnlyReader:
+    def __init__(self, plan_payload, scope_payload):
+        self.plan_payload = plan_payload
+        self.scope_payload = scope_payload
+
+    def _read(self, kind, identity, revision, project):
+        if kind == "plan":
+            return dict(self.plan_payload)
+        if kind == "acceptance_scope":
+            return dict(self.scope_payload)
+        raise AssertionError("unexpected saved material read")
+
+
+def test_saved_plan_rebuild_preserves_the_coverage_contract():
+    """A plan record carrying `coverage_contract` keeps it through the revision path."""
+    contract = _contract()
+    plan = coverage_plan(
+        coverage_contract=contract,
+        status=PlanPublicationStatus.PUBLISHED,
+        confirmation_id="confirmation-1",
+    )
+    plan_payload = dict(_plan_payload(plan, (coverage_case(),), project_id="project-1"))
+    plan_payload["approval_commit_seq"] = "commit-3"
+    scope_payload = acceptance_scope_to_payload(plan.scope, project_id="project-1")
+    facts = ExecutionFacts.model_validate(_payload("failure"))
+
+    rebuilt = SavedRuntimeRevisionActions._plan(
+        _SavedPlanOnlyReader(plan_payload, scope_payload), facts
+    )
+
+    assert rebuilt.coverage_contract == contract
+    assert rebuilt.coverage_contract == plan.coverage_contract
+
+
+class _PlanRecordReader:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self, *, aggregate_kind, record_id, revision):
+        return CommittedRecord(
+            aggregate_kind=aggregate_kind,
+            record_id=record_id,
+            revision=revision,
+            payload=dict(self.payload),
+        )
+
+
+class _FactsExecution:
+    def __init__(self, facts):
+        self.facts = facts
+
+    def read_runtime_revision_facts(self, *, project_id, run_id):
+        return self.facts
+
+
+def test_saved_assessment_rejects_a_view_without_the_saved_coverage_contract():
+    """A view cannot silently drop a contract that the saved plan carries."""
+    saved_plan = coverage_plan(
+        run_tier=RunTier.ON_DEMAND,
+        coverage_contract=_contract(),
+        status=PlanPublicationStatus.PUBLISHED,
+        confirmation_id="confirmation-1",
+        record_revision=1,
+    )
+    saved_payload = dict(_plan_payload(saved_plan, (coverage_case(),), project_id="project-1"))
+    saved_payload["approval_commit_seq"] = "commit-3"
+    body = _payload("failure")
+    body["run"]["tier"] = "on_demand"
+    facts = ExecutionFacts.model_validate(body).model_copy(
+        update={
+            "plan_revision": ExecutionFacts.model_validate(body).plan_revision.model_copy(
+                update={"digest": payload_digest(saved_payload)}
+            )
+        }
+    )
+    view = replace(saved_plan, coverage_contract=None)
+    assessment = SavedRuntimeRevisionAssessment(
+        reader=_PlanRecordReader(saved_payload),
+        execution=_FactsExecution(facts),
+    )
+    with pytest.raises(ValueError, match="saved coverage contract"):
+        assessment.assess(
+            project_id=facts.project_id,
+            run_id=facts.run_id,
+            plan=view,
+            request=revision_request(facts, replace(coverage_case(), revision=2)),
+        )

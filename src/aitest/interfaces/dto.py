@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 from pydantic import BaseModel, ConfigDict
 
 from aitest.contracts.execution_facts import ExecutionFacts
-from aitest.contracts.views import CoverageDTO
+from aitest.contracts.views import CoverageDTO, FunctionCoverageDTO
 from aitest.domain.project.context import Delivery
 from aitest.domain.review.defects import (
     IssueDisposition,
@@ -19,6 +19,7 @@ from aitest.domain.review.defects import (
     IssueSeverity,
     IssueStatus,
 )
+from aitest.domain.review.function_coverage import FunctionCoverage
 from aitest.domain.review.issue_queries import (
     IssueBlockingState,
     IssueFilterMask,
@@ -40,7 +41,27 @@ from aitest.domain.review.reports import (
 )
 
 
-def coverage_dto(value: Coverage) -> CoverageDTO:
+def function_coverage_dto(value: FunctionCoverage) -> FunctionCoverageDTO:
+    """业务功能×维度的只读投影；`overall_coverage` 由领域派生，视图不重算。"""
+
+    return FunctionCoverageDTO(
+        function_id=value.function_id,
+        dimensions={
+            dimension: status.value
+            for dimension, status in value.coverage_by_dimension.items()
+        },
+        overall_status=value.overall_coverage.value,
+        gap_reason=value.gap_reason,
+        case_ids=tuple(sorted(value.case_ids)),
+        evidence_refs=value.evidence_refs,
+        verification_refs=value.verification_refs,
+    )
+
+
+def coverage_dto(
+    value: Coverage,
+    function_coverage: tuple[FunctionCoverage, ...] = (),
+) -> CoverageDTO:
     return CoverageDTO(
         selected_applicable_count=len(value.selected),
         required_applicable_count=len(value.required),
@@ -51,6 +72,7 @@ def coverage_dto(value: Coverage) -> CoverageDTO:
         failed_count=len(value.failed),
         unverified_count=len(value.unverified),
         required_verified_count=len(value.verified & value.required),
+        function_coverage=tuple(function_coverage_dto(item) for item in function_coverage),
     )
 
 
@@ -401,7 +423,12 @@ class RunViewDTO(BaseModel):
     trace_nodes: tuple[TraceNodeViewDTO, ...] = ()
 
 
-def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
+def run_view_dto(
+    facts: ExecutionFacts,
+    decision: DecisionResult,
+    *,
+    function_coverage: tuple[FunctionCoverage, ...] = (),
+) -> RunViewDTO:
     """把**已提交事实 + 同一次领域判定**投影成运行视图 DTO（不做任何领域判断）。"""
 
     coverage = decision.coverage
@@ -469,7 +496,7 @@ def run_view_dto(facts: ExecutionFacts, decision: DecisionResult) -> RunViewDTO:
         conclusion_ceiling=str(facts.run.conclusion_ceiling.value),
         selected_case_ids=tuple(sorted(coverage.selected)),
         required_case_ids=tuple(sorted(coverage.required)),
-        coverage=coverage_dto(coverage),
+        coverage=coverage_dto(coverage, function_coverage),
         selected_summary=_coverage_summary_dto(
             coverage, scope_kind="selected", result=decision
         ),

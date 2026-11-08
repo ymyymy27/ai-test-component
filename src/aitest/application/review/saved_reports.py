@@ -32,7 +32,10 @@ from aitest.application.planning.preparation_origin import (
     load_saved_preparation,
     validate_preparation_origin,
 )
-from aitest.application.planning.serialization import acceptance_scope_from_payload
+from aitest.application.planning.serialization import (
+    acceptance_scope_from_payload,
+    plan_coverage_contract_from_payload,
+)
 from aitest.application.planning.substrate import RecordReader
 from aitest.application.ports import AggregateKind, RecordQuery
 from aitest.application.review import reporting as facade
@@ -42,6 +45,7 @@ from aitest.application.review.execution_decision_adapter import (
     assertion_outcomes_from_facts,
     build_decision_facts,
 )
+from aitest.application.review.function_coverage_run import build_run_function_coverage
 from aitest.application.review.reuse_consumption import ReuseOutcome, derive_reuse_outcome
 from aitest.application.review.saved_defects import (
     ISSUE_AGGREGATE,
@@ -52,6 +56,7 @@ from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.contracts.reuse_reference import ReuseReference
 from aitest.domain.execution.reuse import WholeCaseReuseBasis
 from aitest.domain.review.defects import IssueRecord, resolve_canonical_issue_id
+from aitest.domain.review.function_coverage import FunctionCoverage
 from aitest.domain.review.reports import (
     BusinessOutcome,
     Coverage,
@@ -267,8 +272,33 @@ def _coverage_from_payload(raw: object) -> Coverage:
     )
 
 
-def _decision_to_payload(decision: DecisionResult) -> dict[str, object]:
+def _function_coverage_to_payload(value: FunctionCoverage) -> dict[str, object]:
+    """报告中的功能×维度收据；只序列化领域已投影的状态。"""
+
+    return {
+        "function_id": value.function_id,
+        "dimensions": {
+            dimension: status.value
+            for dimension, status in value.coverage_by_dimension.items()
+        },
+        "overall_status": value.overall_coverage.value,
+        "gap_reason": value.gap_reason,
+        "case_ids": sorted(value.case_ids),
+        "evidence_refs": list(value.evidence_refs),
+        "verification_refs": list(value.verification_refs),
+    }
+
+
+def _decision_to_payload(
+    decision: DecisionResult,
+    function_coverage: tuple[FunctionCoverage, ...] = (),
+) -> dict[str, object]:
     grade = decision.evidence_grade
+    coverage = _coverage_to_payload(decision.coverage)
+    if function_coverage:
+        coverage["function_coverage"] = [
+            _function_coverage_to_payload(item) for item in function_coverage
+        ]
     return {
         "business_outcome": decision.business_outcome.value,
         "evidence_grade": None if grade is None else grade.value,
@@ -277,7 +307,7 @@ def _decision_to_payload(decision: DecisionResult) -> dict[str, object]:
         ),
         "gaps": [_gap_to_payload(gap) for gap in decision.gaps],
         "decisive_failures": [_failure_to_payload(item) for item in decision.decisive_failures],
-        "coverage": _coverage_to_payload(decision.coverage),
+        "coverage": coverage,
         "policy_version": decision.policy_version,
         "case_ids_revision": decision.case_ids_revision,
         "source_commit": decision.source_commit,
@@ -329,6 +359,7 @@ def report_to_payload(
     reuse: Mapping[str, object] | None = None,
     execution_snapshot_ref: SnapshotContentRef | None = None,
     blocking_issue_ids: frozenset[str] | None = None,
+    function_coverage: tuple[FunctionCoverage, ...] = (),
 ) -> dict[str, object]:
     """报告修订 payload；同时给出 `reports.list` / `reports.by_id` 的最小摘要键。
 
@@ -347,7 +378,7 @@ def report_to_payload(
         "project_id": snapshot.context.project_id,
         "content_revision": snapshot.content_revision,
         "context": context,
-        "decision": _decision_to_payload(snapshot.decision),
+        "decision": _decision_to_payload(snapshot.decision, function_coverage),
         "evidence_refs": list(snapshot.evidence_refs),
         "evidence_revisions": dict(snapshot.evidence_revisions),
         "issue_revisions": [list(item) for item in snapshot.issue_revisions],
@@ -633,6 +664,39 @@ class SavedReportService:
 
     # ------------------------------------------------------------ 报告修订
 
+    def _run_function_coverage(
+        self, facts: ExecutionFacts, decision: DecisionResult
+    ) -> tuple[FunctionCoverage, ...]:
+        """从运行冻结的计划契约生成报告用的功能×维度收据。
+
+        没有契约、计划记录不可读或契约损坏时返回空元组；报告主体仍可生成，
+        但不会伪造一份“已验证”的功能覆盖。
+        """
+        try:
+            ref = facts.plan_revision
+            record = self._reader.read(
+                aggregate_kind="plan",
+                record_id=ref.revision_id,
+                revision=ref.revision_no,
+            )
+            payload = getattr(record, "payload", None)
+            if not isinstance(payload, Mapping):
+                return ()
+            contract = plan_coverage_contract_from_payload(payload)
+            if contract is None:
+                return ()
+            plan_revision = payload.get("revision")
+            if type(plan_revision) is not int or plan_revision < 1:
+                return ()
+            return build_run_function_coverage(
+                contract,
+                coverage=decision.coverage,
+                plan_revision=plan_revision,
+                run_id=facts.run_id,
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            return ()
+
     def _create_report(self, command: object) -> Mapping[str, object]:
         project_id, intent_id, request_id, expected = _command_identity(command)
         parameters = _command_parameters(command)
@@ -661,6 +725,7 @@ class SavedReportService:
         live = self._live(project_id, run_id, issue_ids)
         facts, decision, prepared, scope = live.facts, live.decision, live.prepared, live.scope
         issues, reuse = live.issues, live.reuse
+        function_coverage = self._run_function_coverage(facts, decision)
         if decision.policy_version != DEFAULT_POLICY_VERSION:
             raise ReportGuardRefused("saved decision policy version cannot be verified")
         context = ReportContext(
@@ -698,6 +763,7 @@ class SavedReportService:
             reuse=reuse.payload(),
             execution_snapshot_ref=SnapshotContentRef.of(facts),
             blocking_issue_ids=live.blocking_issue_ids,
+            function_coverage=function_coverage,
         )
         return self._commit(
             action="create_report",

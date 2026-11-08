@@ -11,13 +11,17 @@ from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
     case_from_payload,
     confirmation_from_payload,
+    plan_coverage_contract_from_payload,
 )
 from aitest.application.planning.substrate import AggregateKind, RecordReader, read_scoped_record
 from aitest.application.ports import BasisConfirmationProof, ControlledWriteProof
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.contracts.prepared_run import BlockingReason, PreparedRun
 from aitest.domain.approvals import ApprovalRequired
-from aitest.domain.planning.plans import effective_assertion_basis_state
+from aitest.domain.planning.plans import (
+    effective_assertion_basis_state,
+    validate_coverage_completeness,
+)
 
 
 def validate_prepared_material(
@@ -75,6 +79,16 @@ def _verify_links(
         return dict(stored.payload)
 
     plan = read("plan", prepared.plan_revision.revision_id, prepared.plan_revision.revision_no)
+    contract = plan_coverage_contract_from_payload(plan)
+    if contract is not None:
+        plan_revision = plan.get("revision")
+        if type(plan_revision) is not int or plan_revision < 1:
+            raise ValueError("saved plan body revision cannot be verified")
+        validate_coverage_completeness(
+            contract,
+            plan_revision=plan_revision,
+            frozen_case_ids=(ref.case_id for ref in prepared.case_revisions),
+        )
     if controlled_writes is not None:
         controlled_writes.validate_saved_write(
             project_id=prepared.project_id,

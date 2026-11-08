@@ -64,6 +64,11 @@ AggregateKind = Literal[
     "model_outbound_policy",
     "model_outbound_request",
     "prepared_run",
+    #: 计划级执行许可与计划绑定（P1-AC31；创建与授权读取见 execution/plan_grant.py）。
+    "plan_execution_grant",
+    "plan_grant_binding",
+    "plan_grant_usage",
+    "plan_grant_revocation",
     #: 项目列表显示偏好（只记隐藏/恢复，P1-AC34）。
     "project_view_preference",
     #: 证据事实与人工补证材料（C 侧写入；人工补证见 application/evidence/manual_capture.py）。

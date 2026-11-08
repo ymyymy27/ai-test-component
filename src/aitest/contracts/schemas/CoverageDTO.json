@@ -1,4 +1,70 @@
 {
+  "$defs": {
+    "FunctionCoverageDTO": {
+      "additionalProperties": false,
+      "description": "单个业务功能的覆盖投影（只承载事实，不派生业务结论）。\n\n``dimensions`` 是“必要维度 → 覆盖状态”，不能为空，否则“没有缺口”与\n“没有维度”无法区分；``overall_status`` 由核心按唯一判定口径算好，\n视图不重算。``gap_reason`` 说明缺口，不替代状态。",
+      "properties": {
+        "function_id": {
+          "title": "Function Id",
+          "type": "string"
+        },
+        "dimensions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Dimensions",
+          "type": "object"
+        },
+        "overall_status": {
+          "title": "Overall Status",
+          "type": "string"
+        },
+        "gap_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gap Reason"
+        },
+        "case_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Case Ids",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "verification_refs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Verification Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "function_id",
+        "dimensions",
+        "overall_status"
+      ],
+      "title": "FunctionCoverageDTO",
+      "type": "object"
+    }
+  },
   "properties": {
     "selected_applicable_count": {
       "minimum": 0,
@@ -44,6 +110,14 @@
       "minimum": 0,
       "title": "Required Verified Count",
       "type": "integer"
+    },
+    "function_coverage": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FunctionCoverageDTO"
+      },
+      "title": "Function Coverage",
+      "type": "array"
     }
   },
   "required": [

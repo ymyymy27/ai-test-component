@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from aitest.application.errors import CapabilityUnavailable
 from aitest.application.execution.authorization_index import read_authorization_index
 from aitest.application.execution.commands import ExecutionCommands, InvalidExecutionCommand
 from aitest.application.execution.commit import ExecutionCommitCoordinator
@@ -14,13 +15,16 @@ from aitest.application.execution.continuation import (
 )
 from aitest.application.execution.control import boundary_pending
 from aitest.application.execution.facts import execution_payload_digest
+from aitest.application.execution.plan_grant import PlanGrantRejected
+from aitest.application.execution.run_record import read_run_record
 from aitest.application.execution.start_identity import execution_start_fingerprint
 from aitest.application.execution.step_execution import SavedStepExecution
+from aitest.application.planning.preparation_origin import load_saved_preparation
 from aitest.application.ports import BackgroundWorkDirectory
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import ExecutionFacts, RunControlStateFact, StepStateFact
 from aitest.contracts.prepared_run import RunDriverFact
-from aitest.domain.approvals import ApprovalConflict
+from aitest.domain.approvals import ApprovalConflict, ApprovalRequired
 from aitest.domain.execution.authorization import AuthorizationState, ResolvedExecutionAction
 from aitest.domain.execution.continuation import RunContinuation
 from aitest.domain.execution.runs import (
@@ -49,6 +53,20 @@ _DISPATCHABLE = frozenset({RunControlStateFact.NOT_STARTED, RunControlStateFact.
 
 class RunScheduleBlocked(ValueError):
     code = "RUN_SCHEDULE_BLOCKED"
+
+
+def _plan_grant_block(
+    *, step_id: str, grant_id: str, code: str, reason: str | None, message: str
+) -> dict[str, object]:
+    """计划许可不能覆盖该步骤时的结构化阻塞；调度据此停止且不执行。"""
+
+    return {
+        "step_id": step_id,
+        "grant_id": grant_id,
+        "code": code,
+        "reason": reason,
+        "message": message,
+    }
 
 
 def dispatch_plan(facts: ExecutionFacts) -> DispatchPlan:
@@ -83,6 +101,8 @@ class SavedRunSchedule:
         self.unit = coordinator._uow
         self.directory = directory
         self._last_work_id = ""
+        # 准备快照不可变：同一 Run 的 `plan_grant_id` 只读一次足够。
+        self._plan_grant_ids: dict[tuple[str, str], str | None] = {}
 
     def _identity(self, project: str, intent: str) -> str:
         return (
@@ -285,6 +305,136 @@ class SavedRunSchedule:
             result.setdefault(action.request.step_id, []).append((action_id, action))
         return result
 
+    def _prepared_plan_grant_id(self, project: str, run_id: str) -> str | None:
+        """注册时的准备快照是否绑定了计划级许可；读不出就退回逐动作路径。
+
+        这里只读已保存的准备记录，不做授权判断：许可自身仍要由
+        `ExecutionAuthorizationService` 按计划、范围、动作类别、凭据、环境与
+        时间窗逐项核对。准备/运行记录不可读时不伪造许可，也不因此执行。
+        """
+
+        try:
+            if self.coordinator._revision("run", run_id) != 1:
+                return None
+            raw = self.coordinator._read_payload("run", run_id)
+            if raw is None or raw.get("project_id") != project:
+                return None
+            run = read_run_record(raw)
+            refs = run.frozen_input_refs
+            if (
+                (run.project_id, run.origin_workspace_id, run.run_id)
+                != (project, self.workspace_id, run_id)
+                or len(refs) != 1
+                or not refs[0].resolved
+            ):
+                return None
+            prepared, _ = load_saved_preparation(
+                reader=self.execution.authorizations.reader,
+                project_id=project,
+                workspace_id=self.workspace_id,
+                prepared_run_id=refs[0].input_ref_id,
+            )
+        except (OSError, KeyError, TypeError, ValueError):
+            return None
+        value = prepared.plan_grant_id
+        return value if isinstance(value, str) and value.strip() else None
+
+    def _plan_grant_id(self, project: str, facts: ExecutionFacts) -> str | None:
+        key = (project, facts.run_id)
+        if key not in self._plan_grant_ids:
+            self._plan_grant_ids[key] = self._prepared_plan_grant_id(project, facts.run_id)
+        return self._plan_grant_ids[key]
+
+    @staticmethod
+    def _plan_grant_intent(facts: ExecutionFacts, step_id: str) -> str:
+        """计划驱动自动解析的稳定意图：同一步骤同一尝试序号重传返回同一动作。
+
+        包含尝试序号是为了让失败后的新尝试得到新意图（与 `E∩R=∅` 一致），
+        不把旧解析当成新一轮执行；只读已提交事实，不猜运行中状态。
+        """
+
+        attempt_index = (
+            sum(1 for item in facts.attempts if item.step_id == step_id) + 1
+        )
+        return (
+            "plan-grant-action-"
+            + execution_payload_digest(
+                {
+                    "run_id": facts.run_id,
+                    "step_id": step_id,
+                    "attempt_index": attempt_index,
+                }
+            )[7:]
+        )
+
+    def _authorize_from_plan_grant(
+        self, *, project: str, facts: ExecutionFacts, step_id: str, grant_id: str
+    ) -> tuple[str, ResolvedExecutionAction] | Mapping[str, object]:
+        """用计划许可生成该步骤的 1.2 动作授权；失败返回结构化阻塞，不执行。
+
+        解析与授权都走既有用例（`prepare` + `grant(grant_id=...)`），所以旧
+        challenge 路径、准备/注册核对、索引与状态记录都不在这里另写一套。
+        只要有一项不能核对，就停在该步骤并让调用方如实显示原因。
+        """
+
+        service = self.execution.authorizations
+        intent_id = self._plan_grant_intent(facts, step_id)
+        try:
+            resolved = service.prepare(
+                project_id=project,
+                run_id=facts.run_id,
+                step_id=step_id,
+                intent_id=intent_id,
+                request_id=intent_id + "-resolve",
+            )
+            action_id = resolved.get("execution_action_id")
+            if not isinstance(action_id, str) or not action_id.strip():
+                return _plan_grant_block(
+                    step_id=step_id,
+                    grant_id=grant_id,
+                    code="PLAN_GRANT_UNAVAILABLE",
+                    reason=None,
+                    message="plan grant resolution returned no saved action identity",
+                )
+            service.grant(
+                project_id=project,
+                intent_id=intent_id,
+                request_id=intent_id + "-grant",
+                parameters={
+                    "execution_action_id": action_id,
+                    "record_revision": 1,
+                    "grant_id": grant_id,
+                },
+                grant_id=grant_id,
+            )
+            _, action = service.resolver.read(project, action_id)
+            return action_id, action
+        except PlanGrantRejected as error:
+            # 撤销、过期、计划/范围/凭据/环境变化或动作类别不匹配：逐项如实报告。
+            return _plan_grant_block(
+                step_id=step_id,
+                grant_id=grant_id,
+                code=error.code,
+                reason=error.reason,
+                message=str(error),
+            )
+        except (ApprovalRequired, ApprovalConflict) as error:
+            return _plan_grant_block(
+                step_id=step_id,
+                grant_id=grant_id,
+                code=str(getattr(error, "code", None) or "PLAN_GRANT_UNAVAILABLE"),
+                reason=None,
+                message=str(error),
+            )
+        except (CapabilityUnavailable, OSError, KeyError, TypeError, ValueError) as error:
+            return _plan_grant_block(
+                step_id=step_id,
+                grant_id=grant_id,
+                code=str(getattr(error, "code", None) or "PLAN_GRANT_UNAVAILABLE"),
+                reason=None,
+                message=str(error),
+            )
+
     def _finish(self, previous: ExecutionFacts) -> ExecutionFacts:
         self.unit.begin("schedule-completion-" + uuid4().hex, previous.project_id)
         try:
@@ -347,6 +497,7 @@ class SavedRunSchedule:
         observed: list[str] = []
         dispatched: list[str] = []
         status = "slice_exhausted"
+        plan_grant_block: Mapping[str, object] | None = None
         for _ in range(_SLICE_BUDGET if budget is None else budget):
             facts = self._current(project, run)
             attempts = self._attempts(facts)
@@ -412,7 +563,31 @@ class SavedRunSchedule:
                 break
             actions = self._unused_actions(facts)
             chosen = next((step for step in plan.ready_step_ids if actions.get(step)), None)
-            if chosen is None:
+            selected: tuple[str, ResolvedExecutionAction] | None = None
+            if chosen is not None:
+                if len(actions[chosen]) != 1:
+                    status = "ambiguous_authorization"
+                    break
+                selected = actions[chosen][0]
+            elif plan.ready_step_ids:
+                # 计划驱动 + 准备快照绑定了计划许可：推进前由核心生成该步骤的
+                # 1.2 动作授权，不再要求逐动作 challenge（设计 6.4/7.2）。
+                target = next(
+                    (step for step in plan.ready_step_ids if not actions.get(step)), None
+                )
+                grant_id = (
+                    self._plan_grant_id(project, facts) if target is not None else None
+                )
+                if target is not None and grant_id is not None:
+                    outcome = self._authorize_from_plan_grant(
+                        project=project, facts=facts, step_id=target, grant_id=grant_id
+                    )
+                    if isinstance(outcome, Mapping):
+                        plan_grant_block = outcome
+                        status = "waiting_authorization"
+                        break
+                    chosen, selected = target, outcome
+            if selected is None:
                 status = (
                     "waiting_authorization"
                     if plan.ready_step_ids
@@ -421,10 +596,8 @@ class SavedRunSchedule:
                     else "waiting_dependencies"
                 )
                 break
-            if len(actions[chosen]) != 1:
-                status = "ambiguous_authorization"
-                break
-            action_id, action = actions[chosen][0]
+            action_id, action = selected
+            assert chosen is not None
             self.execution.execute(
                 project_id=project,
                 intent_id=action.request.intent_id,
@@ -444,6 +617,7 @@ class SavedRunSchedule:
             "ready_step_ids": list(plan.ready_step_ids),
             "blocked_step_ids": list(plan.blocked_step_ids),
             "waiting_step_ids": list(plan.waiting_step_ids),
+            "plan_grant_block": plan_grant_block,
             "execution_facts": facts.model_dump(mode="json"),
         }
 

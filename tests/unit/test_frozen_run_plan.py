@@ -15,6 +15,11 @@ from aitest.application.planning.serialization import (
 )
 from aitest.application.ports import CommittedRecord
 from aitest.contracts.prepared_run import CaseRevisionRef
+from aitest.domain.planning.plans import (
+    CoverageContract,
+    FunctionRequirement,
+)
+from aitest.domain.planning.understanding import CoverageClaim, CoverageClaimStatus
 from tests.support.prepared_run_factory import build_scenario
 
 
@@ -66,6 +71,56 @@ def saved():
             pytest.fail("frozen reads cannot look up latest records")
 
     return prepared, records, Repository(), scenario
+
+
+def test_frozen_plan_preserves_coverage_contract(saved):
+    prepared, records, repo, scenario = saved
+    project = scenario.prepared_run.project_id
+    cases = {case.case_id: case for case in scenario.cases}
+    contract = CoverageContract(
+        contract_id="contract-1",
+        understanding_revision=1,
+        function_requirements=(
+            FunctionRequirement("fn-order-create", ("normal", "error")),
+        ),
+        coverage_claims=(
+            CoverageClaim(
+                claim_id="claim-1",
+                intent_id="intent-1",
+                function_id="fn-order-create",
+                dimension="normal",
+                plan_revision=1,
+                status=CoverageClaimStatus.PROVEN,
+                case_ids=frozenset({next(iter(cases))}),
+            ),
+        ),
+    )
+    plan = replace(
+        scenario.plan,
+        coverage_contract=contract,
+        case_revisions=tuple(
+            replace(ref, digest=case_content_digest(cases[ref.case_id], project_id=project))
+            for ref in scenario.plan.case_revisions
+        ),
+    )
+    raw = {
+        **_plan_payload(plan, scenario.cases, project_id=project),
+        "approval_commit_seq": "saved-publication",
+    }
+    prepared = prepared.model_copy(
+        update={
+            "plan_revision": prepared.plan_revision.model_copy(
+                update={"digest": payload_digest(raw)}
+            )
+        }
+    )
+    records[("plan", plan.plan_id, 1)] = replace(
+        records[("plan", plan.plan_id, 1)], payload=raw
+    )
+
+    result = FrozenRunPlanReader(repo).read(prepared)
+
+    assert result.plan.coverage_contract == contract
 
 
 def test_reads_original_warehouse_revision_and_preserves_body_version(saved):

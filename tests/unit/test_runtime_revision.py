@@ -32,6 +32,7 @@ from aitest.application.planning.run_mode import (
     request_runtime_revision,
     runtime_facts_from_execution_facts,
 )
+from aitest.application.planning.saved_runtime_revision import SavedRuntimeRevisionAssessment
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.planning.plans import (
     AcceptanceScope,
@@ -91,6 +92,12 @@ def _with_run_control(payload: dict[str, Any], state: str) -> dict[str, Any]:
     return payload
 
 
+def _with_run_tier(payload: dict[str, Any], tier: str) -> dict[str, Any]:
+    """派生：只改运行档位，使事实与其后的计划档位一致。"""
+    payload["run"]["tier"] = tier
+    return payload
+
+
 def _with_running_step(payload: dict[str, Any], step_id: str) -> dict[str, Any]:
     """派生：把某一步及其当前尝试改成 `running`（交付夹具里没有正在执行的步骤）。"""
     step = next(item for item in payload["steps"] if item["step_id"] == step_id)
@@ -113,8 +120,11 @@ def _with_runtime_revisions(payload: dict[str, Any], count: int) -> dict[str, An
 
 
 def _failure_in_progress() -> dict[str, Any]:
-    """`failure.json` 派生出的"运行中"快照：step-1 已产生事实，step-2 仍未执行。"""
-    return _with_run_control(_payload("failure"), "running")
+    """`failure.json` 派生出的"运行中"快照：step-1 已产生事实，step-2 仍未执行。
+
+    档位同时改为 `on_demand`：运行中修订只属于按需自测，`full` 由专门的用例覆盖。
+    """
+    return _with_run_tier(_with_run_control(_payload("failure"), "running"), "on_demand")
 
 
 # ------------------------------------------------------------------ 领域夹具
@@ -166,7 +176,9 @@ def _plan(
     status: PlanPublicationStatus = PlanPublicationStatus.PUBLISHED,
     case_revision: int = 1,
     plan_id: str = "plan-1",
+    run_tier: RunTier = RunTier.ON_DEMAND,
 ) -> Plan:
+    """默认按需自测：运行中修订只属于 `on_demand`（`full` 由专门用例覆盖）。"""
     return Plan(
         plan_id=plan_id,
         revision=revision,
@@ -186,7 +198,7 @@ def _plan(
                 template_id="http-workflow", version="1.0.0", digest="sha256:t"
             ),
         ),
-        run_tier=RunTier.FULL,
+        run_tier=run_tier,
         initial_driver=RunDriver.PLANNED,
         status=status,
         confirmation_id="confirm-1" if status is PlanPublicationStatus.PUBLISHED else None,
@@ -901,3 +913,161 @@ def test_runtime_plan_reference_uses_repository_revision(
         assert decision.refusals == ()
     else:
         assert _codes(decision) == {RuntimeRevisionRefusalCode.PLAN_REVISION_MISMATCH.value}
+
+
+# ------------------------------------------------------------------ 8 full 运行拒绝计划修改
+
+
+def _request_without_case_change(
+    payload: Mapping[str, Any], driver: RunDriver
+) -> RuntimeRevisionRequest:
+    """只收窄驱动、不带用例内容修订的请求（设计 7.3 允许的介入）。"""
+    facts = ExecutionFacts.model_validate(dict(payload))
+    view = runtime_facts_from_execution_facts(facts)
+    return RuntimeRevisionRequest(
+        base_plan_revision_id=view.plan_revision_id,
+        base_plan_revision_no=view.plan_revision_no,
+        base_plan_revision_digest=view.plan_revision_digest,
+        observed_snapshot_cursor=view.snapshot_cursor,
+        case_changes=(),
+        reason="收窄为逐步驱动",
+        operator_ref="operator-1",
+        requested_driver=driver,
+    )
+
+
+def test_a_full_run_refuses_a_pending_step_revision() -> None:
+    """P1-AC20：完整验证运行中拒绝任何计划修改，并提示新建按需自测运行。"""
+    decision = _decide(
+        _failure_in_progress(),
+        plan=_plan(run_tier=RunTier.FULL),
+    )
+    assert decision.accepted is False
+    assert _codes(decision) == {
+        RuntimeRevisionRefusalCode.FULL_RUNTIME_REVISION_NOT_ALLOWED.value
+    }
+    assert decision.new_run_required is True
+    assert decision.affected_step_ids == ()
+    assert decision.revision_no == 1
+
+
+def test_the_same_pending_step_revision_is_accepted_on_demand() -> None:
+    """同样的输入在按需自测下仍按原边界作用于未执行步骤。"""
+    decision = _decide(
+        _failure_in_progress(),
+        plan=_plan(run_tier=RunTier.ON_DEMAND),
+    )
+    assert decision.accepted is True
+    assert decision.affected_step_ids == ("step-2",)
+    assert decision.preserved_step_ids == ("step-1",)
+    assert _codes(decision) == set()
+
+
+def test_a_full_run_refusal_keeps_the_recorded_revision_history() -> None:
+    """旧 full 运行可能已有 RunPlanRevision：拒绝新修订不删除、不改写、不归零序号。"""
+    payload = _with_runtime_revisions(_failure_in_progress(), 2)
+    before = copy.deepcopy(payload)
+    plan = _plan(run_tier=RunTier.FULL)
+    frozen_case = _case()
+    decision = _decide(payload, plan=plan, frozen_case=frozen_case)
+
+    assert decision.accepted is False
+    assert _codes(decision) == {
+        RuntimeRevisionRefusalCode.FULL_RUNTIME_REVISION_NOT_ALLOWED.value
+    }
+    assert decision.revision_no == 3
+    assert payload == before
+    assert plan.run_tier is RunTier.FULL
+    assert frozen_case.revision == 1
+    view = runtime_facts_from_execution_facts(ExecutionFacts.model_validate(payload))
+    assert view.runtime_revision_count == 2
+    assert view.run_id == "run-1"
+
+
+def test_a_full_run_may_still_narrow_its_driver() -> None:
+    """设计 7.3：full 运行仍可收窄驱动；收窄不是计划内容修订。"""
+    payload = _failure_in_progress()
+    decision = request_runtime_revision(
+        plan=_plan(run_tier=RunTier.FULL),
+        cases=(),
+        confirmations=(),
+        request=_request_without_case_change(payload, RunDriver.STEPWISE),
+        facts=ExecutionFacts.model_validate(payload),
+    )
+    assert decision.accepted is True
+    assert decision.effective_driver is RunDriver.STEPWISE
+    assert decision.affected_step_ids == ()
+    assert decision.new_run_required is False
+
+
+def test_a_full_run_cannot_combine_a_case_change_with_driver_narrowing() -> None:
+    """同一次请求既改用例又收窄驱动时，按计划修订拒绝，不拆成两半。"""
+    decision = _decide(
+        _failure_in_progress(),
+        plan=_plan(run_tier=RunTier.FULL),
+        driver=RunDriver.STEPWISE,
+    )
+    assert decision.accepted is False
+    assert _codes(decision) == {
+        RuntimeRevisionRefusalCode.FULL_RUNTIME_REVISION_NOT_ALLOWED.value
+    }
+
+
+def test_the_full_refusal_code_survives_the_application_gate() -> None:
+    """入口按结构化代码分支，不解析异常或拒绝文案。"""
+    decision = _decide(_failure_in_progress(), plan=_plan(run_tier=RunTier.FULL))
+    with pytest.raises(RuntimeRevisionRefused) as raised:
+        assert_runtime_revision_accepted(decision)
+    assert raised.value.decision is decision
+    assert raised.value.code == "full_runtime_revision_not_allowed"
+
+
+class _UnreadMaterialReader:
+    def read(self, **_: object) -> object:
+        raise AssertionError("a full run must be refused before reading saved material")
+
+
+class _FactsOnlyExecution:
+    def __init__(self, facts: ExecutionFacts) -> None:
+        self.facts = facts
+        self.calls = 0
+
+    def read_runtime_revision_facts(self, *, project_id: str, run_id: str) -> ExecutionFacts:
+        self.calls += 1
+        return self.facts
+
+
+def test_the_saved_assessment_returns_the_same_structured_full_refusal() -> None:
+    """已保存事实是档位权威来源；拒绝发生在读取任何变更材料之前。"""
+    payload = _with_runtime_revisions(
+        _with_run_tier(_with_run_control(_payload("failure"), "running"), "full"), 2
+    )
+    facts = ExecutionFacts.model_validate(payload)
+    plan = _plan(run_tier=RunTier.FULL)
+    request = RuntimeRevisionRequest(
+        base_plan_revision_id=plan.plan_id,
+        base_plan_revision_no=1,
+        base_plan_revision_digest="sha256:plan-1",
+        observed_snapshot_cursor=facts.snapshot_cursor,
+        case_changes=(_change(_case()),),
+        reason="完整验证运行中修改未执行步骤",
+        operator_ref="operator-1",
+    )
+    execution = _FactsOnlyExecution(facts)
+    decision = SavedRuntimeRevisionAssessment(
+        reader=_UnreadMaterialReader(),  # type: ignore[arg-type]
+        execution=execution,  # type: ignore[arg-type]
+    ).assess(
+        project_id=facts.project_id,
+        run_id=facts.run_id,
+        plan=plan,
+        request=request,
+    )
+    assert decision.accepted is False
+    assert _codes(decision) == {
+        RuntimeRevisionRefusalCode.FULL_RUNTIME_REVISION_NOT_ALLOWED.value
+    }
+    assert decision.new_run_required is True
+    assert decision.revision_no == 3
+    assert execution.calls == 1
+    assert facts.runtime_revision_refs == ("runtime-revision-1", "runtime-revision-2")

@@ -10,6 +10,8 @@ PROTOCOL_VERSION: Literal["aitest.local/2.0"] = "aitest.local/2.0"
 HUMAN_ACTIONS = frozenset(
     {
         "authorize_step",
+        "create_plan_grant",
+        "revoke_plan_grant",
         "revise_pending_steps",
         "narrow_driver",
         "publish_plan",
@@ -61,6 +63,8 @@ PHASE_ONE_ACTIONS = frozenset(
         "revise_pending_steps",
         "narrow_driver",
         "authorize_step",
+        "create_plan_grant",
+        "revoke_plan_grant",
         "pause_run",
         "resume_run",
         "cancel_run",

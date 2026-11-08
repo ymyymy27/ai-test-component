@@ -129,22 +129,25 @@ class SavedRuntimeRevisionActions:
         scope = acceptance_scope_from_payload(
             self._read("acceptance_scope", raw["scope_id"], raw["scope_revision"], project)
         )
+        plan_payload: dict[str, object] = {
+            "plan_id": ref.revision_id,
+            "revision": raw["revision"],
+            "record_revision": ref.revision_no,
+            "scope": _payload(scope),
+            "case_revisions": raw["case_revisions"],
+            "rule_revisions": raw["rule_revisions"],
+            "template_versions": raw["template_versions"],
+            "run_tier": raw["run_tier"],
+            "initial_driver": raw["initial_driver"],
+            "status": "published",
+            "confirmation_id": raw["approval_commit_seq"],
+        }
+        # 计划记录带覆盖契约时必须在重建中保留；`TypeAdapter(Plan)` 会把原 dict
+        # 解析成 `CoverageContract`。旧记录没有该键时保持 `None`，不补空契约。
+        if "coverage_contract" in raw:
+            plan_payload["coverage_contract"] = raw["coverage_contract"]
         return TypeAdapter(Plan).validate_json(
-            json.dumps(
-                {
-                    "plan_id": ref.revision_id,
-                    "revision": raw["revision"],
-                    "record_revision": ref.revision_no,
-                    "scope": _payload(scope),
-                    "case_revisions": raw["case_revisions"],
-                    "rule_revisions": raw["rule_revisions"],
-                    "template_versions": raw["template_versions"],
-                    "run_tier": raw["run_tier"],
-                    "initial_driver": raw["initial_driver"],
-                    "status": "published",
-                    "confirmation_id": raw["approval_commit_seq"],
-                }
-            ),
+            json.dumps(plan_payload, allow_nan=False),
             strict=True,
         )
 

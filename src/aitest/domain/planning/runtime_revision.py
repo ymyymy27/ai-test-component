@@ -6,6 +6,9 @@
   `StepRevisionRef` 落在 `application/planning/run_mode.py` 与 `execution/runner.py`）；
 - 需求 P1-FR06／FR07、P1-AC20："修改形成运行中修订只影响尚未执行的步骤，已完成步骤
   绑定原修订、不回改不重跑；正在执行的步骤拒绝修改；删必测项或弱化断言的修改被拒绝"；
+- 需求 P1-FR07／P1-AC20 与设计 7.3："完整验证运行中拒绝修改计划……任何范围、用例、
+  预期或依据变化都必须新建按需自测运行，原完整验证运行保留为历史，不改写、不删除"；
+  同一节仍允许在步骤边界收窄驱动，因此 `full` 拒绝的是**计划内容修订**，不是驱动收窄；
 - 功能文档第 10.6 节："只在步骤边界修改未执行内容；正在执行的步骤拒绝修改"；
 - `BD-001` 第 2.1 节：`RunPlanRevision` **由 C 在执行侧记录**，B 提供守卫规则。
 
@@ -258,6 +261,7 @@ class RuntimeRevisionRefusalCode(StrEnum):
     PLAN_REVISION_MISMATCH = "plan_revision_mismatch"
     STALE_SNAPSHOT = "stale_snapshot"
     RUN_NOT_ACTIVE = "run_not_active"
+    FULL_RUNTIME_REVISION_NOT_ALLOWED = "full_runtime_revision_not_allowed"
     DRIVER_EXPANSION = "driver_expansion"
     FROZEN_CASE_NOT_PROVIDED = "frozen_case_not_provided"
     FROZEN_CASE_REVISION_MISMATCH = "frozen_case_revision_mismatch"
@@ -373,6 +377,13 @@ class RuntimeRevisionRefused(ValueError):
         super().__init__(f"runtime revision refused: {codes}")
         self.decision = decision
 
+    @property
+    def code(self) -> str:
+        """首个结构化拒绝原因，供入口/界面按代码分支；不解析异常文案。"""
+        if not self.decision.refusals:
+            return "RUNTIME_REVISION_REFUSED"
+        return self.decision.refusals[0].code.value
+
 
 def _require_text(value: str, name: str) -> None:
     if not value.strip():
@@ -411,6 +422,33 @@ def assertion_basis_weakened(*, current: AssertionBasis, requested: AssertionBas
     return _BASIS_RANK[requested.state] < _BASIS_RANK[current.state]
 
 
+def full_runtime_revision_refusal(facts: RunRuntimeFacts) -> RuntimeRevisionDecision:
+    """`full` 运行拒绝计划修订的唯一结构化决策（P1-AC20）。
+
+    只产出拒绝决策：不读取、不删除也不改写任何已记录的 `RunPlanRevision`。
+    历史修订序号仍从 C 的事实派生（`runtime_revision_count + 1`），拒绝本身不归零序列。
+    `new_run_required` 表示用户要调整范围/预期/依据时须新建 `on_demand` 运行，
+    原 `full` 运行保留为历史。
+    """
+    return RuntimeRevisionDecision(
+        accepted=False,
+        revision_no=facts.runtime_revision_count + 1,
+        effective_driver=facts.driver,
+        snapshot_commit_id=facts.snapshot_commit_id,
+        snapshot_cursor=facts.snapshot_cursor,
+        refusals=(
+            RuntimeRevisionRefusal(
+                code=RuntimeRevisionRefusalCode.FULL_RUNTIME_REVISION_NOT_ALLOWED,
+                detail=(
+                    "a full run accepts no plan revision; create a new on_demand run "
+                    "and keep this run as history"
+                ),
+            ),
+        ),
+        new_run_required=True,
+    )
+
+
 def evaluate_runtime_revision(
     *,
     plan: Plan,
@@ -423,7 +461,14 @@ def evaluate_runtime_revision(
 
     运行中修订是一条不可分割的记录（`RunPlanRevision`）：任何一条门禁不过，
     整次修订都不产生，避免"一半生效"的序列无法解释。
+
+    `full` 运行在收集其他原因之前直接拒绝任何**计划内容修订**（P1-AC20）。
+    只收窄驱动不是计划修改，设计 7.3 允许它继续走正常门禁；同一次请求里
+    既改用例又收窄驱动仍按计划修订拒绝。
     """
+    if plan.run_tier is RunTier.FULL and request.case_changes:
+        return full_runtime_revision_refusal(facts)
+
     refusals: list[RuntimeRevisionRefusal] = []
 
     def refuse(code: RuntimeRevisionRefusalCode, detail: str) -> None:
@@ -710,5 +755,6 @@ __all__ = [
     "assert_runtime_revision_accepted",
     "assertion_basis_weakened",
     "evaluate_runtime_revision",
+    "full_runtime_revision_refusal",
     "step_runtime_progress",
 ]

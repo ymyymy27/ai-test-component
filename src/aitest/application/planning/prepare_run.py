@@ -21,6 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from aitest.application.execution.plan_grant import read_plan_grant_binding
 from aitest.application.planning.preparation import (
     InputRevisions,
     PreparationDecision,
@@ -267,6 +268,28 @@ def _invalidation_rules_for(changed: tuple[str, ...]) -> tuple[InvalidationRule,
     )
 
 
+def _saved_plan_grant_id(inputs: PreparationInputs, reader: RecordReader) -> str | None:
+    """准备时找到覆盖该计划修订的许可绑定；找不到就不写 ``plan_grant_id``。
+
+    绑定只是“准备时发现的许可身份”，不是许可有效性证明：执行前仍由授权链
+    按计划、范围、动作类别、凭据、环境与时间窗重新核对。绑定记录损坏时同样
+    返回 ``None``（不伪造许可），让运行回到既有逐动作确认路径。
+    """
+
+    try:
+        binding = read_plan_grant_binding(
+            reader=reader,
+            project_id=inputs.project_id,
+            workspace_id=inputs.workspace_id,
+            plan_id=inputs.plan_revision.revision_id,
+        )
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+    if binding is None or binding.plan_revision != inputs.plan_revision.revision_no:
+        return None
+    return binding.grant_id
+
+
 def _build(
     inputs: PreparationInputs,
     *,
@@ -277,6 +300,7 @@ def _build(
     status: PreparedRunStatusFact,
     blocking_reasons: tuple[BlockingReason, ...] = (),
     invalidation_rules: tuple[InvalidationRule, ...] = (),
+    plan_grant_id: str | None = None,
 ) -> PreparedRun:
     """构造一份 `PreparedRun`；缺口与阻塞原因由调用分支给出。"""
     return PreparedRun(
@@ -324,6 +348,7 @@ def _build(
         source_snippets_enabled=inputs.source_snippets_enabled,
         invalidation_rules=invalidation_rules,
         blocking_reasons=blocking_reasons,
+        plan_grant_id=plan_grant_id,
     )
 
 
@@ -355,6 +380,9 @@ def prepare_run(
     )
     digest = payload_hash(preparation_payload(inputs))
     now = clock.now()
+    # 计划级执行许可（设计 6.4/7.2）：准备时把该计划的许可身份写进快照。
+    # 这一查找不改变摘要与幂等判定，也不证明许可仍有效。
+    plan_grant_id = _saved_plan_grant_id(inputs, reader)
     if inputs.scope_id is None or not inputs.scope_id.strip():
         return _build(
             inputs,
@@ -368,6 +396,7 @@ def prepare_run(
                     code="needs_reprepare", message="A frozen scope_id is required; prepare again."
                 ),
             ),
+            plan_grant_id=plan_grant_id,
         )
 
     # 步骤 1：项目上下文缺口 → 列缺口并阻塞，不编造依赖与结论（P1-AC17）。
@@ -382,6 +411,7 @@ def prepare_run(
             blocking_reasons=tuple(
                 BlockingReason(code=gap.kind, message=gap.detail) for gap in inputs.context_gaps
             ),
+            plan_grant_id=plan_grant_id,
         )
 
     # 步骤 2：服务模板的必需源码检查登记（DEC-021）→ 缺登记即阻塞，不猜命令。
@@ -395,6 +425,7 @@ def prepare_run(
             created_at_commit=unit_of_work.commit_seq(),
             status=_STATUS_BLOCKED,
             blocking_reasons=source_check_reasons,
+            plan_grant_id=plan_grant_id,
         )
 
     # 步骤 3—4：按三元组查已有准备记录并判定。
@@ -454,6 +485,7 @@ def prepare_run(
                 ),
             ),
             invalidation_rules=_invalidation_rules_for(decision.changed_inputs),
+            plan_grant_id=plan_grant_id,
         )
 
     candidate = _build(
@@ -463,6 +495,7 @@ def prepare_run(
         created_at=now,
         created_at_commit=unit_of_work.commit_seq(),
         status=_STATUS_PREPARED,
+        plan_grant_id=plan_grant_id,
     )
     if basis_verifier is not None:
         reasons = basis_verifier(candidate)
@@ -500,6 +533,7 @@ def prepare_run(
                         code="needs_reprepare", message="Legacy preparation has no scope_id."
                     ),
                 ),
+                plan_grant_id=plan_grant_id,
             )
         if existing is not None:
             return existing
@@ -512,6 +546,7 @@ def prepare_run(
                 record.created_at_commit if record is not None else unit_of_work.commit_seq()
             ),
             status=_STATUS_PREPARED,
+            plan_grant_id=plan_grant_id,
         )
 
     # 步骤 4d—5：新建。登记准备意图并与记录同一次提交。
@@ -577,6 +612,7 @@ def prepare_run(
         created_at=now,
         created_at_commit=result.commit_seq,
         status=_STATUS_PREPARED,
+        plan_grant_id=plan_grant_id,
     )
 
 

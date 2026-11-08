@@ -1,4 +1,5 @@
-"""计划域对象的落盘形状：`Case` / `AcceptanceScope` / `ConfirmationRecord`。
+"""计划域对象的落盘形状：`Case` / `AcceptanceScope` / `ConfirmationRecord` /
+`CoverageContract`。
 
 为什么需要这一层
 ----------------
@@ -11,7 +12,8 @@
   关联项、依据文本与摘要）时，只有摘要读不出来；
 - `CHANGELOG` 与接口文档都要求"独立 Case"可作为独立记录保存与查询。
 
-因此本模块给出 `case` / `acceptance_scope` / `confirmation` 三类记录的**落盘形状**。
+因此本模块给出 `case` / `acceptance_scope` / `confirmation` 三类记录的**落盘形状**；
+`CoverageContract` 是计划 payload 中的可选子对象，旧计划没有该键时读回 `None`。
 
 记录标识约定（与既有 `rule_version` 一致）
 ----------------------------------------
@@ -52,7 +54,13 @@ from aitest.domain.planning.plans import (
     CaseLayer,
     CaseLink,
     ConfirmationRecord,
+    CoverageContract,
+    FunctionRequirement,
+    TemplateApplicability,
+    TemplateCoverage,
+    TemplateDisposition,
 )
+from aitest.domain.planning.understanding import CoverageClaim, CoverageClaimStatus
 
 # ------------------------------------------------------------------ 读取辅助
 
@@ -129,6 +137,48 @@ def _enum(enum: type[Any], payload: Mapping[str, Any], name: str) -> Any:
         return enum(raw)
     except ValueError as error:
         raise ValueError(f"{name} has an unknown value: {raw!r}") from error
+
+
+def _enum_text(enum: type[Any], value: object, name: str) -> str:
+    """写盘时把 StrEnum 成员或字符串值统一成字符串值；非法值拒绝。"""
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    try:
+        parsed = enum(value)
+    except ValueError as error:
+        raise ValueError(f"{name} has an unknown value: {value!r}") from error
+    text = parsed.value
+    if not isinstance(text, str):
+        raise ValueError(f"{name} does not use a string value")
+    return text
+
+
+def _required_text_tuple(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
+    """必需的字符串数组；缺键与空元素都拒绝（不同于可省略集合的默认空）。"""
+    if name not in payload:
+        raise ValueError(f"{name} is required")
+    return _text_tuple(payload, name)
+
+
+def _mapping_list(
+    payload: Mapping[str, Any], name: str
+) -> list[Mapping[str, Any]]:
+    value = payload.get(name)
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be a list")
+    return [
+        _require_mapping(item, f"{name}[{index}]")
+        for index, item in enumerate(value)
+    ]
+
+
+def _optional_mapping_list(
+    payload: Mapping[str, Any], name: str
+) -> list[Mapping[str, Any]]:
+    """可选对象数组；缺键时为空（只用于旧记录的兼容字段）。"""
+    if name not in payload:
+        return []
+    return _mapping_list(payload, name)
 
 
 # ------------------------------------------------------------------ CaseLink
@@ -295,11 +345,126 @@ def confirmation_from_payload(payload: Mapping[str, Any]) -> ConfirmationRecord:
     )
 
 
+# ------------------------------------------------------------------ CoverageContract
+
+
+def coverage_contract_to_payload(contract: CoverageContract) -> dict[str, object]:
+    """覆盖契约的落盘形状；集合顺序保持对象给定顺序。
+
+    `payload_digest()` 对字典键做规范排序，因此同一份契约得到稳定摘要；
+    `required_dimensions` / `critical_path_ids` 的**元素顺序**仍是契约内容的一部分，
+    本函数不做重排，保证正常构造后可以逐值 round-trip。
+
+    `coverage_claims` **只在非空时**追加：旧契约的空 claims 形状与旧 payload
+    完全一致，旧计划摘要不变。
+    """
+    payload: dict[str, object] = {
+        "contract_id": contract.contract_id,
+        "understanding_revision": contract.understanding_revision,
+        "function_requirements": [
+            {
+                "function_id": requirement.function_id,
+                "required_dimensions": list(requirement.required_dimensions),
+            }
+            for requirement in contract.function_requirements
+        ],
+        "template_dispositions": [
+            {
+                "template_item_id": disposition.template_item_id,
+                "applicability": _enum_text(
+                    TemplateApplicability,
+                    disposition.applicability,
+                    "template disposition applicability",
+                ),
+                "coverage": _enum_text(
+                    TemplateCoverage,
+                    disposition.coverage,
+                    "template disposition coverage",
+                ),
+            }
+            for disposition in contract.template_dispositions
+        ],
+        "critical_path_ids": list(contract.critical_path_ids),
+    }
+    if contract.coverage_claims:
+        payload["coverage_claims"] = [
+            {
+                "claim_id": claim.claim_id,
+                "intent_id": claim.intent_id,
+                "function_id": claim.function_id,
+                "dimension": claim.dimension,
+                "plan_revision": claim.plan_revision,
+                "status": _enum_text(
+                    CoverageClaimStatus, claim.status, "coverage claim status"
+                ),
+                "case_ids": sorted(claim.case_ids),
+            }
+            for claim in contract.coverage_claims
+        ]
+    return payload
+
+
+def coverage_contract_from_payload(payload: Mapping[str, Any]) -> CoverageContract:
+    """读回覆盖契约；枚举按字符串值解析，缺必需数组键则拒绝。"""
+    function_requirements = tuple(
+        FunctionRequirement(
+            function_id=_text(item, "function_id"),
+            required_dimensions=_required_text_tuple(item, "required_dimensions"),
+        )
+        for item in _mapping_list(payload, "function_requirements")
+    )
+    template_dispositions = tuple(
+        TemplateDisposition(
+            template_item_id=_text(item, "template_item_id"),
+            applicability=_enum(TemplateApplicability, item, "applicability"),
+            coverage=_enum(TemplateCoverage, item, "coverage"),
+        )
+        for item in _mapping_list(payload, "template_dispositions")
+    )
+    coverage_claims = tuple(
+        CoverageClaim(
+            claim_id=_text(item, "claim_id"),
+            intent_id=_text(item, "intent_id"),
+            function_id=_text(item, "function_id"),
+            dimension=_text(item, "dimension"),
+            plan_revision=_revision(item, "plan_revision"),
+            status=_enum(CoverageClaimStatus, item, "status"),
+            case_ids=_text_set(item, "case_ids"),
+        )
+        for item in _optional_mapping_list(payload, "coverage_claims")
+    )
+    return CoverageContract(
+        contract_id=_text(payload, "contract_id"),
+        understanding_revision=_revision(payload, "understanding_revision"),
+        function_requirements=function_requirements,
+        template_dispositions=template_dispositions,
+        critical_path_ids=_required_text_tuple(payload, "critical_path_ids"),
+        coverage_claims=coverage_claims,
+    )
+
+
+def plan_coverage_contract_from_payload(
+    payload: Mapping[str, Any],
+) -> CoverageContract | None:
+    """从计划 payload 读取可选覆盖契约。
+
+    旧计划记录没有 `coverage_contract` 键（或显式写 `null`）时返回 `None`；
+    键存在但不是对象、或契约内容不完整时拒绝，不把损坏记录当成"没有契约"。
+    """
+    raw = payload.get("coverage_contract")
+    if raw is None:
+        return None
+    return coverage_contract_from_payload(
+        _require_mapping(raw, "coverage_contract")
+    )
+
+
 #: 本模块负责的形状；供合同测试核对覆盖面。
 SERIALIZED_KINDS: tuple[str, ...] = (
     "case",
     "acceptance_scope",
     "case_link",
+    "coverage_contract",
 )
 
 

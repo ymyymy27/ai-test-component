@@ -18,6 +18,11 @@ from aitest.application.execution.authorization_index import (
 from aitest.application.execution.commit import ExecutionCommitCoordinator, _run_pointer_id
 from aitest.application.execution.facts import _run_fact, _step_fact
 from aitest.application.execution.frozen_plan import FrozenRunPlanReader
+from aitest.application.execution.plan_grant import (
+    PlanExecutionGrantService,
+    SavedPlanGrant,
+    plan_grant_environment_id,
+)
 from aitest.application.execution.run_record import read_run_record
 from aitest.application.execution.runtime_revision import SavedRuntimeRevisionReader
 from aitest.application.execution.start_identity import execution_start_fingerprint
@@ -55,6 +60,7 @@ from aitest.domain.execution.runs import (
     Attempt,
     Run,
     RunControlState,
+    SideEffectClass,
     Step,
     StepLevel,
     StepRevisionRef,
@@ -62,6 +68,7 @@ from aitest.domain.execution.runs import (
     attempt_start_basis,
 )
 from aitest.domain.execution.sources import ExecutionSourceVerification, SourceBindingKind
+from aitest.domain.planning.grants import grant_allows
 
 
 def _identity(prefix: str, *values: object) -> str:
@@ -217,6 +224,7 @@ class ExecutionAuthorizationService:
         action_resolver: ExecutionActionResolver | None,
         controlled_writes: ControlledWriteProof,
         runtime_origins: RuntimeRevisionOriginProof | None = None,
+        plan_grants: PlanExecutionGrantService | None = None,
     ) -> None:
         self.unit, self.records, self.workspace_id = unit, records, workspace_id
         self.reader = reader
@@ -224,6 +232,7 @@ class ExecutionAuthorizationService:
         self.source, self.environment, self.action_resolver = source, environment, action_resolver
         self.controlled_writes = controlled_writes
         self.runtime_origins = runtime_origins
+        self.plan_grants = plan_grants
 
     def _revision(self, identity: str) -> int:
         result = self.records.current_revision(
@@ -554,8 +563,23 @@ class ExecutionAuthorizationService:
         intent_id: str,
         request_id: str,
         parameters: Mapping[str, object],
-        challenge_id: str,
+        challenge_id: str | None = None,
+        grant_id: str | None = None,
     ) -> Mapping[str, object]:
+        if challenge_id is not None and grant_id is not None:
+            raise ApprovalRequired(
+                "execution consent cannot use a challenge and a plan grant at once"
+            )
+        if grant_id is not None:
+            return self._grant_from_plan_grant(
+                project_id=project_id,
+                intent_id=intent_id,
+                request_id=request_id,
+                parameters=parameters,
+                grant_id=grant_id,
+            )
+        if challenge_id is None:
+            raise ApprovalRequired("execution consent requires an exact saved challenge")
         self.approvals.require_actor(project_id)
         if (
             set(parameters) != {"execution_action_id", "record_revision"}
@@ -639,6 +663,190 @@ class ExecutionAuthorizationService:
             raise
         return _payload(action.request.authorization_ref)
 
+    def _grant_from_plan_grant(
+        self,
+        *,
+        project_id: str,
+        intent_id: str,
+        request_id: str,
+        parameters: Mapping[str, object],
+        grant_id: str,
+    ) -> Mapping[str, object]:
+        """Plan-internal action: the saved grant is the consent, not a new gesture."""
+
+        if self.plan_grants is None:
+            raise ExecutionResolutionUnavailable("plan execution grants are not configured")
+        if (
+            set(parameters) != {"execution_action_id", "record_revision", "grant_id"}
+            or not isinstance(parameters["execution_action_id"], str)
+            or not parameters["execution_action_id"].strip()
+            or type(parameters["record_revision"]) is not int
+            or parameters["record_revision"] != 1
+            or not isinstance(parameters["grant_id"], str)
+            or not parameters["grant_id"].strip()
+            or parameters["grant_id"] != grant_id
+        ):
+            raise ApprovalRequired(
+                "plan grant authorization requires exact saved action and grant identities"
+            )
+        raw, action = self.resolver.read(project_id, parameters["execution_action_id"])
+        identity = action.request.authorization_ref.authorization_id
+        if intent_id != action.request.intent_id:
+            raise ApprovalRequired("authorization business intent differs from its resolved action")
+        if self._revision(identity):
+            return self._recall_plan_grant(project_id, identity, parameters, grant_id)
+        prepared = self._current_action(project_id, raw, action)
+        saved = self._require_grant_scope(project_id, grant_id, prepared, action)
+        self._actual(prepared)
+        self.unit.begin(request_id, project_id)
+        try:
+            if self._revision(identity):
+                recalled = self._recall_plan_grant(project_id, identity, parameters, grant_id)
+                self.unit.rollback(request_id)
+                return recalled
+            current_raw, current_action = self.resolver.read(
+                project_id, parameters["execution_action_id"]
+            )
+            if current_raw != raw or current_action != action:
+                raise ApprovalRequired("resolved action changed before authorization publication")
+            prepared = self._current_action(project_id, raw, action)
+            saved = self._require_grant_scope(project_id, grant_id, prepared, action)
+            if action.attempt.side_effect_class is not SideEffectClass.READ_ONLY:
+                self.plan_grants.stage_side_effect_usage(
+                    project_id=project_id, saved=saved
+                )
+            index_revision, unused = read_authorization_index(
+                self.records, self.workspace_id, project_id, action.request.run_id
+            )
+            if identity in unused:
+                raise ApprovalRequired("unused authority already exists without its original grant")
+            self.unit.stage_record(
+                aggregate_kind="execution_authorization",
+                record_id=identity,
+                expected_revision=0,
+                payload=self._plan_grant_authorization(
+                    project_id=project_id,
+                    parameters=parameters,
+                    action=action,
+                    raw=raw,
+                    grant_id=grant_id,
+                    grant_scope_digest=saved.grant_scope_digest,
+                ),
+            )
+            self.unit.stage_record(
+                aggregate_kind="execution_authorization",
+                record_id="authorization-state:" + identity,
+                expected_revision=0,
+                payload=self._state_payload(project_id, identity, AuthorizationState.UNUSED, None),
+            )
+            stage_authorization_index(
+                self.unit,
+                self.workspace_id,
+                project_id,
+                action.request.run_id,
+                index_revision,
+                tuple(sorted((*unused, identity))),
+            )
+            self.unit.commit(request_id)
+        except BaseException:
+            self.unit.rollback(request_id)
+            raise
+        return {
+            **_payload(action.request.authorization_ref),
+            "source": "plan_grant",
+            "grant_id": grant_id,
+            "grant_scope_digest": saved.grant_scope_digest,
+        }
+
+    def _plan_grant_authorization(
+        self,
+        *,
+        project_id: str,
+        parameters: Mapping[str, object],
+        action: ResolvedExecutionAction,
+        raw: Mapping[str, Any],
+        grant_id: str,
+        grant_scope_digest: str,
+    ) -> dict[str, Any]:
+        """The 1.2 shape keeps the 1.1 action fields and adds its grant source."""
+
+        return {
+            "schema_version": "aitest.action-authorization/1.2",
+            "project_id": project_id,
+            "workspace_id": self.workspace_id,
+            "source": "plan_grant",
+            "parameters": dict(parameters),
+            "authorization_ref": _payload(action.request.authorization_ref),
+            "grant_id": grant_id,
+            "grant_scope_digest": grant_scope_digest,
+            "input_digest": _digest(raw),
+            "authorization_index_id": authorization_index_id(
+                self.workspace_id, project_id, action.request.run_id
+            ),
+        }
+
+    def _recall_plan_grant(
+        self,
+        project: str,
+        identity: str,
+        parameters: Mapping[str, object],
+        grant_id: str,
+    ) -> Mapping[str, object]:
+        original, action = self._origin(project, identity)
+        if (
+            original.get("schema_version") != "aitest.action-authorization/1.2"
+            or original.get("source") != "plan_grant"
+            or original.get("parameters") != dict(parameters)
+            or original.get("grant_id") != grant_id
+        ):
+            raise ApprovalConflict("authorization intent has different saved input or plan grant")
+        return {
+            **_payload(action.request.authorization_ref),
+            "source": "plan_grant",
+            "grant_id": grant_id,
+            "grant_scope_digest": original["grant_scope_digest"],
+        }
+
+    def _saved_plan_grant(self, project: str, grant_id: str) -> SavedPlanGrant:
+        if self.plan_grants is None:
+            raise ApprovalRequired("plan execution grants are not configured")
+        return self.plan_grants.read(project_id=project, grant_id=grant_id)
+
+    def _require_grant_scope(
+        self,
+        project: str,
+        grant_id: str,
+        prepared: PreparedRun,
+        action: ResolvedExecutionAction,
+    ) -> SavedPlanGrant:
+        """Recheck plan/understanding/scope/action class, not only the record digest."""
+
+        if self.plan_grants is None:
+            raise ApprovalRequired("plan execution grants are not configured")
+        saved = self._saved_plan_grant(project, grant_id)
+        plan = FrozenRunPlanReader(self.records).read(prepared).plan
+        self.plan_grants.require_action_allowed(
+            project_id=project,
+            saved=saved,
+            plan=plan,
+            prepared=prepared,
+            action=action,
+        )
+        return saved
+
+    def _require_plan_grant_current(
+        self,
+        project: str,
+        grant: Mapping[str, Any],
+        prepared: PreparedRun,
+        action: ResolvedExecutionAction,
+    ) -> None:
+        """1.1 keeps its challenge origin; only 1.2 rechecks the saved plan grant."""
+
+        if grant.get("schema_version") != "aitest.action-authorization/1.2":
+            return
+        self._require_grant_scope(project, grant["grant_id"], prepared, action)
+
     def source_at_start(
         self, *, project_id: str, attempt: Attempt
     ) -> tuple[ExecutionSourceVerification | None, CodeIdentity | None]:
@@ -670,12 +878,109 @@ class ExecutionAuthorizationService:
             raise ApprovalConflict("authorization intent has different saved input or challenge")
         return _payload(action.request.authorization_ref)
 
+    def _origin_history(
+        self, project: str, identity: str
+    ) -> tuple[dict[str, Any], ResolvedExecutionAction]:
+        """Read a saved 1.2 authorization for revoke/occupation history, not new use."""
+
+        try:
+            grant = self._read(project, identity, 1)
+        except (ApprovalRequired, ValueError, KeyError, OSError, TypeError):
+            # Legacy fixtures expose the origin only through ``_origin``.
+            return self._origin(project, identity)
+        if grant.get("schema_version") == "aitest.action-authorization/1.2":
+            return self._origin_plan_grant(project, identity, grant, require_current=False)
+        return self._origin(project, identity)
+
+    def _origin_plan_grant(
+        self, project: str, identity: str, grant: dict[str, Any], *, require_current: bool
+    ) -> tuple[dict[str, Any], ResolvedExecutionAction]:
+        """1.2 reads the saved grant; it never invents or reads a confirmation."""
+
+        if self.plan_grants is None:
+            raise ApprovalRequired("plan execution grants are not configured")
+        if set(grant) != {
+            "schema_version",
+            "project_id",
+            "workspace_id",
+            "source",
+            "parameters",
+            "authorization_ref",
+            "grant_id",
+            "grant_scope_digest",
+            "input_digest",
+            "authorization_index_id",
+        }:
+            raise ApprovalRequired("original plan-grant authorization has unknown fields")
+        parameters = grant["parameters"]
+        if (
+            not isinstance(parameters, dict)
+            or set(parameters) != {"execution_action_id", "record_revision", "grant_id"}
+            or not isinstance(parameters["execution_action_id"], str)
+            or not parameters["execution_action_id"].strip()
+            or type(parameters["record_revision"]) is not int
+            or parameters["record_revision"] != 1
+            or not isinstance(parameters["grant_id"], str)
+            or not parameters["grant_id"].strip()
+            or grant["source"] != "plan_grant"
+            or grant["grant_id"] != parameters["grant_id"]
+        ):
+            raise ApprovalRequired("original plan-grant authorization is malformed")
+        raw, action = self.resolver.read(project, parameters["execution_action_id"])
+        saved = self.plan_grants.read(project_id=project, grant_id=grant["grant_id"])
+        expected_plan = action.attempt.expected_plan_revision_ref
+        if (
+            identity != action.request.authorization_ref.authorization_id
+            or grant["authorization_ref"] != _payload(action.request.authorization_ref)
+            or grant["input_digest"] != _digest(raw)
+            or grant["grant_scope_digest"] != saved.grant_scope_digest
+            or grant["authorization_index_id"]
+            != authorization_index_id(self.workspace_id, project, action.request.run_id)
+            or expected_plan is None
+            or expected_plan.revision_no != saved.grant.plan_revision
+            or saved.grant.credential_scope_ref
+            != action.request.authorization_ref.credential_scope_ref
+            or saved.grant.environment_id
+            != plan_grant_environment_id(action.request.environment_ref)
+            or action.attempt.side_effect_class.value not in saved.grant.allowed_action_classes
+        ):
+            raise ApprovalRequired("plan-grant authorization differs from its exact saved grant")
+        _, state, _occupied = self._state(project, identity)
+        # New use of an unused authorization must still be covered now. An occupied
+        # attempt is an already-authorized historical execution and remains readable.
+        if (
+            require_current
+            and state is AuthorizationState.UNUSED
+            and not grant_allows(
+                saved.grant,
+                action_class=action.attempt.side_effect_class.value,
+                credential_scope_ref=action.request.authorization_ref.credential_scope_ref,
+                environment_id=plan_grant_environment_id(action.request.environment_ref),
+                now=self.plan_grants.now(),
+            )
+        ):
+            raise ApprovalRequired("plan grant is revoked, expired or no longer covers this action")
+        references = tuple(
+            TypeAdapter(tuple[ApprovalMaterialRef, ...]).validate_json(
+                json.dumps(raw["materials"]), strict=True
+            )
+        )
+        for ref in references:
+            body = self.resolver.materials._read(
+                ref.aggregate_kind, ref.record_id, ref.record_revision, project
+            )
+            if _digest(body) != ref.digest:
+                raise ApprovalRequired("original execution material cannot be verified")
+        return grant, action
+
     def _origin(
         self, project: str, identity: str
     ) -> tuple[dict[str, Any], ResolvedExecutionAction]:
         if self._revision(identity) != 1:
             raise ApprovalRequired("original immutable execution authorization is unavailable")
         grant = self._read(project, identity, 1)
+        if grant.get("schema_version") == "aitest.action-authorization/1.2":
+            return self._origin_plan_grant(project, identity, grant, require_current=True)
         indexed = grant.get("schema_version") == "aitest.action-authorization/1.1"
         if set(grant) != {
             "schema_version",
@@ -792,19 +1097,23 @@ class ExecutionAuthorizationService:
         require_unused(state, occupied)
         self._require_indexed(project_id, grant, action)
         action_id = _identity("execution-action-", self.workspace_id, project_id, attempt.intent_id)
-        parameters = {
-            "execution_action_id": action_id,
-            "record_revision": 1,
-        }
-        self.resolver.resolve(
-            project_id=project_id,
-            intent_id=attempt.intent_id,
-            action="authorize_step",
-            target=attempt.step_id,
-            parameters=parameters,
-        )
-        raw, _ = self.resolver.read(project_id, action_id)
+        if grant.get("schema_version") == "aitest.action-authorization/1.2":
+            raw, _ = self.resolver.read(project_id, action_id)
+        else:
+            parameters = {
+                "execution_action_id": action_id,
+                "record_revision": 1,
+            }
+            self.resolver.resolve(
+                project_id=project_id,
+                intent_id=attempt.intent_id,
+                action="authorize_step",
+                target=attempt.step_id,
+                parameters=parameters,
+            )
+            raw, _ = self.resolver.read(project_id, action_id)
         prepared = self._current_action(project_id, raw, action)
+        self._require_plan_grant_current(project_id, grant, prepared, action)
         self._actual(prepared)
 
     def stage_occupation(
@@ -827,15 +1136,17 @@ class ExecutionAuthorizationService:
             raise ApprovalRequired("start attempt differs from its original authorization")
         revision, state, occupied = self._state(project_id, identity)
         require_unused(state, occupied)
-        self.resolver.resolve(
-            project_id=project_id,
-            intent_id=attempt.intent_id,
-            action="authorize_step",
-            target=attempt.step_id,
-            parameters=grant["parameters"],
-        )
+        if grant.get("schema_version") != "aitest.action-authorization/1.2":
+            self.resolver.resolve(
+                project_id=project_id,
+                intent_id=attempt.intent_id,
+                action="authorize_step",
+                target=attempt.step_id,
+                parameters=grant["parameters"],
+            )
         raw, _ = self.resolver.read(project_id, grant["parameters"]["execution_action_id"])
-        self._current_action(project_id, raw, action)
+        prepared = self._current_action(project_id, raw, action)
+        self._require_plan_grant_current(project_id, grant, prepared, action)
         removed = self._stage_revocations(
             project_id=project_id,
             run_id=attempt.run_id,
@@ -870,7 +1181,10 @@ class ExecutionAuthorizationService:
     def _require_indexed(
         self, project: str, grant: Mapping[str, Any], action: ResolvedExecutionAction
     ) -> tuple[int, tuple[str, ...]]:
-        if grant.get("schema_version") != "aitest.action-authorization/1.1":
+        if grant.get("schema_version") not in {
+            "aitest.action-authorization/1.1",
+            "aitest.action-authorization/1.2",
+        }:
             raise ApprovalRequired("legacy authorization requires new resolution and consent")
         revision, unused = read_authorization_index(
             self.records, self.workspace_id, project, action.request.run_id, required=True
@@ -893,7 +1207,7 @@ class ExecutionAuthorizationService:
         for identity in unused:
             if identity == except_id:
                 continue
-            grant, action = self._origin(project_id, identity)
+            grant, action = self._origin_history(project_id, identity)
             if action.request.run_id != run_id or grant.get(
                 "authorization_index_id"
             ) != authorization_index_id(self.workspace_id, project_id, run_id):
@@ -993,10 +1307,13 @@ class ExecutionAuthorizationService:
                     raise ApprovalConflict("authorization revocation intent has different input")
                 self.unit.rollback(request_id)
                 return
-            grant, action = self._origin(project_id, authorization_id)
+            grant, action = self._origin_history(project_id, authorization_id)
             index = (
                 self._require_indexed(project_id, grant, action)
-                if grant["schema_version"] == "aitest.action-authorization/1.1"
+                if grant["schema_version"] in {
+                    "aitest.action-authorization/1.1",
+                    "aitest.action-authorization/1.2",
+                }
                 else None
             )
             revision, state, occupied = self._state(project_id, authorization_id)

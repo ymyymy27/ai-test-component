@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "updated_at": "2026-10-11",
+  "updated_at": "2026-11-07",
   "baseline_commit": "204445f9f8561fe365f1f528b22d3a86f3bbb963",
   "scope": "product_acceptance_not_scaffold_tests",
   "update_rules": {
@@ -837,8 +837,8 @@
       "id": "P1-AC20",
       "owner": "B",
       "result": "blocked",
-      "scenario": "运行执行到一半时修改尚未执行的用例、尝试修改正在执行的用例、尝试从逐步驱动切回计划驱动，并注入\"修改使已完成步骤依据失效\"",
-      "expected": "修改形成运行中修订只影响尚未执行的步骤，已完成步骤绑定原修订、不回改不重跑；正在执行的步骤拒绝修改；反向切换被拒绝并提示新建运行；依据失效时暂停并列出需重跑的用例，报告中标注依据已过期且保留历史原始结论，当前完整通过不得使用失效依据；删除必测项或弱化断言的修改被拒绝；**基础计划修订与运行中修订序列都可查**",
+      "scenario": "完整验证运行到一半时尝试修改尚未执行的用例、修改正在执行的用例、从逐步驱动切回计划驱动；另以按需自测运行修改未执行用例，并注入\"修改使已完成步骤依据失效\"",
+      "expected": "完整验证运行中拒绝任何计划修改并提示新建按需自测运行，原运行保留为历史；按需自测允许在步骤边界修改未执行用例，形成运行中修订只影响尚未执行的步骤，已完成步骤绑定原修订、不回改不重跑；正在执行的步骤任何档位都拒绝修改；反向切换被拒绝并提示新建运行；依据失效时暂停并列出需重跑的用例，报告中标注依据已过期且保留历史原始结论，当前完整通过不得使用失效依据；删除必测项或弱化断言的修改被拒绝；**基础计划修订与运行中修订序列都可查**",
       "related_frs": [
         "P1-FR06",
         "P1-FR07",
@@ -846,7 +846,8 @@
         "P1-FR14"
       ],
       "prerequisites": [
-        "一次真实运行，执行到一半后修改尚未执行的用例",
+        "一次完整验证运行，执行到一半后尝试修改计划被拒绝",
+        "一次按需自测运行，执行到一半后修改尚未执行的用例",
         "正在执行步骤的拒绝修改路径（步骤级执行事实）",
         "运行中修订序列与基础计划修订序列都可查",
         "依据失效时暂停并列出需重跑用例的编排"
@@ -858,10 +859,10 @@
       "actual": null,
       "evidence": {
         "path": null,
-        "description": "待补：运行中修订记录、正在执行步骤的拒绝结果、依据失效后的暂停与重跑清单",
+        "description": "待补：完整验证拒绝修改结果、按需自测运行中修订记录、正在执行步骤的拒绝结果、依据失效后的暂停与重跑清单",
         "method": "running_revision_sequence_assertion"
       },
-      "unverified_reason": "该项必须在『一半已执行』的真实运行上判定。运行中修订动作已实现并注册（revise_pending_steps/narrow_driver，application/execution/runtime_actions.py；SavedRuntimeRevisionActions 由默认装配注入），但仍无法构造输入：默认装配无真实执行端口，产生不了有步骤级执行事实的半程运行。故仍记 blocked 而非 not_verified。",
+      "unverified_reason": "该项必须在『一半已执行』的真实运行上判定。运行中修订动作已实现并注册（revise_pending_steps/narrow_driver，application/execution/runtime_actions.py；SavedRuntimeRevisionActions 由默认装配注入），但仍无法构造输入：默认装配无真实执行端口，产生不了有步骤级执行事实的半程运行。故仍记 blocked 而非 not_verified。 本项已按 A 方案修订：完整验证运行中拒绝修改计划，运行中修订仅适用于按需自测；该分支尚未实现/验证，故仍记 blocked。",
       "blockers": [
         {
           "kind": "execution_facts",
@@ -1021,8 +1022,8 @@
       "id": "P1-AC24",
       "owner": "C",
       "result": "untested",
-      "scenario": "模板必测/关键链路漏项、无清单、缺独立核验、缺请求标识与日志；多步骤用例含跨运行继承和本轮新Attempt",
-      "expected": "完整验证开始前门禁拒绝漏项/清单缺失；运行中缺口保持原档位并不得通过；补无关项不能抵消漏项；缺核验不计已验证，人工关联如实标证据级别；按用例必需步骤聚合，本轮部分执行与历史继承不得计整用例E/R/V；界面保留步骤事实和待补执行，不伪造全用例执行",
+      "scenario": "模板项处置缺失/关键链路漏项、无业务功能清单、清单含 unknown/unsupported、功能缺少必要维度、缺独立核验、缺请求标识与日志；多步骤用例含跨运行继承和本轮新Attempt",
+      "expected": "完整验证开始前门禁拒绝模板项处置缺失、业务功能清单缺失、unknown/未支持范围、功能×必要维度未覆盖；运行中缺口保持原档位并不得通过；补无关项不能抵消漏项；功能级“已验证”只在全部必要维度有效时成立，部分覆盖显示缺口；缺核验不计已验证，人工关联如实标证据级别；按用例必需步骤聚合，本轮部分执行与历史继承不得计整用例E/R/V；界面保留步骤事实和待补执行，不伪造全用例执行",
       "related_frs": [
         "P1-FR04",
         "P1-FR06",
@@ -1031,7 +1032,7 @@
         "P1-FR14"
       ],
       "prerequisites": [
-        "模板必测/关键链路漏项、无清单、缺独立核验、缺请求标识与日志四种输入的注入",
+        "模板项处置缺失/关键链路漏项、无业务功能清单、unknown/未支持范围、功能×必要维度未覆盖的注入",
         "多步骤用例含跨运行继承和本轮新 Attempt 的真实运行"
       ],
       "artifact_versions": [
@@ -1044,7 +1045,7 @@
         "description": null,
         "method": "case_aggregation_assertion"
       },
-      "unverified_reason": "『缺独立核验拒绝』『full 必须含全部必测』『E/R/V 互斥、部分本轮执行与历史继承不计整用例』『冻结步骤依据校验』都已具备；但证据要求到事实只是 id 投影，『请求标识/日志缺失』只有 EvidenceGapKind.MISSING_REQUEST_ID 枚举而无生产者，且无真实执行。",
+      "unverified_reason": "『缺独立核验拒绝』『full 必须含全部必测』『E/R/V 互斥、部分本轮执行与历史继承不计整用例』『冻结步骤依据校验』都已具备；但证据要求到事实只是 id 投影，『请求标识/日志缺失』只有 EvidenceGapKind.MISSING_REQUEST_ID 枚举而无生产者，且无真实执行。 业务功能清单与功能×必要维度门禁尚未实现，AC24 已按新合同扩展。",
       "blockers": [
         {
           "kind": "execution_facts",
@@ -1323,8 +1324,8 @@
       "id": "P1-AC31",
       "owner": "B",
       "result": "not_verified",
-      "scenario": "两个独立验收范围、模板漏项、启动前集中逐项授权、授权后输入变化；MCP伪造用户确认、挑战错配与重复确认",
-      "expected": "完整通过只对应已发布验收范围，不显示全项目通过；不允许删必测/缩范围规避门禁；每个副作用动作单独有确认记录，输入/目标/凭据范围变化原授权失效；计划确认不替代授权；agent_relay不能提交人工确认；仅受控用户交互且动作摘要/来源会话/修订匹配才能生效；重复确认返回原记录，输入变化须新挑战，不接受参数自报角色",
+      "scenario": "两个独立验收范围、模板项处置缺失、一次计划确认生成计划级许可、许可内自动执行、越界动作逐项确认、授权后输入变化；MCP伪造用户确认、挑战错配与重复确认",
+      "expected": "完整通过只对应已发布验收范围，不显示全项目通过；不允许删必测/缩范围规避门禁；一次计划确认生成独立 PlanExecutionGrant，并为每个副作用动作保留 ActionAuthorization 记录；计划内且许可内动作自动执行，越界动作逐项确认；授权来源区分 plan_grant 与 human_confirmation；输入/目标/凭据范围变化原授权失效；计划确认不替代授权记录；agent_relay不能提交人工确认；仅受控用户交互且动作摘要/来源会话/修订匹配才能生效；重复确认返回原记录，输入变化须新挑战，不接受参数自报角色",
       "related_frs": [
         "P1-FR04",
         "P1-FR06",
@@ -1333,22 +1334,23 @@
       ],
       "prerequisites": [
         "两个独立验收范围与一次模板漏项注入",
-        "启动前集中逐项授权，以及授权后输入/目标/凭据范围变化的失效注入",
-        "受控交互入口与 MCP relay 上的三条反例（伪造确认/挑战错配/重复确认）",
-        "每个副作用动作的独立确认记录落盘"
+        "一次计划确认生成 PlanExecutionGrant，并为每个副作用动作保留 ActionAuthorization 记录",
+        "许可内动作自动执行与越界动作逐项确认",
+        "授权后输入/目标/凭据范围变化的失效注入",
+        "受控交互入口与 MCP relay 上的三条反例（伪造确认/挑战错配/重复确认）"
       ],
       "artifact_versions": [
         "档位/驱动/结论上限（contracts/prepared_run.py）",
         "授权命令（contracts/commands.py）",
         "确认记录（domain/approvals.py）"
       ],
-      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。确认记录、MCP 反例与真实副作用动作均未接通。",
+      "actual": "未执行。『完整通过只对应已发布验收范围』『不得删必测或缩范围规避门禁』的纯规则已有测试（tests/unit/test_phase_one_rules.py、tests/unit/test_plans.py）；『计划确认不替代逐项授权』在领域层分离。确认记录、MCP 反例与真实副作用动作均未接通。 计划级 PlanExecutionGrant 与按许可生成 ActionAuthorization 尚未实现，现有实现仍为逐动作确认路径。",
       "evidence": {
         "path": null,
-        "description": "待补：每个动作的确认记录、变更后原授权失效的记录、MCP 三条反例的拒绝结果",
+        "description": "待补：计划级许可、每个动作的 ActionAuthorization、变更后原授权失效的记录、MCP 三条反例的拒绝结果",
         "method": "per_action_authorization_assertion"
       },
-      "unverified_reason": "档位与范围规则、计划确认与逐项授权分离、prepare_approval/revoke_approval/authorize_step 注册均已具备，MCP relay（interfaces/tools/agent_relay.py，440 行）与 stdio 测试也存在；但缺真实副作用执行与真实受控入口，无法证明每个动作都有独立确认记录且原授权可失效。",
+      "unverified_reason": "档位与范围规则、计划确认与逐项授权分离、prepare_approval/revoke_approval/authorize_step 注册均已具备，MCP relay（interfaces/tools/agent_relay.py，440 行）与 stdio 测试也存在；但缺真实副作用执行与真实受控入口，无法证明每个动作都有独立确认记录且原授权可失效。 AC31 已按计划级许可 + 逐动作 ActionAuthorization 记录修订；该实现尚未接通。",
       "blockers": [
         {
           "kind": "execution_facts",
