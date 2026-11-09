@@ -1,0 +1,186 @@
+"""One publish_plan confirmation also derives the execution grant and basis links."""
+
+from __future__ import annotations
+
+from aitest.application.planning.publish import payload_digest
+from aitest.contracts.commands import Command
+from aitest.interfaces.local.api import EntryKind, Session
+from tests.support.controlled_publication import (
+    controlled_publication_save,
+    prepare_publication,
+)
+from tests.unit.test_authoritative_preparation import authoritative as authoritative
+
+
+def _publication_material(core, inputs):
+    repo = core.unit_of_work.repo
+    plan = repo.read(
+        aggregate_kind="plan",
+        record_id=inputs.plan_revision.revision_id,
+        revision=1,
+    ).payload
+    scope = repo.read(
+        aggregate_kind="acceptance_scope",
+        record_id=plan["scope_id"],
+        revision=plan["scope_revision"],
+    ).payload
+    cases = [
+        repo.read(
+            aggregate_kind="case",
+            record_id=ref["case_id"],
+            revision=ref["revision"],
+        ).payload
+        for ref in plan["case_revisions"]
+    ]
+    return plan, scope, cases
+
+
+def _grant_scope() -> dict[str, object]:
+    return {
+        "allowed_action_classes": ["read_only"],
+        "credential_scope_ref": "none",
+        "environment_id": "env-local",
+        "risk_class": "low",
+        "understanding_revision": 1,
+    }
+
+
+def test_publish_plan_with_grant_saves_plan_grant_and_every_basis(authoritative):
+    core, inputs, _ = authoritative
+    _, scope, cases = _publication_material(core, inputs)
+    project = inputs.project_id
+    parameters = {
+        "plan_id": "plan-with-grant",
+        "revision": 1,
+        "scope": scope,
+        "cases": cases,
+        "plan_grant": _grant_scope(),
+    }
+
+    saved = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=project,
+        parameters=parameters,
+        request="grant-publication-request",
+        intent="grant-publication-intent",
+    )
+    assert saved.error is None, saved.error
+    result = saved.result
+    assert result["plan_confirmation_id"]
+    assert result["grant_id"]
+    assert len(result["basis_confirmation_ids"]) == len(cases)
+    assert {item["case_id"] for item in result["basis_confirmations"]} == {
+        case["case_id"] for case in cases
+    }
+    for item in result["basis_confirmations"]:
+        assert item["confirmed_at_commit"] == result["approval_commit_seq"]
+
+    repo = core.unit_of_work.repo
+    plan = repo.read(
+        aggregate_kind="plan",
+        record_id="plan-with-grant",
+        revision=result["plan_record_revision"],
+    ).payload
+    assert plan["approval_action"] == "publish_plan"
+    assert plan["approval_confirmation_id"] == result["plan_confirmation_id"]
+    assert plan["approval_parameters"]["plan_grant"]["allowed_action_classes"] == [
+        "read_only"
+    ]
+
+    grant = repo.read(
+        aggregate_kind="plan_execution_grant",
+        record_id=result["grant_id"],
+        revision=1,
+    ).payload
+    assert grant["plan_id"] == "plan-with-grant"
+    assert grant["grant"]["plan_revision"] == result["plan_record_revision"]
+    assert grant["grant"]["scope_digest"] == payload_digest(dict(scope))
+
+    for confirmation_id in result["basis_confirmation_ids"]:
+        link = repo.read(
+            aggregate_kind="case_link", record_id=confirmation_id, revision=1
+        ).payload
+        assert link["plan_confirmation_id"] == result["plan_confirmation_id"]
+        assert link["plan_id"] == "plan-with-grant"
+        assert link["plan_revision"] == result["plan_record_revision"]
+
+
+def test_changing_grant_scope_after_the_challenge_is_refused(authoritative):
+    core, inputs, _ = authoritative
+    _, scope, cases = _publication_material(core, inputs)
+    project = inputs.project_id
+    command = Command(
+        action="publish_plan",
+        project_id=project,
+        request_id="grant-tamper-request",
+        intent_id="grant-tamper-intent",
+        expected_revision=0,
+        parameters={
+            "project_revision": 1,
+            "expected_revision": 0,
+            "plan_id": "plan-grant-tampered",
+            "revision": 1,
+            "scope": scope,
+            "cases": cases,
+            "plan_grant": _grant_scope(),
+        },
+    )
+    session = Session("grant-tamper-session", EntryKind.HUMAN_UI, True)
+    challenge = prepare_publication(core, command, session)
+    assert challenge.error is None, challenge.error
+
+    tampered = dict(command.parameters)
+    tampered["plan_grant"] = dict(_grant_scope()) | {"risk_class": "high"}
+    refused = core.api.dispatch_user_confirmation(
+        command.model_copy(
+            update={
+                "request_id": "grant-tamper-approved",
+                "parameters": tampered
+                | {"approval_challenge_id": challenge.result["challenge_id"]},
+            }
+        ),
+        session,
+        challenge_id=challenge.result["challenge_id"],
+        input_digest=challenge.result["basis"]["input_digest"],
+    )
+    assert refused.error is not None
+    assert core.unit_of_work.repo.current_revision(
+        aggregate_kind="plan", record_id="plan-grant-tampered"
+    ) == 0
+
+
+def test_retransmitting_the_same_plan_confirmation_returns_the_same_records(authoritative):
+    core, inputs, _ = authoritative
+    _, scope, cases = _publication_material(core, inputs)
+    project = inputs.project_id
+    parameters = {
+        "plan_id": "plan-with-grant-replay",
+        "revision": 1,
+        "scope": scope,
+        "cases": cases,
+        "plan_grant": _grant_scope(),
+    }
+    first = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=project,
+        parameters=parameters,
+        request="grant-replay-request",
+        intent="grant-replay-intent",
+    )
+    assert first.error is None, first.error
+    seq = core.unit_of_work.current_commit_sequence()
+    second = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=project,
+        parameters=parameters,
+        request="grant-replay-request-2",
+        intent="grant-replay-intent",
+    )
+    assert second.error is None, second.error
+    assert second.result["plan_confirmation_id"] == first.result["plan_confirmation_id"]
+    assert second.result["grant_id"] == first.result["grant_id"]
+    assert second.result["basis_confirmation_ids"] == first.result["basis_confirmation_ids"]
+    assert core.unit_of_work.current_commit_sequence() == seq

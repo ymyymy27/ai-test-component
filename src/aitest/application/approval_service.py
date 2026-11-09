@@ -573,6 +573,66 @@ class ApprovalService:
         ):
             raise ApprovalRequired("basis confirmation differs from its frozen user consent")
 
+    def validate_plan_basis_confirmation(
+        self, *, project_id: str, payload: Mapping[str, object]
+    ) -> None:
+        """Validate a per-case basis link against one controlled plan confirmation.
+
+        The plan publication challenge embeds the complete case payloads (including
+        assertion basis). A case link can therefore reference that one plan
+        confirmation instead of inventing a second per-case consent.
+        """
+        plan_confirmation_id = payload.get("plan_confirmation_id")
+        plan_id = payload.get("plan_id")
+        plan_revision = payload.get("plan_revision")
+        if (
+            not isinstance(plan_confirmation_id, str)
+            or not plan_confirmation_id
+            or not isinstance(plan_id, str)
+            or not plan_id
+            or type(plan_revision) is not int
+            or plan_revision < 1
+        ):
+            raise ApprovalRequired("plan basis confirmation needs its exact plan proof")
+        try:
+            saved = self.records.read(
+                aggregate_kind="plan", record_id=plan_id, revision=plan_revision
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("the exact plan proof is unavailable") from error
+        raw = getattr(saved, "payload", None)
+        if (
+            getattr(saved, "aggregate_kind", None),
+            getattr(saved, "record_id", None),
+            getattr(saved, "revision", None),
+        ) != ("plan", plan_id, plan_revision) or not isinstance(raw, Mapping):
+            raise ApprovalRequired("plan proof envelope cannot be verified")
+        if (
+            raw.get("project_id") != project_id
+            or raw.get("workspace_id") != self.workspace_id
+            or raw.get("plan_id") != plan_id
+            or raw.get("approval_action") != "publish_plan"
+            or raw.get("approval_confirmation_id") != plan_confirmation_id
+            or raw.get("approval_commit_seq") != payload.get("confirmed_at_commit")
+        ):
+            raise ApprovalRequired("plan basis confirmation differs from its plan consent")
+        parameters = raw.get("approval_parameters")
+        cases = parameters.get("cases") if isinstance(parameters, Mapping) else None
+        if not isinstance(cases, (list, tuple)):
+            raise ApprovalRequired("plan consent has no frozen case material")
+        for case in cases:
+            if not isinstance(case, Mapping) or case.get("case_id") != payload.get("case_id"):
+                continue
+            basis = case.get("assertion_basis")
+            if (
+                isinstance(basis, Mapping)
+                and case.get("revision") == payload.get("case_revision")
+                and basis.get("revision") == payload.get("basis_revision")
+                and basis.get("text_digest") == payload.get("basis_text_digest")
+            ):
+                return
+        raise ApprovalRequired("plan basis confirmation differs from its frozen case material")
+
     def _confirmed(
         self, project: str, identity: str, fingerprint: str
     ) -> ActionConfirmation | None:

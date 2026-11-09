@@ -16,10 +16,18 @@ from aitest.application.planning.serialization import (
 from aitest.application.ports import BasisConfirmationProof, RecordRepository
 from aitest.domain.planning.plans import ConfirmationRecord
 
-_FIELDS = {
+_LEGACY_FIELDS = {
     "project_id", "confirmation_id", "case_id", "basis_revision", "basis_text_digest",
     "confirmed_at_commit", "case_revision", "input_digest", "intent_id", "request_id",
     "approval_confirmation_id",
+}
+_PLAN_FIELDS = (_LEGACY_FIELDS - {"approval_confirmation_id"}) | {
+    "plan_confirmation_id", "plan_id", "plan_revision",
+}
+_PLAN_STRING_FIELDS = {
+    "project_id", "confirmation_id", "case_id", "basis_text_digest",
+    "confirmed_at_commit", "input_digest", "intent_id", "request_id",
+    "plan_confirmation_id", "plan_id",
 }
 _CONFIRMATION = TypeAdapter(ConfirmationRecord)
 
@@ -51,25 +59,30 @@ class SavedCaseBasisReader:
         if type(revision) is not int or revision != 1:
             raise ValueError("basis confirmation must remain immutable at warehouse revision 1")
         raw = self._read(project_id, "case_link", confirmation_id, 1)
-        if set(raw) != _FIELDS or any(
+        plan_proof = set(raw) == _PLAN_FIELDS
+        if set(raw) != (_PLAN_FIELDS if plan_proof else _LEGACY_FIELDS) or any(
             not isinstance(raw[key], str) or not cast(str, raw[key]).strip()
-            for key in _FIELDS - {"basis_revision", "case_revision"}
+            for key in (_PLAN_STRING_FIELDS if plan_proof
+                        else _LEGACY_FIELDS - {"basis_revision", "case_revision"})
         ) or any(type(raw[key]) is not int or cast(int, raw[key]) < 1 for key in (
-            "basis_revision", "case_revision",
+            "basis_revision", "case_revision", *(["plan_revision"] if plan_proof else []),
         )):
             raise ValueError("basis confirmation needs complete strict controlled material")
         confirmation = _CONFIRMATION.validate_json(json.dumps({
             key: raw[key] for key in ConfirmationRecord.__dataclass_fields__
         }), strict=True)
+        expected_inputs: list[object] = [
+            project_id, confirmation.case_id, raw["case_revision"],
+            confirmation.basis_revision, confirmation.basis_text_digest,
+        ]
+        if plan_proof:
+            expected_inputs.extend([raw["plan_confirmation_id"], raw["plan_revision"]])
         if (
             confirmation.confirmation_id != confirmation_id
             or confirmation_id != "confirmation-" + payload_digest([
                 project_id, raw["intent_id"],
             ])[7:]
-            or raw["input_digest"] != payload_digest([
-                project_id, confirmation.case_id, raw["case_revision"],
-                confirmation.basis_revision, confirmation.basis_text_digest,
-            ])
+            or raw["input_digest"] != payload_digest(expected_inputs)
             or payload_digest({key: raw[key] for key in (
                 "project_id", *ConfirmationRecord.__dataclass_fields__,
             )}) != payload_digest(confirmation_to_payload(confirmation, project_id=project_id))
@@ -88,5 +101,8 @@ class SavedCaseBasisReader:
             or text_digest(case.assertion_basis.text) != confirmation.basis_text_digest
         ):
             raise ValueError("basis confirmation differs from its original exact case content")
-        self.proof.validate_basis_confirmation(project_id=project_id, payload=raw)
+        if plan_proof:
+            self.proof.validate_plan_basis_confirmation(project_id=project_id, payload=raw)
+        else:
+            self.proof.validate_basis_confirmation(project_id=project_id, payload=raw)
         return confirmation

@@ -55,7 +55,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import wraps
@@ -93,6 +93,10 @@ from aitest.application.planning.persistence import (
     save_rule_draft,
 )
 from aitest.application.planning.plan_builder import build_plan
+from aitest.application.planning.plan_confirmation import (
+    PlanConfirmationError,
+    PlanConfirmationService,
+)
 from aitest.application.planning.portable import (
     RULE_PORTABLE_FIELDS,
     export_rule_payloads,
@@ -955,6 +959,7 @@ class BUseCaseDependencies:
     source_analysis: SourceAnalysisService | None = None
     project_understanding: ProjectUnderstandingService | None = None
     basis_confirmations: BasisConfirmationService | None = None
+    plan_confirmations: PlanConfirmationService | None = None
     basis_confirmation_proof: BasisConfirmationProof | None = None
     model_responses: ModelResponseStore | None = None
     model_policy_confirmations: ModelPolicyConfirmationService | None = None
@@ -1867,7 +1872,30 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             case_values.append(case_from_payload(payload))
         cases = tuple(case_values)
         if deps.controlled_writes is not None:
-            return controlled_publication(command)
+            raw_grant = parameters.get("plan_grant")
+            if raw_grant is not None and deps.plan_confirmations is None:
+                raise BUseCaseError(
+                    "CAPABILITY_UNAVAILABLE",
+                    "plan confirmation with an execution grant is not configured",
+                )
+            controlled = controlled_publication(command)
+            if raw_grant is None:
+                return controlled
+            assert deps.plan_confirmations is not None
+            try:
+                derived = deps.plan_confirmations.derive(
+                    project_id=project_id,
+                    request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+                    intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
+                    plan_id=plan_id,
+                    plan_record_revision=_int_of(
+                        controlled.get("record_revision"), "record_revision"
+                    ),
+                    cases=cast(Sequence[Mapping[str, object]], raw_cases),
+                )
+            except PlanConfirmationError as error:
+                raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+            return dict(controlled) | dict(derived)
         plan = build_plan(
             plan_id=plan_id,
             revision=revision,

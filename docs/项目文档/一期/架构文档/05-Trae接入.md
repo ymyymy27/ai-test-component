@@ -229,7 +229,7 @@ P1-AC01—35全部按需求执行；提交中断、同意图/明确重跑、同�
 
 ConfirmationRecord保留核心分配的入口/会话、用户交互来源、动作和冻结摘要、对象修订、提交序号；客户端提供的姓名仅为展示，不作授权凭据。不新增平台账号、服务或授权微服务。P1-AC31/32及P3-AC07覆盖伪造来源、挑战错配、重复确认与实际用户确认路径。
 
-**计划级执行许可（实现补充）**：计划确认时，核心可在同一次用户交互中生成独立 `PlanExecutionGrant`，绑定计划修订、understanding 修订、范围、允许动作类别、凭据范围、环境与失效条件；计划内且许可内的 `authorize_step` 由核心生成逐动作 `ActionAuthorization(source=plan_grant)`，每个副作用动作仍保留独立记录。越界动作、新凭据、扩大范围或运行时新解析且超出许可类别的动作，仍需新的 `ApprovalChallenge` 和 `ConfirmationRecord`。计划确认本身不替代授权记录；许可撤销、过期或上游修订变化后，未执行动作回到待授权。
+**计划级执行许可（实现补充）**：计划级许可复用现有 `publish_plan` 受控发布确认，不新增 `confirm_plan` 动作或第二次人工手势。`publish_plan` 可带可选 `plan_grant`，该范围进入挑战输入摘要；用户确认一次后，核心先原子保存受控计划记录（`approval_confirmation_id`/`approval_commit_seq`），再以稳定业务意图派生逐条 `case_link` 与 `PlanExecutionGrant`：依据先写、许可最后写，重传同一意图不重复写入，不要求第二次确认。逐条依据通过 `plan_confirmation_id`/`plan_id`/`plan_revision` 引用同一计划确认；旧逐条 `confirm_basis` 路径继续有效。计划内且许可内的 `authorize_step` 由核心生成逐动作 `ActionAuthorization(source=plan_grant)`，每个副作用动作仍保留独立记录。越界动作、新凭据、扩大范围或运行时新解析且超出许可类别的动作，仍需新的 `ApprovalChallenge` 和 `ConfirmationRecord`。计划确认本身不替代授权记录；许可撤销、过期或上游修订变化后，未执行动作回到待授权。
 
 **普通受控写入与批量授权（实现补充）**：不属于 `HUMAN_ACTIONS`/`CHALLENGE_ACTIONS` 的普通写入（如 `save_case`、`save_acceptance`、`analyze_project`、`prepare_run`、`register_run`、`prepare_execution`、`execute_step`、`verify_pending`、`start_run`、`create_report`、`export_report`）可经受控普通写入通道提交，不弹原生窗口；核心仍核验项目、意图、预期修订和全部领域门禁。确认、发布、授权、提交等动作仍必须原生交互。批量授权窗口用于越界动作或未采用计划级许可的运行，可一次列出多个 `authorize_step`，每项独立点击、独立挑战/交互/确认记录；不提供“全部确认”单手势，未确认项在会话关闭时失效，不能由调用方提交挑战或摘要。
 

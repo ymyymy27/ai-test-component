@@ -319,6 +319,77 @@ def _optional_datetime(value: object, name: str) -> datetime | None:
     return parsed
 
 
+_GRANT_SCOPE_REQUIRED = frozenset(
+    {"allowed_action_classes", "credential_scope_ref", "environment_id", "risk_class"}
+)
+_GRANT_SCOPE_OPTIONAL = frozenset(
+    {
+        "max_side_effect_actions",
+        "max_data_mutation",
+        "allowed_hosts",
+        "time_window_start",
+        "time_window_end",
+        "budget",
+        "understanding_revision",
+    }
+)
+
+
+def normalize_grant_scope(
+    values: Mapping[str, object], *, require_understanding: bool
+) -> dict[str, object]:
+    """把计划确认里冻结的许可范围规范成可复算摘要的形状。
+
+    计划确认挑战的输入摘要覆盖这一段；因此必须在确认前把集合排序、时间规范成
+    ISO-8601，并拒绝未知字段。``plan_id`` / ``plan_revision`` / ``scope_digest``
+    由服务端从已发布计划派生，调用方不得自报。
+    """
+
+    if not isinstance(values, Mapping):
+        raise ValueError("plan grant scope must be an object")
+    raw = dict(values)
+    missing = _GRANT_SCOPE_REQUIRED - set(raw)
+    unknown = set(raw) - _GRANT_SCOPE_REQUIRED - _GRANT_SCOPE_OPTIONAL
+    if missing or unknown:
+        raise ValueError(
+            f"plan grant scope differs: missing={sorted(missing)} unknown={sorted(unknown)}"
+        )
+    result: dict[str, object] = {
+        "allowed_action_classes": sorted(
+            set(
+                _text_sequence(
+                    raw["allowed_action_classes"], "allowed_action_classes", required=True
+                )
+            )
+        ),
+        "credential_scope_ref": _text(raw["credential_scope_ref"], "credential_scope_ref"),
+        "environment_id": _text(raw["environment_id"], "environment_id"),
+        "risk_class": GrantRiskClass(_text(raw["risk_class"], "risk_class")).value,
+    }
+    allowed_hosts = _text_sequence(raw.get("allowed_hosts"), "allowed_hosts", required=False)
+    if allowed_hosts:
+        result["allowed_hosts"] = sorted(set(allowed_hosts))
+    for key in ("max_side_effect_actions", "max_data_mutation", "budget"):
+        value = _optional_non_negative_int(raw.get(key), key)
+        if value is not None:
+            result[key] = value
+    start = _optional_datetime(raw.get("time_window_start"), "time_window_start")
+    end = _optional_datetime(raw.get("time_window_end"), "time_window_end")
+    if (start is None) != (end is None):
+        raise ValueError("time_window_start and time_window_end must be provided together")
+    if start is not None and end is not None:
+        result["time_window_start"] = start.isoformat()
+        result["time_window_end"] = end.isoformat()
+    understanding = raw.get("understanding_revision")
+    if understanding is not None:
+        result["understanding_revision"] = _positive_int(
+            understanding, "understanding_revision"
+        )
+    elif require_understanding:
+        raise ValueError("understanding_revision is required when the plan has no contract")
+    return result
+
+
 def _grant_payload(grant: PlanExecutionGrant) -> dict[str, Any]:
     """领域对象的规范落盘形状；集合排序，时间用 ISO-8601。"""
 
@@ -1138,6 +1209,7 @@ __all__ = [
     "PlanGrantRejected",
     "SavedPlanGrant",
     "SavedPlanGrantRevocation",
+    "normalize_grant_scope",
     "plan_grant_environment_id",
     "plan_scope_digest",
     "read_plan_grant_binding",

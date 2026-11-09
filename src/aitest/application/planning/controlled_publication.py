@@ -7,6 +7,7 @@ from dataclasses import dataclass, fields
 from pydantic import TypeAdapter
 
 from aitest.application.approval_service import _digest
+from aitest.application.execution.plan_grant import normalize_grant_scope
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.plan_builder import build_plan
 from aitest.application.planning.publish import _plan_payload, payload_digest
@@ -122,9 +123,19 @@ def publication_content(
             "run_tier",
             "initial_driver",
             "context_gaps",
+            "plan_grant",
         }
     ):
         raise ApprovalRequired("plan publication input has unknown fields")
+    raw_grant = parameters.get("plan_grant")
+    plan_grant: dict[str, object] | None = None
+    if raw_grant is not None:
+        if not isinstance(raw_grant, Mapping):
+            raise ApprovalRequired("plan grant scope must be a declared object")
+        try:
+            plan_grant = normalize_grant_scope(raw_grant, require_understanding=False)
+        except (TypeError, ValueError) as error:
+            raise ApprovalRequired("plan grant scope cannot be verified") from error
     plan_id, revision, raw_scope, raw_cases = (
         parameters.get("plan_id"),
         parameters.get("revision"),
@@ -233,6 +244,8 @@ def publication_content(
         "initial_driver": driver.value,
         "context_gaps": gaps,
     }
+    if plan_grant is not None:
+        canonical["plan_grant"] = plan_grant
     return PublicationContent(
         "plan", plan_id, canonical, _plan_payload(plan, cases, project_id=project), tuple(materials)
     )

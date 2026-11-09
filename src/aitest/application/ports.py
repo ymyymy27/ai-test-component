@@ -335,6 +335,10 @@ class BasisConfirmationProof(Protocol):
         self, *, project_id: str, payload: Mapping[str, object]
     ) -> None: ...
 
+    def validate_plan_basis_confirmation(
+        self, *, project_id: str, payload: Mapping[str, object]
+    ) -> None: ...
+
 
 class ModelPolicyConfirmationProof(Protocol):
     """Validate exact policy origin before model sending; no new user event is invented."""

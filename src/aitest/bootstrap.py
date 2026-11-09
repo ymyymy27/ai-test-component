@@ -76,6 +76,7 @@ from aitest.application.planning.model_policy_confirmation import (
     SavedHumanActionResolver,
     SavedModelPolicyApprovalResolver,
 )
+from aitest.application.planning.plan_confirmation import PlanConfirmationService
 from aitest.application.planning.substrate import RecordReader
 from aitest.application.planning.substrate_adapter import (
     PortsRecordReader,
@@ -1382,6 +1383,19 @@ def assemble_workspace_core(
             reader=reader,
             resolver=environment_resolver or HostConfiguredEnvironmentResolver(),
         )
+        basis_confirmations = BasisConfirmationService(
+            reader=reader, unit=unit_of_work, approvals=approvals
+        )
+        plan_grants = PlanExecutionGrantService(
+            unit=unit_of_work,
+            records=cast(RecordRepository, unit_of_work.repo),
+            workspace_id=workspace.workspace_id,
+            actors=actors,
+            clock=approvals.clock,
+        )
+        plan_confirmations = PlanConfirmationService(
+            reader=reader, basis=basis_confirmations, grants=plan_grants
+        )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
             reader=reader,
@@ -1405,9 +1419,8 @@ def assemble_workspace_core(
                 snapshots=snapshot_store,
                 workspace_id=workspace.workspace_id,
             ),
-            basis_confirmations=BasisConfirmationService(
-                reader=reader, unit=unit_of_work, approvals=approvals
-            ),
+            basis_confirmations=basis_confirmations,
+            plan_confirmations=plan_confirmations,
             basis_confirmation_proof=approvals,
             model_policy_confirmations=policy_confirmations,
             model_policy_proof=policy_confirmations,
@@ -1432,13 +1445,6 @@ def assemble_workspace_core(
         )
         handlers: dict[str, Handler] = dict(b_registration_for(dependencies))
         assert dependencies.source_analysis is not None
-        plan_grants = PlanExecutionGrantService(
-            unit=unit_of_work,
-            records=cast(RecordRepository, unit_of_work.repo),
-            workspace_id=workspace.workspace_id,
-            actors=actors,
-            clock=approvals.clock,
-        )
         execution_authorizations = ExecutionAuthorizationService(
             unit=unit_of_work,
             records=cast(RecordRepository, unit_of_work.repo),
