@@ -223,10 +223,21 @@ class PlanConfirmationService:
             "plan_confirmation_id": confirmation_id,
             "approval_commit_seq": commit,
             "plan_record_revision": plan_record_revision,
+            "plan_digest": payload_digest(dict(raw)),
+            "scope_digest": scope_digest,
             "grant_id": grant["grant_id"],
             "grant_scope_digest": grant["grant_scope_digest"],
             "basis_confirmation_ids": basis_ids,
             "basis_confirmations": basis_refs,
+            "basis_digests": [
+                {
+                    "case_id": case_id,
+                    "case_revision": case_revision,
+                    "basis_revision": basis_revision,
+                    "basis_text_digest": basis_digest,
+                }
+                for case_id, case_revision, basis_revision, basis_digest in material
+            ],
         }
 
 

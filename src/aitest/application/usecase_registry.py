@@ -1925,6 +1925,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             except PlanConfirmationError as error:
                 raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
             return dict(controlled) | dict(derived)
+        if parameters.get("run_tier", "full") == "full":
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER",
+                "full validation requires controlled publication with a coverage contract",
+            )
         plan = build_plan(
             plan_id=plan_id,
             revision=revision,

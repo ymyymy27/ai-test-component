@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 from aitest.application.approval_service import _digest
 from aitest.application.execution.plan_grant import normalize_grant_scope
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
+from aitest.application.planning.draft import load_template
 from aitest.application.planning.plan_builder import build_plan
 from aitest.application.planning.proposal import (
     validate_coverage_contract_against_understanding,
@@ -26,7 +27,13 @@ from aitest.application.ports import ApprovalRecords
 from aitest.application.project.context import ContextGap, blocking_gaps
 from aitest.application.project.understanding import understanding_from_payload
 from aitest.domain.approvals import ApprovalMaterialRef, ApprovalRequired
-from aitest.domain.planning.plans import RunDriver, RunTier, validate_plan_publication
+from aitest.domain.planning.plans import (
+    RunDriver,
+    RunTier,
+    TemplateApplicability,
+    TemplateCoverage,
+    validate_plan_publication,
+)
 from aitest.domain.planning.rules import RuleDraft, RuleVersion, validate_draft_publication
 from aitest.domain.planning.templates import TemplateRef
 
@@ -277,6 +284,42 @@ def publication_content(
     if not isinstance(raw_tier, str) or not isinstance(raw_driver, str):
         raise ApprovalRequired("plan tier/driver must use declared enum values")
     tier, driver = RunTier(raw_tier), RunDriver(raw_driver)
+    if tier is RunTier.FULL and coverage_contract is None:
+        raise ApprovalRequired(
+            "full publication requires a coverage contract and project understanding"
+        )
+    if coverage_contract is not None and tier is RunTier.FULL and template_refs:
+        template_items: set[str] = set()
+        for ref in template_refs:
+            pack = load_template(TemplateRef(str(ref["template_id"]), str(ref["version"])))
+            template_items.update(item.item_id for item in pack.items)
+        dispositions = {
+            item.template_item_id: item
+            for item in coverage_contract.template_dispositions
+        }
+        if set(dispositions) != template_items:
+            raise ApprovalRequired(
+                "template dispositions must cover every template item exactly once"
+            )
+        for disposition in dispositions.values():
+            if (
+                disposition.applicability is TemplateApplicability.NOT_APPLICABLE
+                and not disposition.reason.strip()
+            ):
+                raise ApprovalRequired(
+                    "not_applicable template items need a reason: "
+                    + disposition.template_item_id
+                )
+            if (
+                disposition.applicability is TemplateApplicability.APPLICABLE
+                and disposition.coverage is TemplateCoverage.COVERED
+                and not any(
+                    case.template_item_id == disposition.template_item_id for case in cases
+                )
+            ):
+                raise ApprovalRequired(
+                    "covered template item has no case: " + disposition.template_item_id
+                )
     if coverage_contract is not None and understanding is not None:
         try:
             validate_coverage_contract_against_understanding(

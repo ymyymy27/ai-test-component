@@ -20,6 +20,7 @@ from aitest.application.planning.serialization import (
     case_to_payload,
     coverage_contract_to_payload,
 )
+from aitest.application.project.understanding import understanding_summary
 from aitest.application.review.function_coverage_preview import (
     build_plan_function_coverage,
 )
@@ -29,6 +30,7 @@ from aitest.contracts.plan_proposal import (
     PlanProposal,
     ProposalCase,
     ProposalCoverageClaim,
+    ProposalTemplateDisposition,
 )
 from aitest.contracts.templates import TemplateItem, TemplatePack
 from aitest.domain.planning.plans import (
@@ -41,6 +43,8 @@ from aitest.domain.planning.plans import (
     CaseLink,
     CoverageContract,
     FunctionRequirement,
+    TemplateApplicability,
+    TemplateCoverage,
     TemplateDisposition,
     validate_coverage_contract,
 )
@@ -86,7 +90,8 @@ def plan_proposal_system_prompt() -> str:
         "  },\n"
         '  "cases": [{\n'
         '    "case_id": "<stable id>",\n'
-        '    "template_item_id": "<exact item id from the template>",\n'
+        '    "template_item_id": "<exact item id, or null for an AI-added check>",\n'
+        '    "origin": "template|ai|user",\n'
         '    "layer": "L1|L2|L3",\n'
         '    "objective": "<what this case checks>",\n'
         '    "preconditions": ["<condition>"],\n'
@@ -105,6 +110,13 @@ def plan_proposal_system_prompt() -> str:
         '    "mock_scope": [],\n'
         '    "importance": "P0|P1|P2"\n'
         "  }],\n"
+        '  "template_dispositions": [{\n'
+        '    "template_item_id": "<exact item id from the template>",\n'
+        '    "applicability": "applicable|not_applicable|unknown",\n'
+        '    "coverage": "covered|uncovered|deferred",\n'
+        '    "reason": "<why this disposition is true>",\n'
+        '    "evidence": ["<source or project fact>"]\n'
+        "  }],\n"
         '  "understanding_revision": <understanding revision supplied with the material>,\n'
         '  "goal_intent_ids": ["<supplied test intent id>"],\n'
         '  "coverage_claims": [{\n'
@@ -115,9 +127,11 @@ def plan_proposal_system_prompt() -> str:
         "  }]\n"
         "}\n"
         "Rules:\n"
-        "- Produce exactly one case per template item, using its exact template_item_id "
-        "and layer.\n"
-        "- Never invent template item IDs; never omit a template item.\n"
+        "- Produce exactly one disposition per template item; never silently omit one.\n"
+        "- A template case uses its exact template_item_id and layer; only "
+        "applicable+covered items may carry cases.\n"
+        "- AI-added checks use template_item_id null, origin ai, and must fill a "
+        "coverage gap through coverage_claims.\n"
         "- Every case needs a non-empty expected, assertion_basis_text and "
         "independent_verification.\n"
         "- When critical_path_ids is empty, provide no_critical_path_reason.\n"
@@ -232,32 +246,126 @@ def _required_template_item_ids(pack: TemplatePack) -> set[str]:
 
 
 def _coverage_issues(proposal: PlanProposal, pack: TemplatePack) -> list[ProposalIssue]:
-    issues: list[ProposalIssue] = []
     items = _template_items(pack)
-    proposed = {case.template_item_id: case for case in proposal.cases}
-    missing = sorted(set(items) - set(proposed))
-    extra = sorted(set(proposed) - set(items))
-    if missing:
-        issues.append(
-            ProposalIssue(
-                "cases",
-                "template items are not covered: " + ", ".join(missing),
+    if proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V10:
+        proposed = {
+            case.template_item_id: case
+            for case in proposal.cases
+            if case.template_item_id is not None
+        }
+        missing = sorted(set(items) - set(proposed))
+        extra = sorted(set(proposed) - set(items))
+        issues: list[ProposalIssue] = []
+        if missing:
+            issues.append(
+                ProposalIssue("cases", "template items are not covered: " + ", ".join(missing))
             )
-        )
-    if extra:
-        issues.append(
-            ProposalIssue(
-                "cases",
-                "unknown template items: " + ", ".join(extra),
+        if extra:
+            issues.append(
+                ProposalIssue("cases", "unknown template items: " + ", ".join(extra))
             )
-        )
-    for case in proposal.cases:
-        item = items.get(case.template_item_id)
-        if item is not None and case.layer != item.layer:
+        for case in proposal.cases:
+            item = items.get(str(case.template_item_id))
+            if item is not None and case.layer != item.layer:
+                issues.append(
+                    ProposalIssue(
+                        f"cases[{case.case_id}].layer",
+                        f"layer {case.layer} differs from template item {item.item_id} "
+                        f"({item.layer})",
+                    )
+                )
+        return issues
+
+    issues = []
+    dispositions: dict[str, ProposalTemplateDisposition] = {}
+    for index, disposition in enumerate(proposal.template_dispositions):
+        if disposition.template_item_id not in items:
             issues.append(
                 ProposalIssue(
-                    f"cases[{case.case_id}].layer",
-                    f"layer {case.layer} differs from template item {item.item_id} ({item.layer})",
+                    f"template_dispositions[{index}].template_item_id",
+                    f"unknown template item: {disposition.template_item_id}",
+                )
+            )
+            continue
+        if disposition.template_item_id in dispositions:
+            issues.append(
+                ProposalIssue(
+                    f"template_dispositions[{index}].template_item_id",
+                    f"duplicate disposition: {disposition.template_item_id}",
+                )
+            )
+            continue
+        dispositions[disposition.template_item_id] = disposition
+    cases_by_item: dict[str, list[str]] = {}
+    claim_case_ids = {
+        case_id for claim in proposal.coverage_claims for case_id in claim.case_ids
+    }
+    for case in proposal.cases:
+        if case.origin == "template":
+            item = items.get(case.template_item_id or "")
+            if item is None:
+                issues.append(
+                    ProposalIssue(
+                        f"cases[{case.case_id}].template_item_id",
+                        "unknown template item: " + str(case.template_item_id),
+                    )
+                )
+                continue
+            if case.layer != item.layer:
+                issues.append(
+                    ProposalIssue(
+                        f"cases[{case.case_id}].layer",
+                        f"layer {case.layer} differs from template item {item.item_id} "
+                        f"({item.layer})",
+                    )
+                )
+            cases_by_item.setdefault(item.item_id, []).append(case.case_id)
+        elif case.case_id not in claim_case_ids:
+            issues.append(
+                ProposalIssue(
+                    f"cases[{case.case_id}]",
+                    "AI/user-added cases must fill a coverage gap via coverage_claims",
+                )
+            )
+    for item_id in items:
+        found = dispositions.get(item_id)
+        if found is None:
+            issues.append(
+                ProposalIssue(
+                    "template_dispositions",
+                    f"missing disposition for template item: {item_id}",
+                )
+            )
+            continue
+        applicability = str(found.applicability)
+        coverage = str(found.coverage)
+        case_ids = cases_by_item.get(item_id, [])
+        if applicability == "applicable" and coverage == "covered" and not case_ids:
+            issues.append(
+                ProposalIssue(
+                    "template_dispositions",
+                    f"applicable+covered item has no case: {item_id}",
+                )
+            )
+        if applicability == "applicable" and coverage != "covered" and case_ids:
+            issues.append(
+                ProposalIssue(
+                    "template_dispositions",
+                    f"applicable+{coverage} item must not carry cases: {item_id}",
+                )
+            )
+        if applicability in {"not_applicable", "unknown"} and case_ids:
+            issues.append(
+                ProposalIssue(
+                    "template_dispositions",
+                    f"{applicability} item must not carry cases: {item_id}",
+                )
+            )
+        if applicability == "not_applicable" and not found.reason.strip():
+            issues.append(
+                ProposalIssue(
+                    "template_dispositions",
+                    f"not_applicable item needs a reason: {item_id}",
                 )
             )
     return issues
@@ -385,11 +493,19 @@ def _required_case_ids(proposal: PlanProposal) -> frozenset[str]:
 
 
 def _template_case_ids(proposal: PlanProposal, pack: TemplatePack) -> frozenset[str]:
-    required_items = _required_template_item_ids(pack)
+    if proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V11:
+        covered_items = {
+            disposition.template_item_id
+            for disposition in proposal.template_dispositions
+            if disposition.applicability == "applicable"
+            and disposition.coverage == "covered"
+        }
+    else:
+        covered_items = _required_template_item_ids(pack)
     return frozenset(
         case.case_id
         for case in proposal.cases
-        if case.template_item_id in required_items
+        if case.template_item_id in covered_items
     )
 
 
@@ -425,6 +541,10 @@ def materialize_plan_proposal(
     if not project_id.strip() or not environment_id.strip() or not scope_id.strip():
         raise ValueError("project, environment and scope identities must not be blank")
     pack = validate_plan_proposal(proposal, pack=pack)
+    functions_by_case: dict[str, set[str]] = {}
+    for claim in proposal.coverage_claims:
+        for case_id in claim.case_ids:
+            functions_by_case.setdefault(case_id, set()).add(claim.function_id)
     cases: list[Case] = []
     for proposed in proposal.cases:
         basis_text, basis_digest = _basis_text(proposed)
@@ -434,6 +554,7 @@ def materialize_plan_proposal(
             environment_ids=frozenset({environment_id}),
             critical_path_ids=frozenset(proposed.links.critical_path_ids),
             no_critical_path_reason=proposed.links.no_critical_path_reason,
+            function_ids=frozenset(functions_by_case.get(proposed.case_id, set())),
         )
         cases.append(
             Case(
@@ -456,6 +577,7 @@ def materialize_plan_proposal(
                 independent_verification=proposed.independent_verification,
                 mock_scope=tuple(proposed.mock_scope),
                 importance=CaseImportance(proposed.importance),
+                template_item_id=proposed.template_item_id,
             )
         )
     scope = AcceptanceScope(
@@ -483,6 +605,21 @@ def _coverage_claim_id(plan_revision: int, claim: ProposalCoverageClaim) -> str:
     return (
         f"plan-claim:{plan_revision}:{claim.intent_id}:"
         f"{claim.function_id}:{claim.dimension}"
+    )
+
+
+def _domain_template_dispositions(
+    proposal: PlanProposal,
+) -> tuple[TemplateDisposition, ...]:
+    return tuple(
+        TemplateDisposition(
+            template_item_id=item.template_item_id,
+            applicability=TemplateApplicability(item.applicability),
+            coverage=TemplateCoverage(item.coverage),
+            reason=item.reason,
+            evidence=tuple(item.evidence),
+        )
+        for item in proposal.template_dispositions
     )
 
 
@@ -723,6 +860,29 @@ def validate_coverage_contract_against_understanding(
                 ),
             )
         )
+    if require_all_functions:
+        if understanding.unknown_areas:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "understanding.unknown_areas",
+                        "unknown project areas block full validation",
+                    ),
+                )
+            )
+        blocking_gaps = [
+            gap.gap_id for gap in understanding.capability_gaps if gap.blocks_full
+        ]
+        if blocking_gaps:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "understanding.capability_gaps",
+                        "unsupported capabilities block full validation: "
+                        + ", ".join(blocking_gaps),
+                    ),
+                )
+            )
     functions = {
         function.function_id: function for function in understanding.catalog.functions
     }
@@ -838,6 +998,7 @@ def proposal_preview(
     coverage_preview: list[dict[str, object]] = []
     coverage_contract: dict[str, object] | None = None
     understanding_ref: dict[str, object] | None = None
+    goal_candidates: list[object] = []
     if (
         proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V11
         and understanding is not None
@@ -846,6 +1007,7 @@ def proposal_preview(
             proposal,
             understanding,
             plan_revision=1,
+            template_dispositions=_domain_template_dispositions(proposal),
         )
         coverage_preview = [
             _coverage_preview_entry(item)
@@ -856,6 +1018,8 @@ def proposal_preview(
             "understanding_id": understanding.understanding_id,
             "revision": understanding.revision,
         }
+        raw_goals = understanding_summary(understanding).get("goal_candidates", [])
+        goal_candidates = list(raw_goals) if isinstance(raw_goals, list) else []
     return {
         "schema_version": "aitest.plan-proposal-preview/1.0",
         "template_id": proposal.template_id,
@@ -871,6 +1035,7 @@ def proposal_preview(
         "coverage_preview": coverage_preview,
         "coverage_contract": coverage_contract,
         "understanding_ref": understanding_ref,
+        "goal_candidates": goal_candidates,
         "environment_id": environment_id,
         "proposal": proposal.model_dump(mode="json"),
     }

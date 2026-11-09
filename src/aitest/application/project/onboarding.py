@@ -251,6 +251,10 @@ def wizard_commands(
         for case, payload in zip(cases, case_payloads, strict=True):
             add("case-" + case.case_id, "save_case", {"case": payload})
         add("scope", "save_acceptance", {"acceptance_scope": scope_payload})
+        if form.run_tier == "full" and form.coverage_contract is None:
+            raise ValueError(
+                "完整验证需要项目理解与覆盖契约；请重新生成 v1.1 计划或选择按需自测"
+            )
         plan_grant = _proposal_plan_grant(form, project_id=project, plan_id=plan_id)
         if plan_grant is None:
             for case in cases:
@@ -306,7 +310,7 @@ def wizard_commands(
             "plan_id": plan_id, "revision": 1,
             "scope": scope, "cases": cases,
             "template_versions": [{"template_id": "python-library", "version": "1.0.0"}],
-            "run_tier": "full", "initial_driver": "stepwise"}, plan_id)
+            "run_tier": "on_demand", "initial_driver": "stepwise"}, plan_id)
     elif stage == "prepare":
         snapshot = receipts["snapshot"]
         if form.proposal is not None:

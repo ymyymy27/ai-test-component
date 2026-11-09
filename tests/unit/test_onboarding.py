@@ -180,7 +180,17 @@ def test_v11_proposal_uses_one_plan_confirmation_and_publish_basis_receipts():
     payload["understanding_revision"] = 1
     payload["goal_intent_ids"] = ["intent-normal"]
     payload["coverage_claims"] = []
-    selection = form().model_copy(update={"proposal": payload, "checks": []})
+    payload["template_dispositions"] = [
+        {
+            "template_item_id": item,
+            "applicability": "applicable",
+            "coverage": "covered",
+        }
+        for item in ("syntax", "normal", "boundary", "error")
+    ]
+    selection = form().model_copy(
+        update={"proposal": payload, "checks": [], "run_tier": "on_demand"}
+    )
     commit = wizard_commands(selection, "commit", {})
     actions = [item["action"] for item in commit]
     assert "confirm_basis" not in actions
@@ -246,7 +256,9 @@ def test_wizard_review_uses_saved_understanding_for_coverage_and_contract():
 
 
 def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():
-    selection = form().model_copy(update={"proposal": _proposal(), "checks": []})
+    selection = form().model_copy(
+        update={"proposal": _proposal(), "checks": [], "run_tier": "on_demand"}
+    )
     preview = wizard_review(selection)
     assert preview["coverage"] == {
         "template_items": 4,
@@ -265,7 +277,7 @@ def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():
     assert actions.count("confirm_basis") == 4
     assert "publish_plan" in actions
     publish = next(item for item in commit if item["action"] == "publish_plan")
-    assert publish["parameters"]["run_tier"] == "full"
+    assert publish["parameters"]["run_tier"] == "on_demand"
     assert publish["parameters"]["initial_driver"] == "planned"
     assert len(publish["parameters"]["cases"]) == 4
 
@@ -297,6 +309,7 @@ def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
             "workspace_id": core.workspace.workspace_id,
             "proposal": _proposal(),
             "checks": [],
+            "run_tier": "on_demand",
         }
     )
     receipts = {}
@@ -316,7 +329,7 @@ def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
                 receipts[item["key"]] = result.result
         assert len([key for key in receipts if key.startswith("confirm-")]) == 4
         assert receipts["register"]["run_id"]
-        assert receipts["prepare"]["run_tier"] == "full"
+        assert receipts["prepare"]["run_tier"] == "on_demand"
         assert receipts["prepare"]["initial_driver"] == "planned"
     finally:
         core.lifetime_lock.release()
@@ -368,6 +381,14 @@ def test_v11_project_understanding_drives_one_confirmation_end_to_end(tmp_path):
         payload["understanding_revision"] = understanding.revision
         payload["goal_intent_ids"] = [
             intent.intent_id for intent in understanding.test_intents
+        ]
+        payload["template_dispositions"] = [
+            {
+                "template_item_id": item,
+                "applicability": "applicable",
+                "coverage": "covered",
+            }
+            for item in ("syntax", "normal", "boundary", "error")
         ]
         payload["coverage_claims"] = [
             {

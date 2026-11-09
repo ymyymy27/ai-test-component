@@ -56,6 +56,7 @@ def test_publish_plan_with_grant_saves_plan_grant_and_every_basis(authoritative)
         "revision": 1,
         "scope": scope,
         "cases": cases,
+        "run_tier": "on_demand",
         "plan_grant": _grant_scope(),
     }
 
@@ -151,6 +152,7 @@ def test_publish_plan_freezes_a_contract_verified_against_saved_understanding(
             "scope": scope,
             "cases": cases,
             "coverage_contract": coverage_contract_to_payload(contract),
+            "run_tier": "on_demand",
             "understanding_ref": {
                 "understanding_id": understanding["understanding_id"],
                 "revision": understanding["revision"],
@@ -186,6 +188,7 @@ def test_changing_grant_scope_after_the_challenge_is_refused(authoritative):
             "revision": 1,
             "scope": scope,
             "cases": cases,
+            "run_tier": "on_demand",
             "plan_grant": _grant_scope(),
         },
     )
@@ -222,6 +225,7 @@ def test_retransmitting_the_same_plan_confirmation_returns_the_same_records(auth
         "revision": 1,
         "scope": scope,
         "cases": cases,
+        "run_tier": "on_demand",
         "plan_grant": _grant_scope(),
     }
     first = controlled_publication_save(
@@ -247,3 +251,26 @@ def test_retransmitting_the_same_plan_confirmation_returns_the_same_records(auth
     assert second.result["grant_id"] == first.result["grant_id"]
     assert second.result["basis_confirmation_ids"] == first.result["basis_confirmation_ids"]
     assert core.unit_of_work.current_commit_sequence() == seq
+
+
+def test_full_publication_without_coverage_contract_is_refused(authoritative):
+    core, inputs, _ = authoritative
+    _, scope, cases = _publication_material(core, inputs)
+    saved = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=inputs.project_id,
+        parameters={
+            "plan_id": "plan-full-without-contract",
+            "revision": 1,
+            "scope": scope,
+            "cases": cases,
+            "run_tier": "full",
+        },
+        request="full-without-contract-request",
+        intent="full-without-contract-intent",
+    )
+    assert saved.error is not None
+    assert core.unit_of_work.repo.current_revision(
+        aggregate_kind="plan", record_id="plan-full-without-contract"
+    ) == 0

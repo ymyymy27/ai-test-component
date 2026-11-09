@@ -12,6 +12,11 @@ from aitest.application.planning.serialization import (
     case_to_payload,
 )
 from aitest.application.project.serialization import binding_to_payload, project_to_payload
+from aitest.application.project.understanding import (
+    scan_sources,
+    understanding_identity,
+    understanding_to_payload,
+)
 from aitest.bootstrap import assemble_workspace_core
 from aitest.contracts.prepared_run import (
     AssertionBasisStateFact,
@@ -122,6 +127,23 @@ def _authoritative(
         expected_revision=0,
         payload=acceptance_scope_to_payload(scope, project_id=project.project_id),
     )
+    fixture_understanding = scan_sources(
+        files={"main.py": b"def fixture_business():\n    return 1\n"},
+        source_snapshot_id="fixture-understanding-source",
+        understanding_id=understanding_identity(project.project_id, "."),
+        revision=1,
+        scope=".",
+    )
+    unit.stage_record(
+        aggregate_kind="project_understanding",
+        record_id=fixture_understanding.understanding_id,
+        expected_revision=0,
+        payload=understanding_to_payload(
+            fixture_understanding,
+            project_id=project.project_id,
+            workspace_id=core.workspace.workspace_id,
+        ),
+    )
     unit.stage_record(
         aggregate_kind="environment",
         record_id="env-local",
@@ -147,9 +169,41 @@ def _authoritative(
             "scope": acceptance_scope_to_payload(scope, project_id=project.project_id),
             "cases": [case_to_payload(case, project_id=project.project_id) for case in cases],
             "template_versions": template_versions or [],
+            "coverage_contract": {
+                "contract_id": "fixture-contract:" + project.project_id,
+                "understanding_revision": 1,
+                "function_requirements": [
+                    {
+                        "function_id": fixture_understanding.catalog.functions[0].function_id,
+                        "required_dimensions": list(
+                            fixture_understanding.catalog.functions[0].required_dimensions
+                        ),
+                    }
+                ],
+                "template_dispositions": [],
+                "critical_path_ids": [],
+                "coverage_claims": [
+                    {
+                        "claim_id": f"fixture-claim-{dimension}",
+                        "intent_id": fixture_understanding.test_intents[0].intent_id,
+                        "function_id": fixture_understanding.catalog.functions[0].function_id,
+                        "dimension": dimension,
+                        "plan_revision": 1,
+                        "status": "not_proven",
+                        "case_ids": [cases[0].case_id],
+                    }
+                    for dimension in fixture_understanding.catalog.functions[
+                        0
+                    ].required_dimensions
+                ],
+            },
+            "understanding_ref": {
+                "understanding_id": fixture_understanding.understanding_id,
+                "revision": 1,
+            },
         },
     )
-    assert published.error is None, published.error
+    assert published.error is None, published.error.message
     assert published.result["published"], published.result
     pinned = dispatch(
         core,

@@ -227,12 +227,17 @@ class CaseLink:
     environment_ids: frozenset[str] = frozenset()
     critical_path_ids: frozenset[str] = frozenset()
     no_critical_path_reason: str | None = None
+    #: AI/用户新增检查通过业务功能建立映射；模板检查仍用 acceptance_item_ids。
+    function_ids: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        if not self.acceptance_item_ids:
-            raise ValueError("a case must link to at least one acceptance item")
+        if not self.acceptance_item_ids and not self.function_ids:
+            raise ValueError(
+                "a case must link to at least one acceptance item or business function"
+            )
         for name in (
             "acceptance_item_ids",
+            "function_ids",
             "module_ids",
             "environment_ids",
             "critical_path_ids",
@@ -273,6 +278,8 @@ class Case:
     independent_verification: str | None = None
     mock_scope: tuple[str, ...] = field(default_factory=tuple)
     importance: CaseImportance = CaseImportance.P1
+    #: 模板提醒项来源；AI/用户新增检查为空。只在技术详情与模板处置审计中使用。
+    template_item_id: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.case_id, "case_id")
@@ -461,6 +468,9 @@ class TemplateDisposition:
     template_item_id: str
     applicability: TemplateApplicability
     coverage: TemplateCoverage
+    #: ``not_applicable`` 必须给出理由；证据引用可为空（模板项可能由源码扫描直接判定）。
+    reason: str = ""
+    evidence: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -678,6 +688,21 @@ def validate_plan_publication(plan: Plan, cases: Sequence[Case]) -> None:
             plan_revision=plan.revision,
             frozen_case_ids=(ref.case_id for ref in plan.case_revisions),
         )
+        if plan.run_tier is RunTier.FULL:
+            for disposition in contract.template_dispositions:
+                if disposition.applicability is TemplateApplicability.UNKNOWN:
+                    raise ValueError(
+                        "unknown template applicability blocks full validation: "
+                        f"{disposition.template_item_id}"
+                    )
+                if (
+                    disposition.applicability is TemplateApplicability.APPLICABLE
+                    and disposition.coverage is not TemplateCoverage.COVERED
+                ):
+                    raise ValueError(
+                        "applicable template item is not covered for full validation: "
+                        f"{disposition.template_item_id} ({disposition.coverage.value})"
+                    )
     if not scope.template_case_ids <= scope.required_case_ids:
         raise ValueError("template requirements must be included in required cases")
 

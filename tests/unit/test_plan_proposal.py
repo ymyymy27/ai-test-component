@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -14,6 +15,8 @@ from aitest.application.planning.proposal import (
     parse_plan_proposal,
     proposal_from_mapping,
     proposal_preview,
+    validate_coverage_contract_against_understanding,
+    validate_plan_proposal,
 )
 from aitest.application.project.understanding import scan_sources
 from aitest.application.review.function_coverage_preview import (
@@ -22,6 +25,7 @@ from aitest.application.review.function_coverage_preview import (
 from aitest.contracts.plan_proposal import PlanProposal
 from aitest.domain.planning.plans import validate_coverage_contract
 from aitest.domain.planning.understanding import (
+    CapabilityGap,
     CoverageClaimStatus,
     ProjectUnderstanding,
 )
@@ -244,6 +248,14 @@ def _v11_payload(understanding: ProjectUnderstanding) -> dict[str, object]:
     payload["schema_version"] = "aitest.plan-proposal/1.1"
     payload["understanding_revision"] = understanding.revision
     payload["goal_intent_ids"] = [intent_id]
+    payload["template_dispositions"] = [
+        {
+            "template_item_id": item,
+            "applicability": "applicable",
+            "coverage": "covered",
+        }
+        for item in ("syntax", "normal", "boundary", "error")
+    ]
     payload["coverage_claims"] = [
         {
             "intent_id": intent_id,
@@ -523,3 +535,87 @@ def test_v11_preview_without_understanding_does_not_fake_coverage() -> None:
         scope_id="scope-demo",
     )
     assert preview["coverage_preview"] == []
+
+
+def test_v11_not_applicable_and_ai_added_case_are_first_class():
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["cases"] = [item for item in payload["cases"] if item["case_id"] != "case-syntax"]
+    for disposition in payload["template_dispositions"]:
+        if disposition["template_item_id"] == "syntax":
+            disposition.update(
+                applicability="not_applicable", coverage="uncovered", reason="无语法入口"
+            )
+    extra = _case("unused", "L2", "case-extra")
+    extra["template_item_id"] = None
+    extra["origin"] = "ai"
+    extra["links"]["acceptance_item_ids"] = []
+    payload["cases"].append(extra)
+    intent_id, function_id, dimension = _intent_and_function(understanding)
+    function = next(
+        item for item in understanding.catalog.functions if item.function_id == function_id
+    )
+    other_dimension = next(
+        item for item in function.required_dimensions if item != dimension
+    )
+    payload["coverage_claims"].append(
+        {
+            "intent_id": intent_id,
+            "function_id": function_id,
+            "dimension": other_dimension,
+            "case_ids": ["case-extra"],
+        }
+    )
+    proposal = proposal_from_mapping(payload)
+    scope, cases = materialize_plan_proposal(
+        proposal,
+        project_id="demo",
+        environment_id="env-demo",
+        scope_id="scope-demo",
+    )
+    assert "case-normal" in {case.case_id for case in cases}
+    assert "case-syntax" not in {case.case_id for case in cases}
+    extra_case = next(case for case in cases if case.case_id == "case-extra")
+    assert extra_case.template_item_id is None
+    assert "case-extra" not in scope.template_case_ids
+
+
+def test_v11_missing_template_disposition_is_rejected():
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["template_dispositions"] = payload["template_dispositions"][:-1]
+    proposal = PlanProposal.model_validate(payload)
+    with pytest.raises(PlanProposalError) as error:
+        validate_plan_proposal(proposal)
+    assert any("missing disposition" in issue.message for issue in error.value.issues)
+
+
+def test_full_blocks_unknown_and_unsupported_understanding():
+    understanding = _understanding()
+    proposal = PlanProposal.model_validate(_v11_payload(understanding))
+    contract = materialize_coverage_contract(
+        proposal,
+        understanding,
+        plan_revision=1,
+        template_dispositions=(),
+    )
+    unknown = replace(understanding, unknown_areas=("legacy job runner",))
+    with pytest.raises(PlanProposalError, match="unknown project areas"):
+        validate_coverage_contract_against_understanding(
+            contract, unknown, plan_revision=1, require_all_functions=True
+        )
+    gap = CapabilityGap(
+        gap_id="gap-1",
+        scope="project",
+        missing_capability="legacy runner",
+        capability_revision="cap-1",
+        reason="not supported",
+        workaround=None,
+        blocks_full=True,
+        source_refs=("src",),
+    )
+    blocked = replace(understanding, capability_gaps=(gap,))
+    with pytest.raises(PlanProposalError, match="unsupported capabilities"):
+        validate_coverage_contract_against_understanding(
+            contract, blocked, plan_revision=1, require_all_functions=True
+        )

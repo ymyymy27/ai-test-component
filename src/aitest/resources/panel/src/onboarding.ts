@@ -203,6 +203,27 @@ export class Onboarding {
         section.append(table);
       }
     }
+    const goals=Array.isArray(this.preview?.["goal_candidates"])?this.preview["goal_candidates"] as unknown[]:[];
+    if(goals.length){
+      const box=document.createElement("div");box.append(text("h4","本次验证目标"),text("p","AI 按变更、影响和历史推荐；你可以取消或补选。取消后对应的覆盖声明会一并移除。","muted"));
+      const selected=new Set(Array.isArray(proposal.goal_intent_ids)?proposal.goal_intent_ids.map(String):[]);
+      for(const rawGoal of goals){
+        const goal=object(rawGoal)??{};const id=String(goal.intent_id??"");if(!id)continue;
+        const label=document.createElement("label");label.className="goal-choice";
+        const check=document.createElement("input");check.type="checkbox";check.checked=selected.has(id);check.disabled=disabled;
+        check.setAttribute("aria-label",`验证目标 ${String(goal.statement??id)}`);
+        check.onchange=()=>{
+          const ids=new Set(Array.isArray(proposal.goal_intent_ids)?proposal.goal_intent_ids.map(String):[]);
+          if(check.checked)ids.add(id);else ids.delete(id);
+          proposal.goal_intent_ids=[...ids];
+          if(Array.isArray(proposal.coverage_claims))proposal.coverage_claims=(proposal.coverage_claims as unknown[]).filter(item=>{const claim=object(item)??{};return ids.has(String(claim.intent_id??""));});
+          this.render();
+        };
+        label.append(check,text("span",String(goal.statement??id)),text("small",String(goal.why??""),"muted"));
+        box.append(label);
+      }
+      section.append(box);
+    }
     section.append(field("范围名称",String(scope.name??""),value=>scope.name=value),
       field("范围目标",String(scope.objective??""),value=>scope.objective=value,true));
     section.append(select("档位",this.runTier,["quick","on_demand","full"],value=>this.runTier=value),

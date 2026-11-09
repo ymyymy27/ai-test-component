@@ -191,6 +191,7 @@ def case_link_to_payload(link: CaseLink) -> dict[str, object]:
         "environment_ids": sorted(link.environment_ids),
         "critical_path_ids": sorted(link.critical_path_ids),
         "no_critical_path_reason": link.no_critical_path_reason,
+        **({"function_ids": sorted(link.function_ids)} if link.function_ids else {}),
     }
 
 
@@ -201,6 +202,7 @@ def case_link_from_payload(payload: Mapping[str, Any]) -> CaseLink:
         environment_ids=_text_set(payload, "environment_ids"),
         critical_path_ids=_text_set(payload, "critical_path_ids"),
         no_critical_path_reason=_optional_text(payload, "no_critical_path_reason"),
+        function_ids=_text_set(payload, "function_ids"),
     )
 
 
@@ -253,6 +255,7 @@ def case_to_payload(case: Case, *, project_id: str) -> dict[str, object]:
         "independent_verification": case.independent_verification,
         "mock_scope": sorted(case.mock_scope),
         "importance": case.importance.value,
+        **({"template_item_id": case.template_item_id} if case.template_item_id else {}),
     }
 
 
@@ -274,6 +277,7 @@ def case_from_payload(payload: Mapping[str, Any]) -> Case:
         independent_verification=_optional_text(payload, "independent_verification"),
         mock_scope=_text_tuple(payload, "mock_scope"),
         importance=_enum(CaseImportance, payload, "importance"),
+        template_item_id=_optional_text(payload, "template_item_id"),
     )
 
 
@@ -381,6 +385,8 @@ def coverage_contract_to_payload(contract: CoverageContract) -> dict[str, object
                     disposition.coverage,
                     "template disposition coverage",
                 ),
+                **({"reason": disposition.reason} if disposition.reason else {}),
+                **({"evidence": list(disposition.evidence)} if disposition.evidence else {}),
             }
             for disposition in contract.template_dispositions
         ],
@@ -418,6 +424,8 @@ def coverage_contract_from_payload(payload: Mapping[str, Any]) -> CoverageContra
             template_item_id=_text(item, "template_item_id"),
             applicability=_enum(TemplateApplicability, item, "applicability"),
             coverage=_enum(TemplateCoverage, item, "coverage"),
+            reason=str(item.get("reason", "")),
+            evidence=tuple(item.get("evidence", [])),
         )
         for item in _mapping_list(payload, "template_dispositions")
     )

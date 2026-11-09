@@ -23,7 +23,9 @@ PLAN_PROPOSAL_SCHEMA_V11: Final = "aitest.plan-proposal/1.1"
 
 #: Fields introduced by schema 1.1; their mere presence in a 1.0 payload is a
 #: version error even when the value equals the 1.0 default.
-_V11_FIELDS = frozenset({"understanding_revision", "goal_intent_ids", "coverage_claims"})
+_V11_FIELDS = frozenset({
+    "understanding_revision", "goal_intent_ids", "coverage_claims", "template_dispositions",
+})
 
 
 def _require_nonblank(values: list[str], name: str) -> None:
@@ -36,7 +38,7 @@ class ProposalCaseLink(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    acceptance_item_ids: list[str] = Field(min_length=1)
+    acceptance_item_ids: list[str] = Field(default_factory=list)
     module_ids: list[str] = Field(default_factory=list)
     critical_path_ids: list[str] = Field(default_factory=list)
     no_critical_path_reason: str | None = None
@@ -59,13 +61,36 @@ class ProposalCaseLink(BaseModel):
         return self
 
 
+class ProposalTemplateDisposition(BaseModel):
+    """Template item judged on two independent axes (design 03 §5.2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    template_item_id: str = Field(min_length=1, max_length=200)
+    applicability: Literal["applicable", "not_applicable", "unknown"]
+    coverage: Literal["covered", "uncovered", "deferred"]
+    reason: str = ""
+    evidence: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def nonblank(self) -> ProposalTemplateDisposition:
+        _require_nonblank(self.evidence, "evidence")
+        if self.applicability in {"not_applicable", "unknown"} and not self.reason.strip():
+            raise ValueError(
+                "not_applicable/unknown template items require a reason"
+            )
+        return self
+
+
 class ProposalCase(BaseModel):
-    """One case drafted from one template item."""
+    """One case drafted from a template item or added by AI/user."""
 
     model_config = ConfigDict(extra="forbid")
 
     case_id: str = Field(min_length=1, max_length=200)
-    template_item_id: str = Field(min_length=1, max_length=200)
+    #: ``None`` only for AI/user-added checks; template cases must name their item.
+    template_item_id: str | None = Field(default=None, max_length=200)
+    origin: Literal["template", "ai", "user"] = "template"
     layer: Literal["L1", "L2", "L3"]
     objective: str = Field(min_length=1, max_length=4000)
     preconditions: list[str] = Field(min_length=1)
@@ -81,6 +106,12 @@ class ProposalCase(BaseModel):
 
     @model_validator(mode="after")
     def nonblank_lists(self) -> ProposalCase:
+        if self.template_item_id is not None and not self.template_item_id.strip():
+            raise ValueError("template_item_id must not be blank")
+        if self.origin == "template" and self.template_item_id is None:
+            raise ValueError("template cases require template_item_id")
+        if self.origin != "template" and self.template_item_id is not None:
+            raise ValueError("AI/user-added cases must not claim a template item")
         _require_nonblank(self.preconditions, "preconditions")
         _require_nonblank(self.inputs, "inputs")
         _require_nonblank(self.steps, "steps")
@@ -161,6 +192,8 @@ class PlanProposal(BaseModel):
     goal_intent_ids: list[str] = Field(default_factory=list)
     #: 1.1 only: model-proposed coverage claims.
     coverage_claims: list[ProposalCoverageClaim] = Field(default_factory=list)
+    #: 1.1 only: two-axis disposition for every template item.
+    template_dispositions: list[ProposalTemplateDisposition] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -188,6 +221,11 @@ class PlanProposal(BaseModel):
             raise ValueError("duplicate template item IDs")
         if self.schema_version == PLAN_PROPOSAL_SCHEMA_V11:
             self._validate_v11(case_ids)
+        else:
+            if any(case.origin != "template" for case in self.cases):
+                raise ValueError("schema 1.0 supports template cases only")
+            if any(not case.links.acceptance_item_ids for case in self.cases):
+                raise ValueError("template cases require acceptance item links")
         return self
 
     def _validate_v11(self, case_ids: list[str]) -> None:
