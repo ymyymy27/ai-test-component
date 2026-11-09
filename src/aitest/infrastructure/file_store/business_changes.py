@@ -25,6 +25,7 @@ BUSINESS_TYPES = frozenset(
         "source_snapshot",
         "source_pin_intent",
         "source_binding_current",
+        "project_understanding",
         "template_ref",
         "generated_content",
         "rule_draft",

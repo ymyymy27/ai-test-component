@@ -56,6 +56,15 @@ def _require_dimensions(values: tuple[str, ...]) -> None:
     _require_unique(values, "required_dimensions")
 
 
+def _require_digest(value: str, name: str) -> None:
+    _require_text(value, name)
+    if not value.startswith("sha256:"):
+        raise ValueError(f"{name} must be a sha256 digest")
+    body = value[len("sha256:") :]
+    if len(body) != 64 or any(char not in "0123456789abcdef" for char in body):
+        raise ValueError(f"{name} must be a lowercase 64-character sha256 digest")
+
+
 class BusinessFunctionKind(StrEnum):
     """业务功能层级：业务域 → capability → flow → operation → rule。"""
 
@@ -66,7 +75,13 @@ class BusinessFunctionKind(StrEnum):
 
 
 class FunctionTrigger(StrEnum):
-    """业务功能被触发的入口类型（设计文档 4.4）。"""
+    """业务功能被触发的入口类型（设计文档 4.4）。
+
+    `LIBRARY` 是扫描器的兜底入口：一个公开函数/类没有可识别的 HTTP、CLI、
+    页面、事件或定时任务触发方式时，只能诚实地记为“由代码内其他部分调用”。
+    把这类入口伪装成 CLI 或事件会让目录失去可信度；设计文档的入口清单未列出
+    该词汇，属于实现补充，需在后续文档修订中同步。
+    """
 
     HTTP = "http"
     PAGE = "page"
@@ -75,6 +90,7 @@ class FunctionTrigger(StrEnum):
     EVENT = "event"
     SCHEDULED_TASK = "scheduled_task"
     STATE_TRANSITION = "state_transition"
+    LIBRARY = "library"
 
 
 class BusinessFunctionOrigin(StrEnum):
@@ -316,6 +332,124 @@ class TestIntent:
         if self.understanding_revision < 1:
             raise ValueError("understanding_revision must be >= 1")
         object.__setattr__(self, "origin", TestIntentOrigin(str(self.origin)))
+
+
+@dataclass(frozen=True, slots=True)
+class GoalCandidate:
+    """`TestIntent` 的界面投影（设计文档 3.4、4.4）。
+
+    目标候选不是第二套验收对象：它只挑选一个已有 `TestIntent` 并用业务语言
+    展示“测什么、为什么推荐、失败疼在哪”。因此 `statement`、`risk` 与
+    `function_ids` 必须与被引用的意图逐字一致；`why` 可以是界面化的推荐理由，
+    但不能引入新的业务事实。解析由 `ProjectUnderstanding` 统一校验，单条记录
+    只保证自身字段非空。
+    """
+
+    __test__ = False
+
+    intent_id: str
+    statement: str
+    why: str
+    function_ids: frozenset[str]
+    risk: str
+
+    def __post_init__(self) -> None:
+        for name in ("intent_id", "statement", "why", "risk"):
+            _require_text(getattr(self, name), name)
+        if not self.function_ids:
+            raise ValueError("goal candidate function_ids must not be empty")
+        _require_items(self.function_ids, "function_ids")
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectUnderstanding:
+    """一次项目理解的唯一版本入口（设计文档 3.3、4.1—4.2）。
+
+    目录、测试意图、目标候选和能力缺口共用同一个 `understanding_id`、
+    `revision`、`source_snapshot_id`、`scope` 与 `digest`，不分别维护修订号。
+    本对象只做结构校验，不读取源码、不调用模型，也不计算覆盖事实。
+    """
+
+    understanding_id: str
+    revision: int
+    source_snapshot_id: str
+    scope: str
+    project_signals: ProjectSignals
+    catalog: BusinessFunctionCatalog
+    test_intents: tuple[TestIntent, ...]
+    goal_candidates: tuple[GoalCandidate, ...]
+    capability_gaps: tuple[CapabilityGap, ...]
+    unknown_areas: tuple[str, ...]
+    digest: str
+
+    def __post_init__(self) -> None:
+        for name in ("understanding_id", "source_snapshot_id", "scope"):
+            _require_text(getattr(self, name), name)
+        _require_digest(self.digest, "digest")
+        if type(self.revision) is not int or self.revision < 1:
+            raise ValueError("understanding revision must be >= 1")
+        if self.catalog.understanding_id != self.understanding_id:
+            raise ValueError("catalog belongs to another understanding")
+        if self.catalog.revision != self.revision:
+            raise ValueError("catalog revision differs from understanding revision")
+        by_function = {function.function_id: function for function in self.catalog.functions}
+        for function in self.catalog.functions:
+            if function.understanding_revision != self.revision:
+                raise ValueError(
+                    f"business function {function.function_id} has another understanding revision"
+                )
+            if function.source_snapshot_id != self.source_snapshot_id:
+                raise ValueError(
+                    f"business function {function.function_id} has another source snapshot"
+                )
+
+        intents: dict[str, TestIntent] = {}
+        for intent in self.test_intents:
+            if intent.intent_id in intents:
+                raise ValueError(f"test intent must be unique: {intent.intent_id}")
+            if intent.understanding_revision != self.revision:
+                raise ValueError(
+                    f"test intent {intent.intent_id} has another understanding revision"
+                )
+            missing = intent.function_ids - set(by_function)
+            if missing:
+                raise ValueError(
+                    f"test intent {intent.intent_id} references unknown functions: "
+                    f"{sorted(missing)}"
+                )
+            intents[intent.intent_id] = intent
+
+        goals: set[str] = set()
+        for goal in self.goal_candidates:
+            if goal.intent_id in goals:
+                raise ValueError(f"goal candidate must be unique: {goal.intent_id}")
+            goals.add(goal.intent_id)
+            referenced = intents.get(goal.intent_id)
+            if referenced is None:
+                raise ValueError(
+                    f"goal candidate references an unknown test intent: {goal.intent_id}"
+                )
+            if goal.statement != referenced.statement:
+                raise ValueError(
+                    f"goal candidate {goal.intent_id} statement differs from its test intent"
+                )
+            if goal.risk != referenced.risk:
+                raise ValueError(
+                    f"goal candidate {goal.intent_id} risk differs from its test intent"
+                )
+            if goal.function_ids != referenced.function_ids:
+                raise ValueError(
+                    f"goal candidate {goal.intent_id} functions differ from its test intent"
+                )
+
+        gap_ids: set[str] = set()
+        for gap in self.capability_gaps:
+            if gap.gap_id in gap_ids:
+                raise ValueError(f"capability gap must be unique: {gap.gap_id}")
+            gap_ids.add(gap.gap_id)
+
+        _require_items(self.unknown_areas, "unknown_areas")
+        _require_unique(self.unknown_areas, "unknown_areas")
 
 
 @dataclass(frozen=True, slots=True)

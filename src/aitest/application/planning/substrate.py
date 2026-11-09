@@ -52,6 +52,8 @@ AggregateKind = Literal[
     "source_pin_intent",
     "record_write_intent",
     "source_binding_current",
+    #: 一次项目理解的版本化结果（目录、意图、目标候选、缺口与未知区域）。
+    "project_understanding",
     "template_ref",
     "generated_content",
     "rule_draft",

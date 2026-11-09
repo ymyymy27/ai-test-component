@@ -95,6 +95,7 @@ from aitest.application.project.environment_resolution import EnvironmentResolut
 from aitest.application.project.persistence import load_project
 from aitest.application.project.serialization import source_manifest_from_payload
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.project.understanding import ProjectUnderstandingService
 from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
 from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
 from aitest.application.review.repair_brief import SavedRepairBrief
@@ -1397,6 +1398,12 @@ def assemble_workspace_core(
                 source_control=GitSourceControl(),
                 source_available=lambda: gate.condition(SOURCE).state.value == "ready",
                 controlled_writes=controlled_writes,
+            ),
+            project_understanding=ProjectUnderstandingService(
+                reader=reader,
+                unit_of_work=ports_unit_of_work,
+                snapshots=snapshot_store,
+                workspace_id=workspace.workspace_id,
             ),
             basis_confirmations=BasisConfirmationService(
                 reader=reader, unit=unit_of_work, approvals=approvals

@@ -164,6 +164,10 @@ from aitest.application.project.serialization import (
     task_from_payload,
 )
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.project.understanding import (
+    ProjectUnderstandingError,
+    ProjectUnderstandingService,
+)
 from aitest.application.project.view_preference import (
     PreferenceError,
     save_view_preference,
@@ -949,6 +953,7 @@ class BUseCaseDependencies:
     material_projector: MaterialProjector | None = None
     workspace_id: str | None = None
     source_analysis: SourceAnalysisService | None = None
+    project_understanding: ProjectUnderstandingService | None = None
     basis_confirmations: BasisConfirmationService | None = None
     basis_confirmation_proof: BasisConfirmationProof | None = None
     model_responses: ModelResponseStore | None = None
@@ -995,25 +1000,57 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         if deps.source_analysis is None:
             raise BUseCaseError("CAPABILITY_UNAVAILABLE", "source analysis is unavailable")
         parameters = _command_parameters(command)
+        project_id = _command_project_id(command)
         binding_revision = getattr(command, "binding_revision", None)
-        return deps.source_analysis.analyze(
-            project_id=_command_project_id(command),
+        binding_id = _as_text(_required(parameters, "binding_id"), "binding_id")
+        purpose = _as_text(_required(parameters, "purpose"), "purpose")
+        source_scope = _as_text(_required(parameters, "source_scope"), "source_scope")
+        selected_paths = _text_list(parameters.get("selected_paths", []), "selected_paths")
+        source_result = deps.source_analysis.analyze(
+            project_id=project_id,
             request_id=_as_text(getattr(command, "request_id", None), "request_id"),
             intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
-            binding_id=_as_text(_required(parameters, "binding_id"), "binding_id"),
+            binding_id=binding_id,
             binding_revision=_int_of(binding_revision, "binding_revision"),
             expected_revision=_int_of(
                 getattr(command, "expected_revision", None), "expected_revision"
             ),
-            purpose=_as_text(_required(parameters, "purpose"), "purpose"),
-            source_scope=_as_text(_required(parameters, "source_scope"), "source_scope"),
-            selected_paths=_text_list(parameters.get("selected_paths", []), "selected_paths"),
+            purpose=purpose,
+            source_scope=source_scope,
+            selected_paths=selected_paths,
             exclusion_rules=_text_list(parameters.get("exclusion_rules", []), "exclusion_rules"),
             refetch_dependencies=_text_list(
                 parameters.get("refetch_dependencies", []), "refetch_dependencies"
             ),
             refetch_scope=_optional_text(parameters.get("refetch_scope"), "refetch_scope"),
         )
+        if deps.project_understanding is None:
+            # A narrow test harness may register analyze_project without the
+            # understanding scan; production bootstrap always supplies it.
+            return source_result
+        snapshot_id = source_result.get("snapshot_id")
+        pinned_snapshot_id = source_result.get("pinned_snapshot_id")
+        if (
+            not isinstance(snapshot_id, str)
+            or not snapshot_id.strip()
+            or not isinstance(pinned_snapshot_id, str)
+            or not pinned_snapshot_id.strip()
+        ):
+            raise BUseCaseError(
+                "B_UNDERSTANDING_UNVERIFIED",
+                "source result lacks the snapshot identity required for understanding",
+            )
+        try:
+            summary = deps.project_understanding.understand(
+                project_id=project_id,
+                source_snapshot_id=snapshot_id,
+                pinned_snapshot_id=pinned_snapshot_id,
+                scope=source_scope,
+                selected_paths=selected_paths,
+            )
+        except ProjectUnderstandingError as error:
+            raise BUseCaseError(error.code, str(error)) from error
+        return {**source_result, **summary}
 
     def handle_check_source(command: object) -> Mapping[str, object]:
         if deps.source_analysis is None:
