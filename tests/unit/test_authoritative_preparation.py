@@ -201,6 +201,7 @@ def _authoritative(
                 "understanding_id": fixture_understanding.understanding_id,
                 "revision": 1,
             },
+            "catalog_confirmed": True,
         },
     )
     assert published.error is None, published.error.message

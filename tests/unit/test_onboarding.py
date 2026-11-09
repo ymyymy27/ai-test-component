@@ -413,6 +413,7 @@ def test_v11_project_understanding_drives_one_confirmation_end_to_end(tmp_path):
             update={
                 "coverage_contract": preview["coverage_contract"],
                 "understanding_ref": preview["understanding_ref"],
+                "catalog_confirmed": True,
             }
         )
         for stage in ("commit", "prepare", "register"):

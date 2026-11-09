@@ -40,6 +40,7 @@ export class Onboarding {
   private preview:Record<string,unknown>|null=null;
   private reviewIssues:{path:string;message:string}[]=[];
   private runTier="full";
+  private catalogConfirmed=false;
   private driver="planned";
   private commitAfterReview=false;
   constructor(private send:(message:unknown)=>void,private submit:(command:Command)=>void,
@@ -60,7 +61,7 @@ export class Onboarding {
     this.queue=[];this.index=0;this.queueStage="";this.receipts={};this.session=null;
     this.name="";this.goal="";this.dataPolicy="";this.confirmed=false;this.workspace="";
     this.suggestions="";this.openCheck=0;
-    this.proposal=null;this.preview=null;this.reviewIssues=[];this.runTier="full";this.driver="planned";
+    this.proposal=null;this.preview=null;this.reviewIssues=[];this.runTier="full";this.driver="planned";this.catalogConfirmed=false;
     this.checks=["加载与语法","正常输入","边界输入","异常输入"].map(objective=>({objective,inputs:"",key:"",value:"",type:"text"}));
     this.note="已重新开始，请重新选择项目。";this.render();
   }
@@ -151,6 +152,7 @@ export class Onboarding {
       understanding:object(this.receipts["snapshot"])?.["understanding"]??null,
       coverage_contract:this.preview?.["coverage_contract"]??null,
       understanding_ref:this.preview?.["understanding_ref"]??null,
+      catalog_confirmed:this.catalogConfirmed,
       run_tier:this.runTier,initial_driver:this.driver,
       checks:this.proposal?[]:(this.queueStage==="plan"||["prepare","register"].includes(this.queueStage)?checks:[])};
   }
@@ -224,6 +226,11 @@ export class Onboarding {
       }
       section.append(box);
     }
+    const unknownCount=Number(this.preview?.["unknown_count"]??0),gapCount=Number(this.preview?.["capability_gap_count"]??0);
+    const catalog=document.createElement("label");const catalogCheck=document.createElement("input");catalogCheck.type="checkbox";catalogCheck.checked=this.catalogConfirmed;catalogCheck.disabled=disabled;
+    catalogCheck.setAttribute("aria-label","确认业务功能目录完整");catalogCheck.onchange=()=>{this.catalogConfirmed=catalogCheck.checked;this.render();};
+    catalog.append(catalogCheck,document.createTextNode(`我已确认业务功能目录完整，unknown 数已知（unknown ${unknownCount} · 能力缺口 ${gapCount}）`));
+    section.append(catalog);
     section.append(field("范围名称",String(scope.name??""),value=>scope.name=value),
       field("范围目标",String(scope.objective??""),value=>scope.objective=value,true));
     section.append(select("档位",this.runTier,["quick","on_demand","full"],value=>this.runTier=value),

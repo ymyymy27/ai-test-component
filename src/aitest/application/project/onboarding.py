@@ -67,6 +67,8 @@ class OnboardingForm(BaseModel):
     #: untrusted transport; plan publication revalidates both against records.
     coverage_contract: dict[str, Any] | None = None
     understanding_ref: dict[str, Any] | None = None
+    #: 用户确认“业务功能目录完整、unknown 数已知”；同一计划确认冻结。
+    catalog_confirmed: bool = False
     run_tier: Literal["quick", "on_demand", "full"] = "full"
     initial_driver: Literal["planned", "stepwise"] = "planned"
 
@@ -255,6 +257,8 @@ def wizard_commands(
             raise ValueError(
                 "完整验证需要项目理解与覆盖契约；请重新生成 v1.1 计划或选择按需自测"
             )
+        if form.run_tier == "full" and not form.catalog_confirmed:
+            raise ValueError("完整验证前请确认业务功能目录完整、unknown 数已知")
         plan_grant = _proposal_plan_grant(form, project_id=project, plan_id=plan_id)
         if plan_grant is None:
             for case in cases:
@@ -278,6 +282,7 @@ def wizard_commands(
             publish_parameters["coverage_contract"] = form.coverage_contract
         if form.understanding_ref is not None:
             publish_parameters["understanding_ref"] = form.understanding_ref
+        publish_parameters["catalog_confirmed"] = form.catalog_confirmed
         add("publish", "publish_plan", publish_parameters, plan_id)
     elif stage == "plan":
         if len(form.checks) != 4:

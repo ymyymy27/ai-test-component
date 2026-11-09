@@ -139,6 +139,7 @@ def publication_content(
             "plan_grant",
             "coverage_contract",
             "understanding_ref",
+            "catalog_confirmed",
         }
     ):
         raise ApprovalRequired("plan publication input has unknown fields")
@@ -288,6 +289,10 @@ def publication_content(
         raise ApprovalRequired(
             "full publication requires a coverage contract and project understanding"
         )
+    if tier is RunTier.FULL and parameters.get("catalog_confirmed") is not True:
+        raise ApprovalRequired(
+            "full publication requires the user to confirm catalog completeness"
+        )
     if coverage_contract is not None and tier is RunTier.FULL and template_refs:
         template_items: set[str] = set()
         for ref in template_refs:
@@ -364,6 +369,7 @@ def publication_content(
         canonical["coverage_contract"] = coverage_contract_to_payload(coverage_contract)
         assert understanding_ref is not None
         canonical["understanding_ref"] = understanding_ref
+        canonical["catalog_confirmed"] = True
     return PublicationContent(
         "plan", plan_id, canonical, _plan_payload(plan, cases, project_id=project), tuple(materials)
     )

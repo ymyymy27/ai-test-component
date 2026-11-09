@@ -999,6 +999,8 @@ def proposal_preview(
     coverage_contract: dict[str, object] | None = None
     understanding_ref: dict[str, object] | None = None
     goal_candidates: list[object] = []
+    unknown_count = 0
+    capability_gap_count = 0
     if (
         proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V11
         and understanding is not None
@@ -1018,8 +1020,13 @@ def proposal_preview(
             "understanding_id": understanding.understanding_id,
             "revision": understanding.revision,
         }
-        raw_goals = understanding_summary(understanding).get("goal_candidates", [])
+        summary = understanding_summary(understanding)
+        raw_goals = summary.get("goal_candidates", [])
         goal_candidates = list(raw_goals) if isinstance(raw_goals, list) else []
+        raw_unknown = summary.get("unknown_count", 0)
+        raw_gaps = summary.get("capability_gap_count", 0)
+        unknown_count = raw_unknown if type(raw_unknown) is int else 0
+        capability_gap_count = raw_gaps if type(raw_gaps) is int else 0
     return {
         "schema_version": "aitest.plan-proposal-preview/1.0",
         "template_id": proposal.template_id,
@@ -1036,6 +1043,8 @@ def proposal_preview(
         "coverage_contract": coverage_contract,
         "understanding_ref": understanding_ref,
         "goal_candidates": goal_candidates,
+        "unknown_count": unknown_count,
+        "capability_gap_count": capability_gap_count,
         "environment_id": environment_id,
         "proposal": proposal.model_dump(mode="json"),
     }
