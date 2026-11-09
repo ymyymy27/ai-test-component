@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pytest
 
-from aitest.application.planning.draft import text_digest
+from aitest.application.planning.draft import load_template, text_digest
 from aitest.application.planning.publish import payload_digest
 from aitest.application.planning.serialization import (
     acceptance_scope_to_payload,
@@ -24,7 +24,12 @@ from aitest.contracts.prepared_run import (
     PlanRevisionRef,
     SnapshotRef,
 )
-from aitest.domain.planning.plans import AssertionBasisState
+from aitest.domain.planning.plans import (
+    AssertionBasisState,
+    TemplateApplicability,
+    TemplateCoverage,
+)
+from aitest.domain.planning.templates import TemplateRef
 from aitest.domain.project.context import BindingForm, LocalProjectBinding
 from tests.contracts.test_prepare_run_entrypoint import _parameters
 from tests.support.controlled_binding import controlled_binding_save
@@ -159,6 +164,20 @@ def _authoritative(
         },
     )
     unit.commit("fixture-material-request")
+    template_dispositions = []
+    for ref in template_versions or []:
+        pack = load_template(
+            TemplateRef(str(ref["template_id"]), str(ref["version"]))
+        )
+        template_dispositions.extend(
+            {
+                "template_item_id": item.item_id,
+                "applicability": TemplateApplicability.NOT_APPLICABLE.value,
+                "coverage": TemplateCoverage.UNCOVERED.value,
+                "reason": "fixture plan uses scenario cases",
+            }
+            for item in pack.items
+        )
     published = controlled_publication_save(
         core,
         "publish_plan",
@@ -180,7 +199,7 @@ def _authoritative(
                         ),
                     }
                 ],
-                "template_dispositions": [],
+                "template_dispositions": template_dispositions,
                 "critical_path_ids": [],
                 "coverage_claims": [
                     {

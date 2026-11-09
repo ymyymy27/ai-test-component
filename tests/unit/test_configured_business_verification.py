@@ -291,6 +291,9 @@ def test_published_plan_actual_execution_query_report_and_restart(
                         aggregate_kind="case", record_id=ref["case_id"], revision=ref["revision"],
                     ).payload) for ref in original_plan["case_revisions"]],
                     "template_versions": templates,
+                    "coverage_contract": original_plan["approval_parameters"]["coverage_contract"],
+                    "understanding_ref": original_plan["approval_parameters"]["understanding_ref"],
+                    "catalog_confirmed": True,
                 },
             )
             assert alternative.error is None and alternative.result["published"]
