@@ -69,6 +69,11 @@ class OnboardingForm(BaseModel):
     understanding_ref: dict[str, Any] | None = None
     #: 用户确认“业务功能目录完整、unknown 数已知”；同一计划确认冻结。
     catalog_confirmed: bool = False
+    #: 项目级模型材料范围；源码片段默认关闭。
+    allowed_material_kinds: list[str] = Field(
+        default_factory=lambda: ["project_context", "template_content"]
+    )
+    source_snippets_enabled: bool = False
     run_tier: Literal["quick", "on_demand", "full"] = "full"
     initial_driver: Literal["planned", "stepwise"] = "planned"
 
@@ -175,6 +180,33 @@ def wizard_review(form: OnboardingForm) -> dict[str, Any]:
     )
 
 
+_MATERIAL_KINDS = frozenset(
+    {
+        "project_context",
+        "module_dependency_facts",
+        "template_content",
+        "acceptance_item",
+        "case_content",
+        "evidence_reference",
+        "execution_fact",
+        "source_snippet",
+    }
+)
+
+
+def _material_kinds(form: OnboardingForm) -> list[str]:
+    kinds = list(dict.fromkeys(form.allowed_material_kinds))
+    if any(kind not in _MATERIAL_KINDS for kind in kinds):
+        raise ValueError("材料范围包含未知类别")
+    if form.source_snippets_enabled and "source_snippet" not in kinds:
+        kinds.append("source_snippet")
+    if not form.source_snippets_enabled:
+        kinds = [kind for kind in kinds if kind != "source_snippet"]
+    if not kinds:
+        raise ValueError("至少保留一类模型材料")
+    return kinds
+
+
 def wizard_commands(
     form: OnboardingForm, stage: str, receipts: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -224,8 +256,8 @@ def wizard_commands(
             "project_id": project, "revision": 1,
             "endpoint": {"provider": "openai-compatible", "address": form.endpoint,
                          "model_id": form.model, "purpose": "model"},
-            "allowed_material_kinds": ["project_context", "template_content"],
-            "source_snippets_enabled": False,
+            "allowed_material_kinds": _material_kinds(form),
+            "source_snippets_enabled": form.source_snippets_enabled,
             "ai_enabled": True, "confirmation": None, "revoked_material_kinds": [],
         }}, "model-policy:" + project)
         understanding_text = _understanding_material(form)

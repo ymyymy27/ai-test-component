@@ -289,6 +289,22 @@ def _function_coverage_to_payload(value: FunctionCoverage) -> dict[str, object]:
     }
 
 
+def _report_confidence(
+    decision: DecisionResult, function_coverage: tuple[FunctionCoverage, ...]
+) -> str:
+    """High/medium/low is a summary of evidence, never an AI score."""
+
+    if decision.business_outcome.value == "incomplete":
+        return "low"
+    statuses = {item.overall_coverage.value for item in function_coverage}
+    if statuses & {"unsupported", "unknown", "not_proven"}:
+        return "low"
+    grade = decision.evidence_grade.value if decision.evidence_grade is not None else None
+    if grade == "A" and statuses <= {"proven", "not_applicable"}:
+        return "high"
+    return "medium"
+
+
 def _decision_to_payload(
     decision: DecisionResult,
     function_coverage: tuple[FunctionCoverage, ...] = (),
@@ -301,6 +317,7 @@ def _decision_to_payload(
         ]
     return {
         "business_outcome": decision.business_outcome.value,
+        "confidence": _report_confidence(decision, function_coverage),
         "evidence_grade": None if grade is None else grade.value,
         "primary_gap": (
             None if decision.primary_gap is None else _gap_to_payload(decision.primary_gap)

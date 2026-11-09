@@ -716,8 +716,28 @@ class AITestPanel extends HTMLElement {
     this.render();
   }
 
+  private runNotification(): HTMLElement | null {
+    const view=this.view("run") ?? this.view("panel");
+    if(!view||!this.project?.run_id)return null;
+    const list=(key:string):string[]=>Array.isArray(view[key])?strings(view[key]):[];
+    let message="";
+    if(list("manual_pending_step_ids").length)message="有步骤等待你操作";
+    else if(list("pending_verification_step_ids").length)message="有执行结果等待你核验";
+    else if(list("blocked_step_ids").length)message="运行受阻，请查看阻塞原因";
+    else {
+      const control=String(view["control_state"]??""),outcome=String(view["business_outcome"]??"");
+      if(control==="running")message="运行中";
+      else if(outcome==="passed")message="已完成：通过";
+      else if(outcome==="failed")message="已完成：失败";
+      else if(outcome==="incomplete")message="未完成";
+    }
+    if(!message)return null;
+    const note=text("p",message,"notice");note.dataset.testid="run-notification";note.setAttribute("role","status");return note;
+  }
+
   private currentView(): HTMLElement {
     const fragment=document.createElement("div");fragment.className="dashboard";
+    const notification=this.runNotification();if(notification)fragment.append(notification);
     const fold=(label:string,key:string,...children:HTMLElement[])=>group(label,key,this.expanded[key]??(key==="pending"?!!this.project?.run_id:key==="plan"?!!this.project:false),open=>{this.expanded[key]=open;},...children);
     const links=document.createElement("div");links.className="link-row";
     if(this.project)links.append(action("查看准备详情",()=>this.navigate("plan")),action("问题与报告",()=>this.navigate("review")));
@@ -1430,8 +1450,10 @@ class AITestPanel extends HTMLElement {
     const counted=(scope:unknown[],pool:unknown[])=>scope.filter(item=>pool.includes(item)).length;
     const outcome=record["business_outcome"] ?? decision["business_outcome"];
     const grade=record["evidence_grade"] ?? decision["evidence_grade"];
+    const confidence=String(decision["confidence"]??"");
+    const confidenceText=confidence==="high"?"高":confidence==="medium"?"中":confidence==="low"?"低":"";
     const badge=document.createElement("p");badge.className="report-outcome";
-    badge.textContent=`${friendly(outcome)}${grade?` · 证据 ${String(grade)}`:""}`;
+    badge.textContent=`${friendly(outcome)}${confidenceText?` · 可信度：${confidenceText}`:""}${grade?` · 证据 ${String(grade)}`:""}`;
     block.append(badge);
     const gaps=Array.isArray(decision["gaps"])?decision["gaps"]:[];
     const primary=object(decision["primary_gap"]) ?? object(gaps[0]);

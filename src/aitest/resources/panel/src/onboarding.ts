@@ -40,6 +40,7 @@ export class Onboarding {
   private preview:Record<string,unknown>|null=null;
   private reviewIssues:{path:string;message:string}[]=[];
   private runTier="full";
+  private sourceSnippets=false;
   private catalogConfirmed=false;
   private driver="planned";
   private commitAfterReview=false;
@@ -61,7 +62,7 @@ export class Onboarding {
     this.queue=[];this.index=0;this.queueStage="";this.receipts={};this.session=null;
     this.name="";this.goal="";this.dataPolicy="";this.confirmed=false;this.workspace="";
     this.suggestions="";this.openCheck=0;
-    this.proposal=null;this.preview=null;this.reviewIssues=[];this.runTier="full";this.driver="planned";this.catalogConfirmed=false;
+    this.proposal=null;this.preview=null;this.reviewIssues=[];this.runTier="full";this.driver="planned";this.catalogConfirmed=false;this.sourceSnippets=false;
     this.checks=["加载与语法","正常输入","边界输入","异常输入"].map(objective=>({objective,inputs:"",key:"",value:"",type:"text"}));
     this.note="已重新开始，请重新选择项目。";this.render();
   }
@@ -153,6 +154,8 @@ export class Onboarding {
       coverage_contract:this.preview?.["coverage_contract"]??null,
       understanding_ref:this.preview?.["understanding_ref"]??null,
       catalog_confirmed:this.catalogConfirmed,
+      allowed_material_kinds:["project_context","template_content",...(this.sourceSnippets?["source_snippet"]:[])],
+      source_snippets_enabled:this.sourceSnippets,
       run_tier:this.runTier,initial_driver:this.driver,
       checks:this.proposal?[]:(this.queueStage==="plan"||["prepare","register"].includes(this.queueStage)?checks:[])};
   }
@@ -310,6 +313,8 @@ export class Onboarding {
       confirmation.append(checkbox,document.createTextNode("我确认这是本地测试入口，不会修改真实业务数据"));environmentPart.append(confirmation);
       const modelPart=document.createElement("div");modelPart.className="form-part";modelPart.hidden=this.configurationPage!==1;
       modelPart.append(text("h3","模型 API"),text("p","让模型帮助准备检查建议。编辑器聊天的登录信息不会用于这里。"));
+      const snippets=document.createElement("label"),snippetCheck=document.createElement("input");snippetCheck.type="checkbox";snippetCheck.checked=this.sourceSnippets;snippetCheck.disabled=locked;snippetCheck.onchange=()=>{this.sourceSnippets=snippetCheck.checked;this.render();};
+      snippets.append(snippetCheck,document.createTextNode("允许发送所选源码片段（默认关闭；只发送已确认选中的文件）"));modelPart.append(snippets);
       const choice=document.createElement("label"),ai=document.createElement("input");ai.type="checkbox";ai.checked=this.useModel;ai.disabled=locked;ai.onchange=()=>{this.useModel=ai.checked;this.render();};choice.append(ai,document.createTextNode("使用模型帮助准备检查建议"));modelPart.append(choice);
       if(this.useModel)modelPart.append(text("p","供应方：DeepSeek / OpenAI 兼容接口"),field("API 地址",this.endpoint,value=>this.endpoint=value),field("模型名称",this.model,value=>this.model=value),
         field("请求超时（秒，10–120）",this.modelTimeout,value=>this.modelTimeout=value),
