@@ -624,3 +624,18 @@ def test_full_blocks_unknown_and_unsupported_understanding():
         validate_coverage_contract_against_understanding(
             contract, blocked, plan_revision=1, require_all_functions=True
         )
+
+
+def test_v11_proposal_without_dispositions_remains_readable_for_ondemand():
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload.pop("template_dispositions")
+    proposal = proposal_from_mapping(payload)
+    scope, cases = materialize_plan_proposal(
+        proposal,
+        project_id="demo",
+        environment_id="env-demo",
+        scope_id="scope-demo",
+    )
+    assert len(cases) == 4
+    assert scope.template_case_ids == frozenset()

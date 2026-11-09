@@ -86,7 +86,8 @@ test("review shows project coverage and commit is one plan confirmation",async({
     coverage:{template_items:4,covered_items:1,required_items:1},
     coverage_preview:[{function_id:"fn-add",overall_status:"not_proven",dimensions:{normal:"planned"},gap_reason:"no coverage claim"}],
     coverage_contract:{contract_id:"c1",understanding_revision:1},
-    understanding_ref:{understanding_id:"u1",revision:1}};
+    understanding_ref:{understanding_id:"u1",revision:1},
+    template_disposition_summary:{applicable:3,not_applicable:1,unknown:0,covered:3,uncovered:1,deferred:0,items:[{template_item_id:"syntax",applicability:"not_applicable",coverage:"uncovered",reason:"无语法入口"}]}};
   await wizardReply(page,{commands:[
     {key:"policy",action:"save_model_outbound_policy",intent_id:"i5",expected_revision:0,binding_revision:1,parameters:{}},
     {key:"suggestions",action:"generate_draft",intent_id:"i6",expected_revision:0,binding_revision:1,parameters:{}},
@@ -99,6 +100,8 @@ test("review shows project coverage and commit is one plan confirmation",async({
   await wizardReply(page,{preview});
   await expect(page.getByTestId("plan-coverage")).toBeVisible();
   await expect(page.getByText("fn-add")).toBeVisible();
+  await expect(page.getByText(/模板提醒处置/)).toBeVisible();
+  await expect(page.getByText(/不适用 1/)).toBeVisible();
   await page.getByRole("button",{name:"校验并发布",exact:true}).click();
   await expect.poll(async()=> (await sent(page)).kind).toBe("wizardReview");
   await wizardReply(page,{preview});

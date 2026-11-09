@@ -281,6 +281,36 @@ def _coverage_issues(proposal: PlanProposal, pack: TemplatePack) -> list[Proposa
         return issues
 
     issues = []
+    # 1.1 早期提案没有处置字段；允许预览/按需使用，full 发布仍由覆盖契约审计拒绝。
+    if not proposal.template_dispositions:
+        for case in proposal.cases:
+            if case.origin == "template":
+                item = items.get(case.template_item_id or "")
+                if item is None:
+                    issues.append(
+                        ProposalIssue(
+                            f"cases[{case.case_id}].template_item_id",
+                            "unknown template item: " + str(case.template_item_id),
+                        )
+                    )
+                elif case.layer != item.layer:
+                    issues.append(
+                        ProposalIssue(
+                            f"cases[{case.case_id}].layer",
+                            f"layer {case.layer} differs from template item {item.item_id} "
+                            f"({item.layer})",
+                        )
+                    )
+            elif case.case_id not in {
+                case_id for claim in proposal.coverage_claims for case_id in claim.case_ids
+            }:
+                issues.append(
+                    ProposalIssue(
+                        f"cases[{case.case_id}]",
+                        "AI/user-added cases must fill a coverage gap via coverage_claims",
+                    )
+                )
+        return issues
     dispositions: dict[str, ProposalTemplateDisposition] = {}
     for index, disposition in enumerate(proposal.template_dispositions):
         if disposition.template_item_id not in items:
