@@ -15,11 +15,10 @@ test("empty project wizard preserves cancelled intent and sequences commands aft
   await page.getByRole("button",{name:"选择项目目录",exact:true}).click();
   await wizardReply(page,{session:{project_id:"guided-project",name:"示例",source:"E:/sample",entry:"main.py",reference:"safe"}});
   await page.getByRole("textbox",{name:"你希望验证什么",exact:true}).fill("核对加法");
-  await page.getByRole("button",{name:"下一步：模型 API",exact:true}).click();
-  await page.getByRole("checkbox",{name:"使用模型帮助准备检查建议"}).uncheck();
-  await page.getByRole("button",{name:"下一步：测试环境",exact:true}).click();
   await page.getByRole("textbox",{name:"测试数据如何隔离、测试后如何复位",exact:true}).fill("纯计算无需复位");
   await page.getByRole("checkbox",{name:"我确认这是本地测试入口，不会修改真实业务数据"}).check();
+  await page.getByRole("button",{name:"下一步：模型 API",exact:true}).click();
+  await page.getByRole("checkbox",{name:"使用模型帮助准备检查建议"}).uncheck();
   await page.getByRole("button",{name:"准备环境并继续",exact:true}).click();
   await postHostMessage(page,{kind:"projectContext",project_id:"guided-project",context_id:"new"});
   expect((await sent(page)).kind).toBe("wizardSetup");
@@ -52,10 +51,9 @@ test("AI proposal review publishes a full plan and keeps human confirmation",asy
   await page.getByRole("button",{name:"选择项目目录",exact:true}).click();
   await wizardReply(page,{session:{project_id:"guided-ai",name:"示例",source:"E:/sample",entry:"main.py",reference:"safe"}});
   await page.getByRole("textbox",{name:"你希望验证什么",exact:true}).fill("核对加法");
-  await page.getByRole("button",{name:"下一步：模型 API",exact:true}).click();
-  await page.getByRole("button",{name:"下一步：测试环境",exact:true}).click();
   await page.getByRole("textbox",{name:"测试数据如何隔离、测试后如何复位",exact:true}).fill("纯计算无需复位");
   await page.getByRole("checkbox",{name:"我确认这是本地测试入口，不会修改真实业务数据"}).check();
+  await page.getByRole("button",{name:"下一步：模型 API",exact:true}).click();
   await page.getByRole("button",{name:"准备环境并继续",exact:true}).click();
   await wizardReply(page,{setup:{}});
   await expect.poll(async()=> (await sent(page)).action).toBe("doctor");

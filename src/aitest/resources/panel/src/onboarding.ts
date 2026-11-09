@@ -144,8 +144,8 @@ export class Onboarding {
     this.workspace=workspace;
     const section=document.createElement("section");section.dataset.testid="onboarding";
     const steps=document.createElement("ol");steps.className="wizard-steps";steps.setAttribute("aria-label","测试准备进度");
-    const active=this.stage==="choose"?0:this.stage==="configure"?this.configurationPage:["project","model"].includes(this.stage)?2:3;
-    ["选择项目","模型 API","测试环境","核对计划"].forEach((label,index)=>{const item=text("li",`${index+1} ${label}`);if(active===index)item.setAttribute("aria-current","step");steps.append(item);});
+    const active=this.stage==="choose"?0:this.stage==="configure"?(this.configurationPage===0?1:2):3;
+    ["选择项目","测试设置","生成计划","核对计划"].forEach((label,index)=>{const item=text("li",`${index+1} ${label}`);if(active===index)item.setAttribute("aria-current","step");steps.append(item);});
     section.append(steps);
     const progress=document.createElement("p");progress.className="muted subtle";
     const stageLabels:Record<string,string>={choose:"选择项目",configure:"配置模型与环境",project:"保存项目",model:"生成 AI 计划",review:"核对 AI 计划",commit:"发布计划",plan:"核对并发布计划",done:"开始执行"};
@@ -169,7 +169,7 @@ export class Onboarding {
     if(this.stage==="configure"){
       const projectPart=document.createElement("div");projectPart.className="form-part";projectPart.hidden=this.configurationPage!==0;
       projectPart.append(text("h3","告诉我们这次要检查什么"),field("项目名称",this.name,value=>this.name=value),field("你希望验证什么",this.goal,value=>this.goal=value,true),text("p","描述应该发生什么，以及哪些情况需要特别检查。例如：正常加法得到正确结果，输入无效时给出错误。"));
-      const environmentPart=document.createElement("div");environmentPart.className="form-part";environmentPart.hidden=this.configurationPage!==2;
+      const environmentPart=document.createElement("div");environmentPart.className="form-part";environmentPart.hidden=this.configurationPage!==0;
       environmentPart.append(text("h3","准备独立测试环境"),text("p","插件将创建 Python 3.11+ 环境，与你平时使用的环境分开。当前流程仅支持标准库，不会安装项目脚本或依赖。"),
         field("测试数据如何隔离、测试后如何复位",this.dataPolicy,value=>this.dataPolicy=value,true),text("p","例如：只在内存中计算，不连接业务系统，结束后无需清理。如果会写文件或访问数据库，请说明专用测试数据及清理方式。"));
       const confirmation=document.createElement("label"),checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.checked=this.confirmed;checkbox.disabled=locked;checkbox.onchange=()=>this.confirmed=checkbox.checked;
@@ -184,9 +184,9 @@ export class Onboarding {
       section.append(projectPart,modelPart,environmentPart);
       const nav=document.createElement("div");nav.className="wizard-nav";
       if(this.configurationPage>0)nav.append(action("上一步",()=>{this.configurationPage--;this.note="";this.render();},locked));
-      if(this.configurationPage<2){const next=action(this.configurationPage===0?"下一步：模型 API":"下一步：测试环境",()=>{
-        if(this.configurationPage===0&&(!this.name.trim()||!this.goal.trim())){this.note="请填写项目名称和本次测试目标。";this.render();return;}
-        this.configurationPage++;this.note="";this.render();
+      if(this.configurationPage===0){const next=action("下一步：模型 API",()=>{
+        if(!this.name.trim()||!this.goal.trim()||!this.dataPolicy.trim()||!this.confirmed){this.note="请填写项目目标、数据复位说明，并确认数据隔离。";this.render();return;}
+        this.configurationPage=1;this.note="";this.render();
       },locked);next.className="primary";nav.append(next);}
       else {const prepare=action("准备环境并继续",()=>{
         if(!this.name.trim()||!this.goal.trim()||!this.dataPolicy.trim()||!this.confirmed){this.note="请填写项目目标、数据复位说明，并确认数据隔离。";this.render();return;}
@@ -195,12 +195,25 @@ export class Onboarding {
       },locked);prepare.className="primary";nav.append(prepare);}section.append(nav);
     }else if(this.stage==="project")section.append(text("p","将保存项目、目录绑定和环境说明；目录绑定需要你确认。"),action("保存项目并继续",()=>this.start("project"),locked||frozen||!workspace));
     else if(this.stage==="model")section.append(text("h3","确认模型使用范围"),text("p",`接收方：${this.endpoint}；模型：${this.model}`),text("p","模型会读取项目理解摘要并返回结构化计划提案；不会执行程序。发布前由你核对并确认。"),
-      text("p",this.goal),action("生成 AI 计划",()=>this.start("model"),locked||frozen),action("改用手工四项检查",()=>{this.mode="checks";this.queue=[];this.stage="plan";this.render();},locked));
+      text("p",this.goal),action("生成 AI 计划",()=>this.start("model"),locked||frozen),action("高级：手工四项检查（不使用 AI 计划）",()=>{this.mode="checks";this.queue=[];this.stage="plan";this.render();},locked));
     else if(this.stage==="review"){
       const coverage=object(this.preview?.["coverage"]);
-      const cases=this.proposal&&Array.isArray(this.proposal["cases"])?this.proposal["cases"].length:"?";
-      section.append(text("h3","核对 AI 计划"),text("p",`用例 ${cases} · 模板项 ${coverage?.["template_items"]??"?"} · 已覆盖 ${coverage?.["covered_items"]??"?"} · 必测 ${coverage?.["required_items"]??"?"}`,"muted"),
-        text("p","计划提案、覆盖契约与逐条依据会在一次确认中冻结；发布前服务端会重新校验。")); 
+      const proposalCases=this.proposal&&Array.isArray(this.proposal["cases"])?this.proposal["cases"]:[];
+      section.append(text("h3","核对 AI 计划"),text("p",`用例 ${proposalCases.length} · 模板项 ${coverage?.["template_items"]??"?"} · 已覆盖 ${coverage?.["covered_items"]??"?"} · 必测 ${coverage?.["required_items"]??"?"}`,"muted"),
+        text("p","计划提案、覆盖契约与逐条依据会在一次确认中冻结；发布前服务端会重新校验。"));
+      if(proposalCases.length){
+        const list=document.createElement("ol");list.className="review-cases";
+        for(const item of proposalCases.slice(0,30)){
+          const row=object(item);if(!row)continue;
+          const title=String(row["objective"]??row["case_id"]??"用例");
+          const meta=[row["case_id"],row["layer"],row["importance"],row["verification_method"]].filter(Boolean).map(String).join(" · ");
+          const line=text("li",title);if(meta)line.append(text("span",`（${meta}）`,"muted"));list.append(line);
+        }
+        section.append(text("h3","计划用例"),list);
+        if(proposalCases.length>30)section.append(text("p",`仅显示前 30 条；完整内容见下方 JSON。`,"muted"));
+      }
+      const advanced=document.createElement("details");
+      advanced.append(text("summary","高级：编辑提案 JSON"));
       const area=document.createElement("textarea");
       area.value=this.proposal?JSON.stringify(this.proposal,null,2):"";
       area.rows=14;area.setAttribute("aria-label","计划提案 JSON");area.disabled=locked||frozen;
@@ -213,7 +226,8 @@ export class Onboarding {
         }catch(error){this.note=error instanceof Error?error.message:"提案 JSON 无效";}
         this.render();
       };
-      section.append(text("p","可编辑完整提案；修改后需要重新校验。","muted"),area);
+      advanced.append(text("p","修改后需要重新校验；客户端只做语法提示，发布前由核心重新校验。","muted"),area);
+      section.append(advanced);
       section.append(action("重新校验",()=>this.review(),locked||frozen));
       const confirmation=document.createElement("label"),checkbox=document.createElement("input");
       checkbox.type="checkbox";checkbox.checked=this.catalogConfirmed;checkbox.disabled=locked||frozen;
@@ -222,7 +236,7 @@ export class Onboarding {
       section.append(confirmation);
       const publish=action("确认并发布",()=>this.start("commit"),locked||frozen||!this.catalogConfirmed||!this.preview);
       publish.className="primary";section.append(publish);
-      section.append(action("改用手工四项检查",()=>{this.mode="checks";this.preview=null;this.stage="plan";this.render();},locked||frozen));
+      section.append(action("高级：手工四项检查（不使用 AI 计划）",()=>{this.mode="checks";this.preview=null;this.stage="plan";this.render();},locked||frozen));
       if(this.reviewIssues.length)section.append(text("p",this.reviewIssues.join("；"),"notice"));
     }else if(this.stage==="plan"){
       section.append(text("h3","核对检查计划"),text("p","测试入口应覆盖以下四类场景，并输出结果字段。每项会执行同一入口，输入条件是说明，不会自动传给程序。请根据需求填写独立预期；不能把运行结果直接当成正确答案。"),
