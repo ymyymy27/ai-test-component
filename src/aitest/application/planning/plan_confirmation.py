@@ -30,6 +30,7 @@ from aitest.application.planning.substrate import (
     current_record,
     read_scoped_record,
 )
+from aitest.application.ports import StageableWorkspaceUnitOfWork
 
 
 class PlanConfirmationError(ValueError):
@@ -40,9 +41,18 @@ def _stable_identity(prefix: str, *parts: object) -> str:
     return prefix + "-" + _digest(list(parts))[7:]
 
 
+STATE_SCHEMA_VERSION = "aitest.plan-confirmation-state/1.0"
+STATE_AGGREGATE_KIND = "plan_confirmation_state"
+
+
+def _state_identity(project_id: str, plan_id: str) -> str:
+    return "plan-confirmation-" + _digest([project_id, plan_id])[7:]
+
+
 @dataclass(frozen=True, slots=True)
 class PlanConfirmationService:
     reader: RecordReader
+    unit: StageableWorkspaceUnitOfWork
     basis: BasisConfirmationService
     grants: PlanExecutionGrantService
 
@@ -259,6 +269,80 @@ class PlanConfirmationService:
             ],
         }
 
+    def mark_state(
+        self,
+        *,
+        project_id: str,
+        request_id: str,
+        plan_id: str,
+        plan_revision: int,
+        state: str,
+        grant_id: str | None = None,
+        missing_basis_case_ids: Sequence[str] = (),
+        reason: str = "",
+    ) -> None:
+        """Append a derivation state so failures are distinguishable from pending."""
+
+        if state not in {"ready", "derivation_failed"}:
+            raise PlanConfirmationError("plan confirmation state must be ready/failed")
+        saved = read_scoped_record(
+            self.reader,
+            project_id=project_id,
+            aggregate_kind="plan",
+            record_id=plan_id,
+            revision=plan_revision,
+        )
+        confirmation_id = saved.payload.get("approval_confirmation_id")
+        if not isinstance(confirmation_id, str) or not confirmation_id:
+            raise PlanConfirmationError("plan confirmation has no exact confirmation id")
+        record_id = _state_identity(project_id, plan_id)
+        current = current_record(
+            self.reader,
+            project_id=project_id,
+            aggregate_kind=STATE_AGGREGATE_KIND,  # type: ignore[arg-type]
+            record_id=record_id,
+        )
+        revision = 0 if current is None else current.revision
+        if current is not None:
+            previous = current.payload
+            if all(previous.get(key) == value for key, value in {
+                "schema_version": STATE_SCHEMA_VERSION,
+                "project_id": project_id,
+                "plan_id": plan_id,
+                "plan_revision": plan_revision,
+                "plan_confirmation_id": confirmation_id,
+                "state": state,
+                "grant_id": grant_id,
+                "missing_basis_case_ids": sorted(set(missing_basis_case_ids)),
+                "reason": reason,
+            }.items()):
+                return
+        payload = {
+            "schema_version": STATE_SCHEMA_VERSION,
+            "project_id": project_id,
+            "plan_id": plan_id,
+            "plan_revision": plan_revision,
+            "plan_confirmation_id": confirmation_id,
+            "state": state,
+            "grant_id": grant_id,
+            "missing_basis_case_ids": sorted(set(missing_basis_case_ids)),
+            "reason": reason,
+            "created_at_commit": self.unit.next_commit_seq(),
+        }
+        derived_request = _stable_identity("state-request", request_id, plan_id, str(plan_revision))
+        self.unit.begin(derived_request, project_id)
+        try:
+            self.unit.stage_record(
+                aggregate_kind=STATE_AGGREGATE_KIND,
+                record_id=record_id,
+                expected_revision=revision,
+                payload=payload,
+            )
+            self.unit.commit(derived_request)
+        except BaseException:
+            self.unit.rollback(derived_request)
+            raise
+
     def state(
         self, *, project_id: str, plan_id: str, plan_revision: int
     ) -> Mapping[str, object]:
@@ -295,6 +379,30 @@ class PlanConfirmationService:
             or not confirmation_id
         ):
             raise PlanConfirmationError("plan confirmation differs from its publication")
+        stated = current_record(
+            self.reader,
+            project_id=project_id,
+            aggregate_kind=STATE_AGGREGATE_KIND,  # type: ignore[arg-type]
+            record_id=_state_identity(project_id, plan_id),
+        )
+        if stated is not None:
+            payload = stated.payload
+            if (
+                payload.get("schema_version") == STATE_SCHEMA_VERSION
+                and payload.get("project_id") == project_id
+                and payload.get("plan_id") == plan_id
+                and payload.get("plan_revision") == plan_revision
+                and payload.get("plan_confirmation_id") == confirmation_id
+            ):
+                return {
+                    "plan_id": plan_id,
+                    "plan_record_revision": plan_revision,
+                    "plan_confirmation_id": confirmation_id,
+                    "state": payload.get("state"),
+                    "missing_basis_case_ids": payload.get("missing_basis_case_ids", []),
+                    "grant_id": payload.get("grant_id"),
+                    "reason": payload.get("reason", ""),
+                }
         missing: list[str] = []
         frozen = raw.get("cases")
         if not isinstance(frozen, list):

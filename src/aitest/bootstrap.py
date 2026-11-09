@@ -1394,7 +1394,10 @@ def assemble_workspace_core(
             clock=approvals.clock,
         )
         plan_confirmations = PlanConfirmationService(
-            reader=reader, basis=basis_confirmations, grants=plan_grants
+            reader=reader,
+            unit=unit_of_work,
+            basis=basis_confirmations,
+            grants=plan_grants,
         )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,

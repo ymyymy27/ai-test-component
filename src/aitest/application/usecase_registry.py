@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import wraps
@@ -1929,19 +1930,38 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             if raw_grant is None:
                 return controlled
             assert deps.plan_confirmations is not None
+            request_id = _as_text(getattr(command, "request_id", None), "request_id")
+            record_revision = _int_of(
+                controlled.get("record_revision"), "record_revision"
+            )
             try:
                 derived = deps.plan_confirmations.derive(
                     project_id=project_id,
-                    request_id=_as_text(getattr(command, "request_id", None), "request_id"),
+                    request_id=request_id,
                     intent_id=_as_text(getattr(command, "intent_id", None), "intent_id"),
                     plan_id=plan_id,
-                    plan_record_revision=_int_of(
-                        controlled.get("record_revision"), "record_revision"
-                    ),
+                    plan_record_revision=record_revision,
                     cases=cast(Sequence[Mapping[str, object]], raw_cases),
                 )
             except PlanConfirmationError as error:
+                with suppress(OSError, ValueError, TypeError, KeyError):
+                    deps.plan_confirmations.mark_state(
+                        project_id=project_id,
+                        request_id=request_id,
+                        plan_id=plan_id,
+                        plan_revision=record_revision,
+                        state="derivation_failed",
+                        reason=str(error),
+                    )
                 raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+            deps.plan_confirmations.mark_state(
+                project_id=project_id,
+                request_id=request_id,
+                plan_id=plan_id,
+                plan_revision=record_revision,
+                state="ready",
+                grant_id=str(derived["grant_id"]),
+            )
             return dict(controlled) | dict(derived)
         if parameters.get("run_tier", "full") == "full":
             raise BUseCaseError(

@@ -300,6 +300,20 @@ def test_declared_data_mutation_units_must_fit_the_grant_budget(authoritative):
     assert core.unit_of_work.repo.current_revision(
         aggregate_kind="plan", record_id="plan-data-budget"
     ) == 1
+    from aitest.interfaces.local.api import EntryKind, Session
+
+    state = core.api.dispatch(
+        Command(
+            action="plan_confirmation_state",
+            project_id=inputs.project_id,
+            request_id="data-budget-state",
+            parameters={"plan_id": "plan-data-budget", "plan_revision": 1},
+        ),
+        Session("data-budget-state", EntryKind.HUMAN_UI, True),
+    )
+    assert state.error is None, state.error
+    assert state.result["state"] == "derivation_failed"
+    assert "data mutation" in state.result["reason"]
 
 
 def test_plan_confirmation_state_reports_ready_after_derivation(authoritative):
