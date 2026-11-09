@@ -53,6 +53,7 @@ PHASE_ONE_ACTIONS = frozenset(
         "resolve_model_response",
         "save_plan",
         "publish_plan",
+        "plan_confirmation_state",
         "prepare_run",
         "register_run",
         "inspect_case_reuse",
@@ -102,6 +103,7 @@ READ_ACTIONS = frozenset(
         "copy_repair_brief",
         "check_source",
         "inspect_case_reuse",
+        "plan_confirmation_state",
     }
 )
 

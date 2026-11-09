@@ -163,6 +163,8 @@ class BusinessFunction:
     canonical_function_id: str | None
     aliases: tuple[str, ...]
     source_snapshot_id: str
+    #: 每个必要维度的来源：``(dimension, rule|ai|user, reason)``；旧记录允许为空。
+    dimension_origins: tuple[tuple[str, str, str], ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.function_id, "function_id")
@@ -177,6 +179,18 @@ class BusinessFunction:
         _require_unique(self.aliases, "aliases")
         _require_dimensions(self.required_dimensions)
         _require_confidence(self.confidence, "confidence")
+        if self.dimension_origins:
+            dimensions = [item[0] for item in self.dimension_origins]
+            if len(dimensions) != len(set(dimensions)):
+                raise ValueError("dimension origins must be unique")
+            if set(dimensions) != set(self.required_dimensions):
+                raise ValueError("dimension origins must cover required dimensions")
+            for dimension, source, reason in self.dimension_origins:
+                _require_text(dimension, "dimension origin dimension")
+                if source not in {"rule", "ai", "user"}:
+                    raise ValueError("dimension origin source must be rule/ai/user")
+                if source in {"ai", "user"} and not reason.strip():
+                    raise ValueError("AI/user dimension origins require a reason")
         if self.understanding_revision < 1:
             raise ValueError("understanding_revision must be >= 1")
         object.__setattr__(self, "kind", BusinessFunctionKind(str(self.kind)))

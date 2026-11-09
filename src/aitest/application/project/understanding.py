@@ -1319,6 +1319,11 @@ def _function_payload(function: BusinessFunction, *, include_revision: bool) -> 
         "aliases": list(function.aliases),
         "source_snapshot_id": function.source_snapshot_id,
     }
+    if function.dimension_origins:
+        payload["dimension_origins"] = [
+            {"dimension": dimension, "source": source, "reason": reason}
+            for dimension, source, reason in function.dimension_origins
+        ]
     if include_revision:
         payload["understanding_revision"] = function.understanding_revision
     return payload
@@ -1407,6 +1412,14 @@ def _function_from_payload(
         ),
         aliases=_text_list(payload.get("aliases"), "aliases"),
         source_snapshot_id=_text(payload.get("source_snapshot_id"), "source_snapshot_id"),
+        dimension_origins=tuple(
+            (
+                _text(item.get("dimension"), "dimension"),
+                _text(item.get("source"), "source"),
+                _reason_text(item.get("reason")),
+            )
+            for item in _mappings(payload.get("dimension_origins", []), "dimension_origins")
+        ),
     )
 
 
@@ -1488,6 +1501,9 @@ def _build_functions(
             canonical_function_id=None,
             aliases=(),
             source_snapshot_id=source_snapshot_id,
+            dimension_origins=tuple(
+                (dimension, "rule", "") for dimension in entry.dimensions
+            ),
         )
         for entry in entries
     ]
@@ -2017,6 +2033,14 @@ def _optional_text(value: object, name: str) -> str | None:
     if value is None:
         return None
     return _text(value, name)
+
+
+def _reason_text(value: object) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ProjectUnderstandingError("reason must be a string")
+    return value
 
 
 def _integer(value: object, name: str) -> int:

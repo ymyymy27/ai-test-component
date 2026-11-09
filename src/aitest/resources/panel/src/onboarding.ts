@@ -234,6 +234,13 @@ export class Onboarding {
     catalogCheck.setAttribute("aria-label","确认业务功能目录完整");catalogCheck.onchange=()=>{this.catalogConfirmed=catalogCheck.checked;this.render();};
     catalog.append(catalogCheck,document.createTextNode(`我已确认业务功能目录完整，unknown 数已知（unknown ${unknownCount} · 能力缺口 ${gapCount}）`));
     section.append(catalog);
+    const disposition=object(this.preview?.["template_disposition_summary"]);
+    if(disposition){
+      const box=document.createElement("div");box.append(text("h4","模板提醒处置"),text("p",`适用 ${Number(disposition["applicable"]??0)} · 不适用 ${Number(disposition["not_applicable"]??0)} · 待确认 ${Number(disposition["unknown"]??0)}；已覆盖 ${Number(disposition["covered"]??0)} · 未覆盖 ${Number(disposition["uncovered"]??0)} · 推迟 ${Number(disposition["deferred"]??0)}`,"muted"));
+      const items=Array.isArray(disposition["items"])?disposition["items"] as unknown[]:[];
+      if(items.length){const details=document.createElement("details");details.className="technical";details.append(text("summary","查看逐项理由"));for(const rawItem of items){const item=object(rawItem)??{};details.append(text("p",`${String(item.template_item_id??"")}：${String(item.applicability??"")}/${String(item.coverage??"")}${item.reason?` — ${String(item.reason)}`:""}`,"muted"));}box.append(details);}
+      section.append(box);
+    }
     section.append(field("范围名称",String(scope.name??""),value=>scope.name=value),
       field("范围目标",String(scope.objective??""),value=>scope.objective=value,true));
     section.append(select("档位",this.runTier,["quick","on_demand","full"],value=>this.runTier=value),

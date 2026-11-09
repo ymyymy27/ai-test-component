@@ -21,6 +21,7 @@ export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   "check_source",
   "inspect_case_reuse",
   "copy_repair_brief",
+  "plan_confirmation_state",
 ]);
 
 /**

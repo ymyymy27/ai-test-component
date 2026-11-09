@@ -262,6 +262,7 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "publish_rules",
         "save_plan",
         "publish_plan",
+        "plan_confirmation_state",
         "prepare_run",
         "query",
         "analyze_project",
@@ -1874,6 +1875,23 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             "published": False,
         }
 
+    def handle_plan_confirmation_state(command: object) -> Mapping[str, object]:
+        if deps.plan_confirmations is None:
+            raise BUseCaseError(
+                "CAPABILITY_UNAVAILABLE", "plan confirmation state is unavailable"
+            )
+        parameters = _command_parameters(command)
+        try:
+            return deps.plan_confirmations.state(
+                project_id=_command_project_id(command),
+                plan_id=_as_text(_required(parameters, "plan_id"), "plan_id"),
+                plan_revision=_revision_of(
+                    _required(parameters, "plan_revision"), "plan_revision"
+                ),
+            )
+        except ValueError as error:
+            raise BUseCaseError("B_INVALID_PARAMETER", str(error)) from error
+
     def handle_publish_plan(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
@@ -2662,6 +2680,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "publish_rules": _guard(handle_publish_rules),
         "save_plan": _guard(handle_save_plan),
         "publish_plan": _guard(handle_publish_plan),
+        "plan_confirmation_state": _guard(handle_plan_confirmation_state),
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
         "analyze_project": _guard(handle_analyze_project),

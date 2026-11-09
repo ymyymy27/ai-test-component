@@ -1006,6 +1006,7 @@ def proposal_preview(
     goal_candidates: list[object] = []
     unknown_count = 0
     capability_gap_count = 0
+    disposition_summary: dict[str, object] | None = None
     if (
         proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V11
         and understanding is not None
@@ -1032,6 +1033,41 @@ def proposal_preview(
         raw_gaps = summary.get("capability_gap_count", 0)
         unknown_count = raw_unknown if type(raw_unknown) is int else 0
         capability_gap_count = raw_gaps if type(raw_gaps) is int else 0
+        disposition_summary = {
+            "applicable": sum(
+                1 for item in proposal.template_dispositions
+                if item.applicability == "applicable"
+            ),
+            "not_applicable": sum(
+                1 for item in proposal.template_dispositions
+                if item.applicability == "not_applicable"
+            ),
+            "unknown": sum(
+                1 for item in proposal.template_dispositions
+                if item.applicability == "unknown"
+            ),
+            "covered": sum(
+                1 for item in proposal.template_dispositions
+                if item.coverage == "covered"
+            ),
+            "uncovered": sum(
+                1 for item in proposal.template_dispositions
+                if item.coverage == "uncovered"
+            ),
+            "deferred": sum(
+                1 for item in proposal.template_dispositions
+                if item.coverage == "deferred"
+            ),
+            "items": [
+                {
+                    "template_item_id": item.template_item_id,
+                    "applicability": item.applicability,
+                    "coverage": item.coverage,
+                    "reason": item.reason,
+                }
+                for item in proposal.template_dispositions
+            ],
+        }
     return {
         "schema_version": "aitest.plan-proposal-preview/1.0",
         "template_id": proposal.template_id,
@@ -1048,6 +1084,7 @@ def proposal_preview(
         "coverage_contract": coverage_contract,
         "understanding_ref": understanding_ref,
         "goal_candidates": goal_candidates,
+        "template_disposition_summary": disposition_summary,
         "unknown_count": unknown_count,
         "capability_gap_count": capability_gap_count,
         "environment_id": environment_id,

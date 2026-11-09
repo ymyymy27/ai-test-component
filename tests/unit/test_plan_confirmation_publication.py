@@ -300,3 +300,38 @@ def test_declared_data_mutation_units_must_fit_the_grant_budget(authoritative):
     assert core.unit_of_work.repo.current_revision(
         aggregate_kind="plan", record_id="plan-data-budget"
     ) == 1
+
+
+def test_plan_confirmation_state_reports_ready_after_derivation(authoritative):
+    from aitest.interfaces.local.api import EntryKind, Session
+
+    core, inputs, _ = authoritative
+    _, scope, cases = _publication_material(core, inputs)
+    saved = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=inputs.project_id,
+        parameters={
+            "plan_id": "plan-state",
+            "revision": 1,
+            "scope": scope,
+            "cases": cases,
+            "run_tier": "on_demand",
+            "plan_grant": _grant_scope(),
+        },
+        request="plan-state-request",
+        intent="plan-state-intent",
+    )
+    assert saved.error is None, saved.error
+    state = core.api.dispatch(
+        Command(
+            action="plan_confirmation_state",
+            project_id=inputs.project_id,
+            request_id="plan-state-read",
+            parameters={"plan_id": "plan-state", "plan_revision": 1},
+        ),
+        Session("plan-state-read", EntryKind.HUMAN_UI, True),
+    )
+    assert state.error is None, state.error
+    assert state.result["state"] == "ready"
+    assert state.result["grant_id"] == saved.result["grant_id"]
