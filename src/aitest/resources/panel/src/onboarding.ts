@@ -41,6 +41,7 @@ export class Onboarding {
   private reviewIssues:{path:string;message:string}[]=[];
   private runTier="full";
   private sourceSnippets=false;
+  private sourceScope=".";
   private catalogConfirmed=false;
   private driver="planned";
   private commitAfterReview=false;
@@ -62,7 +63,7 @@ export class Onboarding {
     this.queue=[];this.index=0;this.queueStage="";this.receipts={};this.session=null;
     this.name="";this.goal="";this.dataPolicy="";this.confirmed=false;this.workspace="";
     this.suggestions="";this.openCheck=0;
-    this.proposal=null;this.preview=null;this.reviewIssues=[];this.runTier="full";this.driver="planned";this.catalogConfirmed=false;this.sourceSnippets=false;
+    this.proposal=null;this.preview=null;this.reviewIssues=[];this.runTier="full";this.driver="planned";this.catalogConfirmed=false;this.sourceSnippets=false;this.sourceScope=".";
     this.checks=["加载与语法","正常输入","边界输入","异常输入"].map(objective=>({objective,inputs:"",key:"",value:"",type:"text"}));
     this.note="已重新开始，请重新选择项目。";this.render();
   }
@@ -156,6 +157,7 @@ export class Onboarding {
       catalog_confirmed:this.catalogConfirmed,
       allowed_material_kinds:["project_context","template_content",...(this.sourceSnippets?["source_snippet"]:[])],
       source_snippets_enabled:this.sourceSnippets,
+      source_scope:this.sourceScope.trim()||".",
       run_tier:this.runTier,initial_driver:this.driver,
       checks:this.proposal?[]:(this.queueStage==="plan"||["prepare","register"].includes(this.queueStage)?checks:[])};
   }
@@ -241,6 +243,20 @@ export class Onboarding {
       if(items.length){const details=document.createElement("details");details.className="technical";details.append(text("summary","查看逐项理由"));for(const rawItem of items){const item=object(rawItem)??{};details.append(text("p",`${String(item.template_item_id??"")}：${String(item.applicability??"")}/${String(item.coverage??"")}${item.reason?` — ${String(item.reason)}`:""}`,"muted"));}box.append(details);}
       section.append(box);
     }
+    const editableDispositions=Array.isArray(proposal.template_dispositions)?proposal.template_dispositions as unknown[]:[];
+    if(editableDispositions.length){
+      const details=document.createElement("details");details.className="technical";details.append(text("summary","调整模板项处置（后端校验）"));
+      for(const rawItem of editableDispositions){
+        const item=object(rawItem)??{};
+        const row=document.createElement("div");row.className="form-part";
+        row.append(text("p",String(item.template_item_id??""),"muted"));
+        const applicability=document.createElement("select");applicability.disabled=disabled;for(const value of ["applicable","not_applicable","unknown"]){const option=document.createElement("option");option.value=value;option.textContent=value;applicability.append(option);}applicability.value=String(item.applicability??"applicable");applicability.onchange=()=>{item.applicability=applicability.value;this.render();};
+        const coverage=document.createElement("select");coverage.disabled=disabled;for(const value of ["covered","uncovered","deferred"]){const option=document.createElement("option");option.value=value;option.textContent=value;coverage.append(option);}coverage.value=String(item.coverage??"uncovered");coverage.onchange=()=>{item.coverage=coverage.value;this.render();};
+        const reason=document.createElement("input");reason.value=String(item.reason??"");reason.disabled=disabled;reason.placeholder="理由（不适用/unknown 必填）";reason.oninput=()=>{item.reason=reason.value;};
+        row.append(applicability,coverage,reason);details.append(row);
+      }
+      section.append(details);
+    }
     section.append(field("范围名称",String(scope.name??""),value=>scope.name=value),
       field("范围目标",String(scope.objective??""),value=>scope.objective=value,true));
     section.append(select("档位",this.runTier,["quick","on_demand","full"],value=>this.runTier=value),
@@ -312,7 +328,7 @@ export class Onboarding {
     section.append(text("p",`项目：${this.name} · ${this.session?.entry??""}`));
     if(this.stage==="configure"){
       const projectPart=document.createElement("div");projectPart.className="form-part";projectPart.hidden=this.configurationPage!==0;
-      projectPart.append(text("h3","告诉我们这次要检查什么"),field("项目名称",this.name,value=>this.name=value),field("你希望验证什么",this.goal,value=>this.goal=value,true),text("p","描述应该发生什么，以及哪些情况需要特别检查。例如：正常加法得到正确结果，输入无效时给出错误。"));
+      projectPart.append(text("h3","告诉我们这次要检查什么"),field("项目名称",this.name,value=>this.name=value),field("你希望验证什么",this.goal,value=>this.goal=value,true),text("p","描述应该发生什么，以及哪些情况需要特别检查。例如：正常加法得到正确结果，输入无效时给出错误。"),field("测试范围（大型项目可填子目录）",this.sourceScope,value=>this.sourceScope=value));
       const environmentPart=document.createElement("div");environmentPart.className="form-part";environmentPart.hidden=this.configurationPage!==2;
       environmentPart.append(text("h3","准备独立测试环境"),text("p","插件将创建 Python 3.13 环境，与你平时使用的环境分开。当前流程仅支持标准库，不会安装项目脚本或依赖。"),
         field("测试数据如何隔离、测试后如何复位",this.dataPolicy,value=>this.dataPolicy=value,true),text("p","例如：只在内存中计算，不连接业务系统，结束后无需清理。如果会写文件或访问数据库，请说明专用测试数据及清理方式。"));

@@ -75,6 +75,8 @@ class OnboardingForm(BaseModel):
         default_factory=lambda: ["project_context", "template_content"]
     )
     source_snippets_enabled: bool = False
+    #: 大型项目可按模块/子目录分范围；understanding 身份包含该 scope。
+    source_scope: str = "."
     run_tier: Literal["quick", "on_demand", "full"] = "full"
     initial_driver: Literal["planned", "stepwise"] = "planned"
 
@@ -217,6 +219,9 @@ def wizard_commands(
     if (form.entry.startswith(("/", "\\")) or ".." in form.entry.replace("\\", "/").split("/")
             or ":" in form.entry or not form.entry.endswith(".py")):
         raise ValueError("请选择项目目录内的 Python 测试入口")
+    scope = form.source_scope.strip() or "."
+    if scope.startswith(("/", "\\")) or ".." in scope.replace("\\", "/").split("/") or ":" in scope:
+        raise ValueError("测试范围必须是项目目录内的相对子目录")
     commands: list[dict[str, Any]] = []
 
     def add(key: str, action: str, parameters: dict[str, Any], target: str | None = None) -> None:
@@ -247,7 +252,7 @@ def wizard_commands(
         # 先固定源码并理解项目，复核页才能显示真实的业务功能覆盖，模型也能
         # 在生成计划时引用 understanding revision。分析失败在提交计划前暴露。
         add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
-            "source_scope": ".", "selected_paths": ["."],
+            "source_scope": scope, "selected_paths": [scope],
             "exclusion_rules": [".git", ".venv", "__pycache__"],
             "include_understanding": True})
     elif stage == "model":
@@ -363,12 +368,12 @@ def wizard_commands(
             add("confirm-" + name, "confirm_basis", {"case_id": identity, "case_revision": 1,
                 "basis_revision": 1, "basis_text_digest": text_digest(basis)}, identity)
         ids = frozenset(str(case["case_id"]) for case in cases)
-        scope = acceptance_scope_to_payload(AcceptanceScope("scope-" + project, 1,
+        scope_payload = acceptance_scope_to_payload(AcceptanceScope("scope-" + project, 1,
             form.name, ids, ids, objective=form.goal), project_id=project)
-        add("scope", "save_acceptance", {"acceptance_scope": scope})
+        add("scope", "save_acceptance", {"acceptance_scope": scope_payload})
         add("publish", "publish_plan", {"project_revision": 1, "expected_revision": 0,
             "plan_id": plan_id, "revision": 1,
-            "scope": scope, "cases": cases,
+            "scope": scope_payload, "cases": cases,
             "template_versions": [{"template_id": "python-library", "version": "1.0.0"}],
             "run_tier": "on_demand", "initial_driver": "stepwise"}, plan_id)
     elif stage == "prepare":

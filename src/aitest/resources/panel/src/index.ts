@@ -154,6 +154,7 @@ class AITestPanel extends HTMLElement {
   );
   private outcome: Outcome | null = null;
   private pending = false;
+  private lastRunNotification="";
   private selectedRecord:Row|null=null;
   private recordOutcome:Outcome|null=null;
   private planOutcome:Outcome|null=null;
@@ -732,6 +733,8 @@ class AITestPanel extends HTMLElement {
       else if(outcome==="incomplete")message="未完成";
     }
     if(!message)return null;
+    const key=String(view["run_id"]??"")+":"+message;
+    if(this.lastRunNotification!==key){this.lastRunNotification=key;this.host?.postMessage({kind:"runNotification",message,runId:view["run_id"]});}
     const note=text("p",message,"notice");note.dataset.testid="run-notification";note.setAttribute("role","status");return note;
   }
 

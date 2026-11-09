@@ -183,6 +183,11 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
   }
   const raw = message as Record<string, unknown>;
   if(raw.kind === "openDetail"){ openDetail(context, raw.detail === "review" ? "review" : "workbench"); return; }
+  if(raw.kind === "runNotification"){
+    const notice = textOrNull(raw.message);
+    if (notice) void vscode.window.showInformationMessage(notice);
+    return;
+  }
   if(typeof raw.kind==="string" && raw.kind.startsWith("wizard")){
     if(!identityOrNull(raw.clientRequestId)||scope.wizardBusy)return;
     scope.wizardBusy=true;
