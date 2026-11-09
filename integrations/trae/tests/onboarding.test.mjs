@@ -10,8 +10,8 @@ const root=await mkdtemp(join(base,"onboarding-host-"));
 const shim=join(root,"shim.mjs");
 await writeFile(shim,`
 import {EventEmitter} from 'node:events';
-export const state={requests:[],key:'fixture-only',fail:false};
-export const window={showInputBox:async()=>state.key};
+export const state={requests:[],key:'fixture-only',fail:false,quickPick:null};
+export const window={showInputBox:async()=>state.key,showQuickPick:async(items)=>state.quickPick?items.find(item=>item.project===state.quickPick):undefined};
 export function spawn(){const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr={resume(){}};child.kill=()=>{};
  child.stdin=new EventEmitter();child.stdin.end=value=>{const request=JSON.parse(value);state.requests.push(request);
  queueMicrotask(()=>{child.stdout.emit('data',Buffer.from(JSON.stringify({ok:!state.fail,result:{configured:true,model_file:'fixture/model.json'}})));child.emit('close',state.fail?2:0);});};return child;}
@@ -44,4 +44,28 @@ test("model defaults save only after public configuration and vault validation s
  await wizardMessage(context,{kind:"wizardModelLoad",clientRequestId:"load"},undefined,settings,x=>responses.push(x));
  assert.equal(responses.at(-1).modelSettings.reference,reference);
  assert.equal(responses.at(-1).clientRequestId,"load");
+});
+
+test("model profiles are explicit and a recent project can be resumed",async()=>{
+ const values=new Map(),responses=[];
+ const context={globalStorageUri:{fsPath:root},globalState:{get:key=>values.get(key),update:async(key,value)=>values.set(key,value)}};
+ const settings={python:"fixture",modelConfigurationFile:"",workspaceRoot:"",projectId:null};
+ const send=x=>responses.push(x);
+ await wizardMessage(context,{kind:"wizardModelLoad",clientRequestId:"load-empty"},undefined,settings,send);
+ assert.deepEqual(responses.at(-1).modelProfiles,[]);
+ await wizardMessage(context,{kind:"wizardModelSave",clientRequestId:"save-a",endpoint:"https://a.example",model:"model-a",reference:"ref-a",timeout:30,profile_name:"配置 A"},undefined,settings,send);
+ assert.equal(responses.at(-1).activeProfileId.startsWith("profile-"),true);
+ const profileA=responses.at(-1).activeProfileId;
+ await wizardMessage(context,{kind:"wizardModelSave",clientRequestId:"save-b",endpoint:"https://b.example",model:"model-b",reference:"ref-b",timeout:60,profile_name:"配置 B"},undefined,settings,send);
+ const profileB=responses.at(-1).activeProfileId;
+ assert.notEqual(profileA,profileB);
+ assert.equal(values.get("modelProfiles").length,2);
+ await wizardMessage(context,{kind:"wizardModelSelect",clientRequestId:"select-a",profile_id:profileA},undefined,settings,send);
+ assert.equal(responses.at(-1).modelSettings.reference,"ref-a");
+ assert.equal(values.get("activeModelProfile"),profileA);
+ values.set("recentProjects",[{project_id:"guided-old",root:join(root,"old"),source:root,entry:"main.py",name:"旧项目"}]);
+ state.quickPick=values.get("recentProjects")[0];
+ const resumed=await wizardMessage(context,{kind:"wizardChoose",clientRequestId:"choose"},undefined,settings,send);
+ assert.equal(resumed.project_id,"guided-old");
+ assert.equal(responses.at(-1).session.project_id,"guided-old");
 });

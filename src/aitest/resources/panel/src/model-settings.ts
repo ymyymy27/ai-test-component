@@ -11,6 +11,9 @@ export class ModelSettings {
   private note="";
   private provider="deepseek";
   private customEndpoint="";
+  private profiles:{profile_id:string;name:string}[]=[];
+  private activeProfileId="";
+  private profileName="";
   private errors:Record<string,string>={};
   constructor(private send:(message:unknown)=>void,private render:()=>void){}
   private dispatch(kind:string,extra:Record<string,unknown>={}):void {
@@ -24,7 +27,9 @@ export class ModelSettings {
     else if(data.cancelled)this.note="已取消，配置未改变。";
     else {
       const settings=object(data.modelSettings);
-      if(settings){this.loaded=true;this.endpoint=String(settings.endpoint??"");this.model=String(settings.model??"");this.timeout=String(settings.timeout??60);this.reference=String(settings.reference??"");this.provider=this.endpoint==="https://api.deepseek.com"?"deepseek":"compatible";if(this.provider==="compatible")this.customEndpoint=this.endpoint;}
+      if(Array.isArray(data.modelProfiles))this.profiles=data.modelProfiles.map(item=>object(item)).filter((item):item is Record<string,unknown>=>item!==undefined).map(item=>({profile_id:String(item.profile_id??""),name:String(item.name??"")})).filter(item=>item.profile_id&&item.name);
+      if(typeof data.activeProfileId==="string")this.activeProfileId=data.activeProfileId;
+      if(settings){this.loaded=true;this.endpoint=String(settings.endpoint??"");this.model=String(settings.model??"");this.timeout=String(settings.timeout??60);this.reference=String(settings.reference??"");this.provider=this.endpoint==="https://api.deepseek.com"?"deepseek":"compatible";if(this.provider==="compatible")this.customEndpoint=this.endpoint;this.profileName=this.profiles.find(item=>item.profile_id===this.activeProfileId)?.name??String(settings.model??"");}
       if(typeof data.modelCredential==="string"){this.reference=data.modelCredential;this.note="密钥已保存在系统安全存储，请保存配置。";}
       if(data.modelSaved)this.note="默认配置已保存，将用于新建测试。已有运行仍使用原配置；尚未检查模型连通性。";
     }
@@ -35,7 +40,15 @@ export class ModelSettings {
     const section=document.createElement("section");section.className="form-part";
     section.append(text("p","用于准备测试与分析证据。保存为新建测试的默认配置。"));
     const disabled=!enabled||!!this.request;
+    const profileRow=document.createElement("label");profileRow.append(text("span","模型配置"));
+    const profileSelect=document.createElement("select");profileSelect.disabled=disabled;
+    const fresh=document.createElement("option");fresh.value="__new__";fresh.textContent="新建配置";profileSelect.append(fresh);
+    for(const profile of this.profiles){const option=document.createElement("option");option.value=profile.profile_id;option.textContent=profile.name;profileSelect.append(option);}
+    profileSelect.value=this.activeProfileId||"__new__";
+    profileSelect.onchange=()=>{const id=profileSelect.value;if(id==="__new__"){this.activeProfileId="";this.profileName="";this.endpoint="https://api.deepseek.com";this.model="deepseek-flash";this.timeout="60";this.reference="";this.provider="deepseek";this.customEndpoint="";this.note="填写新配置后保存。";this.render();return;}this.activeProfileId=id;this.dispatch("wizardModelSelect",{profile_id:id});this.render();};
+    profileRow.append(profileSelect);section.append(profileRow);
     const field=(label:string,key:string,value:string,set:(value:string)=>void)=>{const row=document.createElement("label");row.append(text("span",label));const input=document.createElement("input");input.value=value;input.disabled=disabled;input.dataset.field=key;input.setAttribute("aria-label",label);input.oninput=()=>{set(input.value);delete this.errors[key];input.removeAttribute("aria-invalid");row.querySelector(".field-error")?.remove();};row.append(input);if(this.errors[key]){input.setAttribute("aria-invalid","true");input.setAttribute("aria-describedby",`model-error-${key}`);const error=text("span",this.errors[key]!,"field-error");error.id=`model-error-${key}`;row.append(error);}return row;};
+    section.append(field("配置名称","profile_name",this.profileName,value=>this.profileName=value));
     const provider=document.createElement("label");provider.append(text("span","供应方"));const choice=document.createElement("select");choice.disabled=disabled;
     for(const [value,label] of [["deepseek","DeepSeek"],["compatible","OpenAI 兼容接口"]]){const option=document.createElement("option");option.value=value!;option.textContent=label!;choice.append(option);}
     choice.value=this.provider;
@@ -51,7 +64,7 @@ export class ModelSettings {
       if(!Number.isInteger(Number(this.timeout))||Number(this.timeout)<10||Number(this.timeout)>120)this.errors.timeout="填写 10–120 之间的整数秒。";
       if(Object.keys(this.errors).length){this.note="请修正标出的配置项，已填写内容会保留。";this.render();return;}
       if(!this.reference){this.note="请先配置安全凭据。";this.render();return;}
-      this.dispatch("wizardModelSave",{endpoint:this.endpoint,model:this.model,reference:this.reference,timeout:Number(this.timeout)});this.render();
+      this.dispatch("wizardModelSave",{endpoint:this.endpoint,model:this.model,reference:this.reference,timeout:Number(this.timeout),profile_id:this.activeProfileId,profile_name:this.profileName.trim()||this.model.trim()});this.render();
     },disabled);save.className="primary";section.append(save);
     section.append(text("h3","允许发送的材料"),text("p","新建测试默认只发送项目名称和测试目标，不发送源码。首次模型请求前，会单独展示接收方和材料范围供你确认。"),text("p","连接状态：尚未检查。保存配置会检查格式与安全凭据；实际模型请求的结果会在测试准备中显示。"));
     if(this.note){const status=text("p",this.note,"notice");status.setAttribute("role","status");section.append(status);}return section;

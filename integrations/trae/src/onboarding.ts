@@ -22,6 +22,27 @@ export function helper(python:string,request:Record<string,unknown>):Promise<Rec
   });
 }
 
+type ModelProfile={profile_id:string;name:string;settings:Record<string,unknown>};
+type RecentProject={project_id:string;root:string;source:string;entry:string;name:string};
+
+/** Read only bounded public routing profiles; credentials stay as references. */
+function readModelProfiles(context:vscode.ExtensionContext):ModelProfile[] {
+  const raw=context.globalState.get<unknown>("modelProfiles");
+  if(!Array.isArray(raw))return [];
+  const result:ModelProfile[]=[];
+  for(const item of raw){
+    if(!item||typeof item!=="object"||Array.isArray(item))continue;
+    const value=item as Record<string,unknown>;
+    const id=value["profile_id"],name=value["name"],settings=value["settings"];
+    if(typeof id!=="string"||!id||typeof name!=="string"||!name.trim()||!settings||typeof settings!=="object"||Array.isArray(settings))continue;
+    const body=settings as Record<string,unknown>;
+    if(typeof body["endpoint"]!=="string"||typeof body["model"]!=="string"||!body["model"].trim()
+      ||typeof body["reference"]!=="string"||!Number.isInteger(body["timeout"]))continue;
+    result.push({profile_id:id,name:name.trim().slice(0,80),settings:{endpoint:body["endpoint"],model:body["model"].trim(),reference:body["reference"],timeout:body["timeout"]}});
+  }
+  return result.slice(0,20);
+}
+
 export async function wizardMessage(
   context:vscode.ExtensionContext, raw:Record<string,unknown>, session:WizardSession|undefined,
   settings:HostSettings, send:(value:Record<string,unknown>)=>void,
@@ -31,9 +52,13 @@ export async function wizardMessage(
   try {
     if(raw.kind==="wizardModelLoad"){
       const saved=context.globalState.get<Record<string,unknown>>("modelDefaults");
+      const profiles=readModelProfiles(context);
+      const activeProfileId=context.globalState.get<string>("activeModelProfile")??"";
       let configuration:Record<string,unknown>={};
       if(settings.modelConfigurationFile){try{configuration=JSON.parse(await readFile(settings.modelConfigurationFile,"utf8"));}catch{/* show unconfigured */}}
-      respond({modelSettings:saved??{endpoint:configuration.endpoint??"https://api.deepseek.com",reference:configuration.credential_reference??"",model:"deepseek-flash",timeout:60}});return session;
+      const active=profiles.find(profile=>profile.profile_id===activeProfileId)?.settings
+        ?? saved??{endpoint:configuration.endpoint??"https://api.deepseek.com",reference:configuration.credential_reference??"",model:"deepseek-flash",timeout:60};
+      respond({modelSettings:active,modelProfiles:profiles,activeProfileId});return session;
     }
     if(raw.kind==="wizardModelCredential"){
       const key=await vscode.window.showInputBox({title:"保存模型 API 密钥",prompt:"密钥只保存在 Windows 安全存储中。",password:true,ignoreFocusOut:true});
@@ -42,15 +67,46 @@ export async function wizardMessage(
       respond({modelCredential:reference});return session;
     }
     if(raw.kind==="wizardModelSave"){
-      if(typeof raw.model!=="string"||!raw.model.trim()||raw.model.length>128||/[\u0000-\u001f]/.test(raw.model)
+      if(typeof raw.endpoint!=="string"||typeof raw.reference!=="string"||!raw.reference
+        ||typeof raw.model!=="string"||!raw.model.trim()||raw.model.length>128||/[\u0000-\u001f]/.test(raw.model)
         ||!Number.isInteger(raw.timeout)||Number(raw.timeout)<10||Number(raw.timeout)>120)throw new Error("请填写模型名称和 10–120 秒超时。");
       const root=join(context.globalStorageUri.fsPath,"model-configurations",randomUUID());
       await helper(settings.python,{operation:"model",root,endpoint:raw.endpoint,reference:raw.reference});
-      const defaults={endpoint:raw.endpoint,reference:raw.reference,model:raw.model.trim(),timeout:raw.timeout};
+      const profiles=readModelProfiles(context);
+      const requested=typeof raw.profile_id==="string"&&raw.profile_id?raw.profile_id:"profile-"+randomUUID();
+      const name=(typeof raw.profile_name==="string"&&raw.profile_name.trim()?raw.profile_name.trim():raw.model.trim()).slice(0,80);
+      const entry:ModelProfile={profile_id:requested,name,settings:{endpoint:raw.endpoint,reference:raw.reference,model:raw.model.trim(),timeout:raw.timeout}};
+      const index=profiles.findIndex(profile=>profile.profile_id===requested);
+      if(index>=0)profiles[index]=entry;else profiles.unshift(entry);
+      await context.globalState.update("modelProfiles",profiles.slice(0,20));
+      await context.globalState.update("activeModelProfile",requested);
+      const defaults=entry.settings;
       await context.globalState.update("modelDefaults",defaults);
-      respond({modelSettings:defaults,modelSaved:true});return session;
+      respond({modelSettings:defaults,modelSaved:true,modelProfiles:profiles,activeProfileId:requested});return session;
+    }
+    if(raw.kind==="wizardModelSelect"){
+      const profileId=raw.profile_id;
+      const profile=readModelProfiles(context).find(item=>item.profile_id===profileId);
+      if(!profile)throw new Error("所选模型配置不存在。");
+      await context.globalState.update("activeModelProfile",profile.profile_id);
+      await context.globalState.update("modelDefaults",profile.settings);
+      respond({modelSettings:profile.settings,modelProfiles:readModelProfiles(context),activeProfileId:profile.profile_id});return session;
     }
     if(raw.kind==="wizardChoose"){
+      const recent=context.globalState.get<RecentProject[]>("recentProjects")??[];
+      if(recent.length){
+        const picked=await vscode.window.showQuickPick(
+          [...recent.map(item=>({label:item.name||item.source,description:"继续上次测试",project:item})),
+            {label:"选择新的项目目录…",description:"新建测试项目",project:null}],
+          {title:"继续测试或选择新项目"},
+        );
+        if(!picked){respond({cancelled:true});return session;}
+        if(picked.project){
+          const saved=context.globalState.get<Record<string,unknown>>("modelDefaults");
+          session={...picked.project,reference:typeof saved?.reference==="string"?saved.reference:"",endpoint:typeof saved?.endpoint==="string"?saved.endpoint:"https://api.deepseek.com"};
+          respond({session:{...session,model:saved?.model,timeout:saved?.timeout}});return session;
+        }
+      }
       const folders=await vscode.window.showOpenDialog({title:"选择要测试的项目目录",canSelectFiles:false,canSelectFolders:true,canSelectMany:false});
       if(!folders?.[0]){respond({cancelled:true});return session;}
       const files=await vscode.window.showOpenDialog({title:"选择 Python 测试入口",defaultUri:folders[0],canSelectFiles:true,canSelectFolders:false,canSelectMany:false,filters:{"Python 测试入口":["py"]}});
@@ -68,7 +124,11 @@ export async function wizardMessage(
       // 会使首次保存项目必然失败。
       const userDataBase=join(process.env.LOCALAPPDATA??context.globalStorageUri.fsPath,"aitest");
       session={project_id,root:join(userDataBase,project_id),source:folders[0].fsPath,entry:entry.replaceAll("\\","/"),reference,endpoint};
-      respond({session:{...session,name:basename(session.source),model:defaults?.model,timeout:defaults?.timeout}});return session;
+      const name=basename(session.source);
+      const updated=[{project_id,root:session.root,source:session.source,entry:session.entry,name},
+        ...recent.filter(item=>item.source!==session!.source||item.entry!==session!.entry)].slice(0,10);
+      await context.globalState.update("recentProjects",updated);
+      respond({session:{...session,name,model:defaults?.model,timeout:defaults?.timeout}});return session;
     }
     if(!session)throw new Error("请先选择项目目录。");
     if(session.busy)throw new Error("上一步仍在处理，请稍候。");
