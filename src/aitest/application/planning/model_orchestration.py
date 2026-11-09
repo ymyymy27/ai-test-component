@@ -61,7 +61,7 @@ from aitest.application.planning.model_ports import (
     ProjectionStatus,
 )
 from aitest.application.planning.proposal import (
-    PLAN_PROPOSAL_SCHEMA,
+    PLAN_PROPOSAL_SCHEMAS,
     plan_proposal_system_prompt,
 )
 from aitest.application.planning.substrate import (
@@ -575,7 +575,7 @@ def request_model_draft(
         output_schema=output_schema,
         system_prompt=(
             plan_proposal_system_prompt()
-            if output_schema == PLAN_PROPOSAL_SCHEMA
+            if output_schema in PLAN_PROPOSAL_SCHEMAS
             else None
         ),
     )

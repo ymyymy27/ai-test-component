@@ -55,6 +55,9 @@ from aitest.domain.review.function_coverage import FunctionCoverage
 #: Task marker kept for existing callers (`output_schema`).  Parsing accepts
 #: both versions; `plan_proposal_system_prompt()` decides which to request.
 PLAN_PROPOSAL_SCHEMA = PLAN_PROPOSAL_SCHEMA_V10
+PLAN_PROPOSAL_SCHEMAS = frozenset(
+    {PLAN_PROPOSAL_SCHEMA_V10, PLAN_PROPOSAL_SCHEMA_V11}
+)
 
 
 def plan_proposal_system_prompt() -> str:
@@ -786,6 +789,7 @@ def proposal_from_mapping(value: object) -> PlanProposal:
 __all__ = [
     "PLAN_PROPOSAL_SCHEMA",
     "PLAN_PROPOSAL_SCHEMA_V11",
+    "PLAN_PROPOSAL_SCHEMAS",
     "PlanProposalError",
     "ProposalIssue",
     "materialize_coverage_contract",

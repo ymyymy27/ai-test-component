@@ -105,7 +105,7 @@ from aitest.application.planning.portable import (
 from aitest.application.planning.preparation import InputRevisions
 from aitest.application.planning.prepare_run import PreparationInputs, prepare_run
 from aitest.application.planning.proposal import (
-    PLAN_PROPOSAL_SCHEMA,
+    PLAN_PROPOSAL_SCHEMAS,
     PlanProposalError,
     parse_plan_proposal,
 )
@@ -2217,7 +2217,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         output_schema = parameters.get("output_schema")
         if output_schema is not None:
             output_schema = _as_text(output_schema, "output_schema")
-            if output_schema != PLAN_PROPOSAL_SCHEMA:
+            if output_schema not in PLAN_PROPOSAL_SCHEMAS:
                 raise BUseCaseError("B_INVALID_PARAMETER", "unknown output_schema")
         template_ref = None
         raw_template = parameters.get("template_ref")
@@ -2272,7 +2272,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft digest differs")
         proposal = None
         proposal_error = None
-        if output_schema == PLAN_PROPOSAL_SCHEMA and draft_text is not None:
+        if output_schema in PLAN_PROPOSAL_SCHEMAS and draft_text is not None:
             try:
                 proposal = parse_plan_proposal(draft_text)
             except PlanProposalError as error:
