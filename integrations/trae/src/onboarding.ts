@@ -22,7 +22,7 @@ export function helper(python:string,request:Record<string,unknown>):Promise<Rec
   });
 }
 
-type ModelProfile={profile_id:string;name:string;settings:Record<string,unknown>};
+type ModelProfile={profile_id:string;name:string;settings:Record<string,unknown>;config_file?:string};
 type RecentProject={project_id:string;root:string;source:string;entry:string;name:string};
 
 /** Read only bounded public routing profiles; credentials stay as references. */
@@ -38,7 +38,8 @@ function readModelProfiles(context:vscode.ExtensionContext):ModelProfile[] {
     const body=settings as Record<string,unknown>;
     if(typeof body["endpoint"]!=="string"||typeof body["model"]!=="string"||!body["model"].trim()
       ||typeof body["reference"]!=="string"||!Number.isInteger(body["timeout"]))continue;
-    result.push({profile_id:id,name:name.trim().slice(0,80),settings:{endpoint:body["endpoint"],model:body["model"].trim(),reference:body["reference"],timeout:body["timeout"]}});
+    const configFile=typeof value["config_file"]==="string"?value["config_file"]:"";
+    result.push({profile_id:id,name:name.trim().slice(0,80),config_file:configFile,settings:{endpoint:body["endpoint"],model:body["model"].trim(),reference:body["reference"],timeout:body["timeout"]}});
   }
   return result.slice(0,20);
 }
@@ -75,14 +76,16 @@ export async function wizardMessage(
       const profiles=readModelProfiles(context);
       const requested=typeof raw.profile_id==="string"&&raw.profile_id?raw.profile_id:"profile-"+randomUUID();
       const name=(typeof raw.profile_name==="string"&&raw.profile_name.trim()?raw.profile_name.trim():raw.model.trim()).slice(0,80);
-      const entry:ModelProfile={profile_id:requested,name,settings:{endpoint:raw.endpoint,reference:raw.reference,model:raw.model.trim(),timeout:raw.timeout}};
+      const configFile=join(root,"model.json");
+      const entry:ModelProfile={profile_id:requested,name,config_file:configFile,settings:{endpoint:raw.endpoint,reference:raw.reference,model:raw.model.trim(),timeout:raw.timeout}};
       const index=profiles.findIndex(profile=>profile.profile_id===requested);
       if(index>=0)profiles[index]=entry;else profiles.unshift(entry);
       await context.globalState.update("modelProfiles",profiles.slice(0,20));
       await context.globalState.update("activeModelProfile",requested);
       const defaults=entry.settings;
       await context.globalState.update("modelDefaults",defaults);
-      respond({modelSettings:defaults,modelSaved:true,modelProfiles:profiles,activeProfileId:requested});return session;
+      await vscode.workspace.getConfiguration("aitest").update("modelConfigurationFile",configFile,vscode.ConfigurationTarget.Global);
+      respond({modelSettings:defaults,modelSaved:true,modelProfiles:profiles,activeProfileId:requested,requiresCoreRestart:true});return session;
     }
     if(raw.kind==="wizardModelSelect"){
       const profileId=raw.profile_id;
@@ -90,7 +93,8 @@ export async function wizardMessage(
       if(!profile)throw new Error("所选模型配置不存在。");
       await context.globalState.update("activeModelProfile",profile.profile_id);
       await context.globalState.update("modelDefaults",profile.settings);
-      respond({modelSettings:profile.settings,modelProfiles:readModelProfiles(context),activeProfileId:profile.profile_id});return session;
+      if(profile.config_file)await vscode.workspace.getConfiguration("aitest").update("modelConfigurationFile",profile.config_file,vscode.ConfigurationTarget.Global);
+      respond({modelSettings:profile.settings,modelProfiles:readModelProfiles(context),activeProfileId:profile.profile_id,requiresCoreRestart:true});return session;
     }
     if(raw.kind==="wizardChoose"){
       const recent=context.globalState.get<RecentProject[]>("recentProjects")??[];

@@ -32,6 +32,7 @@ export class ModelSettings {
       if(settings){this.loaded=true;this.endpoint=String(settings.endpoint??"");this.model=String(settings.model??"");this.timeout=String(settings.timeout??60);this.reference=String(settings.reference??"");this.provider=this.endpoint==="https://api.deepseek.com"?"deepseek":"compatible";if(this.provider==="compatible")this.customEndpoint=this.endpoint;this.profileName=this.profiles.find(item=>item.profile_id===this.activeProfileId)?.name??String(settings.model??"");}
       if(typeof data.modelCredential==="string"){this.reference=data.modelCredential;this.note="密钥已保存在系统安全存储，请保存配置。";}
       if(data.modelSaved)this.note="默认配置已保存，将用于新建测试。已有运行仍使用原配置；尚未检查模型连通性。";
+      if(data.requiresCoreRestart)this.note=(this.note?this.note+" ":"")+"配置已切换；核心重启后生效。";
     }
     this.render();return true;
   }

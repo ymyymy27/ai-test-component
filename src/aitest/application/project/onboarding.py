@@ -6,6 +6,7 @@ still passes the ordinary core guards, exact saved references and native approva
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -267,8 +268,31 @@ def wizard_commands(
                 "\n\n项目理解（必须据此选择 goal_intent_ids 并生成 coverage_claims）：\n"
                 + understanding_text
             )
+        selected_material: dict[str, str] = {
+            "project_context": project_context,
+            "template_content": template_text,
+        }
+        source_snapshot = receipts.get("snapshot")
+        source_revision = 0
+        if isinstance(source_snapshot, dict):
+            revision = source_snapshot.get("record_revision")
+            if type(revision) is int and revision >= 1:
+                source_revision = revision
+        if form.source_snippets_enabled:
+            try:
+                root = Path(form.source).resolve()
+                target = (root / form.entry).resolve()
+                if not target.is_relative_to(root) or not target.is_file():
+                    raise ValueError
+                text = target.read_text(encoding="utf-8")
+                if len(text.encode("utf-8")) > 65536:
+                    raise ValueError
+                selected_material["source_snippet"] = text
+            except (OSError, UnicodeError, ValueError) as error:
+                raise ValueError("选中的源码片段无法安全读取") from error
         add("suggestions", "generate_draft", {"generation_mode": "model",
-            "project_revision": 1, "policy_revision": 1, "source_revision": 0,
+            "project_revision": 1, "policy_revision": 1,
+            "source_revision": source_revision,
             "base_manual_revision": 0, "task_type": "case_suggestion",
             "draft_kind": "plan_proposal",
             "output_schema": (
@@ -278,8 +302,7 @@ def wizard_commands(
             "template_ref": {"template_id": template_ref.template_id,
                              "version": template_ref.version},
             "timeout_seconds": form.model_timeout,
-            "selected_material": {"project_context": project_context,
-                                  "template_content": template_text}})
+            "selected_material": selected_material})
     elif stage == "commit":
         proposal, _scope, cases, scope_payload, case_payloads = _proposal_materials(form)
         for case, payload in zip(cases, case_payloads, strict=True):

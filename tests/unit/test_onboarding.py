@@ -444,3 +444,22 @@ def test_v11_project_understanding_drives_one_confirmation_end_to_end(tmp_path):
         assert receipts["register"]["run_id"]
     finally:
         core.lifetime_lock.release()
+
+
+def test_source_snippet_switch_sends_only_the_selected_entry(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "main.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    selection = form(str(source)).model_copy(
+        update={"source_snippets_enabled": True}
+    )
+    commands = wizard_commands(selection, "model", {"snapshot": {"record_revision": 2}})
+    policy = next(item for item in commands if item["action"] == "save_model_outbound_policy")
+    suggestions = next(item for item in commands if item["action"] == "generate_draft")
+    assert "source_snippet" in policy["parameters"]["policy"]["allowed_material_kinds"]
+    assert policy["parameters"]["policy"]["source_snippets_enabled"] is True
+    assert suggestions["parameters"]["source_revision"] == 2
+    assert suggestions["parameters"]["selected_material"]["source_snippet"] == (
+        "def add(a, b):\n    return a + b\n"
+    )
+    assert "VALUE" not in suggestions["parameters"]["selected_material"]["source_snippet"]

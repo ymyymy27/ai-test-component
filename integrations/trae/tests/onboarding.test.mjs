@@ -12,6 +12,8 @@ await writeFile(shim,`
 import {EventEmitter} from 'node:events';
 export const state={requests:[],key:'fixture-only',fail:false,quickPick:null};
 export const window={showInputBox:async()=>state.key,showQuickPick:async(items)=>state.quickPick?items.find(item=>item.project===state.quickPick):undefined};
+export const workspace={getConfiguration:()=>({update:async()=>{}})};
+export const ConfigurationTarget={Global:1};
 export function spawn(){const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr={resume(){}};child.kill=()=>{};
  child.stdin=new EventEmitter();child.stdin.end=value=>{const request=JSON.parse(value);state.requests.push(request);
  queueMicrotask(()=>{child.stdout.emit('data',Buffer.from(JSON.stringify({ok:!state.fail,result:{configured:true,model_file:'fixture/model.json'}})));child.emit('close',state.fail?2:0);});};return child;}
