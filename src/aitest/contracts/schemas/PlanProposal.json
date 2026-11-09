@@ -2,7 +2,7 @@
   "$defs": {
     "ProposalCase": {
       "additionalProperties": false,
-      "description": "One case drafted from one template item.",
+      "description": "One case drafted from a template item or added by AI/user.",
       "properties": {
         "case_id": {
           "maxLength": 200,
@@ -11,9 +11,26 @@
           "type": "string"
         },
         "template_item_id": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Template Item Id",
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template Item Id"
+        },
+        "origin": {
+          "default": "template",
+          "enum": [
+            "template",
+            "ai",
+            "user"
+          ],
+          "title": "Origin",
           "type": "string"
         },
         "layer": {
@@ -97,11 +114,16 @@
           ],
           "title": "Importance",
           "type": "string"
+        },
+        "data_mutation_units": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Data Mutation Units",
+          "type": "integer"
         }
       },
       "required": [
         "case_id",
-        "template_item_id",
         "layer",
         "objective",
         "preconditions",
@@ -123,7 +145,6 @@
           "items": {
             "type": "string"
           },
-          "minItems": 1,
           "title": "Acceptance Item Ids",
           "type": "array"
         },
@@ -154,9 +175,6 @@
           "title": "No Critical Path Reason"
         }
       },
-      "required": [
-        "acceptance_item_ids"
-      ],
       "title": "ProposalCaseLink",
       "type": "object"
     },
@@ -278,6 +296,55 @@
       ],
       "title": "ProposalScope",
       "type": "object"
+    },
+    "ProposalTemplateDisposition": {
+      "additionalProperties": false,
+      "description": "Template item judged on two independent axes (design 03 §5.2).",
+      "properties": {
+        "template_item_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Template Item Id",
+          "type": "string"
+        },
+        "applicability": {
+          "enum": [
+            "applicable",
+            "not_applicable",
+            "unknown"
+          ],
+          "title": "Applicability",
+          "type": "string"
+        },
+        "coverage": {
+          "enum": [
+            "covered",
+            "uncovered",
+            "deferred"
+          ],
+          "title": "Coverage",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "template_item_id",
+        "applicability",
+        "coverage"
+      ],
+      "title": "ProposalTemplateDisposition",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -340,6 +407,13 @@
         "$ref": "#/$defs/ProposalCoverageClaim"
       },
       "title": "Coverage Claims",
+      "type": "array"
+    },
+    "template_dispositions": {
+      "items": {
+        "$ref": "#/$defs/ProposalTemplateDisposition"
+      },
+      "title": "Template Dispositions",
       "type": "array"
     }
   },
