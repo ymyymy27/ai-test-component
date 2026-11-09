@@ -34,6 +34,7 @@ export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
  */
 export const PLAIN_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "save_context",
+  "save_environment",
   "save_case",
   "save_task",
   "save_delivery",

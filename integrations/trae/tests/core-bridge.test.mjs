@@ -58,7 +58,7 @@ else:
 `);
 await build({ entryPoints: ["src/core-bridge.ts"], bundle: true, platform: "node", format: "esm",
   outfile: join(fixture, "bridge.mjs") });
-const { dispatchReadOnly, dispatchControlled, buildCommand, ensureCore } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
+const { dispatchReadOnly, dispatchControlled, buildCommand, ensureCore, PLAIN_WRITE_ACTIONS } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
 const originalPath = process.env.PYTHONPATH;
 process.env.PYTHONPATH = fixture;
 const python = process.env.AITEST_TEST_PYTHON || join(root, ".venv/Scripts/python.exe");
@@ -152,5 +152,12 @@ test("missing interpreter has a bounded OS diagnosis without exposing its path",
     assert.equal(outcome.code, "ENTRY_SPAWN_FAILED");
     assert.match(outcome.message, /ENOENT/);
     assert.ok(!JSON.stringify(outcome).includes("private-credential-marker"));
+  }
+});
+
+test("plain writes cover setup environment but never human confirmations", () => {
+  assert.equal(PLAIN_WRITE_ACTIONS.has("save_environment"), true);
+  for (const action of ["save_binding", "save_model_outbound_policy", "publish_plan", "authorize_step"]) {
+    assert.equal(PLAIN_WRITE_ACTIONS.has(action), false);
   }
 });

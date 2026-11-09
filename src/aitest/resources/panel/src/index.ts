@@ -58,6 +58,12 @@ const STATE_CHANGING_ACTIONS = new Set([
   "attach_evidence", "pause_run", "resume_run", "cancel_run", "record_local_review",
 ]);
 
+/** 向导里的普通写入：不代替用户确认，只省掉逐条原生弹窗。 */
+const WIZARD_PLAIN_WRITES = new Set([
+  "save_context", "save_environment", "analyze_project", "generate_draft",
+  "save_case", "save_acceptance", "prepare_run", "register_run",
+]);
+
 /** 只读回执里的记录行；面板原样展示，不补造字段、不重算结论。 */
 function rowsOf(response: Record<string, unknown> | undefined): Row[] {
   const result = response?.["result"] as Record<string, unknown> | undefined;
@@ -138,7 +144,7 @@ class AITestPanel extends HTMLElement {
   private readonly host = hostApi();
   private readonly modelSettings=new ModelSettings(message=>this.host?.postMessage(message),()=>this.render());
   private readonly onboarding=new Onboarding(message=>this.host?.postMessage(message),command=>{
-    this.commandDraft=JSON.stringify(command, (key,value)=>key==="key"?undefined:value);this.submitCommand();
+    this.submitWizardCommand(command);
   },()=>this.dispatch("doctor"),()=>this.render(),()=>this.navigate("workbench"));
   private outcome: Outcome | null = null;
   private pending = false;
@@ -887,6 +893,27 @@ class AITestPanel extends HTMLElement {
     }
     section.append(title, note, name, goal, create, this.workflowSection(), draft, submit, status, receipt);
     return section;
+  }
+
+  /** 向导命令：普通写入走非原生通道，人工动作仍走原生确认。 */
+  private submitWizardCommand(command:{action:string;intent_id:string;expected_revision:number;
+    binding_revision:number;target?:string;parameters:Record<string,unknown>}):void{
+    if(!WIZARD_PLAIN_WRITES.has(command.action)){
+      this.commandDraft=JSON.stringify(command,(key,value)=>key==="key"?undefined:value);
+      this.submitCommand();return;
+    }
+    try{
+      const clientRequestId=`${this.requestPrefix}-${++this.requestSequence}`;
+      this.pendingRequest={id:clientRequestId,action:command.action};this.pending=true;
+      this.armWatchdog(180_000);
+      this.host?.postMessage({kind:"writeDispatch",clientRequestId,contextId:this.contextId,
+        action:command.action,intentId:command.intent_id,
+        expectedRevision:command.expected_revision,bindingRevision:command.binding_revision,
+        target:command.target,parameters:command.parameters,projectId:this.project?.project_id});
+    }catch(error){
+      this.commandNote=error instanceof Error?error.message:"向导命令无效";
+    }
+    this.render();
   }
 
   private submitCommand():void {
