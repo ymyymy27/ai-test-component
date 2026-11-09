@@ -187,9 +187,10 @@ export class Onboarding {
     section.append(text("h3","核对 AI 计划"),text("p","全部字段可改；服务端校验仍是权威。发布后计划冻结，运行中只影响未执行步骤。","muted"));
     const coverage=object(this.preview?.["coverage"]);
     if(coverage){
-      const box=document.createElement("div");box.className="coverage-lines";
+      const box=document.createElement("div");
       const templateItems=Number(coverage["template_items"]??0),coveredItems=Number(coverage["covered_items"]??0),requiredItems=Number(coverage["required_items"]??0);
       box.append(text("h4","覆盖收据"),text("p",`模板项 ${templateItems} · 已覆盖 ${coveredItems} · 必测 ${requiredItems}`,"muted"));
+      section.append(box);
       const rows=Array.isArray(this.preview?.["coverage_preview"])?this.preview["coverage_preview"] as unknown[]:[];
       if(rows.length){
         const table=document.createElement("table");table.className="coverage-table";table.dataset.testid="plan-coverage";
@@ -199,9 +200,8 @@ export class Onboarding {
           tr.append(text("td",String(row.function_id??"")),text("td",String(row.overall_status??"")),text("td",String(row.gap_reason??"")));
           table.append(tr);
         }
-        box.append(table);
+        section.append(table);
       }
-      section.append(box);
     }
     section.append(field("范围名称",String(scope.name??""),value=>scope.name=value),
       field("范围目标",String(scope.objective??""),value=>scope.objective=value,true));

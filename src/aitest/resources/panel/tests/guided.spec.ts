@@ -38,6 +38,8 @@ test("novice run carries exact identities, never auto executes and retains retry
   await page.getByRole("button",{name:"执行已确认的操作",exact:true}).click();
   expect(await sent(page)).toMatchObject({intentId:prepared.intentId,parameters:{execution_action_id:"action-saved",record_revision:1}});
   await postHostMessage(page,{kind:"outcome",action:"execute_step",status:"ok",response:{result:{}}});
+  await expect.poll(async()=> (await sent(page)).action).toBe("read_view");
+  await postHostMessage(page,{kind:"outcome",action:"read_view",status:"ok",response:{result:{view_type:"run",commit_id:1,event_cursor:"cursor",view:{project_id:"p",run_id:"r",snapshot_commit_id:"snapshot-after-execute",selected_case_ids:["case"],required_case_ids:["case"],steps:[{case_id:"case",step_id:"step-actual",state:"pending"}]}}}});
   await expect(page.getByRole("button",{name:"核验这次执行结果",exact:true})).toHaveCount(0);
   await page.getByRole("button",{name:"核实执行状态",exact:true}).click();
   await postHostMessage(page,{kind:"outcome",action:"read_view",status:"ok",response:{result:{view_type:"run",commit_id:2,event_cursor:"foreign",view:{project_id:"other",run_id:"r"}}}});

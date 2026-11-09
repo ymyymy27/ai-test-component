@@ -216,21 +216,33 @@ def _verify_links(
         confirmations = []
         for ref_confirmation in entry.confirmation_refs:
             saved_confirmation = read("case_link", ref_confirmation.confirmation_id, 1)
+            plan_proof = saved_confirmation.get("plan_confirmation_id") is not None
             if approvals is not None:
-                approvals.validate_basis_confirmation(
-                    project_id=prepared.project_id, payload=saved_confirmation
-                )
+                if plan_proof:
+                    approvals.validate_plan_basis_confirmation(
+                        project_id=prepared.project_id, payload=saved_confirmation
+                    )
+                else:
+                    approvals.validate_basis_confirmation(
+                        project_id=prepared.project_id, payload=saved_confirmation
+                    )
             confirmation = confirmation_from_payload(saved_confirmation)
             intent = saved_confirmation.get("intent_id")
-            declared_digest = payload_digest(
-                [
-                    prepared.project_id,
-                    case.case_id,
-                    saved_confirmation.get("case_revision"),
-                    entry.basis_revision,
-                    entry.basis_text_digest,
-                ]
-            )
+            declared_inputs: list[object] = [
+                prepared.project_id,
+                case.case_id,
+                saved_confirmation.get("case_revision"),
+                entry.basis_revision,
+                entry.basis_text_digest,
+            ]
+            if plan_proof:
+                declared_inputs.extend(
+                    [
+                        saved_confirmation.get("plan_confirmation_id"),
+                        saved_confirmation.get("plan_revision"),
+                    ]
+                )
+            declared_digest = payload_digest(declared_inputs)
             if (
                 not isinstance(intent, str)
                 or not intent

@@ -52,14 +52,17 @@ test("report save reuses the run identity and increments the content revision", 
   await page.getByRole("button", { name: "保存本次测试报告", exact: true }).click();
   const lookup = await sent(page);
   expect(lookup).toMatchObject({ kind: "dispatch", action: "query", parameters: { run_id: "r" } });
-  await postHostMessage(page, reportRows());
+  await postHostMessage(page, {...reportRows(), clientRequestId: lookup["clientRequestId"]});
 
   const first = await sent(page);
   expect(first).toMatchObject({ kind: "controlledDispatch", action: "create_report",
     expectedRevision: 3, parameters: { run_id: "r", report_id: "report-old", issue_ids: [] } });
   await postHostMessage(page, { kind: "outcome", action: "create_report", status: "ok",
+    clientRequestId: first["clientRequestId"],
     response: { result: { aggregate_kind: "report", record_id: "report-old", revision: 4 } } });
 
+  await expect.poll(async()=> (await sent(page)).action).toBe("read_view");
+  await postHostMessage(page, runView());
   await expect(page.getByRole("button", { name: "保存本次测试报告", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "保存本次测试报告", exact: true }).click();
   const second = await sent(page);

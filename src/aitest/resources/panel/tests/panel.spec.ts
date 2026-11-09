@@ -48,7 +48,7 @@ test("prototype follows current-test panel and same-panel detail flow", async ({
   await expect(page.getByTestId("last-result-body")).toHaveCount(0);
   await page.getByRole("button",{name:"返回本次测试"}).click();
   await expect(page.getByTestId("phase-summary").getByRole("heading")).toHaveCount(1);
-  await expect(page.getByTestId("primary-actions").getByRole("button")).toHaveCount(1);
+  await expect(page.getByTestId("primary-actions").getByRole("button")).toHaveCount(2);
 
   // 「计划」必须精确匹配：否则会同时命中 AI 区的「生成计划草稿」（strict mode 冲突）。
   await page.getByText("测试计划",{exact:true}).click();

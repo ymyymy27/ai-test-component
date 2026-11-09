@@ -8,7 +8,7 @@ const runView = {
   status: "ok",
   response: {result: {
     view_type: "run", commit_id: 0, event_cursor: "cursor-0",
-    view: {project_id: "p", run_id: "r", snapshot_commit_id: "snapshot-0", steps: []},
+    view: {project_id: "p", run_id: "r", stage: "runtime", control_state: "running", snapshot_commit_id: "snapshot-0", steps: []},
   }},
 };
 

@@ -320,3 +320,105 @@ def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
         assert receipts["prepare"]["initial_driver"] == "planned"
     finally:
         core.lifetime_lock.release()
+
+
+def test_v11_project_understanding_drives_one_confirmation_end_to_end(tmp_path):
+    from aitest.application.project.understanding import understanding_from_payload
+    from aitest.bootstrap import assemble_workspace_core
+    from aitest.interfaces.local.native_confirmation import dispatch_native
+    from tests.support.environment_resolution import FixtureEnvironmentResolver
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "main.py").write_text(
+        "def add(a, b):\n    return a + b\n\n"
+        "def divide(a, b):\n    return a / b\n",
+        encoding="utf-8",
+    )
+    core = assemble_workspace_core(
+        tmp_path / "workspace",
+        instance_id="wizard-v11-fixture",
+        environment_resolver=FixtureEnvironmentResolver(),
+    )
+    selection = form(str(source)).model_copy(
+        update={"workspace_id": core.workspace.workspace_id}
+    )
+    receipts: dict[str, object] = {}
+    try:
+        for item in wizard_commands(selection, "project", {}):
+            command = Command.model_validate(
+                {key: value for key, value in item.items() if key != "key"}
+                | {"request_id": uuid4().hex, "project_id": selection.project_id}
+            )
+            result = dispatch_native(
+                core.api, command, prompt=lambda text: True,
+                records=core.unit_of_work.repo,
+            )
+            assert result.error is None, (item["action"], result.error)
+            receipts[item["key"]] = result.result
+
+        understanding_payload = receipts["snapshot"]["understanding"]
+        understanding = understanding_from_payload(
+            understanding_payload,
+            project_id=selection.project_id,
+            workspace_id=selection.workspace_id,
+        )
+        payload = _proposal()
+        payload["schema_version"] = "aitest.plan-proposal/1.1"
+        payload["understanding_revision"] = understanding.revision
+        payload["goal_intent_ids"] = [
+            intent.intent_id for intent in understanding.test_intents
+        ]
+        payload["coverage_claims"] = [
+            {
+                "intent_id": intent.intent_id,
+                "function_id": function_id,
+                "dimension": dimension,
+                "case_ids": ["case-normal"],
+            }
+            for intent in understanding.test_intents
+            for function_id in sorted(intent.function_ids)
+            for dimension in next(
+                function.required_dimensions
+                for function in understanding.catalog.functions
+                if function.function_id == function_id
+            )
+        ]
+        selection = selection.model_copy(
+            update={"proposal": payload, "understanding": understanding_payload}
+        )
+        preview = wizard_review(selection)
+        selection = selection.model_copy(
+            update={
+                "coverage_contract": preview["coverage_contract"],
+                "understanding_ref": preview["understanding_ref"],
+            }
+        )
+        for stage in ("commit", "prepare", "register"):
+            for item in wizard_commands(selection, stage, receipts):
+                command = Command.model_validate(
+                    {key: value for key, value in item.items() if key != "key"}
+                    | {"request_id": uuid4().hex, "project_id": selection.project_id}
+                )
+                result = dispatch_native(
+                    core.api, command, prompt=lambda text: True,
+                    records=core.unit_of_work.repo,
+                )
+                assert result.error is None, (item["action"], result.error.message)
+                assert not result.result.get("blocked"), (item["action"], result.result)
+                if item["action"] == "prepare_run":
+                    assert result.result["status"] == "prepared", result.result.get(
+                        "blocking_reasons"
+                    )
+                receipts[item["key"]] = result.result
+
+        assert not [key for key in receipts if key.startswith("confirm-")]
+        assert receipts["publish"]["grant_id"]
+        assert len(receipts["publish"]["basis_confirmations"]) == 4
+        plan = core.unit_of_work.repo.read(
+            aggregate_kind="plan", record_id="plan-" + selection.project_id, revision=1
+        ).payload
+        assert plan["coverage_contract"]["understanding_revision"] == understanding.revision
+        assert receipts["register"]["run_id"]
+    finally:
+        core.lifetime_lock.release()
