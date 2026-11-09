@@ -160,6 +160,46 @@
       "title": "ProposalCaseLink",
       "type": "object"
     },
+    "ProposalCoverageClaim": {
+      "additionalProperties": false,
+      "description": "One model-proposed ``intent × function × dimension`` claim.\n\nOnly the linkage is model content.  `claim_id`, `status`, `plan_revision`,\nevidence and verification references are server-owned and therefore\nforbidden here (`extra=\"forbid\"`), so a model cannot claim coverage proof.",
+      "properties": {
+        "intent_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "function_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Function Id",
+          "type": "string"
+        },
+        "dimension": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Case Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "intent_id",
+        "function_id",
+        "dimension",
+        "case_ids"
+      ],
+      "title": "ProposalCoverageClaim",
+      "type": "object"
+    },
     "ProposalScope": {
       "additionalProperties": false,
       "description": "Acceptance scope content the model may propose.",
@@ -244,8 +284,11 @@
   "description": "A complete, editable plan proposal.  Never a published plan.",
   "properties": {
     "schema_version": {
-      "const": "aitest.plan-proposal/1.0",
       "default": "aitest.plan-proposal/1.0",
+      "enum": [
+        "aitest.plan-proposal/1.0",
+        "aitest.plan-proposal/1.1"
+      ],
       "title": "Schema Version",
       "type": "string"
     },
@@ -270,6 +313,33 @@
       },
       "minItems": 1,
       "title": "Cases",
+      "type": "array"
+    },
+    "understanding_revision": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Understanding Revision"
+    },
+    "goal_intent_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Goal Intent Ids",
+      "type": "array"
+    },
+    "coverage_claims": {
+      "items": {
+        "$ref": "#/$defs/ProposalCoverageClaim"
+      },
+      "title": "Coverage Claims",
       "type": "array"
     }
   },

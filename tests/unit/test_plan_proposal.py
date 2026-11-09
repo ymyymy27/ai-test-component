@@ -9,11 +9,22 @@ import pytest
 
 from aitest.application.planning.proposal import (
     PlanProposalError,
+    materialize_coverage_contract,
     materialize_plan_proposal,
     parse_plan_proposal,
+    proposal_from_mapping,
     proposal_preview,
 )
+from aitest.application.project.understanding import scan_sources
+from aitest.application.review.function_coverage_preview import (
+    build_plan_function_coverage,
+)
 from aitest.contracts.plan_proposal import PlanProposal
+from aitest.domain.planning.plans import validate_coverage_contract
+from aitest.domain.planning.understanding import (
+    CoverageClaimStatus,
+    ProjectUnderstanding,
+)
 
 
 def _case(item: str, layer: str, case_id: str) -> dict[str, object]:
@@ -199,3 +210,316 @@ def test_preview_returns_full_case_payloads_without_writing() -> None:
     assert preview["coverage"]["covered_items"] == 4
     assert len(preview["cases"]) == 4  # type: ignore[arg-type]
     assert preview["proposal"]["schema_version"] == "aitest.plan-proposal/1.0"
+    assert preview["coverage_preview"] == []
+    assert "understanding_revision" not in preview["proposal"]
+
+
+# ------------------------------------------------------ 1.1 understanding link
+
+
+def _understanding() -> ProjectUnderstanding:
+    return scan_sources(
+        files={"app/lib.py": b"def create_order(amount):\n    return amount\n"},
+        source_snapshot_id="snap-1",
+        understanding_id="understanding-1",
+        revision=2,
+        scope="project",
+    )
+
+
+def _intent_and_function(understanding: ProjectUnderstanding) -> tuple[str, str, str]:
+    intent = understanding.test_intents[0]
+    function_id = sorted(intent.function_ids)[0]
+    function = next(
+        item
+        for item in understanding.catalog.functions
+        if item.function_id == function_id
+    )
+    return intent.intent_id, function_id, function.required_dimensions[0]
+
+
+def _v11_payload(understanding: ProjectUnderstanding) -> dict[str, object]:
+    intent_id, function_id, dimension = _intent_and_function(understanding)
+    payload = _proposal()
+    payload["schema_version"] = "aitest.plan-proposal/1.1"
+    payload["understanding_revision"] = understanding.revision
+    payload["goal_intent_ids"] = [intent_id]
+    payload["coverage_claims"] = [
+        {
+            "intent_id": intent_id,
+            "function_id": function_id,
+            "dimension": dimension,
+            "case_ids": ["case-normal"],
+        }
+    ]
+    return payload
+
+
+def test_v11_proposal_accepts_understanding_link_and_claims() -> None:
+    understanding = _understanding()
+    proposal = PlanProposal.model_validate(_v11_payload(understanding))
+    assert proposal.schema_version == "aitest.plan-proposal/1.1"
+    assert proposal.understanding_revision == 2
+    assert proposal.goal_intent_ids == [understanding.test_intents[0].intent_id]
+    assert proposal.coverage_claims[0].case_ids == ["case-normal"]
+
+
+def test_v11_claim_materialises_a_server_owned_coverage_contract() -> None:
+    understanding = _understanding()
+    proposal = PlanProposal.model_validate(_v11_payload(understanding))
+    contract = materialize_coverage_contract(
+        proposal, understanding, plan_revision=3
+    )
+
+    validate_coverage_contract(contract)
+    assert contract.understanding_revision == understanding.revision
+    assert contract.contract_id.startswith("plan-coverage-contract:3:")
+    functions = {
+        requirement.function_id: requirement.required_dimensions
+        for requirement in contract.function_requirements
+    }
+    function = understanding.catalog.functions[0]
+    assert functions == {function.function_id: function.required_dimensions}
+
+    claim = contract.coverage_claims[0]
+    assert claim.claim_id.startswith("plan-claim:3:")
+    assert claim.status is CoverageClaimStatus.NOT_PROVEN
+    assert claim.plan_revision == 3
+    assert claim.case_ids == frozenset({"case-normal"})
+    assert claim.intent_id == understanding.test_intents[0].intent_id
+    assert contract.template_dispositions == ()
+
+
+def test_v11_contract_accepts_caller_template_dispositions() -> None:
+    from aitest.domain.planning.plans import (
+        TemplateApplicability,
+        TemplateCoverage,
+        TemplateDisposition,
+    )
+
+    understanding = _understanding()
+    proposal = PlanProposal.model_validate(_v11_payload(understanding))
+    disposition = TemplateDisposition(
+        "syntax", TemplateApplicability.APPLICABLE, TemplateCoverage.COVERED
+    )
+    contract = materialize_coverage_contract(
+        proposal,
+        understanding,
+        plan_revision=1,
+        template_dispositions=(disposition,),
+    )
+    assert contract.template_dispositions == (disposition,)
+
+
+def test_v11_claim_intent_must_be_one_of_goal_intents() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["coverage_claims"] = [
+        {
+            **_v11_payload(understanding)["coverage_claims"][0],  # type: ignore[index]
+            "intent_id": "intent-not-selected",
+        }
+    ]
+    with pytest.raises(PlanProposalError) as error:
+        proposal_from_mapping(payload)
+    assert any("goal_intent_ids" in issue.message for issue in error.value.issues)
+
+
+def test_v11_goal_intent_must_exist_in_the_understanding() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["goal_intent_ids"] = ["intent-from-another-understanding"]
+    payload["coverage_claims"] = [
+        {
+            **_v11_payload(understanding)["coverage_claims"][0],  # type: ignore[index]
+            "intent_id": "intent-from-another-understanding",
+        }
+    ]
+    proposal = PlanProposal.model_validate(payload)
+    with pytest.raises(PlanProposalError) as error:
+        materialize_coverage_contract(proposal, understanding, plan_revision=1)
+    assert any("unknown test intent" in issue.message for issue in error.value.issues)
+
+
+def test_v11_claim_with_unknown_function_is_rejected() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["coverage_claims"] = [
+        {
+            **_v11_payload(understanding)["coverage_claims"][0],  # type: ignore[index]
+            "function_id": "fn-unknown",
+        }
+    ]
+    proposal = PlanProposal.model_validate(payload)
+    with pytest.raises(PlanProposalError) as error:
+        materialize_coverage_contract(proposal, understanding, plan_revision=1)
+    assert any(
+        "unknown business function" in issue.message for issue in error.value.issues
+    )
+
+
+def test_v11_claim_function_must_be_linked_to_the_intent() -> None:
+    understanding = scan_sources(
+        files={
+            "app/lib.py": (
+                b"def create_order(amount):\n    return amount\n"
+                b"\ndef cancel_order(order_id):\n    return order_id\n"
+            )
+        },
+        source_snapshot_id="snap-1",
+        understanding_id="understanding-1",
+        revision=2,
+        scope="project",
+    )
+    payload = _v11_payload(understanding)
+    intent_id = payload["goal_intent_ids"][0]  # type: ignore[index]
+    intent = next(
+        item for item in understanding.test_intents if item.intent_id == intent_id
+    )
+    other = next(
+        item
+        for item in understanding.catalog.functions
+        if item.function_id not in intent.function_ids
+    )
+    payload["coverage_claims"] = [
+        {
+            **_v11_payload(understanding)["coverage_claims"][0],  # type: ignore[index]
+            "function_id": other.function_id,
+            "dimension": other.required_dimensions[0],
+        }
+    ]
+    proposal = PlanProposal.model_validate(payload)
+    with pytest.raises(PlanProposalError) as error:
+        materialize_coverage_contract(proposal, understanding, plan_revision=1)
+    assert any(
+        "not linked to intent" in issue.message for issue in error.value.issues
+    )
+
+
+def test_v11_claim_dimension_must_be_required_by_the_function() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["coverage_claims"] = [
+        {
+            **_v11_payload(understanding)["coverage_claims"][0],  # type: ignore[index]
+            "dimension": "concurrency",
+        }
+    ]
+    proposal = PlanProposal.model_validate(payload)
+    with pytest.raises(PlanProposalError) as error:
+        materialize_coverage_contract(proposal, understanding, plan_revision=1)
+    assert any("not required" in issue.message for issue in error.value.issues)
+
+
+def test_v11_claim_case_must_exist_in_the_proposal_cases() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["coverage_claims"] = [
+        {
+            **_v11_payload(understanding)["coverage_claims"][0],  # type: ignore[index]
+            "case_ids": ["case-missing"],
+        }
+    ]
+    with pytest.raises(PlanProposalError) as error:
+        proposal_from_mapping(payload)
+    assert any("outside this proposal" in issue.message for issue in error.value.issues)
+
+
+def test_v11_duplicate_intent_function_dimension_claim_is_rejected() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["coverage_claims"] = [
+        *_v11_payload(understanding)["coverage_claims"],  # type: ignore[misc]
+        *_v11_payload(understanding)["coverage_claims"],  # type: ignore[misc]
+    ]
+    with pytest.raises(PlanProposalError) as error:
+        proposal_from_mapping(payload)
+    assert any("duplicate coverage claim" in issue.message for issue in error.value.issues)
+
+
+def test_v11_requires_understanding_revision() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload.pop("understanding_revision")
+    with pytest.raises(PlanProposalError) as error:
+        proposal_from_mapping(payload)
+    assert any(
+        "understanding_revision" in issue.message for issue in error.value.issues
+    )
+
+
+def test_v11_requires_at_least_one_unique_goal_intent() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    payload["goal_intent_ids"] = []
+    with pytest.raises(PlanProposalError):
+        proposal_from_mapping(payload)
+
+    payload = _v11_payload(understanding)
+    intent_id = payload["goal_intent_ids"][0]  # type: ignore[index]
+    payload["goal_intent_ids"] = [intent_id, intent_id]
+    with pytest.raises(PlanProposalError) as error:
+        proposal_from_mapping(payload)
+    assert any("unique" in issue.message for issue in error.value.issues)
+
+
+def test_v10_with_v11_fields_is_rejected_even_at_defaults() -> None:
+    payload = _proposal()
+    payload["understanding_revision"] = None
+    with pytest.raises(PlanProposalError) as error:
+        proposal_from_mapping(payload)
+    assert any("1.0" in issue.message for issue in error.value.issues)
+
+
+def test_v11_claim_cannot_supply_server_owned_fields() -> None:
+    understanding = _understanding()
+    payload = _v11_payload(understanding)
+    claim = dict(payload["coverage_claims"][0])  # type: ignore[index]
+    claim["claim_id"] = "model-chosen-id"
+    payload["coverage_claims"] = [claim]
+    with pytest.raises(Exception) as error:
+        PlanProposal.model_validate(payload)
+    assert "extra" in str(error.value).lower() or "claim_id" in str(error.value)
+
+
+def test_v11_preview_coverage_matches_the_materialised_contract() -> None:
+    understanding = _understanding()
+    proposal = PlanProposal.model_validate(_v11_payload(understanding))
+    preview = proposal_preview(
+        proposal,
+        project_id="demo",
+        environment_id="env-demo",
+        scope_id="scope-demo",
+        understanding=understanding,
+    )
+    contract = materialize_coverage_contract(
+        proposal, understanding, plan_revision=1
+    )
+    expected = [
+        {
+            "function_id": item.function_id,
+            "overall_status": item.overall_coverage.value,
+            "dimensions": {
+                dimension: status.value
+                for dimension, status in item.coverage_by_dimension.items()
+            },
+            "gap_reason": item.gap_reason,
+        }
+        for item in build_plan_function_coverage(contract, plan_revision=1)
+    ]
+    assert preview["coverage_preview"] == expected
+    assert expected
+    assert expected[0]["gap_reason"] == "no coverage claim"
+    assert preview["proposal"]["schema_version"] == "aitest.plan-proposal/1.1"
+
+
+def test_v11_preview_without_understanding_does_not_fake_coverage() -> None:
+    understanding = _understanding()
+    proposal = PlanProposal.model_validate(_v11_payload(understanding))
+    preview = proposal_preview(
+        proposal,
+        project_id="demo",
+        environment_id="env-demo",
+        scope_id="scope-demo",
+    )
+    assert preview["coverage_preview"] == []

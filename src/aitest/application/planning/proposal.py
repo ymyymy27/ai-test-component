@@ -1,15 +1,15 @@
-"""Parse, validate and materialise `aitest.plan-proposal/1.0`.
+"""Parse, validate and materialise `aitest.plan-proposal/1.0` and `1.1`.
 
 The AI fills a template skeleton.  This module is the only place that turns
-that proposal into domain `Case`/`AcceptanceScope` objects, so template
-coverage and server-owned identity are checked once and cannot be skipped by
-the panel or the onboarding helper.
+that proposal into domain `Case`/`AcceptanceScope`/`CoverageContract` objects,
+so template coverage, claim linkage and server-owned identity are checked once
+and cannot be skipped by the panel or the onboarding helper.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -19,7 +19,16 @@ from aitest.application.planning.serialization import (
     acceptance_scope_to_payload,
     case_to_payload,
 )
-from aitest.contracts.plan_proposal import PlanProposal, ProposalCase
+from aitest.application.review.function_coverage_preview import (
+    build_plan_function_coverage,
+)
+from aitest.contracts.plan_proposal import (
+    PLAN_PROPOSAL_SCHEMA_V10,
+    PLAN_PROPOSAL_SCHEMA_V11,
+    PlanProposal,
+    ProposalCase,
+    ProposalCoverageClaim,
+)
 from aitest.contracts.templates import TemplateItem, TemplatePack
 from aitest.domain.planning.plans import (
     AcceptanceScope,
@@ -29,10 +38,23 @@ from aitest.domain.planning.plans import (
     CaseImportance,
     CaseLayer,
     CaseLink,
+    CoverageContract,
+    FunctionRequirement,
+    TemplateDisposition,
+    validate_coverage_contract,
 )
 from aitest.domain.planning.templates import TemplateRef
+from aitest.domain.planning.understanding import (
+    CoverageClaim,
+    CoverageClaimStatus,
+    ProjectUnderstanding,
+    TestIntent,
+)
+from aitest.domain.review.function_coverage import FunctionCoverage
 
-PLAN_PROPOSAL_SCHEMA = "aitest.plan-proposal/1.0"
+#: Task marker kept for existing callers (`output_schema`).  Parsing accepts
+#: both versions; `plan_proposal_system_prompt()` decides which to request.
+PLAN_PROPOSAL_SCHEMA = PLAN_PROPOSAL_SCHEMA_V10
 
 
 def plan_proposal_system_prompt() -> str:
@@ -46,7 +68,7 @@ def plan_proposal_system_prompt() -> str:
         "You draft one test plan for the project material supplied by the user.\n"
         "Return ONLY one JSON object, with no Markdown fence and no prose, matching:\n"
         "{\n"
-        '  "schema_version": "aitest.plan-proposal/1.0",\n'
+        '  "schema_version": "aitest.plan-proposal/1.1",\n'
         '  "template_id": "<installed template id>",\n'
         '  "template_version": "<installed template version>",\n'
         '  "scope": {\n'
@@ -78,6 +100,14 @@ def plan_proposal_system_prompt() -> str:
         '    "independent_verification": "<how expected values stay independent from execution>",\n'
         '    "mock_scope": [],\n'
         '    "importance": "P0|P1|P2"\n'
+        "  }],\n"
+        '  "understanding_revision": <understanding revision supplied with the material>,\n'
+        '  "goal_intent_ids": ["<supplied test intent id>"],\n'
+        '  "coverage_claims": [{\n'
+        '    "intent_id": "<one of goal_intent_ids>",\n'
+        '    "function_id": "<business function id from the supplied understanding>",\n'
+        '    "dimension": "<required dimension of that function>",\n'
+        '    "case_ids": ["<case_id from cases above>"]\n'
         "  }]\n"
         "}\n"
         "Rules:\n"
@@ -87,8 +117,21 @@ def plan_proposal_system_prompt() -> str:
         "- Every case needs a non-empty expected, assertion_basis_text and "
         "independent_verification.\n"
         "- When critical_path_ids is empty, provide no_critical_path_reason.\n"
-        "- Do not include project_id, revisions, digests, environment IDs, confirmation "
-        "state, or publication state; the server owns those.\n"
+        "- When the material contains a project-understanding revision with test "
+        "intents, use schema_version 1.1, copy that revision into "
+        "understanding_revision, and include the selected intent IDs in "
+        "goal_intent_ids.\n"
+        "- goal_intent_ids must be non-empty and unique; every coverage_claims "
+        "intent_id must be one of them.\n"
+        "- Every coverage claim must use a function_id and dimension from the "
+        "supplied understanding, and its case_ids must all exist in cases above. "
+        "List each intent × function × dimension at most once.\n"
+        "- Without a supplied understanding revision, use schema_version 1.0 and "
+        "omit understanding_revision, goal_intent_ids and coverage_claims. Never "
+        "mix 1.0 with 1.1 fields.\n"
+        "- Do not include claim_id, claim status, plan_revision, project_id, "
+        "revisions, digests, environment IDs, confirmation state, or publication "
+        "state; the server owns those.\n"
     )
 
 
@@ -426,6 +469,243 @@ def materialize_plan_proposal(
     return scope, tuple(sorted(cases, key=lambda case: (case.case_id, case.revision)))
 
 
+def _coverage_issue(path: str, message: str) -> ProposalIssue:
+    return ProposalIssue(path, message)
+
+
+def _coverage_claim_id(plan_revision: int, claim: ProposalCoverageClaim) -> str:
+    """Server-owned claim identity; the model never supplies it."""
+
+    return (
+        f"plan-claim:{plan_revision}:{claim.intent_id}:"
+        f"{claim.function_id}:{claim.dimension}"
+    )
+
+
+def _coverage_contract_id(
+    understanding: ProjectUnderstanding, plan_revision: int
+) -> str:
+    """Server-owned contract identity bound to the understanding revision."""
+
+    return (
+        f"plan-coverage-contract:{plan_revision}:"
+        f"{understanding.understanding_id}:{understanding.revision}"
+    )
+
+
+def materialize_coverage_contract(
+    proposal: PlanProposal,
+    understanding: ProjectUnderstanding,
+    *,
+    plan_revision: int,
+    template_dispositions: Sequence[TemplateDisposition] | None = None,
+) -> CoverageContract:
+    """Turn a 1.1 proposal into a domain `CoverageContract`.
+
+    The model supplies only `intent_id`/`function_id`/`dimension`/`case_ids`.
+    This function re-checks every linkage against the referenced understanding
+    (rather than trusting the proposal schema alone), generates `claim_id` and
+    `contract_id`, sets every claim to ``not_proven`` and binds the caller's
+    `plan_revision`.  `template_dispositions` stay a caller input; without them
+    the contract has none (it must not invent applicability decisions).
+
+    `critical_path_ids` stay empty here: critical-path selection is a separate
+    plan concern, not a proposal field.
+    """
+
+    if type(plan_revision) is not int or plan_revision < 1:
+        raise PlanProposalError(
+            (_coverage_issue("plan_revision", "plan_revision must be >= 1"),)
+        )
+
+    issues: list[ProposalIssue] = []
+    if proposal.schema_version != PLAN_PROPOSAL_SCHEMA_V11:
+        issues.append(
+            _coverage_issue(
+                "schema_version",
+                "coverage materialisation requires aitest.plan-proposal/1.1",
+            )
+        )
+    if proposal.understanding_revision is None:
+        issues.append(
+            _coverage_issue(
+                "understanding_revision",
+                "schema 1.1 requires understanding_revision",
+            )
+        )
+    elif proposal.understanding_revision != understanding.revision:
+        issues.append(
+            _coverage_issue(
+                "understanding_revision",
+                f"proposal uses revision {proposal.understanding_revision}, "
+                f"but the supplied understanding is revision {understanding.revision}",
+            )
+        )
+
+    if not proposal.goal_intent_ids:
+        issues.append(
+            _coverage_issue("goal_intent_ids", "at least one goal intent is required")
+        )
+    elif any(not intent_id.strip() for intent_id in proposal.goal_intent_ids):
+        issues.append(
+            _coverage_issue("goal_intent_ids", "goal intent IDs must not be blank")
+        )
+    if len(proposal.goal_intent_ids) != len(set(proposal.goal_intent_ids)):
+        issues.append(_coverage_issue("goal_intent_ids", "goal intent IDs must be unique"))
+
+    intents = {intent.intent_id: intent for intent in understanding.test_intents}
+    functions = {
+        function.function_id: function
+        for function in understanding.catalog.functions
+    }
+    case_ids = {case.case_id for case in proposal.cases}
+    goal_ids = list(dict.fromkeys(proposal.goal_intent_ids))
+    selected_intents: list[TestIntent] = []
+    for intent_id in goal_ids:
+        intent = intents.get(intent_id)
+        if intent is None:
+            issues.append(
+                _coverage_issue(
+                    "goal_intent_ids",
+                    f"unknown test intent in the supplied understanding: {intent_id}",
+                )
+            )
+            continue
+        selected_intents.append(intent)
+        missing_functions = sorted(intent.function_ids - set(functions))
+        if missing_functions:
+            issues.append(
+                _coverage_issue(
+                    "goal_intent_ids",
+                    f"test intent {intent_id} references unknown functions: "
+                    + ", ".join(missing_functions),
+                )
+            )
+
+    seen_claims: set[tuple[str, str, str]] = set()
+    for index, claim in enumerate(proposal.coverage_claims):
+        path = f"coverage_claims[{index}]"
+        if claim.intent_id not in goal_ids:
+            issues.append(
+                _coverage_issue(
+                    f"{path}.intent_id",
+                    f"claim intent is not one of goal_intent_ids: {claim.intent_id}",
+                )
+            )
+            continue
+        intent = intents.get(claim.intent_id)
+        if intent is None:
+            issues.append(
+                _coverage_issue(
+                    f"{path}.intent_id",
+                    f"unknown test intent in the supplied understanding: "
+                    f"{claim.intent_id}",
+                )
+            )
+            continue
+        function = functions.get(claim.function_id)
+        if function is None:
+            issues.append(
+                _coverage_issue(
+                    f"{path}.function_id",
+                    f"unknown business function in the supplied understanding: "
+                    f"{claim.function_id}",
+                )
+            )
+            continue
+        if claim.function_id not in intent.function_ids:
+            issues.append(
+                _coverage_issue(
+                    f"{path}.function_id",
+                    f"function {claim.function_id} is not linked to intent "
+                    f"{claim.intent_id}",
+                )
+            )
+            continue
+        if claim.dimension not in function.required_dimensions:
+            issues.append(
+                _coverage_issue(
+                    f"{path}.dimension",
+                    f"dimension {claim.dimension} is not required for "
+                    f"{claim.function_id}",
+                )
+            )
+        missing_cases = [
+            case_id for case_id in claim.case_ids if case_id not in case_ids
+        ]
+        if missing_cases:
+            issues.append(
+                _coverage_issue(
+                    f"{path}.case_ids",
+                    "claim references cases outside this proposal: "
+                    + ", ".join(missing_cases),
+                )
+            )
+        key = (claim.intent_id, claim.function_id, claim.dimension)
+        if key in seen_claims:
+            issues.append(
+                _coverage_issue(
+                    path,
+                    "duplicate coverage claim for intent × function × dimension: "
+                    f"{claim.intent_id} × {claim.function_id} × {claim.dimension}",
+                )
+            )
+        seen_claims.add(key)
+
+    if issues:
+        raise PlanProposalError(tuple(issues))
+
+    requirements: list[FunctionRequirement] = []
+    seen_functions: set[str] = set()
+    for intent in selected_intents:
+        for function_id in sorted(intent.function_ids):
+            if function_id in seen_functions:
+                continue
+            seen_functions.add(function_id)
+            requirements.append(
+                FunctionRequirement(
+                    function_id=function_id,
+                    required_dimensions=functions[function_id].required_dimensions,
+                )
+            )
+
+    claims = tuple(
+        CoverageClaim(
+            claim_id=_coverage_claim_id(plan_revision, claim),
+            intent_id=claim.intent_id,
+            function_id=claim.function_id,
+            dimension=claim.dimension,
+            plan_revision=plan_revision,
+            status=CoverageClaimStatus.NOT_PROVEN,
+            case_ids=frozenset(claim.case_ids),
+        )
+        for claim in proposal.coverage_claims
+    )
+    contract = CoverageContract(
+        contract_id=_coverage_contract_id(understanding, plan_revision),
+        understanding_revision=understanding.revision,
+        function_requirements=tuple(requirements),
+        template_dispositions=tuple(template_dispositions or ()),
+        coverage_claims=claims,
+    )
+    validate_coverage_contract(contract)
+    return contract
+
+
+def _coverage_preview_entry(coverage: FunctionCoverage) -> dict[str, object]:
+    """One confirmation-page coverage row; it is a projection, not a report."""
+
+    return {
+        "function_id": coverage.function_id,
+        "overall_status": coverage.overall_coverage.value,
+        "dimensions": {
+            dimension: status.value
+            for dimension, status in coverage.coverage_by_dimension.items()
+        },
+        "gap_reason": coverage.gap_reason,
+    }
+
+
 def proposal_preview(
     proposal: PlanProposal,
     *,
@@ -433,8 +713,14 @@ def proposal_preview(
     environment_id: str,
     scope_id: str,
     pack: TemplatePack | None = None,
+    understanding: ProjectUnderstanding | None = None,
 ) -> dict[str, object]:
-    """Editable preview payload for the panel; never writes a record."""
+    """Editable preview payload for the panel; never writes a record.
+
+    A 1.1 proposal with its understanding also gets a `coverage_preview` built
+    from the materialised contract.  Without both, the list stays empty: the
+    preview must not imply complete function × dimension coverage.
+    """
 
     scope, cases = materialize_plan_proposal(
         proposal,
@@ -444,6 +730,20 @@ def proposal_preview(
         pack=pack,
     )
     resolved = validate_plan_proposal(proposal, pack=pack)
+    coverage_preview: list[dict[str, object]] = []
+    if (
+        proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V11
+        and understanding is not None
+    ):
+        contract = materialize_coverage_contract(
+            proposal,
+            understanding,
+            plan_revision=1,
+        )
+        coverage_preview = [
+            _coverage_preview_entry(item)
+            for item in build_plan_function_coverage(contract, plan_revision=1)
+        ]
     return {
         "schema_version": "aitest.plan-proposal-preview/1.0",
         "template_id": proposal.template_id,
@@ -456,6 +756,7 @@ def proposal_preview(
             "covered_items": len(proposal.cases),
             "required_items": len(resolved.required_item_ids),
         },
+        "coverage_preview": coverage_preview,
         "environment_id": environment_id,
         "proposal": proposal.model_dump(mode="json"),
     }
@@ -484,8 +785,10 @@ def proposal_from_mapping(value: object) -> PlanProposal:
 
 __all__ = [
     "PLAN_PROPOSAL_SCHEMA",
+    "PLAN_PROPOSAL_SCHEMA_V11",
     "PlanProposalError",
     "ProposalIssue",
+    "materialize_coverage_contract",
     "materialize_plan_proposal",
     "parse_plan_proposal",
     "plan_proposal_system_prompt",
