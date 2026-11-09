@@ -108,7 +108,8 @@ def plan_proposal_system_prompt() -> str:
         '    "assertion_basis_text": "<why this assertion proves the acceptance item>",\n'
         '    "independent_verification": "<how expected values stay independent from execution>",\n'
         '    "mock_scope": [],\n'
-        '    "importance": "P0|P1|P2"\n'
+        '    "importance": "P0|P1|P2",\n'
+        '    "data_mutation_units": 1\n'
         "  }],\n"
         '  "template_dispositions": [{\n'
         '    "template_item_id": "<exact item id from the template>",\n'
@@ -134,6 +135,9 @@ def plan_proposal_system_prompt() -> str:
         "coverage gap through coverage_claims.\n"
         "- Every case needs a non-empty expected, assertion_basis_text and "
         "independent_verification.\n"
+        "- data_mutation_units is the declared upper bound of business objects/rows "
+        "the case may change; 0 means read-only. The plan grant budget is checked "
+        "against their sum.\n"
         "- When critical_path_ids is empty, provide no_critical_path_reason.\n"
         "- When the material contains a project-understanding revision with test "
         "intents, use schema_version 1.1, copy that revision into "
@@ -578,6 +582,7 @@ def materialize_plan_proposal(
                 mock_scope=tuple(proposed.mock_scope),
                 importance=CaseImportance(proposed.importance),
                 template_item_id=proposed.template_item_id,
+                data_mutation_units=proposed.data_mutation_units,
             )
         )
     scope = AcceptanceScope(

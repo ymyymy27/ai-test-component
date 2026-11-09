@@ -566,6 +566,7 @@ def test_v11_not_applicable_and_ai_added_case_are_first_class():
             "case_ids": ["case-extra"],
         }
     )
+    payload["cases"][0]["data_mutation_units"] = 5
     proposal = proposal_from_mapping(payload)
     scope, cases = materialize_plan_proposal(
         proposal,
@@ -577,6 +578,10 @@ def test_v11_not_applicable_and_ai_added_case_are_first_class():
     assert "case-syntax" not in {case.case_id for case in cases}
     extra_case = next(case for case in cases if case.case_id == "case-extra")
     assert extra_case.template_item_id is None
+    changed = next(
+        case for case in cases if case.case_id == payload["cases"][0]["case_id"]
+    )
+    assert changed.data_mutation_units == 5
     assert "case-extra" not in scope.template_case_ids
 
 

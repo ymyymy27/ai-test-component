@@ -96,6 +96,12 @@ def _revision(payload: Mapping[str, Any], name: str) -> int:
     return value
 
 
+def _non_negative_int(payload: Mapping[str, Any], name: str) -> int:
+    value = payload.get(name)
+    if type(value) is not int or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return value
+
 def _text_tuple(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
     value = payload.get(name, [])
     if not isinstance(value, (list, tuple)):
@@ -256,6 +262,11 @@ def case_to_payload(case: Case, *, project_id: str) -> dict[str, object]:
         "mock_scope": sorted(case.mock_scope),
         "importance": case.importance.value,
         **({"template_item_id": case.template_item_id} if case.template_item_id else {}),
+        **(
+            {"data_mutation_units": case.data_mutation_units}
+            if case.data_mutation_units != 1
+            else {}
+        ),
     }
 
 
@@ -278,6 +289,11 @@ def case_from_payload(payload: Mapping[str, Any]) -> Case:
         mock_scope=_text_tuple(payload, "mock_scope"),
         importance=_enum(CaseImportance, payload, "importance"),
         template_item_id=_optional_text(payload, "template_item_id"),
+        data_mutation_units=(
+            _non_negative_int(payload, "data_mutation_units")
+            if "data_mutation_units" in payload
+            else 1
+        ),
     )
 
 

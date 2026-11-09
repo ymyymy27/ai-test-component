@@ -103,6 +103,8 @@ class ProposalCase(BaseModel):
     independent_verification: str = Field(min_length=1, max_length=4000)
     mock_scope: list[str] = Field(default_factory=list)
     importance: Literal["P0", "P1", "P2"] = "P1"
+    #: 本用例最多修改的业务对象/行数（保守声明；0 表示只读/不修改）。
+    data_mutation_units: int = Field(default=1, ge=0)
 
     @model_validator(mode="after")
     def nonblank_lists(self) -> ProposalCase:

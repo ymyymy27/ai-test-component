@@ -274,3 +274,29 @@ def test_full_publication_without_coverage_contract_is_refused(authoritative):
     assert core.unit_of_work.repo.current_revision(
         aggregate_kind="plan", record_id="plan-full-without-contract"
     ) == 0
+
+
+def test_declared_data_mutation_units_must_fit_the_grant_budget(authoritative):
+    core, inputs, _ = authoritative
+    _, scope, cases = _publication_material(core, inputs)
+    parameters = {
+        "plan_id": "plan-data-budget",
+        "revision": 1,
+        "scope": scope,
+        "cases": cases,
+        "run_tier": "on_demand",
+        "plan_grant": _grant_scope() | {"max_data_mutation": 1},
+    }
+    saved = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=inputs.project_id,
+        parameters=parameters,
+        request="data-budget-request",
+        intent="data-budget-intent",
+    )
+    assert saved.error is not None
+    assert "data mutation" in saved.error.message
+    assert core.unit_of_work.repo.current_revision(
+        aggregate_kind="plan", record_id="plan-data-budget"
+    ) == 1

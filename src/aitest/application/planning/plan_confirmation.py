@@ -179,6 +179,20 @@ class PlanConfirmationService:
                 "derived basis must cover exactly the confirmed plan's frozen cases"
             )
 
+        data_units = 0
+        for item in cases:
+            units = item.get("data_mutation_units", 1)
+            if type(units) is not int or units < 0:
+                raise PlanConfirmationError(
+                    "confirmed plan case has no exact data mutation declaration"
+                )
+            data_units += units
+        data_limit = normalized.get("max_data_mutation")
+        if type(data_limit) is int and data_units > data_limit:
+            raise PlanConfirmationError(
+                "declared data mutation units exceed the plan grant budget"
+            )
+
         basis_ids: list[str] = []
         basis_refs: list[dict[str, object]] = []
         for case_id, case_revision, basis_revision, basis_digest in material:

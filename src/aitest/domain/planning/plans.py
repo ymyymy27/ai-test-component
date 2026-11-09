@@ -280,6 +280,8 @@ class Case:
     importance: CaseImportance = CaseImportance.P1
     #: 模板提醒项来源；AI/用户新增检查为空。只在技术详情与模板处置审计中使用。
     template_item_id: str | None = None
+    #: 本用例最多修改的业务对象/行数（声明上限，不是实际观测值）。
+    data_mutation_units: int = 1
 
     def __post_init__(self) -> None:
         _require_text(self.case_id, "case_id")
