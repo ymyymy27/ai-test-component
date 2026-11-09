@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from aitest.application.planning.publish import payload_digest
+from aitest.application.planning.serialization import coverage_contract_to_payload
 from aitest.contracts.commands import Command
+from aitest.domain.planning.plans import CoverageContract
 from aitest.interfaces.local.api import EntryKind, Session
 from tests.support.controlled_publication import (
     controlled_publication_save,
@@ -104,6 +106,67 @@ def test_publish_plan_with_grant_saves_plan_grant_and_every_basis(authoritative)
         assert link["plan_confirmation_id"] == result["plan_confirmation_id"]
         assert link["plan_id"] == "plan-with-grant"
         assert link["plan_revision"] == result["plan_record_revision"]
+
+
+def test_publish_plan_freezes_a_contract_verified_against_saved_understanding(
+    authoritative,
+):
+    from tests.unit.test_default_source_analysis import dispatch
+
+    core, inputs, _ = authoritative
+    analyzed = dispatch(
+        core,
+        "analyze_project",
+        project=inputs.project_id,
+        expected=1,
+        binding_revision=1,
+        request="contract-understanding-request",
+        intent="contract-understanding-intent",
+        parameters={
+            "binding_id": inputs.binding_id,
+            "purpose": "prepare",
+            "source_scope": ".",
+            "selected_paths": list(inputs.selected_paths),
+            "exclusion_rules": list(inputs.exclusion_rules),
+            "include_understanding": True,
+        },
+    )
+    assert analyzed.error is None, analyzed.error
+    understanding = analyzed.result["understanding"]
+    contract = CoverageContract(
+        contract_id=(
+            f"plan-coverage-contract:1:{understanding['understanding_id']}:"
+            f"{understanding['revision']}"
+        ),
+        understanding_revision=understanding["revision"],
+    )
+    _, scope, cases = _publication_material(core, inputs)
+    saved = controlled_publication_save(
+        core,
+        "publish_plan",
+        project=inputs.project_id,
+        parameters={
+            "plan_id": "plan-with-contract",
+            "revision": 1,
+            "scope": scope,
+            "cases": cases,
+            "coverage_contract": coverage_contract_to_payload(contract),
+            "understanding_ref": {
+                "understanding_id": understanding["understanding_id"],
+                "revision": understanding["revision"],
+            },
+        },
+        request="contract-publication-request",
+        intent="contract-publication-intent",
+    )
+    assert saved.error is None, saved.error
+    plan = core.unit_of_work.repo.read(
+        aggregate_kind="plan", record_id="plan-with-contract", revision=1
+    ).payload
+    assert plan["coverage_contract"]["understanding_revision"] == understanding["revision"]
+    assert plan["approval_parameters"]["understanding_ref"]["revision"] == (
+        understanding["revision"]
+    )
 
 
 def test_changing_grant_scope_after_the_challenge_is_refused(authoritative):

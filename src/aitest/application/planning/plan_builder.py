@@ -30,6 +30,7 @@ from aitest.domain.planning.plans import (
     AcceptanceScope,
     Case,
     CaseRevisionRef,
+    CoverageContract,
     Plan,
     PlanPublicationStatus,
     RunDriver,
@@ -93,6 +94,7 @@ def build_plan(
     template_refs: Sequence[TemplateRef] = (),
     run_tier: RunTier = RunTier.FULL,
     initial_driver: RunDriver = RunDriver.PLANNED,
+    coverage_contract: CoverageContract | None = None,
 ) -> Plan:
     """由请求内容装配一份**草稿状态**的 `Plan`。
 
@@ -116,6 +118,7 @@ def build_plan(
         run_tier=run_tier,
         initial_driver=initial_driver,
         status=PlanPublicationStatus.DRAFT,
+        coverage_contract=coverage_contract,
     )
 
 

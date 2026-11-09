@@ -72,7 +72,9 @@ def form(source="E:/sample"):
 def test_wizard_commands_are_ordinary_commands_without_authority():
     selection=form()
     project=wizard_commands(selection,"project",{})
-    assert [item["action"] for item in project]==["save_context","save_binding","save_environment"]
+    assert [item["action"] for item in project]==[
+        "save_context","save_binding","save_environment","analyze_project"
+    ]
     plan=wizard_commands(selection,"plan",{})
     assert len([item for item in plan if item["action"]=="confirm_basis"])==4
     for item in project+plan:
@@ -207,6 +209,40 @@ def test_v11_proposal_uses_one_plan_confirmation_and_publish_basis_receipts():
     )
     prepared = next(item for item in prepare if item["action"] == "prepare_run")
     assert prepared["parameters"]["confirmation_refs"] == basis
+
+
+def test_wizard_review_uses_saved_understanding_for_coverage_and_contract():
+    from aitest.application.project.understanding import (
+        scan_sources,
+        understanding_identity,
+        understanding_to_payload,
+    )
+    from tests.unit.test_plan_proposal import _v11_payload
+
+    selection = form()
+    understanding = scan_sources(
+        files={"app/lib.py": b"def create_order(amount):\n    return amount\n"},
+        source_snapshot_id="snap-review",
+        understanding_id=understanding_identity(selection.project_id, "project"),
+        revision=2,
+        scope="project",
+    )
+    payload = _v11_payload(understanding)
+    selection = selection.model_copy(
+        update={
+            "proposal": payload,
+            "checks": [],
+            "understanding": understanding_to_payload(
+                understanding,
+                project_id=selection.project_id,
+                workspace_id=selection.workspace_id,
+            ),
+        }
+    )
+    preview = wizard_review(selection)
+    assert preview["coverage_preview"]
+    assert preview["coverage_contract"]["understanding_revision"] == 2
+    assert preview["understanding_ref"]["revision"] == 2
 
 
 def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():

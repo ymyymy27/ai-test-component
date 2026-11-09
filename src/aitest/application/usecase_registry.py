@@ -171,6 +171,7 @@ from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.application.project.understanding import (
     ProjectUnderstandingError,
     ProjectUnderstandingService,
+    understanding_to_payload,
 )
 from aitest.application.project.view_preference import (
     PreferenceError,
@@ -1045,6 +1046,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 "B_UNDERSTANDING_UNVERIFIED",
                 "source result lacks the snapshot identity required for understanding",
             )
+        include_understanding = parameters.get("include_understanding", False)
+        if type(include_understanding) is not bool:
+            raise BUseCaseError(
+                "B_INVALID_PARAMETER", "include_understanding must be a boolean"
+            )
         try:
             summary = deps.project_understanding.understand(
                 project_id=project_id,
@@ -1055,7 +1061,25 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             )
         except ProjectUnderstandingError as error:
             raise BUseCaseError(error.code, str(error)) from error
-        return {**source_result, **summary}
+        result = {**source_result, **summary}
+        if include_understanding:
+            understanding = deps.project_understanding.latest(
+                project_id=project_id, scope=source_scope
+            )
+            if understanding is None:
+                raise BUseCaseError(
+                    "B_UNDERSTANDING_UNVERIFIED",
+                    "the saved project understanding is unavailable after analysis",
+                )
+            workspace_id = deps.workspace_id
+            if not isinstance(workspace_id, str) or not workspace_id.strip():
+                raise BUseCaseError(
+                    "B_UNDERSTANDING_UNVERIFIED", "workspace identity is unavailable"
+                )
+            result["understanding"] = understanding_to_payload(
+                understanding, project_id=project_id, workspace_id=workspace_id
+            )
+        return result
 
     def handle_check_source(command: object) -> Mapping[str, object]:
         if deps.source_analysis is None:
@@ -1853,6 +1877,11 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
     def handle_publish_plan(command: object) -> Mapping[str, object]:
         project_id = _command_project_id(command)
         parameters = _command_parameters(command)
+        if deps.controlled_writes is None and parameters.get("coverage_contract") is not None:
+            raise BUseCaseError(
+                "CAPABILITY_UNAVAILABLE",
+                "coverage contract requires controlled plan publication",
+            )
         plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
         revision = _revision_of(_required(parameters, "revision"), "revision")
         scope_payload = _as_mapping(_required(parameters, "scope"), "scope")

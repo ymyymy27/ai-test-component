@@ -22,6 +22,7 @@ from aitest.application.planning.proposal import (
 )
 from aitest.application.planning.serialization import acceptance_scope_to_payload, case_to_payload
 from aitest.application.project.serialization import binding_to_payload, environment_to_payload
+from aitest.application.project.understanding import understanding_from_payload
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     AssertionBasis,
@@ -59,6 +60,13 @@ class OnboardingForm(BaseModel):
     #: Structured AI proposal; when present, review/commit stages use it instead
     #: of the fixed four beginner checks.
     proposal: dict[str, Any] | None = None
+    #: Persisted understanding returned by ``analyze_project``; the review
+    #: helper re-verifies its digest/owner before using it for the preview.
+    understanding: dict[str, Any] | None = None
+    #: Preview-produced contract + exact understanding reference.  They are
+    #: untrusted transport; plan publication revalidates both against records.
+    coverage_contract: dict[str, Any] | None = None
+    understanding_ref: dict[str, Any] | None = None
     run_tier: Literal["quick", "on_demand", "full"] = "full"
     initial_driver: Literal["planned", "stepwise"] = "planned"
 
@@ -116,15 +124,52 @@ def _proposal_plan_grant(
     }
 
 
+def _understanding_material(form: OnboardingForm) -> str:
+    """Bounded text projection of the saved understanding for the plan prompt."""
+
+    if form.understanding is None:
+        return ""
+    try:
+        understanding = understanding_from_payload(
+            form.understanding,
+            project_id=form.project_id,
+            workspace_id=form.workspace_id,
+        )
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ValueError("项目理解材料无法核对，请重新分析项目") from error
+    lines = [
+        f"understanding_id: {understanding.understanding_id}",
+        f"understanding_revision: {understanding.revision}",
+    ]
+    for function in understanding.catalog.functions:
+        dimensions = ", ".join(function.required_dimensions)
+        lines.append(f"function {function.function_id} ({function.name}): {dimensions}")
+    for intent in understanding.test_intents:
+        functions = ", ".join(sorted(intent.function_ids))
+        lines.append(f"intent {intent.intent_id} ({intent.statement}): {functions}")
+    return "\n".join(lines)
+
+
 def wizard_review(form: OnboardingForm) -> dict[str, Any]:
     """Return the editable proposal preview; never writes a record."""
 
     proposal = _proposal_for(form)
+    understanding = None
+    if form.understanding is not None:
+        try:
+            understanding = understanding_from_payload(
+                form.understanding,
+                project_id=form.project_id,
+                workspace_id=form.workspace_id,
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ValueError("项目理解材料无法核对，请重新分析项目") from error
     return proposal_preview(
         proposal,
         project_id=form.project_id,
         environment_id="env-" + form.project_id,
         scope_id="scope-" + form.project_id,
+        understanding=understanding,
     )
 
 
@@ -164,6 +209,12 @@ def wizard_commands(
             data_reset_policy=form.data_policy, step_timeout_seconds=120)
         add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
             "environment": environment_to_payload(environment, project_id=project)}, environment_id)
+        # 先固定源码并理解项目，复核页才能显示真实的业务功能覆盖，模型也能
+        # 在生成计划时引用 understanding revision。分析失败在提交计划前暴露。
+        add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
+            "source_scope": ".", "selected_paths": ["."],
+            "exclusion_rules": [".git", ".venv", "__pycache__"],
+            "include_understanding": True})
     elif stage == "model":
         template_ref = TemplateRef("python-library", "1.0.0")
         template_text = template_draft_text(load_template(template_ref))
@@ -175,15 +226,25 @@ def wizard_commands(
             "source_snippets_enabled": False,
             "ai_enabled": True, "confirmation": None, "revoked_material_kinds": [],
         }}, "model-policy:" + project)
+        understanding_text = _understanding_material(form)
+        project_context = form.name + "\n" + form.goal
+        if understanding_text:
+            project_context += (
+                "\n\n项目理解（必须据此选择 goal_intent_ids 并生成 coverage_claims）：\n"
+                + understanding_text
+            )
         add("suggestions", "generate_draft", {"generation_mode": "model",
             "project_revision": 1, "policy_revision": 1, "source_revision": 0,
             "base_manual_revision": 0, "task_type": "case_suggestion",
             "draft_kind": "plan_proposal",
-            "output_schema": "aitest.plan-proposal/1.0",
+            "output_schema": (
+                "aitest.plan-proposal/1.1" if understanding_text
+                else "aitest.plan-proposal/1.0"
+            ),
             "template_ref": {"template_id": template_ref.template_id,
                              "version": template_ref.version},
             "timeout_seconds": form.model_timeout,
-            "selected_material": {"project_context": form.name + "\n" + form.goal,
+            "selected_material": {"project_context": project_context,
                                   "template_content": template_text}})
     elif stage == "commit":
         proposal, _scope, cases, scope_payload, case_payloads = _proposal_materials(form)
@@ -209,10 +270,11 @@ def wizard_commands(
         }
         if plan_grant is not None:
             publish_parameters["plan_grant"] = plan_grant
+        if form.coverage_contract is not None:
+            publish_parameters["coverage_contract"] = form.coverage_contract
+        if form.understanding_ref is not None:
+            publish_parameters["understanding_ref"] = form.understanding_ref
         add("publish", "publish_plan", publish_parameters, plan_id)
-        add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
-            "source_scope": ".", "selected_paths": ["."],
-            "exclusion_rules": [".git", ".venv", "__pycache__"]})
     elif stage == "plan":
         if len(form.checks) != 4:
             raise ValueError("请核对加载、正常输入、边界和异常输入四项检查的独立预期")
@@ -245,9 +307,6 @@ def wizard_commands(
             "scope": scope, "cases": cases,
             "template_versions": [{"template_id": "python-library", "version": "1.0.0"}],
             "run_tier": "full", "initial_driver": "stepwise"}, plan_id)
-        add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
-            "source_scope": ".", "selected_paths": ["."],
-            "exclusion_rules": [".git", ".venv", "__pycache__"]})
     elif stage == "prepare":
         snapshot = receipts["snapshot"]
         if form.proposal is not None:

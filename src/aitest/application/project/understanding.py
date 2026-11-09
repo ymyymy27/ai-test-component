@@ -770,6 +770,20 @@ class ProjectUnderstandingService:
             raise ProjectUnderstandingError("project workspace identity cannot be verified")
         return workspace
 
+    def latest(self, *, project_id: str, scope: str) -> ProjectUnderstanding | None:
+        """读取该 (project, scope) 的当前 understanding；没有则返回 None。
+
+        只用于已经在同一工作空间保存过的项目；读取会校验记录摘要与归属，
+        损坏记录不会被当成空目录。
+        """
+
+        _require_text(project_id, "project_id")
+        _require_text(scope, "scope")
+        workspace_id = self._workspace_id(project_id)
+        return self._current(
+            project_id, understanding_identity(project_id, scope), workspace_id
+        )
+
     def _current(
         self, project_id: str, identity: str, workspace_id: str
     ) -> ProjectUnderstanding | None:

@@ -148,6 +148,9 @@ export class Onboarding {
       entry:this.session?.entry,name:this.name.trim(),goal:this.goal.trim(),data_policy:this.dataPolicy.trim(),
       dependency_declaration:"独立 Python 3.13 环境，仅标准库",endpoint:this.endpoint,model:this.model,
       model_timeout:Number(this.modelTimeout),proposal:this.proposal,
+      understanding:object(this.receipts["snapshot"])?.["understanding"]??null,
+      coverage_contract:this.preview?.["coverage_contract"]??null,
+      understanding_ref:this.preview?.["understanding_ref"]??null,
       run_tier:this.runTier,initial_driver:this.driver,
       checks:this.proposal?[]:(this.queueStage==="plan"||["prepare","register"].includes(this.queueStage)?checks:[])};
   }

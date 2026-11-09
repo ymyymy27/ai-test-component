@@ -10,15 +10,21 @@ from aitest.application.approval_service import _digest
 from aitest.application.execution.plan_grant import normalize_grant_scope
 from aitest.application.planning.basis_approval import SavedBasisApprovalResolver
 from aitest.application.planning.plan_builder import build_plan
+from aitest.application.planning.proposal import (
+    validate_coverage_contract_against_understanding,
+)
 from aitest.application.planning.publish import _plan_payload, payload_digest
 from aitest.application.planning.serialization import (
     acceptance_scope_from_payload,
     acceptance_scope_to_payload,
     case_from_payload,
     case_to_payload,
+    coverage_contract_from_payload,
+    coverage_contract_to_payload,
 )
 from aitest.application.ports import ApprovalRecords
 from aitest.application.project.context import ContextGap, blocking_gaps
+from aitest.application.project.understanding import understanding_from_payload
 from aitest.domain.approvals import ApprovalMaterialRef, ApprovalRequired
 from aitest.domain.planning.plans import RunDriver, RunTier, validate_plan_publication
 from aitest.domain.planning.rules import RuleDraft, RuleVersion, validate_draft_publication
@@ -124,6 +130,8 @@ def publication_content(
             "initial_driver",
             "context_gaps",
             "plan_grant",
+            "coverage_contract",
+            "understanding_ref",
         }
     ):
         raise ApprovalRequired("plan publication input has unknown fields")
@@ -136,6 +144,56 @@ def publication_content(
             plan_grant = normalize_grant_scope(raw_grant, require_understanding=False)
         except (TypeError, ValueError) as error:
             raise ApprovalRequired("plan grant scope cannot be verified") from error
+    raw_contract = parameters.get("coverage_contract")
+    coverage_contract = None
+    understanding = None
+    understanding_ref: dict[str, object] | None = None
+    if raw_contract is not None:
+        if not isinstance(raw_contract, Mapping) or records is None:
+            raise ApprovalRequired("coverage contract needs its exact saved understanding")
+        try:
+            coverage_contract = coverage_contract_from_payload(raw_contract)
+        except (TypeError, ValueError, KeyError) as error:
+            raise ApprovalRequired("coverage contract cannot be verified") from error
+        raw_ref = parameters.get("understanding_ref")
+        if (
+            not isinstance(raw_ref, Mapping)
+            or set(raw_ref) != {"understanding_id", "revision"}
+            or not isinstance(raw_ref.get("understanding_id"), str)
+            or not raw_ref["understanding_id"].strip()
+            or type(raw_ref.get("revision")) is not int
+            or raw_ref["revision"] < 1
+        ):
+            raise ApprovalRequired("coverage contract needs an exact understanding reference")
+        understanding_id = raw_ref["understanding_id"]
+        understanding_revision = raw_ref["revision"]
+        try:
+            saved_understanding = records.read(
+                aggregate_kind="project_understanding",
+                record_id=understanding_id,
+                revision=understanding_revision,
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("the exact project understanding is unavailable") from error
+        saved_payload = getattr(saved_understanding, "payload", None)
+        if (
+            getattr(saved_understanding, "aggregate_kind", None),
+            getattr(saved_understanding, "record_id", None),
+            getattr(saved_understanding, "revision", None),
+        ) != ("project_understanding", understanding_id, understanding_revision) or not isinstance(
+            saved_payload, Mapping
+        ):
+            raise ApprovalRequired("project understanding envelope cannot be verified")
+        try:
+            understanding = understanding_from_payload(
+                saved_payload, project_id=project, workspace_id=workspace
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("the saved project understanding is malformed") from error
+        understanding_ref = {
+            "understanding_id": understanding_id,
+            "revision": understanding_revision,
+        }
     plan_id, revision, raw_scope, raw_cases = (
         parameters.get("plan_id"),
         parameters.get("revision"),
@@ -219,6 +277,18 @@ def publication_content(
     if not isinstance(raw_tier, str) or not isinstance(raw_driver, str):
         raise ApprovalRequired("plan tier/driver must use declared enum values")
     tier, driver = RunTier(raw_tier), RunDriver(raw_driver)
+    if coverage_contract is not None and understanding is not None:
+        try:
+            validate_coverage_contract_against_understanding(
+                coverage_contract,
+                understanding,
+                plan_revision=revision,
+                require_all_functions=tier is RunTier.FULL,
+            )
+        except (TypeError, ValueError, KeyError) as error:
+            raise ApprovalRequired(
+                "coverage contract differs from the saved understanding"
+            ) from error
     plan = build_plan(
         plan_id=plan_id,
         revision=revision,
@@ -231,6 +301,7 @@ def publication_content(
         ],
         run_tier=tier,
         initial_driver=driver,
+        coverage_contract=coverage_contract,
     )
     validate_plan_publication(plan, cases)
     canonical = {key: parameters[key] for key in controls} | {
@@ -246,6 +317,10 @@ def publication_content(
     }
     if plan_grant is not None:
         canonical["plan_grant"] = plan_grant
+    if coverage_contract is not None:
+        canonical["coverage_contract"] = coverage_contract_to_payload(coverage_contract)
+        assert understanding_ref is not None
+        canonical["understanding_ref"] = understanding_ref
     return PublicationContent(
         "plan", plan_id, canonical, _plan_payload(plan, cases, project_id=project), tuple(materials)
     )

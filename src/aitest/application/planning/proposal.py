@@ -18,6 +18,7 @@ from aitest.application.planning.draft import load_template, text_digest
 from aitest.application.planning.serialization import (
     acceptance_scope_to_payload,
     case_to_payload,
+    coverage_contract_to_payload,
 )
 from aitest.application.review.function_coverage_preview import (
     build_plan_function_coverage,
@@ -695,6 +696,107 @@ def materialize_coverage_contract(
     return contract
 
 
+def validate_coverage_contract_against_understanding(
+    contract: CoverageContract,
+    understanding: ProjectUnderstanding,
+    *,
+    plan_revision: int,
+    require_all_functions: bool,
+) -> None:
+    """发布前核对覆盖契约确实来自这份 understanding，而不是面板自报。
+
+    结构校验之外，逐项核对功能、必要维度、测试意图与用例归属；``full``
+    还要求契约覆盖 understanding 目录里的全部业务功能，避免只挑少量
+    功能就宣称完整覆盖。
+    """
+
+    try:
+        validate_coverage_contract(contract)
+    except ValueError as error:
+        raise PlanProposalError((_coverage_issue("coverage_contract", str(error)),)) from error
+    if contract.understanding_revision != understanding.revision:
+        raise PlanProposalError(
+            (
+                _coverage_issue(
+                    "coverage_contract.understanding_revision",
+                    "contract revision differs from the saved understanding",
+                ),
+            )
+        )
+    functions = {
+        function.function_id: function for function in understanding.catalog.functions
+    }
+    intents = {intent.intent_id: intent for intent in understanding.test_intents}
+    contracted = {
+        requirement.function_id: requirement
+        for requirement in contract.function_requirements
+    }
+    if require_all_functions:
+        missing = sorted(set(functions) - set(contracted))
+        extra = sorted(set(contracted) - set(functions))
+        if missing or extra:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "coverage_contract.function_requirements",
+                        "full coverage must list every business function: "
+                        f"missing={missing} extra={extra}",
+                    ),
+                )
+            )
+    for requirement in contract.function_requirements:
+        function = functions.get(requirement.function_id)
+        if function is None:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "coverage_contract.function_requirements",
+                        f"unknown business function: {requirement.function_id}",
+                    ),
+                )
+            )
+        if tuple(sorted(requirement.required_dimensions)) != tuple(
+            sorted(function.required_dimensions)
+        ):
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "coverage_contract.function_requirements",
+                        f"required dimensions differ for {requirement.function_id}",
+                    ),
+                )
+            )
+    for claim in contract.coverage_claims:
+        intent = intents.get(claim.intent_id)
+        if intent is None or claim.function_id not in intent.function_ids:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "coverage_contract.coverage_claims",
+                        f"claim intent/function linkage is unknown: {claim.claim_id}",
+                    ),
+                )
+            )
+        if claim.dimension not in functions[claim.function_id].required_dimensions:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "coverage_contract.coverage_claims",
+                        f"claim dimension is not required: {claim.claim_id}",
+                    ),
+                )
+            )
+        if claim.plan_revision != plan_revision:
+            raise PlanProposalError(
+                (
+                    _coverage_issue(
+                        "coverage_contract.coverage_claims",
+                        f"claim plan revision differs: {claim.claim_id}",
+                    ),
+                )
+            )
+
+
 def _coverage_preview_entry(coverage: FunctionCoverage) -> dict[str, object]:
     """One confirmation-page coverage row; it is a projection, not a report."""
 
@@ -734,6 +836,8 @@ def proposal_preview(
     )
     resolved = validate_plan_proposal(proposal, pack=pack)
     coverage_preview: list[dict[str, object]] = []
+    coverage_contract: dict[str, object] | None = None
+    understanding_ref: dict[str, object] | None = None
     if (
         proposal.schema_version == PLAN_PROPOSAL_SCHEMA_V11
         and understanding is not None
@@ -747,6 +851,11 @@ def proposal_preview(
             _coverage_preview_entry(item)
             for item in build_plan_function_coverage(contract, plan_revision=1)
         ]
+        coverage_contract = coverage_contract_to_payload(contract)
+        understanding_ref = {
+            "understanding_id": understanding.understanding_id,
+            "revision": understanding.revision,
+        }
     return {
         "schema_version": "aitest.plan-proposal-preview/1.0",
         "template_id": proposal.template_id,
@@ -760,6 +869,8 @@ def proposal_preview(
             "required_items": len(resolved.required_item_ids),
         },
         "coverage_preview": coverage_preview,
+        "coverage_contract": coverage_contract,
+        "understanding_ref": understanding_ref,
         "environment_id": environment_id,
         "proposal": proposal.model_dump(mode="json"),
     }
@@ -799,5 +910,6 @@ __all__ = [
     "proposal_preview",
     "proposal_from_mapping",
     "strip_code_fence",
+    "validate_coverage_contract_against_understanding",
     "validate_plan_proposal",
 ]
