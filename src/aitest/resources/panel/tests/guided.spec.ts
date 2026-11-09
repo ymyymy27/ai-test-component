@@ -58,7 +58,7 @@ test("normal navigation hides technical forms and preserves fold choices",async(
   await page.getByRole("button",{name:"设置",exact:true}).click();
   await expect(page.getByRole("textbox",{name:"受控操作 JSON"})).toHaveCount(0);
   await page.getByRole("button",{name:"返回本次测试",exact:true}).click();
-  await expect(page.getByRole("button",{name:"打开计划与用例",exact:true})).not.toBeVisible();
+  await expect(page.getByRole("button",{name:"打开计划与用例",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByRole("textbox",{name:"受控操作 JSON"})).toBeVisible();
 });

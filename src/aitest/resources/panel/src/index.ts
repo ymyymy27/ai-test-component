@@ -552,6 +552,7 @@ class AITestPanel extends HTMLElement {
       this.detail=preset;
       this.standalone=true;
     }
+    this.classList.toggle("standalone",this.standalone);
     window.addEventListener("message", this.receiveMessage);
     this.render();
     this.dispatch("doctor");
@@ -678,31 +679,54 @@ class AITestPanel extends HTMLElement {
     return `核心未通过 · ${outcome.action ?? "-"} · ${code}：${outcome.message ?? ""}`;
   }
 
+  private navigation(): HTMLElement {
+    const nav=document.createElement("nav");nav.className="rail";nav.setAttribute("aria-label","主导航");
+    const brand=document.createElement("div");brand.className="brand";
+    brand.append(text("span","AI 测试","brand-mark"),text("small",this.project?.scope_name||this.projectName||"本地测试工作台","brand-sub"));
+    const items:[Detail,string,string][]=[
+      ["current","⌂","首页"],["workbench","▤","工作台"],["plan","◎","计划"],["review","▦","报告"],["settings","⚙","设置"],["diagnostics","◌","诊断"],
+    ];
+    for(const [id,icon,label] of items){
+      const button=document.createElement("button");button.className="rail-item";button.dataset.nav=id;
+      button.append(text("span",icon,"rail-icon"),text("span",label));
+      if(this.detail===id)button.classList.add("active");
+      button.onclick=()=>this.navigate(id);nav.append(button);
+    }
+    nav.prepend(brand);return nav;
+  }
+
   private render(): void {
     this.root.replaceChildren();
     const style = document.createElement("style");
     style.textContent = shellStyles;
-    const main = document.createElement("main");
+    const app=document.createElement("div");app.className="app";
+    const main = document.createElement("main");main.className="workspace";
     // 编辑器标签页是详情页：不渲染侧栏头部，避免重复出现项目选择与模型状态。
     if(!this.standalone)main.append(this.header());
     main.append(this.detail === "current" ? this.currentView() : this.detailView());
     if(this.detail!=="current")main.append(this.connectionFooter());
-    this.root.append(style, main);
+    app.append(this.navigation(),main);
+    this.root.append(style, app);
   }
 
   private header(): HTMLElement {
-    const header=document.createElement("header");
-    const bar=document.createElement("div");bar.className="toolbar";
-    bar.append(text("h1","AI 测试"),action("设置",()=>this.navigate("settings")),action("更多",()=>this.navigate("diagnostics")));
-    const project=document.createElement("details");project.className="project-picker";
-    project.append(text("summary",this.project ? this.project.scope_name || "当前测试项目" : "选择测试项目"));
-    project.append(text("p",this.project ? `项目编号：${this.project.project_id}` : "从本地目录开始，按向导准备测试。","muted subtle"),
-      action("新建测试",()=>this.navigate("setup")),action("管理项目连接",()=>this.host?.postMessage({kind:"openSettings"}),!this.host));
-    project.dataset.testid="project-context";
+    const header=document.createElement("header");header.className="topbar";
+    const row=document.createElement("div");row.className="topbar-row";
+    const project=document.createElement("details");project.className="project-card";project.dataset.testid="project-context";
+    const summary=document.createElement("summary");
+    const dot=document.createElement("span");dot.className="status-dot";dot.dataset.state=this.project?"ready":"idle";
+    summary.append(dot,text("span",this.project?(this.project.scope_name||this.projectName||"当前测试项目"):"选择测试项目","project-name"),text("span","切换项目","project-switch"));
+    project.append(summary,text("p",this.project?`项目编号：${this.project.project_id}`:"从本地目录开始，按向导准备测试。","muted subtle"));
+    const projectActions=document.createElement("div");projectActions.className="actions";
+    projectActions.append(action("新建测试",()=>this.navigate("setup")),action("管理连接",()=>this.host?.postMessage({kind:"openSettings"}),!this.host));
+    project.append(projectActions);
+    const actions=document.createElement("div");actions.className="topbar-actions";
+    actions.append(action("新建测试",()=>this.navigate("setup")),action("更多",()=>this.navigate("diagnostics")));
+    row.append(project,actions);
     const model=object(object(this.doctorOutcome?.response?.["result"])?.["model"]);
-    const modelStatus=document.createElement("div");modelStatus.className="model-line";
-    modelStatus.append(text("span",`插件模型 API · ${model?.["status"] ?? this.modelSettings.status()}`,"muted"),action("配置",()=>this.navigate("settings")));
-    header.append(bar,project,modelStatus);return header;
+    const meta=document.createElement("div");meta.className="topbar-meta";
+    meta.append(text("span",this.pending?"正在与核心通信":"本地核心","meta-pill"),text("span",`模型 · ${model?.["status"] ?? this.modelSettings.status()}`,"muted"),action("模型配置",()=>this.navigate("settings")));
+    header.append(row,meta);return header;
   }
 
   private ensureCore(): void {
@@ -739,25 +763,33 @@ class AITestPanel extends HTMLElement {
   }
 
   private currentView(): HTMLElement {
-    const fragment=document.createElement("div");fragment.className="dashboard";
-    const notification=this.runNotification();if(notification)fragment.append(notification);
-    const fold=(label:string,key:string,...children:HTMLElement[])=>group(label,key,this.expanded[key]??(key==="pending"?!!this.project?.run_id:key==="plan"?!!this.project:false),open=>{this.expanded[key]=open;},...children);
+    const page=document.createElement("div");page.className="page home";
+    const notification=this.runNotification();if(notification)page.append(notification);
+    const hero=document.createElement("section");hero.className="card hero";
+    hero.append(text("p","当前测试","eyebrow"),this.phaseSection());
+    const actions=document.createElement("section");actions.className="card";
+    actions.append(text("h3","下一步","card-title"),this.actionSection());
     const links=document.createElement("div");links.className="link-row";
     if(this.project)links.append(action("查看准备详情",()=>this.navigate("plan")),action("问题与报告",()=>this.navigate("review")));
-    const plan=document.createElement("div");
+    actions.append(links);
+    const pending=document.createElement("section");pending.className="card";
+    pending.append(text("h3","待你处理","card-title"),this.pendingSection());
+    const runView=this.view("run");
+    const run=document.createElement("section");run.className="card";
+    if(runView)run.append(text("h3","执行工作台","card-title"),this.runAuth.view(runView));
+    const plan=document.createElement("section");plan.className="card";
     const openPlan=action("打开计划与用例",()=>this.navigate("plan"));openPlan.className="link-button";
-    plan.append(openPlan,this.caseTree());
-    const records=document.createElement("div");
-    // 自动读取之外的显式入口：即使自动那次失败或被能力门禁挡住，也能手动取一次。
+    plan.append(text("h3","测试计划","card-title"),openPlan,this.caseTree());
+    const records=document.createElement("section");records.className="card";
     const loadReports=action("读取最近报告",()=>{
       if(!this.project?.run_id)return;
-      this.pendingQuery="reports";
-      this.dispatchScoped("query",{run_id:this.project.run_id,limit:5});
+      this.pendingQuery="reports";this.dispatchScoped("query",{run_id:this.project.run_id,limit:5});
     },!this.available("query")||!this.project?.run_id);
-    records.append(loadReports,action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
-    fragment.append(fold("当前测试","current",this.phaseSection(),this.actionSection(),this.runAuth.view(this.view("run")??null),links),
-      fold("待处理","pending",this.pendingSection()),fold("测试计划","plan",plan),fold("测试记录","records",records));
-    fragment.append(this.connectionFooter());return fragment;
+    records.append(text("h3","最近报告","card-title"),loadReports,action("完整报告列表",()=>this.navigate("review")),this.rowsBlock("最近报告",this.reportOutcome,"recent-reports"));
+    page.append(hero,actions,pending);
+    if(runView)page.append(run);
+    page.append(plan,records,this.connectionFooter());
+    return page;
   }
 
   private connectionFooter():HTMLElement {
