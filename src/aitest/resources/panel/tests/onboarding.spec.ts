@@ -1,0 +1,43 @@
+import {test,expect,type Page} from "@playwright/test";
+import {resolve} from "node:path";
+import {postHostMessage} from "./host-outcome";
+const sent=(page:Page)=>page.evaluate(()=>(window as unknown as {__sent:Record<string,unknown>[]}).__sent.at(-1)!);
+async function wizardReply(page:Page,value:Record<string,unknown>){
+  await postHostMessage(page,{kind:"wizardResult",clientRequestId:(await sent(page)).clientRequestId,...value});
+}
+test("empty project wizard preserves cancelled intent and sequences commands after pending clears",async({page})=>{
+  await page.setContent("<ai-test-panel></ai-test-panel>");
+  await page.evaluate(()=>{const host=window as unknown as {__sent:unknown[];acquireVsCodeApi:unknown};host.__sent=[];host.acquireVsCodeApi=()=>({postMessage:(message:unknown)=>host.__sent.push(message)});});
+  await page.addScriptTag({path:resolve("dist/index.js")});
+  await postHostMessage(page,{kind:"projectContext",project_id:"",context_id:"empty"});
+  await postHostMessage(page,{kind:"outcome",action:"doctor",status:"ok",response:{workspace_id:"ws",result:{supported_actions:[]}}});
+  await page.getByRole("button",{name:"开始第一次测试",exact:true}).click();
+  await page.getByRole("button",{name:"选择项目目录",exact:true}).click();
+  await wizardReply(page,{session:{project_id:"guided-project",name:"示例",source:"E:/sample",entry:"main.py",reference:"safe"}});
+  await page.getByRole("textbox",{name:"你希望验证什么",exact:true}).fill("核对加法");
+  await page.getByRole("button",{name:"下一步：模型 API",exact:true}).click();
+  await page.getByRole("checkbox",{name:"使用模型帮助准备检查建议"}).uncheck();
+  await page.getByRole("button",{name:"下一步：测试环境",exact:true}).click();
+  await page.getByRole("textbox",{name:"测试数据如何隔离、测试后如何复位",exact:true}).fill("纯计算无需复位");
+  await page.getByRole("checkbox",{name:"我确认这是本地测试入口，不会修改真实业务数据"}).check();
+  await page.getByRole("button",{name:"准备环境并继续",exact:true}).click();
+  await postHostMessage(page,{kind:"projectContext",project_id:"guided-project",context_id:"new"});
+  expect((await sent(page)).kind).toBe("wizardSetup");
+  await wizardReply(page,{setup:{}});
+  expect((await sent(page)).action).toBe("doctor");
+  await postHostMessage(page,{kind:"outcome",action:"doctor",status:"ok",response:{workspace_id:"ws-new",result:{supported_actions:["save_context","save_binding"]}}});
+  await page.getByRole("button",{name:"保存项目并继续",exact:true}).click();
+  expect((await sent(page)).form).toMatchObject({workspace_id:"ws-new"});
+  const commands=["save_context","save_binding"].map((action,index)=>({key:action,action,intent_id:"stable-"+index,expected_revision:0,binding_revision:1,parameters:{}}));
+  await wizardReply(page,{commands});
+  expect((await sent(page)).action).toBe("save_context");
+  await postHostMessage(page,{kind:"outcome",action:"save_context",status:"ok",response:{result:{saved:true}}});
+  expect((await sent(page)).action).toBe("save_binding");
+  await postHostMessage(page,{kind:"outcome",action:"save_binding",status:"refused",code:"USER_DECLINED"});
+  await expect(page.getByRole("button",{name:"保存项目并继续",exact:true})).toBeDisabled();
+  await page.getByRole("button",{name:"继续当前步骤",exact:true}).click();
+  expect((await sent(page)).intentId).toBe("stable-1");
+  await postHostMessage(page,{kind:"outcome",action:"save_binding",status:"ok",response:{result:{saved:true}}});
+  await expect(page.getByRole("heading",{name:"核对检查计划",exact:true})).toBeVisible();
+  await expect(page.getByRole("textbox",{name:/JSON|编号|意图|修订/})).toHaveCount(0);
+});
