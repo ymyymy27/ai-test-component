@@ -537,13 +537,16 @@ def _running_facts() -> dict[str, object]:
 
 def test_revise_pending_steps_accepts_pending_change(workspace_root: Path) -> None:
     facts = _running_facts()
+    # 完整验证运行中拒绝计划内容修订；本用例验证 on_demand 的未执行步骤修订。
+    plan = _plan_payload()
+    plan["run_tier"] = "on_demand"
     api = LocalAPI(instance_id="core-ab001", workspace_id=WORKSPACE_ID, handlers={})
     register_b_use_cases(api, _deps(workspace_root))
     response = api.dispatch(
         _command(
             "revise_pending_steps",
             {
-                "plan": _plan_payload(),
+                "plan": plan,
                 "cases": [_case_payload()],
                 "confirmations": [],
                 "request": _request_payload(facts),
@@ -562,6 +565,8 @@ def test_revise_pending_steps_accepts_pending_change(workspace_root: Path) -> No
 def test_revise_pending_steps_rejects_stale_snapshot(workspace_root: Path) -> None:
     """快照游标不一致即拒绝（不凭旧快照修订）。"""
     facts = _running_facts()
+    plan = _plan_payload()
+    plan["run_tier"] = "on_demand"
     request = _request_payload(facts)
     request["observed_snapshot_cursor"] = 999
     api = LocalAPI(instance_id="core-ab001", workspace_id=WORKSPACE_ID, handlers={})
@@ -570,7 +575,7 @@ def test_revise_pending_steps_rejects_stale_snapshot(workspace_root: Path) -> No
         _command(
             "revise_pending_steps",
             {
-                "plan": _plan_payload(),
+                "plan": plan,
                 "cases": [_case_payload()],
                 "confirmations": [],
                 "request": request,
@@ -589,6 +594,8 @@ def test_revise_pending_steps_rejects_stale_snapshot(workspace_root: Path) -> No
 
 def test_revise_pending_steps_rejects_malformed_case(workspace_root: Path) -> None:
     facts = _running_facts()
+    plan = _plan_payload()
+    plan["run_tier"] = "on_demand"
     bad_case = _case_payload()
     bad_case["expected"] = ""
     api = LocalAPI(instance_id="core-ab001", workspace_id=WORKSPACE_ID, handlers={})
