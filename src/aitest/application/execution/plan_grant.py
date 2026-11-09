@@ -75,6 +75,7 @@ from aitest.domain.planning.plans import Plan
 GRANT_SCHEMA_VERSION = "aitest.plan-execution-grant/1.0"
 GRANT_AGGREGATE_KIND = "plan_execution_grant"
 USAGE_SCHEMA_VERSION = "aitest.plan-grant-usage/1.0"
+USAGE_SCHEMA_VERSION_V11 = "aitest.plan-grant-usage/1.1"
 USAGE_AGGREGATE_KIND = "plan_grant_usage"
 
 #: 撤销事实单独不可变保存；原许可记录字节不因撤销而改写（EXEC-10）。
@@ -926,68 +927,130 @@ class PlanExecutionGrantService:
     def stage_side_effect_usage(
         self, *, project_id: str, saved: SavedPlanGrant, delta: int = 1
     ) -> None:
-        """在同一工作单元累计副作用动作次数；超出许可预算即拒绝。
+        """兼容入口：只累计副作用次数，不消耗数据变更预算。"""
 
-        只统计有副作用类别的 1.2 授权；只读动作不消耗 ``max_side_effect_actions``。
-        没有预算的旧许可不写 usage 记录，保持既有字节与提交序列不变。
-        """
-        limit = saved.grant.max_side_effect_actions
-        if limit is None:
+        if saved.grant.max_side_effect_actions is None:
             return
-        if type(delta) is not int or delta < 1:
-            raise ValueError("side effect delta must be a positive integer")
-        grant_id = saved.grant.grant_id
-        revision = self.records.current_revision(
-            aggregate_kind=USAGE_AGGREGATE_KIND, record_id=grant_id
+        self.stage_action_usage(
+            project_id=project_id,
+            saved=saved,
+            side_effect_delta=delta,
+            data_mutation_delta=0,
         )
-        if type(revision) is not int or revision < 0:
-            raise ApprovalRequired("plan grant usage revision cannot be verified")
-        used = 0
-        if revision:
-            try:
-                record = self.records.read(
-                    aggregate_kind=USAGE_AGGREGATE_KIND,
-                    record_id=grant_id,
-                    revision=revision,
-                )
-            except (OSError, ValueError, KeyError, TypeError) as error:
-                raise ApprovalRequired("plan grant usage is unavailable") from error
-            payload = getattr(record, "payload", None)
-            if (
-                getattr(record, "aggregate_kind", None),
-                getattr(record, "record_id", None),
-                getattr(record, "revision", None),
-            ) != (USAGE_AGGREGATE_KIND, grant_id, revision) or not isinstance(
-                payload, Mapping
-            ):
-                raise ApprovalRequired("plan grant usage envelope cannot be verified")
-            if (
-                payload.get("schema_version") != USAGE_SCHEMA_VERSION
-                or payload.get("workspace_id") != self.workspace_id
-                or payload.get("project_id") != project_id
-                or payload.get("grant_id") != grant_id
-                or type(payload.get("side_effect_actions")) is not int
-                or payload["side_effect_actions"] < 0
-            ):
-                raise ApprovalRequired("plan grant usage fields cannot be verified")
-            used = cast(int, payload["side_effect_actions"])
-        if used + delta > limit:
+
+    def stage_action_usage(
+        self,
+        *,
+        project_id: str,
+        saved: SavedPlanGrant,
+        side_effect_delta: int = 0,
+        data_mutation_delta: int = 0,
+    ) -> None:
+        """在同一工作单元累计副作用与数据变更次数；超出任一预算即拒绝。
+
+        数据变更口径：一期动作还没有独立的“数据变更”声明，因此把
+        ``idempotent_write`` / ``non_idempotent_write`` / ``unknown`` 都按会修改
+        业务数据处理；``unknown`` 按最严处理。只读动作不消耗任何预算。
+        旧 1.0 usage 记录没有 ``data_mutations`` 字段；读取时把历史副作用次数
+        视为历史数据变更次数，避免升级后低估已用预算。
+        """
+
+        side_limit = saved.grant.max_side_effect_actions
+        data_limit = saved.grant.max_data_mutation
+        if side_limit is None and data_limit is None:
+            return
+        if (
+            type(side_effect_delta) is not int
+            or side_effect_delta < 0
+            or type(data_mutation_delta) is not int
+            or data_mutation_delta < 0
+        ):
+            raise ValueError("usage deltas must be non-negative integers")
+        grant_id = saved.grant.grant_id
+        revision, used_side, used_data = self._usage_counts(
+            project_id=project_id, grant_id=grant_id
+        )
+        next_side = used_side + side_effect_delta
+        next_data = used_data + data_mutation_delta
+        if side_limit is not None and next_side > side_limit:
             raise PlanGrantRejected(
                 "max_side_effect_actions",
                 "plan grant side-effect budget is exhausted",
             )
+        if data_limit is not None and next_data > data_limit:
+            raise PlanGrantRejected(
+                "max_data_mutation",
+                "plan grant data-mutation budget is exhausted",
+            )
+        if next_side == used_side and next_data == used_data:
+            return
         self.unit.stage_record(
             aggregate_kind=USAGE_AGGREGATE_KIND,
             record_id=grant_id,
             expected_revision=revision,
             payload={
-                "schema_version": USAGE_SCHEMA_VERSION,
+                "schema_version": USAGE_SCHEMA_VERSION_V11,
                 "workspace_id": self.workspace_id,
                 "project_id": project_id,
                 "grant_id": grant_id,
-                "side_effect_actions": used + delta,
+                "side_effect_actions": next_side,
+                "data_mutations": next_data,
             },
         )
+
+    def _usage_counts(self, *, project_id: str, grant_id: str) -> tuple[int, int, int]:
+        """读取精确 usage 记录；1.0 记录按保守口径补齐数据变更次数。"""
+
+        revision = self.records.current_revision(
+            aggregate_kind=USAGE_AGGREGATE_KIND, record_id=grant_id
+        )
+        if type(revision) is not int or revision < 0:
+            raise ApprovalRequired("plan grant usage revision cannot be verified")
+        if revision == 0:
+            return 0, 0, 0
+        try:
+            record = self.records.read(
+                aggregate_kind=USAGE_AGGREGATE_KIND,
+                record_id=grant_id,
+                revision=revision,
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ApprovalRequired("plan grant usage is unavailable") from error
+        payload = getattr(record, "payload", None)
+        if (
+            getattr(record, "aggregate_kind", None),
+            getattr(record, "record_id", None),
+            getattr(record, "revision", None),
+        ) != (USAGE_AGGREGATE_KIND, grant_id, revision) or not isinstance(
+            payload, Mapping
+        ):
+            raise ApprovalRequired("plan grant usage envelope cannot be verified")
+        schema = payload.get("schema_version")
+        base = {"schema_version", "workspace_id", "project_id", "grant_id"}
+        if schema == USAGE_SCHEMA_VERSION:
+            expected = base | {"side_effect_actions"}
+        elif schema == USAGE_SCHEMA_VERSION_V11:
+            expected = base | {"side_effect_actions", "data_mutations"}
+        else:
+            raise ApprovalRequired("plan grant usage has an unknown schema")
+        if (
+            set(payload) != expected
+            or payload.get("workspace_id") != self.workspace_id
+            or payload.get("project_id") != project_id
+            or payload.get("grant_id") != grant_id
+            or type(payload.get("side_effect_actions")) is not int
+            or payload["side_effect_actions"] < 0
+        ):
+            raise ApprovalRequired("plan grant usage fields cannot be verified")
+        used_side = cast(int, payload["side_effect_actions"])
+        if schema == USAGE_SCHEMA_VERSION:
+            return revision, used_side, used_side
+        if (
+            type(payload.get("data_mutations")) is not int
+            or payload["data_mutations"] < 0
+        ):
+            raise ApprovalRequired("plan grant data-mutation usage cannot be verified")
+        return revision, used_side, cast(int, payload["data_mutations"])
 
     def _record_payload(
         self,

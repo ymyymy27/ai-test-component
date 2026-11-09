@@ -87,6 +87,35 @@ def _proposal_materials(
     return proposal, scope, list(cases), scope_payload, case_payloads
 
 
+def _proposal_plan_grant(
+    form: OnboardingForm, *, project_id: str, plan_id: str
+) -> dict[str, Any] | None:
+    """v1.1 proposals carry an understanding revision, so one plan confirmation
+    can also freeze the execution grant.  1.0 proposals keep the per-case
+    ``confirm_basis`` path because they have no understanding revision to bind.
+    """
+
+    proposal = form.proposal
+    if not isinstance(proposal, dict):
+        return None
+    understanding = proposal.get("understanding_revision")
+    if (
+        proposal.get("schema_version") != "aitest.plan-proposal/1.1"
+        or type(understanding) is not int
+        or understanding < 1
+    ):
+        return None
+    return {
+        # 默认执行解析器把未声明类别按 unknown（最严）处理；许可只覆盖这个真实类别。
+        "allowed_action_classes": ["unknown"],
+        # prepare 阶段写入的 execution_source.test_config_ref 使用同一身份。
+        "credential_scope_ref": plan_id + ":1",
+        "environment_id": "env-" + project_id,
+        "risk_class": "medium",
+        "understanding_revision": understanding,
+    }
+
+
 def wizard_review(form: OnboardingForm) -> dict[str, Any]:
     """Return the editable proposal preview; never writes a record."""
 
@@ -161,19 +190,26 @@ def wizard_commands(
         for case, payload in zip(cases, case_payloads, strict=True):
             add("case-" + case.case_id, "save_case", {"case": payload})
         add("scope", "save_acceptance", {"acceptance_scope": scope_payload})
-        for case in cases:
-            add("confirm-" + case.case_id, "confirm_basis", {
-                "case_id": case.case_id,
-                "case_revision": case.revision,
-                "basis_revision": case.assertion_basis.revision,
-                "basis_text_digest": case.assertion_basis.text_digest,
-            }, case.case_id)
-        add("publish", "publish_plan", {"project_revision": 1, "expected_revision": 0,
+        plan_grant = _proposal_plan_grant(form, project_id=project, plan_id=plan_id)
+        if plan_grant is None:
+            for case in cases:
+                add("confirm-" + case.case_id, "confirm_basis", {
+                    "case_id": case.case_id,
+                    "case_revision": case.revision,
+                    "basis_revision": case.assertion_basis.revision,
+                    "basis_text_digest": case.assertion_basis.text_digest,
+                }, case.case_id)
+        publish_parameters: dict[str, Any] = {
+            "project_revision": 1, "expected_revision": 0,
             "plan_id": plan_id, "revision": 1,
             "scope": scope_payload, "cases": case_payloads,
             "template_versions": [{"template_id": proposal.template_id,
                                    "version": proposal.template_version}],
-            "run_tier": form.run_tier, "initial_driver": form.initial_driver}, plan_id)
+            "run_tier": form.run_tier, "initial_driver": form.initial_driver,
+        }
+        if plan_grant is not None:
+            publish_parameters["plan_grant"] = plan_grant
+        add("publish", "publish_plan", publish_parameters, plan_id)
         add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
             "source_scope": ".", "selected_paths": ["."],
             "exclusion_rules": [".git", ".venv", "__pycache__"]})
@@ -216,12 +252,24 @@ def wizard_commands(
         snapshot = receipts["snapshot"]
         if form.proposal is not None:
             _proposal, _scope, cases, _scope_payload, _case_payloads = _proposal_materials(form)
-            confirmations = []
-            for case in cases:
-                item = receipts.get("confirm-" + case.case_id)
-                if not isinstance(item, dict):
-                    raise ValueError("缺少用例依据确认回执：" + case.case_id)
-                confirmations.append(item)
+            if _proposal_plan_grant(form, project_id=project, plan_id=plan_id) is not None:
+                published = receipts.get("publish")
+                plan_basis = (
+                    published.get("basis_confirmations")
+                    if isinstance(published, dict) else None
+                )
+                if not isinstance(plan_basis, list) or not plan_basis or any(
+                    not isinstance(item, dict) for item in plan_basis
+                ):
+                    raise ValueError("缺少计划确认派生的依据回执")
+                confirmations = plan_basis
+            else:
+                confirmations = []
+                for case in cases:
+                    item = receipts.get("confirm-" + case.case_id)
+                    if not isinstance(item, dict):
+                        raise ValueError("缺少用例依据确认回执：" + case.case_id)
+                    confirmations.append(item)
             selected = [case.case_id for case in cases]
         else:
             confirmations = [receipts["confirm-" + name] for name in

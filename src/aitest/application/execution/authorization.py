@@ -712,8 +712,13 @@ class ExecutionAuthorizationService:
             prepared = self._current_action(project_id, raw, action)
             saved = self._require_grant_scope(project_id, grant_id, prepared, action)
             if action.attempt.side_effect_class is not SideEffectClass.READ_ONLY:
-                self.plan_grants.stage_side_effect_usage(
-                    project_id=project_id, saved=saved
+                # 一期没有独立的“数据变更”声明：unknown 也按会修改业务数据处理，
+                # 因此所有非只读动作同时消耗数据变更预算（保守口径）。
+                self.plan_grants.stage_action_usage(
+                    project_id=project_id,
+                    saved=saved,
+                    side_effect_delta=1,
+                    data_mutation_delta=1,
                 )
             index_revision, unused = read_authorization_index(
                 self.records, self.workspace_id, project_id, action.request.run_id

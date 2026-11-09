@@ -24,6 +24,8 @@ from aitest.application.execution.commands import ExecutionCommands
 from aitest.application.execution.frozen_plan import FrozenRunPlanReader
 from aitest.application.execution.plan_grant import (
     GRANT_AGGREGATE_KIND,
+    USAGE_AGGREGATE_KIND,
+    USAGE_SCHEMA_VERSION,
     PlanExecutionGrantService,
     PlanGrantRejected,
     SavedPlanGrant,
@@ -348,6 +350,96 @@ def test_side_effect_budget_rejects_exhausted_grant():
 
     with pytest.raises(PlanGrantRejected, match="side-effect budget"):
         service.stage_side_effect_usage(project_id=project, saved=saved)
+
+
+def _data_mutation_grant(
+    *, max_data_mutation: int, max_side_effect_actions: int | None = None
+) -> SavedPlanGrant:
+    grant = PlanExecutionGrant(
+        grant_id="grant-data-budget",
+        plan_revision=1,
+        understanding_revision=1,
+        scope_digest="sha256:scope",
+        allowed_action_classes=frozenset({"idempotent_write"}),
+        credential_scope_ref="credential",
+        environment_id="env",
+        risk_class=GrantRiskClass.MEDIUM,
+        max_side_effect_actions=max_side_effect_actions,
+        max_data_mutation=max_data_mutation,
+        allowed_hosts=frozenset(),
+        time_window_start=None,
+        time_window_end=None,
+        budget=None,
+        status=GrantStatus.ACTIVE,
+        created_at=datetime.now(UTC),
+        revoked_at=None,
+    )
+    return SavedPlanGrant(
+        grant=grant,
+        grant_scope_digest=grant_scope_digest(
+            grant.plan_revision,
+            grant.understanding_revision,
+            grant.scope_digest,
+            grant.allowed_action_classes,
+            grant.credential_scope_ref,
+            grant.environment_id,
+        ),
+        record_revision=1,
+        plan_id="plan-data-budget",
+    )
+
+
+def test_data_mutation_budget_rejects_exhausted_grant():
+    project = "project-data-budget"
+    unit = MemoryUnitOfWork()
+    unit.open(project)
+    service = PlanExecutionGrantService(
+        unit=unit,
+        records=MemoryReader(unit.store),
+        workspace_id="workspace-data-budget",
+        actors=Mock(),
+        clock=FixedClock(),
+    )
+    with pytest.raises(PlanGrantRejected, match="data-mutation budget"):
+        service.stage_action_usage(
+            project_id=project,
+            saved=_data_mutation_grant(max_data_mutation=0),
+            side_effect_delta=1,
+            data_mutation_delta=1,
+        )
+
+
+def test_legacy_usage_counts_previous_side_effects_as_data_mutations():
+    project = "project-data-budget-legacy"
+    unit = MemoryUnitOfWork()
+    unit.open(project)
+    grant_id = "grant-data-budget"
+    unit.stage_record(
+        aggregate_kind=USAGE_AGGREGATE_KIND,
+        record_id=grant_id,
+        expected_revision=0,
+        payload={
+            "schema_version": USAGE_SCHEMA_VERSION,
+            "workspace_id": "workspace-data-budget",
+            "project_id": project,
+            "grant_id": grant_id,
+            "side_effect_actions": 1,
+        },
+    )
+    unit.commit()
+    service = PlanExecutionGrantService(
+        unit=unit,
+        records=MemoryReader(unit.store),
+        workspace_id="workspace-data-budget",
+        actors=Mock(),
+        clock=FixedClock(),
+    )
+    with pytest.raises(PlanGrantRejected, match="data-mutation budget"):
+        service.stage_action_usage(
+            project_id=project,
+            saved=_data_mutation_grant(max_data_mutation=1),
+            data_mutation_delta=1,
+        )
 
 
 def test_expired_time_window_is_rejected(context):

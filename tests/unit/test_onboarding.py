@@ -172,6 +172,43 @@ def test_wizard_project_and_plan_use_real_core_contracts(tmp_path):
         core.lifetime_lock.release()
 
 
+def test_v11_proposal_uses_one_plan_confirmation_and_publish_basis_receipts():
+    payload = _proposal()
+    payload["schema_version"] = "aitest.plan-proposal/1.1"
+    payload["understanding_revision"] = 1
+    payload["goal_intent_ids"] = ["intent-normal"]
+    payload["coverage_claims"] = []
+    selection = form().model_copy(update={"proposal": payload, "checks": []})
+    commit = wizard_commands(selection, "commit", {})
+    actions = [item["action"] for item in commit]
+    assert "confirm_basis" not in actions
+    publish = next(item for item in commit if item["action"] == "publish_plan")
+    assert publish["parameters"]["plan_grant"]["understanding_revision"] == 1
+    assert publish["parameters"]["plan_grant"]["environment_id"] == (
+        "env-" + selection.project_id
+    )
+
+    basis = [
+        {
+            "confirmation_id": f"confirmation-{index}",
+            "case_id": case["case_id"],
+            "basis_revision": 1,
+            "confirmed_at_commit": "7",
+        }
+        for index, case in enumerate(publish["parameters"]["cases"])
+    ]
+    prepare = wizard_commands(
+        selection,
+        "prepare",
+        {
+            "snapshot": {"snapshot_id": "snapshot-1"},
+            "publish": {"basis_confirmations": basis},
+        },
+    )
+    prepared = next(item for item in prepare if item["action"] == "prepare_run")
+    assert prepared["parameters"]["confirmation_refs"] == basis
+
+
 def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():
     selection = form().model_copy(update={"proposal": _proposal(), "checks": []})
     preview = wizard_review(selection)
