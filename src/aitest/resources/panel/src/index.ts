@@ -163,6 +163,9 @@ class AITestPanel extends HTMLElement {
     this.host?.postMessage(message);
   }
   private requestId(): string { return `panel-${++this.requestSeq}`; }
+  private workspaceId(): string {
+    return textValue(resultOf(this.doctor ?? undefined)?.["workspace_id"]);
+  }
   private dispatch(action: string, parameters: Record<string, unknown> = {}, kind = "dispatch"): void {
     const id = this.requestId();
     this.busy = true; this.pendingId = id; this.pendingAction = action;
@@ -231,7 +234,17 @@ class AITestPanel extends HTMLElement {
       if (settings) { this.wizard.endpoint = textValue(settings["endpoint"]); this.wizard.model = textValue(settings["model"]); this.wizard.timeout = String(settings["timeout"] ?? 60); this.wizard.reference = textValue(settings["reference"]); }
     } else if (action === "wizardSetup") {
       const setup = obj(result?.["setup"]);
-      if (setup) { this.wizard.stage = "environment"; this.startWizardStage("project"); }
+      if (setup) {
+        const session = this.wizard.session ?? {};
+        this.project = {
+          project_id: textValue(session["project_id"]),
+          context_id: this.workspaceId(),
+          scope_name: textValue(session["name"]),
+          run_id: null,
+        };
+        this.wizard.stage = "environment";
+        this.startWizardStage("project");
+      }
     } else if (action === "wizardCommands") {
       const commands = list(result?.["commands"]).map(obj).filter((item): item is Record<string, unknown> => item !== null) as WizardCommand[];
       this.wizard.queue = commands; this.wizard.index = 0; this.runNextCommand();
@@ -294,7 +307,10 @@ class AITestPanel extends HTMLElement {
       this.wizard.note = `步骤${command.action}未完成：${outcome.message || outcome.code || "请核对"}`;
       this.wizard.busy = false; this.render(); return;
     }
-    this.wizard.receipts[command.key] = obj(outcome.response)?.result ?? {};
+    const result = obj(resultOf(outcome)) ?? {};
+    this.wizard.receipts[command.key] = result;
+    const proposal = obj(result["proposal"]);
+    if (proposal) this.wizard.proposal = proposal;
     this.wizard.index += 1;
     this.runNextCommand();
   }
@@ -302,7 +318,7 @@ class AITestPanel extends HTMLElement {
     const session = this.wizard.session ?? {};
     const preview = this.wizard.preview;
     return {
-      project_id: session["project_id"], workspace_id: this.project?.context_id,
+      project_id: session["project_id"], workspace_id: this.workspaceId(),
       source: session["source"], entry: session["entry"],
       name: session["name"] || "本地项目", goal: session["name"] || "验证本地项目",
       data_policy: this.wizard.dataPolicy || "仅在本地独立环境运行",
@@ -370,14 +386,20 @@ class AITestPanel extends HTMLElement {
 
   private home(): HTMLElement {
     const page = el("div");
-    if (!this.project) {
+    if (!this.project || (this.wizard.stage !== "choose" && this.wizard.stage !== "done")) {
       page.append(this.onboarding());
       return page;
+    }
+    if (this.wizard.stage === "done") {
+      const done = el("section", "", "section");
+      done.append(el("h2", "已准备运行"), el("p", this.wizard.note, "muted"));
+      done.append(button("打开运行", () => { this.wizard.stage = "choose"; this.page = "run"; this.readView("run"); this.render(); }, false, true));
+      page.append(done);
     }
     const panel = view(this.views.get("panel"));
     const run = view(this.views.get("run"));
     const state = el("section", "", "section");
-    state.append(el("h2", this.project.scope_name || this.project.project_id), el("p", "当前测试", "muted"));
+    state.append(el("h2", "概览"), el("p", "当前测试", "muted"));
     const badges = el("div", "", "actions");
     if (panel) {
       const outcome = textValue(panel["business_outcome"]);
@@ -458,19 +480,18 @@ class AITestPanel extends HTMLElement {
     page.append(head);
     if (!run) return page;
     const steps = list(run["steps"]).map(obj).filter((item): item is Record<string, unknown> => item !== null);
+    if (!this.selectedStep && steps[0]) this.selectedStep = textValue(steps[0]["step_id"]);
     const listBox = el("div", "", "steps");
     for (const step of steps) {
       const id = textValue(step["step_id"]);
       const row = el("div", "", this.selectedStep === id ? "step active" : "step");
-      row.append(
-        el("div", "", "step-title"),
-        el("span", `${textValue(step["case_id"])} · ${friendly(step["state"])}`, "step-meta"),
-      );
+      const title = el("div", textValue(step["case_id"]) || id, "step-title");
+      title.append(el("span", friendly(step["state"]), "step-meta"));
+      row.append(title);
       row.onclick = () => { this.selectedStep = id; this.render(); };
       listBox.append(row);
     }
     page.append(el("h3", "步骤"), listBox);
-    if (!this.selectedStep && steps[0]) this.selectedStep = textValue(steps[0]["step_id"]);
     const step = steps.find(item => textValue(item["step_id"]) === this.selectedStep);
     if (step) page.append(this.stepDetail(step, run));
     return page;

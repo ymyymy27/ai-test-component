@@ -65,7 +65,7 @@ h1{font-size:16px;font-weight:650}h2{font-size:14px;font-weight:600}h3{font-size
 .step:hover{background:var(--vscode-list-hoverBackground,#252c35)}
 .step.active{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .step .step-title{font-weight:600;font-size:12px;overflow-wrap:anywhere}
-.step .step-meta{font-size:10px;color:var(--muted)}
+.step .step-meta{display:block;font-size:10px;color:var(--muted);margin-top:1px}
 .facts{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:4px 0}
 .facts dt{color:var(--muted);font-size:10px}.facts dd{margin:0;overflow-wrap:anywhere}
 .table{width:100%;border-collapse:collapse;font-size:11px}
