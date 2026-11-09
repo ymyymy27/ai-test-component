@@ -121,3 +121,12 @@ test("first-run wizard can complete with one plan publication",async({page})=>{
   await postHostMessage(page,{kind:"outcome",action:"register_run",status:"ok",response:{result:{run_id:"run-1"}}});
   await expect(page.getByText("已准备运行",{exact:true})).toBeVisible();
 });
+
+test("host wizard errors are surfaced instead of leaving the step silent",async({page})=>{
+  await mount(page);
+  await page.getByRole("button",{name:"选择项目目录",exact:true}).click();
+  await expect.poll(async()=> (await sent(page)).kind).toBe("wizardChoose");
+  const request=await sent(page);
+  await postHostMessage(page,{kind:"wizardResult",clientRequestId:request.clientRequestId,error:"当前项目已变化，请回到原项目再继续。"});
+  await expect(page.getByText("当前项目已变化",{exact:false})).toBeVisible();
+});

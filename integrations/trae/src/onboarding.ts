@@ -65,6 +65,7 @@ export async function wizardMessage(
       const key=await vscode.window.showInputBox({title:"保存模型 API 密钥",prompt:"密钥只保存在 Windows 安全存储中。",password:true,ignoreFocusOut:true});
       if(!key){respond({cancelled:true});return session;}
       const reference="model-"+randomUUID();await helper(settings.python,{operation:"credential",reference,value:key});
+      if(session)session.reference=reference;
       respond({modelCredential:reference});return session;
     }
     if(raw.kind==="wizardModelSave"){
@@ -150,6 +151,8 @@ export async function wizardMessage(
       if(raw.useModel===true){
         const model=await helper(settings.python,{operation:"model",root:session.root,endpoint:raw.endpoint,reference:session.reference});
         modelFile=String(model.model_file);session.endpoint=String(raw.endpoint);
+        const defaults=context.globalState.get<Record<string,unknown>>("modelDefaults");
+        await context.globalState.update("modelDefaults",{...(defaults??{}),endpoint:session.endpoint,reference:session.reference});
       }
       const configuration=vscode.workspace.getConfiguration("aitest");
       for(const [key,value] of Object.entries({workspaceRoot:result.workspace,projectId:session.project_id,runId:"",pythonCarriersFile:result.carriers_file,businessQueriesFile:"",modelConfigurationFile:modelFile}))await configuration.update(key,value,vscode.ConfigurationTarget.Global);

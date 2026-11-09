@@ -244,7 +244,7 @@ def wizard_commands(
                                       manifest_digest="pending-source-analysis", confirmed=True)
         add("binding", "save_binding", {"project_revision": 1, "expected_revision": 0,
             "binding": binding_to_payload(binding)}, binding_id)
-        environment = EnvironmentRef(environment_id, 1, "Python 3.13",
+        environment = EnvironmentRef(environment_id, 1, "Python 3.11+",
             form.dependency_declaration, data_isolated=True,
             data_reset_policy=form.data_policy, step_timeout_seconds=120)
         add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,

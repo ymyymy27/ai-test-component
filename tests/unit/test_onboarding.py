@@ -111,6 +111,15 @@ def test_model_public_config_is_validated_before_saving():
                 "endpoint":endpoint,"credential_reference":"safe-ref"})
 
 
+def test_setup_accepts_python_311_and_rejects_older():
+    from aitest.interfaces.tools.onboarding import _supported_python
+
+    assert _supported_python((3, 11))
+    assert _supported_python((3, 12))
+    assert _supported_python((3, 13))
+    assert not _supported_python((3, 10))
+
+
 def test_setup_rejects_source_overlap_before_creating_any_environment(tmp_path):
     source=tmp_path/"source"
     source.mkdir()

@@ -23,6 +23,11 @@ from aitest.bootstrap import (
 )
 
 
+def _supported_python(version: tuple[int, int] | None = None) -> bool:
+    """The tested-project environment supports Python 3.11 and newer."""
+    return tuple(version or sys.version_info[:2]) >= (3, 11)
+
+
 def setup(data: dict[str, Any]) -> dict[str, Any]:
     root, source = Path(data["root"]), Path(data["source"])
     project = data["project_id"]
@@ -35,8 +40,8 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
     if (root.resolve().is_relative_to(source.resolve())
             or source.resolve().is_relative_to(root.resolve())):
         raise ValueError("测试数据和被测源码目录必须分开")
-    if sys.version_info[:2] != (3, 13):
-        raise ValueError("请安装 Python 3.13 核心环境")
+    if not _supported_python():
+        raise ValueError("请安装 Python 3.11 或更高版本的核心环境")
     environment = root / "python"
     marker = root / "carriers.json"
     if not marker.exists():
@@ -45,21 +50,24 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
         root.mkdir(parents=True, exist_ok=True)
         venv.EnvBuilder(with_pip=False).create(environment)
         executable = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        version_tag = f"{sys.version_info.major}.{sys.version_info.minor}"
+        base_executable = Path(getattr(sys, "_base_executable", sys.executable))
         dependencies = environment / ("Lib/site-packages" if os.name == "nt"
-                                      else "lib/python3.13/site-packages")
+                                      else f"lib/python{version_tag}/site-packages")
         configuration = carrier_configuration(project_id=project, environment_id="env-" + project,
-            executable=executable, base_executable=Path(sys._base_executable),
+            executable=executable, base_executable=base_executable,
             dependency_roots=(dependencies,), venv_root=environment)
         with marker.open("x", encoding="utf-8") as stream:
             json.dump(configuration, stream)
     workspace = root / "workspace"
     reject_path_links(workspace)
     workspace.mkdir(exist_ok=True)
+    runtime = f"Python {sys.version_info.major}.{sys.version_info.minor}"
     return {
         "carriers_file": str(marker),
         "workspace": str(workspace),
         "environment_ready": True,
-        "dependencies": "独立 Python 3.13 环境，仅标准库",
+        "dependencies": f"独立 {runtime} 环境，仅标准库",
         # 登记文件只是材料：必须由宿主把环境变量指向它并受控重启核心，
         # 否则环境相关动作（如 prepare_run）会被门禁拒绝且看不出原因。
         "env_var": "AITEST_PYTHON_CARRIERS",
@@ -125,7 +133,7 @@ def main() -> int:
     except Exception:
         # Provider/OS errors can contain credential material; never echo them.
         print(json.dumps({"ok": False,
-                          "message": "准备未完成，请核对目录、Python 3.13 和安全凭据配置。"},
+                          "message": "准备未完成，请核对目录、Python 3.11+ 和安全凭据配置。"},
                          ensure_ascii=False))
         return 2
 

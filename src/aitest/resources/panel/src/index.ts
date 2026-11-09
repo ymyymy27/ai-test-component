@@ -209,7 +209,8 @@ class AITestPanel extends HTMLElement {
     if (this.wizardRequest && data.clientRequestId !== this.wizardRequest) return;
     const action = data.action || this.wizardAction;
     this.wizardRequest = null; this.wizardAction = ""; this.wizard.busy = false;
-    if (data.message || (data.status && data.status !== "ok")) { this.wizard.note = data.message || "向导请求未完成"; this.render(); return; }
+    const error = textValue((data as unknown as Record<string, unknown>)["error"]);
+    if (error || data.message || (data.status && data.status !== "ok")) { this.wizard.note = error || data.message || "向导请求未完成"; this.render(); return; }
     const result = resultOf(data) ?? (data as unknown as Record<string, unknown>);
     if (action === "wizardChoose") {
       const session = obj(result?.["session"]);
@@ -322,7 +323,7 @@ class AITestPanel extends HTMLElement {
       source: session["source"], entry: session["entry"],
       name: session["name"] || "本地项目", goal: session["name"] || "验证本地项目",
       data_policy: this.wizard.dataPolicy || "仅在本地独立环境运行",
-      dependency_declaration: "独立 Python 3.13 环境，仅标准库",
+      dependency_declaration: "独立 Python 3.11+ 环境，仅标准库",
       endpoint: this.wizard.endpoint, model: this.wizard.model,
       model_timeout: Number(this.wizard.timeout) || 60,
       proposal: this.wizard.proposal, checks: [],
@@ -638,7 +639,7 @@ class AITestPanel extends HTMLElement {
     if (this.wizard.stage === "choose") {
       const box = el("section", "", "section");
       box.append(button("选择项目目录", () => this.sendWizard("wizardChoose"), this.wizard.busy, true));
-      box.append(el("p", this.wizard.note || "需要 Python 3.13 项目目录和一个测试入口。", "muted"));
+      box.append(el("p", this.wizard.note || "需要 Python 3.11+ 项目目录和一个测试入口。", "muted"));
       page.append(box); return page;
     }
     const info = el("section", "", "section");

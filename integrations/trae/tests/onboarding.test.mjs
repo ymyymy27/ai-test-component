@@ -71,3 +71,15 @@ test("model profiles are explicit and a recent project can be resumed",async()=>
  assert.equal(resumed.project_id,"guided-old");
  assert.equal(responses.at(-1).session.project_id,"guided-old");
 });
+
+test("saved credential is bound to the active onboarding session",async()=>{
+ const values=new Map(),responses=[];
+ const context={globalStorageUri:{fsPath:root},globalState:{get:key=>values.get(key),update:async(key,value)=>values.set(key,value)}};
+ const settings={python:"fixture",modelConfigurationFile:"",workspaceRoot:"",projectId:null};
+ const session={project_id:"guided-session",root:join(root,"project"),source:root,entry:"main.py",reference:""};
+ const returned=await wizardMessage(context,{kind:"wizardModelCredential",clientRequestId:"credential-session"},session,settings,x=>responses.push(x));
+ const reference=responses.at(-1).modelCredential;
+ assert.ok(reference.startsWith("model-"));
+ assert.equal(returned.reference,reference);
+ assert.equal(state.requests.at(-1).operation,"credential");
+});
