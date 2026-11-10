@@ -69,9 +69,17 @@ def test_current_attempt_replacement_blocks_grant_and_occupation(resolved):
 
 
 def test_saved_step_revision_change_cannot_consume_prepared_challenge(resolved):
-    core, inputs, _, service, parameters, action = resolved
-    actor, challenge = review(service, inputs.project_id, action, parameters)
+    core, inputs, _, service, _, _ = resolved
     plan, cases, before = initial_basis(core, inputs)
+    parameters = service.prepare(
+        project_id=inputs.project_id,
+        run_id=before.run_id,
+        step_id=before.steps[0].step_id,
+        intent_id="runtime-revision-action-intent",
+        request_id="runtime-revision-action-request",
+    )
+    _, action = service.resolver.read(inputs.project_id, parameters["execution_action_id"])
+    actor, challenge = review(service, inputs.project_id, action, parameters)
     case = next(case for case in cases if case.case_id == before.steps[0].case_id)
     changed = saved_next_case(
         core,

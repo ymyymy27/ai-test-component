@@ -263,6 +263,22 @@ def source_record_files(
     require_verified: bool,
 ) -> set[str]:
     """Follow only explicit frozen source consumers; historical gaps are not new proof."""
+    if kind == "project_understanding":
+        # The understanding is derived from a saved source snapshot; its pinned
+        # bytes are still required to prove the current commit's source closure.
+        snapshot_id = body.get("source_snapshot_id")
+        if snapshot_id is None:
+            return set()
+        if not isinstance(snapshot_id, str) or body.get("project_id") != project_id:
+            raise SourceMaterialError("project understanding source reference is unverified")
+        rows = authority["records"].get("source_snapshot", {}).get(snapshot_id, [])
+        if not rows:
+            # Synthetic/legacy understandings may carry a domain-only source id;
+            # there is no pinned byte closure to add for this commit.
+            return set()
+        revision = body.get("source_snapshot_revision")
+        snapshot = rows[revision - 1] if type(revision) is int and revision >= 1 else rows[-1]
+        return verify_source_reference(root, snapshot, project_id, require_verified=True)
     if kind == "source_snapshot":
         # Domain-only legacy snapshots may be stored, but cannot prove a new preparation.
         return verify_source_reference(root, body, project_id)

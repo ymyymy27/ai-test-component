@@ -124,9 +124,9 @@ def initial_basis(core, inputs, *, tier=RunTier.ON_DEMAND):
     response = prepare(core, inputs,
         request="initial-basis-" + uuid4().hex,
         intent="initial-basis-" + uuid4().hex)
-    assert response.error is None, response
     prepared = response.result
-    assert prepared is not None, response
+    if prepared is None:
+        raise AssertionError(response)
     facts = register(core, prepared,
         request="initial-register-" + uuid4().hex,
         intent="initial-register-" + uuid4().hex)

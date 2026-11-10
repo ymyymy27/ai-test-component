@@ -364,6 +364,7 @@ class FileCommitStore:
         """Check prepared roots and changed bodies; no traversal of unrelated history."""
         self.validate(value)
         data = open_authority(self.root, value["record_header"])
+        source_material: set[str] = set()
         for ref in value["created"]:
             rows = data["records"].get(ref["aggregate_kind"], {}).get(ref["record_id"], [])
             if ref["revision"] > len(rows):
@@ -375,18 +376,27 @@ class FileCommitStore:
                 raise CommitMaterialError("changed record belongs to another project")
             try:
                 verify_record_objects(self.root, body, value["project_id"])
-                source_record_files(
-                    self.root,
-                    ref["aggregate_kind"],
-                    body,
-                    value["project_id"],
-                    data,
-                    require_verified="source_material_files" in value,
+                source_material.update(
+                    source_record_files(
+                        self.root,
+                        ref["aggregate_kind"],
+                        body,
+                        value["project_id"],
+                        data,
+                        require_verified=True,
+                    )
                 )
             except (OSError, ValueError) as error:
                 raise CommitMaterialError(
                     "changed record permanent object reference or pinned source is unverified"
                 ) from error
+        if (
+            "source_material_files" in value
+            and set(value["source_material_files"]) != source_material
+        ):
+            raise CommitMaterialError(
+                "pinned source material list differs from changed record references"
+            )
         index = value["index_root"]
         raw = self._read_bytes(
             self.root / "indexes/roots" / f"{index['snapshot_root']}.json",

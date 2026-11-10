@@ -101,10 +101,18 @@ def test_actual_start_revokes_other_saved_grant_before_external_call_and_replays
 def test_actual_runtime_revision_requires_consumer_and_rolls_back_revocation_with_snapshot(
     resolved, monkeypatch
 ):
-    core, inputs, _, authority, parameters, action = resolved
+    core, inputs, _, authority, _, _ = resolved
+    plan, cases, before = initial_basis(core, inputs)
+    parameters = authority.prepare(
+        project_id=inputs.project_id,
+        run_id=before.run_id,
+        step_id=before.steps[0].step_id,
+        intent_id="runtime-revision-consumer-intent",
+        request_id="runtime-revision-consumer-request",
+    )
+    _, action = authority.resolver.read(inputs.project_id, parameters["execution_action_id"])
     actor, challenge = review(authority, inputs.project_id, action, parameters)
     save(authority, inputs.project_id, action, parameters, actor, challenge)
-    plan, cases, before = initial_basis(core, inputs)
     case = next(value for value in cases if value.case_id == before.steps[0].case_id)
     changed = saved_next_case(
         core,
