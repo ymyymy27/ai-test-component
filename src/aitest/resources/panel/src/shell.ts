@@ -63,6 +63,103 @@ footer{border-top:1px solid var(--vscode-panel-border,#363b44);margin:12px -14px
   /* 宽页面里事实表排成两列，和设计稿的"执行状态 | 断言与核验"一致。 */
   .facts{grid-template-columns:max-content 1fr max-content 1fr;gap:8px 16px}
 }
+/* Visual refresh: keep the Trae-native palette, but give facts and actions a clearer hierarchy. */
+:host{
+  --aitest-card:var(--vscode-editorWidget-background,rgba(255,255,255,.025));
+  --aitest-card-strong:var(--vscode-sideBar-background,rgba(255,255,255,.045));
+  --aitest-line:var(--vscode-panel-border,rgba(255,255,255,.12));
+  --aitest-accent:var(--vscode-focusBorder,#4c9fed);
+  background:var(--vscode-sideBar-background,#171a1f);
+}
+main{max-width:1120px;padding:0 18px 24px}
+header{
+  position:sticky;top:0;z-index:6;margin:0 -18px 10px;padding:11px 18px;
+  background:color-mix(in srgb,var(--vscode-sideBar-background,#171a1f) 94%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--aitest-line);
+}
+.toolbar{min-height:42px}.toolbar h1{font-size:15px;font-weight:650;letter-spacing:.01em}
+.toolbar button,.link-button{color:var(--vscode-textLink-foreground,#8bc5ff)}
+button{
+  min-height:29px;padding:5px 10px;border:1px solid var(--aitest-line);border-radius:7px;
+  background:var(--vscode-button-secondaryBackground,#30343b);
+  transition:background .15s ease,border-color .15s ease,transform .15s ease,filter .15s ease;
+}
+button:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.12);border-color:var(--aitest-accent)}
+button.primary{
+  border-color:transparent;background:var(--vscode-button-background,#2f83d6);
+  color:var(--vscode-button-foreground,#fff);font-weight:600;
+  box-shadow:0 4px 14px rgba(32,116,196,.22);
+}
+button.primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground,#3a91e8)}
+input,textarea,select{border-radius:7px;border-color:var(--aitest-line);background:var(--vscode-input-background,#1b1e24)}
+input:focus,textarea:focus,select:focus{border-color:var(--aitest-accent);box-shadow:0 0 0 1px var(--aitest-accent)}
+.detail-heading{
+  position:sticky;top:0;z-index:5;margin:0 -18px 16px;padding:10px 18px 12px;
+  background:color-mix(in srgb,var(--vscode-sideBar-background,#171a1f) 95%,transparent);
+  backdrop-filter:blur(12px);
+}
+.detail-heading h1{font-size:16px;font-weight:650;letter-spacing:.01em}
+.detail-heading{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}
+.detail-heading h1{margin:0}
+.heading-report{white-space:nowrap}
+details.group{
+  margin:8px 0;border:1px solid var(--aitest-line);border-radius:10px;
+  background:var(--aitest-card);overflow:hidden;
+}
+details.group>summary{padding:11px 13px;font-size:12px;font-weight:650;letter-spacing:.01em}
+details.group[open]>summary{background:var(--aitest-card-strong);border-bottom:1px solid var(--aitest-line)}
+details.group>div{padding:4px 13px 12px}
+.workbench-part{
+  margin:10px 0;padding:13px 14px;border:1px solid var(--aitest-line);
+  border-radius:10px;background:var(--aitest-card);
+}
+.workbench-part h3{font-size:13px;font-weight:650;margin-bottom:7px}
+.workbench-part p{font-size:12px;line-height:1.55}
+.facts{grid-template-columns:minmax(88px,max-content) minmax(0,1fr);gap:7px 16px}
+.facts dt{font-size:11px;letter-spacing:.035em;text-transform:uppercase;opacity:.78}
+.facts dd{padding-bottom:7px;border-bottom:1px solid color-mix(in srgb,var(--aitest-line) 72%,transparent)}
+.notice{
+  border:1px solid color-mix(in srgb,var(--aitest-accent) 35%,var(--aitest-line));
+  border-left:3px solid var(--aitest-accent);border-radius:7px;
+  padding:8px 11px;background:var(--aitest-card-strong);
+}
+.gap-box{border-radius:8px;padding:10px 12px}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
+  border-color:var(--aitest-line);font-size:11px;font-weight:600;
+}
+.step-strip{gap:7px;padding-bottom:10px}
+.step-tab{border-radius:999px;padding:4px 10px}
+.step-tab.active{background:color-mix(in srgb,var(--aitest-accent) 16%,transparent)}
+.stat-row{gap:10px;margin:12px 0 10px}
+.stat{padding:12px;border:1px solid var(--aitest-line);border-radius:10px;background:var(--aitest-card)}
+.stat b{font-size:22px;letter-spacing:-.02em}.stat span{font-size:11px}
+.report-outcome{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;
+  background:color-mix(in srgb,var(--vscode-testing-iconPassed,#3fb950) 12%,var(--aitest-card));
+  border:1px solid color-mix(in srgb,var(--vscode-testing-iconPassed,#3fb950) 35%,var(--aitest-line));
+  font-size:14px;font-weight:650;
+}
+.evidence-body{
+  border-radius:8px;border-color:var(--aitest-line);background:var(--vscode-textCodeBlock-background,#101318);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);font-family:var(--vscode-editor-font-family,monospace);
+  font-size:12px;line-height:1.55;tab-size:2;
+}
+.evidence-unresolved{margin:8px 0 2px;padding:9px 11px;border-radius:7px;background:var(--aitest-card-strong);color:var(--vscode-descriptionForeground,#a6aebc);font-size:12px}
+.evidence-group{margin:6px 0;border:1px solid var(--aitest-line);border-radius:8px;background:var(--aitest-card);overflow:hidden}
+.evidence-group>summary{padding:8px 11px;color:var(--vscode-foreground,#d5d9df);font-size:12px;font-weight:600}
+.evidence-group[open]>summary{border-bottom:1px solid var(--aitest-line)}
+.evidence-group>.actions{padding:8px 11px 10px;margin:0}
+.export-result{margin:8px 0;padding:10px 12px;border:1px solid var(--aitest-line);border-radius:8px;background:var(--aitest-card)}
+.export-result p{margin:0 0 8px}
+.case-tree ul{border-left-color:var(--aitest-line);margin-top:6px}
+.case-tree button{border-radius:6px}
+.case-tree button:hover{background:var(--vscode-list-hoverBackground,#2c313a)}
+.pending-row{padding:4px 0}
+@media(min-width:620px){
+  .facts{grid-template-columns:minmax(118px,max-content) minmax(0,1fr) minmax(118px,max-content) minmax(0,1fr)}
+  .coverage-table th,.coverage-table td{padding:8px 10px}
+}
 `;
 
 export function text(tag:string, value:string, className=""):HTMLElement {

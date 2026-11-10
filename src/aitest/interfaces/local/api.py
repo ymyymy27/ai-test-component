@@ -335,10 +335,13 @@ class LocalAPI:
             error=ErrorDTO(
                 code=code,
                 message=self._safe_error_text(message),
-                retryable=code == "WORKSPACE_IN_USE",
+                # SNAPSHOT_REQUIRED 要求重新取同边界快照，属于可重试的读取失败。
+                retryable=code in {"WORKSPACE_IN_USE", "SNAPSHOT_REQUIRED"},
                 next_step=(
                     "写入入口繁忙，请稍后保留原业务意图重试。"
                     if code == "WORKSPACE_IN_USE"
+                    else "读取期间提交边界已变化，请重新取得同边界快照后继续。"
+                    if code == "SNAPSHOT_REQUIRED"
                     else "核对当前状态和诊断后继续；结果未知的动作先核实原意图。"
                 ),
                 request_id=command.request_id,

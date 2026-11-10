@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from aitest.interfaces.local.view_queries import CommittedViewReader
+from aitest.interfaces.local.view_queries import CommittedViewReader, ReadViewError
 
 PROJECT = "p1"
 EVIDENCE = "evidence-1"
@@ -27,12 +28,26 @@ class _Reader:
         )
 
 
+class _MissingReader:
+    """记录仓没有该编号/修订时的真实行为：ValueError。"""
+
+    def read(self, *, aggregate_kind: str, record_id: str, revision: int) -> Any:
+        raise ValueError("unknown revision")
+
+
 class _Objects:
     def __init__(self, data: bytes) -> None:
         self.data = data
 
     def read_bytes(self, ref: Any) -> bytes:
         return self.data
+
+
+class _BrokenObjects:
+    """对象仓存在但读取失败：视图必须降级为元数据，不能把异常抛给宿主。"""
+
+    def read_bytes(self, ref: Any) -> bytes:
+        raise OSError("object store is unavailable")
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:
@@ -62,14 +77,21 @@ def _payload(**overrides: Any) -> dict[str, Any]:
     return base
 
 
-def _reader(payload: dict[str, Any], objects: Any) -> CommittedViewReader:
+def _reader(
+    payload: dict[str, Any], objects: Any, *, workspace_root: Path | None = None
+) -> CommittedViewReader:
     return CommittedViewReader(
-        decisions=object(), reader=_Reader(payload), objects=objects  # type: ignore[arg-type]
+        decisions=object(),  # type: ignore[arg-type]
+        reader=_Reader(payload),
+        objects=objects,
+        workspace_root=workspace_root,
     )
 
 
-def _view(payload: dict[str, Any], objects: Any) -> dict[str, Any]:
-    return _reader(payload, objects).evidence_view(
+def _view(
+    payload: dict[str, Any], objects: Any, *, workspace_root: Path | None = None
+) -> dict[str, Any]:
+    return _reader(payload, objects, workspace_root=workspace_root).evidence_view(
         project_id=PROJECT, record_id=EVIDENCE, revision=1
     )
 
@@ -108,14 +130,69 @@ def test_size_mismatch_reports_corrupted_object() -> None:
     assert view["body_omitted_reason"] == "object_corrupted"
 
 
+def test_unreadable_object_degrades_to_metadata() -> None:
+    """六类省略原因之一：对象仓读取失败时只返回白名单元数据。"""
+
+    view = _view(_payload(), _BrokenObjects())
+
+    assert "body" not in view
+    assert view["body_omitted_reason"] == "object_unreadable"
+    assert view["record"]["evidence_id"] == EVIDENCE
+
+
 def test_binary_material_is_not_rendered() -> None:
     view = _view(_payload(object_size=2), _Objects(b"\xff\xfe"))
 
     assert view["body_omitted_reason"] == "binary_content"
 
 
-def test_cross_project_evidence_is_rejected() -> None:
-    with pytest.raises(ValueError):
+def test_cross_project_evidence_is_rejected_as_not_found() -> None:
+    with pytest.raises(ReadViewError) as error:
         _reader(_payload(project_id="other"), _Objects(b"hello")).evidence_view(
             project_id=PROJECT, record_id=EVIDENCE, revision=1
         )
+
+    # 不暴露“记录是否存在”，统一按不可用处理。
+    assert error.value.code == "RECORD_NOT_FOUND"
+
+
+def test_missing_record_or_revision_is_a_structured_not_found() -> None:
+    reader = CommittedViewReader(decisions=object(), reader=_MissingReader())  # type: ignore[arg-type]
+
+    with pytest.raises(ReadViewError) as error:
+        reader.evidence_view(project_id=PROJECT, record_id=EVIDENCE, revision=9)
+
+    assert error.value.code == "RECORD_NOT_FOUND"
+
+
+def test_selector_revision_must_match_saved_evidence_revision() -> None:
+    with pytest.raises(ReadViewError) as error:
+        _view(_payload(evidence_revision=2), _Objects(b"hello"))
+
+    assert error.value.code == "INTEGRITY_CHECK_FAILED"
+
+
+def test_absolute_paths_are_projected_from_body(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    body = (
+        f"workspace={workspace}\\src\\app.py\n"
+        f"home={Path.home()}\\secret.txt\n"
+        'file="/home/u/app.py"\n'
+        r"unc=\\server\share\file.py" "\n"
+        "url=https://example.com/a\n"
+        'interpreter="C:\\Program Files\\Python313\\python.exe"'
+    )
+    view = _view(
+        _payload(object_size=len(body.encode("utf-8"))),
+        _Objects(body.encode("utf-8")),
+        workspace_root=workspace,
+    )
+
+    assert str(workspace) not in view["body"]
+    assert "<workspace>" in view["body"]
+    assert "<home>" in view["body"]
+    assert "/home/u/app.py" not in view["body"]
+    assert "server\\share" not in view["body"]
+    assert "C:\\Program Files" not in view["body"]
+    # URL 不是文件绝对路径，不能被误删。
+    assert "https://example.com/a" in view["body"]

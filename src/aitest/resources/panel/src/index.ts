@@ -1326,6 +1326,9 @@ class AITestPanel extends HTMLElement {
     const back=action("返回本次测试",()=>this.navigate("current"));back.dataset.action="back";
     const heading=document.createElement("div");heading.className="detail-heading";
     heading.append(back,text("h1",this.detail==="settings"?"模型 API 设置":this.detail==="setup"?"准备本次测试":selected[1]));section.append(heading);
+    if(this.detail==="workbench"){
+      const report=action("测试报告",()=>this.navigate("review"),!this.host);report.className="heading-report";heading.append(report);
+    }
     if(this.detail==="diagnostics")section.append(this.detailSection());
     if(this.detail==="setup")section.append(this.onboarding.view(String(this.doctorOutcome?.response?.["workspace_id"]??""),this.pending));
     else if(this.detail==="review")section.append(this.reportActions(),...this.reviewDetail());
@@ -1388,6 +1391,16 @@ class AITestPanel extends HTMLElement {
         : "先读取本次运行，再保存报告。","muted"),
       action("保存本次测试报告",()=>this.saveReport(),!this.available("create_report")||!run));
     const status=text("p",this.pending?"正在处理，请稍候。":this.commandNote);status.setAttribute("role","status");section.append(status);
+    if(this.commandNote.startsWith("导出已完成")){
+      const notice=document.createElement("div");notice.className="export-result";
+      notice.append(text("p",this.commandNote,"notice"));
+      const copy=action("复制导出路径",()=>{
+        const value=this.commandNote.replace(/^导出已完成：/,"").replace(/（相对用户数据工作空间）$/,"");
+        const clipboard=(globalThis as {navigator?:{clipboard?:{writeText?:(value:string)=>Promise<void>}}}).navigator?.clipboard;
+        if(clipboard?.writeText){void clipboard.writeText(value);this.commandNote="导出路径已复制。";this.render();}
+      });
+      notice.append(copy);section.append(notice);
+    }
     return section;
   }
 
@@ -1599,18 +1612,41 @@ class AITestPanel extends HTMLElement {
     });
     const refs=evidenceRefsOf(normalized);
     if(refs.length){
-      const links=document.createElement("div");
-      links.className="actions";
-      for(const evidenceRef of refs){
-        const open=action(
-          `查看证据 ${evidenceRef.evidenceId} · 修订 ${evidenceRef.revision}`,
-          ()=>this.openEvidence(evidenceRef),
-          !this.available("read_view"),
-        );
-        open.dataset.evidenceId=evidenceRef.evidenceId;
-        links.append(open);
+      const shortId=(id:string)=>id.length>46?`${id.slice(0,22)}…${id.slice(-12)}`:id;
+      const addLinks=(target:HTMLElement,items:typeof refs)=>{
+        const links=document.createElement("div");links.className="actions";
+        for(const evidenceRef of items){
+          const open=action(
+            `查看证据 ${shortId(evidenceRef.evidenceId)} · 修订 ${evidenceRef.revision}`,
+            ()=>this.openEvidence(evidenceRef),
+            !this.available("read_view"),
+          );
+          open.dataset.evidenceId=evidenceRef.evidenceId;
+          open.title=evidenceRef.evidenceId;
+          links.append(open);
+        }
+        target.append(links);
+      };
+      if(refs.length<=4){
+        addLinks(wrapper,refs);
+      }else{
+        const grouped=new Map<string,typeof refs>();
+        for(const ref of refs){
+          const id=ref.evidenceId;
+          const label=id.startsWith("business-query-")?"业务查询"
+            :id.startsWith("evidence:execution-")?"执行输出"
+            :id.startsWith("runtime-source-")?"运行时来源"
+            :id.startsWith("source-evidence-")?"源码证据"
+            :"其他证据";
+          const list=grouped.get(label) ?? [];
+          list.push(ref);grouped.set(label,list);
+        }
+        for(const [label,items] of grouped){
+          const fold=document.createElement("details");fold.className="evidence-group";
+          fold.append(text("summary",`${label} · ${items.length} 条`));
+          addLinks(fold,items);wrapper.append(fold);
+        }
       }
-      wrapper.append(links);
     }
     const unresolved=rawRefs.filter((_,index)=>evidenceRefOf(normalized[index])===null);
     if(unresolved.length){

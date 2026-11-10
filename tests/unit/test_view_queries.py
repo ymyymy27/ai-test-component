@@ -126,6 +126,34 @@ def test_record_view_returns_paired_evidence_revisions(kind) -> None:
     assert result["record"]["evidence_revisions"] == {"evidence-1": 2, "evidence-2": 1}
 
 
+@pytest.mark.parametrize("kind", ["report", "issue"])
+def test_record_view_returns_empty_evidence_revisions_for_legacy(kind) -> None:
+    """旧记录缺 evidence_revisions 时按空映射返回，不猜修订（CORE-001 1.96）。"""
+
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    record = SimpleNamespace(
+        aggregate_kind=kind,
+        record_id="saved",
+        revision=2,
+        payload={
+            "project_id": PROJECT,
+            f"{kind}_id": "saved",
+            "status": "draft",
+            "evidence_refs": ["evidence-1"],
+        },
+    )
+    store = Mock()
+    store.read.return_value = record
+    reader = CommittedViewReader(decisions=Mock(), reader=store)
+    result = reader.record_view(
+        project_id=PROJECT, kind=kind, record_id="saved", revision=2
+    )
+    assert result["record"]["evidence_refs"] == ["evidence-1"]
+    assert result["record"]["evidence_revisions"] == {}
+
+
 def test_record_selector_requires_exact_revision_and_rejects_mixed_selectors() -> None:
     from aitest.contracts.read_views import ReadViewQuery
     valid = {"view":"report", "record_id":"report-1", "revision":1}
