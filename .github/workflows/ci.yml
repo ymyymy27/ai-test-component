@@ -43,12 +43,14 @@ jobs:
             $schemaChanges
             throw 'Generated schemas differ from the committed files.'
           }
+      - name: Check current-status docs against code
+        run: uv run python scripts/check_docs_facts.py
       - name: Collect every test module (import errors still fail the job)
         run: uv run pytest --collect-only -q
 
-      # 完整 Python 回归在本机约 16 小时（见 docs/现状.md），远超托管运行器
-      # 的单作业上限；这里跑快速且有代表性的合同/架构/恢复/验收检查与核心
-      # 单元冒烟，完整回归仍由发布前本地或专用环境执行。
+      # 完整 Python 回归随节点数和机器负载变化（2026-11-04 的 -n 8 记录为 50:37，
+      # 2026-11-10 全量为 6,104 节点）；托管运行器上由 nightly 工作流执行全量，
+      # 这里跑快速且有代表性的合同/架构/恢复/验收检查与核心单元冒烟。
       - name: Run bounded basic checks
         run: >
           uv run pytest

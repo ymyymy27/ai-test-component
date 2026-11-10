@@ -651,6 +651,10 @@ class AITestPanel extends HTMLElement {
   }
 
   private render(): void {
+    // 全量重渲染会替换整棵 DOM：先记住焦点与滚动，重建后恢复，避免 webview
+    // 在异步回执到达时跳回顶部或让正在填写的字段失焦。
+    const focus = this.captureFocus();
+    const scrollY = window.scrollY;
     this.root.replaceChildren();
     const style = document.createElement("style");
     style.textContent = shellStyles;
@@ -660,6 +664,54 @@ class AITestPanel extends HTMLElement {
     main.append(this.detail === "current" ? this.currentView() : this.detailView());
     if(this.detail!=="current")main.append(this.connectionFooter());
     this.root.append(style, main);
+    this.restoreFocus(focus);
+    window.scrollTo(0, scrollY);
+  }
+
+  /** 记录 shadow DOM 内的焦点路径；路径失效时恢复会安全跳过。 */
+  private captureFocus(): {path:number[];start:number|null;end:number|null;direction:"forward"|"backward"|"none"|null}|null {
+    const active = this.root.activeElement;
+    if (!(active instanceof HTMLElement)) return null;
+    const path: number[] = [];
+    let node: Element | null = active;
+    // 用 parentNode 而不是 parentElement：顶层 main 的父节点是 shadow root，
+    // 它没有 parentElement；漏掉这一级会让恢复路径错位到相邻元素。
+    while (node !== null && node.parentNode !== null) {
+      const parent = node.parentNode as ParentNode;
+      const index = parent.children ? Array.prototype.indexOf.call(parent.children, node) : -1;
+      if (index < 0) return null;
+      path.unshift(index);
+      node = node.parentElement;
+    }
+    if (path.length === 0) return null;
+    let start: number | null = null, end: number | null = null;
+    let direction: "forward" | "backward" | "none" | null = null;
+    if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+      start = active.selectionStart; end = active.selectionEnd; direction = active.selectionDirection;
+    }
+    return {path, start, end, direction};
+  }
+
+  private restoreFocus(state: {path:number[];start:number|null;end:number|null;direction:"forward"|"backward"|"none"|null}|null): void {
+    if (state === null) return;
+    let container: ParentNode = this.root;
+    let target: Element | null = null;
+    for (const index of state.path) {
+      const child: Element | undefined = container.children?.[index];
+      if (child === undefined) return;
+      target = child;
+      container = child;
+    }
+    if (!(target instanceof HTMLElement)) return;
+    target.focus({preventScroll:true});
+    if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+        && state.start !== null && state.end !== null) {
+      try {
+        target.setSelectionRange(state.start, state.end, state.direction ?? undefined);
+      } catch {
+        // number/date 等输入类型不支持 setSelectionRange；焦点恢复本身仍然有效。
+      }
+    }
   }
 
   private header(): HTMLElement {
@@ -1113,11 +1165,51 @@ class AITestPanel extends HTMLElement {
       list.className = "muted";
       list.textContent = actions.join("、");
       section.append(title, line, list);
+      this.appendDependencyState(section, result, actions);
       return section;
     }
     line.textContent = `核心未通过：${outcome.code ?? outcome.status} — ${outcome.message ?? ""}`;
     section.append(title, line);
     return section;
+  }
+
+  /** 依赖状态同样只取真实回执：按依赖键展示状态/原因，并列出可能被拒的动作。 */
+  private appendDependencyState(
+    section: HTMLElement,
+    result: Record<string, unknown> | undefined,
+    actions: string[],
+  ): void {
+    const dependencies = object(result?.["dependencies"]);
+    if (dependencies === undefined) return;
+    const conditions = Array.isArray(dependencies["dependencies"])
+      ? dependencies["dependencies"]
+          .map(item => object(item))
+          .filter((item): item is Record<string, unknown> => item !== undefined)
+      : [];
+    if (conditions.length === 0) return;
+    const heading = text("h3", "依赖状态（真实回执）");
+    const list = document.createElement("ul");
+    list.dataset.testid = "capability-dependencies";
+    const notReady = new Set<string>();
+    for (const condition of conditions) {
+      const key = typeof condition["key"] === "string" ? condition["key"] : "unknown";
+      const conditionState = typeof condition["state"] === "string" ? condition["state"] : "unknown";
+      const reason = typeof condition["reason"] === "string" ? condition["reason"] : "";
+      if (conditionState !== "ready") notReady.add(key);
+      const item = document.createElement("li");
+      item.textContent = `${key} · ${conditionState}${reason ? ` — ${reason}` : ""}`;
+      if (conditionState !== "ready") item.className = "muted";
+      list.append(item);
+    }
+    section.append(heading, list);
+    const actionDependencies = object(dependencies["action_dependencies"]);
+    if (actionDependencies === undefined || notReady.size === 0) return;
+    const affected = actions.filter(action =>
+      strings(actionDependencies[action]).some(key => notReady.has(key)));
+    if (affected.length === 0) return;
+    const blocked = text("p", `当前依赖可能拒绝的动作：${affected.join("、")}`, "muted");
+    blocked.dataset.testid = "capability-blocked-actions";
+    section.append(blocked);
   }
 
   /** 只读入口：可派发；写动作必须经受控用户入口，界面点击不等于确认。 */

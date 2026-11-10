@@ -1,6 +1,6 @@
 # AI 辅助测试插件（AI Test Component）
 
-面向 Windows 11 x64、Python 3.13 与 Trae 的本地测试插件，当前产品版本 0.4.10。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、问题、数字与未验证范围统一见[项目现状](docs/现状.md)，全部工程文档入口见[文档总览](docs/README.md)。**
+面向 Windows 11 x64、Python 3.11+ 与 Trae 的本地测试插件，当前产品版本 0.4.10。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、问题、数字与未验证范围统一见[项目现状](docs/现状.md)，全部工程文档入口见[文档总览](docs/README.md)。**
 
 [![CI](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml)
 
@@ -38,7 +38,7 @@ docs/归档/            历史修改日志、验证证据、作者文档与整�
 
 ## 开发安装与验证
 
-标准安装命令是 `uv sync --extra dev --locked --python 3.13`。A-19 锁声明范围不一致已修，历史干净锁定安装证据与本轮 lock 检查、Python 运行边界分别见[项目现状](docs/现状.md)。依赖安装后按工程配置运行：
+标准安装命令是 `uv sync --extra dev --locked --python 3.13`（开发与 CI 使用 3.13；产品运行支持 Python 3.11+）。A-19 锁声明范围不一致已修，历史干净锁定安装证据与本轮 lock 检查、Python 运行边界分别见[项目现状](docs/现状.md)。依赖安装后按工程配置运行：
 
 ```powershell
 .venv/Scripts/python.exe scripts/check_versions.py
@@ -46,7 +46,7 @@ docs/归档/            历史修改日志、验证证据、作者文档与整�
 .venv/Scripts/python.exe -m mypy
 .venv/Scripts/python.exe scripts/generate_schemas.py
 .venv/Scripts/python.exe scripts/check_docs_facts.py --full
-.venv/Scripts/python.exe -m pytest -p no:cacheprovider -ra tests
+.venv/Scripts/python.exe -m pytest -p no:cacheprovider --import-mode=importlib -n 8 --dist loadfile -ra tests
 ```
 
 生成 Schema 后须检查 Git diff；不手工编辑生成物。全量测试期间不并发其他重测试，保留退出码、原输出与跳过原因，不用分块结果相加替代全量。临时数据可放 `.runtime/tmp` 并设置 TEMP/TMP。

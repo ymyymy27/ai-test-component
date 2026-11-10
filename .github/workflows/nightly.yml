@@ -1,0 +1,54 @@
+name: Nightly full regression
+
+on:
+  schedule:
+    # 02:00 Asia/Shanghai；调度工作流由默认分支上的定义触发，默认回归 develop。
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "要回归的 git ref"
+        required: true
+        default: develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-full-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  full-python:
+    name: Full Python regression (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'develop' }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --extra dev --locked
+      # 与 README / 现状页记录的全量命令保持一致；junit 便于失败后直接定位。
+      - name: Run full Python suite
+        run: >
+          uv run pytest
+          -p no:cacheprovider
+          --import-mode=importlib
+          -n 8
+          --dist loadfile
+          -ra
+          --junitxml="${{ runner.temp }}/aitest-full.xml"
+          tests
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-full-windows
+          path: ${{ runner.temp }}/aitest-full.xml
+          if-no-files-found: ignore
+          retention-days: 14

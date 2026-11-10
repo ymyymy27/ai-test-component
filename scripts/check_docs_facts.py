@@ -113,13 +113,27 @@ def mypy_file_count() -> int | None:
 
 
 def node_count() -> int | None:
+    # 与全量回归命令保持一致使用 importlib：默认 import 模式下模块收集会冲突，
+    # 汇总出的节点数会偏小且不可复现。
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "--collect-only", "-q", "tests"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "--import-mode=importlib",
+            "--collect-only",
+            "-q",
+            "tests",
+        ],
         cwd=ROOT,
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
+    if result.returncode != 0:
+        return None
     # 本工程 `-q` 下**没有** "N tests collected" 汇总行，只有按文件计数（`path: N`），
     # 因此先试汇总行，再退回按文件计数求和。
     for pattern in (r"(\d+) tests? collected", r"collected (\d+) tests?"):

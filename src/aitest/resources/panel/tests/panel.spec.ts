@@ -21,10 +21,18 @@ test("successful connection refreshes capabilities without another user click", 
     return sent.at(-1)?.action;
   })).toBe("doctor");
   await postHostMessage(page, {kind:"outcome", action:"doctor", status:"ok",
-    response:{result:{status:"READY", supported_actions:["doctor", "query"]}}});
+    response:{result:{status:"READY", supported_actions:["doctor", "query", "verify_pending"],
+      dependencies:{
+        dependencies:[{key:"model", state:"not_configured", reason:"未配置模型"}],
+        action_dependencies:{verify_pending:["model"], query:[]},
+      }}}});
   await expect(page.getByTestId("panel-status")).toContainText("核心已连接");
   await page.getByRole("button",{name:"更多",exact:true}).click();
   await expect(page.getByTestId("core-capability")).toContainText("query");
+  // 依赖状态与受影响动作只按回执展示：不推断、不补造。
+  await expect(page.getByTestId("capability-dependencies")).toContainText("model");
+  await expect(page.getByTestId("capability-dependencies")).toContainText("not_configured");
+  await expect(page.getByTestId("capability-blocked-actions")).toContainText("verify_pending");
 });
 
 test("prototype follows current-test panel and same-panel detail flow", async ({ page }) => {
