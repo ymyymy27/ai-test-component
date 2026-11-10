@@ -11,7 +11,9 @@ export class GuidedRun {
   private conclusions=new Map<string,string>();
   reset():void {this.executions.clear();this.conclusions.clear();this.waiting=null;this.note="";this.needsRefresh=false;}
   receive(name:string,status:string,result:Record<string,unknown>|undefined):void {
-    if(name==="read_view" && status==="ok" && result?.["view_type"]==="run")this.needsRefresh=false;
+    if(name==="read_view" && status==="ok" && result?.["view_type"]==="run"){
+      this.needsRefresh=false;this.note="";
+    }
     if(!this.waiting || this.waiting.action!==name)return;
     const current=this.executions.get(this.waiting.step);
     if(status!=="ok")this.note="本次操作未完成。可重试同一操作；不会自动重新执行测试。";
@@ -93,8 +95,11 @@ export class GuidedRun {
     const verification=document.createElement("section");verification.className="workbench-part";
     verification.append(text("h3","结果核验"),text("p","按独立预期核对本次实际执行。执行完成和验证通过分别记录。","muted"));
     const attempt=step["current_attempt_id"];
-    const canVerify=!this.needsRefresh && typeof attempt==="string" && attempt && typeof run["snapshot_commit_id"]==="string";
-    if(canVerify){
+    const alreadyVerified=conclusion==="matched" || step["state"]==="completed";
+    const canVerify=!alreadyVerified && !this.needsRefresh && typeof attempt==="string" && attempt && typeof run["snapshot_commit_id"]==="string";
+    if(alreadyVerified){
+      verification.append(text("p","该步骤已核验并完成，无需重复核验。可继续处理下一个待办步骤。","notice"));
+    }else if(canVerify){
       // 核验是"执行完成后唯一的下一步"：设成主按钮，避免用户以为执行完就结束了。
       const verify=action("核验这次执行结果",()=>request("verify_pending",{run_id:run["run_id"],step_id:id,attempt_id:attempt,base_snapshot_commit_id:run["snapshot_commit_id"]},`verify-${execution!.intent}-${String(run["snapshot_commit_id"]).slice(-32)}`),!enabled("verify_pending"));
       verify.className="primary";
