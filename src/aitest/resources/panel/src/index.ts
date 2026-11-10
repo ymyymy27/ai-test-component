@@ -1,7 +1,7 @@
 /** Phase-one fact viewer and controlled command requester. The core owns
  * business outcomes and the independent human confirmation dialog. */
 import {workflowActions, workflowCommand} from "./workflow";
-import {Onboarding} from "./onboarding";
+import {Onboarding, PLAIN_WRITE_ACTIONS} from "./onboarding";
 import {ModelSettings} from "./model-settings";
 import {GuidedRun, friendly} from "./guided";
 import {evidenceBodyState, evidenceRefOf, evidenceRefsOf, evidenceRequest, type EvidenceRef} from "./evidence";
@@ -56,12 +56,6 @@ const READ_ONLY_ACTIONS = new Set([
 const STATE_CHANGING_ACTIONS = new Set([
   "execute_step", "verify_pending", "create_report", "import_external_result",
   "attach_evidence", "pause_run", "resume_run", "cancel_run", "record_local_review",
-]);
-
-/** 向导里的普通写入：不代替用户确认，只省掉逐条原生弹窗。 */
-const WIZARD_PLAIN_WRITES = new Set([
-  "save_context", "save_environment", "analyze_project", "generate_draft",
-  "save_case", "save_acceptance", "prepare_run", "register_run",
 ]);
 
 /** 只读回执里的记录行；面板原样展示，不补造字段、不重算结论。 */
@@ -898,7 +892,7 @@ class AITestPanel extends HTMLElement {
   /** 向导命令：普通写入走非原生通道，人工动作仍走原生确认。 */
   private submitWizardCommand(command:{action:string;intent_id:string;expected_revision:number;
     binding_revision:number;target?:string;parameters:Record<string,unknown>}):void{
-    if(!WIZARD_PLAIN_WRITES.has(command.action)){
+    if(!PLAIN_WRITE_ACTIONS.has(command.action)){
       this.commandDraft=JSON.stringify(command,(key,value)=>key==="key"?undefined:value);
       this.submitCommand();return;
     }

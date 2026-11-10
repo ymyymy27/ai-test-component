@@ -1,5 +1,41 @@
 import {action,newIntent,object,text} from "./shell";
 
+/** 与扩展 PLAIN_WRITE_ACTIONS 保持一致；合同测试会逐项比对。 */
+export const PLAIN_WRITE_ACTIONS=new Set([
+  "save_context",
+  "save_environment",
+  "save_case",
+  "save_task",
+  "save_delivery",
+  "save_acceptance",
+  "save_dependency_graph",
+  "save_project_view_preference",
+  "save_rules",
+  "generate_draft",
+  "request_model_draft",
+  "resolve_model_response",
+  "save_plan",
+  "analyze_project",
+  "prepare_run",
+  "register_run",
+  "prepare_execution",
+  "execute_step",
+  "start_run",
+  "pause_run",
+  "resume_run",
+  "cancel_run",
+  "retry_step",
+  "return_stage",
+  "verify_pending",
+  "attach_evidence",
+  "record_agent_evidence",
+  "import_external_result",
+  "create_report",
+  "export_report",
+  "record_fix",
+  "request_regression",
+]);
+
 type Command={key:string;action:string;intent_id:string;expected_revision:number;binding_revision:number;target?:string;parameters:Record<string,unknown>};
 type Check={objective:string;inputs:string;key:string;value:string;type:string};
 export class Onboarding {

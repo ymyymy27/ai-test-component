@@ -58,7 +58,7 @@ def test_one_completed_attempt_does_not_confirm_a_global_control_boundary(contro
     )
     after = project_current_update(before, batch.checkpoint.attempt, committed_at=datetime.now(UTC))
     assert after.run.control_state is control
-    assert after.steps[0].state is StepStateFact.COMPLETED
+    assert after.steps[0].state is StepStateFact.PENDING_VERIFICATION
 
 
 @pytest.mark.parametrize("control", [RunControlStateFact.NOT_STARTED, RunControlStateFact.RUNNING])

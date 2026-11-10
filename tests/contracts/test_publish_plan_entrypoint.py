@@ -185,7 +185,7 @@ def _plan_parameters(**overrides: object) -> dict[str, object]:
         "template_versions": [
             {"template_id": TEMPLATE_ID, "version": TEMPLATE_VERSION}
         ],
-        "run_tier": "full",
+        "run_tier": "on_demand",
         "initial_driver": "planned",
     }
     payload.update(overrides)
@@ -261,7 +261,7 @@ def test_published_plan_is_readable_by_commit_revision(workspace_root: Path) -> 
     assert committed.payload["plan_id"] == "plan-1"
     assert committed.payload["scope_id"] == "scope-1"
     assert committed.payload["scope_revision"] == 1
-    assert committed.payload["run_tier"] == "full"
+    assert committed.payload["run_tier"] == "on_demand"
 
 
 def test_rule_digest_comes_from_the_published_record(workspace_root: Path) -> None:

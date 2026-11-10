@@ -4,6 +4,7 @@ The paused fixture is a controlled projection, not real Trae/start acceptance.
 """
 
 from dataclasses import replace
+from uuid import uuid4
 
 import pytest
 
@@ -119,8 +120,16 @@ def on_demand_inputs(core, inputs):
 def initial_basis(core, inputs, *, tier=RunTier.ON_DEMAND):
     if tier is RunTier.ON_DEMAND:
         inputs = on_demand_inputs(core, inputs)
-    prepared = prepare(core, inputs).result
-    facts = register(core, prepared)
+    inputs = replace(inputs, prepare_request_id="initial-basis-" + uuid4().hex)
+    response = prepare(core, inputs,
+        request="initial-basis-" + uuid4().hex,
+        intent="initial-basis-" + uuid4().hex)
+    assert response.error is None, response
+    prepared = response.result
+    assert prepared is not None, response
+    facts = register(core, prepared,
+        request="initial-register-" + uuid4().hex,
+        intent="initial-register-" + uuid4().hex)
     paused = facts.model_copy(
         update={
             "run_revision": 2,

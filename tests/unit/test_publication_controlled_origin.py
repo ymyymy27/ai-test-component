@@ -6,7 +6,7 @@ import pytest
 
 from aitest.application.planning.publish import payload_digest
 from aitest.contracts.commands import Command
-from aitest.contracts.prepared_run import PlanRevisionRef, RuleVersionRef
+from aitest.contracts.prepared_run import PlanRevisionRef, RuleVersionRef, RunTierFact
 from aitest.infrastructure.security import KnownSecretRegistry
 from tests.support.controlled_publication import controlled_publication_confirm, prepare_publication
 from tests.unit.test_authoritative_preparation import authoritative as authoritative
@@ -132,6 +132,7 @@ def plan_command(core, inputs):
                 )
                 for ref in inputs.case_revisions
             ],
+            "run_tier": "on_demand",
         },
     )
 
@@ -397,6 +398,7 @@ def test_controlled_plan_and_rule_prepare_with_warehouse_refs_then_missing_rule_
     plan_payload = repo.read(aggregate_kind="plan", record_id="controlled-plan", revision=1).payload
     candidate = replace(
         inputs,
+        run_tier=RunTierFact.ON_DEMAND,
         prepare_request_id="controlled-rule-plan-prepare",
         plan_revision=PlanRevisionRef(
             revision_id="controlled-plan", revision_no=1, digest=payload_digest(plan_payload)

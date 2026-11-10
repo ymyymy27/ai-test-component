@@ -182,7 +182,7 @@ def _plan_parameters(**overrides: object) -> dict[str, object]:
         "revision": 1,
         "scope": _scope(),
         "cases": [_case("case-1")],
-        "run_tier": "full",
+        "run_tier": "on_demand",
         "initial_driver": "planned",
     }
     payload.update(overrides)
