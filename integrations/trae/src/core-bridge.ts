@@ -154,6 +154,16 @@ function spawnFailure(error: unknown, python: string): string {
   return `${classification}; ${process.platform}; executable_exists=${existsSync(python)}`;
 }
 
+function coreEnvironment(): NodeJS.ProcessEnv {
+  // The core runs on the user-configured interpreter. A host process may
+  // inherit PYTHONHOME from an unrelated Python (e.g. uv), which makes a
+  // different 3.11 installation fail before it can run `-m`. PYTHONPATH is
+  // left alone: hosts and the packaged entry may use it for the core package.
+  const env = { ...process.env };
+  delete env.PYTHONHOME;
+  return env;
+}
+
 function runCli(
   python: string,
   workspaceRoot: string,
@@ -167,7 +177,7 @@ function runCli(
       python,
       ["-m", "aitest.interfaces.tools.cli", batch ? "dispatch-batch" : "dispatch",
         ...(nativeConfirmation ? ["--native-confirmation"] : []), "--workspace", workspaceRoot],
-      { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
+      { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: coreEnvironment() },
     );
     let stdout = "";
     let stderr = "";
@@ -293,7 +303,7 @@ async function coreEntry(
       python,
       ["-m", "aitest.interfaces.tools.cli", subcommand, "--workspace", workspaceRoot],
       { stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
-        env: {...process.env,
+        env: {...coreEnvironment(),
           ...(pythonCarriersFile ? {AITEST_PYTHON_CARRIERS:pythonCarriersFile} : {}),
           ...(businessQueriesFile ? {AITEST_BUSINESS_QUERIES:businessQueriesFile} : {}),
           ...(modelConfigurationFile ? {AITEST_MODEL_CONFIGURATION:modelConfigurationFile} : {})} },

@@ -103,6 +103,17 @@ for (const mode of ["large_stdout", "large_stderr"]) {
     assert.equal(startup.code, "ENTRY_OUTPUT_LIMIT");
   });
 }
+test("foreign PYTHONHOME does not break the configured core interpreter", async () => {
+  const before = process.env.PYTHONHOME;
+  process.env.PYTHONHOME = join(root, ".runtime/tmp/no-such-python-home");
+  try {
+    const outcome = await ensureCore(python, "ok", 5000);
+    assert.equal(outcome.status, "ok");
+  } finally {
+    if (before === undefined) delete process.env.PYTHONHOME;
+    else process.env.PYTHONHOME = before;
+  }
+});
 test("raw stderr is never copied into the outcome", async () => {
   const outcome = await dispatchReadOnly(python, "secret_stderr", { action: "doctor" }, "r", 2000);
   assert.equal(outcome.status, "unavailable");
