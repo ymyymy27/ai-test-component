@@ -33,6 +33,8 @@ export async function dispatchNativeBatch(python,root,items,id){state.batch={pyt
 export async function ensureCore(...args){state.startup=args;
   if(state.deferStartup) return await new Promise(resolve=>{state.resolveStartup=resolve});
   return state.startupOutcome??{status:"ok",response:{status:"READY"}};}
+export async function restartCore(...args){state.restart=args;
+  return state.restartOutcome??{status:"ok",response:{status:"READY",workspace_id:"w",instance_id:"i2"}};}
 `);
 await build({ entryPoints: ["src/extension.ts"], bundle: true, platform: "node", format: "esm",
   outfile: join(fixture, "extension.mjs"), plugins: [{ name: "explicit-host-fixture", setup(builder) {
@@ -189,4 +191,14 @@ test("docked host registers a retained view and opens settings without a busines
   assert.deepEqual(state.executed,["workbench.action.openSettings","@ext:aitest-local.aitest-trae"]);
   assert.equal(state.calls.length,count);
   delete hostWindow.registerWebviewViewProvider;
+});
+
+test("restart request stays on the host lifecycle entry", async () => {
+  state.sent.length = 0;
+  state.receive({kind:"restartCore",clientRequestId:"restart-1"});
+  await tick();
+  assert.ok(state.restart);
+  const outcome = state.sent.find(message => message.action === "restart-core");
+  assert.equal(outcome.status, "ok");
+  assert.equal(outcome.clientRequestId, "restart-1");
 });

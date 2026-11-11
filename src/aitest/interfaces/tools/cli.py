@@ -16,6 +16,7 @@ from aitest.bootstrap import (
     create_api,
     read_core_startup_diagnostic,
     rebuild_query_index,
+    restart_endpoint,
 )
 from aitest.contracts.commands import Command
 from aitest.contracts.templates import TemplatePack
@@ -62,6 +63,11 @@ def main() -> int:
         "ensure-core", help="Discover or start the single core for a workspace (host entry)"
     )
     ensure.add_argument("--workspace", required=True, type=Path)
+    restart = sub.add_parser(
+        "restart-core",
+        help="Gracefully stop the active core, then start and verify a new one",
+    )
+    restart.add_argument("--workspace", required=True, type=Path)
     rebuild = sub.add_parser(
         "rebuild-index",
         help="Rebuild query projections from the authority while no core is running",
@@ -178,6 +184,59 @@ def main() -> int:
                     args.workspace / "core" / "startup-diagnostic.json"
                 )
             print(json.dumps(payload, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(
+            json.dumps(
+                {
+                    "status": "READY",
+                    "workspace_id": endpoint.workspace_id,
+                    "instance_id": endpoint.instance_id,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "restart-core":
+        # 受控重启：先核对是否有活动核心；有则优雅停机，活动执行未排空时
+        # 明确拒绝，不强制杀进程。停机确认后按同一启动入口启动并核对身份。
+        if not args.workspace.is_dir():
+            print(
+                json.dumps(
+                    {
+                        "code": "WORKSPACE_NOT_FOUND",
+                        "message": "工作空间路径不存在或不是目录；入口不据此创建数据工作空间",
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            endpoint = restart_endpoint(
+                args.workspace,
+                launcher=SystemProcessLauncher(
+                    args.workspace, lifecycle_parent_pid=cli_host_pid(),
+                ),
+            )
+        except Exception as error:
+            code = getattr(error, "code", "CORE_RESTART_FAILED")
+            detail = str(error) or "无法核实核心重启事实"
+            restart_payload: dict[str, object] = {
+                "code": code,
+                "message": (
+                    f"核心未重启：{detail}"
+                    if code == "CORE_RESTART_BLOCKED"
+                    else f"核心重启后未能核实并连接：{detail}；保留现场待恢复"
+                ),
+            }
+            diagnostic = read_core_startup_diagnostic(args.workspace)
+            if diagnostic is not None:
+                restart_payload["startup_diagnostic"] = diagnostic
+                restart_payload["startup_diagnostic_path"] = str(
+                    args.workspace / "core" / "startup-diagnostic.json"
+                )
+            print(json.dumps(restart_payload, ensure_ascii=False))
             return 2
         print(
             json.dumps(

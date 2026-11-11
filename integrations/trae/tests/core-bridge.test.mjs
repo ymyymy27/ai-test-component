@@ -29,7 +29,10 @@ elif mode == 'secret_code_stderr':
     sys.stderr.write(json.dumps(dict(code='fixture-credential-must-never-echo')))
 elif mode == 'array':
     print('[]')
-elif sys.argv[1] == 'ensure-core':
+elif sys.argv[1] in ('ensure-core', 'restart-core'):
+    if mode == 'blocked':
+        print(json.dumps(dict(code='CORE_RESTART_BLOCKED', message='blocked by active run')))
+        sys.exit(2)
     data = dict(status='READY', workspace_id='w', instance_id='i')
     if mode == 'carrier_config':
         data['carrier_config'] = os.environ.get('AITEST_PYTHON_CARRIERS')
@@ -58,7 +61,7 @@ else:
 `);
 await build({ entryPoints: ["src/core-bridge.ts"], bundle: true, platform: "node", format: "esm",
   outfile: join(fixture, "bridge.mjs") });
-const { dispatchReadOnly, dispatchControlled, buildCommand, ensureCore, PLAIN_WRITE_ACTIONS } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
+const { dispatchReadOnly, dispatchControlled, buildCommand, ensureCore, restartCore, PLAIN_WRITE_ACTIONS } = await import(pathToFileURL(join(fixture, "bridge.mjs")).href);
 const originalPath = process.env.PYTHONPATH;
 process.env.PYTHONPATH = fixture;
 const python = process.env.AITEST_TEST_PYTHON || join(root, ".venv/Scripts/python.exe");
@@ -113,6 +116,15 @@ test("startup refusal cannot copy untrusted stderr code into its outcome", async
 test("timeout cannot become success", async () => {
   assert.equal((await dispatchReadOnly(python, "timeout", { action: "doctor" }, "r", 150)).code, "ENTRY_TIMEOUT");
   assert.equal((await ensureCore(python, "timeout", 150)).code, "ENTRY_TIMEOUT");
+});
+test("restart uses the same verified READY contract", async () => {
+  assert.equal((await restartCore(python, "ok", 2000)).status, "ok");
+  assert.equal((await restartCore(python, "exit", 2000)).status, "refused");
+  assert.equal((await restartCore(python, "missing_identity", 2000)).status, "refused");
+  const blocked = await restartCore(python, "blocked", 2000);
+  assert.equal(blocked.status, "refused");
+  assert.equal(blocked.code, "CORE_RESTART_BLOCKED");
+  assert.match(blocked.message, /active run/);
 });
 test("ensure requires zero exit and complete core identity", async () => {
   assert.equal((await ensureCore(python, "ok", 2000)).status, "ok");

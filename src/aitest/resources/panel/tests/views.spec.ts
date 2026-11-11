@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { connect, connectWithRun, mountPanel, reply, replyView, sentMessages, waitForSend } from "./support";
+import { connect, connectWithRun, mountPanel, reply, replyDoctor, replyView, sentMessages, waitForSend } from "./support";
 
 function captureErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -192,6 +192,22 @@ test("settings view loads only host-owned model profiles", async ({ page }) => {
     activeProfileId: "p1",
   }, { kind: "wizardModelSave" });
   await expect(page.getByText("默认模型配置已保存", { exact: false })).toBeVisible();
+
+  const beforeRestart = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "重启核心", exact: true }).click();
+  await waitForSend(page, { kind: "restartCore" }, 5000, beforeRestart);
+  const beforeRestartReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "restart-core", status: "ok",
+    response: { status: "READY", workspace_id: "workspace-1", instance_id: "core-2" },
+  }, { kind: "restartCore" });
+  await waitForSend(page, { action: "doctor" }, 5000, beforeRestartReply);
+  await replyDoctor(page, {
+    workspace_id: "workspace-1",
+    supported_actions: ["doctor", "query", "read_view", "events", "storage_usage", "prepare_execution", "authorize_step", "execute_step", "verify_pending", "create_report", "export_report", "start_run"],
+  });
+  await expect(page.getByText("核心已受控重启", { exact: false })).toBeVisible();
+
   await page.screenshot({ path: "test-results/settings.png", fullPage: true });
   expect(errors).toEqual([]);
 });
@@ -290,5 +306,74 @@ test("wizard view asks for project and goal before any write", async ({ page }) 
   await expect(page.getByText("这次要检查什么")).toBeVisible();
   await expect(page.getByText("模型辅助")).toBeVisible();
   await page.screenshot({ path: "test-results/wizard-configure.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("issue detail confirms through the controlled channel", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query" });
+  await page.getByRole("button", { name: "问题", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "issue", record_id: "issue-1", revision: 1 }] } },
+  }, { action: "query" });
+  await page.getByText("问题 issue-1", { exact: false }).click();
+  const issueView = {
+    record_id: "issue-1",
+    record_revision: 1,
+    record_kind: "issue",
+    historical_snapshot: true,
+    record: {
+      issue_id: "issue-1",
+      revision: 1,
+      title: "状态未持久化",
+      description: "提交后再次查询仍为旧状态",
+      severity: "P1",
+      status: "open",
+      disposition: "active",
+      expected: "状态应为 resolved",
+      actual: "状态仍为 pending",
+      run_id: "run-1",
+      case_id: "case-2",
+      step_id: "step-2",
+      attempt_id: "att-2",
+      facts: ["查询返回旧状态"],
+      hypotheses: ["写入未提交"],
+      evidence_refs: [],
+      evidence_revisions: {},
+    },
+  };
+  await replyView(page, "issue", issueView);
+  await page.getByText("展开处理表单", { exact: true }).click();
+  await page.getByLabel("责任人").fill("张三");
+  const beforeSubmit = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "提交问题操作", exact: true }).click();
+  const update = await waitForSend(page, { action: "update_issue" }, 5000, beforeSubmit);
+  expect(update["kind"]).toBe("controlledDispatch");
+  expect(update["target"]).toBe("issue-1");
+  expect(update["expectedRevision"]).toBe(1);
+  expect(update["parameters"]).toMatchObject({
+    issue_id: "issue-1",
+    confirm: { severity: "P1", owner: "张三" },
+  });
+  const beforeReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "update_issue", status: "ok",
+    response: { result: { aggregate_kind: "issue", record_id: "issue-1", revision: 2 } },
+  }, { action: "update_issue" });
+  await waitForSend(page, { action: "query" }, 5000, beforeReply);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "issue", record_id: "issue-1", revision: 2 }] } },
+  }, { action: "query" });
+  await waitForSend(page, { action: "read_view", view: "issue" }, 5000, beforeReply);
+  await replyView(page, "issue", { ...issueView, record_revision: 2, record: { ...issueView.record, revision: 2 } });
+  await expect(page.getByText("问题操作已保存", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });

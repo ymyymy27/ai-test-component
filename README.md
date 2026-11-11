@@ -69,11 +69,12 @@ VSIX 在 `integrations/trae/dist/aitest-trae.vsix`，构建物不跟踪；浏览
 .venv/Scripts/python.exe -m aitest.interfaces.tools.cli templates
 .venv/Scripts/python.exe -m aitest.interfaces.tools.cli doctor
 .venv/Scripts/python.exe -m aitest.interfaces.tools.cli ensure-core --workspace "C:\本地用户数据\aitest"
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli restart-core --workspace "C:\本地用户数据\aitest"
 .venv/Scripts/python.exe -m aitest.interfaces.tools.cli dispatch --workspace "C:\本地用户数据\aitest"
 .venv/Scripts/python.exe -m aitest.interfaces.tools.cli mcp-relay --workspace "C:\本地用户数据\aitest" --project <项目ID> --binding <绑定ID>
 ```
 
-离线 doctor 如实返回 NOT_READY；ensure-core 发现/启动既有工作空间的唯一核心，缺路径拒绝且不创建目录；dispatch 从有界 stdin Command JSON 派发，保留 request/intent/准确修订；MCP 冻结项目绑定、只读查询与允许的普通保存，不自行签人工确认。动作可用性以实际装配回执和具体依赖为准。
+离线 doctor 如实返回 NOT_READY；ensure-core 发现/启动既有工作空间的唯一核心，缺路径拒绝且不创建目录；restart-core 先请求活动核心优雅停机，再启动并核对新实例，活动执行未排空时拒绝；dispatch 从有界 stdin Command JSON 派发，保留 request/intent/准确修订；MCP 冻结项目绑定、只读查询与允许的普通保存，不自行签人工确认。动作可用性以实际装配回执和具体依赖为准。
 
 ## 文档导航
 

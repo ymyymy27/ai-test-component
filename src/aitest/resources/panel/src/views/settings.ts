@@ -104,9 +104,11 @@ export function renderSettings(ctx: AppContext): HTMLElement {
     div(
       "hero-actions",
       button("连接 / 刷新核心", () => void ctx.ensureCore(), { icon: "zap", disabled: state.busy !== null }),
+      button("重启核心", () => void ctx.restartCore(), { icon: "refresh", disabled: state.busy !== null }),
       button("打开插件设置", () => ctx.openHostSettings(), { icon: "settings" }),
       button("空间诊断", () => void storageUsage(ctx), { icon: "chart" }),
     ),
+    p("重启会先请求核心优雅停机；有活动执行时会被核心拒绝，不会被打断。", "muted subtle"),
   );
 
   const workspace = card(

@@ -135,3 +135,42 @@ def test_one_shot_startup_keeps_same_core_for_owning_host(tmp_path: Path) -> Non
         assert response["error"] is None
     finally:
         shutdown_endpoint(tmp_path)
+
+
+def test_restart_core_refuses_a_missing_workspace_without_creating_it(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    target = tmp_path / "typo-workspace"
+
+    code, captured = _run(
+        ["restart-core", "--workspace", str(target)], monkeypatch, capsys
+    )
+
+    assert code == 2
+    assert not target.exists()
+    assert json.loads(captured.err.strip())["code"] == "WORKSPACE_NOT_FOUND"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows named-pipe host lifecycle")
+def test_restart_core_replaces_the_verified_instance(tmp_path: Path) -> None:
+    from aitest.bootstrap import shutdown_endpoint
+
+    env = dict(os.environ, PYTHONUTF8="1")
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
+    cmd = [sys.executable, "-m", "aitest.interfaces.tools.cli",
+           "restart-core", "--workspace", str(tmp_path)]
+    try:
+        first = subprocess.run(
+            cmd, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120
+        )
+        assert first.returncode == 0, first.stderr
+        one = json.loads(first.stdout)
+        second = subprocess.run(
+            cmd, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120
+        )
+        assert second.returncode == 0, second.stderr
+        two = json.loads(second.stdout)
+        assert one["workspace_id"] == two["workspace_id"]
+        assert one["instance_id"] != two["instance_id"]
+    finally:
+        shutdown_endpoint(tmp_path)

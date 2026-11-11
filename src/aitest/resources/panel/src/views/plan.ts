@@ -121,6 +121,7 @@ function planDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElement
           return template ? `${template["template_id"] ?? "?"} ${template["version"] ?? ""}`.trim() : "";
         }).filter(Boolean).join("、") : "—"],
       ]),
+      p("本页只读。准备运行请使用“准备测试”向导；已有运行请从“本次测试·概览”读取。从既有计划直接准备还需要原始准备回执，本版未开放。", "muted subtle"),
       div("hero-actions", button("返回计划列表", () => {
         ctx.state.selectedPlan = null;
         ctx.state.planDetail = null;

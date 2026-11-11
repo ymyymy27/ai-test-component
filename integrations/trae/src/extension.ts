@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 import {wizardMessage, type WizardSession} from "./onboarding";
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { dispatchControlled, dispatchNativeBatch, dispatchReadOnly, dispatchWrite, ensureCore, type BatchDispatchItem, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
+import { dispatchControlled, dispatchNativeBatch, dispatchReadOnly, dispatchWrite, ensureCore, restartCore, type BatchDispatchItem, type DispatchOutcome, type DispatchRequest } from "./core-bridge";
 
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
@@ -218,6 +218,26 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
       code: ensured.code,
       message: ensured.message,
       response: ensured.response,
+      clientRequestId,
+    });
+    return;
+  }
+  if (raw["kind"] === "restartCore") {
+    const { python, workspaceRoot, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = readSettings();
+    const restarted = await restartCore(python, workspaceRoot, 120_000, pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
+    if (JSON.stringify(readSettings()) !== expectedContext) {
+      publishProject(panel, scope);
+      post(panel, { kind: "outcome", action: "restart-core", status: "unavailable",
+        code: "PROJECT_CONTEXT_CHANGED", message: "重启期间宿主配置变化，请重新核对核心", clientRequestId });
+      return;
+    }
+    post(panel, {
+      kind: "outcome",
+      action: "restart-core",
+      status: restarted.status,
+      code: restarted.code,
+      message: restarted.message,
+      response: restarted.response,
       clientRequestId,
     });
     return;

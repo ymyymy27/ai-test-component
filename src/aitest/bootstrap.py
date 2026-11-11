@@ -2449,6 +2449,51 @@ def acquire_existing_endpoint(workspace_root: Path) -> CoreEndpoint:
     return acquire_endpoint(identity.root, workspace_id=identity.workspace_id)
 
 
+class CoreRestartBlocked(RuntimeError):
+    """The active core refused or did not complete a graceful shutdown."""
+
+    code = "CORE_RESTART_BLOCKED"
+
+
+def _has_active_core(root: Path, workspace_id: str) -> bool:
+    """Probe a live core without starting one; the caller closes the probe."""
+    connector = make_pipe_connector(root, ledger=CoreConnectionLedger(root))
+    connected = connector(workspace_id)
+    if connected is None:
+        return False
+    client = connected[0]
+    close = getattr(client, "close", None)
+    if callable(close):
+        with suppress(OSError, ValueError):
+            close()
+    return True
+
+
+def restart_endpoint(
+    workspace_root: Path,
+    *,
+    launcher: CoreLauncher | None = None,
+) -> CoreEndpoint:
+    """Gracefully stop the active core, then start and verify a new one.
+
+    A core with an active execution refuses shutdown; in that case the restart
+    is refused explicitly and the existing writer is preserved.  Starting a
+    core for a workspace without one is the same as ``ensure-core``.
+    """
+
+    FileCoreLaunchStore.reject_links(workspace_root)
+    FileCommitStore.reject_links(workspace_root)
+    root = workspace_root.resolve()
+    workspace_id = Workspace(root).workspace_id
+    if _has_active_core(root, workspace_id) and not shutdown_endpoint(
+        root, workspace_id=workspace_id
+    ):
+        raise CoreRestartBlocked(
+            "活动核心未确认停机；可能有活动执行或停机被拒绝，未重启"
+        )
+    return acquire_endpoint(root, workspace_id=workspace_id, launcher=launcher)
+
+
 def shutdown_endpoint(
     workspace_root: Path,
     *,
@@ -2568,6 +2613,7 @@ __all__ = [
     "CoreAssembly",
     "CoreAssemblyBlocked",
     "CoreConnectionLedger",
+    "CoreRestartBlocked",
     "CoreBootstrap",
     "CoreInstance",
     "EditorHost",
@@ -2581,5 +2627,6 @@ __all__ = [
     "make_pipe_connector",
     "register_use_cases",
     "registered_use_cases",
+    "restart_endpoint",
     "shutdown_endpoint",
 ]

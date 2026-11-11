@@ -35,13 +35,14 @@ export function renderWizard(ctx: AppContext): HTMLElement {
     wizardTitle(state.stage),
     "按顺序准备项目、环境、计划与运行。发布和授权会由核心原生窗口确认。",
     state.stage !== "choose"
-      ? button("重新开始", () => wizard.reset(), { variant: "ghost", icon: "refresh" })
+      ? button("重新开始", () => wizard.reset(), { variant: "ghost", icon: "refresh", disabled: state.busy })
       : null,
   );
   page.appendChild(head);
   page.appendChild(stepper([...WIZARD_STEPS], Math.min(wizard.stageIndex(), WIZARD_STEPS.length - 1), wizard.completedSteps()));
   if (state.stage === "choose") page.appendChild(chooseStep(ctx));
   else if (state.stage === "configure") page.appendChild(configureStep(ctx));
+  else if (state.stage === "restart") page.appendChild(restartStep(ctx));
   else if (state.stage === "project") page.appendChild(projectStep(ctx));
   else if (state.stage === "model") page.appendChild(modelStep(ctx));
   else if (state.stage === "manual") page.appendChild(manualStep(ctx));
@@ -60,6 +61,8 @@ function wizardTitle(stage: string): string {
       return "选择要测试的项目";
     case "configure":
       return "说明目标并准备环境";
+    case "restart":
+      return "重启核心以应用配置";
     case "project":
       return "保存项目并分析源码";
     case "model":
@@ -174,8 +177,28 @@ function envLine(text: string): HTMLElement {
   return div("hero-step", div("hero-step-num", "·"), div("grow", text));
 }
 
-function projectStep(ctx: AppContext): HTMLElement {
+function restartStep(ctx: AppContext): HTMLElement {
   const wizard = ctx.wizard;
+  const state = wizard.state;
+  return card(
+    "hero",
+    div("eyebrow", "应用配置"),
+    h2("重启核心以加载环境与模型配置"),
+    p("carriers 与模型配置只在核心启动时读取。面板会请求核心优雅停机；如果有活动执行，核心会拒绝重启，已登记的运行不会被中断。", "muted"),
+    state.busy ? loading("正在受控重启核心…") : null,
+    div(
+      "hero-actions",
+      button("重试受控重启", () => void wizard.restartAndContinue(), {
+        variant: "primary",
+        icon: "refresh",
+        disabled: state.busy,
+      }),
+      button("重新开始", () => wizard.reset(), { icon: "refresh", disabled: state.busy }),
+    ),
+  );
+}
+
+function projectStep(ctx: AppContext): HTMLElement {  const wizard = ctx.wizard;
   const state = wizard.state;
   const progressState = state.commandProgress;
   const labels = ["保存项目", "绑定目录", "登记环境", "分析源码"];

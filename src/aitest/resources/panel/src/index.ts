@@ -64,6 +64,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
       hostAvailable: this.hostAvailable,
       wizardRequest: (kind, extra) => this.wizardRequest(kind, extra),
       write: (action, parameters, options) => this.write(action, parameters, options),
+      restartCore: () => this.restartCore(),
       render: () => this.render(),
       navigate: route => this.navigate(route),
       setNotice: (message, tone) => this.setNotice(message, tone),
@@ -141,6 +142,39 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.state.connectionMessage = outcome.message ?? "核心自检未通过。";
     this.state.doctor = null;
     this.render();
+  }
+
+  async restartCore(): Promise<Outcome> {
+    if (!this.client) {
+      return { action: "restart-core", status: "refused", code: "NO_HOST", message: "未连接编辑器宿主。" };
+    }
+    this.state.busy = "restart";
+    this.render();
+    const outcome = await this.client.restartCore();
+    this.state.busy = null;
+    if (outcome.status === "ok") {
+      const workspace = outcome.response?.["workspace_id"];
+      if (typeof workspace === "string") this.state.workspaceId = workspace;
+      this.state.connection = "ready";
+      this.state.connectionMessage = "";
+      await this.doctor();
+      if (this.state.connection === "ready") {
+        this.setNotice("核心已受控重启并重新连接。", "success");
+      }
+    } else {
+      if (outcome.code === "CORE_RESTART_BLOCKED") {
+        // 活动执行未排空时核心会拒绝停机；此时旧核心仍然可用，不把它标成断连。
+        this.state.connection = this.state.connection === "unavailable" ? "unavailable" : "ready";
+      } else {
+        // 停机已发生或结果未知：不把旧连接事实继续当成可用核心。
+        this.state.connection = "unavailable";
+        this.state.connectionMessage = outcome.message ?? "核心重启未完成。";
+        this.state.doctor = null;
+      }
+      this.setNotice(outcome.message ?? "核心重启未完成。", "danger");
+      this.render();
+    }
+    return outcome;
   }
 
   private applyProjectContext(context: ProjectContext): void {

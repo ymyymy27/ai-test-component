@@ -32,6 +32,7 @@ export interface AppContext {
   wizardRequest(kind: string, extra?: Record<string, unknown>): Promise<WizardResult>;
 
   ensureCore(): Promise<void>;
+  restartCore(): Promise<Outcome>;
   refreshCurrent(): Promise<void>;
   loadPlans(): Promise<void>;
   loadReports(): Promise<void>;
@@ -56,6 +57,7 @@ export interface WizardHost {
   readonly hostAvailable: boolean;
   wizardRequest(kind: string, extra?: Record<string, unknown>): Promise<WizardResult>;
   write(action: string, parameters: Record<string, unknown>, options?: WriteOptions): Promise<Outcome>;
+  restartCore(): Promise<Outcome>;
   render(): void;
   navigate(route: Route): void;
   setNotice(message: string, tone?: Tone): void;

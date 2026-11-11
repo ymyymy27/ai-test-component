@@ -249,7 +249,34 @@ export async function ensureCore(
   businessQueriesFile?: string,
   modelConfigurationFile?: string,
 ): Promise<DispatchOutcome> {
-  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
+  return coreEntry("ensure-core", python, workspaceRoot, timeoutMs,
+    pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
+}
+
+/** 受控重启核心：先优雅停机，再启动并核对新实例；活动执行未排空时由核心拒绝。 */
+export async function restartCore(
+  python: string,
+  workspaceRoot: string,
+  timeoutMs = 120_000,
+  pythonCarriersFile?: string,
+  businessQueriesFile?: string,
+  modelConfigurationFile?: string,
+): Promise<DispatchOutcome> {
+  return coreEntry("restart-core", python, workspaceRoot, timeoutMs,
+    pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
+}
+
+async function coreEntry(
+  subcommand: "ensure-core" | "restart-core",
+  python: string,
+  workspaceRoot: string,
+  timeoutMs: number,
+  pythonCarriersFile?: string,
+  businessQueriesFile?: string,
+  modelConfigurationFile?: string,
+): Promise<DispatchOutcome> {
+  const maxTimeoutMs = subcommand === "ensure-core" ? 60_000 : 120_000;
+  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > maxTimeoutMs) {
     return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
   }
   if (!workspaceRoot.trim()) {
@@ -262,7 +289,7 @@ export async function ensureCore(
   return new Promise<DispatchOutcome>((resolve) => {
     const child = spawn(
       python,
-      ["-m", "aitest.interfaces.tools.cli", "ensure-core", "--workspace", workspaceRoot],
+      ["-m", "aitest.interfaces.tools.cli", subcommand, "--workspace", workspaceRoot],
       { stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
         env: {...process.env,
           ...(pythonCarriersFile ? {AITEST_PYTHON_CARRIERS:pythonCarriersFile} : {}),
@@ -284,7 +311,10 @@ export async function ensureCore(
     };
     const timer = setTimeout(() => {
       child.kill();
-      finish({ status: "unavailable", code: "ENTRY_TIMEOUT", message: "启动核心在限定时间内未回报" });
+      finish({ status: "unavailable", code: "ENTRY_TIMEOUT",
+        message: subcommand === "ensure-core"
+          ? "启动核心在限定时间内未回报"
+          : "重启核心在限定时间内未回报" });
     }, timeoutMs);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -313,6 +343,15 @@ export async function ensureCore(
     });
     child.on("close", (code: number | null) => {
       const parsed = parseResponse(stdout);
+      if (code !== 0 && parsed !== null) {
+        const errorCode = parsed["code"];
+        const errorMessage = parsed["message"];
+        if (typeof errorCode === "string" && errorCode
+            && typeof errorMessage === "string" && errorMessage.trim()) {
+          finish({ status: "refused", code: errorCode, message: errorMessage, response: parsed });
+          return;
+        }
+      }
       if (code === 0 && parsed !== null && parsed["status"] === "READY"
           && typeof parsed["workspace_id"] === "string" && parsed["workspace_id"].trim()
           && typeof parsed["instance_id"] === "string" && parsed["instance_id"].trim()) {
@@ -323,7 +362,9 @@ export async function ensureCore(
         status: "refused",
         code: "CORE_UNAVAILABLE",
         message:
-          "核心未能在限定时间内核实并连接，请查看受控诊断",
+          subcommand === "ensure-core"
+            ? "核心未能在限定时间内核实并连接，请查看受控诊断"
+            : "核心未能在限定时间内重启并连接，请查看受控诊断",
       });
     });
   }).catch((error: unknown) => ({ status: "unavailable", code: "ENTRY_SPAWN_FAILED",

@@ -135,6 +135,7 @@ export class WizardController {
       case "choose":
       case "configure":
         return 0;
+      case "restart":
       case "project":
         return 1;
       case "model":
@@ -267,9 +268,31 @@ export class WizardController {
     if (!this.resultOk(result)) return;
     const setup = asRecord(result.setup);
     if (setup && typeof setup["workspace"] === "string") this.state.workspace = setup["workspace"];
-    this.state.stage = "project";
+    this.state.stage = "restart";
     this.state.error = "";
-    this.setBusy(false, "独立环境已准备。正在保存项目并分析源码…");
+    this.state.note = "环境与模型配置已写入，正在受控重启核心…";
+    this.state.busy = false;
+    this.render();
+    await this.restartAndContinue();
+  }
+
+  /** Restart applies carriers/model configuration; the core loads it only at startup. */
+  async restartAndContinue(): Promise<void> {
+    if (this.state.busy) return;
+    this.state.stage = "restart";
+    this.state.busy = true;
+    this.state.error = "";
+    this.state.note = "正在受控重启核心…";
+    this.render();
+    const outcome = await this.host.restartCore();
+    this.state.busy = false;
+    if (outcome.status !== "ok") {
+      this.fail(outcome.message ?? "核心重启未完成；请处理活动执行后重试。", outcome.code);
+      return;
+    }
+    this.state.stage = "project";
+    this.state.note = "核心已重启。正在保存项目并分析源码…";
+    this.render();
     await this.runStage("project");
   }
 

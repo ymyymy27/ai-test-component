@@ -187,6 +187,7 @@ export interface WriteOptions {
 export type WizardStage =
   | "choose"
   | "configure"
+  | "restart"
   | "project"
   | "model"
   | "review"

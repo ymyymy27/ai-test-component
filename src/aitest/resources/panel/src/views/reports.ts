@@ -21,14 +21,19 @@ import {
   cardHead,
   chip,
   codeBlock,
+  details,
   div,
   empty,
   facts,
+  field,
   h2,
   loading,
   pageHead,
   p,
+  select,
   stat,
+  textArea,
+  textInput,
 } from "../ui";
 
 export function renderReports(ctx: AppContext): HTMLElement {
@@ -281,7 +286,7 @@ function issueDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElemen
       "",
       cardHead(
         String(record["title"] ?? "问题详情"),
-        `问题 ${shortId(record["issue_id"], 14)} · 修订 ${record["revision"] ?? "—"}`,
+        `问题 ${shortId(record["issue_id"], 14)} · 修订 ${record["revision"] ?? ctx.state.selectedIssue?.revision ?? "—"}`,
         chip(label(record["status"]), toneForState(record["status"])),
       ),
       facts([
@@ -336,6 +341,179 @@ function issueDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElemen
           ),
         )
       : null,
+    issueActions(ctx, record),
+  );
+}
+
+type IssueAction = "confirm" | "start" | "record_fix" | "regression" | "close" | "disposition";
+
+function issueActions(ctx: AppContext, record: Record<string, unknown>): HTMLElement {
+  const issueId = typeof record["issue_id"] === "string" ? record["issue_id"] : "";
+  const revision = asNumber(record["revision"], ctx.state.selectedIssue?.revision ?? 0);
+  if (!issueId) return div("");
+  let action: IssueAction = "confirm";
+
+  const severity = select([
+    { value: "P0", label: "P0 · 阻断" },
+    { value: "P1", label: "P1 · 严重" },
+    { value: "P2", label: "P2 · 一般" },
+    { value: "P3", label: "P3 · 轻微" },
+  ], "P1", () => {});
+  const owner = textInput("", () => {}, { placeholder: "责任人" });
+  const fixVersion = textInput("", () => {}, { placeholder: "修复版本" });
+  const regressionMethod = textInput("", () => {}, { placeholder: "回归方式" });
+  const closureCriteria = textArea("", () => {}, { rows: 2, placeholder: "关闭条件" });
+  const regressionNote = textInput("", () => {}, { placeholder: "回归说明（可留空）" });
+  const caseId = textInput(typeof record["case_id"] === "string" ? record["case_id"] : "", () => {});
+  const runId = textInput(typeof record["run_id"] === "string" ? record["run_id"] : "", () => {});
+  const attemptId = textInput("", () => {}, { placeholder: "新的回归尝试编号" });
+  const assertionRef = textInput("", () => {}, { placeholder: "断言引用" });
+  const assertionOutcome = select([
+    { value: "passed", label: "通过" },
+    { value: "failed", label: "失败" },
+    { value: "unknown", label: "未知（不声明结果）" },
+  ], "passed", () => {});
+  const dispositionKind = select([
+    { value: "non_defect", label: "非缺陷" },
+    { value: "duplicate", label: "重复问题" },
+    { value: "deferred", label: "推迟处理" },
+  ], "non_defect", () => {});
+  const dispositionReason = textInput("", () => {}, { placeholder: "处置原因" });
+  const evidenceRefs = textInput("", () => {}, { placeholder: "证据编号，逗号分隔（可留空）" });
+  const canonicalId = textInput("", () => {}, { placeholder: "主问题编号（仅重复时必填）" });
+
+  const groups: Record<IssueAction, HTMLElement> = {
+    confirm: div("stack-sm", field("严重度", severity), field("责任人", owner)),
+    start: p("登记“开始处理”。本操作不执行测试、不关闭问题。", "muted subtle"),
+    record_fix: div(
+      "stack-sm",
+      field("修复版本", fixVersion),
+      field("回归方式", regressionMethod),
+      field("关闭条件", closureCriteria),
+    ),
+    regression: div("stack-sm", p("登记回归安排；新执行仍由工作台产生。", "muted subtle"), field("说明", regressionNote)),
+    close: div(
+      "stack-sm",
+      p("关闭需要原用例上的新的当前回归尝试和已确认依据；旧尝试不能当成本轮回归。", "muted subtle"),
+      field("原用例编号", caseId),
+      field("回归运行编号", runId),
+      field("回归尝试编号", attemptId),
+      field("断言引用", assertionRef),
+      field("断言结果", assertionOutcome),
+    ),
+    disposition: div(
+      "stack-sm",
+      field("处置类型", dispositionKind),
+      field("原因", dispositionReason),
+      field("证据编号（逗号分隔）", evidenceRefs),
+      field("主问题编号（仅重复时必填）", canonicalId),
+    ),
+  };
+  for (const [key, node] of Object.entries(groups)) node.hidden = key !== action;
+
+  const actionSelect = select([
+    { value: "confirm", label: "确认问题" },
+    { value: "start", label: "开始处理" },
+    { value: "record_fix", label: "记录修复" },
+    { value: "regression", label: "请求回归" },
+    { value: "close", label: "关闭问题" },
+    { value: "disposition", label: "标记重复 / 非缺陷 / 推迟" },
+  ], action, value => {
+    action = value as IssueAction;
+    for (const [key, node] of Object.entries(groups)) node.hidden = key !== action;
+  });
+  const note = p("", "field-help");
+  const submit = button("提交问题操作", async () => {
+    note.textContent = "";
+    let command = "update_issue";
+    let parameters: Record<string, unknown>;
+    if (action === "confirm") {
+      if (!owner.value.trim()) {
+        note.textContent = "请填写责任人。";
+        return;
+      }
+      parameters = { issue_id: issueId, confirm: { severity: severity.value, owner: owner.value.trim() } };
+    } else if (action === "start") {
+      parameters = { issue_id: issueId, start: true };
+    } else if (action === "record_fix") {
+      if (!fixVersion.value.trim() || !regressionMethod.value.trim() || !closureCriteria.value.trim()) {
+        note.textContent = "请填写修复版本、回归方式和关闭条件。";
+        return;
+      }
+      command = "record_fix";
+      parameters = {
+        issue_id: issueId,
+        fix_version: fixVersion.value.trim(),
+        regression_method: regressionMethod.value.trim(),
+        closure_criteria: closureCriteria.value.trim(),
+      };
+    } else if (action === "regression") {
+      command = "request_regression";
+      parameters = { issue_id: issueId, ...(regressionNote.value.trim() ? { note: regressionNote.value.trim() } : {}) };
+    } else if (action === "close") {
+      if (!caseId.value.trim() || !runId.value.trim() || !attemptId.value.trim() || !assertionRef.value.trim()) {
+        note.textContent = "关闭问题需要原用例、回归运行、新的回归尝试和断言引用。";
+        return;
+      }
+      parameters = {
+        issue_id: issueId,
+        case_id: caseId.value.trim(),
+        run_id: runId.value.trim(),
+        attempt_id: attemptId.value.trim(),
+        assertion_ref: assertionRef.value.trim(),
+        ...(assertionOutcome.value === "unknown" ? {} : { assertion_outcome: assertionOutcome.value }),
+      };
+    } else {
+      const refs = evidenceRefs.value.split(",").map(value => value.trim()).filter(Boolean);
+      if (!dispositionReason.value.trim()) {
+        note.textContent = "请填写处置原因。";
+        return;
+      }
+      if (dispositionKind.value === "duplicate" && !canonicalId.value.trim()) {
+        note.textContent = "标记重复时请填写主问题编号。";
+        return;
+      }
+      parameters = {
+        issue_id: issueId,
+        disposition: {
+          kind: dispositionKind.value,
+          reason: dispositionReason.value.trim(),
+          evidence_refs: refs,
+          ...(dispositionKind.value === "duplicate" ? { canonical_issue_id: canonicalId.value.trim() } : {}),
+        },
+      };
+    }
+    const outcome = await ctx.write(command, parameters, {
+      target: issueId,
+      expectedRevision: revision,
+      intentId: ctx.intent(command, parameters, issueId, revision),
+    });
+    if (outcome.status !== "ok") {
+      note.textContent = outcome.message ?? "问题操作未完成。";
+      ctx.setNotice(note.textContent, "danger");
+      return;
+    }
+    const result = asRecord(outcome.response?.["result"]) ?? {};
+    const nextRevision = asNumber(result["revision"], revision + 1);
+    await ctx.loadIssues();
+    const view = await ctx.read("issue", { record_id: issueId, revision: nextRevision });
+    ctx.state.selectedIssue = { record_id: issueId, revision: nextRevision };
+    ctx.state.issueDetail = view;
+    ctx.setNotice("问题操作已保存。", "success");
+    ctx.render();
+  }, { variant: "primary", icon: "shield" });
+
+  return card(
+    "",
+    cardHead("处理问题", "写操作按核心合同选择普通写入或原生确认；关闭问题不会由界面代判。"),
+    details(
+      "展开处理表单",
+      p("确认、开始、修复、回归、关闭和处置分别记录；旧尝试与旧证据保留为历史。", "muted subtle"),
+      field("操作", actionSelect),
+      ...Object.values(groups),
+      submit,
+      note,
+    ),
   );
 }
 

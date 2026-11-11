@@ -138,6 +138,10 @@ export class HostClient {
     return this.requestOutcome({ kind: "ensureCore" }, 90_000);
   }
 
+  restartCore(): Promise<Outcome> {
+    return this.requestOutcome({ kind: "restartCore" }, 150_000);
+  }
+
   read(action: string, parameters: Record<string, unknown>, projectId: string | null): Promise<Outcome> {
     return this.requestOutcome(
       {
