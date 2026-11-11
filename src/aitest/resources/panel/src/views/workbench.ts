@@ -26,11 +26,14 @@ import {
   div,
   empty,
   facts,
+  field,
   loading,
   pageHead,
   p,
   progress,
+  select,
   textArea,
+  textInput,
 } from "../ui";
 
 export function renderWorkbench(ctx: AppContext): HTMLElement {
@@ -243,7 +246,7 @@ function stepDetail(ctx: AppContext, run: Record<string, unknown>, step: Record<
   });
 
   const external = details(
-    "手工补证（用例无法自动核验时）",
+    "导入外部结果（替代路径）",
     p("记录实际操作、输出与断言值；提交后由核心判定缺口，不会自动写成通过。", "muted subtle"),
     externalImportForm(ctx, run, step),
   );
@@ -271,6 +274,7 @@ function stepDetail(ctx: AppContext, run: Record<string, unknown>, step: Record<
       state === "blocked" ? banner("该步骤被阻塞。先处理缺口或上游依赖，再重新解析操作。", "warning") : null,
       invalidated ? banner("该步骤的依据已过期，不能直接当作本轮有效结果。", "warning") : null,
     ),
+    recoveryCard(ctx, run, step, attempt, execution),
     gaps.length ? card("", cardHead("当前缺口", "缺口代码来自核心；面板只做中文说明。"), gapList) : null,
     card(
       "",
@@ -279,6 +283,222 @@ function stepDetail(ctx: AppContext, run: Record<string, unknown>, step: Record<
     ),
     external,
     ctx.state.workbench.note ? banner(ctx.state.workbench.note, "info") : null,
+  );
+}
+
+function recoveryCard(
+  ctx: AppContext,
+  run: Record<string, unknown>,
+  step: Record<string, unknown>,
+  attempt: string | null,
+  execution: ExecutionState,
+): HTMLElement {
+  const attemptCompleted = step["attempt_state"] === "completed" || step["state"] === "completed";
+  const canAttempt = attempt !== null && ctx.state.busy === null;
+  return card(
+    "",
+    cardHead("执行不顺利？", "重试/退回会产生新尝试；旧尝试与证据保留。补证只绑定当前已完成的尝试。"),
+    div(
+      "hero-actions",
+      button("重试这一步", () => confirmRecovery(ctx, run, step, "retry"), {
+        icon: "refresh",
+        disabled: !canAttempt,
+        title: attempt ? "重新解析并执行一个新尝试" : "先完成一次执行",
+      }),
+      button("退回上游", () => confirmRecovery(ctx, run, step, "return"), {
+        icon: "arrow-left",
+        disabled: !canAttempt,
+        title: attempt ? "创建新尝试并计算下游需重跑" : "先完成一次执行",
+      }),
+      button("补录证据", () => openAttachEvidence(ctx, run, step, attempt), {
+        icon: "file",
+        disabled: !attempt || !attemptCompleted || ctx.state.busy !== null,
+        title: !attempt
+          ? "先完成一次执行"
+          : attemptCompleted ? "绑定当前尝试补录人工证据" : "当前尝试尚未完成，暂不能补证",
+      }),
+    ),
+    p("重试和退回都会重新解析动作；旧执行与证据保留，依赖下游以核心回执为准。", "muted subtle"),
+    execution.actionId ? p(`当前已解析动作：${shortId(execution.actionId, 18)}`, "muted tiny") : null,
+  );
+}
+
+function confirmRecovery(
+  ctx: AppContext,
+  run: Record<string, unknown>,
+  step: Record<string, unknown>,
+  mode: "retry" | "return",
+): void {
+  const stepId = String(step["step_id"] ?? "");
+  const attempt = typeof step["current_attempt_id"] === "string" ? step["current_attempt_id"] : null;
+  if (!attempt) {
+    ctx.setNotice("先完成一次执行，再重试或退回。", "warning");
+    return;
+  }
+  const content = div(
+    "stack",
+    p(
+      mode === "retry"
+        ? "将为这一步重新解析并执行一个新尝试。旧尝试、旧证据保留；依赖此步的下游步骤会由核心按实际依赖标记。"
+        : "将为这一步重新解析并执行一个新尝试，并计算依赖它的下游步骤。旧尝试、旧证据保留；实际需重跑清单以核心回执为准。",
+      "muted",
+    ),
+    facts([
+      ["步骤", stepId],
+      ["当前尝试", shortId(attempt, 14)],
+      ["操作", mode === "retry" ? "重试（新尝试）" : "退回上游（新尝试）"],
+    ]),
+    div(
+      "hero-actions",
+      button("取消", () => ctx.closeDialog(), { variant: "ghost" }),
+      button(mode === "retry" ? "确认重试" : "确认退回", async () => {
+        ctx.closeDialog();
+        await runRecovery(ctx, run, step, mode);
+      }, { variant: "primary", icon: "shield" }),
+    ),
+  );
+  ctx.showDialog(mode === "retry" ? "重试这一步" : "退回上游", content);
+}
+
+async function runRecovery(
+  ctx: AppContext,
+  run: Record<string, unknown>,
+  step: Record<string, unknown>,
+  mode: "retry" | "return",
+): Promise<void> {
+  const runId = typeof run["run_id"] === "string" ? run["run_id"] : "";
+  const stepId = String(step["step_id"] ?? "");
+  const attemptId = typeof step["current_attempt_id"] === "string" ? step["current_attempt_id"] : "";
+  if (!runId || !stepId || !attemptId) return;
+  const intent = ctx.intent(`${mode}-step`, { run_id: runId, step_id: stepId, attempt_id: attemptId }, stepId, 0);
+  ctx.state.busy = "recovery";
+  ctx.state.workbench.note = mode === "retry" ? "正在准备重试…" : "正在准备退回…";
+  ctx.render();
+  const prepared = await ctx.write(
+    "prepare_execution",
+    { run_id: runId, step_id: stepId },
+    { target: stepId, expectedRevision: 0, intentId: intent },
+  );
+  const preparedResult = asRecord(prepared.response?.["result"]) ?? {};
+  const actionId = typeof preparedResult["execution_action_id"] === "string"
+    ? preparedResult["execution_action_id"]
+    : "";
+  if (prepared.status !== "ok" || !actionId) {
+    ctx.state.busy = null;
+    ctx.state.workbench.note = prepared.message ?? "没有解析出新的执行动作。";
+    ctx.render();
+    return;
+  }
+  const outcome = await ctx.write(
+    mode === "retry" ? "retry_step" : "return_stage",
+    { execution_action_id: actionId, record_revision: 1 },
+    { target: stepId, expectedRevision: 0, intentId: intent },
+  );
+  ctx.state.busy = null;
+  if (outcome.status !== "ok") {
+    ctx.state.workbench.note = outcome.message ?? (mode === "retry" ? "重试未完成。" : "退回未完成。");
+    ctx.render();
+    return;
+  }
+  const result = asRecord(outcome.response?.["result"]) ?? {};
+  let message: string;
+  if (mode === "retry") {
+    const previous = asNumber(result["retried_from_attempt_index"], 0);
+    message = previous > 0
+      ? `已重试（从第 ${previous + 1} 次尝试开始）；旧尝试与证据保留。`
+      : "重试已执行；旧尝试与证据保留。";
+  } else {
+    const downstream = asStrings(result["downstream_requires_rerun"]);
+    const note = typeof result["downstream_note"] === "string" ? result["downstream_note"] : "";
+    message = downstream.length
+      ? `已退回；下游需重跑：${downstream.join("、")}`
+      : (note || "已退回；没有登记下游需重跑。");
+  }
+  // 新尝试已经执行；保留动作引用，让下一步直接进入核验。
+  ctx.state.workbench.executions[stepId] = { intent, actionId, authorized: true, executed: true };
+  ctx.state.workbench.note = message;
+  ctx.setNotice(message, "success");
+  await ctx.refreshCurrent();
+}
+
+function openAttachEvidence(
+  ctx: AppContext,
+  run: Record<string, unknown>,
+  step: Record<string, unknown>,
+  attempt: string | null,
+): void {
+  if (!attempt) {
+    ctx.setNotice("先完成一次执行，再补录证据。", "warning");
+    return;
+  }
+  const runId = typeof run["run_id"] === "string" ? run["run_id"] : "";
+  const stepId = String(step["step_id"] ?? "");
+  const operation = select([
+    { value: "form", label: "表单操作" },
+    { value: "button", label: "按钮操作" },
+    { value: "pagination", label: "分页" },
+    { value: "navigation", label: "页面导航" },
+    { value: "scroll", label: "滚动" },
+    { value: "mouse", label: "鼠标操作" },
+    { value: "error_prompt", label: "错误提示" },
+    { value: "data_display", label: "数据展示" },
+  ], "form", () => {});
+  const target = textInput("", () => {}, { placeholder: "页面、元素或接口" });
+  const observed = textArea("", () => {}, { rows: 3, placeholder: "实际观察到的结果" });
+  const business = textInput("", () => {}, { placeholder: "业务对象编号" });
+  const summary = textInput("", () => {}, { placeholder: "输入摘要（可留空）" });
+  const note = p("", "field-help");
+  const submit = button("提交人工证据", async () => {
+    note.textContent = "";
+    if (!target.value.trim() || !observed.value.trim() || !business.value.trim()) {
+      note.textContent = "请填写操作目标、实际结果和业务对象编号。";
+      return;
+    }
+    const parameters = {
+      run_id: runId,
+      step_id: stepId,
+      attempt_id: attempt,
+      operation_type: operation.value,
+      target_ref: target.value.trim(),
+      observed_result: observed.value.trim(),
+      business_object_id: business.value.trim(),
+      ...(summary.value.trim() ? { input_summary: summary.value.trim() } : {}),
+    };
+    const outcome = await ctx.write("attach_evidence", parameters, {
+      target: stepId,
+      expectedRevision: 0,
+      intentId: ctx.intent("attach_evidence", parameters, stepId, 0),
+    });
+    if (outcome.status !== "ok") {
+      note.textContent = outcome.message ?? "人工证据未保存。";
+      return;
+    }
+    const result = asRecord(outcome.response?.["result"]) ?? {};
+    const evidenceId = typeof result["evidence_id"] === "string" ? result["evidence_id"] : "";
+    ctx.closeDialog();
+    ctx.state.workbench.note = evidenceId
+      ? `人工证据已保存：${shortId(evidenceId, 14)}`
+      : "人工证据已保存。";
+    ctx.setNotice(ctx.state.workbench.note, "success");
+    await ctx.refreshCurrent();
+  }, { variant: "primary", icon: "shield" });
+  ctx.showDialog(
+    "补录人工证据",
+    div(
+      "stack",
+      p(`绑定当前尝试：${shortId(runId, 10)} / ${shortId(stepId, 10)} / ${shortId(attempt, 10)}`, "muted"),
+      field("操作类型", operation),
+      field("操作目标", target),
+      field("实际结果", observed),
+      field("业务对象编号", business),
+      field("输入摘要（可留空）", summary),
+      note,
+      div(
+        "hero-actions",
+        button("取消", () => ctx.closeDialog(), { variant: "ghost" }),
+        submit,
+      ),
+    ),
   );
 }
 

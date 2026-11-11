@@ -21,8 +21,8 @@ const panel = {
 };
 
 const steps = [
-  { step_id: "step-1", case_id: "case-1", state: "completed", current_attempt_id: "att-1", attempt_state: "succeeded", adapter_kind: "command", evidence_ids: ["ev-1"], evidence_revisions: [1] },
-  { step_id: "step-2", case_id: "case-2", state: "pending_verification", current_attempt_id: "att-2", attempt_state: "succeeded", adapter_kind: "command", evidence_ids: ["ev-2"], evidence_revisions: [1] },
+  { step_id: "step-1", case_id: "case-1", state: "completed", current_attempt_id: "att-1", attempt_state: "completed", adapter_kind: "command", evidence_ids: ["ev-1"], evidence_revisions: [1] },
+  { step_id: "step-2", case_id: "case-2", state: "pending_verification", current_attempt_id: "att-2", attempt_state: "completed", adapter_kind: "command", evidence_ids: ["ev-2"], evidence_revisions: [1] },
 ];
 
 const run = {
@@ -127,4 +127,103 @@ test("workbench walks prepare -> authorize -> execute -> verify and reads eviden
     } } },
   }, { action: "read_view", view: "evidence" });
   await expect(page.getByText("stdout: order total 42")).toBeVisible();
+});
+
+test("retry creates a new attempt through prepare and retry", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByRole("button", { name: "重试这一步", exact: true }).click();
+  await expect(page.getByText("将为这一步重新解析并执行一个新尝试", { exact: false })).toBeVisible();
+  const before = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "确认重试", exact: true }).click();
+
+  const prepare = await waitForSend(page, { action: "prepare_execution" }, 5000, before);
+  expect(prepare["kind"]).toBe("writeDispatch");
+  const beforePrepareReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "prepare_execution", status: "ok",
+    response: { result: { execution_action_id: "retry-action-1" } },
+  }, { action: "prepare_execution" });
+
+  const retry = await waitForSend(page, { action: "retry_step" }, 5000, beforePrepareReply);
+  expect(retry["kind"]).toBe("writeDispatch");
+  expect(retry["target"]).toBe("step-2");
+  expect((retry["parameters"] as Record<string, unknown>)["execution_action_id"]).toBe("retry-action-1");
+  const beforeRetryReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "retry_step", status: "ok",
+    response: { result: { retried_from_attempt_index: 1, previous_attempt_preserved: true, attempt_id: "att-3" } },
+  }, { action: "retry_step" });
+
+  await waitForSend(page, { action: "read_view", view: "panel" }, 5000, beforeRetryReply);
+  await replyView(page, "panel", panel);
+  await waitForSend(page, { action: "read_view", view: "run" }, 5000, beforeRetryReply);
+  await replyView(page, "run", {
+    ...run,
+    steps: run.steps.map(step => step.step_id === "step-2"
+      ? { ...step, current_attempt_id: "att-3", state: "pending_verification" }
+      : step),
+  });
+  await expect(page.getByText("已重试", { exact: false }).first()).toBeVisible();
+});
+
+test("return stage reports downstream steps from the core receipt", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByRole("button", { name: "退回上游", exact: true }).click();
+  await expect(page.getByText("实际需重跑清单以核心回执为准", { exact: false })).toBeVisible();
+  const before = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "确认退回", exact: true }).click();
+
+  await waitForSend(page, { action: "prepare_execution" }, 5000, before);
+  const beforePrepareReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "prepare_execution", status: "ok",
+    response: { result: { execution_action_id: "return-action-1" } },
+  }, { action: "prepare_execution" });
+  const returned = await waitForSend(page, { action: "return_stage" }, 5000, beforePrepareReply);
+  expect(returned["kind"]).toBe("writeDispatch");
+  expect((returned["parameters"] as Record<string, unknown>)["execution_action_id"]).toBe("return-action-1");
+  const beforeReturnReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "return_stage", status: "ok",
+    response: { result: { downstream_step_ids: ["step-3"], downstream_requires_rerun: ["step-3"], downstream_note: "下游 1 个步骤需重跑" } },
+  }, { action: "return_stage" });
+  await waitForSend(page, { action: "read_view", view: "panel" }, 5000, beforeReturnReply);
+  await replyView(page, "panel", panel);
+  await waitForSend(page, { action: "read_view", view: "run" }, 5000, beforeReturnReply);
+  await replyView(page, "run", run);
+  await expect(page.getByText("下游需重跑：step-3", { exact: false }).first()).toBeVisible();
+});
+
+test("attach evidence prefills the current attempt and saves manual evidence", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByRole("button", { name: "补录证据", exact: true }).click();
+  await expect(page.getByText("绑定当前尝试", { exact: false })).toBeVisible();
+  await page.getByLabel("操作目标").fill("订单详情页");
+  await page.getByLabel("实际结果").fill("页面显示已支付");
+  await page.getByLabel("业务对象编号").fill("order-1");
+  const before = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "提交人工证据", exact: true }).click();
+  const attach = await waitForSend(page, { action: "attach_evidence" }, 5000, before);
+  expect(attach["kind"]).toBe("writeDispatch");
+  expect(attach["parameters"]).toMatchObject({
+    run_id: "run-1", step_id: "step-2", attempt_id: "att-2",
+    operation_type: "form", target_ref: "订单详情页",
+    observed_result: "页面显示已支付", business_object_id: "order-1",
+  });
+  const beforeReply = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "attach_evidence", status: "ok",
+    response: { result: { evidence_id: "manual-evidence-1" } },
+  }, { action: "attach_evidence" });
+  await waitForSend(page, { action: "read_view", view: "panel" }, 5000, beforeReply);
+  await replyView(page, "panel", panel);
+  await waitForSend(page, { action: "read_view", view: "run" }, 5000, beforeReply);
+  await replyView(page, "run", run);
+  await expect(page.getByText("人工证据已保存", { exact: false }).first()).toBeVisible();
 });
