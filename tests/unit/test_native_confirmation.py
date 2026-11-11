@@ -19,7 +19,10 @@ from aitest.interfaces.local.editor_host import CoreEndpoint
 from aitest.interfaces.local.native_confirmation import (
     MAX_PROMPT_CHARS,
     NATIVE_CONFIRMATION_VERSION,
+    PANEL_CONFIRMATION_VERSION,
+    confirm_panel_confirmation,
     dispatch_native,
+    prepare_panel_confirmation,
 )
 
 
@@ -376,3 +379,94 @@ def test_finalizer_uncertainty_is_not_acknowledged_as_success_or_core_shutdown(c
         Command(request_id=uuid4().hex, action="doctor"), Session("relay", EntryKind.AGENT_RELAY)
     )
     assert doctor.result["status"] == "READY"
+
+
+def test_panel_confirmation_prepares_then_commits_only_after_its_gesture(core, tmp_path):
+    seed(core)
+    command = binding_command(core, tmp_path)
+    prepared = prepare_panel_confirmation(
+        core.api, command, records=core.unit_of_work.repo
+    )
+    assert prepared.error is None, prepared.error
+    assert prepared.request_id == command.request_id
+    result = prepared.result or {}
+    assert result["prompt"]["title"]
+    assert "facts" in result["prompt"] and "details" in result["prompt"]
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 0
+
+    confirmed = confirm_panel_confirmation(
+        core.api,
+        command,
+        challenge_id=str(result["challenge_id"]),
+        input_digest=str(result["input_digest"]),
+    )
+    assert confirmed.error is None, confirmed.error
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 1
+
+    # Re-sending the same intent recalls the committed receipt without a prompt.
+    recalled = prepare_panel_confirmation(core.api, command, records=core.unit_of_work.repo)
+    assert recalled.error is None, recalled.error
+    assert "prompt" not in (recalled.result or {})
+    assert recalled.result == confirmed.result
+
+
+def test_panel_confirmation_rejects_wrong_challenge_without_writing(core, tmp_path):
+    seed(core)
+    command = binding_command(core, tmp_path)
+    prepared = prepare_panel_confirmation(core.api, command, records=core.unit_of_work.repo)
+    assert prepared.error is None, prepared.error
+    result = prepared.result or {}
+    rejected = confirm_panel_confirmation(
+        core.api,
+        command,
+        challenge_id="approval-challenge-wrong",
+        input_digest=str(result["input_digest"]),
+    )
+    assert rejected.error is not None
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 0
+
+
+def test_panel_control_frames_prepare_and_confirm_through_the_core_worker(core, tmp_path):
+    seed(core)
+    command = binding_command(core, tmp_path)
+    prepare_frame = json.dumps({
+        CONTROL_KEY: PANEL_CONFIRMATION_VERSION,
+        "phase": "prepare",
+        "command": command.model_dump(mode="json"),
+    }).encode()
+    prepared = dispatch_frame(
+        core.api,
+        Session("panel-host", EntryKind.HUMAN_UI),
+        prepare_frame,
+        panel_prepare_dispatch=lambda cmd: prepare_panel_confirmation(
+            core.api, cmd, records=core.unit_of_work.repo
+        ),
+        panel_confirm_dispatch=lambda cmd, challenge, digest: confirm_panel_confirmation(
+            core.api, cmd, challenge_id=challenge, input_digest=digest
+        ),
+    )
+    assert prepared.error is None, prepared.error
+    result = prepared.result or {}
+    assert result["prompt"]["title"]
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 0
+
+    confirm_frame = json.dumps({
+        CONTROL_KEY: PANEL_CONFIRMATION_VERSION,
+        "phase": "confirm",
+        "command": command.model_dump(mode="json"),
+        "challenge_id": result["challenge_id"],
+        "input_digest": result["input_digest"],
+    }).encode()
+    confirmed = dispatch_frame(
+        core.api,
+        Session("panel-host", EntryKind.HUMAN_UI),
+        confirm_frame,
+        panel_prepare_dispatch=lambda cmd: prepare_panel_confirmation(
+            core.api, cmd, records=core.unit_of_work.repo
+        ),
+        panel_confirm_dispatch=lambda cmd, challenge, digest: confirm_panel_confirmation(
+            core.api, cmd, challenge_id=challenge, input_digest=digest
+        ),
+    )
+    assert confirmed.error is None, confirmed.error
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 1

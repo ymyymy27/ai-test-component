@@ -13,6 +13,8 @@ import { dispatchControlled, dispatchNativeBatch, dispatchReadOnly, dispatchWrit
 const PANEL_VIEW_TYPE = "aitest";
 const DISPATCH_TIMEOUT_MS = 30_000;
 type PanelHost = Pick<vscode.WebviewPanel, "webview" | "onDidDispose">;
+type PendingConfirmation = { resolve: (confirmed: boolean) => void; timer: NodeJS.Timeout };
+const pendingConfirmations = new Map<string, PendingConfirmation>();
 
 function readSettings(): { python: string; workspaceRoot: string; pythonCarriersFile: string; businessQueriesFile: string; modelConfigurationFile: string; projectId: string | null; runId: string | null } {
   const configuration = vscode.workspace.getConfiguration("aitest");
@@ -193,6 +195,16 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
     scope.wizardBusy=true;
     try{scope.wizard=await wizardMessage(context,raw,scope.wizard,readSettings(),payload=>post(panel,payload));}
     finally{scope.wizardBusy=false;}
+    return;
+  }
+  if (raw["kind"] === "confirmationResult") {
+    const requestId = identityOrNull(raw["clientRequestId"]);
+    const pending = requestId ? pendingConfirmations.get(requestId) : undefined;
+    if (pending) {
+      clearTimeout(pending.timer);
+      pendingConfirmations.delete(requestId!);
+      pending.resolve(raw["confirmed"] === true);
+    }
     return;
   }
   if (raw["kind"] === "openSettings") {
@@ -377,7 +389,22 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
       return;
     }
     outcome = raw["kind"] === "controlledDispatch"
-      ? await dispatchControlled(python, workspaceRoot, { ...request, projectId }, clientRequestId)
+      ? await dispatchControlled(
+          python,
+          workspaceRoot,
+          { ...request, projectId },
+          clientRequestId,
+          270_000,
+          (prompt) => new Promise<boolean>((resolve) => {
+            const promptId = "panel-confirm-" + randomUUID();
+            const timer = setTimeout(() => {
+              pendingConfirmations.delete(promptId);
+              resolve(false);
+            }, 120_000);
+            pendingConfirmations.set(promptId, { resolve, timer });
+            post(panel, { kind: "confirmationPrompt", clientRequestId: promptId, prompt });
+          }),
+        )
       : raw["kind"] === "writeDispatch"
         ? await dispatchWrite(python, workspaceRoot, { ...request, projectId }, clientRequestId)
         : await dispatchReadOnly(python, workspaceRoot, { ...request, projectId }, clientRequestId, DISPATCH_TIMEOUT_MS);

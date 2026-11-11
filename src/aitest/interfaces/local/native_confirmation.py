@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
@@ -20,6 +22,7 @@ from aitest.contracts.responses import Response
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
 NATIVE_CONFIRMATION_VERSION = "native-confirmation/1"
+PANEL_CONFIRMATION_VERSION = "panel-confirmation/1"
 NATIVE_BATCH_VERSION = "native-batch/1"
 NATIVE_CONFIRMATION_TIMEOUT_MS = 120_000
 CHALLENGE_ACTIONS = frozenset(
@@ -45,6 +48,37 @@ NATIVE_ACTIONS = (
     }
 )
 MAX_PROMPT_CHARS = 128_000
+
+#: Prepared panel challenges keep their interactive session alive between the
+#: prepare and confirm control frames.  A separate CLI process cannot reuse a
+#: session that was already finalized, so the core owns this short-lived map.
+_PANEL_SESSIONS: dict[str, tuple[Session, threading.Timer]] = {}
+_PANEL_SESSIONS_LOCK = threading.Lock()
+
+
+def _expire_panel_session(api: LocalAPI, request_id: str) -> None:
+    with _PANEL_SESSIONS_LOCK:
+        entry = _PANEL_SESSIONS.pop(request_id, None)
+    if entry is not None:
+        with suppress(Exception):
+            api.close_session(entry[0])
+
+
+def _remember_panel_session(api: LocalAPI, request_id: str, session: Session) -> None:
+    timer = threading.Timer(
+        NATIVE_CONFIRMATION_TIMEOUT_MS / 1000.0,
+        _expire_panel_session,
+        args=(api, request_id),
+    )
+    timer.daemon = True
+    with _PANEL_SESSIONS_LOCK:
+        old = _PANEL_SESSIONS.pop(request_id, None)
+        _PANEL_SESSIONS[request_id] = (session, timer)
+    if old is not None:
+        old[1].cancel()
+        with suppress(Exception):
+            api.close_session(old[0])
+    timer.start()
 
 _ACTION_LABELS = {
     "save_context": "保存项目名称与测试目标",
@@ -548,6 +582,206 @@ def _batch_item_from_command(
         prompt=view,
     )
 
+
+
+def _panel_prepare_material(
+    api: LocalAPI,
+    command: Command,
+    records: ApprovalRecords | None,
+    session: Session,
+) -> tuple[object, str, str, list[object]] | Response:
+    """Prepare the exact challenge without showing a core-owned window.
+
+    The return value is either the frozen material or an already-final response
+    (idempotent recall / conflict).  The challenge stays persisted in the core;
+    the panel only receives a human-readable projection and returns a gesture.
+    """
+    if command.action not in CHALLENGE_ACTIONS:
+        return api._error(
+            command, "ENTRY_ACTION_NOT_ALLOWED", "该动作不属于受控确认动作"
+        )
+    if (
+        not command.project_id
+        or not command.intent_id
+        or type(command.expected_revision) is not int
+        or command.expected_revision < 0
+        or command.request_id == command.intent_id
+    ):
+        return api._error(command, "INVALID_COMMAND", "受控写入须有项目、稳定意图和准确预期修订")
+    if any(
+        key in command.parameters
+        for key in ("approval_challenge_id", "user_confirmed", "interaction", "input_digest")
+    ):
+        return api._error(command, "INVALID_COMMAND", "入口不接受调用方提交的确认事实")
+    if not command.target:
+        return api._error(command, "INVALID_COMMAND", "受控动作须指定准确目标 target")
+    original = api.dispatch(command.model_copy(update={"request_id": uuid4().hex}), session)
+    if original.error is None:
+        return original.model_copy(update={"request_id": command.request_id})
+    if original.error.code == "INTENT_CONFLICT":
+        return api._error(command, original.error.code, original.error.message)
+    prepared = api.dispatch(
+        Command(
+            request_id=uuid4().hex,
+            intent_id=uuid4().hex,
+            action="prepare_approval",
+            project_id=command.project_id,
+            expected_revision=0,
+            parameters={
+                "action": command.action,
+                "action_intent_id": command.intent_id,
+                "target": command.target,
+                "parameters": command.parameters,
+            },
+        ),
+        session,
+    )
+    if prepared.error is not None:
+        return api._error(command, prepared.error.code, prepared.error.message)
+    if prepared.result is None:
+        raise ValueError("核心未返回确认依据")
+    basis = prepared.result["basis"]
+    challenge_id = str(prepared.result["challenge_id"])
+    if not isinstance(basis, dict) or not isinstance(basis.get("input_digest"), str):
+        raise ValueError("核心确认依据无效")
+    input_digest = basis["input_digest"]
+    if not isinstance(input_digest, str) or not input_digest.strip():
+        raise ValueError("核心确认依据缺少输入摘要")
+    raw_materials = basis.get("materials")
+    if records is None or not isinstance(raw_materials, list):
+        raise ValueError("无法读取核心保存的准确确认材料")
+    saved_materials: list[object] = []
+    for ref in raw_materials:
+        if not isinstance(ref, dict):
+            raise ValueError("确认材料引用无效")
+        kind, record_id, revision = (
+            ref.get("aggregate_kind"),
+            ref.get("record_id"),
+            ref.get("record_revision"),
+        )
+        if (
+            not isinstance(kind, str)
+            or not kind.strip()
+            or not isinstance(record_id, str)
+            or not record_id.strip()
+            or type(revision) is not int
+            or revision < 1
+        ):
+            raise ValueError("确认材料引用无效")
+        saved = records.read(
+            aggregate_kind=kind,
+            record_id=record_id,
+            revision=revision,
+        )
+        payload = getattr(saved, "payload", None)
+        if not isinstance(payload, Mapping) or _digest(payload) != ref["digest"]:
+            raise ValueError("确认材料摘要不一致")
+        saved_materials.append({"reference": ref, "payload": dict(payload)})
+    return basis, challenge_id, input_digest, saved_materials
+
+
+def prepare_panel_confirmation(
+    api: LocalAPI,
+    command: Command,
+    *,
+    records: ApprovalRecords | None = None,
+) -> Response:
+    """Freeze the challenge and return only its redacted human projection.
+
+    This is called through the host bridge after the editor has an actual panel
+    gesture available.  It does not confirm anything; a separate confirm call
+    carries the user's click back for the same challenge.
+    """
+    session = Session("panel-ui-" + uuid4().hex, EntryKind.HUMAN_UI, True)
+    remembered = False
+    try:
+        material = _panel_prepare_material(api, command, records, session)
+        if isinstance(material, Response):
+            return material
+        basis, challenge_id, input_digest, saved_materials = material
+        projected = api.safe_projection(
+            {
+                "workspace_id": api.workspace_id,
+                "instance_id": api.instance_id,
+                "command": command.model_dump(mode="json"),
+                "saved_basis": basis,
+                "saved_materials": saved_materials,
+            }
+        )
+        view = _confirmation_prompt(projected)
+        if len(view.details) > MAX_PROMPT_CHARS:
+            return api._error(
+                command, "CONFIRMATION_PREVIEW_LIMIT", "操作材料过大，无法完整展示确认"
+            )
+        _remember_panel_session(api, command.request_id, session)
+        remembered = True
+        return Response(
+            request_id=command.request_id,
+            instance_id=api.instance_id,
+            workspace_id=api.workspace_id,
+            project_id=command.project_id,
+            binding_revision=command.binding_revision,
+            intent_id=command.intent_id,
+            result={
+                "challenge_id": challenge_id,
+                "input_digest": input_digest,
+                "prompt": {
+                    "title": view.title,
+                    "note": view.note,
+                    "facts": [[key, value] for key, value in view.facts],
+                    "details": view.details,
+                },
+            },
+        )
+    except Exception as error:
+        return api._error(command, "PANEL_CONFIRMATION_UNAVAILABLE", api._safe_message(error))
+    finally:
+        if not remembered:
+            api.close_session(session)
+
+
+def confirm_panel_confirmation(
+    api: LocalAPI,
+    command: Command,
+    *,
+    challenge_id: str,
+    input_digest: str,
+) -> Response:
+    """Bind one panel gesture to the exact challenge prepared for this command."""
+    if command.action not in CHALLENGE_ACTIONS:
+        return api._error(command, "ENTRY_ACTION_NOT_ALLOWED", "该动作不属于受控确认动作")
+    if (
+        not isinstance(challenge_id, str)
+        or not challenge_id.strip()
+        or not isinstance(input_digest, str)
+        or not input_digest.strip()
+    ):
+        return api._error(command, "INVALID_COMMAND", "面板确认缺少准确 challenge")
+    if "approval_challenge_id" in command.parameters:
+        return api._error(command, "INVALID_COMMAND", "调用方不能预设确认事实")
+    with _PANEL_SESSIONS_LOCK:
+        entry = _PANEL_SESSIONS.pop(command.request_id, None)
+    if entry is None:
+        return api._error(
+            command,
+            "PANEL_CONFIRMATION_EXPIRED",
+            "面板确认已过期，请重新准备并核对本次操作",
+        )
+    session, timer = entry
+    timer.cancel()
+    try:
+        approved = command.model_copy(
+            update={
+                "parameters": command.parameters | {"approval_challenge_id": challenge_id},
+            }
+        )
+        return api.dispatch_user_confirmation(
+            approved, session, challenge_id=challenge_id, input_digest=input_digest
+        )
+    except Exception as error:
+        return api._error(command, "PANEL_CONFIRMATION_UNAVAILABLE", api._safe_message(error))
+    finally:
+        api.close_session(session)
 
 def dispatch_native_batch(
     api: LocalAPI,

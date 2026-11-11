@@ -99,11 +99,23 @@ test("first-run wizard prepares, publishes and registers through the controlled 
   await answer(page, "analyze_project", {
     snapshot_id: "snap-1",
     record_revision: 1,
-    understanding: { understanding_id: "understanding-1", revision: 1 },
+    understanding: {
+      understanding_id: "understanding-1",
+      revision: 1,
+      goal_candidates: [{
+        intent_id: "intent-1",
+        statement: "验证订单金额与持久化",
+        why: "最近改动且失败影响最大",
+        risk: "金额错误",
+        function_ids: ["order.total"],
+      }],
+    },
   }, "writeDispatch");
 
+  await expect(page.getByText("先选一个业务目标")).toBeVisible();
+  await page.getByRole("button", { name: /验证订单金额与持久化/ }).click();
+  await page.getByRole("button", { name: "用选中的目标生成计划", exact: true }).click();
   await expect(page.getByText("生成一份可核对的计划提案")).toBeVisible();
-  await page.getByRole("button", { name: "生成 AI 计划", exact: true }).click();
   await sendCommands(page, "model", modelCommands);
   await answer(page, "save_model_outbound_policy", {}, "controlledDispatch");
   await answer(page, "generate_draft", {
@@ -133,7 +145,7 @@ test("first-run wizard prepares, publishes and registers through the controlled 
   await expect(page.getByText("核对计划、覆盖与依据")).toBeVisible();
   await page.screenshot({ path: "test-results/wizard-review.png", fullPage: true });
   await page.getByRole("checkbox", { name: /我确认业务功能目录完整/ }).check();
-  await page.getByRole("button", { name: "确认并发布", exact: true }).click();
+  await page.getByRole("button", { name: "确认并开始", exact: true }).click();
   await sendCommands(page, "commit", commitCommands);
   await answer(page, "save_case", { record_revision: 1 }, "writeDispatch");
   await answer(page, "save_acceptance", { record_revision: 1 }, "writeDispatch");

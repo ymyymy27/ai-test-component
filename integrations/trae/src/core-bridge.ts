@@ -171,11 +171,13 @@ function runCli(
   timeoutMs: number,
   nativeConfirmation = false,
   batch = false,
+  panel = false,
 ): Promise<SpawnResult> {
   return new Promise<SpawnResult>((resolve) => {
     const child = spawn(
       python,
-      ["-m", "aitest.interfaces.tools.cli", batch ? "dispatch-batch" : "dispatch",
+      ["-m", "aitest.interfaces.tools.cli",
+        panel ? "dispatch-panel" : batch ? "dispatch-batch" : "dispatch",
         ...(nativeConfirmation ? ["--native-confirmation"] : []), "--workspace", workspaceRoot],
       { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: coreEnvironment() },
     );
@@ -400,17 +402,116 @@ export async function dispatchReadOnly(
   return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, false);
 }
 
+function panelOutcome(
+  result: SpawnResult,
+  command: CoreCommand,
+  request: DispatchRequest,
+): DispatchOutcome {
+  if (result.timedOut) {
+    return { status: "unavailable", code: "ENTRY_TIMEOUT",
+      message: "面板确认在限定时间内无回执；请查询原业务意图，勿自动重试" };
+  }
+  if (result.spawnFailure) {
+    return { status: "unavailable", code: "ENTRY_SPAWN_FAILED",
+      message: `无法启动已配置的本地核心入口（${result.spawnFailure}）` };
+  }
+  if (result.oversized) {
+    return { status: "unavailable", code: "ENTRY_OUTPUT_LIMIT", message: "核心入口输出超出允许预算，结果未核实" };
+  }
+  const response = parseResponse(result.stdout);
+  if (response === null) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "核心未返回可核实的回执" };
+  }
+  if (response["request_id"] !== command.request_id || response["protocol_version"] !== PROTOCOL_VERSION
+      || typeof response["instance_id"] !== "string" || !response["instance_id"].trim()
+      || typeof response["workspace_id"] !== "string" || !response["workspace_id"].trim()
+      || (request.projectId && response["project_id"] !== request.projectId)
+      || (request.intentId && response["intent_id"] !== request.intentId)
+      || (request.bindingRevision != null && response["binding_revision"] !== request.bindingRevision)) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
+      message: "回执身份或协议与请求不一致，结果未核实" };
+  }
+  if (response["error"] !== null && response["error"] !== undefined) {
+    if (typeof response["error"] !== "object" || Array.isArray(response["error"])) {
+      return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "核心错误回执形状无法核实" };
+    }
+    const error = response["error"] as Record<string, unknown>;
+    return { status: "refused", response,
+      code: typeof error["code"] === "string" ? error["code"] : "UNKNOWN_ERROR",
+      message: typeof error["message"] === "string" ? error["message"] : "核心拒绝该请求" };
+  }
+  if (result.code !== 0 || typeof response["result"] !== "object"
+      || response["result"] === null || Array.isArray(response["result"])) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "核心退出状态或结果形状无法核实" };
+  }
+  return { status: "ok", response };
+}
+
 /** This requests a core-owned dialog; it never sends an assertion of human approval. */
 export async function dispatchControlled(
   python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
   timeoutMs = 270_000,
+  panelConfirm?: (prompt: Record<string, unknown>) => Promise<boolean>,
 ): Promise<DispatchOutcome> {
   if (READ_ONLY_ACTIONS.has(request.action) || !request.projectId || !request.intentId
       || request.intentId === requestId || !Number.isSafeInteger(request.expectedRevision)
       || (request.expectedRevision ?? -1) < 0) {
     throw new BridgeRefused("受控写入需要项目、稳定业务意图和准确的预期修订");
   }
-  return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, true);
+  if (!panelConfirm) {
+    return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, true);
+  }
+  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
+  }
+  if (!workspaceRoot.trim()) {
+    return { status: "unavailable", code: "WORKSPACE_NOT_CONFIGURED",
+      message: "尚未配置 aitest.workspaceRoot（用户数据工作空间）" };
+  }
+  const command = buildCommand(request, requestId);
+  const prepared = panelOutcome(
+    await runCli(python, workspaceRoot, { phase: "prepare", command }, timeoutMs, false, false, true),
+    command,
+    request,
+  );
+  if (prepared.status !== "ok") {
+    return prepared;
+  }
+  const preparedResult = prepared.response?.["result"];
+  if (!preparedResult || typeof preparedResult !== "object" || Array.isArray(preparedResult)) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "核心没有返回面板确认材料" };
+  }
+  const prompt = (preparedResult as Record<string, unknown>)["prompt"];
+  if (prompt === undefined) {
+    // Idempotent recall already produced the final receipt; no new gesture is needed.
+    return prepared;
+  }
+  if (!prompt || typeof prompt !== "object" || Array.isArray(prompt)) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "面板确认材料形状无效" };
+  }
+  const challenge = (preparedResult as Record<string, unknown>)["challenge_id"];
+  const digest = (preparedResult as Record<string, unknown>)["input_digest"];
+  if (typeof challenge !== "string" || !challenge || typeof digest !== "string" || !digest) {
+    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED", message: "面板确认缺少 challenge" };
+  }
+  const confirmed = await panelConfirm(prompt as Record<string, unknown>);
+  if (!confirmed) {
+    return { status: "refused", code: "USER_DECLINED", message: "用户取消了本次面板确认" };
+  }
+  const final = panelOutcome(
+    await runCli(
+      python,
+      workspaceRoot,
+      { phase: "confirm", command, challenge_id: challenge, input_digest: digest },
+      timeoutMs,
+      false,
+      false,
+      true,
+    ),
+    command,
+    request,
+  );
+  return final;
 }
 
 /**

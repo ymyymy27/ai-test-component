@@ -295,7 +295,8 @@ class CommittedViewReader:
         fields = {
             "plan": ("plan_id", "revision", "scope", "cases", "template_versions",
                      "run_tier", "initial_driver", "status", "scope_id", "scope_revision",
-                     "required_case_ids", "case_revisions", "rule_revisions"),
+                     "required_case_ids", "case_revisions", "rule_revisions",
+                     "coverage_contract"),
             "case": ("case_id", "revision", "layer", "objective", "preconditions", "inputs",
                      "steps", "expected", "verification_method", "links", "assertion_basis",
                      "independent_verification", "mock_scope", "importance"),

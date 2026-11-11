@@ -756,3 +756,31 @@ test("rule editor saves a draft and publishes it through native confirmation", a
   await expect(page.getByText("# 规则：订单接口", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+
+test("panel confirmation shows the exact prompt and returns the click on the host channel", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.evaluate(() => {
+    window.postMessage({
+      kind: "confirmationPrompt",
+      clientRequestId: "confirm-1",
+      prompt: {
+        title: "发布核对后的测试计划",
+        note: "发布后计划冻结，后续修改会产生新的修订。",
+        facts: [["项目", "project-1"], ["计划", "plan-1"], ["运行档位", "完整验证"]],
+        details: "exact frozen material",
+      },
+    }, "*");
+  });
+  await expect(page.getByText("发布核对后的测试计划", { exact: true })).toBeVisible();
+  await expect(page.getByText("发布后计划冻结", { exact: false })).toBeVisible();
+  const beforeConfirm = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "确认并继续", exact: true }).click();
+  const result = await waitForSend(page, { kind: "confirmationResult" }, 5000, beforeConfirm);
+  expect(result["clientRequestId"]).toBe("confirm-1");
+  expect(result["confirmed"]).toBe(true);
+  await expect(page.getByText("发布核对后的测试计划", { exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

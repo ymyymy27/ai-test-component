@@ -217,6 +217,7 @@ export type WizardStage =
   | "configure"
   | "restart"
   | "project"
+  | "goals"
   | "model"
   | "review"
   | "manual"

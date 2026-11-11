@@ -30,6 +30,7 @@ export class HostClient {
     private readonly onContext: (context: ProjectContext) => void,
     private readonly onLateOutcome: (message: string) => void,
     private readonly onHostNotice: (message: string) => void,
+    private readonly onConfirmation: (requestId: string, prompt: Record<string, unknown>) => void,
   ) {
     window.addEventListener("message", this.receive);
   }
@@ -76,6 +77,14 @@ export class HostClient {
     if (kind === "runNotification") {
       const message = raw["message"];
       if (typeof message === "string" && message.trim()) this.onHostNotice(message);
+      return;
+    }
+    if (kind === "confirmationPrompt") {
+      const prompt = raw["prompt"];
+      const promptId = raw["clientRequestId"];
+      if (typeof promptId === "string" && promptId && prompt && typeof prompt === "object" && !Array.isArray(prompt)) {
+        this.onConfirmation(promptId, prompt as Record<string, unknown>);
+      }
       return;
     }
     const requestId = typeof raw["clientRequestId"] === "string" ? raw["clientRequestId"] : "";
@@ -132,6 +141,10 @@ export class HostClient {
       }, timeoutMs);
       this.pendingWizard.set(requestId, { resolve, timer });
     });
+  }
+
+  resolveConfirmation(requestId: string, confirmed: boolean): void {
+    this.postMessage({ kind: "confirmationResult", clientRequestId: requestId, confirmed });
   }
 
   ensureCore(): Promise<Outcome> {

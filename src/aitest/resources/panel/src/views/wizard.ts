@@ -44,6 +44,7 @@ export function renderWizard(ctx: AppContext): HTMLElement {
   else if (state.stage === "configure") page.appendChild(configureStep(ctx));
   else if (state.stage === "restart") page.appendChild(restartStep(ctx));
   else if (state.stage === "project") page.appendChild(projectStep(ctx));
+  else if (state.stage === "goals") page.appendChild(goalsStep(ctx));
   else if (state.stage === "model") page.appendChild(modelStep(ctx));
   else if (state.stage === "manual") page.appendChild(manualStep(ctx));
   else if (state.stage === "review") page.appendChild(reviewStep(ctx));
@@ -65,6 +66,8 @@ function wizardTitle(stage: string): string {
       return "重启核心以应用配置";
     case "project":
       return "保存项目并分析源码";
+    case "goals":
+      return "选择一个验证目标";
     case "model":
       return "生成检查计划";
     case "manual":
@@ -134,17 +137,20 @@ function configureStep(ctx: AppContext): HTMLElement {
   if (state.useModel) {
     model.append(
       div(
-        "form-grid",
-        fieldInput("API 地址", state.endpoint, value => { state.endpoint = value; }),
-        fieldInput("模型名称", state.model, value => { state.model = value; }),
-        fieldInput("请求超时（秒）", state.modelTimeout, value => { state.modelTimeout = value; }, "10–120 秒"),
-      ),
-      div(
         "inline",
-        chip(state.reference ? "安全凭据已配置" : "尚未配置安全凭据", state.reference ? "success" : "warning"),
-        button("配置安全凭据", () => void wizard.saveCredential(), { icon: "shield", disabled: busy }),
+        chip(state.reference ? "模型已配置" : "模型未配置", state.reference ? "success" : "warning"),
+        button("填写 API Key（一次）", () => void wizard.saveCredential(), { icon: "shield", disabled: busy }),
       ),
-      p("密钥保存在 Windows 安全存储，正文不会进入面板、记录或日志。", "muted subtle"),
+      p("默认使用 DeepSeek Flash；只需填一次，密钥由宿主安全保存，不出现在面板、记录或日志。", "muted subtle"),
+      details(
+        "高级：模型地址与超时",
+        div(
+          "form-grid",
+          fieldInput("API 地址", state.endpoint, value => { state.endpoint = value; }),
+          fieldInput("模型名称", state.model, value => { state.model = value; }),
+          fieldInput("请求超时（秒）", state.modelTimeout, value => { state.modelTimeout = value; }, "10–120 秒"),
+        ),
+      ),
     );
   }
 
@@ -229,6 +235,63 @@ function projectStep(ctx: AppContext): HTMLElement {  const wizard = ctx.wizard;
 
 function spanNumber(value: number): HTMLElement {
   return div("row-icon", String(value));
+}
+
+function goalsStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const snapshot = asRecord(state.receipts["snapshot"]);
+  const understanding = snapshot ? asRecord(snapshot["understanding"]) : undefined;
+  const rawGoals = understanding?.["goal_candidates"];
+  const goals = Array.isArray(rawGoals) ? asRecords(rawGoals) : [];
+  const list = div("stack-sm");
+  for (const [index, goal] of goals.entries()) {
+    const statement = String(goal["statement"] ?? "");
+    const why = String(goal["why"] ?? "");
+    const risk = String(goal["risk"] ?? "");
+    const selected = state.goal === statement;
+    const item = button(
+      `${index + 1}. ${statement || "未命名目标"}${selected ? " ✓" : ""}`,
+      () => {
+        state.goal = statement;
+        state.error = "";
+        ctx.render();
+      },
+      { variant: selected ? "primary" : "secondary", className: "row" },
+    );
+    list.appendChild(
+      div(
+        "stack-sm",
+        item,
+        why ? p(`为什么推荐：${why}`, "muted subtle") : null,
+        risk ? p(`失败影响：${risk}`, "muted subtle") : null,
+      ),
+    );
+  }
+  return div(
+    "stack",
+    card(
+      "hero",
+      div("eyebrow", "第 3 步"),
+      h2("先选一个业务目标"),
+      p("AI 已根据项目理解和风险给出候选。选一个目标后再生成计划；不需要自己写测试步骤。", "muted"),
+      goals.length ? list : p("这次分析没有返回目标候选，可以直接生成计划。", "muted subtle"),
+    ),
+    div(
+      "hero-actions",
+      button("用选中的目标生成计划", () => void wizard.runStage("model"), {
+        variant: "primary",
+        icon: "spark",
+        disabled: state.busy || (goals.length > 0 && !state.goal),
+      }),
+      button("跳过，使用原来的目标", () => void wizard.runStage("model"), { icon: "arrow-right", disabled: state.busy }),
+    ),
+    details(
+      "没有模型或想手工填写？",
+      p("手工四项检查是高级回退，不是默认流程；它要求你自己填写每项独立预期。", "muted subtle"),
+      button("改用手工四项检查", () => void wizard.startManual(), { icon: "file", disabled: state.busy }),
+    ),
+  );
 }
 
 function modelStep(ctx: AppContext): HTMLElement {
@@ -403,7 +466,7 @@ function reviewStep(ctx: AppContext): HTMLElement {
       div(
         "hero-actions",
         button("重新校验", () => void wizard.review(), { icon: "refresh", disabled: state.busy }),
-        button("确认并发布", () => void wizard.publish(), {
+        button("确认并开始", () => void wizard.publish(), {
           variant: "primary",
           icon: "shield",
           disabled: state.busy || !state.catalogConfirmed || !state.preview,

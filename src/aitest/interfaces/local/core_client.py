@@ -14,6 +14,7 @@ from aitest.interfaces.local.native_confirmation import (
     NATIVE_BATCH_VERSION,
     NATIVE_CONFIRMATION_TIMEOUT_MS,
     NATIVE_CONFIRMATION_VERSION,
+    PANEL_CONFIRMATION_VERSION,
 )
 from aitest.interfaces.local.pipe import MAX_MESSAGE_BYTES
 
@@ -66,6 +67,41 @@ class CoreClient:
                 allow_nan=False,
             ).encode("utf-8"),
             response_timeout_ms=NATIVE_RESPONSE_TIMEOUT_MS,
+        )
+
+    def send_panel(
+        self,
+        command: Command,
+        *,
+        phase: str,
+        challenge_id: str | None = None,
+        input_digest: str | None = None,
+    ) -> Response:
+        """Prepare or confirm one panel-owned gesture for a frozen challenge.
+
+        The core owns the challenge; the panel only receives its redacted
+        projection and returns a gesture for the same command.
+        """
+        import json
+
+        if phase not in {"prepare", "confirm"}:
+            raise CoreResultUnverified("面板确认阶段无效")
+        discovery = self.send(Command(request_id=uuid4().hex, action="doctor"))
+        capabilities = (discovery.result or {}).get("transport_capabilities")
+        if not isinstance(capabilities, list) or PANEL_CONFIRMATION_VERSION not in capabilities:
+            raise CoreResultUnverified("核心不支持面板确认入口，请核对安装版本并受控重启核心")
+        envelope: dict[str, object] = {
+            "__aitest_control__": PANEL_CONFIRMATION_VERSION,
+            "phase": phase,
+            "command": command.model_dump(mode="json"),
+        }
+        if phase == "confirm":
+            envelope["challenge_id"] = challenge_id
+            envelope["input_digest"] = input_digest
+        return self._exchange(
+            command,
+            json.dumps(envelope, ensure_ascii=False, allow_nan=False).encode("utf-8"),
+            response_timeout_ms=BUSINESS_RESPONSE_TIMEOUT_MS,
         )
 
     def send_native_batch(self, commands: Sequence[Command]) -> Response:

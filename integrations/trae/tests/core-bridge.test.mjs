@@ -29,6 +29,20 @@ elif mode == 'secret_code_stderr':
     sys.stderr.write(json.dumps(dict(code='fixture-credential-must-never-echo')))
 elif mode == 'array':
     print('[]')
+elif sys.argv[1] == 'dispatch-panel':
+    wrapper = json.load(sys.stdin)
+    command = wrapper['command']
+    data = dict(protocol_version='aitest.local/2.0', request_id=command['request_id'],
+                project_id=command.get('project_id'), workspace_id='w', instance_id='i',
+                intent_id=command.get('intent_id'), binding_revision=command.get('binding_revision'),
+                error=None)
+    if wrapper.get('phase') == 'prepare':
+        data['result'] = dict(challenge_id='challenge-1', input_digest='digest-1',
+                              prompt=dict(title='确认发布', note='核对后继续',
+                                          facts=[['项目', 'project-1']], details='exact'))
+    else:
+        data['result'] = dict(confirmed=True)
+    print(json.dumps(data))
 elif sys.argv[1] in ('ensure-core', 'restart-core'):
     if mode == 'blocked':
         print(json.dumps(dict(code='CORE_RESTART_BLOCKED', message='blocked by active run')))
@@ -183,4 +197,22 @@ test("plain writes cover setup environment but never human confirmations", () =>
   for (const action of ["save_binding", "save_model_outbound_policy", "publish_plan", "authorize_step"]) {
     assert.equal(PLAIN_WRITE_ACTIONS.has(action), false);
   }
+});
+
+
+test("panel confirmation carries one explicit gesture and no native flag", async () => {
+  const prompts = [];
+  const outcome = await dispatchControlled(
+    python,
+    "ok",
+    { action: "publish_plan", projectId: "project-1", intentId: "intent-1",
+      expectedRevision: 0, target: "plan-1", parameters: {} },
+    "panel-request-1",
+    5000,
+    async (prompt) => { prompts.push(prompt); return true; },
+  );
+  assert.equal(outcome.status, "ok");
+  assert.equal(prompts.length, 1);
+  assert.equal(prompts[0].title, "确认发布");
+  assert.equal(outcome.response.result.confirmed, true);
 });

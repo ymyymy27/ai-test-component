@@ -46,6 +46,11 @@ def main() -> int:
         help="Forward bounded authorize_step commands to one core-owned batch window",
     )
     batch.add_argument("--workspace", required=True, type=Path)
+    panel = sub.add_parser(
+        "dispatch-panel",
+        help="Prepare or confirm one panel-owned gesture for a core-frozen challenge",
+    )
+    panel.add_argument("--workspace", required=True, type=Path)
     sub.add_parser("templates", help="List installed draft template versions")
     carrier = sub.add_parser(
         "python-carrier", help="Generate host venv registration JSON; does not execute it"
@@ -316,6 +321,35 @@ def main() -> int:
                 0 if response.result is not None and response.result.get("status") == "READY" else 2
             )
         return 0
+    if args.command == "dispatch-panel":
+        client = None
+        try:
+            raw = json.loads(sys.stdin.buffer.read(MAX_COMMAND_BYTES + 1))
+            if not isinstance(raw, dict) or set(raw) not in (
+                {"phase", "command"},
+                {"phase", "command", "challenge_id", "input_digest"},
+            ):
+                raise ValueError("面板确认载荷字段无效")
+            command = Command.model_validate(raw["command"])
+            client = CoreClient(acquire_existing_endpoint(args.workspace))
+            response = client.send_panel(
+                command,
+                phase=str(raw["phase"]),
+                challenge_id=raw.get("challenge_id"),
+                input_digest=raw.get("input_digest"),
+            )
+        except Exception as error:
+            code = getattr(error, "code", "CLI_INPUT_OR_CONNECTION_UNVERIFIED")
+            print(
+                json.dumps({"code": code, "message": "面板确认输入或核心结果无法核实"}),
+                file=sys.stderr,
+            )
+            return 2
+        finally:
+            if client is not None:
+                client.close()
+        print(response.model_dump_json(indent=2))
+        return 0 if response.error is None else 2
     if args.command == "dispatch-batch":
         client = None
         try:

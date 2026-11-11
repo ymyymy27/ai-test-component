@@ -18,7 +18,7 @@ import type {
   WriteOptions,
 } from "./types";
 import { CONTROLLED_ACTIONS, WizardController } from "./wizard";
-import { div, iconButton } from "./ui";
+import { button, details, div, facts, iconButton, p } from "./ui";
 import { renderDiagnostics } from "./views/diagnostics";
 import { renderHome } from "./views/home";
 import { renderPlan } from "./views/plan";
@@ -46,6 +46,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
   private readonly intents = new Map<string, string>();
   private noticeTimer: number | null = null;
   private booted = false;
+  private pendingConfirmation: string | null = null;
 
   constructor() {
     super();
@@ -60,6 +61,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
           context => this.applyProjectContext(context),
           message => this.setNotice(message, "warning"),
           message => this.setNotice(message, "info"),
+          (requestId, prompt) => this.showConfirmation(requestId, prompt),
         );
     this.wizard = new WizardController({
       hostAvailable: this.hostAvailable,
@@ -675,12 +677,49 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.render();
   }
 
+  private showConfirmation(requestId: string, prompt: Record<string, unknown>): void {
+    if (this.state.dialog) this.closeDialog();
+    this.pendingConfirmation = requestId;
+    const factsRows: Array<[string, string]> = Array.isArray(prompt["facts"])
+      ? (prompt["facts"] as unknown[])
+          .map(item => Array.isArray(item) ? [String(item[0] ?? ""), String(item[1] ?? "")] as [string, string] : null)
+          .filter((item): item is [string, string] => item !== null)
+      : [];
+    const content = div(
+      "stack",
+      p(String(prompt["note"] ?? "请核对下面的事实后再确认。"), "muted"),
+      facts(factsRows),
+      typeof prompt["details"] === "string" && prompt["details"]
+        ? details("技术细节（完整输入）", p(prompt["details"], "muted subtle"))
+        : null,
+      p("这是面板内确认；确认后会继续当前操作，取消不会提交。", "muted subtle"),
+      div(
+        "hero-actions",
+        button("取消", () => this.finishConfirmation(false), { variant: "ghost" }),
+        button("确认并继续", () => this.finishConfirmation(true), { variant: "primary", icon: "shield" }),
+      ),
+    );
+    this.showDialog(String(prompt["title"] ?? "确认本次操作"), content);
+  }
+
+  private finishConfirmation(confirmed: boolean): void {
+    const requestId = this.pendingConfirmation;
+    this.pendingConfirmation = null;
+    this.state.dialog = null;
+    if (requestId) this.client?.resolveConfirmation(requestId, confirmed);
+    this.render();
+  }
+
   showDialog(title: string, content: HTMLElement): void {
     this.state.dialog = { title, content };
     this.render();
   }
 
   closeDialog(): void {
+    if (this.pendingConfirmation) {
+      this.finishConfirmation(false);
+      return;
+    }
     this.state.dialog = null;
     this.render();
   }

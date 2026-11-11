@@ -47,8 +47,11 @@ from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from aitest.interfaces.local.native_confirmation import (
     NATIVE_BATCH_VERSION,
     NATIVE_CONFIRMATION_VERSION,
+    PANEL_CONFIRMATION_VERSION,
+    confirm_panel_confirmation,
     dispatch_native,
     dispatch_native_batch,
+    prepare_panel_confirmation,
 )
 
 #: 停机控制键；不出现在 ``contracts.commands`` 的业务 Command 中
@@ -113,6 +116,8 @@ def dispatch_frame(
     *,
     native_dispatch: Callable[[Command], Response] | None = None,
     native_batch_dispatch: Callable[[Sequence[Command]], Response] | None = None,
+    panel_prepare_dispatch: Callable[[Command], Response] | None = None,
+    panel_confirm_dispatch: Callable[[Command, str, str], Response] | None = None,
 ) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
@@ -154,6 +159,46 @@ def dispatch_frame(
                 return api._error(
                     command, "NATIVE_SESSION_FINALIZATION_UNVERIFIED", api._safe_message(error)
                 )
+        if (
+            action == PANEL_CONFIRMATION_VERSION
+            and panel_prepare_dispatch is not None
+            and panel_confirm_dispatch is not None
+        ):
+            try:
+                command = Command.model_validate(obj.get("command"))
+            except ValidationError:
+                return _protocol_error(
+                    api, _safe_request_id(obj), "INVALID_COMMAND", "面板确认命令无效"
+                )
+            phase = obj.get("phase")
+            if phase == "prepare" and set(obj) == {CONTROL_KEY, "phase", "command"}:
+                try:
+                    return panel_prepare_dispatch(command)
+                except Exception as error:
+                    return api._error(
+                        command,
+                        "PANEL_CONFIRMATION_UNAVAILABLE",
+                        api._safe_message(error),
+                    )
+            if phase == "confirm":
+                challenge_id, input_digest = obj.get("challenge_id"), obj.get("input_digest")
+                if (
+                    set(obj) != {
+                        CONTROL_KEY, "phase", "command", "challenge_id", "input_digest",
+                    }
+                    or not isinstance(challenge_id, str)
+                    or not isinstance(input_digest, str)
+                ):
+                    return api._error(command, "INVALID_COMMAND", "面板确认信封无效")
+                try:
+                    return panel_confirm_dispatch(command, challenge_id, input_digest)
+                except Exception as error:
+                    return api._error(
+                        command,
+                        "PANEL_CONFIRMATION_UNAVAILABLE",
+                        api._safe_message(error),
+                    )
+            return api._error(command, "INVALID_COMMAND", "面板确认阶段无效")
         if action == NATIVE_BATCH_VERSION and native_batch_dispatch is not None:
             raw_commands = obj.get("commands")
             if (
@@ -201,6 +246,8 @@ def dispatch_frame(
     response = api.dispatch(command, session)
     if command.action == "doctor" and response.result is not None and native_dispatch is not None:
         capabilities = [NATIVE_CONFIRMATION_VERSION]
+        if panel_prepare_dispatch is not None and panel_confirm_dispatch is not None:
+            capabilities.append(PANEL_CONFIRMATION_VERSION)
         if native_batch_dispatch is not None:
             capabilities.append(NATIVE_BATCH_VERSION)
         return response.model_copy(
@@ -248,6 +295,8 @@ def serve_connection(
     on_wait: Callable[[], None] | None = None,
     native_dispatch: Callable[[Command], Response] | None = None,
     native_batch_dispatch: Callable[[Sequence[Command]], Response] | None = None,
+    panel_prepare_dispatch: Callable[[Command], Response] | None = None,
+    panel_confirm_dispatch: Callable[[Command, str, str], Response] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -277,6 +326,8 @@ def serve_connection(
                 payload,
                 native_dispatch=native_dispatch,
                 native_batch_dispatch=native_batch_dispatch,
+                panel_prepare_dispatch=panel_prepare_dispatch,
+                panel_confirm_dispatch=panel_confirm_dispatch,
             )
             if isinstance(outcome, ShutdownControl):
                 reason = prepare_core_shutdown(shutdown_blocker, lambda: ())
@@ -587,6 +638,18 @@ def main(argv: list[str] | None = None) -> int:
                         commands,
                         records=assembly.unit_of_work.repo,
                     ),
+                    panel_prepare_dispatch=lambda command: prepare_panel_confirmation(
+                        api,
+                        command,
+                        records=assembly.unit_of_work.repo,
+                    ),
+                    panel_confirm_dispatch=lambda command, challenge_id, input_digest:
+                        confirm_panel_confirmation(
+                            api,
+                            command,
+                            challenge_id=challenge_id,
+                            input_digest=input_digest,
+                        ),
                 )
                 served += 1
                 if outcome == "shutdown":

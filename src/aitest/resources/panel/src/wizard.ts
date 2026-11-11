@@ -139,6 +139,7 @@ export class WizardController {
       case "restart":
       case "project":
         return 1;
+      case "goals":
       case "model":
       case "manual":
         return 2;
@@ -232,7 +233,7 @@ export class WizardController {
 
   async saveCredential(): Promise<void> {
     if (this.state.busy) return;
-    this.setBusy(true, "正在打开安全凭据窗口…");
+    this.setBusy(true, "正在打开 API Key 输入…");
     const result = await this.host.wizardRequest("wizardCredential");
     if (!this.resultOk(result)) return;
     if (result.cancelled) {
@@ -256,7 +257,7 @@ export class WizardController {
         return;
       }
       if (!this.state.reference) {
-        this.fail("请先配置模型安全凭据，或关闭模型辅助。");
+        this.fail("请填写一次 API Key，或关闭模型辅助使用手工计划。");
         return;
       }
     }
@@ -370,7 +371,16 @@ export class WizardController {
     this.state.note = "本阶段已保存。";
 
     if (stage === "project") {
-      this.state.stage = this.state.useModel ? "model" : "manual";
+      const snapshot = asRecord(this.state.receipts["snapshot"]);
+      const understanding = snapshot ? asRecord(snapshot["understanding"]) : undefined;
+      const rawGoals = understanding?.["goal_candidates"];
+      const goals = Array.isArray(rawGoals)
+        ? rawGoals.filter((item): item is Record<string, unknown> =>
+            item !== null && typeof item === "object" && !Array.isArray(item))
+        : [];
+      this.state.stage = this.state.useModel && goals.length > 0
+        ? "goals"
+        : this.state.useModel ? "model" : "manual";
       this.render();
       return;
     }

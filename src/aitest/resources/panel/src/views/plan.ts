@@ -78,6 +78,16 @@ function planDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElement
   const cases = asRecords(record["cases"]);
   const required = asStrings(record["required_case_ids"]);
   const status = record["status"];
+  const contract = asRecord(record["coverage_contract"]);
+  const requirements = contract ? asRecords(contract["function_requirements"]) : [];
+  const claims = contract ? asRecords(contract["coverage_claims"]) : [];
+  const dispositions = contract ? asRecords(contract["template_dispositions"]) : [];
+  const dimensions = new Set(requirements.flatMap(item => asStrings(item["required_dimensions"])));
+  const coveredClaims = claims.filter(item => item["status"] === "proven").length;
+  const unsupported = dispositions.filter(item => item["coverage"] === "unsupported").length;
+  const notApplicable = dispositions.filter(item => item["applicability"] === "not_applicable").length;
+  const limitations = dispositions.filter(item =>
+    item["coverage"] === "unsupported" || item["applicability"] === "not_applicable");
   const stats = div(
     "stats",
     stat(cases.length, "用例"),
@@ -122,12 +132,51 @@ function planDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElement
         }).filter(Boolean).join("、") : "—"],
       ]),
       p("本页只读。准备运行请使用“准备测试”向导；已有运行请从“本次测试·概览”读取。从既有计划直接准备还需要原始准备回执，本版未开放。", "muted subtle"),
-      div("hero-actions", button("返回计划列表", () => {
-        ctx.state.selectedPlan = null;
-        ctx.state.planDetail = null;
-        ctx.render();
-      }, { icon: "arrow-left" })),
+      div(
+        "hero-actions",
+        button("返回计划列表", () => {
+          ctx.state.selectedPlan = null;
+          ctx.state.planDetail = null;
+          ctx.render();
+        }, { icon: "arrow-left" }),
+        ctx.state.project?.run_id
+          ? button("查看当前运行", () => ctx.navigate("workbench"), { variant: "primary", icon: "arrow-right" })
+          : button("开始准备测试", () => ctx.navigate("wizard"), { variant: "primary", icon: "arrow-right" }),
+      ),
     ),
+    card(
+      "",
+      cardHead("覆盖收据", "计划冻结的覆盖承诺；报告会按同一收据复核，不另算一套。"),
+      contract
+        ? div(
+          "stats",
+          stat(requirements.length, "业务功能"),
+          stat(dimensions.size, "必要维度"),
+          stat(`${coveredClaims}/${claims.length}`, "已证明 claim"),
+          stat(unsupported, "不支持"),
+        )
+        : p("该计划没有覆盖契约；只能作为按需/快速计划查看。", "muted subtle"),
+      contract
+        ? factsRows([
+          ["覆盖契约", String(contract["contract_id"] ?? "—")],
+          ["理解修订", String(contract["understanding_revision"] ?? "—")],
+          ["模板项不适用", String(notApplicable)],
+          ["关键链路", String(asStrings(contract["critical_path_ids"]).length)],
+          ["执行方式", `${label(record["run_tier"])} · ${label(record["initial_driver"])}`],
+          ["执行影响", `${cases.length} 个用例；${required.length} 个必测`],
+        ])
+        : null,
+    ),
+    limitations.length
+      ? card(
+        "",
+        cardHead("已知限制", "来自冻结模板项处置；不把不支持项写成已覆盖。"),
+        div("stack-sm", ...limitations.map(item => p(
+          `${String(item["template_item_id"] ?? "模板项")} · ${label(item["applicability"])} / ${label(item["coverage"])}${item["reason"] ? "：" + String(item["reason"]) : ""}`,
+          "muted",
+        ))),
+      )
+      : null,
     card("", cardHead("用例与依据", "依据状态来自计划记录；确认不替代执行或核验。"), caseList),
   );
 }
