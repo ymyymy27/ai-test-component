@@ -241,7 +241,7 @@ function deliverySubmitCard(ctx: AppContext, view: Record<string, unknown>): HTM
   return card(
     "",
     cardHead("正式提测", "只引用已保存的交付说明、任务和源码快照；提交不可改写历史。"),
-    p("先准备材料，核对项目记录修订和源码快照，再到核心原生窗口确认提交。", "muted subtle"),
+    p("先准备材料，核对项目记录修订和源码快照，再在面板内确认提交。", "muted subtle"),
     div("hero-actions", prepare),
     input
       ? div(

@@ -212,6 +212,8 @@ def _material_kinds(form: OnboardingForm) -> list[str]:
 
 def wizard_commands(
     form: OnboardingForm, stage: str, receipts: dict[str, Any],
+    attempt: str | None = None, resume: bool = False,
+    source_expected_revision: int = 0,
 ) -> list[dict[str, Any]]:
     """Build one bounded stage. References come from earlier successful receipts."""
     project = form.project_id
@@ -224,37 +226,51 @@ def wizard_commands(
         raise ValueError("测试范围必须是项目目录内的相对子目录")
     commands: list[dict[str, Any]] = []
 
-    def add(key: str, action: str, parameters: dict[str, Any], target: str | None = None) -> None:
+    def add(
+        key: str, action: str, parameters: dict[str, Any],
+        target: str | None = None, *, intent_salt: str | None = None,
+        expected_revision: int = 0,
+    ) -> None:
         # Frozen form changes must not silently reuse an earlier persistent intent.
+        # 每次用户重新生成计划都是一次新的模型生成意图；否则第一次结构校验
+        # 失败后，同一意图只会重放旧的 blocked 结果。没有 salt 时保持历史
+        # 摘要形状，续跑才能命中已保存的策略/项目意图。
+        digest_input: list[Any] = [project, stage, key, parameters]
+        if intent_salt is not None:
+            digest_input.append(intent_salt)
         digest = hashlib.sha256(json.dumps(
-            [project, stage, key, parameters], ensure_ascii=False, sort_keys=True,
+            digest_input, ensure_ascii=False, sort_keys=True,
         ).encode()).hexdigest()
         commands.append({"key": key, "action": action, "intent_id": "wizard-" + digest,
-                         "expected_revision": 0, "binding_revision": 1,
+                         "expected_revision": expected_revision, "binding_revision": 1,
                          "target": target, "parameters": parameters})
 
     if stage == "project":
-        add("project", "save_context", {"project": {
-            "schema_version": "aitest.project/2.0", "project_id": project,
-            "local_project_id": project, "workspace_id": form.workspace_id,
-            "name": form.name, "goal": form.goal, "revision": 1,
-            "created_at_commit": "@core-assigned", "modules": [],
-        }})
-        binding = LocalProjectBinding(binding_id, 1, project, form.source, BindingForm.PLAIN,
-                                      manifest_digest="pending-source-analysis", confirmed=True)
-        add("binding", "save_binding", {"project_revision": 1, "expected_revision": 0,
-            "binding": binding_to_payload(binding)}, binding_id)
-        environment = EnvironmentRef(environment_id, 1, "Python 3.11+",
-            form.dependency_declaration, data_isolated=True,
-            data_reset_policy=form.data_policy, step_timeout_seconds=120)
-        add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
-            "environment": environment_to_payload(environment, project_id=project)}, environment_id)
+        # 继续已有项目时，项目/绑定/环境已经存在；再次以 expected_revision=0
+        # 写入只会得到 B_REVISION_CONFLICT。续跑只需要重新核对并复用源码快照。
+        if not resume:
+            add("project", "save_context", {"project": {
+                "schema_version": "aitest.project/2.0", "project_id": project,
+                "local_project_id": project, "workspace_id": form.workspace_id,
+                "name": form.name, "goal": form.goal, "revision": 1,
+                "created_at_commit": "@core-assigned", "modules": [],
+            }})
+            binding = LocalProjectBinding(binding_id, 1, project, form.source, BindingForm.PLAIN,
+                                          manifest_digest="pending-source-analysis", confirmed=True)
+            add("binding", "save_binding", {"project_revision": 1, "expected_revision": 0,
+                "binding": binding_to_payload(binding)}, binding_id)
+            environment = EnvironmentRef(environment_id, 1, "Python 3.11+",
+                form.dependency_declaration, data_isolated=True,
+                data_reset_policy=form.data_policy, step_timeout_seconds=120)
+            add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
+                "environment": environment_to_payload(environment, project_id=project)}, environment_id)
         # 先固定源码并理解项目，复核页才能显示真实的业务功能覆盖，模型也能
         # 在生成计划时引用 understanding revision。分析失败在提交计划前暴露。
         add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
             "source_scope": scope, "selected_paths": [scope],
             "exclusion_rules": [".git", ".venv", "__pycache__"],
-            "include_understanding": True})
+            "include_understanding": True},
+            expected_revision=source_expected_revision if resume else 0)
     elif stage == "model":
         template_ref = TemplateRef("python-library", "1.0.0")
         template_text = template_draft_text(load_template(template_ref))
@@ -278,11 +294,30 @@ def wizard_commands(
             "template_content": template_text,
         }
         source_snapshot = receipts.get("snapshot")
-        source_revision = 0
-        if isinstance(source_snapshot, dict):
-            revision = source_snapshot.get("record_revision")
-            if type(revision) is int and revision >= 1:
-                source_revision = revision
+        if not isinstance(source_snapshot, dict):
+            raise ValueError("请先完成源码分析，再生成 AI 计划")
+        # 模型依据必须指向**已冻结快照**的精确身份；只给修订号会让核心
+        # 判定 basis 无法核对并返回 model_basis_unverified。
+        source_revision = source_snapshot.get("record_revision")
+        source_snapshot_id = source_snapshot.get("snapshot_id")
+        source_purpose = source_snapshot.get("purpose")
+        source_content_identity = source_snapshot.get("content_identity")
+        if (
+            type(source_revision) is not int
+            or source_revision < 1
+            or not isinstance(source_snapshot_id, str)
+            or not source_snapshot_id
+            or source_purpose not in {"analysis", "prepare"}
+            or not isinstance(source_content_identity, str)
+            or not source_content_identity
+        ):
+            raise ValueError("源码分析依据不完整，请重新分析项目后再生成计划")
+        source_ref = {
+            "source_snapshot_id": source_snapshot_id,
+            "purpose": source_purpose,
+            "content_identity": source_content_identity,
+            "record_revision": source_revision,
+        }
         if form.source_snippets_enabled:
             try:
                 root = Path(form.source).resolve()
@@ -297,7 +332,7 @@ def wizard_commands(
                 raise ValueError("选中的源码片段无法安全读取") from error
         add("suggestions", "generate_draft", {"generation_mode": "model",
             "project_revision": 1, "policy_revision": 1,
-            "source_revision": source_revision,
+            "source_revision": source_revision, "source_ref": source_ref,
             "base_manual_revision": 0, "task_type": "case_suggestion",
             "draft_kind": "plan_proposal",
             "output_schema": (
@@ -307,7 +342,8 @@ def wizard_commands(
             "template_ref": {"template_id": template_ref.template_id,
                              "version": template_ref.version},
             "timeout_seconds": form.model_timeout,
-            "selected_material": selected_material})
+            "selected_material": selected_material},
+            intent_salt=attempt)
     elif stage == "commit":
         proposal, _scope, cases, scope_payload, case_payloads = _proposal_materials(form)
         for case, payload in zip(cases, case_payloads, strict=True):

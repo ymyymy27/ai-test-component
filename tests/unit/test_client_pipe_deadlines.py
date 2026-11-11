@@ -92,8 +92,12 @@ def test_client_large_frame_preserves_the_actual_received_bytes():
         worker.join(2)
 
 
-@pytest.mark.parametrize("native", [True, False], ids=["native-confirmation", "prepare-run"])
-def test_native_confirmation_receipt_survives_more_than_ten_seconds(native):
+@pytest.mark.parametrize(
+    ("action", "native"),
+    [("save_context", True), ("prepare_run", False), ("generate_draft", False)],
+    ids=["native-confirmation", "prepare-run", "model-generation"],
+)
+def test_long_running_receipt_survives_more_than_ten_seconds(action, native):
     """Real pipe delay, synthetic response: not a human/Trae acceptance claim."""
     import json
 
@@ -134,7 +138,7 @@ def test_native_confirmation_receipt_survives_more_than_ten_seconds(native):
     client = CoreClient(CoreEndpoint("workspace", "core", channel))
     try:
         result = (client.send_native if native else client.send)(Command(
-            request_id="late-receipt", action="save_context" if native else "prepare_run",
+            request_id="late-receipt", action=action,
             project_id="project",
             intent_id="stable-intent", expected_revision=0,
         ))

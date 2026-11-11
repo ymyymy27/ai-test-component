@@ -595,7 +595,7 @@ function revisionCard(ctx: AppContext, run: Record<string, unknown>): HTMLElemen
     field("修订原因", reason),
     note,
     div("hero-actions", submit, narrow),
-    p("提交会打开核心原生确认窗口；面板不代替确认，也不会把回执直接当成通过。", "muted subtle"),
+    p("提交会在面板内确认；面板不代替确认，也不会把回执直接当成通过。", "muted subtle"),
   );
 }
 
@@ -1055,7 +1055,7 @@ async function prepareExecution(
       execution.actionId = result["execution_action_id"];
       execution.authorized = false;
       execution.executed = false;
-      ctx.state.workbench.note = `已解析出操作。核对后由核心原生窗口确认授权（用例 ${caseId}）。`;
+      ctx.state.workbench.note = `已解析出操作。核对后逐项确认授权（用例 ${caseId}）。`;
       ctx.setNotice("操作已解析，请核对后确认授权。", "info");
     } else {
       ctx.state.workbench.note = "核心没有返回可核对的操作编号，请刷新后重试。";

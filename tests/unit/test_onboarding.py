@@ -462,13 +462,64 @@ def test_source_snippet_switch_sends_only_the_selected_entry(tmp_path):
     selection = form(str(source)).model_copy(
         update={"source_snippets_enabled": True}
     )
-    commands = wizard_commands(selection, "model", {"snapshot": {"record_revision": 2}})
+    commands = wizard_commands(selection, "model", {"snapshot": {
+        "snapshot_id": "snapshot-2",
+        "purpose": "prepare",
+        "content_identity": "sha256:" + "a" * 64,
+        "record_revision": 2,
+    }})
     policy = next(item for item in commands if item["action"] == "save_model_outbound_policy")
     suggestions = next(item for item in commands if item["action"] == "generate_draft")
     assert "source_snippet" in policy["parameters"]["policy"]["allowed_material_kinds"]
     assert policy["parameters"]["policy"]["source_snippets_enabled"] is True
     assert suggestions["parameters"]["source_revision"] == 2
+    assert suggestions["parameters"]["source_ref"] == {
+        "source_snapshot_id": "snapshot-2",
+        "purpose": "prepare",
+        "content_identity": "sha256:" + "a" * 64,
+        "record_revision": 2,
+    }
     assert suggestions["parameters"]["selected_material"]["source_snippet"] == (
         "def add(a, b):\n    return a + b\n"
     )
     assert "VALUE" not in suggestions["parameters"]["selected_material"]["source_snippet"]
+
+
+def test_model_retry_gets_a_new_generation_intent_but_reuses_the_policy_intent():
+    selection = form()
+    snapshot = {
+        "snapshot_id": "snapshot-1",
+        "purpose": "prepare",
+        "content_identity": "sha256:" + "b" * 64,
+        "record_revision": 1,
+    }
+    first = wizard_commands(selection, "model", {"snapshot": snapshot}, "attempt-a")
+    second = wizard_commands(selection, "model", {"snapshot": snapshot}, "attempt-b")
+    first_by_action = {command["action"]: command for command in first}
+    second_by_action = {command["action"]: command for command in second}
+    assert (first_by_action["generate_draft"]["intent_id"]
+            != second_by_action["generate_draft"]["intent_id"])
+    assert (first_by_action["save_model_outbound_policy"]["intent_id"]
+            == second_by_action["save_model_outbound_policy"]["intent_id"])
+    assert (first_by_action["generate_draft"]["parameters"]
+            == second_by_action["generate_draft"]["parameters"])
+
+
+def test_project_resume_only_verifies_the_existing_source_snapshot():
+    commands = wizard_commands(
+        form(), "project", {}, resume=True, source_expected_revision=3
+    )
+    assert [command["action"] for command in commands] == ["analyze_project"]
+    assert commands[0]["parameters"]["binding_id"].startswith("binding-guided-")
+    assert commands[0]["expected_revision"] == 3
+
+
+def test_model_stage_requires_the_frozen_snapshot_identity():
+    selection = form()
+    for receipts in ({}, {"snapshot": {"record_revision": 2}}):
+        try:
+            wizard_commands(selection, "model", receipts)
+        except ValueError as error:
+            assert "源码分析" in str(error)
+        else:
+            raise AssertionError("模型阶段不能只凭修订号生成计划")

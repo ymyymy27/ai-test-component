@@ -335,7 +335,7 @@ def publication_content(
             )
         except (TypeError, ValueError, KeyError) as error:
             raise ApprovalRequired(
-                "coverage contract differs from the saved understanding"
+                f"coverage contract differs from the saved understanding: {error}"
             ) from error
     plan = build_plan(
         plan_id=plan_id,

@@ -68,7 +68,9 @@ def controlled_write(
         try:
             publication = publication_content(action, project_id, parameters, records, workspace_id)
         except (ValueError, TypeError, KeyError, OSError) as error:
-            raise ApprovalRequired("publication input or saved basis cannot be verified") from error
+            raise ApprovalRequired(
+                f"publication input or saved basis cannot be verified: {error}"
+            ) from error
         return ControlledWrite(
             action,
             publication.aggregate_kind,

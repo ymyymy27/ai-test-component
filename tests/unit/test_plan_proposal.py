@@ -585,6 +585,18 @@ def test_v11_not_applicable_and_ai_added_case_are_first_class():
     assert "case-extra" not in scope.template_case_ids
 
 
+def test_v11_multiple_ai_cases_may_share_a_missing_template_item():
+    payload = _v11_payload(_understanding())
+    for suffix in ("one", "two"):
+        extra = _case("unused", "L2", "case-ai-" + suffix)
+        extra["template_item_id"] = None
+        extra["origin"] = "ai"
+        extra["links"]["acceptance_item_ids"] = []
+        payload["cases"].append(extra)
+    proposal = PlanProposal.model_validate(payload)
+    assert [case.template_item_id for case in proposal.cases].count(None) == 2
+
+
 def test_v11_missing_template_disposition_is_rejected():
     understanding = _understanding()
     payload = _v11_payload(understanding)

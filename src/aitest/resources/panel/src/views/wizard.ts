@@ -3,7 +3,7 @@
 import type { AppContext } from "../context";
 import { asNumber, asRecord, asRecords, asText, label, toneForState } from "../labels";
 import { icon } from "../icons";
-import { WIZARD_STEPS } from "../wizard";
+import { DEFAULT_AI_GOAL, WIZARD_STEPS } from "../wizard";
 import type { WizardCheck } from "../types";
 import {
   banner,
@@ -33,7 +33,7 @@ export function renderWizard(ctx: AppContext): HTMLElement {
   const head = pageHead(
     "准备测试",
     wizardTitle(state.stage),
-    "按顺序准备项目、环境、计划与运行。发布和授权会由核心原生窗口确认。",
+    "按顺序准备项目、环境、计划与运行。发布和授权会在面板内确认。",
     state.stage !== "choose"
       ? button("重新开始", () => wizard.reset(), { variant: "ghost", icon: "refresh", disabled: state.busy })
       : null,
@@ -61,7 +61,7 @@ function wizardTitle(stage: string): string {
     case "choose":
       return "选择要测试的项目";
     case "configure":
-      return "说明目标并准备环境";
+      return "准备项目与环境";
     case "restart":
       return "重启核心以应用配置";
     case "project":
@@ -114,23 +114,39 @@ function configureStep(ctx: AppContext): HTMLElement {
   const busy = state.busy;
   const project = card(
     "",
-    cardHead("这次要检查什么", "先描述业务目标，模型或手工计划都以此为准。"),
+    cardHead("准备这次测试", "先确认项目与数据边界；验证目标在下一步由 AI 候选给出。"),
     facts([
       ["源码目录", state.session?.source ?? "—"],
       ["测试入口", state.session?.entry ?? "—"],
       ["独立环境", state.workspace || "准备后由核心返回"],
     ]),
     fieldInput("项目名称", state.name, value => { state.name = value; }),
-    fieldArea("你希望验证什么", state.goal, value => { state.goal = value; }, "描述应该发生什么，以及哪些情况需要特别检查。"),
+  );
+  const goal = fieldArea("你希望验证什么", state.goal, value => { state.goal = value; }, "描述应该发生什么，以及哪些情况需要特别检查。");
+  if (state.useModel) {
+    // 模型路径不在这里再问一遍目标：下一步会直接给出可选择的候选，
+    // 这里只保留可选的额外关注点，避免“先写目标、再选目标”的重复。
+    project.append(
+      details(
+        "补充说明（可选）",
+        p("AI 会先分析项目并给出目标候选；这里可以写额外关注点，留空即可。", "muted subtle"),
+        goal,
+      ),
+    );
+  } else {
+    project.append(goal);
+  }
+  project.append(
     fieldArea("测试数据如何隔离、测试后如何复位", state.dataPolicy, value => { state.dataPolicy = value; }, "例如：只在内存中计算，不连接业务系统，结束后无需清理。"),
     checkbox("我确认这是本地测试入口，不会修改真实业务数据", state.confirmed, value => { state.confirmed = value; }, busy),
   );
 
   const model = card(
     "",
-    cardHead("模型辅助", "让模型生成结构化计划提案；发布前由你核对。"),
-    checkbox("使用模型帮助准备检查建议", state.useModel, value => {
+    cardHead("AI 辅助", "AI 先分析项目并给出验证目标候选；生成计划前由你核对。"),
+    checkbox("用 AI 生成验证目标与计划（推荐）", state.useModel, value => {
       state.useModel = value;
+      if (value && !state.goal.trim()) state.goal = DEFAULT_AI_GOAL;
       ctx.render();
     }, busy),
   );
@@ -156,7 +172,7 @@ function configureStep(ctx: AppContext): HTMLElement {
 
   const actions = div(
     "hero-actions",
-    button("准备环境并继续", () => void wizard.prepareEnvironment(), {
+    button("准备环境并分析项目", () => void wizard.prepareEnvironment(), {
       variant: "primary",
       icon: "arrow-right",
       disabled: busy,
@@ -167,20 +183,10 @@ function configureStep(ctx: AppContext): HTMLElement {
 }
 
 function envCard(): HTMLElement {
-  return card(
-    "flat",
-    cardHead("独立测试环境", "与被测项目原本的环境分开，避免污染。"),
-    div(
-      "hero-steps",
-      envLine("创建独立 Python 3.11+ 环境"),
-      envLine("登记解释器与依赖目录"),
-      envLine("固定源码快照并分析项目理解"),
-    ),
+  return details(
+    "运行环境",
+    p("会在独立 Python 3.11+ 环境中登记解释器、固定源码快照并分析项目理解；不会修改被测项目。", "muted subtle"),
   );
-}
-
-function envLine(text: string): HTMLElement {
-  return div("hero-step", div("hero-step-num", "·"), div("grow", text));
 }
 
 function restartStep(ctx: AppContext): HTMLElement {
@@ -207,7 +213,8 @@ function restartStep(ctx: AppContext): HTMLElement {
 function projectStep(ctx: AppContext): HTMLElement {  const wizard = ctx.wizard;
   const state = wizard.state;
   const progressState = state.commandProgress;
-  const labels = ["保存项目", "绑定目录", "登记环境", "分析源码"];
+  const resuming = state.session?.existing === true;
+  const labels = resuming ? ["分析源码"] : ["保存项目", "绑定目录", "登记环境", "分析源码"];
   const done = progressState ? progressState.done : 0;
   const list = div("stack-sm");
   labels.forEach((text, index) => {
@@ -224,7 +231,12 @@ function projectStep(ctx: AppContext): HTMLElement {  const wizard = ctx.wizard;
   });
   return card(
     "",
-    cardHead("正在保存项目并分析源码", "分析结果会作为计划提案的输入；失败会在发布前暴露。"),
+    cardHead(
+      resuming ? "正在核对已有项目并分析源码" : "正在保存项目并分析源码",
+      resuming
+        ? "续跑不会重复写入项目、绑定或环境；只重新核对源码快照与项目理解。"
+        : "分析结果会作为计划提案的输入；失败会在发布前暴露。",
+    ),
     list,
     progressState ? progress(progressState.done, progressState.total) : loading("正在生成受控命令…"),
     state.error
@@ -242,7 +254,10 @@ function goalsStep(ctx: AppContext): HTMLElement {
   const state = wizard.state;
   const snapshot = asRecord(state.receipts["snapshot"]);
   const understanding = snapshot ? asRecord(snapshot["understanding"]) : undefined;
-  const rawGoals = understanding?.["goal_candidates"];
+  const understandingBody = understanding ? asRecord(understanding["body"]) : undefined;
+  const rawGoals = snapshot?.["goal_candidates"]
+    ?? understandingBody?.["goal_candidates"]
+    ?? understanding?.["goal_candidates"];
   const goals = Array.isArray(rawGoals) ? asRecords(rawGoals) : [];
   const list = div("stack-sm");
   for (const [index, goal] of goals.entries()) {
@@ -451,6 +466,9 @@ function reviewStep(ctx: AppContext): HTMLElement {
       div("eyebrow", "第 4 步"),
       h2("核对计划、覆盖与依据"),
       p("发布后计划不可变；一次确认会同时冻结计划、覆盖契约和执行许可。", "muted"),
+      state.useModel
+        ? banner("AI 单目标计划按需自测：只验证选中的目标，不宣称完整覆盖全部业务功能。", "info")
+        : null,
       stats,
     ),
     coverageRows.length ? card("", cardHead("功能 × 维度覆盖", "来自已保存的项目理解，未覆盖项会阻止完整验证。"), coverageList) : null,
@@ -472,7 +490,7 @@ function reviewStep(ctx: AppContext): HTMLElement {
           disabled: state.busy || !state.catalogConfirmed || !state.preview,
         }),
       ),
-      p("点击“确认并发布”后，核心会弹出原生确认窗口；面板不会代签，也不会在窗口外自动继续。", "muted subtle"),
+      p("点击“确认并开始”后，核心会生成确认材料，面板展示并提交确认；面板不会代签，也不会自动继续。", "muted subtle"),
       state.issues.length ? banner(state.issues.join("；"), "danger") : null,
     ),
   );
@@ -483,7 +501,7 @@ function commitStep(ctx: AppContext): HTMLElement {
   const progressState = state.commandProgress;
   return card(
     "",
-    cardHead("发布计划", "核心原生窗口确认后，计划、覆盖契约与执行许可一起冻结。"),
+    cardHead("发布计划", "确认后，计划、覆盖契约与执行许可一起冻结。"),
     progressState ? progress(progressState.done, progressState.total) : loading("正在保存用例与验收范围…"),
     progressState ? p(`正在执行：${progressState.label}（${progressState.done}/${progressState.total}）`, "muted subtle") : null,
     p("面板不会代签确认；窗口关闭或超时只表示结果未核实，按原意图核对。", "muted subtle"),

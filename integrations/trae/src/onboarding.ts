@@ -3,9 +3,10 @@ import {spawn} from "node:child_process";
 import {randomUUID} from "node:crypto";
 import {join,relative,isAbsolute,basename} from "node:path";
 import {readFile} from "node:fs/promises";
+import {dispatchReadOnly} from "./core-bridge";
 
 type HostSettings={python:string;workspaceRoot:string;projectId:string|null;modelConfigurationFile:string};
-export type WizardSession={project_id:string;root:string;source:string;entry:string;reference:string;endpoint:string;busy?:boolean};
+export type WizardSession={project_id:string;root:string;source:string;entry:string;reference:string;endpoint:string;busy?:boolean;existing?:boolean};
 
 export function helper(python:string,request:Record<string,unknown>):Promise<Record<string,unknown>> {
   return new Promise((resolve,reject)=>{
@@ -108,7 +109,7 @@ export async function wizardMessage(
         if(!picked){respond({cancelled:true});return session;}
         if(picked.project){
           const saved=context.globalState.get<Record<string,unknown>>("modelDefaults");
-          session={...picked.project,reference:typeof saved?.reference==="string"?saved.reference:"",endpoint:typeof saved?.endpoint==="string"?saved.endpoint:"https://api.deepseek.com"};
+          session={...picked.project,reference:typeof saved?.reference==="string"?saved.reference:"",endpoint:typeof saved?.endpoint==="string"?saved.endpoint:"https://api.deepseek.com",existing:true};
           respond({session:{...session,model:saved?.model,timeout:saved?.timeout}});return session;
         }
       }
@@ -160,7 +161,19 @@ export async function wizardMessage(
     }else if(raw.kind==="wizardCommands"){
       if(settings.projectId!==session.project_id)throw new Error("当前项目已变化，请回到原项目再继续。");
       const form=raw.form;if(!form||typeof form!=="object"||Array.isArray(form))throw new Error("向导表单无效。");
-      const result=await helper(settings.python,{operation:"commands",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry},stage:raw.stage,receipts:raw.receipts});
+      // 每次生成计划都是一次新的模型生成意图；否则首次结构校验失败后，
+      // 同一意图只会重放旧的 blocked 结果，用户无法重试。
+      const attempt=raw.stage==="model"?randomUUID():undefined;
+      let sourceExpectedRevision=0;
+      if(session.existing===true&&raw.stage==="project"){
+        const state=await dispatchReadOnly(settings.python,settings.workspaceRoot,{
+          action:"query",projectId:session.project_id,
+          parameters:{aggregate_kind:"source_binding_current",limit:1},
+        },randomUUID());
+        const items=state.status==="ok"?(state.response?.result as Record<string,unknown>|undefined)?.items:undefined;
+        if(Array.isArray(items)&&items[0]&&typeof items[0]==="object"&&Number.isSafeInteger((items[0] as Record<string,unknown>).revision))sourceExpectedRevision=Number((items[0] as Record<string,unknown>).revision);
+      }
+      const result=await helper(settings.python,{operation:"commands",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry},stage:raw.stage,receipts:raw.receipts,attempt,resume:session.existing===true,source_expected_revision:sourceExpectedRevision});
       respond(result);
     }else if(raw.kind==="wizardReview"){
       if(settings.projectId!==session.project_id)throw new Error("当前项目已变化，请回到原项目再继续。");

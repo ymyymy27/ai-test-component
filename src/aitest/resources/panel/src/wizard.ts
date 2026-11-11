@@ -93,6 +93,9 @@ function initialChecks(): WizardCheck[] {
   }));
 }
 
+export const DEFAULT_AI_GOAL = "由 AI 根据项目理解提出验证目标";
+const DEFAULT_DATA_POLICY = "纯内存计算，不连接外部系统，结束后无需清理";
+
 function initialState(): WizardState {
   return {
     stage: "choose",
@@ -101,8 +104,9 @@ function initialState(): WizardState {
     error: "",
     session: null,
     name: "",
-    goal: "",
-    dataPolicy: "",
+    goal: DEFAULT_AI_GOAL,
+    runTier: "full",
+    dataPolicy: DEFAULT_DATA_POLICY,
     confirmed: false,
     useModel: true,
     endpoint: "https://api.deepseek.com",
@@ -198,12 +202,12 @@ export class WizardController {
     this.state.reference = typeof session.reference === "string" ? session.reference : "";
     // 换项目后不能沿用上一个项目的提案、依据回执或覆盖确认。
     this.resetDerived();
-    this.state.goal = "";
-    this.state.dataPolicy = "";
+    this.state.goal = DEFAULT_AI_GOAL;
+    this.state.dataPolicy = DEFAULT_DATA_POLICY;
     this.state.confirmed = false;
     this.state.stage = "configure";
     this.state.error = "";
-    this.setBusy(false, "项目已选择。填写测试目标并准备独立环境。");
+    this.setBusy(false, "项目已选择。准备环境后，AI 会给出验证目标候选。");
   }
 
   private resetDerived(): void {
@@ -351,11 +355,12 @@ export class WizardController {
       });
       if (!this.outcomeOk(outcome, command.action)) {
         const resultBody = asRecord(outcome.response?.["result"]);
-        const reason = outcome.message
-          ?? textOf(resultBody?.["message"])
-          ?? textOf(resultBody?.["reason"])
-          ?? textOf(resultBody?.["blocked_reason"])
-          ?? "这一步没有完成。";
+        const reason = outcome.message?.trim()
+          || textOf(resultBody?.["message"])
+          || textOf(resultBody?.["reason"])
+          || textOf(resultBody?.["blocked_reason"])
+          || blockedReason(resultBody?.["blocked_by"])
+          || "这一步没有完成。";
         this.fail(reason, outcome.code);
         return;
       }
@@ -373,7 +378,12 @@ export class WizardController {
     if (stage === "project") {
       const snapshot = asRecord(this.state.receipts["snapshot"]);
       const understanding = snapshot ? asRecord(snapshot["understanding"]) : undefined;
-      const rawGoals = understanding?.["goal_candidates"];
+      const understandingBody = understanding ? asRecord(understanding["body"]) : undefined;
+      // analyze_project 把 goal_candidates 放在结果顶层；理解载荷中则位于
+      // body 内。两种都读，避免把有候选的项目误判成“没有目标”。
+      const rawGoals = snapshot?.["goal_candidates"]
+        ?? understandingBody?.["goal_candidates"]
+        ?? understanding?.["goal_candidates"];
       const goals = Array.isArray(rawGoals)
         ? rawGoals.filter((item): item is Record<string, unknown> =>
             item !== null && typeof item === "object" && !Array.isArray(item))
@@ -519,7 +529,7 @@ export class WizardController {
       allowed_material_kinds: ["project_context", "template_content"],
       source_snippets_enabled: false,
       source_scope: ".",
-      run_tier: "full",
+      run_tier: this.state.useModel ? "on_demand" : this.state.runTier,
       initial_driver: "planned",
       checks,
     };
@@ -555,6 +565,23 @@ function expectedValue(check: WizardCheck): unknown {
   }
   if (check.type === "boolean") return check.value === "true";
   return check.value;
+}
+
+const BLOCKED_REASONS: Record<string, string> = {
+  model_not_configured: "模型未配置或凭据不可用；请重新填写 API Key 并重启核心。",
+  stale_outbound_policy: "模型材料范围已变化；请重新确认发送范围后重试。",
+  model_basis_unverified: "源码分析依据无法核对；请重新分析项目后再生成计划。",
+  source_reference_required: "模型材料引用了源码，但没有可核对的快照；请重新分析项目。",
+  structured_output_invalid: "模型返回的计划结构不符合约定；可以重试，或改用手工检查。",
+  response_store_unavailable: "模型响应的本地保存不可用；请检查工作空间后重试。",
+};
+
+function blockedReason(value: unknown): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const reasons = value
+    .map(item => typeof item === "string" ? BLOCKED_REASONS[item] ?? `核心阻塞：${item}` : "")
+    .filter(Boolean);
+  return reasons.length > 0 ? reasons.join("；") : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

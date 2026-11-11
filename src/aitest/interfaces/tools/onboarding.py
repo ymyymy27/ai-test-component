@@ -98,8 +98,20 @@ def main() -> int:
                     "issues": [issue.as_dict() for issue in error.issues],
                 }
         elif operation == "commands":
-            result = {"commands": wizard_commands(OnboardingForm.model_validate(data["form"]),
-                data["stage"], data.get("receipts", {}))}
+            attempt = data.get("attempt")
+            if attempt is not None and (not isinstance(attempt, str) or not attempt or len(attempt) > 128):
+                raise ValueError("向导重试标记无效")
+            resume = data.get("resume", False)
+            if type(resume) is not bool:
+                raise ValueError("向导续跑标记无效")
+            source_expected_revision = data.get("source_expected_revision", 0)
+            if type(source_expected_revision) is not int or source_expected_revision < 0:
+                raise ValueError("源码当前指针修订无效")
+            result = {"commands": wizard_commands(
+                OnboardingForm.model_validate(data["form"]),
+                data["stage"], data.get("receipts", {}), attempt, resume,
+                source_expected_revision,
+            )}
         elif operation == "credential":
             save_purpose_credential(purpose="model", reference=data["reference"],
                                     value=data["value"])

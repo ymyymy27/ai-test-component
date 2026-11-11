@@ -70,13 +70,12 @@ test("first-run wizard prepares, publishes and registers through the controlled 
 
   await page.getByRole("button", { name: "选择项目目录", exact: true }).click();
   await reply(page, { kind: "wizardResult", session }, { kind: "wizardChoose" });
-  await expect(page.getByText("这次要检查什么")).toBeVisible();
+  await expect(page.getByText("准备这次测试")).toBeVisible();
 
-  await page.getByLabel("你希望验证什么").fill("验证订单金额计算与持久化");
   await page.getByLabel("测试数据如何隔离、测试后如何复位").fill("只在内存中计算，不连接业务系统");
   await page.getByRole("checkbox", { name: /我确认这是本地测试入口/ }).check();
   const beforePrepare = (await sentMessages(page)).length;
-  await page.getByRole("button", { name: "准备环境并继续", exact: true }).click();
+  await page.getByRole("button", { name: "准备环境并分析项目", exact: true }).click();
   await reply(page, { kind: "wizardResult", setup: { workspace: "C:/data/guided/workspace" }, session }, { kind: "wizardSetup" });
 
   await waitForSend(page, { kind: "restartCore" }, 5000, beforePrepare);
@@ -99,16 +98,29 @@ test("first-run wizard prepares, publishes and registers through the controlled 
   await answer(page, "analyze_project", {
     snapshot_id: "snap-1",
     record_revision: 1,
+    purpose: "prepare",
+    content_identity: "sha256:" + "a".repeat(64),
+    // analyze_project 的真实结果在顶层带 goal_candidates；understanding.body
+    // 里是同一份理解。面板优先读顶层，不能再把有候选的项目当成无目标。
+    goal_candidates: [{
+      intent_id: "intent-1",
+      statement: "验证订单金额与持久化",
+      why: "最近改动且失败影响最大",
+      risk: "金额错误",
+      function_ids: ["order.total"],
+    }],
     understanding: {
       understanding_id: "understanding-1",
       revision: 1,
-      goal_candidates: [{
-        intent_id: "intent-1",
-        statement: "验证订单金额与持久化",
-        why: "最近改动且失败影响最大",
-        risk: "金额错误",
-        function_ids: ["order.total"],
-      }],
+      body: {
+        goal_candidates: [{
+          intent_id: "intent-1",
+          statement: "验证订单金额与持久化",
+          why: "最近改动且失败影响最大",
+          risk: "金额错误",
+          function_ids: ["order.total"],
+        }],
+      },
     },
   }, "writeDispatch");
 
@@ -191,12 +203,12 @@ test("manual four-check plan reaches prepare and register", async ({ page }) => 
   await page.getByRole("button", { name: "继续准备测试", exact: true }).click();
   await page.getByRole("button", { name: "选择项目目录", exact: true }).click();
   await reply(page, { kind: "wizardResult", session }, { kind: "wizardChoose" });
+  await page.getByRole("checkbox", { name: /用 AI 生成验证目标与计划/ }).uncheck();
   await page.getByLabel("你希望验证什么").fill("验证订单金额计算");
   await page.getByLabel("测试数据如何隔离、测试后如何复位").fill("只在内存中计算");
   await page.getByRole("checkbox", { name: /我确认这是本地测试入口/ }).check();
-  await page.getByRole("checkbox", { name: /使用模型帮助准备检查建议/ }).uncheck();
   const beforePrepare = (await sentMessages(page)).length;
-  await page.getByRole("button", { name: "准备环境并继续", exact: true }).click();
+  await page.getByRole("button", { name: "准备环境并分析项目", exact: true }).click();
   await reply(page, { kind: "wizardResult", setup: { workspace: "C:/data/guided/workspace" }, session }, { kind: "wizardSetup" });
   await waitForSend(page, { kind: "restartCore" }, 5000, beforePrepare);
   const beforeRestartReply = (await sentMessages(page)).length;

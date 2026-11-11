@@ -218,7 +218,10 @@ class PlanProposal(BaseModel):
         case_ids = [case.case_id for case in self.cases]
         if len(case_ids) != len(set(case_ids)):
             raise ValueError("duplicate case IDs")
-        item_ids = [case.template_item_id for case in self.cases]
+        item_ids = [
+            case.template_item_id for case in self.cases
+            if case.template_item_id is not None
+        ]
         if len(item_ids) != len(set(item_ids)):
             raise ValueError("duplicate template item IDs")
         if self.schema_version == PLAN_PROPOSAL_SCHEMA_V11:

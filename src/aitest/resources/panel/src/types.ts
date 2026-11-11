@@ -51,6 +51,7 @@ export interface Session {
   model?: string;
   timeout?: number;
   name?: string;
+  existing?: boolean;
 }
 
 export interface WizardCommand {
@@ -242,6 +243,7 @@ export interface WizardState {
   session: Session | null;
   name: string;
   goal: string;
+  runTier: "full" | "on_demand";
   dataPolicy: string;
   confirmed: boolean;
   useModel: boolean;
