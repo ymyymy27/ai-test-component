@@ -170,14 +170,13 @@ function runCli(
   payload: unknown,
   timeoutMs: number,
   nativeConfirmation = false,
-  batch = false,
   panel = false,
 ): Promise<SpawnResult> {
   return new Promise<SpawnResult>((resolve) => {
     const child = spawn(
       python,
       ["-m", "aitest.interfaces.tools.cli",
-        panel ? "dispatch-panel" : batch ? "dispatch-batch" : "dispatch",
+        panel ? "dispatch-panel" : "dispatch",
         ...(nativeConfirmation ? ["--native-confirmation"] : []), "--workspace", workspaceRoot],
       { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: coreEnvironment() },
     );
@@ -470,7 +469,7 @@ export async function dispatchControlled(
   }
   const command = buildCommand(request, requestId);
   const prepared = panelOutcome(
-    await runCli(python, workspaceRoot, { phase: "prepare", command }, timeoutMs, false, false, true),
+    await runCli(python, workspaceRoot, { phase: "prepare", command }, timeoutMs, false, true),
     command,
     request,
   );
@@ -505,7 +504,6 @@ export async function dispatchControlled(
       { phase: "confirm", command, challenge_id: challenge, input_digest: digest },
       timeoutMs,
       false,
-      false,
       true,
     ),
     command,
@@ -534,89 +532,6 @@ export async function dispatchWrite(
     throw new BridgeRefused("普通写入需要项目、稳定业务意图和准确的预期修订");
   }
   return dispatchCommand(python, workspaceRoot, request, requestId, timeoutMs, false, 180_000);
-}
-
-export interface BatchDispatchItem {
-  readonly request: DispatchRequest;
-  readonly requestId: string;
-}
-
-/**
- * One core-owned window, one gesture per `authorize_step`.
- *
- * The envelope request id is transport correlation only; every item keeps its
- * own request/intent identity.  No caller-supplied challenge or interaction is
- * accepted by the core.
- */
-export async function dispatchNativeBatch(
-  python: string,
-  workspaceRoot: string,
-  items: readonly BatchDispatchItem[],
-  requestId: string,
-  timeoutMs = 730_000,
-): Promise<DispatchOutcome> {
-  if (!items.length) {
-    throw new BridgeRefused("批量授权至少需要一个动作");
-  }
-  const projectId = items[0].request.projectId;
-  if (!projectId || items.some(item => item.request.projectId !== projectId
-      || item.request.action !== "authorize_step"
-      || !item.request.intentId || item.request.intentId === item.requestId
-      || !Number.isSafeInteger(item.request.expectedRevision)
-      || (item.request.expectedRevision ?? -1) < 0)) {
-    throw new BridgeRefused("批量授权需要同一项目、稳定意图、准确目标与预期修订");
-  }
-  const envelope = {
-    __aitest_control__: "native-batch/1",
-    request_id: requestId,
-    commands: items.map(item => buildCommand(item.request, item.requestId)),
-  };
-  const result = await runCli(python, workspaceRoot, envelope, timeoutMs, false, true);
-  if (result.timedOut) {
-    return { status: "unavailable", code: "ENTRY_TIMEOUT",
-      message: "批量授权窗口在限定时间内无回执；未确认项不授权，请按原意图核对" };
-  }
-  if (result.spawnFailure) {
-    return { status: "unavailable", code: "ENTRY_SPAWN_FAILED",
-      message: `无法启动已配置的本地核心入口（${result.spawnFailure}）` };
-  }
-  if (result.oversized) {
-    return { status: "unavailable", code: "ENTRY_OUTPUT_LIMIT",
-      message: "批量授权输出超出允许预算，结果未核实" };
-  }
-  const response = parseResponse(result.stdout);
-  if (response === null) {
-    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
-      message: "核心未返回可核实的批量授权回执，请查看受控诊断" };
-  }
-  if (response["request_id"] !== requestId
-      || response["protocol_version"] !== PROTOCOL_VERSION
-      || typeof response["instance_id"] !== "string" || !response["instance_id"].trim()
-      || typeof response["workspace_id"] !== "string" || !response["workspace_id"].trim()
-      || response["project_id"] !== projectId) {
-    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
-      message: "批量授权回执身份或协议与请求不一致，结果未核实" };
-  }
-  if (response["error"] !== null && response["error"] !== undefined) {
-    const error = response["error"];
-    if (typeof error !== "object" || Array.isArray(error)) {
-      return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
-        message: "核心批量授权错误回执形状无法核实" };
-    }
-    const detail = error as Record<string, unknown>;
-    return {
-      status: "refused",
-      response,
-      code: typeof detail["code"] === "string" ? detail["code"] : "UNKNOWN_ERROR",
-      message: typeof detail["message"] === "string" ? detail["message"] : "核心拒绝批量授权",
-    };
-  }
-  if (result.code !== 0 || typeof response["result"] !== "object"
-      || response["result"] === null || Array.isArray(response["result"])) {
-    return { status: "unavailable", code: "CORE_RESULT_UNVERIFIED",
-      message: "核心退出状态或批量授权结果形状无法核实" };
-  }
-  return { status: "ok", response };
 }
 
 async function dispatchCommand(

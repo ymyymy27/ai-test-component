@@ -1,6 +1,5 @@
 """CLI/relay facade: one verified endpoint, exact receipts, no automatic retransmission."""
 
-from collections.abc import Sequence
 from contextlib import suppress
 from typing import cast
 from uuid import uuid4
@@ -11,7 +10,6 @@ from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.editor_host import CoreEndpoint
 from aitest.interfaces.local.native_confirmation import (
-    NATIVE_BATCH_VERSION,
     NATIVE_CONFIRMATION_TIMEOUT_MS,
     NATIVE_CONFIRMATION_VERSION,
     PANEL_CONFIRMATION_VERSION,
@@ -21,8 +19,6 @@ from aitest.interfaces.local.pipe import MAX_MESSAGE_BYTES
 MAX_COMMAND_BYTES = MAX_MESSAGE_BYTES
 BUSINESS_RESPONSE_TIMEOUT_MS = 130_000
 NATIVE_RESPONSE_TIMEOUT_MS = NATIVE_CONFIRMATION_TIMEOUT_MS + BUSINESS_RESPONSE_TIMEOUT_MS
-#: The batch window can stay open for several per-action gestures.
-BATCH_RESPONSE_TIMEOUT_MS = 10 * 60 * 1000 + BUSINESS_RESPONSE_TIMEOUT_MS
 LONG_RUNNING_ACTIONS = frozenset({
     "analyze_project", "generate_draft", "create_report", "export_report",
     "prepare_run", "register_run", "prepare_execution", "execute_step", "retry_step",
@@ -103,42 +99,6 @@ class CoreClient:
             command,
             json.dumps(envelope, ensure_ascii=False, allow_nan=False).encode("utf-8"),
             response_timeout_ms=BUSINESS_RESPONSE_TIMEOUT_MS,
-        )
-
-    def send_native_batch(self, commands: Sequence[Command]) -> Response:
-        """Ask the core for one window with per-action gestures.
-
-        Each command carries its own request/intent identity.  The envelope
-        request id is only a transport correlation; it is not a business intent.
-        """
-        import json
-
-        if not commands:
-            raise CoreResultUnverified("批量授权至少需要一个动作")
-        project = commands[0].project_id
-        if not project or any(command.project_id != project for command in commands):
-            raise CoreResultUnverified("批量授权只接受同一项目的动作")
-        discovery = self.send(Command(request_id=uuid4().hex, action="doctor"))
-        capabilities = (discovery.result or {}).get("transport_capabilities")
-        if not isinstance(capabilities, list) or NATIVE_BATCH_VERSION not in capabilities:
-            raise CoreResultUnverified("核心不支持批量授权入口，请核对安装版本并受控重启核心")
-        envelope = Command(
-            request_id=uuid4().hex,
-            action="native_batch",
-            project_id=project,
-        )
-        return self._exchange(
-            envelope,
-            json.dumps(
-                {
-                    "__aitest_control__": NATIVE_BATCH_VERSION,
-                    "request_id": envelope.request_id,
-                    "commands": [command.model_dump(mode="json") for command in commands],
-                },
-                ensure_ascii=False,
-                allow_nan=False,
-            ).encode("utf-8"),
-            response_timeout_ms=BATCH_RESPONSE_TIMEOUT_MS,
         )
 
     def _exchange(

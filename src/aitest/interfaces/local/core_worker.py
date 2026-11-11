@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
 import time
@@ -107,6 +108,18 @@ def _protocol_error(api: LocalAPI, request_id: str, code: str, message: str) -> 
             next_step="检查帧格式与 aitest.local/2.0 合同",
         ),
     )
+
+
+def _legacy_native_batch_enabled() -> bool:
+    """Legacy one-window batch authorization is opt-in only.
+
+    The panel now authorizes steps one by one; the native batch transport is
+    kept for a compatibility window but is not advertised or accepted by
+    default. Set ``AITEST_ENABLE_LEGACY_NATIVE_BATCH=1`` only for an explicit
+    legacy-host check.
+    """
+
+    return os.environ.get("AITEST_ENABLE_LEGACY_NATIVE_BATCH") == "1"
 
 
 def dispatch_frame(
@@ -199,7 +212,11 @@ def dispatch_frame(
                         api._safe_message(error),
                     )
             return api._error(command, "INVALID_COMMAND", "面板确认阶段无效")
-        if action == NATIVE_BATCH_VERSION and native_batch_dispatch is not None:
+        if (
+            action == NATIVE_BATCH_VERSION
+            and native_batch_dispatch is not None
+            and _legacy_native_batch_enabled()
+        ):
             raw_commands = obj.get("commands")
             if (
                 set(obj) != {CONTROL_KEY, "request_id", "commands"}
@@ -248,7 +265,7 @@ def dispatch_frame(
         capabilities = [NATIVE_CONFIRMATION_VERSION]
         if panel_prepare_dispatch is not None and panel_confirm_dispatch is not None:
             capabilities.append(PANEL_CONFIRMATION_VERSION)
-        if native_batch_dispatch is not None:
+        if native_batch_dispatch is not None and _legacy_native_batch_enabled():
             capabilities.append(NATIVE_BATCH_VERSION)
         return response.model_copy(
             update={

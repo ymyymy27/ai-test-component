@@ -41,11 +41,6 @@ def main() -> int:
         action="store_true",
         help="Request the core-owned Windows confirmation window (never auto-confirms)",
     )
-    batch = sub.add_parser(
-        "dispatch-batch",
-        help="Forward bounded authorize_step commands to one core-owned batch window",
-    )
-    batch.add_argument("--workspace", required=True, type=Path)
     panel = sub.add_parser(
         "dispatch-panel",
         help="Prepare or confirm one panel-owned gesture for a core-frozen challenge",
@@ -350,31 +345,6 @@ def main() -> int:
                 client.close()
         print(response.model_dump_json(indent=2))
         return 0 if response.error is None else 2
-    if args.command == "dispatch-batch":
-        client = None
-        try:
-            raw = json.loads(sys.stdin.buffer.read(MAX_COMMAND_BYTES + 1))
-            if not isinstance(raw, dict) or not isinstance(raw.get("commands"), list):
-                raise ValueError("批量载荷须包含 commands 数组")
-            commands = [Command.model_validate(item) for item in raw["commands"]]
-            client = CoreClient(acquire_existing_endpoint(args.workspace))
-            response = client.send_native_batch(commands)
-        except Exception as error:
-            code = getattr(error, "code", "CLI_INPUT_OR_CONNECTION_UNVERIFIED")
-            print(
-                json.dumps(
-                    {"code": code, "message": "批量授权输入或核心结果无法核实，保留原意图查询"}
-                ),
-                file=sys.stderr,
-            )
-            return 2
-        finally:
-            if client is not None:
-                client.close()
-        print(response.model_dump_json(indent=2))
-        if response.error is not None:
-            return 2
-        return 0
     if args.command == "mcp-relay":
         try:
             run(args.binding, workspace_root=args.workspace, project_id=args.project)
