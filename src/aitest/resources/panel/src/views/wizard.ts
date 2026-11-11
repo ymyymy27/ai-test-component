@@ -306,7 +306,7 @@ function goalsStep(ctx: AppContext): HTMLElement {
       "hero-actions",
       button("用选中的目标生成计划", () => void wizard.runStage("model"), {
         variant: "primary",
-        icon: "spark",
+        icon: "check",
         disabled: state.busy || (goals.length > 0 && !state.goal),
       }),
       button("跳过，使用原来的目标", () => void wizard.runStage("model"), { icon: "arrow-right", disabled: state.busy }),
@@ -372,7 +372,7 @@ function modelStep(ctx: AppContext): HTMLElement {
       "hero-actions",
       button("生成 AI 计划", () => void wizard.runStage("model"), {
         variant: "primary",
-        icon: "spark",
+        icon: "check",
         disabled: state.busy,
       }),
       button("改用手工四项检查", () => void wizard.startManual(), { icon: "file", disabled: state.busy }),
@@ -408,7 +408,7 @@ function manualStep(ctx: AppContext): HTMLElement {
         disabled: state.busy,
       }),
       state.proposal
-        ? button("改用 AI 计划", () => wizard.backToReview(), { icon: "spark", disabled: state.busy })
+        ? button("改用 AI 计划", () => wizard.backToReview(), { icon: "arrow-right", disabled: state.busy })
         : null,
     ),
   );

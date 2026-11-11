@@ -94,8 +94,8 @@ def test_client_large_frame_preserves_the_actual_received_bytes():
 
 @pytest.mark.parametrize(
     ("action", "native"),
-    [("save_context", True), ("prepare_run", False), ("generate_draft", False)],
-    ids=["native-confirmation", "prepare-run", "model-generation"],
+    [("save_context", True), ("prepare_run", False), ("generate_draft", False), ("create_report", False)],
+    ids=["native-confirmation", "prepare-run", "model-generation", "report-generation"],
 )
 def test_long_running_receipt_survives_more_than_ten_seconds(action, native):
     """Real pipe delay, synthetic response: not a human/Trae acceptance claim."""

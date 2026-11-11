@@ -127,5 +127,23 @@ CoreClient 完成后续提交，避免依赖已消失的 webview。
 仍未完成：独立核验（不能用被测实现本次输出倒填预期）、报告、其余步骤。
 不能把“已执行一个步骤”写成整条业务链通过。
 
+## 9 报告与核验根因
+
+- `create_report` 实际在 10 秒客户端超时后仍完成；报告
+  `report-run-1ec6c8bb...` 已保存，`business_outcome=incomplete`、
+  `confidence=low`、`run_revision=4`。原因是 CLI/CoreClient 未把报告生成
+  视为长动作，已加入 `create_report`、`export_report` 的长响应预算。
+- `verify_pending` 被核心正确阻塞：
+  `BUSINESS_VERIFICATION_BLOCKED: exact case basis or trusted independent query
+  registration is invalid: immutable material is not readable UTF-8 JSON`。
+  AI 计划把 `assertion_basis_text` 写成自然语言，而纯函数核验要求
+  `aitest.pure-function-basis/1` 的 `expected_facts` 结构化 JSON（手工计划
+  正是这样生成的）。这不是可以绕过校验的 bug，而是 AI 计划合同缺口：
+  模型没有产出可机器核对的独立预期。
+- 结论：本次报告如实为 `incomplete`；不能通过放松核验或把运行输出倒填为
+  预期来制造 `passed`。下一步应在 AI 计划 schema/提示中要求结构化
+  `expected_facts`，或让用户在发布前逐用例确认机器可读预期。
+
+
 
 

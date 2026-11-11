@@ -47,9 +47,8 @@ svg{flex:none}
 }
 .brand{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
 .brand-mark{
-  width:28px;height:28px;border-radius:9px;display:grid;place-items:center;color:#fff;
-  background:linear-gradient(135deg,var(--accent-strong),#7c5cff);
-  box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 28%,transparent);
+  width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:#fff;
+  background:var(--accent-strong);
 }
 .brand-copy{min-width:0}
 .brand-title{font-size:13px;font-weight:650;letter-spacing:.01em;white-space:nowrap}
@@ -124,17 +123,13 @@ p{font-size:12.5px}
 .divider{height:1px;background:var(--border);margin:12px 0}
 
 .card{
-  background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 97%,#fff 1%),var(--surface));
+  background:var(--surface);
   border:1px solid var(--border);border-radius:var(--radius);padding:14px;
-  box-shadow:var(--shadow);min-width:0;
+  box-shadow:none;min-width:0;
 }
 .card.flat{box-shadow:none;background:var(--surface-2)}
 .card.pad-lg{padding:18px}
-.card.hero{padding:18px;position:relative;overflow:hidden}
-.card.hero::after{
-  content:"";position:absolute;right:-40px;top:-60px;width:200px;height:200px;
-  background:radial-gradient(circle,var(--accent-soft),transparent 70%);pointer-events:none;
-}
+.card.hero{padding:14px;position:relative;overflow:hidden}
 .card.hero > *{position:relative;z-index:1}
 .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
 .card-title{font-size:13px;font-weight:650}
@@ -156,7 +151,7 @@ p{font-size:12.5px}
 .btn:disabled{opacity:.48;cursor:not-allowed}
 .btn-primary{
   background:var(--accent-strong);border-color:transparent;color:var(--vscode-button-foreground,#fff);
-  font-weight:650;box-shadow:0 5px 16px color-mix(in srgb,var(--accent) 25%,transparent);
+  font-weight:600;
 }
 .btn-primary:hover:not(:disabled){background:var(--vscode-button-hoverBackground,var(--accent-strong));filter:brightness(1.06)}
 .btn-ghost{background:transparent;border-color:transparent;color:var(--accent);padding:0 8px}
@@ -211,7 +206,7 @@ p{font-size:12.5px}
 .step-label{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .progress{height:6px;border-radius:999px;background:var(--surface-3);border:1px solid var(--border);overflow:hidden}
-.progress > div{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent-strong),#7c5cff);transition:width .3s ease}
+.progress > div{height:100%;border-radius:999px;background:var(--accent-strong);transition:width .3s ease}
 .progress.slim{height:4px}
 
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
