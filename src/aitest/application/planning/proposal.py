@@ -106,6 +106,7 @@ def plan_proposal_system_prompt() -> str:
         '      "no_critical_path_reason": "<reason when critical_path_ids is empty>"\n'
         "    },\n"
         '    "assertion_basis_text": "<why this assertion proves the acceptance item>",\n'
+        '    "expected_facts": {"<field>": "<machine-readable expected value>"},\n'
         '    "independent_verification": "<how expected values stay independent from execution>",\n'
         '    "mock_scope": [],\n'
         '    "importance": "P0|P1|P2",\n'
@@ -135,6 +136,12 @@ def plan_proposal_system_prompt() -> str:
         "coverage gap through coverage_claims.\n"
         "- Every case needs a non-empty expected, assertion_basis_text and "
         "independent_verification.\n"
+        "- expected_facts is the machine-readable independent expectation used by "
+        "verification. For registered-command/pure-function cases it is the exact "
+        "JSON object the program must print to stdout (for example "
+        "{\"sum\": 5} or {\"error\": \"invalid\"}); do not put prose there. If the "
+        "source and inputs do not determine a concrete value, use null and say "
+        "what is still unconfirmed in expected.\n"
         "- data_mutation_units is the declared upper bound of business objects/rows "
         "the case may change; 0 means read-only. The plan grant budget is checked "
         "against their sum.\n"
@@ -544,7 +551,19 @@ def _template_case_ids(proposal: PlanProposal, pack: TemplatePack) -> frozenset[
 
 
 def _basis_text(proposal_case: ProposalCase) -> tuple[str, str]:
-    digest = text_digest(proposal_case.assertion_basis_text)
+    if proposal_case.expected_facts is not None:
+        text = json.dumps(
+            {
+                "schema_version": "aitest.pure-function-basis/1",
+                "expected_facts": proposal_case.expected_facts,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    else:
+        text = proposal_case.assertion_basis_text
+    digest = text_digest(text)
     if digest is None:
         raise PlanProposalError(
             (
@@ -554,7 +573,7 @@ def _basis_text(proposal_case: ProposalCase) -> tuple[str, str]:
                 ),
             )
         )
-    return proposal_case.assertion_basis_text, digest
+    return text, digest
 
 
 def materialize_plan_proposal(

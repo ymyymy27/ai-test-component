@@ -254,6 +254,7 @@ export interface WizardState {
   reference: string;
   workspace: string;
   pythonVersion: string;
+  sourceSnippets: boolean;
   receipts: Record<string, Record<string, unknown>>;
   proposal: Record<string, unknown> | null;
   expectedFactsText: string;

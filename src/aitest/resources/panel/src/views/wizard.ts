@@ -168,6 +168,10 @@ function configureStep(ctx: AppContext): HTMLElement {
         button("填写 API Key（一次）", () => void wizard.saveCredential(), { icon: "shield", disabled: busy }),
       ),
       p("默认使用 DeepSeek Flash；只需填一次，密钥由宿主安全保存，不出现在面板、记录或日志。", "muted subtle"),
+      checkbox("允许模型读取入口源码，用于生成可核验的预期结果", state.sourceSnippets, value => {
+        state.sourceSnippets = value;
+        ctx.render();
+      }, busy),
       details(
         "高级：模型地址与超时",
         div(

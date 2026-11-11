@@ -100,6 +100,10 @@ class ProposalCase(BaseModel):
     verification_method: str = Field(min_length=1, max_length=4000)
     links: ProposalCaseLink
     assertion_basis_text: str = Field(min_length=1, max_length=8000)
+    #: Machine-readable expected stdout fields for pure command cases.  When
+    #: present, materialisation uses this as the independent pure-function
+    #: basis instead of the prose assertion_basis_text.
+    expected_facts: dict[str, Any] | None = None
     independent_verification: str = Field(min_length=1, max_length=4000)
     mock_scope: list[str] = Field(default_factory=list)
     importance: Literal["P0", "P1", "P2"] = "P1"
@@ -118,6 +122,11 @@ class ProposalCase(BaseModel):
         _require_nonblank(self.inputs, "inputs")
         _require_nonblank(self.steps, "steps")
         _require_nonblank(self.mock_scope, "mock_scope")
+        if self.expected_facts is not None and (
+            not self.expected_facts
+            or any(not isinstance(key, str) or not key.strip() for key in self.expected_facts)
+        ):
+            raise ValueError("expected_facts must be a non-empty JSON object with named fields")
         return self
 
 

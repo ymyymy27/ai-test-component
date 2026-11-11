@@ -194,6 +194,25 @@ def test_edited_proposal_keeps_edits_and_recomputes_digest() -> None:
     assert edited.assertion_basis.text_digest.startswith("sha256:")
 
 
+def test_ai_expected_facts_become_the_machine_readable_basis() -> None:
+    payload = _proposal()
+    first = copy.deepcopy(payload["cases"][0])
+    first["expected_facts"] = {"sum": 5}
+    payload["cases"][0] = first
+    proposal = PlanProposal.model_validate(payload)
+    _scope, materialised = materialize_plan_proposal(
+        proposal,
+        project_id="demo",
+        environment_id="env-demo",
+        scope_id="scope-demo",
+    )
+    edited = next(case for case in materialised if case.case_id == "case-syntax")
+    assert json.loads(edited.assertion_basis.text) == {
+        "schema_version": "aitest.pure-function-basis/1",
+        "expected_facts": {"sum": 5},
+    }
+
+
 def test_required_scope_cannot_omit_a_non_excluded_case() -> None:
     payload = _proposal()
     scope = dict(payload["scope"])  # type: ignore[arg-type]

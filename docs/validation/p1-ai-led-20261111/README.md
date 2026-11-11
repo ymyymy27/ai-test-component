@@ -142,12 +142,14 @@ CoreClient 完成后续提交，避免依赖已消失的 webview。
   模型没有产出可机器核对的独立预期。
 - 结论：本次报告如实为 `incomplete`；不能通过放松核验或把运行输出倒填为
   预期来制造 `passed`。
-- 后续修复：核对页新增“验证预期（可选，JSON）”，按用例填写
-  `{case_id: {字段: 预期值}}`；向导在 `assertion_basis_text` 中写入
-  `aitest.pure-function-basis/1` 的 `expected_facts`，纯函数核验即可读取。
-  未填写时发布页明确警告“只能保持未验证”。面板测试已验证该转换。
-- 已发布的本次运行仍保持 `incomplete`；要验证新能力，需要以填写了预期
-  的新计划重新发布并登记新运行。该复测尚未执行。
+- 后续修复：AI 计划 schema 增加 `expected_facts`，提示要求模型按用例输出
+  机器可读的 stdout JSON 预期；向导默认允许模型读取入口源码（可在模型卡片
+  关闭），材料范围确认仍由用户完成。物化时把 `expected_facts` 转成
+  `aitest.pure-function-basis/1`，纯函数核验即可读取。核对页仍保留可选的
+  “验证预期（JSON）”作为人工覆盖。面板测试和 schema 物化测试已覆盖。
+- 已发布的本次运行仍保持 `incomplete`；要验证新能力，需要让 AI 重新生成
+  带 `expected_facts` 的计划、发布并登记新运行。该复测尚未执行。
+
 
 
 

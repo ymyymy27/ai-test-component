@@ -116,6 +116,7 @@ function initialState(): WizardState {
     reference: "",
     workspace: "",
     pythonVersion: "3.11.9",
+    sourceSnippets: true,
     receipts: {},
     proposal: null,
     expectedFactsText: "",
@@ -529,6 +530,7 @@ export class WizardController {
         const caseId = record && typeof record["case_id"] === "string" ? record["case_id"] : "";
         const facts = caseId ? expected[caseId] : undefined;
         if (record && facts) {
+          record["expected_facts"] = facts;
           record["assertion_basis_text"] = JSON.stringify({
             schema_version: "aitest.pure-function-basis/1",
             expected_facts: facts,
@@ -555,8 +557,10 @@ export class WizardController {
       coverage_contract: preview["coverage_contract"] ?? null,
       understanding_ref: preview["understanding_ref"] ?? null,
       catalog_confirmed: this.state.catalogConfirmed,
-      allowed_material_kinds: ["project_context", "template_content"],
-      source_snippets_enabled: false,
+      allowed_material_kinds: this.state.sourceSnippets
+        ? ["project_context", "template_content", "source_snippet"]
+        : ["project_context", "template_content"],
+      source_snippets_enabled: this.state.sourceSnippets,
       source_scope: ".",
       run_tier: this.state.runTier,
       initial_driver: this.state.driver,
