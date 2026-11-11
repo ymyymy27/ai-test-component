@@ -114,19 +114,17 @@ test("controlled operation preserves all write identities and is still a prompt 
   assert.equal(state.sent.at(-1).code,"USER_DECLINED");
   assert.equal(state.sent.at(-1).clientRequestId,"controlled-request");
 });
-test("native batch stays within the published project and preserves each action identity", async () => {
+test("legacy native batch is refused after panel moved to per-step authorization", async () => {
   const contextId=state.sent.findLast(x=>x.kind==="projectContext").context_id;
   state.receive({kind:"nativeBatch",contextId,clientRequestId:"batch-request",items:[{
     action:"authorize_step",requestId:"item-request-1",intentId:"auth-intent-1",
     expectedRevision:0,bindingRevision:null,target:"step-1",
     parameters:{execution_action_id:"action-1",record_revision:1}}]});
   await tick();
-  assert.equal(state.batch.id,"batch-request");
-  assert.equal(state.batch.items.length,1);
-  assert.deepEqual(state.batch.items[0].request,{action:"authorize_step",projectId:"p",
-    intentId:"auth-intent-1",target:"step-1",expectedRevision:0,bindingRevision:null,
-    parameters:{execution_action_id:"action-1",record_revision:1}});
+  assert.equal(state.batch,undefined);
   assert.equal(state.sent.at(-1).action,"authorize_batch");
+  assert.equal(state.sent.at(-1).status,"refused");
+  assert.equal(state.sent.at(-1).code,"LEGACY_NATIVE_BATCH_REMOVED");
   assert.equal(state.sent.at(-1).clientRequestId,"batch-request");
 });
 test("queued writes cannot cross workspace changes even with the same project ID", async () => {
