@@ -131,7 +131,7 @@ test("first-run wizard prepares, publishes and registers through the controlled 
   await sendCommands(page, "model", modelCommands);
   await answer(page, "save_model_outbound_policy", {}, "controlledDispatch");
   await answer(page, "generate_draft", {
-    proposal: { schema_version: "aitest.plan-proposal/1.1", cases: [] },
+    proposal: { schema_version: "aitest.plan-proposal/1.1", cases: [{ case_id: "case-1" }] },
     draft_text: "建议覆盖正常、边界和异常输入。",
   }, "writeDispatch");
 
@@ -156,6 +156,28 @@ test("first-run wizard prepares, publishes and registers through the controlled 
 
   await expect(page.getByText("核对计划、覆盖与依据")).toBeVisible();
   await page.screenshot({ path: "test-results/wizard-review.png", fullPage: true });
+  await page.getByText("验证预期（可选，JSON）").click();
+  await page.getByLabel("验证预期 JSON").fill('{"case-1":{"sum":5}}');
+  await page.getByRole("button", { name: "重新校验", exact: true }).click();
+  const reviewed = await waitForSend(page, { kind: "wizardReview" });
+  const reviewForm = (reviewed["form"] ?? {}) as Record<string, unknown>;
+  const reviewProposal = (reviewForm["proposal"] ?? {}) as Record<string, unknown>;
+  const reviewCases = (reviewProposal["cases"] ?? []) as Array<Record<string, unknown>>;
+  expect(JSON.parse(String(reviewCases[0]["assertion_basis_text"]))).toEqual({
+    schema_version: "aitest.pure-function-basis/1",
+    expected_facts: { sum: 5 },
+  });
+  await reply(page, {
+    kind: "wizardResult",
+    valid: true,
+    preview: {
+      cases: [],
+      coverage: { template_items: 2, covered_items: 1, required_items: 1 },
+      coverage_preview: [],
+      coverage_contract: { contract_id: "coverage-1" },
+      understanding_ref: { understanding_id: "understanding-1", revision: 1 },
+    },
+  }, { kind: "wizardReview" });
   await page.getByRole("button", { name: "确认业务功能目录完整", exact: true }).click();
   await page.getByRole("button", { name: "确认并开始", exact: true }).click();
   await sendCommands(page, "commit", commitCommands);

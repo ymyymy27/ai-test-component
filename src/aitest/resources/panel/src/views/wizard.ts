@@ -516,6 +516,18 @@ function reviewStep(ctx: AppContext): HTMLElement {
       { variant: state.catalogConfirmed ? "primary" : "secondary", icon: state.catalogConfirmed ? "check" : "shield", disabled: state.busy },
     ),
     advanced,
+    state.useModel && !state.expectedFactsText.trim()
+      ? banner("未填写验证预期：这些 AI 用例发布后只能保持未验证。可在“验证预期”中按用例填写机器可读预期。", "warning")
+      : null,
+    details(
+      "验证预期（可选，JSON）",
+      p("按用例填写机器可读预期，例如 {\"case-1\": {\"sum\": 5}}；未填写的用例只能保持未验证。", "muted subtle"),
+      textArea(state.expectedFactsText, value => {
+        state.expectedFactsText = value;
+        state.preview = null;
+        state.catalogConfirmed = false;
+      }, { rows: 6, ariaLabel: "验证预期 JSON" }),
+    ),
     div(
       "hero-actions",
       button("重新校验", () => void wizard.review(), { icon: "refresh", disabled: state.busy }),

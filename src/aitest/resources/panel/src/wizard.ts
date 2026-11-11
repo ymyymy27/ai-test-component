@@ -118,6 +118,7 @@ function initialState(): WizardState {
     pythonVersion: "3.11.9",
     receipts: {},
     proposal: null,
+    expectedFactsText: "",
     preview: null,
     issues: [],
     catalogConfirmed: false,
@@ -216,6 +217,7 @@ export class WizardController {
     this.state.workspace = "";
     this.state.receipts = {};
     this.state.proposal = null;
+    this.state.expectedFactsText = "";
     this.state.preview = null;
     this.state.issues = [];
     this.state.catalogConfirmed = false;
@@ -425,6 +427,10 @@ export class WizardController {
 
   async review(): Promise<void> {
     if (this.state.busy) return;
+    if (this.state.expectedFactsText.trim() && !this.expectedFacts()) {
+      this.fail("验证预期必须是 {用例编号: {字段: 预期值}} 的非空 JSON 对象。");
+      return;
+    }
     this.setBusy(true, "正在校验计划提案…");
     const result = await this.host.wizardRequest("wizardReview", { form: this.form("commit") });
     if (!this.resultOk(result)) return;
@@ -513,6 +519,24 @@ export class WizardController {
           expected: { [check.key]: expectedValue(check) },
         }))
       : [];
+    const expected = this.expectedFacts();
+    let proposal = this.state.proposal;
+    if (proposal && expected) {
+      const cloned = JSON.parse(JSON.stringify(proposal)) as Record<string, unknown>;
+      const cases = Array.isArray(cloned["cases"]) ? cloned["cases"] : [];
+      for (const item of cases) {
+        const record = asRecord(item);
+        const caseId = record && typeof record["case_id"] === "string" ? record["case_id"] : "";
+        const facts = caseId ? expected[caseId] : undefined;
+        if (record && facts) {
+          record["assertion_basis_text"] = JSON.stringify({
+            schema_version: "aitest.pure-function-basis/1",
+            expected_facts: facts,
+          });
+        }
+      }
+      proposal = cloned;
+    }
     return {
       project_id: this.state.session?.project_id,
       workspace_id: this.host.workspaceId(),
@@ -527,7 +551,7 @@ export class WizardController {
       model: this.state.model,
       model_timeout: Number(this.state.modelTimeout),
       understanding,
-      proposal: this.state.proposal,
+      proposal,
       coverage_contract: preview["coverage_contract"] ?? null,
       understanding_ref: preview["understanding_ref"] ?? null,
       catalog_confirmed: this.state.catalogConfirmed,
@@ -538,6 +562,26 @@ export class WizardController {
       initial_driver: this.state.driver,
       checks,
     };
+  }
+
+  /** Parse the optional machine-readable expected facts map. */
+  private expectedFacts(): Record<string, Record<string, unknown>> | undefined {
+    const text = this.state.expectedFactsText.trim();
+    if (!text) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      const map = asRecord(parsed);
+      if (!map) return undefined;
+      const result: Record<string, Record<string, unknown>> = {};
+      for (const [caseId, value] of Object.entries(map)) {
+        const facts = asRecord(value);
+        if (!caseId.trim() || !facts || Object.keys(facts).length === 0) return undefined;
+        result[caseId] = facts;
+      }
+      return Object.keys(result).length > 0 ? result : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private resultOk(result: WizardResult, report = true): boolean {

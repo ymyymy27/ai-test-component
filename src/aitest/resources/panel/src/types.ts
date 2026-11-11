@@ -256,6 +256,7 @@ export interface WizardState {
   pythonVersion: string;
   receipts: Record<string, Record<string, unknown>>;
   proposal: Record<string, unknown> | null;
+  expectedFactsText: string;
   preview: Record<string, unknown> | null;
   issues: string[];
   catalogConfirmed: boolean;
