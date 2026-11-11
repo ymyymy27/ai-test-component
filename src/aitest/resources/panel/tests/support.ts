@@ -121,7 +121,7 @@ export async function connect(page: Page, doctor: Record<string, unknown> = {}):
   }, { kind: "ensureCore" });
   await replyDoctor(page, {
     workspace_id: "workspace-1",
-    supported_actions: ["doctor", "query", "read_view", "events", "storage_usage", "prepare_execution", "authorize_step", "execute_step", "verify_pending", "create_report", "export_report", "start_run"],
+    supported_actions: ["doctor", "query", "read_view", "events", "storage_usage", "prepare_execution", "authorize_step", "execute_step", "verify_pending", "retry_step", "return_stage", "attach_evidence", "revise_pending_steps", "narrow_driver", "create_report", "export_report", "start_run"],
     ...doctor,
   });
   await expect(page.locator(".footer-status")).toContainText("核心已连接");
@@ -151,7 +151,7 @@ export async function connectWithRun(
   }, { kind: "ensureCore" });
   await replyDoctor(page, {
     workspace_id: "workspace-1",
-    supported_actions: ["doctor", "query", "read_view", "events", "storage_usage", "prepare_execution", "authorize_step", "execute_step", "verify_pending", "create_report", "export_report", "start_run"],
+    supported_actions: ["doctor", "query", "read_view", "events", "storage_usage", "prepare_execution", "authorize_step", "execute_step", "verify_pending", "retry_step", "return_stage", "attach_evidence", "revise_pending_steps", "narrow_driver", "create_report", "export_report", "start_run"],
     ...doctor,
   });
   await replyView(page, "panel", panelView);

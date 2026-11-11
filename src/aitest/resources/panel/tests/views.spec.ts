@@ -377,3 +377,18 @@ test("issue detail confirms through the controlled channel", async ({ page }) =>
   await expect(page.getByText("问题操作已保存", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("advanced action catalog explains the task and prefills current context", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "诊断", exact: true }).first().click();
+  const advanced = page.getByTestId("advanced-actions");
+  await advanced.locator("select").selectOption("revise_pending_steps");
+  await expect(page.getByText("修订后续步骤", { exact: true })).toBeVisible();
+  await expect(page.getByText("何时使用：运行中需要按新的已保存用例修订未执行步骤。", { exact: false })).toBeVisible();
+  await advanced.getByRole("button", { name: "填入当前上下文", exact: true }).click();
+  await expect(advanced.locator("textarea")).toHaveValue(/"run_id": "run-1"/);
+  await expect(advanced.locator("textarea")).toHaveValue(/"base_snapshot_commit_id": "snap-abc"/);
+  expect(errors).toEqual([]);
+});
