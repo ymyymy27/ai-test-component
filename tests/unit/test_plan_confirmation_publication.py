@@ -349,3 +349,10 @@ def test_plan_confirmation_state_reports_ready_after_derivation(authoritative):
     assert state.error is None, state.error
     assert state.result["state"] == "ready"
     assert state.result["grant_id"] == saved.result["grant_id"]
+    basis_ids = set(saved.result["basis_confirmation_ids"])
+    case_rows = {item["case_id"]: item for item in state.result["cases"]}
+    assert set(case_rows) == {case["case_id"] for case in cases}
+    assert all(
+        item["basis_confirmation_id"] in basis_ids for item in case_rows.values()
+    )
+    assert all(item["case_revision"] >= 1 for item in case_rows.values())

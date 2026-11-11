@@ -227,3 +227,202 @@ test("attach evidence prefills the current attempt and saves manual evidence", a
   await replyView(page, "run", run);
   await expect(page.getByText("人工证据已保存", { exact: false }).first()).toBeVisible();
 });
+
+
+const revisableRun = {
+  ...run,
+  tier: "on_demand",
+  selected_case_ids: ["case-1", "case-2", "case-3"],
+  steps: [
+    ...steps,
+    { step_id: "step-3", case_id: "case-3", state: "not_started", current_attempt_id: null, attempt_state: null, adapter_kind: "command", evidence_ids: [], evidence_revisions: [] },
+  ],
+};
+
+const revisionBasis = {
+  plan_id: "plan-1",
+  plan_record_revision: 1,
+  plan_confirmation_id: "confirmation-plan-1",
+  state: "ready",
+  cases: [
+    { case_id: "case-1", case_revision: 1, basis_confirmation_id: "confirmation-1" },
+    { case_id: "case-2", case_revision: 1, basis_confirmation_id: "confirmation-2" },
+    { case_id: "case-3", case_revision: 1, basis_confirmation_id: "confirmation-3" },
+  ],
+};
+
+test("runtime revision reads the plan state and submits only saved case revisions", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, revisableRun);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByRole("button", { name: "读取修订依据", exact: true }).click();
+  const stateQuery = await waitForSend(page, { action: "plan_confirmation_state" });
+  expect((stateQuery["parameters"] as Record<string, unknown>)["plan_id"]).toBe("plan-1");
+  expect((stateQuery["parameters"] as Record<string, unknown>)["plan_revision"]).toBe(1);
+  await reply(page, {
+    kind: "outcome", action: "plan_confirmation_state", status: "ok",
+    response: { result: revisionBasis },
+  }, { action: "plan_confirmation_state" });
+  await expect(page.getByText("修订用例 case-3（当前修订 1）", { exact: false })).toBeVisible();
+
+  await page.getByLabel("新用例修订").nth(2).fill("2");
+  await page.getByLabel("修订原因").fill("按新修订执行剩余步骤");
+  const beforeRevision = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "提交运行中修订", exact: true }).click();
+  const revision = await waitForSend(page, { action: "revise_pending_steps" }, 5000, beforeRevision);
+  expect(revision["kind"]).toBe("controlledDispatch");
+  expect(revision["target"]).toBe("run-1");
+  expect(revision["parameters"]).toMatchObject({
+    run_id: "run-1",
+    base_snapshot_commit_id: "snap-abc",
+    case_changes: [{ case_id: "case-3", record_revision: 2, target_step_ids: ["step-3"] }],
+    confirmation_ids: ["confirmation-3"],
+    reason: "按新修订执行剩余步骤",
+  });
+  const beforeRefresh = (await sentMessages(page)).length;
+  await reply(page, {
+    kind: "outcome", action: "revise_pending_steps", status: "ok",
+    response: { result: { affected_step_ids: ["step-3"], preserved_step_ids: [] } },
+  }, { action: "revise_pending_steps" });
+  await expect(page.getByText("修订已保存", { exact: false }).first()).toBeVisible();
+  await waitForSend(page, { action: "read_view", view: "panel" }, 5000, beforeRefresh);
+  await replyView(page, "panel", panel);
+});
+
+test("narrow driver uses a controlled dispatch with no case changes", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, revisableRun);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByRole("button", { name: "收窄为逐步执行", exact: true }).click();
+  await page.getByLabel("收窄原因").fill("先逐步核验剩余步骤");
+  const beforeNarrow = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "确认收窄", exact: true }).click();
+  const narrow = await waitForSend(page, { action: "narrow_driver" }, 5000, beforeNarrow);
+  expect(narrow["kind"]).toBe("controlledDispatch");
+  expect(narrow["parameters"]).toMatchObject({
+    run_id: "run-1",
+    base_snapshot_commit_id: "snap-abc",
+    case_changes: [],
+    confirmation_ids: [],
+    reason: "先逐步核验剩余步骤",
+  });
+  await reply(page, {
+    kind: "outcome", action: "narrow_driver", status: "ok",
+    response: { result: { driver: "stepwise" } },
+  }, { action: "narrow_driver" });
+  await expect(page.getByText("驱动收窄请求已返回", { exact: false }).first()).toBeVisible();
+});
+
+
+test("batch authorization prepares unresolved steps and reports per-item confirmation", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, revisableRun);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  const beforePrepare = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "准备并批量授权", exact: true }).click();
+  const prepare = await waitForSend(page, { action: "prepare_execution" }, 5000, beforePrepare);
+  expect((prepare["parameters"] as Record<string, unknown>)["step_id"]).toBe("step-3");
+  await reply(page, {
+    kind: "outcome", action: "prepare_execution", status: "ok",
+    response: { result: { execution_action_id: "action-3" } },
+  }, { action: "prepare_execution" });
+  const batch = await waitForSend(page, { kind: "nativeBatch" }, 5000, beforePrepare);
+  const items = batch["items"] as Array<Record<string, unknown>>;
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({
+    action: "authorize_step",
+    target: "step-3",
+    expectedRevision: 0,
+    parameters: { execution_action_id: "action-3", record_revision: 1 },
+  });
+  await reply(page, {
+    kind: "outcome", action: "authorize_batch", status: "ok",
+    response: { result: {
+      confirmed_count: 1,
+      pending_count: 0,
+      items: [{ step_id: "step-3", state: "confirmed", response: { result: { authorization_id: "auth-3" } } }],
+    } },
+  }, { kind: "nativeBatch" });
+  await expect(page.getByText("已确认 1 项；可以逐项执行。", { exact: false }).first()).toBeVisible();
+});
+
+
+const reusableRun = {
+  ...revisableRun,
+  snapshot_ref: {
+    snapshot_commit_id: "snap-abc",
+    snapshot_cursor: 12,
+    digest: "sha256:target-facts",
+  },
+};
+
+test("reuse inspection reads the exact source snapshot and registers only after verification", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, reusableRun);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByLabel("来源运行编号").fill("run-source-1");
+  const beforeInspect = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "核对复用资格", exact: true }).click();
+  await waitForSend(page, { action: "read_view", view: "run" }, 5000, beforeInspect);
+  await replyView(page, "run", {
+    ...run,
+    run_id: "run-source-1",
+    snapshot_ref: {
+      snapshot_commit_id: "snap-source",
+      snapshot_cursor: 3,
+      digest: "sha256:source-facts",
+    },
+  });
+  const inspect = await waitForSend(page, { action: "inspect_case_reuse" }, 5000, beforeInspect);
+  expect(inspect["parameters"]).toMatchObject({
+    case_id: "case-1",
+    source_run_id: "run-source-1",
+    source_snapshot: {
+      snapshot_commit_id: "snap-source",
+      snapshot_cursor: 3,
+      digest: "sha256:source-facts",
+    },
+    target_run_id: "run-1",
+    target_snapshot: {
+      snapshot_commit_id: "snap-abc",
+      snapshot_cursor: 12,
+      digest: "sha256:target-facts",
+    },
+  });
+  await reply(page, {
+    kind: "outcome", action: "inspect_case_reuse", status: "ok",
+    response: { result: {
+      status: "unverified",
+      denial_reasons: ["source_verified_unverified"],
+      step_mapping: [{ case_step_index: 0, logical_step_id: "step-1", source_step_id: "src-step-1", target_step_id: "step-1", source_attempt_id: "src-att-1" }],
+      source_run_id: "run-source-1",
+      target_run_id: "run-1",
+      source_snapshot: { snapshot_commit_id: "snap-source", snapshot_cursor: 3, digest: "sha256:source-facts" },
+      target_snapshot: { snapshot_commit_id: "snap-abc", snapshot_cursor: 12, digest: "sha256:target-facts" },
+    } },
+  }, { action: "inspect_case_reuse" });
+  await expect(page.getByText("材料未发现不兼容", { exact: false })).toBeVisible();
+
+  const beforeSelect = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "登记复用选择", exact: true }).click();
+  const decisionQuery = await waitForSend(page, { action: "query" }, 5000, beforeSelect);
+  expect((decisionQuery["parameters"] as Record<string, unknown>)["aggregate_kind"]).toBe("reuse_decision");
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query" });
+  const selection = await waitForSend(page, { action: "select_case_reuse" }, 5000, beforeSelect);
+  expect(selection["kind"]).toBe("controlledDispatch");
+  expect(selection["target"]).toBe("case-1");
+  expect(selection["expectedRevision"]).toBe(0);
+  expect(selection["parameters"]).toMatchObject({
+    case_id: "case-1",
+    source_run_id: "run-source-1",
+    target_run_id: "run-1",
+  });
+  await reply(page, {
+    kind: "outcome", action: "select_case_reuse", status: "ok",
+    response: { result: { aggregate_kind: "reuse_decision", record_id: "reuse-1", revision: 1 } },
+  }, { action: "select_case_reuse" });
+  await expect(page.getByText("复用选择已保存", { exact: false }).first()).toBeVisible();
+});

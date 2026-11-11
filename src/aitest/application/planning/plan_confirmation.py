@@ -379,6 +379,42 @@ class PlanConfirmationService:
             or not confirmation_id
         ):
             raise PlanConfirmationError("plan confirmation differs from its publication")
+        frozen = raw.get("cases")
+        if not isinstance(frozen, list):
+            raise PlanConfirmationError("the confirmed plan has no readable case summaries")
+        cases: list[dict[str, object]] = []
+        for item in frozen:
+            if (
+                not isinstance(item, Mapping)
+                or not isinstance(item.get("case_id"), str)
+                or not item["case_id"].strip()
+                or type(item.get("revision")) is not int
+                or item["revision"] < 1
+            ):
+                raise PlanConfirmationError("the confirmed plan case summary is malformed")
+            case_id = item["case_id"]
+            intent = _stable_identity(
+                "basis-intent", project_id, confirmation_id, case_id
+            )
+            link_id = "confirmation-" + payload_digest([project_id, intent])[7:]
+            cases.append(
+                {
+                    "case_id": case_id,
+                    "case_revision": item["revision"],
+                    # 依据确认本身以 case_link 记录保存；不存在时明确为 None，
+                    # 供调用方区分“尚未派生”与“已有确认”。
+                    "basis_confirmation_id": (
+                        link_id
+                        if current_record(
+                            self.reader,
+                            project_id=project_id,
+                            aggregate_kind="case_link",
+                            record_id=link_id,
+                        ) is not None
+                        else None
+                    ),
+                }
+            )
         stated = current_record(
             self.reader,
             project_id=project_id,
@@ -399,29 +435,16 @@ class PlanConfirmationService:
                     "plan_record_revision": plan_revision,
                     "plan_confirmation_id": confirmation_id,
                     "state": payload.get("state"),
+                    "cases": cases,
                     "missing_basis_case_ids": payload.get("missing_basis_case_ids", []),
                     "grant_id": payload.get("grant_id"),
                     "reason": payload.get("reason", ""),
                 }
-        missing: list[str] = []
-        frozen = raw.get("cases")
-        if not isinstance(frozen, list):
-            raise PlanConfirmationError("the confirmed plan has no readable case summaries")
-        for item in frozen:
-            if not isinstance(item, Mapping) or not isinstance(item.get("case_id"), str):
-                raise PlanConfirmationError("the confirmed plan case summary is malformed")
-            case_id = item["case_id"]
-            intent = _stable_identity(
-                "basis-intent", project_id, confirmation_id, case_id
-            )
-            link_id = "confirmation-" + payload_digest([project_id, intent])[7:]
-            if current_record(
-                self.reader,
-                project_id=project_id,
-                aggregate_kind="case_link",
-                record_id=link_id,
-            ) is None:
-                missing.append(case_id)
+        missing = [
+            str(item["case_id"])
+            for item in cases
+            if item["basis_confirmation_id"] is None
+        ]
         binding = read_plan_grant_binding(
             reader=self.reader,
             project_id=project_id,
@@ -434,6 +457,7 @@ class PlanConfirmationService:
             "plan_record_revision": plan_revision,
             "plan_confirmation_id": confirmation_id,
             "state": state,
+            "cases": cases,
             "missing_basis_case_ids": missing,
             "grant_id": None if binding is None else binding.grant_id,
         }

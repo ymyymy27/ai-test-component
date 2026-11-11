@@ -154,6 +154,93 @@ def test_record_view_returns_empty_evidence_revisions_for_legacy(kind) -> None:
     assert result["record"]["evidence_revisions"] == {}
 
 
+def test_local_review_view_uses_review_identity_and_public_fields() -> None:
+    """本地复核用 review_id 作为记录身份，而不是 local_review_id。"""
+
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    record = SimpleNamespace(
+        aggregate_kind="local_review",
+        record_id="review-1",
+        revision=1,
+        payload={
+            "project_id": PROJECT,
+            "review_id": "review-1",
+            "report_id": "report-1",
+            "report_revision": 3,
+            "reviewer": "复核人",
+            "conclusion": "looks_good",
+            "explanation": "逐项核对",
+            "recorded_at": "2026-11-11T00:00:00+00:00",
+            "private_note": "not public",
+        },
+    )
+    store = Mock()
+    store.read.return_value = record
+    reader = CommittedViewReader(decisions=Mock(), reader=store)
+    result = reader.record_view(
+        project_id=PROJECT, kind="local_review", record_id="review-1", revision=1
+    )
+    assert result["record"]["review_id"] == "review-1"
+    assert result["record"]["report_id"] == "report-1"
+    assert result["record"]["report_revision"] == 3
+    assert "private_note" not in result["record"]
+    with pytest.raises(ValueError):
+        reader.record_view(
+            project_id="other", kind="local_review", record_id="review-1", revision=1
+        )
+
+
+def test_local_review_is_a_supported_read_view_selector() -> None:
+    from aitest.contracts.read_views import ReadViewQuery
+
+    selector = ReadViewQuery.model_validate(
+        {"view": "local_review", "record_id": "review-1", "revision": 1}
+    )
+    assert selector.view == "local_review"
+
+
+def test_reuse_decision_view_is_project_scoped_without_a_same_name_identity() -> None:
+    """复用选择记录身份由 (项目, 目标运行) 派生，正文没有 reuse_decision_id。"""
+
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    record = SimpleNamespace(
+        aggregate_kind="reuse_decision",
+        record_id="reuse-1",
+        revision=2,
+        payload={
+            "project_id": PROJECT,
+            "target_run_id": "run-1",
+            "status": "selected",
+            "references": [{"case_id": "case-1"}],
+        },
+    )
+    store = Mock()
+    store.read.return_value = record
+    reader = CommittedViewReader(decisions=Mock(), reader=store)
+    result = reader.record_view(
+        project_id=PROJECT, kind="reuse_decision", record_id="reuse-1", revision=2
+    )
+    assert result["record"]["target_run_id"] == "run-1"
+    assert result["record"]["status"] == "selected"
+    with pytest.raises(ValueError):
+        reader.record_view(
+            project_id="other", kind="reuse_decision", record_id="reuse-1", revision=2
+        )
+
+
+def test_reuse_decision_is_a_supported_read_view_selector() -> None:
+    from aitest.contracts.read_views import ReadViewQuery
+
+    selector = ReadViewQuery.model_validate(
+        {"view": "reuse_decision", "record_id": "reuse-1", "revision": 2}
+    )
+    assert selector.view == "reuse_decision"
+
+
 def test_record_selector_requires_exact_revision_and_rejects_mixed_selectors() -> None:
     from aitest.contracts.read_views import ReadViewQuery
     valid = {"view":"report", "record_id":"report-1", "revision":1}

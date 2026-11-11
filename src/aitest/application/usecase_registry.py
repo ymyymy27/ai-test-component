@@ -301,6 +301,10 @@ _AGGREGATE_KINDS: frozenset[str] = frozenset(
         "project_view_preference",
         # 人工补证记录（只含人工描述与引用，不含证据正文）：列表可读，正文按引用取。
         "manual_evidence",
+        # 本地复核记录：按报告修订独立保存，供复核追溯与导出引用。
+        "local_review",
+        # 复用选择记录：面板读取当前目标运行的已选复用修订后再提交新选择。
+        "reuse_decision",
     }
 )
 

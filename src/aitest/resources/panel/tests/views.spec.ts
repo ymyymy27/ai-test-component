@@ -436,3 +436,168 @@ test("local review is recorded against the exact report and carried into export"
   await expect(page.getByText("导出请求已返回")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+
+test("local review history loads on demand and is carried into export", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "report", record_id: "report-1", revision: 2 }] } },
+  }, { action: "query" });
+  await page.getByText("报告 report-1", { exact: false }).click();
+  await replyView(page, "report", report);
+
+  const beforeHistory = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "读取历史复核", exact: true }).click();
+  const historyQuery = await waitForSend(page, { action: "query" }, 5000, beforeHistory);
+  expect((historyQuery["parameters"] as Record<string, unknown>)["aggregate_kind"]).toBe("local_review");
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "local_review", record_id: "review-history-1", revision: 1 }] } },
+  }, { action: "query" });
+  await waitForSend(page, { action: "read_view", view: "local_review" }, 5000, beforeHistory);
+  await replyView(page, "local_review", {
+    record_id: "review-history-1",
+    record_revision: 1,
+    record_kind: "local_review",
+    historical_snapshot: true,
+    record: {
+      review_id: "review-history-1",
+      report_id: "report-1",
+      report_revision: 2,
+      reviewer: "复核人",
+      conclusion: "通过",
+      explanation: "历史结论",
+      recorded_at: "2026-11-11T00:00:00+00:00",
+    },
+  });
+  await expect(page.getByText("复核人 · 通过：历史结论", { exact: false })).toBeVisible();
+
+  const beforeExport = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "导出 Markdown 摘要", exact: true }).click();
+  const exported = await waitForSend(page, { action: "export_report" }, 5000, beforeExport);
+  expect((exported["parameters"] as Record<string, unknown>)["review_ids"]).toEqual(["review-history-1"]);
+  expect(errors).toEqual([]);
+});
+
+
+test("delivery tab saves task and delivery, then submits exact references", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  const beforeReports = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await waitForSend(page, { action: "query" }, 5000, beforeReports);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query" });
+  const beforeDeliveryTab = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "提测", exact: true }).click();
+  await waitForSend(page, { action: "query" }, 5000, beforeDeliveryTab);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query" });
+  await expect(page.getByText("还没有交付说明", { exact: false })).toBeVisible();
+
+  await page.getByText("填写任务", { exact: true }).click();
+  await page.getByLabel("任务编号").first().fill("task-1");
+  await page.getByLabel("目标", { exact: true }).fill("验证状态修改");
+  await page.getByLabel("范围", { exact: true }).fill("工单模块");
+  await page.getByLabel("验收项").fill("AC-1 | 修改后状态持久化 | true");
+  const beforeTask = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "保存任务草稿", exact: true }).click();
+  const task = await waitForSend(page, { action: "save_task" }, 5000, beforeTask);
+  expect(task["kind"]).toBe("writeDispatch");
+  expect(task["parameters"]).toMatchObject({
+    task: { task_id: "task-1", project_id: "project-1", goal: "验证状态修改", scope: "工单模块" },
+  });
+  await reply(page, {
+    kind: "outcome", action: "save_task", status: "ok",
+    response: { result: { aggregate_kind: "task", record_id: "task-1", revision: 1 } },
+  }, { action: "save_task" });
+  await expect(page.getByText("任务已保存", { exact: false })).toBeVisible();
+
+  await page.getByText("填写交付说明", { exact: true }).click();
+  await page.getByLabel("交付编号").fill("delivery-1");
+  await page.getByLabel("任务编号").last().fill("task-1");
+  await page.getByLabel("版本").fill("1.0.0");
+  await page.getByLabel("运行方式").fill("人工执行");
+  await page.getByLabel("自述已完成（每行一项）").fill("状态修改");
+  await page.getByLabel("未验证范围（每行一项）").fill("并发场景");
+  const beforeDelivery = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "保存交付说明", exact: true }).click();
+  const delivery = await waitForSend(page, { action: "save_delivery" }, 5000, beforeDelivery);
+  expect(delivery["kind"]).toBe("writeDispatch");
+  expect(delivery["parameters"]).toMatchObject({
+    task_revision: 1,
+    delivery: {
+      delivery_id: "delivery-1",
+      task_id: "task-1",
+      version: "1.0.0",
+      run_method: "人工执行",
+      self_report: { completed: ["状态修改"], incomplete: [] },
+      verified_in_scope: [],
+      unverified_scope: ["并发场景"],
+    },
+  });
+  await reply(page, {
+    kind: "outcome", action: "save_delivery", status: "ok",
+    response: { result: { aggregate_kind: "delivery", record_id: "delivery-1", revision: 1 } },
+  }, { action: "save_delivery" });
+  await waitForSend(page, { action: "read_view", view: "delivery" }, 5000, beforeDelivery);
+  const deliveryView = {
+    delivery_id: "delivery-1",
+    revision: 1,
+    version: "1.0.0",
+    task_id: "task-1",
+    run_method: "人工执行",
+    self_report_completed: ["状态修改"],
+    self_report_incomplete: [],
+    verified_in_scope: [],
+    unverified_scope: ["并发场景"],
+    verification_state: "required_verification_incomplete",
+    submitted: false,
+  };
+  await replyView(page, "delivery", deliveryView);
+  await expect(page.getByText("未提测", { exact: true })).toBeVisible();
+
+  const beforeMaterials = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "准备提交材料", exact: true }).click();
+  await waitForSend(page, { action: "query" }, 5000, beforeMaterials);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "project", record_id: "project-1", revision: 3 }] } },
+  }, { action: "query" });
+  await waitForSend(page, { action: "query" }, 5000, beforeMaterials);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "source_snapshot", record_id: "snap-1", revision: 2 }] } },
+  }, { action: "query" });
+  const beforeSubmit = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "确认正式提测", exact: true }).click();
+  const submission = await waitForSend(page, { action: "submit_delivery" }, 5000, beforeSubmit);
+  expect(submission["kind"]).toBe("controlledDispatch");
+  expect(submission["parameters"]).toMatchObject({
+    project_revision: 3,
+    expected_revision: 0,
+    delivery_ref: { delivery_id: "delivery-1", record_revision: 1 },
+    source_ref: { snapshot_id: "snap-1", record_revision: 2 },
+  });
+  await reply(page, {
+    kind: "outcome", action: "submit_delivery", status: "ok",
+    response: { result: { aggregate_kind: "delivery_submission", record_id: "submission-1", revision: 1 } },
+  }, { action: "submit_delivery" });
+  await waitForSend(page, { action: "read_view", view: "delivery" }, 5000, beforeSubmit);
+  await replyView(page, "delivery", {
+    ...deliveryView,
+    submitted: true,
+    submission: { submission_id: "submission-1", revision: 1, version: "1.0.0", content_identity: "sha256:source", acceptance_item_ids: ["AC-1"] },
+  });
+  await expect(page.getByText("已提测", { exact: true }).first()).toBeVisible();
+  expect(errors).toEqual([]);
+});

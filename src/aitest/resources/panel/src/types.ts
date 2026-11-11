@@ -129,6 +129,15 @@ export interface WorkbenchState {
   conclusions: Record<string, string>;
   evidence: Record<string, unknown> | null;
   evidenceRef: { evidenceId: string; revision: number } | null;
+  /** 按需读取的计划确认状态，用于运行中修订。 */
+  revisionBasis: Record<string, unknown> | null;
+  /** 复用核对输入与只读结果；登记前不产生选择记录。 */
+  reuse: {
+    sourceRunId: string;
+    caseId: string;
+    inspection: Record<string, unknown> | null;
+    note: string;
+  };
   note: string;
 }
 
@@ -165,7 +174,19 @@ export interface AppState {
   issueDetail: Record<string, unknown> | null;
   /** 本次会话保存的本地复核编号，按报告分组；报告导出时按此引用。 */
   reviewIds: Record<string, string[]>;
-  reportsTab: "reports" | "issues";
+  /** 按需读取到的历史复核详情，按报告分组。 */
+  reviewDetails: Record<string, Record<string, unknown>[]>;
+  reportsTab: "reports" | "issues" | "delivery";
+  deliveries: Row[];
+  deliveriesLoaded: boolean;
+  selectedDelivery: { record_id: string; revision: number } | null;
+  deliveryDetail: Record<string, unknown> | null;
+  deliverySubmit: {
+    projectRevision: number;
+    snapshots: Row[];
+    snapshotId: string;
+    note: string;
+  } | null;
   events: Record<string, unknown>[];
   eventCursor: string | null;
   eventNote: string;

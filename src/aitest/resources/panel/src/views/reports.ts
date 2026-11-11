@@ -2,6 +2,7 @@
 
 import type { AppContext } from "../context";
 import { icon } from "../icons";
+import { renderDelivery } from "./delivery";
 import {
   asNumber,
   asRecord,
@@ -46,7 +47,8 @@ export function renderReports(ctx: AppContext): HTMLElement {
       "报告按运行与内容修订保存；问题关闭需要新的实际证据，界面不替你判定。",
       button("刷新", () => {
         if (state.reportsTab === "reports") void ctx.loadReports();
-        else void ctx.loadIssues();
+        else if (state.reportsTab === "issues") void ctx.loadIssues();
+        else void ctx.loadDeliveries();
       }, { icon: "refresh", disabled: state.busy !== null }),
     ),
   );
@@ -61,15 +63,22 @@ export function renderReports(ctx: AppContext): HTMLElement {
     ctx.render();
     void ctx.loadIssues();
   }, { className: state.reportsTab === "issues" ? "active" : "" });
-  tabs.append(reportsButton, issuesButton);
+  const deliveryButton = button("提测", () => {
+    state.reportsTab = "delivery";
+    ctx.render();
+    void ctx.loadDeliveries();
+  }, { className: state.reportsTab === "delivery" ? "active" : "" });
+  tabs.append(reportsButton, issuesButton, deliveryButton);
   page.appendChild(tabs);
 
   if (state.reportsTab === "reports") {
     if (state.selectedReport && state.reportDetail) page.appendChild(reportDetail(ctx, state.reportDetail));
     else page.appendChild(reportsBody(ctx));
-  } else {
+  } else if (state.reportsTab === "issues") {
     if (state.selectedIssue && state.issueDetail) page.appendChild(issueDetail(ctx, state.issueDetail));
     else page.appendChild(issuesBody(ctx));
+  } else {
+    page.appendChild(renderDelivery(ctx));
   }
   return page;
 }
@@ -228,6 +237,7 @@ function localReviewCard(ctx: AppContext, record: Record<string, unknown>): HTML
   const revision = asNumber(record["content_revision"], ctx.state.selectedReport?.revision ?? 0);
   if (!reportId) return div("");
   const saved = ctx.state.reviewIds[reportId] ?? [];
+  const details = ctx.state.reviewDetails[reportId] ?? [];
   let conclusion = "";
   let explanation = "";
   let pendingReviewId: string | null = null;
@@ -273,12 +283,38 @@ function localReviewCard(ctx: AppContext, record: Record<string, unknown>): HTML
     cardHead("本地复核", "复核绑定准确报告修订；不改变报告正文，导出时随报告引用。"),
     saved.length
       ? p(`本次会话已保存复核：${saved.join("、")}`, "muted tiny")
-      : p("尚未保存复核。重启面板后已保存的复核编号不会从报告视图重新列出。", "muted subtle"),
+      : p("尚未保存复核。", "muted subtle"),
+    details.length
+      ? div("stack-sm", ...details.map(item => p(
+        `${String(item["reviewer"] ?? "复核人")} · ${String(item["conclusion"] ?? "")}：${String(item["explanation"] ?? "")}`,
+        "muted subtle",
+      )))
+      : null,
+    div(
+      "hero-actions",
+      button("读取历史复核", () => void loadLocalReviews(ctx, reportId), { icon: "refresh" }),
+    ),
     field("复核结论", conclusionInput),
     field("复核说明", explanationInput),
     note,
     div("hero-actions", submit),
   );
+}
+
+async function loadLocalReviews(ctx: AppContext, reportId: string): Promise<void> {
+  const rows = await ctx.query({ aggregate_kind: "local_review", limit: 20 });
+  const views = await Promise.all(rows.map(row =>
+    ctx.read("local_review", { record_id: row.record_id, revision: row.revision })));
+  const details = views
+    .map(view => asRecord(view?.["record"]))
+    .filter((item): item is Record<string, unknown> => item !== undefined)
+    .filter(item => item["report_id"] === reportId);
+  ctx.state.reviewDetails[reportId] = details;
+  const ids = details
+    .map(item => typeof item["review_id"] === "string" ? item["review_id"] : "")
+    .filter(Boolean);
+  if (ids.length) ctx.state.reviewIds[reportId] = ids;
+  ctx.render();
 }
 
 async function exportReport(ctx: AppContext, reportId: string, revision: number, kind: string): Promise<void> {

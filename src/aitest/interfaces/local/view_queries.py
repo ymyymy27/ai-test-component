@@ -138,7 +138,9 @@ class CommittedViewReader:
                 "invalid read_view selector", code=ErrorCode.INVALID_REQUEST.value
             ) from exc
         view = selector.view
-        if view in {"plan", "report", "case", "issue", "evidence"}:
+        if view in {
+            "plan", "report", "case", "issue", "evidence", "local_review", "reuse_decision",
+        }:
             assert selector.record_id is not None and selector.revision is not None
             boundary = self._boundary(project)
             if view == "evidence":
@@ -304,6 +306,10 @@ class CommittedViewReader:
                       "expected", "actual", "evidence_refs", "evidence_revisions", "owner",
                       "facts", "hypotheses",
                       "project_id", "run_id", "case_id", "step_id", "attempt_id"),
+            "local_review": ("review_id", "report_id", "report_revision", "reviewer",
+                             "conclusion", "explanation", "recorded_at"),
+            # 复用选择每个目标运行一条记录；面板读取当前修订后再追加新选择。
+            "reuse_decision": ("target_run_id", "status", "references"),
         }
         if kind not in fields or self._reader is None:
             raise ValueError("record view is unavailable")
@@ -312,7 +318,12 @@ class CommittedViewReader:
             record, aggregate_kind=kind, record_id=record_id, revision=revision,
         )
         payload = record.payload
-        if payload.get("project_id") != project_id or payload.get(f"{kind}_id") != record_id:
+        identity_key = "review_id" if kind == "local_review" else f"{kind}_id"
+        # 复用选择由 (project, target_run) 派生记录身份，正文不带同名 id；
+        # 记录仓已按 project 隔离，这里只核对项目并使用请求的精确修订。
+        if payload.get("project_id") != project_id or (
+            kind != "reuse_decision" and payload.get(identity_key) != record_id
+        ):
             raise ValueError("record view does not match its project and identity")
         record_fields = {key: payload[key] for key in fields[kind] if key in payload}
         if kind in {"report", "issue"}:

@@ -197,7 +197,8 @@ class AiTestPanel extends HTMLElement implements AppContext {
     if (this.state.route === "plan" && !this.state.plansLoaded) void this.loadPlans();
     else if (this.state.route === "reports") {
       if (this.state.reportsTab === "reports") void this.loadReports();
-      else void this.loadIssues();
+      else if (this.state.reportsTab === "issues") void this.loadIssues();
+      else void this.loadDeliveries();
     } else if (this.state.route === "workbench" && nextRun) void this.refreshCurrent();
     else if (nextRun && !this.state.panel) void this.refreshCurrent();
     else this.render();
@@ -215,10 +216,16 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.state.reportDetail = null;
     this.state.selectedReport = null;
     this.state.reviewIds = {};
+    this.state.reviewDetails = {};
     this.state.issues = [];
     this.state.issuesLoaded = false;
     this.state.issueDetail = null;
     this.state.selectedIssue = null;
+    this.state.deliveries = [];
+    this.state.deliveriesLoaded = false;
+    this.state.selectedDelivery = null;
+    this.state.deliveryDetail = null;
+    this.state.deliverySubmit = null;
     this.state.events = [];
     this.state.eventCursor = null;
     this.state.eventNote = "";
@@ -272,6 +279,18 @@ class AiTestPanel extends HTMLElement implements AppContext {
       return null;
     }
     return asRecord(outcome.response?.["result"]) ?? {};
+  }
+
+  async batch(items: ReadonlyArray<import("./context").BatchAuthorizationItem>): Promise<Outcome> {
+    if (!this.client) {
+      return {
+        action: "authorize_batch",
+        status: "refused",
+        code: "HOST_UNAVAILABLE",
+        message: "未检测到编辑器宿主，批量授权未派发。",
+      };
+    }
+    return this.client.batch(items);
   }
 
   async query(parameters: Record<string, unknown>): Promise<Row[]> {
@@ -391,6 +410,23 @@ class AiTestPanel extends HTMLElement implements AppContext {
     rows.sort((left, right) => right.revision - left.revision);
     this.state.issues = rows;
     this.state.issuesLoaded = true;
+    this.state.busy = null;
+    this.render();
+  }
+
+  async loadDeliveries(): Promise<void> {
+    if (!this.client || !this.state.project?.project_id) {
+      this.state.deliveries = [];
+      this.state.deliveriesLoaded = true;
+      this.render();
+      return;
+    }
+    this.state.busy = "deliveries";
+    this.render();
+    const rows = await this.query({ aggregate_kind: "delivery", limit: 20 });
+    rows.sort((left, right) => right.revision - left.revision);
+    this.state.deliveries = rows;
+    this.state.deliveriesLoaded = true;
     this.state.busy = null;
     this.render();
   }
@@ -579,7 +615,8 @@ class AiTestPanel extends HTMLElement implements AppContext {
     if (route === "plan" && !this.state.plansLoaded) void this.loadPlans();
     else if (route === "reports") {
       if (this.state.reportsTab === "reports") void this.loadReports();
-      else void this.loadIssues();
+      else if (this.state.reportsTab === "issues") void this.loadIssues();
+      else void this.loadDeliveries();
     } else if (route === "settings" && this.hostAvailable && !this.state.model.loaded && !this.state.model.busy) {
       void this.modelLoad();
     } else if (route === "workbench" && this.state.project?.run_id && !this.state.run) {
@@ -841,7 +878,13 @@ function initialState(hostAvailable: boolean): AppState {
     reportDetail: null,
     issueDetail: null,
     reviewIds: {},
+    reviewDetails: {},
     reportsTab: "reports",
+    deliveries: [],
+    deliveriesLoaded: false,
+    selectedDelivery: null,
+    deliveryDetail: null,
+    deliverySubmit: null,
     events: [],
     eventCursor: null,
     eventNote: "",
@@ -872,6 +915,8 @@ function initialWorkbench(): AppState["workbench"] {
     conclusions: {},
     evidence: null,
     evidenceRef: null,
+    revisionBasis: null,
+    reuse: { sourceRunId: "", caseId: "", inspection: null, note: "" },
     note: "",
   };
 }

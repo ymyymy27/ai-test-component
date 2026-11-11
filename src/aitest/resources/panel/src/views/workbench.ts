@@ -21,6 +21,7 @@ import {
   button,
   card,
   cardHead,
+  checkbox,
   chip,
   details,
   div,
@@ -75,6 +76,9 @@ export function renderWorkbench(ctx: AppContext): HTMLElement {
   const selectedId = chooseStep(ctx, steps);
   const selected = steps.find(step => step["step_id"] === selectedId) ?? steps[0];
   page.appendChild(runSummary(ctx, run));
+  page.appendChild(revisionCard(ctx, run));
+  page.appendChild(batchAuthorizationCard(ctx, run));
+  page.appendChild(reuseCard(ctx, run));
   const grid = div("workbench-grid");
   grid.appendChild(stepRail(ctx, steps, selectedId));
   grid.appendChild(stepDetail(ctx, run, selected));
@@ -98,6 +102,272 @@ function chooseStep(ctx: AppContext, steps: Record<string, unknown>[]): string {
   const selected = String(preferred["step_id"] ?? "");
   ctx.state.workbench.selectedStep = selected;
   return selected;
+}
+
+
+
+function reuseCard(ctx: AppContext, run: Record<string, unknown>): HTMLElement {
+  const state = ctx.state.workbench.reuse;
+  const steps = asRecords(run["steps"]);
+  const caseIds = [...new Set(steps.map(step => String(step["case_id"] ?? "")).filter(Boolean))];
+  if (!state.caseId || !caseIds.includes(state.caseId)) state.caseId = caseIds[0] ?? "";
+  const caseSelect = select(
+    caseIds.map(caseId => ({ value: caseId, label: shortId(caseId, 18) })),
+    state.caseId,
+    value => { state.caseId = value; },
+    caseIds.length === 0,
+  );
+  const sourceInput = textInput(state.sourceRunId, value => {
+    state.sourceRunId = value;
+    state.inspection = null;
+  }, { placeholder: "来源运行编号" });
+  const note = p(state.note, "field-help");
+  const targetRunId = typeof run["run_id"] === "string" ? run["run_id"] : "";
+  const inspect = button("核对复用资格", async () => {
+    state.note = "";
+    state.inspection = null;
+    const sourceRunId = state.sourceRunId.trim();
+    if (!sourceRunId) {
+      state.note = "请输入来源运行编号。";
+      ctx.render();
+      return;
+    }
+    if (sourceRunId === targetRunId) {
+      state.note = "来源运行必须是另一次已提交运行。";
+      ctx.render();
+      return;
+    }
+    if (!state.caseId) {
+      state.note = "当前运行没有可复用的用例。";
+      ctx.render();
+      return;
+    }
+    const targetRef = asRecord(run["snapshot_ref"]);
+    if (!targetRef) {
+      state.note = "当前运行视图缺少快照内容身份，不能核对复用；请升级核心后重试。";
+      ctx.render();
+      return;
+    }
+    ctx.state.busy = "reuse-inspect";
+    ctx.render();
+    const sourceView = await ctx.read("run", { run_id: sourceRunId });
+    const sourceRef = asRecord(sourceView?.["snapshot_ref"]);
+    if (!sourceView || !sourceRef) {
+      ctx.state.busy = null;
+      state.note = sourceView
+        ? "来源运行视图缺少快照内容身份，不能核对复用。"
+        : "来源运行读取未完成。";
+      ctx.render();
+      return;
+    }
+    const inspection = await ctx.readOnly("inspect_case_reuse", {
+      case_id: state.caseId,
+      source_run_id: sourceRunId,
+      source_snapshot: sourceRef,
+      target_run_id: targetRunId,
+      target_snapshot: targetRef,
+    });
+    ctx.state.busy = null;
+    if (!inspection) {
+      state.note = "复用核对未返回可核实结果。";
+      ctx.render();
+      return;
+    }
+    state.inspection = inspection;
+    state.note = "";
+    ctx.render();
+  }, { icon: "search", disabled: ctx.state.busy !== null });
+
+  const inspection = state.inspection;
+  const status = inspection ? String(inspection["status"] ?? "") : "";
+  const reasons = inspection ? asStrings(inspection["denial_reasons"]) : [];
+  const mapping = inspection ? asRecords(inspection["step_mapping"]) : [];
+  const register = button("登记复用选择", async () => {
+    if (!inspection || status !== "unverified") return;
+    state.note = "";
+    ctx.state.busy = "reuse-select";
+    ctx.render();
+    const rows = await ctx.query({ aggregate_kind: "reuse_decision", limit: 50 });
+    let expected = 0;
+    for (const row of rows) {
+      const detail = await ctx.read("reuse_decision", {
+        record_id: row.record_id,
+        revision: row.revision,
+      });
+      const record = asRecord(detail?.["record"]);
+      if (record?.["target_run_id"] === targetRunId) {
+        expected = Math.max(expected, asNumber(row.revision, 0));
+      }
+    }
+    const parameters = {
+      case_id: state.caseId,
+      source_run_id: String(inspection["source_run_id"] ?? ""),
+      source_snapshot: asRecord(inspection["source_snapshot"]) ?? {},
+      target_run_id: targetRunId,
+      target_snapshot: asRecord(inspection["target_snapshot"]) ?? {},
+    };
+    const outcome = await ctx.write("select_case_reuse", parameters, {
+      target: state.caseId,
+      expectedRevision: expected,
+      intentId: ctx.intent("select_case_reuse", parameters, state.caseId, expected),
+      controlled: true,
+    });
+    ctx.state.busy = null;
+    if (outcome.status !== "ok") {
+      state.note = outcome.message ?? "复用选择未保存。";
+      ctx.render();
+      return;
+    }
+    state.inspection = null;
+    state.note = "复用选择已保存；资格仍由后续执行事实重新派生，不会直接写成通过。";
+    ctx.setNotice(state.note, "success");
+    await ctx.refreshCurrent();
+  }, {
+    variant: "primary",
+    icon: "shield",
+    disabled: !inspection || status !== "unverified" || ctx.state.busy !== null,
+  });
+
+  return card(
+    "",
+    cardHead("复用历史结果", "只核对精确来源运行与当前目标快照；核对不等于授予复用资格。"),
+    p("复用只适用于当前运行尚未开始的用例；来源必须有完整执行与核验材料。", "muted subtle"),
+    field("目标用例", caseSelect),
+    field("来源运行编号", sourceInput),
+    div("hero-actions", inspect),
+    inspection
+      ? div(
+        "stack-sm",
+        facts([
+          ["核对状态", chip(label(status), toneForState(status))],
+          ["来源运行", String(inspection["source_run_id"] ?? "—")],
+          ["步骤映射", String(mapping.length)],
+        ]),
+        reasons.length
+          ? div(
+            "stack-sm",
+            p("核心拒绝/未证实原因（原样显示）：", "muted"),
+            ...reasons.map(reason => p(reason, "muted subtle")),
+          )
+          : null,
+        status === "unverified"
+          ? p("材料未发现不兼容；登记后仍需按执行事实重新派生资格。", "muted subtle")
+          : banner("材料不兼容或未完整核对，不能登记复用选择。", "warning"),
+        div("hero-actions", register),
+      )
+      : null,
+    note,
+  );
+}
+
+function batchAuthorizationCard(ctx: AppContext, run: Record<string, unknown>): HTMLElement {
+  const steps = asRecords(run["steps"]);
+  const candidates = steps.filter(step =>
+    step["state"] !== "completed" && step["current_attempt_id"] == null);
+  const selected = new Set(candidates.map(step => String(step["step_id"] ?? "")));
+  const note = p("", "field-help");
+  const list = div("stack-sm");
+  for (const step of candidates) {
+    const stepId = String(step["step_id"] ?? "");
+    list.appendChild(
+      checkbox(`步骤 ${shortId(stepId, 12)}（${label(step["state"])}）`, true, checked => {
+        if (checked) selected.add(stepId);
+        else selected.delete(stepId);
+      }),
+    );
+  }
+  const runId = typeof run["run_id"] === "string" ? run["run_id"] : "";
+  const submit = button("准备并批量授权", async () => {
+    note.textContent = "";
+    if (!runId) {
+      note.textContent = "运行视图缺少运行编号。";
+      return;
+    }
+    if (selected.size === 0) {
+      note.textContent = "至少选择一个尚未执行的步骤。";
+      return;
+    }
+    ctx.state.busy = "batch-authorize";
+    const prepared: Array<{ stepId: string; actionId: string; intent: string }> = [];
+    for (const step of candidates) {
+      const stepId = String(step["step_id"] ?? "");
+      if (!selected.has(stepId)) continue;
+      const execution = ctx.state.workbench.executions[stepId] ?? {
+        intent: ctx.intent("step-flow", { step_id: stepId }, stepId, 0),
+      };
+      ctx.state.workbench.executions[stepId] = execution;
+      let actionId = execution.actionId ?? "";
+      if (!actionId) {
+        const outcome = await ctx.write(
+          "prepare_execution",
+          { run_id: runId, step_id: stepId },
+          { target: stepId, expectedRevision: 0, intentId: execution.intent },
+        );
+        const result = asRecord(outcome.response?.["result"]) ?? {};
+        actionId = typeof result["execution_action_id"] === "string"
+          ? result["execution_action_id"]
+          : "";
+        if (outcome.status !== "ok" || !actionId) {
+          ctx.state.busy = null;
+          note.textContent = outcome.message ?? `步骤 ${stepId} 没有解析出可授权动作。`;
+          ctx.setNotice(note.textContent, "danger");
+          return;
+        }
+        execution.actionId = actionId;
+        execution.authorized = false;
+        execution.executed = false;
+      }
+      prepared.push({ stepId, actionId, intent: execution.intent });
+    }
+    const outcome = await ctx.batch(prepared.map(item => ({
+      action: "authorize_step" as const,
+      intentId: item.intent,
+      target: item.stepId,
+      expectedRevision: 0,
+      parameters: { execution_action_id: item.actionId, record_revision: 1 },
+    })));
+    ctx.state.busy = null;
+    if (outcome.status !== "ok") {
+      note.textContent = outcome.message ?? "批量授权未完成。";
+      ctx.setNotice(note.textContent, "danger");
+      return;
+    }
+    const result = asRecord(outcome.response?.["result"]) ?? {};
+    const items = asRecords(result["items"]);
+    let confirmed = 0;
+    for (const item of items) {
+      if (item["state"] !== "confirmed") continue;
+      const stepId = typeof item["step_id"] === "string" ? item["step_id"] : "";
+      const execution = ctx.state.workbench.executions[stepId];
+      if (!execution) continue;
+      const response = asRecord(item["response"]);
+      const itemResult = asRecord(response?.["result"]) ?? {};
+      if (typeof itemResult["authorization_id"] === "string") {
+        execution.authorized = true;
+        confirmed += 1;
+      }
+    }
+    const pending = asNumber(result["pending_count"], prepared.length - confirmed);
+    note.textContent = pending > 0
+      ? `已确认 ${confirmed} 项；仍有 ${pending} 项未确认，未确认项不会执行。`
+      : `已确认 ${confirmed} 项；可以逐项执行。`;
+    ctx.setNotice(note.textContent, pending > 0 ? "warning" : "success");
+    ctx.render();
+  }, {
+    variant: "primary",
+    icon: "shield",
+    disabled: candidates.length === 0 || ctx.state.busy !== null,
+  });
+  return card(
+    "",
+    cardHead("批量授权", "只为尚未执行的步骤解析动作，并在一个原生窗口内逐项确认。"),
+    candidates.length
+      ? list
+      : p("当前没有未执行且未开始记录的步骤可批量授权。", "muted subtle"),
+    note,
+    div("hero-actions", submit),
+    p("批量窗口中的每一项仍需单独确认；取消或未确认的项不会写成已授权。", "muted subtle"),
+  );
 }
 
 function runSummary(ctx: AppContext, run: Record<string, unknown>): HTMLElement {
@@ -138,6 +408,273 @@ function runSummary(ctx: AppContext, run: Record<string, unknown>): HTMLElement 
     ),
     autoTotal > 0 ? div("", progress(autoDone, autoTotal)) : null,
     controls,
+  );
+}
+
+
+type RevisionSelection = {
+  enabled: boolean;
+  revision: string;
+  steps: Set<string>;
+};
+
+function revisionCard(ctx: AppContext, run: Record<string, unknown>): HTMLElement {
+  const basis = ctx.state.workbench.revisionBasis;
+  const driver = String(run["driver"] ?? "");
+  const tier = String(run["tier"] ?? "");
+  const narrow = button("收窄为逐步执行", () => confirmNarrowDriver(ctx, run), {
+    icon: "arrow-right",
+    disabled: driver !== "planned" || ctx.state.busy !== null,
+    title: driver === "planned" ? "把自动推进改为逐步执行" : "当前运行不是计划驱动",
+  });
+  if (!basis) {
+    return card(
+      "",
+      cardHead("运行中修订", "只读取计划确认状态；提交前不会写入任何记录。"),
+      p("修订未执行步骤前，需要先读取计划的冻结用例修订和依据确认编号。", "muted subtle"),
+      div(
+        "hero-actions",
+        button("读取修订依据", () => void loadRevisionBasis(ctx, run), {
+          icon: "refresh",
+          disabled: ctx.state.busy !== null,
+        }),
+        narrow,
+      ),
+    );
+  }
+  const state = String(basis["state"] ?? "");
+  const cases = asRecords(basis["cases"]);
+  const steps = asRecords(run["steps"]);
+  const selections = new Map<string, RevisionSelection>();
+  const caseRows = div("stack-sm");
+  for (const item of cases) {
+    const caseId = String(item["case_id"] ?? "");
+    if (!caseId) continue;
+    const frozenRevision = asNumber(item["case_revision"], 0);
+    const basisId = typeof item["basis_confirmation_id"] === "string"
+      ? item["basis_confirmation_id"]
+      : "";
+    const pending = steps.filter(step =>
+      step["case_id"] === caseId && step["state"] !== "completed");
+    const selectable = pending.filter(step => step["current_attempt_id"] == null);
+    const entry: RevisionSelection = {
+      enabled: selectable.length > 0 && Boolean(basisId),
+      revision: "",
+      steps: new Set(selectable.map(step => String(step["step_id"] ?? ""))),
+    };
+    selections.set(caseId, entry);
+    const stepChoices = selectable.length
+      ? div("stack-sm", ...selectable.map(step => {
+        const stepId = String(step["step_id"] ?? "");
+        return checkbox(`步骤 ${shortId(stepId, 12)}（${label(step["state"])}）`, true, checked => {
+          if (checked) entry.steps.add(stepId);
+          else entry.steps.delete(stepId);
+        });
+      }))
+      : p("该用例没有可改写的未执行步骤。", "muted subtle");
+    caseRows.appendChild(
+      div(
+        "stack-sm",
+        checkbox(
+          `修订用例 ${shortId(caseId, 14)}（当前修订 ${frozenRevision}）`,
+          entry.enabled,
+          checked => { entry.enabled = checked; },
+          selectable.length === 0,
+        ),
+        field(
+          "新用例修订",
+          textInput("", value => { entry.revision = value; }, {
+            type: "number",
+            placeholder: `必须是已保存且大于 ${frozenRevision} 的修订`,
+          }),
+          "只接收已经保存的用例记录；不会在修订请求里内联或改写用例内容。",
+        ),
+        stepChoices,
+        basisId
+          ? p(`依据确认：${shortId(basisId, 18)}`, "muted tiny")
+          : p("该用例没有依据确认编号，不能提交修订；请先完成计划依据派生。", "muted subtle"),
+      ),
+    );
+  }
+  const reason = textInput("", () => {}, { placeholder: "说明为什么修订未执行步骤" });
+  const note = p("", "field-help");
+  const submit = button("提交运行中修订", async () => {
+    note.textContent = "";
+    if (tier === "full") {
+      note.textContent = "完整验证运行不允许改写计划内容；只能收窄驱动或新建运行。";
+      return;
+    }
+    if (state !== "ready") {
+      note.textContent = "计划确认尚未就绪，不能提交修订；先核对缺失的依据确认。";
+      return;
+    }
+    const changes: Array<Record<string, unknown>> = [];
+    const confirmationIds = new Set<string>();
+    for (const item of cases) {
+      const caseId = String(item["case_id"] ?? "");
+      const entry = selections.get(caseId);
+      if (!caseId || !entry?.enabled) continue;
+      const nextRevision = Number(entry.revision);
+      const currentRevision = asNumber(item["case_revision"], 0);
+      if (!Number.isInteger(nextRevision) || nextRevision <= currentRevision) {
+        note.textContent = `${caseId} 的新修订必须是大于 ${currentRevision} 的整数。`;
+        return;
+      }
+      if (entry.steps.size === 0) {
+        note.textContent = `${caseId} 至少选择一个未执行步骤。`;
+        return;
+      }
+      const basisId = item["basis_confirmation_id"];
+      if (typeof basisId !== "string" || !basisId) {
+        note.textContent = `${caseId} 缺少依据确认编号。`;
+        return;
+      }
+      confirmationIds.add(basisId);
+      changes.push({
+        case_id: caseId,
+        record_revision: nextRevision,
+        target_step_ids: [...entry.steps].sort(),
+      });
+    }
+    changes.sort((left, right) => String(left["case_id"]).localeCompare(String(right["case_id"])));
+    if (changes.length === 0) {
+      note.textContent = "至少选择一个用例并勾选未执行步骤。";
+      return;
+    }
+    if (!reason.value.trim()) {
+      note.textContent = "请填写修订原因。";
+      return;
+    }
+    const runId = typeof run["run_id"] === "string" ? run["run_id"] : "";
+    const base = typeof run["snapshot_commit_id"] === "string" ? run["snapshot_commit_id"] : "";
+    if (!runId || !base) {
+      note.textContent = "运行视图缺少运行编号或快照边界，不能提交修订。";
+      return;
+    }
+    const parameters = {
+      run_id: runId,
+      base_snapshot_commit_id: base,
+      case_changes: changes,
+      confirmation_ids: [...confirmationIds].sort(),
+      reason: reason.value.trim(),
+    };
+    ctx.state.busy = "revision";
+    note.textContent = "正在请求核心确认并提交修订…";
+    const outcome = await ctx.write("revise_pending_steps", parameters, {
+      target: runId,
+      expectedRevision: 0,
+      intentId: ctx.intent("revise_pending_steps", parameters, runId, 0),
+      controlled: true,
+    });
+    ctx.state.busy = null;
+    if (outcome.status !== "ok") {
+      note.textContent = outcome.message ?? "运行中修订未完成。";
+      ctx.setNotice(note.textContent, "danger");
+      return;
+    }
+    const result = asRecord(outcome.response?.["result"]) ?? {};
+    const affected = asStrings(result["affected_step_ids"]);
+    const message = affected.length
+      ? `修订已保存；受影响步骤：${affected.join("、")}`
+      : "修订已保存；当前运行事实请刷新核对。";
+    ctx.state.workbench.revisionBasis = null;
+    ctx.setNotice(message, "success");
+    await ctx.refreshCurrent();
+  }, { variant: "primary", icon: "shield", disabled: ctx.state.busy !== null || tier === "full" });
+  return card(
+    "",
+    cardHead("运行中修订", "只改写尚未执行的步骤；已记录事实、正在执行的步骤和必测范围不能借修订删除。"),
+    facts([
+      ["计划确认", String(basis["plan_confirmation_id"] ?? "—")],
+      ["确认状态", chip(label(state), toneForState(state))],
+      ["计划记录修订", String(basis["plan_record_revision"] ?? "—")],
+    ]),
+    tier === "full"
+      ? banner("完整验证（full）运行不允许改写计划内容；可收窄驱动，或新建一次运行。", "warning")
+      : state === "ready"
+        ? null
+        : banner("计划确认未就绪：缺少依据确认或许可。请先核对下方用例，再提交修订。", "warning"),
+    cases.length ? caseRows : p("计划确认状态没有返回可修订用例。", "muted subtle"),
+    field("修订原因", reason),
+    note,
+    div("hero-actions", submit, narrow),
+    p("提交会打开核心原生确认窗口；面板不代替确认，也不会把回执直接当成通过。", "muted subtle"),
+  );
+}
+
+async function loadRevisionBasis(ctx: AppContext, run: Record<string, unknown>): Promise<void> {
+  const ref = typeof run["plan_revision_ref"] === "string" ? run["plan_revision_ref"] : "";
+  const at = ref.lastIndexOf("@");
+  const planId = at > 0 ? ref.slice(0, at) : "";
+  const revision = at > 0 ? Number(ref.slice(at + 1)) : 0;
+  if (!planId || !Number.isInteger(revision) || revision < 1) {
+    ctx.setNotice("运行视图没有可解析的计划修订标识，无法读取修订依据。", "warning");
+    return;
+  }
+  ctx.state.busy = "revision-basis";
+  ctx.render();
+  const result = await ctx.readOnly("plan_confirmation_state", {
+    plan_id: planId,
+    plan_revision: revision,
+  });
+  ctx.state.busy = null;
+  if (!result) {
+    ctx.render();
+    return;
+  }
+  ctx.state.workbench.revisionBasis = result;
+  ctx.render();
+}
+
+function confirmNarrowDriver(ctx: AppContext, run: Record<string, unknown>): void {
+  const runId = typeof run["run_id"] === "string" ? run["run_id"] : "";
+  const base = typeof run["snapshot_commit_id"] === "string" ? run["snapshot_commit_id"] : "";
+  const reason = textInput("", () => {}, { placeholder: "说明为什么收窄为逐步执行" });
+  const note = p("", "field-help");
+  const submit = button("确认收窄", async () => {
+    note.textContent = "";
+    if (!reason.value.trim()) {
+      note.textContent = "请填写收窄原因。";
+      return;
+    }
+    if (!runId || !base) {
+      note.textContent = "运行视图缺少运行编号或快照边界。";
+      return;
+    }
+    const parameters = {
+      run_id: runId,
+      base_snapshot_commit_id: base,
+      case_changes: [],
+      confirmation_ids: [],
+      reason: reason.value.trim(),
+    };
+    const outcome = await ctx.write("narrow_driver", parameters, {
+      target: runId,
+      expectedRevision: 0,
+      intentId: ctx.intent("narrow_driver", parameters, runId, 0),
+      controlled: true,
+    });
+    if (outcome.status !== "ok") {
+      note.textContent = outcome.message ?? "收窄驱动未完成。";
+      return;
+    }
+    ctx.closeDialog();
+    ctx.setNotice("驱动收窄请求已返回；请刷新核对当前驱动。", "success");
+    await ctx.refreshCurrent();
+  }, { variant: "primary", icon: "shield" });
+  ctx.showDialog(
+    "收窄为逐步执行",
+    div(
+      "stack",
+      p("收窄只改变执行推进方式，不改写计划内容或已记录事实。", "muted"),
+      field("收窄原因", reason),
+      note,
+      div(
+        "hero-actions",
+        button("取消", () => ctx.closeDialog(), { variant: "ghost" }),
+        submit,
+      ),
+    ),
   );
 }
 

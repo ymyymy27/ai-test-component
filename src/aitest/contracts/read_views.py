@@ -23,7 +23,12 @@ class ReadViewQuery(BaseModel):
             "oneOf": [
                 {
                     "properties": {
-                        "view": {"enum": ["plan", "report", "case", "issue", "evidence"]},
+                        "view": {
+                            "enum": [
+                                "plan", "report", "case", "issue", "evidence",
+                                "local_review", "reuse_decision",
+                            ],
+                        },
                         "record_id": {"type": "string"},
                         "revision": {"type": "integer", "minimum": 1},
                     },
@@ -64,7 +69,10 @@ class ReadViewQuery(BaseModel):
         },
     )
 
-    view: Literal["run", "panel", "delivery", "plan", "report", "case", "issue", "evidence"]
+    view: Literal[
+        "run", "panel", "delivery", "plan", "report", "case", "issue", "evidence",
+        "local_review", "reuse_decision",
+    ]
     record_id: ViewIdentity | None = None
     run_id: ViewIdentity | None = None
     delivery_id: ViewIdentity | None = None
@@ -76,7 +84,9 @@ class ReadViewQuery(BaseModel):
         if self.view in {"run", "panel"}:
             if self.model_fields_set != {"view", "run_id"} or self.run_id is None:
                 raise ValueError("run/panel views require only view and run_id")
-        elif self.view in {"plan", "report", "case", "issue", "evidence"}:
+        elif self.view in {
+            "plan", "report", "case", "issue", "evidence", "local_review", "reuse_decision",
+        }:
             if (self.model_fields_set != {"view", "record_id", "revision"}
                     or self.record_id is None or self.revision is None):
                 raise ValueError("record views require an exact record_id and revision")

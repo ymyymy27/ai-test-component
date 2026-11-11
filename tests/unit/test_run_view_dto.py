@@ -169,6 +169,9 @@ def test_run_view_carries_scope_groups_and_both_summaries_with_denominators() ->
     assert dto.run_revision == 4
     assert dto.snapshot_commit_id == "commit-9" and dto.snapshot_cursor == 9
     assert dto.plan_revision_ref == "plan-1@2"
+    assert dto.snapshot_ref.snapshot_commit_id == "commit-9"
+    assert dto.snapshot_ref.snapshot_cursor == 9
+    assert dto.snapshot_ref.digest.startswith("sha256:")
     assert dto.runtime_revision_refs == ("runtime-1@1",)
     assert dto.driver == "stepwise" and dto.control_state == "running"
     assert dto.tier == "full" and dto.conclusion_ceiling == "passable"

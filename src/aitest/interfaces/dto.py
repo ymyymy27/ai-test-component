@@ -379,6 +379,16 @@ class TraceNodeViewDTO(BaseModel):
     code_symbol_ref: str | None
 
 
+class SnapshotContentRefDTO(BaseModel):
+    """运行快照的精确内容身份；复用核对只接受这份完整引用。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    snapshot_commit_id: str
+    snapshot_cursor: int
+    digest: str
+
+
 class RunViewDTO(BaseModel):
     """`RunDTO`（架构 06 §1/§5）：运行/步骤/当前尝试 + 用例 S/M 两组 E/R/V/P/F/U 与分母。
 
@@ -396,6 +406,7 @@ class RunViewDTO(BaseModel):
     run_revision: int
     snapshot_commit_id: str
     snapshot_cursor: int
+    snapshot_ref: SnapshotContentRefDTO
     plan_revision_ref: str
     runtime_revision_refs: tuple[str, ...]
     control_state: str
@@ -480,12 +491,20 @@ def run_view_dto(
                 evidence_revisions=evidence_revisions,
             )
         )
+    from aitest.application.execution.runtime_revision import SnapshotContentRef
+
+    snapshot = SnapshotContentRef.of(facts)
     return RunViewDTO(
         project_id=facts.project_id,
         run_id=facts.run_id,
         run_revision=facts.run_revision,
         snapshot_commit_id=facts.snapshot_commit_id,
         snapshot_cursor=facts.snapshot_cursor,
+        snapshot_ref=SnapshotContentRefDTO(
+            snapshot_commit_id=snapshot.snapshot_commit_id,
+            snapshot_cursor=snapshot.snapshot_cursor,
+            digest=snapshot.digest,
+        ),
         plan_revision_ref=(
             f"{facts.plan_revision.revision_id}@{facts.plan_revision.revision_no}"
         ),

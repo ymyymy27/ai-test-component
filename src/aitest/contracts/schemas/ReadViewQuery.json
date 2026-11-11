@@ -28,7 +28,9 @@
             "report",
             "case",
             "issue",
-            "evidence"
+            "evidence",
+            "local_review",
+            "reuse_decision"
           ]
         },
         "record_id": {
@@ -125,7 +127,9 @@
         "report",
         "case",
         "issue",
-        "evidence"
+        "evidence",
+        "local_review",
+        "reuse_decision"
       ],
       "title": "View",
       "type": "string"
