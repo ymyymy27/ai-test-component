@@ -314,35 +314,26 @@ test("narrow driver uses a controlled dispatch with no case changes", async ({ p
 });
 
 
-test("batch authorization prepares unresolved steps and reports per-item confirmation", async ({ page }) => {
+test("step authorization prepares unresolved steps and uses the panel confirmation channel", async ({ page }) => {
   await mountPanel(page);
   await connectWithRun(page, panel, revisableRun);
   await page.getByRole("button", { name: "步骤", exact: true }).click();
   const beforePrepare = (await sentMessages(page)).length;
-  await page.getByRole("button", { name: "准备并批量授权", exact: true }).click();
+  await page.getByRole("button", { name: "准备并逐项授权", exact: true }).click();
   const prepare = await waitForSend(page, { action: "prepare_execution" }, 5000, beforePrepare);
   expect((prepare["parameters"] as Record<string, unknown>)["step_id"]).toBe("step-3");
   await reply(page, {
     kind: "outcome", action: "prepare_execution", status: "ok",
     response: { result: { execution_action_id: "action-3" } },
   }, { action: "prepare_execution" });
-  const batch = await waitForSend(page, { kind: "nativeBatch" }, 5000, beforePrepare);
-  const items = batch["items"] as Array<Record<string, unknown>>;
-  expect(items).toHaveLength(1);
-  expect(items[0]).toMatchObject({
-    action: "authorize_step",
-    target: "step-3",
-    expectedRevision: 0,
-    parameters: { execution_action_id: "action-3", record_revision: 1 },
-  });
+  const authorize = await waitForSend(page, { action: "authorize_step" }, 5000, beforePrepare);
+  expect(authorize["kind"]).toBe("controlledDispatch");
+  expect(authorize["target"]).toBe("step-3");
+  expect((authorize["parameters"] as Record<string, unknown>)["execution_action_id"]).toBe("action-3");
   await reply(page, {
-    kind: "outcome", action: "authorize_batch", status: "ok",
-    response: { result: {
-      confirmed_count: 1,
-      pending_count: 0,
-      items: [{ step_id: "step-3", state: "confirmed", response: { result: { authorization_id: "auth-3" } } }],
-    } },
-  }, { kind: "nativeBatch" });
+    kind: "outcome", action: "authorize_step", status: "ok",
+    response: { result: { authorization_id: "auth-3" } },
+  }, { action: "authorize_step" });
   await expect(page.getByText("已确认 1 项；可以逐项执行。", { exact: false }).first()).toBeVisible();
 });
 

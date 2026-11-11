@@ -277,7 +277,7 @@ function batchAuthorizationCard(ctx: AppContext, run: Record<string, unknown>): 
     );
   }
   const runId = typeof run["run_id"] === "string" ? run["run_id"] : "";
-  const submit = button("准备并批量授权", async () => {
+  const submit = button("准备并逐项授权", async () => {
     note.textContent = "";
     if (!runId) {
       note.textContent = "运行视图缺少运行编号。";
@@ -319,35 +319,32 @@ function batchAuthorizationCard(ctx: AppContext, run: Record<string, unknown>): 
       }
       prepared.push({ stepId, actionId, intent: execution.intent });
     }
-    const outcome = await ctx.batch(prepared.map(item => ({
-      action: "authorize_step" as const,
-      intentId: item.intent,
-      target: item.stepId,
-      expectedRevision: 0,
-      parameters: { execution_action_id: item.actionId, record_revision: 1 },
-    })));
-    ctx.state.busy = null;
-    if (outcome.status !== "ok") {
-      note.textContent = outcome.message ?? "批量授权未完成。";
-      ctx.setNotice(note.textContent, "danger");
-      return;
-    }
-    const result = asRecord(outcome.response?.["result"]) ?? {};
-    const items = asRecords(result["items"]);
     let confirmed = 0;
-    for (const item of items) {
-      if (item["state"] !== "confirmed") continue;
-      const stepId = typeof item["step_id"] === "string" ? item["step_id"] : "";
-      const execution = ctx.state.workbench.executions[stepId];
-      if (!execution) continue;
-      const response = asRecord(item["response"]);
-      const itemResult = asRecord(response?.["result"]) ?? {};
-      if (typeof itemResult["authorization_id"] === "string") {
-        execution.authorized = true;
+    for (const item of prepared) {
+      const outcome = await ctx.write(
+        "authorize_step",
+        { execution_action_id: item.actionId, record_revision: 1 },
+        {
+          target: item.stepId,
+          expectedRevision: 0,
+          intentId: item.intent,
+          controlled: true,
+        },
+      );
+      const itemResult = asRecord(outcome.response?.["result"]) ?? {};
+      if (outcome.status === "ok" && typeof itemResult["authorization_id"] === "string") {
+        const execution = ctx.state.workbench.executions[item.stepId];
+        if (execution) execution.authorized = true;
         confirmed += 1;
+      } else if (outcome.status !== "ok") {
+        ctx.state.busy = null;
+        note.textContent = outcome.message ?? `步骤 ${item.stepId} 未获授权。`;
+        ctx.setNotice(note.textContent, "danger");
+        return;
       }
     }
-    const pending = asNumber(result["pending_count"], prepared.length - confirmed);
+    ctx.state.busy = null;
+    const pending = prepared.length - confirmed;
     note.textContent = pending > 0
       ? `已确认 ${confirmed} 项；仍有 ${pending} 项未确认，未确认项不会执行。`
       : `已确认 ${confirmed} 项；可以逐项执行。`;
@@ -360,7 +357,7 @@ function batchAuthorizationCard(ctx: AppContext, run: Record<string, unknown>): 
   });
   return card(
     "",
-    cardHead("批量授权", "只为尚未执行的步骤解析动作，并在一个原生窗口内逐项确认。"),
+    cardHead("逐项授权", "先解析动作，再在面板内逐项确认；不打开原生窗口。"),
     candidates.length
       ? list
       : p("当前没有未执行且未开始记录的步骤可批量授权。", "muted subtle"),
