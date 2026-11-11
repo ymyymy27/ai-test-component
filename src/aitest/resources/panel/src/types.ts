@@ -2,7 +2,7 @@
 
 export type Json = Record<string, unknown>;
 
-export type Route = "home" | "wizard" | "plan" | "workbench" | "reports" | "settings" | "diagnostics";
+export type Route = "home" | "wizard" | "plan" | "rules" | "workbench" | "reports" | "settings" | "diagnostics";
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
@@ -163,6 +163,11 @@ export interface AppState {
   plans: Row[];
   planDetail: Record<string, unknown> | null;
   plansLoaded: boolean;
+  ruleDrafts: Row[];
+  ruleVersions: Row[];
+  ruleDetail: Record<string, unknown> | null;
+  ruleDetailKind: "rule_draft" | "rule_version" | null;
+  rulesLoaded: boolean;
   issues: Row[];
   reports: Row[];
   issuesLoaded: boolean;

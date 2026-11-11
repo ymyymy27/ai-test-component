@@ -37,6 +37,7 @@ export interface AppContext {
   restartCore(): Promise<Outcome>;
   refreshCurrent(): Promise<void>;
   loadPlans(): Promise<void>;
+  loadRules(): Promise<void>;
   loadReports(): Promise<void>;
   loadIssues(): Promise<void>;
   loadDeliveries(): Promise<void>;

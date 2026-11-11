@@ -3,7 +3,7 @@
 import type { AppContext } from "./context";
 import { div } from "./ui";
 
-export type TestTab = "overview" | "steps" | "plan";
+export type TestTab = "overview" | "steps" | "plan" | "rules";
 
 export function testTabs(ctx: AppContext, active: TestTab): HTMLElement {
   const tabs = div("segmented subnav");
@@ -13,6 +13,7 @@ export function testTabs(ctx: AppContext, active: TestTab): HTMLElement {
     ["overview", "概览", () => ctx.navigate("home")],
     ["steps", "步骤", () => ctx.navigate("workbench")],
     ["plan", "计划", () => ctx.navigate("plan")],
+    ["rules", "规则", () => ctx.navigate("rules")],
   ];
   for (const [key, label, onClick] of entries) {
     const button = document.createElement("button");

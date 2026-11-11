@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 
-export type SendMatch = { action?: string; kind?: string; view?: string; stage?: string };
+export type SendMatch = { action?: string; kind?: string; view?: string; stage?: string; aggregateKind?: string };
 
 export async function mountPanel(page: Page, withHost = true): Promise<void> {
   await page.setViewportSize({ width: 390, height: 780 });
@@ -46,6 +46,7 @@ function matches(message: Record<string, unknown>, match: SendMatch): boolean {
   if (match.action && message["action"] !== match.action) return false;
   if (match.kind && message["kind"] !== match.kind) return false;
   if (match.view && parameters["view"] !== match.view) return false;
+  if (match.aggregateKind && parameters["aggregate_kind"] !== match.aggregateKind) return false;
   if (match.stage && message["stage"] !== match.stage) return false;
   return true;
 }
@@ -63,6 +64,7 @@ export async function reply(
       if (matchSource["action"] && message["action"] !== matchSource["action"]) return false;
       if (matchSource["kind"] && message["kind"] !== matchSource["kind"]) return false;
       if (matchSource["view"] && parameters["view"] !== matchSource["view"]) return false;
+      if (matchSource["aggregateKind"] && parameters["aggregate_kind"] !== matchSource["aggregateKind"]) return false;
       if (matchSource["stage"] && message["stage"] !== matchSource["stage"]) return false;
       return true;
     };

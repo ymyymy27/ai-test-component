@@ -49,6 +49,8 @@ PHASE_ONE_ACTIONS = frozenset(
         "save_project_view_preference",
         "save_rules",
         "publish_rules",
+        "import_rules_markdown",
+        "export_rules_markdown",
         "generate_draft",
         "request_model_draft",
         "resolve_model_response",
@@ -105,6 +107,7 @@ READ_ACTIONS = frozenset(
         "check_source",
         "inspect_case_reuse",
         "plan_confirmation_state",
+        "export_rules_markdown",
     }
 )
 

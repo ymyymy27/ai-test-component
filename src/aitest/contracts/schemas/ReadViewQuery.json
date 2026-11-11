@@ -30,7 +30,9 @@
             "issue",
             "evidence",
             "local_review",
-            "reuse_decision"
+            "reuse_decision",
+            "rule_draft",
+            "rule_version"
           ]
         },
         "record_id": {
@@ -129,7 +131,9 @@
         "issue",
         "evidence",
         "local_review",
-        "reuse_decision"
+        "reuse_decision",
+        "rule_draft",
+        "rule_version"
       ],
       "title": "View",
       "type": "string"

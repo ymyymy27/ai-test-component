@@ -18,6 +18,7 @@ export const PLAIN_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "save_dependency_graph",
   "save_project_view_preference",
   "save_rules",
+  "import_rules_markdown",
   "generate_draft",
   "request_model_draft",
   "resolve_model_response",

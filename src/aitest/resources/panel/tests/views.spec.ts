@@ -617,3 +617,142 @@ test("delivery tab saves task and delivery, then submits exact references", asyn
   await expect(page.getByText("已提测", { exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+
+test("rule editor saves a draft and publishes it through native confirmation", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  const beforeRules = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "规则", exact: true }).click();
+  await waitForSend(page, { action: "query", aggregateKind: "rule_draft" }, 5000, beforeRules);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query", aggregateKind: "rule_draft" });
+  await waitForSend(page, { action: "query", aggregateKind: "rule_version" }, 5000, beforeRules);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query", aggregateKind: "rule_version" });
+  await expect(page.getByText("还没有规则草稿", { exact: false })).toBeVisible();
+
+  await page.getByText("填写规则", { exact: true }).click();
+  await page.getByLabel("规则编号").fill("rule-order-api");
+  await page.getByLabel("适用范围").fill("订单模块");
+  await page.getByLabel("正文说明").fill("订单接口必须核对持久化结果");
+  await page.getByLabel("步骤（每行一项）").fill("创建订单\n查询订单");
+  await page.getByLabel("证据要求（每行一项）").fill("请求与响应\n关键日志");
+  const beforeSave = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "保存新草稿", exact: true }).click();
+  const saved = await waitForSend(page, { action: "save_rules" }, 5000, beforeSave);
+  expect(saved["kind"]).toBe("writeDispatch");
+  expect(saved["parameters"]).toMatchObject({
+    draft: {
+      rule_id: "rule-order-api",
+      revision: 1,
+      scope: "订单模块",
+      steps: ["创建订单", "查询订单"],
+      evidence_requirements: ["请求与响应", "关键日志"],
+      confirmed: false,
+      enablement: "disabled",
+    },
+  });
+  await reply(page, {
+    kind: "outcome", action: "save_rules", status: "ok",
+    response: { result: { saved: { aggregate_kind: "rule_draft", record_id: "rule-order-api", revision: 1 } } },
+  }, { action: "save_rules" });
+  await waitForSend(page, { action: "query", aggregateKind: "rule_draft" }, 5000, beforeSave);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "rule_draft", record_id: "rule-order-api", revision: 1 }] } },
+  }, { action: "query", aggregateKind: "rule_draft" });
+  await waitForSend(page, { action: "query", aggregateKind: "rule_version" }, 5000, beforeSave);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query", aggregateKind: "rule_version" });
+  await waitForSend(page, { action: "read_view", view: "rule_draft" }, 5000, beforeSave);
+  await replyView(page, "rule_draft", {
+    record_id: "rule-order-api",
+    record_revision: 1,
+    record_kind: "rule_draft",
+    historical_snapshot: true,
+    record: {
+      rule_id: "rule-order-api",
+      revision: 1,
+      scope: "订单模块",
+      text: "订单接口必须核对持久化结果",
+      source: "manual",
+      steps: ["创建订单", "查询订单"],
+      evidence_requirements: ["请求与响应", "关键日志"],
+      unknown_extension_fields: [],
+    },
+  });
+  await expect(page.getByText("规则草稿 rule-order-api", { exact: false })).toBeVisible();
+
+  const beforePublish = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "确认并发布", exact: true }).click();
+  await waitForSend(page, { action: "query", aggregateKind: "project" }, 5000, beforePublish);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "project", record_id: "project-1", revision: 2 }] } },
+  }, { action: "query", aggregateKind: "project" });
+  const publish = await waitForSend(page, { action: "publish_rules" }, 5000, beforePublish);
+  expect(publish["kind"]).toBe("controlledDispatch");
+  expect(publish["parameters"]).toMatchObject({
+    project_revision: 2,
+    expected_revision: 0,
+    draft: { rule_id: "rule-order-api", confirmed: true },
+    context_gaps: [],
+  });
+  await reply(page, {
+    kind: "outcome", action: "publish_rules", status: "ok",
+    response: { result: { record_id: "rule-order-api", revision: 1 } },
+  }, { action: "publish_rules" });
+  await waitForSend(page, { action: "query", aggregateKind: "rule_draft" }, 5000, beforePublish);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query", aggregateKind: "rule_draft" });
+  await waitForSend(page, { action: "query", aggregateKind: "rule_version" }, 5000, beforePublish);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "rule_version", record_id: "rule-order-api", revision: 1 }] } },
+  }, { action: "query", aggregateKind: "rule_version" });
+  await expect(page.getByText("规则已发布为不可变版本", { exact: false })).toBeVisible();
+  const beforeVersion = (await sentMessages(page)).length;
+  await page.getByText("规则 rule-order-api", { exact: false }).click();
+  await waitForSend(page, { action: "read_view", view: "rule_version" }, 5000, beforeVersion);
+  await replyView(page, "rule_version", {
+    record_id: "rule-order-api",
+    record_revision: 1,
+    record_kind: "rule_version",
+    historical_snapshot: true,
+    record: {
+      rule_id: "rule-order-api",
+      revision: 1,
+      scope: "订单模块",
+      text: "订单接口必须核对持久化结果",
+      source: "manual",
+      steps: ["创建订单"],
+      evidence_requirements: ["请求与响应"],
+      confirmation_id: "confirmation-rule-1",
+      digest: "sha256:rule",
+      status: "published",
+    },
+  });
+  const beforeExport = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "导出 Markdown", exact: true }).click();
+  const exported = await waitForSend(page, { action: "export_rules_markdown" }, 5000, beforeExport);
+  expect(exported["kind"]).toBe("dispatch");
+  expect(exported["parameters"]).toMatchObject({
+    rule_versions: [{ rule_id: "rule-order-api", revision: 1 }],
+  });
+  await reply(page, {
+    kind: "outcome", action: "export_rules_markdown", status: "ok",
+    response: { result: { documents: [{ rule_id: "rule-order-api", revision: 1, markdown: "# 规则：订单接口" }] } },
+  }, { action: "export_rules_markdown" });
+  await expect(page.getByText("# 规则：订单接口", { exact: false })).toBeVisible();
+  expect(errors).toEqual([]);
+});

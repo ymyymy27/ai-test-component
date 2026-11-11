@@ -241,6 +241,55 @@ def test_reuse_decision_is_a_supported_read_view_selector() -> None:
     assert selector.view == "reuse_decision"
 
 
+@pytest.mark.parametrize("kind", ["rule_draft", "rule_version"])
+def test_rule_view_uses_rule_identity_and_omits_local_status(kind) -> None:
+    """规则草稿/版本正文用 rule_id 作为身份，草稿不返回本地确认/启用状态。"""
+
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    record = SimpleNamespace(
+        aggregate_kind=kind,
+        record_id="rule-1",
+        revision=1,
+        payload={
+            "project_id": PROJECT,
+            "rule_id": "rule-1",
+            "revision": 1,
+            "scope": "订单模块",
+            "text": "核对持久化",
+            "source": "manual",
+            "steps": ["创建订单"],
+            "evidence_requirements": ["响应"],
+            "unknown_extension_fields": [],
+            "private_note": "not public",
+        },
+    )
+    store = Mock()
+    store.read.return_value = record
+    reader = CommittedViewReader(decisions=Mock(), reader=store)
+    result = reader.record_view(
+        project_id=PROJECT, kind=kind, record_id="rule-1", revision=1
+    )
+    assert result["record"]["rule_id"] == "rule-1"
+    assert result["record"]["scope"] == "订单模块"
+    assert "private_note" not in result["record"]
+    with pytest.raises(ValueError):
+        reader.record_view(
+            project_id="other", kind=kind, record_id="rule-1", revision=1
+        )
+
+
+def test_rule_is_a_supported_read_view_selector() -> None:
+    from aitest.contracts.read_views import ReadViewQuery
+
+    for kind in ("rule_draft", "rule_version"):
+        selector = ReadViewQuery.model_validate(
+            {"view": kind, "record_id": "rule-1", "revision": 1}
+        )
+        assert selector.view == kind
+
+
 def test_record_selector_requires_exact_revision_and_rejects_mixed_selectors() -> None:
     from aitest.contracts.read_views import ReadViewQuery
     valid = {"view":"report", "record_id":"report-1", "revision":1}

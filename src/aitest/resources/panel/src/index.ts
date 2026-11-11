@@ -22,6 +22,7 @@ import { div, iconButton } from "./ui";
 import { renderDiagnostics } from "./views/diagnostics";
 import { renderHome } from "./views/home";
 import { renderPlan } from "./views/plan";
+import { renderRules } from "./views/rules";
 import { renderReports } from "./views/reports";
 import { renderSettings } from "./views/settings";
 import { renderWizard } from "./views/wizard";
@@ -195,6 +196,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
       this.state.dialog = null;
     }
     if (this.state.route === "plan" && !this.state.plansLoaded) void this.loadPlans();
+    else if (this.state.route === "rules" && !this.state.rulesLoaded) void this.loadRules();
     else if (this.state.route === "reports") {
       if (this.state.reportsTab === "reports") void this.loadReports();
       else if (this.state.reportsTab === "issues") void this.loadIssues();
@@ -211,6 +213,11 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.state.plansLoaded = false;
     this.state.planDetail = null;
     this.state.selectedPlan = null;
+    this.state.ruleDrafts = [];
+    this.state.ruleVersions = [];
+    this.state.ruleDetail = null;
+    this.state.ruleDetailKind = null;
+    this.state.rulesLoaded = false;
     this.state.reports = [];
     this.state.reportsLoaded = false;
     this.state.reportDetail = null;
@@ -373,6 +380,27 @@ class AiTestPanel extends HTMLElement implements AppContext {
     const rows = await this.query({ aggregate_kind: "plan", limit: 20 });
     this.state.plans = rows;
     this.state.plansLoaded = true;
+    this.state.busy = null;
+    this.render();
+  }
+
+  async loadRules(): Promise<void> {
+    if (!this.client || !this.state.project?.project_id) {
+      this.state.ruleDrafts = [];
+      this.state.ruleVersions = [];
+      this.state.rulesLoaded = true;
+      this.render();
+      return;
+    }
+    this.state.busy = "rules";
+    this.render();
+    const [drafts, versions] = await Promise.all([
+      this.query({ aggregate_kind: "rule_draft", limit: 50 }),
+      this.query({ aggregate_kind: "rule_version", limit: 50 }),
+    ]);
+    this.state.ruleDrafts = drafts;
+    this.state.ruleVersions = versions;
+    this.state.rulesLoaded = true;
     this.state.busy = null;
     this.render();
   }
@@ -613,6 +641,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.state.route = route;
     this.state.dialog = null;
     if (route === "plan" && !this.state.plansLoaded) void this.loadPlans();
+    else if (route === "rules" && !this.state.rulesLoaded) void this.loadRules();
     else if (route === "reports") {
       if (this.state.reportsTab === "reports") void this.loadReports();
       else if (this.state.reportsTab === "issues") void this.loadIssues();
@@ -706,6 +735,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
     nav.setAttribute("aria-label", "主导航");
     const active = this.state.route === "wizard"
       || this.state.route === "plan"
+      || this.state.route === "rules"
       || this.state.route === "workbench"
       ? "home"
       : this.state.route === "diagnostics"
@@ -737,6 +767,8 @@ class AiTestPanel extends HTMLElement implements AppContext {
         return renderWizard(this);
       case "plan":
         return renderPlan(this);
+      case "rules":
+        return renderRules(this);
       case "workbench":
         return renderWorkbench(this);
       case "reports":
@@ -868,6 +900,11 @@ function initialState(hostAvailable: boolean): AppState {
     plans: [],
     planDetail: null,
     plansLoaded: false,
+    ruleDrafts: [],
+    ruleVersions: [],
+    ruleDetail: null,
+    ruleDetailKind: null,
+    rulesLoaded: false,
     issues: [],
     reports: [],
     issuesLoaded: false,

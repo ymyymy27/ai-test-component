@@ -31,6 +31,7 @@ const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   "check_source",
   "inspect_case_reuse",
   "plan_confirmation_state",
+  "export_rules_markdown",
 ]);
 
 type ActionGuide = { title: string; when: string; caution: string };

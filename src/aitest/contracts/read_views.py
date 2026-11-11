@@ -27,6 +27,7 @@ class ReadViewQuery(BaseModel):
                             "enum": [
                                 "plan", "report", "case", "issue", "evidence",
                                 "local_review", "reuse_decision",
+                                "rule_draft", "rule_version",
                             ],
                         },
                         "record_id": {"type": "string"},
@@ -71,7 +72,7 @@ class ReadViewQuery(BaseModel):
 
     view: Literal[
         "run", "panel", "delivery", "plan", "report", "case", "issue", "evidence",
-        "local_review", "reuse_decision",
+        "local_review", "reuse_decision", "rule_draft", "rule_version",
     ]
     record_id: ViewIdentity | None = None
     run_id: ViewIdentity | None = None
@@ -86,6 +87,7 @@ class ReadViewQuery(BaseModel):
                 raise ValueError("run/panel views require only view and run_id")
         elif self.view in {
             "plan", "report", "case", "issue", "evidence", "local_review", "reuse_decision",
+            "rule_draft", "rule_version",
         }:
             if (self.model_fields_set != {"view", "record_id", "revision"}
                     or self.record_id is None or self.revision is None):
