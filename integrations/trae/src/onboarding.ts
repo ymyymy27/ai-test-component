@@ -168,10 +168,12 @@ export async function wizardMessage(
       if(session.existing===true&&raw.stage==="project"){
         const state=await dispatchReadOnly(settings.python,settings.workspaceRoot,{
           action:"query",projectId:session.project_id,
-          parameters:{aggregate_kind:"source_binding_current",limit:1},
+          parameters:{aggregate_kind:"source_binding_current",limit:100},
         },randomUUID());
         const items=state.status==="ok"?(state.response?.result as Record<string,unknown>|undefined)?.items:undefined;
-        if(Array.isArray(items)&&items[0]&&typeof items[0]==="object"&&Number.isSafeInteger((items[0] as Record<string,unknown>).revision))sourceExpectedRevision=Number((items[0] as Record<string,unknown>).revision);
+        if(Array.isArray(items))for(const item of items){
+          if(item&&typeof item==="object"&&Number.isSafeInteger((item as Record<string,unknown>).revision))sourceExpectedRevision=Math.max(sourceExpectedRevision,Number((item as Record<string,unknown>).revision));
+        }
       }
       const result=await helper(settings.python,{operation:"commands",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry},stage:raw.stage,receipts:raw.receipts,attempt,resume:session.existing===true,source_expected_revision:sourceExpectedRevision});
       respond(result);

@@ -73,7 +73,7 @@ test("first-run wizard prepares, publishes and registers through the controlled 
   await expect(page.getByText("准备这次测试")).toBeVisible();
 
   await page.getByLabel("测试数据如何隔离、测试后如何复位").fill("只在内存中计算，不连接业务系统");
-  await page.getByRole("checkbox", { name: /我确认这是本地测试入口/ }).check();
+  await page.getByRole("button", { name: "确认这是本地测试入口", exact: true }).click();
   const beforePrepare = (await sentMessages(page)).length;
   await page.getByRole("button", { name: "准备环境并分析项目", exact: true }).click();
   await reply(page, { kind: "wizardResult", setup: { workspace: "C:/data/guided/workspace" }, session }, { kind: "wizardSetup" });
@@ -156,7 +156,7 @@ test("first-run wizard prepares, publishes and registers through the controlled 
 
   await expect(page.getByText("核对计划、覆盖与依据")).toBeVisible();
   await page.screenshot({ path: "test-results/wizard-review.png", fullPage: true });
-  await page.getByRole("checkbox", { name: /我确认业务功能目录完整/ }).check();
+  await page.getByRole("button", { name: "确认业务功能目录完整", exact: true }).click();
   await page.getByRole("button", { name: "确认并开始", exact: true }).click();
   await sendCommands(page, "commit", commitCommands);
   await answer(page, "save_case", { record_revision: 1 }, "writeDispatch");
@@ -206,7 +206,7 @@ test("manual four-check plan reaches prepare and register", async ({ page }) => 
   await page.getByRole("checkbox", { name: /用 AI 生成验证目标与计划/ }).uncheck();
   await page.getByLabel("你希望验证什么").fill("验证订单金额计算");
   await page.getByLabel("测试数据如何隔离、测试后如何复位").fill("只在内存中计算");
-  await page.getByRole("checkbox", { name: /我确认这是本地测试入口/ }).check();
+  await page.getByRole("button", { name: "确认这是本地测试入口", exact: true }).click();
   const beforePrepare = (await sentMessages(page)).length;
   await page.getByRole("button", { name: "准备环境并分析项目", exact: true }).click();
   await reply(page, { kind: "wizardResult", setup: { workspace: "C:/data/guided/workspace" }, session }, { kind: "wizardSetup" });

@@ -512,6 +512,8 @@ def test_project_resume_only_verifies_the_existing_source_snapshot():
     assert [command["action"] for command in commands] == ["analyze_project"]
     assert commands[0]["parameters"]["binding_id"].startswith("binding-guided-")
     assert commands[0]["expected_revision"] == 3
+    other = wizard_commands(form(), "project", {}, resume=True, source_expected_revision=2)
+    assert other[0]["intent_id"] != commands[0]["intent_id"]
 
 
 def test_model_stage_requires_the_frozen_snapshot_identity():

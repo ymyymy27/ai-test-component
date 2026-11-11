@@ -270,7 +270,8 @@ def wizard_commands(
             "source_scope": scope, "selected_paths": [scope],
             "exclusion_rules": [".git", ".venv", "__pycache__"],
             "include_understanding": True},
-            expected_revision=source_expected_revision if resume else 0)
+            expected_revision=source_expected_revision if resume else 0,
+            intent_salt=(f"resume-source-{source_expected_revision}" if resume else None))
     elif stage == "model":
         template_ref = TemplateRef("python-library", "1.0.0")
         template_text = template_draft_text(load_template(template_ref))

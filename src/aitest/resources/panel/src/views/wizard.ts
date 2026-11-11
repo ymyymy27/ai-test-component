@@ -138,7 +138,15 @@ function configureStep(ctx: AppContext): HTMLElement {
   }
   project.append(
     fieldArea("测试数据如何隔离、测试后如何复位", state.dataPolicy, value => { state.dataPolicy = value; }, "例如：只在内存中计算，不连接业务系统，结束后无需清理。"),
-    checkbox("我确认这是本地测试入口，不会修改真实业务数据", state.confirmed, value => { state.confirmed = value; }, busy),
+    button(
+      state.confirmed ? "已确认：这是本地测试入口" : "确认这是本地测试入口",
+      () => {
+        state.confirmed = !state.confirmed;
+        ctx.render();
+      },
+      { variant: state.confirmed ? "primary" : "secondary", icon: state.confirmed ? "check" : "shield", disabled: busy },
+    ),
+    p("确认只表示这是本地测试入口，不会修改真实业务数据；确认后仍可取消。", "muted subtle"),
   );
 
   const model = card(
@@ -459,6 +467,31 @@ function reviewStep(ctx: AppContext): HTMLElement {
     }, { rows: 14, ariaLabel: "计划提案 JSON" }),
   );
 
+  const publishCard = card(
+    "",
+    cardHead("发布前确认", "确认业务功能目录与计划摘要后，一次确认冻结计划与执行许可。"),
+    button(
+      state.catalogConfirmed ? "已确认：业务功能目录完整" : "确认业务功能目录完整",
+      () => {
+        state.catalogConfirmed = !state.catalogConfirmed;
+        ctx.render();
+      },
+      { variant: state.catalogConfirmed ? "primary" : "secondary", icon: state.catalogConfirmed ? "check" : "shield", disabled: state.busy },
+    ),
+    advanced,
+    div(
+      "hero-actions",
+      button("重新校验", () => void wizard.review(), { icon: "refresh", disabled: state.busy }),
+      button("确认并开始", () => void wizard.publish(), {
+        variant: "primary",
+        icon: "shield",
+        disabled: state.busy || !state.catalogConfirmed || !state.preview,
+      }),
+    ),
+    p("点击“确认并开始”后，核心会生成确认材料，面板展示并提交确认；面板不会代签，也不会自动继续。", "muted subtle"),
+    state.issues.length ? banner(state.issues.join("；"), "danger") : null,
+  );
+
   return div(
     "stack",
     card(
@@ -471,28 +504,9 @@ function reviewStep(ctx: AppContext): HTMLElement {
         : null,
       stats,
     ),
+    publishCard,
     coverageRows.length ? card("", cardHead("功能 × 维度覆盖", "来自已保存的项目理解，未覆盖项会阻止完整验证。"), coverageList) : null,
     card("", cardHead("计划用例", "逐条核对目标、层级和核验方式。"), caseList),
-    card(
-      "",
-      cardHead("发布前确认", "缺少业务功能目录确认时不能发布完整验证。"),
-      checkbox("我确认业务功能目录完整，unknown 数量已知", state.catalogConfirmed, value => {
-        state.catalogConfirmed = value;
-        ctx.render();
-      }, state.busy),
-      advanced,
-      div(
-        "hero-actions",
-        button("重新校验", () => void wizard.review(), { icon: "refresh", disabled: state.busy }),
-        button("确认并开始", () => void wizard.publish(), {
-          variant: "primary",
-          icon: "shield",
-          disabled: state.busy || !state.catalogConfirmed || !state.preview,
-        }),
-      ),
-      p("点击“确认并开始”后，核心会生成确认材料，面板展示并提交确认；面板不会代签，也不会自动继续。", "muted subtle"),
-      state.issues.length ? banner(state.issues.join("；"), "danger") : null,
-    ),
   );
 }
 
