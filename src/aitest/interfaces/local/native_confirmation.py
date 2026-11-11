@@ -307,6 +307,9 @@ def windows_prompt(prompt: ConfirmationPrompt) -> bool:
         root.protocol("WM_DELETE_WINDOW", root.quit)
         root.bind("<Escape>", lambda event: root.quit())
         root.bind("<Return>", lambda event: root.quit())
+        # 显式组合键确认：普通回车仍是取消，避免误按；Ctrl+Enter 供键盘用户确认。
+        root.bind("<Control-Return>", lambda event: accept())
+        root.bind("<Control-KP_Enter>", lambda event: accept())
         root.after(NATIVE_CONFIRMATION_TIMEOUT_MS, root.quit)
         cancel.focus_set()
         fit()
