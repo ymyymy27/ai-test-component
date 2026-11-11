@@ -303,8 +303,8 @@ test("wizard view asks for project and goal before any write", async ({ page }) 
       reference: "cred-1",
     },
   }, { kind: "wizardChoose" });
-  await expect(page.getByText("这次要检查什么")).toBeVisible();
-  await expect(page.getByText("模型辅助")).toBeVisible();
+  await expect(page.getByText("准备这次测试")).toBeVisible();
+  await expect(page.getByText("AI 辅助")).toBeVisible();
   await page.screenshot({ path: "test-results/wizard-configure.png", fullPage: true });
   expect(errors).toEqual([]);
 });

@@ -28,8 +28,6 @@ export interface AppContext {
   query(parameters: Record<string, unknown>): Promise<Row[]>;
   /** Controlled/ordinary write. The UI never signs a human confirmation. */
   write(action: string, parameters: Record<string, unknown>, options?: WriteOptions): Promise<Outcome>;
-  /** One native window with per-action gestures; only authorize_step items are accepted. */
-  batch(items: ReadonlyArray<BatchAuthorizationItem>): Promise<Outcome>;
   /** Wizard messages handled by the extension host. */
   wizardRequest(kind: string, extra?: Record<string, unknown>): Promise<WizardResult>;
 
@@ -55,14 +53,6 @@ export interface AppContext {
   closeDialog(): void;
   openHostSettings(): void;
   openDetail(detail: "workbench" | "review"): void;
-}
-
-export interface BatchAuthorizationItem {
-  action: "authorize_step";
-  intentId: string;
-  target: string;
-  expectedRevision: number;
-  parameters: Record<string, unknown>;
 }
 
 export interface WizardHost {

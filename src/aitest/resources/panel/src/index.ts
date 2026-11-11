@@ -290,18 +290,6 @@ class AiTestPanel extends HTMLElement implements AppContext {
     return asRecord(outcome.response?.["result"]) ?? {};
   }
 
-  async batch(items: ReadonlyArray<import("./context").BatchAuthorizationItem>): Promise<Outcome> {
-    if (!this.client) {
-      return {
-        action: "authorize_batch",
-        status: "refused",
-        code: "HOST_UNAVAILABLE",
-        message: "未检测到编辑器宿主，批量授权未派发。",
-      };
-    }
-    return this.client.batch(items);
-  }
-
   async query(parameters: Record<string, unknown>): Promise<Row[]> {
     if (!this.client) return [];
     const projectId = this.state.project?.project_id ?? null;

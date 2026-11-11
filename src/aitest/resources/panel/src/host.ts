@@ -213,40 +213,6 @@ export class HostClient {
     );
   }
 
-  batch(
-    items: ReadonlyArray<{
-      action: "authorize_step";
-      intentId: string;
-      target: string;
-      expectedRevision: number;
-      parameters: Record<string, unknown>;
-    }>,
-  ): Promise<Outcome> {
-    if (!this.contextId) {
-      return Promise.resolve({
-        action: "authorize_batch",
-        status: "refused",
-        code: "PROJECT_CONTEXT_MISMATCH",
-        message: "宿主尚未发布项目上下文，批量授权未派发。",
-      });
-    }
-    return this.requestOutcome(
-      {
-        kind: "nativeBatch",
-        contextId: this.contextId,
-        items: items.map(item => ({
-          action: item.action,
-          requestId: this.nextId(),
-          intentId: item.intentId,
-          target: item.target,
-          expectedRevision: item.expectedRevision,
-          parameters: item.parameters,
-        })),
-      },
-      DEFAULT_CONTROLLED_TIMEOUT,
-    );
-  }
-
   notify(message: string): void {
     this.postMessage({ kind: "runNotification", message });
   }
