@@ -1,0 +1,490 @@
+/** Guided first-run flow. Each step states what will be saved and what stays human-owned. */
+
+import type { AppContext } from "../context";
+import { asNumber, asRecord, asRecords, asText, label, toneForState } from "../labels";
+import { icon } from "../icons";
+import { WIZARD_STEPS } from "../wizard";
+import type { WizardCheck } from "../types";
+import {
+  banner,
+  button,
+  card,
+  cardHead,
+  checkbox,
+  chip,
+  details,
+  div,
+  facts,
+  h2,
+  loading,
+  pageHead,
+  p,
+  progress,
+  stepper,
+  textArea,
+  textInput,
+  select,
+} from "../ui";
+
+export function renderWizard(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const page = div("page");
+  const head = pageHead(
+    "准备测试",
+    wizardTitle(state.stage),
+    "按顺序准备项目、环境、计划与运行。发布和授权会由核心原生窗口确认。",
+    state.stage !== "choose"
+      ? button("重新开始", () => wizard.reset(), { variant: "ghost", icon: "refresh" })
+      : null,
+  );
+  page.appendChild(head);
+  page.appendChild(stepper([...WIZARD_STEPS], Math.min(wizard.stageIndex(), WIZARD_STEPS.length - 1), wizard.completedSteps()));
+  if (state.stage === "choose") page.appendChild(chooseStep(ctx));
+  else if (state.stage === "configure") page.appendChild(configureStep(ctx));
+  else if (state.stage === "project") page.appendChild(projectStep(ctx));
+  else if (state.stage === "model") page.appendChild(modelStep(ctx));
+  else if (state.stage === "manual") page.appendChild(manualStep(ctx));
+  else if (state.stage === "review") page.appendChild(reviewStep(ctx));
+  else if (state.stage === "commit") page.appendChild(commitStep(ctx));
+  else if (state.stage === "prepare" || state.stage === "register") page.appendChild(prepareStep(ctx));
+  else if (state.stage === "done") page.appendChild(doneStep(ctx));
+  if (state.error) page.appendChild(banner(state.error, "danger"));
+  else if (state.note) page.appendChild(banner(state.note, state.busy ? "info" : "neutral"));
+  return page;
+}
+
+function wizardTitle(stage: string): string {
+  switch (stage) {
+    case "choose":
+      return "选择要测试的项目";
+    case "configure":
+      return "说明目标并准备环境";
+    case "project":
+      return "保存项目并分析源码";
+    case "model":
+      return "生成检查计划";
+    case "manual":
+      return "手工填写检查计划";
+    case "review":
+      return "核对并发布计划";
+    case "prepare":
+      return "准备运行";
+    case "register":
+      return "登记运行";
+    case "done":
+      return "准备完成";
+    default:
+      return "准备测试";
+  }
+}
+
+function chooseStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  return card(
+    "hero",
+    div("eyebrow", "第 1 步"),
+    h2("选择一个本地项目与测试入口"),
+    p("项目目录和测试数据目录会分开；测试入口必须是项目目录内的 Python 文件。", "muted"),
+    div(
+      "hero-actions",
+      button("选择项目目录", () => void wizard.chooseProject(), {
+        variant: "primary",
+        icon: "folder",
+        disabled: wizard.state.busy,
+      }),
+    ),
+    details(
+      "当前向导支持什么？",
+      p("仅支持标准库 Python 入口；测试入口需要覆盖加载、正常、边界和异常输入，并输出可独立比较的结果。"),
+      p("模型辅助只读取项目名称、测试目标与项目理解摘要；默认不发送源码。", "muted"),
+    ),
+  );
+}
+
+function configureStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const busy = state.busy;
+  const project = card(
+    "",
+    cardHead("这次要检查什么", "先描述业务目标，模型或手工计划都以此为准。"),
+    facts([
+      ["源码目录", state.session?.source ?? "—"],
+      ["测试入口", state.session?.entry ?? "—"],
+      ["独立环境", state.workspace || "准备后由核心返回"],
+    ]),
+    fieldInput("项目名称", state.name, value => { state.name = value; }),
+    fieldArea("你希望验证什么", state.goal, value => { state.goal = value; }, "描述应该发生什么，以及哪些情况需要特别检查。"),
+    fieldArea("测试数据如何隔离、测试后如何复位", state.dataPolicy, value => { state.dataPolicy = value; }, "例如：只在内存中计算，不连接业务系统，结束后无需清理。"),
+    checkbox("我确认这是本地测试入口，不会修改真实业务数据", state.confirmed, value => { state.confirmed = value; }, busy),
+  );
+
+  const model = card(
+    "",
+    cardHead("模型辅助", "让模型生成结构化计划提案；发布前由你核对。"),
+    checkbox("使用模型帮助准备检查建议", state.useModel, value => {
+      state.useModel = value;
+      ctx.render();
+    }, busy),
+  );
+  if (state.useModel) {
+    model.append(
+      div(
+        "form-grid",
+        fieldInput("API 地址", state.endpoint, value => { state.endpoint = value; }),
+        fieldInput("模型名称", state.model, value => { state.model = value; }),
+        fieldInput("请求超时（秒）", state.modelTimeout, value => { state.modelTimeout = value; }, "10–120 秒"),
+      ),
+      div(
+        "inline",
+        chip(state.reference ? "安全凭据已配置" : "尚未配置安全凭据", state.reference ? "success" : "warning"),
+        button("配置安全凭据", () => void wizard.saveCredential(), { icon: "shield", disabled: busy }),
+      ),
+      p("密钥保存在 Windows 安全存储，正文不会进入面板、记录或日志。", "muted subtle"),
+    );
+  }
+
+  const actions = div(
+    "hero-actions",
+    button("准备环境并继续", () => void wizard.prepareEnvironment(), {
+      variant: "primary",
+      icon: "arrow-right",
+      disabled: busy,
+    }),
+    button("重新选择项目", () => void wizard.chooseProject(), { icon: "folder", disabled: busy }),
+  );
+  return div("stack", project, model, envCard(), actions);
+}
+
+function envCard(): HTMLElement {
+  return card(
+    "flat",
+    cardHead("独立测试环境", "与被测项目原本的环境分开，避免污染。"),
+    div(
+      "hero-steps",
+      envLine("创建独立 Python 3.11+ 环境"),
+      envLine("登记解释器与依赖目录"),
+      envLine("固定源码快照并分析项目理解"),
+    ),
+  );
+}
+
+function envLine(text: string): HTMLElement {
+  return div("hero-step", div("hero-step-num", "·"), div("grow", text));
+}
+
+function projectStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const progressState = state.commandProgress;
+  const labels = ["保存项目", "绑定目录", "登记环境", "分析源码"];
+  const done = progressState ? progressState.done : 0;
+  const list = div("stack-sm");
+  labels.forEach((text, index) => {
+    const isDone = progressState !== null && index < done;
+    const isCurrent = progressState !== null && index === done && state.busy;
+    list.appendChild(
+      div(
+        "row",
+        div("row-icon", isDone ? icon("check", 15) : isCurrent ? div("spinner") : spanNumber(index + 1)),
+        div("row-main", div("row-title", text), div("row-sub", isDone ? "已保存" : isCurrent ? "处理中…" : "等待")),
+        isDone ? chip("完成", "success") : isCurrent ? chip("进行中", "info") : null,
+      ),
+    );
+  });
+  return card(
+    "",
+    cardHead("正在保存项目并分析源码", "分析结果会作为计划提案的输入；失败会在发布前暴露。"),
+    list,
+    progressState ? progress(progressState.done, progressState.total) : loading("正在生成受控命令…"),
+    state.error
+      ? div("hero-actions", button("重试本阶段", () => void wizard.runStage("project"), { variant: "primary", icon: "refresh" }))
+      : null,
+  );
+}
+
+function spanNumber(value: number): HTMLElement {
+  return div("row-icon", String(value));
+}
+
+function modelStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  return card(
+    "hero",
+    div("eyebrow", "第 3 步"),
+    h2("生成一份可核对的计划提案"),
+    p("模型读取项目名称、测试目标和项目理解摘要，返回结构化用例；不会执行程序。", "muted"),
+    facts([
+      ["接收方", state.endpoint],
+      ["模型", state.model],
+      ["材料范围", "项目名称、测试目标、项目理解摘要；默认不含源码"],
+    ]),
+    p("如果这里提示模型未配置，请按受控流程重启核心（或重新打开 Trae）后回到本步继续。环境与模型配置只在核心启动时加载。", "muted subtle"),
+    div(
+      "hero-actions",
+      button("生成 AI 计划", () => void wizard.runStage("model"), {
+        variant: "primary",
+        icon: "spark",
+        disabled: state.busy,
+      }),
+      button("改用手工四项检查", () => void wizard.startManual(), { icon: "file", disabled: state.busy }),
+    ),
+  );
+}
+
+function manualStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const list = div("stack-sm");
+  state.checks.forEach((check, index) => {
+    const fold = details(
+      `${index + 1}. ${check.objective}`,
+      checkFields(check),
+    );
+    if (index === 0) fold.open = true;
+    list.appendChild(fold);
+  });
+  return div(
+    "stack",
+    card(
+      "",
+      cardHead("四项独立检查", "每项使用同一测试入口；输入条件是说明，独立预期不能从运行结果倒填。"),
+      p("示例：输入“2 加 3”，结果字段 normal，预期 5，类型数字。入口需输出包含该字段的 JSON。", "muted subtle"),
+      list,
+    ),
+    div(
+      "hero-actions",
+      button("确认计划并准备测试", () => void wizard.runStage("plan"), {
+        variant: "primary",
+        icon: "check",
+        disabled: state.busy,
+      }),
+      state.proposal
+        ? button("改用 AI 计划", () => wizard.backToReview(), { icon: "spark", disabled: state.busy })
+        : null,
+    ),
+  );
+}
+
+function checkFields(check: WizardCheck): HTMLElement {
+  return div(
+    "form-grid",
+    fieldInput("输入条件", check.inputs, value => { check.inputs = value; }),
+    fieldInput("结果字段名称", check.key, value => { check.key = value; }),
+    fieldInput("独立预期结果", check.value, value => { check.value = value; }),
+    fieldSelect("预期类型", [
+      { value: "text", label: "文字" },
+      { value: "number", label: "数字" },
+      { value: "boolean", label: "是 / 否" },
+    ], check.type, value => {
+      check.type = value === "number" ? "number" : value === "boolean" ? "boolean" : "text";
+    }),
+  );
+}
+
+function reviewStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const preview = state.preview ?? {};
+  const coverage = asRecord(preview["coverage"]) ?? {};
+  const cases = asRecords(preview["cases"]);
+  const coverageRows = asRecords(preview["coverage_preview"]);
+  const unknown = asNumber(preview["unknown_count"]);
+  const gaps = asNumber(preview["capability_gap_count"]);
+  const stats = div(
+    "stats",
+    statValue(cases.length, "计划用例"),
+    statValue(`${asNumber(coverage["covered_items"])}/${asNumber(coverage["template_items"])}`, "已覆盖模板项"),
+    statValue(asNumber(coverage["required_items"]), "必测项"),
+    statValue(unknown, "未知项"),
+    statValue(gaps, "能力缺口"),
+  );
+  const coverageList = div("stack-sm");
+  for (const row of coverageRows.slice(0, 8)) {
+    const functionId = typeof row["function_id"] === "string" ? row["function_id"] : "功能";
+    const overall = row["overall_status"];
+    const dimensions = asRecord(row["dimensions"]) ?? {};
+    const dimensionText = Object.entries(dimensions).map(([key, value]) => `${key} ${label(value)}`).join(" · ");
+    coverageList.appendChild(
+      div(
+        "row",
+        div("row-main", div("row-title", functionId), div("row-sub", dimensionText || "未声明维度")),
+        chip(label(overall), toneForState(overall)),
+      ),
+    );
+  }
+  if (coverageRows.length > 8) coverageList.appendChild(p(`仅显示前 8 项，共 ${coverageRows.length} 项。`, "muted subtle"));
+
+  const caseList = div("stack-sm");
+  for (const item of cases.slice(0, 10)) {
+    const objective = typeof item["objective"] === "string" ? item["objective"] : "未命名用例";
+    const meta = [item["case_id"], item["layer"], label(item["importance"]), label(item["verification_method"])]
+      .filter(value => typeof value === "string" && value)
+      .join(" · ");
+    caseList.appendChild(
+      div(
+        "row",
+        div("row-main", div("row-title", objective), div("row-sub", meta)),
+        chip(label(asRecord(item["assertion_basis"])?.["state"]), toneForState(asRecord(item["assertion_basis"])?.["state"])),
+      ),
+    );
+  }
+  if (cases.length > 10) caseList.appendChild(p(`仅显示前 10 条，共 ${cases.length} 条；完整内容在提案 JSON 中。`, "muted subtle"));
+
+  const proposalJson = state.proposal ? JSON.stringify(state.proposal, null, 2) : "{}";
+  const advanced = details(
+    "高级：查看或编辑提案 JSON",
+    p("修改后需要重新校验；客户端只做语法提示，发布前由核心重新校验。", "muted subtle"),
+    textArea(proposalJson, value => {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          state.proposal = parsed as Record<string, unknown>;
+          state.preview = null;
+          state.catalogConfirmed = false;
+          state.error = "";
+          state.note = "提案已修改，请重新校验。";
+        } else {
+          state.error = "提案必须是 JSON 对象。";
+          state.note = "";
+        }
+      } catch {
+        // Keep the last valid proposal; show the syntax issue without freezing the form.
+        state.error = "提案 JSON 语法无效，尚未应用修改。";
+        state.note = "";
+      }
+    }, { rows: 14, ariaLabel: "计划提案 JSON" }),
+  );
+
+  return div(
+    "stack",
+    card(
+      "hero",
+      div("eyebrow", "第 4 步"),
+      h2("核对计划、覆盖与依据"),
+      p("发布后计划不可变；一次确认会同时冻结计划、覆盖契约和执行许可。", "muted"),
+      stats,
+    ),
+    coverageRows.length ? card("", cardHead("功能 × 维度覆盖", "来自已保存的项目理解，未覆盖项会阻止完整验证。"), coverageList) : null,
+    card("", cardHead("计划用例", "逐条核对目标、层级和核验方式。"), caseList),
+    card(
+      "",
+      cardHead("发布前确认", "缺少业务功能目录确认时不能发布完整验证。"),
+      checkbox("我确认业务功能目录完整，unknown 数量已知", state.catalogConfirmed, value => {
+        state.catalogConfirmed = value;
+        ctx.render();
+      }, state.busy),
+      advanced,
+      div(
+        "hero-actions",
+        button("重新校验", () => void wizard.review(), { icon: "refresh", disabled: state.busy }),
+        button("确认并发布", () => void wizard.publish(), {
+          variant: "primary",
+          icon: "shield",
+          disabled: state.busy || !state.catalogConfirmed || !state.preview,
+        }),
+      ),
+      p("点击“确认并发布”后，核心会弹出原生确认窗口；面板不会代签，也不会在窗口外自动继续。", "muted subtle"),
+      state.issues.length ? banner(state.issues.join("；"), "danger") : null,
+    ),
+  );
+}
+
+function commitStep(ctx: AppContext): HTMLElement {
+  const state = ctx.wizard.state;
+  const progressState = state.commandProgress;
+  return card(
+    "",
+    cardHead("发布计划", "核心原生窗口确认后，计划、覆盖契约与执行许可一起冻结。"),
+    progressState ? progress(progressState.done, progressState.total) : loading("正在保存用例与验收范围…"),
+    progressState ? p(`正在执行：${progressState.label}（${progressState.done}/${progressState.total}）`, "muted subtle") : null,
+    p("面板不会代签确认；窗口关闭或超时只表示结果未核实，按原意图核对。", "muted subtle"),
+    state.error
+      ? div("hero-actions", button("重试发布", () => void wizardRetryCommit(ctx), { variant: "primary", icon: "refresh" }))
+      : null,
+  );
+}
+
+function wizardRetryCommit(ctx: AppContext): void {
+  void ctx.wizard.runStage("commit");
+}
+
+function prepareStep(ctx: AppContext): HTMLElement {  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const progressState = state.commandProgress;
+  return card(
+    "",
+    cardHead("准备并登记运行", "固定源码、环境和确认引用；登记本身不执行任何步骤。"),
+    progressState ? progress(progressState.done, progressState.total) : loading("正在生成受控命令…"),
+    progressState ? p(`正在执行：${progressState.label}（${progressState.done}/${progressState.total}）`, "muted subtle") : null,
+    state.error
+      ? div("hero-actions", button("重试本阶段", () => void wizard.runStage(state.stage === "register" ? "register" : "prepare"), { variant: "primary", icon: "refresh" }))
+      : null,
+    facts([
+      ["计划", asText(state.receipts["publish"]?.["plan_id"], "—")],
+      ["准备记录", asText(state.receipts["prepare"]?.["prepared_run_id"], "—")],
+      ["运行", asText(state.receipts["register"]?.["run_id"], "—")],
+    ]),
+  );
+}
+
+function doneStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const register = state.receipts["register"] ?? {};
+  return card(
+    "hero",
+    div("eyebrow", "准备完成"),
+    h2("运行已登记，可以开始执行"),
+    p("下一步在工作台逐项查看操作、确认授权、执行并核验。执行请求返回不等于业务通过。", "muted"),
+    facts([
+      ["计划", asText(state.receipts["publish"]?.["plan_id"], "—")],
+      ["运行", asText(register["run_id"], "—")],
+      ["步骤", Array.isArray(register["steps"]) ? `${register["steps"].length} 步` : "读取运行后可见"],
+    ]),
+    div(
+      "hero-actions",
+      button("进入测试工作台", () => wizard.complete(), { variant: "primary", icon: "terminal" }),
+      button("回到当前检查", () => ctx.navigate("home"), { icon: "arrow-right" }),
+    ),
+  );
+}
+
+function fieldInput(labelText: string, value: string, onChange: (value: string) => void, help?: string): HTMLElement {
+  return div("", fieldNode(labelText, textInput(value, onChange), help));
+}
+
+function fieldArea(labelText: string, value: string, onChange: (value: string) => void, help?: string): HTMLElement {
+  return div("span-2", fieldNode(labelText, textArea(value, onChange, { rows: 4 }), help));
+}
+
+function fieldSelect(
+  labelText: string,
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string,
+  onChange: (value: string) => void,
+): HTMLElement {
+  return div("", fieldNode(labelText, select(options, value, onChange)));
+}
+
+function fieldNode(labelText: string, control: HTMLElement, help?: string): HTMLElement {
+  const wrapper = document.createElement("label");
+  wrapper.className = "field";
+  const title = document.createElement("span");
+  title.className = "field-label";
+  title.textContent = labelText;
+  wrapper.append(title, control);
+  if (help) {
+    const hint = document.createElement("span");
+    hint.className = "field-help";
+    hint.textContent = help;
+    wrapper.appendChild(hint);
+  }
+  return wrapper;
+}
+
+function statValue(value: string | number, labelText: string): HTMLElement {
+  return div("stat", div("stat-value", String(value)), div("stat-label", labelText));
+}

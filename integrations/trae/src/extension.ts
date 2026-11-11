@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const settings = readSettings();
       const python = await vscode.window.showInputBox({title:"AI Test 核心解释器",
-        prompt:"填写已安装 AI Test 的 Python 3.13 解释器路径", value:settings.python,
+        prompt:"填写已安装 AI Test 的 Python 3.11+ 解释器路径", value:settings.python,
         ignoreFocusOut:true});
       if (!python?.trim()) { return; }
       const folders = await vscode.window.showOpenDialog({title:"选择专用用户数据工作空间（不要选源码目录）",

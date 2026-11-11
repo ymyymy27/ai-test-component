@@ -51,7 +51,7 @@ docs/归档/            历史修改日志、验证证据、作者文档与整�
 
 生成 Schema 后须检查 Git diff；不手工编辑生成物。全量测试期间不并发其他重测试，保留退出码、原输出与跳过原因，不用分块结果相加替代全量。临时数据可放 `.runtime/tmp` 并设置 TEMP/TMP。
 
-面板/Trae 需要 Node/npm，按现有 lock 安装并构建：
+面板/Trae 需要 Node/npm，按现有 lock 安装并构建。共享面板按产品使用流程重写为“当前检查 + 首次向导 + 工作台 + 报告/问题 + 设置/诊断”，构建与 Playwright 测试可直接运行。
 
 ```powershell
 npm --prefix src/aitest/resources/panel ci

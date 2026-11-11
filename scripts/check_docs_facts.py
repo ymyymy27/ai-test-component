@@ -59,13 +59,13 @@ RULES = (
     ),
     Rule(
         "mypy 检查文件数",
-        re.compile(r"`mypy`[（(]\s*strict[，,]\s*(\d+)\s*文件[）)]"),
+        re.compile(r"\|\s*`mypy`[^|\n]*\|\s*(\d+)\s*文件"),
         "mypy_files",
         needs_full=True,
     ),
     Rule(
         "测试节点数",
-        re.compile(r"(\d+)\s*个节点"),
+        re.compile(r"\|\s*测试收集\s*\|\s*\*\*([\d,]+)\*\*\s*个节点"),
         "nodes",
     ),
     Rule(

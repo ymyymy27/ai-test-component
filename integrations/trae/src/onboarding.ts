@@ -16,7 +16,7 @@ export function helper(python:string,request:Record<string,unknown>):Promise<Rec
     child.on("error",()=>finish(new Error("无法启动测试核心，请检查插件运行环境。")));
     child.stdout.on("data",(chunk:Buffer)=>{bytes+=chunk.length;if(bytes>1024*1024){child.kill();finish(new Error("向导响应超出限制"));}else chunks.push(chunk);});
     child.stderr.resume(); // never expose provider errors or secret-bearing diagnostics
-    child.on("close",code=>{try{const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));if(code!==0||value.ok!==true)throw new Error();finish(undefined,value.result);}catch{finish(new Error("准备未完成，请核对目录、Python 3.13 和安全凭据。"));}});
+    child.on("close",code=>{try{const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));if(code!==0||value.ok!==true)throw new Error();finish(undefined,value.result);}catch{finish(new Error("准备未完成，请核对目录、Python 3.11+ 和安全凭据。"));}});
     child.stdin.on("error",()=>finish(new Error("无法发送向导配置")));
     child.stdin.end(JSON.stringify(request));
   });

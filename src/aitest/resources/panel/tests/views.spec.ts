@@ -1,0 +1,294 @@
+import { test, expect, type Page } from "@playwright/test";
+import { connect, connectWithRun, mountPanel, reply, replyView, sentMessages, waitForSend } from "./support";
+
+function captureErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  return errors;
+}
+
+const panel = {
+  project_id: "project-1",
+  project_name: "工单状态修改",
+  run_id: "run-1",
+  stage: "runtime",
+  control_state: "running",
+  run_revision: 3,
+  snapshot_commit_id: "snap-abc",
+  snapshot_cursor: 12,
+  tier: "full",
+  driver: "planned",
+  conclusion_ceiling: "incomplete",
+  business_outcome: "incomplete",
+  decisive_failure_case_ids: [],
+  gap_codes: ["assertion_basis_unconfirmed", "environment_evidence_incomplete"],
+  manual_pending_step_ids: ["step-3"],
+  pending_verification_step_ids: ["step-2"],
+};
+
+const run = {
+  project_id: "project-1",
+  run_id: "run-1",
+  run_revision: 3,
+  snapshot_commit_id: "snap-abc",
+  snapshot_cursor: 12,
+  plan_revision_ref: "plan-1@1",
+  control_state: "running",
+  driver: "planned",
+  tier: "full",
+  conclusion_ceiling: "incomplete",
+  selected_case_ids: ["case-1", "case-2", "case-3", "case-4"],
+  required_case_ids: ["case-1", "case-2"],
+  selected_summary: { denominator: 4, executed_count: 2, verified_count: 1, failed_count: 0, unverified_count: 3 },
+  required_summary: { denominator: 2, executed_count: 1, verified_count: 1, failed_count: 0, unverified_count: 1 },
+  automatic_step_count: 4,
+  automatic_completed_count: 2,
+  manual_pending_step_ids: ["step-3"],
+  pending_verification_step_ids: ["step-2"],
+  steps: [
+    { step_id: "step-1", case_id: "case-1", state: "completed", current_attempt_id: "att-1", attempt_state: "succeeded", adapter_kind: "command", evidence_ids: ["ev-1"], evidence_revisions: [1] },
+    { step_id: "step-2", case_id: "case-2", state: "pending_verification", current_attempt_id: "att-2", attempt_state: "succeeded", adapter_kind: "command", evidence_ids: ["ev-2"], evidence_revisions: [1] },
+    { step_id: "step-3", case_id: "case-3", state: "pending", current_attempt_id: null, attempt_state: null, adapter_kind: "manual_evidence", evidence_ids: [], evidence_revisions: [] },
+    { step_id: "step-4", case_id: "case-4", state: "not_started", current_attempt_id: null, attempt_state: null, adapter_kind: "command", evidence_ids: [], evidence_revisions: [] },
+  ],
+};
+
+const report = {
+  record_id: "report-1",
+  record_revision: 2,
+  record_kind: "report",
+  historical_snapshot: true,
+  record: {
+    report_id: "report-1",
+    content_revision: 2,
+    run_id: "run-1",
+    business_outcome: "incomplete",
+    evidence_grade: "C",
+    decision: {
+      business_outcome: "incomplete",
+      evidence_grade: "C",
+      selected_summary: { denominator: 4, executed_count: 2, verified_count: 1, unverified_count: 3 },
+      gaps: [{ code: "assertion_basis_unconfirmed", safe_reason: "断言依据尚未确认" }],
+    },
+    evidence_refs: ["ev-1", "ev-2"],
+    evidence_revisions: { "ev-1": 1, "ev-2": 1 },
+    issue_revisions: {},
+    blocking_issue_ids: [],
+    created_at: "2026-11-10T12:00:00Z",
+  },
+};
+
+const planView = {
+  record_id: "plan-1",
+  record_revision: 1,
+  record_kind: "plan",
+  historical_snapshot: true,
+  record: {
+    plan_id: "plan-1",
+    revision: 1,
+    status: "published",
+    run_tier: "full",
+    initial_driver: "planned",
+    scope: { scope_id: "scope-1", name: "工单状态修改", objective: "验证状态修改后持久化正确", required_case_ids: ["case-1"] },
+    required_case_ids: ["case-1"],
+    template_versions: [{ template_id: "python-library", version: "1.0.0" }],
+    cases: [
+      { case_id: "case-1", layer: "L1", objective: "加载入口与语法", importance: "required", verification_method: "pure-function-stdout", assertion_basis: { state: "confirmed" } },
+      { case_id: "case-2", layer: "L2", objective: "正常输入返回预期", importance: "required", verification_method: "pure-function-stdout", assertion_basis: { state: "present_unconfirmed" } },
+    ],
+  },
+};
+
+test("home view renders the current run without recomputing", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await expect(page.getByText("工单状态修改", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("本轮范围")).toBeVisible();
+  await expect(page.getByText("还差什么")).toBeVisible();
+  await expect(page.getByText("需要你处理")).toBeVisible();
+  await page.screenshot({ path: "test-results/home-narrow.png", fullPage: true });
+  await page.setViewportSize({ width: 1080, height: 800 });
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/home-wide.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("workbench view lists steps and evidence", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await expect(page.getByText("按步骤执行与核验")).toBeVisible();
+  await expect(page.locator(".card-title").filter({ hasText: "第 2 步 · case-2" })).toBeVisible();
+  await expect(page.getByText("证据", { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: "test-results/workbench.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("plan view reads an exact plan revision", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "计划", exact: true }).click();
+  await reply(page, {    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "plan", record_id: "plan-1", revision: 1 }] } },
+  }, { action: "query" });
+  await expect(page.getByText("已发布的检查计划")).toBeVisible();
+  await page.getByText("计划 plan-1", { exact: false }).click();
+  await replyView(page, "plan", planView);
+  await expect(page.getByText("用例与依据")).toBeVisible();
+  await expect(page.getByText("已发布", { exact: true })).toBeVisible();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/plan.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("report view separates outcome, gaps and evidence", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "report", record_id: "report-1", revision: 2 }] } },
+  }, { action: "query" });
+  await expect(page.getByText("报告修订", { exact: true })).toBeVisible();
+  await page.getByText("报告 report-1", { exact: false }).click();
+  await replyView(page, "report", report);
+  await expect(page.getByText("证据索引")).toBeVisible();
+  await expect(page.getByText("业务结论：未完成")).toBeVisible();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/report.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("settings view loads only host-owned model profiles", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "设置", exact: true }).first().click();
+  await reply(page, {
+    kind: "wizardResult",
+    modelSettings: { endpoint: "https://api.deepseek.com", model: "deepseek-flash", timeout: 60, reference: "cred-1" },
+    modelProfiles: [{ profile_id: "p1", name: "默认 DeepSeek", settings: { endpoint: "https://api.deepseek.com", model: "deepseek-flash", timeout: 60, reference: "cred-1" } }],
+    activeProfileId: "p1",
+  }, { kind: "wizardModelLoad" });
+  await expect(page.getByText("模型 API", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("已保存的模型配置")).toBeVisible();
+  await expect(page.getByText("核心连接")).toBeVisible();
+  await page.getByRole("button", { name: "保存默认配置", exact: true }).click();
+  const save = await waitForSend(page, { kind: "wizardModelSave" });
+  expect(save["endpoint"]).toBe("https://api.deepseek.com");
+  expect(save["model"]).toBe("deepseek-flash");
+  expect(save["timeout"]).toBe(60);
+  expect(save["reference"]).toBe("cred-1");
+  expect(save["profile_id"]).toBe("p1");
+  await reply(page, {
+    kind: "wizardResult",
+    modelSaved: true,
+    modelSettings: { endpoint: "https://api.deepseek.com", model: "deepseek-flash", timeout: 60, reference: "cred-1" },
+    modelProfiles: [{ profile_id: "p1", name: "默认 DeepSeek", settings: { endpoint: "https://api.deepseek.com", model: "deepseek-flash", timeout: 60, reference: "cred-1" } }],
+    activeProfileId: "p1",
+  }, { kind: "wizardModelSave" });
+  await expect(page.getByText("默认模型配置已保存", { exact: false })).toBeVisible();
+  await page.screenshot({ path: "test-results/settings.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("diagnostics view shows dependency states and blocked actions", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run, {
+    dependencies: {
+      dependencies: [
+        { key: "connection", state: "ready", reason: "" },
+        { key: "model", state: "not_configured", reason: "未配置模型" },
+      ],
+      action_dependencies: { verify_pending: ["model"], query: [] },
+    },
+  });
+  await page.getByRole("button", { name: "诊断", exact: true }).first().click();
+  await expect(page.getByText("连接、依赖与高级操作")).toBeVisible();
+  await expect(page.getByText("依赖状态")).toBeVisible();
+  await expect(page.getByText("未配置", { exact: true })).toBeVisible();
+  await expect(page.getByText("高级动作")).toBeVisible();
+  await page.screenshot({ path: "test-results/diagnostics.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("report save and export stay on the write channel", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query" });
+  await expect(page.getByText("还没有报告修订")).toBeVisible();
+
+  const beforeCreate = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "保存本次报告", exact: true }).click();
+  const create = await waitForSend(page, { action: "create_report" }, 5000, beforeCreate);
+  expect(create["kind"]).toBe("writeDispatch");
+  expect(create["expectedRevision"]).toBe(0);
+  const createParameters = create["parameters"] as Record<string, unknown>;
+  expect(createParameters["run_id"]).toBe("run-1");
+  await reply(page, {
+    kind: "outcome", action: "create_report", status: "ok",
+    response: { result: { record_id: createParameters["report_id"], revision: 1 } },
+  }, { action: "create_report" });
+
+  await waitForSend(page, { action: "query" }, 5000, beforeCreate);
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "report", record_id: createParameters["report_id"], revision: 1 }] } },
+  }, { action: "query" });
+  await waitForSend(page, { action: "read_view", view: "report" }, 5000, beforeCreate);
+  await replyView(page, "report", {
+    ...report,
+    record: { ...report.record, report_id: createParameters["report_id"], content_revision: 1 },
+  });
+  await expect(page.getByText("证据索引")).toBeVisible();
+
+  const beforeExport = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "导出 Markdown 摘要", exact: true }).click();
+  const exported = await waitForSend(page, { action: "export_report" }, 5000, beforeExport);
+  expect(exported["kind"]).toBe("writeDispatch");
+  expect((exported["parameters"] as Record<string, unknown>)["report_revision"]).toBe(1);
+  await reply(page, {
+    kind: "outcome", action: "export_report", status: "ok",
+    response: { result: { record_id: "export-1", revision: 1 } },
+  }, { action: "export_report" });
+  await expect(page.getByText("导出请求已返回")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("wizard view asks for project and goal before any write", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connect(page);
+  await page.getByRole("button", { name: "继续准备测试", exact: true }).click();
+  await expect(page.getByText("选择一个本地项目与测试入口")).toBeVisible();
+  await page.screenshot({ path: "test-results/wizard-choose.png", fullPage: true });
+  await page.getByRole("button", { name: "选择项目目录", exact: true }).click();
+  await reply(page, {
+    kind: "wizardResult",
+    session: {
+      project_id: "guided-0123456789abcdef0123456789abcdef",
+      root: "C:/data/guided",
+      source: "C:/samples/orders",
+      entry: "main.py",
+      name: "订单计算",
+      endpoint: "https://api.deepseek.com",
+      model: "deepseek-flash",
+      timeout: 60,
+      reference: "cred-1",
+    },
+  }, { kind: "wizardChoose" });
+  await expect(page.getByText("这次要检查什么")).toBeVisible();
+  await expect(page.getByText("模型辅助")).toBeVisible();
+  await page.screenshot({ path: "test-results/wizard-configure.png", fullPage: true });
+  expect(errors).toEqual([]);
+});

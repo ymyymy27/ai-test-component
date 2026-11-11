@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022", "module": "ESNext", "moduleResolution": "bundler",
-    "strict": true, "lib": ["ES2022", "DOM"], "noEmit": true
+    "strict": true, "lib": ["ES2022", "DOM"], "noEmit": true,
+    "noUnusedLocals": true, "noUnusedParameters": true
   },
   "include": ["src/**/*.ts"]
 }
