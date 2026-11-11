@@ -390,6 +390,22 @@ test("advanced action catalog explains the task and prefills current context", a
   await advanced.getByRole("button", { name: "填入当前上下文", exact: true }).click();
   await expect(advanced.locator("textarea")).toHaveValue(/"run_id": "run-1"/);
   await expect(advanced.locator("textarea")).toHaveValue(/"base_snapshot_commit_id": "snap-abc"/);
+  await advanced.locator("textarea").fill(JSON.stringify({
+    run_id: "run-1",
+    base_snapshot_commit_id: "snap-abc",
+    case_changes: [],
+    confirmation_ids: [],
+    reason: "高级动作通道核对",
+  }));
+  const beforeAdvanced = (await sentMessages(page)).length;
+  await advanced.getByRole("button", { name: "提交动作", exact: true }).click();
+  const advancedWrite = await waitForSend(page, { action: "revise_pending_steps" }, 5000, beforeAdvanced);
+  expect(advancedWrite["kind"]).toBe("controlledDispatch");
+  await reply(page, {
+    kind: "outcome", action: "revise_pending_steps", status: "ok",
+    response: { result: { accepted: true } },
+  }, { action: "revise_pending_steps" });
+  await expect(page.getByText("\"accepted\": true", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

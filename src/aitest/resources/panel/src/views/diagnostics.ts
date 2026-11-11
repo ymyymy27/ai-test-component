@@ -2,6 +2,7 @@
 
 import type { AppContext } from "../context";
 import type { Outcome } from "../types";
+import { CONTROLLED_ACTIONS } from "../wizard";
 import { icon } from "../icons";
 import { asNumber, asRecord, asRecords, asStrings, label, shortId, toneForState } from "../labels";
 import {
@@ -437,6 +438,7 @@ async function submitAdvanced(ctx: AppContext): Promise<void> {
       target: target ?? null,
       expectedRevision: expected,
       intentId: ctx.intent(advanced.action, objectParameters, target, expected),
+      controlled: CONTROLLED_ACTIONS.has(advanced.action),
     });
   }
   advanced.result = JSON.stringify(
