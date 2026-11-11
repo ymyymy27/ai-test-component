@@ -175,7 +175,23 @@ export async function wizardMessage(
           if(item&&typeof item==="object"&&Number.isSafeInteger((item as Record<string,unknown>).revision))sourceExpectedRevision=Math.max(sourceExpectedRevision,Number((item as Record<string,unknown>).revision));
         }
       }
-      const result=await helper(settings.python,{operation:"commands",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry},stage:raw.stage,receipts:raw.receipts,attempt,resume:session.existing===true,source_expected_revision:sourceExpectedRevision});
+      // 重试提交时用例/验收范围可能已存在；把当前仓储修订交给向导，
+      // 才能生成下一个修订而不是重复 expected_revision=0。
+      const revisions:Record<string,number>={};
+      if(raw.stage==="commit")for(const kind of ["case","acceptance_scope"]){
+        const state=await dispatchReadOnly(settings.python,settings.workspaceRoot,{
+          action:"query",projectId:session.project_id,
+          parameters:{aggregate_kind:kind,limit:200},
+        },randomUUID());
+        const items=state.status==="ok"?(state.response?.result as Record<string,unknown>|undefined)?.items:undefined;
+        if(Array.isArray(items))for(const item of items){
+          if(!item||typeof item!=="object")continue;
+          const row=item as Record<string,unknown>;
+          if(typeof row.record_id!=="string"||!Number.isSafeInteger(row.revision))continue;
+          revisions[row.record_id]=Math.max(revisions[row.record_id]??0,Number(row.revision));
+        }
+      }
+      const result=await helper(settings.python,{operation:"commands",form:{...form,project_id:session.project_id,source:session.source,entry:session.entry},stage:raw.stage,receipts:raw.receipts,attempt,resume:session.existing===true,source_expected_revision:sourceExpectedRevision,revisions});
       respond(result);
     }else if(raw.kind==="wizardReview"){
       if(settings.projectId!==session.project_id)throw new Error("当前项目已变化，请回到原项目再继续。");

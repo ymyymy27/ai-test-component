@@ -243,7 +243,8 @@ export interface WizardState {
   session: Session | null;
   name: string;
   goal: string;
-  runTier: "full" | "on_demand";
+  runTier: "quick" | "on_demand" | "full";
+  driver: "planned" | "stepwise";
   dataPolicy: string;
   confirmed: boolean;
   useModel: boolean;
@@ -252,6 +253,7 @@ export interface WizardState {
   modelTimeout: string;
   reference: string;
   workspace: string;
+  pythonVersion: string;
   receipts: Record<string, Record<string, unknown>>;
   proposal: Record<string, unknown> | null;
   preview: Record<string, unknown> | null;

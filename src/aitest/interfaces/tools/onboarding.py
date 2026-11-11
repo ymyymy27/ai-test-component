@@ -67,6 +67,7 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
         "carriers_file": str(marker),
         "workspace": str(workspace),
         "environment_ready": True,
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "dependencies": f"独立 {runtime} 环境，仅标准库",
         # 登记文件只是材料：必须由宿主把环境变量指向它并受控重启核心，
         # 否则环境相关动作（如 prepare_run）会被门禁拒绝且看不出原因。
@@ -107,10 +108,19 @@ def main() -> int:
             source_expected_revision = data.get("source_expected_revision", 0)
             if type(source_expected_revision) is not int or source_expected_revision < 0:
                 raise ValueError("源码当前指针修订无效")
+            raw_revisions = data.get("revisions", {})
+            if not isinstance(raw_revisions, dict):
+                raise ValueError("当前记录修订映射无效")
+            revisions: dict[str, int] = {}
+            for key, value in raw_revisions.items():
+                if (not isinstance(key, str) or not key
+                        or type(value) is not int or value < 0):
+                    raise ValueError("当前记录修订映射无效")
+                revisions[key] = value
             result = {"commands": wizard_commands(
                 OnboardingForm.model_validate(data["form"]),
                 data["stage"], data.get("receipts", {}), attempt, resume,
-                source_expected_revision,
+                source_expected_revision, revisions,
             )}
         elif operation == "credential":
             save_purpose_credential(purpose="model", reference=data["reference"],

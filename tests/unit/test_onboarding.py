@@ -516,6 +516,29 @@ def test_project_resume_only_verifies_the_existing_source_snapshot():
     assert other[0]["intent_id"] != commands[0]["intent_id"]
 
 
+def test_commit_retry_advances_existing_case_and_scope_revisions():
+    selection = form().model_copy(
+        update={"proposal": _proposal(), "checks": [], "run_tier": "on_demand"}
+    )
+    revisions = {
+        "case-syntax": 1,
+        "case-normal": 1,
+        "case-boundary": 1,
+        "case-error": 1,
+        "scope-" + selection.project_id: 2,
+    }
+    commands = wizard_commands(selection, "commit", {}, revisions=revisions)
+    cases = [item for item in commands if item["action"] == "save_case"]
+    assert all(item["expected_revision"] == 1 for item in cases)
+    assert all(item["parameters"]["case"]["revision"] == 2 for item in cases)
+    scope = next(item for item in commands if item["action"] == "save_acceptance")
+    assert scope["expected_revision"] == 2
+    assert scope["parameters"]["acceptance_scope"]["revision"] == 3
+    publish = next(item for item in commands if item["action"] == "publish_plan")
+    assert publish["parameters"]["scope"]["revision"] == 3
+    assert all(case["revision"] == 2 for case in publish["parameters"]["cases"])
+
+
 def test_model_stage_requires_the_frozen_snapshot_identity():
     selection = form()
     for receipts in ({}, {"snapshot": {"record_revision": 2}}):

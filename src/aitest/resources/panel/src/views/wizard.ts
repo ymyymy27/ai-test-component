@@ -15,6 +15,7 @@ import {
   details,
   div,
   facts,
+  field,
   h2,
   loading,
   pageHead,
@@ -154,6 +155,7 @@ function configureStep(ctx: AppContext): HTMLElement {
     cardHead("AI 辅助", "AI 先分析项目并给出验证目标候选；生成计划前由你核对。"),
     checkbox("用 AI 生成验证目标与计划（推荐）", state.useModel, value => {
       state.useModel = value;
+      state.runTier = value ? "on_demand" : "full";
       if (value && !state.goal.trim()) state.goal = DEFAULT_AI_GOAL;
       ctx.render();
     }, busy),
@@ -330,6 +332,41 @@ function modelStep(ctx: AppContext): HTMLElement {
       ["模型", state.model],
       ["材料范围", "项目名称、测试目标、项目理解摘要；默认不含源码"],
     ]),
+    div(
+      "form-grid",
+      field(
+        "验证档位",
+        select(
+          [
+            { value: "on_demand", label: "按需自测（推荐，不宣称完整覆盖）" },
+            { value: "quick", label: "快速自检（不升级为完整通过）" },
+            { value: "full", label: "完整验证（必须覆盖全部业务功能）" },
+          ],
+          state.runTier,
+          value => {
+            state.runTier = value as "quick" | "on_demand" | "full";
+            ctx.render();
+          },
+          state.busy,
+        ),
+      ),
+      field(
+        "执行方式",
+        select(
+          [
+            { value: "planned", label: "按计划一次准备" },
+            { value: "stepwise", label: "逐步确认执行" },
+          ],
+          state.driver,
+          value => {
+            state.driver = value as "planned" | "stepwise";
+            ctx.render();
+          },
+          state.busy,
+        ),
+      ),
+    ),
+    p("完整验证要求覆盖项目理解中的全部业务功能；只选一个目标时请用按需自测。", "muted subtle"),
     p("如果这里提示模型未配置，请按受控流程重启核心（或重新打开 Trae）后回到本步继续。环境与模型配置只在核心启动时加载。", "muted subtle"),
     div(
       "hero-actions",

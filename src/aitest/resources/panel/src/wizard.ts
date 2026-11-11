@@ -105,7 +105,8 @@ function initialState(): WizardState {
     session: null,
     name: "",
     goal: DEFAULT_AI_GOAL,
-    runTier: "full",
+    runTier: "on_demand",
+    driver: "planned",
     dataPolicy: DEFAULT_DATA_POLICY,
     confirmed: false,
     useModel: true,
@@ -114,6 +115,7 @@ function initialState(): WizardState {
     modelTimeout: "60",
     reference: "",
     workspace: "",
+    pythonVersion: "3.11.9",
     receipts: {},
     proposal: null,
     preview: null,
@@ -274,6 +276,7 @@ export class WizardController {
     if (!this.resultOk(result)) return;
     const setup = asRecord(result.setup);
     if (setup && typeof setup["workspace"] === "string") this.state.workspace = setup["workspace"];
+    if (setup && typeof setup["python_version"] === "string") this.state.pythonVersion = setup["python_version"];
     this.state.stage = "restart";
     this.state.error = "";
     this.state.note = "环境与模型配置已写入，正在受控重启核心…";
@@ -359,6 +362,7 @@ export class WizardController {
           || textOf(resultBody?.["message"])
           || textOf(resultBody?.["reason"])
           || textOf(resultBody?.["blocked_reason"])
+          || proposalErrorText(resultBody?.["proposal_error"])
           || blockedReason(resultBody?.["blocked_by"])
           || "这一步没有完成。";
         this.fail(reason, outcome.code);
@@ -517,6 +521,7 @@ export class WizardController {
       name: this.state.name.trim(),
       goal: this.state.goal.trim(),
       data_policy: this.state.dataPolicy.trim(),
+      python_version: this.state.pythonVersion,
       dependency_declaration: "独立 Python 3.11+ 环境，仅标准库",
       endpoint: this.state.endpoint,
       model: this.state.model,
@@ -529,8 +534,8 @@ export class WizardController {
       allowed_material_kinds: ["project_context", "template_content"],
       source_snippets_enabled: false,
       source_scope: ".",
-      run_tier: this.state.useModel ? "on_demand" : this.state.runTier,
-      initial_driver: "planned",
+      run_tier: this.state.runTier,
+      initial_driver: this.state.driver,
       checks,
     };
   }
@@ -567,8 +572,26 @@ function expectedValue(check: WizardCheck): unknown {
   return check.value;
 }
 
-const BLOCKED_REASONS: Record<string, string> = {
-  model_not_configured: "模型未配置或凭据不可用；请重新填写 API Key 并重启核心。",
+function proposalErrorText(value: unknown): string | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const message = textOf(record["message"]) ?? textOf(record["code"]);
+  const issues = Array.isArray(record["issues"])
+    ? record["issues"]
+        .map(issue => {
+          const item = asRecord(issue);
+          if (!item) return "";
+          const path = textOf(item["path"]);
+          const detail = textOf(item["message"]);
+          return [path, detail].filter(Boolean).join("：");
+        })
+        .filter(Boolean)
+    : [];
+  const text = [message, ...issues].filter(Boolean).join("；");
+  return text ? `计划结构未通过校验：${text}` : undefined;
+}
+
+const BLOCKED_REASONS: Record<string, string> = {  model_not_configured: "模型未配置或凭据不可用；请重新填写 API Key 并重启核心。",
   stale_outbound_policy: "模型材料范围已变化；请重新确认发送范围后重试。",
   model_basis_unverified: "源码分析依据无法核对；请重新分析项目后再生成计划。",
   source_reference_required: "模型材料引用了源码，但没有可核对的快照；请重新分析项目。",

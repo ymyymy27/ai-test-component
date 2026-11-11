@@ -53,6 +53,8 @@ class OnboardingForm(BaseModel):
     goal: str = Field(min_length=1, max_length=8000)
     data_policy: str = Field(min_length=1, max_length=2000)
     dependency_declaration: str = Field(min_length=1, max_length=2000)
+    #: 实际环境解释器版本，例如 3.11.9；不能写成 "3.11+"。
+    python_version: str = Field(default="3.11.9", min_length=1, max_length=32)
     endpoint: str = "https://api.deepseek.com"
     # 供应商公告：deepseek-chat 与 deepseek-reasoner 自 2026-07-24 停止使用。
     model: str = "deepseek-flash"
@@ -214,6 +216,7 @@ def wizard_commands(
     form: OnboardingForm, stage: str, receipts: dict[str, Any],
     attempt: str | None = None, resume: bool = False,
     source_expected_revision: int = 0,
+    revisions: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Build one bounded stage. References come from earlier successful receipts."""
     project = form.project_id
@@ -259,7 +262,7 @@ def wizard_commands(
                                           manifest_digest="pending-source-analysis", confirmed=True)
             add("binding", "save_binding", {"project_revision": 1, "expected_revision": 0,
                 "binding": binding_to_payload(binding)}, binding_id)
-            environment = EnvironmentRef(environment_id, 1, "Python 3.11+",
+            environment = EnvironmentRef(environment_id, 1, form.python_version,
                 form.dependency_declaration, data_isolated=True,
                 data_reset_policy=form.data_policy, step_timeout_seconds=120)
             add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
@@ -347,9 +350,28 @@ def wizard_commands(
             intent_salt=attempt)
     elif stage == "commit":
         proposal, _scope, cases, scope_payload, case_payloads = _proposal_materials(form)
-        for case, payload in zip(cases, case_payloads, strict=True):
-            add("case-" + case.case_id, "save_case", {"case": payload})
-        add("scope", "save_acceptance", {"acceptance_scope": scope_payload})
+        current_revisions = revisions or {}
+        # 重试发布时用例/范围可能已存在；重复以修订 1、expected_revision=0
+        # 写入会得到 B_REVISION_CONFLICT，并让发布输入与已保存修订不一致。
+        # 调用方给出当前仓储修订时，明确生成下一个修订。
+        scope_current = current_revisions.get(str(scope_payload.get("scope_id", "")), 0)
+        if type(scope_current) is not int or scope_current < 0:
+            raise ValueError("当前验收范围修订无效")
+        if scope_current:
+            scope_payload = dict(scope_payload)
+            scope_payload["revision"] = scope_current + 1
+        for index, (case, payload) in enumerate(zip(cases, case_payloads, strict=True)):
+            current = current_revisions.get(case.case_id, 0)
+            if type(current) is not int or current < 0:
+                raise ValueError("当前用例修订无效")
+            if current:
+                payload = dict(payload)
+                payload["revision"] = current + 1
+                case_payloads[index] = payload
+            add("case-" + case.case_id, "save_case", {"case": payload},
+                expected_revision=current)
+        add("scope", "save_acceptance", {"acceptance_scope": scope_payload},
+            expected_revision=scope_current)
         if form.run_tier == "full" and form.coverage_contract is None:
             raise ValueError(
                 "完整验证需要项目理解与覆盖契约；请重新生成 v1.1 计划或选择按需自测"

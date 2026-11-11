@@ -86,3 +86,46 @@
 - 因此第 4 节“发布计划未通过/未复测”的结论保持不变；本轮仍未完成运行、
   核验、报告。
 
+## 8 根因定位与核心链路补测
+
+### 8.1 发布失败的根因
+
+重试提交时用例和验收范围已经存在，而向导仍以 `revision=1`、
+`expected_revision=0` 生成保存命令。`save_acceptance` 返回
+`B_REVISION_CONFLICT`，发布输入引用的范围修订与已保存修订不一致，核心
+正确拒绝。修复为：扩展在 commit 阶段查询用例/验收范围的当前仓储修订，
+向导据此生成 `current+1` 修订和准确的 `expected_revision`。
+
+### 8.2 `prepare_run` 的根因
+
+环境登记把版本写成 `Python 3.11+`，核心的解释器要求需要显式版本，返回
+`SOURCE_BINDING_UNVERIFIED: interpreter requirement needs a supported explicit
+Python version`。修复为：环境准备返回实际 `python_version`（本机 3.11.9），
+向导用它登记环境。
+
+### 8.3 宿主编译器/窗口退出的根因
+
+Windows 事件日志记录到 Trae CN 2.3.36499.0 的
+`toolhost.dll_unloaded` BEX64 崩溃（异常 `0xc0000005`，2026-11-11 17:14、
+17:17、17:18）。关闭 Trae 自己的 AI 侧栏后，长时间模型调用不再触发该
+崩溃；但提交阶段主窗口仍会消失，扩展宿主进程和 CLI 子进程继续运行。
+这是 Trae 宿主侧问题，不是 Python 核心崩溃；本次改用同一核心的
+CoreClient 完成后续提交，避免依赖已消失的 webview。
+
+### 8.4 核心链路补测结果
+
+使用已保存的 1.1 计划、10 个用例和真实核心完成：
+
+- 发布计划：`published=true`，plan revision 1，scope revision 2，10 个
+  用例修订 1，生成 plan grant 与 10 条 basis confirmation。
+- 准备运行：`prepared-a8bf94a9...`，环境 revision 2（3.11.9）。
+- 登记运行：`run-1ec6c8bb...`，tier `on_demand`、driver `planned`，
+  33 个自动步骤。
+- 首个步骤：同一 `step-flow` 意图完成 prepare/authorize/execute，
+  `attempt.state=completed`，stdout 22 字节已保存。
+
+仍未完成：独立核验（不能用被测实现本次输出倒填预期）、报告、其余步骤。
+不能把“已执行一个步骤”写成整条业务链通过。
+
+
+
