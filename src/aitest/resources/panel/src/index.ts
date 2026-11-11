@@ -214,6 +214,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.state.reportsLoaded = false;
     this.state.reportDetail = null;
     this.state.selectedReport = null;
+    this.state.reviewIds = {};
     this.state.issues = [];
     this.state.issuesLoaded = false;
     this.state.issueDetail = null;
@@ -839,6 +840,7 @@ function initialState(hostAvailable: boolean): AppState {
     selectedIssue: null,
     reportDetail: null,
     issueDetail: null,
+    reviewIds: {},
     reportsTab: "reports",
     events: [],
     eventCursor: null,

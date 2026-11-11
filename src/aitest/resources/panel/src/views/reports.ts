@@ -217,14 +217,78 @@ function reportDetail(ctx: AppContext, view: Record<string, unknown>): HTMLEleme
         }, { icon: "arrow-left" }),
       ),
     ),
+    localReviewCard(ctx, record),
     gaps.length ? card("", cardHead("缺口", "报告与面板共用同一次领域判定。"), gapList) : null,
     card("", cardHead("证据索引", "按精确证据修订读取正文；路径与敏感字段不会进入面板。"), evidenceRefs.length ? evidenceList : p("报告没有证据引用。", "muted subtle")),
   );
 }
 
+function localReviewCard(ctx: AppContext, record: Record<string, unknown>): HTMLElement {
+  const reportId = typeof record["report_id"] === "string" ? record["report_id"] : "";
+  const revision = asNumber(record["content_revision"], ctx.state.selectedReport?.revision ?? 0);
+  if (!reportId) return div("");
+  const saved = ctx.state.reviewIds[reportId] ?? [];
+  let conclusion = "";
+  let explanation = "";
+  let pendingReviewId: string | null = null;
+  const conclusionInput = textInput("", value => {
+    conclusion = value;
+    pendingReviewId = null;
+  }, { placeholder: "例如：通过 / 需修改 / 拒绝" });
+  const explanationInput = textArea("", value => {
+    explanation = value;
+    pendingReviewId = null;
+  }, { rows: 3, placeholder: "复核说明" });
+  const note = p("", "field-help");
+  const submit = button("保存本地复核", async () => {
+    note.textContent = "";
+    if (!conclusion.trim() || !explanation.trim()) {
+      note.textContent = "请填写复核结论和说明。";
+      return;
+    }
+    const reviewId = pendingReviewId ?? `review-${randomSuffix()}`;
+    pendingReviewId = reviewId;
+    const parameters = {
+      review_id: reviewId,
+      report_id: reportId,
+      conclusion: conclusion.trim(),
+      explanation: explanation.trim(),
+      report_revision: revision,
+    };
+    const outcome = await ctx.write("record_local_review", parameters, {
+      expectedRevision: 0,
+      intentId: ctx.intent("record_local_review", parameters, undefined, 0),
+    });
+    if (outcome.status !== "ok") {
+      note.textContent = outcome.message ?? "本地复核未保存。";
+      return;
+    }
+    ctx.state.reviewIds[reportId] = [...(ctx.state.reviewIds[reportId] ?? []), reviewId];
+    pendingReviewId = null;
+    ctx.setNotice(`本地复核已保存：${shortId(reviewId, 16)}`, "success");
+    ctx.render();
+  }, { variant: "primary", icon: "check" });
+  return card(
+    "",
+    cardHead("本地复核", "复核绑定准确报告修订；不改变报告正文，导出时随报告引用。"),
+    saved.length
+      ? p(`本次会话已保存复核：${saved.join("、")}`, "muted tiny")
+      : p("尚未保存复核。重启面板后已保存的复核编号不会从报告视图重新列出。", "muted subtle"),
+    field("复核结论", conclusionInput),
+    field("复核说明", explanationInput),
+    note,
+    div("hero-actions", submit),
+  );
+}
+
 async function exportReport(ctx: AppContext, reportId: string, revision: number, kind: string): Promise<void> {
   if (!reportId) return;
-  const parameters = { report_id: reportId, report_revision: revision, kind, review_ids: [] };
+  const parameters = {
+    report_id: reportId,
+    report_revision: revision,
+    kind,
+    review_ids: ctx.state.reviewIds[reportId] ?? [],
+  };
   const outcome = await ctx.write("export_report", parameters, {
     expectedRevision: 0,
     intentId: ctx.intent("export_report", parameters, undefined, 0),

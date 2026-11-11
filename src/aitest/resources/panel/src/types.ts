@@ -163,6 +163,8 @@ export interface AppState {
   selectedIssue: { record_id: string; revision: number } | null;
   reportDetail: Record<string, unknown> | null;
   issueDetail: Record<string, unknown> | null;
+  /** 本次会话保存的本地复核编号，按报告分组；报告导出时按此引用。 */
+  reviewIds: Record<string, string[]>;
   reportsTab: "reports" | "issues";
   events: Record<string, unknown>[];
   eventCursor: string | null;

@@ -392,3 +392,47 @@ test("advanced action catalog explains the task and prefills current context", a
   await expect(advanced.locator("textarea")).toHaveValue(/"base_snapshot_commit_id": "snap-abc"/);
   expect(errors).toEqual([]);
 });
+
+test("local review is recorded against the exact report and carried into export", async ({ page }) => {
+  const errors = captureErrors(page);
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "report", record_id: "report-1", revision: 2 }] } },
+  }, { action: "query" });
+  await page.getByText("报告 report-1", { exact: false }).click();
+  await replyView(page, "report", report);
+  await page.getByLabel("复核结论").fill("通过");
+  await page.getByLabel("复核说明").fill("已核对报告范围与证据引用");
+  const beforeReview = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "保存本地复核", exact: true }).click();
+  const review = await waitForSend(page, { action: "record_local_review" }, 5000, beforeReview);
+  expect(review["kind"]).toBe("controlledDispatch");
+  const reviewParameters = review["parameters"] as Record<string, unknown>;
+  expect(reviewParameters).toMatchObject({
+    report_id: "report-1",
+    report_revision: 2,
+    conclusion: "通过",
+    explanation: "已核对报告范围与证据引用",
+  });
+  const reviewId = reviewParameters["review_id"];
+  expect(typeof reviewId).toBe("string");
+  await reply(page, {
+    kind: "outcome", action: "record_local_review", status: "ok",
+    response: { result: { aggregate_kind: "local_review", record_id: reviewId, revision: 1 } },
+  }, { action: "record_local_review" });
+  await expect(page.getByText("本次会话已保存复核", { exact: false })).toBeVisible();
+
+  const beforeExport = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "导出 Markdown 摘要", exact: true }).click();
+  const exported = await waitForSend(page, { action: "export_report" }, 5000, beforeExport);
+  expect((exported["parameters"] as Record<string, unknown>)["review_ids"]).toEqual([reviewId]);
+  await reply(page, {
+    kind: "outcome", action: "export_report", status: "ok",
+    response: { result: { record_id: "export-1", revision: 1 } },
+  }, { action: "export_report" });
+  await expect(page.getByText("导出请求已返回")).toBeVisible();
+  expect(errors).toEqual([]);
+});
