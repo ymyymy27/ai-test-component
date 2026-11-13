@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "updated_at": "2026-11-07",
+  "updated_at": "2026-11-13",
   "baseline_commit": "204445f9f8561fe365f1f528b22d3a86f3bbb963",
   "scope": "product_acceptance_not_scaffold_tests",
   "update_rules": {
@@ -1236,7 +1236,7 @@
     {
       "id": "P1-AC29",
       "owner": "D",
-      "result": "untested",
+      "result": "verified",
       "scenario": "对同一份报告先后记录两次本地复核（复核人、结论、说明、所依据的报告内容修订、时间），复核后再注入\"证据或问题变化影响结论\"的情形",
       "expected": "复核是**独立记录**：不写入报告正文、**不改变报告内容修订**，也不改变执行与断言事实，复核人不能把失败、阻塞或缺证据改成通过；证据或问题变化时按报告规则**生成新的内容修订**，旧修订与其复核记录可追溯；导出含复核结论且不含密钥",
       "related_frs": [
@@ -1250,26 +1250,15 @@
         "本地复核（domain/review/reports.py LocalReview）",
         "报告修订（create_report_revision）"
       ],
-      "actual": null,
+      "actual": "真实核心完成两次本地复核（review-real-1/2，均绑定 report-real-1 修订 3）；复核后修订 3 内容修订未变且仍可读。关联问题关闭到修订 6 后创建报告修订 4，结论仍为 failed，旧修订与复核保留。证据包导出 review_ids=[review-real-1, review-real-2]，report.md 含两条复核说明，敏感模式扫描 0 命中。",
       "evidence": {
-        "path": null,
-        "description": null,
+        "path": "docs/validation/2026-11-13-p1-ac29-local-review/README.md",
+        "description": "两次本地复核、报告修订不变、问题变化后新修订及导出复核内容的真实核心记录",
         "method": "independent_local_review_assertion"
       },
-      "unverified_reason": "LocalReview 绑定 report_revision、create_report_revision 递增 content_revision 的设计已具备（含测试）；但 record_local_review 未注册为可派发动作，复核无持久化与入口，无法证明『复核不改变报告内容修订』在真实路径上成立。",
-      "blockers": [
-        {
-          "kind": "real_storage",
-          "detail": "问题与报告的领域规则齐备但无持久化、无端口、无 handler：domain/review/defects.py(458 行)、domain/review/reports.py(801 行)、application/review/defect_management.py(185 行)、application/review/reporting.py(111 行) 都只有规则与用例，未接 file_store 仓储，record_fix / close_issue / update_issue / create_report / record_local_review 均未注册为可派发动作。",
-          "resolved_by": "A"
-        },
-        {
-          "kind": "user_entry",
-          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
-          "resolved_by": "D"
-        }
-      ],
-      "real_environment_verified": false,
+      "unverified_reason": null,
+      "blockers": null,
+      "real_environment_verified": true,
       "source_evidence": [
         "src/aitest/domain/review/reports.py（LocalReview、create_report_revision）",
         "tests/unit/test_reporting_application.py",
@@ -1691,8 +1680,8 @@
     },
     {
       "id": "P1-AC29",
-      "result": "untested",
-      "evidence_path": null
+      "result": "verified",
+      "evidence_path": "docs/validation/2026-11-13-p1-ac29-local-review/README.md"
     },
     {
       "id": "P1-AC30",
