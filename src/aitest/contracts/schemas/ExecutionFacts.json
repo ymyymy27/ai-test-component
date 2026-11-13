@@ -779,6 +779,7 @@
         "model_response",
         "manual_step",
         "attachment",
+        "artifact",
         "trace_node",
         "verification",
         "external_import"

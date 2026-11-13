@@ -47,6 +47,7 @@ class AiTestPanel extends HTMLElement implements AppContext {
   private noticeTimer: number | null = null;
   private booted = false;
   private pendingConfirmation: string | null = null;
+  private refreshing = false;
 
   constructor() {
     super();
@@ -66,6 +67,12 @@ class AiTestPanel extends HTMLElement implements AppContext {
     this.wizard = new WizardController({
       hostAvailable: this.hostAvailable,
       wizardRequest: (kind, extra) => this.wizardRequest(kind, extra),
+      readOnly: async (action, parameters) => {
+        const result = await this.readOnly(action, parameters);
+        return result === null
+          ? { action, status: "refused", code: "READ_UNAVAILABLE", message: `${action} 未完成。` }
+          : { action, status: "ok", response: { result } };
+      },
       write: (action, parameters, options) => this.write(action, parameters, options),
       restartCore: () => this.restartCore(),
       render: () => this.render(),
@@ -245,21 +252,27 @@ class AiTestPanel extends HTMLElement implements AppContext {
   }
 
   async refreshCurrent(): Promise<void> {
-    const project = this.state.project;
-    const runId = project?.run_id;
-    if (!this.client || !project?.project_id || !runId) {
-      this.state.panel = null;
-      this.state.run = null;
+    if (this.refreshing) return;
+    this.refreshing = true;
+    try {
+      const project = this.state.project;
+      const runId = project?.run_id;
+      if (!this.client || !project?.project_id || !runId) {
+        this.state.panel = null;
+        this.state.run = null;
+        this.render();
+        return;
+      }
+      // Read sequentially: two concurrent core reads on a large workspace
+      // cause duplicate process/index work and can pin CPU/memory.
+      const panel = await this.read("panel", { view: "panel", run_id: runId });
+      const run = await this.read("run", { view: "run", run_id: runId });
+      this.state.panel = panel;
+      this.state.run = run;
       this.render();
-      return;
+    } finally {
+      this.refreshing = false;
     }
-    const [panel, run] = await Promise.all([
-      this.read("panel", { view: "panel", run_id: runId }),
-      this.read("run", { view: "run", run_id: runId }),
-    ]);
-    this.state.panel = panel;
-    this.state.run = run;
-    this.render();
   }
 
   // ---------------------------------------------------------------- requests
@@ -718,6 +731,11 @@ class AiTestPanel extends HTMLElement implements AppContext {
 
   openDetail(detail: "workbench" | "review"): void {
     this.client?.send({ kind: "openDetail", detail });
+  }
+
+  openSource(path: string, line: number): void {
+    if (!path.trim() || !Number.isInteger(line) || line < 1) return;
+    this.client?.send({ kind: "openSource", path, line });
   }
 
   // ---------------------------------------------------------------- render

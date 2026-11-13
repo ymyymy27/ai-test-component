@@ -784,3 +784,103 @@ test("panel confirmation shows the exact prompt and returns the click on the hos
   await expect(page.getByText("发布核对后的测试计划", { exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("project aggregation lists runs without merging environments", async ({ page }) => {
+  await mountPanel(page);
+  await connect(page);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await page.getByRole("button", { name: "读取汇总", exact: true }).click();
+  const request = await waitForSend(page, { action: "aggregate_project_runs" });
+  expect(request["parameters"]).toEqual({});
+  await reply(page, {
+    kind: "outcome", action: "aggregate_project_runs", status: "ok",
+    response: { result: {
+      project_id: "project-1",
+      runs: [
+        {
+          run_id: "run-1", report_id: "report-1", report_revision: 1,
+          environment_ref: "env-venv-311@1", plan_revision_refs: ["plan-1@1"],
+          business_outcome: "passed", evidence_grade: "A",
+          selected_count: 2, executed_count: 2, verified_count: 2, passed_count: 2,
+          pytest_failure_count: 0,
+        },
+        {
+          run_id: "run-2", report_id: "report-2", report_revision: 1,
+          environment_ref: "env-venv-312@1", plan_revision_refs: ["plan-2@1"],
+          business_outcome: "failed", evidence_grade: null,
+          selected_count: 1, executed_count: 1, verified_count: 0, passed_count: 0,
+          pytest_failure_count: 1,
+        },
+      ],
+      acceptance_items: [{
+        acceptance_item_id: "AC-ORDER-01",
+        runs: [{ run_id: "run-1", environment_ref: "env-venv-311@1",
+                 selected_count: 2, executed_count: 2, verified_count: 2, passed_count: 2 }],
+      }],
+      unmapped_case_ids: [],
+      note: "Each run keeps its own environment and plan revision; counts are not merged across runs.",
+    } },
+  }, { action: "aggregate_project_runs" });
+  await expect(page.getByText("env-venv-311@1", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("env-venv-312@1", { exact: false })).toBeVisible();
+  await expect(page.getByText("按验收项查看（不合并运行）")).toBeVisible();
+});
+
+test("pytest issue cluster splits selected failures into a child draft", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, run);
+  await page.getByRole("button", { name: "问题与报告", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [] } },
+  }, { action: "query" });
+  await page.getByRole("button", { name: "问题", exact: true }).click();
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ aggregate_kind: "issue", record_id: "issue-pytest", revision: 1 }] } },
+  }, { action: "query" });
+  await page.getByText("问题 issue-pytest", { exact: false }).click();
+  const failure = (node: string) => ({
+    node_id: node, failure_type: "AssertionError", category: "assertion",
+    message: "expected marker", file: "tests/test_order.py", line: 4,
+    suspect_file: null, suspect_line: null, location_unknown: false,
+    stack: "traceback", evidence_id: "ev-1",
+  });
+  await replyView(page, "issue", {
+    record_id: "issue-pytest", record_revision: 1, record_kind: "issue",
+    historical_snapshot: true,
+    record: {
+      issue_id: "issue-pytest", revision: 1, title: "订单失败", status: "draft",
+      disposition: "active", evidence_refs: ["ev-1"], evidence_revisions: { "ev-1": 1 },
+      links: {
+        run_id: "run-1", case_id: "case-2", step_id: "step-2", attempt_id: "att-2",
+        layers: ["L2"],
+        pytest_cluster: {
+          schema_version: "aitest.pytest-issue-draft/1.0",
+          issue_id: "issue-pytest",
+          signature: "a".repeat(64),
+          failure_type: "AssertionError",
+          category: "assertion",
+          message: "expected marker",
+          case_id: "case-2", step_id: "step-2", attempt_id: "att-2", run_id: "run-1",
+          environment_ref: "env-1@1", plan_revision_ref: "plan-1@1",
+          source_ref: "commit-1", expected: null, actual: null,
+          repro_command: ["python -m pytest --import-mode=importlib tests/test_order.py::test_a"],
+          locations: ["tests/test_order.py:4"],
+          evidence_refs: ["ev-1"],
+          failures: [failure("tests/test_order.py::test_a"), failure("tests/test_order.py::test_b")],
+        },
+      },
+    },
+  });
+  await page.getByRole("checkbox", { name: /test_a/ }).check();
+  await page.getByRole("button", { name: "拆分选中测试为新问题", exact: true }).click();
+  const split = await waitForSend(page, { action: "update_issue" });
+  expect(split["kind"]).toBe("controlledDispatch");
+  const parameters = split["parameters"] as Record<string, unknown>;
+  expect(String(parameters["issue_id"])).toMatch(/^issue:pytest:split:/);
+  expect((parameters["links"] as Record<string, unknown>)["pytest_split"]).toMatchObject({
+    source_issue_id: "issue-pytest",
+    node_ids: ["tests/test_order.py::test_a"],
+  });
+});

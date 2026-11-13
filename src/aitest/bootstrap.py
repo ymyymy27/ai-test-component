@@ -96,6 +96,7 @@ from aitest.application.project.environment_resolution import EnvironmentResolut
 from aitest.application.project.persistence import load_project
 from aitest.application.project.serialization import source_manifest_from_payload
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.project.test_discovery import TestDiscoveryService
 from aitest.application.project.understanding import ProjectUnderstandingService
 from aitest.application.record_write import ORDINARY_WRITE_ACTIONS
 from aitest.application.record_write import SCHEMA as RECORD_WRITE_SCHEMA
@@ -1080,9 +1081,24 @@ def _entry_actual_path(
 
     def _inside(actual: str) -> str | None:
         candidate = Path(actual)
-        if candidate.is_absolute() and candidate.is_relative_to(root) and candidate.is_file():
+        if (
+            candidate.is_absolute()
+            and candidate.is_relative_to(root)
+            and (candidate.is_file() or candidate.is_dir())
+        ):
             return str(candidate)
         return None
+
+    # A frozen entry argument may be a module scope directory (e.g. pytest
+    # `pkgA/tests`) rather than a file. It is still the actual entry when it
+    # exists inside the fixed materialized workdir.
+    for relative_entry in sorted(wanted):
+        candidate = (root / relative_entry).resolve()
+        if (
+            candidate.is_relative_to(root)
+            and (candidate.is_file() or candidate.is_dir())
+        ):
+            return str(candidate)
 
     fallback: str | None = None
     for item in paths:
@@ -1399,6 +1415,14 @@ def assemble_workspace_core(
             basis=basis_confirmations,
             grants=plan_grants,
         )
+        source_analysis = SourceAnalysisService(
+            reader=reader,
+            unit_of_work=unit_of_work,
+            snapshots=snapshot_store,
+            source_control=GitSourceControl(),
+            source_available=lambda: gate.condition(SOURCE).state.value == "ready",
+            controlled_writes=controlled_writes,
+        )
         dependencies = BUseCaseDependencies(
             unit_of_work=ports_unit_of_work,
             reader=reader,
@@ -1408,13 +1432,11 @@ def assemble_workspace_core(
             material_projector=SafeMaterialProjector(),
             workspace_id=workspace.workspace_id,
             record_protector=lambda value: cast(Mapping[str, object], guard_value(value)[0]),
-            source_analysis=SourceAnalysisService(
-                reader=reader,
-                unit_of_work=unit_of_work,
+            source_analysis=source_analysis,
+            test_discovery=TestDiscoveryService(
+                source_analysis=source_analysis,
+                environments=environment_resolution,
                 snapshots=snapshot_store,
-                source_control=GitSourceControl(),
-                source_available=lambda: gate.condition(SOURCE).state.value == "ready",
-                controlled_writes=controlled_writes,
             ),
             project_understanding=ProjectUnderstandingService(
                 reader=reader,
@@ -1527,7 +1549,9 @@ def assemble_workspace_core(
             execution_port
             if execution_port is not None
             else (RegisteredEntryExecutionAdapter(CommandAdapter(
-                spool_store=FileSpoolStore(root), handle_store=FileExecutionHandleStore(root),
+                spool_store=FileSpoolStore(root),
+                handle_store=FileExecutionHandleStore(root),
+                artifact_sources=(("pytest.xml", "application/xml; profile=junit"),),
             ))
                   if execution_enabled else None),
             http_workflow=SavedHttpWorkflowExecution(
@@ -1772,6 +1796,7 @@ def assemble_workspace_core(
             # 复用候选来源：已保存的复用选择（CORE-001 1.82）；资格仍由消费守卫派生。
             reuse_references=reuse_selection.references_for_run,
             reuse_basis=reuse_inspection.consumption_basis,
+            objects=FileObjectStore(root),
         )
         # 宿主只读视图（架构 06 §1/§54）：面板读 DTO，判定复用 D 侧 live_decision，
         # 不新增协议动作、不写任何记录。

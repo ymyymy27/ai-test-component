@@ -20,7 +20,7 @@ MAX_COMMAND_BYTES = MAX_MESSAGE_BYTES
 BUSINESS_RESPONSE_TIMEOUT_MS = 130_000
 NATIVE_RESPONSE_TIMEOUT_MS = NATIVE_CONFIRMATION_TIMEOUT_MS + BUSINESS_RESPONSE_TIMEOUT_MS
 LONG_RUNNING_ACTIONS = frozenset({
-    "analyze_project", "generate_draft", "create_report", "export_report",
+    "analyze_project", "discover_tests", "generate_draft", "create_report", "export_report",
     "prepare_run", "register_run", "prepare_execution", "execute_step", "retry_step",
     "return_stage", "start_run", "verify_pending", "request_model_draft",
 })

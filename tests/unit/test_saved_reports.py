@@ -742,3 +742,79 @@ def test_report_handlers_are_dispatchable_and_advertised(tmp_path) -> None:
     )
     assert unknown.error is not None
     assert unknown.error.code == "CAPABILITY_UNAVAILABLE"
+
+
+def test_project_aggregation_keeps_each_run_separate(tmp_path) -> None:
+    harness = _Harness(tmp_path)
+    _create(harness)
+    # The scenario reader returns only identity stubs for plan/case; seed the
+    # exact frozen shapes the report context points at.
+    harness.unit.begin("seed-plan", PROJECT_ID, intent_id="seed-plan-intent")
+    harness.unit.stage_record(
+        aggregate_kind="plan",
+        record_id=harness.scenario.plan.plan_id,
+        expected_revision=0,
+        payload={
+            "plan_id": harness.scenario.plan.plan_id,
+            "revision": 1,
+            "case_revisions": [
+                {"case_id": case.case_id, "revision": case.revision}
+                for case in harness.scenario.cases
+            ],
+        },
+    )
+    for case in harness.scenario.cases:
+        harness.unit.stage_record(
+            aggregate_kind="case",
+            record_id=case.case_id,
+            expected_revision=0,
+            payload={
+                "case_id": case.case_id,
+                "revision": case.revision,
+                "links": {
+                    "acceptance_item_ids": sorted(case.links.acceptance_item_ids),
+                },
+            },
+        )
+    harness.unit.commit("seed-plan")
+
+    result = harness.service.aggregate_project_runs(
+        Command(
+            request_id="aggregate-request",
+            action="aggregate_project_runs",
+            project_id=PROJECT_ID,
+            parameters={},
+        )
+    )
+    assert result["project_id"] == PROJECT_ID
+    assert len(result["runs"]) == 1
+    run = result["runs"][0]
+    assert run["run_id"] == _RUN_ID
+    assert run["environment_ref"]
+    assert run["report_revision"] == 1
+    items = {item["acceptance_item_id"] for item in result["acceptance_items"]}
+    assert "acceptance-create-ticket" in items
+    item = next(
+        item for item in result["acceptance_items"]
+        if item["acceptance_item_id"] == "acceptance-create-ticket"
+    )
+    assert item["runs"][0]["run_id"] == _RUN_ID
+    assert "not merged" in result["note"]
+
+
+def test_report_payload_freezes_layer_counts(tmp_path) -> None:
+    from aitest.application.review.saved_reports import report_from_payload, report_to_payload
+
+    harness = _Harness(tmp_path)
+    _create(harness)
+    snapshot = report_from_payload(harness.saved_report("report-1"))
+    payload = report_to_payload(
+        snapshot,
+        published_sequence=99,
+        layers=[{
+            "level": "L2", "total": 2, "completed": 1, "blocked": 0,
+            "failed": 1, "pending_verification": 0,
+        }],
+    )
+    assert payload["layers"][0]["level"] == "L2"
+    assert payload["layers"][0]["failed"] == 1

@@ -41,10 +41,26 @@ def publish_runtime_source(
         gaps.append("actual_source_capture_incomplete")
     if not observation.executing_process_id or not observation.executing_process_start_identity:
         gaps.append("actual_source_process_unverified")
-    if (source.observed_entry_ref is None or source.observed_interpreter_ref is None
-            or Path(observation.entry).resolve() != Path(source.observed_entry_ref).resolve()
-            or Path(observation.interpreter).resolve()
-            != Path(source.observed_interpreter_ref).resolve()):
+    root = Path(source.materialized_snapshot_ref).resolve()
+    entry = Path(observation.entry).resolve()
+    admitted = (
+        Path(source.observed_entry_ref).resolve() if source.observed_entry_ref is not None else None
+    )
+    # Module-mode pytest appends its scope at execution time, so the admission
+    # entry can be the first materialized file while the actual entry is the
+    # scope directory. Both are inside the same frozen workdir; the interpreter
+    # still has to match exactly.
+    entry_matches = admitted is not None and (
+        entry == admitted
+        or (entry.is_dir() and entry.is_relative_to(root) and admitted.is_relative_to(root))
+    )
+    if (
+        admitted is None
+        or source.observed_interpreter_ref is None
+        or not entry_matches
+        or Path(observation.interpreter).resolve()
+        != Path(source.observed_interpreter_ref).resolve()
+    ):
         gaps.append("actual_source_entry_or_interpreter_mismatch")
     seen: set[str] = set()
     for file in observation.files:
@@ -53,9 +69,15 @@ def publish_runtime_source(
                 or expected.get(file.relative_path) != file.content_digest):
             gaps.append("actual_source_file_mismatch")
         seen.add(file.relative_path)
-    root = Path(source.materialized_snapshot_ref).resolve()
-    entry = Path(observation.entry).resolve()
-    if not entry.is_relative_to(root) or entry.relative_to(root).as_posix() not in seen:
+    # Module-mode entries are scopes (directories); accept them when a captured
+    # file lies under the scope. Exact file entries must still be observed.
+    relative_entry = (
+        entry.relative_to(root).as_posix() if entry.is_relative_to(root) else None
+    )
+    if relative_entry is None or (
+        relative_entry not in seen
+        and not any(Path(path).is_relative_to(relative_entry) for path in seen)
+    ):
         gaps.append("actual_source_entry_not_observed")
     # Admission failures must never be repaired by a later process observation.
     gaps.extend(source.gap_ids)

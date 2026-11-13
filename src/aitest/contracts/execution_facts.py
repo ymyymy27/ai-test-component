@@ -111,6 +111,7 @@ class EvidenceKindFact(StrEnum):
     MODEL_RESPONSE = "model_response"
     MANUAL_STEP = "manual_step"
     ATTACHMENT = "attachment"
+    ARTIFACT = "artifact"
     TRACE_NODE = "trace_node"
     VERIFICATION = "verification"
     EXTERNAL_IMPORT = "external_import"

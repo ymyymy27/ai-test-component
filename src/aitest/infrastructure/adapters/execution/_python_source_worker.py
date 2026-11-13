@@ -33,7 +33,12 @@ def main() -> None:
         fd = msvcrt.open_osfhandle(fd, os.O_WRONLY)
     os.set_inheritable(fd, False)
     root = Path.cwd().resolve()
-    entry = (root / config["arguments"][0]).resolve()
+    mode = config.get("mode", "script")
+    arguments = list(config["arguments"])
+    if mode == "module":
+        entry = (root / config["entry"]).resolve()
+    else:
+        entry = (root / arguments[0]).resolve()
     expected = {item["relative_path"]: item["content_digest"] for item in config["files"]}
     trusted = tuple(Path(sysconfig.get_path(key)).resolve() for key in ("stdlib", "platstdlib"))
     observed: dict[str, str] = {}
@@ -68,16 +73,22 @@ def main() -> None:
                 active.busy = False
 
     def observe(event: str, args: tuple[Any, ...]) -> None:
-        if event in {"function.__new__", "code.__new__"} or (
-            event == "object.__setattr__" and len(args) > 1 and args[1] == "__code__"
-        ):
-            gaps.add("dynamic_code_unverified")
-        if event in {"subprocess.Popen", "os.system", "os.exec", "os.fork", "os.spawn",
-                     "os.posix_spawn", "os.startfile", "os.startfile/2", "_winapi.CreateProcess",
-                     "ctypes.dlopen",
-                     "sys._getframe", "sys.settrace", "sys.setprofile"}:
+        if mode == "script":
+            if event in {"function.__new__", "code.__new__"} or (
+                event == "object.__setattr__" and len(args) > 1 and args[1] == "__code__"
+            ):
+                gaps.add("dynamic_code_unverified")
+            if event in {"subprocess.Popen", "os.system", "os.exec", "os.fork", "os.spawn",
+                         "os.posix_spawn", "os.startfile", "os.startfile/2",
+                         "_winapi.CreateProcess", "ctypes.dlopen",
+                         "sys._getframe", "sys.settrace", "sys.setprofile"}:
+                gaps.add("opaque_execution")
+        elif event in {"subprocess.Popen", "os.exec", "os.spawn", "os.posix_spawn",
+                      "os.startfile", "os.startfile/2", "_winapi.CreateProcess"}:
+            # A test runner may load extension modules; spawning another process
+            # would execute code outside this capture, so keep that gap.
             gaps.add("opaque_execution")
-        if event == "import" and len(args) > 1 and isinstance(args[1], str):
+        if event == "import" and mode == "script" and len(args) > 1 and isinstance(args[1], str):
             imported = Path(args[1]).resolve()
             if imported.suffix != ".py":
                 gaps.add("opaque_execution")
@@ -87,15 +98,21 @@ def main() -> None:
             code = args[0]
             if not isinstance(code, types.CodeType) or code.co_filename.startswith("<"):
                 # Frozen standard-library modules are supplied by the registered interpreter.
-                if not (isinstance(code, types.CodeType)
-                        and code.co_filename.startswith("<frozen ")
-                        and code.co_filename.endswith(">")
-                        and _imp.is_frozen(code.co_filename[8:-1])
-                        and _imp.get_frozen_object(code.co_filename[8:-1]) == code):
+                if mode == "script" and not (
+                    isinstance(code, types.CodeType)
+                    and code.co_filename.startswith("<frozen ")
+                    and code.co_filename.endswith(">")
+                    and _imp.is_frozen(code.co_filename[8:-1])
+                    and _imp.get_frozen_object(code.co_filename[8:-1]) == code
+                ):
                     gaps.add("dynamic_code_unverified")
                 return
             path = Path(code.co_filename).resolve()
             if not path.is_relative_to(root):
+                if mode == "module":
+                    # The registered interpreter's libraries and site-packages are
+                    # dependencies, not project source; project files are checked below.
+                    return
                 if (not any(path.is_relative_to(base) for base in trusted)
                         or any(part.lower() in {"site-packages", "dist-packages"}
                                for part in path.parts)
@@ -111,9 +128,14 @@ def main() -> None:
                 return
             data = path.read_bytes()
             digest = "sha256:" + hashlib.sha256(data).hexdigest()
-            if digest != expected[relative] or compile(
+            # pytest rewrites assertions, so the code object is not the plain
+            # compile result; the frozen file digest is the source identity.
+            mismatch = digest != expected[relative]
+            if mode == "script" and not mismatch and compile(
                 data, code.co_filename, "exec", dont_inherit=True, optimize=sys.flags.optimize
             ) != code:
+                mismatch = True
+            if mismatch:
                 gaps.add("loaded_code_mismatch")
                 raise RuntimeError("loaded project code differs from frozen source")
             if relative not in observed:
@@ -122,15 +144,21 @@ def main() -> None:
         except (OSError, ValueError, SyntaxError):
             gaps.add("source_read_unverified")
 
-    # Remove the carrier's __main__ so the application sees its own module.
-    module = types.ModuleType("__main__")
-    module.__file__ = str(entry)
-    module.__package__ = None
-    module.__spec__ = None
-    sys.modules["__main__"] = module
-    sys.argv = list(config["arguments"])
-    sys.path.insert(0, str(entry.parent))
-    sys.addaudithook(audit)
+    sys.argv = list(arguments)
+    if mode == "module":
+        import runpy
+
+        sys.path.insert(0, str(root))
+        sys.addaudithook(audit)
+    else:
+        # Remove the carrier's __main__ so the application sees its own module.
+        module = types.ModuleType("__main__")
+        module.__file__ = str(entry)
+        module.__package__ = None
+        module.__spec__ = None
+        sys.modules["__main__"] = module
+        sys.path.insert(0, str(entry.parent))
+        sys.addaudithook(audit)
     def finish() -> None:
         with lock:
             if any(t.is_alive() and t is not threading.current_thread()
@@ -140,6 +168,11 @@ def main() -> None:
             os.close(fd)
 
     atexit.register(finish)
+    if mode == "module":
+        module_name = arguments[1]
+        sys.argv = [module_name, *arguments[2:]]
+        runpy.run_module(module_name, run_name="__main__", alter_sys=True)
+        return
     code = compile(entry.read_bytes(), str(entry), "exec", dont_inherit=True)
     exec(code, module.__dict__)
 

@@ -17,8 +17,13 @@ import re
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from aitest.application.evidence.pytest_failures import (
+    collect_pytest_failures,
+    compare_failure_nodes,
+    pytest_issue_drafts,
+)
 from aitest.application.planning.serialization import plan_coverage_contract_from_payload
 from aitest.application.planning.substrate import require_record_identity
 from aitest.application.ports import EvidenceObjectStore, RecordQuery
@@ -39,6 +44,9 @@ from aitest.domain.review.reports import DecisionResult
 from aitest.interfaces.dto import (
     DeliveryViewDTO,
     PanelViewDTO,
+    PytestBaselineDTO,
+    PytestFailureDTO,
+    PytestIssueDraftDTO,
     RunViewDTO,
     delivery_view_dto,
     panel_view_dto,
@@ -302,11 +310,12 @@ class CommittedViewReader:
                      "independent_verification", "mock_scope", "importance"),
             "report": ("report_id", "content_revision", "run_id", "context", "decision",
                        "business_outcome", "evidence_refs", "evidence_revisions",
-                       "issue_revisions", "reuse",
-                       "created_at", "execution_snapshot_ref", "blocking_issue_ids"),
+                       "issue_revisions", "reuse", "pytest_failures", "pytest_baseline",
+                       "layers", "created_at", "execution_snapshot_ref", "blocking_issue_ids"),
             "issue": ("issue_id", "title", "description", "severity", "status", "state",
                       "expected", "actual", "evidence_refs", "evidence_revisions", "owner",
-                      "facts", "hypotheses",
+                      "facts", "hypotheses", "links", "attempt_ids", "fix_version",
+                      "regression_method", "closure_criteria", "regression_request_id",
                       "project_id", "run_id", "case_id", "step_id", "attempt_id"),
             "local_review": ("review_id", "report_id", "report_revision", "reviewer",
                              "conclusion", "explanation", "recorded_at"),
@@ -428,11 +437,139 @@ class CommittedViewReader:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("the run view requires an explicit run identity")
         facts, decision = self._decisions.live_decision(project_id, run_id)
-        return run_view_dto(
+        view = run_view_dto(
             facts,
             decision,
             function_coverage=self._function_coverage(project_id, facts, decision),
         )
+        failures = self._pytest_failures(facts)
+        drafts = pytest_issue_drafts(facts, self._objects)
+        baseline = self._pytest_baseline(project_id, facts, view.selected_case_ids)
+        step_values = view.steps
+        if failures:
+            step_values = tuple(
+                step.model_copy(update={
+                    "pytest_failures": tuple(failures.get(step.current_attempt_id or "", ())),
+                })
+                for step in view.steps
+            )
+        updates: dict[str, object] = {}
+        if failures:
+            updates["steps"] = step_values
+        if baseline is not None:
+            updates["pytest_baseline"] = baseline
+        if drafts:
+            new_nodes = set() if baseline is None else set(baseline.new_node_ids)
+            existing_nodes = set() if baseline is None else set(baseline.existing_node_ids)
+            updates["pytest_issue_drafts"] = tuple(
+                PytestIssueDraftDTO(
+                    issue_id=item.issue_id,
+                    signature=item.signature,
+                    title=item.title,
+                    failure_type=item.failure_type,
+                    category=item.category,
+                    message=item.message,
+                    case_id=item.case_id,
+                    step_id=item.step_id,
+                    attempt_id=item.attempt_id,
+                    run_id=item.run_id,
+                    locations=item.locations,
+                    evidence_refs=item.evidence_refs,
+                    node_ids=tuple(failure.node_id for failure in item.failures),
+                    baseline_state=(
+                        "new"
+                        if any(failure.node_id in new_nodes for failure in item.failures)
+                        else "existing"
+                        if any(failure.node_id in existing_nodes for failure in item.failures)
+                        else "unknown"
+                    ),
+                    new_failure_count=sum(
+                        failure.node_id in new_nodes for failure in item.failures
+                    ),
+                    existing_failure_count=sum(
+                        failure.node_id in existing_nodes for failure in item.failures
+                    ),
+                )
+                for item in drafts
+            )
+        return view.model_copy(update=updates) if updates else view
+
+    def _pytest_baseline(
+        self, project_id: str, facts: ExecutionFacts, selected_case_ids: tuple[str, ...],
+    ) -> PytestBaselineDTO | None:
+        """Compare this run's failures with the latest report for the same scope.
+
+        Only saved reports count as a baseline; an unreported run is not a
+        comparison source. A prior report without ``pytest_failures`` predates
+        the pytest facts and stays ``unknown`` instead of implying "all new".
+        """
+
+        query = getattr(self._records, "query", None)
+        if not callable(query) or self._objects is None:
+            return None
+        page = query(RecordQuery(
+            project_id=project_id, aggregate_kind=cast("Any", "report"), limit=100,
+            sort="published_sequence", descending=True,
+        ))
+        items = getattr(page, "items", ())
+        if not items:
+            return None
+        current_nodes = tuple(
+            item.node_id for item in collect_pytest_failures(facts, self._objects)
+        )
+        selected = set(selected_case_ids)
+        ordered = sorted(
+            items,
+            key=lambda record: int(record.payload.get("published_sequence", 0)),
+            reverse=True,
+        )
+        for record in ordered:
+            payload = record.payload
+            context = payload.get("context")
+            decision = payload.get("decision")
+            coverage = decision.get("coverage") if isinstance(decision, Mapping) else None
+            if not isinstance(context, Mapping) or not isinstance(coverage, Mapping):
+                continue
+            if set(coverage.get("selected", ())) != selected:
+                continue
+            if context.get("run_id") == facts.run_id:
+                continue
+            previous_failures = payload.get("pytest_failures")
+            if not isinstance(previous_failures, list):
+                return None
+            previous_nodes = tuple(
+                str(item["node_id"])
+                for item in previous_failures
+                if isinstance(item, Mapping) and isinstance(item.get("node_id"), str)
+            )
+            compared = compare_failure_nodes(current_nodes, previous_nodes)
+            return PytestBaselineDTO(
+                previous_run_id=str(context.get("run_id", "")),
+                previous_report_id=str(payload.get("report_id", "")),
+                previous_revision=int(payload.get("content_revision", 1)),
+                new_node_ids=compared.new_node_ids,
+                existing_node_ids=compared.existing_node_ids,
+                fixed_node_ids=compared.fixed_node_ids,
+            )
+        return None
+
+    def _pytest_failures(
+        self, facts: ExecutionFacts,
+    ) -> dict[str, list[PytestFailureDTO]]:
+        by_attempt: dict[str, list[PytestFailureDTO]] = {}
+        for item in collect_pytest_failures(facts, self._objects):
+            by_attempt.setdefault(item.attempt_id, []).append(PytestFailureDTO(
+                node_id=item.node_id,
+                failure_type=item.failure_type,
+                message=item.message,
+                file=item.file,
+                line=item.line,
+                suspect_file=item.suspect_file,
+                suspect_line=item.suspect_line,
+                location_unknown=item.location_unknown,
+                stack=item.stack,
+            ))
+        return by_attempt
 
     def panel_view(self, *, project_id: str, run_id: str) -> PanelViewDTO:
         """面板主屏视图（架构 06 §1 的「当前段 + 信息区」）：同一次判定 + 运行视图。

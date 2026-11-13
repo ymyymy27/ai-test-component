@@ -19,7 +19,7 @@ from aitest.domain.evidence.evidence import (
     ProjectionState,
     RedactionState,
 )
-from aitest.domain.execution.runs import OutputBlockRef, RecoveryRecord
+from aitest.domain.execution.runs import ArtifactRef, OutputBlockRef, RecoveryRecord
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +63,11 @@ class EvidencePublisher:
         context: EvidencePublicationContext,
     ) -> tuple[EvidenceRef, ...]:
         manifest = self._spool_store.read_manifest(context.attempt_id)
-        return self.publish_blocks(context, manifest.blocks)
+        blocks = self.publish_blocks(context, manifest.blocks)
+        artifacts = self.publish_artifacts(
+            context, self._spool_store.read_artifacts(context.attempt_id)
+        )
+        return (*blocks, *artifacts)
 
     def publish_attempt_transactional(
         self,
@@ -89,6 +93,74 @@ class EvidencePublisher:
         blocks: Sequence[OutputBlockRef],
     ) -> tuple[EvidenceRef, ...]:
         return tuple(self._publish_block(context, block) for block in blocks)
+
+    def publish_artifacts(
+        self,
+        context: EvidencePublicationContext,
+        artifacts: Sequence[ArtifactRef],
+    ) -> tuple[EvidenceRef, ...]:
+        return tuple(self._publish_artifact(context, artifact) for artifact in artifacts)
+
+    def _publish_artifact(
+        self,
+        context: EvidencePublicationContext,
+        artifact: ArtifactRef,
+    ) -> EvidenceRef:
+        if artifact.attempt_id != context.attempt_id:
+            raise ValueError("spool artifact and publication context attempt_id must match")
+        content = self._spool_store.read_artifact(artifact)
+        if (
+            type(content) is not bytes
+            or len(content) != artifact.length
+            or "sha256:" + hashlib.sha256(content).hexdigest() != artifact.digest
+        ):
+            raise ValueError("spool publication bytes do not match the frozen artifact")
+        stored = self._object_store.publish_bytes(
+            context.project_id,
+            content,
+            media_type=artifact.media_type,
+        )
+        if (
+            type(stored.size) is not int
+            or stored.project_id != context.project_id
+            or stored.digest != artifact.digest
+            or stored.size != artifact.length
+            or self._object_store.read_bytes(stored) != content
+        ):
+            raise ValueError("published artifact does not preserve the verified bytes")
+        return self.reference_for_artifact(context, artifact)
+
+    @staticmethod
+    def reference_for_artifact(
+        context: EvidencePublicationContext,
+        artifact: ArtifactRef,
+    ) -> EvidenceRef:
+        if artifact.attempt_id != context.attempt_id:
+            raise ValueError("artifact evidence metadata belongs to another attempt")
+        integrity = (
+            EvidenceIntegrity.COMPLETE
+            if artifact.complete and not artifact.truncated
+            else EvidenceIntegrity.MISSING_TAIL
+        )
+        return EvidenceRef(
+            evidence_id=artifact.artifact_id,
+            project_id=context.project_id,
+            source_instance_id=context.source_instance_id,
+            run_id=context.run_id,
+            step_id=context.step_id,
+            attempt_id=context.attempt_id,
+            evidence_kind=EvidenceKind.ARTIFACT,
+            capture_source=EvidenceCaptureSource.PLUGIN_RUNTIME,
+            object_digest=artifact.digest,
+            object_size=artifact.length,
+            code_identity=context.code_identity,
+            integrity=integrity,
+            redaction_state=RedactionState.NOT_REQUIRED,
+            projection_state=context.projection_state,
+            evidence_level=EvidenceLevel.UNKNOWN,
+            gap_ids=artifact.gap_ids,
+            media_type=artifact.media_type,
+        )
 
     def _publish_block(
         self,

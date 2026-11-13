@@ -34,6 +34,11 @@ from aitest.contracts.execution_facts import (
     FactCompleteness,
 )
 from aitest.contracts.prepared_run import ExecutionSourceBinding, PreparedRun, PreparedRunStatusFact
+from aitest.domain.evidence.evidence import (
+    MockDeclaration,
+    MockDeclarationSource,
+    MockVerificationState,
+)
 from aitest.domain.execution.runs import (
     AdapterKind,
     InputRef,
@@ -129,6 +134,9 @@ class InitialRunRegistration:
                 run=run,
                 steps=projected_steps,
                 attempts=(),
+                mock_declarations=_mock_declarations(
+                    prepared=prepared, run=run, project_id=project_id
+                ),
                 completeness=FactCompleteness.UNKNOWN,
                 coverage=CoverageSummary(
                     mandatory_case_ids=tuple(sorted(run.required_scope)),
@@ -278,6 +286,47 @@ def _project_step_entries(
             )
         )
     return tuple(projected)
+
+
+def _mock_declarations(
+    *, prepared: PreparedRun, run: Run, project_id: str,
+) -> tuple[MockDeclaration, ...]:
+    """Declared mock scope becomes an unverified fact, never a verified claim.
+
+    A pytest scope is planned from real tests, but the plan's ``mock_scope`` is
+    still a declaration: it names where mocks may be used, not that they were
+    checked against a real dependency. Static candidates from Test Inventory are
+    not declarations and never enter these facts.
+    """
+
+    declarations: list[MockDeclaration] = []
+    for case in prepared.frozen_cases:
+        if case.case_id not in run.selected_scope:
+            continue
+        scope = tuple(value.strip() for value in case.mock_scope if value.strip())
+        if not scope:
+            continue
+        declarations.append(
+            MockDeclaration(
+                mock_declaration_id="mock-" + _digest([run.run_id, case.case_id]),
+                content_revision=1,
+                project_id=project_id,
+                idempotency_key=(
+                    "plan:"
+                    + prepared.plan_revision.revision_id
+                    + ":"
+                    + case.case_id
+                    + ":mock-scope"
+                ),
+                declaration_source=MockDeclarationSource.DEVELOPMENT_DECLARATION,
+                replaced_object_ref=f"case:{case.case_id}:mock_scope",
+                replaced_behavior_ref="declared mock scope",
+                scope=", ".join(scope),
+                verification_state=MockVerificationState.UNVERIFIED,
+                created_at=datetime.now(UTC),
+            )
+        )
+    return tuple(declarations)
 
 
 def _initial_domain(

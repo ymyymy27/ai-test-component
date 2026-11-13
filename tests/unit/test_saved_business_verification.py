@@ -190,6 +190,17 @@ def test_adapter_claim_or_mutated_request_cannot_replace_actual_comparison(tmp_p
     assert query.read_business_object.call_count == 1
 
 
+def test_business_mismatch_does_not_mark_complete_evidence_as_gapped(tmp_path):
+    """A mismatched assertion is a result; only the verification carries the gap."""
+
+    saved, facts, _ = service(tmp_path, actual={"paid": False})
+    result = saved.apply(command(facts))
+    assert result["verification"]["observation"] == "mismatched"
+    assert result["verification"]["gap_ids"] == ["business_fact_mismatch:paid"]
+    assert result["evidence"]["integrity"] == "complete"
+    assert result["evidence"]["gap_ids"] == []
+
+
 def test_required_filtered_field_stays_unknown_and_never_reaches_disk(tmp_path):
     registry = KnownSecretRegistry()
     secret = "synthetic-business-secret"

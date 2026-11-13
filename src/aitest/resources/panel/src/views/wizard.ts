@@ -1,7 +1,7 @@
 /** Guided first-run flow. Each step states what will be saved and what stays human-owned. */
 
 import type { AppContext } from "../context";
-import { asNumber, asRecord, asRecords, asText, label, toneForState } from "../labels";
+import { asNumber, asRecord, asRecords, asStrings, asText, label, toneForState } from "../labels";
 import { icon } from "../icons";
 import { DEFAULT_AI_GOAL, WIZARD_STEPS } from "../wizard";
 import type { WizardCheck } from "../types";
@@ -47,7 +47,9 @@ export function renderWizard(ctx: AppContext): HTMLElement {
   else if (state.stage === "project") page.appendChild(projectStep(ctx));
   else if (state.stage === "goals") page.appendChild(goalsStep(ctx));
   else if (state.stage === "model") page.appendChild(modelStep(ctx));
-  else if (state.stage === "manual") page.appendChild(manualStep(ctx));
+  else if (state.stage === "manual") {
+    page.appendChild(state.testMode ? testScopeStep(ctx) : manualStep(ctx));
+  }
   else if (state.stage === "review") page.appendChild(reviewStep(ctx));
   else if (state.stage === "commit") page.appendChild(commitStep(ctx));
   else if (state.stage === "prepare" || state.stage === "register") page.appendChild(prepareStep(ctx));
@@ -383,6 +385,68 @@ function modelStep(ctx: AppContext): HTMLElement {
     ),
   );
 }
+
+function testScopeStep(ctx: AppContext): HTMLElement {
+  const wizard = ctx.wizard;
+  const state = wizard.state;
+  const files = asRecords(state.testInventory?.["files"]);
+  const selected = new Set<string>();
+  const list = div("stack-sm");
+  for (const item of files) {
+    const path = asText(item["path"]);
+    if (!path) continue;
+    const count = asNumber(item["test_count"], 0);
+    list.appendChild(checkbox(
+      `${path}（${count} 个测试）`,
+      false,
+      checked => { if (checked) selected.add(path); else selected.delete(path); },
+    ));
+  }
+  const errors = asStrings(state.testInventory?.["collection_errors"]).filter(Boolean);
+  const generate = (): void => {
+    if (selected.size === 0) {
+      state.error = "至少选择一个测试文件。";
+      ctx.render();
+      return;
+    }
+    const selections = [...selected].sort().map(path => ({
+      acceptance_item_ids: [`AC-${path.replace(/[^A-Za-z0-9]+/g, "-").toUpperCase()}`],
+      scope: { kind: "file", value: path },
+      expected: "all_pass",
+      mock_scope: ["unknown"],
+      rationale: `运行 ${path} 并核对 pytest 结果`,
+    }));
+    state.proposal = {
+      schema_version: "aitest.test-selection/1.0",
+      goal: state.goal || "验证所选 pytest 测试范围",
+      selections,
+    };
+    state.runTier = "on_demand";
+    state.confirmed = true;
+    state.useModel = false;
+    state.error = "";
+    state.note = "已生成测试范围计划，正在核对。";
+    void wizard.review();
+  };
+  return card(
+    "",
+    cardHead(
+      "选择测试范围",
+      "清单来自已保存的 Test Inventory；服务端会再次校验每个范围。模型关闭时仍可手工选择。",
+      button("重新发现", () => void wizard.runStage("discover"), {
+        icon: "refresh",
+        disabled: state.busy,
+      }),
+    ),
+    files.length
+      ? list
+      : banner("测试清单为空，请先重新发现；收集错误会显示在下方。", "warning"),
+    errors.length ? details("收集错误", div("stack-sm", ...errors.map(text => p(text, "mono")))) : null,
+    banner("pytest 通过只是断言结果；独立核验仍按验收项单独记录。", "info"),
+    div("hero-actions", button("生成测试范围计划", generate, { variant: "primary", icon: "arrow-right" })),
+  );
+}
+
 
 function manualStep(ctx: AppContext): HTMLElement {
   const wizard = ctx.wizard;

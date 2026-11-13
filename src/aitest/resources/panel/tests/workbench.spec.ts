@@ -417,3 +417,105 @@ test("reuse inspection reads the exact source snapshot and registers only after 
   }, { action: "select_case_reuse" });
   await expect(page.getByText("复用选择已保存", { exact: false }).first()).toBeVisible();
 });
+
+test("pytest failure clusters draft one issue with the server identity", async ({ page }) => {
+  const pytestStep = {
+    ...run.steps[1],
+    pytest_failures: [{
+      node_id: "tests.test_order::test_total",
+      failure_type: "AssertionError",
+      message: "expected marker to exist",
+      file: null,
+      line: null,
+      suspect_file: null,
+      suspect_line: null,
+      location_unknown: true,
+      stack: "traceback",
+    }],
+  };
+  const pytestRun = {
+    ...run,
+    steps: [run.steps[0], pytestStep],
+    pytest_issue_drafts: [{
+      issue_id: "issue:pytest:abc",
+      signature: "a".repeat(64),
+      title: "AssertionError: expected marker to exist",
+      failure_type: "AssertionError",
+      category: "assertion",
+      message: "expected marker to exist",
+      case_id: "case-2",
+      step_id: "step-2",
+      attempt_id: "att-2",
+      run_id: "run-1",
+      locations: ["location_unknown"],
+      evidence_refs: ["ev-2"],
+      node_ids: ["tests.test_order::test_total"],
+      baseline_state: "new",
+      new_failure_count: 1,
+      existing_failure_count: 0,
+    }],
+    pytest_baseline: {
+      previous_run_id: "run-0",
+      previous_report_id: "report-0",
+      previous_revision: 1,
+      new_node_ids: ["tests.test_order::test_total"],
+      existing_node_ids: [],
+      fixed_node_ids: [],
+    },
+  };
+  await mountPanel(page);
+  await connectWithRun(page, panel, pytestRun);
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await expect(page.getByText("AssertionError: expected marker to exist")).toBeVisible();
+  await expect(page.getByText("1 个失败测试 · location_unknown")).toBeVisible();
+  await expect(page.getByText("与上次同范围结果比较")).toBeVisible();
+  await expect(page.getByText("新增 1", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "生成问题草稿", exact: true }).click();
+  const draft = await waitForSend(page, { action: "update_issue" });
+  expect(draft["kind"]).toBe("controlledDispatch");
+  expect(draft["target"]).toBe("issue:pytest:abc");
+  expect((draft["parameters"] as Record<string, unknown>)["issue_id"]).toBe("issue:pytest:abc");
+  const links = ((draft["parameters"] as Record<string, unknown>)["links"]) as Record<string, unknown>;
+  expect(links["pytest_cluster"]).toEqual({
+    run_id: "run-1", step_id: "step-2", signature: "a".repeat(64),
+  });
+  await reply(page, {
+    kind: "outcome", action: "update_issue", status: "ok",
+    response: { result: { aggregate_kind: "issue", record_id: "issue:pytest:abc", revision: 1 } },
+  }, { action: "update_issue" });
+  await expect(page.getByText("问题草稿已保存", { exact: false })).toBeVisible();
+});
+
+test("regression suggestion reads the exact graph revision and plan revision", async ({ page }) => {
+  await mountPanel(page);
+  await connectWithRun(page, panel, { ...run, plan_revision_ref: "plan-1@2" });
+  await page.getByRole("button", { name: "步骤", exact: true }).click();
+  await page.getByPlaceholder("变更文件，每行一个（项目内相对路径）").fill("src/order.py\nsrc/cart.py");
+  const before = (await sentMessages(page)).length;
+  await page.getByRole("button", { name: "计算影响面", exact: true }).click();
+  const graph = await waitForSend(page, { action: "query" }, 5000, before);
+  expect((graph["parameters"] as Record<string, unknown>)["aggregate_kind"]).toBe("dependency_set");
+  await reply(page, {
+    kind: "outcome", action: "query", status: "ok",
+    response: { result: { items: [{ record_id: "dep-1", revision: 3, aggregate_kind: "dependency_set" }] } },
+  }, { action: "query" });
+  const suggestion = await waitForSend(page, { action: "suggest_regression" }, 5000, before);
+  expect(suggestion["parameters"]).toMatchObject({
+    graph_revision: 3,
+    plan_id: "plan-1",
+    plan_revision: 2,
+    changed_files: ["src/order.py", "src/cart.py"],
+  });
+  await reply(page, {
+    kind: "outcome", action: "suggest_regression", status: "ok",
+    response: { result: {
+      directly_changed: ["src/order.py", "src/cart.py"],
+      affected_modules: ["module-order"],
+      unregistered_modules: ["module-cart"],
+      suggested_case_ids: ["case-1"],
+    } },
+  }, { action: "suggest_regression" });
+  await expect(page.getByText("影响模块：module-order")).toBeVisible();
+  await expect(page.getByText("未登记模块：module-cart", { exact: false })).toBeVisible();
+});

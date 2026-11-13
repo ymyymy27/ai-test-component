@@ -24,6 +24,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import fields, replace
 from typing import Any, Protocol, cast
 
+from aitest.application.evidence.pytest_failures import (
+    PYTEST_ISSUE_DRAFT_VERSION,
+    cluster_identity,
+    matching_draft,
+    pytest_issue_drafts,
+)
 from aitest.application.execution.run_record import read_run_record
 from aitest.application.execution.step_content import StepContent, StepContentReader
 from aitest.application.planning.publish import payload_digest
@@ -213,6 +219,8 @@ def issue_links(payload: Mapping[str, object]) -> dict[str, object]:
             "run_id": None,
             "attempt_id": None,
             "regressions": [],
+            "pytest_cluster": None,
+            "split_from": None,
         }
     if not isinstance(raw, Mapping):
         raise DefectManagementError("saved issue links are unreadable")
@@ -224,7 +232,36 @@ def issue_links(payload: Mapping[str, object]) -> dict[str, object]:
         "attempt_id": _optional_text(raw.get("attempt_id"), "attempt_id"),
         # 回归关联原样读回：字段形状由 `_arrange_regression` 写死，读侧不补造。
         "regressions": _regression_links(raw),
+        # pytest 失败簇是服务端从已保存 JUnit 重算后写入的冻结投影；旧记录没有此键。
+        "pytest_cluster": _pytest_cluster_links(raw),
+        "split_from": _optional_text(raw.get("split_from"), "split_from"),
     }
+
+
+def _pytest_cluster_links(raw: Mapping[str, object]) -> dict[str, object] | None:
+    """读回已冻结的 pytest 失败簇；形状不符即拒绝，不静默丢细节。"""
+
+    value = raw.get("pytest_cluster")
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise DefectManagementError("saved pytest cluster must be an object")
+    if value.get("schema_version") != PYTEST_ISSUE_DRAFT_VERSION:
+        raise DefectManagementError("saved pytest cluster schema cannot be verified")
+    failures = value.get("failures")
+    if not isinstance(failures, (list, tuple)) or not failures:
+        raise DefectManagementError("saved pytest cluster must list its failures")
+    if any(not isinstance(item, Mapping) for item in failures):
+        raise DefectManagementError("saved pytest cluster failure entry must be an object")
+    return {str(key): item for key, item in value.items()}
+
+
+def _payload_cluster(value: object) -> dict[str, object] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise DefectManagementError("pytest cluster links must be an object")
+    return {str(key): item for key, item in value.items()}
 
 
 def _regression_links(raw: Mapping[str, object]) -> tuple[dict[str, object], ...]:
@@ -436,6 +473,9 @@ def issue_to_payload(
             "attempt_id": links["attempt_id"],
             # 回归关联清单：安排回归写入，**不能被静默丢弃**（否则调用方以为已安排）。
             "regressions": [dict(item) for item in _regression_links(links)],
+            # pytest 失败簇只由服务端从保存的 JUnit 重算后固化；旧记录为 None。
+            "pytest_cluster": _payload_cluster(links.get("pytest_cluster")),
+            "split_from": links.get("split_from"),
         },
         # 以下键是存储侧最小摘要白名单（`index.py::_SUMMARY_*`）使用的事实。
         "updated_sequence": updated_sequence,
@@ -591,6 +631,10 @@ class SavedDefectManagement:
                 raise IssueNotSaved(f"issue {issue_id} is not saved")
             issue = self._create_issue(project_id, issue_id, parameters)
             links = self._initial_links(parameters)
+            if links.get("pytest_cluster") is not None:
+                issue, links = self._materialize_pytest_draft(project_id, issue, links)
+            elif links.get("pytest_split") is not None:
+                issue, links = self._materialize_pytest_split(project_id, issue, links)
         else:
             if expected_revision != current.revision:
                 raise IssueRevisionConflict(expected=expected_revision, current=current.revision)
@@ -689,12 +733,20 @@ class SavedDefectManagement:
         self, project_id: str, issue_id: str, parameters: Mapping[str, object]
     ) -> IssueRecord:
         title = _text(parameters.get("title"), "title")
-        return IssueRecord(issue_id=issue_id, project_id=project_id, revision=1, title=title)
+        evidence_refs = _text_tuple(parameters.get("evidence_refs", ()), "evidence_refs")
+        return IssueRecord(
+            issue_id=issue_id,
+            project_id=project_id,
+            revision=1,
+            title=title,
+            evidence_refs=evidence_refs,
+        )
 
     def _initial_links(self, parameters: Mapping[str, object]) -> dict[str, object]:
         raw = parameters.get("links") or {}
         if not isinstance(raw, Mapping):
             raise DefectManagementError("links must be an object")
+        cluster = raw.get("pytest_cluster")
         return {
             "module_ids": _text_tuple(raw.get("module_ids", ()), "module_ids"),
             "layers": _text_tuple(raw.get("layers", ()), "layers"),
@@ -702,7 +754,138 @@ class SavedDefectManagement:
             "run_id": _optional_text(raw.get("run_id"), "run_id"),
             "attempt_id": _optional_text(raw.get("attempt_id"), "attempt_id"),
             "regressions": [],
+            "pytest_cluster": cluster,
+            "split_from": None,
+            "pytest_split": raw.get("pytest_split"),
         }
+
+    def _materialize_pytest_draft(
+        self,
+        project_id: str,
+        issue: IssueRecord,
+        links: dict[str, object],
+    ) -> tuple[IssueRecord, dict[str, object]]:
+        """Recompute the designated cluster from saved facts and freeze it.
+
+        The caller supplies only the cluster identity. Titles, nodes, frames,
+        messages, stacks and evidence references all come from the saved JUnit
+        artifact, so a draft cannot invent a location or a failing test.
+        """
+
+        raw = links.get("pytest_cluster")
+        if not isinstance(raw, Mapping):
+            raise DefectManagementError("pytest_cluster must be the preview identity")
+        try:
+            run_id, step_id, signature = cluster_identity(raw)
+        except ValueError as error:
+            raise DefectManagementError(str(error)) from error
+        try:
+            facts = self._facts(project_id, run_id)
+            drafts = pytest_issue_drafts(facts, self._objects)
+            cluster = matching_draft(drafts, run_id, step_id, signature)
+        except ValueError as error:
+            raise IssueGuardRefused(
+                f"the pytest failure cluster cannot be verified from saved facts: {error}"
+            ) from error
+        if issue.issue_id != cluster.issue_id:
+            raise DefectManagementError(
+                "pytest issue drafts must use the server-issued issue identity"
+            )
+        for name, expected in (
+            ("case_id", cluster.case_id),
+            ("run_id", cluster.run_id),
+            ("attempt_id", cluster.attempt_id),
+        ):
+            declared = links.get(name)
+            if declared is not None and declared != expected:
+                raise IssueGuardRefused(f"issue link {name} differs from the saved failure")
+        layers = links.get("layers") or ("L2",)
+        return (
+            replace(issue, evidence_refs=cluster.evidence_refs),
+            {
+                **links,
+                "case_id": cluster.case_id,
+                "run_id": cluster.run_id,
+                "attempt_id": cluster.attempt_id,
+                "layers": layers,
+                "pytest_cluster": cluster.payload(),
+            },
+        )
+
+    def _materialize_pytest_split(
+        self,
+        project_id: str,
+        issue: IssueRecord,
+        links: dict[str, object],
+    ) -> tuple[IssueRecord, dict[str, object]]:
+        """Create a child draft from selected failures of a saved pytest issue.
+
+        The source issue's frozen cluster is authoritative: every requested node
+        must exist there, and the child keeps the same signature/environment
+        while listing only the selected failures. The source issue is unchanged.
+        """
+
+        raw = links.get("pytest_split")
+        if not isinstance(raw, Mapping):
+            raise DefectManagementError("pytest_split must be an object")
+        source_id = _text(raw.get("source_issue_id"), "source_issue_id")
+        node_ids = _text_tuple(raw.get("node_ids", ()), "node_ids")
+        if not node_ids or len(set(node_ids)) != len(node_ids):
+            raise DefectManagementError("pytest split requires unique node ids")
+        if source_id == issue.issue_id:
+            raise DefectManagementError("a split child must differ from its source issue")
+        if not issue.issue_id.startswith("issue:pytest:split:"):
+            raise DefectManagementError(
+                "pytest split children must use the server-issued split identity"
+            )
+        saved = self._current(project_id, source_id)
+        if saved is None:
+            raise IssueGuardRefused("the source issue is not saved")
+        source_links = issue_links(saved.payload)
+        cluster = source_links.get("pytest_cluster")
+        if not isinstance(cluster, Mapping):
+            raise IssueGuardRefused("the source issue has no frozen pytest cluster")
+        raw_failures = cluster.get("failures")
+        if not isinstance(raw_failures, (list, tuple)):
+            raise IssueGuardRefused("the source pytest cluster has no failure list")
+        selected = [
+            dict(item) for item in raw_failures
+            if isinstance(item, Mapping) and str(item.get("node_id")) in set(node_ids)
+        ]
+        if {str(item.get("node_id")) for item in selected} != set(node_ids):
+            raise IssueGuardRefused("split node ids are not all in the source cluster")
+
+        def location(item: Mapping[str, object]) -> str:
+            path = item.get("suspect_file") or item.get("file")
+            line = item.get("suspect_line") if item.get("suspect_file") else item.get("line")
+            if isinstance(path, str) and path:
+                return f"{path}:{line}" if line else path
+            return "location_unknown"
+
+        locations = tuple(dict.fromkeys(location(item) for item in selected))
+        evidence = tuple(dict.fromkeys(
+            str(item["evidence_id"]) for item in selected if item.get("evidence_id")
+        ))
+        child = {
+            **cluster,
+            "issue_id": issue.issue_id,
+            "failures": selected,
+            "locations": list(locations),
+            "evidence_refs": list(evidence),
+        }
+        return (
+            replace(issue, evidence_refs=evidence),
+            {
+                **links,
+                "case_id": cluster.get("case_id"),
+                "run_id": cluster.get("run_id"),
+                "attempt_id": cluster.get("attempt_id"),
+                "layers": source_links.get("layers") or ("L2",),
+                "pytest_cluster": child,
+                "split_from": source_id,
+                "pytest_split": None,
+            },
+        )
 
     def _transition(
         self,

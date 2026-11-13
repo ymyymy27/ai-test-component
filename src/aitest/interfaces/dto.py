@@ -341,6 +341,77 @@ def issue_summary_dto(
 _MANUAL_ADAPTER_KINDS = frozenset({"manual_evidence", "agent"})
 
 
+class PytestFailureDTO(BaseModel):
+    """One failed/error test case parsed from a saved JUnit artifact."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    node_id: str
+    failure_type: str | None = None
+    message: str | None = None
+    file: str | None = None
+    line: int | None = None
+    suspect_file: str | None = None
+    suspect_line: int | None = None
+    location_unknown: bool = False
+    stack: str = ""
+
+
+class PytestIssueDraftDTO(BaseModel):
+    """A failure-signature cluster from a saved run, ready for an issue draft.
+
+    Identity only: the caller submits ``run_id``/``step_id``/``signature`` and
+    the core re-derives every failure detail from saved JUnit evidence.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    issue_id: str
+    signature: str
+    title: str
+    failure_type: str | None = None
+    category: str
+    message: str | None = None
+    case_id: str
+    step_id: str
+    attempt_id: str
+    run_id: str
+    locations: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+    node_ids: tuple[str, ...] = ()
+    #: Baseline comparison for the same selected scope; ``unknown`` when no
+    #: prior report exists or the prior report predates pytest failure facts.
+    baseline_state: str = "unknown"
+    new_failure_count: int = 0
+    existing_failure_count: int = 0
+
+
+class PytestBaselineDTO(BaseModel):
+    """Comparison with the latest prior report for the same selected scope."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    previous_run_id: str
+    previous_report_id: str
+    previous_revision: int
+    new_node_ids: tuple[str, ...] = ()
+    existing_node_ids: tuple[str, ...] = ()
+    fixed_node_ids: tuple[str, ...] = ()
+
+
+class LayerCountDTO(BaseModel):
+    """Read-only L1/L2/L3 step counts; never a substitute for each other."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    level: str
+    total: int
+    completed: int
+    blocked: int
+    failed: int
+    pending_verification: int
+
+
 class RunStepDTO(BaseModel):
     """运行视图里的单个步骤：状态、当前尝试与失效标记**全部来自已提交事实**。"""
 
@@ -349,6 +420,7 @@ class RunStepDTO(BaseModel):
     step_id: str
     case_id: str
     state: str
+    level: str | None = None
     current_attempt_id: str | None = None
     attempt_state: str | None = None
     adapter_kind: str | None = None
@@ -357,6 +429,8 @@ class RunStepDTO(BaseModel):
     # 当前尝试引用的证据编号与各自修订（与 evidence_ids 一一对应）；没有证据时为空。
     evidence_ids: tuple[str, ...] = ()
     evidence_revisions: tuple[int, ...] = ()
+    #: 已保存 JUnit 中失败/错误测试的结构化投影；没有 artifact 时为空。
+    pytest_failures: tuple[PytestFailureDTO, ...] = ()
 
 
 class TraceNodeViewDTO(BaseModel):
@@ -431,7 +505,12 @@ class RunViewDTO(BaseModel):
     pending_verification_step_ids: tuple[str, ...]
     invalidated_step_ids: tuple[str, ...]
     steps: tuple[RunStepDTO, ...]
+    layers: tuple[LayerCountDTO, ...] = ()
     trace_nodes: tuple[TraceNodeViewDTO, ...] = ()
+    #: 同一 scope 内同签名合并的失败簇；只作问题草稿候选，不自动建问题。
+    pytest_issue_drafts: tuple[PytestIssueDraftDTO, ...] = ()
+    #: 与上一份同范围已保存报告的比较；没有可比较报告时为 None（未知）。
+    pytest_baseline: PytestBaselineDTO | None = None
 
 
 def run_view_dto(
@@ -457,6 +536,7 @@ def run_view_dto(
     blocked: list[str] = []
     pending_verification: list[str] = []
     invalidated: list[str] = []
+    layer_counts: dict[str, dict[str, int]] = {}
     for step in facts.steps:
         current_attempt_id = facts.current_attempt_by_step.get(step.step_id)
         attempt = attempts_by_step.get(current_attempt_id or step.current_attempt_id or "")
@@ -465,6 +545,20 @@ def run_view_dto(
         evidence_ids = tuple(item[0] for item in evidence_pairs)
         evidence_revisions = tuple(item[1] for item in evidence_pairs)
         state = str(step.state.value)
+        level = str(step.level.value)
+        counts = layer_counts.setdefault(level, {
+            "total": 0, "completed": 0, "blocked": 0, "failed": 0,
+            "pending_verification": 0,
+        })
+        counts["total"] += 1
+        if state == "completed":
+            counts["completed"] += 1
+        elif state == "blocked":
+            counts["blocked"] += 1
+        elif state == "failed":
+            counts["failed"] += 1
+        elif state == "pending_verification":
+            counts["pending_verification"] += 1
         if step.invalidated:
             invalidated.append(step.step_id)
         if state == "blocked":
@@ -482,6 +576,7 @@ def run_view_dto(
                 step_id=step.step_id,
                 case_id=step.case_id,
                 state=state,
+                level=level,
                 current_attempt_id=current_attempt_id,
                 attempt_state=None if attempt is None else str(attempt.state.value),
                 adapter_kind=adapter_kind,
@@ -535,6 +630,10 @@ def run_view_dto(
         pending_verification_step_ids=tuple(sorted(pending_verification)),
         invalidated_step_ids=tuple(sorted(invalidated)),
         steps=tuple(steps),
+        layers=tuple(
+            LayerCountDTO(level=level, **counts)
+            for level, counts in sorted(layer_counts.items())
+        ),
         trace_nodes=tuple(
             TraceNodeViewDTO(
                 trace_node_id=item.trace_node_id,

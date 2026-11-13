@@ -218,6 +218,7 @@ export type WizardStage =
   | "configure"
   | "restart"
   | "project"
+  | "discover"
   | "goals"
   | "model"
   | "review"
@@ -255,6 +256,8 @@ export interface WizardState {
   workspace: string;
   pythonVersion: string;
   sourceSnippets: boolean;
+  testMode: boolean;
+  testInventory: Record<string, unknown> | null;
   receipts: Record<string, Record<string, unknown>>;
   proposal: Record<string, unknown> | null;
   expectedFactsText: string;

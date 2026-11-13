@@ -21,6 +21,7 @@ from aitest.application.ports import SpoolStore, SpoolStreamWriter
 from aitest.domain.evidence.evidence import RedactionSummary
 from aitest.domain.execution.runs import (
     AdapterKind,
+    ArtifactRef,
     CaptureCompleteness,
     CapturedOutputBlock,
     ExecutionCollectionResult,
@@ -95,6 +96,8 @@ class _CommandRuntime:
     output_blocks: list[OutputBlockRef] = field(default_factory=list)
     output_cursors: dict[OutputStreamName, OutputCursor] = field(default_factory=dict)
     captured_buffers: dict[OutputStreamName, bytearray] = field(default_factory=dict)
+    artifact_before: dict[str, tuple[bool, int, int, str | None]] = field(default_factory=dict)
+    artifact_refs: tuple[ArtifactRef, ...] = ()
     read_errors: list[str] = field(default_factory=list)
     stop_requested: bool = False
     timed_out: bool = False
@@ -135,6 +138,7 @@ class CommandAdapter:
         graceful_stop_timeout_seconds: float = 3.0,
         force_kill_timeout_seconds: float = 3.0,
         max_in_memory_bytes: int = 1024 * 1024,
+        artifact_sources: tuple[tuple[str, str], ...] = (),
     ) -> None:
         if type(max_in_memory_bytes) is not int or not 0 < max_in_memory_bytes <= 1024 * 1024:
             raise ValueError("command memory capture budget must be a positive bounded integer")
@@ -142,6 +146,20 @@ class CommandAdapter:
             raise ValueError("stream_block_size must be positive")
         if graceful_stop_timeout_seconds < 0 or force_kill_timeout_seconds < 0:
             raise ValueError("stop timeouts must be non-negative")
+        normalized_sources: list[tuple[str, str]] = []
+        for relative, media_type in artifact_sources:
+            if (
+                not relative
+                or not media_type
+                or "\\" in relative
+                or relative.startswith("/")
+                or ".." in relative.split("/")
+                or "\x00" in relative
+            ):
+                raise ValueError("artifact source must be a safe POSIX relative path")
+            normalized_sources.append((relative, media_type))
+        self._artifact_sources = tuple(normalized_sources)
+        self._max_artifact_bytes = 8 * 1024 * 1024
         self._registrations: dict[str, CommandRegistration] = {}
         self._runtimes: dict[str, _CommandRuntime] = {}
         self._secret_resolver = secret_resolver or (lambda _scope: {})
@@ -184,6 +202,7 @@ class CommandAdapter:
         arguments = request.registered_entry.arguments
         if len(arguments) > registration.max_arguments:
             raise ValueError("registered command argument count exceeds limit")
+        artifact_before = self._artifact_state(registration.cwd)
 
         secrets = {
             str(value)
@@ -278,6 +297,7 @@ class CommandAdapter:
                     OutputStreamName.STDOUT: bytearray(),
                     OutputStreamName.STDERR: bytearray(),
                 },
+                artifact_before=artifact_before,
                 job_handle=job_handle,
             )
             self._runtimes[handle.handle_id] = runtime
@@ -503,6 +523,8 @@ class CommandAdapter:
             output_blocks = tuple(runtime.output_blocks)
             output_cursors = _cursors_from_buffers(runtime)
             captured_blocks = _captured_blocks(runtime) if complete else ()
+        artifacts = self._collect_artifacts(runtime)
+        runtime.artifact_refs = artifacts
 
         if not complete:
             return ExecutionCollectionResult(
@@ -510,6 +532,7 @@ class CommandAdapter:
                 output_blocks=output_blocks,
                 captured_blocks=captured_blocks,
                 output_cursors=output_cursors,
+                artifacts=artifacts,
                 capture_completeness=completeness,
                 complete=False,
             )
@@ -540,6 +563,7 @@ class CommandAdapter:
             output_blocks=output_blocks,
             captured_blocks=captured_blocks,
             output_cursors=output_cursors,
+            artifacts=artifacts,
             exit_fact_ref=exit_fact,
             runtime_source=(runtime.source_channel.observation(handle)
                             if runtime.source_channel is not None else None),
@@ -547,6 +571,65 @@ class CommandAdapter:
             capture_completeness=completeness,
             complete=True,
         )
+
+    def _artifact_state(self, cwd: Path) -> dict[str, tuple[bool, int, int, str | None]]:
+        state: dict[str, tuple[bool, int, int, str | None]] = {}
+        for relative, _media_type in self._artifact_sources:
+            path = (cwd / relative).resolve()
+            if not path.is_relative_to(cwd):
+                raise ValueError("artifact source escapes the materialized workdir")
+            if not path.exists():
+                state[relative] = (False, 0, 0, None)
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("artifact source must be a regular file")
+            stat = path.stat()
+            state[relative] = (True, stat.st_size, stat.st_mtime_ns, _file_digest(path))
+        return state
+
+    def _collect_artifacts(self, runtime: _CommandRuntime) -> tuple[ArtifactRef, ...]:
+        if self._spool_store is None or not self._artifact_sources:
+            return ()
+        refs: list[ArtifactRef] = []
+        for relative, media_type in self._artifact_sources:
+            path = (runtime.registration.cwd / relative).resolve()
+            if not path.is_relative_to(runtime.registration.cwd):
+                continue
+            if not path.exists() or path.is_symlink() or not path.is_file():
+                continue
+            stat = path.stat()
+            state = (True, stat.st_size, stat.st_mtime_ns, _file_digest(path))
+            if runtime.artifact_before.get(relative) == state:
+                # A stale pre-existing report is not evidence for this attempt.
+                continue
+            try:
+                with path.open("rb") as handle:
+                    content = handle.read(self._max_artifact_bytes + 1)
+            except OSError:
+                continue
+            truncated = len(content) > self._max_artifact_bytes
+            if truncated:
+                content = content[: self._max_artifact_bytes]
+            name = Path(relative).name
+            ref = ArtifactRef(
+                artifact_id=f"evidence:{runtime.request.attempt_id}:artifact:{name}",
+                attempt_id=runtime.request.attempt_id,
+                name=name,
+                relative_path=f"artifacts/{name}",
+                media_type=media_type,
+                content_encoding="identity",
+                digest="sha256:" + hashlib.sha256(content).hexdigest(),
+                length=len(content),
+                complete=not truncated,
+                truncated=truncated,
+                capture_source="command-artifact",
+                gap_ids=(("artifact_truncated",) if truncated else ()),
+            )
+            try:
+                refs.append(self._spool_store.persist_artifact(ref, content))
+            except (UnsafeMaterialError, ValueError, OSError):
+                continue
+        return tuple(refs)
 
     def request_stop(self, handle: ExecutionHandle) -> StopRequestResult:
         runtime = self._runtimes.get(handle.handle_id)
@@ -896,6 +979,7 @@ class CommandAdapter:
             attempt_id=persisted.attempt_id,
             output_blocks=manifest.blocks,
             output_cursors=manifest.cursors,
+            artifacts=self._spool_store.read_artifacts(persisted.attempt_id),
             exit_fact_ref=stopped_exit(completeness),
             capture_completeness=completeness,
             complete=False,
@@ -1358,6 +1442,14 @@ def _linux_process_start_identity(pid: int) -> str:
     except (OSError, IndexError):
         return f"linux-pid:{pid}:unverified"
     return f"linux-boot:{boot_id}:pid:{pid}:start:{start_ticks}"
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
 
 
 __all__ = ["CommandAdapter", "CommandHandleStore", "CommandRegistration", "SecretResolver"]

@@ -115,10 +115,26 @@ export async function wizardMessage(
       }
       const folders=await vscode.window.showOpenDialog({title:"选择要测试的项目目录",canSelectFiles:false,canSelectFolders:true,canSelectMany:false});
       if(!folders?.[0]){respond({cancelled:true});return session;}
-      const files=await vscode.window.showOpenDialog({title:"选择 Python 测试入口",defaultUri:folders[0],canSelectFiles:true,canSelectFolders:false,canSelectMany:false,filters:{"Python 测试入口":["py"]}});
-      if(!files?.[0]){respond({cancelled:true});return session;}
-      const entry=relative(folders[0].fsPath,files[0].fsPath);
-      if(isAbsolute(entry)||entry.startsWith("..")||!entry.endsWith(".py"))throw new Error("测试入口必须在所选项目目录内。");
+      const mode=await vscode.window.showQuickPick(
+        [
+          {label:"选择 pytest 测试目录（推荐大项目）",description:"按文件或目录运行既有 pytest",pytest:true},
+          {label:"选择 Python 入口文件",description:"按单文件函数输出核对预期",pytest:false},
+        ],
+        {title:"选择测试方式"},
+      );
+      if(!mode){respond({cancelled:true});return session;}
+      let entry:string;
+      if(mode.label.includes("pytest")){
+        const scopes=await vscode.window.showOpenDialog({title:"选择 pytest 测试目录",defaultUri:folders[0],canSelectFiles:false,canSelectFolders:true,canSelectMany:false});
+        if(!scopes?.[0]){respond({cancelled:true});return session;}
+        entry=relative(folders[0].fsPath,scopes[0].fsPath).replaceAll("\\","/")||".";
+        if(isAbsolute(entry)||entry.startsWith(".."))throw new Error("测试范围必须在所选项目目录内。");
+      }else{
+        const files=await vscode.window.showOpenDialog({title:"选择 Python 测试入口",defaultUri:folders[0],canSelectFiles:true,canSelectFolders:false,canSelectMany:false,filters:{"Python 测试入口":["py"]}});
+        if(!files?.[0]){respond({cancelled:true});return session;}
+        entry=relative(folders[0].fsPath,files[0].fsPath);
+        if(isAbsolute(entry)||entry.startsWith("..")||!entry.endsWith(".py"))throw new Error("测试入口必须在所选项目目录内。");
+      }
       const project_id="guided-"+randomUUID();
       let reference="",endpoint="https://api.deepseek.com";
       if(settings.modelConfigurationFile){try{const saved=JSON.parse(await readFile(settings.modelConfigurationFile,"utf8"));if(typeof saved.credential_reference==="string")reference=saved.credential_reference;if(typeof saved.endpoint==="string")endpoint=saved.endpoint;}catch{/* unconfigured remains explicit */}}
@@ -147,7 +163,8 @@ export async function wizardMessage(
       respond({credential:true,reference});
     }else if(raw.kind==="wizardSetup"){
       if(raw.dataConfirmed!==true)throw new Error("请先确认测试数据隔离与复位方式。");
-      const result=await helper(settings.python,{operation:"setup",...session});
+      const result=await helper(settings.python,{operation:"setup",...session,
+        pytest:typeof session.entry==="string"&&!session.entry.toLowerCase().endsWith(".py")});
       let modelFile="";
       if(raw.useModel===true){
         const model=await helper(settings.python,{operation:"model",root:session.root,endpoint:raw.endpoint,reference:session.reference});

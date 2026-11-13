@@ -8,6 +8,7 @@ import os
 import threading
 from collections.abc import Sequence
 from contextlib import ExitStack
+from dataclasses import asdict
 from pathlib import Path
 
 import portalocker
@@ -19,6 +20,7 @@ from aitest.domain.evidence.redaction_material import (
     redaction_summary_payload,
 )
 from aitest.domain.execution.runs import (
+    ArtifactRef,
     CapturedOutputBlock,
     OutputBlockRef,
     OutputCursor,
@@ -392,6 +394,81 @@ class FileSpoolStore:
         digest = "sha256:" + hashlib.sha256(content).hexdigest()
         if len(content) != ref.length or digest != ref.digest:
             raise ValueError("spool block content failed verification")
+        return content
+
+    def persist_artifact(self, ref: ArtifactRef, content: bytes) -> ArtifactRef:
+        safe_attempt = _safe_component(ref.attempt_id, "attempt_id")
+        safe_name = _safe_component(ref.name, "artifact name")
+        if ref.relative_path != f"artifacts/{safe_name}":
+            raise ValueError("artifact path does not match its safe name")
+        if not isinstance(content, bytes):
+            raise ValueError("artifact content must be immutable bytes")
+        digest = "sha256:" + hashlib.sha256(content).hexdigest()
+        if len(content) != ref.length or digest != ref.digest:
+            raise ValueError("artifact content failed verification")
+        guarded, dirty = guard_bytes(content, self._registry)
+        if dirty:
+            raise UnsafeMaterialError(
+                "artifact still contains a known credential; register a capture gap"
+            )
+        if guarded != content:
+            raise ValueError("artifact content changed during credential filtering")
+        directory = self._attempt_dir(safe_attempt) / "artifacts"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / safe_name
+        if path.exists():
+            if self.read_artifact(ref) != content:
+                raise ValueError("artifact identity is immutable")
+            return ref
+        temporary = directory / (safe_name + ".tmp")
+        with temporary.open("wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        existing = list(self.read_artifacts(safe_attempt))
+        if not any(item.artifact_id == ref.artifact_id for item in existing):
+            existing.append(ref)
+            atomic.write_json(
+                self._attempt_dir(safe_attempt) / "artifacts.json",
+                {
+                    "schema_version": "aitest.artifacts/1.0",
+                    "artifacts": [
+                        asdict(item) for item in sorted(existing, key=lambda item: item.name)
+                    ],
+                },
+            )
+        return ref
+
+    def read_artifacts(self, attempt_id: str) -> tuple[ArtifactRef, ...]:
+        safe_attempt = _safe_component(attempt_id, "attempt_id")
+        path = self._attempt_dir(safe_attempt) / "artifacts.json"
+        if not path.exists():
+            return ()
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(raw, dict)
+            or raw.get("schema_version") != "aitest.artifacts/1.0"
+            or not isinstance(raw.get("artifacts"), list)
+        ):
+            raise ValueError("artifact manifest must be a canonical object")
+        refs = []
+        for item in raw["artifacts"]:
+            if not isinstance(item, dict):
+                raise ValueError("artifact manifest entries must be objects")
+            refs.append(ArtifactRef(**{**item, "gap_ids": tuple(item.get("gap_ids", ()))}))
+        return tuple(refs)
+
+    def read_artifact(self, ref: ArtifactRef) -> bytes:
+        safe_attempt = _safe_component(ref.attempt_id, "attempt_id")
+        safe_name = _safe_component(ref.name, "artifact name")
+        if ref.relative_path != f"artifacts/{safe_name}":
+            raise ValueError("artifact path does not match its safe name")
+        path = self._attempt_dir(safe_attempt) / "artifacts" / safe_name
+        content = path.read_bytes()
+        digest = "sha256:" + hashlib.sha256(content).hexdigest()
+        if len(content) != ref.length or digest != ref.digest:
+            raise ValueError("artifact content failed verification")
         return content
 
     def persist_redaction_summary(

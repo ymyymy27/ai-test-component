@@ -201,7 +201,7 @@ def test_source_receipt_restart_preserves_identity_and_rejects_substitution(tmp_
     reopened = FileExecutionHandleStore(tmp_path)
     assert reopened.load_collection(handle) == result
     raw = json.loads(store._result_path(handle.handle_id).read_text(encoding="utf-8"))
-    assert raw["schema_version"] == "aitest.execution-collection/1.1"
+    assert raw["schema_version"] == "aitest.execution-collection/1.2"
     if fault:
         raw["result"]["runtime_source"][fault] = "another-execution"
         store._result_path(handle.handle_id).write_text(json.dumps(raw), encoding="utf-8")

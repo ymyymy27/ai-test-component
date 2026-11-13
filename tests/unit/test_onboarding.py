@@ -548,3 +548,50 @@ def test_model_stage_requires_the_frozen_snapshot_identity():
             assert "源码分析" in str(error)
         else:
             raise AssertionError("模型阶段不能只凭修订号生成计划")
+
+
+def test_discover_stage_runs_real_pytest_collection(tmp_path):
+    """A1: the discover stage goes through the real core and reports file-level counts."""
+    from aitest.bootstrap import assemble_workspace_core
+    from aitest.interfaces.local.native_confirmation import dispatch_native
+    from tests.unit.test_default_execution_authorization import RELAY
+    from tests.unit.test_default_start_source_chain import _chain_environment
+
+    source = tmp_path / "source"
+    tests = source / "tests"
+    tests.mkdir(parents=True)
+    (tests / "test_order.py").write_text(
+        "def test_create():\n    assert 1 == 1\n", encoding="utf-8"
+    )
+    core = assemble_workspace_core(
+        tmp_path / "workspace",
+        instance_id="discover-fixture",
+        environment_resolver=_chain_environment(),
+    )
+    selection = form(str(source)).model_copy(
+        update={"workspace_id": core.workspace.workspace_id, "entry": "tests",
+                "test_mode": True, "run_tier": "on_demand"}
+    )
+    receipts = {}
+    try:
+        for stage in ("project", "discover"):
+            for item in wizard_commands(selection, stage, receipts):
+                command = Command.model_validate(
+                    {key: value for key, value in item.items() if key != "key"}
+                    | {"request_id": uuid4().hex, "project_id": selection.project_id}
+                )
+                result = (
+                    core.api.dispatch(command, RELAY)
+                    if item["action"] == "discover_tests"
+                    else dispatch_native(
+                        core.api, command, prompt=lambda text: True,
+                        records=core.unit_of_work.repo,
+                    )
+                )
+                assert result.error is None, (item["action"], result.error)
+                receipts[item["key"]] = result.result
+        inventory = receipts["discover"]
+        assert inventory["summary"]["test_count"] == 1
+        assert inventory["files"][0]["path"] == "tests/test_order.py"
+    finally:
+        core.lifetime_lock.release()

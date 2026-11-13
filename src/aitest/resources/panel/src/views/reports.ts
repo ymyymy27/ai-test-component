@@ -20,6 +20,7 @@ import {
   button,
   card,
   cardHead,
+  checkbox,
   chip,
   codeBlock,
   details,
@@ -72,6 +73,7 @@ export function renderReports(ctx: AppContext): HTMLElement {
   page.appendChild(tabs);
 
   if (state.reportsTab === "reports") {
+    page.appendChild(projectAggregateCard(ctx));
     if (state.selectedReport && state.reportDetail) page.appendChild(reportDetail(ctx, state.reportDetail));
     else page.appendChild(reportsBody(ctx));
   } else if (state.reportsTab === "issues") {
@@ -81,6 +83,83 @@ export function renderReports(ctx: AppContext): HTMLElement {
     page.appendChild(renderDelivery(ctx));
   }
   return page;
+}
+
+function projectAggregateCard(ctx: AppContext): HTMLElement {
+  const output = div("stack-sm");
+  const load = async (): Promise<void> => {
+    const result = await ctx.readOnly("aggregate_project_runs", {});
+    output.replaceChildren();
+    if (!result) {
+      output.appendChild(p("项目级汇总没有读取结果。", "muted subtle"));
+      return;
+    }
+    const runs = asRecords(result["runs"]);
+    if (!runs.length) {
+      output.appendChild(p("还没有已保存报告，无法汇总。", "muted subtle"));
+      return;
+    }
+    const runList = div("stack-sm");
+    for (const run of runs) {
+      runList.appendChild(card(
+        "",
+        cardHead(
+          shortId(String(run["run_id"] ?? ""), 18),
+          `${String(run["business_outcome"] ?? "unknown")} · ${String(run["environment_ref"] ?? "环境未知")}`,
+          chip(`S ${asNumber(run["selected_count"], 0)}`, "neutral"),
+          chip(`E ${asNumber(run["executed_count"], 0)}`, "info"),
+          chip(`V ${asNumber(run["verified_count"], 0)}`, "success"),
+          chip(`P ${asNumber(run["passed_count"], 0)}`, "success"),
+        ),
+        facts([
+          ["计划修订", asStrings(run["plan_revision_refs"]).join("、") || "未知"],
+          ["证据等级", String(run["evidence_grade"] ?? "不适用")],
+          ["pytest 失败", String(asNumber(run["pytest_failure_count"], 0))],
+        ]),
+      ));
+    }
+    output.appendChild(runList);
+    const items = asRecords(result["acceptance_items"]);
+    if (items.length) {
+      output.appendChild(details(
+        "按验收项查看（不合并运行）",
+        div("stack-sm", ...items.map(item => {
+          const rows = asRecords(item["runs"]);
+          return facts([
+            [String(item["acceptance_item_id"] ?? "验收项"), div("stack-sm", ...rows.map(row =>
+              p(
+                `${shortId(String(row["run_id"] ?? ""), 12)}：S ${asNumber(row["selected_count"], 0)}`
+                + ` / E ${asNumber(row["executed_count"], 0)}`
+                + ` / V ${asNumber(row["verified_count"], 0)}`
+                + ` / P ${asNumber(row["passed_count"], 0)}`,
+                "mono",
+              )
+            ))],
+          ]);
+        })),
+      ));
+    }
+    const unmapped = asStrings(result["unmapped_case_ids"]);
+    if (unmapped.length) {
+      output.appendChild(p(
+        `未映射到验收项的用例：${unmapped.join("、")}。请在计划中补齐验收项关联。`,
+        "muted subtle",
+      ));
+    }
+    output.appendChild(p(
+      "每个运行保留自己的环境和计划修订；这里只汇总，不把多解释器结果合并成一次运行。",
+      "muted subtle",
+    ));
+  };
+  return card(
+    "",
+    cardHead(
+      "项目级运行汇总（只读）",
+      "按运行、验收项汇总已保存报告；不重算判定、不合并不同解释器。",
+      button("读取汇总", () => void load(), { icon: "refresh" }),
+    ),
+    output,
+  );
 }
 
 function reportsBody(ctx: AppContext): HTMLElement {
@@ -156,10 +235,21 @@ function reportDetail(ctx: AppContext, view: Record<string, unknown>): HTMLEleme
   const record = asRecord(view["record"]) ?? {};
   const decision = asRecord(record["decision"]) ?? {};
   const summary = asRecord(decision["selected_summary"]) ?? {};
+  const layers = asRecords(record["layers"]);
   const gaps = asRecords(decision["gaps"]);
   const evidenceRevisions = asRecord(record["evidence_revisions"]) ?? {};
   const evidenceRefs = asStrings(record["evidence_refs"]);
-  const issueRevisions = asRecord(record["issue_revisions"]) ?? {};
+  const issueRevisions: Record<string, number> = {};
+  const rawIssueRevisions = record["issue_revisions"];
+  if (Array.isArray(rawIssueRevisions)) {
+    for (const item of rawIssueRevisions) {
+      if (Array.isArray(item) && typeof item[0] === "string" && typeof item[1] === "number") {
+        issueRevisions[item[0]] = item[1];
+      }
+    }
+  } else {
+    Object.assign(issueRevisions, asRecord(rawIssueRevisions) ?? {});
+  }
   const revision = asNumber(record["content_revision"], ctx.state.selectedReport?.revision ?? 0);
   const outcome = record["business_outcome"] ?? decision["business_outcome"];
   const grade = record["evidence_grade"] ?? decision["evidence_grade"];
@@ -178,6 +268,24 @@ function reportDetail(ctx: AppContext, view: Record<string, unknown>): HTMLEleme
         ctx.showDialog(`证据 ${shortId(ref, 12)}`, content);
       }, { icon: "eye" }),
     );
+  }
+
+  const failureList = div("stack-sm");
+  for (const item of asRecords(record["pytest_failures"])) {
+    const path = typeof item["suspect_file"] === "string" ? item["suspect_file"]
+      : typeof item["file"] === "string" ? item["file"] : null;
+    const line = asNumber(item["suspect_line"] ?? item["line"], 0);
+    failureList.appendChild(card(
+      "",
+      cardHead(
+        String(item["node_id"] ?? "失败测试"),
+        `${String(item["failure_type"] ?? "failure")} · ${path ?? "location_unknown"}${line ? `:${line}` : ""}`,
+        path && line > 0
+          ? button("打开源码", () => ctx.openSource(path, line), { icon: "eye" })
+          : null,
+      ),
+      p(String(item["message"] ?? "无断言消息"), "muted subtle"),
+    ));
   }
 
   const gapList = div("stack-sm");
@@ -210,6 +318,13 @@ function reportDetail(ctx: AppContext, view: Record<string, unknown>): HTMLEleme
       facts([
         ["证据等级", grade === null || grade === undefined ? "本轮未评级" : label(grade)],
         ["运行", String(record["run_id"] ?? "—")],
+        ["分层结果", layers.length
+          ? layers.map(item =>
+              `${String(item["level"] ?? "")}: ${asNumber(item["completed"], 0)}/${asNumber(item["total"], 0)} 完成`
+              + (asNumber(item["failed"], 0) ? `，${asNumber(item["failed"], 0)} 失败` : "")
+              + (asNumber(item["blocked"], 0) ? `，${asNumber(item["blocked"], 0)} 阻塞` : ""))
+              .join("；")
+          : "未记录"],
         ["证据引用", `${evidenceRefs.length} 项`],
         ["关联问题", Object.keys(issueRevisions).length ? Object.keys(issueRevisions).join("、") : "无"],
         ["阻塞问题", asStrings(record["blocking_issue_ids"]).join("、") || "无"],
@@ -227,6 +342,9 @@ function reportDetail(ctx: AppContext, view: Record<string, unknown>): HTMLEleme
       ),
     ),
     localReviewCard(ctx, record),
+    failureList.childElementCount
+      ? card("", cardHead("失败测试", "来自报告冻结时保存的 JUnit 摘要。"), failureList)
+      : null,
     gaps.length ? card("", cardHead("缺口", "报告与面板共用同一次领域判定。"), gapList) : null,
     card("", cardHead("证据索引", "按精确证据修订读取正文；路径与敏感字段不会进入面板。"), evidenceRefs.length ? evidenceList : p("报告没有证据引用。", "muted subtle")),
   );
@@ -376,6 +494,7 @@ async function openIssue(ctx: AppContext, recordId: string, revision: number): P
 
 function issueDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElement {
   const record = asRecord(view["record"]) ?? {};
+  const links = asRecord(record["links"]) ?? {};
   const factsList = linesFrom(record["facts"]);
   const hypotheses = linesFrom(record["hypotheses"]);
   const evidenceRevisions = asRecord(record["evidence_revisions"]) ?? {};
@@ -393,15 +512,20 @@ function issueDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElemen
         ["严重度", label(record["severity"])],
         ["处置", label(record["disposition"])],
         ["责任人", String(record["owner"] ?? "未指派")],
-        ["运行", String(record["run_id"] ?? "—")],
-        ["用例", String(record["case_id"] ?? "—")],
-        ["步骤", String(record["step_id"] ?? "—")],
-        ["尝试", String(record["attempt_id"] ?? "—")],
+        ["运行", String(record["run_id"] ?? links["run_id"] ?? "—")],
+        ["用例", String(record["case_id"] ?? links["case_id"] ?? "—")],
+        ["步骤", String(record["step_id"] ?? links["step_id"] ?? "—")],
+        ["尝试", String(record["attempt_id"] ?? links["attempt_id"] ?? "—")],
       ]),
       record["description"] ? p(String(record["description"])) : null,
       div(
         "hero-actions",
-        button("复制复测简报", () => void copyRepairBrief(ctx, String(record["issue_id"] ?? ""), record["run_id"], record["attempt_id"]), { variant: "primary", icon: "copy" }),
+        button("复制复测简报", () => void copyRepairBrief(
+          ctx,
+          String(record["issue_id"] ?? ""),
+          record["run_id"] ?? links["run_id"],
+          record["attempt_id"] ?? links["attempt_id"],
+        ), { variant: "primary", icon: "copy" }),
         button("返回问题列表", () => {
           ctx.state.selectedIssue = null;
           ctx.state.issueDetail = null;
@@ -441,7 +565,90 @@ function issueDetail(ctx: AppContext, view: Record<string, unknown>): HTMLElemen
           ),
         )
       : null,
+    pytestClusterCard(ctx, record, links),
     issueActions(ctx, record),
+  );
+}
+
+function pytestClusterCard(
+  ctx: AppContext,
+  record: Record<string, unknown>,
+  links: Record<string, unknown>,
+): HTMLElement | null {
+  const cluster = asRecord(links["pytest_cluster"]);
+  if (!cluster) return null;
+  const failures = asRecords(cluster["failures"]);
+  const selected = new Set<string>();
+  const list = div("stack-sm");
+  for (const failure of failures) {
+    const nodeId = String(failure["node_id"] ?? "");
+    if (!nodeId) continue;
+    const path = typeof failure["suspect_file"] === "string" ? failure["suspect_file"]
+      : typeof failure["file"] === "string" ? failure["file"] : "location_unknown";
+    const line = asNumber(failure["suspect_line"] ?? failure["line"], 0);
+    list.appendChild(checkbox(
+      `${nodeId} · ${String(failure["failure_type"] ?? failure["category"] ?? "failure")} · ${path}${line ? `:${line}` : ""}`,
+      false,
+      checked => { if (checked) selected.add(nodeId); else selected.delete(nodeId); },
+    ));
+  }
+  const sourceId = String(record["issue_id"] ?? "");
+  const split = async (): Promise<void> => {
+    if (!sourceId || selected.size === 0) {
+      ctx.setNotice("先勾选要拆分的失败测试。", "warning");
+      return;
+    }
+    if (selected.size >= failures.length) {
+      ctx.setNotice("拆分至少保留一个失败测试在原问题中。", "warning");
+      return;
+    }
+    const suffix = typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replaceAll("-", "").slice(0, 16)
+      : `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+    const childId = "issue:pytest:split:" + suffix;
+    const parameters = {
+      issue_id: childId,
+      title: `${String(record["title"] ?? "pytest 失败")}（拆分）`,
+      links: {
+        pytest_split: {
+          source_issue_id: sourceId,
+          node_ids: [...selected],
+        },
+      },
+    };
+    const outcome = await ctx.write("update_issue", parameters, {
+      target: childId,
+      expectedRevision: 0,
+      intentId: ctx.intent("update_issue", parameters, childId, 0),
+    });
+    if (outcome.status === "ok") {
+      ctx.setNotice("已拆分为新的问题草稿；原问题保持不变。", "success");
+      await ctx.loadIssues();
+    } else {
+      ctx.setNotice(outcome.message ?? "拆分未完成。", "danger");
+    }
+  };
+  return card(
+    "",
+    cardHead(
+      "pytest 失败簇",
+      "同一签名簇内的失败测试；可拆出单个测试为新草稿，原问题不变。",
+      chip(`${failures.length} 个测试`, "info"),
+    ),
+    facts([
+      ["环境", String(cluster["environment_ref"] ?? "未知")],
+      ["计划修订", String(cluster["plan_revision_ref"] ?? "未知")],
+      ["源码引用", String(cluster["source_ref"] ?? "未知")],
+      ["预期/实际", `${String(cluster["expected"] ?? "未记录")} / ${String(cluster["actual"] ?? "未记录")}`],
+    ]),
+    asStrings(cluster["repro_command"]).length
+      ? details("复现命令", div("stack-sm", ...asStrings(cluster["repro_command"]).map(item => p(item, "mono"))))
+      : null,
+    list,
+    div("hero-actions", button("拆分选中测试为新问题", () => void split(), {
+      icon: "link",
+      disabled: failures.length < 2,
+    })),
   );
 }
 

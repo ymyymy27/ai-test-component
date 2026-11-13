@@ -404,6 +404,12 @@ class SavedBusinessQueryReader:
         captured_at = datetime.fromisoformat(str(material["captured_at"]))
         if captured_at.tzinfo is None:
             raise BusinessVerificationBlocked("saved query time is not an aware capture fact")
+        # A business-field mismatch is the asserted result, not a material gap.
+        # It belongs on the verification so the decision can record a decisive
+        # failure, but it must not mark otherwise complete evidence as invalid.
+        evidence_gaps = tuple(
+            gap for gap in gaps if not gap.startswith("business_fact_mismatch:")
+        )
         evidence = EvidenceFact(
             evidence_id=identity + "-evidence",
             evidence_revision=1,
@@ -429,7 +435,7 @@ class SavedBusinessQueryReader:
             ),
             projection_state=ProjectionStateFact.DISPLAYABLE,
             evidence_level=EvidenceLevelFact.UNKNOWN,
-            gap_ids=gaps,
+            gap_ids=evidence_gaps,
             created_at=captured_at,
         )
         verification = VerificationFact(

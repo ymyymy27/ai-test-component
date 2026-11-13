@@ -22,5 +22,10 @@
 | 2026-11-07 | ymy | [AI 主导合同冲突修订](ymy/2026-11-07-AI主导合同冲突修订.md) | AC20/AC24/AC31、FR04/FR06、模板下限 T→B、架构/报告/面板与验收场景 |
 | 2026-11-07 | ymy | [AI 主导设计优化](ymy/2026-11-07-AI主导设计优化.md) | BusinessFunction/FunctionCoverage 拆分、TestIntent、能力信封、模板两轴、覆盖收据 |
 | 2026-11-08 | ymy | [AI 主导领域层落地](ymy/2026-11-08-AI主导领域层落地.md) | full 守卫、CoverageContract/claims、理解/覆盖领域对象、Grant 模型、FunctionCoverageDTO |
+| 2026-11-11 | ymy | [大项目支持设计同步](ymy/2026-11-11-大项目支持设计同步.md) | scope-first、Test Inventory、JUnit、失败定位；只改合同文档，未实现/未验收 |
+| 2026-11-11 | ymy | [阶段 A 后端](ymy/2026-11-11-阶段A后端.md) | discover_tests、test-selection、JUnit artifact、pytest 核验；A3/真实验收未完成 |
+| 2026-11-12 | ymy | [阶段 B 问题闭环与阶段 C 基线](ymy/2026-11-12-阶段B问题闭环与阶段C基线.md) | 失败簇草稿、真实核心问题闭环、pytest 运行时来源、Mock 缺口、基线比较、回归建议；真实 Trae/阶段 C 其余项未完成 |
+| 2026-11-12 | ymy | [真实 Trae 执行核验与报告](ymy/2026-11-12-真实Trae执行核验与报告.md) | 真实两步执行/核验/报告/问题关闭；修复位置未知、比较缺口、决定性失败、历史重复、目录 scope 来源入口 |
+| 2026-11-13 | ymy | [按源码同步文档](ymy/2026-11-13-按源码同步文档.md) | 同步位置未知、pytest 比较缺口、当前 Attempt 统计、目录入口来源核对与关闭守卫 |
 
 历史记录按作者索引在[归档修改日志](../归档/修改日志/README.md)；现行状态以[项目现状](../现状.md)为准。

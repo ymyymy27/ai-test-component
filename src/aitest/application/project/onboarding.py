@@ -6,6 +6,7 @@ still passes the ordinary core guards, exact saved references and native approva
 
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
@@ -22,6 +23,10 @@ from aitest.application.planning.proposal import (
     proposal_preview,
 )
 from aitest.application.planning.serialization import acceptance_scope_to_payload, case_to_payload
+from aitest.application.planning.test_selection import (
+    materialize_test_selection,
+    parse_test_selection,
+)
 from aitest.application.project.serialization import binding_to_payload, environment_to_payload
 from aitest.application.project.understanding import understanding_from_payload
 from aitest.domain.planning.plans import (
@@ -81,6 +86,12 @@ class OnboardingForm(BaseModel):
     source_scope: str = "."
     run_tier: Literal["quick", "on_demand", "full"] = "full"
     initial_driver: Literal["planned", "stepwise"] = "planned"
+    #: Stage A pytest path: select an existing file/directory scope instead of
+    #: the single-file pure-function entry. Old callers keep false.
+    test_mode: bool = False
+    #: File-level Test Inventory returned by discover_tests; untrusted transport,
+    #: revalidated by the server materializer.
+    test_inventory: dict[str, Any] | None = None
 
 
 def _proposal_for(form: OnboardingForm) -> Any:
@@ -94,8 +105,22 @@ def _proposal_materials(
 ) -> tuple[Any, Any, list[Any], dict[str, Any], list[dict[str, Any]]]:
     """Validate the proposal and return domain objects plus their payloads."""
 
-    proposal = _proposal_for(form)
     project = form.project_id
+    if form.test_mode:
+        if form.proposal is None or form.test_inventory is None:
+            raise ValueError("pytest 测试范围计划或测试清单缺失")
+        selection = parse_test_selection(json.dumps(form.proposal, ensure_ascii=False))
+        scope, cases, _warnings = materialize_test_selection(
+            selection,
+            form.test_inventory,
+            project_id=project,
+            environment_id="env-" + project,
+            scope_id="scope-" + project,
+        )
+        scope_payload = acceptance_scope_to_payload(scope, project_id=project)
+        case_payloads = [case_to_payload(case, project_id=project) for case in cases]
+        return None, scope, list(cases), scope_payload, case_payloads
+    proposal = _proposal_for(form)
     scope, cases = materialize_plan_proposal(
         proposal,
         project_id=project,
@@ -162,9 +187,43 @@ def _understanding_material(form: OnboardingForm) -> str:
     return "\n".join(lines)
 
 
+def _inventory_material(inventory: Mapping[str, Any]) -> dict[str, Any]:
+    """AI-facing inventory: counts/projection only, never the node ID list."""
+
+    material = dict(inventory)
+    files = inventory.get("files")
+    if isinstance(files, list):
+        material["files"] = [
+            {key: value for key, value in item.items() if key != "nodes"}
+            if isinstance(item, Mapping)
+            else item
+            for item in files
+        ]
+    return material
+
+
 def wizard_review(form: OnboardingForm) -> dict[str, Any]:
     """Return the editable proposal preview; never writes a record."""
 
+    if form.test_mode:
+        if form.proposal is None or form.test_inventory is None:
+            raise ValueError("pytest 测试范围计划或测试清单缺失")
+        selection = parse_test_selection(json.dumps(form.proposal, ensure_ascii=False))
+        scope, cases, warnings = materialize_test_selection(
+            selection,
+            form.test_inventory,
+            project_id=form.project_id,
+            environment_id="env-" + form.project_id,
+            scope_id="scope-" + form.project_id,
+        )
+        return {
+            "ok": True,
+            "mode": "test_selection",
+            "selection": selection.model_dump(mode="json"),
+            "scope": acceptance_scope_to_payload(scope, project_id=form.project_id),
+            "cases": [case_to_payload(case, project_id=form.project_id) for case in cases],
+            "warnings": warnings,
+        }
     proposal = _proposal_for(form)
     understanding = None
     if form.understanding is not None:
@@ -201,6 +260,8 @@ _MATERIAL_KINDS = frozenset(
 
 def _material_kinds(form: OnboardingForm) -> list[str]:
     kinds = list(dict.fromkeys(form.allowed_material_kinds))
+    if form.test_mode and "case_content" not in kinds:
+        kinds.append("case_content")
     if any(kind not in _MATERIAL_KINDS for kind in kinds):
         raise ValueError("材料范围包含未知类别")
     if form.source_snippets_enabled and "source_snippet" not in kinds:
@@ -222,8 +283,10 @@ def wizard_commands(
     project = form.project_id
     binding_id, environment_id, plan_id = "binding-" + project, "env-" + project, "plan-" + project
     if (form.entry.startswith(("/", "\\")) or ".." in form.entry.replace("\\", "/").split("/")
-            or ":" in form.entry or not form.entry.endswith(".py")):
-        raise ValueError("请选择项目目录内的 Python 测试入口")
+            or ":" in form.entry or (not form.test_mode and not form.entry.endswith(".py"))):
+        raise ValueError(
+            "请选择项目目录内的 Python 测试入口或 pytest 测试范围"
+        )
     scope = form.source_scope.strip() or "."
     if scope.startswith(("/", "\\")) or ".." in scope.replace("\\", "/").split("/") or ":" in scope:
         raise ValueError("测试范围必须是项目目录内的相对子目录")
@@ -266,7 +329,9 @@ def wizard_commands(
                 form.dependency_declaration, data_isolated=True,
                 data_reset_policy=form.data_policy, step_timeout_seconds=120)
             add("environment", "save_environment", {"project_revision": 1, "expected_revision": 0,
-                "environment": environment_to_payload(environment, project_id=project)}, environment_id)
+                "environment": environment_to_payload(
+                    environment, project_id=project,
+                )}, environment_id)
         # 先固定源码并理解项目，复核页才能显示真实的业务功能覆盖，模型也能
         # 在生成计划时引用 understanding revision。分析失败在提交计划前暴露。
         add("snapshot", "analyze_project", {"binding_id": binding_id, "purpose": "prepare",
@@ -275,6 +340,28 @@ def wizard_commands(
             "include_understanding": True},
             expected_revision=source_expected_revision if resume else 0,
             intent_salt=(f"resume-source-{source_expected_revision}" if resume else None))
+    elif stage == "discover":
+        if not form.test_mode:
+            raise ValueError("当前项目未启用 pytest 范围发现")
+        snapshot = receipts.get("snapshot")
+        if not isinstance(snapshot, dict):
+            raise ValueError("请先完成源码分析，再发现测试")
+        snapshot_id = snapshot.get("snapshot_id")
+        snapshot_revision = snapshot.get("record_revision")
+        if (
+            not isinstance(snapshot_id, str)
+            or not snapshot_id
+            or type(snapshot_revision) is not int
+            or snapshot_revision < 1
+        ):
+            raise ValueError("源码分析回执不完整，请重新分析项目")
+        add("discover", "discover_tests", {
+            "snapshot_id": snapshot_id,
+            "revision": snapshot_revision,
+            "environment_id": environment_id,
+            "environment_revision": 1,
+            "selected_paths": [form.entry],
+        })
     elif stage == "model":
         template_ref = TemplateRef("python-library", "1.0.0")
         template_text = template_draft_text(load_template(template_ref))
@@ -322,7 +409,7 @@ def wizard_commands(
             "content_identity": source_content_identity,
             "record_revision": source_revision,
         }
-        if form.source_snippets_enabled:
+        if form.source_snippets_enabled and not form.test_mode:
             try:
                 root = Path(form.source).resolve()
                 target = (root / form.entry).resolve()
@@ -334,13 +421,22 @@ def wizard_commands(
                 selected_material["source_snippet"] = text
             except (OSError, UnicodeError, ValueError) as error:
                 raise ValueError("选中的源码片段无法安全读取") from error
+        if form.test_mode:
+            if form.test_inventory is None:
+                raise ValueError("请先发现 pytest 测试，再生成测试范围计划")
+            selected_material["case_content"] = json.dumps(
+                _inventory_material(form.test_inventory),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
         add("suggestions", "generate_draft", {"generation_mode": "model",
             "project_revision": 1, "policy_revision": 1,
             "source_revision": source_revision, "source_ref": source_ref,
             "base_manual_revision": 0, "task_type": "case_suggestion",
-            "draft_kind": "plan_proposal",
+            "draft_kind": ("test_selection" if form.test_mode else "plan_proposal"),
             "output_schema": (
-                "aitest.plan-proposal/1.1" if understanding_text
+                "aitest.test-selection/1.0" if form.test_mode
+                else "aitest.plan-proposal/1.1" if understanding_text
                 else "aitest.plan-proposal/1.0"
             ),
             "template_ref": {"template_id": template_ref.template_id,
@@ -350,6 +446,10 @@ def wizard_commands(
             intent_salt=attempt)
     elif stage == "commit":
         proposal, _scope, cases, scope_payload, case_payloads = _proposal_materials(form)
+        template_id = "python-library" if form.test_mode else proposal.template_id
+        template_version = "1.0.0" if form.test_mode else proposal.template_version
+        if form.test_mode and form.run_tier != "on_demand":
+            raise ValueError("阶段 A pytest 测试范围只支持按需自测")
         current_revisions = revisions or {}
         # 重试发布时用例/范围可能已存在；重复以修订 1、expected_revision=0
         # 写入会得到 B_REVISION_CONFLICT，并让发布输入与已保存修订不一致。
@@ -378,7 +478,11 @@ def wizard_commands(
             )
         if form.run_tier == "full" and not form.catalog_confirmed:
             raise ValueError("完整验证前请确认业务功能目录完整、unknown 数已知")
-        plan_grant = _proposal_plan_grant(form, project_id=project, plan_id=plan_id)
+        plan_grant = (
+            None
+            if form.test_mode
+            else _proposal_plan_grant(form, project_id=project, plan_id=plan_id)
+        )
         if plan_grant is None:
             for case in cases:
                 add("confirm-" + case.case_id, "confirm_basis", {
@@ -391,8 +495,8 @@ def wizard_commands(
             "project_revision": 1, "expected_revision": 0,
             "plan_id": plan_id, "revision": 1,
             "scope": scope_payload, "cases": case_payloads,
-            "template_versions": [{"template_id": proposal.template_id,
-                                   "version": proposal.template_version}],
+            "template_versions": [{"template_id": template_id,
+                                   "version": template_version}],
             "run_tier": form.run_tier, "initial_driver": form.initial_driver,
         }
         if plan_grant is not None:
@@ -439,7 +543,10 @@ def wizard_commands(
         snapshot = receipts["snapshot"]
         if form.proposal is not None:
             _proposal, _scope, cases, _scope_payload, _case_payloads = _proposal_materials(form)
-            if _proposal_plan_grant(form, project_id=project, plan_id=plan_id) is not None:
+            if (
+                not form.test_mode
+                and _proposal_plan_grant(form, project_id=project, plan_id=plan_id) is not None
+            ):
                 published = receipts.get("publish")
                 plan_basis = (
                     published.get("basis_confirmations")
@@ -463,12 +570,20 @@ def wizard_commands(
                              ("syntax", "normal", "boundary", "error")]
             selected = [project + "-" + name for name in
                         ("syntax", "normal", "boundary", "error")]
+        registered_entry = "python-pytest" if form.test_mode else "python-main"
+        entry_arguments = (
+            ["-m", "pytest", "--import-mode=importlib", "-p", "no:cacheprovider",
+             "--junitxml=pytest.xml", "--tb=long"]
+            if form.test_mode
+            else [form.entry]
+        )
         add("prepare", "prepare_run", {"mode": "from_saved", "project_revision": 1,
             "binding_id": binding_id, "binding_revision": 1, "plan_id": plan_id,
             "plan_revision": 1, "snapshot_id": snapshot["snapshot_id"], "snapshot_revision": 1,
             "environment_id": environment_id, "environment_revision": 1,
             "client_id": project, "prepare_request_id": project + "-prepare",
-            "execution_source": {"registered_entry": "python-main", "entry_arguments": [form.entry],
+            "execution_source": {"registered_entry": registered_entry,
+                "entry_arguments": entry_arguments,
                 "cwd_mapping": "workdir:.", "allowed_env_keys": [], "secret_refs": [],
                 "test_config_ref": plan_id + ":1", "adapter_versions": {"command": "command/1.0"},
                 "resolved_input_digest": "@core-assigned"},

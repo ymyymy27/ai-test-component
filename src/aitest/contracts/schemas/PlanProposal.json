@@ -92,6 +92,19 @@
           "title": "Assertion Basis Text",
           "type": "string"
         },
+        "expected_facts": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Facts"
+        },
         "independent_verification": {
           "maxLength": 4000,
           "minLength": 1,

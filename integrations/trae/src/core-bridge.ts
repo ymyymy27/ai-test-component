@@ -18,6 +18,9 @@ export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   "read_view",
   "events",
   "storage_usage",
+  "discover_tests",
+  "suggest_regression",
+  "aggregate_project_runs",
   "check_source",
   "inspect_case_reuse",
   "copy_repair_brief",
@@ -248,11 +251,18 @@ function parseResponse(raw: string): Record<string, unknown> | null {
   }
 }
 
+const ensureInFlight = new Map<string, Promise<DispatchOutcome>>();
+const ensureReady = new Map<string, { at: number; response: Record<string, unknown> }>();
+const ENSURE_CACHE_MS = 5_000;
+
 /** 确保该工作空间有唯一核心在服务（宿主职责，架构 05 第 1 节）。
  *
  * 走 `aitest ensure-core`：先连既有核心，连不上再启动一个；身份由核心侧核对。
  * 本调用**不派发业务动作**，也不写业务记录；路径缺失时核心侧结构化拒绝，
  * 我们如实转述，不替代它做猜测。
+ *
+ * 面板的每次读写都会先走这里。多个并发调用必须共享同一次启动声明，
+ * 否则它们会互相看到 `another host is claiming this core startup`。
  */
 export async function ensureCore(
   python: string,
@@ -262,8 +272,43 @@ export async function ensureCore(
   businessQueriesFile?: string,
   modelConfigurationFile?: string,
 ): Promise<DispatchOutcome> {
-  return coreEntry("ensure-core", python, workspaceRoot, timeoutMs,
-    pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
+  const key = JSON.stringify([
+    python, workspaceRoot, pythonCarriersFile ?? "",
+    businessQueriesFile ?? "", modelConfigurationFile ?? "",
+  ]);
+  if (!python.trim() || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
+    return { status: "unavailable", code: "ENTRY_INVALID_CONFIG", message: "解释器或等待预算无法核实" };
+  }
+  if (!workspaceRoot.trim()) {
+    return {
+      status: "unavailable",
+      code: "WORKSPACE_NOT_CONFIGURED",
+      message: "尚未配置 aitest.workspaceRoot（用户数据工作空间），入口不能猜测其位置",
+    };
+  }
+  const existing = ensureInFlight.get(key);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const cached = ensureReady.get(key);
+  if (cached !== undefined && Date.now() - cached.at < ENSURE_CACHE_MS) {
+    return { status: "ok", response: cached.response };
+  }
+  const pending = coreEntry("ensure-core", python, workspaceRoot, timeoutMs,
+    pythonCarriersFile, businessQueriesFile, modelConfigurationFile)
+    .then((outcome) => {
+      if (outcome.status === "ok" && outcome.response !== undefined) {
+        ensureReady.set(key, { at: Date.now(), response: outcome.response });
+      }
+      return outcome;
+    })
+    .finally(() => {
+      if (ensureInFlight.get(key) === pending) {
+        ensureInFlight.delete(key);
+      }
+    });
+  ensureInFlight.set(key, pending);
+  return pending;
 }
 
 /** 受控重启核心：先优雅停机，再启动并核对新实例；活动执行未排空时由核心拒绝。 */
@@ -275,6 +320,8 @@ export async function restartCore(
   businessQueriesFile?: string,
   modelConfigurationFile?: string,
 ): Promise<DispatchOutcome> {
+  ensureInFlight.clear();
+  ensureReady.clear();
   return coreEntry("restart-core", python, workspaceRoot, timeoutMs,
     pythonCarriersFile, businessQueriesFile, modelConfigurationFile);
 }

@@ -419,10 +419,15 @@ def assertion_outcomes_from_facts(
         )
 
     def observation_outcome(item: VerificationFact) -> AssertionOutcome | None:
-        if item.gap_ids:
-            # 核验带缺口 ⇒ 观察值不可信，不能当作通过/失败。
+        # `business_fact_mismatch:*` 是明确的比较结果，不是核验缺口；把它和
+        # `business_fact_missing/filtered`、位置未知等不可信缺口混为一谈，会让
+        # 已明确失败的断言永远进不了 H。其余缺口仍不产出结果。
+        mismatch = any(
+            gap.startswith("business_fact_mismatch:") for gap in item.gap_ids
+        )
+        if item.gap_ids and not mismatch:
             return None
-        if item.observation is VerificationObservationFact.MATCHED:
+        if item.observation is VerificationObservationFact.MATCHED and not item.gap_ids:
             return AssertionOutcome.PASSED
         if item.observation is VerificationObservationFact.MISMATCHED:
             return AssertionOutcome.FAILED

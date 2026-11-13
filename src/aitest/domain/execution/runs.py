@@ -382,6 +382,46 @@ class OutputBlockRef:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactRef:
+    """A bounded execution artifact such as a JUnit report.
+
+    Artifacts are evidence-like material, not output streams.  They do not
+    participate in ``has_complete_capture``; a missing artifact is a separate
+    gap and can never be treated as a passed verification.
+    """
+
+    artifact_id: str
+    attempt_id: str
+    name: str
+    relative_path: str
+    media_type: str
+    content_encoding: str
+    digest: str
+    length: int
+    complete: bool
+    truncated: bool
+    capture_source: str
+    redaction_summary_id: str | None = None
+    gap_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "artifact_id",
+            "attempt_id",
+            "name",
+            "relative_path",
+            "media_type",
+            "content_encoding",
+            "digest",
+            "capture_source",
+        ):
+            _require_text(getattr(self, name), name)
+        _require_non_negative(self.length, "length")
+        if self.truncated and self.complete:
+            raise ValueError("a truncated artifact must not be marked complete")
+
+
+@dataclass(frozen=True, slots=True)
 class CapturedOutputBlock:
     run_id: str
     step_id: str
@@ -582,6 +622,7 @@ class Attempt:
     execution_handle_ref: ExecutionHandle | None = None
     output_cursors: tuple[OutputCursor, ...] = ()
     output_block_refs: tuple[OutputBlockRef, ...] = ()
+    artifact_refs: tuple[ArtifactRef, ...] = ()
     structured_result_ref: str | None = None
     exit_fact_ref: ExitFact | None = None
     capture_completeness: CaptureCompleteness = CaptureCompleteness.UNKNOWN
@@ -877,6 +918,7 @@ class ExecutionCollectionResult:
     output_blocks: tuple[OutputBlockRef, ...] = ()
     captured_blocks: tuple[CapturedOutputBlock, ...] = ()
     output_cursors: tuple[OutputCursor, ...] = ()
+    artifacts: tuple[ArtifactRef, ...] = ()
     exit_fact_ref: ExitFact | None = None
     structured_result_ref: str | None = None
     capture_completeness: CaptureCompleteness = CaptureCompleteness.UNKNOWN
@@ -909,6 +951,7 @@ ExecutionStatus = RunControlState
 
 __all__ = [
     "AdapterKind",
+    "ArtifactRef",
     "Attempt",
     "AttemptState",
     "attempt_start_basis",

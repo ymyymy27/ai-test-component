@@ -21,11 +21,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Any, Protocol, cast
 
+from aitest.application.evidence.pytest_failures import (
+    collect_pytest_failures,
+    compare_failure_nodes,
+)
 from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.application.planning.preparation import preparation_identity_digest
 from aitest.application.planning.preparation_origin import (
@@ -37,7 +41,7 @@ from aitest.application.planning.serialization import (
     plan_coverage_contract_from_payload,
 )
 from aitest.application.planning.substrate import RecordReader
-from aitest.application.ports import AggregateKind, RecordQuery
+from aitest.application.ports import AggregateKind, EvidenceObjectStore, RecordQuery
 from aitest.application.review import reporting as facade
 from aitest.application.review.authoritative_basis import SavedCaseBasisCheck
 from aitest.application.review.execution_decision_adapter import (
@@ -180,6 +184,15 @@ def _text_list(value: object, name: str) -> tuple[str, ...]:
     if len(set(items)) != len(items):
         raise ReportManagementError(f"{name} must not repeat values")
     return items
+
+
+def _sequence_number(payload: Mapping[str, object]) -> int:
+    value = payload.get("published_sequence", 0)
+    return value if type(value) is int else 0
+
+
+def _sequence_len(value: object) -> int:
+    return len(value) if isinstance(value, (list, tuple)) else 0
 
 
 def _revision_mapping(
@@ -377,6 +390,9 @@ def report_to_payload(
     execution_snapshot_ref: SnapshotContentRef | None = None,
     blocking_issue_ids: frozenset[str] | None = None,
     function_coverage: tuple[FunctionCoverage, ...] = (),
+    pytest_failures: Sequence[Mapping[str, object]] = (),
+    pytest_baseline: Mapping[str, object] | None = None,
+    layers: Sequence[Mapping[str, object]] = (),
 ) -> dict[str, object]:
     """报告修订 payload；同时给出 `reports.list` / `reports.by_id` 的最小摘要键。
 
@@ -412,6 +428,12 @@ def report_to_payload(
         payload["execution_snapshot_ref"] = execution_snapshot_ref.model_dump(mode="json")
     if blocking_issue_ids is not None:
         payload["blocking_issue_ids"] = sorted(blocking_issue_ids)
+    if pytest_failures:
+        payload["pytest_failures"] = [dict(item) for item in pytest_failures]
+    if pytest_baseline is not None:
+        payload["pytest_baseline"] = dict(pytest_baseline)
+    if layers:
+        payload["layers"] = [dict(item) for item in layers]
     return payload
 
 
@@ -565,6 +587,7 @@ class SavedReportService:
             [ReuseReference, ExecutionFacts, ExecutionFacts], WholeCaseReuseBasis | None
         ]
         | None = None,
+        objects: EvidenceObjectStore | None = None,
     ) -> None:
         for name, value in (
             ("unit", unit),
@@ -595,6 +618,7 @@ class SavedReportService:
         #: 已在默认装配接入；缺端口的组件实例仍用 `None` 并明确登记未接，不伪造空结论。
         self._reuse_references = reuse_references
         self._reuse_basis = reuse_basis
+        self._objects = objects
 
     # ------------------------------------------------------------ 动作入口
 
@@ -603,6 +627,163 @@ class SavedReportService:
 
     def record_local_review(self, command: object) -> Mapping[str, object]:
         return self._record_local_review(command)
+
+    def aggregate_project_runs(self, command: object) -> Mapping[str, object]:
+        """Read-only project aggregation; runs are listed, never merged.
+
+        Each run keeps its own environment reference, plan revision and
+        coverage counts. Acceptance-item rows repeat the per-run figures, so a
+        multi-interpreter project never looks like one combined execution.
+        """
+
+        project_id = _text(getattr(command, "project_id", None), "project_id")
+        parameters = getattr(command, "parameters", None) or {}
+        if not isinstance(parameters, Mapping) or parameters:
+            raise ReportManagementError(
+                "aggregate_project_runs accepts no parameters"
+            )
+        page = self._records.query(RecordQuery(
+            project_id=project_id,
+            aggregate_kind=cast("Any", "report"),
+            limit=500,
+            sort="published_sequence",
+            descending=True,
+        ))
+        latest: dict[str, Mapping[str, object]] = {}
+        for record in getattr(page, "items", ()):
+            payload = record.payload
+            context = payload.get("context")
+            if not isinstance(context, Mapping):
+                continue
+            run_id = context.get("run_id")
+            if not isinstance(run_id, str) or not run_id:
+                continue
+            previous = latest.get(run_id)
+            if previous is None or _sequence_number(payload) > _sequence_number(previous):
+                latest[run_id] = payload
+
+        runs: list[dict[str, object]] = []
+        acceptance: dict[str, list[dict[str, object]]] = {}
+        unmapped_cases: set[str] = set()
+        for run_id in sorted(latest):
+            payload = latest[run_id]
+            raw_context = payload.get("context")
+            context = raw_context if isinstance(raw_context, Mapping) else {}
+            decision = payload.get("decision")
+            coverage = decision.get("coverage") if isinstance(decision, Mapping) else None
+            if not isinstance(coverage, Mapping):
+                coverage = {}
+            selected = set(coverage.get("selected", ()))
+            executed = set(coverage.get("executed", ()))
+            verified = set(coverage.get("verified", ()))
+            passed = set(coverage.get("passed", ()))
+            runs.append({
+                "run_id": run_id,
+                "report_id": payload.get("report_id"),
+                "report_revision": payload.get("content_revision"),
+                "environment_ref": context.get("environment_ref"),
+                "plan_revision_refs": list(context.get("plan_revision_refs", ())),
+                "business_outcome": decision.get("business_outcome")
+                if isinstance(decision, Mapping) else None,
+                "evidence_grade": decision.get("evidence_grade")
+                if isinstance(decision, Mapping) else None,
+                "selected_count": len(selected),
+                "executed_count": len(executed),
+                "verified_count": len(verified),
+                "passed_count": len(passed),
+                "pytest_failure_count": _sequence_len(payload.get("pytest_failures")),
+            })
+            case_items, missing = self._acceptance_items_for_report(payload)
+            unmapped_cases.update(missing)
+            by_item: dict[str, set[str]] = {}
+            for case_id, item_ids in case_items.items():
+                for item_id in item_ids:
+                    by_item.setdefault(item_id, set()).add(case_id)
+            for item_id in sorted(by_item):
+                cases = by_item[item_id]
+                acceptance.setdefault(item_id, []).append({
+                    "run_id": run_id,
+                    "environment_ref": context.get("environment_ref"),
+                    "selected_count": len(cases & selected),
+                    "executed_count": len(cases & executed),
+                    "verified_count": len(cases & verified),
+                    "passed_count": len(cases & passed),
+                })
+        return {
+            "project_id": project_id,
+            "runs": runs,
+            "acceptance_items": [
+                {"acceptance_item_id": item_id, "runs": acceptance[item_id]}
+                for item_id in sorted(acceptance)
+            ],
+            "unmapped_case_ids": sorted(unmapped_cases),
+            "note": (
+                "Each run keeps its own environment and plan revision; "
+                "counts are not merged across runs."
+            ),
+        }
+
+    def _read_planning_record(
+        self, kind: str, record_id: str, revision: int,
+    ) -> Any:
+        """Read a frozen plan/case from the warehouse or the planning reader."""
+
+        try:
+            return self._records.read(
+                aggregate_kind=cast("Any", kind),
+                record_id=record_id,
+                revision=revision,
+            )
+        except (OSError, KeyError, TypeError, ValueError):
+            return self._reader.read(
+                aggregate_kind=cast("Any", kind),
+                record_id=record_id,
+                revision=revision,
+            )
+
+    def _acceptance_items_for_report(
+        self, payload: Mapping[str, object],
+    ) -> tuple[dict[str, set[str]], set[str]]:
+        """Map report-selected cases to acceptance items via the frozen plan."""
+
+        context = payload.get("context")
+        refs = context.get("plan_revision_refs") if isinstance(context, Mapping) else None
+        if not isinstance(refs, (list, tuple)) or not refs:
+            return {}, set()
+        reference = str(refs[0])
+        plan_id, separator, raw_revision = reference.partition("@")
+        if not separator or not plan_id or not raw_revision.isdigit():
+            return {}, set()
+        try:
+            plan = self._read_planning_record("plan", plan_id, int(raw_revision)).payload
+        except (OSError, KeyError, TypeError, ValueError):
+            return {}, set()
+        case_refs = plan.get("case_revisions")
+        if not isinstance(case_refs, list):
+            return {}, set()
+        mapping: dict[str, set[str]] = {}
+        missing: set[str] = set()
+        for item in case_refs:
+            if not isinstance(item, Mapping):
+                continue
+            case_id = item.get("case_id")
+            revision = item.get("revision")
+            if not isinstance(case_id, str) or type(revision) is not int:
+                continue
+            try:
+                case = self._read_planning_record(
+                    "case", case_id, revision
+                ).payload
+            except (OSError, KeyError, TypeError, ValueError):
+                missing.add(case_id)
+                continue
+            links = case.get("links")
+            item_ids = links.get("acceptance_item_ids") if isinstance(links, Mapping) else None
+            if not isinstance(item_ids, (list, tuple)) or not item_ids:
+                missing.add(case_id)
+                continue
+            mapping[case_id] = {str(value) for value in item_ids if str(value).strip()}
+        return mapping, missing
 
     def live_decision(
         self, project_id: str, run_id: str, *, issue_ids: tuple[str, ...] = ()
@@ -781,6 +962,11 @@ class SavedReportService:
             execution_snapshot_ref=SnapshotContentRef.of(facts),
             blocking_issue_ids=live.blocking_issue_ids,
             function_coverage=function_coverage,
+            pytest_failures=self._pytest_failures(facts),
+            pytest_baseline=self._pytest_baseline(
+                project_id, facts, tuple(sorted(decision.coverage.selected))
+            ),
+            layers=self._layer_counts(facts),
         )
         return self._commit(
             action="create_report",
@@ -796,6 +982,99 @@ class SavedReportService:
             revision=snapshot.content_revision,
             source_sequence=live.source_sequence,
         )
+
+    def _layer_counts(self, facts: ExecutionFacts) -> list[dict[str, object]]:
+        """Freeze L1/L2/L3 step counts in the report; never substitute one layer."""
+
+        counts: dict[str, dict[str, int]] = {}
+        for step in facts.steps:
+            level = step.level.value
+            state = step.state.value
+            entry = counts.setdefault(level, {
+                "total": 0, "completed": 0, "blocked": 0, "failed": 0,
+                "pending_verification": 0,
+            })
+            entry["total"] += 1
+            if state in entry:
+                entry[state] += 1
+        return [
+            {"level": level, **counts[level]}
+            for level in sorted(counts)
+        ]
+
+    def _pytest_failures(self, facts: ExecutionFacts) -> list[dict[str, object]]:
+        return [
+            {
+                "node_id": item.node_id,
+                "failure_type": item.failure_type,
+                "message": item.message,
+                "file": item.file,
+                "line": item.line,
+                "suspect_file": item.suspect_file,
+                "suspect_line": item.suspect_line,
+                "location_unknown": item.location_unknown,
+                "stack": item.stack,
+            }
+            for item in collect_pytest_failures(facts, self._objects)
+        ]
+
+    def _pytest_baseline(
+        self, project_id: str, facts: ExecutionFacts, selected_case_ids: tuple[str, ...],
+    ) -> dict[str, object] | None:
+        """Same-scope failure comparison against the latest saved report.
+
+        Only an actually saved report is a baseline. The report stores fixed
+        input facts; it is not a closure or pass claim.
+        """
+
+        query = getattr(self._records, "query", None)
+        if not callable(query) or self._objects is None:
+            return None
+        page = query(RecordQuery(
+            project_id=project_id, aggregate_kind=cast("Any", "report"), limit=100,
+            sort="published_sequence", descending=True,
+        ))
+        items = getattr(page, "items", ())
+        if not items:
+            return None
+        current = tuple(
+            item.node_id for item in collect_pytest_failures(facts, self._objects)
+        )
+        selected = set(selected_case_ids)
+        ordered = sorted(
+            items,
+            key=lambda record: int(record.payload.get("published_sequence", 0)),
+            reverse=True,
+        )
+        for record in ordered:
+            payload = record.payload
+            context = payload.get("context")
+            decision = payload.get("decision")
+            coverage = decision.get("coverage") if isinstance(decision, Mapping) else None
+            if not isinstance(context, Mapping) or not isinstance(coverage, Mapping):
+                continue
+            if set(coverage.get("selected", ())) != selected:
+                continue
+            if context.get("run_id") == facts.run_id:
+                continue
+            previous = payload.get("pytest_failures")
+            if not isinstance(previous, list):
+                return None
+            previous_nodes = tuple(
+                str(item["node_id"])
+                for item in previous
+                if isinstance(item, Mapping) and isinstance(item.get("node_id"), str)
+            )
+            compared = compare_failure_nodes(current, previous_nodes)
+            return {
+                "previous_run_id": str(context.get("run_id", "")),
+                "previous_report_id": str(payload.get("report_id", "")),
+                "previous_revision": int(payload.get("content_revision", 1)),
+                "new_node_ids": list(compared.new_node_ids),
+                "existing_node_ids": list(compared.existing_node_ids),
+                "fixed_node_ids": list(compared.fixed_node_ids),
+            }
+        return None
 
     def _report_evidence(
         self, facts: ExecutionFacts, reuse: _ReuseReading

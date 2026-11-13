@@ -57,6 +57,7 @@ from aitest.domain.evidence.evidence import RedactionSummary as DomainRedactionS
 from aitest.domain.evidence.polling import BusinessQueryObservation as BusinessQueryObservation
 from aitest.domain.execution.authorization import ResolvedExecutionAction
 from aitest.domain.execution.runs import (
+    ArtifactRef,
     Attempt,
     CapturedOutputBlock,
     ExecutionCollectionResult,
@@ -651,6 +652,12 @@ class SpoolStore(Protocol):
     def read_manifest(self, attempt_id: str) -> SpoolManifest: ...
 
     def read_block(self, ref: OutputBlockRef) -> bytes: ...
+
+    def persist_artifact(self, ref: ArtifactRef, content: bytes) -> ArtifactRef: ...
+
+    def read_artifact(self, ref: ArtifactRef) -> bytes: ...
+
+    def read_artifacts(self, attempt_id: str) -> tuple[ArtifactRef, ...]: ...
 
     def salvage_streams(self, attempt_id: str) -> SpoolManifest: ...
 

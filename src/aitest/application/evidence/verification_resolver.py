@@ -6,6 +6,10 @@ from dataclasses import asdict, replace
 
 from aitest.application.evidence.dynamic_object import saved_object_id, saved_stdout_json
 from aitest.application.evidence.evidence_review import freeze_verification_request
+from aitest.application.evidence.junit_artifact import (
+    PYTEST_BASIS_VERSION,
+    PYTEST_METHOD,
+)
 from aitest.application.evidence.pure_function import PURE_BASIS_VERSION, PURE_METHOD
 from aitest.application.evidence.query_materials import BusinessVerificationBlocked
 from aitest.application.execution.authorization import ExecutionAuthorizationService
@@ -87,6 +91,26 @@ class SavedBusinessVerificationResolver:
                     target_deployment_ref=f"attempt:{attempt_id}",
                     deadline_condition="immediate", evidence_refs=evidence_refs,
                     expected_facts=data["expected_facts"],
+                ))
+            if isinstance(data, dict) and data.get("schema_version") == PYTEST_BASIS_VERSION:
+                if set(data) != {
+                    "schema_version", "scope", "expected_test_count", "expected_outcome",
+                } or self.objects is None:
+                    raise ValueError("pytest basis has unexpected fields")
+                expected_count = data["expected_test_count"]
+                if expected_count is not None and type(expected_count) is not int:
+                    raise ValueError("pytest expected test count must be an integer")
+                if data["expected_outcome"] != "all_pass":
+                    raise ValueError("pytest basis only supports all_pass")
+                return freeze_verification_request(VerificationRequest(
+                    verification_of=attempt_id, business_object_id=attempt_id,
+                    query_method=f"{facts.project_id}:{PYTEST_METHOD}",
+                    target_deployment_ref=f"attempt:{attempt_id}",
+                    deadline_condition="immediate",
+                    expected_facts={
+                        "expected_test_count": expected_count,
+                        "expected_outcome": data["expected_outcome"],
+                    },
                 ))
             if (isinstance(data, dict)
                     and data.get("schema_version") == "aitest.business-query-basis/2"):

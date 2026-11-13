@@ -71,6 +71,10 @@ from aitest.application.planning.substrate import (
     read_scoped_record,
     transaction,
 )
+from aitest.application.planning.test_selection import (
+    TEST_SELECTION_SCHEMA,
+    test_selection_system_prompt,
+)
 from aitest.application.ports import Clock, ModelResponseStore
 from aitest.domain.planning.model_outbound import (
     TASK_MATERIAL_KINDS,
@@ -576,6 +580,8 @@ def request_model_draft(
         system_prompt=(
             plan_proposal_system_prompt()
             if output_schema in PLAN_PROPOSAL_SCHEMAS
+            else test_selection_system_prompt()
+            if output_schema == TEST_SELECTION_SCHEMA
             else None
         ),
     )

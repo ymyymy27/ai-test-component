@@ -27,6 +27,7 @@ from aitest.application.execution.start_identity import execution_start_fingerpr
 from aitest.application.ports import ExecutionPort, SpoolStore
 from aitest.domain.execution.output import require_saved_output_cursors
 from aitest.domain.execution.runs import (
+    ArtifactRef,
     Attempt,
     AttemptState,
     CaptureCompleteness,
@@ -666,6 +667,7 @@ class SerialRunner:
             attempt.output_block_refs,
             collection.output_blocks,
         )
+        artifacts = self._merge_artifacts(attempt.artifact_refs, collection.artifacts)
         self._require_saved_output_material(attempt, output_blocks)
         output_cursors = self._merge_output_cursors(
             attempt.output_cursors, collection.output_cursors
@@ -717,6 +719,7 @@ class SerialRunner:
             state=state,
             output_block_refs=output_blocks,
             output_cursors=output_cursors,
+            artifact_refs=artifacts,
             structured_result_ref=collection.structured_result_ref,
             exit_fact_ref=collection.exit_fact_ref,
             capture_completeness=collection.capture_completeness,
@@ -894,6 +897,19 @@ class SerialRunner:
                     continue
             merged[cursor.stream_name] = cursor
         return tuple(merged[stream] for stream in sorted(merged, key=lambda item: item.value))
+
+    @staticmethod
+    def _merge_artifacts(
+        existing: tuple[ArtifactRef, ...],
+        incoming: tuple[ArtifactRef, ...],
+    ) -> tuple[ArtifactRef, ...]:
+        merged: dict[str, ArtifactRef] = {}
+        for artifact in (*existing, *incoming):
+            key = artifact.artifact_id
+            if key in merged and merged[key] != artifact:
+                raise _ExecutionObservationMismatch("artifact_conflict")
+            merged[key] = artifact
+        return tuple(merged.values())
 
     @staticmethod
     def _merge_output_blocks(

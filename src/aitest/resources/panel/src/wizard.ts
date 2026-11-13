@@ -66,7 +66,9 @@ export const CONTROLLED_ACTIONS: ReadonlySet<string> = new Set([
   "select_case_reuse",
 ]);
 
-export const WIZARD_STEPS = ["选择项目", "准备环境", "生成计划", "核对发布", "准备运行"] as const;
+export const WIZARD_STEPS = ["选择项目", "准备环境", "发现测试", "生成计划", "核对发布", "准备运行"] as const;
+
+const WIZARD_READ_ACTIONS = new Set(["discover_tests"]);
 
 const ACTION_LABELS: Record<string, string> = {
   save_context: "保存项目",
@@ -117,6 +119,8 @@ function initialState(): WizardState {
     workspace: "",
     pythonVersion: "3.11.9",
     sourceSnippets: true,
+    testMode: false,
+    testInventory: null,
     receipts: {},
     proposal: null,
     expectedFactsText: "",
@@ -147,18 +151,20 @@ export class WizardController {
       case "restart":
       case "project":
         return 1;
+      case "discover":
+        return 2;
       case "goals":
       case "model":
       case "manual":
-        return 2;
+        return 3;
       case "review":
       case "commit":
-        return 3;
+        return 4;
       case "prepare":
       case "register":
-        return 4;
-      case "done":
         return 5;
+      case "done":
+        return 6;
     }
   }
 
@@ -199,6 +205,10 @@ export class WizardController {
       return;
     }
     this.state.session = session;
+    this.state.testMode = typeof session.entry === "string"
+      && session.entry.length > 0
+      && !session.entry.toLowerCase().endsWith(".py");
+    this.state.testInventory = null;
     this.state.name = typeof session.name === "string" ? session.name : "";
     this.state.endpoint = typeof session.endpoint === "string" ? session.endpoint : this.state.endpoint;
     this.state.model = typeof session.model === "string" ? session.model : this.state.model;
@@ -308,7 +318,7 @@ export class WizardController {
     await this.runStage("project");
   }
 
-  async runStage(stage: "project" | "model" | "commit" | "prepare" | "register" | "plan"): Promise<void> {
+  async runStage(stage: "project" | "discover" | "model" | "commit" | "prepare" | "register" | "plan"): Promise<void> {
     if (this.state.busy) return;
     this.state.stage = stage === "plan" ? "manual" : stage;
     if (stage === "plan") {
@@ -352,13 +362,15 @@ export class WizardController {
       };
       this.state.note = `正在执行：${ACTION_LABELS[command.action] ?? command.action}`;
       this.render();
-      const outcome = await this.host.write(command.action, command.parameters, {
-        intentId: command.intent_id,
-        expectedRevision: command.expected_revision,
-        target: command.target,
-        bindingRevision: command.binding_revision ?? null,
-        controlled: CONTROLLED_ACTIONS.has(command.action) || !PLAIN_WRITE_ACTIONS.has(command.action),
-      });
+      const outcome = WIZARD_READ_ACTIONS.has(command.action)
+        ? await this.host.readOnly(command.action, command.parameters)
+        : await this.host.write(command.action, command.parameters, {
+            intentId: command.intent_id,
+            expectedRevision: command.expected_revision,
+            target: command.target,
+            bindingRevision: command.binding_revision ?? null,
+            controlled: CONTROLLED_ACTIONS.has(command.action) || !PLAIN_WRITE_ACTIONS.has(command.action),
+          });
       if (!this.outcomeOk(outcome, command.action)) {
         const resultBody = asRecord(outcome.response?.["result"]);
         const reason = outcome.message?.trim()
@@ -375,7 +387,9 @@ export class WizardController {
       this.state.receipts[command.key] = resultBody;
       if (command.key === "suggestions") {
         const proposal = asRecord(resultBody["proposal"]);
+        const selection = asRecord(resultBody["test_selection"]);
         if (proposal) this.state.proposal = proposal;
+        if (selection) this.state.proposal = selection;
       }
     }
     this.state.commandProgress = { done: queue.length, total: queue.length, label: "完成" };
@@ -395,10 +409,27 @@ export class WizardController {
         ? rawGoals.filter((item): item is Record<string, unknown> =>
             item !== null && typeof item === "object" && !Array.isArray(item))
         : [];
+      if (this.state.testMode) {
+        this.state.stage = "discover";
+        this.render();
+        await this.runStage("discover");
+        return;
+      }
       this.state.stage = this.state.useModel && goals.length > 0
         ? "goals"
         : this.state.useModel ? "model" : "manual";
       this.render();
+      return;
+    }
+    if (stage === "discover") {
+      const inventory = asRecord(this.state.receipts["discover"]);
+      if (!inventory) {
+        this.fail("没有取得测试清单，请核对 pytest 与环境。");
+        return;
+      }
+      this.state.testInventory = inventory;
+      this.state.stage = this.state.useModel ? "model" : "manual";
+      this.setBusy(false, "测试清单已发现，可以生成测试范围计划。");
       return;
     }
     if (stage === "model") {
@@ -428,7 +459,7 @@ export class WizardController {
 
   async review(): Promise<void> {
     if (this.state.busy) return;
-    if (this.state.expectedFactsText.trim() && !this.expectedFacts()) {
+    if (!this.state.testMode && this.state.expectedFactsText.trim() && !this.expectedFacts()) {
       this.fail("验证预期必须是 {用例编号: {字段: 预期值}} 的非空 JSON 对象。");
       return;
     }
@@ -445,7 +476,7 @@ export class WizardController {
       this.render();
       return;
     }
-    const preview = asRecord(result.preview);
+    const preview = asRecord(result.preview) ?? (this.state.testMode ? asRecord(result) : undefined);
     if (!preview) {
       this.fail("计划校验没有返回可核对的预览。");
       return;
@@ -461,7 +492,7 @@ export class WizardController {
       this.fail("请先校验计划提案。");
       return;
     }
-    if (!this.state.catalogConfirmed) {
+    if (!this.state.testMode && !this.state.catalogConfirmed) {
       this.fail("发布前请确认业务功能目录完整、unknown 数量已知。");
       return;
     }
@@ -562,6 +593,8 @@ export class WizardController {
         : ["project_context", "template_content"],
       source_snippets_enabled: this.state.sourceSnippets,
       source_scope: ".",
+      test_mode: this.state.testMode,
+      test_inventory: this.state.testMode ? this.state.testInventory : null,
       run_tier: this.state.runTier,
       initial_driver: this.state.driver,
       checks,

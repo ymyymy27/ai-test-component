@@ -12,7 +12,8 @@
 - CD-001 §16：「**D 补断言结果生产者**」。
 
 本文件锁定：①比较结果只取自已保存的核验事实（`matched`/`mismatched`），本生产者不发明期望值；
-②断言标识只在步骤**唯一一条**时才绑定，多条即不产出（不猜）；③核验带缺口/未知观察值不产出；
+②断言标识只在步骤**唯一一条**时才绑定，多条即不产出（不猜）；③核验带真实缺口/未知观察值不产出，
+`business_fact_mismatch:*` 是明确比较结果、按失败产出；
 ④依据修订缺失不产出；⑤`case_assertions_complete` 只在用例**全部必需步骤**都有结果时为真；
 ⑥产出的结果仍受 `build_decision_facts` 的既有守卫逐项过滤。
 """
@@ -254,6 +255,33 @@ def test_mismatched_verification_becomes_a_decisive_failure_even_before_complete
     decision = _decide(facts, outcomes)
     assert decision.coverage.failed == frozenset()
     assert decision.coverage.verified == frozenset()
+    assert decision.decisive_failure_case_ids == frozenset({"case-1"})
+    assert decision.business_outcome is BusinessOutcome.FAILED
+
+
+def test_business_field_mismatch_gap_is_a_decisive_result_not_an_untrusted_gap() -> None:
+    """`business_fact_mismatch:*` 是明确失败；不能与缺失/过滤缺口一样被丢弃。"""
+
+    facts = _facts(
+        (("step-1", "case-1", ("assertion-1",)),),
+        verifications=(
+            _verification(
+                "attempt-step-1",
+                observation="mismatched",
+                gap_ids=("business_fact_mismatch:expected_outcome",),
+            ),
+        ),
+        selected=("case-1",),
+    )
+    outcomes = assertion_outcomes_from_facts(
+        facts, basis_revision_for=lambda _case: 1, basis_confirmed_for=lambda _case: True
+    )
+    assert [item.outcome for item in outcomes] == [AssertionOutcome.FAILED]
+    decision = _decide(facts, outcomes)
+    # 唯一必需断言已明确失败：整用例已验证为失败，但绝不能进入 passed。
+    assert decision.coverage.failed == frozenset({"case-1"})
+    assert decision.coverage.verified == frozenset({"case-1"})
+    assert decision.coverage.passed == frozenset()
     assert decision.decisive_failure_case_ids == frozenset({"case-1"})
     assert decision.business_outcome is BusinessOutcome.FAILED
 

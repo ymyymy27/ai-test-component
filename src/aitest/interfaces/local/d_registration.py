@@ -54,6 +54,7 @@ def report_registration_for(service: SavedReportService) -> dict[str, Handler]:
     return {
         "create_report": _entry(service.create_report),
         "record_local_review": _entry(service.record_local_review),
+        "aggregate_project_runs": _entry(service.aggregate_project_runs),
     }
 
 

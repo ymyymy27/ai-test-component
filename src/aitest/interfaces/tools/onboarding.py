@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import subprocess
 import sys
 import venv
 from pathlib import Path
@@ -44,16 +45,31 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("请安装 Python 3.11 或更高版本的核心环境")
     environment = root / "python"
     marker = root / "carriers.json"
+    pytest_ready = False
     if not marker.exists():
         if environment.exists():
             raise ValueError("环境准备中断；保留现场，请使用新的独立环境目录")
         root.mkdir(parents=True, exist_ok=True)
-        venv.EnvBuilder(with_pip=False).create(environment)
+        needs_pytest = data.get("pytest") is True
+        venv.EnvBuilder(with_pip=needs_pytest).create(environment)
         executable = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         version_tag = f"{sys.version_info.major}.{sys.version_info.minor}"
         base_executable = Path(getattr(sys, "_base_executable", sys.executable))
         dependencies = environment / ("Lib/site-packages" if os.name == "nt"
                                       else f"lib/python{version_tag}/site-packages")
+        if needs_pytest:
+            subprocess.run(
+                [str(executable), "-m", "pip", "install", "--disable-pip-version-check", "pytest"],
+                check=True,
+                capture_output=True,
+                timeout=300,
+            )
+            # setuptools' distutils-precedence.pth is not a dependency mapping and
+            # the environment resolver refuses undeclared .pth files. pytest does
+            # not need setuptools, so remove only this known shim.
+            for shim in dependencies.glob("distutils-precedence.pth"):
+                shim.unlink()
+            pytest_ready = True
         configuration = carrier_configuration(project_id=project, environment_id="env-" + project,
             executable=executable, base_executable=base_executable,
             dependency_roots=(dependencies,), venv_root=environment)
@@ -67,8 +83,15 @@ def setup(data: dict[str, Any]) -> dict[str, Any]:
         "carriers_file": str(marker),
         "workspace": str(workspace),
         "environment_ready": True,
-        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        "dependencies": f"独立 {runtime} 环境，仅标准库",
+        "pytest_ready": pytest_ready,
+        "python_version": (
+            f"{sys.version_info.major}.{sys.version_info.minor}."
+            f"{sys.version_info.micro}"
+        ),
+        "dependencies": (
+            f"独立 {runtime} 环境，pytest 已安装" if pytest_ready
+            else f"独立 {runtime} 环境，仅标准库"
+        ),
         # 登记文件只是材料：必须由宿主把环境变量指向它并受控重启核心，
         # 否则环境相关动作（如 prepare_run）会被门禁拒绝且看不出原因。
         "env_var": "AITEST_PYTHON_CARRIERS",
@@ -100,7 +123,9 @@ def main() -> int:
                 }
         elif operation == "commands":
             attempt = data.get("attempt")
-            if attempt is not None and (not isinstance(attempt, str) or not attempt or len(attempt) > 128):
+            if attempt is not None and (
+                not isinstance(attempt, str) or not attempt or len(attempt) > 128
+            ):
                 raise ValueError("向导重试标记无效")
             resume = data.get("resume", False)
             if type(resume) is not bool:

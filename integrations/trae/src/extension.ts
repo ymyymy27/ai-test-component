@@ -185,6 +185,19 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
   }
   const raw = message as Record<string, unknown>;
   if(raw.kind === "openDetail"){ openDetail(context, raw.detail === "review" ? "review" : "workbench"); return; }
+  if(raw.kind === "openSource"){
+    const relativePath=textOrNull(raw.path);
+    const line=typeof raw.line==="number"&&Number.isSafeInteger(raw.line)&&raw.line>=1?raw.line:null;
+    const root=vscode.workspace.workspaceFolders?.[0]?.uri;
+    if(!relativePath||line===null||!root)return;
+    const normalized=relativePath.replaceAll("\\","/");
+    if(normalized.startsWith("/")||normalized.split("/").includes(".."))return;
+    const target=vscode.Uri.joinPath(root,...normalized.split("/"));
+    try{await vscode.workspace.fs.stat(target);}catch{return;}
+    const document=await vscode.workspace.openTextDocument(target);
+    await vscode.window.showTextDocument(document,{selection:new vscode.Range(line-1,0,line-1,0)});
+    return;
+  }
   if(raw.kind === "runNotification"){
     const notice = textOrNull(raw.message);
     if (notice) void vscode.window.showInformationMessage(notice);
@@ -284,7 +297,7 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
   }
   const { python, workspaceRoot, projectId, pythonCarriersFile, businessQueriesFile, modelConfigurationFile } = readSettings();
   if ((request.projectId !== null && request.projectId !== projectId)
-      || (["query", "read_view", "check_source", "inspect_case_reuse", "copy_repair_brief"].includes(request.action) && projectId === null)) {
+      || (["query", "read_view", "discover_tests", "suggest_regression", "check_source", "inspect_case_reuse", "copy_repair_brief"].includes(request.action) && projectId === null)) {
     post(panel, { kind: "outcome", action: request.action, status: "refused",
       code: "PROJECT_CONTEXT_MISMATCH", message: "请求与宿主所选项目不一致，请重新选择项目", clientRequestId });
     return;

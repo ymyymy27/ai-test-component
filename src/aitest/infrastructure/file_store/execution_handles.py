@@ -90,8 +90,7 @@ class FileExecutionHandleStore:
         atomic.write_json(
             self._result_path(handle.handle_id),
             {
-                "schema_version": ("aitest.execution-collection/1.1" if result.runtime_source
-                                   else "aitest.execution-collection/1.0"),
+                "schema_version": "aitest.execution-collection/1.2",
                 "startup_token": original.startup_token,
                 "result": payload,
             },
@@ -106,16 +105,28 @@ class FileExecutionHandleStore:
         if (
             set(raw) != {"schema_version", "startup_token", "result"}
             or raw.get("schema_version") not in {
-                "aitest.execution-collection/1.0", "aitest.execution-collection/1.1",
+                "aitest.execution-collection/1.0",
+                "aitest.execution-collection/1.1",
+                "aitest.execution-collection/1.2",
             }
             or raw.get("startup_token") != record.startup_token
             or record.handle != handle
         ):
             raise ValueError("confirmed execution collection identity mismatch")
-        result = _strict_result(TypeAdapter(ExecutionCollectionResult), raw["result"])
+        raw_result = raw["result"]
+        if isinstance(raw_result, dict) and "artifacts" not in raw_result:
+            raw_result = {**raw_result, "artifacts": []}
+        result = _strict_result(TypeAdapter(ExecutionCollectionResult), raw_result)
         _check_source_identity(result, handle)
-        if raw["schema_version"] != ("aitest.execution-collection/1.1" if result.runtime_source
-                                     else "aitest.execution-collection/1.0"):
+        if (
+            raw["schema_version"] == "aitest.execution-collection/1.0"
+            and result.runtime_source is not None
+        ):
+            raise ValueError("execution collection version does not match its source observation")
+        if (
+            raw["schema_version"] == "aitest.execution-collection/1.1"
+            and result.runtime_source is None
+        ):
             raise ValueError("execution collection version does not match its source observation")
         if (
             result.attempt_id != record.attempt_id

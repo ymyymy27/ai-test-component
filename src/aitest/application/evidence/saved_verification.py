@@ -12,6 +12,7 @@ from aitest.application.evidence.evidence_review import (
     EvidenceReviewService,
     freeze_verification_request,
 )
+from aitest.application.evidence.junit_artifact import capture_pytest_result, is_pytest_request
 from aitest.application.evidence.pure_function import capture_pure_output, is_pure_request
 from aitest.application.evidence.query_materials import (
     BusinessVerificationBlocked as BusinessVerificationBlocked,
@@ -189,7 +190,11 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
                 facts=facts.model_copy(deep=True), step_id=step, attempt_id=attempt_id
             )
         )
-        if self.verifier is None and not is_pure_request(request, project):
+        if (
+            self.verifier is None
+            and not is_pure_request(request, project)
+            and not is_pytest_request(request, project)
+        ):
             raise CapabilityUnavailable(self._missing_verification_declarations(scope))
         if request.verification_of != attempt_id:
             raise BusinessVerificationBlocked(
@@ -434,6 +439,13 @@ class SavedBusinessVerification(SavedBusinessQueryReader):
                 )
             except (ValueError, OSError, KeyError) as error:
                 raise BusinessVerificationBlocked("saved function output is unavailable") from error
+        elif is_pytest_request(request, project):
+            try:
+                capture = capture_pytest_result(request, self._base(admission), self.objects)
+            except (ValueError, OSError, KeyError) as error:
+                raise BusinessVerificationBlocked(
+                    "saved pytest JUnit result is unavailable"
+                ) from error
         else:
             assert self.verifier is not None
             # Even a trusted adapter gets a separate copy of the frozen request.

@@ -48,7 +48,7 @@ pythonpath = [".", "src"]
 target-version = "py311"
 line-length = 100
 # Validation archives retain the exact historical counterexample source bytes.
-extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules", "docs/validation", "docs/归档"]
+extend-exclude = [".uv-cache", ".uv-python", ".venv", "node_modules", ".zcode", "docs/validation", "docs/归档"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

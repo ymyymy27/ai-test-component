@@ -156,6 +156,7 @@ class DraftKind:
     ACCEPTANCE_ITEMS = "acceptance_items"
     CASE_SUGGESTION = "case_suggestion"
     DELIVERY_NOTE = "delivery_note"
+    TEST_SELECTION = "test_selection"
 
 
 @dataclass(frozen=True, slots=True)

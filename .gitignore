@@ -40,6 +40,7 @@ Thumbs.db
 .aitest-data/
 node_modules/
 *.vsix
+.zcode/
 test-results/
 playwright-report/
 /docs/validation/artifacts.json

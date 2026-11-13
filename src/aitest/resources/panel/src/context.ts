@@ -53,11 +53,13 @@ export interface AppContext {
   closeDialog(): void;
   openHostSettings(): void;
   openDetail(detail: "workbench" | "review"): void;
+  openSource(path: string, line: number): void;
 }
 
 export interface WizardHost {
   readonly hostAvailable: boolean;
   wizardRequest(kind: string, extra?: Record<string, unknown>): Promise<WizardResult>;
+  readOnly(action: string, parameters: Record<string, unknown>): Promise<Outcome>;
   write(action: string, parameters: Record<string, unknown>, options?: WriteOptions): Promise<Outcome>;
   restartCore(): Promise<Outcome>;
   render(): void;

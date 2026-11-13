@@ -168,13 +168,19 @@ class SavedExecutionEvidence:
 
     def collect(self, project_id: str, checkpoint: RecoveryRecord) -> tuple[EvidenceRef, ...]:
         attempt = checkpoint.attempt
-        if not attempt.output_block_refs:
+        if not attempt.output_block_refs and not attempt.artifact_refs:
             return ()
         context = self._context(project_id, checkpoint)
         materials = self._materials(project_id, checkpoint, saved_only=False, context=context)
-        desired = tuple(self._summary_gaps(
-            self.publisher.reference_for_block(context, block), materials,
-        ) for block in attempt.output_block_refs)
+        desired = tuple(
+            [self._summary_gaps(
+                self.publisher.reference_for_block(context, block), materials,
+            ) for block in attempt.output_block_refs]
+            + [
+                self.publisher.reference_for_artifact(context, artifact)
+                for artifact in attempt.artifact_refs
+            ]
+        )
         saved = {ref.evidence_id: self._saved(ref.evidence_id) for ref in desired}
         use_permanent = all(
             (old := saved[ref.evidence_id]) is not None
@@ -186,10 +192,11 @@ class SavedExecutionEvidence:
             self.validate(tuple(ref for ref in saved.values() if ref is not None))
             collected = desired
         else:
-            require_saved_output_material(self.spool, attempt, attempt.output_block_refs)
+            if attempt.output_block_refs:
+                require_saved_output_material(self.spool, attempt, attempt.output_block_refs)
             collected = tuple(self._summary_gaps(ref, materials) for ref in (
                 self.publisher.publish_blocks(context, attempt.output_block_refs)
-            ))
+            )) + self.publisher.publish_artifacts(context, attempt.artifact_refs)
         result = []
         for ref in collected:
             old = saved[ref.evidence_id]
@@ -226,7 +233,7 @@ class SavedExecutionEvidence:
     def existing(
         self, project_id: str, checkpoint: RecoveryRecord,
     ) -> tuple[EvidenceRef, ...] | None:
-        if not checkpoint.attempt.output_block_refs:
+        if not checkpoint.attempt.output_block_refs and not checkpoint.attempt.artifact_refs:
             return ()
         context = self._context(project_id, checkpoint)
         materials = self._materials(project_id, checkpoint, saved_only=True, context=context)
@@ -245,6 +252,18 @@ class SavedExecutionEvidence:
         for block in checkpoint.attempt.output_block_refs:
             desired = self.publisher.reference_for_block(context, block)
             desired = self._summary_gaps(desired, materials)
+            old = self._saved(desired.evidence_id)
+            if old is None:
+                return None
+            desired = replace(
+                desired, source_instance_id=old.source_instance_id, created_at=old.created_at,
+                evidence_revision=old.evidence_revision,
+            )
+            if desired != old:
+                return None
+            result.append(old)
+        for artifact in checkpoint.attempt.artifact_refs:
+            desired = self.publisher.reference_for_artifact(context, artifact)
             old = self._saved(desired.evidence_id)
             if old is None:
                 return None

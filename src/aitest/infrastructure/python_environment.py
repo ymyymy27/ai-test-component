@@ -262,7 +262,14 @@ class RegisteredPythonEnvironmentResolver:
     def resolve(self, request: EnvironmentResolutionRequest) -> EnvironmentRefFact:
         carrier = self.carriers.get((request.project_id, request.environment_id))
         if carrier is None or carrier.isolation_mode != request.isolation_mode:
-            raise ValueError("tested environment carrier is not registered for this project/mode")
+            # Do not leak paths or secrets; named identities are enough to fix the
+            # registration and distinguish a missing carrier from a mode mismatch.
+            registered = "missing" if carrier is None else carrier.isolation_mode
+            raise ValueError(
+                "tested environment carrier is not registered for this project/mode"
+                f" (environment={request.environment_id!r},"
+                f" requested={request.isolation_mode!r}, registered={registered!r})"
+            )
         # 允许的解释器范围由**登记的环境声明**给出（不再在代码里钉死 3.13）；
         # 观测到的解释器必须与声明的主.次（及可选补丁）版本一致。
         version_requirement = re.fullmatch(

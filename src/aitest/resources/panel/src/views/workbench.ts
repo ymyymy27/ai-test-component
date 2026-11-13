@@ -79,6 +79,7 @@ export function renderWorkbench(ctx: AppContext): HTMLElement {
   page.appendChild(revisionCard(ctx, run));
   page.appendChild(batchAuthorizationCard(ctx, run));
   page.appendChild(reuseCard(ctx, run));
+  page.appendChild(regressionCard(ctx, run));
   const grid = div("workbench-grid");
   grid.appendChild(stepRail(ctx, steps, selectedId));
   grid.appendChild(stepDetail(ctx, run, selected));
@@ -104,6 +105,77 @@ function chooseStep(ctx: AppContext, steps: Record<string, unknown>[]): string {
   return selected;
 }
 
+
+
+function regressionCard(ctx: AppContext, run: Record<string, unknown>): HTMLElement {
+  let changed = "";
+  const output = div("stack-sm");
+  const runSuggestion = async (): Promise<void> => {
+    const files = changed.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+    if (!files.length) {
+      ctx.setNotice("先填写变更文件，每行一个。", "warning");
+      return;
+    }
+    const rows = await ctx.query({ aggregate_kind: "dependency_set", limit: 1 });
+    if (!rows.length) {
+      ctx.setNotice("还没有已登记的依赖图，无法计算影响面。", "warning");
+      return;
+    }
+    const [planId, rawRevision] = String(run["plan_revision_ref"] ?? "").split("@");
+    const planRevision = Number(rawRevision);
+    if (!planId || !Number.isInteger(planRevision) || planRevision < 1) {
+      ctx.setNotice("运行视图没有可解析的已发布计划修订。", "warning");
+      return;
+    }
+    const result = await ctx.readOnly("suggest_regression", {
+      graph_revision: rows[0].revision,
+      plan_id: planId,
+      plan_revision: planRevision,
+      changed_files: files,
+    });
+    output.replaceChildren();
+    if (!result) {
+      output.appendChild(p("影响面没有计算结果；先确认依赖图与计划修订。", "muted subtle"));
+      return;
+    }
+    const affected = asStrings(result["affected_modules"]);
+    const unregistered = asStrings(result["unregistered_modules"]);
+    const cases = asStrings(result["suggested_case_ids"]);
+    output.appendChild(facts([
+      ["直接影响模块", affected.length ? chip(`${affected.length} 个`, "info") : "无"],
+      ["未登记模块", unregistered.length ? chip(`${unregistered.length} 个`, "warning") : "无"],
+      ["建议用例", cases.length ? chip(`${cases.length} 个`, "info") : "无"],
+    ]));
+    if (affected.length) output.appendChild(p(`影响模块：${affected.join("、")}`, "muted subtle"));
+    if (unregistered.length) {
+      output.appendChild(p(
+        `未登记模块：${unregistered.join("、")}。请在项目模块登记后再判断影响面。`,
+        "muted subtle",
+      ));
+    }
+    if (cases.length) {
+      output.appendChild(details(
+        "建议回归用例",
+        div("stack-sm", ...cases.map(caseId => p(caseId, "mono"))),
+      ));
+    }
+    output.appendChild(p("只读建议：不改计划、不自动执行，是否纳入回归由你决定。", "muted subtle"));
+  };
+  const input = textArea("", value => { changed = value; }, {
+    rows: 3,
+    placeholder: "变更文件，每行一个（项目内相对路径）",
+  });
+  return card(
+    "",
+    cardHead(
+      "回归建议（只读）",
+      "按已登记依赖图的精确修订计算影响模块与建议用例；未登记模块如实返回。",
+      button("计算影响面", () => void runSuggestion(), { icon: "link" }),
+    ),
+    field("变更文件", input),
+    output,
+  );
+}
 
 
 function reuseCard(ctx: AppContext, run: Record<string, unknown>): HTMLElement {
@@ -791,7 +863,7 @@ function stepDetail(ctx: AppContext, run: Record<string, unknown>, step: Record<
       "",
       cardHead(
         `第 ${stepIndex + 1} 步 · ${caseId || "未命名用例"}`,
-        [label(step["adapter_kind"]), required ? "必测" : "选用", step["invalidated"] === true ? "依据已过期" : null]
+        [String(step["level"] ?? ""), label(step["adapter_kind"]), required ? "必测" : "选用", step["invalidated"] === true ? "依据已过期" : null]
           .filter(value => typeof value === "string" && value)
           .map(value => String(value))
           .join(" · ") || "步骤事实来自已提交运行视图",
@@ -810,6 +882,7 @@ function stepDetail(ctx: AppContext, run: Record<string, unknown>, step: Record<
     ),
     recoveryCard(ctx, run, step, attempt, execution),
     gaps.length ? card("", cardHead("当前缺口", "缺口代码来自核心；面板只做中文说明。"), gapList) : null,
+    pytestFailureList(ctx, step),
     card(
       "",
       cardHead("证据", "证据编号来自当前尝试；正文按精确修订读取。"),
@@ -817,6 +890,127 @@ function stepDetail(ctx: AppContext, run: Record<string, unknown>, step: Record<
     ),
     external,
     ctx.state.workbench.note ? banner(ctx.state.workbench.note, "info") : null,
+  );
+}
+
+function pytestFailureList(ctx: AppContext, step: Record<string, unknown>): HTMLElement | null {
+  const failures = asRecords(step["pytest_failures"]);
+  const stepId = typeof step["step_id"] === "string" ? step["step_id"] : "";
+  const clusters = asRecords(ctx.state.run?.["pytest_issue_drafts"])
+    .filter(item => String(item["step_id"] ?? "") === stepId);
+  if (!failures.length && !clusters.length) return null;
+  const list = div("stack-sm");
+  const baseline = asRecord(ctx.state.run?.["pytest_baseline"] ?? null);
+  if (baseline) {
+    list.appendChild(card(
+      "",
+      cardHead(
+        "与上次同范围结果比较",
+        typeof baseline["previous_run_id"] === "string"
+          ? `上次运行 ${shortId(String(baseline["previous_run_id"]), 18)}`
+          : "上次报告已保存",
+      ),
+      facts([
+        ["新增失败", String(asStrings(baseline["new_node_ids"]).length)],
+        ["既有失败", String(asStrings(baseline["existing_node_ids"]).length)],
+        ["已修复", String(asStrings(baseline["fixed_node_ids"]).length)],
+      ]),
+      p("比较只说明与上次已保存报告的变化，不证明修复关闭；关闭仍走问题页。", "muted subtle"),
+    ));
+  }
+  for (const cluster of clusters) {
+    const runId = String(cluster["run_id"] ?? "");
+    const signature = String(cluster["signature"] ?? "");
+    const issueId = String(cluster["issue_id"] ?? "");
+    const locations = asStrings(cluster["locations"]);
+    const nodeIds = asStrings(cluster["node_ids"]);
+    const baselineState = String(cluster["baseline_state"] ?? "unknown");
+    const newCount = asNumber(cluster["new_failure_count"], 0);
+    const existingCount = asNumber(cluster["existing_failure_count"], 0);
+    const first = locations[0] ?? "";
+    const [path, rawLine] = first.includes(":")
+      ? [first.slice(0, first.lastIndexOf(":")), first.slice(first.lastIndexOf(":") + 1)]
+      : ["", ""];
+    const line = asNumber(rawLine, 0);
+    const draftIssue = async (): Promise<void> => {
+      if (!runId || !stepId || !signature || !issueId) return;
+      const parameters = {
+        issue_id: issueId,
+        title: String(cluster["title"] ?? "pytest failure").slice(0, 300),
+        links: {
+          run_id: runId,
+          step_id: stepId,
+          signature,
+          pytest_cluster: { run_id: runId, step_id: stepId, signature },
+          layers: ["L2"],
+        },
+      };
+      const outcome = await ctx.write("update_issue", parameters, {
+        target: issueId,
+        expectedRevision: 0,
+        intentId: ctx.intent("update_issue", parameters, issueId, 0),
+      });
+      if (outcome.status === "ok") {
+        ctx.setNotice("问题草稿已保存，请到问题页确认和处理。", "success");
+        await ctx.loadIssues();
+      } else {
+        ctx.setNotice(outcome.message ?? "问题草稿未保存。", "danger");
+      }
+    };
+    list.appendChild(card(
+      "",
+      cardHead(
+        String(cluster["title"] ?? "失败签名簇"),
+        `${nodeIds.length} 个失败测试 · ${locations.join("；") || "location_unknown"}`,
+        chip(
+          baselineState === "new"
+            ? `新增 ${newCount}`
+            : baselineState === "existing"
+            ? `既有 ${existingCount}`
+            : "基线未知",
+          baselineState === "new" ? "warning" : "neutral",
+        ),
+        path && line > 0
+          ? button("打开源码", () => ctx.openSource(path, line), { icon: "eye" })
+          : null,
+        button("生成问题草稿", () => void draftIssue(), { icon: "alert" }),
+      ),
+      p(
+        "同一签名合并为一个草稿；草稿只列事实，确认/修复/回归/关闭仍走问题页。",
+        "muted subtle",
+      ),
+      details("受影响测试", div("stack-sm", ...nodeIds.map(id => p(id, "mono")))),
+    ));
+  }
+  for (const item of failures) {
+    const path = typeof item["suspect_file"] === "string" ? item["suspect_file"]
+      : typeof item["file"] === "string" ? item["file"] : null;
+    const line = asNumber(item["suspect_line"] ?? item["line"], 0);
+    list.appendChild(card(
+      "",
+      cardHead(
+        String(item["node_id"] ?? "失败测试"),
+        `${String(item["failure_type"] ?? "failure")} · ${path ?? "location_unknown"}${line ? `:${line}` : ""}`,
+        path && line > 0
+          ? button("打开源码", () => ctx.openSource(path, line), { icon: "eye" })
+          : null,
+      ),
+      p(String(item["message"] ?? "无断言消息"), "muted subtle"),
+      (() => {
+        const pre = document.createElement("pre");
+        pre.className = "evidence";
+        pre.textContent = String(item["stack"] ?? "");
+        return pre;
+      })(),
+    ));
+  }
+  return card(
+    "",
+    cardHead(
+      "失败测试",
+      "来自已保存 JUnit；同一签名簇可生成一个问题草稿，位置未知时不猜路径。",
+    ),
+    list,
   );
 }
 
@@ -1155,6 +1349,10 @@ async function openEvidence(ctx: AppContext, evidenceId: string, revision: numbe
     ]),
   );
   if (typeof view["body"] === "string") {
+    if (String(record["evidence_kind"] ?? "") === "artifact") {
+      const failures = junitFailures(ctx, view["body"]);
+      if (failures) content.appendChild(failures);
+    }
     const pre = document.createElement("pre");
     pre.className = "evidence";
     pre.textContent = view["body"];
@@ -1163,6 +1361,51 @@ async function openEvidence(ctx: AppContext, evidenceId: string, revision: numbe
     content.appendChild(banner(omittedReason(view["body_omitted_reason"]), "warning"));
   }
   ctx.showDialog(`证据 ${shortId(evidenceId, 12)}`, content);
+}
+
+/** Conservative JUnit view: only show what the saved XML actually contains. */
+function junitFailures(ctx: AppContext, body: string): HTMLElement | null {
+  if (!body.includes("<testsuite") && !body.includes("<testsuites")) return null;
+  const parsed = new DOMParser().parseFromString(body, "application/xml");
+  if (parsed.querySelector("parsererror")) return null;
+  const failed = Array.from(parsed.querySelectorAll("testcase")).flatMap(testcase => {
+    const bad = testcase.querySelector("failure, error");
+    if (!bad) return [];
+    const text = bad.textContent ?? "";
+    const location = /([^\s:]+):(\d+)(?::\s*in\s*([^\r\n]+))?/.exec(text);
+    return [{
+      name: [testcase.getAttribute("classname"), testcase.getAttribute("name")]
+        .filter(Boolean).join("::") || "未命名测试",
+      type: bad.getAttribute("type") ?? bad.tagName,
+      message: bad.getAttribute("message") ?? "",
+      location: location ? `${location[1]}:${location[2]}` : "location_unknown",
+      path: location ? location[1] : null,
+      line: location ? Number(location[2]) : null,
+      stack: text.split(/\r?\n/).slice(0, 8).join("\n"),
+    }];
+  });
+  if (!failed.length) return null;
+  const list = div("stack-sm");
+  for (const item of failed) {
+    list.appendChild(card(
+      "",
+      cardHead(
+        item.name,
+        `${item.type} · ${item.location}`,
+        item.path && item.line
+          ? button("打开源码", () => ctx.openSource(item.path!, item.line!), { icon: "eye" })
+          : null,
+      ),
+      p(item.message || "无断言消息", "muted subtle"),
+      (() => {
+        const pre = document.createElement("pre");
+        pre.className = "evidence";
+        pre.textContent = item.stack;
+        return pre;
+      })(),
+    ));
+  }
+  return card("", cardHead("失败测试", "来自已保存 JUnit；位置未知时不猜路径。"), list);
 }
 
 function externalImportForm(

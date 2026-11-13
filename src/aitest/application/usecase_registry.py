@@ -117,6 +117,7 @@ from aitest.application.planning.publish import (
     publish_rules,
     save_plan_draft,
 )
+from aitest.application.planning.regression_graph import regression_scope
 from aitest.application.planning.rules_markdown import (
     rule_draft_from_markdown,
     rule_markdown_from_payload,
@@ -140,6 +141,12 @@ from aitest.application.planning.substrate import (
     read_scoped_record,
     transaction,
 )
+from aitest.application.planning.test_selection import (
+    TEST_SELECTION_SCHEMA,
+    TestSelectionError,
+    materialize_test_selection,
+    parse_test_selection,
+)
 from aitest.application.ports import (
     BasisConfirmationProof,
     Clock,
@@ -152,6 +159,7 @@ from aitest.application.project.context import ContextGap
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.persistence import (
     dependency_graph_record_id,
+    load_dependency_graph,
     load_project,
     save_binding,
     save_delivery,
@@ -169,6 +177,7 @@ from aitest.application.project.serialization import (
     task_from_payload,
 )
 from aitest.application.project.source_analysis import SourceAnalysisService
+from aitest.application.project.test_discovery import TestDiscoveryError, TestDiscoveryService
 from aitest.application.project.understanding import (
     ProjectUnderstandingError,
     ProjectUnderstandingService,
@@ -267,6 +276,8 @@ OWNED_ACTIONS: frozenset[str] = frozenset(
         "prepare_run",
         "query",
         "analyze_project",
+        "discover_tests",
+        "suggest_regression",
         "check_source",
         "confirm_basis",
     }
@@ -964,6 +975,7 @@ class BUseCaseDependencies:
     material_projector: MaterialProjector | None = None
     workspace_id: str | None = None
     source_analysis: SourceAnalysisService | None = None
+    test_discovery: TestDiscoveryService | None = None
     project_understanding: ProjectUnderstandingService | None = None
     basis_confirmations: BasisConfirmationService | None = None
     plan_confirmations: PlanConfirmationService | None = None
@@ -1096,6 +1108,70 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             snapshot_id=_as_text(_required(parameters, "snapshot_id"), "snapshot_id"),
             revision=_int_of(_required(parameters, "revision"), "revision"),
         )
+
+    def handle_discover_tests(command: object) -> Mapping[str, object]:
+        if deps.test_discovery is None:
+            raise BUseCaseError("CAPABILITY_UNAVAILABLE", "test discovery is unavailable")
+        parameters = _command_parameters(command)
+        try:
+            return deps.test_discovery.discover(
+                project_id=_command_project_id(command),
+                snapshot_id=_as_text(_required(parameters, "snapshot_id"), "snapshot_id"),
+                revision=_int_of(_required(parameters, "revision"), "revision"),
+                environment_id=_as_text(
+                    _required(parameters, "environment_id"), "environment_id"
+                ),
+                environment_revision=_int_of(
+                    _required(parameters, "environment_revision"), "environment_revision"
+                ),
+                selected_paths=_text_list(
+                    parameters.get("selected_paths", []), "selected_paths"
+                ),
+                timeout_ms=_int_of(parameters.get("timeout_ms", 120_000), "timeout_ms"),
+            )
+        except TestDiscoveryError as error:
+            raise BUseCaseError(error.code, str(error)) from error
+
+    def handle_suggest_regression(command: object) -> Mapping[str, object]:
+        """Read-only impact suggestion from an exact dependency graph and plan revision."""
+        parameters = _command_parameters(command)
+        project_id = _command_project_id(command)
+        graph_revision = _int_of(_required(parameters, "graph_revision"), "graph_revision")
+        plan_id = _as_text(_required(parameters, "plan_id"), "plan_id")
+        plan_revision = _int_of(_required(parameters, "plan_revision"), "plan_revision")
+        changed_files = _text_list(_required(parameters, "changed_files"), "changed_files")
+        graph = load_dependency_graph(
+            deps.reader, project_id=project_id, revision=graph_revision
+        )
+        scope = regression_scope(changed_files, graph)
+        plan = read_scoped_record(
+            deps.reader, project_id=project_id, aggregate_kind="plan",
+            record_id=plan_id, revision=plan_revision,
+        ).payload
+        refs = plan.get("case_revisions")
+        if not isinstance(refs, list):
+            raise BUseCaseError("B_INVALID_PARAMETER", "saved plan has no case revisions")
+        suggested: list[str] = []
+        for ref in refs:
+            if not isinstance(ref, Mapping):
+                continue
+            case_id, revision = ref.get("case_id"), ref.get("revision")
+            if not isinstance(case_id, str) or type(revision) is not int:
+                continue
+            case = read_scoped_record(
+                deps.reader, project_id=project_id, aggregate_kind="case",
+                record_id=case_id, revision=revision,
+            ).payload
+            links = case.get("links")
+            modules = links.get("module_ids") if isinstance(links, Mapping) else None
+            if isinstance(modules, list) and set(modules) & scope.affected_modules:
+                suggested.append(case_id)
+        return {
+            "directly_changed": sorted(scope.directly_changed),
+            "affected_modules": sorted(scope.affected_modules),
+            "unregistered_modules": list(scope.unregistered_modules),
+            "suggested_case_ids": sorted(set(suggested)),
+        }
 
     def handle_confirm_basis(command: object) -> Mapping[str, object]:
         if deps.basis_confirmations is None:
@@ -2293,7 +2369,7 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         output_schema = parameters.get("output_schema")
         if output_schema is not None:
             output_schema = _as_text(output_schema, "output_schema")
-            if output_schema not in PLAN_PROPOSAL_SCHEMAS:
+            if output_schema not in PLAN_PROPOSAL_SCHEMAS | {TEST_SELECTION_SCHEMA}:
                 raise BUseCaseError("B_INVALID_PARAMETER", "unknown output_schema")
         template_ref = None
         raw_template = parameters.get("template_ref")
@@ -2348,25 +2424,62 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
                 raise BUseCaseError("B_INVALID_PARAMETER", "saved model draft digest differs")
         proposal = None
         proposal_error = None
+        selection = None
+        selection_error = None
+        selection_warnings: list[str] = []
         if output_schema in PLAN_PROPOSAL_SCHEMAS and draft_text is not None:
             try:
                 proposal = parse_plan_proposal(draft_text)
             except PlanProposalError as error:
                 proposal_error = error.as_result()
-        blocked = result.content is None or proposal_error is not None
+        elif output_schema == TEST_SELECTION_SCHEMA and draft_text is not None:
+            try:
+                selection = parse_test_selection(draft_text)
+                inventory_text = material.get(MaterialKind.CASE_CONTENT)
+                if not isinstance(inventory_text, str):
+                    raise TestSelectionError("TEST INVENTORY material is missing")
+                inventory = json.loads(inventory_text)
+                if not isinstance(inventory, dict):
+                    raise TestSelectionError("TEST INVENTORY material is not an object")
+                _, _, selection_warnings = materialize_test_selection(
+                    selection,
+                    inventory,
+                    project_id=project_id,
+                    environment_id="preview",
+                    scope_id="preview",
+                )
+            except (
+                TestSelectionError, ValueError, TypeError, KeyError, json.JSONDecodeError,
+            ) as error:
+                selection = None
+                selection_error = str(error)
+        blocked = (
+            result.content is None
+            or proposal_error is not None
+            or selection_error is not None
+        )
         return {
             "draft_text": draft_text,
             "blocked": blocked,
-            "status": "blocked" if proposal_error is not None else result.status,
+            "status": (
+                "blocked"
+                if proposal_error is not None or selection_error is not None
+                else result.status
+            ),
             "blocked_by": (
                 ["structured_output_invalid"]
-                if proposal_error is not None
+                if proposal_error is not None or selection_error is not None
                 else list(result.blocked_by)
             ),
             "proposal": (
                 proposal.model_dump(mode="json") if proposal is not None else None
             ),
             "proposal_error": proposal_error,
+            "test_selection": (
+                selection.model_dump(mode="json") if selection is not None else None
+            ),
+            "selection_error": selection_error,
+            "selection_warnings": selection_warnings,
             "response_currency": result.response_currency,
             "saved_response_ref": result.saved_response_ref,
             "content": _generated_content(result.content) if result.content is not None else None,
@@ -2708,6 +2821,8 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
         "prepare_run": _guard(handle_prepare_run),
         "query": _guard(handle_query),
         "analyze_project": _guard(handle_analyze_project),
+        "discover_tests": _guard(handle_discover_tests),
+        "suggest_regression": _guard(handle_suggest_regression),
         "check_source": _guard(handle_check_source),
         "confirm_basis": _guard(handle_confirm_basis),
     }

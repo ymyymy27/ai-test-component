@@ -135,6 +135,23 @@ def test_http_workflow_runs_as_one_non_process_attempt_and_saves_exchange_eviden
         assert attempt.adapter_kind.value == "http"
         assert attempt.state is AttemptStateFact.COMPLETED
         assert attempt.exit_fact is None
+        layered = core.api.dispatch(
+            Command(
+                action="read_view",
+                project_id=inputs.project_id,
+                request_id="http-layered-view",
+                parameters={"view": "run", "run_id": facts.run_id},
+            ),
+            RELAY,
+        )
+        assert layered.error is None, layered.error
+        layers = {
+            item["level"]: item for item in layered.result["view"]["layers"]
+        }
+        assert layers["L2"]["total"] == len(facts.steps)
+        assert layers["L2"]["completed"] == 1
+        assert "L1" not in layers
+        assert "L3" not in layers
         http_evidence = [
             item for item in current.evidence_refs if item.evidence_kind.value == "http_response"
         ]

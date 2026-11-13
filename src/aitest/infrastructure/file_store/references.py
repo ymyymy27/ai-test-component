@@ -26,7 +26,13 @@ def verify_record_objects(root: Path, body: Mapping[str, object], project_id: st
     while pending:
         value = pending.pop()
         if isinstance(value, Mapping):
-            structured = "relative_path" in value and "digest" in value
+            # Spool artifacts carry artifact_id + spool path, not a permanent
+            # object reference; they are published separately as evidence.
+            structured = (
+                "relative_path" in value
+                and "digest" in value
+                and "artifact_id" not in value
+            )
             if structured:
                 if (
                     not _OBJECT_FIELDS.issubset(value)

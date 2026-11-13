@@ -32,14 +32,20 @@ def carrier_digest() -> str:
 class PythonSourceChannel:
     """The adapter owns both the birth identity and the pipe, never stdout markers."""
 
-    def __init__(self, request: ExecutionRequest, secrets: set[str]) -> None:
+    def __init__(
+        self, request: ExecutionRequest, secrets: set[str], *, mode: str = "script",
+    ) -> None:
         plan = request.source_capture
         if plan is None or plan.policy != "python-script/1" or not plan.files:
             raise ValueError("unsupported source capture policy")
+        if mode not in {"script", "module"}:
+            raise ValueError("unsupported source capture mode")
         self.worker = carrier_source()
         if plan.carrier_digest != "sha256:" + hashlib.sha256(self.worker.encode()).hexdigest():
             raise ValueError("source carrier changed; prepare a new action")
         self.request, self.secrets = request, secrets
+        self.mode = mode
+        self.entry = _module_entry(request) if mode == "module" else ""
         self.expected = {item.relative_path: item.content_digest for item in plan.files}
         self.start: dict[str, Any] | None = None
         self.files: dict[str, str] = {}
@@ -59,7 +65,8 @@ class PythonSourceChannel:
         else:
             self.child_fd = self.write_fd
         self.config = (json.dumps({"pipe": self.child_fd, "arguments":
-                      request.registered_entry.arguments, "files": [asdict(f) for f in plan.files]},
+                      request.registered_entry.arguments, "mode": mode,
+                      "entry": self.entry, "files": [asdict(f) for f in plan.files]},
                       ensure_ascii=True) + "\n").encode()
         if len(self.config) >= _LIMIT:
             self.close()
@@ -156,14 +163,26 @@ class PythonSourceChannel:
         if self.reader is not None:
             self.reader.join(timeout=5)
         start = self.start or {}
-        entry = (Path(handle.workdir_ref) / self.request.registered_entry.arguments[0]).resolve()
+        relative_entry = (
+            self.entry
+            if self.mode == "module"
+            else self.request.registered_entry.arguments[0]
+        )
+        entry = (Path(handle.workdir_ref) / relative_entry).resolve()
         executable = Path(self.request.registered_entry.entrypoint).resolve()
         identity = (bool(self.executing_identity)
                     and start.get("entry") == str(entry)
                     and start.get("interpreter") == str(executable))
         if not identity:
             self.gaps.add("source_process_identity_unverified")
-        if entry.relative_to(Path(handle.workdir_ref).resolve()).as_posix() not in self.files:
+        root = Path(handle.workdir_ref).resolve()
+        relative_entry = entry.relative_to(root).as_posix()
+        # A module-mode entry is the pytest scope (often a directory), while the
+        # capture reports files. It counts as observed when at least one captured
+        # file lives under it; a plain file entry still has to be listed exactly.
+        if relative_entry not in self.files and not any(
+            Path(path).is_relative_to(relative_entry) for path in self.files
+        ):
             self.gaps.add("source_entry_not_observed")
         if not (self.done and self.ended):
             self.gaps.add("source_channel_incomplete")
@@ -188,11 +207,53 @@ class PythonSourceChannel:
         self.read_fd = self.write_fd = -1
 
 
+_VALUE_OPTIONS = frozenset(
+    {"-p", "-k", "-m", "-o", "-c", "--rootdir", "--junitxml", "--tb", "--ignore",
+     "--deselect", "--maxfail", "--basetemp", "--confcutdir"}
+)
+
+
+def _module_scope(arguments: tuple[str, ...]) -> str | None:
+    """Last path-like argument after ``-m <module>`` (the pytest scope)."""
+
+    skip = False
+    candidates: list[str] = []
+    for value in arguments[2:]:
+        if skip:
+            skip = False
+            continue
+        if value in _VALUE_OPTIONS:
+            skip = True
+            continue
+        if value.startswith("-") or not value:
+            continue
+        candidates.append(value)
+    return candidates[-1] if candidates else None
+
+
+def _module_entry(request: ExecutionRequest) -> str:
+    """Canonical workdir-relative scope entry recorded in the start event."""
+
+    root = Path(request.materialized_snapshot_ref).resolve()
+    scope = _module_scope(request.registered_entry.arguments)
+    if scope is None:
+        plan = request.source_capture
+        assert plan is not None
+        return plan.files[0].relative_path
+    candidate = (root / scope).resolve()
+    if not candidate.is_relative_to(root):
+        raise ValueError("module scope escapes the materialized workdir")
+    return candidate.relative_to(root).as_posix()
+
+
 def source_channel(request: ExecutionRequest, secrets: set[str]) -> PythonSourceChannel | None:
     arguments = request.registered_entry.arguments
     root = Path(request.materialized_snapshot_ref).resolve()
-    if (request.source_capture is None or not arguments or arguments[0].startswith("-")
-            or Path(arguments[0]).suffix != ".py"):
+    if request.source_capture is None or not arguments:
+        return None
+    if arguments[0] == "-m" and len(arguments) >= 2 and arguments[1] == "pytest":
+        return PythonSourceChannel(request, secrets, mode="module")
+    if arguments[0].startswith("-") or Path(arguments[0]).suffix != ".py":
         return None
     entry = (root / arguments[0]).resolve()
     if not entry.is_relative_to(root):
