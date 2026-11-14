@@ -91,6 +91,27 @@ from aitest.application.review.saved_reports import SavedReportService
 from aitest.application.review.saved_reuse import SavedCaseReuseSelection
 from aitest.application.usecase_registry import BUseCaseDependencies, BUseCaseError
 from aitest.contracts.commands import Command
+from aitest.core_endpoint import (
+    CoreConnectionLedger as CoreConnectionLedger,
+)
+from aitest.core_endpoint import (
+    read_core_startup_diagnostic as read_core_startup_diagnostic,
+)
+from aitest.core_endpoint import (
+    rebuild_query_index as rebuild_query_index,
+)
+from aitest.core_endpoint import (
+    record_core_startup_failure as record_core_startup_failure,
+)
+from aitest.core_endpoint import (
+    reject_path_links as reject_path_links,
+)
+from aitest.core_endpoint import (
+    save_purpose_credential as save_purpose_credential,
+)
+from aitest.core_endpoint import (
+    verify_purpose_credential as verify_purpose_credential,
+)
 from aitest.domain.approvals import TrustedActor
 from aitest.infrastructure.adapters.execution.command import CommandAdapter
 from aitest.infrastructure.adapters.execution.http_workflow import HttpWorkflowAdapter
@@ -161,27 +182,6 @@ from aitest.infrastructure.security import guard_value
 from aitest.interfaces.local.actor_context import CoreActorContext
 from aitest.interfaces.local.api import Handler, LocalAPI, Session
 from aitest.interfaces.local.b_registration import b_registration_for
-from aitest.interfaces.local.core_endpoint import (
-    CoreConnectionLedger as CoreConnectionLedger,
-)
-from aitest.interfaces.local.core_endpoint import (
-    read_core_startup_diagnostic as read_core_startup_diagnostic,
-)
-from aitest.interfaces.local.core_endpoint import (
-    rebuild_query_index as rebuild_query_index,
-)
-from aitest.interfaces.local.core_endpoint import (
-    record_core_startup_failure as record_core_startup_failure,
-)
-from aitest.interfaces.local.core_endpoint import (
-    reject_path_links as reject_path_links,
-)
-from aitest.interfaces.local.core_endpoint import (
-    save_purpose_credential as save_purpose_credential,
-)
-from aitest.interfaces.local.core_endpoint import (
-    verify_purpose_credential as verify_purpose_credential,
-)
 from aitest.interfaces.local.d_registration import d_registration_for
 from aitest.interfaces.local.editor_host import (
     Connector,
@@ -190,64 +190,64 @@ from aitest.interfaces.local.editor_host import (
     CoreStartupObservation,
     EditorHost,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.interfaces.local.view_queries import CommittedViewReader
+from aitest.source_wiring import (
     _entry_actual_path as _entry_actual_path,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _environment_ref as _environment_ref,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _frozen_adapter_version as _frozen_adapter_version,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _frozen_step_timeout as _frozen_step_timeout,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _interpreter_verifier as _interpreter_verifier,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _module_expectations as _module_expectations,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _module_names_from_project as _module_names_from_project,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _observed_content_identity as _observed_content_identity,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _pattern_relative_dir as _pattern_relative_dir,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _pinned_file_digests as _pinned_file_digests,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _pinned_snapshot_identity as _pinned_snapshot_identity,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _positive_int as _positive_int,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _probe_output_reference as _probe_output_reference,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _registered_source_check_statuses as _registered_source_check_statuses,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _required_source_analysis as _required_source_analysis,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _required_text as _required_text,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _rules_revision as _rules_revision,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _source_verification_provider as _source_verification_provider,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _technical_identity as _technical_identity,
 )
-from aitest.interfaces.local.view_queries import CommittedViewReader
 
 _INSTANCE_ID_FILE = ".core-instance-id"
 _DEFAULT_WORKER_MODULE = "aitest.interfaces.local.core_worker"

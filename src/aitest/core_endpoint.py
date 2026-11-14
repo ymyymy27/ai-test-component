@@ -31,61 +31,61 @@ from aitest.infrastructure.model_configuration import (
     validate_model_configuration as validate_model_configuration,
 )
 from aitest.infrastructure.python_environment import RegisteredPythonEnvironmentResolver
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _entry_actual_path as _entry_actual_path,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _environment_ref as _environment_ref,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _frozen_adapter_version as _frozen_adapter_version,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _frozen_step_timeout as _frozen_step_timeout,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _interpreter_verifier as _interpreter_verifier,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _module_expectations as _module_expectations,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _module_names_from_project as _module_names_from_project,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _observed_content_identity as _observed_content_identity,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _pattern_relative_dir as _pattern_relative_dir,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _pinned_file_digests as _pinned_file_digests,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _pinned_snapshot_identity as _pinned_snapshot_identity,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _positive_int as _positive_int,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _probe_output_reference as _probe_output_reference,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _registered_source_check_statuses as _registered_source_check_statuses,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _required_source_analysis as _required_source_analysis,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _required_text as _required_text,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _rules_revision as _rules_revision,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _source_verification_provider as _source_verification_provider,
 )
-from aitest.interfaces.local.source_wiring import (
+from aitest.source_wiring import (
     _technical_identity as _technical_identity,
 )
 
