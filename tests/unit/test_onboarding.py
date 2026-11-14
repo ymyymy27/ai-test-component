@@ -524,10 +524,15 @@ def test_model_retry_advances_an_existing_policy_revision():
                   if item["action"] == "save_model_outbound_policy")
     assert policy["parameters"]["policy"]["revision"] == 2
     assert policy["expected_revision"] == 1
+    draft = next(item for item in commands if item["action"] == "generate_draft")
+    assert draft["parameters"]["policy_revision"] == 2
     first = next(item for item in wizard_commands(selection, "model", {"snapshot": snapshot})
                  if item["action"] == "save_model_outbound_policy")
     assert first["parameters"]["policy"]["revision"] == 1
     assert first["expected_revision"] == 0
+    first_draft = next(item for item in wizard_commands(selection, "model", {"snapshot": snapshot})
+                       if item["action"] == "generate_draft")
+    assert first_draft["parameters"]["policy_revision"] == 1
 
 
 def test_project_resume_only_verifies_the_existing_source_snapshot():

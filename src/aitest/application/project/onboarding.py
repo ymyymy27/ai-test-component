@@ -433,7 +433,7 @@ def wizard_commands(
                 sort_keys=True,
             )
         add("suggestions", "generate_draft", {"generation_mode": "model",
-            "project_revision": 1, "policy_revision": 1,
+            "project_revision": 1, "policy_revision": policy_revision,
             "source_revision": source_revision, "source_ref": source_ref,
             "base_manual_revision": 0, "task_type": "case_suggestion",
             "draft_kind": ("test_selection" if form.test_mode else "plan_proposal"),
