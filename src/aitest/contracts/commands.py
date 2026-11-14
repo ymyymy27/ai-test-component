@@ -32,6 +32,7 @@ HUMAN_ACTIONS = frozenset(
 PHASE_ONE_ACTIONS = frozenset(
     {
         "bind_project",
+        "save_binding",
         "save_context",
         "save_environment",
         "save_dependency_graph",

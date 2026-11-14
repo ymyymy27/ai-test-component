@@ -1,10 +1,10 @@
 """Exact immutable execution snapshots shared by current and historic consumers."""
 
 import json
-from collections.abc import Mapping
 
 from aitest.application.execution.facts import execution_payload_digest, validate_execution_facts
 from aitest.application.ports import RecordRepository
+from aitest.application.shared.records import read_exact
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.domain.json_material import require_json_text
 
@@ -30,15 +30,14 @@ def read_execution_snapshot(
     revision = records.current_revision(aggregate_kind="execution_facts", record_id=snapshot_id)
     if type(revision) is not int or revision != 1:
         raise ValueError("execution snapshot must remain immutable at warehouse revision 1")
-    record = records.read(aggregate_kind="execution_facts", record_id=snapshot_id, revision=1)
-    if (
-        getattr(record, "aggregate_kind", None),
-        getattr(record, "record_id", None),
-        getattr(record, "revision", None),
-    ) != ("execution_facts", snapshot_id, 1) or type(getattr(record, "revision", None)) is not int:
-        raise ValueError("execution snapshot envelope cannot be verified")
-    payload = getattr(record, "payload", None)
-    if not isinstance(payload, Mapping) or execution_payload_digest(payload) != digest:
+    payload = read_exact(
+        records,
+        aggregate_kind="execution_facts",
+        record_id=snapshot_id,
+        revision=1,
+        envelope_error="execution snapshot envelope cannot be verified",
+    )
+    if execution_payload_digest(payload) != digest:
         raise ValueError("execution snapshot digest cannot be verified")
     facts = ExecutionFacts.model_validate_json(
         json.dumps(dict(payload), ensure_ascii=False, allow_nan=False), strict=True

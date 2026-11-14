@@ -7,9 +7,9 @@
 
 **本目录不产生验收结论。** `result = verified` 必须同时满足证据位置非空且真实环境已验证；文档一致、单元与合同测试通过、夹具通过，都不能写成真实环境验收通过（根 [AGENTS.md](../../../AGENTS.md) 第 5.5 条）。
 
-**当前状态：骨架。** 8 项全部 `result = untested`，`owner = null`，`prerequisites`／`artifact_versions`／`actual`／`evidence`／`blockers` 均为 `null`。`scenario`／`expected`／`related_frs` 已从[三期需求文档第 5 节](../../../docs/项目文档/三期/需求文档/01-需求文档.md)逐字解析并对账，包括"上传不改变本地结论""回执不完整显示未送达""源码正文始终禁传"等硬边界。
+**当前状态：骨架。** 8 项全部 `result = untested`，`owner = null`，`prerequisites`／`artifact_versions`／`actual`／`evidence`／`blockers` 均为 `null`。`scenario`／`expected`／`related_frs` 已从[三期需求规格验收场景节](../../../docs/项目文档/三期/02-需求/01-需求规格.md)逐字解析并对账，包括"上传不改变本地结论""回执不完整显示未送达""源码正文始终禁传"等硬边界。
 
-**对账**：[`tests/unit/test_acceptance_status_phases.py`](../../unit/test_acceptance_status_phases.py) 锁定"场景、预期、关联功能与需求文档第 5 节逐字一致"，需求文档改了而这里没同步会直接失败。
+**对账**：[`tests/unit/test_acceptance_status_phases.py`](../../unit/test_acceptance_status_phases.py) 锁定"场景、预期、关联功能与需求文档验收场景节逐字一致"，需求文档改了而这里没同步会直接失败。
 
 **更新边界**：
 
@@ -25,7 +25,7 @@
 | --- | --- |
 | 平台账号与项目身份合同 | **未定**：平台侧接口、认证与项目身份尚未给出 |
 | 平台接收侧可用环境 | **无**：本机无法产生真实接收与回执 |
-| 插件侧投影、冻结、摘要与许可模型 | 合同已定（[三期限定架构 02](../../../docs/项目文档/三期/架构文档/02-结果上传.md)）；实现与消费方接入状态见[项目现状](../../../docs/现状.md) |
+| 插件侧投影、冻结、摘要与许可模型 | 合同已定（[三期结果上传架构](../../../docs/项目文档/三期/04-架构/03-结果上传.md)）；实现与消费方接入状态见[项目现状](../../../docs/现状.md) |
 | 失联、暂停、放弃、退出与重登的中断恢复 | 合同已定，**无对拍证据** |
 
 ## 2 一期/二期边界不受影响

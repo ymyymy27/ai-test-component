@@ -1,44 +1,84 @@
 # AI 辅助测试插件（AI Test Component）
 
-面向 Windows 11 x64、Python 3.11+ 与 Trae 的本地测试插件，当前产品版本 0.4.10。工程同时包含可运行组件与合同文档，完整产品闭环仍在开发。**当前能力、问题、数字与未验证范围统一见[项目现状](docs/现状.md)，全部工程文档入口见[文档总览](docs/README.md)。**
+面向 Windows 11 x64、Python 3.11+ 与 Trae 的本地测试插件：Python 核心 + Trae 薄扩展 + 共享面板，在一个本地工作空间内完成项目/计划、L1/L2/L3 执行、证据与核验、判定与报告、问题闭环和受控恢复。
+
+仓库同时包含可运行产品代码与工程文档。**当前状态、开放问题、规模数字与未验证范围只看[项目现状](docs/现状.md)**；文档分类与阅读顺序见[文档总览](docs/README.md)。组件可构建、测试可运行，都不等于真实宿主或验收通过。
 
 [![CI](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/ymyymy27/ai-test-component/actions/workflows/ci.yml)
 
-## 实现结构
+## 版本
 
-入口 → 接口适配 → 应用用例 → 纯领域规则；应用经 `application/ports.py` 使用外部端口，`bootstrap.py` 统一注入。用户数据位于独立本地工作空间，生命周期排他写锁和不可变提交保存记录/证据，执行/模型调用在短事务外。
+| 项 | 当前值 |
+| --- | --- |
+| 产品版本 | **0.4.10**（`pyproject.toml`、两个 `package.json` 一致） |
+| 运行环境 | Windows 11 x64；Python 3.11—3.13（开发与 CI 使用 3.13） |
+| 宿主 | Trae（VS Code 兼容扩展）；面板产物可在浏览器中调试 |
+| 版本历史 | [CHANGELOG](CHANGELOG.md) |
 
-项目/规则/计划与命令执行组件已存在；C-15/C-16 原缺陷已修，问题/报告/复核/导出、补证/重试/退回、备份/迁移与复用选择已接入。上述原代码反例中的维护、选择修订、关闭、阻塞集合、有效确认与导出回读已修；复用动态资格缺真实材料时继续拒绝；CLI/MCP 接同核心，Trae/面板接只读桥和核心原生确认的受控入口。已接按引用准备、结构化 HTTP 核验与分步操作；完整业务 UI、其他核验适配和真实环境验收仍有剩余，具体按[项目现状](docs/现状.md)的问题表实施。
+## 安装与快速开始
 
-```text
-src/aitest/           domain / application / infrastructure / contracts / interfaces
-integrations/trae/    Trae 候选薄扩展
-tests/                单元 / 合同 / 架构 / 恢复 / 集成 / 验收登记
-docs/README.md        工程文档总览与索引
-docs/项目文档/        需求、功能、架构、设计主责合同
-docs/一期工程整改/    现行交接与操作指南；历史整改批次在归档
-docs/接口对接/        跨包合同、评审、裁定与总台账
-docs/修改日志/        现行工作记录（2026-11-03 起）
-docs/validation/      现行验证批次入口
-docs/归档/            历史修改日志、验证证据、作者文档与整改批次
+```powershell
+uv sync --extra dev --locked
+
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli doctor
+.venv/Scripts/python.exe -m aitest.interfaces.tools.cli ensure-core --workspace "C:\本地用户数据\aitest"
 ```
 
-## 版本与操作入口
+面板与 Trae 扩展构建（需要 Node/npm）：
 
-当前源码 **0.4.10**。现行能力、问题、数字与契约版本见[项目现状](docs/现状.md)；完整版本历史见[CHANGELOG](CHANGELOG.md)。
+```powershell
+npm --prefix src/aitest/resources/panel ci
+npm --prefix src/aitest/resources/panel run build
 
-| 版本 | 操作/配置入口 |
+npm --prefix integrations/trae ci
+npm --prefix integrations/trae run package
+```
+
+- VSIX 输出到 `integrations/trae/dist/aitest-trae.vsix`，构建物不跟踪。
+- 扩展 `package.json` 声明 `aitest.openPanel`、`aitest.configureEntry` 两个命令；`src/extension.ts` 另注册 `aitest.openWorkbench`、`aitest.openReport`（未在 `contributes.commands` 声明，命令面板不可直接调用）。
+- 登记核心与扩展、首次向导、日常操作与排障见[安装与操作说明](docs/项目文档/一期/06-发布运维/03-安装与操作说明.md)；运行拓扑与故障分类见[运维手册](docs/项目文档/一期/06-发布运维/04-运维手册.md)。
+
+## 仓库结构
+
+```text
+src/aitest/           核心：domain / application / infrastructure / contracts / interfaces / resources（含共享面板源码与 Playwright 用例）
+integrations/trae/    Trae 薄扩展（候选实现，含 Node 测试）
+tests/                单元 / 合同 / 架构 / 恢复 / 集成 / 验收登记（tests/acceptance/p1|p2|p3/status.json）
+scripts/              版本、Schema、文档事实核对与产物校验脚本
+docs/
+├── README.md              文档总览：分类、阅读顺序、维护规则
+├── 现状.md                唯一状态与问题清单
+├── 00-项目简报.md
+├── 01-准备阶段/           01-业务方案、02-需求规格、03-功能清单、04-产品方案与界面设计、05-技术评估、06-测试计划、07-交付计划
+├── 02-开发阶段/           01-架构总览 … 09-遗留问题与风险
+├── 03-发布阶段/           01-发布方案、02-备份与恢复预案、03-安装与操作说明、04-验收台账
+├── 04-运营阶段/           01-运维手册、02-效果检测与数据采集
+├── 90-未来期次/           二期、三期的需求/功能/架构/设计合同（不在当前交付范围）
+├── 接口对接/              跨包合同、裁定与总台账
+├── 修改日志/              现行工作记录
+├── validation/            现行验证批次
+├── 学习讲义/
+└── 归档/                  历史材料；文档重构前的旧结构在 归档/文档重构-2026-11-14/
+```
+
+## 文档导航
+
+| 入口 | 用途 |
 | --- | --- |
-| 0.4.9—0.4.10 | [面板引导实测](docs/归档/validation/p1-panel-guidance-20261016/README.md)、[0.4.10 向导与插件实测](docs/归档/validation/p1-onboarding-live-20261016/README.md) |
-| 0.4.8 | [Trae 实测与连接修复](docs/一期工程整改/04-交接/0.4.8-Trae实测与连接修复.md) |
-| 0.4.6—0.4.7 | [实际进程来源与完整报告链](docs/归档/一期工程整改/04-交接-旧版本/0.4.6-实际进程来源与完整报告链.md)、[Trae 与模型配置](docs/归档/一期工程整改/04-交接-旧版本/0.4.7-Trae与模型配置.md) |
-| 0.4.1—0.4.5 | 历史操作说明见[04-交接](docs/一期工程整改/04-交接)，仅对应各自版本 |
+| [文档总览](docs/README.md) | 全部文档分类、事实优先级、阅读顺序与新增约定 |
+| [项目现状](docs/现状.md) | 唯一状态与开放问题清单、验收边界、交付主线 |
+| [项目简报](docs/项目文档/一期/01-项目/01-项目简报.md) | 背景、目标用户、范围、里程碑与验收口径 |
+| [准备阶段](docs/项目文档/一期/README.md) | [需求规格](docs/项目文档/一期/02-需求/02-需求规格.md)（FR/AC）、[功能清单](docs/项目文档/一期/02-需求/03-功能清单.md)（判定与统计唯一口径）、界面设计、测试与交付计划 |
+| [开发阶段](docs/项目文档/一期/README.md) | 分层架构、项目/计划、执行与证据、报告与缺陷、存储与恢复、Trae 接入、面板、开发规则、风险 |
+| [发布阶段](docs/项目文档/一期/README.md) | 发布门禁、备份与恢复预案、安装与操作、验收台账 |
+| [运营阶段](docs/项目文档/一期/README.md) | 运维手册、效果检测与数据采集 |
+| [未来期次](docs/) | 二期/三期合同，仅作追溯，不在当前交付范围 |
+| [接口对接](docs/接口对接/README.md) | 六份跨包合同版本、裁定与本轮状态 |
+| [修改日志](docs/修改日志/README.md) / [验证档案](docs/validation/README.md) | 现行工作记录与验证批次 |
+| [归档](docs/归档/README.md) | 历史材料，保留原结论、不改判 |
+| [验收登记](tests/acceptance/p1/status.json) | 按需求原场景逐项登记；`verified` 需真实环境验证与证据路径 |
 
-0.4.1—0.4.6 的安装与向导步骤只证明当时版本；真实 Trae、其他宿主与完整 AC 仍按[项目现状](docs/现状.md)登记，不能把历史操作说明当作当前验收。
-
-## 开发安装与验证
-
-标准安装命令是 `uv sync --extra dev --locked --python 3.13`（开发与 CI 使用 3.13；产品运行支持 Python 3.11+）。A-19 锁声明范围不一致已修，历史干净锁定安装证据与本轮 lock 检查、Python 运行边界分别见[项目现状](docs/现状.md)。依赖安装后按工程配置运行：
+## 验证命令
 
 ```powershell
 .venv/Scripts/python.exe scripts/check_versions.py
@@ -47,49 +87,15 @@ docs/归档/            历史修改日志、验证证据、作者文档与整�
 .venv/Scripts/python.exe scripts/generate_schemas.py
 .venv/Scripts/python.exe scripts/check_docs_facts.py --full
 .venv/Scripts/python.exe -m pytest -p no:cacheprovider --import-mode=importlib -n 8 --dist loadfile -ra tests
-```
 
-生成 Schema 后须检查 Git diff；不手工编辑生成物。全量测试期间不并发其他重测试，保留退出码、原输出与跳过原因，不用分块结果相加替代全量。临时数据可放 `.runtime/tmp` 并设置 TEMP/TMP。
-
-面板/Trae 需要 Node/npm，按现有 lock 安装并构建。共享面板按产品使用流程重写为“当前检查 + 首次向导 + 工作台 + 报告/问题 + 设置/诊断”，构建与 Playwright 测试可直接运行。
-
-```powershell
-npm --prefix src/aitest/resources/panel ci
-npm --prefix src/aitest/resources/panel run build
 npm --prefix src/aitest/resources/panel test
-npm --prefix integrations/trae ci
-npm --prefix integrations/trae run package
+npm --prefix integrations/trae test
 ```
 
-VSIX 在 `integrations/trae/dist/aitest-trae.vsix`，构建物不跟踪；浏览器/打包通过不代表真实 Trae 行为验收。制品用 `scripts/verify_artifacts.py` / `scripts/smoke_wheel.py` 验证内容、共享面板字节与隔离安装，原证据不得用于新构建。
+- `check_docs_facts.py` 把现状页、`AGENTS.md` 与本文档的数字与代码对账；`--full` 另跑 mypy 并真实装配核心取可派发动作数。
+- 生成 Schema 后检查 `git diff`，不手工编辑生成物。
+- Python 全量在本机耗时数小时；跑全量期间不要并发其它重测试，分块或历史结果不能相加冒充全量。
+- 两个 Node 测试必须在各自包目录内运行（`npm --prefix`）；直接在仓库根跑扩展用例会因 esbuild 相对路径解析失败。
+- 制品内容、共享面板字节与隔离安装用 `scripts/verify_artifacts.py`、`scripts/smoke_wheel.py` 校验，历史证据不能用于新构建。
 
-## 命令行入口
-
-```powershell
-.venv/Scripts/python.exe -m aitest.interfaces.tools.cli templates
-.venv/Scripts/python.exe -m aitest.interfaces.tools.cli doctor
-.venv/Scripts/python.exe -m aitest.interfaces.tools.cli ensure-core --workspace "C:\本地用户数据\aitest"
-.venv/Scripts/python.exe -m aitest.interfaces.tools.cli restart-core --workspace "C:\本地用户数据\aitest"
-.venv/Scripts/python.exe -m aitest.interfaces.tools.cli dispatch --workspace "C:\本地用户数据\aitest"
-.venv/Scripts/python.exe -m aitest.interfaces.tools.cli mcp-relay --workspace "C:\本地用户数据\aitest" --project <项目ID> --binding <绑定ID>
-```
-
-离线 doctor 如实返回 NOT_READY；ensure-core 发现/启动既有工作空间的唯一核心，缺路径拒绝且不创建目录；restart-core 先请求活动核心优雅停机，再启动并核对新实例，活动执行未排空时拒绝；dispatch 从有界 stdin Command JSON 派发，保留 request/intent/准确修订；MCP 冻结项目绑定、只读查询与允许的普通保存，不自行签人工确认。动作可用性以实际装配回执和具体依赖为准。
-
-## 文档导航
-
-| 入口 | 用途 |
-| --- | --- |
-| [文档总览](docs/README.md) | 全部工程文档的分类、维护边界、阅读顺序与新增约定 |
-| [项目现状](docs/现状.md) | **唯一现行状态与问题清单**：当前状态、27 项开放问题、验收边界、交付主线；历史分包检查在[归档](docs/归档/一期工程整改/历史分包检查/) |
-| [项目文档总览](docs/项目文档/README.md)、[总体架构](docs/项目文档/总体架构.md)、[阅读索引](docs/项目文档/阅读索引.md) | 主责字段、时序与 FR/AC |
-| [整改索引](docs/一期工程整改/README.md)、[当前交接](docs/一期工程整改/04-交接/交接说明-2026-10-12.md) | 接续实施与历史追溯 |
-| [接口台账](docs/接口对接/README.md) | 现行跨包合同及对拍状态 |
-| [修改日志](docs/修改日志/README.md) | 2026-11-03 起的现行工作记录；历史在[归档](docs/归档/修改日志/README.md) |
-| [作者工作文档](docs/归档/作者文档/文档-LU/README.md) | A/B/C/D 包的设计、计划、自检与待办（历史参考） |
-| [学习讲义](docs/学习讲义/README.md) | 架构入门材料，不作为验收依据 |
-| [验证档案](docs/validation/README.md) | 新批次入口；历史批次在[归档验证档案](docs/归档/validation/README.md) |
-| [验收台账](tests/acceptance/p1/status.json) | 按需求原场景逐项登记，真实证据才能 verified |
-| [变更记录](CHANGELOG.md) | 历史版本与阶段摘要 |
-
-项目为内部工程，许可证以仓库和组织规定为准。
+项目为内部工程，许可证以仓库与组织规定为准。

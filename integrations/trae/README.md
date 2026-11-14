@@ -4,7 +4,9 @@
 
 共享面板读取唯一核心的项目/运行/问题/报告/事件；新增受控高级操作入口和新建项目模板。扩展不直接写业务文件或生成确认事实。**真实 Trae 中国版/国际版的安装与完整用户流程仍未验收；普通 Python 实际来源、默认独立业务核验与 0.4.8 四用例样例报告链有证据，但不证明当前最新构建的全部业务。**
 
-先安装同版本Python包（Windows、Python3.13，原生确认需要tkinter/Tcl），在编辑器命令面板执行 `AI Test: 配置工作空间与项目`，选择已存在的专用用户数据目录和项目编号。用户数据目录不能选源码或安装目录。
+先安装同版本Python包（Windows、Python 3.11–3.13，原生确认需要tkinter/Tcl），在编辑器命令面板执行 `AI Test: 配置工作空间与项目`，选择已存在的专用用户数据目录和项目编号。用户数据目录不能选源码或安装目录。
+
+扩展在 `src/extension.ts` 实际注册 4 个命令：`aitest.openPanel`（打开测试面板）、`aitest.configureEntry`（配置工作空间与项目）、`aitest.openWorkbench`、`aitest.openReport`。后两个未在 `package.json` 的 `contributes.commands` 声明，因此不出现在命令面板，只能被其他入口以 `executeCommand` 调用。
 
 执行 `AI Test: 打开测试面板` → 连接核心 → 刷新核心状态。仅新核心声明 `native-confirmation/1` 后启用受控操作。在“更多 → 诊断”点击“填写新建项目”，修改实际名称/目标，再请求核心窗口确认；关闭/取消/超时不提交。
 
@@ -14,7 +16,7 @@
 
 从仓库根先构建 `src/aitest/resources/panel`，再在本目录执行 `npm ci` 与 `npm run package`。候选制品为 `dist/aitest-trae.vsix`。CLI/MCP复用同一核心；普通relay仍不能签署人工动作。
 
-本次 Node 使用明确假 CLI/宿主，浏览器为真实 Chromium 加模拟宿主；它们只证明入口组件，不证明实际 Trae 或实际人工点击。操作步骤见 `docs/一期工程整改/04-交接/0.4.8-Trae实测与连接修复.md`，历史 0.4.2 步骤与准确范围见 `docs/归档/一期工程整改/04-交接-旧版本/0.4.2-项目创建与Python环境登记.md` 和 `docs/归档/validation/p1-native-entry-20261015/README.md`。
+本次 Node 使用明确假 CLI/宿主，浏览器为真实 Chromium 加模拟宿主；它们只证明入口组件，不证明实际 Trae 或实际人工点击。操作步骤见 `docs/归档/文档重构-2026-11-14/一期工程整改/04-交接/0.4.8-Trae实测与连接修复.md`，历史 0.4.2 步骤与准确范围见 `docs/归档/一期工程整改/04-交接-旧版本/0.4.2-项目创建与Python环境登记.md` 和 `docs/归档/validation/p1-native-entry-20261015/README.md`。
 
 机器级设置 `aitest.pythonCarriersFile` 指向操作者核对的宿主 Python 载体登记文件，仅新核心启动时使用；既有核心需受控重启。CLI `python-carrier --help` 可生成实际虚拟环境登记，新建项目表单要求真实名称和测试目标。
 

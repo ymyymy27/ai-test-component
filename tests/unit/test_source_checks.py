@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 from aitest.application.execution.source_checks import (
     SourceCheckRequest,
     SourceModuleFact,
@@ -277,3 +279,26 @@ def test_probe_failure_never_yields_verified(tmp_path: Path) -> None:
 
     assert verification.state is SourceVerificationState.BLOCKED
     assert verification.gap_ids == ("environment_unreachable",)
+
+
+def test_source_probe_does_not_inherit_secret_environment(tmp_path, monkeypatch):
+    """探针运行被测代码，不能继承调用方环境里的凭据。"""
+
+    import sys
+
+    from aitest.infrastructure.adapters.execution import python_checks
+
+    monkeypatch.setenv("AITEST_SECRET_SENTINEL", "leak-me")
+    seen: dict[str, str] = {}
+
+    def fake_run(*_args, **kwargs):
+        seen.update(kwargs.get("env") or {})
+        raise OSError("stop-before-exec")
+
+    monkeypatch.setattr(python_checks.subprocess, "run", fake_run)
+    probe = python_checks.PythonLoadSourceProbe(executable=sys.executable, timeout_seconds=1)
+    with pytest.raises(python_checks.PythonSourceProbeError):
+        probe.probe(materialized_root=tmp_path, modules=("demo",))
+    assert "AITEST_SECRET_SENTINEL" not in seen
+    assert "PYTHONPATH" in seen
+    assert "PYTHONHOME" not in seen

@@ -1,7 +1,7 @@
-"""验收登记对账：`tests/acceptance/p1/status.json` 必须与需求文档第 5 节逐字一致。
+"""验收登记对账：`tests/acceptance/p1/status.json` 必须与需求文档第 6 节逐字一致。
 
 本测试只检查"登记是否可信"，不产生也不替代任何验收结论。
-权威来源：`docs/项目文档/一期/需求文档/01-需求文档.md` 第 5 节（验收场景唯一维护点）。
+权威来源：`docs/项目文档/一期/02-需求/02-需求规格.md` 第 6 节（验收场景唯一维护点）。
 设计与字段含义见 `docs/归档/作者文档/文档-feix-a/B包/15-验收框架设计说明.md`。
 """
 
@@ -15,7 +15,7 @@ from typing import Any, cast
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_REQUIREMENTS = _REPO_ROOT / "docs" / "项目文档" / "一期" / "需求文档" / "01-需求文档.md"
+_REQUIREMENTS = _REPO_ROOT / "docs" / "项目文档" / "一期" / "02-需求" / "02-需求规格.md"
 _STATUS = _REPO_ROOT / "tests" / "acceptance" / "p1" / "status.json"
 
 _AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 36))
@@ -53,7 +53,7 @@ def _load_status() -> dict[str, Any]:
 
 
 def _load_requirements_scenarios() -> dict[str, tuple[str, str, list[str]]]:
-    """从需求文档第 5 节解析验收场景表，返回 {AC: (场景, 预期, 关联功能)}。"""
+    """从需求文档第 6 节解析验收场景表，返回 {AC: (场景, 预期, 关联功能)}。"""
 
     scenarios: dict[str, tuple[str, str, list[str]]] = {}
     for line in _REQUIREMENTS.read_text(encoding="utf-8").splitlines():

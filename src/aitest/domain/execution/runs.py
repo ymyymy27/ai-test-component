@@ -13,6 +13,7 @@ from enum import StrEnum
 
 from aitest.domain.execution.runtime_source import RuntimeSourceObservation, RuntimeSourcePlan
 from aitest.domain.project.context import IsolationMode
+from aitest.domain.run_vocabulary import RunTier as RunTier
 
 
 def _require_text(value: str, name: str) -> None:
@@ -28,12 +29,6 @@ def _require_positive(value: int, name: str) -> None:
 def _require_non_negative(value: int, name: str) -> None:
     if value < 0:
         raise ValueError(f"{name} must be non-negative")
-
-
-class RunTier(StrEnum):
-    FULL = "full"
-    QUICK = "quick"
-    ON_DEMAND = "on_demand"
 
 
 class RunControlState(StrEnum):

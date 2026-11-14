@@ -21,14 +21,7 @@ from enum import StrEnum
 
 from aitest.domain.planning.rules import RuleRevisionRef as RuleRevisionRef
 from aitest.domain.planning.understanding import CoverageClaim as CoverageClaim
-
-
-class RunTier(StrEnum):
-    """档位：决定检查范围与结论上限（架构文档《01-项目与计划》第 4 节）。"""
-
-    QUICK = "quick"
-    ON_DEMAND = "on_demand"
-    FULL = "full"
+from aitest.domain.run_vocabulary import RunTier as RunTier
 
 
 class RunDriver(StrEnum):

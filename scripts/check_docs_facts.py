@@ -1,6 +1,6 @@
 """Report current-status docs whose numeric claims disagree with the code.
 
-**只扫现行状态文档**（现状页、`AGENTS.md`、README、交接说明）：这些文档描述"现在是什么样"，
+**只扫现行状态文档**（现状页、`AGENTS.md`、README）：这些文档描述"现在是什么样"，
 一旦与代码矛盾就会误导后续工作（本项目把文档当合同）。**不碰历史留痕**——修改日志、归档交接、
 `docs/归档/validation/` 里的记录都是当时的真实结果，改它们等于篡改历史。
 
@@ -32,7 +32,6 @@ DOCS = (
     "docs/现状.md",
     "AGENTS.md",
     "README.md",
-    "docs/一期工程整改/04-交接/交接说明-2026-10-12.md",
 )
 
 

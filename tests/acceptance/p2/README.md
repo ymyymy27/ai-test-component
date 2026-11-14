@@ -7,7 +7,7 @@
 
 **本目录不产生验收结论。** `result = verified` 必须同时满足证据位置非空且真实环境已验证；文档一致、单元与合同测试通过、夹具通过，都不能写成真实环境验收通过（根 [AGENTS.md](../../../AGENTS.md) 第 5.5 条）。
 
-**当前状态：骨架。** 9 项全部 `result = untested`，`owner = null`，`prerequisites`／`artifact_versions`／`actual`／`evidence`／`blockers` 均为 `null`。`scenario`／`expected`／`related_frs` 已从[二期需求文档第 5 节](../../../docs/项目文档/二期/需求文档/01-需求文档.md)逐字解析并对账。
+**当前状态：骨架。** 9 项全部 `result = untested`，`owner = null`，`prerequisites`／`artifact_versions`／`actual`／`evidence`／`blockers` 均为 `null`。`scenario`／`expected`／`related_frs` 已从[二期需求文档第 5 节](../../../docs/项目文档/二期/02-需求/01-需求规格.md)逐字解析并对账。
 
 **对账**：[`tests/unit/test_acceptance_status_phases.py`](../../unit/test_acceptance_status_phases.py) 锁定"场景、预期、关联功能与需求文档第 5 节逐字一致"，需求文档改了而这里没同步会直接失败。
 
@@ -27,7 +27,7 @@
 | --- | --- |
 | 非 Trae 编辑器安装与实测 | **未做**：`integrations/trae/` 只是 Trae 薄扩展候选实现，二期新增编辑器尚无实测证据 |
 | macOS / Linux 桌面端 | **未做**：一期验收环境为 Windows 11 x64，二期新增系统组合无实测 |
-| 源码定位六态与行内标注 | 合同已定（[二期架构 02](../../../docs/项目文档/二期/架构文档/02-源码定位与行内标注.md)），**无真实宿主消费证据** |
+| 源码定位六态与行内标注 | 合同已定（[二期架构 02](../../../docs/项目文档/二期/04-架构/03-源码定位与行内标注.md)），**无真实宿主消费证据** |
 | 依赖图 / 链路图 | 合同已定（二期架构 01、02），图为已有事实的投影，**无真实生成与跳转证据** |
 | 能力诊断与降级 | 一期 `doctor` 仅离线 `NOT_READY`，**未按动作依赖矩阵产出真实组合清单** |
 | 历史记录页与索引损坏降级 | 合同已定（二期需求 P2-FR06），**无真实分页/游标证据** |

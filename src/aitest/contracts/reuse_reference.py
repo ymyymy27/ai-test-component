@@ -1,6 +1,6 @@
 """存量运行之间的整用例复用引用记录（合同形状 + 严格校验）。
 
-一期架构01《复用、回归与模型任务矩阵》（`docs/项目文档/一期/架构文档/01-项目与计划.md`）规定：
+一期架构01《复用、回归与模型任务矩阵》（`docs/项目文档/一期/04-架构/02-项目与计划.md`）规定：
 
     ReuseReference 登记 target_run/case_id、source_run/step/attempt、来源计划与
     源码/环境/入口参数/规则/适配器修订、证据引用、validity_checked_at_commit

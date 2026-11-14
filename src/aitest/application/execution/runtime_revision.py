@@ -27,6 +27,7 @@ from aitest.application.planning.serialization import (
     case_to_payload,
 )
 from aitest.application.ports import AggregateKind, CommittedRecord, RecordRepository
+from aitest.application.shared.records import read_exact
 from aitest.contracts.execution_facts import (
     AttemptStateFact,
     DependencyInvalidationFact,
@@ -251,23 +252,16 @@ class SavedRuntimeRevisionReader:
     def _read(self, kind: str, record_id: str, revision: int, project_id: str) -> dict[str, Any]:
         if type(revision) is not int or revision < 1:
             raise ValueError("runtime material requires an exact warehouse revision")
-        record = self.records.read(aggregate_kind=kind, record_id=record_id, revision=revision)
-        raw_payload = getattr(record, "payload", None)
-        if (
-            (
-                getattr(record, "aggregate_kind", None),
-                getattr(record, "record_id", None),
-                getattr(record, "revision", None),
-            )
-            != (kind, record_id, revision)
-            or type(getattr(record, "revision", None)) is not int
-            or not isinstance(raw_payload, Mapping)
-        ):
-            raise ValueError("runtime material envelope cannot be verified")
-        payload = dict(raw_payload)
-        if payload.get("project_id") != project_id:
-            raise ValueError("runtime material belongs to another project")
-        return payload
+        payload = read_exact(
+            self.records,
+            aggregate_kind=kind,
+            record_id=record_id,
+            revision=revision,
+            envelope_error="runtime material envelope cannot be verified",
+            project_id=project_id,
+            project_error="runtime material belongs to another project",
+        )
+        return dict(payload)
 
     def read_record(self, *, project_id: str, reference: str) -> RunRevisionRecord:
         match = re.fullmatch(r"run_plan_revision:(run-revision-[0-9a-f]{64})@1", reference)

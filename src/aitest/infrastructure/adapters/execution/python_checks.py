@@ -49,6 +49,22 @@ from aitest.infrastructure.adapters.execution.command import (
 )
 
 _MODULE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+#: 探针子进程只继承解释器启动必需的环境变量；凭据类变量不进子进程。
+_PROBE_ENV_ALLOWLIST = (
+    "PATH",
+    "SYSTEMROOT",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+    "TEMP",
+    "TMP",
+    "HOME",
+    "USERPROFILE",
+    "LANG",
+    "LC_ALL",
+    "LD_LIBRARY_PATH",
+    "DYLD_LIBRARY_PATH",
+)
 _BEGIN = "@@@ ATEST SOURCE PROBE BEGIN"
 _END = "@@@ ATEST SOURCE PROBE END"
 _HASH_BLOCK = 64 * 1024
@@ -255,10 +271,16 @@ class PythonLoadSourceProbe:
         if len(names) != len(set(names)):
             raise PythonSourceProbeError("登记模块名重复，无法核对准确集合")
         pythonpath = [os.path.realpath(str(root)), *(str(p) for p in extra_pythonpath)]
-        env = dict(os.environ)
-        # -E 阻止解释器自动消费 PYTHONPATH，探针按声明顺序手工注入；同时把
-        # 映射显式放进环境，使子进程报告的 PYTHONPATH 事实就是本次绑定。
+        # 探针运行的是被测项目代码，不能继承调用方的整份环境（其中可能有凭据）。
+        # 只透传解释器启动必需的少数变量；PYTHONPATH/PYTHONHOME 一律不继承。
+        env = {
+            name: os.environ[name]
+            for name in _PROBE_ENV_ALLOWLIST
+            if name in os.environ
+        }
         env["PYTHONPATH"] = os.pathsep.join(pythonpath)
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
         if extra_env:
             env.update(extra_env)
         payload = json.dumps(

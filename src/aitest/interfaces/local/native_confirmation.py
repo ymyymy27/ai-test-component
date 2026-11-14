@@ -40,7 +40,7 @@ CHALLENGE_ACTIONS = frozenset(
     }
 )
 NATIVE_ACTIONS = (
-    (PHASE_ONE_ACTIONS | {"save_binding"})
+    PHASE_ONE_ACTIONS
     - READ_ACTIONS
     - {
         "prepare_approval",

@@ -696,8 +696,10 @@ class FileMigrationManager:
             if destination.exists():
                 # 无本轮引用的同名材料不能冒充迁移前备份，原材料永久保留。
                 destination = self._backups_dir / f"{plan_id}-{uuid4().hex}"
-            FileBackupStore(self._root).create(destination)
-            verification = FileBackupStore(self._root).verify(destination)
+            FileBackupStore(self._root, backup_root=self._backups_dir).create(destination)
+            verification = FileBackupStore(self._root, backup_root=self._backups_dir).verify(
+                destination
+            )
             if not verification["ok"]:
                 raise MigrationError(f"迁移前备份校验失败: {verification['errors']}")
         # 在任何 forward 之前冻结本轮备份引用，重启不能切回第一轮备份。

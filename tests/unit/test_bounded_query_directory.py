@@ -538,3 +538,22 @@ def test_first_publication_validates_rows_before_creating_index_files(tmp_path, 
     with pytest.raises(IndexMissing):
         index.publish([bad], commit_sequence=3, all_rows=[bad])
     assert not index.meta_path.exists() and not index.indexes_dir.exists()
+
+
+def test_local_review_rows_never_enter_the_report_directory(tmp_path):
+    """`local_review` 载荷也带 report_id；只有 aggregate_kind=report 才能进 reports 族。"""
+
+    index = FileQueryIndex(tmp_path, shard_size=8)
+    review = _row(1, kind="local_review")
+    review["report_id"] = "r00001"
+    index.rebuild([review])
+    assert index.query_spec(QuerySpec(project_id="p", limit=5)).status == "ok"
+    assert FileQueryIndex._is_report_row(review) is False
+
+    report = _row(2, kind="report")
+    index.publish([report], commit_sequence=report["commit_sequence"])
+    page = index.query_spec(QuerySpec(project_id="p", limit=5))
+    assert page.status == "ok"
+    assert [item["record_id"] for item in page.items if item.get("aggregate_kind") == "report"] == [
+        report["record_id"]
+    ]

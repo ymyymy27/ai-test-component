@@ -24,6 +24,8 @@ from aitest.infrastructure.security import (
 from . import atomic
 
 _BACKUP_SCHEMA: Final = "aitest.backup/1.0"
+_RESTORE_SCHEMA: Final = "aitest.restore-complete/1.0"
+_RESTORE_MARKER: Final = "restore-complete.json"
 _ACTIVE_MARKER: Final = Path("transactions") / "active.json"
 _SPOOL_DIR: Final = "spool"
 _MAX_JSON_BYTES: Final = 16 * 1024 * 1024
@@ -148,11 +150,18 @@ def _read_manifest(backup: Path) -> dict[str, str]:
 
 
 class FileBackupStore:
-    def __init__(self, root: Path, *, registry: KnownSecretRegistry | None = None) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        registry: KnownSecretRegistry | None = None,
+        backup_root: Path | None = None,
+    ) -> None:
         if _chain_has_symlink(root):
             raise BackupError("备份工作空间路径含链接")
         self.root = root.resolve()
         self._registry = registry if registry is not None else known_secrets()
+        self._backup_root = backup_root.resolve() if backup_root is not None else None
 
     def _safe_digest(self, path: Path) -> str:
         if _chain_has_symlink(path):
@@ -222,6 +231,16 @@ class FileBackupStore:
         names = (*_PERMANENT_FILES, *_PERMANENT_DIRS)
         if activity is None:
             names += (_SPOOL_DIR,)
+        # 备份自身（含旧备份仓库）不属于业务闭包：否则每次备份都会把上一次
+        # 备份再打包，目录近似指数增长。
+        skip_roots = [destination, self.root / "migrations" / "backups"]
+        if self._backup_root is not None and self._backup_root.is_relative_to(self.root):
+            skip_roots.append(self._backup_root)
+
+        def skipped(path: Path) -> bool:
+            resolved = path.resolve()
+            return any(resolved == root or resolved.is_relative_to(root) for root in skip_roots)
+
         planned: dict[str, Path] = {}
         for name in sorted(names):
             source = self.root / name
@@ -239,14 +258,14 @@ class FileBackupStore:
                     child = parent / entry
                     if _chain_has_symlink(child):
                         raise BackupError("永久材料包含链接，拒绝跟随")
-                    if child.resolve() != destination:
+                    if not skipped(child):
                         kept.append(entry)
                 dirs[:] = kept
                 for entry in files:
                     child = parent / entry
                     if _chain_has_symlink(child):
                         raise BackupError("永久材料包含链接，拒绝跟随")
-                    if child.resolve().is_relative_to(destination):
+                    if skipped(child):
                         continue
                     planned[child.relative_to(self.root).as_posix()] = child
         # Validate the entire frozen closure before creating any destination.
@@ -409,6 +428,20 @@ class FileBackupStore:
                     # Restored material stays usable, but the caller must not claim
                     # the copy is ready for business reads without a rebuild.
                     index_gap = f"index_rebuild_failed: {error}"
+        if state == "restored":
+            # 完成标记最后写：崩溃在复制中途时它不存在，后续可区分“半恢复”
+            # 与“完整恢复”，而不是把半恢复目录当成可读工作空间。
+            atomic.write_json(
+                target / "diagnostics" / _RESTORE_MARKER,
+                {
+                    "schema": _RESTORE_SCHEMA,
+                    "backup_manifest_digest": self._digest(backup / "backup.json"),
+                    "files_restored": files_restored,
+                    "bytes_restored": bytes_restored,
+                    "index_generation": index_generation,
+                    "index_gap": index_gap,
+                },
+            )
         return RestoreReport(
             backup=backup,
             target=target,
@@ -420,6 +453,19 @@ class FileBackupStore:
             index_generation=index_generation,
             index_gap=index_gap,
         )
+
+
+def restore_completion(target: Path) -> dict[str, object] | None:
+    """读恢复完成标记；`None` 表示目标不是一次完整恢复的产物。"""
+
+    path = target / "diagnostics" / _RESTORE_MARKER
+    if _chain_has_symlink(path) or not path.is_file():
+        return None
+    try:
+        value = decode_json(path.read_bytes())
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) and value.get("schema") == _RESTORE_SCHEMA else None
 
 
 def manifest_facts(destination: Path) -> tuple[str, int, int]:

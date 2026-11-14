@@ -1,9 +1,9 @@
-"""验收登记对账（二期/三期）：`tests/acceptance/p{2,3}/status.json` 与需求文档第 5 节逐字一致。
+"""验收登记对账（二期/三期）：`tests/acceptance/p{2,3}/status.json` 与需求文档验收场景节逐字一致。
 
 本测试只检查“登记是否可信”，不产生也不替代任何验收结论。
 
-- 权威来源：`docs/项目文档/二期/需求文档/01-需求文档.md`、
-  `docs/项目文档/三期/需求文档/01-需求文档.md` 第 5 节（各期验收场景的唯一维护点）。
+- 权威来源：`docs/项目文档/二期/02-需求/01-需求规格.md` 第 5 节、
+  `docs/项目文档/三期/02-需求/01-需求规格.md` 第 6 节（各期验收场景的唯一维护点）。
 - 一期登记由 `tests/unit/test_acceptance_status.py` 对账，其牵头包归属来自
   《一期工程四部分拆分与低对接实施方案》第 5 节。
 - 二期/三期**尚无牵头包拆分方案**，因此 `owner` 允许为 `null`；一旦填写必须是有效包名，
@@ -41,18 +41,15 @@ _REQUIRED_UPDATE_RULES = frozenset({
     "verified_rule",
     "no_inference",
 })
-_PHASE_DIRECTORY = {2: "二期", 3: "三期"}
+# 各期需求文档的权威路径（相对仓库根）；二期、三期均已迁移到按期次分目录的新结构。
+_PHASE_REQUIREMENTS = {
+    2: ("docs", "项目文档", "二期", "02-需求", "01-需求规格.md"),
+    3: ("docs", "项目文档", "三期", "02-需求", "01-需求规格.md"),
+}
 
 
 def _requirements_path(phase: int) -> Path:
-    return (
-        _REPO_ROOT
-        / "docs"
-        / "项目文档"
-        / _PHASE_DIRECTORY[phase]
-        / "需求文档"
-        / "01-需求文档.md"
-    )
+    return _REPO_ROOT.joinpath(*_PHASE_REQUIREMENTS[phase])
 
 
 def _status_path(phase: int) -> Path:
@@ -64,7 +61,7 @@ def _load_status(phase: int) -> dict[str, Any]:
 
 
 def _load_requirements_scenarios(phase: int, prefix: str) -> dict[str, tuple[str, str, list[str]]]:
-    """从需求文档第 5 节解析验收场景表，返回 {AC: (场景, 预期, 关联功能)}。"""
+    """从需求文档验收场景节解析验收场景表，返回 {AC: (场景, 预期, 关联功能)}。"""
 
     pattern = re.compile(rf"^\|\s*({prefix}-AC\d{{2}})\s*\|(.*)$")
     scenarios: dict[str, tuple[str, str, list[str]]] = {}
@@ -95,7 +92,7 @@ def test_status_lists_every_scenario_in_requirements_order(
 ) -> None:
     authoritative = _load_requirements_scenarios(phase, prefix)
     assert len(authoritative) == expected_count, (
-        f"{prefix} 需求文档第 5 节场景数不是 {expected_count}"
+        f"{prefix} 需求文档验收场景节的数量不是 {expected_count}"
     )
 
     ids = [row["id"] for row in _results(phase)]

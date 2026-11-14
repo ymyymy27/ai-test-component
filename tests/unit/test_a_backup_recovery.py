@@ -8,13 +8,18 @@ from typing import Any
 
 import pytest
 
-from aitest.infrastructure.file_store.backup import BackupError, FileBackupStore
+from aitest.infrastructure.file_store.backup import (
+    BackupError,
+    FileBackupStore,
+    restore_completion,
+)
 from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.recovery import (
     RecoveryBlocked,
     RecoveryOrchestrator,
     recover_workspace,
 )
+from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
 
 _COMMIT_FILE = {
@@ -168,3 +173,38 @@ def test_restore_backup_blocked_on_corrupt(workspace: Path, tmp_path: Path) -> N
         RecoveryOrchestrator(workspace, instance_id="instance-1").restore_backup(
             backup=backup, target=tmp_path / "recovered"
         )
+
+
+def test_backup_does_not_include_previous_backups(tmp_path: Path) -> None:
+    """备份仓库不是业务闭包：旧备份不得被再次打包（否则近似指数增长）。"""
+
+    root = tmp_path / "workspace"
+    root.mkdir()
+    (root / "workspace.json").write_text("{}", encoding="utf-8")
+    old = root / "migrations" / "backups" / "old" / "objects" / "x.bin"
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"old-backup")
+    destination = root / "migrations" / "backups" / "new"
+    FileBackupStore(root, backup_root=root / "migrations" / "backups").create(destination)
+    manifest = json.loads((destination / "backup.json").read_text(encoding="utf-8"))["files"]
+    assert not any(name.startswith("migrations/backups/") for name in manifest)
+    assert FileBackupStore(root).verify(destination)["ok"] is True
+
+
+def test_restore_writes_completion_marker_last(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    unit = FileUnitOfWork(root)
+    unit.begin("save", "p")
+    unit.stage_record(
+        aggregate_kind="case", record_id="c", expected_revision=0, payload={"project_id": "p"}
+    )
+    unit.commit()
+    backup = tmp_path / "backup"
+    FileBackupStore(root).create(backup)
+    target = tmp_path / "restored"
+    FileBackupStore(root).restore(backup=backup, target=target)
+    marker = restore_completion(target)
+    assert marker is not None and marker["files_restored"] >= 1
+    # 半恢复（标记缺失）必须可区分。
+    (target / "diagnostics" / "restore-complete.json").unlink()
+    assert restore_completion(target) is None

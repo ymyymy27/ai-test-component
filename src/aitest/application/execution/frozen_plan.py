@@ -1,7 +1,6 @@
 """Exact original plan/scope/cases shared by execution and history consumers."""
 
 import json
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +15,7 @@ from aitest.application.planning.serialization import (
     case_to_payload,
 )
 from aitest.application.ports import RecordRepository
+from aitest.application.shared.records import read_exact
 from aitest.contracts.prepared_run import PreparedRun
 from aitest.domain.planning.plans import Case, Plan
 
@@ -33,16 +33,14 @@ class FrozenRunPlanReader:
     def _read(self, project: str, kind: str, identity: str, revision: int) -> dict[str, Any]:
         if type(revision) is not int or revision < 1:
             raise ValueError("frozen plan requires an exact warehouse revision")
-        saved = self.records.read(aggregate_kind=kind, record_id=identity, revision=revision)
-        raw = getattr(saved, "payload", None)
-        if (
-            (getattr(saved, "aggregate_kind", None), getattr(saved, "record_id", None),
-             getattr(saved, "revision", None)) != (kind, identity, revision)
-            or type(getattr(saved, "revision", None)) is not int
-            or not isinstance(raw, Mapping)
-            or raw.get("project_id") != project
-        ):
-            raise ValueError("frozen plan material envelope or project differs")
+        raw = read_exact(
+            self.records,
+            aggregate_kind=kind,
+            record_id=identity,
+            revision=revision,
+            envelope_error="frozen plan material envelope or project differs",
+            project_id=project,
+        )
         return dict(raw)
 
     def read(self, prepared: PreparedRun) -> FrozenRunPlan:

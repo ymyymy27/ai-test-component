@@ -791,7 +791,11 @@ class FileQueryIndex:
 
     @staticmethod
     def _is_report_row(row: dict[str, Any]) -> bool:
-        return isinstance(row.get("report_id"), str)
+        # 只看 report_id 会把 local_review 行（同样带 report_id）写进 reports 目录；
+        # 读取侧按 aggregate_kind 校验后会永久 maintenance_required。
+        return row.get("aggregate_kind") == "report" and isinstance(
+            row.get("report_id"), str
+        )
 
     @staticmethod
     def _report_sequence(row: dict[str, Any]) -> int:
