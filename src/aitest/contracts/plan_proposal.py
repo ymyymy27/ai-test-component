@@ -226,13 +226,24 @@ class PlanProposal(BaseModel):
     def unique_identities(self) -> PlanProposal:
         case_ids = [case.case_id for case in self.cases]
         if len(case_ids) != len(set(case_ids)):
-            raise ValueError("duplicate case IDs")
+            duplicated_cases = sorted({value for value in case_ids if case_ids.count(value) > 1})
+            raise ValueError("duplicate case IDs: " + ", ".join(duplicated_cases))
         item_ids = [
             case.template_item_id for case in self.cases
             if case.template_item_id is not None
         ]
         if len(item_ids) != len(set(item_ids)):
-            raise ValueError("duplicate template item IDs")
+            duplicates = sorted({value for value in item_ids if item_ids.count(value) > 1})
+            detail = ", ".join(
+                f"{item} (cases: "
+                + ", ".join(
+                    case.case_id for case in self.cases
+                    if case.template_item_id == item
+                )
+                + ")"
+                for item in duplicates
+            )
+            raise ValueError("duplicate template item IDs: " + detail)
         if self.schema_version == PLAN_PROPOSAL_SCHEMA_V11:
             self._validate_v11(case_ids)
         else:

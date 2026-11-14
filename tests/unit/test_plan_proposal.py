@@ -128,6 +128,18 @@ def test_missing_template_item_is_rejected_with_issue() -> None:
     assert any("error" in issue.message for issue in error.value.issues)
 
 
+def test_duplicate_template_item_ids_are_reported_with_their_cases() -> None:
+    payload = _proposal()
+    cases = list(payload["cases"])  # type: ignore[arg-type]
+    cases[1]["template_item_id"] = "syntax"
+    payload["cases"] = cases
+    with pytest.raises(PlanProposalError) as error:
+        parse_plan_proposal(json.dumps(payload, ensure_ascii=False))
+    text = str(error.value)
+    assert "duplicate template item IDs" in text
+    assert "syntax (cases: case-syntax, case-normal)" in text
+
+
 def test_wrong_layer_is_rejected() -> None:
     payload = _proposal()
     cases = list(payload["cases"])  # type: ignore[arg-type]

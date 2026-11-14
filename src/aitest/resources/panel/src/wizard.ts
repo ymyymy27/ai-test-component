@@ -668,7 +668,8 @@ function proposalErrorText(value: unknown): string | undefined {
         })
         .filter(Boolean)
     : [];
-  const text = [message, ...issues].filter(Boolean).join("；");
+  // `message` 已经是 issues 的连接串；两者同时拼接会把同一原因显示两遍。
+  const text = issues.length > 0 ? issues.join("；") : (message ?? "");
   return text ? `计划结构未通过校验：${text}` : undefined;
 }
 
