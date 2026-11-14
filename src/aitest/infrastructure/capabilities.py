@@ -215,9 +215,17 @@ class CapabilityGate:
             automatic, manual = state_store.load()
             for key, condition in automatic.items():
                 # Historical success cannot supply this core's actual configuration.
+                # 瞬态传输故障（connectivity）也一样：它是上一个进程的运行时事实，
+                # 新核心必须重新探测，否则"降级 → 拒绝所有模型动作 → 无法产生成功事实"
+                # 会永久锁死。人工暂停与非传输故障（auth/限额等）仍按原样保留。
+                reobserve = condition.state is CapabilityState.READY or (
+                    condition.state is CapabilityState.DEGRADED
+                    and condition.classification == "connectivity"
+                    and not condition.manual
+                )
                 self._automatic[key] = (
                     DependencyCondition(key=key, state=CapabilityState.NOT_CONFIGURED)
-                    if condition.state is CapabilityState.READY
+                    if reobserve
                     else condition
                 )
             self._manual = manual

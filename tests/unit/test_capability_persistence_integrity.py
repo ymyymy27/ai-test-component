@@ -38,6 +38,23 @@ def test_manual_pause_and_automatic_result_are_distinct_after_restart(tmp_path):
     assert restarted.condition(MODEL).state is CapabilityState.READY
 
 
+def test_transient_connectivity_degradation_is_reobserved_by_the_new_core(tmp_path):
+    """传输故障是上一个进程的运行时事实；新核心重新探测，避免门禁永久锁死。"""
+    first = _gate(tmp_path)
+    first.configure(MODEL)
+    first.report(MODEL, healthy=False, reason="Connection refused", classification="connectivity")
+    assert first.condition(MODEL).state is CapabilityState.DEGRADED
+    restarted = _gate(tmp_path)
+    assert restarted.condition(MODEL).state is CapabilityState.NOT_CONFIGURED
+    restarted.configure(MODEL)
+    assert restarted.condition(MODEL).state is CapabilityState.READY
+    # 非传输故障仍保留，必须等新的成功事实。
+    other = _gate(tmp_path)
+    other.report(SECRET, healthy=False, reason="401", classification="auth")
+    again = _gate(tmp_path)
+    assert again.condition(SECRET).state is CapabilityState.DEGRADED
+
+
 def test_healthy_fact_during_pause_is_saved_without_lifting_it(tmp_path):
     first = _gate(tmp_path)
     first.degrade(MODEL, "operator paused requests")
