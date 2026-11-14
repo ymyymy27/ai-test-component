@@ -120,6 +120,10 @@ class SavedModelPolicyApprovalResolver:
                         "model_outbound_policy", identity, expected, _digest(previous)
                     )
                 )
+        except ApprovalRequired:
+            # 修订冲突等已带可操作原因，不能被下面的通用兜底覆盖成
+            # "saved policy approval material is unavailable"。
+            raise
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise ApprovalRequired("saved policy approval material is unavailable") from error
         return ActionBasis(

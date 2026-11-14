@@ -505,6 +505,31 @@ def test_model_retry_gets_a_new_generation_intent_but_reuses_the_policy_intent()
             == second_by_action["generate_draft"]["parameters"])
 
 
+def test_model_retry_advances_an_existing_policy_revision():
+    """策略已在库时，重试必须生成下一修订，不能再用 revision=1/expected=0。"""
+    selection = form()
+    snapshot = {
+        "snapshot_id": "snapshot-1",
+        "purpose": "prepare",
+        "content_identity": "sha256:" + "b" * 64,
+        "record_revision": 1,
+    }
+    commands = wizard_commands(
+        selection,
+        "model",
+        {"snapshot": snapshot},
+        revisions={"model-policy:" + selection.project_id: 1},
+    )
+    policy = next(item for item in commands
+                  if item["action"] == "save_model_outbound_policy")
+    assert policy["parameters"]["policy"]["revision"] == 2
+    assert policy["expected_revision"] == 1
+    first = next(item for item in wizard_commands(selection, "model", {"snapshot": snapshot})
+                 if item["action"] == "save_model_outbound_policy")
+    assert first["parameters"]["policy"]["revision"] == 1
+    assert first["expected_revision"] == 0
+
+
 def test_project_resume_only_verifies_the_existing_source_snapshot():
     commands = wizard_commands(
         form(), "project", {}, resume=True, source_expected_revision=3

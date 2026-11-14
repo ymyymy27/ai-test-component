@@ -272,6 +272,17 @@ def test_policy_save_replay_returns_its_exact_historical_revision_and_new_input_
     )
 
 
+def test_stale_policy_revision_reports_the_conflict_not_a_generic_basis_error(policy_core):
+    """策略已在修订 1 时再以 expected=0 准备确认：必须给出可操作原因。"""
+    core, _ = policy_core
+    first = controlled_policy_confirm(core, policy_command(), session=HUMAN)
+    assert first.error is None, first.error
+    stale = policy_command(intent="stale-policy-intent", request="stale-policy-request")
+    prepared = prepare_policy_challenge(core, stale, HUMAN)
+    assert prepared.error is not None
+    assert "model policy changed" in prepared.error.message
+
+
 @pytest.mark.parametrize("point", [1, 2, 3, 4, 5, 6, "before_commit"])
 def test_policy_consent_and_result_roll_back_at_every_batch_fault(policy_core, monkeypatch, point):
     core, calls = policy_core

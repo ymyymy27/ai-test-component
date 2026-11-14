@@ -510,6 +510,31 @@ def test_revision_conflict_is_reported_with_its_own_code(workspace_root: Path) -
     assert second.error.code == "B_REVISION_CONFLICT"
 
 
+def test_report_is_a_supported_finite_query_kind(workspace_root: Path) -> None:
+    """面板「问题与报告」页按项目列报告；`report` 必须在有限查询白名单内。"""
+    api = _api(_start(workspace_root))
+    saved = api.dispatch(
+        _write_command(
+            action="save_context",
+            request_id=BREAKDOWN,
+            parameters={"project": _project_payload()},
+        ),
+        _session(),
+    )
+    assert saved.error is None, saved.error
+    response = api.dispatch(
+        Command(
+            request_id="req-report-list",
+            action="query",
+            project_id=PROJECT_ID,
+            parameters={"aggregate_kind": "report", "limit": 20},
+        ),
+        _session(),
+    )
+    assert response.error is None, response.error
+    assert response.result["items"] == []
+
+
 def test_invalid_parameters_get_a_structured_error(workspace_root: Path) -> None:
     api = _api(_start(workspace_root))
     response = api.dispatch(

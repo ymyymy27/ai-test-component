@@ -316,6 +316,8 @@ _AGGREGATE_KINDS: frozenset[str] = frozenset(
         "local_review",
         # 复用选择记录：面板读取当前目标运行的已选复用修订后再提交新选择。
         "reuse_decision",
+        # 报告修订：面板「问题与报告」页按项目列报告；索引层已有 reports 分区。
+        "report",
     }
 )
 

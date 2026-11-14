@@ -32,5 +32,6 @@
 | 2026-11-14 | ymy | [pytest 模块关联](ymy/2026-11-14-pytest模块关联.md) | test-selection 新增 module_ids、cross_module 显式状态；单模块真实回归建议返回用例，AC03 verified |
 | 2026-11-14 | ymy | [P1-AC25 无 Git 项目](ymy/2026-11-14-P1-AC25无Git项目.md) | plain 项目 L1/L2、报告/导出无 Git 字段、源码摘要变化；AC25 verified |
 | 2026-11-14 | ymy | [P1-AC30 新建项目分析](ymy/2026-11-14-P1-AC30新建项目分析.md) | 无模型/无模板分析、manual on_demand 计划、草稿不执行、aiohttp 能力缺口、check_source 变化；AC30 保持 not_verified |
+| 2026-11-14 | ymy | [Trae 向导重试与报告查询修复](ymy/2026-11-14-Trae向导重试与报告查询修复.md) | 策略重试推进修订、保留审批错误原因、`report` 查询纳入白名单；真实核心验证通过 |
 
 历史记录按作者索引在[归档修改日志](../归档/修改日志/README.md)；现行状态以[项目现状](../现状.md)为准。

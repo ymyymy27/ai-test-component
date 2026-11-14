@@ -365,14 +365,17 @@ def wizard_commands(
     elif stage == "model":
         template_ref = TemplateRef("python-library", "1.0.0")
         template_text = template_draft_text(load_template(template_ref))
+        # 重试或续跑时策略可能已在库；按当前仓储修订生成下一修订，否则固定
+        # revision=1/expected=0 会得到 "model policy changed" 而无法继续。
+        policy_revision = (revisions or {}).get("model-policy:" + project, 0) + 1
         add("policy", "save_model_outbound_policy", {"project_revision": 1, "policy": {
-            "project_id": project, "revision": 1,
+            "project_id": project, "revision": policy_revision,
             "endpoint": {"provider": "openai-compatible", "address": form.endpoint,
                          "model_id": form.model, "purpose": "model"},
             "allowed_material_kinds": _material_kinds(form),
             "source_snippets_enabled": form.source_snippets_enabled,
             "ai_enabled": True, "confirmation": None, "revoked_material_kinds": [],
-        }}, "model-policy:" + project)
+        }}, "model-policy:" + project, expected_revision=policy_revision - 1)
         understanding_text = _understanding_material(form)
         project_context = form.name + "\n" + form.goal
         if understanding_text:

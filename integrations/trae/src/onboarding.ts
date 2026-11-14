@@ -192,10 +192,12 @@ export async function wizardMessage(
           if(item&&typeof item==="object"&&Number.isSafeInteger((item as Record<string,unknown>).revision))sourceExpectedRevision=Math.max(sourceExpectedRevision,Number((item as Record<string,unknown>).revision));
         }
       }
-      // 重试提交时用例/验收范围可能已存在；把当前仓储修订交给向导，
-      // 才能生成下一个修订而不是重复 expected_revision=0。
+      // 重试提交或重试生成计划时，用例/验收范围/出站策略可能已存在；把当前
+      // 仓储修订交给向导，才能生成下一个修订而不是重复 expected_revision=0。
       const revisions:Record<string,number>={};
-      if(raw.stage==="commit")for(const kind of ["case","acceptance_scope"]){
+      const revisionKinds=raw.stage==="commit"?["case","acceptance_scope"]
+        :raw.stage==="model"?["model_outbound_policy"]:[];
+      if(revisionKinds.length)for(const kind of revisionKinds){
         const state=await dispatchReadOnly(settings.python,settings.workspaceRoot,{
           action:"query",projectId:session.project_id,
           parameters:{aggregate_kind:kind,limit:200},

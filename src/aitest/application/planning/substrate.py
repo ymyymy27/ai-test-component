@@ -76,6 +76,8 @@ AggregateKind = Literal[
     #: 证据事实与人工补证材料（C 侧写入；人工补证见 application/evidence/manual_capture.py）。
     "evidence_ref",
     "manual_evidence",
+    #: 报告修订；索引层有独立的 reports 分区。
+    "report",
 ]
 
 

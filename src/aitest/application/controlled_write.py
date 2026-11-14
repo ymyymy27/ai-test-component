@@ -242,6 +242,10 @@ class SavedControlledWriteResolver:
                         payload=raw,
                     )
                 references.append(reference)
+        except ApprovalRequired:
+            # 修订变化等已带可操作原因，不能被通用兜底覆盖成
+            # "controlled write's saved basis is unavailable"。
+            raise
         except (ValueError, OSError, TypeError, KeyError) as error:
             raise ApprovalRequired("controlled write's saved basis is unavailable") from error
         return ActionBasis(
