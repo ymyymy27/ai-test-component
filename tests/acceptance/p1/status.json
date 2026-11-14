@@ -1045,7 +1045,7 @@
     {
       "id": "P1-AC25",
       "owner": "C",
-      "result": "untested",
+      "result": "verified",
       "scenario": "被测目录不是 Git 仓库（无版本库）",
       "expected": "可正常建立项目并完成适用的 L1／L2／L3 检查、证据与导出；源码变化以文件清单摘要与差异快照判定，结论口径与 Git 仓库一致；界面与报告中**不出现仓库、分支、提交、远端任何内容**，也不显示为空值或\"未知\"；不因无版本库而拒绝建立项目或降低检查范围",
       "related_frs": [
@@ -1062,26 +1062,15 @@
         "plain 序列化形态（application/project/serialization.py:47-51/92-95/108-116）",
         "源码分析（application/project/source_analysis.py:396-398）"
       ],
-      "actual": null,
+      "actual": "plain 单模块项目无 Git：项目/绑定/环境/分析/计划/运行/报告/导出均成功；L1 syntax/load passed，L2 matched、来源 verified；报告与导出无仓库/分支/提交/远端字段；源码变化以文件清单摘要从 adb1b67d 变为 c3321c57 再恢复。",
       "evidence": {
-        "path": null,
-        "description": null,
-        "method": "plain_project_full_loop_assertion"
+        "path": "docs/validation/2026-11-14-p1-ac25-plain-no-git/README.md",
+        "description": "plain 无 Git 项目的检查、报告/导出字段与源码摘要变化",
+        "method": "plain_binding_no_git_assertion"
       },
-      "unverified_reason": "plain 用『省略键』而非空值、双向拒绝形态不符，_git_identity 对 plain 直接返回 None，并有测试断言 plain 不调用 Git，规则层齐备；缺口仍是默认装配无真实执行端口，以及 DEC-010 期望摘要字段改名待 CD-001 破坏性变更。",
-      "blockers": [
-        {
-          "kind": "execution_facts",
-          "detail": "默认装配无真实执行端口：bootstrap.assemble_workspace_core 的 execution_port / business_verification_port 默认 None，CoreBootstrap.create(bootstrap.py:837) 与 interfaces/local/core_worker.py:394 两处生产装配都不传，默认核心 execute_step 必得 CAPABILITY_UNAVAILABLE（application/execution/step_execution.py:49-50）。  已登记入口解析已接通（2026-10-11 修复）：SavedActionResolver._frozen_entry 在 Step 未携带 registered_entry_ref 时（当前生产路径的现状），从冻结绑定取入口身份与参数、从 EnvironmentResolutionFact.executable_path 取**核心观测**的可执行路径（该事实自述 Observed by a core-owned registered carrier, never a client declaration），参数逐字取自冻结绑定，适配器类型由 adapter_versions 唯一键决定——符合架构01 第12节、架构02 第1/7节与能力清单的〔未登记入口不猜命令〕。仍未完成的是：Step 侧的 registered_entry_ref 投影尚未填充、admit_start 的三项来源核对（实际入口/解释器/核验事实）未接、默认执行端口仍未注入。",
-          "resolved_by": "C"
-        },
-        {
-          "kind": "user_entry",
-          "detail": "真实产品入口已部分接通（2026-10-11）：扩展新增 core-bridge，经既有 CLI（内部即命名管道＋端点发现＋回执身份核对）向唯一核心派发，面板与扩展之间已有消息通道、状态行由真实回执驱动；真实进程证据为 doctor 返回 READY 且可派发动作 41、storage_usage 返回全部 10 个字段、写动作被只读白名单拒绝。仍未完成的是三项：① 面板已渲染真实核心能力（supported_actions 原样列出）并可派发只读动作（storage_usage / events），但**业务动作区仍未接线**（运行/计划/导出按钮 disabled），扩展只放行只读白名单。业务动作区的前置是**选定项目**。合同把这件事定义为**目录绑定**（架构05 第3节〔规范化当前目录、选择/建立稳定项目、取得 binding_revision〕；设计文档要求当前项目选择器始终可见、多目录由用户明确选择绑定），该动作正是 `bind_project`：**已于 2026-10-11 按合同名注册并默认可派发**（以合同名注册还有实际收益——`bind_project` 属 PHASE_ONE_ACTIONS 且是 HUMAN_ACTIONS，`Command` 会对它强制 `project_id`＋`intent_id`＋`expected_revision`；表外的 `save_binding` 不受该写身份校验，已降为兼容别名）。默认可派发动作由 41 增至 **42**，一期动作表不可派发项由 18 降至 **17**。另注：`query` 强制 `project_id`、无法枚举项目，`events` 只能从提交日志间接看到 project_id 且受事件窗口与 limit 限制，两者都不是合同定义的目录绑定机制；②（已于 2026-10-11 解除）`ensure-core` 宿主入口已接通两端：CLI 提供该动词，扩展经 core-bridge.ensureCore 调用它，面板新增「连接核心」动作——真实进程已验证既有工作空间返回 READY 与已核对身份、不存在的路径被结构化拒绝且不创建目录、未配置时返回不可用；③ 真实 Trae 兼容性未验证。",
-          "resolved_by": "D"
-        }
-      ],
-      "real_environment_verified": false,
+      "unverified_reason": null,
+      "blockers": null,
+      "real_environment_verified": true,
       "source_evidence": [
         "src/aitest/application/project/serialization.py:47-51/92-95/108-116",
         "src/aitest/application/project/source_analysis.py:396-398",
@@ -1638,8 +1627,8 @@
     },
     {
       "id": "P1-AC25",
-      "result": "untested",
-      "evidence_path": null
+      "result": "verified",
+      "evidence_path": "docs/validation/2026-11-14-p1-ac25-plain-no-git/README.md"
     },
     {
       "id": "P1-AC26",
