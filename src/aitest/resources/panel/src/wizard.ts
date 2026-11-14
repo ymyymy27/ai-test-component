@@ -6,7 +6,7 @@
  */
 
 import type { WizardHost } from "./context";
-import type { Json, Outcome, Session, WizardCheck, WizardCommand, WizardResult, WizardState } from "./types";
+import type { Json, Outcome, Session, WizardCommand, WizardResult, WizardState } from "./types";
 
 export const PLAIN_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "save_context",
@@ -85,16 +85,6 @@ const ACTION_LABELS: Record<string, string> = {
   register_run: "登记运行",
 };
 
-function initialChecks(): WizardCheck[] {
-  return ["加载与语法", "正常输入", "边界输入", "异常输入"].map(objective => ({
-    objective,
-    inputs: "",
-    key: "",
-    value: "",
-    type: "text",
-  }));
-}
-
 export const DEFAULT_AI_GOAL = "由 AI 根据项目理解提出验证目标";
 const DEFAULT_DATA_POLICY = "纯内存计算，不连接外部系统，结束后无需清理";
 
@@ -127,7 +117,6 @@ function initialState(): WizardState {
     preview: null,
     issues: [],
     catalogConfirmed: false,
-    checks: initialChecks(),
     commandProgress: null,
     stageProgress: [],
   };
@@ -232,7 +221,6 @@ export class WizardController {
     this.state.preview = null;
     this.state.issues = [];
     this.state.catalogConfirmed = false;
-    this.state.checks = initialChecks();
     this.state.commandProgress = null;
   }
 
@@ -318,19 +306,9 @@ export class WizardController {
     await this.runStage("project");
   }
 
-  async runStage(stage: "project" | "discover" | "model" | "commit" | "prepare" | "register" | "plan"): Promise<void> {
+  async runStage(stage: "project" | "discover" | "model" | "commit" | "prepare" | "register"): Promise<void> {
     if (this.state.busy) return;
-    this.state.stage = stage === "plan" ? "manual" : stage;
-    if (stage === "plan") {
-      const invalid = this.state.checks.find(check =>
-        !check.inputs.trim() || !check.key.trim() || !check.value.trim()
-        || (check.type === "number" && !Number.isFinite(Number(check.value)))
-        || (check.type === "boolean" && !["true", "false"].includes(check.value.trim())));
-      if (invalid) {
-        this.fail(`请补齐「${invalid.objective}」的输入条件、结果字段和独立预期。`);
-        return;
-      }
-    }
+    this.state.stage = stage;
     this.state.busy = true;
     this.state.error = "";
     this.state.note = "正在生成这一阶段的受控命令…";
@@ -339,7 +317,7 @@ export class WizardController {
     try {
       result = await this.host.wizardRequest("wizardCommands", {
         stage,
-        form: this.form(stage),
+        form: this.form(),
         receipts: this.state.receipts,
       });
     } catch (error) {
@@ -415,9 +393,9 @@ export class WizardController {
         await this.runStage("discover");
         return;
       }
-      this.state.stage = this.state.useModel && goals.length > 0
-        ? "goals"
-        : this.state.useModel ? "model" : "manual";
+      this.state.stage = this.state.useModel
+        ? (goals.length > 0 ? "goals" : "model")
+        : "manual";
       this.render();
       return;
     }
@@ -436,12 +414,11 @@ export class WizardController {
       if (this.state.proposal) {
         await this.review();
       } else {
-        this.state.stage = "manual";
-        this.setBusy(false, "模型没有返回结构化提案，可以改用手工四项检查。");
+        this.setBusy(false, "模型没有返回结构化提案，请重试或核对模型配置。");
       }
       return;
     }
-    if (stage === "commit" || stage === "plan") {
+    if (stage === "commit") {
       await this.runStage("prepare");
       return;
     }
@@ -464,7 +441,7 @@ export class WizardController {
       return;
     }
     this.setBusy(true, "正在校验计划提案…");
-    const result = await this.host.wizardRequest("wizardReview", { form: this.form("commit") });
+    const result = await this.host.wizardRequest("wizardReview", { form: this.form() });
     if (!this.resultOk(result)) return;
     const issues = Array.isArray(result.issues) ? result.issues : [];
     if (result.valid === false || issues.length > 0) {
@@ -499,14 +476,6 @@ export class WizardController {
     await this.runStage("commit");
   }
 
-  async startManual(): Promise<void> {
-    this.state.stage = "manual";
-    this.state.preview = null;
-    this.state.error = "";
-    this.state.note = "手工计划需要四项独立预期；不能把运行结果倒填为预期。";
-    this.render();
-  }
-
   backToReview(): void {
     if (!this.state.proposal) return;
     this.state.stage = "review";
@@ -539,18 +508,10 @@ export class WizardController {
     this.render();
   }
 
-  form(stage?: string): Record<string, unknown> {
+  form(): Record<string, unknown> {
     const snapshot = asRecord(this.state.receipts["snapshot"]);
     const understanding = snapshot ? asRecord(snapshot["understanding"]) : undefined;
     const preview = this.state.preview ?? {};
-    const includeChecks = stage === "plan";
-    const checks = includeChecks
-      ? this.state.checks.map(check => ({
-          objective: check.objective,
-          inputs: check.inputs,
-          expected: { [check.key]: expectedValue(check) },
-        }))
-      : [];
     const expected = this.expectedFacts();
     let proposal = this.state.proposal;
     if (proposal && expected) {
@@ -597,7 +558,6 @@ export class WizardController {
       test_inventory: this.state.testMode ? this.state.testInventory : null,
       run_tier: this.state.runTier,
       initial_driver: this.state.driver,
-      checks,
     };
   }
 
@@ -644,15 +604,6 @@ export class WizardController {
   }
 }
 
-function expectedValue(check: WizardCheck): unknown {
-  if (check.type === "number") {
-    const value = Number(check.value);
-    return Number.isFinite(value) ? value : check.value;
-  }
-  if (check.type === "boolean") return check.value === "true";
-  return check.value;
-}
-
 function proposalErrorText(value: unknown): string | undefined {
   const record = asRecord(value);
   if (!record) return undefined;
@@ -677,7 +628,7 @@ const BLOCKED_REASONS: Record<string, string> = {  model_not_configured: "模型
   stale_outbound_policy: "模型材料范围已变化；请重新确认发送范围后重试。",
   model_basis_unverified: "源码分析依据无法核对；请重新分析项目后再生成计划。",
   source_reference_required: "模型材料引用了源码，但没有可核对的快照；请重新分析项目。",
-  structured_output_invalid: "模型返回的计划结构不符合约定；可以重试，或改用手工检查。",
+  structured_output_invalid: "模型返回的计划结构不符合约定；可以重试或核对模型配置。",
   response_store_unavailable: "模型响应的本地保存不可用；请检查工作空间后重试。",
 };
 

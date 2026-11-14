@@ -34,7 +34,7 @@ export function renderSettings(ctx: AppContext): HTMLElement {
 
   const modelCard = card(
     "",
-    cardHead("模型 API", "用于生成计划提案；关闭模型不影响人工计划、执行和报告。"),
+    cardHead("模型 API", "用于生成计划提案；关闭模型不影响执行、规则和报告，但计划生成会明确阻塞。"),
   );
   if (!state.hostAvailable) {
     modelCard.appendChild(banner("未连接编辑器宿主，不能修改模型配置。", "warning"));

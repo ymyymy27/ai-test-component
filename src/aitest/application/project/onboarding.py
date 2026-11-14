@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from aitest.application.planning.draft import (
     load_template,
     template_draft_text,
-    text_digest,
 )
 from aitest.application.planning.proposal import (
     materialize_plan_proposal,
@@ -29,23 +28,8 @@ from aitest.application.planning.test_selection import (
 )
 from aitest.application.project.serialization import binding_to_payload, environment_to_payload
 from aitest.application.project.understanding import understanding_from_payload
-from aitest.domain.planning.plans import (
-    AcceptanceScope,
-    AssertionBasis,
-    AssertionBasisState,
-    Case,
-    CaseLayer,
-    CaseLink,
-)
 from aitest.domain.planning.templates import TemplateRef
 from aitest.domain.project.context import BindingForm, EnvironmentRef, LocalProjectBinding
-
-
-class CheckForm(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    objective: str = Field(min_length=1, max_length=2000)
-    inputs: str = Field(min_length=1, max_length=4000)
-    expected: dict[str, Any] = Field(min_length=1, max_length=100)
 
 
 class OnboardingForm(BaseModel):
@@ -64,9 +48,7 @@ class OnboardingForm(BaseModel):
     # 供应商公告：deepseek-chat 与 deepseek-reasoner 自 2026-07-24 停止使用。
     model: str = "deepseek-flash"
     model_timeout: int = Field(default=60, ge=10, le=120)
-    checks: list[CheckForm] = Field(default_factory=list, max_length=4)
-    #: Structured AI proposal; when present, review/commit stages use it instead
-    #: of the fixed four beginner checks.
+    #: Structured AI proposal; review/commit stages materialise it.
     proposal: dict[str, Any] | None = None
     #: Persisted understanding returned by ``analyze_project``; the review
     #: helper re-verifies its digest/owner before using it for the preview.
@@ -510,38 +492,6 @@ def wizard_commands(
             publish_parameters["understanding_ref"] = form.understanding_ref
         publish_parameters["catalog_confirmed"] = form.catalog_confirmed
         add("publish", "publish_plan", publish_parameters, plan_id)
-    elif stage == "plan":
-        if len(form.checks) != 4:
-            raise ValueError("请核对加载、正常输入、边界和异常输入四项检查的独立预期")
-        cases = []
-        for name, check in zip(("syntax", "normal", "boundary", "error"), form.checks, strict=True):
-            identity = project + "-" + name
-            basis = json.dumps({"schema_version": "aitest.pure-function-basis/1",
-                                "expected_facts": check.expected}, ensure_ascii=False)
-            case = Case(identity, 1, CaseLayer.L1 if name == "syntax" else CaseLayer.L2,
-                check.objective, (form.data_policy,), (check.inputs,),
-                ("运行已选择的测试入口：" + form.entry + "，并把本用例输入作为命令行参数传入",),
-                "逐项比对已确认的独立预期：" + json.dumps(check.expected, ensure_ascii=False),
-                "pure-function-stdout",
-                CaseLink(frozenset({identity}), environment_ids=frozenset({environment_id}),
-                         no_critical_path_reason=form.data_policy),
-                AssertionBasis(1, AssertionBasisState.PRESENT_UNCONFIRMED,
-                               basis, str(text_digest(basis))),
-                independent_verification="从已保存输出独立比较冻结预期，不使用执行结果生成预期")
-            payload = case_to_payload(case, project_id=project)
-            cases.append(payload)
-            add("case-" + name, "save_case", {"case": payload})
-            add("confirm-" + name, "confirm_basis", {"case_id": identity, "case_revision": 1,
-                "basis_revision": 1, "basis_text_digest": text_digest(basis)}, identity)
-        ids = frozenset(str(case["case_id"]) for case in cases)
-        scope_payload = acceptance_scope_to_payload(AcceptanceScope("scope-" + project, 1,
-            form.name, ids, ids, objective=form.goal), project_id=project)
-        add("scope", "save_acceptance", {"acceptance_scope": scope_payload})
-        add("publish", "publish_plan", {"project_revision": 1, "expected_revision": 0,
-            "plan_id": plan_id, "revision": 1,
-            "scope": scope_payload, "cases": cases,
-            "template_versions": [{"template_id": "python-library", "version": "1.0.0"}],
-            "run_tier": "on_demand", "initial_driver": "stepwise"}, plan_id)
     elif stage == "prepare":
         snapshot = receipts["snapshot"]
         if form.proposal is not None:

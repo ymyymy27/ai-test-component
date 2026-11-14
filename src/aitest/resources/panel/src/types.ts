@@ -228,14 +228,6 @@ export type WizardStage =
   | "register"
   | "done";
 
-export interface WizardCheck {
-  objective: string;
-  inputs: string;
-  key: string;
-  value: string;
-  type: "text" | "number" | "boolean";
-}
-
 export interface WizardState {
   stage: WizardStage;
   busy: boolean;
@@ -264,7 +256,6 @@ export interface WizardState {
   preview: Record<string, unknown> | null;
   issues: string[];
   catalogConfirmed: boolean;
-  checks: WizardCheck[];
   commandProgress: { done: number; total: number; label: string } | null;
   stageProgress: string[];
 }

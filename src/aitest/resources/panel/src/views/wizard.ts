@@ -4,7 +4,6 @@ import type { AppContext } from "../context";
 import { asNumber, asRecord, asRecords, asStrings, asText, label, toneForState } from "../labels";
 import { icon } from "../icons";
 import { DEFAULT_AI_GOAL, WIZARD_STEPS } from "../wizard";
-import type { WizardCheck } from "../types";
 import {
   banner,
   button,
@@ -48,7 +47,7 @@ export function renderWizard(ctx: AppContext): HTMLElement {
   else if (state.stage === "goals") page.appendChild(goalsStep(ctx));
   else if (state.stage === "model") page.appendChild(modelStep(ctx));
   else if (state.stage === "manual") {
-    page.appendChild(state.testMode ? testScopeStep(ctx) : manualStep(ctx));
+    page.appendChild(testScopeStep(ctx));
   }
   else if (state.stage === "review") page.appendChild(reviewStep(ctx));
   else if (state.stage === "commit") page.appendChild(commitStep(ctx));
@@ -74,7 +73,7 @@ function wizardTitle(stage: string): string {
     case "model":
       return "生成检查计划";
     case "manual":
-      return "手工填写检查计划";
+      return "手工选择测试范围";
     case "review":
       return "核对并发布计划";
     case "prepare":
@@ -155,12 +154,14 @@ function configureStep(ctx: AppContext): HTMLElement {
   const model = card(
     "",
     cardHead("AI 辅助", "AI 先分析项目并给出验证目标候选；生成计划前由你核对。"),
-    checkbox("用 AI 生成验证目标与计划（推荐）", state.useModel, value => {
-      state.useModel = value;
-      state.runTier = value ? "on_demand" : "full";
-      if (value && !state.goal.trim()) state.goal = DEFAULT_AI_GOAL;
-      ctx.render();
-    }, busy),
+    state.testMode
+      ? checkbox("用 AI 生成验证目标与计划（推荐）", state.useModel, value => {
+          state.useModel = value;
+          state.runTier = value ? "on_demand" : "full";
+          if (value && !state.goal.trim()) state.goal = DEFAULT_AI_GOAL;
+          ctx.render();
+        }, busy)
+      : p("验证目标与计划由 AI 生成；没有模型时请先配置 API Key。", "muted subtle"),
   );
   if (state.useModel) {
     model.append(
@@ -317,11 +318,6 @@ function goalsStep(ctx: AppContext): HTMLElement {
       }),
       button("跳过，使用原来的目标", () => void wizard.runStage("model"), { icon: "arrow-right", disabled: state.busy }),
     ),
-    details(
-      "没有模型或想手工填写？",
-      p("手工四项检查是高级回退，不是默认流程；它要求你自己填写每项独立预期。", "muted subtle"),
-      button("改用手工四项检查", () => void wizard.startManual(), { icon: "file", disabled: state.busy }),
-    ),
   );
 }
 
@@ -381,7 +377,6 @@ function modelStep(ctx: AppContext): HTMLElement {
         icon: "check",
         disabled: state.busy,
       }),
-      button("改用手工四项检查", () => void wizard.startManual(), { icon: "file", disabled: state.busy }),
     ),
   );
 }
@@ -447,56 +442,6 @@ function testScopeStep(ctx: AppContext): HTMLElement {
   );
 }
 
-
-function manualStep(ctx: AppContext): HTMLElement {
-  const wizard = ctx.wizard;
-  const state = wizard.state;
-  const list = div("stack-sm");
-  state.checks.forEach((check, index) => {
-    const fold = details(
-      `${index + 1}. ${check.objective}`,
-      checkFields(check),
-    );
-    if (index === 0) fold.open = true;
-    list.appendChild(fold);
-  });
-  return div(
-    "stack",
-    card(
-      "",
-      cardHead("四项独立检查", "每项使用同一测试入口；输入条件是说明，独立预期不能从运行结果倒填。"),
-      p("示例：输入“2 加 3”，结果字段 normal，预期 5，类型数字。入口需输出包含该字段的 JSON。", "muted subtle"),
-      list,
-    ),
-    div(
-      "hero-actions",
-      button("确认计划并准备测试", () => void wizard.runStage("plan"), {
-        variant: "primary",
-        icon: "check",
-        disabled: state.busy,
-      }),
-      state.proposal
-        ? button("改用 AI 计划", () => wizard.backToReview(), { icon: "arrow-right", disabled: state.busy })
-        : null,
-    ),
-  );
-}
-
-function checkFields(check: WizardCheck): HTMLElement {
-  return div(
-    "form-grid",
-    fieldInput("输入条件", check.inputs, value => { check.inputs = value; }),
-    fieldInput("结果字段名称", check.key, value => { check.key = value; }),
-    fieldInput("独立预期结果", check.value, value => { check.value = value; }),
-    fieldSelect("预期类型", [
-      { value: "text", label: "文字" },
-      { value: "number", label: "数字" },
-      { value: "boolean", label: "是 / 否" },
-    ], check.type, value => {
-      check.type = value === "number" ? "number" : value === "boolean" ? "boolean" : "text";
-    }),
-  );
-}
 
 function reviewStep(ctx: AppContext): HTMLElement {
   const wizard = ctx.wizard;
@@ -693,15 +638,6 @@ function fieldInput(labelText: string, value: string, onChange: (value: string) 
 
 function fieldArea(labelText: string, value: string, onChange: (value: string) => void, help?: string): HTMLElement {
   return div("span-2", fieldNode(labelText, textArea(value, onChange, { rows: 4 }), help));
-}
-
-function fieldSelect(
-  labelText: string,
-  options: ReadonlyArray<{ value: string; label: string }>,
-  value: string,
-  onChange: (value: string) => void,
-): HTMLElement {
-  return div("", fieldNode(labelText, select(options, value, onChange)));
 }
 
 function fieldNode(labelText: string, control: HTMLElement, help?: string): HTMLElement {

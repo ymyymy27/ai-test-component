@@ -1235,9 +1235,9 @@
     {
       "id": "P1-AC30",
       "owner": "B",
-      "result": "not_verified",
+      "result": "untested",
       "scenario": "新建纯函数/HTTP项目、无模型凭据、无模板、尚无计划时分析源码",
-      "expected": "最小输入按所选检查确定，纯函数不索要数据库/平台账号；无模型仍可人工建计划；显式分析可在发布前固定选定内容，草稿不自动执行；不支持不冒充不适用；分析后源码变化提示依据变化",
+      "expected": "最小输入按所选检查确定，纯函数不索要数据库/平台账号；计划由 AI 提案生成，无模型时明确阻塞而不提供手工四项检查；显式分析可在发布前固定选定内容，草稿不自动执行；不支持不冒充不适用；分析后源码变化提示依据变化",
       "related_frs": [
         "P1-FR01",
         "P1-FR04",
@@ -1247,28 +1247,28 @@
       ],
       "prerequisites": [
         "两个真实新项目（纯函数、HTTP），均无模型凭据、无模板",
-        "发布前完成显式源码分析并固定选定内容",
-        "草稿与发布后都没有自动执行",
+        "无模型时计划生成返回明确阻塞（model_not_configured），不出现手工四项检查入口",
+        "显式分析在发布前固定选定内容，草稿不自动执行",
         "不支持的能力显示为缺口而不是不适用",
-        "分析后源码变化在入口可见依据变化提示"
+        "分析后源码变化提示依据变化"
       ],
       "artifact_versions": [
         "真实核心 0.4.10，仓库提交 740f5cb；Python 3.11.9 独立环境",
         "纯函数快照 `source-9fdcba54…`（`sha256:c79e5e37…`），重新分析 `source-206a3d2b…`（`sha256:0f1f9b78…`）",
         "HTTP 快照 `source-b2d452d8…`、理解 `und-3b5a852ef8488d56`、缺口 `gap-ebf582cf42b2e67e`"
       ],
-      "actual": "2026-11-14 在真实核心上执行两个新建工作空间。纯函数项目 `guided-b6a75fe8a90844aebb2da51724732047`：仅用绑定/范围/路径分析，得到 3 个业务功能、3 个测试意图、0 个能力缺口、0 个未知项；无模型策略、无模板（`template_versions=[]`）发布 manual on_demand 计划（4 个 Case、4 次依据确认）。HTTP 项目 `guided-056d4deb55ea42babd6771d6ab78dd80`：分析返回 `scan:aiohttp` 能力缺口、`blocks_full=true`，未把网页检查标成不适用。草稿与发布后查询 `prepared_run` 均为空（commit 31/69）；修改 `calc.py` 后 `check_source` 由 `unchanged` 变为 `changed`（`modified=[calc.py]`），重新分析得到新快照与 `understanding_revision=2`。第 1—4 项有回执；第 5 项缺少发布前的产品级提示。",
+      "actual": null,
       "evidence": {
-        "path": "docs/validation/2026-11-14-p1-ac30-new-project-analysis/README.md",
-        "description": "两个新项目的分析回执、无模型策略查询、manual 计划发布、草稿/发布后 prepared_run 为空、check_source 变化与重新分析的新快照/理解修订",
-        "method": "real_core_analysis_manual_plan_assertion"
+        "path": null,
+        "description": "合同已改为“计划只走 AI 提案、无模型时明确阻塞”；需按新预期重新采集输入与回执",
+        "method": "real_core_ai_proposal_then_no_model_block"
       },
-      "unverified_reason": "五项预期中前四项已在真实核心实测：最小输入不含数据库/平台账号、无模型仍可人工建计划、分析先于发布且草稿不自动执行、不支持的能力以 `scan:aiohttp` 缺口阻塞完整验证而非标成不适用。未满足的是第五项：分析后源码变化只有只读 `check_source` 的变化事实与 `understanding_revision` 递增，面板/入口没有发布前的“依据已变化、旧草稿过期”提示，因此不能写“提示依据变化”已通过。",
+      "unverified_reason": null,
       "blockers": [
         {
-          "kind": "user_entry",
-          "detail": "分析后源码变化目前只有 `check_source` 的 `changes.state=changed` 与重新分析产生的新快照/`understanding_revision`，面板源码不调用 `check_source`，也没有“依据已变化、旧草稿需重新生成”的入口提示。补齐该提示后才能把 AC30 第 5 项写成已通过。",
-          "resolved_by": "D"
+          "kind": "decision",
+          "detail": "合同已于 2026-11-14 删除人工四项检查计划路径：面板与核心向导不再接受 plan 阶段，无模型时计划生成明确阻塞。AC30 需按新预期重新实测后才能升级；旧验证记录只对旧预期有效。",
+          "resolved_by": "B"
         }
       ],
       "real_environment_verified": false,
@@ -1655,7 +1655,7 @@
     },
     {
       "id": "P1-AC30",
-      "result": "not_verified",
+      "result": "untested",
       "evidence_path": null
     },
     {

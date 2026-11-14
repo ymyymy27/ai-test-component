@@ -3,7 +3,6 @@ from uuid import uuid4
 
 import pytest
 
-from aitest.application.planning.serialization import case_from_payload
 from aitest.application.project.onboarding import (
     OnboardingForm,
     wizard_commands,
@@ -64,9 +63,7 @@ def _proposal():
 def form(source="E:/sample"):
     return OnboardingForm(project_id="guided-"+str(uuid4()),workspace_id="workspace",
         source=source,entry="main.py",name="算术检查",goal="检查正常、边界与异常结果",
-        data_policy="仅纯函数，无持久业务数据",dependency_declaration="仅标准库",
-        checks=[{"objective":name,"inputs":"已声明的独立输入","expected":{"normal":5}}
-                for name in ("加载","正常","边界","异常")])
+        data_policy="仅纯函数，无持久业务数据",dependency_declaration="仅标准库")
 
 
 def test_wizard_commands_are_ordinary_commands_without_authority():
@@ -75,18 +72,14 @@ def test_wizard_commands_are_ordinary_commands_without_authority():
     assert [item["action"] for item in project]==[
         "save_context","save_binding","save_environment","analyze_project"
     ]
-    plan=wizard_commands(selection,"plan",{})
-    assert len([item for item in plan if item["action"]=="confirm_basis"])==4
-    for item in project+plan:
+    for item in project:
         Command.model_validate({key:value for key,value in item.items() if key!="key"}|
             {"request_id":"request-"+str(uuid4()),"project_id":selection.project_id})
         assert "user_confirmed" not in item["parameters"]
         assert "approval_challenge_id" not in item["parameters"]
-    case=case_from_payload(plan[0]["parameters"]["case"])
-    assert case.assertion_basis.state.value=="present_unconfirmed"
-    assert wizard_commands(selection,"plan",{})==plan
+    assert wizard_commands(selection,"project",{})==project
     changed=selection.model_copy(update={"goal":"另一个目标"})
-    assert wizard_commands(changed,"plan",{})[-2]["intent_id"]!=plan[-2]["intent_id"]
+    assert wizard_commands(changed,"project",{})[0]["intent_id"]!=project[0]["intent_id"]
 
 
 @pytest.mark.parametrize("entry",["../main.py","C:/main.py","/main.py","main.sh"])
@@ -98,8 +91,9 @@ def test_wizard_refuses_entry_outside_declared_python_scope(entry):
 def test_wizard_never_invents_snapshot_or_confirmation_receipts():
     with pytest.raises(KeyError):
         wizard_commands(form(),"prepare",{})
+    # 人工四项检查计划已移除；向导不再接受 plan 阶段。
     with pytest.raises(ValueError):
-        wizard_commands(form().model_copy(update={"checks":[]}),"plan",{})
+        wizard_commands(form(),"plan",{})
 
 
 def test_model_public_config_is_validated_before_saving():
@@ -151,38 +145,6 @@ def test_setup_creates_workspace_and_reuses_registered_environment(tmp_path, mon
     assert created == [root / "python"]
 
 
-def test_wizard_project_and_plan_use_real_core_contracts(tmp_path):
-    from aitest.bootstrap import assemble_workspace_core
-    from aitest.interfaces.local.native_confirmation import dispatch_native
-    from tests.support.environment_resolution import FixtureEnvironmentResolver
-
-    source = tmp_path / "source"
-    source.mkdir()
-    (source / "main.py").write_text('print("{}")', encoding="utf-8")
-    core = assemble_workspace_core(tmp_path / "workspace", instance_id="wizard-fixture",
-                                   environment_resolver=FixtureEnvironmentResolver())
-    selection = form(str(source)).model_copy(update={"workspace_id": core.workspace.workspace_id})
-    receipts = {}
-    try:
-        for stage in ("project", "plan", "prepare", "register"):
-            for item in wizard_commands(selection, stage, receipts):
-                command = Command.model_validate(
-                    {key: value for key, value in item.items() if key != "key"}
-                    | {"request_id": uuid4().hex, "project_id": selection.project_id}
-                )
-                result = dispatch_native(core.api, command, prompt=lambda text: True,
-                                         records=core.unit_of_work.repo)
-                assert result.error is None, (item["action"], result.error)
-                assert not result.result.get("blocked"), (item["action"], result.result)
-                receipts[item["key"]] = result.result
-        assert receipts["snapshot"]["snapshot_id"]
-        assert receipts["register"]["run_id"]
-        prepare = wizard_commands(selection, "prepare", receipts)
-        assert prepare[0]["parameters"]["snapshot_id"] == receipts["snapshot"]["snapshot_id"]
-    finally:
-        core.lifetime_lock.release()
-
-
 def test_v11_proposal_uses_one_plan_confirmation_and_publish_basis_receipts():
     payload = _proposal()
     payload["schema_version"] = "aitest.plan-proposal/1.1"
@@ -198,7 +160,7 @@ def test_v11_proposal_uses_one_plan_confirmation_and_publish_basis_receipts():
         for item in ("syntax", "normal", "boundary", "error")
     ]
     selection = form().model_copy(
-        update={"proposal": payload, "checks": [], "run_tier": "on_demand"}
+        update={"proposal": payload, "run_tier": "on_demand"}
     )
     commit = wizard_commands(selection, "commit", {})
     actions = [item["action"] for item in commit]
@@ -250,7 +212,6 @@ def test_wizard_review_uses_saved_understanding_for_coverage_and_contract():
     selection = selection.model_copy(
         update={
             "proposal": payload,
-            "checks": [],
             "understanding": understanding_to_payload(
                 understanding,
                 project_id=selection.project_id,
@@ -266,7 +227,7 @@ def test_wizard_review_uses_saved_understanding_for_coverage_and_contract():
 
 def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():
     selection = form().model_copy(
-        update={"proposal": _proposal(), "checks": [], "run_tier": "on_demand"}
+        update={"proposal": _proposal(), "run_tier": "on_demand"}
     )
     preview = wizard_review(selection)
     assert preview["coverage"] == {
@@ -294,7 +255,7 @@ def test_wizard_review_returns_preview_and_commit_uses_proposal_cases():
 def test_wizard_review_rejects_missing_template_item_without_writing():
     payload = _proposal()
     payload["cases"] = payload["cases"][:-1]
-    selection = form().model_copy(update={"proposal": payload, "checks": []})
+    selection = form().model_copy(update={"proposal": payload})
     with pytest.raises(Exception) as error:
         wizard_review(selection)
     assert "error" in str(error.value) or "template" in str(error.value)
@@ -317,7 +278,6 @@ def test_wizard_proposal_commit_prepare_register_use_real_core(tmp_path):
         update={
             "workspace_id": core.workspace.workspace_id,
             "proposal": _proposal(),
-            "checks": [],
             "run_tier": "on_demand",
         }
     )
@@ -548,7 +508,7 @@ def test_project_resume_only_verifies_the_existing_source_snapshot():
 
 def test_commit_retry_advances_existing_case_and_scope_revisions():
     selection = form().model_copy(
-        update={"proposal": _proposal(), "checks": [], "run_tier": "on_demand"}
+        update={"proposal": _proposal(), "run_tier": "on_demand"}
     )
     revisions = {
         "case-syntax": 1,
