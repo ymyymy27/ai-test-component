@@ -56,7 +56,18 @@ class TestSelectionItem(BaseModel):
     scope: TestScope
     expected: Literal["all_pass"] = "all_pass"
     mock_scope: list[str] = Field(default_factory=list, max_length=32)
+    #: Modules this pytest scope verifies. Empty means "not mapped yet"; it must
+    #: not be read as "covers no module". Regression suggestion intersects this
+    #: with the changed-module set, so an unmapped case cannot be suggested.
+    module_ids: list[str] = Field(default_factory=list, max_length=64)
     rationale: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("module_ids")
+    @classmethod
+    def _unique_modules(cls, value: list[str]) -> list[str]:
+        if any(not item.strip() for item in value) or len(set(value)) != len(value):
+            raise ValueError("module ids must be non-empty and unique")
+        return value
 
     @field_validator("acceptance_item_ids")
     @classmethod
@@ -84,7 +95,8 @@ def test_selection_system_prompt() -> str:
         'Schema: {"schema_version":"aitest.test-selection/1.0","goal":"...",'
         '"selections":[{"acceptance_item_ids":["..."],'
         '"scope":{"kind":"file|dir|marker","value":"..."},'
-        '"expected":"all_pass","mock_scope":["unknown"],"rationale":"..."}]}'
+        '"expected":"all_pass","mock_scope":["unknown"],'
+        '"module_ids":["..."],"rationale":"..."}]}'
     )
 
 
@@ -206,6 +218,7 @@ def materialize_test_selection(
         basis_text = json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         link = CaseLink(
             acceptance_item_ids=frozenset(item.acceptance_item_ids),
+            module_ids=frozenset(item.module_ids),
             environment_ids=frozenset({environment_id}),
             no_critical_path_reason="Stage A pytest scope does not declare a critical path",
         )

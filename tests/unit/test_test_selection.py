@@ -75,6 +75,16 @@ def test_selection_materializes_server_owned_case() -> None:
     assert case.links.acceptance_item_ids == frozenset({"AC-ORDER-01"})
 
 
+def test_selected_modules_are_frozen_into_the_case_link() -> None:
+    raw = json.loads(_selection())
+    raw["selections"][0]["module_ids"] = ["module-order"]
+    selection = parse_test_selection(json.dumps(raw))
+    _, cases, _ = materialize_test_selection(
+        selection, _inventory(), project_id="p", environment_id="e", scope_id="s"
+    )
+    assert cases[0].links.module_ids == frozenset({"module-order"})
+
+
 def test_unknown_scope_is_rejected() -> None:
     selection = parse_test_selection(_selection("pkgA/tests/missing.py"))
     with pytest.raises(SelectionError):
