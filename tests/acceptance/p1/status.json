@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "updated_at": "2026-11-13",
+  "updated_at": "2026-11-14",
   "baseline_commit": "204445f9f8561fe365f1f528b22d3a86f3bbb963",
   "scope": "product_acceptance_not_scaffold_tests",
   "update_rules": {
@@ -1246,34 +1246,37 @@
         "P1-FR17"
       ],
       "prerequisites": [
-        "两个真实新项目：纯函数项目与 HTTP 项目，均无模型凭据",
-        "无模板、尚无计划时的源码分析入口",
-        "『显式分析可在发布前固定选定内容』的固定结果",
-        "分析后源码变化触发依据变化的提示"
+        "两个真实新项目（纯函数、HTTP），均无模型凭据、无模板",
+        "发布前完成显式源码分析并固定选定内容",
+        "草稿与发布后都没有自动执行",
+        "不支持的能力显示为缺口而不是不适用",
+        "分析后源码变化在入口可见依据变化提示"
       ],
       "artifact_versions": [
-        "模板修订",
-        "源码清单摘要与快照内容身份（domain/project/context.py、domain/execution/sources.py）"
+        "真实核心 0.4.10，仓库提交 740f5cb；Python 3.11.9 独立环境",
+        "纯函数快照 `source-9fdcba54…`（`sha256:c79e5e37…`），重新分析 `source-206a3d2b…`（`sha256:0f1f9b78…`）",
+        "HTTP 快照 `source-b2d452d8…`、理解 `und-3b5a852ef8488d56`、缺口 `gap-ebf582cf42b2e67e`"
       ],
-      "actual": "未执行。最小输入与适用检查的选择规则、无模型时人工建计划的路径已在纯规则与用例层具备（tests/unit/test_model_outbound_policy.py、tests/unit/test_prepare_run_flow.py）；plain 形态的 SourceManifest 内容身份有测试（tests/unit/test_source_manifest.py）。尚无真实源码读取与固定。",
+      "actual": "2026-11-14 在真实核心上执行两个新建工作空间。纯函数项目 `guided-b6a75fe8a90844aebb2da51724732047`：仅用绑定/范围/路径分析，得到 3 个业务功能、3 个测试意图、0 个能力缺口、0 个未知项；无模型策略、无模板（`template_versions=[]`）发布 manual on_demand 计划（4 个 Case、4 次依据确认）。HTTP 项目 `guided-056d4deb55ea42babd6771d6ab78dd80`：分析返回 `scan:aiohttp` 能力缺口、`blocks_full=true`，未把网页检查标成不适用。草稿与发布后查询 `prepared_run` 均为空（commit 31/69）；修改 `calc.py` 后 `check_source` 由 `unchanged` 变为 `changed`（`modified=[calc.py]`），重新分析得到新快照与 `understanding_revision=2`。第 1—4 项有回执；第 5 项缺少发布前的产品级提示。",
       "evidence": {
-        "path": null,
-        "description": "待补：两个项目的分析输出、固定内容摘要、分析后源码变化的提示",
-        "method": "analysis_then_source_change_assertion"
+        "path": "docs/validation/2026-11-14-p1-ac30-new-project-analysis/README.md",
+        "description": "两个新项目的分析回执、无模型策略查询、manual 计划发布、草稿/发布后 prepared_run 为空、check_source 变化与重新分析的新快照/理解修订",
+        "method": "real_core_analysis_manual_plan_assertion"
       },
-      "unverified_reason": "快照实现、源码分析动作与受限 cwd/映射核对都已具备；缺的是把 source probe 与来源核验服务接进默认准入以产生「实际入口／实际解释器／核验事实」，以及真实入口。原登记里「SourceSnapshotPort 无方法签名」「源码读取与摘要计算无真实实现」已被源码推翻。",
+      "unverified_reason": "五项预期中前四项已在真实核心实测：最小输入不含数据库/平台账号、无模型仍可人工建计划、分析先于发布且草稿不自动执行、不支持的能力以 `scan:aiohttp` 缺口阻塞完整验证而非标成不适用。未满足的是第五项：分析后源码变化只有只读 `check_source` 的变化事实与 `understanding_revision` 递增，面板/入口没有发布前的“依据已变化、旧草稿过期”提示，因此不能写“提示依据变化”已通过。",
       "blockers": [
         {
-          "kind": "execution_facts",
-          "detail": "默认准入链本身完整：StartMaterializer.materialize 已委托 StartSourceBindingResolver.resolve（start_materialization.py:64），因此默认路径已完成覆盖性核对、workdir 归属、逐文件摘要、映射摘要重算、受限 cwd 解析、参数逐字与适配器唯一键。真正缺的是 admit_start 相对 materialize **多出的三项可选核对**所需要的\"实际值\"来源：实际入口、实际解释器/可执行文件、以及来源核验事实。**其中解释器一项已于 2026-10-11 接通**：`SavedActionResolver` 接受装配层注入的 `interpreter_verifier`（`bootstrap._interpreter_verifier` 用 `PythonLoadSourceProbe` 以冻结环境事实的 executable_path 现场探测，交回解释器自报的 realpath），按 `source_checks._derive_state` 第 182–186 行的解析路径口径比对；`assemble_workspace_core` 的 `verify_start_interpreter` **默认开启**，全默认执行族 58 项在该默认下通过。**已接**：实际入口核对（核对冻结来源绑定声明的已登记入口与解析器实际采用的入口身份逐字一致，空身份直接阻断）与实际解释器核对（`verify_start_interpreter` 默认开启，现场探测交回解释器自报 realpath 后按解析路径比对）。**已接**：实际入口核对、实际解释器核对（均默认开启），以及来源核验事实（`verify_start_source` 默认开启：`observed_source_digest` 取 `verify_pinned` 逐 blob 重新核对后的内容身份而非回读冻结值，入口路径取物化「期望→实际路径映射」中落在固定 workdir 内的真实文件；完整默认执行族 76 项在该默认下通过）。**已就绪但暂不默认开启**：默认执行端口——适配器已完成并有**真实进程证据**（`RegisteredEntryExecutionAdapter`：由已验证请求派生登记命令，子进程在固定 workdir 内写出标记文件且调用方当前目录下不出现；同 entry_id 换 workdir 一律拒绝；命令始终 argv 数组、`shell=False`）。**实测把它接进默认装配的后果**：`tests/unit/test_default_step_execution.py` 的断言由 `CAPABILITY_UNAVAILABLE` 变为 `EXECUTION_BLOCKED`，提交序列由不变变为 49→57，且授权由 `UNUSED` 变为 `OCCUPIED`——即在真实端口下，被阻塞的**尝试**会被启动并原子占用授权（符合合同「启动原授权原子消费」），而原断言针对的是「尝试都没发生」的旧默认。**暂不默认开启的三条理由**：① 这是授权消费语义的产品级变化，应由合同/负责人确认「启动即占用」在阻塞情形下是否成立；② 我的写法会让「故意不配执行端口」这一配置不可达，需要保留显式关闭的入口；③ 需先跑完整默认执行族确认失败面。。**不可只注入端口**：`start` 需要先 `register(CommandRegistration)` 登记冻结入口，否则会变成虚假的能力声明（声称已配置却跑不起来）。**来源核验的覆盖范围（2026-10-11 补全）**：已支持 `SourceCheckType.LOAD`——从项目登记的 `source_paths` **按探针自己的 sys.path（物化根）推导可导入名并真的导入**，`observed_import_ref` 必须落在物化根内；加载来源若解析到物化副本之外（如 editable 安装或原仓库）会被 `_derive_state` 判 `import_outside_materialized_source` 而阻塞。合同未定义「导入根」，该推导方式（不新增字段、按探针 sys.path 推导，PEP 420 命名空间包成立）已作为裁定记录；绝对路径、含 `..` 或内层通配的模式一律拒绝。**仍不覆盖**：合同 L1 中的「适用构建」（`APPLICABLE_BUILD`）与需要显式入口脚本的 `MINIMAL_START`；推导不出可导入名时退回 `SYNTAX`（只核语法），此时不得声称已核验入口可用性。",
-          "resolved_by": "C"
+          "kind": "user_entry",
+          "detail": "分析后源码变化目前只有 `check_source` 的 `changes.state=changed` 与重新分析产生的新快照/`understanding_revision`，面板源码不调用 `check_source`，也没有“依据已变化、旧草稿需重新生成”的入口提示。补齐该提示后才能把 AC30 第 5 项写成已通过。",
+          "resolved_by": "D"
         }
       ],
       "real_environment_verified": false,
       "source_evidence": [
-        "src/aitest/infrastructure/adapters/source_snapshot.py:169/249/255/261/359（pin/read_pinned/verify_pinned/materialize/detect_changes）",
-        "tests/unit/test_default_source_analysis.py:120/126/258（plain 真实字节摘要、plain 不调用 Git、真实 Git 身份）",
-        "src/aitest/bootstrap.py（source_probe 构造后无人调用）"
+        "src/aitest/application/project/source_analysis.py（analyze 固定快照与 check 变化事实）",
+        "src/aitest/application/project/understanding.py（unsupported framework → capability gap）",
+        "src/aitest/application/planning/controlled_publication.py（manual 计划发布门禁）",
+        "docs/validation/2026-11-14-p1-ac30-new-project-analysis/README.md"
       ]
     },
     {
