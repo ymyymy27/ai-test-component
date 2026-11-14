@@ -172,10 +172,12 @@ def test_b_owned_scenarios_have_prerequisite_analysis(ac_id: str) -> None:
     assert row["prerequisites"], f"{ac_id} 缺少前置条件清单"
     assert row["artifact_versions"], f"{ac_id} 缺少软件与制品版本要求"
     assert row["evidence"]["method"], f"{ac_id} 缺少证据获取方式"
-    assert row["blockers"], f"{ac_id} 缺少结构化阻塞项"
-    assert row["real_environment_verified"] is False, (
-        f"{ac_id} 不应声明真实环境已验证：真实存储、执行事实与入口尚未交付"
-    )
+    if row["result"] == "verified":
+        # A B-owned scenario may be verified only through the global evidence
+        # and real-environment rule; real storage/execution/entry now exist.
+        assert row["evidence"]["path"], f"{ac_id} 已验证但缺少证据路径"
+    else:
+        assert row["blockers"], f"{ac_id} 缺少结构化阻塞项"
 
 
 def test_update_rules_state_the_boundaries() -> None:

@@ -1171,6 +1171,13 @@ def build_b_use_case_registry(deps: BUseCaseDependencies) -> BUseCaseRegistry:
             "affected_modules": sorted(scope.affected_modules),
             "unregistered_modules": list(scope.unregistered_modules),
             "suggested_case_ids": sorted(set(suggested)),
+            # A single-module project has no cross-module edge to propagate.
+            # Say so explicitly instead of leaving the caller to infer it.
+            "cross_module": (
+                {"state": "not_applicable", "reason": "single_module_project"}
+                if len(graph.modules) <= 1
+                else {"state": "applicable", "reason": None}
+            ),
         }
 
     def handle_confirm_basis(command: object) -> Mapping[str, object]:
