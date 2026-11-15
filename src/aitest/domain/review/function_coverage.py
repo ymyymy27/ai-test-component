@@ -10,11 +10,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from aitest.domain.planning.plans import CoverageContract
+    from aitest.domain.planning.understanding import CoverageClaim
+
+
+#: 函数内任一必要维度没有 claim 时的缺口原因；计划预览与运行投影共用。
+NO_CLAIM_GAP_REASON = "no coverage claim"
 
 
 def _require_text(value: str, name: str) -> None:
@@ -152,3 +161,64 @@ class FunctionCoverage:
         """功能级汇总；由维度状态派生，构造时不能手填。"""
 
         return derive_overall_coverage(self.coverage_by_dimension.values())
+
+
+DimensionResolver = Callable[
+    ["CoverageClaim", str, Sequence["CoverageClaim"], frozenset[str]],
+    tuple[CoverageStatus, tuple[str, ...]],
+]
+
+
+def project_coverage(
+    contract: CoverageContract,
+    *,
+    projected_at: datetime,
+    plan_revision: int | None,
+    run_id: str | None,
+    coverage_id: Callable[[str], str],
+    resolve_dimension: DimensionResolver,
+) -> tuple[FunctionCoverage, ...]:
+    """按功能 × 必要维度投影覆盖；时间与状态规则都由调用方注入。
+
+    内核只负责：按契约顺序遍历、按 (function, dimension) 分组 claim、合并
+    用例集合、去重缺口原因、构造 `FunctionCoverage`。计划预览与运行投影的
+    差异全部在 `resolve_dimension` 中，不再各写一套循环。
+    """
+
+    claims_by_dimension: dict[tuple[str, str], list[CoverageClaim]] = {}
+    for claim in contract.coverage_claims:
+        claims_by_dimension.setdefault((claim.function_id, claim.dimension), []).append(claim)
+
+    projections: list[FunctionCoverage] = []
+    for requirement in contract.function_requirements:
+        dimensions: dict[str, CoverageStatus] = {}
+        function_case_ids: set[str] = set()
+        gaps: list[str] = []
+        seen_gaps: set[str] = set()
+        for dimension in requirement.required_dimensions:
+            claims = claims_by_dimension.get((requirement.function_id, dimension), [])
+            dimension_case_ids = frozenset(
+                case_id for claim in claims for case_id in claim.case_ids
+            )
+            status, dimension_gaps = resolve_dimension(
+                requirement, dimension, claims, dimension_case_ids
+            )
+            dimensions[dimension] = status
+            function_case_ids.update(dimension_case_ids)
+            for gap in dimension_gaps:
+                if gap not in seen_gaps:
+                    seen_gaps.add(gap)
+                    gaps.append(gap)
+        projections.append(
+            FunctionCoverage(
+                coverage_id=coverage_id(requirement.function_id),
+                function_id=requirement.function_id,
+                plan_revision=plan_revision,
+                run_id=run_id,
+                coverage_by_dimension=dimensions,
+                updated_at=projected_at,
+                case_ids=frozenset(function_case_ids),
+                gap_reason="; ".join(gaps) if gaps else None,
+            )
+        )
+    return tuple(projections)

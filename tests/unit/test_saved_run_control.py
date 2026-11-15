@@ -3,19 +3,17 @@
 import sys
 from dataclasses import replace
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 import pytest
 
-from aitest.application.execution.control import RunControlService, boundary_pending
 from aitest.application.execution.runner import SerialRunner
 from aitest.application.execution.saved_control import SavedRunControl
 from aitest.contracts.commands import Command
 from aitest.domain.execution.runs import (
     AttemptState,
     ExecutionInspectionState,
-    RunControlState,
     StopRequestResult,
+    execution_boundary_pending,
 )
 from aitest.infrastructure.adapters.execution.command import CommandAdapter, CommandRegistration
 from aitest.infrastructure.file_store.execution_handles import FileExecutionHandleStore
@@ -215,24 +213,20 @@ def test_missing_adapter_still_saves_pause_but_cannot_confirm_boundary(tmp_path)
     "state", [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.INVALIDATED]
 )
 def test_no_handle_terminal_label_cannot_confirm_control_boundary(state):
-    from tests.unit.test_execution_control import _attempt
+    from tests.support.control_fixtures import _attempt
 
-    assert boundary_pending(replace(_attempt(state), execution_handle_ref=None, exit_fact_ref=None))
+    assert execution_boundary_pending(replace(_attempt(state), execution_handle_ref=None, exit_fact_ref=None))
 
 
 def test_process_boundary_can_finish_while_business_verification_is_pending():
-    from tests.unit.test_execution_control import _run
     from tests.unit.test_execution_observation_identity import observation
 
     attempt, _, collection = observation()
     pending = replace(
         attempt, state=AttemptState.PENDING_VERIFICATION, exit_fact_ref=collection.exit_fact_ref
     )
-    assert not boundary_pending(pending)
-    result = RunControlService(Mock()).pause(
-        replace(_run(), control_state=RunControlState.RUNNING), (pending,)
-    )
-    assert result.run_state is RunControlState.PAUSED and not result.requires_verification
+    assert not execution_boundary_pending(pending)
+    assert not execution_boundary_pending(pending)
 
 
 @pytest.mark.parametrize("fault", ["unknown_inspection", "false_stop_only", "wrong_exit"])

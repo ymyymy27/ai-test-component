@@ -6,14 +6,17 @@ from uuid import uuid4
 
 from aitest.application.execution.commit import ExecutionCommitCoordinator
 from aitest.application.execution.continuation import stage_existing_activity
-from aitest.application.execution.control import boundary_pending
 from aitest.application.execution.facts import execution_payload_digest
 from aitest.application.execution.runner import SerialRunner
 from aitest.application.execution.step_execution import SavedStepExecution
 from aitest.contracts.commands import Command
 from aitest.contracts.execution_facts import ExecutionFacts, RunControlStateFact
 from aitest.domain.approvals import ApprovalConflict
-from aitest.domain.execution.runs import Attempt, ExecutionInspectionState
+from aitest.domain.execution.runs import (
+    Attempt,
+    ExecutionInspectionState,
+    execution_boundary_pending,
+)
 
 
 class RunControlBlocked(ValueError):
@@ -192,7 +195,7 @@ class SavedRunControl:
             if current.snapshot_commit_id != base:
                 raise ApprovalConflict("run control uses a stale current snapshot")
             state = current.run.control_state
-            pending = any(boundary_pending(item) for item in self._attempts(current))
+            pending = any(execution_boundary_pending(item) for item in self._attempts(current))
             if command.action == "pause_run":
                 if state is not RunControlStateFact.RUNNING:
                     raise RunControlBlocked("only a running run can be paused")
@@ -361,7 +364,7 @@ class SavedRunControl:
             runner = SerialRunner(port, self.execution.spool, commit_coordinator=self.coordinator)
             remaining = max_inspections
             for attempt in self._attempts(current):
-                if not boundary_pending(attempt) or attempt.execution_handle_ref is None:
+                if not execution_boundary_pending(attempt) or attempt.execution_handle_ref is None:
                     continue
                 if remaining == 0:
                     break
@@ -398,7 +401,7 @@ class SavedRunControl:
                 item.attempt_id for item in current.attempts
             } != {item.attempt_id for item in original.attempts}:
                 raise RunControlBlocked("pending control changed during external observation")
-            if any(boundary_pending(item) for item in self._attempts(current)):
+            if any(execution_boundary_pending(item) for item in self._attempts(current)):
                 self.unit.rollback()
                 return current
             state = (

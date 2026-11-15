@@ -18,7 +18,7 @@ from aitest.domain.execution.runs import (
     OutputStreamName,
     ProcessTerminationReason,
 )
-from tests.unit.test_execution_control import _attempt
+from tests.support.control_fixtures import _attempt
 
 
 def observation():

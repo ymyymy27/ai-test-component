@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from aitest.application.execution.control import RunControlService
 from aitest.application.execution.facts import project_attempt_fact
 from aitest.application.execution.recovery import RecoveryAction, recover_attempt
 from aitest.application.execution.runner import SerialRunner
@@ -22,9 +21,9 @@ from aitest.domain.execution.runs import (
     OutputStreamName,
     ProcessTerminationReason,
     RecoveryCheckpoint,
-    RunControlState,
     SideEffectClass,
     SpoolManifest,
+    execution_boundary_pending,
 )
 from aitest.infrastructure.file_store.checkpoints import FileCheckpointStore
 from aitest.infrastructure.file_store.spool import FileSpoolStore
@@ -33,7 +32,6 @@ from tests.recovery.test_execution_recovery import _attempt, _handle, _LostPort
 from tests.support.execution_authority import fixture_coordinator
 from tests.unit.test_current_attempt_transition_integrity import _new_start, _record, _saved_graph
 from tests.unit.test_current_execution_snapshot import _batch
-from tests.unit.test_execution_control import _run
 from tests.unit.test_serial_runner import FakeExecutionPort, _request
 from tests.unit.test_serial_runner import _attempt as _start_attempt
 
@@ -263,11 +261,7 @@ def test_pause_and_runtime_revision_share_original_exit_identity_checks(changes)
         "attempt-1", "token", "start-1", 0, termination_reason=ProcessTerminationReason.NATURAL_EXIT
     )
     attempt = replace(attempt, exit_fact_ref=replace(fact, **changes))
-    decision = RunControlService(FakeExecutionPort()).pause(
-        replace(_run(), control_state=RunControlState.RUNNING), (attempt,)
-    )
-    assert decision.run_state is RunControlState.PAUSE_REQUESTED
-    assert decision.requires_verification
+    assert execution_boundary_pending(attempt)
     facts = _batch().facts.model_copy(
         update={"attempts": (project_attempt_fact(attempt, is_current=True),)}
     )

@@ -13,7 +13,6 @@ from aitest.application.execution.continuation import (
     stage_continuation,
     stage_existing_activity,
 )
-from aitest.application.execution.control import boundary_pending
 from aitest.application.execution.facts import execution_payload_digest
 from aitest.application.execution.plan_grant import PlanGrantRejected
 from aitest.application.execution.run_record import read_run_record
@@ -34,6 +33,7 @@ from aitest.domain.execution.runs import (
     StepLevel,
     StepRevisionRef,
     StepState,
+    execution_boundary_pending,
     has_complete_capture,
     has_reliable_terminal_fact,
 )
@@ -475,7 +475,7 @@ class SavedRunSchedule:
         if (
             not facts.steps
             or any(step.state is not StepStateFact.COMPLETED for step in facts.steps)
-            or any(boundary_pending(item) for item in attempts)
+            or any(execution_boundary_pending(item) for item in attempts)
         ):
             return None
         by_id = {item.attempt_id: item for item in attempts}
@@ -516,7 +516,7 @@ class SavedRunSchedule:
             ):
                 status = "controlled"
                 break
-            pending = tuple(item for item in attempts if boundary_pending(item))
+            pending = tuple(item for item in attempts if execution_boundary_pending(item))
             unobserved = next(
                 (
                     item
@@ -675,7 +675,7 @@ class SavedRunSchedule:
                 (
                     item
                     for item in self._attempts(facts)
-                    if boundary_pending(item) and item.execution_handle_ref is not None
+                    if execution_boundary_pending(item) and item.execution_handle_ref is not None
                 ),
                 None,
             )
@@ -729,7 +729,8 @@ class SavedRunSchedule:
                     for item in basis:
                         self._original_action(work.project_id, item)
                     inactive = True
-            if latest != work or not inactive or any(boundary_pending(item) for item in attempts):
+            pending = any(execution_boundary_pending(item) for item in attempts)
+            if latest != work or not inactive or pending:
                 self.unit.rollback()
                 return
             stage_continuation(self.coordinator, replace(work, active=False))
