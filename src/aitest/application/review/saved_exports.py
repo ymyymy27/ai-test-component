@@ -63,18 +63,20 @@ from aitest.application.review.export_codec import (
     _verify_bundle_paths as _verify_bundle_paths,
 )
 from aitest.application.review.export_codec import export_key_id
-from aitest.application.review.saved_defects import (
-    ISSUE_AGGREGATE,
-    blocking_state,
-    issue_from_payload,
-)
-from aitest.application.review.saved_reports import (
+from aitest.application.review.report_types import (
     LOCAL_REVIEW_AGGREGATE,
     REPORT_AGGREGATE,
     ReportActorReader,
     ReportClock,
     ReportRecordRepository,
     ReportUnitOfWork,
+)
+from aitest.application.review.saved_defects import (
+    ISSUE_AGGREGATE,
+    blocking_state,
+    issue_from_payload,
+)
+from aitest.application.review.saved_reports import (
     local_review_from_payload,
     report_from_payload,
 )

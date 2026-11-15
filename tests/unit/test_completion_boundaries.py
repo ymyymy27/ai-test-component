@@ -12,7 +12,7 @@ from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.application.planning.substrate import RecordPage
 from aitest.application.review.reuse_consumption import ReuseOutcome
 from aitest.application.review.saved_exports import ExportRefused
-from aitest.application.review.saved_reports import _ReuseReading
+from aitest.application.review.report_types import _ReuseReading
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.interfaces.local.view_queries import CommittedViewReader, ReadViewError
@@ -106,7 +106,7 @@ def test_legacy_reuse_report_has_named_gap_not_latest_source_fallback(tmp_path):
     _create(stack)
     payload = stack.saved_report("report-1")
     del payload["reuse"]["source_snapshots"]
-    from aitest.application.review.saved_reports import report_from_payload
+    from aitest.application.review.report_codec import report_from_payload
 
     evidence, gaps = stack.exports._frozen_reuse_evidence(report_from_payload(payload), payload)
     assert evidence == ()
@@ -118,7 +118,7 @@ def test_frozen_reuse_metadata_cannot_change_ownership(tmp_path, damage):
     stack, _, _, _ = _reuse_stack(tmp_path)
     _create(stack)
     payload = stack.saved_report("report-1")
-    from aitest.application.review.saved_reports import report_from_payload
+    from aitest.application.review.report_codec import report_from_payload
 
     snapshot = report_from_payload(payload)
     if damage == "target":
