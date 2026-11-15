@@ -366,6 +366,15 @@ def assemble_workspace_core(
     """
     FileCommitStore.reject_links(workspace_root)
     root = workspace_root.resolve()
+    legacy = [
+        name
+        for name in ("records.json", "commit.json", "events.json", "transactions.json")
+        if (root / name).exists()
+    ]
+    if legacy and not (root / "current.json").exists():
+        raise CoreAssemblyBlocked(
+            "工作空间格式过旧（legacy 提交/事件文件），本版本不支持；请新建工作空间"
+        )
     workspace = Workspace(root)
     if workspace_id is not None:
         workspace.validate(workspace_id)

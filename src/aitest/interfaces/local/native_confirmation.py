@@ -457,7 +457,6 @@ def prepare_panel_confirmation(
         return api._error(
             command, "ENTRY_ACTION_NOT_ALLOWED", "面板确认只接受已核实的宿主连接"
         )
-    remembered = False
     try:
         material = _panel_prepare_material(api, command, records, session)
         if isinstance(material, Response):
@@ -481,7 +480,6 @@ def prepare_panel_confirmation(
             datetime.now(UTC) + timedelta(milliseconds=NATIVE_CONFIRMATION_TIMEOUT_MS)
         ).isoformat()
         _remember_panel_session(api, (session.session_id, command.request_id), session, expires_at)
-        remembered = True
         return Response(
             request_id=command.request_id,
             instance_id=api.instance_id,
@@ -504,8 +502,7 @@ def prepare_panel_confirmation(
         )
     except Exception as error:
         return api._error(command, "PANEL_CONFIRMATION_UNAVAILABLE", api._safe_message(error))
-    finally:
-        remembered = remembered
+
 
 
 def confirm_panel_confirmation(

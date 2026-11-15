@@ -894,11 +894,34 @@ class FileRecordRepository:
             exact_counter(expected_revision)
         store = FileCommitStore(self.root)
         current_root = store.read_current()
-        data = (
-            open_authority(self.root, current_root["manifest"]["record_header"])
-            if current_root is not None
-            else self._load()
-        )
+        if current_root is None:
+            legacy = [
+                name
+                for name in ("records.json", "commit.json", "events.json", "transactions.json")
+                if (self.root / name).exists()
+            ]
+            if legacy:
+                raise ValueError(
+                    "legacy workspace is not writable; recreate it as a shared workspace"
+                )
+            from .migrations import FileMigrationManager
+
+            manager = FileMigrationManager(self.root)
+            manager.apply(
+                manager.plan(
+                    (
+                        "0003-sharded-record-authority",
+                        "0004-bounded-query-directory",
+                        "0005-complete-commit-closure",
+                        "0006-canonical-current-publication",
+                        "0007-canonical-manifest-and-business-changes",
+                    )
+                ).plan_id
+            )
+            current_root = store.read_current()
+            if current_root is None:
+                raise ValueError("shared workspace initialization did not publish a commit root")
+        data = open_authority(self.root, current_root["manifest"]["record_header"])
         identity = dict(
             request_id=request_id,
             intent_id=intent_id,
