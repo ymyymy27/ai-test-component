@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import os
-import subprocess as subprocess
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Mapping
@@ -1766,6 +1766,7 @@ __all__ = [
     "UseCaseRegistry",
     "acquire_endpoint",
     "acquire_existing_endpoint",
+    "cli_host_pid",
     "assemble_workspace_core",
     "create_api",
     "make_editor_host",

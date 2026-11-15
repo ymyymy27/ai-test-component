@@ -469,11 +469,13 @@ def test_copy_repair_brief_is_read_only_and_redacted(tmp_path) -> None:
     from aitest.infrastructure.projections import SafeMaterialProjector
 
     harness = _Harness(tmp_path, evidence=("evidence-1",))
-    harness.repository.append(
-        "issue",
-        "issue-1",
-        0,
-        {
+    request = "fixture-issue-issue-1"
+    harness.unit.begin(request, "project-ticket", intent_id=request + "-intent")
+    harness.unit.stage_record(
+        aggregate_kind="issue",
+        record_id="issue-1",
+        expected_revision=0,
+        payload={
             "schema_version": "aitest.issue/1.0",
             "issue_id": "issue-1",
             "project_id": "project-ticket",
@@ -494,6 +496,7 @@ def test_copy_repair_brief_is_read_only_and_redacted(tmp_path) -> None:
             "links": {"module_ids": [], "layers": []},
         },
     )
+    harness.unit.commit(request)
     brief = SavedRepairBrief(
         records=harness.repository,
         runtime=type(harness.exports._runtime)(harness.facts),  # noqa: SLF001

@@ -62,9 +62,7 @@ from aitest.application.review.export_codec import (
 from aitest.application.review.export_codec import (
     _verify_bundle_paths as _verify_bundle_paths,
 )
-from aitest.application.review.export_codec import (
-    export_key_id as export_key_id,
-)
+from aitest.application.review.export_codec import export_key_id
 from aitest.application.review.saved_defects import (
     ISSUE_AGGREGATE,
     blocking_state,

@@ -73,7 +73,7 @@ from aitest.application.dispatch.actions import (
     writes,
 )
 from aitest.application.dispatch.actions.rules import _rule_versions_for
-from aitest.application.dispatch.errors import BUseCaseError as BUseCaseError
+from aitest.application.dispatch.errors import BUseCaseError
 from aitest.application.planning.basis_confirmation import BasisConfirmationService
 from aitest.application.planning.model_orchestration import (
     ModelGenerationConflictError,
