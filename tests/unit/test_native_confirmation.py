@@ -384,8 +384,9 @@ def test_finalizer_uncertainty_is_not_acknowledged_as_success_or_core_shutdown(c
 def test_panel_confirmation_prepares_then_commits_only_after_its_gesture(core, tmp_path):
     seed(core)
     command = binding_command(core, tmp_path)
+    panel = Session("panel-host", EntryKind.HUMAN_UI, True)
     prepared = prepare_panel_confirmation(
-        core.api, command, records=core.unit_of_work.repo
+        core.api, panel, command, records=core.unit_of_work.repo
     )
     assert prepared.error is None, prepared.error
     assert prepared.request_id == command.request_id
@@ -396,6 +397,7 @@ def test_panel_confirmation_prepares_then_commits_only_after_its_gesture(core, t
 
     confirmed = confirm_panel_confirmation(
         core.api,
+        panel,
         command,
         challenge_id=str(result["challenge_id"]),
         input_digest=str(result["input_digest"]),
@@ -404,7 +406,9 @@ def test_panel_confirmation_prepares_then_commits_only_after_its_gesture(core, t
     assert core.unit_of_work.repo.current_revision("binding", "binding") == 1
 
     # Re-sending the same intent recalls the committed receipt without a prompt.
-    recalled = prepare_panel_confirmation(core.api, command, records=core.unit_of_work.repo)
+    recalled = prepare_panel_confirmation(
+        core.api, panel, command, records=core.unit_of_work.repo
+    )
     assert recalled.error is None, recalled.error
     assert "prompt" not in (recalled.result or {})
     assert recalled.result == confirmed.result
@@ -413,11 +417,15 @@ def test_panel_confirmation_prepares_then_commits_only_after_its_gesture(core, t
 def test_panel_confirmation_rejects_wrong_challenge_without_writing(core, tmp_path):
     seed(core)
     command = binding_command(core, tmp_path)
-    prepared = prepare_panel_confirmation(core.api, command, records=core.unit_of_work.repo)
+    panel = Session("panel-host", EntryKind.HUMAN_UI, True)
+    prepared = prepare_panel_confirmation(
+        core.api, panel, command, records=core.unit_of_work.repo
+    )
     assert prepared.error is None, prepared.error
     result = prepared.result or {}
     rejected = confirm_panel_confirmation(
         core.api,
+        panel,
         command,
         challenge_id="approval-challenge-wrong",
         input_digest=str(result["input_digest"]),
@@ -436,14 +444,15 @@ def test_panel_control_frames_prepare_and_confirm_through_the_core_worker(core, 
     }).encode()
     prepared = dispatch_frame(
         core.api,
-        Session("panel-host", EntryKind.HUMAN_UI),
+        Session("panel-host", EntryKind.HUMAN_UI, True),
         prepare_frame,
-        panel_prepare_dispatch=lambda cmd: prepare_panel_confirmation(
-            core.api, cmd, records=core.unit_of_work.repo
+        panel_prepare_dispatch=lambda session, cmd: prepare_panel_confirmation(
+            core.api, session, cmd, records=core.unit_of_work.repo
         ),
-        panel_confirm_dispatch=lambda cmd, challenge, digest: confirm_panel_confirmation(
-            core.api, cmd, challenge_id=challenge, input_digest=digest
-        ),
+        panel_confirm_dispatch=lambda session, cmd, challenge, digest:
+            confirm_panel_confirmation(
+                core.api, session, cmd, challenge_id=challenge, input_digest=digest
+            ),
     )
     assert prepared.error is None, prepared.error
     result = prepared.result or {}
@@ -459,14 +468,49 @@ def test_panel_control_frames_prepare_and_confirm_through_the_core_worker(core, 
     }).encode()
     confirmed = dispatch_frame(
         core.api,
-        Session("panel-host", EntryKind.HUMAN_UI),
+        Session("panel-host", EntryKind.HUMAN_UI, True),
         confirm_frame,
-        panel_prepare_dispatch=lambda cmd: prepare_panel_confirmation(
-            core.api, cmd, records=core.unit_of_work.repo
+        panel_prepare_dispatch=lambda session, cmd: prepare_panel_confirmation(
+            core.api, session, cmd, records=core.unit_of_work.repo
         ),
-        panel_confirm_dispatch=lambda cmd, challenge, digest: confirm_panel_confirmation(
-            core.api, cmd, challenge_id=challenge, input_digest=digest
-        ),
+        panel_confirm_dispatch=lambda session, cmd, challenge, digest:
+            confirm_panel_confirmation(
+                core.api, session, cmd, challenge_id=challenge, input_digest=digest
+            ),
     )
     assert confirmed.error is None, confirmed.error
     assert core.unit_of_work.repo.current_revision("binding", "binding") == 1
+
+
+def test_panel_confirmation_rejects_agent_connections(core, tmp_path):
+    seed(core)
+    command = binding_command(core, tmp_path)
+    relay = Session("relay", EntryKind.AGENT_RELAY, True)
+    prepared = prepare_panel_confirmation(
+        core.api, relay, command, records=core.unit_of_work.repo
+    )
+    assert prepared.error is not None
+    assert prepared.error.code == "ENTRY_ACTION_NOT_ALLOWED"
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 0
+
+
+def test_panel_confirm_must_come_from_the_preparing_connection(core, tmp_path):
+    seed(core)
+    command = binding_command(core, tmp_path)
+    first = Session("panel-first", EntryKind.HUMAN_UI, True)
+    second = Session("panel-second", EntryKind.HUMAN_UI, True)
+    prepared = prepare_panel_confirmation(
+        core.api, first, command, records=core.unit_of_work.repo
+    )
+    assert prepared.error is None, prepared.error
+    result = prepared.result or {}
+    rejected = confirm_panel_confirmation(
+        core.api,
+        second,
+        command,
+        challenge_id=str(result["challenge_id"]),
+        input_digest=str(result["input_digest"]),
+    )
+    assert rejected.error is not None
+    assert rejected.error.code == "PANEL_CONFIRMATION_EXPIRED"
+    assert core.unit_of_work.repo.current_revision("binding", "binding") == 0

@@ -29,6 +29,21 @@ HUMAN_ACTIONS = frozenset(
         "select_case_reuse",
     }
 )
+CHALLENGE_ACTIONS = frozenset(
+    {
+        "save_binding",
+        "save_environment",
+        "publish_rules",
+        "publish_plan",
+        "submit_delivery",
+        "save_model_outbound_policy",
+        "authorize_step",
+        "revise_pending_steps",
+        "narrow_driver",
+        "confirm_basis",
+    }
+)
+
 PHASE_ONE_ACTIONS = frozenset(
     {
         "bind_project",

@@ -318,6 +318,12 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
       post(panel, { kind: "outcome", action: request.action, ...connected, clientRequestId });
       return;
     }
+    const connectedResult = connected.response?.["result"];
+    const pipeName = connectedResult && typeof connectedResult === "object"
+      && !Array.isArray(connectedResult)
+      && typeof (connectedResult as Record<string, unknown>)["pipe_name"] === "string"
+      ? (connectedResult as Record<string, unknown>)["pipe_name"] as string
+      : undefined;
     outcome = raw["kind"] === "controlledDispatch"
       ? await dispatchControlled(
           python,
@@ -334,6 +340,7 @@ async function handleWebviewMessage(panel: PanelHost, message: unknown, scope: P
             pendingConfirmations.set(promptId, { resolve, timer });
             post(panel, { kind: "confirmationPrompt", clientRequestId: promptId, prompt });
           }),
+          pipeName,
         )
       : raw["kind"] === "writeDispatch"
         ? await dispatchWrite(python, workspaceRoot, { ...request, projectId }, clientRequestId)

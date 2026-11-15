@@ -6,39 +6,27 @@ import json
 import os
 import sys
 import threading
-from collections.abc import Callable, Mapping, Sequence
-from contextlib import suppress
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Final
 from uuid import uuid4
-
-from pydantic import JsonValue
 
 from aitest.application.approval_service import _digest
 from aitest.application.ports import ApprovalRecords
-from aitest.contracts.commands import PHASE_ONE_ACTIONS, READ_ACTIONS, Command
+from aitest.contracts.commands import (
+    CHALLENGE_ACTIONS,
+    PHASE_ONE_ACTIONS,
+    READ_ACTIONS,
+    Command,
+)
 from aitest.contracts.responses import Response
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
 NATIVE_CONFIRMATION_VERSION = "native-confirmation/1"
-PANEL_CONFIRMATION_VERSION = "panel-confirmation/1"
-NATIVE_BATCH_VERSION = "native-batch/1"
+PANEL_CONFIRMATION_VERSION = "panel-confirmation/2"
 NATIVE_CONFIRMATION_TIMEOUT_MS = 120_000
-CHALLENGE_ACTIONS = frozenset(
-    {
-        "save_binding",
-        "save_environment",
-        "publish_rules",
-        "publish_plan",
-        "submit_delivery",
-        "save_model_outbound_policy",
-        "authorize_step",
-        "revise_pending_steps",
-        "narrow_driver",
-        "confirm_basis",
-    }
-)
 NATIVE_ACTIONS = (
     PHASE_ONE_ACTIONS
     - READ_ACTIONS
@@ -52,32 +40,31 @@ MAX_PROMPT_CHARS = 128_000
 #: Prepared panel challenges keep their interactive session alive between the
 #: prepare and confirm control frames.  A separate CLI process cannot reuse a
 #: session that was already finalized, so the core owns this short-lived map.
-_PANEL_SESSIONS: dict[str, tuple[Session, threading.Timer]] = {}
+_PANEL_SESSIONS: dict[tuple[str, str], tuple[Session, threading.Timer, str]] = {}
 _PANEL_SESSIONS_LOCK = threading.Lock()
 
 
-def _expire_panel_session(api: LocalAPI, request_id: str) -> None:
+def _expire_panel_session(api: LocalAPI, key: tuple[str, str]) -> None:
     with _PANEL_SESSIONS_LOCK:
-        entry = _PANEL_SESSIONS.pop(request_id, None)
+        entry = _PANEL_SESSIONS.pop(key, None)
     if entry is not None:
-        with suppress(Exception):
-            api.close_session(entry[0])
+        api.close_session(entry[0])
 
 
-def _remember_panel_session(api: LocalAPI, request_id: str, session: Session) -> None:
+def _remember_panel_session(
+    api: LocalAPI, key: tuple[str, str], session: Session, expires_at: str
+) -> None:
     timer = threading.Timer(
         NATIVE_CONFIRMATION_TIMEOUT_MS / 1000.0,
         _expire_panel_session,
-        args=(api, request_id),
+        args=(api, key),
     )
     timer.daemon = True
     with _PANEL_SESSIONS_LOCK:
-        old = _PANEL_SESSIONS.pop(request_id, None)
-        _PANEL_SESSIONS[request_id] = (session, timer)
+        old = _PANEL_SESSIONS.pop(key, None)
+        _PANEL_SESSIONS[key] = (session, timer, expires_at)
     if old is not None:
         old[1].cancel()
-        with suppress(Exception):
-            api.close_session(old[0])
     timer.start()
 
 _ACTION_LABELS = {
@@ -353,237 +340,6 @@ def windows_prompt(prompt: ConfirmationPrompt) -> bool:
         root.destroy()
 
 
-@dataclass
-class BatchPromptItem:
-    """One prepared action in the core-owned batch authorization window."""
-
-    command: Command
-    challenge_id: str
-    input_digest: str
-    prompt: ConfirmationPrompt
-    state: str = "pending"
-    message: str = "待确认"
-    response: Response | None = None
-
-
-def windows_batch_prompt(
-    items: Sequence[BatchPromptItem],
-    confirm: Callable[[int], tuple[bool, str]],
-) -> None:
-    """One window, one confirm button per action; no "confirm all" gesture."""
-
-    if os.name != "nt":
-        raise RuntimeError("当前平台不支持核心原生授权窗口")
-    import tkinter as tk
-    from tkinter import scrolledtext, ttk
-
-    root = _create_windows_root()
-    try:
-        root.title("AI 测试 · 授权本次执行")
-        root.minsize(760, 460)
-        header = ttk.Frame(root, padding=(18, 14, 18, 6))
-        header.pack(fill="x")
-        ttk.Label(
-            header, text="逐项确认本次执行", font=("Microsoft YaHei UI", 14, "bold")
-        ).pack(anchor="w")
-        ttk.Label(
-            header,
-            text=(
-                "每一项都需要单独点击「确认此项」；未确认的项不会获得授权。"
-                "关闭窗口后未确认项失效，不会自动通过。"
-            ),
-            wraplength=700,
-            justify="left",
-            foreground="#8a4b00",
-        ).pack(anchor="w", pady=(6, 0))
-
-        container = ttk.Frame(root)
-        container.pack(fill="both", expand=True, padx=(12, 12), pady=(4, 4))
-        canvas = tk.Canvas(container, borderwidth=0, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        inner = ttk.Frame(canvas)
-        inner.bind(
-            "<Configure>",
-            lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
-        )
-        canvas.create_window((0, 0), window=inner, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        for index, item in enumerate(items):
-            card = ttk.LabelFrame(
-                inner,
-                text=f"{index + 1}. {item.prompt.title}",
-                padding=(10, 8),
-            )
-            card.pack(fill="x", padx=8, pady=6)
-            ttk.Label(
-                card, text=item.prompt.note, wraplength=640, justify="left",
-                foreground="#8a4b00",
-            ).pack(anchor="w")
-            for label, value in item.prompt.facts:
-                ttk.Label(
-                    card, text=f"{label}：{value}", wraplength=640, justify="left"
-                ).pack(anchor="w", pady=(2, 0))
-            status = ttk.Label(card, text=item.message, foreground="#666")
-            status.pack(anchor="w", pady=(4, 0))
-            buttons = ttk.Frame(card)
-            buttons.pack(anchor="w", pady=(6, 0))
-
-            def show_details(data: ConfirmationPrompt = item.prompt) -> None:
-                top = tk.Toplevel(root)
-                top.title("技术细节（完整输入）")
-                top.geometry("760x520")
-                text = scrolledtext.ScrolledText(top, wrap="word")
-                text.pack(fill="both", expand=True)
-                text.insert("1.0", data.details)
-                text.configure(state="disabled")
-
-            ttk.Button(buttons, text="查看技术细节", command=show_details).pack(side="left")
-
-            button = ttk.Button(buttons, text="确认此项")
-
-            def accept(
-                i: int = index,
-                control: object = button,
-                label: object = status,
-            ) -> None:
-                ok, message = confirm(i)
-                control.configure(  # type: ignore[attr-defined]
-                    state="disabled", text="已确认" if ok else "未确认"
-                )
-                label.configure(text=message)  # type: ignore[attr-defined]
-
-            button.configure(command=accept)
-            button.pack(side="left", padx=8)
-            if item.state == "confirmed":
-                button.configure(state="disabled", text="已确认")
-            elif item.state == "failed":
-                button.configure(state="disabled", text="未确认")
-
-        footer = ttk.Frame(root, padding=(18, 6, 18, 14))
-        footer.pack(fill="x")
-        ttk.Label(
-            footer,
-            text="本窗口不会自动通过；关闭后未确认项需重新发起授权。",
-        ).pack(side="left")
-        ttk.Button(footer, text="完成", command=root.quit).pack(side="right")
-        root.protocol("WM_DELETE_WINDOW", root.quit)
-        root.bind("<Escape>", lambda _event: root.quit())
-        # A batch may take longer than one action; the bound is explicit and
-        # unconfirmed challenges are revoked when the session closes.
-        root.after(10 * 60 * 1000, root.quit)
-        root.mainloop()
-    finally:
-        root.destroy()
-
-
-def _batch_item_from_command(
-    api: LocalAPI,
-    command: Command,
-    session: Session,
-    records: ApprovalRecords | None,
-) -> BatchPromptItem:
-    """Prepare one challenge and its exact prompt; no confirmation is created."""
-
-    original = api.dispatch(command.model_copy(update={"request_id": uuid4().hex}), session)
-    if original.error is None:
-        return BatchPromptItem(
-            command=command,
-            challenge_id="",
-            input_digest="",
-            prompt=ConfirmationPrompt(
-                title=_ACTION_LABELS.get(command.action, "核对本次操作"),
-                note="此前已保存同一业务意图的有效授权。",
-                facts=(),
-                details="",
-            ),
-            state="confirmed",
-            message="此前已授权",
-            response=original.model_copy(update={"request_id": command.request_id}),
-        )
-    if original.error.code == "INTENT_CONFLICT":
-        raise ValueError(original.error.message)
-    prepared = api.dispatch(
-        Command(
-            request_id=uuid4().hex,
-            intent_id=uuid4().hex,
-            action="prepare_approval",
-            project_id=command.project_id,
-            expected_revision=0,
-            parameters={
-                "action": command.action,
-                "action_intent_id": command.intent_id,
-                "target": command.target,
-                "parameters": command.parameters,
-            },
-        ),
-        session,
-    )
-    if prepared.error is not None:
-        raise ValueError(prepared.error.message)
-    if prepared.result is None:
-        raise ValueError("核心未返回确认依据")
-    basis = prepared.result["basis"]
-    raw_challenge = prepared.result.get("challenge_id")
-    if not isinstance(raw_challenge, str) or not raw_challenge:
-        raise ValueError("核心确认挑战无效")
-    challenge_id = raw_challenge
-    if not isinstance(basis, dict):
-        raise ValueError("核心确认依据无效")
-    raw_digest = basis.get("input_digest")
-    if not isinstance(raw_digest, str):
-        raise ValueError("核心确认摘要无效")
-    input_digest = raw_digest
-    materials = basis.get("materials")
-    if records is None or not isinstance(materials, list):
-        raise ValueError("无法读取核心保存的准确确认材料")
-    saved_materials: list[object] = []
-    for ref in materials:
-        if not isinstance(ref, dict):
-            raise ValueError("确认材料引用无效")
-        aggregate_kind = ref.get("aggregate_kind")
-        record_id = ref.get("record_id")
-        revision = ref.get("record_revision")
-        digest = ref.get("digest")
-        if (
-            not isinstance(aggregate_kind, str)
-            or not isinstance(record_id, str)
-            or type(revision) is not int
-            or not isinstance(digest, str)
-        ):
-            raise ValueError("确认材料引用无效")
-        saved = records.read(
-            aggregate_kind=aggregate_kind,
-            record_id=record_id,
-            revision=revision,
-        )
-        payload = getattr(saved, "payload", None)
-        if not isinstance(payload, Mapping) or _digest(payload) != digest:
-            raise ValueError("确认材料摘要不一致")
-        saved_materials.append({"reference": ref, "payload": dict(payload)})
-    projected = api.safe_projection(
-        {
-            "workspace_id": api.workspace_id,
-            "instance_id": api.instance_id,
-            "command": command.model_dump(mode="json"),
-            "saved_basis": basis,
-            "saved_materials": saved_materials,
-        }
-    )
-    view = _confirmation_prompt(projected)
-    if len(view.details) > MAX_PROMPT_CHARS:
-        raise ValueError("操作材料过大，无法完整展示确认")
-    return BatchPromptItem(
-        command=command,
-        challenge_id=challenge_id,
-        input_digest=input_digest,
-        prompt=view,
-    )
-
-
-
 def _panel_prepare_material(
     api: LocalAPI,
     command: Command,
@@ -596,6 +352,10 @@ def _panel_prepare_material(
     (idempotent recall / conflict).  The challenge stays persisted in the core;
     the panel only receives a human-readable projection and returns a gesture.
     """
+    if session.entry_kind is not EntryKind.HUMAN_UI or not session.interactive:
+        return api._error(
+            command, "ENTRY_ACTION_NOT_ALLOWED", "面板确认只接受已核实的宿主连接"
+        )
     if command.action not in CHALLENGE_ACTIONS:
         return api._error(
             command, "ENTRY_ACTION_NOT_ALLOWED", "该动作不属于受控确认动作"
@@ -682,6 +442,7 @@ def _panel_prepare_material(
 
 def prepare_panel_confirmation(
     api: LocalAPI,
+    session: Session,
     command: Command,
     *,
     records: ApprovalRecords | None = None,
@@ -692,7 +453,10 @@ def prepare_panel_confirmation(
     gesture available.  It does not confirm anything; a separate confirm call
     carries the user's click back for the same challenge.
     """
-    session = Session("panel-ui-" + uuid4().hex, EntryKind.HUMAN_UI, True)
+    if session.entry_kind is not EntryKind.HUMAN_UI or not session.interactive:
+        return api._error(
+            command, "ENTRY_ACTION_NOT_ALLOWED", "面板确认只接受已核实的宿主连接"
+        )
     remembered = False
     try:
         material = _panel_prepare_material(api, command, records, session)
@@ -713,7 +477,10 @@ def prepare_panel_confirmation(
             return api._error(
                 command, "CONFIRMATION_PREVIEW_LIMIT", "操作材料过大，无法完整展示确认"
             )
-        _remember_panel_session(api, command.request_id, session)
+        expires_at = (
+            datetime.now(UTC) + timedelta(milliseconds=NATIVE_CONFIRMATION_TIMEOUT_MS)
+        ).isoformat()
+        _remember_panel_session(api, (session.session_id, command.request_id), session, expires_at)
         remembered = True
         return Response(
             request_id=command.request_id,
@@ -725,6 +492,8 @@ def prepare_panel_confirmation(
             result={
                 "challenge_id": challenge_id,
                 "input_digest": input_digest,
+                "panel_session_id": session.session_id,
+                "expires_at": expires_at,
                 "prompt": {
                     "title": view.title,
                     "note": view.note,
@@ -736,18 +505,22 @@ def prepare_panel_confirmation(
     except Exception as error:
         return api._error(command, "PANEL_CONFIRMATION_UNAVAILABLE", api._safe_message(error))
     finally:
-        if not remembered:
-            api.close_session(session)
+        remembered = remembered
 
 
 def confirm_panel_confirmation(
     api: LocalAPI,
+    session: Session,
     command: Command,
     *,
     challenge_id: str,
     input_digest: str,
 ) -> Response:
     """Bind one panel gesture to the exact challenge prepared for this command."""
+    if session.entry_kind is not EntryKind.HUMAN_UI or not session.interactive:
+        return api._error(
+            command, "ENTRY_ACTION_NOT_ALLOWED", "面板确认只接受已核实的宿主连接"
+        )
     if command.action not in CHALLENGE_ACTIONS:
         return api._error(command, "ENTRY_ACTION_NOT_ALLOWED", "该动作不属于受控确认动作")
     if (
@@ -759,16 +532,23 @@ def confirm_panel_confirmation(
         return api._error(command, "INVALID_COMMAND", "面板确认缺少准确 challenge")
     if "approval_challenge_id" in command.parameters:
         return api._error(command, "INVALID_COMMAND", "调用方不能预设确认事实")
+    key = (session.session_id, command.request_id)
     with _PANEL_SESSIONS_LOCK:
-        entry = _PANEL_SESSIONS.pop(command.request_id, None)
+        entry = _PANEL_SESSIONS.pop(key, None)
     if entry is None:
         return api._error(
             command,
             "PANEL_CONFIRMATION_EXPIRED",
             "面板确认已过期，请重新准备并核对本次操作",
         )
-    session, timer = entry
+    stored_session, timer, expires_at = entry
     timer.cancel()
+    if datetime.fromisoformat(expires_at) <= datetime.now(UTC):
+        return api._error(
+            command,
+            "PANEL_CONFIRMATION_EXPIRED",
+            "面板确认已过期，请重新准备并核对本次操作",
+        )
     try:
         approved = command.model_copy(
             update={
@@ -776,143 +556,12 @@ def confirm_panel_confirmation(
             }
         )
         return api.dispatch_user_confirmation(
-            approved, session, challenge_id=challenge_id, input_digest=input_digest
+            approved, stored_session, challenge_id=challenge_id, input_digest=input_digest
         )
     except Exception as error:
         return api._error(command, "PANEL_CONFIRMATION_UNAVAILABLE", api._safe_message(error))
     finally:
         api.close_session(session)
-
-def dispatch_native_batch(
-    api: LocalAPI,
-    commands: Sequence[Command],
-    *,
-    prompt: Callable[
-        [Sequence[BatchPromptItem], Callable[[int], tuple[bool, str]]], None
-    ] = windows_batch_prompt,
-    records: ApprovalRecords | None = None,
-) -> Response:
-    """One window, per-action gestures, independent confirmation records.
-
-    The caller cannot submit challenges, interactions or digest values.  Each
-    row is prepared and later confirmed as the *same* action intent; a single
-    click never confirms two challenges.
-    """
-
-    if not commands:
-        raise ValueError("批量授权至少需要一个动作")
-    project = commands[0].project_id
-    if not project or any(
-        command.action != "authorize_step" or command.project_id != project
-        for command in commands
-    ):
-        raise ValueError("批量授权只接受同一项目的 authorize_step 动作")
-    for command in commands:
-        if (
-            not command.intent_id
-            or type(command.expected_revision) is not int
-            or command.expected_revision < 0
-            or command.request_id == command.intent_id
-            or not command.target
-        ):
-            raise ValueError("批量授权需要项目、稳定意图、准确目标和预期修订")
-        if any(
-            key in command.parameters
-            for key in ("approval_challenge_id", "user_confirmed", "interaction", "input_digest")
-        ):
-            raise ValueError("入口不接受调用方提交的确认事实")
-    session = Session("native-batch-" + uuid4().hex, EntryKind.HUMAN_UI, True)
-    request_id = uuid4().hex
-    try:
-        items: list[BatchPromptItem] = []
-        for command in commands:
-            try:
-                items.append(_batch_item_from_command(api, command, session, records))
-            except Exception as error:
-                items.append(
-                    BatchPromptItem(
-                        command=command,
-                        challenge_id="",
-                        input_digest="",
-                        prompt=ConfirmationPrompt(
-                            title=_ACTION_LABELS.get(command.action, "核对本次操作"),
-                            note=api._safe_message(error),
-                            facts=(),
-                            details="",
-                        ),
-                        state="failed",
-                        message=api._safe_message(error),
-                    )
-                )
-
-        def confirm(index: int) -> tuple[bool, str]:
-            if index < 0 or index >= len(items):
-                return False, "无效的授权项"
-            item = items[index]
-            if item.state == "confirmed":
-                return True, item.message
-            if item.state == "failed" or not item.challenge_id:
-                return False, item.message
-            try:
-                approved = item.command.model_copy(
-                    update={
-                        "parameters": item.command.parameters
-                        | {"approval_challenge_id": item.challenge_id}
-                    }
-                )
-                response = api.dispatch_user_confirmation(
-                    approved,
-                    session,
-                    challenge_id=item.challenge_id,
-                    input_digest=item.input_digest,
-                )
-                if response.error is not None:
-                    item.state = "failed"
-                    item.message = response.error.message
-                    return False, item.message
-                item.state = "confirmed"
-                item.message = "已确认"
-                item.response = response
-                return True, item.message
-            except Exception as error:
-                item.state = "failed"
-                item.message = api._safe_message(error)
-                return False, item.message
-
-        prompt(items, confirm)
-        confirmed = sum(1 for item in items if item.state == "confirmed")
-        pending = sum(1 for item in items if item.state == "pending")
-        failed = sum(1 for item in items if item.state == "failed")
-        result: dict[str, object] = {
-            "items": [
-                {
-                    "index": index,
-                    "step_id": item.command.target,
-                    "action": item.command.action,
-                    "state": item.state,
-                    "message": item.message,
-                    "response": (
-                        item.response.model_dump(mode="json")
-                        if item.response is not None
-                        else None
-                    ),
-                }
-                for index, item in enumerate(items)
-            ],
-            "confirmed_count": confirmed,
-            "pending_count": pending,
-            "failed_count": failed,
-        }
-        return Response(
-            request_id=request_id,
-            instance_id=api.instance_id,
-            workspace_id=api.workspace_id,
-            project_id=project,
-            result=cast(dict[str, JsonValue], result),
-        )
-    finally:
-        api.close_session(session)
-
 
 def dispatch_native(
     api: LocalAPI,

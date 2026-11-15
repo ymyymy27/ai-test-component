@@ -1,15 +1,16 @@
-/** 本地核心桥：编辑器入口经**既有 CLI**向唯一核心派发 Command。
+/** 本地核心桥：编辑器入口向唯一核心派发 Command。
  *
  * 设计约束（对应根 AGENTS.md 与一期架构 05 第 3 节）：
- * - **不复制协议**：不自行实现命名管道帧、不自行核对实例/工作空间身份与回执，
- *   一律交给 `aitest ... dispatch`（它已做端点发现、身份核对与回执校验）。
+ * - 普通命令经既有 CLI 派发；**面板确认由扩展直连核心命名管道**，使核心能按
+ *   `trae.exe` 对端映像归类为 HUMAN_UI；CLI 不再提供 `dispatch-panel`。
  * - **不把界面点击当作用户确认**：写动作携带 project/intent/expected_revision，
- *   只请求核心独立窗口确认；扩展不代签，普通派发仍只读。
+ *   面板确认只回传核心冻结的 challenge 与摘要。
  * - **不猜测**：核心不可达或回执无法核实时返回结构化 `unavailable`，不伪造成功。
  */
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import * as net from "node:net";
 
 /** 一期只读动作（`contracts/commands.py::READ_ACTIONS` 的子集，按扩展需要列明）。 */
 export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
@@ -493,11 +494,52 @@ function panelOutcome(
   return { status: "ok", response };
 }
 
+
+/** 直连核心命名管道发送一帧：4 字节大端长度 + UTF-8 JSON。 */
+async function exchangePanel(
+  pipeName: string,
+  envelope: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<SpawnResult> {
+  return new Promise<SpawnResult>((resolve) => {
+    const socket = net.connect(pipeName);
+    let buffer = Buffer.alloc(0);
+    let settled = false;
+    const finish = (result: SpawnResult): void => {
+      if (settled) { return; }
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      finish({ code: null, stdout: "", stderr: "", timedOut: true });
+    }, timeoutMs);
+    socket.on("connect", () => {
+      const body = Buffer.from(JSON.stringify(envelope), "utf8");
+      const header = Buffer.alloc(4);
+      header.writeUInt32BE(body.length, 0);
+      socket.write(Buffer.concat([header, body]));
+    });
+    socket.on("data", (chunk: Buffer) => {
+      buffer = Buffer.concat([buffer, chunk]);
+      if (buffer.length < 4) { return; }
+      const length = buffer.readUInt32BE(0);
+      if (buffer.length < 4 + length) { return; }
+      finish({ code: 0, stdout: buffer.subarray(4, 4 + length).toString("utf8"), stderr: "" });
+    });
+    socket.on("error", () => {
+      finish({ code: null, stdout: "", stderr: "" });
+    });
+  });
+}
+
 /** This requests a core-owned dialog; it never sends an assertion of human approval. */
 export async function dispatchControlled(
   python: string, workspaceRoot: string, request: DispatchRequest, requestId: string,
   timeoutMs = 270_000,
   panelConfirm?: (prompt: Record<string, unknown>) => Promise<boolean>,
+  pipeName?: string,
 ): Promise<DispatchOutcome> {
   if (READ_ONLY_ACTIONS.has(request.action) || !request.projectId || !request.intentId
       || request.intentId === requestId || !Number.isSafeInteger(request.expectedRevision)
@@ -514,9 +556,17 @@ export async function dispatchControlled(
     return { status: "unavailable", code: "WORKSPACE_NOT_CONFIGURED",
       message: "尚未配置 aitest.workspaceRoot（用户数据工作空间）" };
   }
+  if (!pipeName || !pipeName.trim()) {
+    return { status: "unavailable", code: "PANEL_CHANNEL_UNAVAILABLE",
+      message: "核心没有提供可直接连接的面板通道，请升级扩展与核心" };
+  }
   const command = buildCommand(request, requestId);
   const prepared = panelOutcome(
-    await runCli(python, workspaceRoot, { phase: "prepare", command }, timeoutMs, false, true),
+    await exchangePanel(
+      pipeName,
+      { __aitest_control__: "panel-confirmation/2", phase: "prepare", command },
+      timeoutMs,
+    ),
     command,
     request,
   );
@@ -545,13 +595,11 @@ export async function dispatchControlled(
     return { status: "refused", code: "USER_DECLINED", message: "用户取消了本次面板确认" };
   }
   const final = panelOutcome(
-    await runCli(
-      python,
-      workspaceRoot,
-      { phase: "confirm", command, challenge_id: challenge, input_digest: digest },
+    await exchangePanel(
+      pipeName,
+      { __aitest_control__: "panel-confirmation/2", phase: "confirm", command,
+        challenge_id: challenge, input_digest: digest },
       timeoutMs,
-      false,
-      true,
     ),
     command,
     request,

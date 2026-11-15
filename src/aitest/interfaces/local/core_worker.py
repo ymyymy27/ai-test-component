@@ -27,11 +27,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,12 +45,10 @@ from aitest.contracts.responses import Response
 from aitest.domain.json_material import decode_json
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from aitest.interfaces.local.native_confirmation import (
-    NATIVE_BATCH_VERSION,
     NATIVE_CONFIRMATION_VERSION,
     PANEL_CONFIRMATION_VERSION,
     confirm_panel_confirmation,
     dispatch_native,
-    dispatch_native_batch,
     prepare_panel_confirmation,
 )
 
@@ -110,27 +107,14 @@ def _protocol_error(api: LocalAPI, request_id: str, code: str, message: str) -> 
     )
 
 
-def _legacy_native_batch_enabled() -> bool:
-    """Legacy one-window batch authorization is opt-in only.
-
-    The panel now authorizes steps one by one; the native batch transport is
-    kept for a compatibility window but is not advertised or accepted by
-    default. Set ``AITEST_ENABLE_LEGACY_NATIVE_BATCH=1`` only for an explicit
-    legacy-host check.
-    """
-
-    return os.environ.get("AITEST_ENABLE_LEGACY_NATIVE_BATCH") == "1"
-
-
 def dispatch_frame(
     api: LocalAPI,
     session: Session,
     payload: bytes,
     *,
     native_dispatch: Callable[[Command], Response] | None = None,
-    native_batch_dispatch: Callable[[Sequence[Command]], Response] | None = None,
-    panel_prepare_dispatch: Callable[[Command], Response] | None = None,
-    panel_confirm_dispatch: Callable[[Command, str, str], Response] | None = None,
+    panel_prepare_dispatch: Callable[[Session, Command], Response] | None = None,
+    panel_confirm_dispatch: Callable[[Session, Command, str, str], Response] | None = None,
 ) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
@@ -186,7 +170,7 @@ def dispatch_frame(
             phase = obj.get("phase")
             if phase == "prepare" and set(obj) == {CONTROL_KEY, "phase", "command"}:
                 try:
-                    return panel_prepare_dispatch(command)
+                    return panel_prepare_dispatch(session, command)
                 except Exception as error:
                     return api._error(
                         command,
@@ -204,7 +188,9 @@ def dispatch_frame(
                 ):
                     return api._error(command, "INVALID_COMMAND", "面板确认信封无效")
                 try:
-                    return panel_confirm_dispatch(command, challenge_id, input_digest)
+                    return panel_confirm_dispatch(
+                        session, command, challenge_id, input_digest
+                    )
                 except Exception as error:
                     return api._error(
                         command,
@@ -212,36 +198,6 @@ def dispatch_frame(
                         api._safe_message(error),
                     )
             return api._error(command, "INVALID_COMMAND", "面板确认阶段无效")
-        if (
-            action == NATIVE_BATCH_VERSION
-            and native_batch_dispatch is not None
-            and _legacy_native_batch_enabled()
-        ):
-            raw_commands = obj.get("commands")
-            if (
-                set(obj) != {CONTROL_KEY, "request_id", "commands"}
-                or not isinstance(obj.get("request_id"), str)
-                or not isinstance(raw_commands, list)
-            ):
-                return _protocol_error(
-                    api, _safe_request_id(obj), "INVALID_COMMAND", "批量原生操作信封无效"
-                )
-            try:
-                commands = [Command.model_validate(item) for item in raw_commands]
-            except ValidationError:
-                return _protocol_error(
-                    api, _safe_request_id(obj), "INVALID_COMMAND", "批量原生操作命令无效"
-                )
-            try:
-                response = native_batch_dispatch(commands)
-            except Exception as error:
-                return _protocol_error(
-                    api,
-                    _safe_request_id(obj),
-                    "NATIVE_BATCH_UNAVAILABLE",
-                    api._safe_message(error),
-                )
-            return response.model_copy(update={"request_id": str(obj["request_id"])})
         if action == _CONTROL_SHUTDOWN:
             return ShutdownControl(request_id=_safe_request_id(obj))
         return _protocol_error(
@@ -265,8 +221,6 @@ def dispatch_frame(
         capabilities = [NATIVE_CONFIRMATION_VERSION]
         if panel_prepare_dispatch is not None and panel_confirm_dispatch is not None:
             capabilities.append(PANEL_CONFIRMATION_VERSION)
-        if native_batch_dispatch is not None and _legacy_native_batch_enabled():
-            capabilities.append(NATIVE_BATCH_VERSION)
         return response.model_copy(
             update={
                 "result": dict(response.result)
@@ -311,9 +265,8 @@ def serve_connection(
     shutdown_blocker: Callable[[], str | None] | None = None,
     on_wait: Callable[[], None] | None = None,
     native_dispatch: Callable[[Command], Response] | None = None,
-    native_batch_dispatch: Callable[[Sequence[Command]], Response] | None = None,
-    panel_prepare_dispatch: Callable[[Command], Response] | None = None,
-    panel_confirm_dispatch: Callable[[Command, str, str], Response] | None = None,
+    panel_prepare_dispatch: Callable[[Session, Command], Response] | None = None,
+    panel_confirm_dispatch: Callable[[Session, Command, str, str], Response] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -342,7 +295,6 @@ def serve_connection(
                 session,
                 payload,
                 native_dispatch=native_dispatch,
-                native_batch_dispatch=native_batch_dispatch,
                 panel_prepare_dispatch=panel_prepare_dispatch,
                 panel_confirm_dispatch=panel_confirm_dispatch,
             )
@@ -650,23 +602,22 @@ def main(argv: list[str] | None = None) -> int:
                         command,
                         records=assembly.unit_of_work.repo,
                     ),
-                    native_batch_dispatch=lambda commands: dispatch_native_batch(
+                    panel_prepare_dispatch=lambda session, command: prepare_panel_confirmation(
                         api,
-                        commands,
-                        records=assembly.unit_of_work.repo,
-                    ),
-                    panel_prepare_dispatch=lambda command: prepare_panel_confirmation(
-                        api,
+                        session,
                         command,
                         records=assembly.unit_of_work.repo,
                     ),
-                    panel_confirm_dispatch=lambda command, challenge_id, input_digest:
+                    panel_confirm_dispatch=(
+                        lambda session, command, challenge_id, input_digest:
                         confirm_panel_confirmation(
                             api,
+                            session,
                             command,
                             challenge_id=challenge_id,
                             input_digest=input_digest,
-                        ),
+                        )
+                    ),
                 )
                 served += 1
                 if outcome == "shutdown":
