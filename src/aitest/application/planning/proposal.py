@@ -33,6 +33,7 @@ from aitest.contracts.plan_proposal import (
     ProposalTemplateDisposition,
 )
 from aitest.contracts.templates import TemplateItem, TemplatePack
+from aitest.domain.canonical import canonical_json_text
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     AssertionBasis,
@@ -553,14 +554,11 @@ def _template_case_ids(proposal: PlanProposal, pack: TemplatePack) -> frozenset[
 
 def _basis_text(proposal_case: ProposalCase) -> tuple[str, str]:
     if proposal_case.expected_facts is not None:
-        text = json.dumps(
+        text = canonical_json_text(
             {
                 "schema_version": "aitest.pure-function-basis/1",
                 "expected_facts": proposal_case.expected_facts,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
+            }
         )
     else:
         text = proposal_case.assertion_basis_text

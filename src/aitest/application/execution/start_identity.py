@@ -1,10 +1,9 @@
 """One fingerprint for the original executable request and its Attempt basis."""
 
-import hashlib
-import json
 
 from pydantic import TypeAdapter
 
+from aitest.domain.canonical import canonical_hexdigest
 from aitest.domain.execution.runs import Attempt, ExecutionRequest
 
 
@@ -30,6 +29,4 @@ def execution_start_fingerprint(attempt: Attempt, request: ExecutionRequest) -> 
             )
         },
     }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    ).hexdigest()
+    return canonical_hexdigest(payload)

@@ -85,6 +85,43 @@ def replace_boundary(page: RecordQueryPage, result: RecordQueryResult) -> Record
     )
 
 
+def validate_saved_intent(
+    stored_intent: Mapping[str, Any],
+    pending: Sequence[PendingRecordEntry],
+    data: Mapping[str, Any],
+) -> tuple[list[tuple[str, str, int]], int]:
+    """Verify a saved intent receipt against the exact authority rows it claims.
+
+    A receipt is only usable when every reference has the exact sharded shape,
+    names the same business record, and points at a row whose bytes still equal
+    the original input. Anything else is rejected instead of turning a damaged
+    receipt into a successful replay.
+    """
+    saved_created = stored_intent.get("created")
+    if not isinstance(saved_created, list) or len(saved_created) != len(pending):
+        raise ValueError("saved intent record references are invalid")
+    original_created = []
+    for item, (kind, record_id, _expected, payload) in zip(saved_created, pending, strict=True):
+        if (
+            not isinstance(item, (list, tuple))
+            or len(item) != 3
+            or tuple(item[:2]) != (kind, record_id)
+            or exact_counter(item[2]) < 1
+        ):
+            raise ValueError("saved intent record reference is invalid")
+        rows = data["records"].get(kind, {}).get(record_id, [])
+        if item[2] > len(rows) or canonical_bytes(rows[item[2] - 1]) != canonical_bytes(
+            dict(payload)
+        ):
+            raise ValueError("saved intent record material differs from original input")
+        original_created.append((kind, record_id, item[2]))
+    sequence = exact_counter(stored_intent.get("commit_sequence"))
+    if sequence < len(original_created) or sequence > exact_counter(data.get("commit")):
+        raise ValueError("saved intent commit sequence is outside authority")
+    return original_created, sequence
+
+
+
 class FileRecordRepository:
     def __init__(
         self,
@@ -905,7 +942,21 @@ class FileRecordRepository:
                     "legacy workspace is not writable; recreate it as a shared workspace"
                 )
             from .migrations import FileMigrationManager
+            from .workspace import Workspace
 
+            # 裸根目录（测试或首次使用）还没有工作空间身份；迁移与清单都按
+            # workspace.json 核对归属，因此先建立身份再发布空的分片边界。
+            created_identity = not (self.root / "workspace.json").exists()
+            workspace = Workspace(self.root)
+            if workspace_id is None:
+                workspace_id = workspace.workspace_id
+            elif created_identity and workspace.workspace_id != workspace_id:
+                # 直接使用文件仓库的调用方显式声明工作空间身份；仅在本次
+                # 新建身份时采纳，已有工作空间的身份冲突仍由提交路径拒绝。
+                from . import atomic
+
+                workspace.identity["workspace_id"] = workspace_id
+                atomic.write_json(workspace.identity_path, workspace.identity)
             manager = FileMigrationManager(self.root)
             manager.apply(
                 manager.plan(
@@ -965,30 +1016,7 @@ class FileRecordRepository:
             # flush. This check also precedes returning a saved intent result.
             FilePublicationBackend(self.root).confirm_current()
         if isinstance(stored_intent, dict):
-            saved_created = stored_intent.get("created")
-            if not isinstance(saved_created, list) or len(saved_created) != len(pending):
-                raise ValueError("saved intent record references are invalid")
-            original_created = []
-            for item, (kind, record_id, _expected, _payload) in zip(
-                saved_created, pending, strict=True
-            ):
-                if (
-                    not isinstance(item, (list, tuple))
-                    or len(item) != 3
-                    or tuple(item[:2]) != (kind, record_id)
-                    or exact_counter(item[2]) < 1
-                ):
-                    raise ValueError("saved intent record reference is invalid")
-                rows = data["records"].get(kind, {}).get(record_id, [])
-                if item[2] > len(rows) or canonical_bytes(rows[item[2] - 1]) != canonical_bytes(
-                    dict(_payload)
-                ):
-                    raise ValueError("saved intent record material differs from original input")
-                original_created.append((kind, record_id, item[2]))
-            sequence = exact_counter(stored_intent.get("commit_sequence"))
-            if sequence < len(original_created) or sequence > exact_counter(data.get("commit")):
-                raise ValueError("saved intent commit sequence is outside authority")
-            return original_created, sequence
+            return validate_saved_intent(stored_intent, pending, data)
 
         commits = data["commits"] if "_tree" in data else self._load_commits()
         events = self._load_events() if self._journal is None else []

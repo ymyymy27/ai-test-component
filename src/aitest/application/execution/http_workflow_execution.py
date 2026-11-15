@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -29,6 +28,7 @@ from aitest.application.ports import (
 from aitest.contracts.execution_facts import EvidenceGapFact, ExecutionFacts
 from aitest.contracts.http_workflow import HttpWorkflowSpec, parse_http_workflow
 from aitest.contracts.prepared_run import PreparedRun
+from aitest.domain.canonical import canonical_json_bytes
 from aitest.domain.evidence.evidence import (
     CodeIdentity,
     EvidenceCaptureSource,
@@ -365,9 +365,7 @@ class SavedHttpWorkflowExecution:
                     "request_log_ref": exchange.request_log_ref,
                 },
             }
-            content = json.dumps(
-                material, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")
+            content = canonical_json_bytes(material)
             ref = self.objects.publish_bytes(project_id, content, media_type="application/json")
             stored = self.objects.read_bytes(ref)
             evidence.append(

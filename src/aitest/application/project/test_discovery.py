@@ -8,8 +8,6 @@ of the actual test nodes.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import subprocess
 import tempfile
@@ -20,6 +18,7 @@ from pathlib import Path, PurePosixPath
 from aitest.application.ports import SourceSnapshotPort
 from aitest.application.project.environment_resolution import EnvironmentResolutionService
 from aitest.application.project.source_analysis import SourceAnalysisError, SourceAnalysisService
+from aitest.domain.canonical import canonical_digest
 
 
 class TestDiscoveryError(ValueError):
@@ -31,10 +30,7 @@ class TestDiscoveryBlocked(TestDiscoveryError):
 
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 
 def _safe_relative(value: str) -> str:

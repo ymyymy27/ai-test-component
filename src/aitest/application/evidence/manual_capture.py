@@ -24,7 +24,6 @@ TraceNode，但没有任何生产入口把人工实际材料安全落盘、也�
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -45,6 +44,7 @@ from aitest.contracts.execution_facts import (
     RedactionStateFact,
     SourceBindingKindFact,
 )
+from aitest.domain.canonical import canonical_json_bytes
 from aitest.domain.evidence.evidence import StoredObjectRef
 
 MANUAL_EVIDENCE_AGGREGATE: Final[Literal["manual_evidence"]] = "manual_evidence"
@@ -110,9 +110,7 @@ def _object_ref(raw: object) -> StoredObjectRef:
 
 
 def _encoded(value: Mapping[str, object]) -> bytes:
-    return json.dumps(
-        dict(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
+    return canonical_json_bytes(dict(value))
 
 
 class SavedManualEvidenceCapture:

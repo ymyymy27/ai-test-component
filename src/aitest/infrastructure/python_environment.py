@@ -18,16 +18,12 @@ from aitest.contracts.prepared_run import (
     EnvironmentRefFact,
     EnvironmentResolutionFact,
 )
+from aitest.domain.canonical import canonical_digest
 from aitest.infrastructure import path_compat as compat
 
 
 def _digest(value: object) -> str:
-    return (
-        "sha256:"
-        + hashlib.sha256(
-            json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-    )
+    return canonical_digest(value)
 
 
 @dataclass(frozen=True, slots=True)

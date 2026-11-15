@@ -37,12 +37,12 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
-from hashlib import sha256
 from typing import Any
 
 from aitest.contracts.templates import TemplatePack
+from aitest.domain.canonical import canonical_digest as canonical_digest_impl
+from aitest.domain.canonical import canonical_json_text
 from aitest.domain.planning.rules import RuleDraft, RuleEnablement, RuleVersion
 from aitest.domain.planning.templates import TemplateRef
 
@@ -69,12 +69,12 @@ RULE_PORTABLE_FIELDS: tuple[str, ...] = (
 
 def canonical_json(value: object) -> str:
     """规范 JSON：键排序、紧凑分隔符、`ensure_ascii`。"""
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return canonical_json_text(value)
 
 
 def canonical_digest(value: object) -> str:
     """规范 JSON 的 sha256 摘要。"""
-    return "sha256:" + sha256(canonical_json(value).encode("utf-8")).hexdigest()
+    return canonical_digest_impl(value)
 
 
 # ------------------------------------------------------------------ 模板

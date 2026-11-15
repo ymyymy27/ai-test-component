@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import fields
 from typing import Any, cast
@@ -14,6 +12,7 @@ from typing import Any, cast
 from aitest.application.evidence.pytest_failures import (
     PYTEST_ISSUE_DRAFT_VERSION,
 )
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.review.defects import (
     IssueDisposition,
     IssueRecord,
@@ -84,10 +83,7 @@ class IssueBasisUnconfirmed(DefectManagementError):
     code = "AWAITING_USER_CONFIRMATION"
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():

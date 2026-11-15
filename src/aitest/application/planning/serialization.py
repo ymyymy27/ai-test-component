@@ -40,11 +40,10 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping, Sequence
-from hashlib import sha256
 from typing import Any
 
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     AssertionBasis,
@@ -499,13 +498,7 @@ def case_content_digest(case: Case, *, project_id: str) -> str:
     供 `Plan.case_revisions[].digest` 使用——该值必须由服务端按用例内容算出，
     不接受调用方传入（否则等于允许伪造内容身份）。
     """
-    encoded = json.dumps(
-        case_to_payload(case, project_id=project_id),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    ).encode("utf-8")
-    return "sha256:" + sha256(encoded).hexdigest()
+    return canonical_digest(case_to_payload(case, project_id=project_id))
 
 
 def case_revision_digest(cases: Sequence[Case], *, project_id: str) -> str:
@@ -514,7 +507,4 @@ def case_revision_digest(cases: Sequence[Case], *, project_id: str) -> str:
         (case_to_payload(case, project_id=project_id) for case in cases),
         key=lambda item: (str(item["case_id"]), item["revision"]),
     )
-    encoded = json.dumps(
-        canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    ).encode("utf-8")
-    return "sha256:" + sha256(encoded).hexdigest()
+    return canonical_digest(canonical)

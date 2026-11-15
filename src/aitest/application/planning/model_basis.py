@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 
 from aitest.application.planning.draft import text_digest
@@ -11,15 +9,13 @@ from aitest.application.planning.substrate import RecordReader, current_record, 
 from aitest.application.project.persistence import load_source_snapshot
 from aitest.application.project.source_analysis import SourceAnalysisService
 from aitest.contracts.prepared_run import SnapshotRef
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.planning.model_outbound import ResponseCurrency, response_currency_from_facts
 from aitest.domain.project.context import source_content_identity
 
 
 def _digest(value: Mapping[str, object]) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(dict(value))
 
 
 class ModelGenerationBasis:

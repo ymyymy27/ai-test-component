@@ -4,7 +4,6 @@ The wizard has no repository writer or approval authority. Every generated comma
 still passes the ordinary core guards, exact saved references and native approvals.
 """
 
-import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -28,6 +27,7 @@ from aitest.application.planning.test_selection import (
 )
 from aitest.application.project.serialization import binding_to_payload, environment_to_payload
 from aitest.application.project.understanding import understanding_from_payload
+from aitest.domain.canonical import canonical_hexdigest
 from aitest.domain.planning.templates import TemplateRef
 from aitest.domain.project.context import BindingForm, EnvironmentRef, LocalProjectBinding
 
@@ -286,9 +286,7 @@ def wizard_commands(
         digest_input: list[Any] = [project, stage, key, parameters]
         if intent_salt is not None:
             digest_input.append(intent_salt)
-        digest = hashlib.sha256(json.dumps(
-            digest_input, ensure_ascii=False, sort_keys=True,
-        ).encode()).hexdigest()
+        digest = canonical_hexdigest(digest_input)
         commands.append({"key": key, "action": action, "intent_id": "wizard-" + digest,
                          "expected_revision": expected_revision, "binding_revision": 1,
                          "target": target, "parameters": parameters})

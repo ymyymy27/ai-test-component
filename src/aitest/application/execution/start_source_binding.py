@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -23,6 +22,7 @@ from pathlib import Path
 from typing import Final
 
 from aitest.application.ports import SourceSnapshotPort
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.evidence.evidence import EvidenceGapKind
 from aitest.domain.execution.sources import ExecutionSourceVerification, SourceVerificationState
 
@@ -444,10 +444,7 @@ def _verify_file(path: Path, digest: str, size: int) -> None:
 
 
 def _mapping_digest(entries: list[dict[str, object]]) -> str:
-    encoded = json.dumps(
-        entries, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return _DIGEST_PREFIX + hashlib.sha256(encoded).hexdigest()
+    return canonical_digest(entries)
 
 
 def _is_digest(value: str) -> bool:

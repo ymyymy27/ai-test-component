@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -19,6 +18,7 @@ from aitest.application.planning.substrate import (
 from aitest.application.ports import RecordValueProtector
 from aitest.contracts.commands import Command
 from aitest.contracts.redaction import redact_structure
+from aitest.domain.canonical import canonical_digest, canonical_json_bytes
 
 KIND: AggregateKind = "record_write_intent"
 SCHEMA = "aitest.record-write-intent/1.0"
@@ -64,13 +64,11 @@ class RecordWriteConflict(ValueError):
 
 
 def _bytes(value: object) -> bytes:
-    return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
+    return canonical_json_bytes(value)
 
 
 def _digest(value: object) -> str:
-    return "sha256:" + hashlib.sha256(_bytes(value)).hexdigest()
+    return canonical_digest(value)
 
 
 @dataclass(frozen=True)

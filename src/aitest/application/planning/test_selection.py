@@ -7,13 +7,13 @@ links, basis text and verification method.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.planning.plans import (
     AcceptanceScope,
     AssertionBasis,
@@ -116,10 +116,7 @@ def parse_test_selection(text: str) -> TestSelectionDraft:
 
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 
 def _scope_files(

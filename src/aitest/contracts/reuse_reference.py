@@ -18,13 +18,14 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from collections.abc import Mapping
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from aitest.domain.canonical import canonical_digest, canonical_json_bytes
 
 #: 记录模式版本；形状变化必须递增并同步接口台账。
 SCHEMA_VERSION: Literal["aitest.reuse-reference/1.0"] = "aitest.reuse-reference/1.0"
@@ -138,17 +139,11 @@ def _require_unique_text(values: tuple[str, ...], name: str) -> None:
 
 def reuse_reference_payload(reference: ReuseReference) -> bytes:
     """规范 JSON 字节：键排序、无 NaN、UTF-8；用于落盘与摘要。"""
-    return json.dumps(
-        reference.model_dump(mode="json"),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
+    return canonical_json_bytes(reference.model_dump(mode="json"))
 
 
 def reuse_reference_digest(reference: ReuseReference) -> str:
-    return "sha256:" + hashlib.sha256(reuse_reference_payload(reference)).hexdigest()
+    return canonical_digest(reference.model_dump(mode="json"))
 
 
 def parse_reuse_reference(payload: Mapping[str, object]) -> ReuseReference:

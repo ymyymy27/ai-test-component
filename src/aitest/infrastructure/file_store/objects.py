@@ -10,6 +10,7 @@ import tempfile
 from contextlib import suppress
 from pathlib import Path
 
+from aitest.domain.canonical import canonical_json_bytes
 from aitest.domain.evidence.evidence import StoredObjectRef
 from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.object_chunks import (
@@ -186,9 +187,7 @@ class FileObjectStore:
 
     @staticmethod
     def _write_manifest(manifest_path: Path, manifest: ChunkManifest) -> None:
-        payload = json.dumps(
-            manifest_to_payload(manifest), ensure_ascii=True, sort_keys=True
-        ).encode("utf-8")
+        payload = canonical_json_bytes(manifest_to_payload(manifest))
         FileObjectStore._write_immutable(manifest_path, payload)
 
     @staticmethod

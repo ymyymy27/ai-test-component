@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -34,6 +32,7 @@ from aitest.contracts.execution_facts import (
     FactCompleteness,
 )
 from aitest.contracts.prepared_run import ExecutionSourceBinding, PreparedRun, PreparedRunStatusFact
+from aitest.domain.canonical import canonical_hexdigest
 from aitest.domain.evidence.evidence import (
     MockDeclaration,
     MockDeclarationSource,
@@ -54,11 +53,7 @@ from aitest.domain.project.context import IsolationMode
 
 
 def _digest(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-        ).encode("utf-8")
-    ).hexdigest()
+    return canonical_hexdigest(value)
 
 
 class InitialRunRegistration:

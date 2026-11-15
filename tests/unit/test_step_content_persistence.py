@@ -30,7 +30,9 @@ def content_basis():
             "digest": case_content_digest(case, project_id=scenario.project.project_id)
         }) for ref, case in zip(scenario.prepared_run.case_revisions, scenario.cases, strict=True))
     })
-    run, steps = _initial_domain(prepared, "test-run", payload_digest(prepared.model_dump()))
+    run, steps = _initial_domain(
+        prepared, "test-run", payload_digest(prepared.model_dump(mode="json"))
+    )
     cases = {case.case_id: case for case in scenario.cases}
     reader = SimpleNamespace(read=lambda *, aggregate_kind, record_id, revision: CommittedRecord(
         aggregate_kind, record_id, revision,

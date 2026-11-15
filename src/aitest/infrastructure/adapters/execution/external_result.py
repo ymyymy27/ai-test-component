@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.evidence.evidence import (
     ExternalImportRef,
     Verification,
@@ -132,8 +131,7 @@ class ExternalResultAdapter:
 
 
 def _content_digest(content: Mapping[str, object]) -> str:
-    encoded = json.dumps(content, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return canonical_digest(content)
 
 
 __all__ = [

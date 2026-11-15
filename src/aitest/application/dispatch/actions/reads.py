@@ -63,45 +63,6 @@ _AGGREGATE_KINDS: frozenset[str] = frozenset(
 
 if TYPE_CHECKING:
     from aitest.application.usecase_registry import BUseCaseDependencies
-_AGGREGATE_KINDS: frozenset[str] = frozenset(
-    {
-        "project",
-        "binding",
-        "module",
-        "dependency_set",
-        "task",
-        "delivery",
-        "delivery_submission",
-        "acceptance_item",
-        "environment",
-        "source_snapshot",
-        "source_pin_intent",
-        "source_binding_current",
-        "template_ref",
-        "generated_content",
-        "rule_draft",
-        "rule_version",
-        "case",
-        "case_link",
-        "plan",
-        "acceptance_scope",
-        "preparation_record",
-        "model_outbound_policy",
-        "model_outbound_request",
-        "prepared_run",
-        "project_view_preference",
-        # 人工补证记录（只含人工描述与引用，不含证据正文）：列表可读，正文按引用取。
-        "manual_evidence",
-        # 本地复核记录：按报告修订独立保存，供复核追溯与导出引用。
-        "local_review",
-        # 复用选择记录：面板读取当前目标运行的已选复用修订后再提交新选择。
-        "reuse_decision",
-        # 报告修订：面板「问题与报告」页按项目列报告；索引层已有 reports 分区。
-        "report",
-    }
-)
-
-
 def handle_query(deps: BUseCaseDependencies, command: object) -> Mapping[str, object]:
     project_id = _command_project_id(command)
     parameters = _command_parameters(command)

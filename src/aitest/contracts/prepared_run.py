@@ -14,6 +14,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from aitest.domain.canonical import canonical_digest
+
 
 class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -130,23 +132,10 @@ class EnvironmentResolutionFact(ContractModel):
 
     @property
     def content_identity(self) -> str:
-        import hashlib
-        import json
-
-        return (
-            "sha256:"
-            + hashlib.sha256(
-                json.dumps(
-                    self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-                ).encode("utf-8")
-            ).hexdigest()
-        )
+        return canonical_digest(self.model_dump(mode="json"))
 
     @property
     def interpreter_identity(self) -> str:
-        import hashlib
-        import json
-
         fields = self.model_dump(
             mode="json",
             exclude={
@@ -160,12 +149,7 @@ class EnvironmentResolutionFact(ContractModel):
                 "environment_record_digest",
             },
         )
-        return (
-            "sha256:"
-            + hashlib.sha256(
-                json.dumps(fields, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
-        )
+        return canonical_digest(fields)
 
 
 class EnvironmentRefFact(ContractModel):

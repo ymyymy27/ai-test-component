@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import fields
 from datetime import datetime
 from typing import Any
 
 from aitest.application.execution.runtime_revision import SnapshotContentRef
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.review.function_coverage import FunctionCoverage
 from aitest.domain.review.reports import (
     BusinessOutcome,
@@ -59,10 +58,7 @@ _CONTEXT_FIELDS = tuple(field.name for field in fields(ReportContext))
 
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip():

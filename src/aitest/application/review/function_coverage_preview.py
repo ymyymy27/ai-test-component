@@ -8,9 +8,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from aitest.domain.planning.plans import CoverageContract, validate_coverage_contract
+from aitest.domain.planning.plans import (
+    CoverageContract,
+    FunctionRequirement,
+    validate_coverage_contract,
+)
 from aitest.domain.planning.understanding import CoverageClaim, CoverageClaimStatus
 from aitest.domain.review.function_coverage import (
     NO_CLAIM_GAP_REASON,
@@ -23,9 +28,9 @@ __all__ = ["NO_CLAIM_GAP_REASON", "build_plan_function_coverage"]
 
 
 def _resolve_dimension(
-    _requirement: object,
+    _requirement: FunctionRequirement,
     _dimension: str,
-    claims: list[CoverageClaim],
+    claims: Sequence[CoverageClaim],
     _case_ids: frozenset[str],
 ) -> tuple[CoverageStatus, tuple[str, ...]]:
     if not claims:

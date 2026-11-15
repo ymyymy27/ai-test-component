@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import replace
 
 from aitest.application.project.understanding.errors import ProjectUnderstandingError
 from aitest.application.project.understanding.shared import (
-    _DIGEST_PREFIX,
     PROJECT_UNDERSTANDING_SCHEMA,
 )
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.planning.understanding import (
     BusinessFunction,
     BusinessFunctionCatalog,
@@ -370,10 +369,7 @@ def _gap_from_payload(payload: Mapping[str, object]) -> CapabilityGap:
     )
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return _DIGEST_PREFIX + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 def _require_text(value: str, name: str) -> None:
     if not isinstance(value, str) or not value.strip():

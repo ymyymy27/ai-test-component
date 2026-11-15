@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 
+from aitest.domain.canonical import canonical_hexdigest
+
 
 def continuation_id(workspace: str, project: str, run: str) -> str:
-    raw = json.dumps([workspace, project, run], separators=(",", ":"), ensure_ascii=True)
-    return "run-work-" + hashlib.sha256(raw.encode()).hexdigest()
+    return "run-work-" + canonical_hexdigest([workspace, project, run])
 
 
 @dataclass(frozen=True, slots=True)

@@ -16,12 +16,13 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from enum import StrEnum
 from hashlib import sha256
 from typing import Final, Literal
+
+from aitest.domain.canonical import canonical_digest
 
 #: 准备记录的聚合类别；取值与 `substrate.AggregateKind` 一致。
 PREPARATION_AGGREGATE_KIND: Final[Literal["preparation_record"]] = "preparation_record"
@@ -176,10 +177,7 @@ def payload_hash(payload: Mapping[str, object]) -> str:
     会让"同号重传"被误判为"输入不同"。
     """
     canonical = {key: _canonical_item(payload[key]) for key in sorted(payload)}
-    encoded = json.dumps(
-        canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    ).encode("utf-8")
-    return "sha256:" + sha256(encoded).hexdigest()
+    return canonical_digest(canonical)
 
 
 # ------------------------------------------------------------------ 请求与记录

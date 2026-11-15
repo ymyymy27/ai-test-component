@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
@@ -24,6 +23,7 @@ from typing import Any
 
 from aitest.application.project.context import ContextGap
 from aitest.contracts.templates import TemplatePack
+from aitest.domain.canonical import canonical_json_text
 from aitest.domain.planning.templates import TemplateRef
 
 #: 内置模板资源的目录名。
@@ -257,8 +257,7 @@ def template_draft_text(pack: TemplatePack) -> str:
 
     这一步**不编造检查内容**：正文完全来自已安装的模板资源，模板里没有的东西不会出现。
     """
-    canonical = pack.model_dump(mode="json")
-    return json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return canonical_json_text(pack.model_dump(mode="json"))
 
 
 def generated_content_payload(

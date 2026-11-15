@@ -24,6 +24,7 @@ from aitest.contracts.verification import (
     VerificationFact,
     VerificationState,
 )
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.evidence.evidence import (
     Verification,
     VerificationObservation,
@@ -317,8 +318,7 @@ class BusinessVerificationAdapter:
 
 
 def _mapping_digest(value: Mapping[str, object]) -> str:
-    encoded = json.dumps(dict(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
-    return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return canonical_digest(dict(value))
 
 
 __all__ = [

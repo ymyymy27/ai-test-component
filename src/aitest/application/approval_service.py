@@ -7,7 +7,6 @@ and actual user-interaction collection belong to their respective entry ports.
 import json
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass, replace
-from hashlib import sha256
 from typing import Any, TypeVar
 
 from pydantic import TypeAdapter
@@ -34,13 +33,11 @@ from aitest.domain.approvals import (
     require_challenge_confirmation,
     require_controlled_actor,
 )
+from aitest.domain.canonical import canonical_digest
 
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 
 def _payload(value: object) -> dict[str, Any]:

@@ -18,7 +18,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from aitest.domain.planning.plans import CoverageContract
+    from aitest.domain.planning.plans import CoverageContract, FunctionRequirement
     from aitest.domain.planning.understanding import CoverageClaim
 
 
@@ -164,7 +164,7 @@ class FunctionCoverage:
 
 
 DimensionResolver = Callable[
-    ["CoverageClaim", str, Sequence["CoverageClaim"], frozenset[str]],
+    ["FunctionRequirement", str, Sequence["CoverageClaim"], frozenset[str]],
     tuple[CoverageStatus, tuple[str, ...]],
 ]
 

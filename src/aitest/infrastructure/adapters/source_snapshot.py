@@ -29,6 +29,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import IO, Final
 
+from aitest.domain.canonical import canonical_digest
 from aitest.infrastructure import path_compat as compat
 from aitest.infrastructure.file_store.atomic import write_json
 from aitest.infrastructure.file_store.source_material import (
@@ -68,10 +69,7 @@ def _hash_file(path: Path) -> tuple[str, int]:
 
 def _materialized_mapping_digest(paths: list[dict[str, object]]) -> str:
     """AB-001 1.34：期望→实际路径映射的规范字节摘要（供 C 计算 source_binding_digest）。"""
-    encoded = json.dumps(
-        paths, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    return canonical_digest(paths)
 
 
 def _as_digest(value: object) -> str:

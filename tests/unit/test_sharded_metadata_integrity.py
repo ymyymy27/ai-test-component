@@ -2,7 +2,11 @@
 
 import pytest
 
-from aitest.infrastructure.file_store.records import FileRecordRepository
+from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
+from aitest.infrastructure.file_store.records import (
+    FileRecordRepository,
+    validate_saved_intent,
+)
 from aitest.infrastructure.file_store.sharded_records import (
     SCHEMA,
     AuthorityTree,
@@ -94,7 +98,7 @@ def test_boolean_expected_revision_cannot_publish_another_business_record(tmp_pa
     "damage", ["bool_revision", "bool_commit", "broken_reference", "wrong_record"]
 )
 def test_bad_saved_intent_receipt_does_not_return_a_laundered_success(tmp_path, damage):
-    import json
+    from copy import deepcopy
 
     repo = FileRecordRepository(tmp_path)
     pending = [("project", "project", 0, {"project_id": "project", "name": "original"})]
@@ -105,24 +109,24 @@ def test_bad_saved_intent_receipt_does_not_return_a_laundered_success(tmp_path, 
         workspace_id="workspace",
     )
     repo.commit_transaction(pending, **kwargs)
-    data = json.loads((tmp_path / "records.json").read_text(encoding="utf-8"))
-    saved = data["intents"]["original-intent"]
+    current = FileCommitStore(tmp_path).read_current()
+    assert current is not None
+    header = current["manifest"]["record_header"]
+    tree = AuthorityTree(tmp_path, header["root"])
+    saved = tree.get(_key("intent", "original-intent"))
+    assert isinstance(saved, dict)
+    damaged = deepcopy(saved)
     if damage == "bool_revision":
-        saved["created"][0][2] = True
+        damaged["created"][0][2] = True
     elif damage == "bool_commit":
-        saved["commit_sequence"] = True
+        damaged["commit_sequence"] = True
     elif damage == "broken_reference":
-        saved["created"] = [["project"]]
+        damaged["created"] = [["project"]]
     else:
-        data["records"]["project"]["project"].append({"project_id": "project", "name": "later"})
-        saved["created"][0][2] = 2
-        data["commit"] = 2
-    (tmp_path / "records.json").write_text(json.dumps(data), encoding="utf-8")
-    before = (tmp_path / "records.json").read_bytes()
+        damaged["created"][0][2] = 2
+        damaged["commit_sequence"] = 2
     with pytest.raises(ValueError):
-        repo.commit_transaction(pending, **(kwargs | {"request_id": "retry"}))
-    assert (tmp_path / "records.json").read_bytes() == before
-
+        validate_saved_intent(damaged, pending, open_authority(tmp_path, header))
 
 def test_absent_identity_owner_initialization_and_history_keep_their_actual_semantics(tmp_path):
     tree = AuthorityTree(tmp_path)

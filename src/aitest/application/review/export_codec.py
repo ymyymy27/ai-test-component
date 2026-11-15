@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import json
 import stat
 import unicodedata
 import zipfile
@@ -18,6 +17,7 @@ from aitest.application.review.saved_reports import (
     ReportManagementError,
     ReportRevisionConflict,
 )
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.json_material import decode_json
 from aitest.domain.review.reports import (
     ReportExportKey,
@@ -157,10 +157,7 @@ def _verify_bundle_paths(content: bytes) -> None:
         raise ExportRefused("saved evidence bundle directory cannot be verified") from error
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 def _bytes_digest(content: bytes) -> str:
     return "sha256:" + hashlib.sha256(content).hexdigest()

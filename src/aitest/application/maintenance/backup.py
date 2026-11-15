@@ -29,7 +29,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from collections.abc import Mapping
@@ -38,6 +37,7 @@ from pathlib import Path
 from typing import Any, Final, Protocol, cast
 
 from aitest.application.ports import BackupAuditPort, BackupStorePort
+from aitest.domain.canonical import canonical_digest
 
 BACKUP_KIND: Final = "online"
 BACKUP_SCHEMA: Final = "aitest.backup/1.0"
@@ -479,10 +479,7 @@ def _jsonable(value: object) -> object:
 def _manifest_digest(manifest: Mapping[str, str]) -> str:
     """清单摘要：按规范字节对逐文件摘要取摘要（清单自身最后写入）。"""
 
-    canonical = json.dumps(
-        dict(manifest), ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(canonical).hexdigest()
+    return canonical_digest(dict(manifest))
 
 
 __all__ = [

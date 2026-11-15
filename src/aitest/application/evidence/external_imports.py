@@ -14,6 +14,7 @@ from aitest.application.execution.facts import (
 from aitest.application.ports import EvidenceObjectStore
 from aitest.contracts.commands import Command
 from aitest.contracts.mock_declaration import MockDeclarationInput
+from aitest.domain.canonical import canonical_json_bytes
 from aitest.domain.evidence.evidence import (
     MockDeclaration,
     MockDeclarationSource,
@@ -59,9 +60,7 @@ class ExternalImportBlocked(ValueError):
 
 
 def _encoded(value: Mapping[str, object]) -> bytes:
-    return json.dumps(
-        dict(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
+    return canonical_json_bytes(dict(value))
 
 
 def _json_material(content: bytes) -> object:

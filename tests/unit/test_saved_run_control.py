@@ -278,7 +278,8 @@ def test_real_command_cancel_collects_actual_exit_and_output(tmp_path, monkeypat
             entrypoint=sys.executable,
             arguments=("-c", "import time; print('before-stop',flush=True); time.sleep(30)"),
         ),
-        timeout_ms=10000,
+        # 取消测试不应与超时竞争：给足超时，让 confirmed_stop 由取消动作决定。
+        timeout_ms=120000,
     )
     # Separate explicit component workspace with the actual command frozen as fixture authority.
     from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork

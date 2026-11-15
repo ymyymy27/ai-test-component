@@ -21,13 +21,13 @@ application / infrastructure / contracts。`PlanExecutionGrant` 是**授权来�
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from urllib.parse import urlparse
+
+from aitest.domain.canonical import canonical_digest
 
 
 class GrantStatus(StrEnum):
@@ -193,14 +193,7 @@ def grant_scope_digest(
         "credential_scope_ref": credential_scope_ref,
         "environment_id": environment_id,
     }
-    canonical = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(canonical).hexdigest()
+    return canonical_digest(payload)
 
 
 def grant_allows(

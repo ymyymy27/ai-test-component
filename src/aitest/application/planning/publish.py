@@ -16,10 +16,8 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
-from hashlib import sha256
 
 from aitest.application.planning.serialization import coverage_contract_to_payload
 from aitest.application.planning.substrate import (
@@ -31,6 +29,7 @@ from aitest.application.planning.substrate import (
     transaction,
 )
 from aitest.application.project.context import ContextGap, blocking_gaps
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.planning.plans import (
     Case,
     Plan,
@@ -50,10 +49,7 @@ def payload_digest(payload: object) -> str:
     公开它是为了让"后来者要重算同一份内容的摘要"时**复用同一口径**，
     而不是各自 `json.dumps` 一套（两套口径一旦分叉，身份就对不上）。
     """
-    encoded = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str
-    ).encode("utf-8")
-    return "sha256:" + sha256(encoded).hexdigest()
+    return canonical_digest(payload)
 
 
 @dataclass(frozen=True, slots=True)

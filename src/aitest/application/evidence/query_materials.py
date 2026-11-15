@@ -26,6 +26,7 @@ from aitest.contracts.execution_facts import (
     VerificationFact,
     VerificationObservationFact,
 )
+from aitest.domain.canonical import canonical_json_bytes
 from aitest.domain.evidence.evidence import EvidenceRef, StoredObjectRef, VerificationObservation
 from aitest.domain.evidence.polling import (
     BusinessQueryObservation,
@@ -69,9 +70,7 @@ class BusinessVerificationBlocked(ValueError):
 
 
 def _bytes(value: Mapping[str, object]) -> bytes:
-    return json.dumps(
-        dict(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
+    return canonical_json_bytes(dict(value))
 
 
 def _request_payload(request: VerificationRequest) -> dict[str, object]:

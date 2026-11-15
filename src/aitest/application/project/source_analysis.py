@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os.path
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -18,6 +16,7 @@ from aitest.application.ports import (
     StageableWorkspaceUnitOfWork,
 )
 from aitest.domain.approvals import ApprovalRequired
+from aitest.domain.canonical import canonical_digest
 from aitest.domain.project.context import (
     LocalProjectBinding,
     SourceFileDigest,
@@ -39,10 +38,7 @@ class SourceIntentConflict(SourceAnalysisError):
 
 
 def _digest(value: object) -> str:
-    raw = json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    return canonical_digest(value)
 
 
 def _strings(values: Sequence[str]) -> tuple[str, ...]:

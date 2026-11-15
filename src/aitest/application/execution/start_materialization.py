@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -23,6 +22,7 @@ from aitest.application.execution.start_source_binding import (
 )
 from aitest.application.ports import SourceSnapshotPort
 from aitest.contracts.prepared_run import ExecutionSourceBinding
+from aitest.domain.canonical import canonical_digest
 
 
 class StartMaterializationBlocked(ValueError):
@@ -113,14 +113,11 @@ class StartMaterializer:
                     "size": size,
                 }
             )
-        encoded = json.dumps(
-            entries, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-        ).encode("utf-8")
         return {
             "snapshot_id": snapshot_id,
             "workdir": destination.resolve().as_posix(),
             "paths": entries,
-            "source_binding_digest": "sha256:" + hashlib.sha256(encoded).hexdigest(),
+            "source_binding_digest": canonical_digest(entries),
         }
 
     def workdir(self, run_id: str) -> Path:

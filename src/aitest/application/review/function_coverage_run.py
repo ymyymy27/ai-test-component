@@ -8,14 +8,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
-from aitest.domain.planning.plans import CoverageContract, validate_coverage_contract
+from aitest.domain.planning.plans import (
+    CoverageContract,
+    FunctionRequirement,
+    validate_coverage_contract,
+)
 from aitest.domain.planning.understanding import CoverageClaim, CoverageClaimStatus
 from aitest.domain.review.function_coverage import (
     NO_CLAIM_GAP_REASON,
     CoverageStatus,
+    DimensionResolver,
     FunctionCoverage,
     project_coverage,
 )
@@ -54,11 +59,11 @@ def _gap_fragments(dimension: str, case_ids: frozenset[str], coverage: Coverage)
     return fragments
 
 
-def _resolver(coverage: Coverage):
+def _resolver(coverage: Coverage) -> DimensionResolver:
     def resolve(
-        _requirement: object,
+        _requirement: FunctionRequirement,
         dimension: str,
-        claims: list[CoverageClaim],
+        claims: Sequence[CoverageClaim],
         case_ids: frozenset[str],
     ) -> tuple[CoverageStatus, tuple[str, ...]]:
         if not claims:
