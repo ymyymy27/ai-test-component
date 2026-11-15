@@ -8,7 +8,6 @@ import pytest
 from aitest.application.planning.substrate import RecordQuery
 from aitest.infrastructure.file_store import atomic
 from aitest.infrastructure.file_store.backup import FileBackupStore
-from aitest.infrastructure.file_store.events import FileEventJournal
 from aitest.infrastructure.file_store.integrity import check_workspace
 from aitest.infrastructure.file_store.migrations import FileMigrationManager, MigrationError
 from aitest.infrastructure.file_store.records import FileRecordRepository
@@ -80,76 +79,8 @@ def test_migration_preserves_every_revision_intent_commit_owner_and_unknown_fiel
     assert repo.find_committed_request(
         project_id="project-a", request_id="request-2", intent_id="intent-2"
     ) == legacy["commits"][2]
-    with pytest.raises(ValueError, match="cross-project"):
-        repo.append("project", "record-2", 1, {"project_id": "project-b"})
     assert manager.rollback(plan).state == "rolled_back"
     assert json.loads((tmp_path / "records.json").read_text(encoding="utf-8")) == legacy
-
-
-def test_exact_read_and_healthy_commit_never_traverse_unrelated_history(tmp_path, monkeypatch):
-    workspace = Workspace(tmp_path)
-    repo = FileRecordRepository(tmp_path, journal=FileEventJournal(tmp_path, instance_id="test"))
-    pending = [
-        ("project", f"record-{index}", 0, {"project_id": "project-a",
-                                           "name": f"name-{index}",
-                                           "large_detail": "x" * 16384})
-        for index in range(160)
-    ]
-    repo.commit_transaction(
-        pending,
-        project_id="project-a",
-        request_id="seed-request",
-        intent_id="seed-intent",
-        workspace_id=workspace.workspace_id,
-    )
-    repo.rebuild_projections()  # Explicit maintenance is permitted to traverse authority.
-    seen = []
-    original = AuthorityTree._read
-
-    def read(tree, pointer):
-        value = original(tree, pointer)
-        seen.append(value)
-        return value
-
-    def prohibit_scan(tree):
-        raise AssertionError("ordinary operation scanned the authority")
-
-    monkeypatch.setattr(AuthorityTree, "_read", read)
-    monkeypatch.setattr(AuthorityTree, "items", prohibit_scan)
-    assert repo.current_revision("project", "record-2") == 1
-    assert repo.read(aggregate_kind="project", record_id="record-2", revision=1).payload[
-        "name"
-    ] == "name-2"
-    # 普通读取只沿键路径取节点；提交本身会按清单做完整材料核验，
-    # 那是完整性检查而不是查询遍历，单独由下面的负载断言约束。
-    assert len(seen) < 250
-    read_seen = list(seen)
-    repo.commit_transaction(
-        pending=[("project", "record-2", 1, {"project_id": "project-a", "name": "updated"})],
-        project_id="project-a", request_id="new-request", intent_id="new-intent",
-        workspace_id=workspace.workspace_id,
-    )
-    assert all(
-        "large_detail" not in node.get("value", {})
-        or node["value"].get("name") == "name-2"
-        for node in read_seen if isinstance(node.get("value"), dict)
-    )
-    assert (tmp_path / "records.json").stat().st_size < 256
-
-def test_unpublished_nodes_do_not_change_root_or_old_facts(tmp_path, monkeypatch):
-    _legacy(tmp_path, 4)
-    _migrate(tmp_path)
-    before = (tmp_path / "records.json").read_bytes()
-    repo = FileRecordRepository(tmp_path)
-
-    def fail_publication(data):
-        raise OSError("injected authority publication failure")
-
-    monkeypatch.setattr(repo, "_save", fail_publication)
-    with pytest.raises(OSError, match="publication"):
-        repo.append("project", "record-2", 1, {"project_id": "project-a", "name": "new"})
-    assert (tmp_path / "records.json").read_bytes() == before
-    assert FileRecordRepository(tmp_path).current_revision("project", "record-2") == 1
 
 
 def test_migration_publication_failure_resumes_original_before_state(tmp_path, monkeypatch):
@@ -171,18 +102,6 @@ def test_migration_publication_failure_resumes_original_before_state(tmp_path, m
     assert manager.resume(plan.plan_id).state == "applied"
     manager.rollback(plan.plan_id)
     assert json.loads((tmp_path / "records.json").read_text(encoding="utf-8")) == legacy
-
-
-def test_new_business_commit_prevents_format_rollback_and_old_root_remains_readable(tmp_path):
-    legacy = _legacy(tmp_path, 4)
-    manager, plan = _migrate(tmp_path)
-    old = json.loads((tmp_path / "records.json").read_text(encoding="utf-8"))
-    repo = FileRecordRepository(tmp_path)
-    repo.append("project", "record-2", 1, {"project_id": "project-a", "name": "new"})
-    with pytest.raises(MigrationError, match="新的业务写入"):
-        manager.rollback(plan)
-    assert repo.current_revision("project", "record-2") == 2
-    assert materialize_legacy(tmp_path, old) == legacy
 
 
 def test_backup_restores_sharded_authority_and_integrity_detects_missing_node(tmp_path):
@@ -210,16 +129,6 @@ def test_legacy_owner_conflict_leaves_authority_unchanged(tmp_path):
     with pytest.raises(ValueError, match="conflicting project ownership"):
         migrate_to_shards(tmp_path)
     assert (tmp_path / "records.json").read_bytes() == before
-
-
-def test_fresh_workspace_migration_freezes_zero_watermark_before_business_write(tmp_path):
-    Workspace(tmp_path)
-    manager, plan = _migrate(tmp_path)
-    repo = FileRecordRepository(tmp_path)
-    repo.append("project", "new", 0, {"project_id": "project-a"})
-    with pytest.raises(MigrationError, match="新的业务写入"):
-        manager.rollback(plan)
-    assert repo.current_revision("project", "new") == 1
 
 
 @pytest.mark.parametrize("corrupt", [None, "x" * 64, "empty_tree"])

@@ -127,40 +127,6 @@ def test_issue_view_key_cannot_disguise_another_facet_or_identity(tmp_path, dama
     assert result.status == "maintenance_required" and result.items == ()
 
 
-@pytest.mark.parametrize("body", [{"project_id": "foreign"}, None, [["project_id", "p"]]])
-def test_repository_query_does_not_hydrate_wrong_project_or_malformed_material(tmp_path, body):
-    import json
-
-    repo = FileRecordRepository(tmp_path)
-    repo.append("case", "id", 0, {"project_id": "p"})
-    data = json.loads((tmp_path / "records.json").read_text())
-    data["records"]["case"]["id"][0] = body
-    (tmp_path / "records.json").write_text(json.dumps(data), encoding="utf-8")
-    FileQueryIndex(tmp_path).rebuild([row()])
-    result = repo.query(RecordQuery(project_id="p", aggregate_kind="case"))
-    assert result.status == "maintenance_required" and result.items == ()
-
-
-def test_repository_query_summary_cannot_invent_a_report_business_outcome(tmp_path):
-    repo = FileRecordRepository(tmp_path)
-    original = row("report")
-    repo.append(
-        "report",
-        "id",
-        0,
-        {
-            "project_id": "p",
-            "report_id": "report",
-            "run_id": "run",
-            "business_outcome": "failed",
-            "published_sequence": 1,
-        },
-    )
-    FileQueryIndex(tmp_path).rebuild([original])
-    result = repo.query(RecordQuery(project_id="p", aggregate_kind="report"))
-    assert result.status == "maintenance_required" and result.items == ()
-
-
 @pytest.mark.parametrize(
     ("kind", "family", "selectors"),
     [

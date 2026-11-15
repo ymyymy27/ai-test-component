@@ -182,11 +182,17 @@ def test_stable_namespace_cannot_change_owner_and_survives_restart(tmp_path, kin
     from aitest.application.planning.substrate_adapter import PortsRecordReader
     from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 
-    repo = FileUnitOfWork(tmp_path).repo
     original = {"project_id": "owner-a", **({field: "shared"} if field else {})}
-    repo.append(kind, "shared", 0, original)
+    write_records(
+        tmp_path, [(kind, "shared", 0, original)], project_id="owner-a", request_id="owner-a"
+    )
     with pytest.raises(ValueError, match="cross-project ownership"):
-        repo.append(kind, "shared", 1, {**original, "project_id": "owner-b"})
+        write_records(
+            tmp_path,
+            [(kind, "shared", 1, {**original, "project_id": "owner-b"})],
+            project_id="owner-b",
+            request_id="owner-b",
+        )
     fresh = FileUnitOfWork(tmp_path).repo
     reader = PortsRecordReader(fresh)
     saved = read_scoped_record(
@@ -198,23 +204,4 @@ def test_stable_namespace_cannot_change_owner_and_survives_restart(tmp_path, kin
             reader, project_id="owner-b", aggregate_kind=kind, record_id="shared", revision=1
         )
 
-
-@pytest.mark.parametrize("kind", ["task", "delivery", "model_outbound_policy"])
-def test_unknown_legacy_owner_is_blocked_without_migration_or_relabelling(tmp_path, kind):
-    from aitest.application.planning.substrate import read_scoped_record
-    from aitest.application.planning.substrate_adapter import PortsRecordReader
-    from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
-
-    repo = FileUnitOfWork(tmp_path).repo
-    original = {"legacy": "owner unavailable"}
-    repo.append(kind, "legacy", 0, original)
-    reader = PortsRecordReader(repo)
-    with pytest.raises(ValueError, match="unknown"):
-        read_scoped_record(
-            reader, project_id="claimant", aggregate_kind=kind, record_id="legacy", revision=1
-        )
-    with pytest.raises(ValueError, match="unverified historical ownership"):
-        repo.append(kind, "legacy", 1, {"project_id": "claimant"})
-    fresh = FileUnitOfWork(tmp_path).repo
-    assert dict(fresh.read(aggregate_kind=kind, record_id="legacy", revision=1).payload) == original
-    assert fresh.current_revision(kind, "legacy") == 1
+from tests.support.shared_write import write_records  # noqa: E402

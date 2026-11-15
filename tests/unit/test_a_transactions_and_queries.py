@@ -13,6 +13,7 @@ from aitest.infrastructure.file_store.index import FileQueryIndex, decode_cursor
 from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import EntryKind, Session
+from tests.support.shared_write import write_records
 
 
 def test_workspace_allows_only_one_active_write_transaction(tmp_path: Path) -> None:
@@ -83,37 +84,6 @@ def test_request_id_is_deduplicated_and_cannot_replace_intent_id() -> None:
             action="start_run",
             project_id="project-1",
             expected_revision=0,
-        )
-
-
-def test_intent_retry_reuses_revision_and_changed_input_conflicts(tmp_path: Path) -> None:
-    repository = FileRecordRepository(tmp_path)
-    payload = {"project_id": "project-1", "summary": "stable"}
-
-    first = repository.append_intent(
-        intent_id="intent-1",
-        kind="case",
-        record_id="case-1",
-        expected_revision=0,
-        payload=payload,
-    )
-    repeated = repository.append_intent(
-        intent_id="intent-1",
-        kind="case",
-        record_id="case-1",
-        expected_revision=0,
-        payload=payload,
-    )
-    assert (first, repeated) == (1, 1)
-    assert repository.current_revision("case", "case-1") == 1
-
-    with pytest.raises(ValueError, match="intent conflict"):
-        repository.append_intent(
-            intent_id="intent-1",
-            kind="case",
-            record_id="case-1",
-            expected_revision=1,
-            payload={"project_id": "project-1", "summary": "changed"},
         )
 
 
@@ -225,17 +195,17 @@ def test_query_spec_fixed_sort_and_bounded_cursor_page(tmp_path: Path) -> None:
 
 def test_permanent_records_are_append_only_and_have_no_delete_api(tmp_path: Path) -> None:
     repository = FileRecordRepository(tmp_path)
-    repository.append(
-        "case",
-        "case-1",
-        0,
-        {"project_id": "project-1", "summary": "revision-1"},
+    write_records(
+        tmp_path,
+        [("case", "case-1", 0, {"project_id": "project-1", "summary": "revision-1"})],
+        project_id="project-1",
+        request_id="fixture-1",
     )
-    repository.append(
-        "case",
-        "case-1",
-        1,
-        {"project_id": "project-1", "summary": "revision-2"},
+    write_records(
+        tmp_path,
+        [("case", "case-1", 1, {"project_id": "project-1", "summary": "revision-2"})],
+        project_id="project-1",
+        request_id="fixture-2",
     )
 
     assert repository.read(

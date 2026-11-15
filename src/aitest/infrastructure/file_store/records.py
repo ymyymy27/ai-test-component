@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -25,7 +24,6 @@ from aitest.contracts.queries import (
 )
 from aitest.infrastructure.security import guard_bytes, guard_value
 
-from . import atomic
 from .commit_manifest import FileCommitStore, canonical_bytes
 from .continuations import active_catalog, update_catalog
 from .events import FileEventJournal, derive_event_id
@@ -150,17 +148,6 @@ class FileRecordRepository:
         if not isinstance(data, dict):
             raise ValueError("legacy authority root cannot be verified")
         return open_authority(self.root, data) if data.get("schema") == SCHEMA else data
-
-    def _save(self, data: dict[str, Any]) -> None:
-        if FileCommitStore(self.root).read_current() is not None:
-            raise ValueError("record publication must use the shared commit unit")
-        publication = authority_header(data) if "_tree" in data else data
-        safe, changed = guard_value(publication)
-        raw = canonical_bytes(publication)
-        guarded, raw_changed = guard_bytes(raw)
-        if changed or safe != publication or raw_changed or guarded != raw:
-            raise ValueError("legacy authority cannot be safely published")
-        atomic.write_json(self.path, publication)
 
     @staticmethod
     def _row_project(row: object) -> str | None:
@@ -302,149 +289,6 @@ class FileRecordRepository:
             revision=revision,
             payload=rows[revision - 1],
         )
-
-    def append(
-        self,
-        kind: str,
-        record_id: str,
-        expected_revision: int | None,
-        payload: Mapping[str, object],
-    ) -> int:
-        exact_counter(expected_revision)
-        data = self._load()
-        rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
-        current = len(rows)
-        if expected_revision != current:
-            raise ValueError(f"revision conflict: expected {expected_revision}, current {current}")
-        self._verify_ownership(
-            kind=kind,
-            record_id=record_id,
-            rows=rows,
-            project_id=self._row_project(payload),
-            payload=payload,
-            commits=data.get("commits", []),
-        )
-        rows.append(dict(payload))
-        data["commit"] += 1
-        self._save(data)
-        return current + 1
-
-    def append_batch(
-        self,
-        pending: Sequence[PendingRecordEntry],
-    ) -> list[tuple[str, str, int]]:
-        for _kind, _record_id, expected_revision, _payload in pending:
-            exact_counter(expected_revision)
-        data = self._load()
-        created: list[tuple[str, str, int]] = []
-        for kind, record_id, expected_revision, payload in pending:
-            rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
-            current = len(rows)
-            if expected_revision != current:
-                raise ValueError(
-                    f"revision conflict: expected {expected_revision}, current {current}"
-                )
-            self._verify_ownership(
-                kind=kind,
-                record_id=record_id,
-                rows=rows,
-                project_id=self._row_project(payload),
-                payload=payload,
-                commits=data.get("commits", []),
-            )
-            rows.append(dict(payload))
-            data["commit"] += 1
-            created.append((kind, record_id, current + 1))
-        self._save(data)
-        return created
-
-    def append_intent(
-        self,
-        *,
-        intent_id: str,
-        kind: str,
-        record_id: str,
-        expected_revision: int | None,
-        payload: Mapping[str, object],
-    ) -> int:
-        exact_counter(expected_revision)
-        if any(
-            type(value) is not str or not 1 <= len(value) <= 128 or not value.strip()
-            for value in (intent_id, kind, record_id)
-        ) or not isinstance(payload, Mapping):
-            raise ValueError("intent requires exact business identities and a JSON body")
-        project = self._row_project(payload)
-        if "project_id" in payload and (
-            type(payload["project_id"]) is not str
-            or project is None
-            or len(project) > 128
-            or not project.strip()
-        ):
-            raise ValueError("intent project cannot be verified")
-        subject = {
-            "kind": kind,
-            "record_id": record_id,
-            "project_id": project,
-            "payload": dict(payload),
-        }
-        safe, changed = guard_value(subject)
-        raw = canonical_bytes(subject)
-        guarded, raw_changed = guard_bytes(raw)
-        if changed or safe != subject or raw_changed or guarded != raw:
-            raise ValueError("intent input cannot be safely preserved")
-        fingerprint = json.dumps(subject, sort_keys=True, ensure_ascii=False, allow_nan=False)
-        data = self._load()
-        exact_counter(data.get("commit"))
-        intents = data.setdefault("intents", {})
-        if not isinstance(intents, Mapping):
-            raise ValueError("saved intent directory cannot be verified")
-        if intent_id in intents:
-            previous = intents[intent_id]
-            if (
-                not isinstance(previous, Mapping)
-                or set(previous)
-                != {"schema", "kind", "record_id", "project_id", "fingerprint", "revision"}
-                or previous["schema"] != "aitest.legacy-record-intent/1"
-            ):
-                raise ValueError("saved intent identity cannot be verified")
-            if previous["fingerprint"] != fingerprint or (
-                previous["kind"],
-                previous["record_id"],
-                previous["project_id"],
-            ) != (kind, record_id, project):
-                raise PersistentIntentConflict("intent conflict")
-            revision = exact_counter(previous.get("revision"))
-            if revision < 1:
-                raise ValueError("saved intent revision must be positive")
-            original = self.read(aggregate_kind=kind, record_id=record_id, revision=revision)
-            if canonical_bytes(original.payload) != canonical_bytes(payload):
-                raise ValueError("saved intent differs from its exact original record")
-            return revision
-        rows = data["records"].setdefault(kind, {}).setdefault(record_id, [])
-        current = len(rows)
-        if expected_revision != current:
-            raise ValueError(f"revision conflict: expected {expected_revision}, current {current}")
-        self._verify_ownership(
-            kind=kind,
-            record_id=record_id,
-            rows=rows,
-            project_id=self._row_project(payload),
-            payload=payload,
-            commits=data.get("commits", []),
-        )
-        rows.append(dict(payload))
-        revision = current + 1
-        data["commit"] += 1
-        data.setdefault("intents", {})[intent_id] = {
-            "schema": "aitest.legacy-record-intent/1",
-            "kind": kind,
-            "record_id": record_id,
-            "project_id": project,
-            "fingerprint": fingerprint,
-            "revision": revision,
-        }
-        self._save(data)
-        return revision
 
     def active_execution_schedules(self, *, workspace_id: str) -> tuple[Mapping[str, object], ...]:
         current = FileCommitStore(self.root).read_current()
@@ -644,56 +488,6 @@ class FileRecordRepository:
                 )
         return rows
 
-    def _load_commits(self) -> list[dict[str, Any]]:
-        path = self.root / "commit.json"
-        if not path.exists():
-            return []
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            if raw.get("schema") == "aitest.commit/2.0":
-                authority = open_authority(
-                    self.root, {"root": raw["root"], "commit": raw["sequence"]}
-                )
-                return cast(list[dict[str, Any]], authority["commits"])
-            commits = raw.get("commits")
-            return list(commits) if isinstance(commits, list) else []
-        except (OSError, json.JSONDecodeError, TypeError):
-            return []
-
-    def _save_commits(self, commits: list[dict[str, Any]], sequence: int) -> None:
-        header = json.loads(self.path.read_text(encoding="utf-8"))
-        if header.get("schema") == SCHEMA:
-            atomic.write_json(
-                self.root / "commit.json",
-                {
-                    "schema": "aitest.commit/2.0",
-                    "sequence": header["commit"],
-                    "root": header["root"],
-                },
-            )
-            return
-        atomic.write_json(
-            self.root / "commit.json",
-            {"schema": "aitest.commit/1.0", "sequence": sequence, "commits": commits},
-        )
-
-    def _load_events(self) -> list[dict[str, Any]]:
-        path = self.root / "events.json"
-        if not path.exists():
-            return []
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            events = raw.get("events")
-            return list(events) if isinstance(events, list) else []
-        except (OSError, json.JSONDecodeError, TypeError):
-            return []
-
-    def _save_events(self, events: list[dict[str, Any]]) -> None:
-        atomic.write_json(
-            self.root / "events.json",
-            {"schema": "aitest.events/1.0", "events": events},
-        )
-
     # ----- 权威边界与投影重建（A-04）----------------------------------
 
     def authoritative_commits(self) -> list[dict[str, Any]]:
@@ -717,122 +511,9 @@ class FileRecordRepository:
             )
         )
 
-    @staticmethod
-    def _events_from_commits(
-        commits: Sequence[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        """从权威台账重放旧版 events.json 事件（迁移期双轨）。"""
-        events: list[dict[str, Any]] = []
-        for entry in commits:
-            created = entry.get("created")
-            if not isinstance(created, list):
-                continue
-            for item in created:
-                if not isinstance(item, dict):
-                    continue
-                events.append(
-                    {
-                        "event_type": "record_created",
-                        "project_id": entry.get("project_id"),
-                        "aggregate_kind": item.get("aggregate_kind"),
-                        "record_id": item.get("record_id"),
-                        "revision": item.get("revision"),
-                        "commit_sequence": entry.get("commit_sequence"),
-                        "request_id": entry.get("request_id"),
-                        "intent_id": entry.get("intent_id"),
-                        "workspace_id": entry.get("workspace_id"),
-                        "writer_epoch": entry.get("writer_epoch"),
-                    }
-                )
-        return events
-
-    def _journal_world(self) -> bool:
-        """工作空间是否使用正式事件日志（含崩溃后残留暂存/边界）。"""
-        log_dir = self.root / "event-log"
-        journal = log_dir / "journal.jsonl"
-        try:
-            if journal.exists() and journal.stat().st_size > 0:
-                return True
-            for sub in ("boundaries", "staging"):
-                directory = log_dir / sub
-                if directory.exists() and any(directory.iterdir()):
-                    return True
-        except OSError:
-            return True
-        return False
-
     def rebuild_projections(self) -> list[str]:
-        """从 records 权威边界重建落后/缺失的提交清单、索引和旧版事件。
-
-        只修复投影，绝不改写业务记录；已与权威边界一致的投影不重写
-        （健康工作空间不产生“修复”动作）。返回执行的修复动作描述。
-        """
-        if FileCommitStore(self.root).read_current(verify_material=True) is not None:
-            # New roots are complete before publication. Never replace their
-            # frozen materials from the obsolete independent projection files.
-            return []
-        actions: list[str] = []
-        data = self._load()
-        ledger = data.get("commits")
-        if not isinstance(ledger, list):
-            return actions
-        ledger = [entry for entry in ledger if isinstance(entry, dict)]
-        if not ledger:
-            # 没有任何权威提交事实时不得伪造投影变更（健康/旧版工作空间
-            # 不产生“修复”动作）。
-            return actions
-        ledger_sequences = {
-            int(entry["commit_sequence"])
-            for entry in ledger
-            if isinstance(entry.get("commit_sequence"), int)
-        }
-
-        # 1) 提交清单 commit.json：合并既有可读条目与权威台账。
-        committed = self._load_commits()
-        merged_commits: dict[int, dict[str, Any]] = {
-            int(entry["commit_sequence"]): entry
-            for entry in committed
-            if isinstance(entry, dict) and isinstance(entry.get("commit_sequence"), int)
-        }
-        for entry in ledger:
-            merged_commits[int(entry["commit_sequence"])] = entry
-        ordered_commits = [merged_commits[seq] for seq in sorted(merged_commits)]
-        current_commits = self._load_commits()
-        current_sequences = {
-            int(entry["commit_sequence"])
-            for entry in current_commits
-            if isinstance(entry, dict) and isinstance(entry.get("commit_sequence"), int)
-        }
-        if current_sequences < ledger_sequences or not (self.root / "commit.json").exists():
-            sequence = max(merged_commits, default=0)
-            self._save_commits(ordered_commits, sequence)
-            actions.append("从 records 权威边界重建提交清单 commit.json")
-
-        # 2) 查询索引：全局根 indexes.json + indexes/<family> 分片目录。
-        #    根版本/提交根/任一分片目录不健康时，从权威边界全量重建
-        #    （显式维护成本）；健康且覆盖台账提交根时不重写（A-05）。
-        index = FileQueryIndex(self.root, journal=self._journal)
-        raw_index = index._read_raw()  # noqa: SLF001 - 同底座投影协作
-        covers_commit_root = (
-            raw_index is not None
-            and raw_index.get("version") == FileQueryIndex.VERSION
-            and int(raw_index.get("last_commit_sequence", -1)) >= max(ledger_sequences)
-            and index.is_healthy()
-        )
-        # A format transition must pass FileMigrationManager's verified backup
-        # first. Startup recovery may repair other projections, but must not
-        # silently convert a readable legacy query layout before that backup.
-        if not covers_commit_root and not index.requires_layout_migration():
-            index.rebuild(self._summary_rows_from_authority(data, ledger))
-            actions.append("从 records 权威边界重建查询索引 indexes.json 与 indexes 分片目录")
-
-        # 3) 旧版 events.json（仅非 journal 世界的迁移期工作空间）。
-        if not self._journal_world():
-            expected_events = self._events_from_commits(ledger)
-            if len(self._load_events()) < len(expected_events):
-                self._save_events(expected_events)
-                actions.append("从 records 权威边界重建旧版事件 events.json")
-        return actions
+        """Shared roots are complete before publication; nothing is rebuilt here."""
+        return []
 
     def rebuild_query_index(self) -> int:
         """显式维护：不从「是否健康」推断，直接按权威边界全量重建查询索引（#119）。
@@ -853,30 +534,6 @@ class FileRecordRepository:
             raise ValueError("legacy query directory requires backed up migration")
         rows = self._summary_rows_from_authority(data, entries)
         return index.rebuild_for_maintenance(rows)
-
-    def _write_active_marker(
-        self,
-        *,
-        request_id: str,
-        intent_id: str | None,
-        project_id: str,
-        commit_sequence: int,
-    ) -> None:
-        atomic.write_json(
-            self.root / "transactions" / "active.json",
-            {
-                "request_id": request_id,
-                "intent_id": intent_id,
-                "project_id": project_id,
-                "commit_sequence": commit_sequence,
-                "state": "in_progress",
-            },
-        )
-
-    def _clear_active_marker(self) -> None:
-        path = self.root / "transactions" / "active.json"
-        if path.exists():
-            path.unlink()
 
     @staticmethod
     def _intent_fingerprint(
@@ -1018,8 +675,6 @@ class FileRecordRepository:
         if isinstance(stored_intent, dict):
             return validate_saved_intent(stored_intent, pending, data)
 
-        commits = data["commits"] if "_tree" in data else self._load_commits()
-        events = self._load_events() if self._journal is None else []
         created: list[tuple[str, str, int]] = []
         new_index_rows: list[dict[str, Any]] = []
         commit_sequence = int(data.get("commit", 0))
@@ -1119,89 +774,14 @@ class FileRecordRepository:
         # 权威提交台账与业务记录在同一次原子写中发布；投影全部可从它重建。
         ledger = data.setdefault("commits", [])
         ledger.append(commit_entry)
-        if current_root is not None:
-            return self._publish_shared_commit(
-                data,
-                current_root,
-                new_index_rows,
-                created,
-                commit_entry,
-            )
-        self._write_active_marker(
-            request_id=request_id,
-            intent_id=intent_id,
-            project_id=project_id,
-            commit_sequence=commit_sequence,
+        assert current_root is not None
+        return self._publish_shared_commit(
+            data,
+            current_root,
+            new_index_rows,
+            created,
+            commit_entry,
         )
-        records_published = False
-        boundary_started = False
-        try:
-            if self._journal is not None:
-                # 正式事件日志：事件先进入边界暂存（journal 尚不可见），
-                # 一个事务一个 boundary，事务内多条 record_event。
-                self._journal.begin_boundary(
-                    commit_sequence=commit_sequence,
-                    request_id=request_id,
-                    intent_id=intent_id,
-                    workspace_id=workspace_id or "",
-                    project_id=project_id,
-                    writer_epoch=writer_epoch,
-                )
-                boundary_started = True
-                for (kind, record_id, revision), event_payload in zip(
-                    created, new_events, strict=True
-                ):
-                    self._journal.record_event(
-                        commit_sequence=commit_sequence,
-                        event_type=str(event_payload["event_type"]),
-                        project_id=project_id,
-                        aggregate_kind=kind,
-                        record_id=record_id,
-                        revision=revision,
-                        request_id=request_id,
-                        intent_id=intent_id,
-                        workspace_id=workspace_id or "",
-                        writer_epoch=writer_epoch,
-                    )
-            # 唯一权威提交边界：records.json 先发布。此前事件仅在暂存区、
-            # 索引/提交清单未写，任何投影都读不到本次事务。
-            self._save(data)
-            records_published = True
-            # records 之后再发布派生投影；投影可由权威边界重建。
-            self._save_commits(
-                ledger if "_tree" in data else commits + [commit_entry], commit_sequence
-            )
-            if self._journal is not None:
-                self._journal.commit_boundary(commit_sequence=commit_sequence)
-            else:
-                self._save_events(events + new_events)
-            # A-05：通用记录目录只增量重写落点分片；索引根缺失/版本不符
-            # 时用内存中的权威全量摘要行全量重建（无额外历史扫描）。
-            index = FileQueryIndex(self.root, journal=self._journal)
-            all_index_rows = (
-                self._summary_rows_from_authority(data, ledger) if not index.is_healthy() else None
-            )
-            index.publish(
-                new_index_rows,
-                commit_sequence=commit_sequence,
-                all_rows=all_index_rows,
-            )
-        except BaseException:
-            if records_published:
-                # records 权威边界已发布：提交事实存在。尽力从权威边界
-                # 重建投影，使同一进程内也能恢复一致；仍失败则交由启动
-                # 恢复编排。业务事实不回滚、不重放。
-                with suppress(Exception):
-                    self.rebuild_projections()
-            elif boundary_started and self._journal is not None:
-                # records 未发布：没有已确认边界，把暂存事件隔离留证（不写入
-                # journal），保证未提交投影不可读；活动标记由 finally 清除。
-                with suppress(Exception):
-                    self._journal.rollback_boundary(commit_sequence=commit_sequence)
-            raise
-        finally:
-            self._clear_active_marker()
-        return created, commit_sequence
 
     def _publish_shared_commit(
         self,

@@ -4,6 +4,7 @@ from aitest.application.review.execution_decision_adapter import build_decision_
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.infrastructure.file_store.objects import FileObjectStore
 from aitest.infrastructure.file_store.records import FileRecordRepository
+from tests.support.shared_write import write_records
 
 FIXTURE_DIR = Path("docs/接口对接/已完成/CD-001-ExecutionFacts/fixtures")
 
@@ -37,12 +38,12 @@ def test_real_object_and_snapshot_round_trip(tmp_path: Path) -> None:
             "snapshot_revision": 1,
         }
     )
-    revision = repository.append(
-        "execution_facts",
-        aligned.run_id,
-        0,
-        aligned.model_dump(mode="json"),
+    result = write_records(
+        tmp_path,
+        [("execution_facts", aligned.run_id, 0, aligned.model_dump(mode="json"))],
+        project_id=aligned.project_id,
     )
+    revision = result["created"][0][2]  # type: ignore[index]
     stored = repository.read(
         aggregate_kind="execution_facts",
         record_id=aligned.run_id,

@@ -34,6 +34,7 @@ from aitest.domain.review.defects import IssueRecord, IssueSeverity, IssueStatus
 from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import LocalAPI, Session
+from tests.support.shared_write import write_records
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,17 +281,24 @@ class _Harness:
         self.repository = FileRecordRepository(tmp_path)
         self.unit = FileUnitOfWork(tmp_path)
         # 关闭依据要求"已保存且可读的证据"：把事实里的证据登记为仓储引用记录。
-        for item in getattr(facts, "evidence_refs", ()):
-            self.repository.append(
-                "evidence_ref",
-                item.evidence_id,
-                self.repository.current_revision("evidence_ref", item.evidence_id),
-                {
-                    "project_id": "project-1",
-                    "evidence_id": item.evidence_id,
-                    "attempt_id": item.attempt_id,
-                },
-            )
+        write_records(
+            tmp_path,
+            [
+                (
+                    "evidence_ref",
+                    item.evidence_id,
+                    self.repository.current_revision("evidence_ref", item.evidence_id),
+                    {
+                        "project_id": "project-1",
+                        "evidence_id": item.evidence_id,
+                        "attempt_id": item.attempt_id,
+                    },
+                )
+                for item in getattr(facts, "evidence_refs", ())
+            ],
+            project_id="project-1",
+            request_id="fixture-evidence",
+        )
         self.service = SavedDefectManagement(
             unit=self.unit,
             reader=_Reader(),

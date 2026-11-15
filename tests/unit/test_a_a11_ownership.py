@@ -102,22 +102,3 @@ def test_payload_project_mismatch_within_transaction_rejected(tmp_path: Path) ->
         unit.commit()
 
 
-def test_legacy_append_paths_enforce_ownership(tmp_path: Path) -> None:
-    repo = FileUnitOfWork(tmp_path).repo
-    repo.append("case", "c1", 0, {"project_id": "project-a", "n": 1})
-    with pytest.raises(ValueError, match="cross-project ownership"):
-        repo.append(
-            "case", "c1", 1, {"project_id": "project-b", "n": 2}
-        )
-    with pytest.raises(ValueError, match="cross-project ownership"):
-        repo.append_batch(
-            [
-                (
-                    "case",
-                    "c1",
-                    1,
-                    {"project_id": "project-b", "n": 2},
-                )
-            ]
-        )
-    assert repo.current_revision("case", "c1") == 1

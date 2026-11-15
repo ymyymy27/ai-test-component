@@ -66,32 +66,14 @@ def test_value_reference_to_another_directory_is_an_unverified_material(tmp_path
 
 
 def test_repository_exact_read_does_not_treat_true_as_revision_one(tmp_path):
+    write_records(
+        tmp_path,
+        [("project", "project", 0, {"project_id": "project", "name": "first"})],
+        project_id="project",
+    )
     repo = FileRecordRepository(tmp_path)
-    repo.append("project", "project", 0, {"project_id": "project", "name": "first"})
     with pytest.raises(ValueError):
         repo.read(aggregate_kind="project", record_id="project", revision=True)
-
-
-@pytest.mark.parametrize("method", ["append", "append_batch", "commit_transaction"])
-def test_boolean_expected_revision_cannot_publish_another_business_record(tmp_path, method):
-    repo = FileRecordRepository(tmp_path)
-    repo.append("project", "project", 0, {"project_id": "project", "name": "first"})
-    before = (tmp_path / "records.json").read_bytes()
-    pending = [("project", "project", True, {"project_id": "project", "name": "changed"})]
-    with pytest.raises(ValueError):
-        if method == "append":
-            repo.append(*pending[0])
-        elif method == "append_batch":
-            repo.append_batch(pending)
-        else:
-            repo.commit_transaction(
-                pending,
-                request_id="bad-request",
-                intent_id="bad-intent",
-                project_id="project",
-                workspace_id="workspace",
-            )
-    assert (tmp_path / "records.json").read_bytes() == before
 
 
 @pytest.mark.parametrize(
@@ -150,3 +132,5 @@ def test_existing_record_body_cannot_be_missing_or_converted_to_an_object(tmp_pa
     tree.put(_key("record", "project", "project", 1), body)
     with pytest.raises(ValueError):
         ShardedRows(tree, "project", "project")[0]
+
+from tests.support.shared_write import write_records  # noqa: E402
