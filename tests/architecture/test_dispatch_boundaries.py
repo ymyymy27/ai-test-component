@@ -24,7 +24,9 @@ def test_action_handlers_do_not_depend_on_entry_or_infrastructure() -> None:
     offenders: list[tuple[str, str]] = []
     for path in ACTIONS.rglob("*.py"):
         for module in _imports(path):
-            if module.startswith(("aitest.bootstrap", "aitest.interfaces", "aitest.infrastructure")):
+            if module.startswith(
+                ("aitest.bootstrap", "aitest.interfaces", "aitest.infrastructure")
+            ):
                 offenders.append((str(path.relative_to(ROOT)), module))
     assert offenders == []
 
@@ -32,5 +34,10 @@ def test_action_handlers_do_not_depend_on_entry_or_infrastructure() -> None:
 def test_registry_re_exports_the_public_names() -> None:
     from aitest.application import usecase_registry
 
-    for name in ("BUseCaseDependencies", "BUseCaseError", "BUseCaseRegistry", "build_b_use_case_registry"):
+    for name in (
+        "BUseCaseDependencies",
+        "BUseCaseError",
+        "BUseCaseRegistry",
+        "build_b_use_case_registry",
+    ):
         assert hasattr(usecase_registry, name), name

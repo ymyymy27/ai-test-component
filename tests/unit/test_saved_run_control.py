@@ -215,7 +215,9 @@ def test_missing_adapter_still_saves_pause_but_cannot_confirm_boundary(tmp_path)
 def test_no_handle_terminal_label_cannot_confirm_control_boundary(state):
     from tests.support.control_fixtures import _attempt
 
-    assert execution_boundary_pending(replace(_attempt(state), execution_handle_ref=None, exit_fact_ref=None))
+    assert execution_boundary_pending(
+        replace(_attempt(state), execution_handle_ref=None, exit_fact_ref=None)
+    )
 
 
 def test_process_boundary_can_finish_while_business_verification_is_pending():

@@ -37,7 +37,9 @@ def test_enum_error_lists_allowed_values() -> None:
 
 
 def test_revision_rules_distinguish_new_from_unknown() -> None:
-    assert _payload_revision_or_none(SimpleNamespace(expected_revision=0), default=3, name="r") is None
+    assert (
+        _payload_revision_or_none(SimpleNamespace(expected_revision=0), default=3, name="r") is None
+    )
     assert _payload_revision_or_none(SimpleNamespace(expected_revision=2), default=3, name="r") == 2
     with pytest.raises(BUseCaseError, match="r must be >= 1"):
         _revision_of(0, "r")
