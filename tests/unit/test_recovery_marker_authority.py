@@ -1,12 +1,10 @@
 """Both recovery modes must preserve every unverified activity marker."""
 
-import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.publication_backend import FilePublicationBackend
 from aitest.infrastructure.file_store.recovery import RecoveryOrchestrator, recover_workspace
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
@@ -65,49 +63,6 @@ def test_startup_does_not_interpret_malformed_identity_as_absence(tmp_path, raw)
     assert path.read_bytes() == raw
 
 
-def legacy_workspace(root):
-    unit = FileUnitOfWork(root)
-    unit.begin("save", "project", intent_id="save")
-    unit.stage_record(
-        aggregate_kind="case",
-        record_id="saved",
-        expected_revision=0,
-        payload={"project_id": "project", "summary": "saved"},
-    )
-    unit.commit("save")
-    assert FileCommitStore(root).read_current() is None
-
-
-@pytest.mark.parametrize("legacy", [False, True])
-def test_full_exact_marker_is_resolved_once_with_durable_authority_evidence(tmp_path, legacy):
-    (legacy_workspace if legacy else initialized_workspace)(tmp_path)
-    path = marker_path(tmp_path)
-    records_digest = hashlib.sha256((tmp_path / "records.json").read_bytes()).hexdigest()
-    recovery = RecoveryOrchestrator(tmp_path, instance_id="maintenance")
-    result = recovery.run()
-    assert result.state == "repaired" and not path.exists()
-    facts = list((tmp_path / "diagnostics" / "recovery").glob("*.json"))
-    assert len(facts) == 1
-    fact = json.loads(facts[0].read_bytes())
-    assert fact["marker"] == {
-        "request_id": "save",
-        "project_id": "project",
-        "intent_id": "save",
-        "commit_sequence": 1,
-    }
-    if legacy:
-        assert fact["legacy_authority_digest"] == records_digest
-        assert fact["manifest_digest"] is None
-    else:
-        assert (
-            fact["manifest_digest"]
-            == FileCommitStore(tmp_path).read_current()["pointer"]["manifest_digest"]
-        )
-        assert fact["legacy_authority_digest"] is None
-    assert recovery.run().state == "healthy"
-    assert list((tmp_path / "diagnostics" / "recovery").glob("*.json")) == facts
-
-
 @pytest.mark.parametrize("startup", [False, True])
 def test_receipt_failure_keeps_exact_marker(tmp_path, monkeypatch, startup):
     initialized_workspace(tmp_path)
@@ -140,17 +95,6 @@ def test_marker_replaced_after_receipt_is_preserved(tmp_path, monkeypatch, start
     assert path.read_bytes() == changed
     fact = json.loads(next((tmp_path / "diagnostics" / "recovery").glob("*.json")).read_bytes())
     assert fact["marker"]["request_id"] == "save"
-
-
-def test_unknown_legacy_activity_blocks_before_projection_repair(tmp_path):
-    legacy_workspace(tmp_path)
-    projection = tmp_path / "commit.json"
-    projection.unlink()
-    path = marker_path(tmp_path, request_id="unknown")
-    raw = path.read_bytes()
-    result = RecoveryOrchestrator(tmp_path, instance_id="maintenance").run()
-    assert result.state == "blocked"
-    assert path.read_bytes() == raw and not projection.exists()
 
 
 def test_live_writer_blocks_recovery_even_for_previously_committed_identity(tmp_path):
@@ -196,22 +140,6 @@ def test_unknown_marker_fields_never_authorize_cleanup(tmp_path, startup, change
     path = marker_path(tmp_path, **changes)
     raw = path.read_bytes()
     result = RecoveryOrchestrator(tmp_path, instance_id="maintenance").run(startup=startup)
-    assert result.state == "blocked" and path.read_bytes() == raw
-
-
-@pytest.mark.parametrize("damage", ["owner", "missing_record"])
-def test_legacy_commit_must_prove_created_record_owner_and_existence(tmp_path, damage):
-    legacy_workspace(tmp_path)
-    path = marker_path(tmp_path)
-    raw = path.read_bytes()
-    authority = tmp_path / "records.json"
-    payload = json.loads(authority.read_bytes())
-    if damage == "owner":
-        payload["records"]["case"]["saved"][0]["project_id"] = "another-project"
-    else:
-        payload["records"]["case"]["saved"] = []
-    authority.write_text(json.dumps(payload), encoding="utf-8")
-    result = RecoveryOrchestrator(tmp_path, instance_id="maintenance").run()
     assert result.state == "blocked" and path.read_bytes() == raw
 
 

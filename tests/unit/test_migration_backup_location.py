@@ -244,7 +244,7 @@ def test_bootstrap_passes_the_selected_configuration_before_heavy_assembly(
 
     fresh = root / "fresh"
     Workspace(fresh)
-    monkeypatch.setattr(bootstrap, "FileMigrationManager", probe)
+    monkeypatch.setattr("aitest.bootstrap_assembly.FileMigrationManager", probe)
     with pytest.raises(bootstrap.CoreAssemblyBlocked, match="迁移无法核实"):
         bootstrap.assemble_workspace_core(
             fresh, instance_id="configuration-probe", migration_backup_root=explicit

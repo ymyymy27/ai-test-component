@@ -10,9 +10,9 @@ import pytest
 
 from aitest.application.execution.runtime_revision import SnapshotContentRef
 from aitest.application.planning.substrate import RecordPage
+from aitest.application.review.report_types import _ReuseReading
 from aitest.application.review.reuse_consumption import ReuseOutcome
 from aitest.application.review.saved_exports import ExportRefused
-from aitest.application.review.report_types import _ReuseReading
 from aitest.contracts.commands import HUMAN_ACTIONS, Command
 from aitest.contracts.execution_facts import ExecutionFacts
 from aitest.interfaces.local.view_queries import CommittedViewReader, ReadViewError

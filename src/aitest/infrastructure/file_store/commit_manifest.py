@@ -586,7 +586,7 @@ class FileCommitStore:
         value = self.read_manifest(digest)
         if value["workspace_id"] != self._workspace_id():
             raise CommitMaterialError("prepared workspace identity has changed")
-        prior = self.read_current()
+        prior = self.read_current(verify_material=True)
         parent = prior["pointer"]["manifest_digest"] if prior is not None else None
         if value["parent_manifest"] != parent:
             raise CommitMaterialError("prepared commit was based on a different current root")
