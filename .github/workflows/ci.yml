@@ -69,6 +69,11 @@ jobs:
           tests/unit/test_panel_view_dto.py
           tests/unit/test_sharded_record_authority.py
           tests/unit/test_source_identity_runtime_observation.py
+          tests/unit/test_native_confirmation.py
+          tests/unit/test_a_a02_core_dispatch.py
+          tests/unit/test_a_pipe_peer_rejection.py
+          tests/unit/test_a_pipe_host.py
+          tests/unit/test_trae_read_only_allowlist.py
           --junitxml="${{ runner.temp }}/aitest-pytest.xml"
       - name: Upload test diagnostics
         if: always()
@@ -119,3 +124,32 @@ jobs:
             dist/*
             integrations/trae/dist/*.vsix
             docs/validation/artifacts.json
+
+  ui-checks:
+    name: Panel and extension checks (Windows)
+    timeout-minutes: 25
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            src/aitest/resources/panel/package-lock.json
+            integrations/trae/package-lock.json
+      - name: Install shared panel dependencies
+        run: npm --prefix src/aitest/resources/panel ci
+      - name: Build shared panel
+        run: npm --prefix src/aitest/resources/panel run build
+      - name: Install Playwright Chromium
+        run: npx --prefix src/aitest/resources/panel playwright install chromium
+      - name: Run shared panel tests
+        run: npm --prefix src/aitest/resources/panel test
+      - name: Install Trae extension dependencies
+        run: npm --prefix integrations/trae ci
+      - name: Run Trae extension tests
+        run: npm --prefix integrations/trae test
+
