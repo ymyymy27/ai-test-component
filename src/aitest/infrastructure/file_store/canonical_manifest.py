@@ -275,13 +275,23 @@ def complete_manifest(
     return value
 
 
-def verify_complete(root: Path, value: dict[str, Any]) -> None:
+def verify_complete(
+    root: Path, value: dict[str, Any], *, changed_paths: set[str] | None = None
+) -> None:
+    """Verify canonical material; ``changed_paths`` limits byte reads to one commit.
+
+    Structural closure (all required paths are listed) is still checked over the
+    whole digest list. Full-history byte verification stays on startup/recovery
+    paths, where ``changed_paths`` is None.
+    """
     from .commit_manifest import CommitMaterialError, FileCommitStore
 
     validate_complete(root, value)
     actual = set()
     for ref in value["file_digests"]:
-        if file_reference(root, ref["path"]) != ref:
+        if (changed_paths is None or ref["path"] in changed_paths) and (
+            file_reference(root, ref["path"]) != ref
+        ):
             raise CommitMaterialError("canonical commit file bytes changed")
         actual.add(ref["path"])
     if not required_files(root, value) <= actual:

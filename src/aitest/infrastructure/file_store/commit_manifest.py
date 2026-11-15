@@ -360,8 +360,12 @@ class FileCommitStore:
         if value["schema"] == COMPLETE_SCHEMA:
             validate_complete(self.root, value)
 
-    def verify_material(self, value: dict[str, Any]) -> None:
-        """Check prepared roots and changed bodies; no traversal of unrelated history."""
+    def verify_material(self, value: dict[str, Any], *, changed_only: bool = False) -> None:
+        """Check prepared roots and changed bodies.
+
+        ``changed_only`` verifies byte identity only for files introduced by this
+        manifest; historical files stay covered by startup/recovery verification.
+        """
         self.validate(value)
         data = open_authority(self.root, value["record_header"])
         source_material: set[str] = set()
@@ -433,7 +437,17 @@ class FileCommitStore:
             if hashlib.sha256(path.read_bytes()).hexdigest() != source["sha256"]:
                 raise CommitMaterialError("retained migration source bytes changed")
         if value["schema"] == COMPLETE_SCHEMA:
-            verify_complete(self.root, value)
+            changed_paths = None
+            if changed_only:
+                parent_digest = value.get("parent_manifest")
+                parent_paths: set[str] = set()
+                if parent_digest is not None:
+                    parent = self.read_manifest(parent_digest)
+                    parent_paths = {str(ref["path"]) for ref in parent.get("file_digests", [])}
+                changed_paths = {
+                    str(ref["path"]) for ref in value["file_digests"]
+                } - parent_paths
+            verify_complete(self.root, value, changed_paths=changed_paths)
 
     def _verify_business(
         self,
@@ -541,7 +555,7 @@ class FileCommitStore:
                 raise CommitMaterialError("saved event does not prove this changed record")
 
     def prepare(self, value: dict[str, Any]) -> str:
-        self.verify_material(value)
+        self.verify_material(value, changed_only=True)
         if value["workspace_id"] != self._workspace_id():
             raise CommitMaterialError("prepared commit belongs to another workspace")
         raw = canonical_bytes(value)
@@ -572,7 +586,7 @@ class FileCommitStore:
         value = self.read_manifest(digest)
         if value["workspace_id"] != self._workspace_id():
             raise CommitMaterialError("prepared workspace identity has changed")
-        prior = self.read_current(verify_material=True)
+        prior = self.read_current()
         parent = prior["pointer"]["manifest_digest"] if prior is not None else None
         if value["parent_manifest"] != parent:
             raise CommitMaterialError("prepared commit was based on a different current root")
@@ -599,7 +613,7 @@ class FileCommitStore:
                 and value["business_change_index_root"] != previous["business_change_index_root"]
             ):
                 raise CommitMaterialError("ordinary maintenance must retain the business index")
-        self.verify_material(value)
+        self.verify_material(value, changed_only=True)
         pointer = self.current_pointer(value, digest)
         raw = canonical_bytes(pointer)
         guarded, changed = guard_bytes(raw)
