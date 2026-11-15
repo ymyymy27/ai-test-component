@@ -145,17 +145,17 @@ def test_confirmed_inspection_without_exit_fact_cannot_make_attempt_cancelled():
     )
 
 
-@pytest.mark.parametrize("code", [True, "0", 1.0])
-def test_confirmed_stop_cannot_hide_an_invalid_exit_code(code):
-    from aitest.domain.execution.runs import ProcessTerminationReason, has_verified_exit
+def test_confirmed_stop_cannot_hide_an_invalid_exit_code():
+    for code in [True, "0", 1.0]:
+        from aitest.domain.execution.runs import ProcessTerminationReason, has_verified_exit
 
-    attempt, _, collection = observation()
-    fact = replace(
-        collection.exit_fact_ref,
-        termination_reason=ProcessTerminationReason.CONFIRMED_STOP,
-        real_exit_code=code,
-    )
-    assert not has_verified_exit(replace(attempt, exit_fact_ref=fact))
+        attempt, _, collection = observation()
+        fact = replace(
+            collection.exit_fact_ref,
+            termination_reason=ProcessTerminationReason.CONFIRMED_STOP,
+            real_exit_code=code,
+        )
+        assert not has_verified_exit(replace(attempt, exit_fact_ref=fact))
 
 
 def test_confirmed_stop_may_preserve_an_unknown_exit_code():

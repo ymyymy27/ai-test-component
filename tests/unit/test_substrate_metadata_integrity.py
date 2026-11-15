@@ -14,37 +14,37 @@ from aitest.application.planning.substrate_adapter import PortsRecordReader, Por
 from tests.unit.test_substrate_contract import _preparation
 
 
-@pytest.mark.parametrize("revision", [True, "1", 1.5, -1])
-def test_preparation_lookup_does_not_coerce_current_revision(revision):
-    repository = Mock()
-    repository.current_revision.return_value = revision
-    record = _preparation()
-    identity = preparation_record_id(project_id="p1", client_id="c1", prepare_request_id="req-1")
-    repository.read.return_value = CommittedRecord(
-        "preparation_record", identity, 1, preparation_record_payload(record)
-    )
-    with pytest.raises((ValueError, SubstrateContractError)):
-        PortsRecordReader(repository).find_preparation(
-            project_id="p1", client_id="c1", prepare_request_id="req-1"
+def test_preparation_lookup_does_not_coerce_current_revision():
+    for revision in [True, "1", 1.5, -1]:
+        repository = Mock()
+        repository.current_revision.return_value = revision
+        record = _preparation()
+        identity = preparation_record_id(project_id="p1", client_id="c1", prepare_request_id="req-1")  # noqa: E501
+        repository.read.return_value = CommittedRecord(
+            "preparation_record", identity, 1, preparation_record_payload(record)
         )
-    repository.read.assert_not_called()
+        with pytest.raises((ValueError, SubstrateContractError)):
+            PortsRecordReader(repository).find_preparation(
+                project_id="p1", client_id="c1", prepare_request_id="req-1"
+            )
+        repository.read.assert_not_called()
 
 
-@pytest.mark.parametrize("wrong", ["id", "kind", "revision"])
-def test_ports_reader_proves_the_returned_record_envelope(wrong):
-    repository = Mock()
-    record = CommittedRecord("task", "task-1", 1, {"project_id": "p1"})
-    record = replace(
-        record,
-        **{"record_id": "other"}
-        if wrong == "id"
-        else {"aggregate_kind": "delivery"}
-        if wrong == "kind"
-        else {"revision": 2},
-    )
-    repository.read.return_value = record
-    with pytest.raises(ValueError):
-        PortsRecordReader(repository).read(aggregate_kind="task", record_id="task-1", revision=1)
+def test_ports_reader_proves_the_returned_record_envelope():
+    for wrong in ["id", "kind", "revision"]:
+        repository = Mock()
+        record = CommittedRecord("task", "task-1", 1, {"project_id": "p1"})
+        record = replace(
+            record,
+            **{"record_id": "other"}
+            if wrong == "id"
+            else {"aggregate_kind": "delivery"}
+            if wrong == "kind"
+            else {"revision": 2},
+        )
+        repository.read.return_value = record
+        with pytest.raises(ValueError):
+            PortsRecordReader(repository).read(aggregate_kind="task", record_id="task-1", revision=1)  # noqa: E501
 
 
 @pytest.mark.parametrize("wrong", ["project", "client", "request", "intent"])
@@ -110,34 +110,33 @@ def unit(stage_revision=1, current_revision=0):
     return adapter, ports, sequence
 
 
-@pytest.mark.parametrize("revision", [True, "1", 1.5, 0, 2])
-def test_wrong_staged_revision_rolls_back_before_it_becomes_a_basis(revision):
-    adapter, ports, _ = unit(stage_revision=revision)
-    with pytest.raises(SubstrateContractError):
-        adapter.stage_record(
-            aggregate_kind="task",
-            record_id="task-1",
-            expected_revision=0,
-            payload={"project_id": "p1"},
-        )
-    ports.commit.assert_not_called()
-    ports.rollback.assert_called_once()
-
-
-@pytest.mark.parametrize("sequence_value", [True, "1", 1.5, -1])
-def test_commit_sequence_source_requires_an_exact_nonnegative_integer(sequence_value):
-    adapter, ports, sequence = unit()
-    sequence.current_commit_sequence.return_value = sequence_value
-    try:
+def test_wrong_staged_revision_rolls_back_before_it_becomes_a_basis():
+    for revision in [True, "1", 1.5, 0, 2]:
+        adapter, ports, _ = unit(stage_revision=revision)
         with pytest.raises(SubstrateContractError):
-            adapter.next_commit_seq()
-    finally:
-        adapter.rollback()
+            adapter.stage_record(
+                aggregate_kind="task",
+                record_id="task-1",
+                expected_revision=0,
+                payload={"project_id": "p1"},
+            )
+        ports.commit.assert_not_called()
+        ports.rollback.assert_called_once()
 
 
-@pytest.mark.parametrize(
-    "bad_result",
-    [
+def test_commit_sequence_source_requires_an_exact_nonnegative_integer():
+    for sequence_value in [True, "1", 1.5, -1]:
+        adapter, ports, sequence = unit()
+        sequence.current_commit_sequence.return_value = sequence_value
+        try:
+            with pytest.raises(SubstrateContractError):
+                adapter.next_commit_seq()
+        finally:
+            adapter.rollback()
+
+
+def test_unverifiable_commit_receipt_is_rejected_and_adapter_releases_its_state():
+    for bad_result in [
         {"created": [("task", "task-1", 1)], "commit_sequence": True},
         {"created": [("task", "task-1", 1)], "commit_sequence": "1"},
         {"created": [("task", "task-1", 1)], "commit_sequence": 0},
@@ -147,21 +146,19 @@ def test_commit_sequence_source_requires_an_exact_nonnegative_integer(sequence_v
         {"created": [("task", "other", 1)], "commit_sequence": 1},
         {"created": [("delivery", "task-1", 1)], "commit_sequence": 1},
         {"created": [("task", "task-1", 2)], "commit_sequence": 1},
-    ],
-)
-def test_unverifiable_commit_receipt_is_rejected_and_adapter_releases_its_state(bad_result):
-    adapter, ports, _ = unit()
-    adapter.stage_record(
-        aggregate_kind="task", record_id="task-1", expected_revision=0, payload={"project_id": "p1"}
-    )
-    ports.commit.return_value = bad_result
-    with pytest.raises(SubstrateContractError):
-        adapter.commit()
-    ports.rollback.assert_called_once()
-    # Cleanup is not a claim that the underlying commit was undone.
-    ports.commit.assert_called_once()
-    adapter.open("p1")
-    adapter.rollback()
+    ]:
+        adapter, ports, _ = unit()
+        adapter.stage_record(
+            aggregate_kind="task", record_id="task-1", expected_revision=0, payload={"project_id": "p1"}  # noqa: E501
+        )
+        ports.commit.return_value = bad_result
+        with pytest.raises(SubstrateContractError):
+            adapter.commit()
+        ports.rollback.assert_called_once()
+        # Cleanup is not a claim that the underlying commit was undone.
+        ports.commit.assert_called_once()
+        adapter.open("p1")
+        adapter.rollback()
 
 
 def test_foreign_preparation_staging_releases_the_open_adapter_transaction():

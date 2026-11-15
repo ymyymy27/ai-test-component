@@ -205,18 +205,15 @@ def test_read_view_error_code_and_retryability_reach_the_protocol() -> None:
     assert "重新取得同边界快照" in response.error.next_step
 
 
-@pytest.mark.parametrize(
-    "parameters",
-    [{"view": []}, {"view": "panel", "run_id": "r", "latest": True}, {"view": "other"}],
-)
-def test_view_read_rejects_unsupported_selectors_before_io(parameters):
-    view = _views(())
-    with pytest.raises(ValueError):
-        view.dispatch(
-            Command(
-                action="read_view", request_id="bad-view", project_id="p", parameters=parameters
+def test_view_read_rejects_unsupported_selectors_before_io():
+    for parameters in [{"view": []}, {"view": "panel", "run_id": "r", "latest": True}, {"view": "other"}]:  # noqa: E501
+        view = _views(())
+        with pytest.raises(ValueError):
+            view.dispatch(
+                Command(
+                    action="read_view", request_id="bad-view", project_id="p", parameters=parameters
+                )
             )
-        )
 
 
 def test_reuse_selection_is_classified_as_human():

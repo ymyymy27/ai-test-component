@@ -209,15 +209,13 @@ def test_missing_adapter_still_saves_pause_but_cannot_confirm_boundary(tmp_path)
     assert port.execution_order == ["attempt-1"]
 
 
-@pytest.mark.parametrize(
-    "state", [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.INVALIDATED]
-)
-def test_no_handle_terminal_label_cannot_confirm_control_boundary(state):
-    from tests.support.control_fixtures import _attempt
+def test_no_handle_terminal_label_cannot_confirm_control_boundary():
+    for state in [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.INVALIDATED]:
+        from tests.support.control_fixtures import _attempt
 
-    assert execution_boundary_pending(
-        replace(_attempt(state), execution_handle_ref=None, exit_fact_ref=None)
-    )
+        assert execution_boundary_pending(
+            replace(_attempt(state), execution_handle_ref=None, exit_fact_ref=None)
+        )
 
 
 def test_process_boundary_can_finish_while_business_verification_is_pending():

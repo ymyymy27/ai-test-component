@@ -33,24 +33,24 @@ def config(path, url):
     return path
 
 
-@pytest.mark.parametrize("changes", [
+def test_invalid_or_cross_project_basis_refused():
+    for changes in [
     {"expected_facts": {}}, {"expected_facts": []}, {"extra": True},
     {"schema_version": "unknown"}, {"query_method": "another-project:read-order"},
     {"query_method": "project-ticket:"}, {"deadline_condition": "tomorrow"},
     {"query_method": "project-ticket:other-project:read"},
     {"business_object_id": 1},
-])
-def test_invalid_or_cross_project_basis_refused(changes):
-    with pytest.raises(ValueError):
-        declared_request(basis(**changes), project_id="project-ticket", attempt_id="attempt-1")
+]:
+        with pytest.raises(ValueError):
+            declared_request(basis(**changes), project_id="project-ticket", attempt_id="attempt-1")
 
 
-@pytest.mark.parametrize("text", [
+def test_free_text_and_duplicate_json_not_guessed():
+    for text in [
     "read back the object", '{"schema_version":1,"schema_version":2}',
-])
-def test_free_text_and_duplicate_json_not_guessed(text):
-    with pytest.raises(ValueError):
-        declared_request(text, project_id="project-ticket", attempt_id="attempt-1")
+]:
+        with pytest.raises(ValueError):
+            declared_request(text, project_id="project-ticket", attempt_id="attempt-1")
 
 
 @pytest.mark.parametrize("body,status,observation", [

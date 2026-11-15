@@ -25,54 +25,54 @@ def test_client_request_backpressure_has_a_deadline():
         server.close()
 
 
-@pytest.mark.parametrize("operation", ["read", "write"])
-def test_client_close_cancels_owned_pending_io(operation):
-    server, client = connected_pair()
-    started = threading.Event()
-    outcomes = []
+def test_client_close_cancels_owned_pending_io():
+    for operation in ["read", "write"]:
+        server, client = connected_pair()
+        started = threading.Event()
+        outcomes = []
 
-    def work():
-        started.set()
+        def work():
+            started.set()  # noqa: B023
+            try:
+                if operation == "read":  # noqa: B023
+                    client.read_message(timeout_ms=2000)  # noqa: B023
+                else:
+                    client.write_message(b"x" * MAX_MESSAGE_BYTES, timeout_ms=2000)  # noqa: B023
+            except PipeUnavailable:
+                outcomes.append("cancelled")  # noqa: B023
+
+        thread = threading.Thread(target=work)
+        thread.start()
         try:
-            if operation == "read":
-                client.read_message(timeout_ms=2000)
-            else:
-                client.write_message(b"x" * MAX_MESSAGE_BYTES, timeout_ms=2000)
-        except PipeUnavailable:
-            outcomes.append("cancelled")
-
-    thread = threading.Thread(target=work)
-    thread.start()
-    try:
-        assert started.wait(1)
-        until = time.monotonic() + 1
-        while (
-            not getattr(client, "_pending_io", {})
-            and thread.is_alive()
-            and time.monotonic() < until
-        ):
-            threading.Event().wait(0.01)
-        assert client._pending_io
-        client.close()
-        thread.join(2)
-        assert not thread.is_alive() and outcomes == ["cancelled"]
-        assert not client._pending_io and client._handle is None
-    finally:
-        server.close()
-        client.close()
-        thread.join(2)
+            assert started.wait(1)
+            until = time.monotonic() + 1
+            while (
+                not getattr(client, "_pending_io", {})
+                and thread.is_alive()
+                and time.monotonic() < until
+            ):
+                threading.Event().wait(0.01)
+            assert client._pending_io
+            client.close()
+            thread.join(2)
+            assert not thread.is_alive() and outcomes == ["cancelled"]
+            assert not client._pending_io and client._handle is None
+        finally:
+            server.close()
+            client.close()
+            thread.join(2)
 
 
-@pytest.mark.parametrize("timeout", [True, -1, 1.2, "1"])
-def test_client_write_rejects_invalid_deadline_before_native_io(timeout):
-    server, client = connected_pair()
-    try:
-        with pytest.raises(ValueError):
-            client.write_message(b"{}", timeout_ms=timeout)
-        assert not client._pending_io
-    finally:
-        server.close()
-        client.close()
+def test_client_write_rejects_invalid_deadline_before_native_io():
+    for timeout in [True, -1, 1.2, "1"]:
+        server, client = connected_pair()
+        try:
+            with pytest.raises(ValueError):
+                client.write_message(b"{}", timeout_ms=timeout)
+            assert not client._pending_io
+        finally:
+            server.close()
+            client.close()
 
 
 def test_client_large_frame_preserves_the_actual_received_bytes():

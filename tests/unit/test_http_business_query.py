@@ -101,12 +101,12 @@ def test_immediate_http_query_has_actual_cutoff_and_does_not_retry():
         assert result.actual_fields is None and len(calls) == 1
 
 
-@pytest.mark.parametrize("value", [True, 0, -1, 1.0, 60001])
-def test_single_query_duration_requires_bounded_actual_integer(value):
-    with pytest.raises(ValueError):
-        HttpBusinessQuerySpec(
-            "deployment-1", "http://localhost/{business_object_id}", single_query_timeout_ms=value
-        )
+def test_single_query_duration_requires_bounded_actual_integer():
+    for value in [True, 0, -1, 1.0, 60001]:
+        with pytest.raises(ValueError):
+            HttpBusinessQuerySpec(
+                "deployment-1", "http://localhost/{business_object_id}", single_query_timeout_ms=value  # noqa: E501
+            )
 
 
 def test_polling_absolute_cutoff_is_not_replaced_by_single_query_duration(monkeypatch):
@@ -147,9 +147,8 @@ def test_actual_object_identifier_is_encoded_without_changing_target_or_query_fi
         assert len(calls) == 1
 
 
-@pytest.mark.parametrize(
-    "body,headers",
-    [
+def test_actual_wrong_identity_ambiguous_json_or_content_type_is_query_error():
+    for body, headers in [
         (b'{"object_id":"other","paid":true}', b""),
         (b'{"object_id":1,"paid":true}', b""),
         (b'{"object_id":"order-1","paid":true,"paid":false}', b""),
@@ -157,64 +156,61 @@ def test_actual_object_identifier_is_encoded_without_changing_target_or_query_fi
         (b'[{"object_id":"order-1","paid":true}]', b""),
         ('{"object_id":"order-1","paid":true}'.encode("utf-16"), b""),
         (b'{"object_id":"order-1","paid":true}', b"Content-Type: text/plain\r\n"),
-    ],
-)
-def test_actual_wrong_identity_ambiguous_json_or_content_type_is_query_error(body, headers):
-    with server(body_reply(body, extra_headers=headers)) as (url, calls):
-        result = BusinessVerificationAdapter(reader(url)).capture(request())
-        assert result.verification.observation is VerificationObservation.QUERY_ERROR
-        assert result.actual_fields is None and len(calls) == 1
+    ]:
+        with server(body_reply(body, extra_headers=headers)) as (url, calls):
+            result = BusinessVerificationAdapter(reader(url)).capture(request())
+            assert result.verification.observation is VerificationObservation.QUERY_ERROR
+            assert result.actual_fields is None and len(calls) == 1
 
 
-@pytest.mark.parametrize("status", [302, 500])
-def test_actual_redirect_or_server_error_does_not_retry_or_accept_json(status):
-    with server(
-        body_reply(
-            b'{"object_id":"order-1","paid":true}',
-            status,
-            b"Location: http://127.0.0.1:1/wrong\r\n",
-        )
-    ) as (url, calls):
-        result = BusinessVerificationAdapter(reader(url)).capture(request())
-        assert result.verification.observation is VerificationObservation.QUERY_ERROR
-        assert result.actual_fields is None and len(calls) == 1
+def test_actual_redirect_or_server_error_does_not_retry_or_accept_json():
+    for status in [302, 500]:
+        with server(
+            body_reply(
+                b'{"object_id":"order-1","paid":true}',
+                status,
+                b"Location: http://127.0.0.1:1/wrong\r\n",
+            )
+        ) as (url, calls):
+            result = BusinessVerificationAdapter(reader(url)).capture(request())
+            assert result.verification.observation is VerificationObservation.QUERY_ERROR
+            assert result.actual_fields is None and len(calls) == 1
 
 
-@pytest.mark.parametrize("damage", ["short", "oversize", "trickle"])
-def test_actual_incomplete_oversize_or_late_http_prefix_cannot_verify(damage):
-    body = b'{"object_id":"order-1","paid":true}'
+def test_actual_incomplete_oversize_or_late_http_prefix_cannot_verify():
+    for damage in ["short", "oversize", "trickle"]:
+        body = b'{"object_id":"order-1","paid":true}'
 
-    def reply(connection, stopped):
-        length = len(body) + 4 if damage == "short" else len(body)
-        connection.sendall(
-            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-            + f"Content-Length: {length}\r\n\r\n".encode()
-        )
-        if damage != "trickle":
-            connection.sendall(body)
-        else:
-            for byte in body:
-                if stopped.wait(0.03):
-                    return
-                connection.sendall(bytes([byte]))
+        def reply(connection, stopped):
+            length = len(body) + 4 if damage == "short" else len(body)  # noqa: B023
+            connection.sendall(
+                b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                + f"Content-Length: {length}\r\n\r\n".encode()
+            )
+            if damage != "trickle":  # noqa: B023
+                connection.sendall(body)  # noqa: B023
+            else:
+                for byte in body:  # noqa: B023
+                    if stopped.wait(0.03):
+                        return
+                    connection.sendall(bytes([byte]))
 
-    with server(reply) as (url, calls):
-        value = reader(url, max_response_bytes=10 if damage == "oversize" else 1024)
-        spec = replace(request(), deadline_condition="poll_deadline_ms:100")
-        began = time.monotonic()
-        result = BusinessVerificationAdapter(value).capture(spec)
-        assert time.monotonic() - began < 0.8
-        assert result.verification.observation is (
-            VerificationObservation.DEADLINE_REACHED
-            if damage == "trickle"
-            else VerificationObservation.QUERY_ERROR
-        )
-        assert result.actual_fields is None and len(calls) == 1
+        with server(reply) as (url, calls):
+            value = reader(url, max_response_bytes=10 if damage == "oversize" else 1024)
+            spec = replace(request(), deadline_condition="poll_deadline_ms:100")
+            began = time.monotonic()
+            result = BusinessVerificationAdapter(value).capture(spec)
+            assert time.monotonic() - began < 0.8
+            assert result.verification.observation is (
+                VerificationObservation.DEADLINE_REACHED
+                if damage == "trickle"
+                else VerificationObservation.QUERY_ERROR
+            )
+            assert result.actual_fields is None and len(calls) == 1
 
 
-@pytest.mark.parametrize(
-    "template",
-    [
+def test_unsafe_or_ambiguous_configuration_is_refused_before_io():
+    for template in [
         "http://localhost/orders",
         "http://{business_object_id}/orders",
         "http://localhost/{business_object_id}/{business_object_id}",
@@ -222,11 +218,9 @@ def test_actual_incomplete_oversize_or_late_http_prefix_cannot_verify(damage):
         "http://user:pass@localhost/{business_object_id}",
         "http://localhost/{business_object_id}#fragment",
         "http://localhost/{business_object_id}?token=private",
-    ],
-)
-def test_unsafe_or_ambiguous_configuration_is_refused_before_io(template):
-    with pytest.raises(ValueError):
-        HttpBusinessQuerySpec("deployment-1", template)
+    ]:
+        with pytest.raises(ValueError):
+            HttpBusinessQuerySpec("deployment-1", template)
 
 
 @pytest.mark.parametrize(
@@ -297,24 +291,24 @@ def test_exact_http_purpose_credential_is_memory_only_and_revocation_blocks_send
         known_secrets().clear()
 
 
-@pytest.mark.parametrize("damage", ["http_url", "purpose", "reference", "inline_control"])
-def test_credential_transport_or_scope_mismatch_is_refused(damage):
-    spec = HttpBusinessQuerySpec(
-        "deployment-1",
-        "https://example.test/{business_object_id}",
-        credential_reference="query-ref",
-    )
-    secret = ResolvedSecret("http", "query-ref", "fixture", "query-safe-credential")
-    try:
-        with pytest.raises(ValueError):
-            if damage == "http_url":
-                replace(spec, url_template="http://localhost/{business_object_id}")
-            else:
-                secret.purpose = "model" if damage == "purpose" else secret.purpose
-                secret.reference = "other" if damage == "reference" else secret.reference
-                secret._value = (
-                    "value\r\nInjected: yes" if damage == "inline_control" else secret._value
-                )
-                HttpBusinessQueryReader(spec, secret=secret)
-    finally:
-        known_secrets().clear()
+def test_credential_transport_or_scope_mismatch_is_refused():
+    for damage in ["http_url", "purpose", "reference", "inline_control"]:
+        spec = HttpBusinessQuerySpec(
+            "deployment-1",
+            "https://example.test/{business_object_id}",
+            credential_reference="query-ref",
+        )
+        secret = ResolvedSecret("http", "query-ref", "fixture", "query-safe-credential")
+        try:
+            with pytest.raises(ValueError):
+                if damage == "http_url":
+                    replace(spec, url_template="http://localhost/{business_object_id}")
+                else:
+                    secret.purpose = "model" if damage == "purpose" else secret.purpose
+                    secret.reference = "other" if damage == "reference" else secret.reference
+                    secret._value = (
+                        "value\r\nInjected: yes" if damage == "inline_control" else secret._value
+                    )
+                    HttpBusinessQueryReader(spec, secret=secret)
+        finally:
+            known_secrets().clear()

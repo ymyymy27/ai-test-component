@@ -273,58 +273,54 @@ def test_caller_ref_alone_and_forged_start_fingerprint_have_no_original_authorit
         service.validate_new(project_id=inputs.project_id, attempt=attempt)
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
+def test_occupation_proof_requires_exact_integer_revisions_and_closed_fields():
+    for change in [
         {"grant_revision": True},
         {"grant_revision": 1.0},
         {"state_revision": True},
         {"state_revision": 2.0},
         {"grant_revision": None},
         {"extra": "field"},
-    ],
-)
-def test_occupation_proof_requires_exact_integer_revisions_and_closed_fields(change):
-    # Isolated boundary probe; the file-transaction tests above establish origin.
-    request = _request()
-    request = replace(
-        request, expected_plan_revision_ref=request.authorization_ref.plan_revision_ref
-    )
-    resolved_action = ResolvedExecutionAction(
-        replace(
-            _attempt(),
-            authorization_ref=request.authorization_ref,
-            expected_plan_revision_ref=request.expected_plan_revision_ref,
-        ),
-        request,
-        "environment",
-        "source",
-    )
-    attempt = started(resolved_action)
-    service = Mock(spec=ExecutionAuthorizationService)
-    service._origin.return_value = ({"original": "grant"}, resolved_action)
-    service._state.return_value = (2, AuthorizationState.OCCUPIED, attempt.attempt_id)
-    from aitest.application.approval_service import _digest
+    ]:
+        request = _request()
+        request = replace(
+            request, expected_plan_revision_ref=request.authorization_ref.plan_revision_ref
+        )
+        resolved_action = ResolvedExecutionAction(
+            replace(
+                _attempt(),
+                authorization_ref=request.authorization_ref,
+                expected_plan_revision_ref=request.expected_plan_revision_ref,
+            ),
+            request,
+            "environment",
+            "source",
+        )
+        attempt = started(resolved_action)
+        service = Mock(spec=ExecutionAuthorizationService)
+        service._origin.return_value = ({"original": "grant"}, resolved_action)
+        service._state.return_value = (2, AuthorizationState.OCCUPIED, attempt.attempt_id)
+        from aitest.application.approval_service import _digest
 
-    proof = {
-        "grant_id": request.authorization_ref.authorization_id,
-        "grant_revision": 1,
-        "grant_digest": _digest({"original": "grant"}),
-        "state_revision": 2,
-    }
-    ExecutionAuthorizationService.validate_occupation(
-        service,
-        project_id=request.project_id,
-        attempt=attempt,
-        proof=proof,
-    )
-    with pytest.raises(ValueError, match="occupation"):
+        proof = {
+            "grant_id": request.authorization_ref.authorization_id,
+            "grant_revision": 1,
+            "grant_digest": _digest({"original": "grant"}),
+            "state_revision": 2,
+        }
         ExecutionAuthorizationService.validate_occupation(
             service,
             project_id=request.project_id,
             attempt=attempt,
-            proof=proof | change,
+            proof=proof,
         )
+        with pytest.raises(ValueError, match="occupation"):
+            ExecutionAuthorizationService.validate_occupation(
+                service,
+                project_id=request.project_id,
+                attempt=attempt,
+                proof=proof | change,
+            )
 
 
 # ------------------------------- C-12：冻结环境的步骤截止必须被执行请求使用

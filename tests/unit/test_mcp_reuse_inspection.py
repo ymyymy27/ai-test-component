@@ -4,8 +4,6 @@ from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pytest
-
 from aitest.contracts.responses import Response
 from aitest.interfaces.tools.agent_relay import McpRelay
 from tests.unit.test_mcp_stdio_read import encode, initialize, ready, rpc
@@ -92,50 +90,50 @@ def test_result_and_exact_references_are_forwarded_without_qualification_or_busi
     assert len(sent) == before
 
 
-@pytest.mark.parametrize("damage", [
+def test_untrusted_context_or_qualification_fields_stop_before_core_reads():
+    for damage in [
     "project", "binding", "eligible", "confirmation", "missing", "same_run", "empty_case",
     "bool_cursor", "float_cursor", "extra_snapshot", "snapshot_list",
-])
-def test_untrusted_context_or_qualification_fields_stop_before_core_reads(damage):
-    instance, sent, _, values, _ = relay()
-    values = deepcopy(values)
-    if damage in ("project", "binding", "eligible", "confirmation"):
-        values[{"project": "project_id", "binding": "binding_revision",
-                "eligible": "eligible", "confirmation": "basis_confirmed"}[damage]] = True
-    elif damage == "missing":
-        values.pop("source_snapshot")
-    elif damage == "same_run":
-        values["source_run_id"] = values["target_run_id"]
-    elif damage == "empty_case":
-        values["case_id"] = "  "
-    elif damage in ("bool_cursor", "float_cursor"):
-        values["source_snapshot"]["snapshot_cursor"] = True if damage == "bool_cursor" else 3.0
-    elif damage == "extra_snapshot":
-        values["source_snapshot"]["qualified"] = True
-    else:
-        values["source_snapshot"] = [values["source_snapshot"]]
-    assert call(instance, values)["error"]["code"] == -32602
-    assert len(sent) == 2
+]:
+        instance, sent, _, values, _ = relay()
+        values = deepcopy(values)
+        if damage in ("project", "binding", "eligible", "confirmation"):
+            values[{"project": "project_id", "binding": "binding_revision",
+                    "eligible": "eligible", "confirmation": "basis_confirmed"}[damage]] = True
+        elif damage == "missing":
+            values.pop("source_snapshot")
+        elif damage == "same_run":
+            values["source_run_id"] = values["target_run_id"]
+        elif damage == "empty_case":
+            values["case_id"] = "  "
+        elif damage in ("bool_cursor", "float_cursor"):
+            values["source_snapshot"]["snapshot_cursor"] = True if damage == "bool_cursor" else 3.0
+        elif damage == "extra_snapshot":
+            values["source_snapshot"]["qualified"] = True
+        else:
+            values["source_snapshot"] = [values["source_snapshot"]]
+        assert call(instance, values)["error"]["code"] == -32602
+        assert len(sent) == 2
 
 
-@pytest.mark.parametrize("after", [False, True])
-def test_binding_drift_never_returns_a_current_preview(after):
-    instance, sent, binding, values, _ = relay()
-    original = instance.client.send.side_effect
+def test_binding_drift_never_returns_a_current_preview():
+    for after in [False, True]:
+        instance, sent, binding, values, _ = relay()
+        original = instance.client.send.side_effect
 
-    def send(command):
-        response = original(command)
-        if command.action == "inspect_case_reuse":
+        def send(command):
+            response = original(command)  # noqa: B023
+            if command.action == "inspect_case_reuse":
+                binding[0] = 2  # noqa: B023
+            return response
+
+        if after:
+            instance.client.send.side_effect = send
+        else:
             binding[0] = 2
-        return response
-
-    if after:
-        instance.client.send.side_effect = send
-    else:
-        binding[0] = 2
-    result = call(instance, values)["result"]
-    assert result["isError"] is True and "B_REPREPARE_REQUIRED" in result["content"][0]["text"]
-    assert sum(x.action == "inspect_case_reuse" for x in sent) == int(after)
+        result = call(instance, values)["result"]
+        assert result["isError"] is True and "B_REPREPARE_REQUIRED" in result["content"][0]["text"]
+        assert sum(x.action == "inspect_case_reuse" for x in sent) == int(after)
 
 
 def test_lost_receipt_remains_unverified_and_does_not_retry():

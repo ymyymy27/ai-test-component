@@ -148,7 +148,7 @@ def test_active_step_without_published_claim_cannot_be_started_again(tmp_path):
     assert port.execution_order == []
 
 
-@pytest.mark.parametrize("budget", [0, -1, True, 1.5])
-def test_slice_budget_is_a_positive_bounded_integer(budget):
-    with pytest.raises(ValueError):
-        SerialRunner(FakeExecutionPort()).run_serial((), max_polls_per_slice=budget)
+def test_slice_budget_is_a_positive_bounded_integer():
+    for budget in [0, -1, True, 1.5]:
+        with pytest.raises(ValueError):
+            SerialRunner(FakeExecutionPort()).run_serial((), max_polls_per_slice=budget)

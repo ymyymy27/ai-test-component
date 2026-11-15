@@ -80,16 +80,16 @@ from tests.unit.test_serial_runner import _attempt, _request
 from tests.unit.test_source_checks import _request as source_request
 
 
-@pytest.mark.parametrize("secret", ["1234", "短凭据", "x"])
-def test_registered_short_credentials_are_filtered_at_every_stream_split(secret: str) -> None:
-    registry = KnownSecretRegistry()
-    registry.register(secret)
-    raw = ("hello " + secret + " goodbye\n").encode()
-    expected = b"hello [REDACTED] goodbye\n"
-    for boundary in range(len(raw) + 1):
-        stream = StreamSecretFilter(registry)
-        actual = stream.feed(raw[:boundary]) + stream.feed(raw[boundary:]) + stream.flush()
-        assert actual == expected
+def test_registered_short_credentials_are_filtered_at_every_stream_split() -> None:
+    for secret in ["1234", "短凭据", "x"]:
+        registry = KnownSecretRegistry()
+        registry.register(secret)
+        raw = ("hello " + secret + " goodbye\n").encode()
+        expected = b"hello [REDACTED] goodbye\n"
+        for boundary in range(len(raw) + 1):
+            stream = StreamSecretFilter(registry)
+            actual = stream.feed(raw[:boundary]) + stream.feed(raw[boundary:]) + stream.flush()
+            assert actual == expected
 
 
 def test_batch_spool_cannot_bypass_another_instances_live_capture(tmp_path: Path) -> None:
@@ -1052,43 +1052,40 @@ def test_source_mismatch_overrides_probe_passed(tmp_path: Path) -> None:
     assert outcome.check_result.failure_class is FailureClass.SOURCE_ERROR
 
 
-@pytest.mark.parametrize(
-    "text",
-    [
+def test_arbitrary_rule_body_is_lossless_in_markdown() -> None:
+    for text in [
         "## detail\nbody",
         "## 步骤\nbody",
         "\nbody\n",
         "```python\n## heading\n```",
         "~~~\n## heading\n~~~",
-    ],
-)
-def test_arbitrary_rule_body_is_lossless_in_markdown(text: str) -> None:
-    payload = rule_payload(text=text, steps=("first\nsecond", " trailing "))
-    assert rule_markdown_to_payload(rule_markdown_from_payload(payload)) == payload
+    ]:
+        payload = rule_payload(text=text, steps=("first\nsecond", " trailing "))
+        assert rule_markdown_to_payload(rule_markdown_from_payload(payload)) == payload
 
 
-@pytest.mark.parametrize("change", ["assertions", "source", "attachments", "expected"])
-def test_external_import_identity_includes_all_decisive_inputs(change: str) -> None:
-    adapter = ExternalResultAdapter()
-    payload = ExternalResultPayload(
-        "i", "schema/1", "instance", "record", {"same": True}, {"ok": False}
-    )
-    adapter.validate(
-        payload, expected_schema="schema/1", expected_assertions={"ok": True}, verification_id="v1"
-    )
-    expected = {"ok": True}
-    if change == "assertions":
-        payload = replace(payload, assertion_values={"ok": True})
-    elif change == "source":
-        payload = replace(payload, source_record_id="different")
-    elif change == "attachments":
-        payload = replace(payload, attachment_refs=("different",))
-    else:
-        expected = {"ok": False}
-    with pytest.raises(ValueError, match="conflicts"):
-        adapter.validate(
-            payload, expected_schema="schema/1", expected_assertions=expected, verification_id="v2"
+def test_external_import_identity_includes_all_decisive_inputs() -> None:
+    for change in ["assertions", "source", "attachments", "expected"]:
+        adapter = ExternalResultAdapter()
+        payload = ExternalResultPayload(
+            "i", "schema/1", "instance", "record", {"same": True}, {"ok": False}
         )
+        adapter.validate(
+            payload, expected_schema="schema/1", expected_assertions={"ok": True}, verification_id="v1"  # noqa: E501
+        )
+        expected = {"ok": True}
+        if change == "assertions":
+            payload = replace(payload, assertion_values={"ok": True})
+        elif change == "source":
+            payload = replace(payload, source_record_id="different")
+        elif change == "attachments":
+            payload = replace(payload, attachment_refs=("different",))
+        else:
+            expected = {"ok": False}
+        with pytest.raises(ValueError, match="conflicts"):
+            adapter.validate(
+                payload, expected_schema="schema/1", expected_assertions=expected, verification_id="v2"  # noqa: E501
+            )
 
 
 def test_unreadable_successful_model_draft_does_not_call_provider_again() -> None:

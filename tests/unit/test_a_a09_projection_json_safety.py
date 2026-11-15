@@ -62,19 +62,19 @@ def test_json_escape_does_not_hide_a_registered_credential(shape, secret):
 
 # --------------------------------------------------- 无法严格解析即登记缺口
 
-@pytest.mark.parametrize("raw", [
+def test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved():
+    for raw in [
     '{"note":"first","note":"second"}', '{"note":NaN}', '{"note":1e9999}',
     '{"note":"\\ud800"}', '{"note":"\\u0066ixture-key",broken}',
     "[" * 2000 + "]" * 2000,
-])
-def test_ambiguous_structured_material_is_excluded_with_other_clean_material_preserved(raw):
-    result = SafeMaterialProjector().project(
-        material={MaterialKind.PROJECT_CONTEXT: raw, MaterialKind.TEMPLATE_CONTENT: "clean facts"},
-        source_snippets_enabled=False,
-    )
-    assert result.status is ProjectionStatus.PARTIAL
-    assert (MaterialKind.PROJECT_CONTEXT, "material.project_context") in result.excluded
-    assert [item.projected_text for item in result.projected] == ["clean facts"]
+]:
+        result = SafeMaterialProjector().project(
+            material={MaterialKind.PROJECT_CONTEXT: raw, MaterialKind.TEMPLATE_CONTENT: "clean facts"},  # noqa: E501
+            source_snippets_enabled=False,
+        )
+        assert result.status is ProjectionStatus.PARTIAL
+        assert (MaterialKind.PROJECT_CONTEXT, "material.project_context") in result.excluded
+        assert [item.projected_text for item in result.projected] == ["clean facts"]
 
 
 def test_filtered_key_collision_is_a_gap_not_a_silent_merge():

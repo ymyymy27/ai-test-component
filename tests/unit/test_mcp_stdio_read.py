@@ -86,46 +86,40 @@ def ready(instance):
     )
 
 
-@pytest.mark.parametrize(
-    "version", ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25", "future"]
-)
-def test_version_negotiation_and_fixed_read_tools(version):
-    instance, sent, _ = relay()
-    result = instance.handle(encode(initialize(version)))
-    assert result["result"]["protocolVersion"] == (version if version != "future" else "2025-11-25")
-    instance.handle(encode({"jsonrpc": "2.0", "method": "notifications/initialized"}))
-    tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
-    assert {item["name"] for item in tools} == {"aitest_doctor", "aitest_query"}
-    assert len(sent) == 2
-    assert all("project_id" not in item["inputSchema"].get("properties", {}) for item in tools)
+def test_version_negotiation_and_fixed_read_tools():
+    for version in ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25", "future"]:
+        instance, sent, _ = relay()
+        result = instance.handle(encode(initialize(version)))
+        assert result["result"]["protocolVersion"] == (version if version != "future" else "2025-11-25")  # noqa: E501
+        instance.handle(encode({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+        tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
+        assert {item["name"] for item in tools} == {"aitest_doctor", "aitest_query"}
+        assert len(sent) == 2
+        assert all("project_id" not in item["inputSchema"].get("properties", {}) for item in tools)
 
 
-@pytest.mark.parametrize(
-    "message",
-    [
+def test_invalid_json_never_dispatches():
+    for message in [
         b'{"jsonrpc":"2.0","id":1,"method":"tools/list","method":"initialize"}',
         b'{"jsonrpc":"2.0","id":NaN,"method":"ping"}',
         b"[1,2]",
         b"not json",
         b"\xff",
-    ],
-)
-def test_invalid_json_never_dispatches(message):
-    instance, sent, _ = relay()
-    answer = instance.handle(message)
-    assert "error" in answer and len(sent) == 2
+    ]:
+        instance, sent, _ = relay()
+        answer = instance.handle(message)
+        assert "error" in answer and len(sent) == 2
 
 
-@pytest.mark.parametrize("method", ["tools/list", "tools/call", "unknown"])
-def test_normal_requests_wait_for_initialized_notification(method):
-    instance, sent, _ = relay()
-    answer = instance.handle(encode(rpc(2, method)))
-    assert answer["error"]["code"] == -32000 and len(sent) == 2
+def test_normal_requests_wait_for_initialized_notification():
+    for method in ["tools/list", "tools/call", "unknown"]:
+        instance, sent, _ = relay()
+        answer = instance.handle(encode(rpc(2, method)))
+        assert answer["error"]["code"] == -32000 and len(sent) == 2
 
 
-@pytest.mark.parametrize(
-    "params",
-    [
+def test_invalid_tools_overrides_and_filters_do_not_reach_core():
+    for params in [
         {"name": "publish_plan"},
         {"name": {}},
         {"name": "aitest_query", "arguments": {"project_id": "other"}},
@@ -134,13 +128,11 @@ def test_normal_requests_wait_for_initialized_notification(method):
         {"name": "aitest_query", "arguments": {"limit": 501}},
         {"name": "aitest_query", "arguments": {"sort": "anything"}},
         {"name": "aitest_doctor", "arguments": {"path": "private"}},
-    ],
-)
-def test_invalid_tools_overrides_and_filters_do_not_reach_core(params):
-    instance, sent, _ = relay()
-    ready(instance)
-    answer = instance.handle(encode(rpc(2, "tools/call", params)))
-    assert answer["error"]["code"] == -32602 and len(sent) == 2
+    ]:
+        instance, sent, _ = relay()
+        ready(instance)
+        answer = instance.handle(encode(rpc(2, "tools/call", params)))
+        assert answer["error"]["code"] == -32602 and len(sent) == 2
 
 
 def test_query_uses_the_frozen_project_and_exact_binding_revision():

@@ -123,20 +123,17 @@ def test_target_must_match_the_frozen_action() -> None:
     assert execution.calls == []
 
 
-@pytest.mark.parametrize(
-    "parameters",
-    [
+def test_retry_requires_the_exact_saved_action_reference() -> None:
+    for parameters in [
         {"execution_action_id": "action-1", "record_revision": 2},
         {"execution_action_id": "", "record_revision": 1},
         {"execution_action_id": "action-1"},
         {"execution_action_id": "action-1", "record_revision": 1, "attempt_index": 1},
-    ],
-)
-def test_retry_requires_the_exact_saved_action_reference(parameters: dict[str, object]) -> None:
-    commands, execution = _commands(_action(attempt_index=2))
-    with pytest.raises(InvalidExecutionCommand):
-        commands.retry(_command(parameters=parameters))
-    assert execution.calls == []
+    ]:
+        commands, execution = _commands(_action(attempt_index=2))
+        with pytest.raises(InvalidExecutionCommand):
+            commands.retry(_command(parameters=parameters))
+        assert execution.calls == []
 
 
 def test_retry_without_a_configured_execution_is_unavailable() -> None:

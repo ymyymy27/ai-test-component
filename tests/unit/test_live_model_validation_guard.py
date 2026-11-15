@@ -53,10 +53,10 @@ def test_fresh_harness_cannot_create_confirmation_workspace_or_transport(monkeyp
     assert result["blocked_by"] == ["existing_controlled_validation_workspace_required"]
 
 
-@pytest.mark.parametrize("value", [True, 1.0, "1", -1, 0])
-def test_harness_cannot_coerce_a_saved_revision(value):
-    with pytest.raises(ValidationBlocked, match="revision_unverified"):
-        _revision(value)
+def test_harness_cannot_coerce_a_saved_revision():
+    for value in [True, 1.0, "1", -1, 0]:
+        with pytest.raises(ValidationBlocked, match="revision_unverified"):
+            _revision(value)
 
 
 def test_harness_reads_actual_saved_controlled_policy_without_model_call(policy_core):

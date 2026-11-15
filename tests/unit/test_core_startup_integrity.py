@@ -715,16 +715,16 @@ def test_client_completes_partial_writes_without_duplicating_frame():
     assert captured == len(payload).to_bytes(4, "big") + payload
 
 
-@pytest.mark.parametrize("success,count", [(False, 2), (True, 0), (True, 999)])
-def test_client_failed_writes_cannot_claim_complete_command(success, count):
-    def write(handle, buffer, size, output, overlap):
-        assert output is None and overlap is not None
-        ctypes.set_last_error(5 if not success else 0)
-        return success
+def test_client_failed_writes_cannot_claim_complete_command():
+    for success, count in [(False, 2), (True, 0), (True, 999)]:
+        def write(handle, buffer, size, output, overlap):
+            assert output is None and overlap is not None
+            ctypes.set_last_error(5 if not success else 0)  # noqa: B023
+            return success  # noqa: B023
 
-    client = _immediate_client(write, lambda: count)
-    with pytest.raises(pipe.PipeUnavailable):
-        client.write_message(b"query")
+        client = _immediate_client(write, lambda: count)  # noqa: B023
+        with pytest.raises(pipe.PipeUnavailable):
+            client.write_message(b"query")
 
 
 def test_client_rejects_oversized_response_before_allocating_or_reading_body():
@@ -744,16 +744,16 @@ def test_client_rejects_oversized_response_before_allocating_or_reading_body():
     assert calls == [4]
 
 
-@pytest.mark.parametrize("success,count", [(False, 2), (True, 0), (True, 999)])
-def test_client_failed_reads_do_not_accept_partial_or_false_success(success, count):
-    def read(handle, buffer, size, output, overlap):
-        assert output is None and overlap is not None
-        ctypes.set_last_error(5 if not success else 0)
-        return success
+def test_client_failed_reads_do_not_accept_partial_or_false_success():
+    for success, count in [(False, 2), (True, 0), (True, 999)]:
+        def read(handle, buffer, size, output, overlap):
+            assert output is None and overlap is not None
+            ctypes.set_last_error(5 if not success else 0)  # noqa: B023
+            return success  # noqa: B023
 
-    client = _immediate_client(read, lambda: count)
-    with pytest.raises(pipe.PipeUnavailable):
-        client._read_exact(4)
+        client = _immediate_client(read, lambda: count)  # noqa: B023
+        with pytest.raises(pipe.PipeUnavailable):
+            client._read_exact(4)
 
 
 def test_valid_instance_filename_rejects_windows_device_names() -> None:

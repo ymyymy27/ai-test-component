@@ -6,9 +6,8 @@ from pydantic import ValidationError
 from aitest.contracts.queries import QuerySpec
 
 
-@pytest.mark.parametrize(
-    "selectors",
-    [
+def test_illegal_selector_combinations_are_rejected():
+    for selectors in [
         {"revision": 2},
         {"record_id": "x"},
         {"aggregate_kind": "case", "revision": 2},
@@ -26,16 +25,13 @@ from aitest.contracts.queries import QuerySpec
         {"run_id": "x", "revision": 1},
         {"aggregate_kind": "case", "business_outcome": "passed"},
         {"aggregate_kind": "report", "record_id": "x", "business_outcome": "passed"},
-    ],
-)
-def test_illegal_selector_combinations_are_rejected(selectors):
-    with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
-        QuerySpec(project_id="p", **selectors)
+    ]:
+        with pytest.raises(ValidationError, match="QUERY_UNSUPPORTED_FILTER"):
+            QuerySpec(project_id="p", **selectors)
 
 
-@pytest.mark.parametrize(
-    "selectors",
-    [
+def test_existing_finite_routes_remain_valid():
+    for selectors in [
         {},
         {"aggregate_kind": "case"},
         {"aggregate_kind": "case", "record_id": "x"},
@@ -49,11 +45,9 @@ def test_illegal_selector_combinations_are_rejected(selectors):
         {"view": "OPEN", "facet": "module", "facet_value": "m", "severity": "high"},
         {"facet": "layer", "facet_value": "L1"},
         {"severity": "high"},
-    ],
-)
-def test_existing_finite_routes_remain_valid(selectors):
-    spec = QuerySpec(project_id="p", **selectors)
-    spec.ensure_finite_route()
+    ]:
+        spec = QuerySpec(project_id="p", **selectors)
+        spec.ensure_finite_route()
 
 
 @pytest.mark.parametrize("method", ["model_copy", "model_construct"])

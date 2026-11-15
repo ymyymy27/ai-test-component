@@ -22,16 +22,16 @@ def observe(body, path="value", expected=None, operator=HttpAssertionOperator.EQ
     ), spec)
 
 
-@pytest.mark.parametrize("body,path", [
+def test_unavailable_http_value_never_becomes_a_null_match() -> None:
+    for body, path in [
     (b"", "value"), (b"not JSON", ""), (b"{}", "value"),
     (b'{"value":[]}', "value[0]"), (b'{"value":null}', "value.child"),
-])
-def test_unavailable_http_value_never_becomes_a_null_match(body, path) -> None:
-    result = observe(body, path)
-    assert result.assertion_results[0].matched is None
-    assert not result.assertion_results[0].value_available
-    assert result.missing_extractions == ("value",)
-    assert result.request_log_ref == "http-request:observation"
+]:
+        result = observe(body, path)
+        assert result.assertion_results[0].matched is None
+        assert not result.assertion_results[0].value_available
+        assert result.missing_extractions == ("value",)
+        assert result.request_log_ref == "http-request:observation"
 
 
 def test_explicit_json_null_remains_an_available_exact_value() -> None:

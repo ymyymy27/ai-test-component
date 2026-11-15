@@ -14,9 +14,8 @@ from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from aitest.interfaces.local.core_worker import dispatch_frame
 
 
-@pytest.mark.parametrize(
-    "raw",
-    [
+def test_ambiguous_frame_is_rejected_before_business_or_shutdown():
+    for raw in [
         b'{"action":"doctor","action":"doctor","request_id":"req"}',
         b'{"action":"doctor","request_id":"foreign","request_id":"req"}',
         b'{"action":"doctor","request_id":"req","parameters":{"run_id":"foreign","run_id":"run"}}',
@@ -26,18 +25,16 @@ from aitest.interfaces.local.core_worker import dispatch_frame
         b'{"action":"doctor","request_id":"req","parameters":{"value":-Infinity}}',
         b'{"action":"doctor","request_id":"req","parameters":{"value":1e999}}',
         b'{"__aitest_control__":"unknown","__aitest_control__":"shutdown","request_id":"req"}',
-    ],
-)
-def test_ambiguous_frame_is_rejected_before_business_or_shutdown(raw):
-    api = LocalAPI(instance_id="core", workspace_id="workspace")
-    api.dispatch = Mock(
-        return_value=Response(request_id="req", instance_id="core", result={"status": "READY"})
-    )
-    result = dispatch_frame(api, Session("relay", EntryKind.AGENT_RELAY), raw)
-    assert isinstance(result, Response)
-    assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
-    assert result.request_id == "invalid-request"
-    api.dispatch.assert_not_called()
+    ]:
+        api = LocalAPI(instance_id="core", workspace_id="workspace")
+        api.dispatch = Mock(
+            return_value=Response(request_id="req", instance_id="core", result={"status": "READY"})
+        )
+        result = dispatch_frame(api, Session("relay", EntryKind.AGENT_RELAY), raw)
+        assert isinstance(result, Response)
+        assert result.error is not None and result.error.code == "MALFORMED_MESSAGE"
+        assert result.request_id == "invalid-request"
+        api.dispatch.assert_not_called()
 
 
 def test_excessive_json_nesting_does_not_terminate_the_serving_core():

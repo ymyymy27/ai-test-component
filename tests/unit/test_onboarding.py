@@ -82,10 +82,10 @@ def test_wizard_commands_are_ordinary_commands_without_authority():
     assert wizard_commands(changed,"project",{})[0]["intent_id"]!=project[0]["intent_id"]
 
 
-@pytest.mark.parametrize("entry",["../main.py","C:/main.py","/main.py","main.sh"])
-def test_wizard_refuses_entry_outside_declared_python_scope(entry):
-    with pytest.raises(ValueError):
-        wizard_commands(form().model_copy(update={"entry":entry}),"project",{})
+def test_wizard_refuses_entry_outside_declared_python_scope():
+    for entry in ["../main.py","C:/main.py","/main.py","main.sh"]:
+        with pytest.raises(ValueError):
+            wizard_commands(form().model_copy(update={"entry":entry}),"project",{})
 
 
 def test_wizard_never_invents_snapshot_or_confirmation_receipts():

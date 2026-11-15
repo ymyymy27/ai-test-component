@@ -699,22 +699,18 @@ def _member_fixture(names, *, manifest_mutator=None, symbolic_link=False) -> byt
     return buffer.getvalue()
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
+def test_bundle_guard_preserves_portable_unicode_and_nested_members() -> None:
+    for name in [
         "evidence/evidence-1.bin",
         "evidence/证据.bin",
         "evidence/group/item.bin",
         "evidence/COM10.bin",
-    ],
-)
-def test_bundle_guard_preserves_portable_unicode_and_nested_members(name) -> None:
-    _verify_bundle_paths(_member_fixture([name]))
+    ]:
+        _verify_bundle_paths(_member_fixture([name]))
 
 
-@pytest.mark.parametrize(
-    "names",
-    [
+def test_bundle_guard_refuses_portability_and_manifest_aliases() -> None:
+    for names in [
         ["evidence/a.bin", "evidence/A.bin"],
         ["evidence/Å.bin", "evidence/A\u030a.bin"],
         ["evidence/COM¹.bin"],
@@ -724,11 +720,9 @@ def test_bundle_guard_preserves_portable_unicode_and_nested_members(name) -> Non
         ["evidence/folder /item.bin"],
         ["evidence/a:stream.bin"],
         ["evidence/item\x00suffix.bin"],
-    ],
-)
-def test_bundle_guard_refuses_portability_and_manifest_aliases(names) -> None:
-    with pytest.raises(ExportRefused):
-        _verify_bundle_paths(_member_fixture(names))
+    ]:
+        with pytest.raises(ExportRefused):
+            _verify_bundle_paths(_member_fixture(names))
 
 
 def test_bundle_guard_refuses_symlink_members() -> None:
@@ -736,24 +730,22 @@ def test_bundle_guard_refuses_symlink_members() -> None:
         _verify_bundle_paths(_member_fixture(["evidence/item.bin"], symbolic_link=True))
 
 
-@pytest.mark.parametrize(
-    "mutation", ["missing", "duplicate", "foreign", "wrong_size", "unknown_format"]
-)
-def test_bundle_guard_checks_manifest_paths_against_actual_directory(mutation) -> None:
-    def alter(manifest):
-        if mutation == "missing":
-            manifest["files"].pop()
-        elif mutation == "duplicate":
-            manifest["files"].append(manifest["files"][0])
-        elif mutation == "foreign":
-            manifest["attachments"][0]["path"] = "../../outside"
-        elif mutation == "wrong_size":
-            manifest["files"][0]["size"] += 1
-        else:
-            manifest["format_version"] = "unknown"
+def test_bundle_guard_checks_manifest_paths_against_actual_directory() -> None:
+    for mutation in ["missing", "duplicate", "foreign", "wrong_size", "unknown_format"]:
+        def alter(manifest):
+            if mutation == "missing":  # noqa: B023
+                manifest["files"].pop()
+            elif mutation == "duplicate":  # noqa: B023
+                manifest["files"].append(manifest["files"][0])
+            elif mutation == "foreign":  # noqa: B023
+                manifest["attachments"][0]["path"] = "../../outside"
+            elif mutation == "wrong_size":  # noqa: B023
+                manifest["files"][0]["size"] += 1
+            else:
+                manifest["format_version"] = "unknown"
 
-    with pytest.raises(ExportRefused):
-        _verify_bundle_paths(_member_fixture(["evidence/item.bin"], manifest_mutator=alter))
+        with pytest.raises(ExportRefused):
+            _verify_bundle_paths(_member_fixture(["evidence/item.bin"], manifest_mutator=alter))
 
 
 def test_export_refuses_unavailable_policy_instead_of_claiming_it(tmp_path) -> None:
@@ -798,17 +790,14 @@ def test_bundle_refuses_unsupported_manifest_compression() -> None:
         _verify_bundle_paths(buffer.getvalue())
 
 
-@pytest.mark.parametrize(
-    "names",
-    [
+def test_bundle_guard_refuses_file_directory_prefix_collisions() -> None:
+    for names in [
         ["evidence/parent.bin", "evidence/parent.bin/child.bin"],
         ["evidence/parent.bin/child.bin", "evidence/PARENT.bin"],
         ["evidence/é.bin", "evidence/e\u0301.bin/child.bin"],
-    ],
-)
-def test_bundle_guard_refuses_file_directory_prefix_collisions(names) -> None:
-    with pytest.raises(ExportRefused, match="paths collide"):
-        _verify_bundle_paths(_member_fixture(names))
+    ]:
+        with pytest.raises(ExportRefused, match="paths collide"):
+            _verify_bundle_paths(_member_fixture(names))
 
 
 @pytest.mark.parametrize("flag", [1, 64])

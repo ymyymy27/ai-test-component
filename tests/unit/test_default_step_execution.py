@@ -67,66 +67,61 @@ class ActualCommandResolver(FixtureActionResolver):
         )
 
 
-@pytest.mark.parametrize(
-    "parameters",
-    [
+def test_public_execution_rejects_injected_input_before_reading():
+    for parameters in [
         {"execution_action_id": "action", "record_revision": True},
         {"execution_action_id": "action", "record_revision": 1, "command": "echo"},
         {"execution_action_id": "", "record_revision": 1},
-    ],
-)
-def test_public_execution_rejects_injected_input_before_reading(parameters):
-    service, execution = Mock(), Mock()
-    entry = ExecutionCommands(service, execution=execution)
-    value = Command(
-        action="execute_step",
-        project_id="project",
-        request_id="req",
-        intent_id="intent",
-        expected_revision=0,
-        target="step",
-        parameters=parameters,
-    )
-    with pytest.raises(ValueError) as caught:
-        entry.execute(value)
-    assert caught.value.code == "INVALID_REQUEST"
-    assert not service.mock_calls and not execution.mock_calls
+    ]:
+        service, execution = Mock(), Mock()
+        entry = ExecutionCommands(service, execution=execution)
+        value = Command(
+            action="execute_step",
+            project_id="project",
+            request_id="req",
+            intent_id="intent",
+            expected_revision=0,
+            target="step",
+            parameters=parameters,
+        )
+        with pytest.raises(ValueError) as caught:
+            entry.execute(value)
+        assert caught.value.code == "INVALID_REQUEST"
+        assert not service.mock_calls and not execution.mock_calls
 
 
-@pytest.mark.parametrize(
-    "state", [AttemptState.RUNNING, AttemptState.UNKNOWN, AttemptState.PENDING_VERIFICATION]
-)
-def test_serial_start_blocks_other_active_or_unknown_saved_attempts(state):
-    batch = _batch()
-    old = replace(batch.checkpoint.attempt, state=state, exit_fact_ref=None)
-    new = replace(old, attempt_id="new-attempt", step_id="step-2")
-    with pytest.raises(ValueError, match="active or unverified"):
-        ExecutionCommitCoordinator._require_serial_start(batch.facts, new, (old,))
+def test_serial_start_blocks_other_active_or_unknown_saved_attempts():
+    for state in [AttemptState.RUNNING, AttemptState.UNKNOWN, AttemptState.PENDING_VERIFICATION]:
+        batch = _batch()
+        old = replace(batch.checkpoint.attempt, state=state, exit_fact_ref=None)
+        new = replace(old, attempt_id="new-attempt", step_id="step-2")
+        with pytest.raises(ValueError, match="active or unverified"):
+            ExecutionCommitCoordinator._require_serial_start(batch.facts, new, (old,))
 
 
-@pytest.mark.parametrize("invalid", ["no_attempt", "pending_step", "capture_gap", "missing_exit"])
-def test_serial_dependency_needs_actual_complete_current_basis(invalid):
-    batch = _batch()
-    step = batch.facts.steps[0]
-    next_step = step.model_copy(
-        update={
-            "step_id": "step-2",
-            "dependency_step_ids": (step.step_id,),
-            "state": StepStateFact.PENDING,
-        }
-    )
-    old = batch.checkpoint.attempt
-    if invalid == "capture_gap":
-        old = replace(old, capture_completeness=CaptureCompleteness.GAP)
-    elif invalid == "missing_exit":
-        old = replace(old, exit_fact_ref=None)
-    if invalid == "pending_step":
-        step = step.model_copy(update={"state": StepStateFact.PENDING})
-    current = batch.facts.model_copy(update={"steps": (step, next_step)})
-    saved = () if invalid == "no_attempt" else (old,)
-    new = replace(old, attempt_id="new-attempt", step_id="step-2")
-    with pytest.raises(ValueError):
-        ExecutionCommitCoordinator._require_serial_start(current, new, saved)
+def test_serial_dependency_needs_actual_complete_current_basis():
+    for invalid in ["no_attempt", "pending_step", "capture_gap", "missing_exit"]:
+        batch = _batch()
+        step = batch.facts.steps[0]
+        next_step = step.model_copy(
+            update={
+                "step_id": "step-2",
+                "dependency_step_ids": (step.step_id,),
+                "state": StepStateFact.PENDING,
+            }
+        )
+        old = batch.checkpoint.attempt
+        if invalid == "capture_gap":
+            old = replace(old, capture_completeness=CaptureCompleteness.GAP)
+        elif invalid == "missing_exit":
+            old = replace(old, exit_fact_ref=None)
+        if invalid == "pending_step":
+            step = step.model_copy(update={"state": StepStateFact.PENDING})
+        current = batch.facts.model_copy(update={"steps": (step, next_step)})
+        saved = () if invalid == "no_attempt" else (old,)
+        new = replace(old, attempt_id="new-attempt", step_id="step-2")
+        with pytest.raises(ValueError):
+            ExecutionCommitCoordinator._require_serial_start(current, new, saved)
 
 
 def test_serial_dependency_accepts_a_reliably_completed_empty_output():

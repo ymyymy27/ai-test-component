@@ -36,24 +36,21 @@ def pair():
     return request, result
 
 
-@pytest.mark.parametrize(
-    "field",
-    [
+def test_other_scope_cannot_be_attached_to_the_requested_object():
+    for field in [
         "verification_of",
         "business_object_id",
         "target_deployment_ref",
         "query_method",
         "query_interval",
         "deadline_condition",
-    ],
-)
-def test_other_scope_cannot_be_attached_to_the_requested_object(field):
-    request, result = pair()
-    verifier = Mock()
-    verifier.verify.return_value = replace(result, **{field: "different"})
-    with pytest.raises(ValueError, match="different|scope"):
-        EvidenceReviewService(verifier).review(request)
-    verifier.verify.assert_called_once_with(request)
+    ]:
+        request, result = pair()
+        verifier = Mock()
+        verifier.verify.return_value = replace(result, **{field: "different"})
+        with pytest.raises(ValueError, match="different|scope"):
+            EvidenceReviewService(verifier).review(request)
+        verifier.verify.assert_called_once_with(request)
 
 
 def test_expected_evidence_cannot_be_dropped_from_the_returned_fact():
@@ -64,20 +61,20 @@ def test_expected_evidence_cannot_be_dropped_from_the_returned_fact():
         EvidenceReviewService(verifier).review(request)
 
 
-@pytest.mark.parametrize("change", ["shape", "observation", "actual_reference"])
-def test_invalid_verification_shape_remains_unverified(change):
-    request, result = pair()
-    verifier = Mock()
-    if change == "shape":
-        result = {"passed": True}
-    elif change == "observation":
-        result = replace(result, observation="matched")
-    else:
-        request = replace(request, evidence_refs=())
-        result = replace(result, actual_result_ref=None, evidence_refs=())
-    verifier.verify.return_value = result
-    with pytest.raises(ValueError, match="verification|observation|reference"):
-        EvidenceReviewService(verifier).review(request)
+def test_invalid_verification_shape_remains_unverified():
+    for change in ["shape", "observation", "actual_reference"]:
+        request, result = pair()
+        verifier = Mock()
+        if change == "shape":
+            result = {"passed": True}
+        elif change == "observation":
+            result = replace(result, observation="matched")
+        else:
+            request = replace(request, evidence_refs=())
+            result = replace(result, actual_result_ref=None, evidence_refs=())
+        verifier.verify.return_value = result
+        with pytest.raises(ValueError, match="verification|observation|reference"):
+            EvidenceReviewService(verifier).review(request)
 
 
 def test_matching_result_retains_added_evidence_and_unknown_query_outcome():

@@ -141,12 +141,9 @@ def test_canonical_absolute_paths_are_accepted(path: str) -> None:
     assert path_is_canonical_absolute(path) is True
 
 
-@pytest.mark.parametrize(
-    "path",
-    ["", "   ", r"work\project", r"C:\work\..\escape", "/work/project"],
-)
-def test_non_canonical_paths_are_rejected(path: str) -> None:
-    assert path_is_canonical_absolute(path) is False
+def test_non_canonical_paths_are_rejected() -> None:
+    for path in ["", "   ", r"work\project", r"C:\work\..\escape", "/work/project"]:
+        assert path_is_canonical_absolute(path) is False
 
 
 def test_single_dot_segments_are_normalised_by_the_path_type() -> None:

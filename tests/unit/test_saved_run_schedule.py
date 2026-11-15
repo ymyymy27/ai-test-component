@@ -70,69 +70,61 @@ def grant_step(core, facts, step, *, intent, running=0):
     return action
 
 
-@pytest.mark.parametrize(
-    "parameters",
-    [
+def test_schedule_rejects_executable_input_before_storage():
+    for parameters in [
         {"run_id": "run", "base_snapshot_commit_id": "commit", "command": "injected"},
         {"run_id": "run"},
         {"run_id": "", "base_snapshot_commit_id": "commit"},
         {"run_id": "run", "base_snapshot_commit_id": 1},
-    ],
-)
-def test_schedule_rejects_executable_input_before_storage(parameters):
-    coordinator, execution = Mock(), Mock()
-    service = SavedRunSchedule(coordinator, execution, "workspace")
-    command = Command(
-        action="start_run",
-        project_id="project",
-        intent_id="intent",
-        request_id="request",
-        target="run",
-        expected_revision=0,
-        parameters=parameters,
-    )
-    with pytest.raises(ValueError) as error:
-        service.apply(command)
-    assert error.value.code == "INVALID_REQUEST"
-    assert not coordinator.mock_calls and not execution.mock_calls
+    ]:
+        coordinator, execution = Mock(), Mock()
+        service = SavedRunSchedule(coordinator, execution, "workspace")
+        command = Command(
+            action="start_run",
+            project_id="project",
+            intent_id="intent",
+            request_id="request",
+            target="run",
+            expected_revision=0,
+            parameters=parameters,
+        )
+        with pytest.raises(ValueError) as error:
+            service.apply(command)
+        assert error.value.code == "INVALID_REQUEST"
+        assert not coordinator.mock_calls and not execution.mock_calls
 
 
-@pytest.mark.parametrize(
-    "state", ["pending", "running", "completed", "invalidated", "execution_error"]
-)
-def test_schedule_dependency_projection_uses_the_shared_domain_rule(state):
-    facts = _batch().facts
-    first = facts.steps[0].model_copy(update={"state": StepStateFact(state)})
-    dependent = first.model_copy(
-        update={
-            "step_id": "dependent",
-            "state": StepStateFact.PENDING,
-            "ordinal": first.ordinal + 1,
-            "dependency_step_ids": (first.step_id,),
-        }
-    )
-    result = dispatch_plan(facts.model_copy(update={"steps": (dependent, first)}))
-    if state == "completed":
-        assert result.ready_step_ids == (dependent.step_id,)
-    elif state in {"invalidated", "execution_error"}:
-        assert dependent.step_id in result.blocked_step_ids
-    else:
-        assert dependent.step_id in result.waiting_step_ids
+def test_schedule_dependency_projection_uses_the_shared_domain_rule():
+    for state in ["pending", "running", "completed", "invalidated", "execution_error"]:
+        facts = _batch().facts
+        first = facts.steps[0].model_copy(update={"state": StepStateFact(state)})
+        dependent = first.model_copy(
+            update={
+                "step_id": "dependent",
+                "state": StepStateFact.PENDING,
+                "ordinal": first.ordinal + 1,
+                "dependency_step_ids": (first.step_id,),
+            }
+        )
+        result = dispatch_plan(facts.model_copy(update={"steps": (dependent, first)}))
+        if state == "completed":
+            assert result.ready_step_ids == (dependent.step_id,)
+        elif state in {"invalidated", "execution_error"}:
+            assert dependent.step_id in result.blocked_step_ids
+        else:
+            assert dependent.step_id in result.waiting_step_ids
 
 
-@pytest.mark.parametrize(
-    "state",
-    [RunControlStateFact.PAUSED, RunControlStateFact.CANCELLED, RunControlStateFact.RECOVERING],
-)
-def test_saved_schedule_cannot_release_later_controls(state):
-    facts = _batch().facts
-    facts = facts.model_copy(update={"run": facts.run.model_copy(update={"control_state": state})})
-    service = SavedRunSchedule(Mock(), Mock(), facts.run.origin_workspace_id)
-    service._current = Mock(return_value=facts)
-    result = service._advance(facts.project_id, facts.run_id, "original-schedule")
-    assert result["status"] == "controlled"
-    assert result["execution_facts"]["run"]["control_state"] == state.value
-    assert not service.execution.mock_calls and not service.unit.mock_calls
+def test_saved_schedule_cannot_release_later_controls():
+    for state in [RunControlStateFact.PAUSED, RunControlStateFact.CANCELLED, RunControlStateFact.RECOVERING]:  # noqa: E501
+        facts = _batch().facts
+        facts = facts.model_copy(update={"run": facts.run.model_copy(update={"control_state": state})})  # noqa: E501
+        service = SavedRunSchedule(Mock(), Mock(), facts.run.origin_workspace_id)
+        service._current = Mock(return_value=facts)
+        result = service._advance(facts.project_id, facts.run_id, "original-schedule")
+        assert result["status"] == "controlled"
+        assert result["execution_facts"]["run"]["control_state"] == state.value
+        assert not service.execution.mock_calls and not service.unit.mock_calls
 
 
 def test_saved_schedule_cannot_restore_planned_driver():
@@ -282,29 +274,29 @@ def test_authorization_limit_blocks_before_reading_individual_grants(monkeypatch
     assert not service.execution.authorizations._origin.mock_calls
 
 
-@pytest.mark.parametrize("problem", ["no_exit", "gap", "history_active"])
-def test_completed_run_label_requires_reliable_current_and_historical_boundary(problem):
-    facts = _batch().facts
-    service = SavedRunSchedule(Mock(), Mock(), facts.run.origin_workspace_id)
-    service._current = Mock(return_value=facts)
-    saved = _batch().checkpoint.attempt
-    if problem == "no_exit":
-        saved = replace(saved, exit_fact_ref=None)
-    elif problem == "gap":
-        from aitest.domain.execution.runs import CaptureCompleteness
+def test_completed_run_label_requires_reliable_current_and_historical_boundary():
+    for problem in ["no_exit", "gap", "history_active"]:
+        facts = _batch().facts
+        service = SavedRunSchedule(Mock(), Mock(), facts.run.origin_workspace_id)
+        service._current = Mock(return_value=facts)
+        saved = _batch().checkpoint.attempt
+        if problem == "no_exit":
+            saved = replace(saved, exit_fact_ref=None)
+        elif problem == "gap":
+            from aitest.domain.execution.runs import CaptureCompleteness
 
-        saved = replace(saved, capture_completeness=CaptureCompleteness.GAP)
-    attempts = (saved,)
-    if problem == "history_active":
-        attempts += (
-            replace(
-                saved, attempt_id="old-live", state=AttemptState.INVALIDATED, exit_fact_ref=None
-            ),
-        )
-    service._attempts = Mock(return_value=attempts)
-    result = service._advance(facts.project_id, facts.run_id, "original-schedule")
-    assert result["status"] == "unverified_completion"
-    assert not service.execution.mock_calls and not service.unit.mock_calls
+            saved = replace(saved, capture_completeness=CaptureCompleteness.GAP)
+        attempts = (saved,)
+        if problem == "history_active":
+            attempts += (
+                replace(
+                    saved, attempt_id="old-live", state=AttemptState.INVALIDATED, exit_fact_ref=None
+                ),
+            )
+        service._attempts = Mock(return_value=attempts)
+        result = service._advance(facts.project_id, facts.run_id, "original-schedule")
+        assert result["status"] == "unverified_completion"
+        assert not service.execution.mock_calls and not service.unit.mock_calls
 
 
 def test_reliable_completed_run_recall_proves_original_intent_without_adapter():

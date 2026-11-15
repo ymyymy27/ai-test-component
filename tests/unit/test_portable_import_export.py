@@ -194,12 +194,12 @@ def test_unknown_rule_payload_version_is_rejected() -> None:
         rule_draft_from_payload(payload)
 
 
-@pytest.mark.parametrize("field", ["rule_id", "scope", "text", "source"])
-def test_missing_rule_field_is_rejected(field: str) -> None:
-    payload = rule_draft_to_payload(_draft())
-    del payload[field]
-    with pytest.raises(ValueError, match=field):
-        rule_draft_from_payload(payload)
+def test_missing_rule_field_is_rejected() -> None:
+    for field in ["rule_id", "scope", "text", "source"]:
+        payload = rule_draft_to_payload(_draft())
+        del payload[field]
+        with pytest.raises(ValueError, match=field):
+            rule_draft_from_payload(payload)
 
 
 def test_bad_revision_is_rejected() -> None:

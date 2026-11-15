@@ -63,23 +63,23 @@ def _rules():
     )
 
 
-@pytest.mark.parametrize("wrong", ["kind", "id", "revision", "bool_revision", "body", "draft"])
-def test_plan_rule_reader_rejects_another_saved_record_or_unpublished_version(wrong):
-    record = _rules()
-    if wrong == "body":
-        record = replace(record, payload={**record.payload, "rule_id": "foreign"})
-    elif wrong == "draft":
-        record = replace(record, payload={**record.payload, "status": "draft"})
-    else:
-        record = _wrong(record, wrong)
-    reader = Mock()
-    reader.read.return_value = record
-    with pytest.raises(BUseCaseError):
-        _rule_versions_for(
-            SimpleNamespace(reader=reader),
-            project_id="p",
-            parameters={"rule_revisions": [{"rule_id": "r", "revision": 2}]},
-        )
+def test_plan_rule_reader_rejects_another_saved_record_or_unpublished_version():
+    for wrong in ["kind", "id", "revision", "bool_revision", "body", "draft"]:
+        record = _rules()
+        if wrong == "body":
+            record = replace(record, payload={**record.payload, "rule_id": "foreign"})
+        elif wrong == "draft":
+            record = replace(record, payload={**record.payload, "status": "draft"})
+        else:
+            record = _wrong(record, wrong)
+        reader = Mock()
+        reader.read.return_value = record
+        with pytest.raises(BUseCaseError):
+            _rule_versions_for(
+                SimpleNamespace(reader=reader),
+                project_id="p",
+                parameters={"rule_revisions": [{"rule_id": "r", "revision": 2}]},
+            )
 
 
 def test_plan_rule_keeps_body_version_distinct_from_warehouse_revision():
@@ -93,14 +93,14 @@ def test_plan_rule_keeps_body_version_distinct_from_warehouse_revision():
     assert version.rule_id == "r" and version.revision == 7 and version.record_revision == 2
 
 
-@pytest.mark.parametrize("wrong", ["kind", "id", "revision", "bool_revision"])
-def test_drift_readability_cannot_accept_a_different_saved_envelope(wrong):
-    record = CommittedRecord("binding", "b", 1, {"project_id": "p", "binding_id": "b"})
-    reader = Mock()
-    reader.read.return_value = _wrong(record, wrong)
-    assert not _readable(
-        reader, project_id="p", aggregate_kind="binding", record_id="b", revision=1
-    )
+def test_drift_readability_cannot_accept_a_different_saved_envelope():
+    for wrong in ["kind", "id", "revision", "bool_revision"]:
+        record = CommittedRecord("binding", "b", 1, {"project_id": "p", "binding_id": "b"})
+        reader = Mock()
+        reader.read.return_value = _wrong(record, wrong)
+        assert not _readable(
+            reader, project_id="p", aggregate_kind="binding", record_id="b", revision=1
+        )
 
 
 def _draft():
@@ -124,21 +124,21 @@ def _draft():
     )
 
 
-@pytest.mark.parametrize("wrong", ["kind", "id", "revision", "bool_revision", "bool_reference"])
-def test_model_recall_cannot_reuse_a_different_saved_draft(wrong):
-    reader = Mock()
-    reader.read.return_value = _draft() if wrong == "bool_reference" else _wrong(_draft(), wrong)
-    result = _recall_existing_draft(
-        reader,
-        project_id="p",
-        payload={
-            "generated_content_id": "g",
-            "generated_content_revision": True if wrong == "bool_reference" else 1,
-        },
-    )
-    assert result is None
-    if wrong == "bool_reference":
-        reader.read.assert_not_called()
+def test_model_recall_cannot_reuse_a_different_saved_draft():
+    for wrong in ["kind", "id", "revision", "bool_revision", "bool_reference"]:
+        reader = Mock()
+        reader.read.return_value = _draft() if wrong == "bool_reference" else _wrong(_draft(), wrong)  # noqa: E501
+        result = _recall_existing_draft(
+            reader,
+            project_id="p",
+            payload={
+                "generated_content_id": "g",
+                "generated_content_revision": True if wrong == "bool_reference" else 1,
+            },
+        )
+        assert result is None
+        if wrong == "bool_reference":
+            reader.read.assert_not_called()
 
 
 def test_exact_model_recall_preserves_the_original_safe_body():
@@ -156,21 +156,21 @@ def test_exact_model_recall_preserves_the_original_safe_body():
     assert result.content_digest == text_digest("the original safe draft")
 
 
-@pytest.mark.parametrize("wrong", ["kind", "id", "revision", "bool_revision"])
-def test_wrong_source_envelope_blocks_before_reading_pinned_material(wrong):
-    from aitest.application.project.source_analysis import SourceAnalysisService
+def test_wrong_source_envelope_blocks_before_reading_pinned_material():
+    for wrong in ["kind", "id", "revision", "bool_revision"]:
+        from aitest.application.project.source_analysis import SourceAnalysisService
 
-    reader, snapshots = Mock(), Mock()
-    reader.read.return_value = _wrong(
-        CommittedRecord("source_snapshot", "s", 1, {"project_id": "p", "snapshot_id": "s"}), wrong
-    )
-    service = SourceAnalysisService(
-        reader=reader, unit_of_work=Mock(), snapshots=snapshots, source_control=None
-    )
-    with pytest.raises(ValueError):
-        service.check(project_id="p", snapshot_id="s", revision=1)
-    snapshots.assert_not_called()
-    assert not snapshots.method_calls
+        reader, snapshots = Mock(), Mock()
+        reader.read.return_value = _wrong(
+            CommittedRecord("source_snapshot", "s", 1, {"project_id": "p", "snapshot_id": "s"}), wrong  # noqa: E501
+        )
+        service = SourceAnalysisService(
+            reader=reader, unit_of_work=Mock(), snapshots=snapshots, source_control=None
+        )
+        with pytest.raises(ValueError):
+            service.check(project_id="p", snapshot_id="s", revision=1)
+        snapshots.assert_not_called()
+        assert not snapshots.method_calls
 
 
 @pytest.mark.parametrize(

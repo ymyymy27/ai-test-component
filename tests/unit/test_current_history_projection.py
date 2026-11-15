@@ -137,9 +137,8 @@ def test_invalidation_retains_redaction_provenance_for_the_same_saved_output_byt
     assert result.attempts[0].state == "invalidated"
 
 
-@pytest.mark.parametrize(
-    "state",
-    [
+def test_runtime_boundary_rejects_current_or_historical_activity():
+    for state in [
         AttemptState.INTENT_RECORDED,
         AttemptState.STARTING,
         AttemptState.RUNNING,
@@ -147,13 +146,11 @@ def test_invalidation_retains_redaction_provenance_for_the_same_saved_output_byt
         AttemptState.COLLECTING,
         AttemptState.UNKNOWN,
         AttemptState.PENDING_VERIFICATION,
-    ],
-)
-def test_runtime_boundary_rejects_current_or_historical_activity(state):
-    batch = _batch()
-    fact = project_attempt_fact(replace(batch.checkpoint.attempt, state=state), is_current=False)
-    with pytest.raises(ValueError, match="verified non-active"):
-        require_runtime_boundary(batch.facts.model_copy(update={"attempts": (fact,)}))
+    ]:
+        batch = _batch()
+        fact = project_attempt_fact(replace(batch.checkpoint.attempt, state=state), is_current=False)  # noqa: E501
+        with pytest.raises(ValueError, match="verified non-active"):
+            require_runtime_boundary(batch.facts.model_copy(update={"attempts": (fact,)}))
 
 
 def test_completed_state_with_unverified_handle_does_not_prove_a_runtime_boundary():

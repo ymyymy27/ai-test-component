@@ -140,32 +140,29 @@ def test_adapter_digest_is_optional_but_never_approximate() -> None:
         reference(adapter_digest="sha256:short")
 
 
-@pytest.mark.parametrize("commit", ["0", "01", "abc", "1.0", True, 1, "", "-1"])
-def test_validity_commit_must_be_a_canonical_positive_sequence(commit: object) -> None:
-    with pytest.raises(ValidationError):
-        reference(validity_checked_at_commit=commit)
+def test_validity_commit_must_be_a_canonical_positive_sequence() -> None:
+    for commit in ["0", "01", "abc", "1.0", True, 1, "", "-1"]:
+        with pytest.raises(ValidationError):
+            reference(validity_checked_at_commit=commit)
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
+def test_reference_identities_must_be_nonempty_and_unique() -> None:
+    for overrides in [
         {"evidence_refs": ()},
         {"evidence_refs": ("evidence:1", "evidence:1")},
         {"evidence_refs": ("",)},
         {"verification_basis": ("same", "same")},
         {"verification_basis": (" ",)},
-    ],
-)
-def test_reference_identities_must_be_nonempty_and_unique(overrides: dict[str, object]) -> None:
-    with pytest.raises(ValidationError):
-        reference(**overrides)
-
-
-@pytest.mark.parametrize("field", ["target_run_id", "case_id", "source_step_id"])
-def test_identities_are_strict_nonempty_text(field: str) -> None:
-    for value in ("", 1, None, "  "):
+    ]:
         with pytest.raises(ValidationError):
-            reference(**{field: value})
+            reference(**overrides)
+
+
+def test_identities_are_strict_nonempty_text() -> None:
+    for field in ["target_run_id", "case_id", "source_step_id"]:
+        for value in ("", 1, None, "  "):
+            with pytest.raises(ValidationError):
+                reference(**{field: value})
 
 
 def test_step_mapping_must_be_exact_unique_pairs_with_its_anchor() -> None:

@@ -89,18 +89,18 @@ def test_stop_and_timeout_take_the_collection_lifetime_lock(operation):
     assert entered.is_set()
 
 
-@pytest.mark.parametrize("state", ["cancelled", "exited"])
-def test_late_timeout_cannot_replace_manual_stop_or_natural_exit(state):
-    adapter, runtime = runtime_fixture()
-    if state == "cancelled":
-        runtime.stop_requested = True
-    else:
-        runtime.process.poll.return_value = 0
-    adapter._cleanup_group = Mock()
-    adapter._timeout_runtime(runtime)
-    assert not runtime.timed_out
-    adapter._cleanup_group.assert_not_called()
-    adapter._terminate_group.assert_not_called()
+def test_late_timeout_cannot_replace_manual_stop_or_natural_exit():
+    for state in ["cancelled", "exited"]:
+        adapter, runtime = runtime_fixture()
+        if state == "cancelled":
+            runtime.stop_requested = True
+        else:
+            runtime.process.poll.return_value = 0
+        adapter._cleanup_group = Mock()
+        adapter._timeout_runtime(runtime)
+        assert not runtime.timed_out
+        adapter._cleanup_group.assert_not_called()
+        adapter._terminate_group.assert_not_called()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows owned Job stop paths")

@@ -61,11 +61,11 @@ def test_current_fact_requires_exact_record_envelope(target, change):
         coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
 
 
-@pytest.mark.parametrize("change", ["extra", "missing", "previous", "rewritten"])
-def test_current_fact_reference_is_closed_and_snapshot_is_immutable(change):
-    coordinator, facts = reader(change)
-    with pytest.raises(ValueError, match="reference|immutable"):
-        coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
+def test_current_fact_reference_is_closed_and_snapshot_is_immutable():
+    for change in ["extra", "missing", "previous", "rewritten"]:
+        coordinator, facts = reader(change)
+        with pytest.raises(ValueError, match="reference|immutable"):
+            coordinator.read_current_facts(project_id=facts.project_id, run_id=facts.run_id)
 
 
 def test_matching_exact_snapshot_envelope_remains_readable():

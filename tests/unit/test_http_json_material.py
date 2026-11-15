@@ -1,14 +1,12 @@
 """Ambiguous or non-JSON response material cannot support HTTP assertions."""
 
-import pytest
 
 from aitest.infrastructure.adapters.execution.http import HttpAssertionOperator
 from tests.unit.test_http_observation_integrity import observe
 
 
-@pytest.mark.parametrize(
-    "body",
-    [
+def test_ambiguous_json_response_is_unavailable_instead_of_verified():
+    for body in [
         b'{"value":false,"value":true}',
         b'{"value":{"paid":false,"paid":true}}',
         b'{"value":NaN}',
@@ -16,14 +14,12 @@ from tests.unit.test_http_observation_integrity import observe
         b'{"value":-Infinity}',
         b'{"value":1e400}',
         b'{"value":[{"amount":1e400}]}',
-    ],
-)
-def test_ambiguous_json_response_is_unavailable_instead_of_verified(body):
-    result = observe(body, operator=HttpAssertionOperator.EXISTS)
-    assert result.status == 200 and result.body == body
-    assert result.assertion_results[0].matched is None
-    assert result.assertion_results[0].value_available is False
-    assert result.missing_extractions == ("value",)
+    ]:
+        result = observe(body, operator=HttpAssertionOperator.EXISTS)
+        assert result.status == 200 and result.body == body
+        assert result.assertion_results[0].matched is None
+        assert result.assertion_results[0].value_available is False
+        assert result.missing_extractions == ("value",)
 
 
 def test_excessive_json_depth_is_preserved_as_unknown_instead_of_crashing():

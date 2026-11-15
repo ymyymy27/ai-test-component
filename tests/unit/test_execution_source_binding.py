@@ -52,19 +52,16 @@ def test_allow_lists_must_be_nonempty_and_unique(field: str, values: tuple[objec
         binding(**{field: values})
 
 
-@pytest.mark.parametrize(
-    "versions",
-    [
+def test_adapter_versions_require_nonempty_keys_and_values() -> None:
+    for versions in [
         {"": "1.0.0"},
         {"   ": "1.0.0"},
         {"command": ""},
         {"command": "   "},
         {"command": 1},
-    ],
-)
-def test_adapter_versions_require_nonempty_keys_and_values(versions: dict[str, object]) -> None:
-    with pytest.raises(ValidationError):
-        binding(adapter_versions=versions)
+    ]:
+        with pytest.raises(ValidationError):
+            binding(adapter_versions=versions)
 
 
 def test_required_entry_arguments_may_contain_an_empty_value() -> None:

@@ -82,11 +82,11 @@ def test_absent_declaration_rejects_an_invented_deadline() -> None:
         service._require_frozen_step_deadline(_prepared(), _resolved(1_000))
 
 
-@pytest.mark.parametrize("declared", [True, False, 0, -1, 1.5, "120", [], {}])
-def test_invalid_declaration_is_never_a_deadline(declared: object) -> None:
-    service = _service(_record({"step_timeout_seconds": declared}))
-    with pytest.raises(ApprovalRequired, match="cannot be verified"):
-        service._frozen_step_deadline_ms(_prepared())
+def test_invalid_declaration_is_never_a_deadline() -> None:
+    for declared in [True, False, 0, -1, 1.5, "120", [], {}]:
+        service = _service(_record({"step_timeout_seconds": declared}))
+        with pytest.raises(ApprovalRequired, match="cannot be verified"):
+            service._frozen_step_deadline_ms(_prepared())
 
 
 def test_unreadable_or_foreign_environment_record_is_rejected() -> None:

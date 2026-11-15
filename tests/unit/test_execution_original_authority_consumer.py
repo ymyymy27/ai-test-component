@@ -33,12 +33,12 @@ def test_caller_authorization_ref_cannot_start_without_original_proof(tmp_path, 
     assert unit.current_commit_sequence() == 0
 
 
-@pytest.mark.parametrize("revision", [True, 1.0, "1", -1])
-def test_warehouse_revision_cannot_be_coerced_to_an_integer(revision):
-    unit = Mock()
-    unit.current_revision.return_value = revision
-    with pytest.raises(ValueError, match="integer"):
-        ExecutionCommitCoordinator(unit)._revision("execution_authorization", "grant")
+def test_warehouse_revision_cannot_be_coerced_to_an_integer():
+    for revision in [True, 1.0, "1", -1]:
+        unit = Mock()
+        unit.current_revision.return_value = revision
+        with pytest.raises(ValueError, match="integer"):
+            ExecutionCommitCoordinator(unit)._revision("execution_authorization", "grant")
 
 
 def test_original_authority_is_consumed_atomically_and_replays_after_source_change(

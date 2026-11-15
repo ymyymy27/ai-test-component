@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -110,18 +110,15 @@ def test_resolve_real_materialization_yields_source_binding_digest(
     assert result["source_binding_digest"] == "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
-@pytest.mark.parametrize(
-    "result",
-    [
+def test_unverified_materialization_is_refused() -> None:
+    for result in [
         {"state": "rejected", "verified": False, "refused": ["main.py"]},
         {"state": "materialized", "verified": False},
         {"state": "materialized", "verified": True},
-    ],
-)
-def test_unverified_materialization_is_refused(result: Mapping[str, object]) -> None:
-    resolver = StartSourceBindingResolver(_Stub(result))  # type: ignore[arg-type]
-    with pytest.raises(SourceBindingUnverified):
-        resolver.resolve(snapshot_id="step-revision-1", destination="C:/work")
+    ]:
+        resolver = StartSourceBindingResolver(_Stub(result))  # type: ignore[arg-type]
+        with pytest.raises(SourceBindingUnverified):
+            resolver.resolve(snapshot_id="step-revision-1", destination="C:/work")
 
 
 def test_missing_mapping_or_digest_is_refused(tmp_path: Path) -> None:
@@ -214,14 +211,11 @@ def test_malformed_mapping_entries_are_refused(entry: dict[str, object], tmp_pat
         )
 
 
-@pytest.mark.parametrize(
-    "snapshot_id,destination",
-    [("", "C:/work"), ("s", " "), (None, "C:/work")],
-)
-def test_missing_start_inputs_are_refused(snapshot_id: object, destination: object) -> None:
-    resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
-    with pytest.raises(SourceBindingUnverified):
-        resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
+def test_missing_start_inputs_are_refused() -> None:
+    for snapshot_id, destination in [("", "C:/work"), ("s", " "), (None, "C:/work")]:
+        resolver = StartSourceBindingResolver(_Stub({}))  # type: ignore[arg-type]
+        with pytest.raises(SourceBindingUnverified):
+            resolver.resolve(snapshot_id=snapshot_id, destination=destination)  # type: ignore[arg-type]
 
 
 def test_re_resolution_must_match_a_saved_binding_digest(

@@ -12,9 +12,8 @@ from aitest.infrastructure.adapters.execution.http import (
 from tests.unit.test_http_observation_integrity import observe
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
+def test_invalid_http_request_is_rejected_before_any_io():
+    for changes in [
         {"timeout_seconds": True},
         {"timeout_seconds": float("nan")},
         {"timeout_seconds": float("inf")},
@@ -41,21 +40,19 @@ from tests.unit.test_http_observation_integrity import observe
                 HttpAssertion("same", "b", HttpAssertionOperator.EXISTS),
             )
         },
-    ],
-)
-def test_invalid_http_request_is_rejected_before_any_io(changes):
-    spec = HttpRequestSpec("request", "GET", "https://example.invalid/result")
-    with pytest.raises(ValueError):
-        replace(spec, **changes)
+    ]:
+        spec = HttpRequestSpec("request", "GET", "https://example.invalid/result")
+        with pytest.raises(ValueError):
+            replace(spec, **changes)
 
 
-@pytest.mark.parametrize("path", ["value[0", "value[0]]]", "value[0]tail", "value..child"])
-def test_invalid_paths_never_select_another_value_and_pass(path):
-    body = b'{"value":[true]}' if "[" in path else b'{"value":{"child":true}}'
-    result = observe(body, path=path, expected=True)
-    assert result.assertion_results[0].matched is None
-    assert not result.assertion_results[0].value_available
-    assert result.missing_extractions == ("value",)
+def test_invalid_paths_never_select_another_value_and_pass():
+    for path in ["value[0", "value[0]]]", "value[0]tail", "value..child"]:
+        body = b'{"value":[true]}' if "[" in path else b'{"value":{"child":true}}'
+        result = observe(body, path=path, expected=True)
+        assert result.assertion_results[0].matched is None
+        assert not result.assertion_results[0].value_available
+        assert result.missing_extractions == ("value",)
 
 
 @pytest.mark.parametrize(
@@ -73,12 +70,10 @@ def test_complete_supported_path_and_root_keep_their_exact_values(body, path, ex
     assert result.assertion_results[0].value_available
 
 
-@pytest.mark.parametrize(
-    "path", ["value[-0]", "value[01]", "value[0][0]", "value[" + "9" * 5000 + "]"]
-)
-def test_unsupported_and_unbounded_array_index_remains_unknown(path):
-    result = observe(b'{"value":[true]}', path=path, expected=True)
-    assert result.assertion_results[0].matched is None
+def test_unsupported_and_unbounded_array_index_remains_unknown():
+    for path in ["value[-0]", "value[01]", "value[0][0]", "value[" + "9" * 5000 + "]"]:
+        result = observe(b'{"value":[true]}', path=path, expected=True)
+        assert result.assertion_results[0].matched is None
 
 
 def test_valid_explicit_request_fields_are_preserved_without_io():

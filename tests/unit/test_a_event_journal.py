@@ -68,14 +68,14 @@ def test_cursor_round_trip() -> None:
     assert decode_cursor(token) == 7
 
 
-@pytest.mark.parametrize("bad", ["not-base64!!!", "eyJhIjogMX0=", "", "encodeddummy"])
-def test_decode_cursor_rejects_garbage(bad: str) -> None:
-    if bad == "":
-        with pytest.raises(ValueError):
-            decode_cursor(bad)
-    else:
-        with pytest.raises(ValueError):
-            decode_cursor(bad)
+def test_decode_cursor_rejects_garbage() -> None:
+    for bad in ["not-base64!!!", "eyJhIjogMX0=", "", "encodeddummy"]:
+        if bad == "":
+            with pytest.raises(ValueError):
+                decode_cursor(bad)
+        else:
+            with pytest.raises(ValueError):
+                decode_cursor(bad)
 
 
 def test_begin_record_commit_publishes_formal_events(journal: FileEventJournal) -> None:

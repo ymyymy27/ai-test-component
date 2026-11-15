@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
-
 from aitest.application.ports import VerificationRequest
 from aitest.domain.evidence.evidence import VerificationObservation
 from aitest.domain.execution.assertions import HttpAssertion, HttpAssertionOperator
@@ -41,15 +39,13 @@ def test_override_cannot_replace_the_request_expected_facts():
     query.read_business_object.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "expected", [{"value": float("nan")}, {"value": object()}, {"value": {1: "unsafe key"}}]
-)
-def test_invalid_expected_material_stops_before_business_query(expected):
-    query = Mock()
-    result = BusinessVerificationAdapter(query).verify(request(expected))
-    assert result.observation is VerificationObservation.NO_RESULT
-    assert result.gap_ids == ("expected_facts_invalid",)
-    query.read_business_object.assert_not_called()
+def test_invalid_expected_material_stops_before_business_query():
+    for expected in [{"value": float("nan")}, {"value": object()}, {"value": {1: "unsafe key"}}]:
+        query = Mock()
+        result = BusinessVerificationAdapter(query).verify(request(expected))
+        assert result.observation is VerificationObservation.NO_RESULT
+        assert result.gap_ids == ("expected_facts_invalid",)
+        query.read_business_object.assert_not_called()
 
 
 def test_equal_override_keeps_the_request_basis():

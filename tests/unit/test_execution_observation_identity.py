@@ -40,56 +40,53 @@ def observation():
     return attempt, inspection, collection
 
 
-@pytest.mark.parametrize(
-    "change",
-    ["handle", "identity", "attempt", "exit_attempt", "process", "cursor", "run", "step", "block"],
-)
-def test_foreign_observation_is_rejected_before_spool_or_completion(change):
-    attempt, inspection, collection = observation()
-    if change == "handle":
-        inspection = replace(inspection, handle_id="foreign-handle")
-    elif change == "identity":
-        inspection = replace(inspection, identity_matches=False)
-    elif change == "attempt":
-        collection = replace(collection, attempt_id="foreign-attempt")
-    elif change == "exit_attempt":
-        collection = replace(
-            collection,
-            exit_fact_ref=replace(collection.exit_fact_ref, attempt_id="foreign-attempt"),
-        )
-    elif change == "process":
-        collection = replace(
-            collection,
-            exit_fact_ref=replace(
-                collection.exit_fact_ref, process_start_identity="another-process-start"
-            ),
-        )
-    elif change == "cursor":
-        collection = replace(
-            collection,
-            output_cursors=(
-                OutputCursor(
-                    "foreign-attempt", OutputStreamName.STDOUT, 0, 0, "sha256:foreign", True
+def test_foreign_observation_is_rejected_before_spool_or_completion():
+    for change in ["handle", "identity", "attempt", "exit_attempt", "process", "cursor", "run", "step", "block"]:  # noqa: E501
+        attempt, inspection, collection = observation()
+        if change == "handle":
+            inspection = replace(inspection, handle_id="foreign-handle")
+        elif change == "identity":
+            inspection = replace(inspection, identity_matches=False)
+        elif change == "attempt":
+            collection = replace(collection, attempt_id="foreign-attempt")
+        elif change == "exit_attempt":
+            collection = replace(
+                collection,
+                exit_fact_ref=replace(collection.exit_fact_ref, attempt_id="foreign-attempt"),
+            )
+        elif change == "process":
+            collection = replace(
+                collection,
+                exit_fact_ref=replace(
+                    collection.exit_fact_ref, process_start_identity="another-process-start"
                 ),
-            ),
-        )
-    else:
-        block = CapturedOutputBlock(
-            attempt.run_id,
-            attempt.step_id,
-            attempt.attempt_id,
-            OutputStreamName.STDOUT,
-            0,
-            0,
-            b"foreign",
-        )
-        field = {"run": "run_id", "step": "step_id", "block": "attempt_id"}[change]
-        collection = replace(collection, captured_blocks=(replace(block, **{field: "foreign"}),))
-    spool = Mock()
-    runner = SerialRunner(Mock(), spool)
-    with pytest.raises(ValueError, match="execution observation"):
-        runner._apply_collection(attempt, inspection, collection)
-    spool.persist_blocks.assert_not_called()
+            )
+        elif change == "cursor":
+            collection = replace(
+                collection,
+                output_cursors=(
+                    OutputCursor(
+                        "foreign-attempt", OutputStreamName.STDOUT, 0, 0, "sha256:foreign", True
+                    ),
+                ),
+            )
+        else:
+            block = CapturedOutputBlock(
+                attempt.run_id,
+                attempt.step_id,
+                attempt.attempt_id,
+                OutputStreamName.STDOUT,
+                0,
+                0,
+                b"foreign",
+            )
+            field = {"run": "run_id", "step": "step_id", "block": "attempt_id"}[change]
+            collection = replace(collection, captured_blocks=(replace(block, **{field: "foreign"}),))  # noqa: E501
+        spool = Mock()
+        runner = SerialRunner(Mock(), spool)
+        with pytest.raises(ValueError, match="execution observation"):
+            runner._apply_collection(attempt, inspection, collection)
+        spool.persist_blocks.assert_not_called()
 
 
 def test_verified_matching_terminal_fact_remains_usable():

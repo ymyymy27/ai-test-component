@@ -15,18 +15,18 @@ def completed(step_id="s1", current=True):
     )
 
 
-@pytest.mark.parametrize("current", [True, False])
-def test_valid_failed_case_retains_execution_or_reuse_and_verification(current) -> None:
-    result = aggregate_case_execution(
-        case_id="case", required_step_ids=("s1",), steps=(completed(current=current),),
-        decisive_failure_step_ids=("s1",),
-        reuse_basis=verified_reuse_basis() if not current else None,
-    )
-    assert result.has_decisive_failure
-    assert result.can_count_execution == current
-    assert result.can_count_reuse == (not current)
-    assert result.can_count_verification
-    assert result.pending_step_ids == ()
+def test_valid_failed_case_retains_execution_or_reuse_and_verification() -> None:
+    for current in [True, False]:
+        result = aggregate_case_execution(
+            case_id="case", required_step_ids=("s1",), steps=(completed(current=current),),
+            decisive_failure_step_ids=("s1",),
+            reuse_basis=verified_reuse_basis() if not current else None,
+        )
+        assert result.has_decisive_failure
+        assert result.can_count_execution == current
+        assert result.can_count_reuse == (not current)
+        assert result.can_count_verification
+        assert result.pending_step_ids == ()
 
 
 def test_empty_required_steps_cannot_be_a_completed_or_verified_case() -> None:
@@ -36,25 +36,25 @@ def test_empty_required_steps_cannot_be_a_completed_or_verified_case() -> None:
     assert not result.can_count_verification
 
 
-@pytest.mark.parametrize("identity", [None, ""])
-def test_missing_attempt_identity_cannot_count_execution(identity) -> None:
-    result = aggregate_case_execution(
-        case_id="case", required_step_ids=("s1",),
-        steps=(replace(completed(), attempt_id=identity),),
-    )
-    assert not result.can_count_execution
-    assert not result.can_count_verification
+def test_missing_attempt_identity_cannot_count_execution() -> None:
+    for identity in [None, ""]:
+        result = aggregate_case_execution(
+            case_id="case", required_step_ids=("s1",),
+            steps=(replace(completed(), attempt_id=identity),),
+        )
+        assert not result.can_count_execution
+        assert not result.can_count_verification
 
 
-@pytest.mark.parametrize("current", [True, False])
-def test_capture_gap_cannot_count_execution_reuse_or_verification(current) -> None:
-    result = aggregate_case_execution(
-        case_id="case", required_step_ids=("s1",),
-        steps=(replace(completed(current=current), capture_completeness=CaptureCompleteness.GAP),),
-    )
-    assert not result.can_count_execution
-    assert not result.can_count_reuse
-    assert not result.can_count_verification
+def test_capture_gap_cannot_count_execution_reuse_or_verification() -> None:
+    for current in [True, False]:
+        result = aggregate_case_execution(
+            case_id="case", required_step_ids=("s1",),
+            steps=(replace(completed(current=current), capture_completeness=CaptureCompleteness.GAP),),  # noqa: E501
+        )
+        assert not result.can_count_execution
+        assert not result.can_count_reuse
+        assert not result.can_count_verification
 
 
 def test_new_optional_attempt_cancels_whole_case_reuse() -> None:

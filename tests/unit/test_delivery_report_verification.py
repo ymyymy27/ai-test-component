@@ -48,22 +48,22 @@ def test_report_projection_requires_matching_source_and_new_execution(tmp_path, 
         assert result["business_outcome"] == "incomplete"
 
 
-@pytest.mark.parametrize("change", [
+def test_projection_refuses_conflicting_or_unknown_scope():
+    for change in [
     {"verified_in_scope": ["x"], "unverified_scope": ["x"]},
     {"verified_in_scope": ["outside"], "unverified_scope": []},
     {"verification_state": "verification_valid"},
     {"business_outcome": "success"}, {"verified_in_scope": "x"},
-])
-def test_projection_refuses_conflicting_or_unknown_scope(change):
-    projection = {
-        "schema_version": "aitest.delivery-verification/1", "report_id": "report",
-        "report_record_revision": 1, "report_digest": "digest", "run_id": "run",
-        "execution_snapshot_ref": {}, "verified_in_scope": [], "unverified_scope": ["x"],
-        "business_outcome": "incomplete", "verification_state": "required_verification_incomplete",
-        **change,
-    }
-    with pytest.raises(ValueError):
-        delivery_projection({"acceptance_item_ids": ["x"], "verification_projection": projection})
+]:
+        projection = {
+            "schema_version": "aitest.delivery-verification/1", "report_id": "report",
+            "report_record_revision": 1, "report_digest": "digest", "run_id": "run",
+            "execution_snapshot_ref": {}, "verified_in_scope": [], "unverified_scope": ["x"],
+            "business_outcome": "incomplete", "verification_state": "required_verification_incomplete",  # noqa: E501
+            **change,
+        }
+        with pytest.raises(ValueError):
+            delivery_projection({"acceptance_item_ids": ["x"], "verification_projection": projection})  # noqa: E501
 
 
 def submit_report_delivery(core, inputs, *, complete=False, mapped=False):

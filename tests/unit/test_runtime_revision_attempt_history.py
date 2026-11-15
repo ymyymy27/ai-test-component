@@ -86,33 +86,30 @@ def test_unresolved_active_attempt_blocks_edit_even_when_not_current(state, hist
     assert not decision.affected_step_ids
 
 
-@pytest.mark.parametrize("step_state", ["pending", "ready", "blocked", "invalidated"])
-def test_unattempted_step_remains_editable_without_changing_recorded_peer(step_state):
-    body = _failure_in_progress()
-    body["steps"][1]["state"] = step_state
-    decision = _decide(body, change=_change(_case(), targets=("step-2",)))
-    assert decision.accepted
-    assert decision.affected_step_ids == ("step-2",)
-    assert decision.preserved_step_ids == ("step-1",)
-    view = runtime_facts_from_execution_facts(ExecutionFacts.model_validate(body))
-    assert view.steps[1].progress() is StepRuntimeProgress.NOT_STARTED
+def test_unattempted_step_remains_editable_without_changing_recorded_peer():
+    for step_state in ["pending", "ready", "blocked", "invalidated"]:
+        body = _failure_in_progress()
+        body["steps"][1]["state"] = step_state
+        decision = _decide(body, change=_change(_case(), targets=("step-2",)))
+        assert decision.accepted
+        assert decision.affected_step_ids == ("step-2",)
+        assert decision.preserved_step_ids == ("step-1",)
+        view = runtime_facts_from_execution_facts(ExecutionFacts.model_validate(body))
+        assert view.steps[1].progress() is StepRuntimeProgress.NOT_STARTED
 
 
-@pytest.mark.parametrize(
-    "field,value",
-    [
+def test_current_attempt_must_use_the_exact_step_content_reference():
+    for field, value in [
         ("step_revision_id", "different-content"),
         ("revision_no", 99),
         ("digest", "sha256:different"),
         ("inherited", True),
         ("base_step_revision_id", "different-base"),
-    ],
-)
-def test_current_attempt_must_use_the_exact_step_content_reference(field, value):
-    body = _failure_in_progress()
-    body["attempts"][0]["step_revision_ref"][field] = value
-    with pytest.raises(ValueError, match="exact current step revision"):
-        runtime_facts_from_execution_facts(ExecutionFacts.model_validate(body))
+    ]:
+        body = _failure_in_progress()
+        body["attempts"][0]["step_revision_ref"][field] = value
+        with pytest.raises(ValueError, match="exact current step revision"):
+            runtime_facts_from_execution_facts(ExecutionFacts.model_validate(body))
 
 
 @pytest.mark.parametrize("state", ["completed", "invalidated", "unknown"])

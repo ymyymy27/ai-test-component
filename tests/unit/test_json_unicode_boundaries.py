@@ -31,27 +31,25 @@ from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 from tests.unit.test_mcp_stdio_read import encode, relay, rpc
 
 
-@pytest.mark.parametrize(
-    "encoding", ["utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be"]
-)
-def test_json_material_and_cli_reject_other_encodings(encoding):
-    raw = json.dumps({"request_id": "original", "action": "doctor"}).encode(encoding)
-    with pytest.raises(ValueError):
-        decode_json(raw)
-    with pytest.raises(ValueError):
-        read_command(raw)
+def test_json_material_and_cli_reject_other_encodings():
+    for encoding in ["utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be"]:
+        raw = json.dumps({"request_id": "original", "action": "doctor"}).encode(encoding)
+        with pytest.raises(ValueError):
+            decode_json(raw)
+        with pytest.raises(ValueError):
+            read_command(raw)
 
 
-@pytest.mark.parametrize("raw", [b'"\\ud800"', b'{"\\udfff":1}', b'{"nested":["\\udc00"]}'])
-def test_decoded_json_refuses_unpaired_surrogates(raw):
-    with pytest.raises(ValueError):
-        decode_json(raw)
+def test_decoded_json_refuses_unpaired_surrogates():
+    for raw in [b'"\\ud800"', b'{"\\udfff":1}', b'{"nested":["\\udc00"]}']:
+        with pytest.raises(ValueError):
+            decode_json(raw)
 
 
-@pytest.mark.parametrize("value", ["\ud800", {"key": ["\udc00"]}, {"\udfff": 1}])
-def test_comparison_material_cannot_preserve_unserializable_text(value):
-    with pytest.raises(ValueError):
-        freeze_json_value(value)
+def test_comparison_material_cannot_preserve_unserializable_text():
+    for value in ["\ud800", {"key": ["\udc00"]}, {"\udfff": 1}]:
+        with pytest.raises(ValueError):
+            freeze_json_value(value)
 
 
 def test_valid_multilingual_astral_characters_and_escaped_pairs_keep_exact_values():
@@ -87,9 +85,8 @@ def test_independent_query_does_not_match_or_query_invalid_material(mode, value)
         query.read_business_object.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "field",
-    [
+def test_frozen_query_identity_refuses_surrogates_before_provider():
+    for field in [
         "verification_of",
         "business_object_id",
         "query_method",
@@ -97,35 +94,33 @@ def test_independent_query_does_not_match_or_query_invalid_material(mode, value)
         "target_deployment_ref",
         "query_interval",
         "evidence_refs",
-    ],
-)
-def test_frozen_query_identity_refuses_surrogates_before_provider(field):
-    request = VerificationRequest(
-        "attempt", "object", "readonly", "immediate", "deployment", expected_facts={"paid": True}
-    )
-    request = replace(request, **{field: ("\ud800",) if field == "evidence_refs" else "\ud800"})
-    provider = Mock()
-    with pytest.raises(ValueError):
-        EvidenceReviewService(provider).review(request)
-    provider.verify.assert_not_called()
-
-
-@pytest.mark.parametrize("encoding", ["utf-16-be", "utf-32-le"])
-def test_unverified_reply_encoding_closes_connection_and_is_not_retried(encoding):
-    channel = Mock()
-    channel.read_message.return_value = (
-        Response(
-            request_id="request", instance_id="core", workspace_id="workspace", result={"ok": True}
+    ]:
+        request = VerificationRequest(
+            "attempt", "object", "readonly", "immediate", "deployment", expected_facts={"paid": True}  # noqa: E501
         )
-        .model_dump_json()
-        .encode(encoding)
-    )
-    client = CoreClient(CoreEndpoint("workspace", "core", channel))
-    command = read_command(b'{"request_id":"request","action":"doctor"}')
-    with pytest.raises(CoreResultUnverified):
-        client.send(command)
-    channel.write_message.assert_called_once()
-    channel.close.assert_called_once()
+        request = replace(request, **{field: ("\ud800",) if field == "evidence_refs" else "\ud800"})
+        provider = Mock()
+        with pytest.raises(ValueError):
+            EvidenceReviewService(provider).review(request)
+        provider.verify.assert_not_called()
+
+
+def test_unverified_reply_encoding_closes_connection_and_is_not_retried():
+    for encoding in ["utf-16-be", "utf-32-le"]:
+        channel = Mock()
+        channel.read_message.return_value = (
+            Response(
+                request_id="request", instance_id="core", workspace_id="workspace", result={"ok": True}  # noqa: E501
+            )
+            .model_dump_json()
+            .encode(encoding)
+        )
+        client = CoreClient(CoreEndpoint("workspace", "core", channel))
+        command = read_command(b'{"request_id":"request","action":"doctor"}')
+        with pytest.raises(CoreResultUnverified):
+            client.send(command)
+        channel.write_message.assert_called_once()
+        channel.close.assert_called_once()
 
 
 def test_mcp_bad_unicode_identity_emits_static_error_then_handles_valid_frame():

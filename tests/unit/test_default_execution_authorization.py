@@ -206,39 +206,39 @@ def test_grant_target_is_checked_against_saved_step():
     service.grant.assert_not_called()
 
 
-@pytest.mark.parametrize("inside_transaction", [False, True])
-def test_saved_grant_recall_rejects_a_different_challenge(inside_transaction):
-    from aitest.application.execution.authorization import ExecutionAuthorizationService
-    from aitest.domain.approvals import ApprovalConflict
+def test_saved_grant_recall_rejects_a_different_challenge():
+    for inside_transaction in [False, True]:
+        from aitest.application.execution.authorization import ExecutionAuthorizationService
+        from aitest.domain.approvals import ApprovalConflict
 
-    service = object.__new__(ExecutionAuthorizationService)
-    service.approvals = Mock()
-    service.approvals.read_confirmation.return_value = SimpleNamespace(challenge_id="original")
-    service.resolver = Mock()
-    from tests.unit.test_serial_runner import _request
+        service = object.__new__(ExecutionAuthorizationService)
+        service.approvals = Mock()
+        service.approvals.read_confirmation.return_value = SimpleNamespace(challenge_id="original")
+        service.resolver = Mock()
+        from tests.unit.test_serial_runner import _request
 
-    action = SimpleNamespace(request=_request())
-    service.resolver.read.return_value = ({}, action)
-    parameters = {"execution_action_id": "action", "record_revision": 1}
-    service.unit = Mock()
-    service._actual = Mock()
-    service._current_action = Mock()
-    service._revision = Mock(side_effect=[0, 1] if inside_transaction else [1])
-    service._origin = Mock(
-        return_value=({"parameters": parameters, "confirmation_id": "proof"}, action)
-    )
-    with pytest.raises(ApprovalConflict, match="challenge"):
-        service.grant(
-            project_id=action.request.project_id,
-            intent_id=action.request.intent_id,
-            request_id="different-challenge",
-            parameters=parameters,
-            challenge_id="changed",
+        action = SimpleNamespace(request=_request())
+        service.resolver.read.return_value = ({}, action)
+        parameters = {"execution_action_id": "action", "record_revision": 1}
+        service.unit = Mock()
+        service._actual = Mock()
+        service._current_action = Mock()
+        service._revision = Mock(side_effect=[0, 1] if inside_transaction else [1])
+        service._origin = Mock(
+            return_value=({"parameters": parameters, "confirmation_id": "proof"}, action)
         )
-    service.unit.stage_record.assert_not_called()
-    service.unit.commit.assert_not_called()
-    if inside_transaction:
-        service.unit.rollback.assert_called_once_with("different-challenge")
+        with pytest.raises(ApprovalConflict, match="challenge"):
+            service.grant(
+                project_id=action.request.project_id,
+                intent_id=action.request.intent_id,
+                request_id="different-challenge",
+                parameters=parameters,
+                challenge_id="changed",
+            )
+        service.unit.stage_record.assert_not_called()
+        service.unit.commit.assert_not_called()
+        if inside_transaction:
+            service.unit.rollback.assert_called_once_with("different-challenge")
 
 
 def test_public_prepare_consent_grant_and_restart_preserve_originals(authoritative):

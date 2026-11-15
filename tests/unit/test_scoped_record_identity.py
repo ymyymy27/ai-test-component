@@ -52,14 +52,14 @@ def test_planning_record_with_unknown_project_is_blocked():
         load_case(reader, project_id=PROJECT_ID, case_id="case-1", revision=1)
 
 
-@pytest.mark.parametrize("revision", [True, "1", 1.5, -1])
-def test_current_revision_is_not_coerced_to_a_valid_warehouse_revision(revision):
-    reader = Mock()
-    reader.current_revision.return_value = revision
-    reader.read.return_value = CommittedRecord("task", "task-1", 1, task_to_payload(_task()))
-    with pytest.raises(ValueError):
-        current_record(reader, project_id=PROJECT_ID, aggregate_kind="task", record_id="task-1")
-    reader.read.assert_not_called()
+def test_current_revision_is_not_coerced_to_a_valid_warehouse_revision():
+    for revision in [True, "1", 1.5, -1]:
+        reader = Mock()
+        reader.current_revision.return_value = revision
+        reader.read.return_value = CommittedRecord("task", "task-1", 1, task_to_payload(_task()))
+        with pytest.raises(ValueError):
+            current_record(reader, project_id=PROJECT_ID, aggregate_kind="task", record_id="task-1")
+        reader.read.assert_not_called()
 
 
 def test_current_read_checks_the_returned_exact_record():
@@ -70,27 +70,27 @@ def test_current_read_checks_the_returned_exact_record():
         current_record(reader, project_id=PROJECT_ID, aggregate_kind="task", record_id="task-1")
 
 
-@pytest.mark.parametrize("wrong", ["kind", "id", "owner", "bool_revision"])
-def test_legacy_current_query_cannot_substitute_a_foreign_or_unknown_row(wrong):
-    payload = task_to_payload(_task())
-    record = CommittedRecord("task", "task-1", 1, payload)
-    if wrong == "kind":
-        record = replace(record, aggregate_kind="delivery")
-    elif wrong == "id":
-        record = replace(record, record_id="another-task")
-    elif wrong == "owner":
-        record = replace(record, payload={**payload, "project_id": "another-project"})
-    else:
-        record = replace(record, revision=True)
+def test_legacy_current_query_cannot_substitute_a_foreign_or_unknown_row():
+    for wrong in ["kind", "id", "owner", "bool_revision"]:
+        payload = task_to_payload(_task())
+        record = CommittedRecord("task", "task-1", 1, payload)
+        if wrong == "kind":
+            record = replace(record, aggregate_kind="delivery")
+        elif wrong == "id":
+            record = replace(record, record_id="another-task")
+        elif wrong == "owner":
+            record = replace(record, payload={**payload, "project_id": "another-project"})
+        else:
+            record = replace(record, revision=True)
 
-    class LegacyReader:
-        def query(self, query):
-            return RecordPage((record,))
+        class LegacyReader:
+            def query(self, query):
+                return RecordPage((record,))  # noqa: B023
 
-    with pytest.raises(ValueError):
-        current_record(
-            LegacyReader(), project_id=PROJECT_ID, aggregate_kind="task", record_id="task-1"
-        )
+        with pytest.raises(ValueError):
+            current_record(
+                LegacyReader(), project_id=PROJECT_ID, aggregate_kind="task", record_id="task-1"
+            )
 
 
 def test_exact_task_read_retains_declared_business_revision_separate_from_warehouse():
@@ -101,25 +101,22 @@ def test_exact_task_read_retains_declared_business_revision_separate_from_wareho
     assert result.task_id == "task-1" and result.revision == 7
 
 
-@pytest.mark.parametrize(
-    "parameters",
-    [
+def test_invalid_exact_lookup_stops_before_the_reader():
+    for parameters in [
         {"project_id": "", "task_id": "task-1", "revision": 1},
         {"project_id": PROJECT_ID, "task_id": " ", "revision": 1},
         {"project_id": PROJECT_ID, "task_id": "task-1", "revision": True},
         {"project_id": PROJECT_ID, "task_id": "task-1", "revision": "1"},
-    ],
-)
-def test_invalid_exact_lookup_stops_before_the_reader(parameters):
-    reader = Mock()
-    with pytest.raises(ValueError):
-        load_task(reader, **parameters)
-    reader.read.assert_not_called()
+    ]:
+        reader = Mock()
+        with pytest.raises(ValueError):
+            load_task(reader, **parameters)
+        reader.read.assert_not_called()
 
 
-@pytest.mark.parametrize("record", [None, {}, []])
-def test_unreadable_saved_record_shape_is_a_blocking_error(record):
-    reader = Mock()
-    reader.read.return_value = record
-    with pytest.raises(ValueError):
-        load_task(reader, project_id=PROJECT_ID, task_id="task-1", revision=1)
+def test_unreadable_saved_record_shape_is_a_blocking_error():
+    for record in [None, {}, []]:
+        reader = Mock()
+        reader.read.return_value = record
+        with pytest.raises(ValueError):
+            load_task(reader, project_id=PROJECT_ID, task_id="task-1", revision=1)

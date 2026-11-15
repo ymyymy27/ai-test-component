@@ -181,9 +181,8 @@ def test_runner_failures_are_reported_as_migration_failures() -> None:
     assert mode.active is False  # 失败也必须解除窗口
 
 
-@pytest.mark.parametrize(
-    "parameters",
-    [
+def test_parameter_shapes_are_refused_by_name() -> None:
+    for parameters in [
         {},
         {"mode": "teleport"},
         {"mode": "plan"},
@@ -193,13 +192,11 @@ def test_runner_failures_are_reported_as_migration_failures() -> None:
         {"mode": "apply", "plan_id": ""},
         {"mode": "inspect", "plan_id": "plan-1"},
         {"mode": "inspect", "extra": 1},
-    ],
-)
-def test_parameter_shapes_are_refused_by_name(parameters: dict[str, object]) -> None:
-    entry, runner, _mode = _entry()
-    with pytest.raises(MigrationBlocked):
-        entry.apply(_command(**parameters))
-    assert runner.calls == []
+    ]:
+        entry, runner, _mode = _entry()
+        with pytest.raises(MigrationBlocked):
+            entry.apply(_command(**parameters))
+        assert runner.calls == []
 
 
 def test_maintenance_window_pauses_new_writes_but_not_reads(tmp_path: pathlib.Path) -> None:

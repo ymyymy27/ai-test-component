@@ -50,15 +50,15 @@ def test_observation_preserves_saved_control_and_updates_step_facts(control, sta
     assert before.run.control_state is control
 
 
-@pytest.mark.parametrize("control", CONTROLLED_STATES)
-def test_one_completed_attempt_does_not_confirm_a_global_control_boundary(control):
-    batch = _batch()
-    before = batch.facts.model_copy(
-        update={"run": batch.facts.run.model_copy(update={"control_state": control})}
-    )
-    after = project_current_update(before, batch.checkpoint.attempt, committed_at=datetime.now(UTC))
-    assert after.run.control_state is control
-    assert after.steps[0].state is StepStateFact.PENDING_VERIFICATION
+def test_one_completed_attempt_does_not_confirm_a_global_control_boundary():
+    for control in CONTROLLED_STATES:
+        batch = _batch()
+        before = batch.facts.model_copy(
+            update={"run": batch.facts.run.model_copy(update={"control_state": control})}
+        )
+        after = project_current_update(before, batch.checkpoint.attempt, committed_at=datetime.now(UTC))  # noqa: E501
+        assert after.run.control_state is control
+        assert after.steps[0].state is StepStateFact.PENDING_VERIFICATION
 
 
 @pytest.mark.parametrize("control", [RunControlStateFact.NOT_STARTED, RunControlStateFact.RUNNING])

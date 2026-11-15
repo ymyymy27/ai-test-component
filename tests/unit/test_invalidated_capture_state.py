@@ -1,7 +1,5 @@
 from dataclasses import replace
 
-import pytest
-
 from aitest.application.execution.runner import SerialRunner
 from aitest.domain.execution.runs import (
     AttemptState,
@@ -12,37 +10,37 @@ from aitest.domain.execution.runs import (
 from tests.unit.test_execution_observation_identity import observation
 
 
-@pytest.mark.parametrize("kind", ["natural", "stopped", "reader_error"])
-def test_collection_does_not_revive_invalidated_history(kind):
-    attempt, inspection, collection = observation()
-    attempt = replace(attempt, state=AttemptState.INVALIDATED)
-    if kind == "stopped":
-        inspection = replace(
-            inspection, state=ExecutionInspectionState.STOPPED, stop_confirmed=True
-        )
-        collection = replace(
-            collection,
-            exit_fact_ref=replace(
-                collection.exit_fact_ref,
-                termination_reason=ProcessTerminationReason.CONFIRMED_STOP,
-                real_exit_code=None,
-            ),
-        )
-    elif kind == "reader_error":
-        inspection = replace(
-            inspection, state=ExecutionInspectionState.RUNNING, process_reachable=True
-        )
-        collection = replace(
-            collection,
-            exit_fact_ref=None,
-            error_ref="reader_failure",
-            complete=False,
-            capture_completeness=CaptureCompleteness.GAP,
-        )
-    result = SerialRunner(None)._apply_collection(attempt, inspection, collection)
-    assert result.state is AttemptState.INVALIDATED
-    assert result.exit_fact_ref == collection.exit_fact_ref
-    assert result.error_ref == collection.error_ref
+def test_collection_does_not_revive_invalidated_history():
+    for kind in ["natural", "stopped", "reader_error"]:
+        attempt, inspection, collection = observation()
+        attempt = replace(attempt, state=AttemptState.INVALIDATED)
+        if kind == "stopped":
+            inspection = replace(
+                inspection, state=ExecutionInspectionState.STOPPED, stop_confirmed=True
+            )
+            collection = replace(
+                collection,
+                exit_fact_ref=replace(
+                    collection.exit_fact_ref,
+                    termination_reason=ProcessTerminationReason.CONFIRMED_STOP,
+                    real_exit_code=None,
+                ),
+            )
+        elif kind == "reader_error":
+            inspection = replace(
+                inspection, state=ExecutionInspectionState.RUNNING, process_reachable=True
+            )
+            collection = replace(
+                collection,
+                exit_fact_ref=None,
+                error_ref="reader_failure",
+                complete=False,
+                capture_completeness=CaptureCompleteness.GAP,
+            )
+        result = SerialRunner(None)._apply_collection(attempt, inspection, collection)
+        assert result.state is AttemptState.INVALIDATED
+        assert result.exit_fact_ref == collection.exit_fact_ref
+        assert result.error_ref == collection.error_ref
 
 
 def test_original_execution_saves_late_exit_without_restoring_invalidated_basis(tmp_path):

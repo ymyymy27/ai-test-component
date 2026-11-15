@@ -226,10 +226,10 @@ def test_blank_gap_reason_is_rejected() -> None:
         _function_coverage(gap_reason=" ")
 
 
-@pytest.mark.parametrize("field", ["case_ids", "evidence_refs", "verification_refs"])
-def test_blank_reference_is_rejected(field: str) -> None:
-    with pytest.raises(ValidationError, match=f"{field} must not be empty"):
-        _function_coverage(**{field: ("ref-1", " ")})
+def test_blank_reference_is_rejected() -> None:
+    for field in ["case_ids", "evidence_refs", "verification_refs"]:
+        with pytest.raises(ValidationError, match=f"{field} must not be empty"):
+            _function_coverage(**{field: ("ref-1", " ")})
 
 
 def test_unknown_function_coverage_field_is_rejected() -> None:

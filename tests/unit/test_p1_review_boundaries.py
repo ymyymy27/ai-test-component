@@ -54,36 +54,33 @@ from tests.unit.test_saved_reports import _create
 from tests.unit.test_saved_reports import _Harness as Reports
 
 
-@pytest.mark.parametrize(
-    "action",
-    [
+def test_maintenance_blocks_every_registered_write_alias():
+    for action in [
         "import_rules",
         "import_rules_markdown",
         "request_model_draft",
         "save_binding",
         "select_case_reuse",
         "future_registered_write",
-    ],
-)
-def test_maintenance_blocks_every_registered_write_alias(action):
-    entered = []
-    api = LocalAPI(
-        instance_id="maintenance",
-        maintenance=lambda: "migration active",
-        handlers={action: lambda _: entered.append(action) or {"written": True}},
-    )
-    response = api.dispatch(
-        Command(
-            action=action,
-            request_id="request-write",
-            intent_id="intent-write",
-            expected_revision=0,
-            project_id="project-1",
-        ),
-        Session("human", EntryKind.INTERACTIVE_CLI, True),
-    )
-    assert response.error is not None and response.error.code == "maintenance_required"
-    assert entered == []
+    ]:
+        entered = []
+        api = LocalAPI(
+            instance_id="maintenance",
+            maintenance=lambda: "migration active",
+            handlers={action: lambda _: entered.append(action) or {"written": True}},  # noqa: B023
+        )
+        response = api.dispatch(
+            Command(
+                action=action,
+                request_id="request-write",
+                intent_id="intent-write",
+                expected_revision=0,
+                project_id="project-1",
+            ),
+            Session("human", EntryKind.INTERACTIVE_CLI, True),
+        )
+        assert response.error is not None and response.error.code == "maintenance_required"
+        assert entered == []
 
 
 def test_maintenance_keeps_pure_rule_export_available():
@@ -114,38 +111,38 @@ def test_stale_reuse_selection_preserves_record_and_intent(tmp_path):
         core.lifetime_lock.release()
 
 
-@pytest.mark.parametrize("damage", ["historical", "no_result", "foreign_attempt", "no_proof"])
-def test_reuse_does_not_upgrade_unknown_or_unrelated_material(damage):
-    source = _facts(
-        run_id="run-source",
-        attempts=(_attempt(),),
-        source_verifications=(_verified_source(),),
-        verifications=(_verification(),),
-    )
-    if damage == "historical":
-        source = source.model_copy(
-            update={"attempts": (source.attempts[0].model_copy(update={"is_current": False}),)}
+def test_reuse_does_not_upgrade_unknown_or_unrelated_material():
+    for damage in ["historical", "no_result", "foreign_attempt", "no_proof"]:
+        source = _facts(
+            run_id="run-source",
+            attempts=(_attempt(),),
+            source_verifications=(_verified_source(),),
+            verifications=(_verification(),),
         )
-    if damage in {"no_result", "foreign_attempt"}:
-        verification = source.verifications[0].model_dump(mode="json")
-        verification["observation" if damage == "no_result" else "verification_of"] = (
-            "no_result" if damage == "no_result" else "another-attempt"
-        )
-        source = type(source).model_validate(
-            {**source.model_dump(mode="json"), "verifications": [verification]}
-        )
-    if damage == "no_proof":
-        outcome = derive_reuse_outcome(
-            _facts(),
-            (_reference(),),
-            source_facts=lambda _: source,
-            evidence_readable=lambda _: True,
-            basis_confirmed=lambda _: True,
-            basis_revision_for=lambda *_: 1,
-        )
-    else:
-        outcome = _outcome(source=source)
-    assert not outcome.reused and not outcome.verified and not outcome.passed
+        if damage == "historical":
+            source = source.model_copy(
+                update={"attempts": (source.attempts[0].model_copy(update={"is_current": False}),)}
+            )
+        if damage in {"no_result", "foreign_attempt"}:
+            verification = source.verifications[0].model_dump(mode="json")
+            verification["observation" if damage == "no_result" else "verification_of"] = (
+                "no_result" if damage == "no_result" else "another-attempt"
+            )
+            source = type(source).model_validate(
+                {**source.model_dump(mode="json"), "verifications": [verification]}
+            )
+        if damage == "no_proof":
+            outcome = derive_reuse_outcome(
+                _facts(),
+                (_reference(),),
+                source_facts=lambda _: source,  # noqa: B023
+                evidence_readable=lambda _: True,
+                basis_confirmed=lambda _: True,
+                basis_revision_for=lambda *_: 1,
+            )
+        else:
+            outcome = _outcome(source=source)
+        assert not outcome.reused and not outcome.verified and not outcome.passed
 
 
 def test_real_directory_path_is_not_compared_to_source_content_digest():

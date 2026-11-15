@@ -70,9 +70,8 @@ def test_extracts_identity_and_exact_evidence_without_deciding_result():
     assert extract(facts, objects) == ("order-2", ("evidence:a:stdout:0",))
 
 
-@pytest.mark.parametrize(
-    "mutation",
-    [
+def test_unproven_output_is_rejected():
+    for mutation in [
         lambda f: f.current_attempt_by_step.update(s="old"),
         lambda f: setattr(f.attempts[0], "is_current", False),
         lambda f: setattr(f.attempts[0], "capture_completeness", "partial"),
@@ -88,28 +87,23 @@ def test_extracts_identity_and_exact_evidence_without_deciding_result():
         lambda f: f.attempts[0].exit_fact.saved_bytes_by_stream.update(stdout=999),
         lambda f: f.attempts[0].exit_fact.last_block_index_by_stream.update(stdout=2),
         lambda f: f.evidence_refs.append(f.evidence_refs[0]),
-    ],
-)
-def test_unproven_output_is_rejected(mutation):
-    facts, objects = inputs()
-    mutation(facts)
-    with pytest.raises(ValueError):
-        extract(facts, objects)
+    ]:
+        facts, objects = inputs()
+        mutation(facts)
+        with pytest.raises(ValueError):
+            extract(facts, objects)
 
 
-@pytest.mark.parametrize(
-    "raw",
-    [
+def test_missing_nonstring_duplicate_or_truncated_json_rejected():
+    for raw in [
         b"{}",
         b'{"created":{"id":1}}',
         b'{"created":{"id":""}}',
         b'{"created":{"id":"x","id":"y"}}',
         b'{"created":',
-    ],
-)
-def test_missing_nonstring_duplicate_or_truncated_json_rejected(raw):
-    with pytest.raises(ValueError):
-        extract(*inputs(raw))
+    ]:
+        with pytest.raises(ValueError):
+            extract(*inputs(raw))
 
 
 def test_modified_saved_bytes_rejected():
@@ -119,17 +113,14 @@ def test_modified_saved_bytes_rejected():
         extract(facts, objects)
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
+def test_selector_is_finite_and_has_no_fallback():
+    for source in [
         {"stream": "stderr", "json_path": ["id"]},
         {"stream": "stdout", "json_path": []},
         {"stream": "stdout", "json_path": ["id"], "fallback": "x"},
-    ],
-)
-def test_selector_is_finite_and_has_no_fallback(source):
-    with pytest.raises(ValueError):
-        extract(*inputs(), source)
+    ]:
+        with pytest.raises(ValueError):
+            extract(*inputs(), source)
 
 
 def test_multiblock_json_is_reconstructed_in_order_with_each_evidence_reference():

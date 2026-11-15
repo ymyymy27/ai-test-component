@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
-
 from aitest.contracts.responses import Response
 from aitest.interfaces.local.editor_host import CoreEndpoint
 from aitest.interfaces.tools.agent_relay import McpRelay
@@ -47,40 +45,36 @@ def relay(advertised=True):
     return instance, sent
 
 
-@pytest.mark.parametrize("advertised", [False, True])
-def test_view_tool_is_only_advertised_by_core_capability(advertised):
-    instance, _ = relay(advertised)
-    tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
-    views = [item for item in tools if item["name"] == "aitest_read_view"]
-    assert bool(views) is advertised
-    if views:
-        assert views[0]["annotations"]["readOnlyHint"] is True
-        assert "project_id" not in views[0]["inputSchema"]["properties"]
+def test_view_tool_is_only_advertised_by_core_capability():
+    for advertised in [False, True]:
+        instance, _ = relay(advertised)
+        tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
+        views = [item for item in tools if item["name"] == "aitest_read_view"]
+        assert bool(views) is advertised
+        if views:
+            assert views[0]["annotations"]["readOnlyHint"] is True
+            assert "project_id" not in views[0]["inputSchema"]["properties"]
 
 
-@pytest.mark.parametrize(
-    "arguments",
-    [
+def test_read_view_preserves_finite_selection_and_original_context():
+    for arguments in [
         {"view": "run", "run_id": "r"},
         {"view": "panel", "run_id": "r"},
         {"view": "delivery", "delivery_id": "d", "revision": 2, "submission_id": "s"},
-    ],
-)
-def test_read_view_preserves_finite_selection_and_original_context(arguments):
-    instance, sent = relay()
-    result = instance.handle(
-        encode(rpc(2, "tools/call", {"name": "aitest_read_view", "arguments": arguments}))
-    )
-    assert result["result"]["isError"] is False
-    command = next(command for command in sent if command.action == "read_view")
-    assert command.parameters == arguments
-    assert command.project_id == "project" and command.binding_revision == 1
-    assert command.intent_id is None and command.expected_revision is None
+    ]:
+        instance, sent = relay()
+        result = instance.handle(
+            encode(rpc(2, "tools/call", {"name": "aitest_read_view", "arguments": arguments}))
+        )
+        assert result["result"]["isError"] is False
+        command = next(command for command in sent if command.action == "read_view")
+        assert command.parameters == arguments
+        assert command.project_id == "project" and command.binding_revision == 1
+        assert command.intent_id is None and command.expected_revision is None
 
 
-@pytest.mark.parametrize(
-    "arguments",
-    [
+def test_invalid_or_foreign_selectors_are_refused_before_core_reads():
+    for arguments in [
         {"view": "panel"},
         {"view": "panel", "run_id": "r", "project_id": "other"},
         {"view": "panel", "run_id": "r", "latest": True},
@@ -91,16 +85,14 @@ def test_read_view_preserves_finite_selection_and_original_context(arguments):
         {"view": "other"},
         {"view": "run", "run_id": " "},
         {"view": "run", "run_id": "r\n"},
-    ],
-)
-def test_invalid_or_foreign_selectors_are_refused_before_core_reads(arguments):
-    instance, sent = relay()
-    before = len(sent)
-    result = instance.handle(
-        encode(rpc(2, "tools/call", {"name": "aitest_read_view", "arguments": arguments}))
-    )
-    assert result["error"]["code"] == -32602
-    assert len(sent) == before
+    ]:
+        instance, sent = relay()
+        before = len(sent)
+        result = instance.handle(
+            encode(rpc(2, "tools/call", {"name": "aitest_read_view", "arguments": arguments}))
+        )
+        assert result["error"]["code"] == -32602
+        assert len(sent) == before
 
 
 def test_old_core_never_receives_new_view_request():

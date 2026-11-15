@@ -44,17 +44,15 @@ def test_import_verification_is_recomputed_from_original_content(
     assert result.verification.actual_result_ref == result.import_ref.content_digest
 
 
-@pytest.mark.parametrize(
-    "material", [{1: "ambiguous key"}, {"nested": {1: "ambiguous key"}}, {"value": float("inf")}]
-)
-def test_non_json_content_does_not_get_an_import_receipt(material):
-    with pytest.raises(ValueError):
-        ExternalResultAdapter().validate(
-            payload(material, {}),
-            expected_schema="fixture-result/1.0",
-            expected_assertions={"value": None},
-            verification_id="verification-1",
-        )
+def test_non_json_content_does_not_get_an_import_receipt():
+    for material in [{1: "ambiguous key"}, {"nested": {1: "ambiguous key"}}, {"value": float("inf")}]:  # noqa: E501
+        with pytest.raises(ValueError):
+            ExternalResultAdapter().validate(
+                payload(material, {}),
+                expected_schema="fixture-result/1.0",
+                expected_assertions={"value": None},
+                verification_id="verification-1",
+            )
 
 
 def test_failed_validation_does_not_claim_the_import_id():

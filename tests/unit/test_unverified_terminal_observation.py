@@ -46,48 +46,43 @@ def test_saved_terminal_label_without_exit_still_observes_original_process(tmp_p
     assert port.execution_order == ["attempt-1"]
 
 
-@pytest.mark.parametrize(
-    "state", [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.EXECUTION_ERROR]
-)
-def test_running_observation_does_not_preserve_unverified_terminal_label(state):
-    from tests.unit.test_execution_observation_identity import observation
+def test_running_observation_does_not_preserve_unverified_terminal_label():
+    for state in [AttemptState.COMPLETED, AttemptState.CANCELLED, AttemptState.EXECUTION_ERROR]:
+        from tests.unit.test_execution_observation_identity import observation
 
-    attempt, inspection, collection = observation()
-    from aitest.domain.execution.runs import ExecutionInspectionState
+        attempt, inspection, collection = observation()
+        from aitest.domain.execution.runs import ExecutionInspectionState
 
-    attempt = replace(attempt, state=state, exit_fact_ref=None)
-    result = SerialRunner(Mock())._apply_collection(
-        attempt,
-        replace(inspection, state=ExecutionInspectionState.RUNNING, process_reachable=True),
-        replace(
-            collection,
-            exit_fact_ref=None,
-            complete=False,
-            capture_completeness=CaptureCompleteness.GAP,
-        ),
-    )
-    assert result.state is AttemptState.PENDING_VERIFICATION
-    assert result.unknown_reason_ref == "exit_fact_unavailable"
-    assert result.exit_fact_ref is None
+        attempt = replace(attempt, state=state, exit_fact_ref=None)
+        result = SerialRunner(Mock())._apply_collection(
+            attempt,
+            replace(inspection, state=ExecutionInspectionState.RUNNING, process_reachable=True),
+            replace(
+                collection,
+                exit_fact_ref=None,
+                complete=False,
+                capture_completeness=CaptureCompleteness.GAP,
+            ),
+        )
+        assert result.state is AttemptState.PENDING_VERIFICATION
+        assert result.unknown_reason_ref == "exit_fact_unavailable"
+        assert result.exit_fact_ref is None
 
 
-@pytest.mark.parametrize(
-    "state",
-    [
+def test_serial_progress_requires_actual_termination_even_for_terminal_labels():
+    for state in [
         AttemptState.COMPLETED,
         AttemptState.CANCELLED,
         AttemptState.EXECUTION_ERROR,
         AttemptState.INVALIDATED,
-    ],
-)
-def test_serial_progress_requires_actual_termination_even_for_terminal_labels(state):
-    from tests.unit.test_execution_observation_identity import observation
+    ]:
+        from tests.unit.test_execution_observation_identity import observation
 
-    attempt, _, collection = observation()
-    assert SerialRunner._blocks_serial_progress(replace(attempt, state=state, exit_fact_ref=None))
-    assert not SerialRunner._blocks_serial_progress(
-        replace(attempt, state=state, exit_fact_ref=collection.exit_fact_ref)
-    )
+        attempt, _, collection = observation()
+        assert SerialRunner._blocks_serial_progress(replace(attempt, state=state, exit_fact_ref=None))  # noqa: E501
+        assert not SerialRunner._blocks_serial_progress(
+            replace(attempt, state=state, exit_fact_ref=collection.exit_fact_ref)
+        )
 
 
 def test_default_error_without_exit_continues_original_collection_and_keeps_gap(resolved):

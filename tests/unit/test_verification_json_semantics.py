@@ -73,8 +73,8 @@ def test_missing_null_boolean_and_nested_values_use_one_domain_rule(
         assert any("mismatch:status" in value for value in result.gap_ids)
 
 
-@pytest.mark.parametrize("actual", [[], {"value": float("nan")}, {"value": object()}])
-def test_unverifiable_business_material_is_structured_query_error(actual):
-    result = verify("business", actual, {"value": None})
-    assert result.observation is VerificationObservation.QUERY_ERROR
-    assert result.actual_result_ref is None and result.gap_ids
+def test_unverifiable_business_material_is_structured_query_error():
+    for actual in [[], {"value": float("nan")}, {"value": object()}]:
+        result = verify("business", actual, {"value": None})
+        assert result.observation is VerificationObservation.QUERY_ERROR
+        assert result.actual_result_ref is None and result.gap_ids

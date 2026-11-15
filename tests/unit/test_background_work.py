@@ -147,20 +147,17 @@ def test_prepublication_failure_does_not_publish_a_ready_item(core, monkeypatch)
     )
 
 
-@pytest.mark.parametrize(
-    "field,value",
-    [
+def test_continuation_strict_identity_and_boolean():
+    for field, value in [
         ("active", "true"),
         ("run_id", 1),
         ("workspace_id", ""),
         ("intent_id", False),
         ("schema_version", "unknown"),
-    ],
-)
-def test_continuation_strict_identity_and_boolean(field, value):
-    original = RunContinuation("workspace", "project", "run", "admit", "intent", "base", True)
-    with pytest.raises(ValueError):
-        RunContinuation.read(original.payload() | {field: value})
+    ]:
+        original = RunContinuation("workspace", "project", "run", "admit", "intent", "base", True)
+        with pytest.raises(ValueError):
+            RunContinuation.read(original.payload() | {field: value})
 
 
 @pytest.mark.parametrize("problem", ["bool_revision", "foreign", "wrong_id", "missing", "null"])
@@ -316,13 +313,13 @@ def test_missing_known_inventory_is_blocked_while_an_old_unregistered_workspace_
         active_catalog(tree, "workspace", required=True)
 
 
-@pytest.mark.parametrize("budget", [True, 0, 101, "1"])
-def test_background_control_budget_cannot_be_coerced_or_unbounded(budget):
-    coordinator, execution = Mock(), Mock()
-    service = SavedRunControl(coordinator, execution, "workspace")
-    with pytest.raises(ValueError, match="budget"):
-        service.advance_current("project", "run", max_inspections=budget)
-    assert not coordinator.mock_calls and not execution.mock_calls
+def test_background_control_budget_cannot_be_coerced_or_unbounded():
+    for budget in [True, 0, 101, "1"]:
+        coordinator, execution = Mock(), Mock()
+        service = SavedRunControl(coordinator, execution, "workspace")
+        with pytest.raises(ValueError, match="budget"):
+            service.advance_current("project", "run", max_inspections=budget)
+        assert not coordinator.mock_calls and not execution.mock_calls
 
 
 def test_control_settlement_rechecks_scope_after_external_observation():

@@ -12,8 +12,6 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
-import pytest
-
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _REQUIREMENTS = _REPO_ROOT / "docs" / "项目文档" / "一期" / "02-需求" / "02-需求规格.md"
 _STATUS = _REPO_ROOT / "tests" / "acceptance" / "p1" / "status.json"
@@ -166,18 +164,18 @@ def test_mirrored_cases_match_results() -> None:
     assert [case["result"] for case in cases] == [row["result"] for row in results]
 
 
-@pytest.mark.parametrize("ac_id", _B_OWNED)
-def test_b_owned_scenarios_have_prerequisite_analysis(ac_id: str) -> None:
-    row = next(item for item in _results() if item["id"] == ac_id)
-    assert row["prerequisites"], f"{ac_id} 缺少前置条件清单"
-    assert row["artifact_versions"], f"{ac_id} 缺少软件与制品版本要求"
-    assert row["evidence"]["method"], f"{ac_id} 缺少证据获取方式"
-    if row["result"] == "verified":
-        # A B-owned scenario may be verified only through the global evidence
-        # and real-environment rule; real storage/execution/entry now exist.
-        assert row["evidence"]["path"], f"{ac_id} 已验证但缺少证据路径"
-    else:
-        assert row["blockers"], f"{ac_id} 缺少结构化阻塞项"
+def test_b_owned_scenarios_have_prerequisite_analysis() -> None:
+    for ac_id in _B_OWNED:
+        row = next(item for item in _results() if item["id"] == ac_id)
+        assert row["prerequisites"], f"{ac_id} 缺少前置条件清单"
+        assert row["artifact_versions"], f"{ac_id} 缺少软件与制品版本要求"
+        assert row["evidence"]["method"], f"{ac_id} 缺少证据获取方式"
+        if row["result"] == "verified":
+            # A B-owned scenario may be verified only through the global evidence
+            # and real-environment rule; real storage/execution/entry now exist.
+            assert row["evidence"]["path"], f"{ac_id} 已验证但缺少证据路径"
+        else:
+            assert row["blockers"], f"{ac_id} 缺少结构化阻塞项"
 
 
 def test_update_rules_state_the_boundaries() -> None:

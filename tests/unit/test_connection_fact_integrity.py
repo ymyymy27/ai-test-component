@@ -87,30 +87,30 @@ def test_corrupted_fact_metadata_is_never_silently_defaulted(tmp_path, field, va
         store.load(ADDRESS)
 
 
-@pytest.mark.parametrize("value", ["false", 1, {}, SimpleNamespace(reachable="false")])
-def test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency(value):
-    calls = []
-    api = LocalAPI(
-        instance_id="strict-probe",
-        connector=lambda: value,
-        sleeper=lambda _: None,
-        connection_persistence=SimpleNamespace(
-            load=lambda: None, save=lambda state: calls.append(dict(state))
-        ),
-    )
-    response = api.dispatch(
-        Command(
-            request_id="probe",
-            action="test_connection",
-            project_id="project",
-            intent_id="probe-intent",
-            expected_revision=0,
-        ),
-        Session("session", EntryKind.INTERACTIVE_CLI),
-    )
-    assert response.error is not None
-    assert response.error.code == "CONNECTIVITY_FAILED"
-    assert all(item["connected"] is False for item in calls)
+def test_untyped_probe_result_cannot_report_connected_or_enable_a_dependency():
+    for value in ["false", 1, {}, SimpleNamespace(reachable="false")]:
+        calls = []
+        api = LocalAPI(
+            instance_id="strict-probe",
+            connector=lambda: value,  # noqa: B023
+            sleeper=lambda _: None,
+            connection_persistence=SimpleNamespace(
+                load=lambda: None, save=lambda state: calls.append(dict(state))  # noqa: B023
+            ),
+        )
+        response = api.dispatch(
+            Command(
+                request_id="probe",
+                action="test_connection",
+                project_id="project",
+                intent_id="probe-intent",
+                expected_revision=0,
+            ),
+            Session("session", EntryKind.INTERACTIVE_CLI),
+        )
+        assert response.error is not None
+        assert response.error.code == "CONNECTIVITY_FAILED"
+        assert all(item["connected"] is False for item in calls)
 
 
 def test_escaped_registered_credential_is_filtered_before_connection_diagnostic_write(tmp_path):
@@ -196,25 +196,23 @@ def test_bad_new_fact_is_rejected_before_diagnostic_directory_is_created(tmp_pat
     assert not store.path.exists() and not store.path.parent.exists()
 
 
-@pytest.mark.parametrize(
-    "metadata", [dict(elapsed_ms=True), dict(elapsed_ms=-1), dict(error_kind="timeout")]
-)
-def test_connected_label_with_contradictory_metadata_cannot_report_a_success(metadata):
-    fact = SimpleNamespace(reachable=True, elapsed_ms=1, error_kind=None)
-    for name, value in metadata.items():
-        setattr(fact, name, value)
-    api = LocalAPI(instance_id="metadata", connector=lambda: fact, sleeper=lambda _: None)
-    response = api.dispatch(
-        Command(
-            request_id="probe",
-            action="test_connection",
-            project_id="project",
-            intent_id="probe-intent",
-            expected_revision=0,
-        ),
-        Session("session", EntryKind.INTERACTIVE_CLI),
-    )
-    assert response.error.code == "CONNECTIVITY_FAILED"
+def test_connected_label_with_contradictory_metadata_cannot_report_a_success():
+    for metadata in [dict(elapsed_ms=True), dict(elapsed_ms=-1), dict(error_kind="timeout")]:
+        fact = SimpleNamespace(reachable=True, elapsed_ms=1, error_kind=None)
+        for name, value in metadata.items():
+            setattr(fact, name, value)
+        api = LocalAPI(instance_id="metadata", connector=lambda: fact, sleeper=lambda _: None)  # noqa: B023
+        response = api.dispatch(
+            Command(
+                request_id="probe",
+                action="test_connection",
+                project_id="project",
+                intent_id="probe-intent",
+                expected_revision=0,
+            ),
+            Session("session", EntryKind.INTERACTIVE_CLI),
+        )
+        assert response.error.code == "CONNECTIVITY_FAILED"
 
 
 def test_connection_persistence_failure_is_a_safe_response_and_blocks_its_dependent_action():

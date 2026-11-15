@@ -100,34 +100,28 @@ def test_check_peer_identity_message_contains_both_sids_for_audit() -> None:
 # ----- validate_workspace_id ----------------------------
 
 
-@pytest.mark.parametrize(
-    "value",
-    [
+def test_validate_workspace_id_rejects_illegal_characters() -> None:
+    for value in [
         "../bad/name",
         "ws with space",
         "ws/with/slash",
         "",
         "ws:colon",
         "ws\\backslash",
-    ],
-)
-def test_validate_workspace_id_rejects_illegal_characters(value: str) -> None:
-    with pytest.raises(PipeUnavailable, match="非法工作空间标识"):
-        validate_workspace_id(value)
+    ]:
+        with pytest.raises(PipeUnavailable, match="非法工作空间标识"):
+            validate_workspace_id(value)
 
 
-@pytest.mark.parametrize(
-    "value",
-    [
+def test_validate_workspace_id_accepts_legal_ids() -> None:
+    for value in [
         "ws-abc",
         "WS123",
         "workspace_id",
         "a",
         "x-y_z",
-    ],
-)
-def test_validate_workspace_id_accepts_legal_ids(value: str) -> None:
-    assert validate_workspace_id(value) == value
+    ]:
+        assert validate_workspace_id(value) == value
 
 
 # ----- make_pipe_connector 优雅拒绝非法 workspace_id ----------------------------

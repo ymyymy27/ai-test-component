@@ -29,20 +29,20 @@ def write_raw(client, data):
     client._write_all(data, deadline=client._deadline(2000), on_wait=None)
 
 
-@pytest.mark.parametrize("prefix", [b"", b"\x00", (10).to_bytes(4, "big") + b"short"])
-def test_server_partial_frame_deadline_covers_header_and_body(prefix):
-    server, client = connected_pair()
-    try:
-        if prefix:
-            write_raw(client, prefix)
-        started = time.monotonic()
-        with pytest.raises(PipeUnavailable, match="超时"):
-            server.read_message(timeout_ms=100)
-        assert time.monotonic() - started < 2
-        assert not server._pending_io
-    finally:
-        client.close()
-        server.close()
+def test_server_partial_frame_deadline_covers_header_and_body():
+    for prefix in [b"", b"\x00", (10).to_bytes(4, "big") + b"short"]:
+        server, client = connected_pair()
+        try:
+            if prefix:
+                write_raw(client, prefix)
+            started = time.monotonic()
+            with pytest.raises(PipeUnavailable, match="超时"):
+                server.read_message(timeout_ms=100)
+            assert time.monotonic() - started < 2
+            assert not server._pending_io
+        finally:
+            client.close()
+            server.close()
 
 
 def test_idle_accept_is_cancellable_on_the_owning_thread():
@@ -157,16 +157,16 @@ def test_cross_thread_close_cancels_accept_and_retains_storage_until_completion(
         server.close()
 
 
-@pytest.mark.parametrize("budget", [True, -1, 0.5, "100"])
-def test_invalid_io_budget_is_rejected_before_connect_or_read(budget):
-    server = NamedPipeServer("invalid-budget-" + uuid4().hex, instance_id="core")
-    server.start()
-    try:
-        with pytest.raises(ValueError):
-            server.wait_for_client(timeout_ms=budget)
-        assert not server._pending_io
-    finally:
-        server.close()
+def test_invalid_io_budget_is_rejected_before_connect_or_read():
+    for budget in [True, -1, 0.5, "100"]:
+        server = NamedPipeServer("invalid-budget-" + uuid4().hex, instance_id="core")
+        server.start()
+        try:
+            with pytest.raises(ValueError):
+                server.wait_for_client(timeout_ms=budget)
+            assert not server._pending_io
+        finally:
+            server.close()
 
 
 @pytest.mark.parametrize("payload", [b"", b"abc", b"x" * 20000], ids=["empty", "small", "large"])

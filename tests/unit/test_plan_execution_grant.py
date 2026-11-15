@@ -84,13 +84,10 @@ def test_grant_coerces_enum_strings() -> None:
     assert grant.risk_class is GrantRiskClass.HIGH
 
 
-@pytest.mark.parametrize(
-    "field",
-    ["grant_id", "scope_digest", "credential_scope_ref", "environment_id"],
-)
-def test_grant_rejects_blank_identity(field: str) -> None:
-    with pytest.raises(ValueError, match=field):
-        _grant(**{field: "   "})
+def test_grant_rejects_blank_identity() -> None:
+    for field in ["grant_id", "scope_digest", "credential_scope_ref", "environment_id"]:
+        with pytest.raises(ValueError, match=field):
+            _grant(**{field: "   "})
 
 
 @pytest.mark.parametrize("field", ["plan_revision", "understanding_revision"])
@@ -115,13 +112,10 @@ def test_grant_rejects_blank_allowed_host() -> None:
         _grant(allowed_hosts=frozenset({"localhost", ""}))
 
 
-@pytest.mark.parametrize(
-    "field",
-    ["max_side_effect_actions", "max_data_mutation", "budget"],
-)
-def test_grant_rejects_negative_limits(field: str) -> None:
-    with pytest.raises(ValueError, match=field):
-        _grant(**{field: -1})
+def test_grant_rejects_negative_limits() -> None:
+    for field in ["max_side_effect_actions", "max_data_mutation", "budget"]:
+        with pytest.raises(ValueError, match=field):
+            _grant(**{field: -1})
 
 
 def test_grant_accepts_zero_limits() -> None:
@@ -155,10 +149,10 @@ def test_grant_rejects_revoked_without_timestamp() -> None:
         _grant(status=GrantStatus.REVOKED)
 
 
-@pytest.mark.parametrize("status", [GrantStatus.ACTIVE, GrantStatus.EXPIRED])
-def test_grant_rejects_timestamp_on_non_revoked_grant(status: GrantStatus) -> None:
-    with pytest.raises(ValueError, match="only a revoked grant"):
-        _grant(status=status, revoked_at=_NOW)
+def test_grant_rejects_timestamp_on_non_revoked_grant() -> None:
+    for status in [GrantStatus.ACTIVE, GrantStatus.EXPIRED]:
+        with pytest.raises(ValueError, match="only a revoked grant"):
+            _grant(status=status, revoked_at=_NOW)
 
 
 # ------------------------------------------------------------ scope digest
@@ -194,30 +188,27 @@ def test_grant_scope_digest_is_stable_and_order_insensitive() -> None:
     assert _DIGEST_PATTERN.fullmatch(first)
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
+def test_grant_scope_digest_binds_every_component() -> None:
+    for overrides in [
         {"plan_revision": 4},
         {"understanding_revision": 3},
         {"scope_digest": "sha256:" + "b" * 64},
         {"allowed_action_classes": ["http_request"]},
         {"credential_scope_ref": "credential:prod"},
         {"environment_id": "env-prod"},
-    ],
-)
-def test_grant_scope_digest_binds_every_component(overrides: dict[str, object]) -> None:
-    base: dict[str, object] = {
-        "plan_revision": 3,
-        "understanding_revision": 2,
-        "scope_digest": _SCOPE_DIGEST,
-        "allowed_action_classes": frozenset({"http_request", "db_write"}),
-        "credential_scope_ref": "credential:test",
-        "environment_id": "env-test",
-    }
+    ]:
+        base: dict[str, object] = {
+            "plan_revision": 3,
+            "understanding_revision": 2,
+            "scope_digest": _SCOPE_DIGEST,
+            "allowed_action_classes": frozenset({"http_request", "db_write"}),
+            "credential_scope_ref": "credential:test",
+            "environment_id": "env-test",
+        }
 
-    assert grant_scope_digest(**(base | overrides)) != grant_scope_digest(  # type: ignore[arg-type]
-        **base  # type: ignore[arg-type]
-    )
+        assert grant_scope_digest(**(base | overrides)) != grant_scope_digest(  # type: ignore[arg-type]
+            **base  # type: ignore[arg-type]
+        )
 
 
 def test_grant_scope_digest_rejects_empty_action_classes() -> None:
@@ -248,22 +239,19 @@ def test_grant_allows_without_time_window() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
+def test_grant_allows_rejects_mismatched_binding() -> None:
+    for overrides in [
         {"action_class": "db_drop"},
         {"credential_scope_ref": "credential:prod"},
         {"environment_id": "env-prod"},
-    ],
-)
-def test_grant_allows_rejects_mismatched_binding(overrides: dict[str, str]) -> None:
-    arguments = {
-        "action_class": "http_request",
-        "credential_scope_ref": "credential:test",
-        "environment_id": "env-test",
-    } | overrides
+    ]:
+        arguments = {
+            "action_class": "http_request",
+            "credential_scope_ref": "credential:test",
+            "environment_id": "env-test",
+        } | overrides
 
-    assert not grant_allows(_grant(), now=_NOW, **arguments)
+        assert not grant_allows(_grant(), now=_NOW, **arguments)
 
 
 def test_grant_allows_rejects_elapsed_time_window() -> None:

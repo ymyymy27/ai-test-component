@@ -54,23 +54,23 @@ def test_end_requires_the_exact_explicit_begin_handle(action, handle):
     api.close_session(OWNER)
 
 
-@pytest.mark.parametrize("action", ["commit", "rollback"])
-def test_end_cannot_omit_the_project_frozen_at_begin(action):
-    api, port = _api()
-    assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
-    response = api.dispatch(
-        _command(
-            action,
-            request_id="missing-project",
-            project_id=None,
-            parameters={"begin_request_id": "begin-owner"},
-        ),
-        OWNER,
-    )
-    assert response.error is not None
-    assert response.error.code == "TRANSACTION_PROJECT_MISMATCH"
-    assert port.calls == [("begin", "begin-owner")]
-    api.close_session(OWNER)
+def test_end_cannot_omit_the_project_frozen_at_begin():
+    for action in ["commit", "rollback"]:
+        api, port = _api()
+        assert api.dispatch(_command("begin", request_id="begin-owner"), OWNER).error is None
+        response = api.dispatch(
+            _command(
+                action,
+                request_id="missing-project",
+                project_id=None,
+                parameters={"begin_request_id": "begin-owner"},
+            ),
+            OWNER,
+        )
+        assert response.error is not None
+        assert response.error.code == "TRANSACTION_PROJECT_MISMATCH"
+        assert port.calls == [("begin", "begin-owner")]
+        api.close_session(OWNER)
 
 
 def test_a_declined_begin_response_does_not_claim_an_active_transaction():
@@ -94,44 +94,44 @@ def test_a_declined_begin_response_does_not_claim_an_active_transaction():
     api.close_session(OWNER)  # No nonexistent rollback may be invented.
 
 
-@pytest.mark.parametrize("failed", [False, True])
-def test_transaction_response_dto_uses_core_envelope_and_safe_projection(failed):
-    secret = "sk-" + "synthetic-transaction-secret-" * 2
+def test_transaction_response_dto_uses_core_envelope_and_safe_projection():
+    for failed in [False, True]:
+        secret = "sk-" + "synthetic-transaction-secret-" * 2
 
-    class RichResponse:
-        def recover(self, **kwargs):
-            return Response(
-                request_id="other-request",
-                instance_id="other-instance",
-                workspace_id="other-workspace",
-                project_id="other-project",
-                intent_id="other-intent",
-                binding_revision=99,
-                result={"api_key": secret, "state": "unknown"},
-                error=ErrorDTO(
-                    code="RECOVERY_REQUIRED",
-                    message=secret,
-                    next_step=secret,
-                    request_id="other-error",
+        class RichResponse:
+            def recover(self, **kwargs):
+                return Response(
+                    request_id="other-request",
+                    instance_id="other-instance",
+                    workspace_id="other-workspace",
+                    project_id="other-project",
                     intent_id="other-intent",
+                    binding_revision=99,
+                    result={"api_key": secret, "state": "unknown"},  # noqa: B023
+                    error=ErrorDTO(
+                        code="RECOVERY_REQUIRED",
+                        message=secret,  # noqa: B023
+                        next_step=secret,  # noqa: B023
+                        request_id="other-error",
+                        intent_id="other-intent",
+                    )
+                    if failed  # noqa: B023
+                    else None,
                 )
-                if failed
-                else None,
-            )
 
-    api = LocalAPI("actual-instance", "actual-workspace", transaction_port=RichResponse())
-    command = _command("recover", request_id="actual-request")
-    response = api.dispatch(command, OWNER)
-    assert secret not in response.model_dump_json()
-    assert response.request_id == command.request_id
-    assert response.instance_id == "actual-instance"
-    assert response.workspace_id == "actual-workspace"
-    assert response.project_id == command.project_id
-    assert response.intent_id == command.intent_id
-    assert response.binding_revision == command.binding_revision
-    if failed:
-        assert response.error.request_id == command.request_id
-        assert response.error.intent_id == command.intent_id
+        api = LocalAPI("actual-instance", "actual-workspace", transaction_port=RichResponse())
+        command = _command("recover", request_id="actual-request")
+        response = api.dispatch(command, OWNER)
+        assert secret not in response.model_dump_json()
+        assert response.request_id == command.request_id
+        assert response.instance_id == "actual-instance"
+        assert response.workspace_id == "actual-workspace"
+        assert response.project_id == command.project_id
+        assert response.intent_id == command.intent_id
+        assert response.binding_revision == command.binding_revision
+        if failed:
+            assert response.error.request_id == command.request_id
+            assert response.error.intent_id == command.intent_id
 
 
 def test_scalar_transaction_result_still_crosses_the_safe_boundary():

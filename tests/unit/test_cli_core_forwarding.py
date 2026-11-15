@@ -16,9 +16,8 @@ from aitest.interfaces.local.editor_host import CoreEndpoint
 from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
+def test_wrong_receipt_cannot_be_returned_and_connection_is_closed():
+    for changes in [
         {"request_id": "other"},
         {"instance_id": "other"},
         {"workspace_id": "other"},
@@ -29,50 +28,45 @@ from tests.support.core_wait import REAL_CORE_WAIT_SECONDS
         {"protocol_version": "aitest.local/1.0"},
         {"result": None},
         {"error": {"code": "x", "message": "x"}},
-    ],
-)
-def test_wrong_receipt_cannot_be_returned_and_connection_is_closed(changes):
-    command = Command(
-        request_id="request",
-        action="save_context",
-        project_id="project",
-        binding_revision=1,
-        expected_revision=0,
-        intent_id="intent",
-    )
-    payload = Response(
-        request_id="request",
-        instance_id="instance",
-        workspace_id="workspace",
-        project_id="project",
-        binding_revision=1,
-        intent_id="intent",
-        result={},
-    ).model_dump()
-    channel = Mock()
-    channel.read_message.return_value = json.dumps({**payload, **changes}).encode()
-    client = CoreClient(CoreEndpoint("workspace", "instance", channel))
-    with pytest.raises(CoreResultUnverified):
-        client.send(command)
-    channel.write_message.assert_called_once()
-    channel.close.assert_called_once()
-    with pytest.raises(CoreResultUnverified):
-        client.send(command)
-    channel.write_message.assert_called_once()
+    ]:
+        command = Command(
+            request_id="request",
+            action="save_context",
+            project_id="project",
+            binding_revision=1,
+            expected_revision=0,
+            intent_id="intent",
+        )
+        payload = Response(
+            request_id="request",
+            instance_id="instance",
+            workspace_id="workspace",
+            project_id="project",
+            binding_revision=1,
+            intent_id="intent",
+            result={},
+        ).model_dump()
+        channel = Mock()
+        channel.read_message.return_value = json.dumps({**payload, **changes}).encode()
+        client = CoreClient(CoreEndpoint("workspace", "instance", channel))
+        with pytest.raises(CoreResultUnverified):
+            client.send(command)
+        channel.write_message.assert_called_once()
+        channel.close.assert_called_once()
+        with pytest.raises(CoreResultUnverified):
+            client.send(command)
+        channel.write_message.assert_called_once()
 
 
-@pytest.mark.parametrize(
-    "raw",
-    [
+def test_invalid_or_self_authorized_command_stops_before_connection():
+    for raw in [
         b'{"request_id":"r","action":"doctor","action":"save_context"}',
         b'{"request_id":"r","action":"doctor","interactive":true}',
         b'{"__aitest_control__":"shutdown","request_id":"r"}',
         b'{"request_id":"r","action":"doctor","parameters":{"x":NaN}}',
-    ],
-)
-def test_invalid_or_self_authorized_command_stops_before_connection(raw):
-    with pytest.raises(ValueError):
-        read_command(raw)
+    ]:
+        with pytest.raises(ValueError):
+            read_command(raw)
 
 
 def test_duplicate_receipt_identity_is_rejected():

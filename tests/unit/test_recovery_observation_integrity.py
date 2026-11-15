@@ -247,26 +247,23 @@ def test_unknown_write_is_not_safe_retry_just_because_it_declares_idempotence(tm
     assert result.attempt.state is AttemptState.PENDING_VERIFICATION
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
+def test_pause_and_runtime_revision_share_original_exit_identity_checks():
+    for changes in [
         {"attempt_id": "foreign"},
         {"process_start_identity": "foreign"},
         {"termination_reason": ProcessTerminationReason.EXECUTOR_LOST},
-    ],
-)
-def test_pause_and_runtime_revision_share_original_exit_identity_checks(changes):
-    _checkpoint, attempt = _saved(AttemptState.COMPLETED)
-    fact = ExitFact(
-        "attempt-1", "token", "start-1", 0, termination_reason=ProcessTerminationReason.NATURAL_EXIT
-    )
-    attempt = replace(attempt, exit_fact_ref=replace(fact, **changes))
-    assert execution_boundary_pending(attempt)
-    facts = _batch().facts.model_copy(
-        update={"attempts": (project_attempt_fact(attempt, is_current=True),)}
-    )
-    with pytest.raises(ValueError, match="verified non-active"):
-        require_runtime_boundary(facts)
+    ]:
+        _checkpoint, attempt = _saved(AttemptState.COMPLETED)
+        fact = ExitFact(
+            "attempt-1", "token", "start-1", 0, termination_reason=ProcessTerminationReason.NATURAL_EXIT  # noqa: E501
+        )
+        attempt = replace(attempt, exit_fact_ref=replace(fact, **changes))
+        assert execution_boundary_pending(attempt)
+        facts = _batch().facts.model_copy(
+            update={"attempts": (project_attempt_fact(attempt, is_current=True),)}
+        )
+        with pytest.raises(ValueError, match="verified non-active"):
+            require_runtime_boundary(facts)
 
 
 @pytest.mark.parametrize(
@@ -291,22 +288,19 @@ def test_saved_uncertain_exit_blocks_replacement_without_consuming_authorization
     assert not port.started
 
 
-@pytest.mark.parametrize(
-    "change",
-    [{"termination_reason": ProcessTerminationReason.EXECUTOR_LOST}, {"real_exit_code": None}],
-)
-def test_inconclusive_exit_cannot_become_completion_or_allow_serial_progress(change):
-    _checkpoint, attempt = _saved()
-    fact = ExitFact(
-        "attempt-1", "token", "start-1", 0, termination_reason=ProcessTerminationReason.NATURAL_EXIT
-    )
-    fact = replace(fact, **change)
-    collection = ExecutionCollectionResult(attempt.attempt_id, exit_fact_ref=fact, complete=True)
-    state = SerialRunner._attempt_state_for(
-        attempt, _inspection(ExecutionInspectionState.EXITED), collection
-    )
-    assert state is AttemptState.PENDING_VERIFICATION
-    assert SerialRunner._blocks_serial_progress(replace(attempt, state=state, exit_fact_ref=fact))
+def test_inconclusive_exit_cannot_become_completion_or_allow_serial_progress():
+    for change in [{"termination_reason": ProcessTerminationReason.EXECUTOR_LOST}, {"real_exit_code": None}]:  # noqa: E501
+        _checkpoint, attempt = _saved()
+        fact = ExitFact(
+            "attempt-1", "token", "start-1", 0, termination_reason=ProcessTerminationReason.NATURAL_EXIT  # noqa: E501
+        )
+        fact = replace(fact, **change)
+        collection = ExecutionCollectionResult(attempt.attempt_id, exit_fact_ref=fact, complete=True)  # noqa: E501
+        state = SerialRunner._attempt_state_for(
+            attempt, _inspection(ExecutionInspectionState.EXITED), collection
+        )
+        assert state is AttemptState.PENDING_VERIFICATION
+        assert SerialRunner._blocks_serial_progress(replace(attempt, state=state, exit_fact_ref=fact))  # noqa: E501
 
 
 @pytest.mark.parametrize("field", ["offset", "last_committed_digest"])

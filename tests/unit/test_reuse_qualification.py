@@ -30,15 +30,15 @@ def aggregate(basis, steps=None):
     )
 
 
-@pytest.mark.parametrize("field", [field.name for field in fields(ReuseIdentity)])
-def test_any_changed_source_or_target_identity_denies_reuse(field):
-    basis = verified_reuse_basis()
-    basis = replace(basis, target=replace(basis.target, **{field: "changed"}))
-    assert field + "_changed" in basis.denial_reasons
-    result = aggregate(basis)
-    assert not result.can_count_reuse and not result.can_count_verification
-    assert not result.has_decisive_failure
-    assert result.pending_step_ids == ("s1",)
+def test_any_changed_source_or_target_identity_denies_reuse():
+    for field in [field.name for field in fields(ReuseIdentity)]:
+        basis = verified_reuse_basis()
+        basis = replace(basis, target=replace(basis.target, **{field: "changed"}))
+        assert field + "_changed" in basis.denial_reasons
+        result = aggregate(basis)
+        assert not result.can_count_reuse and not result.can_count_verification
+        assert not result.has_decisive_failure
+        assert result.pending_step_ids == ("s1",)
 
 
 @pytest.mark.parametrize("field", [field.name for field in fields(ReuseIdentity)[2:]])
@@ -64,10 +64,10 @@ def test_each_current_guard_is_required_and_unknown_is_not_success(kind, state):
     assert not aggregate(basis).can_count_reuse
 
 
-@pytest.mark.parametrize("mapping", [(), (("s2", "attempt-s1"),), (("s1", "wrong-attempt"),)])
-def test_qualification_is_bound_to_exact_required_step_attempt_map(mapping):
-    result = aggregate(replace(verified_reuse_basis(), source_attempt_by_step=mapping))
-    assert not result.can_count_reuse
+def test_qualification_is_bound_to_exact_required_step_attempt_map():
+    for mapping in [(), (("s2", "attempt-s1"),), (("s1", "wrong-attempt"),)]:
+        result = aggregate(replace(verified_reuse_basis(), source_attempt_by_step=mapping))
+        assert not result.can_count_reuse
 
 
 @pytest.mark.parametrize("state", list(AttemptState))
@@ -81,20 +81,17 @@ def test_any_new_attempt_denies_reuse_even_with_complete_guard(state, optional):
         assert not result.has_decisive_failure
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
+def test_invalid_or_mutable_basis_cannot_enter_the_qualification():
+    for change in [
         {"conditions": []}, {"conditions": (True,)},
         {"source_attempt_by_step": [["s1", "attempt-s1"]]},
         {"source_attempt_by_step": (("s1", "a"), ("s1", "b"))},
         {"source_attempt_by_step": (("s1", "a"), ("s2", "a"))},
         {"source_snapshot_digest": "claimed"}, {"source": True},
         {"source_run_id": ""}, {"source_snapshot_id": "\ud800"},
-    ],
-)
-def test_invalid_or_mutable_basis_cannot_enter_the_qualification(change):
-    with pytest.raises(ValueError):
-        replace(verified_reuse_basis(), **change)
+    ]:
+        with pytest.raises(ValueError):
+            replace(verified_reuse_basis(), **change)
 
 
 def test_repeated_condition_cannot_hide_an_invalid_observation():
@@ -103,10 +100,10 @@ def test_repeated_condition_cannot_hide_an_invalid_observation():
         replace(basis, conditions=(*basis.conditions, basis.conditions[0]))
 
 
-@pytest.mark.parametrize("value", [True, "verified", {}, 1])
-def test_boolean_or_untyped_qualification_is_rejected(value):
-    with pytest.raises(ValueError):
-        aggregate(value)
+def test_boolean_or_untyped_qualification_is_rejected():
+    for value in [True, "verified", {}, 1]:
+        with pytest.raises(ValueError):
+            aggregate(value)
 
 
 def test_complete_legal_failed_reuse_preserves_failure_without_new_execution():

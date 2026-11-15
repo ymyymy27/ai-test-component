@@ -229,9 +229,8 @@ def test_arguments_and_adapter_key_come_from_the_frozen_binding() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "prepared",
-    [
+def test_missing_frozen_sections_are_refused() -> None:
+    for prepared in [
         {},
         {"execution_source": {}},
         {"execution_source": _prepared()["execution_source"], "snapshot": {}},
@@ -250,13 +249,11 @@ def test_arguments_and_adapter_key_come_from_the_frozen_binding() -> None:
                          "record_revision": 0},
             "environment": {"resolution": {}},
         },
-    ],
-)
-def test_missing_frozen_sections_are_refused(prepared: dict[str, object]) -> None:
-    with pytest.raises(ActionResolutionBlocked):
-        _resolver().resolve(
-            run=_run(), step=_step(), intent_id="intent-1", prepared=prepared, step_content={}
-        )
+    ]:
+        with pytest.raises(ActionResolutionBlocked):
+            _resolver().resolve(
+                run=_run(), step=_step(), intent_id="intent-1", prepared=prepared, step_content={}
+            )
 
 
 def test_missing_start_admission_is_refused() -> None:
@@ -271,23 +268,18 @@ def test_missing_start_admission_is_refused() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "admission",
-    [
+def test_admission_must_match_snapshot_and_carry_exact_digest() -> None:
+    for admission in [
         _admission(snapshot="other-snapshot"),
         {"snapshot_id": _TECHNICAL_SNAPSHOT, "source_binding_digest": "sha256:short"},
         {"snapshot_id": _TECHNICAL_SNAPSHOT},
         # 物化端口回执的技术身份与业务→技术映射不一致：拒绝，不"就近取信"。
         _admission(snapshot=_BUSINESS_SNAPSHOT),
-    ],
-)
-def test_admission_must_match_snapshot_and_carry_exact_digest(
-    admission: dict[str, object],
-) -> None:
-    with pytest.raises(ActionResolutionBlocked):
-        _resolver(admission=admission).resolve(
-            run=_run(), step=_step(), intent_id="intent-1", prepared=_prepared(), step_content={}
-        )
+    ]:
+        with pytest.raises(ActionResolutionBlocked):
+            _resolver(admission=admission).resolve(
+                run=_run(), step=_step(), intent_id="intent-1", prepared=_prepared(), step_content={}  # noqa: E501
+            )
 
 
 def test_frozen_step_timeout_must_be_positive_seconds() -> None:
@@ -413,49 +405,46 @@ def test_resolver_preserves_exact_source_observation_and_legacy_payload() -> Non
     )
 
 
-@pytest.mark.parametrize(
-    "change",
-    [
+def test_resolver_refuses_source_observation_from_another_execution_scope() -> None:
+    for change in [
         {"project_id": "foreign-project"},
         {"materialized_snapshot_ref": "C:/foreign"},
         {"expected_source_content_digest": "sha256:" + "b" * 64},
         {"observed_source_digest": "sha256:" + "b" * 64},
         {"plan_revision_ref": PlanRevisionRef("foreign-plan", 1, _DIGEST)},
-    ],
-)
-def test_resolver_refuses_source_observation_from_another_execution_scope(change) -> None:
-    from dataclasses import replace
+    ]:
+        from dataclasses import replace
 
-    resolver = _resolver()
-    resolver._source_verification_provider = lambda *_args: replace(_source_observation(), **change)
-    with pytest.raises(ActionResolutionBlocked):
-        resolver.resolve(
-            run=_run(),
-            step=_step(),
-            intent_id="intent-1",
-            prepared=_prepared(),
-            step_content={"step_id": "step-1", "run_id": "run-1"},
+        resolver = _resolver()
+        resolver._source_verification_provider = lambda *_args: replace(_source_observation(), **change)  # noqa: B023,E501
+        with pytest.raises(ActionResolutionBlocked):
+            resolver.resolve(
+                run=_run(),
+                step=_step(),
+                intent_id="intent-1",
+                prepared=_prepared(),
+                step_content={"step_id": "step-1", "run_id": "run-1"},
+            )
+
+
+def test_resolver_keeps_unverified_source_blocked() -> None:
+    for state in ["unknown", "unverified", "blocked", "mismatch"]:
+        from dataclasses import replace
+
+        from aitest.domain.execution.sources import SourceVerificationState
+
+        resolver = _resolver()
+        resolver._source_verification_provider = lambda *_args: replace(
+            _source_observation(), state=SourceVerificationState(state)  # noqa: B023
         )
-
-
-@pytest.mark.parametrize("state", ["unknown", "unverified", "blocked", "mismatch"])
-def test_resolver_keeps_unverified_source_blocked(state) -> None:
-    from dataclasses import replace
-
-    from aitest.domain.execution.sources import SourceVerificationState
-
-    resolver = _resolver()
-    resolver._source_verification_provider = lambda *_args: replace(
-        _source_observation(), state=SourceVerificationState(state)
-    )
-    with pytest.raises(ActionResolutionBlocked):
-        resolver.resolve(
-            run=_run(),
-            step=_step(),
-            intent_id="intent-1",
-            prepared=_prepared(),
-            step_content={"step_id": "step-1", "run_id": "run-1"},
-        )
+        with pytest.raises(ActionResolutionBlocked):
+            resolver.resolve(
+                run=_run(),
+                step=_step(),
+                intent_id="intent-1",
+                prepared=_prepared(),
+                step_content={"step_id": "step-1", "run_id": "run-1"},
+            )
 
 
 def test_source_material_preserves_actual_object_scope_and_downgrades_missing_capture():
@@ -511,81 +500,81 @@ def test_source_material_preserves_actual_object_scope_and_downgrades_missing_ca
     assert no_evidence is None and not missing.evidence_refs
 
 
-@pytest.mark.parametrize("mutation", ["digest", "size", "scope", "reference", "budget"])
-def test_source_material_refuses_changed_or_foreign_saved_objects(mutation):
-    import hashlib
-    from dataclasses import replace
-    from types import SimpleNamespace
+def test_source_material_refuses_changed_or_foreign_saved_objects():
+    for mutation in ["digest", "size", "scope", "reference", "budget"]:
+        import hashlib
+        from dataclasses import replace
+        from types import SimpleNamespace
 
-    from aitest.application.execution.commit import ExecutionCommitCoordinator
-    from aitest.domain.evidence.evidence import StoredObjectRef
-    from tests.unit.test_current_execution_snapshot import _batch
+        from aitest.application.execution.commit import ExecutionCommitCoordinator
+        from aitest.domain.evidence.evidence import StoredObjectRef
+        from tests.unit.test_current_execution_snapshot import _batch
 
-    batch = _batch()
-    content = b'{"observed":"source"}'
-    reference = StoredObjectRef(
-        "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
-        "application/json", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
-    )
-    source = replace(
-        _source_observation(), raw_output_object=reference,
-        source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),
-    )
-    seen = []
+        batch = _batch()
+        content = b'{"observed":"source"}'
+        reference = StoredObjectRef(
+            "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
+            "application/json", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
+        )
+        source = replace(
+            _source_observation(), raw_output_object=reference,
+            source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),  # noqa: E501
+        )
+        seen = []
 
-    def read(ref):
-        seen.append(ref)
-        return b'changed same length!!' if mutation == "digest" else content
+        def read(ref):
+            seen.append(ref)  # noqa: B023
+            return b'changed same length!!' if mutation == "digest" else content  # noqa: B023
 
-    if mutation == "size":
-        source = replace(source, raw_output_object=replace(reference, size=reference.size + 1))
-    if mutation == "scope":
-        source = replace(source, raw_output_object=replace(reference, project_id="foreign-project"))
-    if mutation == "reference":
-        source = replace(source, evidence_refs=("objects/foreign-project/unknown",))
-    if mutation == "budget":
-        source = replace(source, raw_output_object=replace(reference, size=8 * 1024 * 1024 + 1))
-    coordinator = ExecutionCommitCoordinator(
-        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=read)
-    )
-    with pytest.raises(ValueError):
-        coordinator._source_material(
-        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
-    )
-    if mutation in {"scope", "reference", "budget"}:
-        assert not seen
+        if mutation == "size":
+            source = replace(source, raw_output_object=replace(reference, size=reference.size + 1))
+        if mutation == "scope":
+            source = replace(source, raw_output_object=replace(reference, project_id="foreign-project"))  # noqa: E501
+        if mutation == "reference":
+            source = replace(source, evidence_refs=("objects/foreign-project/unknown",))
+        if mutation == "budget":
+            source = replace(source, raw_output_object=replace(reference, size=8 * 1024 * 1024 + 1))
+        coordinator = ExecutionCommitCoordinator(
+            SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=read)
+        )
+        with pytest.raises(ValueError):
+            coordinator._source_material(
+            source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+        )
+        if mutation in {"scope", "reference", "budget"}:
+            assert not seen
 
 
-@pytest.mark.parametrize("state", ["mismatch", "blocked", "unknown"])
-def test_source_material_preserves_stronger_states(state):
-    import hashlib
-    from dataclasses import replace
-    from types import SimpleNamespace
+def test_source_material_preserves_stronger_states():
+    for state in ["mismatch", "blocked", "unknown"]:
+        import hashlib
+        from dataclasses import replace
+        from types import SimpleNamespace
 
-    from aitest.application.execution.commit import ExecutionCommitCoordinator
-    from aitest.domain.evidence.evidence import StoredObjectRef
-    from aitest.domain.execution.sources import SourceVerificationState
-    from tests.unit.test_current_execution_snapshot import _batch
+        from aitest.application.execution.commit import ExecutionCommitCoordinator
+        from aitest.domain.evidence.evidence import StoredObjectRef
+        from aitest.domain.execution.sources import SourceVerificationState
+        from tests.unit.test_current_execution_snapshot import _batch
 
-    batch = _batch()
-    content = b"source observation"
-    reference = StoredObjectRef(
-        "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
-        "text/plain", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
-    )
-    source = replace(
-        _source_observation(), state=SourceVerificationState(state), raw_output_object=reference,
-        source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),
-    )
-    coordinator = ExecutionCommitCoordinator(
-        SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)
-    )
-    observed, evidence = coordinator._source_material(
-        source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
-    )
-    assert observed is not None and evidence is not None
-    assert observed.state is source.state
-    assert "actual_execution_load_source_unverified" in observed.gap_ids
+        batch = _batch()
+        content = b"source observation"
+        reference = StoredObjectRef(
+            "project-1", "sha256:" + hashlib.sha256(content).hexdigest(), len(content),
+            "text/plain", "objects/project-1/" + hashlib.sha256(content).hexdigest(),
+        )
+        source = replace(
+            _source_observation(), state=SourceVerificationState(state), raw_output_object=reference,  # noqa: E501
+            source_instance_id="synthetic-source-component", evidence_refs=(reference.relative_path,),  # noqa: E501
+        )
+        coordinator = ExecutionCommitCoordinator(
+            SimpleNamespace(), source_objects=SimpleNamespace(read_bytes=lambda _ref: content)  # noqa: B023
+        )
+        observed, evidence = coordinator._source_material(
+            source, batch.facts, batch.checkpoint.attempt, _source_code_fixture(batch)
+        )
+        assert observed is not None and evidence is not None
+        assert observed.state is source.state
+        assert "actual_execution_load_source_unverified" in observed.gap_ids
 
 
 def _source_code_fixture(batch):

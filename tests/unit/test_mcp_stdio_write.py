@@ -110,18 +110,17 @@ def test_transport_catalog_matches_the_implemented_ordinary_write_contract():
     assert agent_relay._WRITE_ACTIONS == ORDINARY_WRITE_ACTIONS
 
 
-@pytest.mark.parametrize("contract", [None, "unknown", 1, True, {}, []])
-def test_unknown_or_old_intent_contract_keeps_writes_unavailable(contract):
-    instance, _, sent, _ = relay(contract=contract)
-    tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
-    assert {item["name"] for item in tools} == {"aitest_doctor", "aitest_query"}
-    response = instance.handle(encode(call(3)))
-    assert response["error"]["code"] == -32602 and len(sent) == 2
+def test_unknown_or_old_intent_contract_keeps_writes_unavailable():
+    for contract in [None, "unknown", 1, True, {}, []]:
+        instance, _, sent, _ = relay(contract=contract)
+        tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
+        assert {item["name"] for item in tools} == {"aitest_doctor", "aitest_query"}
+        response = instance.handle(encode(call(3)))
+        assert response["error"]["code"] == -32602 and len(sent) == 2
 
 
-@pytest.mark.parametrize(
-    "update",
-    [
+def test_invalid_context_identity_or_action_never_dispatches():
+    for update in [
         {"project_id": "other"},
         {"binding_revision": 2},
         {"workspace_id": "other"},
@@ -143,14 +142,12 @@ def test_unknown_or_old_intent_contract_keeps_writes_unavailable(contract):
         {"expected_revision": -1},
         {"parameters": []},
         {"target": []},
-    ],
-)
-def test_invalid_context_identity_or_action_never_dispatches(update):
-    instance, _, sent, _ = relay()
-    message = call()
-    message["params"]["arguments"].update(update)
-    response = instance.handle(encode(message))
-    assert response["error"]["code"] == -32602 and len(sent) == 2
+    ]:
+        instance, _, sent, _ = relay()
+        message = call()
+        message["params"]["arguments"].update(update)
+        response = instance.handle(encode(message))
+        assert response["error"]["code"] == -32602 and len(sent) == 2
 
 
 def test_two_rpc_requests_keep_same_intent_and_duplicate_rpc_never_replays():
@@ -178,28 +175,28 @@ def test_binding_changed_before_dispatch_does_not_send_a_write():
     assert all(command.action != "save_acceptance" for command in sent)
 
 
-@pytest.mark.parametrize("unreadable", [False, True])
-def test_after_write_context_failure_preserves_the_verified_original_response(unreadable):
-    instance, client, sent, revision = relay()
-    send = client.send.side_effect
-    written = []
+def test_after_write_context_failure_preserves_the_verified_original_response():
+    for unreadable in [False, True]:
+        instance, client, sent, revision = relay()
+        send = client.send.side_effect
+        written = []
 
-    def dispatch(command):
-        if written and command.action == "query" and unreadable:
-            raise OSError("post-write binding observation unavailable")
-        response = send(command)
-        if command.action == "save_acceptance":
-            written.append(command)
-            revision[0] = 2
-        return response
+        def dispatch(command):
+            if written and command.action == "query" and unreadable:  # noqa: B023
+                raise OSError("post-write binding observation unavailable")
+            response = send(command)  # noqa: B023
+            if command.action == "save_acceptance":
+                written.append(command)  # noqa: B023
+                revision[0] = 2  # noqa: B023
+            return response
 
-    client.send.side_effect = dispatch
-    result = instance.handle(encode(call()))["result"]
-    assert result["isError"] is False and len(written) == 1
-    assert result["structuredContent"]["intent_id"] == "original-business"
-    assert result["structuredContent"]["result"]["revision"] == 1
-    assert result["_meta"]["aitest/context"]["state"] == "reselect_required"
-    assert len(result["content"]) == 2
+        client.send.side_effect = dispatch
+        result = instance.handle(encode(call()))["result"]
+        assert result["isError"] is False and len(written) == 1
+        assert result["structuredContent"]["intent_id"] == "original-business"
+        assert result["structuredContent"]["result"]["revision"] == 1
+        assert result["_meta"]["aitest/context"]["state"] == "reselect_required"
+        assert len(result["content"]) == 2
 
 
 def test_lost_core_receipt_does_not_retry_or_invent_a_success():
@@ -227,20 +224,18 @@ def test_legacy_write_result_keeps_readable_original_response_without_new_conten
     assert json.loads(result["content"][0]["text"])["intent_id"] == "original-business"
 
 
-@pytest.mark.parametrize(
-    "action", ["save_environment", "save_dependency_graph", "save_case", "save_task"]
-)
-def test_all_four_existing_save_names_enforce_the_shared_transport_write_identity(action):
-    with pytest.raises(ValueError):
-        Command(request_id="transport", action=action, project_id="project")
-    with pytest.raises(ValueError):
-        Command(
-            request_id="same",
-            intent_id="same",
-            expected_revision=0,
-            action=action,
-            project_id="project",
-        )
+def test_all_four_existing_save_names_enforce_the_shared_transport_write_identity():
+    for action in ["save_environment", "save_dependency_graph", "save_case", "save_task"]:
+        with pytest.raises(ValueError):
+            Command(request_id="transport", action=action, project_id="project")
+        with pytest.raises(ValueError):
+            Command(
+                request_id="same",
+                intent_id="same",
+                expected_revision=0,
+                action=action,
+                project_id="project",
+            )
 
 
 @pytest.mark.skipif(not sys.platform.startswith("win"), reason="Real Windows core, CLI and stdio")
@@ -374,45 +369,42 @@ def test_actual_stdio_write_replay_cli_and_restart_share_original_saved_result(t
         shutdown_endpoint(root)
 
 
-@pytest.mark.parametrize("catalog", [None, True, 1, "unknown", []])
-def test_malformed_write_catalog_degrades_only_writes_and_keeps_finite_reads(catalog):
-    _, client, sent, _ = relay()
-    send = client.send.side_effect
+def test_malformed_write_catalog_degrades_only_writes_and_keeps_finite_reads():
+    for catalog in [None, True, 1, "unknown", []]:
+        _, client, sent, _ = relay()
+        send = client.send.side_effect
 
-    def changed(command):
-        response = send(command)
-        if command.action == "doctor":
-            return response.model_copy(
-                update={"result": dict(response.result) | {"intent_contracts": catalog}}
-            )
-        return response
+        def changed(command):
+            response = send(command)  # noqa: B023
+            if command.action == "doctor":
+                return response.model_copy(
+                    update={"result": dict(response.result) | {"intent_contracts": catalog}}  # noqa: B023
+                )
+            return response
 
-    client.send.side_effect = changed
-    instance = McpRelay(client, "project", "binding")
-    ready(instance)
-    tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
-    assert {tool["name"] for tool in tools} == {"aitest_doctor", "aitest_query"}
-    result = instance.handle(encode(rpc(3, "tools/call", {"name": "aitest_query"})))
-    assert result["result"]["isError"] is False
-    assert all(command.action != "save_acceptance" for command in sent)
+        client.send.side_effect = changed
+        instance = McpRelay(client, "project", "binding")
+        ready(instance)
+        tools = instance.handle(encode(rpc(2, "tools/list")))["result"]["tools"]
+        assert {tool["name"] for tool in tools} == {"aitest_doctor", "aitest_query"}
+        result = instance.handle(encode(rpc(3, "tools/call", {"name": "aitest_query"})))
+        assert result["result"]["isError"] is False
+        assert all(command.action != "save_acceptance" for command in sent)
 
 
-@pytest.mark.parametrize(
-    "actions",
-    [
+def test_unverified_base_action_catalog_never_queries_or_dispatches():
+    for actions in [
         ["query", "query"],
         ["query", True],
         ["query", {}],
         ["query", " "],
         ["query", "bad\nname"],
         ["query"] * 257,
-    ],
-)
-def test_unverified_base_action_catalog_never_queries_or_dispatches(actions):
-    client = Mock()
-    client.send.return_value = Response(
-        request_id="doctor", instance_id="core", result={"supported_actions": actions}
-    )
-    with pytest.raises(CapabilityUnavailable):
-        McpRelay(client, "project", "binding")
-    assert client.send.call_count == 1
+    ]:
+        client = Mock()
+        client.send.return_value = Response(
+            request_id="doctor", instance_id="core", result={"supported_actions": actions}
+        )
+        with pytest.raises(CapabilityUnavailable):
+            McpRelay(client, "project", "binding")
+        assert client.send.call_count == 1

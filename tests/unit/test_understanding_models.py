@@ -170,10 +170,10 @@ def test_business_function_requires_source_snapshot_id() -> None:
         _function(source_snapshot_id=" ")
 
 
-@pytest.mark.parametrize("confidence", [-0.01, 1.01, float("nan")])
-def test_business_function_rejects_invalid_confidence(confidence: float) -> None:
-    with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
-        _function(confidence=confidence)
+def test_business_function_rejects_invalid_confidence() -> None:
+    for confidence in [-0.01, 1.01, float("nan")]:
+        with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
+            _function(confidence=confidence)
 
 
 def test_business_function_accepts_confidence_boundaries() -> None:
@@ -272,18 +272,18 @@ def test_project_signals_keep_per_signal_confidence_snapshot() -> None:
     assert signals.origin is ProjectSignalOrigin.AI_SUGGESTED
 
 
-@pytest.mark.parametrize("value", [-0.01, 1.01, float("nan")])
-def test_project_signals_reject_invalid_confidence(value: float) -> None:
-    with pytest.raises(ValueError, match="between 0 and 1"):
-        ProjectSignals(
-            detected_stack=("python",),
-            entry_candidates=("src/app.py",),
-            capabilities=("http",),
-            risk_signals=(),
-            confidence={"http": value},
-            evidence_refs=(),
-            origin=ProjectSignalOrigin.DETERMINISTIC,
-        )
+def test_project_signals_reject_invalid_confidence() -> None:
+    for value in [-0.01, 1.01, float("nan")]:
+        with pytest.raises(ValueError, match="between 0 and 1"):
+            ProjectSignals(
+                detected_stack=("python",),
+                entry_candidates=("src/app.py",),
+                capabilities=("http",),
+                risk_signals=(),
+                confidence={"http": value},
+                evidence_refs=(),
+                origin=ProjectSignalOrigin.DETERMINISTIC,
+            )
 
 
 # ----------------------------------------------------------- CapabilityGap
@@ -322,10 +322,10 @@ def test_test_intent_rejects_duplicate_dimensions() -> None:
         _intent(required_dimensions=("normal", "normal"))
 
 
-@pytest.mark.parametrize("confidence", [-0.01, 1.01, float("nan")])
-def test_test_intent_rejects_invalid_confidence(confidence: float) -> None:
-    with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
-        _intent(confidence=confidence)
+def test_test_intent_rejects_invalid_confidence() -> None:
+    for confidence in [-0.01, 1.01, float("nan")]:
+        with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
+            _intent(confidence=confidence)
 
 
 # ----------------------------------------------------------- CoverageClaim

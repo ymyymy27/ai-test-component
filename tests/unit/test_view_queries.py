@@ -76,25 +76,25 @@ def test_view_reader_requires_the_decision_capability() -> None:
         CommittedViewReader(decisions=None)  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("kind", ["plan", "case", "report", "issue"])
-def test_exact_record_view_is_scoped_and_omits_private_fields(kind) -> None:
-    from types import SimpleNamespace
-    from unittest.mock import Mock
-    record = SimpleNamespace(aggregate_kind=kind, record_id="saved", revision=2,
-                             payload={"project_id":PROJECT, f"{kind}_id":"saved",
-                                      "status":"draft", "private_note":"not public"})
-    store = Mock()
-    store.read.return_value = record
-    reader = CommittedViewReader(decisions=Mock(), reader=store)
-    result = reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=2)
-    assert result["record_revision"] == 2
-    assert result["historical_snapshot"] is True
-    assert "private_note" not in result["record"]
-    store.read.assert_called_once_with(aggregate_kind=kind, record_id="saved", revision=2)
-    with pytest.raises(ValueError):
-        reader.record_view(project_id="other", kind=kind, record_id="saved", revision=2)
-    with pytest.raises(ValueError):
-        reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=1)
+def test_exact_record_view_is_scoped_and_omits_private_fields() -> None:
+    for kind in ["plan", "case", "report", "issue"]:
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        record = SimpleNamespace(aggregate_kind=kind, record_id="saved", revision=2,
+                                 payload={"project_id":PROJECT, f"{kind}_id":"saved",
+                                          "status":"draft", "private_note":"not public"})
+        store = Mock()
+        store.read.return_value = record
+        reader = CommittedViewReader(decisions=Mock(), reader=store)
+        result = reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=2)
+        assert result["record_revision"] == 2
+        assert result["historical_snapshot"] is True
+        assert "private_note" not in result["record"]
+        store.read.assert_called_once_with(aggregate_kind=kind, record_id="saved", revision=2)
+        with pytest.raises(ValueError):
+            reader.record_view(project_id="other", kind=kind, record_id="saved", revision=2)
+        with pytest.raises(ValueError):
+            reader.record_view(project_id=PROJECT, kind=kind, record_id="saved", revision=1)
 
 
 @pytest.mark.parametrize("kind", ["report", "issue"])

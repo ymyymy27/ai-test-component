@@ -52,23 +52,23 @@ from tests.unit.test_current_execution_snapshot import _batch, _publish
 from tests.unit.test_serial_runner import _attempt
 
 
-@pytest.mark.parametrize("problem", ["activity", "missing_guard", "read_fault", "bad_type"])
-def test_exit_never_seals_live_unknown_or_unreadable_material(problem):
-    seal = Mock()
-    check = (
-        None
-        if problem == "missing_guard"
-        else Mock(
-            return_value="pending"
-            if problem == "activity"
-            else False
-            if problem == "bad_type"
-            else None,
-            side_effect=OSError("unreadable") if problem == "read_fault" else None,
+def test_exit_never_seals_live_unknown_or_unreadable_material():
+    for problem in ["activity", "missing_guard", "read_fault", "bad_type"]:
+        seal = Mock()
+        check = (
+            None
+            if problem == "missing_guard"
+            else Mock(
+                return_value="pending"
+                if problem == "activity"
+                else False
+                if problem == "bad_type"
+                else None,
+                side_effect=OSError("unreadable") if problem == "read_fault" else None,
+            )
         )
-    )
-    assert prepare_core_shutdown(check, seal) is not None
-    seal.assert_not_called()
+        assert prepare_core_shutdown(check, seal) is not None
+        seal.assert_not_called()
 
 
 def test_verified_idle_exit_seals_and_save_failure_refuses_exit():

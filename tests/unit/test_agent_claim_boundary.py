@@ -37,29 +37,29 @@ def test_agent_claim_does_not_become_an_independently_observed_business_fact(cla
     assert "agent_independent_verification_missing" in result.gap_ids
 
 
-@pytest.mark.parametrize("value", ["true", 1, None])
-def test_tool_success_metadata_must_be_a_boolean(value):
-    with pytest.raises(ValueError):
-        AgentToolCall("call", "query", "sha256:args", "sha256:result", value)
+def test_tool_success_metadata_must_be_a_boolean():
+    for value in ["true", 1, None]:
+        with pytest.raises(ValueError):
+            AgentToolCall("call", "query", "sha256:args", "sha256:result", value)
 
 
-@pytest.mark.parametrize("value", ["false", 1, object()])
-def test_evidence_existence_requires_an_exact_positive_fact(value):
-    class UnverifiedEvidence:
-        def exists(self, ref):
-            return value
+def test_evidence_existence_requires_an_exact_positive_fact():
+    for value in ["false", 1, object()]:
+        class UnverifiedEvidence:
+            def exists(self, ref):
+                return value  # noqa: B023
 
-    adapter = AgentAdapter(evidence_validator=UnverifiedEvidence())
-    with pytest.raises(ValueError):
-        adapter.evaluate(
-            AgentEvaluation(
-                "verification",
-                "query",
-                "object",
-                VerificationObservation.MATCHED,
-                evidence_refs=("evidence",),
+        adapter = AgentAdapter(evidence_validator=UnverifiedEvidence())
+        with pytest.raises(ValueError):
+            adapter.evaluate(
+                AgentEvaluation(
+                    "verification",
+                    "query",
+                    "object",
+                    VerificationObservation.MATCHED,
+                    evidence_refs=("evidence",),
+                )
             )
-        )
 
 
 def test_unknown_agent_observation_is_not_accepted_as_a_fact():
@@ -67,10 +67,10 @@ def test_unknown_agent_observation_is_not_accepted_as_a_fact():
         AgentEvaluation("verification", "query", "object", "matched")
 
 
-@pytest.mark.parametrize("refs", ["evidence", ["evidence"]])
-def test_tool_evidence_metadata_is_an_immutable_reference_tuple(refs):
-    with pytest.raises(ValueError):
-        AgentToolCall("call", "query", "sha256:args", "sha256:result", True, refs)
+def test_tool_evidence_metadata_is_an_immutable_reference_tuple():
+    for refs in ["evidence", ["evidence"]]:
+        with pytest.raises(ValueError):
+            AgentToolCall("call", "query", "sha256:args", "sha256:result", True, refs)
 
 
 def test_duplicate_tool_identity_cannot_invent_more_actual_calls():

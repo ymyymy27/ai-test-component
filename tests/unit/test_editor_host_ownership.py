@@ -22,22 +22,22 @@ def test_invalid_wait_policy_fails_before_any_connection_or_launch(field, value)
     launcher.start.assert_not_called()
 
 
-@pytest.mark.parametrize("close_failure", [False, True])
-def test_wrong_instance_releases_only_the_rejected_connection(close_failure):
-    channel = Mock()
-    if close_failure:
-        channel.close.side_effect = OSError("close failure")
-    connector = Mock(side_effect=[None, (channel, "another-core")])
-    launcher = SimpleNamespace(start=Mock(return_value="expected-core"))
-    with pytest.raises(WorkspaceInUse, match="身份") as error:
-        EditorHost(connector=connector, launcher=launcher).acquire("workspace")
-    channel.close.assert_called_once()
-    assert (
-        isinstance(error.value.__cause__, OSError)
-        if close_failure
-        else error.value.__cause__ is None
-    )
-    launcher.start.assert_called_once_with("workspace")
+def test_wrong_instance_releases_only_the_rejected_connection():
+    for close_failure in [False, True]:
+        channel = Mock()
+        if close_failure:
+            channel.close.side_effect = OSError("close failure")
+        connector = Mock(side_effect=[None, (channel, "another-core")])
+        launcher = SimpleNamespace(start=Mock(return_value="expected-core"))
+        with pytest.raises(WorkspaceInUse, match="身份") as error:
+            EditorHost(connector=connector, launcher=launcher).acquire("workspace")
+        channel.close.assert_called_once()
+        assert (
+            isinstance(error.value.__cause__, OSError)
+            if close_failure
+            else error.value.__cause__ is None
+        )
+        launcher.start.assert_called_once_with("workspace")
 
 
 def test_success_transfers_connection_ownership_without_closing_it():

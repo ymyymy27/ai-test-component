@@ -86,29 +86,29 @@ def unknown(result):
     assert result.missing_extractions == ("value",)
 
 
-@pytest.mark.parametrize("status", [200, 500])
-def test_trickled_response_has_one_deadline_for_success_and_error(status):
-    body = b'{"value":true}' + b" " * 20
+def test_trickled_response_has_one_deadline_for_success_and_error():
+    for status in [200, 500]:
+        body = b'{"value":true}' + b" " * 20
 
-    def reply(connection, stopped):
-        connection.sendall(
-            f"HTTP/1.1 {status} Result\r\nContent-Length: {len(body)}\r\n\r\n".encode()
-        )
-        for byte in body:
-            if stopped.wait(0.025):
-                return
-            connection.sendall(bytes([byte]))
+        def reply(connection, stopped):
+            connection.sendall(
+                f"HTTP/1.1 {status} Result\r\nContent-Length: {len(body)}\r\n\r\n".encode()  # noqa: B023
+            )
+            for byte in body:  # noqa: B023
+                if stopped.wait(0.025):
+                    return
+                connection.sendall(bytes([byte]))
 
-    with server(reply) as (url, requests):
-        started = time.monotonic()
-        result = HttpAdapter().execute(request(url, timeout_seconds=0.16))
-        elapsed = time.monotonic() - started
-        assert elapsed < 0.5
-        assert result.error_class == "timeout"
-        assert result.status == status
-        assert 0 < len(result.body) < len(body)
-        unknown(result)
-        assert len(requests) == 1
+        with server(reply) as (url, requests):
+            started = time.monotonic()
+            result = HttpAdapter().execute(request(url, timeout_seconds=0.16))
+            elapsed = time.monotonic() - started
+            assert elapsed < 0.5
+            assert result.error_class == "timeout"
+            assert result.status == status
+            assert 0 < len(result.body) < len(body)
+            unknown(result)
+            assert len(requests) == 1
 
 
 def test_trickled_response_headers_share_the_same_deadline():
@@ -127,20 +127,20 @@ def test_trickled_response_headers_share_the_same_deadline():
         assert len(requests) == 1
 
 
-@pytest.mark.parametrize("status", [200, 500])
-def test_short_content_length_preserves_prefix_but_cannot_verify(status):
-    body = b'{"value":true}'
+def test_short_content_length_preserves_prefix_but_cannot_verify():
+    for status in [200, 500]:
+        body = b'{"value":true}'
 
-    def reply(connection, stopped):
-        connection.sendall(
-            f"HTTP/1.1 {status} Result\r\nContent-Length: {len(body) + 5}\r\n\r\n".encode() + body
-        )
+        def reply(connection, stopped):
+            connection.sendall(
+                f"HTTP/1.1 {status} Result\r\nContent-Length: {len(body) + 5}\r\n\r\n".encode() + body  # noqa: B023,E501
+            )
 
-    with server(reply) as (url, requests):
-        result = HttpAdapter().execute(request(url))
-        assert result.error_class == "response_incomplete"
-        assert result.status == status and result.body == body
-        unknown(result)
+        with server(reply) as (url, requests):
+            result = HttpAdapter().execute(request(url))
+            assert result.error_class == "response_incomplete"
+            assert result.status == status and result.body == body
+            unknown(result)
 
 
 def test_missing_final_chunk_does_not_validate_a_complete_json_prefix():
@@ -189,61 +189,58 @@ def test_response_limit_distinguishes_exact_eof_from_an_extra_byte(framing, extr
             assert result.assertion_results[0].matched is True
 
 
-@pytest.mark.parametrize(
-    "headers",
-    [
+def test_ambiguous_response_framing_cannot_supply_assertions():
+    for headers in [
         b"Content-Length: 13\r\nContent-Length: 13\r\n",
         b"Content-Length: 13\r\nTransfer-Encoding: chunked\r\n",
         b"Content-Length: -1\r\n",
         b"Content-Length: 1e1\r\n",
         b"Transfer-Encoding: gzip\r\n",
-    ],
-)
-def test_ambiguous_response_framing_cannot_supply_assertions(headers):
-    def reply(connection, stopped):
-        connection.sendall(b"HTTP/1.1 200 OK\r\n" + headers + b"\r\n" + b'{"value":true}')
+    ]:
+        def reply(connection, stopped):
+            connection.sendall(b"HTTP/1.1 200 OK\r\n" + headers + b"\r\n" + b'{"value":true}')  # noqa: B023
 
-    with server(reply) as (url, requests):
-        result = HttpAdapter().execute(request(url))
-        assert result.error_class == "response_protocol"
-        unknown(result)
+        with server(reply) as (url, requests):
+            result = HttpAdapter().execute(request(url))
+            assert result.error_class == "response_protocol"
+            unknown(result)
 
 
-@pytest.mark.parametrize("value", [True, 0, -1, 1.5, "16", 64 * 1024 * 1024 + 1])
-def test_invalid_response_budget_is_rejected_before_io(value):
-    with pytest.raises(ValueError):
-        request("https://example.invalid/", max_response_bytes=value)
+def test_invalid_response_budget_is_rejected_before_io():
+    for value in [True, 0, -1, 1.5, "16", 64 * 1024 * 1024 + 1]:
+        with pytest.raises(ValueError):
+            request("https://example.invalid/", max_response_bytes=value)
 
 
-@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
-def test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target(status):
-    def target(connection, stopped):
-        connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+def test_redirect_does_not_send_the_frozen_body_or_credentials_to_another_target():
+    for status in [301, 302, 303, 307, 308]:
+        def target(connection, stopped):
+            connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
 
-    with server(target) as (target_url, target_requests):
+        with server(target) as (target_url, target_requests):
 
-        def redirect(connection, stopped):
-            connection.sendall(
-                (
-                    f"HTTP/1.1 {status} Redirect\r\nLocation: {target_url}\r\n"
-                    "Content-Length: 0\r\n\r\n"
-                ).encode()
-            )
-
-        with server(redirect) as (url, original_requests):
-            result = HttpAdapter().execute(
-                HttpRequestSpec(
-                    "redirect",
-                    "POST",
-                    url,
-                    headers=(("Authorization", "synthetic-token"),),
-                    body=b"sensitive",
+            def redirect(connection, stopped):
+                connection.sendall(
+                    (
+                        f"HTTP/1.1 {status} Redirect\r\nLocation: {target_url}\r\n"  # noqa: B023
+                        "Content-Length: 0\r\n\r\n"
+                    ).encode()
                 )
-            )
-            assert result.status == status
-            assert result.error_class == "redirect_blocked"
-            assert len(original_requests) == 1
-            assert target_requests == []
+
+            with server(redirect) as (url, original_requests):
+                result = HttpAdapter().execute(
+                    HttpRequestSpec(
+                        "redirect",
+                        "POST",
+                        url,
+                        headers=(("Authorization", "synthetic-token"),),
+                        body=b"sensitive",
+                    )
+                )
+                assert result.status == status
+                assert result.error_class == "redirect_blocked"
+                assert len(original_requests) == 1
+                assert target_requests == []
 
 
 def test_timed_out_dns_cannot_connect_later(monkeypatch):
@@ -274,19 +271,16 @@ def test_timed_out_dns_cannot_connect_later(monkeypatch):
         assert requests == []
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
+def test_unrepresentable_or_conflicting_request_framing_is_rejected():
+    for changes in [
         {"headers": (("Content-Length", "1"),), "body": b"longer"},
         {"headers": (("Content-Length", "0"),), "body": b"x"},
         {"headers": (("Transfer-Encoding", "chunked"),)},
         {"headers": (("X-Value", "不可编码"),)},
         {"url": "http://example.invalid/未转义"},
-    ],
-)
-def test_unrepresentable_or_conflicting_request_framing_is_rejected(changes):
-    with pytest.raises(ValueError):
-        HttpRequestSpec("framing", "POST", **{"url": "http://example.invalid/", **changes})
+    ]:
+        with pytest.raises(ValueError):
+            HttpRequestSpec("framing", "POST", **{"url": "http://example.invalid/", **changes})
 
 
 def test_tls_handshake_uses_the_same_deadline_and_does_not_send_http():
