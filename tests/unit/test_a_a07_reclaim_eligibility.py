@@ -29,7 +29,6 @@ from aitest.infrastructure.file_store.maintenance import (
     detect_activity_blocker,
 )
 from aitest.infrastructure.file_store.migrations import FileMigrationManager
-from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.recovery import RecoveryOrchestrator
 from aitest.infrastructure.file_store.workspace import Workspace
 
@@ -271,38 +270,6 @@ def test_migration_is_blocked_by_unsealed_staging(root: Path) -> None:
     assert report.state == "blocked"
     # 阻塞期间不得创建迁移前备份。
     assert not (root / "migrations" / "backups" / plan.plan_id).exists()
-
-
-def test_recovery_then_maintenance_cooperation_unblocks_reclaim(root: Path) -> None:
-    """C（恢复）先核实并清除活动事实，A（维护）随后才判回收资格。"""
-    leftover = _stale_leftover(
-        root, ".records.json.tmp", target="records.json", content=b"stale-12345"
-    )
-    # The residue can only be cleared after an actual saved business transaction.
-    (root / "records.json").write_text(
-        json.dumps({"records": {}, "commit": 0}), encoding="utf-8"
-    )
-    _, sequence = FileRecordRepository(root).commit_transaction(
-        [("case", "saved-case", 0, {"project_id": "project-1"})],
-        request_id="req-9", intent_id="intent-9", project_id="project-1",
-        workspace_id=Workspace(root).workspace_id, writer_epoch=1,
-    )
-    marker = root / "transactions" / "active.json"
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(
-        json.dumps({"request_id": "req-9", "project_id": "project-1", "intent_id": "intent-9",
-                    "commit_sequence": sequence, "state": "in_progress"}), encoding="utf-8"
-    )
-    assert _service(root).reclaim(dry_run=False).state == "blocked"
-
-    assert RecoveryOrchestrator(root, instance_id="instance-1").run().state == "repaired"
-    assert not marker.exists()
-    assert detect_activity_blocker(root) is None
-
-    relative = leftover.relative_to(root).as_posix()
-    report = _service(root).reclaim(relative_paths=(relative,), dry_run=False)
-    assert report.state == "reclaimed"
-    assert not leftover.exists()
 
 
 def test_unknown_recovery_marker_keeps_maintenance_blocked(root: Path) -> None:

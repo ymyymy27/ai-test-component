@@ -19,7 +19,7 @@ from aitest.infrastructure.file_store.business_changes import BusinessChangeInde
 from aitest.infrastructure.file_store.commit_manifest import FileCommitStore
 from aitest.infrastructure.file_store.publication_backend import FilePublicationBackend
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
-from tests.unit.test_complete_commit_closure import workspace as workspace
+from tests.support.shared_workspace import workspace as workspace
 from tests.unit.test_current_attempt_transition_integrity import _saved_graph
 from tests.unit.test_current_execution_snapshot import _batch, _publish
 from tests.unit.test_saved_reuse_revocation import _runner

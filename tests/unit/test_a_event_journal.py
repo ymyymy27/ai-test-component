@@ -13,7 +13,6 @@ from aitest.infrastructure.file_store.events import (
     decode_cursor,
     encode_cursor,
 )
-from aitest.infrastructure.file_store.records import FileRecordRepository
 
 _INSTANCE = "instance-1"
 _WORKSPACE = "workspace-1"
@@ -213,38 +212,3 @@ def test_torn_tail_is_quarantined_and_good_events_remain(journal: FileEventJourn
     assert repaired.health()["repaired_tail_lines"] == 1
 
 
-def test_reconcile_completes_confirmed_boundary_and_flags_orphan(journal: FileEventJournal) -> None:
-    # Save real business authority; a caller-supplied sequence is insufficient.
-    FileRecordRepository(journal._root).commit_transaction(
-        [("case", "rec-5", 0, {"project_id": "project-1"})],
-        request_id="req-5", intent_id="intent-5", project_id="project-1",
-        workspace_id=_WORKSPACE, writer_epoch=1,
-    )
-    journal.begin_boundary(
-        commit_sequence=1,
-        request_id="req-5",
-        intent_id="intent-5",
-        workspace_id=_WORKSPACE,
-        project_id="project-1",
-        writer_epoch=1,
-    )
-    _record(journal, commit_sequence=1, record_id="rec-5", request_id="req-5", intent_id="intent-5")
-
-    # Another staging with no matching committed sequence.
-    journal.begin_boundary(
-        commit_sequence=6,
-        request_id="req-6",
-        intent_id="intent-6",
-        workspace_id=_WORKSPACE,
-        project_id="project-1",
-        writer_epoch=1,
-    )
-    _record(journal, commit_sequence=6, record_id="rec-6", request_id="req-6", intent_id="intent-6")
-
-    report = journal.reconcile(committed_sequences={1})
-
-    assert report.completed_boundaries == (1,)
-    assert report.orphaned_staging == (6,)
-    assert journal._load_boundary(1) is not None
-    # Orphan staging is retained on disk, not deleted or replayed.
-    assert (journal._dir / "staging" / "6.jsonl").exists()

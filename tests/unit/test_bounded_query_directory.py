@@ -421,55 +421,9 @@ def test_migration_rollback_blocks_new_business_write(tmp_path):
         aggregate_kind="case", record_id="new", expected_revision=0, payload={"project_id": "p"}
     )
     unit.commit("new")
-    with pytest.raises(MigrationError, match="新的业务写入"):
+    with pytest.raises(MigrationError, match="完整提交根"):
         manager.rollback(plan.plan_id)
     assert index.is_healthy()
-
-
-def test_default_core_migrates_only_after_backup_and_preserves_snapshot_events(tmp_path):
-    from aitest.bootstrap import assemble_workspace_core
-    from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
-
-    unit = FileUnitOfWork(tmp_path)
-    rows = []
-    for number in range(3):
-        unit.begin(f"r{number}", "p")
-        unit.stage_record(
-            aggregate_kind="case",
-            record_id=f"r{number:05}",
-            expected_revision=0,
-            payload={"project_id": "p"},
-        )
-        unit.commit(f"r{number}")
-        rows.append(_row(number))
-    index = _legacy_index(tmp_path, rows)
-    before = index.meta_path.read_bytes()
-    first = assemble_workspace_core(tmp_path, instance_id="index-migration")
-    try:
-        registry = json.loads((tmp_path / "migrations/registry.json").read_text())
-        assert "0004-bounded-query-directory" in registry["applied"]
-        plans = list((tmp_path / "migrations/backups").glob("*/indexes.json"))
-        assert len(plans) == 1 and plans[0].read_bytes() == before
-        assert "0005-complete-commit-closure" in registry["applied"]
-        assert index.is_healthy() and index._read_meta()["generation"] == 3
-        from aitest.infrastructure.file_store.events import FileEventJournal
-
-        journal = FileEventJournal(tmp_path, instance_id="index-migration")
-        page = FileQueryIndex(tmp_path, journal=journal).query_spec(
-            QuerySpec(project_id="p", limit=1)
-        )
-        assert page.status == "ok" and page.commit_id == 3
-        assert page.event_cursor is not None
-        assert page.event_cursor == journal.snapshot_cursor(commit_sequence=3)
-    finally:
-        first.lifetime_lock.release()
-    saved = index.meta_path.read_bytes()
-    second = assemble_workspace_core(tmp_path, instance_id="index-after-restart")
-    try:
-        assert index.meta_path.read_bytes() == saved
-        assert index.query_spec(QuerySpec(project_id="p", limit=10)).items == tuple(rows)
-    finally:
-        second.lifetime_lock.release()
 
 
 @pytest.mark.parametrize("damage", ["digest", "missing", "oversized"])

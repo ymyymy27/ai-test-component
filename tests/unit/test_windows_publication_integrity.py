@@ -14,6 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from aitest.bootstrap import CoreAssemblyBlocked, assemble_workspace_core
+from aitest.contracts.queries import QuerySpec
 from aitest.infrastructure import security
 from aitest.infrastructure.file_store import atomic
 from aitest.infrastructure.file_store.commit_manifest import (
@@ -22,6 +23,7 @@ from aitest.infrastructure.file_store.commit_manifest import (
     canonical_bytes,
 )
 from aitest.infrastructure.file_store.events import FileEventJournal
+from aitest.infrastructure.file_store.index import FileQueryIndex
 from aitest.infrastructure.file_store.migrations import FileMigrationManager
 from aitest.infrastructure.file_store.publication_backend import (
     FilePublicationBackend,
@@ -31,7 +33,42 @@ from aitest.infrastructure.file_store.publication_backend import (
 from aitest.infrastructure.file_store.records import FileRecordRepository
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.infrastructure.file_store.workspace import Workspace
-from tests.unit.test_complete_commit_closure import commit, facts
+
+
+def commit(root: Path, records: tuple[str, ...], *, request: str, intent: str | None = None):
+    journal = FileEventJournal(root, instance_id="reader-or-new-core")
+    unit = FileUnitOfWork(root, journal=journal)
+    unit.begin(request, "project", intent_id=intent)
+    for record in records:
+        unit.stage_record(
+            aggregate_kind="case",
+            record_id=record,
+            expected_revision=unit.current_revision(aggregate_kind="case", record_id=record),
+            payload={"project_id": "project", "summary": record},
+        )
+    return unit, unit.commit(request)
+
+
+def facts(root: Path, record: str):
+    repository = FileRecordRepository(root)
+    journal = FileEventJournal(root, instance_id="new-reader")
+    result = FileQueryIndex(root, journal=journal).query_spec(
+        QuerySpec(
+            project_id="project",
+            aggregate_kind="case",
+            record_id=record,
+            limit=1,
+        )
+    )
+    return (
+        repository.current_commit_sequence(),
+        repository.current_revision("case", record),
+        result.status,
+        len(result.items),
+        result.commit_id,
+        result.event_cursor,
+        tuple((e.record_id, e.commit_sequence, e.event_sequence) for e in journal.read().events),
+    )
 
 
 @pytest.fixture

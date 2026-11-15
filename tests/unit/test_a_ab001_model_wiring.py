@@ -59,7 +59,6 @@ from aitest.domain.planning.plans import (
 from aitest.domain.project.context import LocalProject
 from aitest.infrastructure.capabilities import CapabilityState
 from aitest.infrastructure.credential_resolver import PurposeBoundCredentialResolver
-from aitest.infrastructure.file_store.index import FileQueryIndex
 from aitest.infrastructure.file_store.model_responses import FileModelResponseStore
 from aitest.infrastructure.file_store.unit_of_work import FileUnitOfWork
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
@@ -111,9 +110,6 @@ def _deps(
     model_credentials: MemoryCredentialResolver | None = None,
 ) -> BUseCaseDependencies:
     raw = FileUnitOfWork(root)
-    # 新工作空间尚无查询索引；按既有合同测试约定先建空索引
-    # （缺索引的查询在 A 侧是 maintenance_required，不是隐式全表扫描）。
-    FileQueryIndex(root).rebuild(())
     return BUseCaseDependencies(
         unit_of_work=PortsUnitOfWork(raw, repository=raw.repo),
         reader=PortsRecordReader(raw.repo),

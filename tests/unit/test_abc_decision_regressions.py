@@ -1,6 +1,5 @@
 """负责人裁定的真实仓储引用、范围与内容身份回归。"""
 
-import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -134,8 +133,7 @@ def test_scope_identity_change_with_same_revision_is_detected_after_restart(tmp_
     assert result.intent_id == first.intent_id
     assert result.status is PreparedRunStatusFact.BLOCKED
     assert "scope_id" in {r.source_kind for r in result.invalidation_rules}
-    payload = json.loads((tmp_path / "records.json").read_text())
-    assert payload["commit"] == 1
+    assert FileUnitOfWork(tmp_path).repo.current_commit_sequence() == 1
 
 
 def test_legacy_prepared_scope_is_explicitly_missing_in_basis_check(tmp_path: Path) -> None:

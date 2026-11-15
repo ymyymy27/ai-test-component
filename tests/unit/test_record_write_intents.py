@@ -29,7 +29,7 @@ from tests.contracts.test_b_use_case_registration import (
 from tests.contracts.test_b_use_case_registration import (
     workspace_root as workspace_root,
 )
-from tests.unit.test_complete_commit_closure import workspace as workspace
+from tests.support.shared_workspace import workspace as workspace
 from tests.unit.test_task_and_delivery_persistence import _delivery, _task
 
 
