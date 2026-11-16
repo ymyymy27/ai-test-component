@@ -1,0 +1,229 @@
+"""Data models for the lightweight plugin (workspace, project, task, plan, run)."""
+
+from __future__ import annotations
+
+import uuid
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+RunStatus = Literal["running", "completed", "cancelled", "interrupted", "execution_error"]
+Verdict = Literal["passed", "failed", "incomplete", "not_applicable"]
+CaseResult = Literal["passed", "failed", "blocked", "error", "not_run", "manual_pending"]
+MockKind = Literal["real", "mock", "mixed", "unknown"]
+IssueStatus = Literal["pending", "in_progress", "retest", "closed"]
+IssueDisposition = Literal["fixed", "non_defect", "duplicate", "deferred"]
+Layer = Literal["L1", "L2", "L3"]
+ScopePreset = Literal["all_applicable", "selected"]
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+class Model(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class Dependency(Model):
+    to: str
+    type: Literal["calls", "interface", "shared_data"] = "calls"
+    note: str = ""
+
+
+class Module(Model):
+    module_id: str = Field(default_factory=lambda: new_id("mod"))
+    name: str
+    responsibility: str = ""
+    owner: str = ""
+    status: str = "开发中"
+    deps: list[Dependency] = Field(default_factory=list)
+
+
+class Project(Model):
+    schema_version: int = 1
+    project_id: str
+    name: str
+    root: str
+    goal: str = ""
+    modules: list[Module] = Field(default_factory=list)
+    rules_version_id: str | None = None
+    revision: int = 1
+
+
+class AcceptanceItem(Model):
+    item_id: str = Field(default_factory=lambda: new_id("ai"))
+    text: str
+    observable: bool = True
+    status: Literal["active", "pending"] = "active"
+    source: str = ""
+
+
+class Task(Model):
+    schema_version: int = 1
+    task_id: str
+    project_id: str
+    title: str
+    goal: str = ""
+    scope: str = ""
+    inputs: str = ""
+    outputs: str = ""
+    preconditions: list[str] = Field(default_factory=list)
+    executor: str = ""
+    reviewer: str = ""
+    acceptance_items: list[AcceptanceItem] = Field(default_factory=list)
+    revision: int = 1
+
+
+class Delivery(Model):
+    schema_version: int = 1
+    delivery_id: str
+    task_id: str
+    done: list[str] = Field(default_factory=list)
+    not_done: list[str] = Field(default_factory=list)
+    changed_modules: list[str] = Field(default_factory=list)
+    interface_changes: list[str] = Field(default_factory=list)
+    run_commands: list[str] = Field(default_factory=list)
+    test_data: str = ""
+    dependencies: list[str] = Field(default_factory=list)
+    mocks: list[str] = Field(default_factory=list)
+    self_test_evidence: list[str] = Field(default_factory=list)
+    commit: str = ""
+    complete: bool = True
+    revision: int = 1
+
+
+class RuleVersion(Model):
+    schema_version: int = 1
+    rules_version_id: str
+    project_id: str
+    name: str
+    version: str
+    steps_md: str = ""
+    ai_rules: list[str] = Field(default_factory=list)
+    evidence_requirements: list[str] = Field(default_factory=list)
+    revision: int = 1
+
+
+class Case(Model):
+    case_id: str = Field(default_factory=lambda: new_id("case"))
+    acceptance_item_id: str | None = None
+    layer: Layer
+    title: str = ""
+    preconditions: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+    expected: str
+    expectation_source: str = ""
+    verify_method: str = ""
+    mock_allowed: bool = True
+    importance: Literal["high", "medium", "low"] = "medium"
+    depends_on: Literal["build", "service"] | None = None
+
+
+class Scope(Model):
+    preset: ScopePreset = "all_applicable"
+    module_ids: list[str] = Field(default_factory=list)
+    acceptance_item_ids: list[str] = Field(default_factory=list)
+    frozen_at: str | None = None
+
+
+class Plan(Model):
+    schema_version: int = 1
+    plan_id: str
+    task_id: str
+    scope: Scope
+    rules_version_id: str | None = None
+    cases: list[Case] = Field(default_factory=list)
+    status: Literal["draft", "published"] = "draft"
+    revision: int = 1
+
+
+class Attempt(Model):
+    attempt: int = 1
+    result: CaseResult = "not_run"
+    started_at: str = ""
+    finished_at: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    message: str = ""
+
+
+class RunCase(Model):
+    case_id: str
+    result: CaseResult = "not_run"
+    attempts: list[Attempt] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class Analysis(Model):
+    status: Literal["generated", "not_generated", "invalid"] = "not_generated"
+    model: str = ""
+    generated_at: str = ""
+    observed: str = ""
+    evidence_refs: list[str] = Field(default_factory=list)
+    candidate_causes: list[dict[str, str]] = Field(default_factory=list)
+    unverified: list[str] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+
+
+class Run(Model):
+    schema_version: int = 1
+    run_id: str
+    plan_id: str
+    project_id: str
+    scope: Scope
+    confirmed_by: str = ""
+    confirmed_at: str = ""
+    status: RunStatus = "running"
+    pid: int | None = None
+    started_at: str = ""
+    heartbeat_at: str = ""
+    cases: list[RunCase] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    analysis: list[Analysis] = Field(default_factory=list)
+
+
+class IssueOccurrence(Model):
+    run_id: str
+    case_id: str
+    at: str
+    evidence_refs: list[str] = Field(default_factory=list)
+
+
+class Issue(Model):
+    schema_version: int = 1
+    issue_id: str
+    project_id: str
+    signature: str
+    title: str
+    severity: Literal["P0", "P1", "P2", "P3"] = "P2"
+    status: IssueStatus = "pending"
+    disposition: IssueDisposition | None = None
+    occurrences: list[IssueOccurrence] = Field(default_factory=list)
+    fix_version: str | None = None
+    revision: int = 1
+
+
+class Opinion(Model):
+    by: str
+    at: str
+    text: str
+
+
+class Report(Model):
+    schema_version: int = 1
+    report_id: str
+    run_id: str
+    outcome: Verdict
+    counts: dict[str, int] = Field(default_factory=dict)
+    coverage: dict[str, int] = Field(default_factory=dict)
+    changed_modules: list[str] = Field(default_factory=list)
+    unmapped_files: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    opinion: Opinion | None = None
+    revision: int = 1
+
+
+class WorkspaceMeta(Model):
+    schema_version: int = 1
+    workspace_id: str
+    created_at: str
