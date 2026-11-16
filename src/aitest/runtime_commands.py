@@ -71,6 +71,13 @@ def _selected_items(task: Any, scope: Scope) -> tuple[list[str], int]:
     return list(scope.acceptance_item_ids), len(active)
 
 
+def _normalize_method(method: str) -> str:
+    for prefix in ("command:", "script:", "http:", "playwright:"):
+        if method.startswith(prefix):
+            return method
+    return f"command:{method}"
+
+
 def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     task = _task(ws, payload)
@@ -106,7 +113,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     "layer": item["layer"],
                     "expected": item["expected"],
                     "expectation_source": item["expectation_source"],
-                    "verify_method": item["verify_method"],
+                    "verify_method": _normalize_method(str(item["verify_method"])),
                     "depends_on": first if first in {"build", "service"} else None,
                     "script_name": item.get("script_name"),
                     "script_content": item.get("script_content"),

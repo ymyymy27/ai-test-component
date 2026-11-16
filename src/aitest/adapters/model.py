@@ -29,8 +29,8 @@ _SYSTEM_CASES = (
     "你是测试用例生成助手。只输出一个 JSON 对象，格式为 "
     '{"cases": [{"acceptance_item_id": "验收项 ID", "layer": "L1|L2|L3", '
     '"expected": "预期结果", "expectation_source": "期望来源", '
-    '"verify_method": "验证方法", "depends_on": ["依赖项"], '
-    '"script_name": "可选文件名", "script_content": "可选脚本内容"}]}。'
+    '"verify_method": "必须以 command:/script:/http:/playwright: 开头", "depends_on": ["依赖项"], '
+    '"script_name": "可选文件名", "script_content": "可选脚本内容"}]}。verify_method 只允许四种前缀：command:（shell 命令）、script:（配合 script_content）、http:（JSON 请求数组）、playwright:（脚本路径）。'
     "必须为每个选中的验收项至少生成一条用例，不要遗漏。"
     "不要输出 JSON 之外的任何文本。"
 )

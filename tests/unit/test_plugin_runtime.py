@@ -15,6 +15,12 @@ from aitest.cli import main
 Capsys = pytest.CaptureFixture[str]
 
 
+@pytest.fixture(autouse=True)
+def _isolate_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    monkeypatch.delenv("AITEST_MODEL_KEY", raising=False)
+
+
 def call(
     tmp_path: Path,
     command: str,
