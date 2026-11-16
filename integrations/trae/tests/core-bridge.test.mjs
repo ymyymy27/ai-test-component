@@ -248,6 +248,18 @@ test("panel confirmation goes through the core pipe with one explicit gesture", 
     );
     assert.equal(outcome.status, "ok");
     assert.equal(prompts.length, 1);
+    const human = await dispatchControlled(
+      python,
+      "ok",
+      { action: "update_issue", projectId: "project-1", intentId: "intent-2",
+        expectedRevision: 0, target: "issue-1", parameters: {} },
+      "panel-request-2",
+      5000,
+      async () => { throw new Error("non-challenge human action must not prompt"); },
+      pipeName,
+    );
+    assert.equal(human.status, "ok");
+    assert.equal(prompts.length, 1);
     assert.equal(prompts[0].title, "确认发布");
     assert.equal(outcome.response.result.confirmed, true);
   } finally {

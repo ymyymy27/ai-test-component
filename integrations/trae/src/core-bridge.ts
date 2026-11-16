@@ -37,6 +37,19 @@ export const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set([
  * here must be justified by the core contract: confirmations, publications,
  * authorizations and delivery submission stay on `dispatchControlled`.
  */
+export const CHALLENGE_ACTIONS: ReadonlySet<string> = new Set([
+  "save_binding",
+  "save_environment",
+  "publish_rules",
+  "publish_plan",
+  "submit_delivery",
+  "save_model_outbound_policy",
+  "authorize_step",
+  "revise_pending_steps",
+  "narrow_driver",
+  "confirm_basis",
+]);
+
 export const PLAIN_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "save_context",
   "save_environment",
@@ -561,6 +574,18 @@ export async function dispatchControlled(
       message: "核心没有提供可直接连接的面板通道，请升级扩展与核心" };
   }
   const command = buildCommand(request, requestId);
+  if (!CHALLENGE_ACTIONS.has(request.action)) {
+    // Human-only actions without a challenge: the panel click is the gesture.
+    return panelOutcome(
+      await exchangePanel(
+        pipeName,
+        { __aitest_control__: "panel-confirmation/2", phase: "human", command },
+        timeoutMs,
+      ),
+      command,
+      request,
+    );
+  }
   const prepared = panelOutcome(
     await exchangePanel(
       pipeName,

@@ -150,6 +150,8 @@ CLI（discover → 命名管道 → 回执核对）
 
 面板路径：扩展先发 `{__aitest_control__: "panel-confirmation/2", phase: "prepare", command}`，核心只回脱敏投影 `challenge_id`、`input_digest`、`panel_session_id`、`expires_at`、`prompt{title, note, facts, details}`；用户点击后扩展在同一连接上发 `phase: "confirm"` 并附同一 `request_id` 的 `challenge_id`、`input_digest`。核心要求 prepare/confirm 同连接、同 peer、入口为 `HUMAN_UI`，校验会话、挑战、摘要与修订后写入 `ConfirmationRecord`／`ActionAuthorization`。
 
+无挑战人工路径：对 `HUMAN_ACTIONS` 中不在 `CHALLENGE_ACTIONS` 的 9 个动作（`update_issue`、`close_issue`、`record_local_review`、`select_case_reuse`、`bind_project`、`create_plan_grant`、`revoke_plan_grant`、`prepare_approval`、`revoke_approval`），扩展在同一面板连接上发 `{__aitest_control__: "panel-confirmation/2", phase: "human", command}`。核心要求 `HUMAN_UI` 入口、动作属于无挑战人工动作、项目/意图/预期修订完整，且不接受调用方确认字段；通过后直接 `dispatch`。面板点击就是手势，不冻结挑战。
+
 | 约束 | 实现事实 |
 | --- | --- |
 | 挑战归属 | 挑战只存在于核心；`prepare` 拒绝调用方携带 `approval_challenge_id`／`user_confirmed`／`interaction`／`input_digest` |
@@ -158,9 +160,9 @@ CLI（discover → 命名管道 → 回执核对）
 | 幂等 | 同一意图已提交时 `prepare` 直接返回原回执且不带 `prompt`，不再要求第二次手势 |
 | 预览上限 | `details` 超过 `MAX_PROMPT_CHARS = 128_000` 返回 `CONFIRMATION_PREVIEW_LIMIT` |
 
-### 4.3 已核对的通道缺口
+### 4.3 人工动作的通道覆盖
 
-面板把 `HUMAN_ACTIONS` 全集列为受控动作（`panel/src/wizard.ts::CONTROLLED_ACTIONS`），命中即走 `controlledDispatch`；视图当前实际派发其中 `update_issue`、`close_issue`、`record_local_review`、`select_case_reuse`。但核心 `prepare_panel_confirmation` 只接受 10 个 `CHALLENGE_ACTIONS`，其余返回 `ENTRY_ACTION_NOT_ALLOWED`。白名单内的 `bind_project` 同样不在挑战集，`create_plan_grant`／`revoke_plan_grant` 同此。据此，这些动作无法经面板确认通道完成；原生弹窗已删除，`dispatchControlled` 始终要求面板确认，因此这些动作当前没有可用的人工入口。这是静态核对结论，未在真实 Trae 中实测，处置见第 8 节与风险登记册。
+`HUMAN_ACTIONS` 的 18 个动作都有面板入口：9 个与 `CHALLENGE_ACTIONS` 重叠的动作走 `prepare`/`confirm`（另 1 个 `save_environment` 可挑战但不属于人工动作集）；其余 9 个走 `phase: "human"` 直接派发。两条路径都要求已核实的 `HUMAN_UI` 连接；CLI 与 MCP 仍不能执行人工动作。
 
 ## 5 兼容性字段
 
@@ -286,5 +288,5 @@ CLI（discover → 命名管道 → 回执核对）
 | 响应顶层含对象修订与 `run_id` | `Response` 只有 `result`／`page`／`error`，修订与 `run_id` 在 `result` 内 | 按代码写第 2.1 节 |
 | 计划级许可含 `plan_id` 与 `credential` | `PlanExecutionGrant` 无 `plan_id` 字段（在记录与绑定中），凭据字段名为 `credential_scope_ref` | 按代码写第 7.3 节 |
 | 现状页写“一期动作表 59 项” | `PHASE_ONE_ACTIONS` 为 66 项，13 项只读、53 项可写 | 按代码写第 2.2 节；现状页数字待其维护者同步 |
-| 所有人工动作都可经面板确认 | 面板确认只接受 10 个 `CHALLENGE_ACTIONS`；其余 `HUMAN_ACTIONS`（`update_issue`、`close_issue`、`record_local_review`、`select_case_reuse`、`bind_project`、`create_plan_grant`、`revoke_plan_grant`、`prepare_approval`、`revoke_approval`）没有原生回退，当前没有可用的人工入口 | 第 4.3 节登记为缺口，不写成已实现 |
+| 所有人工动作都可经面板确认 | 9 个挑战动作走 `prepare`/`confirm`，9 个无挑战动作走 `phase: "human"` 直接派发；两条都只接受 `HUMAN_UI` 连接 | 第 4.2、4.3 节 |
 | 兼容清单可选 `editor_distribution` | 两处旧写法不一致，代码无生成器 | 统一为第 5 节 12 字段一套，国际版/中国版必须区分 |

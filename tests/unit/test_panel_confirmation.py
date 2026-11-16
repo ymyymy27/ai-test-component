@@ -14,6 +14,7 @@ from aitest.interfaces.local.core_worker import CONTROL_KEY, dispatch_frame
 from aitest.interfaces.local.panel_confirmation import (
     PANEL_CONFIRMATION_VERSION,
     confirm_panel_confirmation,
+    dispatch_panel_human,
     prepare_panel_confirmation,
 )
 
@@ -206,3 +207,39 @@ def test_panel_confirm_must_come_from_the_preparing_connection(core, tmp_path):
     assert rejected.error is not None
     assert rejected.error.code == "PANEL_CONFIRMATION_EXPIRED"
     assert core.unit_of_work.repo.current_revision("binding", "binding") == 0
+
+
+def test_panel_human_dispatch_routes_non_challenge_human_actions(core):
+    seed(core)
+    command = Command(
+        request_id="panel-human-1",
+        intent_id="panel-human-intent",
+        project_id="project",
+        action="update_issue",
+        expected_revision=0,
+        parameters={},
+    )
+    response = dispatch_panel_human(
+        core.api, Session("panel-host", EntryKind.HUMAN_UI, True), command
+    )
+    assert response.error is None or response.error.code != "ENTRY_ACTION_NOT_ALLOWED"
+
+
+def test_panel_human_dispatch_rejects_challenge_and_agent_entries(core):
+    seed(core)
+    command = Command(
+        request_id="panel-human-2",
+        intent_id="panel-human-intent-2",
+        project_id="project",
+        action="publish_plan",
+        expected_revision=0,
+        parameters={},
+    )
+    human = dispatch_panel_human(
+        core.api, Session("panel-host", EntryKind.HUMAN_UI, True), command
+    )
+    assert human.error is not None and human.error.code == "ENTRY_ACTION_NOT_ALLOWED"
+    relay = dispatch_panel_human(
+        core.api, Session("relay", EntryKind.AGENT_RELAY, True), command
+    )
+    assert relay.error is not None and relay.error.code == "ENTRY_ACTION_NOT_ALLOWED"

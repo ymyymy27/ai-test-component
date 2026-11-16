@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from aitest.application.approval_service import _digest
 from aitest.application.ports import ApprovalRecords
-from aitest.contracts.commands import CHALLENGE_ACTIONS, Command
+from aitest.contracts.commands import CHALLENGE_ACTIONS, HUMAN_ACTIONS, Command
 from aitest.contracts.responses import Response
 from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 
@@ -312,6 +312,33 @@ def _panel_prepare_material(
             raise ValueError("确认材料摘要不一致")
         saved_materials.append({"reference": ref, "payload": dict(payload)})
     return basis, challenge_id, input_digest, saved_materials
+
+
+def dispatch_panel_human(api: LocalAPI, session: Session, command: Command) -> Response:
+    """Dispatch a human-only action that needs no challenge, from a panel connection.
+
+    The gesture is the panel click itself; the core still verifies entry kind,
+    action class and exact business identity. No caller-supplied confirmation
+    or challenge field is accepted.
+    """
+    if session.entry_kind is not EntryKind.HUMAN_UI or not session.interactive:
+        return api._error(command, "ENTRY_ACTION_NOT_ALLOWED", "人工动作只接受已核实的宿主连接")
+    if command.action not in HUMAN_ACTIONS or command.action in CHALLENGE_ACTIONS:
+        return api._error(command, "ENTRY_ACTION_NOT_ALLOWED", "该动作不属于无挑战人工动作")
+    if (
+        not command.project_id
+        or not command.intent_id
+        or type(command.expected_revision) is not int
+        or command.expected_revision < 0
+        or command.request_id == command.intent_id
+    ):
+        return api._error(command, "INVALID_COMMAND", "人工动作须有项目、稳定意图和准确预期修订")
+    if any(
+        key in command.parameters
+        for key in ("approval_challenge_id", "user_confirmed", "interaction", "input_digest")
+    ):
+        return api._error(command, "INVALID_COMMAND", "入口不接受调用方提交的确认事实")
+    return api.dispatch(command, session)
 
 
 def prepare_panel_confirmation(

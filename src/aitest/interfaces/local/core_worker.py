@@ -47,6 +47,7 @@ from aitest.interfaces.local.api import EntryKind, LocalAPI, Session
 from aitest.interfaces.local.panel_confirmation import (
     PANEL_CONFIRMATION_VERSION,
     confirm_panel_confirmation,
+    dispatch_panel_human,
     prepare_panel_confirmation,
 )
 
@@ -112,6 +113,7 @@ def dispatch_frame(
     *,
     panel_prepare_dispatch: Callable[[Session, Command], Response] | None = None,
     panel_confirm_dispatch: Callable[[Session, Command, str, str], Response] | None = None,
+    panel_human_dispatch: Callable[[Session, Command], Response] | None = None,
 ) -> Response | ShutdownControl:
     """解析并派发一帧；纯函数边界，便于不依赖命名管道做单元测试。
 
@@ -148,6 +150,20 @@ def dispatch_frame(
             if phase == "prepare" and set(obj) == {CONTROL_KEY, "phase", "command"}:
                 try:
                     return panel_prepare_dispatch(session, command)
+                except Exception as error:
+                    return api._error(
+                        command,
+                        "PANEL_CONFIRMATION_UNAVAILABLE",
+                        api._safe_message(error),
+                    )
+            if phase == "human":
+                if (
+                    panel_human_dispatch is None
+                    or set(obj) != {CONTROL_KEY, "phase", "command"}
+                ):
+                    return api._error(command, "INVALID_COMMAND", "人工派发信封无效")
+                try:
+                    return panel_human_dispatch(session, command)
                 except Exception as error:
                     return api._error(
                         command,
@@ -246,6 +262,7 @@ def serve_connection(
     on_wait: Callable[[], None] | None = None,
     panel_prepare_dispatch: Callable[[Session, Command], Response] | None = None,
     panel_confirm_dispatch: Callable[[Session, Command, str, str], Response] | None = None,
+    panel_human_dispatch: Callable[[Session, Command], Response] | None = None,
 ) -> str:
     """处理一条已通过身份核对的连接；返回 ``shutdown`` 或 ``disconnected``。
 
@@ -275,6 +292,7 @@ def serve_connection(
                 payload,
                 panel_prepare_dispatch=panel_prepare_dispatch,
                 panel_confirm_dispatch=panel_confirm_dispatch,
+                panel_human_dispatch=panel_human_dispatch,
             )
             if isinstance(outcome, ShutdownControl):
                 reason = prepare_core_shutdown(shutdown_blocker, lambda: ())
@@ -580,6 +598,9 @@ def main(argv: list[str] | None = None) -> int:
                         session,
                         command,
                         records=assembly.unit_of_work.repo,
+                    ),
+                    panel_human_dispatch=lambda session, command: dispatch_panel_human(
+                        api, session, command
                     ),
                     panel_confirm_dispatch=(
                         lambda session, command, challenge_id, input_digest:
