@@ -1,0 +1,61 @@
+/* Design tokens: graphite editor ground, one steel accent, muted verdicts. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0e1012;
+  --surface: #15181b;
+  --surface-raised: #1a1e22;
+  --surface-sunken: #0b0d0f;
+  --line: #262b30;
+  --line-strong: #363d44;
+
+  --text: #e7eaec;
+  --text-2: #a3acb4;
+  --text-3: #7d868e;
+  --text-disabled: #5a6269;
+
+  --accent: #a8c8e0;
+  --accent-line: #4a7d9e;
+  --accent-fill: rgba(130, 175, 205, 0.12);
+  --accent-fill-strong: rgba(130, 175, 205, 0.2);
+
+  --passed: #86b394;
+  --passed-fill: rgba(110, 160, 128, 0.12);
+  --failed: #d68d84;
+  --failed-fill: rgba(190, 98, 88, 0.13);
+  --incomplete: #c9a86f;
+  --incomplete-fill: rgba(190, 155, 90, 0.12);
+  --neutral: #9aa3ab;
+  --neutral-fill: rgba(154, 163, 171, 0.1);
+
+  --primary-bg: #e9edf0;
+  --primary-bg-hover: #f6f8f9;
+  --primary-text: #101316;
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular",
+    "Microsoft YaHei UI", monospace;
+
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --fs-26: 26px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --r-card: 12px;
+  --r-control: 8px;
+  --r-chip: 6px;
+
+  --focus: #9fc4dd;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45);
+}

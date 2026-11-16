@@ -31,7 +31,8 @@
 - `docs/validation/2026-11-16-plugin-local-smoke/README.md`：真实 CLI 进程完成 project → task → plan → run → report → backup，结论 passed；
 - `docs/validation/2026-11-16-pilot-flaskr/README.md`：Flaskr 试点，真实模型生成 6 条用例，HTTP + Playwright 全部通过，报告 passed；
 - `docs/validation/2026-11-16-trae-panel/README.md`：真实 Trae CN 面板完成项目、目标、计划、执行确认、运行、报告与导出；
-- `docs/validation/2026-11-16-github-real/README.md`：`github.read` 读取公开仓库成功。
+- `docs/validation/2026-11-16-github-real/README.md`：`github.read` 读取公开仓库成功；
+- `docs/validation/2026-11-16-panel-v2/README.md`：共享前端面板从零重写（Vue 3 + Vite），与 Trae 解耦。
 
 已登记验收：26 条 `verified`。
 

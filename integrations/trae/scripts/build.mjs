@@ -1,7 +1,38 @@
-import { build } from "esbuild";
-import { mkdir } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// 扩展只打包 Node 入口；面板资源按 media/ 原样随扩展安装，不复制到 dist。
+import { build } from "esbuild";
+
+// 共享面板在仓库根 panel/；先构建它，再把产物复制到 media/panel 随扩展安装。
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const extensionRoot = resolve(scriptDir, "..");
+const repoRoot = resolve(extensionRoot, "..", "..");
+const panelRoot = join(repoRoot, "panel");
+const panelDist = join(panelRoot, "dist");
+const panelOut = join(extensionRoot, "media", "panel");
+
+const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const panelBuild = spawnSync(npm, ["run", "build"], {
+  cwd: panelRoot,
+  stdio: "inherit",
+  shell: process.platform === "win32",
+});
+if (panelBuild.error) {
+  console.error(`无法启动面板构建：${panelBuild.error.message}`);
+  process.exit(1);
+}
+if (panelBuild.status !== 0) {
+  console.error(`面板构建失败（退出码 ${panelBuild.status}）；未更新 media/panel。`);
+  process.exit(panelBuild.status ?? 1);
+}
+
+await rm(panelOut, { recursive: true, force: true });
+await mkdir(panelOut, { recursive: true });
+await cp(panelDist, panelOut, { recursive: true });
+
+// 扩展只打包 Node 入口；面板资源按 media/panel 原样随扩展安装。
 await mkdir("dist", { recursive: true });
 await build({
   entryPoints: ["src/extension.ts"],

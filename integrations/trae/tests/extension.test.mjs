@@ -164,16 +164,23 @@ test("activation registers only the three commands and the sidebar view", () => 
   assert.equal(state.viewProvider.options.webviewOptions.retainContextWhenHidden, true);
 });
 
-test("openPanel renders media/panel.html with nonce and script URI", () => {
+test("openPanel loads the shared panel build with CSP, nonce and injected bridge", () => {
   state.commands.get("aitest.openPanel")();
   assert.equal(state.panels.length, 1);
   const webview = state.panels[0].webview;
   assert.equal(state.panelOptions.enableScripts, true);
+  assert.equal(state.panelOptions.localResourceRoots.length, 1);
   assert.equal(webview.html.includes("AI 辅助测试"), true);
   assert.equal(webview.html.includes("{{"), false);
   assert.match(webview.html, /nonce-[a-f0-9]{48}/);
-  assert.equal(webview.html.includes("webview:" + join(extensionRoot, "media", "panel.js")), true);
-  assert.equal(/core-bridge|onboarding|api\.js/.test(webview.html), false);
+  assert.equal(webview.html.includes("Content-Security-Policy"), true);
+  assert.equal(webview.html.includes("window.aitestHost"), true);
+  assert.equal(webview.html.includes("acquireVsCodeApi"), true);
+  assert.equal(webview.html.includes(" crossorigin"), false);
+  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.js/);
+  assert.match(webview.html, /webview:.*media.*panel.*assets.*\.css/);
+  assert.equal(webview.html.includes("panel.html"), false);
+  assert.equal(webview.html.includes("pipe"), false);
 });
 
 test("ready publishes settings context and flushes queued panel commands", async () => {
@@ -221,9 +228,35 @@ test("run.start keeps confirmation, other commands cannot smuggle it", async () 
   await until(() => state.bridgeCalls.length === 1, "run.start call");
   assert.equal(state.bridgeCalls[0].options.confirm, true);
 
+  state.receive({
+    type: "call",
+    id: "run-options",
+    command: "run.start",
+    payload: { project_id: "p", plan_id: "plan_2" },
+    options: { confirm: true },
+  });
+  await until(() => state.bridgeCalls.length === 2, "run.start options call");
+  assert.equal(state.bridgeCalls[1].options.confirm, true);
+
   state.receive({ type: "call", id: "doctor-confirm", command: "doctor", payload: {}, confirm: true });
-  await until(() => state.bridgeCalls.length === 2, "doctor call");
-  assert.equal(state.bridgeCalls[1].options.confirm, false);
+  await until(() => state.bridgeCalls.length === 3, "doctor call");
+  assert.equal(state.bridgeCalls[2].options.confirm, false);
+
+  state.receive({ type: "call", id: "cancel-confirm", command: "run.cancel", payload: { run_id: "r" }, confirm: true });
+  await until(() => state.bridgeCalls.length === 4, "run.cancel call");
+  assert.equal(state.bridgeCalls[3].options.confirm, false);
+});
+
+test("run.cancel, analysis.run and issue.list stay inside the allowlist", async () => {
+  state.bridgeCalls.length = 0;
+  for (const command of ["run.cancel", "analysis.run", "issue.list", "report.opinion"]) {
+    state.receive({ type: "call", id: "allowed-" + command, command, payload: {} });
+  }
+  await until(() => state.bridgeCalls.length === 4, "allowed commands");
+  assert.deepEqual(
+    state.bridgeCalls.map((call) => call.command),
+    ["run.cancel", "analysis.run", "issue.list", "report.opinion"],
+  );
 });
 
 test("commands outside the panel allowlist never reach the bridge", async () => {

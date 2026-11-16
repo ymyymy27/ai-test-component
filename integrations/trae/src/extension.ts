@@ -31,8 +31,12 @@ const PANEL_COMMANDS: ReadonlySet<string> = new Set([
   "run.start",
   "run.status",
   "run.list",
+  "run.cancel",
+  "analysis.run",
+  "issue.list",
   "report.generate",
   "report.export",
+  "report.opinion",
 ]);
 
 /** 只有用户显式确认的命令才接受 `--confirm`。 */
@@ -40,7 +44,11 @@ const CONFIRMABLE_COMMANDS: ReadonlySet<string> = new Set(["run.start"]);
 
 const COMMAND_TIMEOUT_MS: Readonly<Record<string, number>> = {
   "run.start": 60_000,
-  "report.generate": 60_000,
+  "plan.generate": 120_000,
+  "task.add": 120_000,
+  "task.suggest": 60_000,
+  "analysis.run": 120_000,
+  "report.generate": 120_000,
   "report.export": 60_000,
   doctor: 30_000,
 };
@@ -198,37 +206,87 @@ function attachWebview(
   webview: vscode.Webview,
 ): vscode.Disposable {
   const nonce = randomBytes(24).toString("hex");
-  const script = webview.asWebviewUri(
-    vscode.Uri.joinPath(context.extensionUri, "media", "panel.js"),
-  );
-  webview.html = renderPanelHtml(context, webview, nonce, script.toString());
+  webview.html = renderPanelHtml(context, webview, nonce);
   return webview.onDidReceiveMessage((message: unknown) => {
     void handleMessage(message, webview);
   });
 }
 
+/** 加载共享面板构建产物，把资源地址改写为宿主 URI，并先注入 bridge。 */
 function renderPanelHtml(
   context: vscode.ExtensionContext,
   webview: vscode.Webview,
   nonce: string,
-  scriptUri: string,
 ): string {
   try {
-    const template = readFileSync(
-      vscode.Uri.joinPath(context.extensionUri, "media", "panel.html").fsPath,
-      "utf8",
+    const panelRoot = vscode.Uri.joinPath(context.extensionUri, "media", "panel");
+    const template = readFileSync(vscode.Uri.joinPath(panelRoot, "index.html").fsPath, "utf8");
+    const base = webview.asWebviewUri(panelRoot).toString().replace(/\/+$/, "");
+    const csp = [
+      "default-src 'none'",
+      `script-src 'nonce-${nonce}' ${webview.cspSource}`,
+      `style-src ${webview.cspSource} 'unsafe-inline'`,
+      `img-src ${webview.cspSource} data:`,
+      `font-src ${webview.cspSource}`,
+      "connect-src 'none'",
+    ].join("; ");
+    const html = template
+      .replace(/(?:\.\/|\/)assets\//g, `${base}/assets/`)
+      .replace(/<script /g, `<script nonce="${nonce}" `)
+      .replace(/ crossorigin/g, "");
+    return html.replace(
+      /<head>/i,
+      `<head>
+    <meta http-equiv="Content-Security-Policy" content="${csp}">
+    <script nonce="${nonce}">${BRIDGE_SCRIPT}</script>`,
     );
-    return template
-      .replaceAll("{{cspSource}}", webview.cspSource)
-      .replaceAll("{{nonce}}", nonce)
-      .replaceAll("{{scriptUri}}", scriptUri);
   } catch {
     return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none';">
       <title>${PANEL_TITLE}</title></head><body>
-      <p>面板资源缺失：media/panel.html 未随扩展安装。</p></body></html>`;
+      <p>面板资源缺失：media/panel/index.html 未随扩展安装。请先运行 npm run build。</p></body></html>`;
   }
 }
+
+/** 注入到 webview 的桥：只转发调用与状态，不解释业务结果。 */
+const BRIDGE_SCRIPT = `(function () {
+  var api = acquireVsCodeApi();
+  var pending = new Map();
+  var seq = 0;
+  window.addEventListener("message", function (event) {
+    var message = event.data;
+    if (!message || message.type !== "result" || !message.id) return;
+    var entry = pending.get(message.id);
+    if (!entry) return;
+    pending.delete(message.id);
+    if (message.ok) {
+      entry.resolve({ ok: true, data: message.data === undefined ? null : message.data });
+    } else {
+      entry.resolve({
+        ok: false,
+        error: message.error || { code: "INTERNAL", message: "未知错误" }
+      });
+    }
+  });
+  window.aitestHost = {
+    call: function (command, payload, options) {
+      var id = "host-" + (++seq);
+      return new Promise(function (resolve) {
+        pending.set(id, { resolve: resolve });
+        api.postMessage({
+          type: "call",
+          id: id,
+          command: command,
+          payload: payload || {},
+          options: options || {}
+        });
+      });
+    },
+    getState: function () { return api.getState(); },
+    setState: function (state) { api.setState(state); }
+  };
+  api.postMessage({ type: "ready" });
+})();`;
 
 function trustWarningHtml(): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8">
@@ -260,7 +318,9 @@ async function handleMessage(message: unknown, webview: vscode.Webview): Promise
   const id = typeof message["id"] === "string" ? message["id"] : "";
   const command = typeof message["command"] === "string" ? message["command"] : "";
   const payload = isRecord(message["payload"]) ? message["payload"] : {};
-  const result = await execute(command, payload, message["confirm"] === true);
+  const options = isRecord(message["options"]) ? message["options"] : {};
+  const confirm = options["confirm"] === true || message["confirm"] === true;
+  const result = await execute(command, payload, confirm);
   await webview.postMessage({ type: "result", id, ...result });
 }
 

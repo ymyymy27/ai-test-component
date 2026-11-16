@@ -76,7 +76,8 @@
     "check": "tsc --noEmit",
     "build": "npm run check && node scripts/build.mjs",
     "package": "npm run build && vsce package --allow-missing-repository --skip-license --out dist/aitest-trae.vsix",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "build:panel": "node scripts/build-panel.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
