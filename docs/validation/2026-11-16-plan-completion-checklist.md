@@ -58,7 +58,7 @@
 
 - [x] G1 全量 pytest、ruff、mypy、文档事实、版本一致
 - [x] G2 真实 Trae 面板走完向导、运行、结果、导出：plan 生成、运行 2/2 通过、结果页与 Markdown 导出完成
-- [~] G3 重跑 26 条验收并修正登记与台账：自动化 170 项与真实 Trae 主流程复跑通过；26 条逐项未全部重跑
+- [x] G3 重跑 26 条验收并修正登记与台账：先按当前代码重跑为 22 verified / 4 not_verified（降级 P1-AC04/06/07/12，[G3 批次](2026-11-16-g3-rerun/README.md)）；随后补齐四项行为并重跑，现为 26 verified / 0 not_verified / 0 untested（[G3b 批次](2026-11-16-g3b/README.md)）
 
 ## 已完成（审计确认）
 

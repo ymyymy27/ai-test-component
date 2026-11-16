@@ -14,7 +14,8 @@ from typing import Any, Literal
 from aitest.adapters.github import read_commit_files
 from aitest.adapters.model import ModelClient
 from aitest.ai_features import judge_mock, summarize_report
-from aitest.core.verdict import coverage, item_outcomes, verdict
+from aitest.core.scope import uncovered_items as scope_uncovered
+from aitest.core.verdict import coverage, verdict
 from aitest.errors import AiTestError
 from aitest.model_config import build_client, load_project_config
 from aitest.models import Delivery, Issue, Module, Plan, Project, Report, Run, Task, new_id
@@ -277,11 +278,8 @@ def build_report(
     plan = read_model(run_dir / "plan.json", Plan)
     outcome = verdict(plan, run)
     counts = coverage(plan, run)
-    outcomes = item_outcomes(plan, run)
-    uncovered = [
-        item for item in plan.scope.acceptance_item_ids if outcomes.get(item) != "passed"
-    ]
     task = _load_task(ws, project.project_id, plan.task_id)
+    uncovered = scope_uncovered(task, plan.scope)
     delivery = (
         _load_delivery(ws, project.project_id, task.task_id) if task is not None else None
     )

@@ -160,3 +160,23 @@ describe("新建测试向导", () => {
     expect(wrapper.find('[data-testid="wizard-step-4"]').exists()).toBe(true);
   });
 });
+
+describe("确认页未覆盖清单", () => {
+  it("自选范围只勾一部分时，确认页列出未勾选的适用验收项", async () => {
+    const { wrapper } = await mountWizard();
+    await reachScope(wrapper);
+
+    const presetButtons = wrapper.findAll(".segmented button");
+    await presetButtons[1].trigger("click");
+    const checkboxes = wrapper.findAll('[data-testid="scope-list"] input[type="checkbox"]');
+    await checkboxes[1].setValue(false);
+    await wrapper.find('[data-testid="wizard-next"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="wizard-step-4"]').exists()).toBe(true);
+    const list = wrapper.find('[data-testid="uncovered-list"]');
+    expect(list.exists()).toBe(true);
+    expect(list.text()).toContain("未覆盖（1）");
+    expect(list.text()).toContain("ai_2：库存扣减一次");
+  });
+});

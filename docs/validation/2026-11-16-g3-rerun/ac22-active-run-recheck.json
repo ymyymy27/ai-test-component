@@ -1,0 +1,33 @@
+{
+  "first": {
+    "ok": true,
+    "request_id": "g3-run.start-15d6ed3e",
+    "data": {
+      "run_id": "run_d3642d08ff4d",
+      "status": "running",
+      "scope": {
+        "selected": 1,
+        "applicable": 1
+      },
+      "confirmation": {
+        "confirmation_id": "conf_c9a0c2eecf97",
+        "confirmed_by": "g3",
+        "confirmed_at": "2026-11-16T19:03:40+08:00",
+        "reused": false,
+        "fingerprint": "801c55ec22f7e664cb1341915618050ccc5d3a850523e248b17e7341d490eadd"
+      }
+    },
+    "_returncode": 0
+  },
+  "second": {
+    "ok": false,
+    "request_id": "g3-run.start-f34b2b7b",
+    "error": {
+      "code": "RUN_ACTIVE",
+      "message": "项目已有运行：run_d3642d08ff4d",
+      "next_step": "等待或取消现有运行后重试"
+    },
+    "_returncode": 1
+  },
+  "first_final": "completed"
+}

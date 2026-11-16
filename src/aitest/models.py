@@ -192,6 +192,7 @@ class Run(Model):
     analysis: list[Analysis] = Field(default_factory=list)
     mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
     service_started: bool = False
+    service_name: str = ""
     l1: dict[str, Any] | None = None
     media_bytes: int = 0
     data_prefix: str = ""

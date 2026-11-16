@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "request_id": "g3-analysis.run-8eeb797c",
+  "data": {
+    "status": "invalid",
+    "analysis": null
+  },
+  "_returncode": 0
+}

@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac06-report-c7ce0efb",
+  "data": {
+    "report_id": "rep_6eabf98d34b7",
+    "run_id": "run_edcab32cb863",
+    "outcome": "passed",
+    "counts": {
+      "selected": 1,
+      "applicable": 3,
+      "covered": 1,
+      "passed": 1,
+      "failed": 0,
+      "incomplete": 0
+    },
+    "coverage": {
+      "selected": 1,
+      "applicable": 3
+    },
+    "changed_modules": [],
+    "unmapped_files": [],
+    "uncovered_items": [
+      "ai_edd6d03c88ca：库存扣减一次",
+      "ai_b22559707b43：订单可以取消"
+    ],
+    "layers": {
+      "L1": 0,
+      "L2": 1,
+      "L3": 0
+    }
+  },
+  "_returncode": 0
+}

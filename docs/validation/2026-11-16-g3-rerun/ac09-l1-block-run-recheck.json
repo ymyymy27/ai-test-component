@@ -1,0 +1,107 @@
+{
+  "ok": true,
+  "request_id": "g3-run.status-425b4675",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_50b5a50f4dde",
+      "plan_id": "plan_1aaeec57947e",
+      "project_id": "proj_6ee2e904604b",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_db3a6333ddb7",
+          "ai_74c860d6f158",
+          "ai_763b6cfc424e"
+        ],
+        "frozen_at": "2026-11-16T18:55:15+08:00"
+      },
+      "confirmed_by": "g3",
+      "confirmed_at": "2026-11-16T18:55:15+08:00",
+      "confirmation_id": "conf_71f468d4bbb1",
+      "confirmation_fingerprint": "e512a1d90610f2dc4f719ee4e8d44522aeaa677dbacde23d924056bd93b85843",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 42460,
+      "started_at": "2026-11-16T18:55:15+08:00",
+      "heartbeat_at": "2026-11-16T18:55:16+08:00",
+      "cases": [
+        {
+          "case_id": "case_a9dc44d7e01a",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-16T18:55:15+08:00",
+              "finished_at": "2026-11-16T18:55:15+08:00",
+              "evidence_refs": [
+                "evidence/case_a9dc44d7e01a-0.log"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_a9dc44d7e01a-0.log"
+          ]
+        },
+        {
+          "case_id": "case_e69e98c56cc9",
+          "result": "blocked",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "blocked",
+              "started_at": "",
+              "finished_at": "",
+              "evidence_refs": [],
+              "message": "L1 检查未通过"
+            }
+          ],
+          "evidence_refs": []
+        },
+        {
+          "case_id": "case_6bfc1ffe5b32",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-16T18:55:16+08:00",
+              "finished_at": "2026-11-16T18:55:16+08:00",
+              "evidence_refs": [
+                "evidence/case_6bfc1ffe5b32-0.log"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_6bfc1ffe5b32-0.log"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/l1-build.log",
+        "evidence/case_a9dc44d7e01a-0.log",
+        "evidence/case_6bfc1ffe5b32-0.log"
+      ],
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": false,
+      "l1": {
+        "build": {
+          "evidence_ref": "evidence/l1-build.log",
+          "exit_code": 1,
+          "ok": false
+        },
+        "entries": []
+      },
+      "media_bytes": 30,
+      "data_prefix": "aitest_run_50b5a50f4dde_",
+      "request_ids": []
+    },
+    "outcome": "incomplete"
+  },
+  "_returncode": 0
+}

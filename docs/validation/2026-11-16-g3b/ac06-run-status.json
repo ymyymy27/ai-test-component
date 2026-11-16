@@ -1,0 +1,67 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac06-run-status-81fb22eb",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_edcab32cb863",
+      "plan_id": "plan_ed883bf0cced",
+      "project_id": "proj_2a625b759265",
+      "scope": {
+        "preset": "selected",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_93aa2f18f342"
+        ],
+        "frozen_at": "2026-11-16T19:31:03+08:00"
+      },
+      "confirmed_by": "cli",
+      "confirmed_at": "2026-11-16T19:31:03+08:00",
+      "confirmation_id": "conf_32e7dbbfe43e",
+      "confirmation_fingerprint": "542170e7fc65cbe1fd3221c4f268ad60c438462220b66aad434a0658415f924f",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 39776,
+      "started_at": "2026-11-16T19:31:03+08:00",
+      "heartbeat_at": "2026-11-16T19:33:06+08:00",
+      "cases": [
+        {
+          "case_id": "case_67e899039aa2",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-16T19:33:06+08:00",
+              "finished_at": "2026-11-16T19:33:06+08:00",
+              "evidence_refs": [
+                "evidence/case_67e899039aa2-0.log"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_67e899039aa2-0.log"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_67e899039aa2-0.log"
+      ],
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": true,
+      "service_name": "db",
+      "l1": null,
+      "media_bytes": 10,
+      "data_prefix": "aitest_run_edcab32cb863_",
+      "request_ids": []
+    },
+    "outcome": "passed",
+    "uncovered_items": [
+      "ai_edd6d03c88ca：库存扣减一次",
+      "ai_b22559707b43：订单可以取消"
+    ]
+  },
+  "_returncode": 0
+}

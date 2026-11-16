@@ -17,6 +17,7 @@ const props = defineProps<{
   statusLabel?: string;
   statusTone?: "passed" | "failed" | "incomplete" | "neutral" | "accent" | "running";
   timeLabel?: string;
+  uncoveredItems?: string[];
 }>();
 
 const tone = computed(() =>
@@ -43,7 +44,11 @@ const sentence = computed(() =>
     </div>
     <h2 class="word" data-testid="verdict-word">{{ word }}</h2>
     <p class="sentence">{{ sentence }}</p>
-    <CoverageMeter :selected="selected" :applicable="applicable" />
+    <CoverageMeter
+      :selected="selected"
+      :applicable="applicable"
+      :uncovered-items="uncoveredItems ?? []"
+    />
   </section>
 </template>
 

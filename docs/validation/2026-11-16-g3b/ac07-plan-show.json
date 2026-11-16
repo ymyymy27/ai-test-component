@@ -1,0 +1,71 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac07-plan-show-eb7eb79b",
+  "data": {
+    "plan": {
+      "schema_version": 1,
+      "plan_id": "plan_46db5cc71d6e",
+      "task_id": "task_57342ff4eab8",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_aa5d6cbe3ecb",
+          "ai_418d609e9636"
+        ],
+        "frozen_at": null
+      },
+      "applicable_count": 2,
+      "rules_version_id": null,
+      "cases": [
+        {
+          "case_id": "case_0f345df72755",
+          "acceptance_item_id": "ai_aa5d6cbe3ecb",
+          "layer": "L1",
+          "title": "",
+          "preconditions": [],
+          "steps": [],
+          "expected": "登录成功后页面跳转到首页",
+          "expectation_source": "登录成功后跳转到首页",
+          "expectation_verified": true,
+          "warnings": [
+            "缺少前置条件，执行前需人工确认"
+          ],
+          "verify_method": "playwright:tests/login_redirect_home.spec.js",
+          "mock_allowed": true,
+          "importance": "medium",
+          "depends_on": null,
+          "script_name": "login_redirect_home.spec.js",
+          "script_content": "const { test, expect } = require('@playwright/test');\n\ntest('登录成功后跳转到首页', async ({ page }) => {\n  await page.goto('http://127.0.0.1:51943/index.html');\n  await page.fill('input[name=\"username\"]', 'admin');\n  await page.fill('input[name=\"password\"]', 'correct-password');\n  await page.click('button[type=\"submit\"]');\n  await expect(page).toHaveURL(/\\/(index|home)(\\.html)?$/);\n});\n"
+        },
+        {
+          "case_id": "case_b5173351ff29",
+          "acceptance_item_id": "ai_418d609e9636",
+          "layer": "L1",
+          "title": "",
+          "preconditions": [],
+          "steps": [],
+          "expected": "使用错误密码登录时页面提示“用户名或密码错误”",
+          "expectation_source": "错误密码提示用户名或密码错误",
+          "expectation_verified": true,
+          "warnings": [
+            "缺少前置条件，执行前需人工确认"
+          ],
+          "verify_method": "playwright:tests/login_wrong_password.spec.js",
+          "mock_allowed": true,
+          "importance": "medium",
+          "depends_on": null,
+          "script_name": "login_wrong_password.spec.js",
+          "script_content": "const { test, expect } = require('@playwright/test');\n\ntest('错误密码提示用户名或密码错误', async ({ page }) => {\n  await page.goto('http://127.0.0.1:51943/index.html');\n  await page.fill('input[name=\"username\"]', 'admin');\n  await page.fill('input[name=\"password\"]', 'wrong-password');\n  await page.click('button[type=\"submit\"]');\n  await expect(page.getByText('用户名或密码错误')).toBeVisible();\n});\n"
+        }
+      ],
+      "warnings": [
+        "case_0f345df72755：缺少前置条件，执行前需人工确认",
+        "case_b5173351ff29：缺少前置条件，执行前需人工确认"
+      ],
+      "status": "published",
+      "revision": 1
+    }
+  },
+  "_returncode": 0
+}

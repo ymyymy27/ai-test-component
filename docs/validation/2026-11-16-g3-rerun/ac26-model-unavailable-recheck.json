@@ -1,0 +1,105 @@
+{
+  "plan_without_model": {
+    "ok": false,
+    "request_id": "g3-plan.generate-37bc005b",
+    "error": {
+      "code": "MODEL_UNAVAILABLE",
+      "message": "未配置模型，无法生成计划",
+      "next_step": "配置模型密钥，或在 payload 提供 cases"
+    },
+    "_returncode": 1
+  },
+  "run": {
+    "schema_version": 1,
+    "run_id": "run_687b39d3a736",
+    "plan_id": "plan_54c893ccd02e",
+    "project_id": "proj_3ef25169e34c",
+    "scope": {
+      "preset": "all_applicable",
+      "module_ids": [],
+      "acceptance_item_ids": [
+        "ai_3362764cf8ea"
+      ],
+      "frozen_at": "2026-11-16T19:04:10+08:00"
+    },
+    "confirmed_by": "g3",
+    "confirmed_at": "2026-11-16T19:04:10+08:00",
+    "confirmation_id": "conf_31462838bbb1",
+    "confirmation_fingerprint": "dcc190a4ce8d5b40d159f59ea8e0b3a34ff4754695baf53c8c0524fca46f6742",
+    "confirmation_reused": false,
+    "status": "completed",
+    "pid": 44144,
+    "started_at": "2026-11-16T19:04:10+08:00",
+    "heartbeat_at": "2026-11-16T19:04:11+08:00",
+    "cases": [
+      {
+        "case_id": "case_1ba7831a2c37",
+        "result": "passed",
+        "attempts": [
+          {
+            "attempt": 1,
+            "result": "passed",
+            "started_at": "2026-11-16T19:04:11+08:00",
+            "finished_at": "2026-11-16T19:04:11+08:00",
+            "evidence_refs": [
+              "evidence/case_1ba7831a2c37-0.log"
+            ],
+            "message": ""
+          }
+        ],
+        "evidence_refs": [
+          "evidence/case_1ba7831a2c37-0.log"
+        ]
+      }
+    ],
+    "evidence_refs": [
+      "evidence/case_1ba7831a2c37-0.log"
+    ],
+    "analysis": [],
+    "mock_judgement": [],
+    "service_started": false,
+    "l1": null,
+    "media_bytes": 4,
+    "data_prefix": "aitest_run_687b39d3a736_",
+    "request_ids": []
+  },
+  "report": {
+    "ok": true,
+    "request_id": "g3-report.generate-cdaf7edd",
+    "data": {
+      "report_id": "rep_05d6cfe4f8b1",
+      "run_id": "run_687b39d3a736",
+      "outcome": "passed",
+      "counts": {
+        "selected": 1,
+        "applicable": 1,
+        "covered": 1,
+        "passed": 1,
+        "failed": 0,
+        "incomplete": 0
+      },
+      "coverage": {
+        "selected": 1,
+        "applicable": 1
+      },
+      "changed_modules": [],
+      "unmapped_files": [],
+      "uncovered_items": [],
+      "layers": {
+        "L1": 1,
+        "L2": 0,
+        "L3": 0
+      }
+    },
+    "_returncode": 0
+  },
+  "export": {
+    "ok": true,
+    "request_id": "g3-report.export-a30bc9f9",
+    "data": {
+      "path": "E:\\ai-test-component\\docs\\validation\\2026-11-16-g3-rerun\\ac26-no-model-report.md",
+      "bytes": 1071
+    },
+    "_returncode": 0
+  }
+}

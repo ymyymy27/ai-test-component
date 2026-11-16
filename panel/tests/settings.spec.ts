@@ -122,3 +122,15 @@ describe("设置页项目配置", () => {
     expect(text).toContain("把密钥放到用户配置或环境变量中");
   });
 });
+
+describe("服务配置说明", () => {
+  it("同时说明单服务形状与 服务名→配置 映射形状", async () => {
+    prepare();
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).toContain("单服务：{ start, health, stop, ... }");
+    expect(text).toContain("服务名 → 配置，取第一个");
+  });
+});

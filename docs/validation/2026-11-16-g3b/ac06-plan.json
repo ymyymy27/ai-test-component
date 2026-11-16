@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac06-plan-fe6d60ab",
+  "data": {
+    "plan_id": "plan_ed883bf0cced",
+    "revision": 1,
+    "status": "published",
+    "scope": {
+      "preset": "selected",
+      "module_ids": [],
+      "acceptance_item_ids": [
+        "ai_93aa2f18f342"
+      ],
+      "frozen_at": null
+    },
+    "coverage": {
+      "selected": 1,
+      "applicable": 3
+    },
+    "cases": 1,
+    "warnings": [
+      "case_67e899039aa2：缺少前置条件，执行前需人工确认"
+    ],
+    "unverified_cases": []
+  },
+  "_returncode": 0
+}

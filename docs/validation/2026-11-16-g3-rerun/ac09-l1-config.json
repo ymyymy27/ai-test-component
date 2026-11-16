@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "request_id": "g3-project.config-16817787",
+  "data": {
+    "config": {
+      "l1": {
+        "build": "python -c \"import sys; sys.exit(1)\"",
+        "entry": []
+      }
+    }
+  },
+  "_returncode": 0
+}

@@ -1,0 +1,32 @@
+{
+  "without_confirm": {
+    "ok": false,
+    "request_id": "g3-run.start-3fb32bb7",
+    "error": {
+      "code": "CONFIRMATION_REQUIRED",
+      "message": "缺少执行前确认",
+      "next_step": "在面板确认或加 --confirm"
+    },
+    "_returncode": 1
+  },
+  "with_confirm": {
+    "ok": true,
+    "request_id": "g3-run.start-83deba35",
+    "data": {
+      "run_id": "run_f731bcc38261",
+      "status": "running",
+      "scope": {
+        "selected": 1,
+        "applicable": 2
+      },
+      "confirmation": {
+        "confirmation_id": "conf_838751556782",
+        "confirmed_by": "g3-runner",
+        "confirmed_at": "2026-11-16T18:53:32+08:00",
+        "reused": false,
+        "fingerprint": "e1e0e763887bf2184b0e5fd821ac470b7fd3cc0fedbe2db4335306f3ea45e261"
+      }
+    },
+    "_returncode": 0
+  }
+}

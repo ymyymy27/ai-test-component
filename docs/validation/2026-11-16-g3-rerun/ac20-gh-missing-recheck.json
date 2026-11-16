@@ -1,0 +1,16 @@
+{
+  "github": {
+    "ok": false,
+    "request_id": "g3-github.read-cc6b4392",
+    "error": {
+      "code": "GITHUB_UNAVAILABLE",
+      "message": "无法执行 gh，请检查安装",
+      "next_step": "安装 gh 并完成登录后重试"
+    },
+    "_returncode": 1
+  },
+  "local_still_usable": {
+    "ok": true,
+    "status": "completed"
+  }
+}

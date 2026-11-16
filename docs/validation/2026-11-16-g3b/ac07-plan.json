@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac07-plan-e57a1907",
+  "data": {
+    "plan_id": "plan_46db5cc71d6e",
+    "revision": 1,
+    "status": "published",
+    "scope": {
+      "preset": "all_applicable",
+      "module_ids": [],
+      "acceptance_item_ids": [
+        "ai_aa5d6cbe3ecb",
+        "ai_418d609e9636"
+      ],
+      "frozen_at": null
+    },
+    "coverage": {
+      "selected": 2,
+      "applicable": 2
+    },
+    "cases": 2,
+    "warnings": [
+      "case_0f345df72755：缺少前置条件，执行前需人工确认",
+      "case_b5173351ff29：缺少前置条件，执行前需人工确认"
+    ],
+    "unverified_cases": []
+  },
+  "_returncode": 0
+}

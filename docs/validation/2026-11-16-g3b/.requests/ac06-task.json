@@ -1,0 +1,1 @@
+{"command": "task.add", "request_id": "g3b-ac06-task-0b1cb8db", "payload": {"project_id": "proj_2a625b759265", "title": "ac06", "acceptance_items": [{"text": "下单成功", "observable": true}, {"text": "库存扣减一次", "observable": true}, {"text": "订单可以取消", "observable": true}]}}

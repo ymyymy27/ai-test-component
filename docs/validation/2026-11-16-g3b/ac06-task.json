@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac06-task-0b1cb8db",
+  "data": {
+    "task_id": "task_c7d88867b16c",
+    "revision": 1,
+    "acceptance_items": [
+      {
+        "item_id": "ai_93aa2f18f342",
+        "status": "active",
+        "text": "下单成功",
+        "module_id": null
+      },
+      {
+        "item_id": "ai_edd6d03c88ca",
+        "status": "active",
+        "text": "库存扣减一次",
+        "module_id": null
+      },
+      {
+        "item_id": "ai_b22559707b43",
+        "status": "active",
+        "text": "订单可以取消",
+        "module_id": null
+      }
+    ]
+  },
+  "_returncode": 0
+}

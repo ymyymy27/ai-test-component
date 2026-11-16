@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import UncoveredList from "./UncoveredList.vue";
+
 const props = withDefaults(
   defineProps<{
     selected: number;
     applicable: number;
     size?: "md" | "sm";
+    /** "id：text" rows from the backend; empty means the whole applicable set was selected. */
+    uncoveredItems?: string[];
   }>(),
-  { size: "md" },
+  { size: "md", uncoveredItems: () => [] },
 );
 
 const ratio = computed(() => {
@@ -46,6 +50,7 @@ const uncovered = computed(() => Math.max(0, props.applicable - props.selected))
       </template>
       <template v-else>所选范围已覆盖全部适用验收项。</template>
     </p>
+    <UncoveredList v-if="size === 'md'" :items="uncoveredItems" />
   </div>
 </template>
 

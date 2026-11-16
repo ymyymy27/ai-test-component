@@ -1,0 +1,58 @@
+{
+  "start_a": {
+    "ok": true,
+    "request_id": "g3-run.start-6ba6897c",
+    "data": {
+      "run_id": "run_fb24b92f90c1",
+      "status": "running",
+      "scope": {
+        "selected": 1,
+        "applicable": 1
+      },
+      "confirmation": {
+        "confirmation_id": "conf_98f25aeff737",
+        "confirmed_by": "g3",
+        "confirmed_at": "2026-11-16T19:06:59+08:00",
+        "reused": false,
+        "fingerprint": "8da3cf562e3a0d20b591d209310d52254adee4c30f4794fd285f44718320b3db"
+      }
+    },
+    "_returncode": 0
+  },
+  "start_b": {
+    "ok": true,
+    "request_id": "g3-run.start-bf8c9fdf",
+    "data": {
+      "run_id": "run_3b6fc30dc19b",
+      "status": "running",
+      "scope": {
+        "selected": 1,
+        "applicable": 1
+      },
+      "confirmation": {
+        "confirmation_id": "conf_ce6bb32f3549",
+        "confirmed_by": "g3",
+        "confirmed_at": "2026-11-16T19:06:59+08:00",
+        "reused": false,
+        "fingerprint": "aa8843295aa314c26cbe3853fee2902625eda4e037eac861549c4f5403c3819f"
+      }
+    },
+    "_returncode": 0
+  },
+  "final": {
+    "A": {
+      "run_id": "run_fb24b92f90c1",
+      "status": "completed",
+      "cases": [
+        "passed"
+      ]
+    },
+    "B": {
+      "run_id": "run_3b6fc30dc19b",
+      "status": "completed",
+      "cases": [
+        "passed"
+      ]
+    }
+  }
+}

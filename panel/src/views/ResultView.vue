@@ -49,6 +49,7 @@ const run = computed(() => session.result?.run ?? null);
 const outcome = computed(() => session.result?.outcome ?? null);
 const selected = computed(() => run.value?.scope.acceptance_item_ids.length ?? 0);
 const applicable = computed(() => session.plan?.applicable_count ?? 0);
+const uncoveredItems = computed(() => session.result?.uncovered_items ?? []);
 const loading = computed(() => isBusy("result"));
 
 const planCases = computed(() => {
@@ -237,6 +238,7 @@ function refreshResult(): void {
         :verdict="outcome"
         :selected="selected"
         :applicable="applicable"
+        :uncovered-items="uncoveredItems"
         :status-label="RUN_STATUS_LABEL[run.status]"
         :status-tone="RUN_STATUS_BADGE[run.status]"
         :time-label="formatDateTime(run.started_at)"

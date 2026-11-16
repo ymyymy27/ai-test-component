@@ -1,0 +1,13 @@
+{
+  "rule1": "rule_a997fc7a60ce",
+  "rule2": "rule_daca41f3b589",
+  "old_plan": {
+    "plan_id": "plan_b9c41fb0c977",
+    "rules_version_id": "rule_a997fc7a60ce"
+  },
+  "new_plan": {
+    "plan_id": "plan_8deae9cec1e8",
+    "rules_version_id": "rule_daca41f3b589"
+  },
+  "project": "rule_a997fc7a60ce"
+}

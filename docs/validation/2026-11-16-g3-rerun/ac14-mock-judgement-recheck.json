@@ -1,0 +1,72 @@
+{
+  "run_id": "run_f355b1c84b5e",
+  "report_id": "rep_1a8192f3989e",
+  "mock_judgement": [
+    {
+      "evidence_refs": [
+        "pay/gateway.py",
+        "app.py",
+        "tests/test_checkout.py"
+      ],
+      "kind": "mock",
+      "limit_reached": false,
+      "name": "pay",
+      "read_files": [
+        "app.py",
+        "pay/__init__.py",
+        "pay/gateway.py",
+        "tests/test_checkout.py"
+      ],
+      "reason": "pay 是仓库内的本地包，pay/gateway.py 明确标注为本地支付桩（local payment stub），charge 返回 stub_ok/local_stub，测试断言依赖该桩行为，因此属于 mock 依赖。"
+    },
+    {
+      "evidence_refs": [
+        "evidence/case_756d3e25255c-0.log",
+        "evidence/case_756d3e25255c-junit.xml"
+      ],
+      "kind": "unknown",
+      "limit_reached": false,
+      "name": "external_payment_api",
+      "read_files": [
+        "app.py",
+        "pay/__init__.py",
+        "pay/gateway.py",
+        "tests/test_checkout.py"
+      ],
+      "reason": "给出的文件与证据中未出现 external_payment_api 的任何引用或配置，无法确认其真实或模拟性质。"
+    },
+    {
+      "evidence_refs": [
+        "evidence/case_756d3e25255c-0.log",
+        "evidence/case_756d3e25255c-junit.xml"
+      ],
+      "kind": "unknown",
+      "limit_reached": false,
+      "name": "nonexistent_dep_xyz",
+      "read_files": [
+        "app.py",
+        "pay/__init__.py",
+        "pay/gateway.py",
+        "tests/test_checkout.py"
+      ],
+      "reason": "该依赖在代码、文件与证据中均无任何出现，无法判定其性质。"
+    },
+    {
+      "evidence_refs": [
+        "pay/gateway.py",
+        "app.py",
+        "tests/test_checkout.py"
+      ],
+      "kind": "mock",
+      "limit_reached": false,
+      "name": "pay",
+      "read_files": [
+        "app.py",
+        "pay/__init__.py",
+        "pay/gateway.py",
+        "tests/test_checkout.py"
+      ],
+      "reason": "pay 是仓库内的本地包，pay/gateway.py 明确标注为本地支付桩（local payment stub），charge 返回 stub_ok/local_stub，测试断言依赖该桩行为，因此属于 mock 依赖。"
+    }
+  ]
+}

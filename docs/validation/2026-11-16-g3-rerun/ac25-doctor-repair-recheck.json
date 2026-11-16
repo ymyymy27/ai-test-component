@@ -1,0 +1,52 @@
+{
+  "ok": true,
+  "request_id": "g3-doctor-fc44f594",
+  "data": {
+    "workspace": {
+      "ok": true,
+      "path": "C:\\Users\\y'm'y\\AppData\\Roaming\\aitest\\workspaces\\g3",
+      "workspace_id": "ws_bd3cf01e93d8"
+    },
+    "python": {
+      "ok": true,
+      "version": "3.11.9"
+    },
+    "package": {
+      "ok": true,
+      "version": "0.5.0"
+    },
+    "model": {
+      "ok": true,
+      "source": "user_config"
+    },
+    "github": {
+      "ok": false,
+      "path": null
+    },
+    "proxy": {
+      "ok": true
+    },
+    "repairs": [
+      {
+        "risk": "high",
+        "command": "winget install --id GitHub.cli",
+        "auto": false
+      }
+    ],
+    "repairs_done": [
+      "ensure:projects",
+      "ensure:requests",
+      "ensure:backups",
+      "write-probe"
+    ],
+    "explanation": {
+      "explanation": "环境检查中唯一失败项是 GitHub 相关配置：github.ok 为 false 且 path 为 null，说明未检测到可用的 GitHub CLI（gh）或其路径未配置。其余项（工作区、Python 3.11.9、包版本、模型配置、代理）均正常。修复建议为安装 GitHub CLI，安装后需重新打开终端并执行 gh auth login 完成认证。",
+      "commands": [
+        "winget install --id GitHub.cli",
+        "gh --version",
+        "gh auth login"
+      ]
+    }
+  },
+  "_returncode": 0
+}

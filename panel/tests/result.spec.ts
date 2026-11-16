@@ -103,3 +103,39 @@ describe("结果页", () => {
     expect(session.view).toBe("run");
   });
 });
+
+describe("未覆盖清单", () => {
+  it("结果页展示未选中的适用验收项，最多 5 条并给出剩余数量", async () => {
+    const detail = {
+      ...RUN_DETAIL,
+      uncovered_items: [
+        "ai_2：库存扣减一次",
+        "ai_4：取消后库存回补",
+        "ai_5：订单状态为已支付",
+        "ai_6：重复提交只生成一单",
+        "ai_7：超时订单自动关闭",
+        "ai_8：退款后订单不可发货",
+      ],
+    };
+    prepare(detail);
+    const wrapper = mount(ResultView);
+    await flushPromises();
+
+    const list = wrapper.find('[data-testid="uncovered-list"]');
+    expect(list.exists()).toBe(true);
+    const text = list.text();
+    expect(text).toContain("未覆盖（6）");
+    expect(text).toContain("ai_2：库存扣减一次");
+    expect(text).toContain("ai_7：超时订单自动关闭");
+    expect(text).not.toContain("ai_8：退款后订单不可发货");
+    expect(text).toContain("还有 1 条未显示");
+  });
+
+  it("全部覆盖时不显示未覆盖清单", async () => {
+    prepare({ ...RUN_DETAIL, uncovered_items: [] });
+    const wrapper = mount(ResultView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="uncovered-list"]').exists()).toBe(false);
+  });
+});

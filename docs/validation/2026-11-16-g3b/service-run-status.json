@@ -1,0 +1,64 @@
+{
+  "ok": true,
+  "request_id": "g3b-service-run-status-ed978a15",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_eb3dee7ecc2f",
+      "plan_id": "plan_991976f19140",
+      "project_id": "proj_2a625b759265",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_7e6be0ceac49"
+        ],
+        "frozen_at": "2026-11-16T19:35:18+08:00"
+      },
+      "confirmed_by": "cli",
+      "confirmed_at": "2026-11-16T19:35:18+08:00",
+      "confirmation_id": "conf_a86ef17c854c",
+      "confirmation_fingerprint": "cb6d56b49901d2a7cba4e409e32b0913a574d3c9dad3a629e7abaae5553b55b3",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 47092,
+      "started_at": "2026-11-16T19:35:18+08:00",
+      "heartbeat_at": "2026-11-16T19:35:19+08:00",
+      "cases": [
+        {
+          "case_id": "case_5f4511c3f9d5",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-16T19:35:19+08:00",
+              "finished_at": "2026-11-16T19:35:19+08:00",
+              "evidence_refs": [
+                "evidence/case_5f4511c3f9d5-0.log"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_5f4511c3f9d5-0.log"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_5f4511c3f9d5-0.log"
+      ],
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": false,
+      "service_name": "api",
+      "l1": null,
+      "media_bytes": 12,
+      "data_prefix": "aitest_run_eb3dee7ecc2f_",
+      "request_ids": []
+    },
+    "outcome": "passed",
+    "uncovered_items": []
+  },
+  "_returncode": 0
+}

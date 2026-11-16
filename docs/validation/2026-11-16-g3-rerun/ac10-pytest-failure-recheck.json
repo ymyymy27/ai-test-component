@@ -1,0 +1,73 @@
+{
+  "ok": true,
+  "request_id": "g3-run.status-a5c9dfc1",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_327be6639a3b",
+      "plan_id": "plan_a329b6c8e540",
+      "project_id": "proj_6ee2e904604b",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_a5d1b2fe42c8"
+        ],
+        "frozen_at": "2026-11-16T18:55:17+08:00"
+      },
+      "confirmed_by": "g3",
+      "confirmed_at": "2026-11-16T18:55:17+08:00",
+      "confirmation_id": "conf_a2813ba46c6e",
+      "confirmation_fingerprint": "00273590d052a74ab754d5d3d33ec180e4a279ee87375e89f24a888a1743370c",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 42620,
+      "started_at": "2026-11-16T18:55:17+08:00",
+      "heartbeat_at": "2026-11-16T18:55:19+08:00",
+      "cases": [
+        {
+          "case_id": "case_3d7f9e3042ac",
+          "result": "failed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "failed",
+              "started_at": "2026-11-16T18:55:19+08:00",
+              "finished_at": "2026-11-16T18:55:19+08:00",
+              "evidence_refs": [
+                "evidence/case_3d7f9e3042ac-0.log",
+                "evidence/case_3d7f9e3042ac-junit.xml"
+              ],
+              "message": "JUnit 失败或错误 1 条"
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_3d7f9e3042ac-0.log",
+            "evidence/case_3d7f9e3042ac-junit.xml"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/l1-build.log",
+        "evidence/case_3d7f9e3042ac-0.log",
+        "evidence/case_3d7f9e3042ac-junit.xml"
+      ],
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": false,
+      "l1": {
+        "build": {
+          "evidence_ref": "evidence/l1-build.log",
+          "exit_code": 1,
+          "ok": false
+        },
+        "entries": []
+      },
+      "media_bytes": 1601,
+      "data_prefix": "aitest_run_327be6639a3b_",
+      "request_ids": []
+    },
+    "outcome": "failed"
+  },
+  "_returncode": 0
+}

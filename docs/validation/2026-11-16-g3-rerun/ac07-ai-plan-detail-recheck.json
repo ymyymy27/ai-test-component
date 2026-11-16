@@ -1,0 +1,121 @@
+{
+  "ok": true,
+  "request_id": "g3-plan.show-74bffff8",
+  "data": {
+    "plan": {
+      "schema_version": 1,
+      "plan_id": "plan_e2411a6c7f66",
+      "task_id": "task_c14699c28f85",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_67c3e1d635ec",
+          "ai_2fdf473d19f3"
+        ],
+        "frozen_at": null
+      },
+      "applicable_count": 2,
+      "rules_version_id": null,
+      "cases": [
+        {
+          "case_id": "case_9191c882a34a",
+          "acceptance_item_id": "ai_67c3e1d635ec",
+          "layer": "L1",
+          "title": "",
+          "preconditions": [],
+          "steps": [],
+          "expected": "首页返回 200，页面包含博客列表容器（如文章标题或空列表提示）",
+          "expectation_source": "flaskr/blog.py index 视图渲染 blog/index.html 并传入 posts",
+          "expectation_verified": false,
+          "warnings": [
+            "预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+            "缺少前置条件，执行前需人工确认"
+          ],
+          "verify_method": "http:[{\"method\":\"GET\",\"url\":\"http://127.0.0.1:5000/\",\"expect\":[{\"path\":\"status\",\"operator\":\"equals\",\"value\":200}]}]",
+          "mock_allowed": true,
+          "importance": "medium",
+          "depends_on": null,
+          "script_name": null,
+          "script_content": null
+        },
+        {
+          "case_id": "case_fb00415402c6",
+          "acceptance_item_id": "ai_67c3e1d635ec",
+          "layer": "L2",
+          "title": "",
+          "preconditions": [],
+          "steps": [],
+          "expected": "首页 HTML 中包含博客列表相关元素（文章标题或“No posts”提示）",
+          "expectation_source": "blog/index.html 模板渲染 posts 列表",
+          "expectation_verified": false,
+          "warnings": [
+            "预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+            "缺少前置条件，执行前需人工确认"
+          ],
+          "verify_method": "script:test_index_list.py",
+          "mock_allowed": true,
+          "importance": "medium",
+          "depends_on": null,
+          "script_name": "test_index_list.py",
+          "script_content": "from playwright.sync_api import sync_playwright\n\n\ndef test_index_shows_post_list():\n    with sync_playwright() as p:\n        browser = p.chromium.launch()\n        page = browser.new_page()\n        resp = page.goto(\"http://127.0.0.1:5000/\")\n        assert resp.status == 200\n        html = page.content()\n        assert (\"No posts\" in html) or (\"<article\" in html) or (\"<h1\" in html)\n        browser.close()\n"
+        },
+        {
+          "case_id": "case_dc3c810dab42",
+          "acceptance_item_id": "ai_2fdf473d19f3",
+          "layer": "L1",
+          "title": "",
+          "preconditions": [],
+          "steps": [],
+          "expected": "注册新用户后使用该账号登录成功，重定向到首页并建立会话",
+          "expectation_source": "flaskr/auth.py register 与 login 视图逻辑",
+          "expectation_verified": false,
+          "warnings": [
+            "预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+            "缺少前置条件，执行前需人工确认"
+          ],
+          "verify_method": "script:tests/e2e/test_register_login.py",
+          "mock_allowed": true,
+          "importance": "medium",
+          "depends_on": null,
+          "script_name": "test_register_login.py",
+          "script_content": "import re\nimport uuid\n\nimport requests\n\nBASE = \"http://127.0.0.1:5000\"\n\n\ndef test_register_then_login():\n    s = requests.Session()\n    username = \"u_\" + uuid.uuid4().hex[:8]\n    password = \"pw123456\"\n    r = s.post(BASE + \"/auth/register\", data={\"username\": username, \"password\": password})\n    assert r.status_code == 200\n    r = s.post(BASE + \"/auth/login\", data={\"username\": username, \"password\": password}, allow_redirects=True)\n    assert r.status_code == 200\n    assert \"Log In\" not in r.text or \"Log Out\" in r.text\n    assert \"Invalid username or password\" not in r.text\n"
+        },
+        {
+          "case_id": "case_c3499345a1f2",
+          "acceptance_item_id": "ai_2fdf473d19f3",
+          "layer": "L2",
+          "title": "",
+          "preconditions": [],
+          "steps": [],
+          "expected": "注册后登录成功，页面显示登出链接且不再显示登录表单错误",
+          "expectation_source": "auth.login 成功后 redirect 到 index，模板根据 g.user 显示 Log Out",
+          "expectation_verified": false,
+          "warnings": [
+            "预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+            "缺少前置条件，执行前需人工确认"
+          ],
+          "verify_method": "script:test_register_login_ui.py",
+          "mock_allowed": true,
+          "importance": "medium",
+          "depends_on": null,
+          "script_name": "test_register_login_ui.py",
+          "script_content": "import uuid\n\nfrom playwright.sync_api import sync_playwright\n\nBASE = \"http://127.0.0.1:5000\"\n\n\ndef test_register_then_login_ui():\n    username = \"u_\" + uuid.uuid4().hex[:8]\n    password = \"pw123456\"\n    with sync_playwright() as p:\n        browser = p.chromium.launch()\n        page = browser.new_page()\n        page.goto(BASE + \"/auth/register\")\n        page.fill(\"input[name=username]\", username)\n        page.fill(\"input[name=password]\", password)\n        page.click(\"input[type=submit]\")\n        page.goto(BASE + \"/auth/login\")\n        page.fill(\"input[name=username]\", username)\n        page.fill(\"input[name=password]\", password)\n        page.click(\"input[type=submit]\")\n        page.wait_for_load_state()\n        assert \"Log Out\" in page.content()\n        browser.close()\n"
+        }
+      ],
+      "warnings": [
+        "case_9191c882a34a：预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+        "case_9191c882a34a：缺少前置条件，执行前需人工确认",
+        "case_fb00415402c6：预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+        "case_fb00415402c6：缺少前置条件，执行前需人工确认",
+        "case_dc3c810dab42：预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+        "case_dc3c810dab42：缺少前置条件，执行前需人工确认",
+        "case_c3499345a1f2：预期未证实：expectation_source 不是验收项原文的子串或等价引用",
+        "case_c3499345a1f2：缺少前置条件，执行前需人工确认"
+      ],
+      "status": "published",
+      "revision": 1
+    }
+  },
+  "_returncode": 0
+}

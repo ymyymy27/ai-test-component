@@ -24,6 +24,7 @@ import Field from "@/components/Field.vue";
 import Icon from "@/components/Icon.vue";
 import SkeletonBlock from "@/components/SkeletonBlock.vue";
 import StepRail from "@/components/StepRail.vue";
+import UncoveredList from "@/components/UncoveredList.vue";
 import { go, session } from "@/state/session";
 
 interface DraftItem {
@@ -121,6 +122,13 @@ const selectedItems = computed(() =>
     (item) => draft.preset === "all_applicable" || draft.selected.includes(item.id),
   ),
 );
+
+const uncoveredItems = computed(() => {
+  const selectedIds = new Set(selectedItems.value.map((item) => item.id));
+  return applicableItems.value
+    .filter((item) => !selectedIds.has(item.id))
+    .map((item) => `${item.id}：${item.text}`);
+});
 
 const projectCases = computed(() =>
   (draft.planDetail?.cases ?? []).filter((planCase) => !planCase.acceptance_item_id),
@@ -873,6 +881,8 @@ onMounted(() => {
           </div>
         </div>
 
+        <UncoveredList v-if="uncoveredItems.length" :items="uncoveredItems" class="uncovered-block" />
+
         <div class="effects">
           <div class="effect">
             <span class="effect-key">副作用</span>
@@ -1490,6 +1500,13 @@ onMounted(() => {
   flex-direction: column;
   gap: 3px;
   padding: var(--space-4);
+}
+
+.uncovered-block {
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
 }
 
 .summary-item + .summary-item {

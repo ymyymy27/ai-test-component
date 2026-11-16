@@ -1,0 +1,46 @@
+{
+  "run": "cancelled",
+  "report": {
+    "ok": true,
+    "request_id": "g3-report.generate-6274be0a",
+    "data": {
+      "report_id": "rep_37b1d493ed0f",
+      "run_id": "run_cb3591f3263c",
+      "outcome": "failed",
+      "counts": {
+        "selected": 4,
+        "applicable": 4,
+        "covered": 4,
+        "passed": 1,
+        "failed": 1,
+        "incomplete": 2
+      },
+      "coverage": {
+        "selected": 4,
+        "applicable": 4
+      },
+      "changed_modules": [],
+      "unmapped_files": [],
+      "uncovered_items": [
+        "ai_d8662392a7ca",
+        "ai_84d057be16e7",
+        "ai_5eb0a64acb7c"
+      ],
+      "layers": {
+        "L1": 4,
+        "L2": 1,
+        "L3": 0
+      }
+    },
+    "_returncode": 0
+  },
+  "export": {
+    "ok": true,
+    "request_id": "g3-report.export-ae5a618d",
+    "data": {
+      "path": "E:\\ai-test-component\\docs\\validation\\2026-11-16-g3-rerun\\ac18-mixed-report.md",
+      "bytes": 3258
+    },
+    "_returncode": 0
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "request_id": "g3-link.import-9478d571",
+  "data": {
+    "nodes": [],
+    "assertions": [],
+    "gaps": [
+      {
+        "node_id": "request_id",
+        "reason": "缺少请求 ID，无法可靠关联"
+      },
+      {
+        "node_id": "log",
+        "reason": "缺少请求 ID，未匹配日志"
+      },
+      {
+        "node_id": "db",
+        "reason": "未配置数据库查询"
+      }
+    ]
+  },
+  "_returncode": 0
+}

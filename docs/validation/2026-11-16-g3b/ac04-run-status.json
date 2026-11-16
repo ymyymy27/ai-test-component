@@ -1,0 +1,80 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac04-run-status-3793c03c",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_20bea9ef2094",
+      "plan_id": "plan_f9452d1f7d0c",
+      "project_id": "proj_2a625b759265",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_73890e995a92",
+          "ai_fcb6b14924dd"
+        ],
+        "frozen_at": "2026-11-16T19:28:57+08:00"
+      },
+      "confirmed_by": "cli",
+      "confirmed_at": "2026-11-16T19:28:57+08:00",
+      "confirmation_id": "conf_5f0e2d7b092a",
+      "confirmation_fingerprint": "c66129e8fb7e8bcf43f56cce16fe09cb0e5e233cbe1b570fb0477899ba8c3dd1",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 33848,
+      "started_at": "2026-11-16T19:28:57+08:00",
+      "heartbeat_at": "2026-11-16T19:31:00+08:00",
+      "cases": [
+        {
+          "case_id": "case_1a052156a80e",
+          "result": "blocked",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "blocked",
+              "started_at": "",
+              "finished_at": "",
+              "evidence_refs": [],
+              "message": "交付信息不完整：缺运行方式或版本"
+            }
+          ],
+          "evidence_refs": []
+        },
+        {
+          "case_id": "case_dfd8cb84bfb0",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-16T19:31:00+08:00",
+              "finished_at": "2026-11-16T19:31:00+08:00",
+              "evidence_refs": [
+                "evidence/case_dfd8cb84bfb0-0.log"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_dfd8cb84bfb0-0.log"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_dfd8cb84bfb0-0.log"
+      ],
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": true,
+      "service_name": "db",
+      "l1": null,
+      "media_bytes": 10,
+      "data_prefix": "aitest_run_20bea9ef2094_",
+      "request_ids": []
+    },
+    "outcome": "incomplete",
+    "uncovered_items": []
+  },
+  "_returncode": 0
+}

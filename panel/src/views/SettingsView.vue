@@ -96,7 +96,7 @@ const CONFIG_GROUPS: ConfigGroup[] = [
   {
     key: "services",
     title: "服务",
-    hint: "服务名 → { start, health, stop, timeout_seconds }。面板只保存这些非敏感字段。",
+    hint: "单服务：{ start, health, stop, ... }；或 服务名 → 配置，取第一个。面板只保存这些非敏感字段。",
   },
   {
     key: "link",

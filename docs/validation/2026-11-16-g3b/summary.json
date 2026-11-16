@@ -1,0 +1,42 @@
+{
+  "workspace": "C:\\Users\\y'm'y\\AppData\\Roaming\\aitest\\workspaces\\g3b",
+  "project_root": "E:\\ai-test-component\\docs\\validation\\2026-11-16-g3b\\project",
+  "ac04": {
+    "run_id": "run_20bea9ef2094",
+    "results": [
+      "blocked",
+      "passed"
+    ]
+  },
+  "ac06": {
+    "run_id": "run_edcab32cb863",
+    "uncovered_items": [
+      "ai_edd6d03c88ca：库存扣减一次",
+      "ai_b22559707b43：订单可以取消"
+    ]
+  },
+  "ac07": {
+    "plan_id": "plan_46db5cc71d6e",
+    "sources": [
+      "登录成功后跳转到首页",
+      "错误密码提示用户名或密码错误"
+    ]
+  },
+  "ac12": {
+    "run_id": "run_c7da75b3e0e7",
+    "evidence_refs": [
+      "evidence/case_14aaacc812fc-screenshot-0-home.png",
+      "evidence/case_14aaacc812fc-screenshot-1-detail.png"
+    ],
+    "bytes": {
+      "evidence/case_14aaacc812fc-screenshot-0-home.png": 7151,
+      "evidence/case_14aaacc812fc-screenshot-1-detail.png": 7151
+    }
+  },
+  "service_config": {
+    "run_id": "run_eb3dee7ecc2f",
+    "service_name": "api",
+    "service_started": false,
+    "second_service_started": false
+  }
+}

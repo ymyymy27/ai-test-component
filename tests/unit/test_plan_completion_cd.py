@@ -1121,3 +1121,209 @@ def test_worker_pytest_uses_generated_junit_report(tmp_path: Path, capsys: Capsy
     run_dir = ws.project_dir(project_id) / "runs" / run_id
     assert "<testsuite" in (run_dir / junit_ref).read_text(encoding="utf-8")
     assert (run_dir / "junit.xml").is_file()
+
+
+# -- G3 follow-up: service shape, incomplete delivery, screenshots ----------
+
+
+def test_service_config_accepts_single_and_mapping_shapes() -> None:
+    from aitest.worker import _services
+
+    single = {"start": "run", "health": "http://127.0.0.1/health", "stop": "stop"}
+    assert _services({"services": single}) == (single, "")
+    mapped = {"web": {"start": "web"}, "db": {"start": "db"}}
+    assert _services({"services": mapped}) == ({"start": "web"}, "web")
+    assert _services({"services": {}}) == ({}, "")
+    assert _services({"services": {"web": {"start": "web"}, "port": 8000}}) == ({}, "")
+
+
+def test_worker_uses_first_mapped_service_and_records_its_name(
+    tmp_path: Path, capsys: Capsys, http_server: _RecordingServer
+) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    web_marker = tmp_path / "web-started.txt"
+    worker_marker = tmp_path / "worker-started.txt"
+    web_start = _marker_script(scripts, "start_web.py")
+    worker_start = _marker_script(scripts, "start_worker.py")
+    _write_config(
+        ws,
+        project_id,
+        {
+            "services": {
+                "web": {
+                    "health": f"{_base_url(http_server)}/health",
+                    "start": f'"{sys.executable}" "{web_start}" "{web_marker}"',
+                },
+                "worker": {
+                    "health": "http://127.0.0.1:1/never",
+                    "start": f'"{sys.executable}" "{worker_start}" "{worker_marker}"',
+                },
+            }
+        },
+    )
+    plan = _plan(tmp_path, capsys, setup, [_case(item_id, "command: echo ok")])
+    _, run = _run_plan(tmp_path, capsys, setup, plan)
+
+    assert run["service_name"] == "web"
+    assert run["service_started"] is False
+    assert not web_marker.exists()
+    assert not worker_marker.exists()
+    assert run["cases"][0]["result"] == "passed"
+
+
+def test_worker_blocks_build_dependent_cases_when_delivery_incomplete(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        items=[
+            {"text": "依赖构建的用例", "observable": True},
+            {"text": "独立用例", "observable": True},
+        ],
+    )
+    project_id = setup["project"]["project_id"]
+    task_id = setup["task"]["task_id"]
+    item_ids = [item["item_id"] for item in setup["task"]["acceptance_items"]]
+    saved = call(
+        tmp_path,
+        "delivery.save",
+        {
+            "project_id": project_id,
+            "task_id": task_id,
+            "done": ["改完了"],
+        },
+        capsys,
+    )
+    assert saved["data"]["complete"] is False
+    plan = _plan(
+        tmp_path,
+        capsys,
+        setup,
+        [
+            _case(item_ids[0], "command: echo ok", depends_on="build"),
+            _case(item_ids[1], "command: echo ok"),
+        ],
+    )
+    _, run = _run_plan(tmp_path, capsys, setup, plan)
+
+    assert run["cases"][0]["result"] == "blocked"
+    assert run["cases"][0]["attempts"][0]["message"] == "交付信息不完整：缺运行方式或版本"
+    assert run["cases"][1]["result"] == "passed"
+
+
+def test_worker_collects_test_results_screenshots(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    script = (
+        "import pathlib\n"
+        "out = pathlib.Path('test-results')\n"
+        "out.mkdir(exist_ok=True)\n"
+        "out.joinpath('shot.png').write_bytes(bytes([137, 80, 78, 71]))\n"
+    )
+    plan = _plan(
+        tmp_path,
+        capsys,
+        setup,
+        [
+            _case(
+                item_id,
+                "script:shot.py",
+                script_name="shot.py",
+                script_content=script,
+            )
+        ],
+    )
+    run_id, run = _run_plan(tmp_path, capsys, setup, plan)
+
+    assert run["cases"][0]["result"] == "passed"
+    refs = run["cases"][0]["evidence_refs"]
+    shot = next(ref for ref in refs if ref.endswith("shot.png"))
+    run_dir = ws.project_dir(project_id) / "runs" / run_id
+    assert (run_dir / shot).is_file()
+
+
+def test_worker_collects_script_page_screenshot_path(tmp_path: Path, capsys: Capsys) -> None:
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    script = (
+        "import pathlib\n"
+        "class Page:\n"
+        "    def screenshot(self, path):\n"
+        "        target = pathlib.Path(path)\n"
+        "        target.parent.mkdir(parents=True, exist_ok=True)\n"
+        "        target.write_bytes(bytes([137, 80, 78, 71]))\n"
+        "page = Page()\n"
+        "page.screenshot(path='ui/live.png')\n"
+    )
+    plan = _plan(
+        tmp_path,
+        capsys,
+        setup,
+        [
+            _case(
+                item_id,
+                "script:live.py",
+                script_name="live.py",
+                script_content=script,
+            )
+        ],
+    )
+    run_id, run = _run_plan(tmp_path, capsys, setup, plan)
+
+    refs = run["cases"][0]["evidence_refs"]
+    shot = next(ref for ref in refs if ref.endswith("live.png"))
+    run_dir = ws.project_dir(project_id) / "runs" / run_id
+    assert (run_dir / shot).is_file()
+
+
+def test_worker_collects_real_playwright_screenshot(tmp_path: Path, capsys: Capsys) -> None:
+    sync_api = pytest.importorskip("playwright.sync_api")
+    try:
+        with sync_api.sync_playwright() as runtime:
+            runtime.chromium.launch().close()
+    except Exception as exc:  # noqa: BLE001 - a missing browser is an environment gap
+        pytest.skip(f"Playwright 浏览器不可用：{exc}")
+    setup = _setup(tmp_path, capsys)
+    ws = _workspace(tmp_path)
+    project_id = setup["project"]["project_id"]
+    item_id = setup["task"]["acceptance_items"][0]["item_id"]
+    script = (
+        "from playwright.sync_api import sync_playwright\n"
+        "with sync_playwright() as runtime:\n"
+        "    browser = runtime.chromium.launch()\n"
+        "    page = browser.new_page()\n"
+        "    page.set_content('<h1>aitest</h1>')\n"
+        "    page.screenshot(path='ui/playwright.png')\n"
+        "    browser.close()\n"
+    )
+    plan = _plan(
+        tmp_path,
+        capsys,
+        setup,
+        [
+            _case(
+                item_id,
+                "script:browser.py",
+                script_name="browser.py",
+                script_content=script,
+            )
+        ],
+    )
+    run_id, run = _run_plan(tmp_path, capsys, setup, plan)
+
+    assert run["cases"][0]["result"] == "passed"
+    refs = run["cases"][0]["evidence_refs"]
+    shot = next(ref for ref in refs if ref.endswith("playwright.png"))
+    run_dir = ws.project_dir(project_id) / "runs" / run_id
+    data = (run_dir / shot).read_bytes()
+    assert data.startswith(b"\x89PNG")

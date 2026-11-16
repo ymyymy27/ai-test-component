@@ -179,6 +179,8 @@ export interface RunSummary {
 export interface RunDetail {
   run: Run;
   outcome: Verdict | null;
+  /** "id：text" rows for applicable acceptance items this run did not select. */
+  uncovered_items?: string[];
 }
 
 export interface IssueSummary {

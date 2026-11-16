@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac07-task-29d5157d",
+  "data": {
+    "task_id": "task_57342ff4eab8",
+    "revision": 1,
+    "acceptance_items": [
+      {
+        "item_id": "ai_aa5d6cbe3ecb",
+        "status": "active",
+        "text": "登录成功后跳转到首页",
+        "module_id": null
+      },
+      {
+        "item_id": "ai_418d609e9636",
+        "status": "active",
+        "text": "错误密码提示用户名或密码错误",
+        "module_id": null
+      }
+    ]
+  },
+  "_returncode": 0
+}

@@ -577,3 +577,132 @@ def test_plan_marks_unverified_expectation_and_warns_missing_preconditions(
         tmp_path, "plan.show", {"project_id": project_id, "plan_id": plan["plan_id"]}, capsys
     )["data"]["plan"]
     assert shown["cases"][0]["expectation_verified"] is False
+
+
+def test_report_lists_applicable_items_outside_selected_scope(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        items=[
+            {"text": "下单成功", "observable": True},
+            {"text": "库存扣减一次", "observable": True},
+            {"text": "订单可以取消", "observable": True},
+        ],
+    )
+    project_id = setup["project"]["project_id"]
+    item_ids = [item["item_id"] for item in setup["task"]["acceptance_items"]]
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": project_id,
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "selected", "acceptance_item_ids": [item_ids[0]]},
+            "cases": [
+                {
+                    "acceptance_item_id": item_ids[0],
+                    "layer": "L2",
+                    "expected": "命令成功",
+                    "expectation_source": "下单成功",
+                    "verify_method": "command: echo ok",
+                }
+            ],
+        },
+        capsys,
+    )["data"]
+    started = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )["data"]
+    _wait_completed(tmp_path, capsys, project_id, started["run_id"])
+
+    status = call(
+        tmp_path,
+        "run.status",
+        {"project_id": project_id, "run_id": started["run_id"]},
+        capsys,
+    )["data"]
+    expected = [
+        f"{item_ids[1]}：库存扣减一次",
+        f"{item_ids[2]}：订单可以取消",
+    ]
+    assert status["uncovered_items"] == expected
+
+    generated = call(
+        tmp_path,
+        "report.generate",
+        {"project_id": project_id, "run_id": started["run_id"]},
+        capsys,
+    )["data"]
+    assert generated["coverage"] == {"selected": 1, "applicable": 3}
+    assert generated["uncovered_items"] == expected
+
+
+class _GeneratedCaseClient:
+    def __init__(self, sources: list[str]) -> None:
+        self.sources = sources
+
+    def generate_cases(
+        self,
+        task: dict[str, Any],
+        selected_items: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        del task, context
+        return [
+            {
+                "acceptance_item_id": item["item_id"],
+                "layer": "L2",
+                "expected": "命令成功",
+                "expectation_source": source,
+                "verify_method": "command: echo ok",
+                "depends_on": [],
+            }
+            for item, source in zip(selected_items, self.sources, strict=False)
+        ]
+
+
+def test_generated_cases_align_expectation_source_with_item_text(
+    tmp_path: Path, capsys: Capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setup = _setup(
+        tmp_path,
+        capsys,
+        items=[
+            {"text": "下单后列表出现订单", "observable": True},
+            {"text": "库存扣减一次", "observable": True},
+        ],
+    )
+    monkeypatch.setattr(
+        "aitest.runtime_commands.build_client",
+        lambda *args, **kwargs: _GeneratedCaseClient(["app/services.py:42", ""]),
+    )
+    plan = call(
+        tmp_path,
+        "plan.generate",
+        {
+            "project_id": setup["project"]["project_id"],
+            "task_id": setup["task"]["task_id"],
+            "scope": {"preset": "all_applicable"},
+        },
+        capsys,
+    )["data"]
+
+    assert plan["status"] == "published"
+    assert plan["unverified_cases"] == []
+    shown = call(
+        tmp_path,
+        "plan.show",
+        {"project_id": setup["project"]["project_id"], "plan_id": plan["plan_id"]},
+        capsys,
+    )["data"]["plan"]
+    assert [case["expectation_source"] for case in shown["cases"]] == [
+        "下单后列表出现订单",
+        "库存扣减一次",
+    ]
+    assert all(case["expectation_verified"] for case in shown["cases"])

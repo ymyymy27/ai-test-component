@@ -1,0 +1,38 @@
+{
+  "first": {
+    "ok": true,
+    "request_id": "g3-issue.add-ce55472f",
+    "data": {
+      "issue_id": "issue_f33452cb59f1",
+      "existing": false,
+      "revision": 1
+    },
+    "_returncode": 0
+  },
+  "second": {
+    "ok": true,
+    "request_id": "g3-issue.add-9031b1cb",
+    "data": {
+      "issue_id": "issue_f33452cb59f1",
+      "existing": true,
+      "revision": 2
+    },
+    "_returncode": 0
+  },
+  "list": {
+    "ok": true,
+    "request_id": "g3-issue.list-11c70e17",
+    "data": {
+      "issues": [
+        {
+          "issue_id": "issue_f33452cb59f1",
+          "title": "断言失败",
+          "status": "pending",
+          "severity": "P2",
+          "occurrences": 2
+        }
+      ]
+    },
+    "_returncode": 0
+  }
+}

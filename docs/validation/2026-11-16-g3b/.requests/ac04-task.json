@@ -1,0 +1,1 @@
+{"command": "task.add", "request_id": "g3b-ac04-task-104e6e69", "payload": {"project_id": "proj_2a625b759265", "title": "ac04", "acceptance_items": [{"text": "构建产物可用", "observable": true}, {"text": "登录页面可打开", "observable": true}]}}

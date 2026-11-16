@@ -26,10 +26,11 @@ from aitest.commands import (
 from aitest.config import github_token, model_key
 from aitest.core.analysis import analyze_run
 from aitest.core.evidence import data_prefix, evidence_bytes, save_evidence
-from aitest.core.expectations import annotate_cases
+from aitest.core.expectations import align_generated_sources, annotate_cases
 from aitest.core.issues import add_issue
 from aitest.core.manual import aggregate_manual, is_manual_case
 from aitest.core.reports import build_report
+from aitest.core.scope import applicable_items, uncovered_items
 from aitest.core.verdict import verdict
 from aitest.errors import AiTestError, invalid_path, invalid_request
 from aitest.model_config import build_client, load_project_config
@@ -83,11 +84,7 @@ def _selected_items(task: Any, scope: Scope, project: Project) -> tuple[list[str
         )
         if unknown_modules:
             raise invalid_request("模块未登记：" + "、".join(unknown_modules))
-    active_items = [
-        item
-        for item in task.acceptance_items
-        if item.status == "active" and (not module_ids or item.module_id in module_ids)
-    ]
+    active_items = applicable_items(task, list(module_ids))
     active = [item.item_id for item in active_items]
     if scope.preset == "all_applicable":
         return active, len(active)
@@ -204,6 +201,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     "script_content": item.get("script_content"),
                 }
             )
+        align_generated_sources(raw_cases, task.acceptance_items)
     cases = [
         Case.model_validate(item)
         for item in raw_cases
@@ -626,9 +624,21 @@ def cmd_run_status(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
     run_dir, run = _run(ws, payload)
     plan_path = run_dir / "plan.json"
     outcome = None
+    uncovered: list[str] = []
     if plan_path.is_file():
-        outcome = verdict(read_model(plan_path, Plan), run)
-    return {"run": run.model_dump(mode="json"), "outcome": outcome}
+        plan = read_model(plan_path, Plan)
+        outcome = verdict(plan, run)
+        task_path = ws.project_dir(run.project_id) / "tasks" / f"{plan.task_id}.json"
+        try:
+            task = read_model(task_path, Task) if task_path.is_file() else None
+        except AiTestError:
+            task = None
+        uncovered = uncovered_items(task, plan.scope)
+    return {
+        "run": run.model_dump(mode="json"),
+        "outcome": outcome,
+        "uncovered_items": uncovered,
+    }
 
 
 def cmd_run_list(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:

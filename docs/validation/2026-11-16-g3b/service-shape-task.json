@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "request_id": "g3b-service-shape-task-0ee5321b",
+  "data": {
+    "task_id": "task_f78d09238333",
+    "revision": 1,
+    "acceptance_items": [
+      {
+        "item_id": "ai_7e6be0ceac49",
+        "status": "active",
+        "text": "服务配置形状可识别",
+        "module_id": null
+      }
+    ]
+  },
+  "_returncode": 0
+}

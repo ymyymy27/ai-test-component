@@ -1,0 +1,70 @@
+{
+  "ok": true,
+  "request_id": "g3b-ac12-run-status-9cf9fb99",
+  "data": {
+    "run": {
+      "schema_version": 1,
+      "run_id": "run_c7da75b3e0e7",
+      "plan_id": "plan_0c0372be3171",
+      "project_id": "proj_2a625b759265",
+      "scope": {
+        "preset": "all_applicable",
+        "module_ids": [],
+        "acceptance_item_ids": [
+          "ai_ca03393f3fa3"
+        ],
+        "frozen_at": "2026-11-16T19:33:13+08:00"
+      },
+      "confirmed_by": "cli",
+      "confirmed_at": "2026-11-16T19:33:13+08:00",
+      "confirmation_id": "conf_9d298e6f0ab2",
+      "confirmation_fingerprint": "7125f18d7a1fa4f08c8093325a986d5b468b3299ea249c99e40e674911fd5d74",
+      "confirmation_reused": false,
+      "status": "completed",
+      "pid": 47144,
+      "started_at": "2026-11-16T19:33:13+08:00",
+      "heartbeat_at": "2026-11-16T19:35:17+08:00",
+      "cases": [
+        {
+          "case_id": "case_14aaacc812fc",
+          "result": "passed",
+          "attempts": [
+            {
+              "attempt": 1,
+              "result": "passed",
+              "started_at": "2026-11-16T19:35:17+08:00",
+              "finished_at": "2026-11-16T19:35:17+08:00",
+              "evidence_refs": [
+                "evidence/case_14aaacc812fc-0.log",
+                "evidence/case_14aaacc812fc-screenshot-0-home.png",
+                "evidence/case_14aaacc812fc-screenshot-1-detail.png"
+              ],
+              "message": ""
+            }
+          ],
+          "evidence_refs": [
+            "evidence/case_14aaacc812fc-0.log",
+            "evidence/case_14aaacc812fc-screenshot-0-home.png",
+            "evidence/case_14aaacc812fc-screenshot-1-detail.png"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "evidence/case_14aaacc812fc-0.log",
+        "evidence/case_14aaacc812fc-screenshot-0-home.png",
+        "evidence/case_14aaacc812fc-screenshot-1-detail.png"
+      ],
+      "analysis": [],
+      "mock_judgement": [],
+      "service_started": true,
+      "service_name": "db",
+      "l1": null,
+      "media_bytes": 14373,
+      "data_prefix": "aitest_run_c7da75b3e0e7_",
+      "request_ids": []
+    },
+    "outcome": "passed",
+    "uncovered_items": []
+  },
+  "_returncode": 0
+}

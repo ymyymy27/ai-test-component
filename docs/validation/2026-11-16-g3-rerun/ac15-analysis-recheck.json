@@ -1,0 +1,42 @@
+{
+  "run_id": "run_327be6639a3b",
+  "analysis": [
+    {
+      "candidate_causes": [
+        {
+          "cause": "L1 构建阶段失败（exit_code=1），导致用例无法在有效构建产物上执行",
+          "confidence": "high"
+        },
+        {
+          "cause": "用例断言失败或抛出异常，JUnit 报告 1 条 failure/error",
+          "confidence": "medium"
+        },
+        {
+          "cause": "服务未启动（service_started=false），用例依赖的运行时环境缺失",
+          "confidence": "medium"
+        }
+      ],
+      "evidence_refs": [
+        "evidence/l1-build.log",
+        "evidence/case_3d7f9e3042ac-0.log",
+        "evidence/case_3d7f9e3042ac-junit.xml"
+      ],
+      "generated_at": "2026-11-16T18:55:22+08:00",
+      "model": "deepseek-chat",
+      "next_steps": [
+        "读取 evidence/l1-build.log，定位首个编译或依赖错误",
+        "解析 evidence/case_3d7f9e3042ac-junit.xml，提取失败用例名、断言消息与堆栈",
+        "对照 evidence/case_3d7f9e3042ac-0.log 确认执行时序与错误上下文",
+        "修复构建问题后重跑，验证用例失败是否随之消失"
+      ],
+      "observed": "运行 run_327be6639a3b 状态为 completed，但 L1 构建失败（evidence/l1-build.log，exit_code=1，ok=false），唯一用例 case_3d7f9e3042ac 首次尝试即失败，消息为“JUnit 失败或错误 1 条”，service_started=false，无 entries、无 request_ids、无 analysis 与 mock_judgement 记录。",
+      "status": "generated",
+      "unverified": [
+        "未查看 evidence/l1-build.log 内容，构建失败的具体编译/依赖错误未知",
+        "未查看 JUnit XML 中失败用例的类名、断言消息与堆栈",
+        "未确认构建失败与用例失败是否存在因果关系，或为两个独立问题",
+        "未确认 service_started=false 是构建失败的结果还是独立配置问题"
+      ]
+    }
+  ]
+}

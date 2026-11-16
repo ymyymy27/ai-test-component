@@ -1,0 +1,22 @@
+{
+  "first": {
+    "ok": true,
+    "request_id": "g3-project.add-0f5b6436",
+    "data": {
+      "project_id": "proj_364280e87d62",
+      "revision": 1,
+      "existing": false
+    },
+    "_returncode": 0
+  },
+  "second": {
+    "ok": false,
+    "request_id": "g3-project.add-21762d2e",
+    "error": {
+      "code": "INVALID_REQUEST",
+      "message": "根目录与已登记项目重叠：proj_364280e87d62",
+      "next_step": "明确选择要登记的项目根目录"
+    },
+    "_returncode": 1
+  }
+}

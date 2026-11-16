@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "request_id": "g3-run.status-26794644",
+  "error": {
+    "code": "PROJECT_NOT_FOUND",
+    "message": "项目不存在：proj_6ee2e904604b",
+    "next_step": "先创建项目或检查 ID"
+  },
+  "_returncode": 1
+}

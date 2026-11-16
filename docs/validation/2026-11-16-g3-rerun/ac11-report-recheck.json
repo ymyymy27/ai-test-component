@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "request_id": "g3-report.generate-37e91d15",
+  "data": {
+    "report_id": "rep_e875e8d87e36",
+    "run_id": "run_ba68319f2b4f",
+    "outcome": "failed",
+    "counts": {
+      "selected": 1,
+      "applicable": 1,
+      "covered": 1,
+      "passed": 0,
+      "failed": 1,
+      "incomplete": 0
+    },
+    "coverage": {
+      "selected": 1,
+      "applicable": 1
+    },
+    "changed_modules": [],
+    "unmapped_files": [],
+    "uncovered_items": [
+      "ai_606dda0ba5ab"
+    ],
+    "layers": {
+      "L1": 0,
+      "L2": 0,
+      "L3": 1
+    }
+  },
+  "_returncode": 0
+}

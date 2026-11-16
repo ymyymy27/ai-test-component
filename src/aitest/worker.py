@@ -27,7 +27,8 @@ from aitest.core.evidence import (
 from aitest.core.issues import draft_failed_issues
 from aitest.core.manual import is_manual_case
 from aitest.core.reports import build_report
-from aitest.models import Attempt, Case, Plan, Project, Run
+from aitest.errors import AiTestError
+from aitest.models import Attempt, Case, Delivery, Plan, Project, Run
 from aitest.runners.base import RunnerResult
 from aitest.runners.command_runner import run_command
 from aitest.runners.http_runner import run_http_sequence
@@ -38,6 +39,11 @@ from aitest.storage.workspace import Workspace, iso_now
 MAX_FILE_BYTES = DEFAULT_FILE_CAP_BYTES
 SERVICES_FILE = "project.config.json"
 DEFAULT_REQUEST_ID_HEADER = "X-Request-Id"
+DELIVERY_INCOMPLETE_MESSAGE = "交付信息不完整：缺运行方式或版本"
+_SINGLE_SERVICE_KEYS = frozenset({"start", "health", "stop"})
+_SCREENSHOT_RE = re.compile(
+    r"page\.screenshot\(\s*[^)]*?[\"']?path[\"']?\s*[=:]\s*[\"']([^\"']+)[\"']", re.DOTALL
+)
 _LOCK = threading.Lock()
 EvidenceSettings = tuple[int, int, bool]
 
@@ -101,9 +107,36 @@ def _project_config(ws: Workspace, project_id: str) -> dict[str, object]:
     return data if isinstance(data, dict) else {}
 
 
-def _services(config: dict[str, object]) -> dict[str, object]:
+def _services(config: dict[str, object]) -> tuple[dict[str, object], str]:
+    """Return the service config used for this run and its optional name.
+
+    Two shapes are accepted, matching what the panel stores:
+    * a single service ``{start, health, stop, ...}``;
+    * a mapping ``service name -> config``; the first entry is used.
+    Anything else is treated as "no service configured".
+    """
     value = config.get("services")
-    return value if isinstance(value, dict) else {}
+    if not isinstance(value, dict):
+        return {}, ""
+    if _SINGLE_SERVICE_KEYS & set(value):
+        return value, ""
+    if value and all(isinstance(item, dict) for item in value.values()):
+        name = next(iter(value))
+        item = value[name]
+        assert isinstance(item, dict)
+        return cast(dict[str, object], item), str(name)
+    return {}, ""
+
+
+def _delivery_incomplete(ws: Workspace, project_id: str, task_id: str) -> bool:
+    path = ws.project_dir(project_id) / "deliveries" / f"{task_id}.json"
+    if not path.is_file():
+        return False
+    try:
+        delivery = read_model(path, Delivery)
+    except AiTestError:
+        return False
+    return not delivery.complete
 
 
 def _as_float(value: object, default: float) -> float:
@@ -382,6 +415,53 @@ def _execute(
     return result.status, outputs, message, []
 
 
+def _screenshot_files(workdir: Path, run_dir: Path) -> set[Path]:
+    """PNG files currently under ``test-results`` in the project or run dir."""
+    found: set[Path] = set()
+    for base in (workdir, run_dir):
+        root = base / "test-results"
+        if root.is_dir():
+            found.update(path for path in root.rglob("*.png") if path.is_file())
+    return found
+
+
+def _script_screenshot_paths(script_content: str | None, workdir: Path) -> list[Path]:
+    """Explicit ``page.screenshot(path=...)`` targets that live inside the project."""
+    if not script_content:
+        return []
+    root = workdir.resolve()
+    paths: list[Path] = []
+    for match in _SCREENSHOT_RE.finditer(script_content):
+        candidate = Path(match.group(1).strip())
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        resolved = candidate.resolve()
+        if not (resolved == root or root in resolved.parents):
+            continue
+        paths.append(resolved)
+    return paths
+
+
+def _screenshot_artifacts(
+    case: Case, workdir: Path, run_dir: Path, before: set[Path]
+) -> list[tuple[str, bytes]]:
+    """New screenshots produced by a script or Playwright run, as evidence pairs."""
+    candidates = _screenshot_files(workdir, run_dir) - before
+    candidates.update(
+        path
+        for path in _script_screenshot_paths(case.script_content, workdir)
+        if path.is_file()
+    )
+    artifacts: list[tuple[str, bytes]] = []
+    for index, path in enumerate(sorted(candidates)):
+        try:
+            data = path.read_bytes()
+        except OSError:
+            continue
+        artifacts.append((f"screenshot-{index}-{path.name}", data))
+    return artifacts
+
+
 def _heartbeat(run_path: Path, stop: threading.Event) -> None:
     while not stop.wait(3.0):
         try:
@@ -433,7 +513,8 @@ def main(argv: list[str] | None = None) -> int:
     project_python = _venv_python(workdir)
     run_env = _run_env(workdir, project_python, run.run_id)
     config = _project_config(ws, args.project)
-    services_config = _services(config)
+    services_config, service_name = _services(config)
+    delivery_incomplete = _delivery_incomplete(ws, args.project, plan.task_id)
     evidence_settings = _evidence_settings(config)
     request_id_header = _request_id_header(config)
     l1 = _run_l1(
@@ -461,6 +542,7 @@ def main(argv: list[str] | None = None) -> int:
             services_config, workdir, run_dir / "service.log"
         )
     run.service_started = service_started
+    run.service_name = service_name
     run.l1 = cast(dict[str, Any], l1)
     if not run.data_prefix:
         run.data_prefix = data_prefix(run.run_id)
@@ -502,6 +584,16 @@ def main(argv: list[str] | None = None) -> int:
                 run_case.result = "blocked"
                 run_case.attempts.append(Attempt(attempt=1, result="blocked", message="服务未就绪"))
                 continue
+            if case.depends_on == "build" and delivery_incomplete:
+                run_case.result = "blocked"
+                run_case.attempts.append(
+                    Attempt(
+                        attempt=len(run_case.attempts) + 1,
+                        result="blocked",
+                        message=DELIVERY_INCOMPLETE_MESSAGE,
+                    )
+                )
+                continue
             if case.depends_on == "build" and not build_ok:
                 run_case.result = "blocked"
                 run_case.attempts.append(
@@ -510,6 +602,10 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             is_http = case.verify_method.startswith("http:")
             request_id = f"{run.run_id}-{case.case_id}" if is_http else ""
+            captures_screenshots = case.verify_method.startswith(("script:", "playwright:"))
+            screenshots_before = (
+                _screenshot_files(workdir, run_dir) if captures_screenshots else set()
+            )
             result, outputs, message, artifacts = _execute(
                 case,
                 workdir,
@@ -520,6 +616,11 @@ def main(argv: list[str] | None = None) -> int:
                 request_id=request_id,
                 run_dir=run_dir,
             )
+            if captures_screenshots:
+                artifacts = [
+                    *artifacts,
+                    *_screenshot_artifacts(case, workdir, run_dir, screenshots_before),
+                ]
             refs: list[str] = []
             for position, data in enumerate(outputs):
                 ref = _save_evidence(

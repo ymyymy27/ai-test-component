@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "request_id": "g3-task.add-1311a23a",
+  "data": {
+    "task_id": "task_a92691457798",
+    "revision": 1,
+    "acceptance_items": [
+      {
+        "item_id": "ai_b394cb3580cf",
+        "status": "active",
+        "text": "用户注册后可以登录",
+        "module_id": null
+      },
+      {
+        "item_id": "ai_8b7372c90cfc",
+        "status": "active",
+        "text": "登录用户可以发帖",
+        "module_id": null
+      },
+      {
+        "item_id": "ai_ef5b17358dd9",
+        "status": "active",
+        "text": "登录用户发帖后可在首页看到该帖",
+        "module_id": null
+      },
+      {
+        "item_id": "ai_835fda7db3a3",
+        "status": "pending",
+        "text": "系统要稳定",
+        "module_id": null
+      }
+    ]
+  },
+  "_returncode": 0
+}
