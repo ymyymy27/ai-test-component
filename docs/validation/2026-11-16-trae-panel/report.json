@@ -1,0 +1,30 @@
+{
+  "changed_modules": [],
+  "counts": {
+    "applicable": 3,
+    "covered": 3,
+    "failed": 0,
+    "incomplete": 0,
+    "passed": 3,
+    "selected": 3
+  },
+  "coverage": {
+    "applicable": 3,
+    "selected": 3
+  },
+  "evidence_refs": [
+    "evidence/case_babf9301e018-0.log",
+    "evidence/case_e4692d2c5372-0.log",
+    "evidence/case_147549f6a047-0.log"
+  ],
+  "mock_judgement": [],
+  "opinion": null,
+  "outcome": "passed",
+  "report_id": "rep_dc77dc880d00",
+  "revision": 1,
+  "run_id": "run_29612b09066a",
+  "schema_version": 1,
+  "summary": "本次测试结果：outcome 为 passed。覆盖情况：selected 3，applicable 3，covered 3，passed 3，failed 0，incomplete 0。失败用例列表为空。",
+  "summary_source": "ai",
+  "unmapped_files": []
+}

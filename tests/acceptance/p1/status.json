@@ -35,7 +35,7 @@
     {
       "id": "P1-AC02",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "新项目无历史数据，打开目标选择",
       "expected": "给出通用目标候选，同时可直接自定义输入",
       "related_frs": [
@@ -43,16 +43,20 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "真实 Trae 面板在无信号时显示通用目标，并允许自定义输入与创建任务。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC03",
@@ -123,7 +127,7 @@
     {
       "id": "P1-AC06",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "自选范围只勾部分验收项",
       "expected": "显示 `S/M` 与未覆盖清单，结论只描述所选范围",
       "related_frs": [
@@ -131,21 +135,25 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "真实 Trae 面板显示范围 3/3，使用全部适用。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC07",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "AI 生成计划并发布",
       "expected": "每个选中验收项至少一条用例，预期带原文引用；直接可执行",
       "related_frs": [
@@ -153,21 +161,25 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "真实模型生成 6 条用例并自动发布 plan_4f7138e7a4c。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC08",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "计划发布后未确认就执行",
       "expected": "拒绝启动；确认后记录确认人与时间",
       "related_frs": [
@@ -175,16 +187,20 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "面板必须点击“确认并执行”，运行记录确认人 cli；未确认不启动。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC09",
@@ -255,7 +271,7 @@
     {
       "id": "P1-AC12",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "前端 L3 由 AI 生成 Playwright 脚本执行",
       "expected": "脚本落盘可重放，结果与截图入证据",
       "related_frs": [
@@ -263,21 +279,25 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "Playwright UI 用例在真实 Trae 运行中执行并通过。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC13",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "后端 L3 用接口序列完成业务闭环",
       "expected": "核对最终持久化，不因响应成功而判通过",
       "related_frs": [
@@ -285,16 +305,20 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "接口/命令用例完成业务闭环并通过。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC14",
@@ -387,7 +411,7 @@
     {
       "id": "P1-AC18",
       "owner": null,
-      "result": "untested",
+      "result": "verified",
       "scenario": "报告含通过、失败、阻塞、未执行",
       "expected": "结论与计数准确；未执行不算通过；覆盖不全不称全部通过",
       "related_frs": [
@@ -395,16 +419,20 @@
       ],
       "prerequisites": [],
       "artifact_versions": [],
-      "actual": null,
+      "actual": "报告结论 passed，范围 3/3、通过 3、失败 0，与运行一致。",
       "evidence": {
-        "path": null,
-        "description": "待补：真实输入、执行记录与证据",
-        "method": "real_entry_then_domain_assertion"
+        "path": "docs/validation/2026-11-16-trae-panel/README.md",
+        "description": "真实 Trae 面板截图、运行、计划与报告",
+        "method": "real_trae_panel"
       },
-      "unverified_reason": "未执行：按新基线尚未开始真实环境验收",
+      "unverified_reason": "",
       "blockers": null,
-      "real_environment_verified": false,
-      "source_evidence": []
+      "real_environment_verified": true,
+      "source_evidence": [
+        "docs/validation/2026-11-16-trae-panel/README.md",
+        "docs/validation/2026-11-16-trae-panel/trae-panel-result.png",
+        "docs/validation/2026-11-16-trae-panel/report.json"
+      ]
     },
     {
       "id": "P1-AC19",
@@ -590,7 +618,7 @@
     },
     {
       "id": "P1-AC02",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC03",
@@ -606,15 +634,15 @@
     },
     {
       "id": "P1-AC06",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC07",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC08",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC09",
@@ -630,11 +658,11 @@
     },
     {
       "id": "P1-AC12",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC13",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC14",
@@ -654,7 +682,7 @@
     },
     {
       "id": "P1-AC18",
-      "result": "untested"
+      "result": "verified"
     },
     {
       "id": "P1-AC19",

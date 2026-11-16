@@ -459,6 +459,7 @@
       }
     }
     const result = await call("plan.generate", {
+      project_id: state.projectId,
       task_id: state.task.task_id,
       scope: { preset, module_ids: [], acceptance_item_ids: ids },
     });
