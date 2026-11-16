@@ -119,7 +119,7 @@ CLI（discover → 命名管道 → 回执核对）
 
 - `retryable` 默认 `false`；`LocalAPI._error()` 只把 `WORKSPACE_IN_USE` 与 `SNAPSHOT_REQUIRED` 置为可重试，并给出对应 `next_step`。
 - 读取期间提交边界变化返回 `SNAPSHOT_REQUIRED`，要求重新取得同边界快照与游标，不能静默从最新位置续接。
-- 面板确认相关的专用代码在实现内另有 `ENTRY_ACTION_NOT_ALLOWED`、`USER_DECLINED`、`INVALID_COMMAND`、`PANEL_CONFIRMATION_EXPIRED`、`PANEL_CONFIRMATION_UNAVAILABLE`、`CONFIRMATION_PREVIEW_LIMIT`，以及扩展侧的 `CORE_RESULT_UNVERIFIED`、`CORE_UNAVAILABLE`、`ENTRY_TIMEOUT`、`ENTRY_SPAWN_FAILED`、`ENTRY_OUTPUT_LIMIT`、`ENTRY_INVALID_CONFIG`、`PROJECT_CONTEXT_MISMATCH`、`PROJECT_CONTEXT_CHANGED`、`LEGACY_NATIVE_BATCH_REMOVED`。
+- 面板确认相关的专用代码在实现内另有 `ENTRY_ACTION_NOT_ALLOWED`、`USER_DECLINED`、`INVALID_COMMAND`、`PANEL_CONFIRMATION_EXPIRED`、`PANEL_CONFIRMATION_UNAVAILABLE`、`CONFIRMATION_PREVIEW_LIMIT`，以及扩展侧的 `CORE_RESULT_UNVERIFIED`、`CORE_UNAVAILABLE`、`ENTRY_TIMEOUT`、`ENTRY_SPAWN_FAILED`、`ENTRY_OUTPUT_LIMIT`、`ENTRY_INVALID_CONFIG`、`PROJECT_CONTEXT_MISMATCH`、`PROJECT_CONTEXT_CHANGED`。
 - 通道层还有 `MALFORMED_MESSAGE`、`UNKNOWN_CONTROL`、`NATIVE_CONFIRMATION_UNAVAILABLE`、`NATIVE_SESSION_FINALIZATION_UNVERIFIED`、`NATIVE_BATCH_UNAVAILABLE`、`CAPABILITY_DEGRADED`；它们不在 `ErrorCode` 枚举内，由核心或适配器按具体失败路径返回。
 
 ### 3.1 入口权限
@@ -129,7 +129,7 @@ CLI（discover → 命名管道 → 回执核对）
 | 入口 | 允许行为 | 人工确认边界 |
 | --- | --- | --- |
 | 面板／受控扩展 | 只读查询、普通写入、受控动作、展示核心冻结的确认提示 | 只有真实用户点击可回传确认；面板不提交挑战、摘要或角色 |
-| 交互 CLI | `dispatch`、`dispatch --native-confirmation`、`dispatch-panel`、`ensure-core`、`restart-core`、`doctor` | 原生窗口确认后由核心自己的 UI 会话提交；无 `--yes` 之类替代 |
+| 交互 CLI | `dispatch`、`dispatch --native-confirmation`、`ensure-core`、`restart-core`、`doctor` | 原生窗口确认后由核心自己的 UI 会话提交；无 `--yes` 之类替代 |
 | MCP／agent_relay | 只读工具与 7 个普通写入动作 | 命中 `HUMAN_ACTIONS` 直接 `AWAITING_USER_CONFIRMATION`，不暴露确认动作 |
 
 `doctor` 只返回 `READY` 或 `NOT_READY`（工作空间未就绪时），**没有 `DEGRADED`**；结果还带 `protocol`、`supported_actions`、`phase`、`intent_contracts`、`dependencies`（配置了能力门时），核心经 `dispatch_frame` 追加 `transport_capabilities`。
@@ -141,10 +141,9 @@ CLI（discover → 命名管道 → 回执核对）
 | 能力 | 版本串 | 启用条件 |
 | --- | --- | --- |
 | 原生窗口确认 | `native-confirmation/1` | 核心带 `native_dispatch`（默认装配即有） |
-| 面板内确认 | `panel-confirmation/1` | 同时带 `panel_prepare_dispatch` 与 `panel_confirm_dispatch` |
-| 原生批量授权 | `native-batch/1` | 仅在 `AITEST_ENABLE_LEGACY_NATIVE_BATCH=1` 时广告；面板已改为逐项授权，`nativeBatch` 消息返回 `LEGACY_NATIVE_BATCH_REMOVED` |
+| 面板内确认 | `panel-confirmation/2` | 同时带 `panel_prepare_dispatch` 与 `panel_confirm_dispatch`；扩展直接连接核心命名管道发送面板帧 |
 
-`dispatch-panel` 在派发前先取既有核心的 `doctor`，要求 `transport_capabilities` 含 `panel-confirmation/1`，否则报“核心不支持面板确认入口”并要求受控重启，不降级为无确认写入。
+面板确认不再经 CLI。扩展先读取 `ensure-core`/`restart-core` 回执中的 `pipe_name`，再直接连接该核心命名管道发送面板帧；不支持 `panel-confirmation/2` 或连接身份不符时拒绝并要求受控重启，不降级为无确认写入。
 
 ### 4.2 两种确认路径
 
@@ -152,7 +151,7 @@ CLI（discover → 命名管道 → 回执核对）
 
 原生路径（`dispatch --native-confirmation`）：核心分配 `native-ui-*` 的 `HUMAN_UI` 会话 → 冻结挑战与材料 → 弹核心自有窗口 → 用户确认后由该会话 `dispatch_user_confirmation`。对 `CHALLENGE_ACTIONS` 之外的 `HUMAN_ACTIONS`（如 `bind_project`、`update_issue`），原生路径只展示同一套只读摘要后直接 `dispatch`，不产生挑战。
 
-面板路径：扩展先发 `{__aitest_control__: "panel-confirmation/1", phase: "prepare", command}`，核心只回脱敏投影 `challenge_id`、`input_digest`、`prompt{title, note, facts, details}` 并把 `HUMAN_UI` 会话暂存在核心内存；用户点击后扩展再发 `phase: "confirm"` 并附同一 `request_id` 的 `challenge_id`、`input_digest`。核心校验会话、挑战、摘要与修订后写入 `ConfirmationRecord`／`ActionAuthorization`。
+面板路径：扩展先发 `{__aitest_control__: "panel-confirmation/2", phase: "prepare", command}`，核心只回脱敏投影 `challenge_id`、`input_digest`、`panel_session_id`、`expires_at`、`prompt{title, note, facts, details}`；用户点击后扩展在同一连接上发 `phase: "confirm"` 并附同一 `request_id` 的 `challenge_id`、`input_digest`。核心要求 prepare/confirm 同连接、同 peer、入口为 `HUMAN_UI`，校验会话、挑战、摘要与修订后写入 `ConfirmationRecord`／`ActionAuthorization`。
 
 | 约束 | 实现事实 |
 | --- | --- |
