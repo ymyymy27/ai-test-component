@@ -43,6 +43,7 @@ from aitest.models import (
     Task,
     new_id,
 )
+from aitest.security import scan_script
 from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
@@ -107,6 +108,8 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     "expectation_source": item["expectation_source"],
                     "verify_method": item["verify_method"],
                     "depends_on": first if first in {"build", "service"} else None,
+                    "script_name": item.get("script_name"),
+                    "script_content": item.get("script_content"),
                 }
             )
     cases = [Case.model_validate(item) for item in raw_cases]
@@ -268,6 +271,23 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     ]
     snapshot_scope = plan.scope.model_copy(update={"acceptance_item_ids": selected})
     snapshot = plan.model_copy(update={"cases": filtered, "scope": snapshot_scope})
+    generated = run_dir / "generated"
+    for case in filtered:
+        if not case.script_name or not case.script_content:
+            continue
+        matches = scan_script(case.script_content)
+        if matches:
+            import shutil
+
+            shutil.rmtree(run_dir, ignore_errors=True)
+            raise AiTestError(
+                "SCRIPT_REJECTED",
+                f"生成脚本包含危险操作：{', '.join(matches)}",
+                "检查脚本或改用手写验证",
+            )
+        generated.mkdir(parents=True, exist_ok=True)
+        (generated / case.script_name).write_text(case.script_content, encoding="utf-8")
+        case.verify_method = f"script:{case.script_name}"
     write_model(run_dir / "plan.json", snapshot)
     run = Run(
         run_id=run_id,

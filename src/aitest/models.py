@@ -118,6 +118,8 @@ class Case(Model):
     mock_allowed: bool = True
     importance: Literal["high", "medium", "low"] = "medium"
     depends_on: Literal["build", "service"] | None = None
+    script_name: str | None = None
+    script_content: str | None = None
 
 
 class Scope(Model):

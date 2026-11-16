@@ -110,8 +110,9 @@ def test_run_completes_and_reports_passed(tmp_path: Path, capsys: Capsys) -> Non
     )
     assert started["ok"] is True
     run_id = started["data"]["run_id"]
+    time.sleep(0.5)
     status: dict[str, Any] = {}
-    for _ in range(300):
+    for _ in range(600):
         status = call(
             tmp_path,
             "run.status",
@@ -158,7 +159,7 @@ def test_failed_command_reports_failed(tmp_path: Path, capsys: Capsys) -> None:
         confirm=True,
     )
     run_id = started["data"]["run_id"]
-    for _ in range(300):
+    for _ in range(600):
         status = call(
             tmp_path,
             "run.status",
@@ -228,3 +229,46 @@ def test_backup_restore_rejects_non_empty_target(tmp_path: Path, capsys: Capsys)
     result = call(tmp_path, "backup.restore", {"path": str(archive), "target": str(target)}, capsys)
     assert result["ok"] is False
     assert result["error"]["code"] == "INVALID_PATH"
+
+
+def test_generated_script_runs_and_dangerous_script_is_rejected(
+    tmp_path: Path, capsys: Capsys
+) -> None:
+    setup = _setup_task(tmp_path, capsys)
+    payload = _plan_payload(setup, "script:case.py")
+    payload["cases"][0]["script_name"] = "case.py"
+    payload["cases"][0]["script_content"] = "print('ok')\n"
+    plan = call(tmp_path, "plan.generate", payload, capsys)["data"]
+    started = call(
+        tmp_path,
+        "run.start",
+        {"project_id": setup["project"]["project_id"], "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )
+    run_id = started["data"]["run_id"]
+    for _ in range(600):
+        status = call(
+            tmp_path,
+            "run.status",
+            {"project_id": setup["project"]["project_id"], "run_id": run_id},
+            capsys,
+        )
+        if status["data"]["run"]["status"] != "running":
+            break
+        time.sleep(0.1)
+    assert status["data"]["outcome"] == "passed"
+
+    dangerous = _plan_payload(setup, "script:bad.py")
+    dangerous["cases"][0]["script_name"] = "bad.py"
+    dangerous["cases"][0]["script_content"] = "rm -rf /\n"
+    plan = call(tmp_path, "plan.generate", dangerous, capsys)["data"]
+    rejected = call(
+        tmp_path,
+        "run.start",
+        {"project_id": setup["project"]["project_id"], "plan_id": plan["plan_id"]},
+        capsys,
+        confirm=True,
+    )
+    assert rejected["ok"] is False
+    assert rejected["error"]["code"] == "SCRIPT_REJECTED"

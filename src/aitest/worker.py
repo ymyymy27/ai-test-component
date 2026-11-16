@@ -100,10 +100,19 @@ def _stop_service(config: dict[str, object], cwd: Path, log: Path) -> None:
         )
 
 
-def _execute(case: Case, workdir: Path) -> tuple[str, list[bytes], str]:
+def _execute(case: Case, workdir: Path, generated_dir: Path) -> tuple[str, list[bytes], str]:
     method = case.verify_method or ""
     if method.startswith("command:"):
         result = run_command(method[len("command:") :].strip(), cwd=workdir)
+    elif method.startswith("script:"):
+        name = method[len("script:") :].strip()
+        script_path = generated_dir / name
+        if script_path.suffix == ".py":
+            result = run_command(f'"{sys.executable}" "{script_path}"', cwd=workdir)
+        elif script_path.suffix in {".ts", ".js"}:
+            result = run_command(f'npx playwright test "{script_path}"', cwd=workdir)
+        else:
+            return "error", [], f"未知脚本类型：{script_path.suffix}"
     elif method.startswith("playwright:"):
         script = method[len("playwright:") :].strip()
         result = run_command(f'npx playwright test "{script}"', cwd=workdir)
@@ -182,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
                     Attempt(attempt=1, result="error", message="计划中找不到该用例")
                 )
                 continue
-            result, outputs, message = _execute(case, workdir)
+            result, outputs, message = _execute(case, workdir, run_dir / "generated")
             refs = [
                 _save_evidence(run_dir, f"{case.case_id}-{position}.log", data)
                 for position, data in enumerate(outputs)

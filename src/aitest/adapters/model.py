@@ -29,7 +29,8 @@ _SYSTEM_CASES = (
     "你是测试用例生成助手。只输出一个 JSON 对象，格式为 "
     '{"cases": [{"acceptance_item_id": "验收项 ID", "layer": "L1|L2|L3", '
     '"expected": "预期结果", "expectation_source": "期望来源", '
-    '"verify_method": "验证方法", "depends_on": ["依赖项"]}]}。'
+    '"verify_method": "验证方法", "depends_on": ["依赖项"], '
+    '"script_name": "可选文件名", "script_content": "可选脚本内容"}]}。'
     "必须为每个选中的验收项至少生成一条用例，不要遗漏。"
     "不要输出 JSON 之外的任何文本。"
 )
@@ -229,6 +230,8 @@ class ModelClient:
                 "expectation_source": _require_text(item, "expectation_source"),
                 "verify_method": _require_text(item, "verify_method"),
                 "depends_on": _require_text_list(item, "depends_on", allow_empty=True),
+                "script_name": str(item.get("script_name") or "") or None,
+                "script_content": str(item.get("script_content") or "") or None,
             }
             cases.append(case)
             covered.add(acceptance_item_id)
