@@ -225,6 +225,7 @@ class Report(Model):
     evidence_refs: list[str] = Field(default_factory=list)
     mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
     summary: str | None = None
+    summary_source: Literal["ai", "fallback", "none"] = "none"
     opinion: Opinion | None = None
     revision: int = 1
 

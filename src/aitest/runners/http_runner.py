@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.client
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from typing import Any
@@ -19,9 +20,20 @@ def _failed(message: str, *, stdout: bytes, assertions: list[dict[str, Any]]) ->
     return RunnerResult(status="failed", stdout=stdout, assertions=assertions, error=message)
 
 
-def _send(request: urllib.request.Request, timeout_seconds: float) -> tuple[int, bytes]:
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        return None
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def _send(
+    request: urllib.request.Request, timeout_seconds: float, *, follow_redirects: bool
+) -> tuple[int, bytes]:
+    opener = urllib.request.urlopen if follow_redirects else _NO_REDIRECT_OPENER.open
     try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        with opener(request, timeout=timeout_seconds) as response:
             return response.status, response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
         body = error.read(MAX_RESPONSE_BYTES + 1)
@@ -51,6 +63,14 @@ def run_http_sequence(requests: list[dict[str, Any]], timeout_seconds: float = 3
             headers = {str(key): str(value) for key, value in raw_headers.items()}
 
         body: bytes | None = None
+        if "form" in spec:
+            form = spec["form"]
+            if not isinstance(form, Mapping):
+                return RunnerResult(status="error", error=f"{label} form must be an object")
+            body = urllib.parse.urlencode(
+                {str(key): str(value) for key, value in form.items()}
+            ).encode("utf-8")
+            headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
         if "json" in spec:
             try:
                 body = json.dumps(spec["json"], ensure_ascii=False).encode("utf-8")
@@ -62,7 +82,9 @@ def run_http_sequence(requests: list[dict[str, Any]], timeout_seconds: float = 3
 
         try:
             request = urllib.request.Request(url, data=body, headers=headers, method=method)
-            response_status, response_body = _send(request, timeout_seconds)
+            response_status, response_body = _send(
+                request, timeout_seconds, follow_redirects=bool(spec.get("follow_redirects"))
+            )
         except ValueError as error:
             return RunnerResult(status="error", error=f"{label} is invalid: {error}")
         except (OSError, http.client.HTTPException) as error:
@@ -92,6 +114,29 @@ def run_http_sequence(requests: list[dict[str, Any]], timeout_seconds: float = 3
         if not isinstance(expects, list):
             return RunnerResult(status="error", error=f"{label} expect must be a list")
         if not expects:
+            continue
+        if all(isinstance(check, Mapping) and check.get("path") == "status" for check in expects):
+            for check in expects:
+                expected = check.get("value")
+                passed = response_status == expected
+                assertions.append(
+                    {
+                        "request_index": index,
+                        "url": url,
+                        "path": "status",
+                        "operator": "equals",
+                        "expected": expected,
+                        "actual": response_status,
+                        "missing": False,
+                        "passed": passed,
+                    }
+                )
+                if not passed:
+                    return _failed(
+                        f"{label} {method} {url} returned HTTP {response_status}",
+                        stdout=response_body,
+                        assertions=assertions,
+                    )
             continue
         try:
             payload = json.loads(response_body.decode("utf-8"))

@@ -26,7 +26,7 @@ from aitest.commands import (
 )
 from aitest.core.verdict import coverage, verdict
 from aitest.errors import AiTestError, invalid_path, invalid_request
-from aitest.model_config import build_client, model_settings
+from aitest.model_config import build_client, load_project_config, model_settings
 from aitest.models import (
     Analysis,
     Case,
@@ -71,7 +71,53 @@ def _selected_items(task: Any, scope: Scope) -> tuple[list[str], int]:
     return list(scope.acceptance_item_ids), len(active)
 
 
-def _normalize_method(method: str) -> str:
+def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
+    root = Path(project.root)
+    files: list[str] = []
+    for name in ("README.md", "README.rst", "pyproject.toml", "package.json", "requirements.txt"):
+        path = root / name
+        if path.is_file():
+            files.append(name)
+    tests = root / "tests"
+    if tests.is_dir():
+        files.append("tests/")
+    excerpt = ""
+    for name in ("README.md", "README.rst", "pyproject.toml", "package.json"):
+        path = root / name
+        if path.is_file():
+            try:
+                excerpt += (
+                    f"\n--- {name} ---\n"
+                    + path.read_text(encoding="utf-8", errors="replace")[:2000]
+                )
+            except OSError:
+                continue
+    sources: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if "tests" in path.parts or ".venv" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "route(" in text or "Flask(" in text:
+            sources.append(f"--- {path.relative_to(root)} ---\n" + text[:1500])
+        if len(sources) >= 3:
+            break
+    config = load_project_config(ws, project.project_id)
+    return {
+        "root": str(root),
+        "routes": sources,
+        "files": files,
+        "readme": excerpt,
+        "services": config.get("services", {}),
+        "runners": config.get("runners", {}),
+    }
+
+
+def _normalize_method(method: str, script_name: str | None = None) -> str:
+    if method.startswith("playwright:") and script_name and script_name.endswith(".py"):
+        return f"script:{script_name}"
     for prefix in ("command:", "script:", "http:", "playwright:"):
         if method.startswith(prefix):
             return method
@@ -104,7 +150,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
             if item.item_id in selected
         ]
         raw_cases = []
-        for item in client.generate_cases(task.model_dump(mode="json"), selected_items):
+        project = ws.load_project(task.project_id)
+        context = _project_context(project, ws)
+        for item in client.generate_cases(task.model_dump(mode="json"), selected_items, context):
             depends = item.get("depends_on")
             first = depends[0] if isinstance(depends, list) and depends else None
             raw_cases.append(
@@ -113,7 +161,9 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
                     "layer": item["layer"],
                     "expected": item["expected"],
                     "expectation_source": item["expectation_source"],
-                    "verify_method": _normalize_method(str(item["verify_method"])),
+                    "verify_method": _normalize_method(
+                        str(item["verify_method"]), item.get("script_name")
+                    ),
                     "depends_on": first if first in {"build", "service"} else None,
                     "script_name": item.get("script_name"),
                     "script_content": item.get("script_content"),
@@ -432,6 +482,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
     counts = coverage(plan, run)
     mock_judgement: list[dict[str, Any]] = list(run.mock_judgement)
     summary: str | None = None
+    ai_summary: str | None = None
     client = build_client(ws, run.project_id)
     if client is not None:
         project = read_model(ws.project_path(run.project_id), Project)
@@ -454,7 +505,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
             )
             run.mock_judgement = mock_judgement
             write_model(run_dir / "run.json", run)
-        summary = summarize_report(
+        ai_summary = summarize_report(
             {
                 "outcome": outcome,
                 "coverage": counts,
@@ -462,6 +513,13 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
             },
             client=client,
         )
+        summary = ai_summary
+        if summary is None:
+            summary = (
+                f"本次范围 {counts['selected']}/{counts['applicable']}，"
+                f"通过 {counts['passed']}，失败 {counts['failed']}，"
+                f"阻塞或未完成 {counts['incomplete']}。"
+            )
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
@@ -471,6 +529,7 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
         evidence_refs=list(run.evidence_refs),
         mock_judgement=mock_judgement,
         summary=summary,
+        summary_source="ai" if ai_summary else "fallback",
     )
     write_model(ws.project_dir(run.project_id) / "reports" / f"{report.report_id}.json", report)
     return {"report_id": report.report_id, "outcome": outcome, "counts": counts}
@@ -498,6 +557,11 @@ def cmd_report_export(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         f"- 范围：{report.counts.get('selected', 0)}/{report.coverage.get('applicable', 0)}",
         "",
     ]
+    if report.summary:
+        if report.summary_source == "fallback":
+            lines.append("AI 摘要未采用，以下为事实摘要")
+        lines.append(f"摘要：{report.summary}")
+        lines.append("")
     if opinion is None:
         lines.append("未填写验收意见")
     else:

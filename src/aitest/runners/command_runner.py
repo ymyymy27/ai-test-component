@@ -16,7 +16,12 @@ def _as_bytes(value: bytes | str | None) -> bytes:
     return b""
 
 
-def run_command(command: str, cwd: Path, timeout_seconds: float = 600) -> RunnerResult:
+def run_command(
+    command: str,
+    cwd: Path,
+    timeout_seconds: float = 600,
+    env: dict[str, str] | None = None,
+) -> RunnerResult:
     """Run ``command`` through the shell in ``cwd`` and map the outcome."""
     try:
         completed = subprocess.run(
@@ -26,6 +31,7 @@ def run_command(command: str, cwd: Path, timeout_seconds: float = 600) -> Runner
             capture_output=True,
             timeout=timeout_seconds,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired as error:
         return RunnerResult(

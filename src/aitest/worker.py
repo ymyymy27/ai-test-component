@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -47,6 +48,25 @@ def _save_evidence(run_dir: Path, name: str, data: bytes) -> str:
             f"原始大小 {len(data)} 字节，已截断\n", encoding="utf-8"
         )
     return str(path.relative_to(run_dir)).replace("\\", "/")
+
+
+def _venv_python(root: Path) -> Path | None:
+    for base in (root, root.parent, root.parent.parent):
+        for candidate in (
+            base / ".venv" / "Scripts" / "python.exe",
+            base / ".venv" / "bin" / "python",
+        ):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def _run_env(root: Path, python: Path | None) -> dict[str, str]:
+    env = dict(os.environ)
+    if python is not None:
+        env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
+        env["VIRTUAL_ENV"] = str(python.parent.parent)
+    return env
 
 
 def _services(ws: Workspace, project_id: str) -> dict[str, object]:
@@ -100,22 +120,24 @@ def _stop_service(config: dict[str, object], cwd: Path, log: Path) -> None:
         )
 
 
-def _execute(case: Case, workdir: Path, generated_dir: Path) -> tuple[str, list[bytes], str]:
+def _execute(
+    case: Case, workdir: Path, generated_dir: Path, env: dict[str, str], python: Path
+) -> tuple[str, list[bytes], str]:
     method = case.verify_method or ""
     if method.startswith("command:"):
-        result = run_command(method[len("command:") :].strip(), cwd=workdir)
+        result = run_command(method[len("command:") :].strip(), cwd=workdir, env=env)
     elif method.startswith("script:"):
         name = method[len("script:") :].strip()
         script_path = generated_dir / name
         if script_path.suffix == ".py":
-            result = run_command(f'"{sys.executable}" "{script_path}"', cwd=workdir)
+            result = run_command(f'"{python}" "{script_path}"', cwd=workdir, env=env)
         elif script_path.suffix in {".ts", ".js"}:
-            result = run_command(f'npx playwright test "{script_path}"', cwd=workdir)
+            result = run_command(f'npx playwright test "{script_path}"', cwd=workdir, env=env)
         else:
             return "error", [], f"未知脚本类型：{script_path.suffix}"
     elif method.startswith("playwright:"):
         script = method[len("playwright:") :].strip()
-        result = run_command(f'npx playwright test "{script}"', cwd=workdir)
+        result = run_command(f'npx playwright test "{script}"', cwd=workdir, env=env)
     elif method.startswith("http:"):
         try:
             requests = json.loads(method[len("http:") :])
@@ -155,6 +177,8 @@ def main(argv: list[str] | None = None) -> int:
     workdir = Path(project.root)
     cases = {case.case_id: case for case in plan.cases}
 
+    project_python = _venv_python(workdir)
+    run_env = _run_env(workdir, project_python)
     services_config = _services(ws, args.project)
     service_started = False
     service_ok = True
@@ -191,7 +215,13 @@ def main(argv: list[str] | None = None) -> int:
                     Attempt(attempt=1, result="error", message="计划中找不到该用例")
                 )
                 continue
-            result, outputs, message = _execute(case, workdir, run_dir / "generated")
+            result, outputs, message = _execute(
+                case,
+                workdir,
+                run_dir / "generated",
+                run_env,
+                project_python or Path(sys.executable),
+            )
             refs = [
                 _save_evidence(run_dir, f"{case.case_id}-{position}.log", data)
                 for position, data in enumerate(outputs)

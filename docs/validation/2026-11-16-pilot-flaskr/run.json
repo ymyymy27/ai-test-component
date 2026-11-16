@@ -1,0 +1,9 @@
+{
+  "run_id": "run_3e0dc2a0387e",
+  "plan_id": "plan_753fd6b155dc",
+  "project_id": "proj_ec988a2b14d7",
+  "status": "completed",
+  "started_at": "2026-11-16T16:18:49+08:00",
+  "heartbeat_at": "2026-11-16T16:18:51+08:00",
+  "confirmed_by": "pilot"
+}

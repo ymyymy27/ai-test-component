@@ -34,6 +34,8 @@ _SYSTEM_CASES = (
     "verify_method 只允许四种前缀：command:（shell 命令）、"
     "script:（配合 script_content）、http:（JSON 请求数组）、"
     "playwright:（脚本路径）。"
+    "http: 的 JSON 每项为 {method,url,headers?,json?/form?,expect?:[{path,operator,value}]}，"
+    "不支持变量替换；operator 只能是 equals/contains/exists。"
     "必须为每个选中的验收项至少生成一条用例，不要遗漏。"
     "不要输出 JSON 之外的任何文本。"
 )
@@ -205,11 +207,12 @@ class ModelClient:
         self,
         task: dict[str, Any],
         selected_items: list[dict[str, Any]],
+        context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Generate validated cases and require coverage of every selected item."""
         required_ids = _acceptance_ids(selected_items)
         user = json.dumps(
-            {"task": task, "selected_items": selected_items},
+            {"task": task, "selected_items": selected_items, "context": context or {}},
             ensure_ascii=False,
         )
         data = self.complete_json(_SYSTEM_CASES, user)
@@ -232,7 +235,13 @@ class ModelClient:
                 "expected": _require_text(item, "expected"),
                 "expectation_source": _require_text(item, "expectation_source"),
                 "verify_method": _require_text(item, "verify_method"),
-                "depends_on": _require_text_list(item, "depends_on", allow_empty=True),
+                "depends_on": (
+                    []
+                    if item.get("depends_on") is None
+                    else [item["depends_on"]]
+                    if isinstance(item.get("depends_on"), str)
+                    else _require_text_list(item, "depends_on", allow_empty=True)
+                ),
                 "script_name": str(item.get("script_name") or "") or None,
                 "script_content": str(item.get("script_content") or "") or None,
             }
