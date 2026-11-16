@@ -51,9 +51,11 @@
 | 私有/不存在仓库 | `GITHUB_UNAVAILABLE` | `github-private.json` |
 | 模型返回非 JSON | `MODEL_OUTPUT_INVALID` | `model-invalid-output.json` |
 | 真实日志 + 只读查询 | 2 个日志节点 + 1 个 DB 节点，无缺口 | `link-real.json` |
+| 模型超时 | `MODEL_UNAVAILABLE` | `model-timeout.json` |
+| 服务启动失败 | 运行 completed，依赖服务用例 `blocked` | `service-start-failure.json` |
 
 ## 5 未覆盖
 
 - Trae 面板中的失败分析、验收意见、重跑入口（本次走 CLI）；
 - 磁盘不足；
-- 服务启动失败的真实端口冲突。
+- 端口被占用（未构造）。
