@@ -132,6 +132,7 @@ class Plan(Model):
     plan_id: str
     task_id: str
     scope: Scope
+    applicable_count: int = 0
     rules_version_id: str | None = None
     cases: list[Case] = Field(default_factory=list)
     status: Literal["draft", "published"] = "draft"
