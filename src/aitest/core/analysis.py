@@ -35,24 +35,36 @@ def _causes(value: list[Any]) -> list[dict[str, str]]:
 def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]:
     """Generate or reset the failure analysis for a run, never raising on model gaps."""
     run = read_model(run_dir / "run.json", Run)
-    client = build_client(ws, project_id)
     failed = [case for case in run.cases if case.result in {"failed", "blocked", "error"}]
-    if client is None or not failed:
-        run.analysis = [Analysis(status="not_generated")]
+    if not failed:
+        run.analysis = [Analysis(status="not_generated", reason="no_failures")]
         write_model(run_dir / "run.json", run)
-        return {"status": "not_generated", "analysis": None}
+        return {"status": "not_generated", "reason": "no_failures", "analysis": None}
+    client = build_client(ws, project_id)
+    if client is None:
+        run.analysis = [Analysis(status="not_generated", reason="model_missing")]
+        write_model(run_dir / "run.json", run)
+        return {"status": "not_generated", "reason": "model_missing", "analysis": None}
     evidence = [ref for case in failed for ref in case.evidence_refs]
     try:
         data = client.analyze_failure(run.model_dump(mode="json"), evidence)
     except AiTestError as exc:
-        status: Literal["invalid", "not_generated"] = (
-            "invalid" if exc.info.code == "MODEL_OUTPUT_INVALID" else "not_generated"
-        )
-        run.analysis = [Analysis(status=status)]
+        if exc.info.code == "MODEL_OUTPUT_INVALID":
+            status: Literal["invalid", "not_generated"] = "invalid"
+            reason: Literal["model_invalid", "model_error"] = "model_invalid"
+        else:
+            status = "not_generated"
+            reason = "model_error"
+        run.analysis = [Analysis(status=status, reason=reason)]
         write_model(run_dir / "run.json", run)
-        return {"status": status, "analysis": None}
+        return {"status": status, "reason": reason, "analysis": None}
+    except Exception:
+        run.analysis = [Analysis(status="not_generated", reason="model_error")]
+        write_model(run_dir / "run.json", run)
+        return {"status": "not_generated", "reason": "model_error", "analysis": None}
     analysis = Analysis(
         status="generated",
+        reason="",
         model=str(model_settings(ws, project_id)["name"]),
         generated_at=iso_now(),
         observed=str(data["observed"]),
@@ -63,4 +75,8 @@ def analyze_run(ws: Workspace, project_id: str, run_dir: Path) -> dict[str, Any]
     )
     run.analysis = [analysis]
     write_model(run_dir / "run.json", run)
-    return {"status": "generated", "analysis": analysis.model_dump(mode="json")}
+    return {
+        "status": "generated",
+        "reason": "",
+        "analysis": analysis.model_dump(mode="json"),
+    }

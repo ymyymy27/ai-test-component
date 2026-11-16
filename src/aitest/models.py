@@ -66,6 +66,7 @@ class Task(Model):
     project_id: str
     title: str
     goal: str = ""
+    intent: Literal["smoke", "business"] = "business"
     scope: str = ""
     inputs: str = ""
     outputs: str = ""
@@ -143,6 +144,7 @@ class Plan(Model):
     templates: list[dict[str, Any]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     status: Literal["draft", "published"] = "draft"
+    source_signature: str = ""
     revision: int = 1
 
 
@@ -164,6 +166,9 @@ class RunCase(Model):
 
 class Analysis(Model):
     status: Literal["generated", "not_generated", "invalid"] = "not_generated"
+    reason: Literal[
+        "no_failures", "model_missing", "model_invalid", "model_error", ""
+    ] = ""
     model: str = ""
     generated_at: str = ""
     observed: str = ""

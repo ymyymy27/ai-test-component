@@ -10,7 +10,7 @@ import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from aitest import __version__
 from aitest.config import model_key_source
@@ -62,6 +62,88 @@ def _task_path(ws: Workspace, project_id: str, task_id: str) -> Path:
 
 def _project_dir_for_task(ws: Workspace, task: Task) -> Path:
     return ws.project_dir(task.project_id)
+
+
+# -- task intent and acceptance-item observability --------------------------
+
+_SMOKE_GOAL_PHRASES = (
+    "能否启动",
+    "能否正常启动",
+    "能够启动",
+    "能够正常启动",
+    "可以启动",
+    "可以正常启动",
+    "项目能启动",
+    "跑通主流程",
+    "主流程能够跑通",
+    "主流程可以跑通",
+    "主流程能跑通",
+)
+
+_BUSINESS_WORDS = (
+    "下单",
+    "订单",
+    "支付",
+    "退款",
+    "库存",
+    "购物车",
+    "登录",
+    "注册",
+    "注销",
+    "用户",
+    "账号",
+    "账户",
+    "权限",
+    "搜索",
+    "查询",
+    "创建",
+    "新增",
+    "编辑",
+    "修改",
+    "删除",
+    "上传",
+    "下载",
+    "导出",
+    "导入",
+    "审批",
+    "结算",
+    "账单",
+    "消息",
+    "通知",
+)
+
+_GENERIC_ITEM_PATTERNS = (
+    re.compile(r"项目(?:能否|能够|可以|能|是否)?(?:正常)?启动"),
+    re.compile(r"主流程(?:能否|能够|可以|能|是否)?(?:正常)?跑通"),
+    re.compile(r"(?:跑通|走通)主流程"),
+    re.compile(r"项目(?:能否|能够|可以|能)?(?:正常)?运行"),
+    re.compile(r"系统(?:能否|能够|可以|能)?(?:正常)?运行"),
+)
+
+
+def infer_task_intent(goal: str) -> Literal["smoke", "business"]:
+    """A pure smoke goal mentions startup/flow but no concrete business action."""
+    text = goal.strip()
+    if not text:
+        return "business"
+    mentions_smoke = any(phrase in text for phrase in _SMOKE_GOAL_PHRASES)
+    mentions_business = any(word in text for word in _BUSINESS_WORDS)
+    if mentions_smoke and not mentions_business:
+        return "smoke"
+    return "business"
+
+
+def _task_intent(payload: Payload, goal: str) -> Literal["smoke", "business"]:
+    raw = payload.get("intent")
+    if raw in (None, ""):
+        return infer_task_intent(goal)
+    if raw not in {"smoke", "business"}:
+        raise invalid_request("intent 只能是 smoke 或 business")
+    return cast(Literal["smoke", "business"], raw)
+
+
+def _is_generic_acceptance_text(text: str) -> bool:
+    return any(pattern.search(text) for pattern in _GENERIC_ITEM_PATTERNS)
 
 
 # -- doctor -----------------------------------------------------------------
@@ -395,22 +477,43 @@ def cmd_task_suggest(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     fallback = "验证项目能否启动并跑通主流程"
     client = build_client(ws, project.project_id)
     if client is None:
-        return {"candidates": [], "fallback": fallback, "ai_generated": False}
+        return {
+            "candidates": [],
+            "fallback": fallback,
+            "intent": "smoke",
+            "fallback_intent": "smoke",
+            "ai_generated": False,
+        }
     modules = "、".join(module.name for module in project.modules) or "未登记模块"
     context = f"项目：{project.name}\n目标：{project.goal}\n模块：{modules}"
     try:
         candidates = client.suggest_targets(context)
     except AiTestError:
-        return {"candidates": [], "fallback": fallback, "ai_generated": False}
+        return {
+            "candidates": [],
+            "fallback": fallback,
+            "intent": "smoke",
+            "fallback_intent": "smoke",
+            "ai_generated": False,
+        }
+    enriched = [
+        {**candidate, "intent": infer_task_intent(candidate["title"])}
+        for candidate in candidates
+    ]
     return {
-        "candidates": candidates,
+        "candidates": enriched,
         "fallback": fallback,
-        "ai_generated": bool(candidates),
+        "intent": "smoke",
+        "fallback_intent": "smoke",
+        "ai_generated": bool(enriched),
     }
 
 
 def _parse_acceptance_items(
-    raw_items: list[Any], module_ids: set[str] | None = None
+    raw_items: list[Any],
+    module_ids: set[str] | None = None,
+    *,
+    ai_extracted: bool = False,
 ) -> list[AcceptanceItem]:
     items: list[AcceptanceItem] = []
     for raw in raw_items:
@@ -420,9 +523,14 @@ def _parse_acceptance_items(
         if not text:
             continue
         observable = bool(raw.get("observable", True))
+        generic = ai_extracted and _is_generic_acceptance_text(text)
+        if generic:
+            observable = False
         status = raw.get("status")
-        if status == "active":
-            normalized_status: Literal["active", "pending"] = "active"
+        if generic:
+            normalized_status: Literal["active", "pending"] = "pending"
+        elif status == "active":
+            normalized_status = "active"
         elif status == "pending":
             normalized_status = "pending"
         else:
@@ -458,25 +566,34 @@ def _parse_acceptance_items(
 def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     project = _project(ws, payload)
+    title = _text({"title": _require(payload, "title")}, "title")
+    goal = _text(payload, "goal")
+    intent = _task_intent(payload, goal)
     raw_items = payload.get("acceptance_items", [])
     if not isinstance(raw_items, list):
         raise invalid_request("acceptance_items 必须是数组")
+    ai_extracted = False
     if not raw_items:
         requirement = _text(payload, "requirement")
         client = build_client(ws, project.project_id)
         if requirement and client is not None:
             try:
                 raw_items = client.extract_acceptance_items(requirement)
+                ai_extracted = True
             except AiTestError:
                 raw_items = []
+    # No generic fallback item is synthesised: an empty observable set stays empty.
     items = _parse_acceptance_items(
-        raw_items, {module.module_id for module in project.modules}
+        raw_items,
+        {module.module_id for module in project.modules},
+        ai_extracted=ai_extracted,
     )
     task = Task(
         task_id=new_id("task"),
         project_id=project.project_id,
-        title=_text({"title": _require(payload, "title")}, "title"),
-        goal=_text(payload, "goal"),
+        title=title,
+        goal=goal,
+        intent=intent,
         scope=_text(payload, "scope"),
         inputs=_text(payload, "inputs"),
         outputs=_text(payload, "outputs"),
@@ -489,11 +606,13 @@ def cmd_task_add(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, An
     return {
         "task_id": task.task_id,
         "revision": task.revision,
+        "intent": task.intent,
         "acceptance_items": [
             {
                 "item_id": i.item_id,
                 "status": i.status,
                 "text": i.text,
+                "observable": i.observable,
                 "module_id": i.module_id,
             }
             for i in task.acceptance_items
@@ -551,6 +670,11 @@ def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         if key == "title" and not value.strip():
             raise invalid_request("标题不能为空")
         data[key] = value
+    if "intent" in patch:
+        value = patch["intent"]
+        if value not in {"smoke", "business"}:
+            raise invalid_request("intent 只能是 smoke 或 business")
+        data["intent"] = value
     if "preconditions" in patch:
         raw_preconditions = patch["preconditions"]
         if not isinstance(raw_preconditions, list):
@@ -573,6 +697,7 @@ def cmd_task_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         "task_id": updated.task_id,
         "revision": updated.revision,
         "previous_revision": task.revision,
+        "intent": updated.intent,
         "acceptance_items": [
             {
                 "item_id": item.item_id,

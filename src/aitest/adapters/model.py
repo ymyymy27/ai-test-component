@@ -36,6 +36,12 @@ _SYSTEM_CASES = (
     "playwright:（脚本路径）。"
     "http: 的 JSON 每项为 {method,url,headers?,json?/form?,expect?:[{path,operator,value}]}，"
     "不支持变量替换；operator 只能是 equals/contains/exists。"
+    "如果 task.intent 是 smoke：只能生成 layer=L1 用例，verify_method 只能使用 command: 或 "
+    "pytest:，命令必须来自 context.test_commands 或 context.l1；不得使用 http:、playwright:，"
+    "不得访问外部 URL。"
+    "如果 task.intent 是 business 且使用 http:：url 必须使用 context.services 的 health/host/port "
+    "或本机项目地址（localhost/127.0.0.1），不得把 README 示例外网 URL 当作被测地址。"
+    "生成脚本不得访问外网示例域名（如 example.com、httpbin.org）。"
     "必须为每个选中的验收项至少生成一条用例，不要遗漏。"
     "不要输出 JSON 之外的任何文本。"
 )

@@ -7,6 +7,7 @@ import { loadProposal, refreshRun, session } from "@/state/session";
 import {
   ITEMS,
   PLAN,
+  PLAN_CASES,
   PROJECT,
   RUN_DETAIL,
   RUNNING_DETAIL,
@@ -116,6 +117,10 @@ describe("单页测试单：五个状态", () => {
 
     const add = harness.calls.filter((call) => call.command === "task.add");
     expect(add).toHaveLength(1);
+    const listIndex = harness.calls.findIndex((call) => call.command === "task.list");
+    const addIndex = harness.calls.findIndex((call) => call.command === "task.add");
+    expect(listIndex).toBeGreaterThanOrEqual(0);
+    expect(listIndex).toBeLessThan(addIndex);
     wrapper.unmount();
   });
 
@@ -218,6 +223,159 @@ describe("结果相位的操作", () => {
     const start = harness.calls.find((call) => call.command === "run.start");
     expect(start?.options.confirm).toBe(true);
     expect(session.phase).toBe("running");
+    wrapper.unmount();
+  });
+
+  it("计划过期时自动重新生成并用新计划重试一次", async () => {
+    seedResult();
+    let starts = 0;
+    const harness = installHost(
+      sessionRoutes({
+        "plan.generate": {
+          plan_id: "plan_new",
+          revision: 1,
+          status: "published",
+          scope: PLAN.scope,
+          coverage: { selected: 2, applicable: 3 },
+          cases: PLAN_CASES.length,
+          source_signature: "sha256:new",
+        },
+        "run.start": () => {
+          starts += 1;
+          if (starts === 1) {
+            return {
+              __error: {
+                code: "PLAN_STALE",
+                message: "计划生成后项目已变化",
+                next_step: "重新生成计划后重试",
+              },
+            };
+          }
+          return { run_id: "run_1", status: "running", scope: { selected: 2, applicable: 3 } };
+        },
+        "run.status": RUNNING_DETAIL,
+      }),
+    );
+    const wrapper = mount(SessionView, { attachTo: document.body });
+    await settle();
+
+    await wrapper.find('[data-testid="rerun-button"]').trigger("click");
+    await settle(8);
+
+    const generate = harness.calls.filter((call) => call.command === "plan.generate");
+    expect(generate).toHaveLength(1);
+    expect(generate[0].payload).toMatchObject({ task_id: TASK.task_id });
+    const startsCalls = harness.calls.filter((call) => call.command === "run.start");
+    expect(startsCalls).toHaveLength(2);
+    expect(startsCalls[0].payload["plan_id"]).toBe(PLAN.plan_id);
+    expect(startsCalls[1].payload["plan_id"]).toBe("plan_new");
+    expect(session.notice).toContain("源码或配置已变化，已重新生成计划");
+    expect(session.phase).toBe("running");
+    wrapper.unmount();
+  });
+
+  it("重新生成的计划仍过期时只重试一次并显示真实错误", async () => {
+    seedResult();
+    let starts = 0;
+    const harness = installHost(
+      sessionRoutes({
+        "plan.generate": {
+          plan_id: "plan_new",
+          revision: 1,
+          status: "published",
+          scope: PLAN.scope,
+          coverage: { selected: 2, applicable: 3 },
+          cases: PLAN_CASES.length,
+        },
+        "run.start": () => {
+          starts += 1;
+          return {
+            __error: {
+              code: "PLAN_STALE",
+              message: "计划生成后项目、交付提交、规则或服务配置已变化",
+              next_step: "重新生成计划后重试",
+            },
+          };
+        },
+      }),
+    );
+    const wrapper = mount(SessionView, { attachTo: document.body });
+    await settle();
+
+    await wrapper.find('[data-testid="rerun-button"]').trigger("click");
+    await settle(8);
+
+    expect(starts).toBe(2);
+    expect(
+      harness.calls.filter((call) => call.command === "plan.generate"),
+    ).toHaveLength(1);
+    expect(
+      harness.calls.filter((call) => call.command === "run.start"),
+    ).toHaveLength(2);
+    expect(session.phase).toBe("result");
+    expect(session.notice).toBe("");
+    expect(wrapper.text()).toContain("计划生成后项目、交付提交、规则或服务配置已变化");
+    wrapper.unmount();
+  });
+
+  it("同 title+goal 的已有任务直接复用，不重复创建", async () => {
+    const { wrapper, harness } = await mountProposal({
+      "task.list": {
+        tasks: [
+          {
+            task_id: "task_existing",
+            title: "验证下单成功后订单只出现一次",
+            revision: 3,
+          },
+        ],
+      },
+      "task.show": (payload: Record<string, unknown>) => ({
+        task: { ...TASK, task_id: String(payload["task_id"]), revision: 3 },
+      }),
+    });
+
+    expect(harness.calls.some((call) => call.command === "task.add")).toBe(false);
+    const shown = harness.calls.find((call) => call.command === "task.show");
+    expect(shown?.payload["task_id"]).toBe("task_existing");
+    expect(session.proposal.taskId).toBe("task_existing");
+    expect(session.proposal.taskRevision).toBe(3);
+    expect(wrapper.find('[data-testid="proposal-panel"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("新目标也优先复用同 title+goal 的任务", async () => {
+    seedResult();
+    const harness = installHost(
+      sessionRoutes({
+        "task.list": {
+          tasks: [
+            {
+              task_id: "task_existing",
+              title: "验证下单成功后订单只出现一次",
+              revision: 2,
+            },
+          ],
+        },
+        "task.show": (payload: Record<string, unknown>) => ({
+          task: { ...TASK, task_id: String(payload["task_id"]), revision: 2 },
+        }),
+      }),
+    );
+    const wrapper = mount(SessionView, { attachTo: document.body });
+    await settle();
+
+    await wrapper.find('[data-testid="new-target"]').trigger("click");
+    await settle(6);
+
+    expect(harness.calls.some((call) => call.command === "task.add")).toBe(false);
+    expect(
+      harness.calls.some(
+        (call) =>
+          call.command === "task.show" && call.payload["task_id"] === "task_existing",
+      ),
+    ).toBe(true);
+    expect(session.proposal.taskId).toBe("task_existing");
+    expect(session.phase).toBe("proposal");
     wrapper.unmount();
   });
 

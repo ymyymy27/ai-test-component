@@ -19,9 +19,11 @@ import type {
   RunDetail,
   RunSummary,
   RunStatus,
+  Scope,
   SuggestResult,
   TargetCandidate,
   Task,
+  TaskIntent,
   Verdict,
 } from "@/api/types";
 
@@ -517,8 +519,34 @@ function fillTask(task: Task): void {
   syncSelection();
 }
 
+/** 同 title+goal 的任务直接复用，避免每次换目标/重开面板都堆一条新任务。 */
+async function findReusableTask(
+  projectId: string,
+  title: string,
+  goal: string,
+): Promise<Task | null> {
+  try {
+    const data = await api.listTasks(projectId);
+    for (const summary of data.tasks ?? []) {
+      if (summary.title !== title) {
+        continue;
+      }
+      if (typeof summary.goal === "string" && summary.goal !== goal) {
+        continue;
+      }
+      const shown = await api.showTask(projectId, summary.task_id);
+      if (typeof summary.goal === "string" || shown.task.goal === goal) {
+        return shown.task;
+      }
+    }
+  } catch {
+    // 旧版宿主没有 task.list 或读取失败时退回新建，不挡住测试目标。
+  }
+  return null;
+}
+
 async function selectTarget(
-  target: { title: string; reason?: string; source?: string },
+  target: { title: string; reason?: string; source?: string; intent?: TaskIntent },
   index: number,
 ): Promise<void> {
   if (!session.project || !target.title.trim()) {
@@ -534,11 +562,22 @@ async function selectTarget(
   proposal.itemsError = null;
   proposal.startError = null;
   try {
+    const existing = await findReusableTask(
+      session.project.project_id,
+      proposal.goal,
+      proposal.goal,
+    );
+    if (existing) {
+      fillTask(existing);
+      invalidatePreview();
+      return;
+    }
     const created = await api.addTask({
       projectId: session.project.project_id,
       title: proposal.goal,
       goal: proposal.goal,
       requirement: proposal.goal,
+      intent: target.intent,
     });
     const data = await api.showTask(session.project.project_id, created.task_id);
     fillTask(data.task);
@@ -573,7 +612,7 @@ export async function loadProposal(): Promise<void> {
   }
   const first = proposal.candidates[0];
   const target = first
-    ? { title: first.title, reason: first.reason, source: first.source }
+    ? { title: first.title, reason: first.reason, source: first.source, intent: first.intent }
     : { title: proposal.fallback || DEFAULT_TARGET, reason: "", source: "" };
   await selectTarget(target, first ? 0 : -2);
 }
@@ -592,7 +631,15 @@ export async function chooseTarget(index: number): Promise<void> {
   if (!candidate) {
     return;
   }
-  await selectTarget(candidate, index);
+  await selectTarget(
+    {
+      title: candidate.title,
+      reason: candidate.reason,
+      source: candidate.source,
+      intent: candidate.intent,
+    },
+    index,
+  );
 }
 
 /** 自己写一句：同样只提取验收标准，不启动运行。 */
@@ -829,11 +876,36 @@ export async function applyProposalTemplate(
   }
 }
 
-async function beginRun(planId: string): Promise<void> {
+function errorCode(error: unknown): string {
+  return error && typeof error === "object" && "code" in error
+    ? String((error as { code: unknown }).code)
+    : "";
+}
+
+async function generatePlanFor(taskId: string, scope?: Scope): Promise<string> {
   if (!session.project) {
     throw new Error("缺少项目");
   }
-  const started = await api.startRun(session.project.project_id, planId);
+  const generated = await api.generatePlan({
+    projectId: session.project.project_id,
+    taskId,
+    preset: scope?.preset ?? "all_applicable",
+    moduleIds: scope?.module_ids ?? [],
+    acceptanceItemIds: scope?.acceptance_item_ids ?? [],
+  });
+  session.activePlanId = generated.plan_id;
+  return generated.plan_id;
+}
+
+async function startRunOnce(planId: string, acceptanceItemIds?: string[]): Promise<void> {
+  if (!session.project) {
+    throw new Error("缺少项目");
+  }
+  const started = await api.startRun(
+    session.project.project_id,
+    planId,
+    acceptanceItemIds,
+  );
   session.activeRunId = started.run_id;
   session.activePlanId = planId;
   session.activeTaskId = session.proposal.taskId || session.activeTaskId;
@@ -842,6 +914,25 @@ async function beginRun(planId: string): Promise<void> {
   session.screen = "session";
   persist();
   await refreshRun();
+}
+
+interface BeginRunOptions {
+  acceptanceItemIds?: string[];
+  /** PLAN_STALE 时按同一 task/scope 重新生成计划；只会重试一次。 */
+  regenerate?: () => Promise<string>;
+}
+
+async function beginRun(planId: string, options: BeginRunOptions = {}): Promise<void> {
+  try {
+    await startRunOnce(planId, options.acceptanceItemIds);
+  } catch (error) {
+    if (errorCode(error) !== "PLAN_STALE" || !options.regenerate) {
+      throw error;
+    }
+    const freshPlanId = await options.regenerate();
+    await startRunOnce(freshPlanId, options.acceptanceItemIds);
+    flash("源码或配置已变化，已重新生成计划");
+  }
 }
 
 /** 开始测试：一次点击完成保存、生成计划与确认执行。 */
@@ -870,7 +961,16 @@ export async function startTest(): Promise<void> {
         session.plan = null;
       }
     }
-    await beginRun(planId);
+    const regenerate = proposal.taskId
+      ? () =>
+          generatePlanFor(proposal.taskId, {
+            preset: proposal.preset,
+            module_ids: [...proposal.moduleIds],
+            acceptance_item_ids:
+              proposal.preset === "selected" ? [...proposal.selected] : [],
+          })
+      : undefined;
+    await beginRun(planId, { regenerate });
   } catch (error) {
     proposal.startError = describeError(error);
   } finally {
@@ -972,12 +1072,13 @@ export async function rerun(): Promise<FriendlyError | null> {
   try {
     let planId = session.activePlanId || session.plan?.plan_id || "";
     let taskId = session.plan?.task_id || session.task?.task_id || session.activeTaskId;
-    const scope = session.plan?.scope;
+    let scope = session.plan?.scope;
     if (planId) {
       try {
         const data = await api.showPlan(session.project.project_id, planId);
         session.plan = data.plan;
         taskId = data.plan.task_id;
+        scope = data.plan.scope;
       } catch {
         planId = "";
       }
@@ -990,17 +1091,14 @@ export async function rerun(): Promise<FriendlyError | null> {
           next: "换一个新目标重新开始",
         };
       }
-      planId = await api
-        .generatePlan({
-          projectId: session.project.project_id,
-          taskId,
-          preset: scope?.preset ?? "all_applicable",
-          moduleIds: scope?.module_ids ?? [],
-          acceptanceItemIds: scope?.acceptance_item_ids ?? [],
-        })
-        .then((generated) => generated.plan_id);
+      planId = await generatePlanFor(taskId, scope);
     }
-    await beginRun(planId);
+    const regenerateTaskId = taskId;
+    await beginRun(planId, {
+      regenerate: regenerateTaskId
+        ? () => generatePlanFor(regenerateTaskId, scope)
+        : undefined,
+    });
     return null;
   } catch (error) {
     return describeError(error);
@@ -1015,16 +1113,12 @@ export async function rerunItem(acceptanceItemId: string): Promise<FriendlyError
   }
   setLoading("rerun", true);
   try {
-    const started = await api.startRun(
-      session.project.project_id,
-      session.activePlanId,
-      [acceptanceItemId],
-    );
-    session.activeRunId = started.run_id;
-    session.result = null;
-    session.phase = "running";
-    persist();
-    await refreshRun();
+    const taskId = session.plan?.task_id || session.task?.task_id || session.activeTaskId;
+    const scope = session.plan?.scope;
+    await beginRun(session.activePlanId, {
+      acceptanceItemIds: [acceptanceItemId],
+      regenerate: taskId ? () => generatePlanFor(taskId, scope) : undefined,
+    });
     return null;
   } catch (error) {
     return describeError(error);

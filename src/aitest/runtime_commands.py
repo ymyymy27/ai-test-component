@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import urlsplit
 
 from aitest.commands import (
     MUTATING,
@@ -30,6 +32,7 @@ from aitest.core.expectations import align_generated_sources, annotate_cases
 from aitest.core.issues import add_issue
 from aitest.core.link_location import locate_link
 from aitest.core.manual import aggregate_manual, is_manual_case
+from aitest.core.project_context import build_project_context
 from aitest.core.reports import build_report
 from aitest.core.scope import applicable_items, uncovered_items
 from aitest.core.verdict import verdict
@@ -39,6 +42,7 @@ from aitest.models import (
     Attempt,
     Case,
     Confirmation,
+    Delivery,
     Issue,
     ManualLog,
     ManualStep,
@@ -129,13 +133,21 @@ def _project_context(project: Project, ws: Workspace) -> dict[str, Any]:
         if len(sources) >= 3:
             break
     config = load_project_config(ws, project.project_id)
+    derived = build_project_context(root, config)
     return {
         "root": str(root),
         "routes": sources,
         "files": files,
         "readme": excerpt,
-        "services": config.get("services", {}),
+        "services": derived["services"],
         "runners": config.get("runners", {}),
+        "l1": config.get("l1", {}),
+        "test_commands": derived["test_commands"],
+        "test_dirs": derived["test_dirs"],
+        "framework": derived["framework"],
+        "has_frontend": derived["has_frontend"],
+        "has_database": derived["has_database"],
+        "existing_commands": derived["existing_commands"],
     }
 
 
@@ -157,6 +169,315 @@ def _normalize_method(method: str, script_name: str | None = None) -> str:
     return f"command:{method}"
 
 
+# -- plan generation guards -------------------------------------------------
+
+_EXAMPLE_HOSTS = (
+    "example.com",
+    "example.org",
+    "example.net",
+    "httpbin.org",
+    "jsonplaceholder.typicode.com",
+)
+
+
+def _invalid_method(case: Case, message: str) -> AiTestError:
+    return invalid_request(f"用例 {case.case_id} 验证方式不合法：{message}")
+
+
+def _validate_verify_method(case: Case) -> None:
+    """Reject malformed verify methods before a plan can be stored or run."""
+    method = (case.verify_method or "").strip()
+    if not method:
+        raise _invalid_method(case, "验证方式不能为空")
+    if method == "manual" or method.startswith("manual:"):
+        return
+    if method.startswith("command:"):
+        if not method[len("command:") :].strip():
+            raise _invalid_method(case, "command: 后不能为空")
+        return
+    if method.startswith("script:"):
+        if not (case.script_name or "").strip():
+            raise _invalid_method(case, "script: 需要 script_name")
+        if not (case.script_content or "").strip():
+            raise _invalid_method(case, "script: 需要 script_content")
+        return
+    if method.startswith("http:"):
+        raw = method[len("http:") :].strip()
+        try:
+            requests = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise _invalid_method(case, "http: 后必须是 JSON 数组") from exc
+        if not isinstance(requests, list) or not requests:
+            raise _invalid_method(case, "http: 后必须是非空 JSON 数组")
+        for item in requests:
+            if not isinstance(item, dict):
+                raise _invalid_method(case, "http: 每项必须是对象")
+            for key in ("method", "url"):
+                value = item.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    raise _invalid_method(case, f"http: 每项需要非空 {key}")
+        return
+    if method.startswith("playwright:"):
+        if not method[len("playwright:") :].strip():
+            raise _invalid_method(case, "playwright: 后需要脚本路径")
+        return
+    for prefix in ("sql:", "junit:", "pytest:"):
+        if method.startswith(prefix):
+            if not method[len(prefix) :].strip():
+                raise _invalid_method(case, f"{prefix} 后不能为空")
+            return
+    raise _invalid_method(case, f"未知验证方式前缀：{method.split(':', 1)[0]}")
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def _command_matches(command: str, allowed: list[str]) -> bool:
+    normalized = " ".join(command.split())
+    for item in allowed:
+        candidate = " ".join(item.split())
+        if not candidate:
+            continue
+        if normalized == candidate:
+            return True
+        if normalized.startswith(candidate + " ") or candidate.startswith(normalized + " "):
+            return True
+    return False
+
+
+def _script_example_hosts(content: str) -> list[str]:
+    hosts: list[str] = []
+    for match in re.finditer(r"https?://([^/\s\"']+)", content):
+        host = match.group(1).split(":", 1)[0].lower()
+        if any(host == item or host.endswith(f".{item}") for item in _EXAMPLE_HOSTS):
+            hosts.append(host)
+    return hosts
+
+
+def _allowed_http_hosts(context: dict[str, Any]) -> set[str]:
+    hosts = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+    services = context.get("services")
+    if not isinstance(services, dict):
+        return hosts
+    entries: list[object] = (
+        [services] if {"start", "health", "stop"} & set(services) else list(services.values())
+    )
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("health_url", "health"):
+            raw = entry.get(key)
+            if not isinstance(raw, str) or "://" not in raw:
+                continue
+            host = urlsplit(raw).hostname
+            if host:
+                hosts.add(host.lower())
+    return hosts
+
+
+def _http_requests(case: Case) -> list[dict[str, Any]]:
+    method = case.verify_method.strip()
+    requests = json.loads(method[len("http:") :])
+    return [item for item in requests if isinstance(item, dict)]
+
+
+def _validate_business_http(case: Case, allowed_hosts: set[str]) -> None:
+    if not case.verify_method.strip().startswith("http:"):
+        return
+    for request in _http_requests(case):
+        url = str(request.get("url") or "").strip()
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if parts.scheme not in {"http", "https"} or not host:
+            raise invalid_request(f"用例 {case.case_id} 的 http 地址不是被测服务：{url}")
+        if host not in allowed_hosts:
+            raise invalid_request(
+                f"用例 {case.case_id} 的 http 地址不是被测服务：{url}",
+                "使用 services.health 的 host/port 或本机项目地址",
+            )
+
+
+def _validate_smoke_case(case: Case, allowed_commands: list[str]) -> None:
+    if case.layer != "L1":
+        raise invalid_request(f"用例 {case.case_id} 在冒烟目标下必须是 L1")
+    method = case.verify_method.strip()
+    if method.startswith(("http:", "playwright:", "script:", "manual", "sql:", "junit:")):
+        raise invalid_request(f"用例 {case.case_id} 在冒烟目标下只允许 command: 或 pytest:")
+    if method.startswith("command:"):
+        command = method[len("command:") :].strip()
+        if not _command_matches(command, allowed_commands):
+            raise invalid_request(
+                f"用例 {case.case_id} 的命令不是项目已有测试命令：{command}",
+                "只使用 context.test_commands 或 l1 配置中的命令",
+            )
+        return
+    if method.startswith("pytest:"):
+        if not any("pytest" in item for item in allowed_commands):
+            raise invalid_request(f"用例 {case.case_id} 使用了未配置的 pytest 命令")
+        return
+    raise _invalid_method(case, "冒烟目标只允许 command: 或 pytest:")
+
+
+def _validate_plan_cases(
+    cases: list[Case], intent: Literal["smoke", "business"], context: dict[str, Any]
+) -> None:
+    allowed_commands = _string_list(context.get("test_commands"))
+    l1 = context.get("l1")
+    if isinstance(l1, dict):
+        build = l1.get("build")
+        if isinstance(build, str) and build.strip():
+            allowed_commands.append(build.strip())
+        for module in _string_list(l1.get("entry")):
+            allowed_commands.append(f'python -c "import {module}"')
+    root = Path(str(context.get("root") or "."))
+    for module in _detect_entry_modules(root):
+        allowed_commands.append(f'python -c "import {module}"')
+    allowed_hosts = _allowed_http_hosts(context)
+    for case in cases:
+        _validate_verify_method(case)
+        if case.script_content:
+            hosts = _script_example_hosts(case.script_content)
+            if hosts:
+                raise invalid_request(f"用例 {case.case_id} 的脚本访问了外网示例域名：{hosts[0]}")
+        if intent == "smoke":
+            _validate_smoke_case(case, allowed_commands)
+        else:
+            _validate_business_http(case, allowed_hosts)
+
+
+def _detect_entry_modules(root: Path) -> list[str]:
+    modules: list[str] = []
+    ignored = {"tests", "test", "src", "__pycache__", "setup", "conftest"}
+    for base in (root / "src", root):
+        if not base.is_dir():
+            continue
+        for path in sorted(base.glob("*/__init__.py")):
+            name = path.parent.name
+            if name in ignored or name.startswith("."):
+                continue
+            if name not in modules:
+                modules.append(name)
+        for path in sorted(base.glob("*.py")):
+            name = path.stem
+            if (
+                name in ignored
+                or name.startswith(".")
+                or not name.isidentifier()
+                or name in modules
+            ):
+                continue
+            modules.append(name)
+    return modules[:3]
+
+
+def _smoke_command(context: dict[str, Any]) -> str:
+    commands = _string_list(context.get("test_commands"))
+    if commands:
+        return commands[0]
+    l1 = context.get("l1")
+    if isinstance(l1, dict):
+        build = l1.get("build")
+        if isinstance(build, str) and build.strip():
+            return build.strip()
+        entries = _string_list(l1.get("entry"))
+        if entries:
+            return f'python -c "import {entries[0]}"'
+    root = Path(str(context.get("root") or "."))
+    modules = _detect_entry_modules(root)
+    if modules:
+        return f'python -c "import {modules[0]}"'
+    raise AiTestError(
+        "INVALID_REQUEST",
+        "冒烟目标缺少可执行测试命令",
+        "在 project.config 配置 runners 或 l1，或提供 pytest/npm test",
+    )
+
+
+def _smoke_cases(task: Task, selected: list[str], context: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build deterministic L1 cases from existing test commands, never guessing."""
+    command = _smoke_command(context)
+    method = command if command.startswith(("command:", "pytest:")) else f"command: {command}"
+    raw: list[dict[str, Any]] = []
+    for item in task.acceptance_items:
+        if item.item_id not in selected:
+            continue
+        raw.append(
+            {
+                "acceptance_item_id": item.item_id,
+                "layer": "L1",
+                "expected": "L1 检查通过",
+                "expectation_source": item.text,
+                "verify_method": method,
+                "depends_on": None,
+            }
+        )
+    if not raw:
+        raw.append(
+            {
+                "acceptance_item_id": None,
+                "layer": "L1",
+                "expected": "项目构建/入口检查通过",
+                "expectation_source": "冒烟目标",
+                "verify_method": method,
+                "depends_on": None,
+            }
+        )
+    return raw
+
+
+# -- plan source signature --------------------------------------------------
+
+
+def _git_head(root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def _delivery_commit(ws: Workspace, project: Project, task_id: str) -> str:
+    path = ws.project_dir(project.project_id) / "deliveries" / f"{task_id}.json"
+    if path.is_file():
+        try:
+            delivery = read_model(path, Delivery)
+        except AiTestError:
+            delivery = None
+        if delivery is not None and delivery.commit.strip():
+            return delivery.commit.strip()
+    return _git_head(Path(project.root))
+
+
+def _plan_signature(
+    ws: Workspace,
+    project: Project,
+    task_id: str,
+    rules_version_id: str | None,
+) -> str:
+    config = load_project_config(ws, project.project_id)
+    services = config.get("services")
+    payload = {
+        "project_revision": project.revision,
+        "delivery_commit": _delivery_commit(ws, project, task_id),
+        "rules_version_id": rules_version_id or "",
+        "services": services if isinstance(services, dict) else {},
+        "root": project.root,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, Any]:
     del confirm
     task = _task(ws, payload)
@@ -166,43 +487,48 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         raise invalid_request("scope 必须是对象")
     scope = Scope.model_validate(scope_payload)
     selected, applicable = _selected_items(task, scope, project)
-    if not selected:
+    if not selected and task.intent != "smoke":
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条可用验收项")
     scope.acceptance_item_ids = list(selected)
+    context = _project_context(project, ws)
     raw_cases = payload.get("cases")
     if not isinstance(raw_cases, list) or not raw_cases:
-        client = build_client(ws, task.project_id)
-        if client is None:
-            raise AiTestError(
-                "MODEL_UNAVAILABLE",
-                "未配置模型，无法生成计划",
-                "配置模型密钥，或在 payload 提供 cases",
-            )
-        selected_items = [
-            item.model_dump(mode="json")
-            for item in task.acceptance_items
-            if item.item_id in selected
-        ]
-        raw_cases = []
-        context = _project_context(project, ws)
-        for item in client.generate_cases(task.model_dump(mode="json"), selected_items, context):
-            depends = item.get("depends_on")
-            first = depends[0] if isinstance(depends, list) and depends else None
-            raw_cases.append(
-                {
-                    "acceptance_item_id": item["acceptance_item_id"],
-                    "layer": item["layer"],
-                    "expected": item["expected"],
-                    "expectation_source": item["expectation_source"],
-                    "verify_method": _normalize_method(
-                        str(item["verify_method"]), item.get("script_name")
-                    ),
-                    "depends_on": first if first in {"build", "service"} else None,
-                    "script_name": item.get("script_name"),
-                    "script_content": item.get("script_content"),
-                }
-            )
-        align_generated_sources(raw_cases, task.acceptance_items)
+        if task.intent == "smoke":
+            raw_cases = _smoke_cases(task, selected, context)
+        else:
+            client = build_client(ws, task.project_id)
+            if client is None:
+                raise AiTestError(
+                    "MODEL_UNAVAILABLE",
+                    "未配置模型，无法生成计划",
+                    "配置模型密钥，或在 payload 提供 cases",
+                )
+            selected_items = [
+                item.model_dump(mode="json")
+                for item in task.acceptance_items
+                if item.item_id in selected
+            ]
+            raw_cases = []
+            for item in client.generate_cases(
+                task.model_dump(mode="json"), selected_items, context
+            ):
+                depends = item.get("depends_on")
+                first = depends[0] if isinstance(depends, list) and depends else None
+                raw_cases.append(
+                    {
+                        "acceptance_item_id": item["acceptance_item_id"],
+                        "layer": item["layer"],
+                        "expected": item["expected"],
+                        "expectation_source": item["expectation_source"],
+                        "verify_method": _normalize_method(
+                            str(item["verify_method"]), item.get("script_name")
+                        ),
+                        "depends_on": first if first in {"build", "service"} else None,
+                        "script_name": item.get("script_name"),
+                        "script_content": item.get("script_content"),
+                    }
+                )
+            align_generated_sources(raw_cases, task.acceptance_items)
     cases = [
         Case.model_validate(item)
         for item in raw_cases
@@ -210,6 +536,7 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         or item.get("acceptance_item_id") in selected
         or item.get("acceptance_item_id") is None
     ]
+    _validate_plan_cases(cases, task.intent, context)
     covered = {case.acceptance_item_id for case in cases if case.acceptance_item_id}
     missing = [item for item in selected if item not in covered]
     if missing:
@@ -228,11 +555,14 @@ def cmd_plan_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[st
         warnings=warnings,
         status="published",
     )
+    plan.source_signature = _plan_signature(ws, project, task.task_id, plan.rules_version_id)
     write_model(_plan_path(ws, task.project_id, plan.plan_id), plan)
     return {
         "plan_id": plan.plan_id,
         "revision": plan.revision,
         "status": plan.status,
+        "intent": task.intent,
+        "source_signature": plan.source_signature,
         "scope": scope.model_dump(mode="json"),
         "coverage": {"selected": len(selected), "applicable": applicable},
         "cases": len(cases),
@@ -256,18 +586,20 @@ def cmd_plan_update(ws: Workspace, payload: Payload, confirm: bool) -> dict[str,
         data["cases"] = patch["cases"]
     plan = Plan.model_validate(data)
     task = _task_by_id(ws, project.project_id, plan.task_id)
+    context = _project_context(project, ws)
+    _validate_plan_cases(plan.cases, task.intent, context)
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
     plan.revision += 1
     plan.status = "published"
+    plan.source_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
     write_model(_plan_path(ws, project.project_id, plan.plan_id), plan)
     return {
         "plan_id": plan.plan_id,
         "revision": plan.revision,
         "status": plan.status,
+        "source_signature": plan.source_signature,
         "warnings": plan.warnings,
-        "unverified_cases": [
-            case.case_id for case in plan.cases if not case.expectation_verified
-        ],
+        "unverified_cases": [case.case_id for case in plan.cases if not case.expectation_verified],
     }
 
 
@@ -285,6 +617,8 @@ def cmd_plan_publish(ws: Workspace, payload: Payload, confirm: bool) -> dict[str
     if plan.status == "published":
         raise AiTestError("RUN_STATE_CONFLICT", "计划已发布", "修改请用 plan.update")
     task = _task_by_id(ws, project.project_id, plan.task_id)
+    context = _project_context(project, ws)
+    _validate_plan_cases(plan.cases, task.intent, context)
     plan.warnings = annotate_cases(plan.cases, task.acceptance_items)
     plan.status = "published"
     plan.revision += 1
@@ -447,6 +781,17 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
     plan = _load_plan(ws, project.project_id, _text({"id": _require(payload, "plan_id")}, "id"))
     if plan.status != "published":
         raise AiTestError("PLAN_NOT_PUBLISHED", "计划尚未发布", "先发布计划")
+    warnings: list[str] = []
+    current_signature = _plan_signature(ws, project, plan.task_id, plan.rules_version_id)
+    if plan.source_signature:
+        if plan.source_signature != current_signature:
+            raise AiTestError(
+                "PLAN_STALE",
+                "计划生成后项目、交付提交、规则或服务配置已变化",
+                "重新生成计划后重试",
+            )
+    else:
+        warnings.append("计划没有来源签名，未校验来源是否变化")
     confirmed_by = _text(payload, "confirmed_by")
     selected = list(plan.scope.acceptance_item_ids)
     narrowing = payload.get("acceptance_item_ids")
@@ -457,7 +802,7 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         if outside:
             raise invalid_request("收窄范围超出计划范围：" + "、".join(outside))
         selected = [str(item) for item in narrowing]
-    if not selected:
+    if not selected and not any(case.acceptance_item_id is None for case in plan.cases):
         raise AiTestError("SCOPE_EMPTY", "本次范围为空", "至少选择一条验收项")
     environment = _environment_summary(ws, project.project_id)
     credentials = _credential_summary()
@@ -475,9 +820,7 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
                     "等待或取消现有运行后重试",
                 )
             explicit = confirm or bool(confirmed_by)
-            reused_record = _reusable_confirmation(
-                ws, project.project_id, fingerprint, selected
-            )
+            reused_record = _reusable_confirmation(ws, project.project_id, fingerprint, selected)
             if not explicit and reused_record is None:
                 raise AiTestError(
                     "CONFIRMATION_REQUIRED", "缺少执行前确认", "在面板确认或加 --confirm"
@@ -608,6 +951,7 @@ def cmd_run_start(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, A
         "status": "running",
         "scope": {"selected": len(selected), "applicable": plan.applicable_count},
         "confirmation": confirmation_info,
+        "warnings": warnings,
     }
 
 
@@ -741,9 +1085,7 @@ def cmd_run_manual(ws: Workspace, payload: Payload, confirm: bool) -> dict[str, 
             evidence_refs=refs,
             recorded_at=iso_now(),
         )
-        position = next(
-            (index for index, item in enumerate(log.steps) if item.step == step), None
-        )
+        position = next((index for index, item in enumerate(log.steps) if item.step == step), None)
         if position is None:
             log.steps.append(entry)
         else:
@@ -858,6 +1200,9 @@ def _analysis_lines(analysis: dict[str, Any]) -> list[str]:
     lines = [f"### 分析状态：{status}"]
     if status != "generated":
         lines.append("本轮未生成 AI 分析。")
+        reason = analysis.get("reason")
+        if reason:
+            lines.append(f"原因：{reason}")
         return lines
     lines.append(f"**观察**：{analysis.get('observed') or '未记录'}")
     evidence = analysis.get("evidence_refs") or []
@@ -1320,9 +1665,7 @@ def cmd_backup_restore(ws: Workspace, payload: Payload, confirm: bool) -> dict[s
         target.mkdir(parents=True, exist_ok=True)
         archive.extractall(target)
     missing = _missing_evidence(target)
-    notes = (
-        f"证据未包含：{len(missing)} 个引用在恢复目录中不存在" if missing else ""
-    )
+    notes = f"证据未包含：{len(missing)} 个引用在恢复目录中不存在" if missing else ""
     return {
         "target": str(target),
         "files": len(files),

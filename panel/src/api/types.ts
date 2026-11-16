@@ -69,8 +69,11 @@ export interface DeliveryDraft {
 export interface TaskSummary {
   task_id: string;
   title: string;
+  goal?: string;
   revision: number;
 }
+
+export type TaskIntent = "smoke" | "business";
 
 export type TemplateDisposition =
   | "applicable"
@@ -142,6 +145,7 @@ export interface Task {
   project_id: string;
   title: string;
   goal?: string;
+  intent?: TaskIntent;
   acceptance_items: AcceptanceItem[];
   revision: number;
 }
@@ -150,17 +154,20 @@ export interface TargetCandidate {
   title: string;
   reason?: string;
   source?: string;
+  intent?: TaskIntent;
 }
 
 export interface SuggestResult {
   candidates: TargetCandidate[];
   fallback: string;
+  fallback_intent?: TaskIntent;
   ai_generated?: boolean;
 }
 
 export interface AddTaskResult {
   task_id: string;
   revision: number;
+  intent?: TaskIntent;
   acceptance_items: { item_id: string; status: string; text: string }[];
 }
 
@@ -194,6 +201,7 @@ export interface Plan {
   cases: PlanCase[];
   templates?: TemplateResult[];
   status: "draft" | "published";
+  source_signature?: string;
   revision: number;
 }
 
@@ -204,6 +212,7 @@ export interface GeneratedPlan {
   scope: Scope;
   coverage: { selected: number; applicable: number };
   cases: number;
+  source_signature?: string;
 }
 
 export interface Attempt {
@@ -222,8 +231,16 @@ export interface RunCase {
   evidence_refs: string[];
 }
 
+export type AnalysisReason =
+  | "no_failures"
+  | "model_missing"
+  | "model_invalid"
+  | "model_error"
+  | "";
+
 export interface Analysis {
   status: "generated" | "not_generated" | "invalid";
+  reason?: AnalysisReason;
   model?: string;
   generated_at?: string;
   observed?: string;

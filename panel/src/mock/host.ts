@@ -40,6 +40,7 @@ const task = {
   project_id: project.project_id,
   title: "下单改版验证",
   goal: "上线前验证下单与库存扣减",
+  intent: "business",
   acceptance_items: items,
   revision: 2,
 };
@@ -225,6 +226,7 @@ const run = {
   analysis: [
     {
       status: "generated",
+      reason: "",
       model: "deepseek-chat",
       generated_at: "2026-11-16T14:27:10+08:00",
       observed:
@@ -250,13 +252,14 @@ const plan = {
   applicable_count: 8,
   cases: planCases,
   status: "published",
+  source_signature: "sha256:demo-plan",
   revision: 1,
 };
 
 const doctor: DoctorFacts = {
   workspace: { ok: true, path: "C:\\Users\\demo\\AppData\\Roaming\\aitest\\workspaces\\ws_demo", workspace_id: "ws_demo" },
   python: { ok: true, version: "3.13.1" },
-  package: { ok: true, version: "0.4.10" },
+  package: { ok: true, version: "0.5.0" },
   model: { ok: true, source: "user-config" },
   github: { ok: true, path: "C:\\Program Files\\GitHub CLI\\gh.exe" },
   proxy: { ok: true },
@@ -451,20 +454,25 @@ export function installMockHost(scenario = "proposal"): void {
                 title: "验证下单成功后订单只出现一次",
                 reason: "order 模块近三次提交都改动了创建逻辑",
                 source: "git",
+                intent: "business",
               },
               {
                 title: "验证并发下单时库存只扣减一次",
                 reason: "未关闭问题里有库存重复扣减",
                 source: "issue",
+                intent: "business",
               },
             ],
             fallback: "验证项目能否启动并跑通主流程",
+            intent: "smoke",
+            fallback_intent: "smoke",
             ai_generated: true,
           });
         case "task.add":
           return ok({
             task_id: TASK_ID,
             revision: taskRevision,
+            intent: "business",
             acceptance_items: taskItems.map((item) => ({
               item_id: item.item_id,
               status: item.status,
@@ -517,6 +525,7 @@ export function installMockHost(scenario = "proposal"): void {
             plan_id: PLAN_ID,
             revision: 1,
             status: "published",
+            source_signature: plan.source_signature,
             scope: { ...plan.scope, ...scope },
             coverage: { selected, applicable },
             cases: planCases.length,

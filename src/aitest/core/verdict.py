@@ -39,7 +39,14 @@ def item_outcomes(plan: Plan, run: Run) -> dict[str, CaseResult]:
 def verdict(plan: Plan, run: Run) -> Verdict:
     outcomes = item_outcomes(plan, run)
     if not outcomes:
-        return "not_applicable"
+        if not run.cases:
+            return "not_applicable"
+        results = [case.result for case in run.cases]
+        if any(result == "failed" for result in results):
+            return "failed"
+        if any(result in _PENDING for result in results):
+            return "incomplete"
+        return "passed" if all(result == "passed" for result in results) else "incomplete"
     if any(result == _FAILURE for result in outcomes.values()):
         return "failed"
     if any(result in _PENDING for result in outcomes.values()):

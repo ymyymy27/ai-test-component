@@ -52,6 +52,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 | `PROJECT_NOT_FOUND` | 项目不存在 | 先建项目或检查 ID |
 | `TASK_NOT_FOUND` | 任务不存在 | 先建任务 |
 | `PLAN_NOT_PUBLISHED` | 计划未发布 | 先 `plan.publish` |
+| `PLAN_STALE` | 计划来源签名与当前项目/交付/规则/服务不一致 | 重新生成计划后重试 |
 | `SCOPE_EMPTY` | 范围为空的 | 至少选一条验收项 |
 | `CONFIRMATION_REQUIRED` | 缺执行前确认 | 在面板确认或加 `--confirm` |
 | `RUN_ACTIVE` | 同一项目已有运行 | 等待、取消或查询现有运行 |
@@ -152,10 +153,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 返回：
 
 ```json
-{"candidates": [{"title": "验证订单创建流程", "reason": "order 模块近三次提交", "source": "git"}], "fallback": "验证项目能否启动并跑通主流程"}
+{"candidates": [{"title": "验证订单创建流程", "reason": "order 模块近三次提交", "source": "git", "intent": "business"}], "fallback": "验证项目能否启动并跑通主流程", "intent": "smoke", "fallback_intent": "smoke"}
 ```
 
-无信号时 `candidates` 为空、只给 `fallback`；AI 不可用时返回 `ok: true` 并标 `ai_generated: false`。
+无信号时 `candidates` 为空、只给 `fallback`；AI 不可用时返回 `ok: true` 并标 `ai_generated: false`。通用目标（`fallback`）的 `intent` 为 `smoke`。
 
 #### `task.add`
 
@@ -170,6 +171,7 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
   "preconditions": ["测试库可用"],
   "executor": "李四",
   "reviewer": "王五",
+  "intent": "business",
   "acceptance_items": [
     {"text": "下单后订单列表出现该订单", "observable": true, "source": "任务描述"},
     {"text": "系统要稳定", "observable": false, "source": "任务描述"}
@@ -177,9 +179,9 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 }
 ```
 
-返回：`{"task_id": "task_...", "revision": 1, "acceptance_items": [{"item_id": "ai_...", "status": "active|pending"}]}`。
+返回：`{"task_id": "task_...", "revision": 1, "intent": "business", "acceptance_items": [{"item_id": "ai_...", "status": "active|pending", "observable": true}]}`。
 
-`observable=false` 的项标 `pending`，不进入范围。
+`intent` 可选，取值 `smoke|business`，默认按 `goal` 推断：只含“能否启动/跑通主流程”等泛化目标且无具体业务词时为 `smoke`，否则 `business`。`observable=false` 的项标 `pending`，不进入范围。AI 提取出的泛化描述（如“项目能够启动”“主流程能够跑通”）自动标 `observable=false` 并转 `pending`；没有可观察项时任务照常保存，验收项列表为空。
 
 #### `task.update` / `task.list` / `task.show`
 
@@ -259,14 +261,18 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 返回：
 
 ```json
-{"plan_id": "plan_...", "revision": 1, "scope": {"preset": "selected", "acceptance_item_ids": ["ai_1", "ai_3"], "coverage": {"selected": 2, "applicable": 8}}, "cases": [], "status": "published", "ai_generated": true}
+{"plan_id": "plan_...", "revision": 1, "intent": "business", "source_signature": "sha256", "scope": {"preset": "selected", "acceptance_item_ids": ["ai_1", "ai_3"], "coverage": {"selected": 2, "applicable": 8}}, "cases": [], "status": "published", "ai_generated": true}
 ```
 
-规则：每个选中验收项至少一条用例；预期必须带 `expectation_source`；生成后自动发布为 `published`。
+规则：每个选中验收项至少一条用例；预期必须带 `expectation_source`；生成后自动发布为 `published`。`verify_method` 必须合法：`command:` 后非空；`script:` 需要 `script_name` 与 `script_content`；`http:` 必须是非空 JSON 数组且每项有 `method/url`；`playwright:` 路径非空；`sql:`/`junit:`/`pytest:` 参数非空；不合法返回 `INVALID_REQUEST` 并指出 `case_id`。
+
+`task.intent=smoke` 时只生成 L1 用例：优先使用项目已有测试命令（`project.config` 的 `runners`/`l1`、`pyproject` 的 pytest 配置、`package.json` 的 `test` 脚本），没有命令时使用 `l1.build` 或可识别的入口导入；不允许 `http:`、`playwright:` 或外部 URL。`task.intent=business` 时保留原有分层逻辑，但 `http:` URL 必须指向 `services` 的 health host/port 或本机项目地址，不得使用 README 示例外网 URL；生成脚本不得访问外网示例域名。
+
+`source_signature` 由 `project.revision`、交付提交（无则 `git HEAD`）、`rules_version_id`、`services` 配置摘要与项目根目录计算。
 
 #### `plan.update`
 
-入参 `{"plan_id", "patch": {"cases": [...]}, "expected_revision": 1}`；生成新修订并重新发布；旧运行仍引用旧计划。
+入参 `{"plan_id", "patch": {"cases": [...]}, "expected_revision": 1}`；生成新修订并重新发布；旧运行仍引用旧计划。更新后重新计算并保存 `source_signature`。
 
 #### `plan.show` / `plan.publish`
 
@@ -283,10 +289,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 `acceptance_item_ids` 可省略；省略时使用计划范围。返回：
 
 ```json
-{"run_id": "run_...", "status": "running", "scope": {"selected": 2, "applicable": 8}}
+{"run_id": "run_...", "status": "running", "scope": {"selected": 2, "applicable": 8}, "warnings": []}
 ```
 
-规则：必须有确认记录或 `--confirm`；同一项目已有运行返回 `RUN_ACTIVE`；范围为空返回 `SCOPE_EMPTY`。
+规则：必须有确认记录或 `--confirm`；同一项目已有运行返回 `RUN_ACTIVE`；范围为空返回 `SCOPE_EMPTY`。启动前重新计算计划来源签名：非空签名与当前项目/交付提交/规则/服务配置不一致时返回 `PLAN_STALE`；旧计划签名为空时放行，并在 `warnings` 标注未校验来源。
 
 #### `run.status` / `run.list`
 
@@ -358,10 +364,10 @@ python -m aitest.cli <command> --workspace <dir> [--input <json-file>] [--confir
 入参 `{"run_id"}`；返回：
 
 ```json
-{"status": "generated|not_generated|invalid", "analysis": {"observed": "...", "evidence_refs": [], "candidate_causes": [{"cause": "...", "confidence": "medium"}], "unverified": ["..."], "next_steps": ["..."]}}
+{"status": "generated|not_generated|invalid", "reason": "no_failures|model_missing|model_invalid|model_error|", "analysis": {"observed": "...", "evidence_refs": [], "candidate_causes": [{"cause": "...", "confidence": "medium"}], "unverified": ["..."], "next_steps": ["..."]}}
 ```
 
-缺 `unverified` 时 `status: invalid`，`analysis` 为 `null`。
+缺 `unverified` 时 `status: invalid`，`analysis` 为 `null`。`reason` 说明未生成原因：无失败 `no_failures`、未配置模型 `model_missing`、模型输出不合格 `model_invalid`、模型调用异常 `model_error`；生成成功时为空字符串。
 
 ### 4.10 GitHub 与链路
 

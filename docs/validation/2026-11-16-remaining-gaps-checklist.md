@@ -14,6 +14,7 @@
 - [x] H7 单页测试单：建议 / 运行 / 结果在同一张测试单内切换，历史与调整改为右侧抽屉；删除四步向导、项目仪表盘、运行页、结果页与独立证据/问题页；开始测试一次点击、再测一次复用最近计划、历史回放、内联证据与问题（`panel npm test` 43 项、`panel npm run build`、`integrations/trae npm run build`、静态 mock 截图 `docs/validation/2026-11-16-panel-v4/`；真实 Trae 本轮未重新安装，未在真实 webview 重验）
 
 - [x] H8 多轮与大项目实跑：Flaskr 连续 3 次通过；requests 修正 AI 脚本后连续 3 次通过
+- [x] H9 同类问题修复：分析未生成按 `analysis.reason` 区分文案；`PLAN_STALE` 自动重生成计划且只重试一次；`task.list` 同 title+goal 任务复用；演示宿主版本 0.5.0（`panel npm test` 54 项、`panel npm run build`、`integrations/trae npm run build`；真实 Trae 本轮未重新安装重验）
 
 ## I 验证缺口
 

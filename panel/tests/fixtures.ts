@@ -166,6 +166,7 @@ export const TASK: Task = {
   project_id: PROJECT.project_id,
   title: "验证下单成功后订单只出现一次",
   goal: "验证下单成功后订单只出现一次",
+  intent: "business",
   acceptance_items: ITEMS,
   revision: 1,
 };
@@ -204,13 +205,14 @@ export const PLAN: Plan = {
   applicable_count: 3,
   cases: PLAN_CASES,
   status: "published",
+  source_signature: "sha256:test-plan",
   revision: 1,
 };
 
 export const DOCTOR: DoctorFacts = {
   workspace: { ok: true, path: "C:\\data\\ws" },
   python: { ok: true, version: "3.13.1" },
-  package: { ok: true, version: "0.4.10" },
+  package: { ok: true, version: "0.5.0" },
   model: { ok: true, source: "user-config" },
   github: { ok: true },
   proxy: { ok: true },
@@ -255,6 +257,7 @@ export const RUN_DETAIL: RunDetail = {
     analysis: [
       {
         status: "generated",
+        reason: "",
         observed: "两次相同幂等键都生成了订单",
         evidence_refs: ["evidence/order-list.png"],
         candidate_causes: [{ cause: "幂等键没有唯一约束", confidence: "medium" }],
@@ -373,15 +376,29 @@ export function sessionRoutes(overrides: Record<string, Route> = {}): Record<str
     "project.config": { config: {} },
     "task.suggest": {
       candidates: [
-        { title: "验证下单成功后订单只出现一次", reason: "order 模块近三次提交", source: "git" },
-        { title: "验证并发下单库存只扣一次", reason: "未关闭问题", source: "issue" },
+        {
+          title: "验证下单成功后订单只出现一次",
+          reason: "order 模块近三次提交",
+          source: "git",
+          intent: "business",
+        },
+        {
+          title: "验证并发下单库存只扣一次",
+          reason: "未关闭问题",
+          source: "issue",
+          intent: "business",
+        },
       ],
       fallback: "验证项目能否启动并跑通主流程",
+      intent: "smoke",
+      fallback_intent: "smoke",
       ai_generated: true,
     },
+    "task.list": { tasks: [] },
     "task.add": {
       task_id: TASK.task_id,
       revision: 1,
+      intent: "business",
       acceptance_items: ITEMS.map((item) => ({
         item_id: item.item_id,
         status: item.status,

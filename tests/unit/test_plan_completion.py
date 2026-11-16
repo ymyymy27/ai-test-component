@@ -310,6 +310,16 @@ def test_run_start_reuses_confirmation_and_requires_new_one_after_env_change(
     (ws.project_dir(project_id) / "project.config.json").write_text(
         json.dumps({"services": {"web": {"health": "", "start": ""}}}), encoding="utf-8"
     )
+    stale = call(
+        tmp_path,
+        "run.start",
+        {"project_id": project_id, "plan_id": plan["plan_id"]},
+        capsys,
+    )
+    assert stale["ok"] is False
+    assert stale["error"]["code"] == "PLAN_STALE"
+
+    plan = _plan(tmp_path, capsys, setup, [_case(setup)])
     changed = call(
         tmp_path,
         "run.start",

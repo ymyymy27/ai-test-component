@@ -22,15 +22,37 @@ const acceptable = computed(
     Boolean(props.analysis.unverified && props.analysis.unverified.length > 0),
 );
 
+const REASON_TEXT: Record<string, string> = {
+  no_failures: "本次没有失败，不需要生成分析。",
+  model_missing: "模型未配置或不可用，分析未生成。",
+  model_invalid: "模型输出不合格，已隐藏。",
+  model_error: "模型调用失败，可稍后重试。",
+};
+
+const reasonText = computed(() => REASON_TEXT[props.analysis?.reason ?? ""] ?? "分析未生成。");
+
+const canRetry = computed(
+  () => props.canGenerate && props.analysis?.reason !== "no_failures",
+);
+
 const state = computed(() => {
-  if (!props.analysis || props.analysis.status === "not_generated") {
+  if (!props.analysis) {
     return props.canGenerate ? "missing" : "unavailable";
+  }
+  if (props.analysis.status === "not_generated") {
+    return "reason";
   }
   if (props.analysis.status === "invalid") {
     return "invalid";
   }
   return acceptable.value ? "ready" : "invalid";
 });
+
+const invalidText = computed(() =>
+  props.analysis?.reason === "model_invalid"
+    ? "模型输出不合格，已隐藏。"
+    : "分析不合格，已隐藏。缺少“未验证范围”的分析不能作为结论依据。",
+);
 </script>
 
 <template>
@@ -47,12 +69,24 @@ const state = computed(() => {
       </AppButton>
     </div>
 
+    <div v-else-if="state === 'reason'" class="state">
+      <p class="state-text">{{ reasonText }}</p>
+      <AppButton
+        v-if="canRetry"
+        size="sm"
+        :loading="loading"
+        @click="$emit('generate')"
+      >
+        生成失败分析
+      </AppButton>
+    </div>
+
     <div v-else-if="state === 'unavailable'" class="state">
-      <p class="state-text">分析未生成：模型当前不可用。测试结果与证据不受影响。</p>
+      <p class="state-text">分析未生成。</p>
     </div>
 
     <div v-else-if="state === 'invalid'" class="state">
-      <p class="state-text">分析不合格，已隐藏。缺少“未验证范围”的分析不能作为结论依据。</p>
+      <p class="state-text">{{ invalidText }}</p>
     </div>
 
     <div v-else class="segments">

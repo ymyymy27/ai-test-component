@@ -85,6 +85,7 @@ export const api = {
     title: string;
     goal?: string;
     requirement?: string;
+    intent?: "smoke" | "business";
     acceptanceItems?: { text: string; observable: boolean; source?: string }[];
   }): Promise<AddTaskResult> {
     const payload: Record<string, unknown> = {
@@ -96,6 +97,9 @@ export const api = {
     }
     if (input.requirement) {
       payload["requirement"] = input.requirement;
+    }
+    if (input.intent) {
+      payload["intent"] = input.intent;
     }
     if (input.acceptanceItems && input.acceptanceItems.length > 0) {
       payload["acceptance_items"] = input.acceptanceItems;
