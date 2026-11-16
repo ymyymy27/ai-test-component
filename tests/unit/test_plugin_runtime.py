@@ -111,7 +111,7 @@ def test_run_completes_and_reports_passed(tmp_path: Path, capsys: Capsys) -> Non
     assert started["ok"] is True
     run_id = started["data"]["run_id"]
     status: dict[str, Any] = {}
-    for _ in range(100):
+    for _ in range(300):
         status = call(
             tmp_path,
             "run.status",
@@ -158,7 +158,7 @@ def test_failed_command_reports_failed(tmp_path: Path, capsys: Capsys) -> None:
         confirm=True,
     )
     run_id = started["data"]["run_id"]
-    for _ in range(100):
+    for _ in range(300):
         status = call(
             tmp_path,
             "run.status",
@@ -184,3 +184,47 @@ def test_backup_create_excludes_evidence_and_restores(tmp_path: Path, capsys: Ca
     )
     assert restored["ok"] is True
     assert (target / "workspace.json").is_file()
+
+
+def test_stale_running_run_is_marked_interrupted(tmp_path: Path, capsys: Capsys) -> None:
+    from aitest.models import Run, Scope
+    from aitest.storage.files import write_model
+    from aitest.storage.workspace import Workspace
+
+    setup = _setup_task(tmp_path, capsys)
+    ws = Workspace(tmp_path / "ws")
+    run_id = "run_stale"
+    run_dir = ws.project_dir(setup["project"]["project_id"]) / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    write_model(
+        run_dir / "run.json",
+        Run(
+            run_id=run_id,
+            plan_id="plan_x",
+            project_id=setup["project"]["project_id"],
+            scope=Scope(acceptance_item_ids=[setup["item"]]),
+            status="running",
+            pid=999999,
+            started_at="2000-01-01T00:00:00+08:00",
+            heartbeat_at="2000-01-01T00:00:00+08:00",
+        ),
+    )
+    status = call(
+        tmp_path,
+        "run.status",
+        {"project_id": setup["project"]["project_id"], "run_id": run_id},
+        capsys,
+    )
+    assert status["data"]["run"]["status"] == "interrupted"
+
+
+def test_backup_restore_rejects_non_empty_target(tmp_path: Path, capsys: Capsys) -> None:
+    _setup_task(tmp_path, capsys)
+    archive = tmp_path / "backup.zip"
+    assert call(tmp_path, "backup.create", {"path": str(archive)}, capsys)["ok"] is True
+    target = tmp_path / "restored"
+    target.mkdir()
+    (target / "occupied.txt").write_text("x", encoding="utf-8")
+    result = call(tmp_path, "backup.restore", {"path": str(archive), "target": str(target)}, capsys)
+    assert result["ok"] is False
+    assert result["error"]["code"] == "INVALID_PATH"

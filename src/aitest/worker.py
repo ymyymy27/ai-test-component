@@ -104,6 +104,9 @@ def _execute(case: Case, workdir: Path) -> tuple[str, list[bytes], str]:
     method = case.verify_method or ""
     if method.startswith("command:"):
         result = run_command(method[len("command:") :].strip(), cwd=workdir)
+    elif method.startswith("playwright:"):
+        script = method[len("playwright:") :].strip()
+        result = run_command(f'npx playwright test "{script}"', cwd=workdir)
     elif method.startswith("http:"):
         try:
             requests = json.loads(method[len("http:") :])
