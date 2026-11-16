@@ -53,7 +53,7 @@ def _remember_panel_session(
 _ACTION_LABELS = {
     "save_context": "保存项目名称与测试目标",
     "save_binding": "绑定被测项目目录",
-    "save_environment": "保存测试环境与数据复位说明",
+    "save_environment": "保存测试环境",
     "save_model_outbound_policy": "确认模型接收方与允许发送的材料",
     "generate_draft": "请求模型准备测试建议",
     "save_case": "保存待核对的测试用例",

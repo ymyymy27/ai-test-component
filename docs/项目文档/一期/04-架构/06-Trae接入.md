@@ -74,7 +74,7 @@ CLI（discover → 命名管道 → 回执核对）
 
 ### 2.2 动作目录
 
-`PHASE_ONE_ACTIONS` 共 66 项，其中 `READ_ACTIONS` 13 项、可写 53 项。按用途归并（名称逐字取自代码）：
+`PHASE_ONE_ACTIONS` 共 67 项，其中 `READ_ACTIONS` 13 项、可写 54 项。按用途归并（名称逐字取自代码）：
 
 | 动作组 | 动作 |
 | --- | --- |
@@ -120,7 +120,7 @@ CLI（discover → 命名管道 → 回执核对）
 - `retryable` 默认 `false`；`LocalAPI._error()` 只把 `WORKSPACE_IN_USE` 与 `SNAPSHOT_REQUIRED` 置为可重试，并给出对应 `next_step`。
 - 读取期间提交边界变化返回 `SNAPSHOT_REQUIRED`，要求重新取得同边界快照与游标，不能静默从最新位置续接。
 - 面板确认相关的专用代码在实现内另有 `ENTRY_ACTION_NOT_ALLOWED`、`USER_DECLINED`、`INVALID_COMMAND`、`PANEL_CONFIRMATION_EXPIRED`、`PANEL_CONFIRMATION_UNAVAILABLE`、`CONFIRMATION_PREVIEW_LIMIT`，以及扩展侧的 `CORE_RESULT_UNVERIFIED`、`CORE_UNAVAILABLE`、`ENTRY_TIMEOUT`、`ENTRY_SPAWN_FAILED`、`ENTRY_OUTPUT_LIMIT`、`ENTRY_INVALID_CONFIG`、`PROJECT_CONTEXT_MISMATCH`、`PROJECT_CONTEXT_CHANGED`。
-- 通道层还有 `MALFORMED_MESSAGE`、`UNKNOWN_CONTROL`、`NATIVE_CONFIRMATION_UNAVAILABLE`、`NATIVE_SESSION_FINALIZATION_UNVERIFIED`、`NATIVE_BATCH_UNAVAILABLE`、`CAPABILITY_DEGRADED`；它们不在 `ErrorCode` 枚举内，由核心或适配器按具体失败路径返回。
+- 通道层还有 `MALFORMED_MESSAGE`、`UNKNOWN_CONTROL`、`CAPABILITY_DEGRADED`；它们不在 `ErrorCode` 枚举内，由核心或适配器按具体失败路径返回。
 
 ### 3.1 入口权限
 
@@ -287,6 +287,6 @@ CLI（discover → 命名管道 → 回执核对）
 | `doctor` 返回 `READY`／`DEGRADED`／`NOT_READY` | 只有 `READY`／`NOT_READY` | 按代码写第 3.1 节 |
 | 响应顶层含对象修订与 `run_id` | `Response` 只有 `result`／`page`／`error`，修订与 `run_id` 在 `result` 内 | 按代码写第 2.1 节 |
 | 计划级许可含 `plan_id` 与 `credential` | `PlanExecutionGrant` 无 `plan_id` 字段（在记录与绑定中），凭据字段名为 `credential_scope_ref` | 按代码写第 7.3 节 |
-| 现状页写“一期动作表 59 项” | `PHASE_ONE_ACTIONS` 为 66 项，13 项只读、53 项可写 | 按代码写第 2.2 节；现状页数字待其维护者同步 |
+| 旧稿写“一期动作表 59 项/66 项” | `PHASE_ONE_ACTIONS` 为 67 项，13 项只读、54 项可写 | 按代码写第 2.2 节；现状页已同步 |
 | 所有人工动作都可经面板确认 | 9 个挑战动作走 `prepare`/`confirm`，9 个无挑战动作走 `phase: "human"` 直接派发；两条都只接受 `HUMAN_UI` 连接 | 第 4.2、4.3 节 |
 | 兼容清单可选 `editor_distribution` | 两处旧写法不一致，代码无生成器 | 统一为第 5 节 12 字段一套，国际版/中国版必须区分 |
