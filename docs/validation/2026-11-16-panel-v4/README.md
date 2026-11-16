@@ -9,5 +9,6 @@
 - `history-drawer.png`：历史时间线，当前运行高亮；点一项在当前视图回放该次结果。
 - `settings.png`：设置主视图仍只有环境/模型/工作空间/GitHub 事实，服务与链路等 JSON 收在“高级配置”。
 - `proposal-420.png`：420px 窄幅下建议测试单为单列、主操作可达。
-- 已验证：`panel npm test` 43 项通过、`panel npm run build` 与 `integrations/trae npm run build` 通过；截图来自开发模式静态 mock。
-- 未验证：本轮未重新安装真实 Trae，未在真实 webview 重走主路径；真实 CLI 数据下的抽屉、历史回放与键盘操作待下次宿主验收。
+- 已验证：`panel npm test` 43 项通过、`panel npm run build` 与 `integrations/trae npm run build` 通过；mock 截图见上。
+- 真实 Trae：已安装 0.5.0 VSIX，打开面板直接回放上次结果；`再测一次` 复用计划并完成运行（Flask 服务未启动，结果按 blocked 记“未完成”）；`新目标` 生成建议测试单（`trae-proposal.png`）。
+- 未验证：真实 Trae 中的历史抽屉回放、调整抽屉保存、键盘操作；未启动 Flask 服务时的 blocked 结果不代表产品失败。
