@@ -22,14 +22,13 @@ import hashlib
 import json
 import os
 import re
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 from aitest.domain.json_material import decode_json
 
-from .integrity import _iter_digest_refs, check_workspace
+from .integrity import check_workspace
 
 _AUDIT_NAME: Final = "audit.jsonl"
 _MAINTENANCE_DIR: Final = "maintenance"
@@ -67,15 +66,6 @@ class MaintenanceError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class ReclaimCandidate:
-    """一个经落盘事实确认可安全回收的候选。"""
-
-    relative_path: str
-    size_bytes: int
-    reason: str
-
-
-@dataclass(frozen=True, slots=True)
 class SpaceReport:
     """空间诊断结果。"""
 
@@ -85,21 +75,8 @@ class SpaceReport:
     temp_bytes: int
     backup_bytes: int
     other_bytes: int
-    reclaimable_bytes: int
-    reclaimable_files: int
     integrity_ok: bool
     integrity_errors: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ReclaimReport:
-    """回收执行结果。"""
-
-    state: str  # preview | reclaimed | blocked
-    removed: tuple[str, ...]
-    bytes_freed: int
-    refused: tuple[str, ...]
-    blocked_reason: str = ""
 
 
 def detect_activity_blocker(workspace_root: Path) -> str | None:
@@ -225,12 +202,6 @@ class FileMaintenanceService:
                 totals[category] += size
                 total_bytes += size
                 total_files += 1
-        candidates: tuple[ReclaimCandidate, ...] = ()
-        with suppress(MaintenanceError):
-            # 永久引用不可读时回收资格不可证明；空间诊断仍可给出占用，
-            # 但可回收量保守为 0（A-07）。
-            candidates = self.reclaimable()
-        reclaimable_bytes = sum(candidate.size_bytes for candidate in candidates)
         integrity = check_workspace(self._root)
         raw_errors = integrity.get("errors", [])
         errors = tuple(str(error) for error in raw_errors) if isinstance(raw_errors, list) else ()
@@ -241,223 +212,13 @@ class FileMaintenanceService:
             temp_bytes=totals["temp"],
             backup_bytes=totals["backup"],
             other_bytes=totals["other"],
-            reclaimable_bytes=reclaimable_bytes,
-            reclaimable_files=len(candidates),
             integrity_ok=bool(integrity.get("ok")),
             integrity_errors=errors,
         )
 
     # ----- 候选识别 ---------------------------------------------------
 
-    def reclaimable(self) -> tuple[ReclaimCandidate, ...]:
-        """列出全部经活动/引用事实确认可安全回收的候选。"""
-        candidates: list[ReclaimCandidate] = []
-        referenced = self._referenced_digests()
-        for current_root, _dirs, files in os.walk(self._root):
-            current_dir = Path(current_root)
-            for name in files:
-                path = current_dir / name
-                candidate = self._classify_candidate(path, referenced)
-                if candidate is not None:
-                    candidates.append(candidate)
-        candidates.sort(key=lambda candidate: candidate.relative_path)
-        return tuple(candidates)
-
-    def _referenced_digests(self) -> set[str]:
-        """永久记录/台账中声明的全部 sha256 引用（活动暂存除外）。
-
-        同时读取永久 ``*.json`` 与 ``*.jsonl``（逐行解析）：JSONL 事件/
-        审计台账同样构成引用事实，漏读会把仍被引用的临时材料当垃圾回收
-        （A-MAINTENANCE-02）。任何永久引用文件不可读/不可解析时，引用
-        集合不完整，直接抛 :class:`MaintenanceError` 阻塞回收——未知引用
-        与“无引用”不是同一事实。
-        """
-        referenced: set[str] = set()
-        unreadable: list[str] = []
-        for path in self._root.rglob("*"):
-            if not path.is_file() or path.is_symlink() or path.name.startswith("."):
-                continue
-            parts = path.relative_to(self._root).parts
-            if parts[:2] == ("event-log", "staging"):
-                continue
-            suffix = path.suffix.lower()
-            if suffix not in {".json", ".jsonl"}:
-                continue
-            try:
-                raw = path.read_bytes()
-            except OSError:
-                unreadable.append(path.relative_to(self._root).as_posix())
-                continue
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                unreadable.append(path.relative_to(self._root).as_posix())
-                continue
-            if suffix == ".json":
-                try:
-                    referenced.update(_iter_digest_refs(decode_json(text)))
-                except ValueError:
-                    unreadable.append(path.relative_to(self._root).as_posix())
-            else:
-                for line in text.splitlines():
-                    if not line.strip():
-                        continue
-                    try:
-                        referenced.update(_iter_digest_refs(decode_json(line)))
-                    except ValueError:
-                        unreadable.append(path.relative_to(self._root).as_posix())
-                        break
-        if unreadable:
-            raise MaintenanceError(
-                "存在不可读的永久引用文件，回收资格无法证明，已阻塞: "
-                + ", ".join(sorted(set(unreadable)))
-            )
-        return referenced
-
-    def _classify_candidate(self, path: Path, referenced: set[str]) -> ReclaimCandidate | None:
-        try:
-            stat = path.stat()
-            size = stat.st_size
-            relative = path.relative_to(self._root)
-        except (OSError, ValueError):
-            return None
-        parts = relative.parts
-        if not parts or parts[0] in _NEVER_SCAN_TOPS:
-            return None
-        relative_posix = relative.as_posix()
-
-        if size == 0 and _EMPTY_DIGEST in referenced:
-            return None
-        if _is_empty_staging(path, self._root):
-            return ReclaimCandidate(relative_posix, size, "零字节空暂存文件")
-
-        if not path.name.startswith("."):
-            return None
-
-        if size > 0:
-            # 引用事实：候选字节本身被永久记录引用时绝不回收。
-            with path.open("rb") as handle:
-                digest = hashlib.sha256(handle.read()).hexdigest()
-            if digest in referenced:
-                return None
-        else:
-            digest = ""
-
-        candidate = self._classify_temporary(path, stat.st_mtime_ns, digest)
-        if candidate is None:
-            return None
-        return ReclaimCandidate(relative_posix, size, candidate)
-
-    def _classify_temporary(self, path: Path, mtime_ns: int, digest: str) -> str | None:
-        """按真实发布/进程事实判定隐藏临时文件的回收资格与理由。"""
-        name = path.name
-
-        # 形态一：core 启动暂存 .<base>.<pid>.tmp —— PID 必须已消亡。
-        pid_match = _PID_TMP.match(name)
-        if pid_match is not None and path.parent == self._root / "core":
-            pid = int(pid_match.group("pid"))
-            if _pid_is_dead(pid):
-                return f"进程 {pid} 已消亡的启动暂存"
-            return None
-
-        # 形态二：events 边界/位置发布的 .<name>.tmp（以及 snapshots/core
-        # 无 PID 形态、工作空间根下的边界文件发布）：正式目标必须已发布
-        # 且候选不新于目标。
-        if name.endswith(".tmp"):
-            at_root = path.parent == self._root
-            top = path.relative_to(self._root).parts[0]
-            if not at_root and top not in _TMP_ALLOWED_TOPS:
-                return None
-            base = name[1:-4]
-            target = path.with_name(base)
-            if not target.is_file():
-                return None
-            if mtime_ns > target.stat().st_mtime_ns:
-                # 候选比正式目标还新：更像在途写入，不是发布遗留。
-                return None
-            return "正式目标已发布的原子暂存遗留"
-
-        # 形态三：mkstemp 的 .<target>.<8 位随机尾>。
-        body = name[1:]
-        target_name, separator, tail = body.rpartition(".")
-        if not separator or not _MKSTEMP_TAIL.fullmatch(tail) or not target_name:
-            return None
-        target = path.with_name(target_name)
-        if not target.is_file():
-            return None
-        if mtime_ns > target.stat().st_mtime_ns:
-            return None
-        # 目标内容与候选一致是最常见的成功替换遗留；若不一致，则要求
-        # 候选字节未被任何永久记录引用（上面统一已查 digest）。
-        return "已发布目标对应的原子发布遗留临时文件"
-
     # ----- 受控回收 ---------------------------------------------------
-
-    def reclaim(
-        self,
-        *,
-        relative_paths: tuple[str, ...] | list[str] | None = None,
-        dry_run: bool = True,
-    ) -> ReclaimReport:
-        """回收候选；默认仅预览。删除前再次按全部事实复核。
-
-        存在未核实活动（活动标记或非空暂存）时整体阻塞：候选可能正被
-        活动执行引用，资格未被证实，不得按位置/名字猜测回收。
-        """
-        blocker = detect_activity_blocker(self._root)
-        try:
-            candidates = self.reclaimable()
-        except MaintenanceError as error:
-            # 永久引用不可读 → 引用事实未知，整体阻塞，不按名字/位置猜测。
-            return ReclaimReport(
-                state="blocked",
-                removed=(),
-                bytes_freed=0,
-                refused=tuple(relative_paths or ()),
-                blocked_reason=str(error),
-            )
-        allowed = {candidate.relative_path: candidate for candidate in candidates}
-        requested = list(allowed) if relative_paths is None else list(relative_paths)
-        if blocker is not None:
-            return ReclaimReport(
-                state="blocked",
-                removed=(),
-                bytes_freed=0,
-                refused=tuple(requested),
-                blocked_reason=blocker,
-            )
-        removed: list[str] = []
-        refused: list[str] = []
-        bytes_freed = 0
-        for relative in requested:
-            candidate = allowed.get(relative)
-            try:
-                still_safe = (
-                    candidate is not None
-                    and detect_activity_blocker(self._root) is None
-                    and self._still_safe(relative)
-                )
-            except MaintenanceError:
-                # 删除前复核时引用事实变得不可读：保守拒绝。
-                still_safe = False
-            if not still_safe:
-                refused.append(relative)
-                continue
-            if dry_run:
-                continue
-            path = self._resolve_within_root(relative)
-            size = path.stat().st_size
-            path.unlink()
-            removed.append(relative)
-            bytes_freed += size
-            self._audit(relative, size)
-        state = "preview" if dry_run else "reclaimed"
-        return ReclaimReport(
-            state=state,
-            removed=tuple(removed),
-            bytes_freed=bytes_freed,
-            refused=tuple(refused),
-        )
 
     # ----- 内部 -------------------------------------------------------
 
@@ -476,32 +237,6 @@ class FileMaintenanceService:
         if head in {"transactions", _MAINTENANCE_DIR}:
             return "temp"
         return "other"
-
-    def _resolve_within_root(self, relative: str) -> Path:
-        path = (self._root / relative).resolve()
-        if not path.is_relative_to(self._root):
-            raise MaintenanceError(f"候选路径越界: {relative}")
-        return path
-
-    def _still_safe(self, relative: str) -> bool:
-        """删除前重新按全部事实判定，防止候选识别后状态变化。"""
-        path = self._resolve_within_root(relative)
-        if not path.exists() or not path.is_file():
-            return False
-        if path.stat().st_size == 0 and _EMPTY_DIGEST in self._referenced_digests():
-            return False
-        if _is_empty_staging(path, self._root):
-            return True
-        if not path.name.startswith("."):
-            return False
-        if path.stat().st_size > 0:
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            if digest in self._referenced_digests():
-                return False
-        candidate = self._classify_temporary(
-            path, path.stat().st_mtime_ns, digest if path.stat().st_size else ""
-        )
-        return candidate is not None
 
     def record_backup(
         self,
@@ -574,24 +309,9 @@ class FileMaintenanceService:
             raise MaintenanceError(f"备份审计不可读: {error}") from error
         return tuple(facts)
 
-    def _audit(self, relative: str, size: int) -> None:
-        entry = {
-            "schema": _AUDIT_SCHEMA,
-            "action": "reclaimed",
-            "relative_path": relative,
-            "size_bytes": size,
-        }
-        with self._audit_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-
-
 __all__ = [
     "FileMaintenanceService",
     "MaintenanceError",
-    "ReclaimCandidate",
-    "ReclaimReport",
     "SpaceReport",
     "detect_activity_blocker",
 ]

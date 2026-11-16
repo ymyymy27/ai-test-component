@@ -41,8 +41,6 @@ def test_storage_usage_reports_the_workspace_space_and_integrity(tmp_path: Path)
         "temp_bytes",
         "backup_bytes",
         "other_bytes",
-        "reclaimable_bytes",
-        "reclaimable_files",
         "integrity_ok",
         "integrity_errors",
     ):

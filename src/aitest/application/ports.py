@@ -39,7 +39,6 @@ from aitest.application.planning.substrate import (
 from aitest.application.planning.substrate import (
     RecordQuery as RecordQuery,
 )
-from aitest.contracts.capabilities import CapabilitySet
 from aitest.contracts.commands import Command
 from aitest.contracts.errors import ErrorDTO
 from aitest.contracts.events import Event
@@ -272,7 +271,6 @@ class IndexPort(Protocol):
 class QueryPort(Protocol):
     def dispatch(self, query: Query) -> Response: ...
     def list_events(self, query: Query) -> Response: ...
-    def capabilities(self, *, request_id: RequestId, workspace_id: str) -> CapabilitySet: ...
 
 
 class LocalProtocolPort(Protocol):
@@ -859,26 +857,15 @@ class SecretPort(Protocol):
 
 
 class MaintenancePort(Protocol):
-    """Integrity, space, guarded reclaim and migration; no business deletion.
+    """Integrity, space and migration; no business deletion.
 
-    Backup operations are covered by :class:`BackupPort`. Reclaim only removes
-    materials proven safe (atomic leftovers, empty staging); an unresolved
-    active execution blocks migration.
+    Backup operations are covered by :class:`BackupPort`; an unresolved active
+    execution blocks migration.
     """
 
     def check_integrity(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
 
     def diagnose_space(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
-
-    def preview_reclaim(self, *, request_id: RequestId, workspace_id: str) -> Response: ...
-
-    def reclaim(
-        self,
-        *,
-        request_id: RequestId,
-        workspace_id: str,
-        relative_paths: Sequence[str] = (),
-    ) -> Response: ...
 
     def apply_migrations(
         self,
