@@ -21,7 +21,7 @@
 
 ## 1 一期（当前交付范围）
 
-21 FR（验收场景重排中），Windows 11 x64 + Python 3.11+ + Trae 的本地测试闭环。完整索引见 [一期 README](项目文档/一期/README.md)。
+18 FR、26 AC 的轻量 Trae 插件：扩展 + 本地 Python CLI + 文件工作空间。完整索引见 [一期 README](项目文档/一期/README.md)。
 
 | 类别 | 文档 |
 | --- | --- |

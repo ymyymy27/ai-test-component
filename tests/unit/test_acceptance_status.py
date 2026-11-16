@@ -1,8 +1,7 @@
-"""验收登记对账：`tests/acceptance/p1/status.json` 必须与需求文档第 6 节逐字一致。
+"""验收登记对账（一期）：`tests/acceptance/p1/status.json` 必须与需求规格第 4 节逐字一致。
 
-本测试只检查"登记是否可信"，不产生也不替代任何验收结论。
-权威来源：`docs/项目文档/一期/02-需求/02-需求规格.md` 第 6 节（验收场景唯一维护点）。
-设计与字段含义见 `docs/归档/作者文档/文档-feix-a/B包/15-验收框架设计说明.md`。
+本测试只检查“登记是否可信”，不产生也不替代任何验收结论。
+权威来源：`docs/项目文档/一期/02-需求/02-需求规格.md` 第 4 节。
 """
 
 from __future__ import annotations
@@ -16,34 +15,20 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _REQUIREMENTS = _REPO_ROOT / "docs" / "项目文档" / "一期" / "02-需求" / "02-需求规格.md"
 _STATUS = _REPO_ROOT / "tests" / "acceptance" / "p1" / "status.json"
 
-_AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 36))
-
-# 《一期工程四部分拆分与低对接实施方案》第 5 节的验收牵头包归属。
-_EXPECTED_OWNER = {
-    "A": ("P1-AC28",),
-    "B": ("P1-AC01", "P1-AC03", "P1-AC12", "P1-AC17",
-          "P1-AC20", "P1-AC30", "P1-AC31", "P1-AC32"),
-    "C": ("P1-AC04", "P1-AC05", "P1-AC06", "P1-AC07", "P1-AC08", "P1-AC09",
-          "P1-AC13", "P1-AC19", "P1-AC24", "P1-AC25"),
-    "D": ("P1-AC02", "P1-AC10", "P1-AC11", "P1-AC14", "P1-AC15", "P1-AC16",
-          "P1-AC18", "P1-AC21", "P1-AC22", "P1-AC23", "P1-AC26", "P1-AC27",
-          "P1-AC29", "P1-AC33", "P1-AC34", "P1-AC35"),
-}
+_AC_IDS = tuple(f"P1-AC{index:02d}" for index in range(1, 27))
 
 _RESULTS = frozenset({"untested", "verified", "not_verified", "blocked"})
-_OWNERS = frozenset({"A", "B", "C", "D"})
 _BLOCKER_KINDS = frozenset({
-    "package_port",
+    "program_port",
     "real_storage",
     "execution_facts",
     "user_entry",
     "decision",
     "environment",
     "protocol",
+    "platform_contract",
 })
-
-# B 牵头的 8 项必须先完成前置条件分析，不允许留空。
-_B_OWNED = _EXPECTED_OWNER["B"]
+_REQUIRED_UPDATE_RULES = frozenset({"scenario_expected", "verified_rule", "no_inference"})
 
 
 def _load_status() -> dict[str, Any]:
@@ -51,7 +36,7 @@ def _load_status() -> dict[str, Any]:
 
 
 def _load_requirements_scenarios() -> dict[str, tuple[str, str, list[str]]]:
-    """从需求文档第 6 节解析验收场景表，返回 {AC: (场景, 预期, 关联功能)}。"""
+    """从需求规格第 4 节解析验收场景表，返回 {AC: (场景, 预期, 关联功能)}。"""
 
     scenarios: dict[str, tuple[str, str, list[str]]] = {}
     for line in _REQUIREMENTS.read_text(encoding="utf-8").splitlines():
@@ -75,9 +60,8 @@ def _results() -> list[dict[str, Any]]:
     return cast(list[dict[str, Any]], _load_status()["results"])
 
 
-def test_status_json_lists_all_thirty_five_scenarios_in_order() -> None:
-    ids = [row["id"] for row in _results()]
-    assert ids == list(_AC_IDS)
+def test_status_lists_all_scenarios_in_order() -> None:
+    assert [row["id"] for row in _results()] == list(_AC_IDS)
 
 
 def test_scenario_and_expected_match_the_requirements_verbatim() -> None:
@@ -91,30 +75,9 @@ def test_scenario_and_expected_match_the_requirements_verbatim() -> None:
         assert row["related_frs"] == functions, f"{row['id']} 关联功能与需求文档不一致"
 
 
-def test_owner_matches_the_split_plan() -> None:
-    expected = {ac: package for package, acs in _EXPECTED_OWNER.items() for ac in acs}
-    assert len(expected) == 35
-
-    for row in _results():
-        assert row["owner"] == expected[row["id"]], f"{row['id']} 牵头包与实施方案第 5 节不一致"
-
-
 def test_result_values_are_within_the_allowed_enumeration() -> None:
     for row in _results():
         assert row["result"] in _RESULTS, f"{row['id']} result 取值非法：{row['result']}"
-
-
-def test_owner_is_one_of_the_four_packages() -> None:
-    for row in _results():
-        assert row["owner"] in _OWNERS, f"{row['id']} owner 取值非法：{row['owner']}"
-
-
-def test_each_package_owns_exactly_the_scenarios_from_the_split_plan() -> None:
-    """牵头包归属逐项锁定：改归属必须同时改实施方案与本映射。"""
-
-    for package, ac_ids in _EXPECTED_OWNER.items():
-        owned = tuple(row["id"] for row in _results() if row["owner"] == package)
-        assert owned == ac_ids, f"{package} 包的牵头 AC 与实施方案第 5 节不一致"
 
 
 def test_verified_requires_evidence_and_real_environment() -> None:
@@ -164,21 +127,6 @@ def test_mirrored_cases_match_results() -> None:
     assert [case["result"] for case in cases] == [row["result"] for row in results]
 
 
-def test_b_owned_scenarios_have_prerequisite_analysis() -> None:
-    for ac_id in _B_OWNED:
-        row = next(item for item in _results() if item["id"] == ac_id)
-        assert row["prerequisites"], f"{ac_id} 缺少前置条件清单"
-        assert row["artifact_versions"], f"{ac_id} 缺少软件与制品版本要求"
-        assert row["evidence"]["method"], f"{ac_id} 缺少证据获取方式"
-        if row["result"] == "verified":
-            # A B-owned scenario may be verified only through the global evidence
-            # and real-environment rule; real storage/execution/entry now exist.
-            assert row["evidence"]["path"], f"{ac_id} 已验证但缺少证据路径"
-        else:
-            assert row["blockers"], f"{ac_id} 缺少结构化阻塞项"
-
-
 def test_update_rules_state_the_boundaries() -> None:
     rules = _load_status()["update_rules"]
-    expected = {"owner_field", "scenario_expected", "b_scope", "verified_rule", "no_inference"}
-    assert set(rules) == expected
+    assert _REQUIRED_UPDATE_RULES <= set(rules)
