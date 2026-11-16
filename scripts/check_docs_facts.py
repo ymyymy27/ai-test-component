@@ -147,13 +147,11 @@ def dispatchable_action_count() -> int | None:
     """真实装配一次工作空间核心并数出可派发动作（不看字符串、不靠命名猜测）。"""
 
     script = """
-import json, sys
-from pathlib import Path
-from aitest.bootstrap import assemble_workspace_core
+import json
+import aitest.runtime_commands  # noqa: F401
+from aitest.commands import REGISTRY
 
-with __import__("tempfile").TemporaryDirectory() as raw:
-    assembly = assemble_workspace_core(Path(raw), instance_id="docs-facts")
-    print("ACTIONS=" + json.dumps(sorted(assembly.api.handlers) + ["doctor"]))
+print("ACTIONS=" + json.dumps(sorted(REGISTRY)))
 """
     with tempfile.TemporaryDirectory(prefix="aitest-docs-facts-") as raw:
         result = subprocess.run(

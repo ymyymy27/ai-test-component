@@ -34,7 +34,6 @@ packages = ["src/aitest"]
 include = [
   "src/aitest/**/*.py",
   "src/aitest/resources/templates/**/*.json",
-  "src/aitest/contracts/schemas/*.json",
   "src/aitest/resources/panel/dist/*.js",
 ]
 artifacts = ["src/aitest/resources/panel/dist/*.js"]
