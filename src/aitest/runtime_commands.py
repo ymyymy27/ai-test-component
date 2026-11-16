@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from aitest.ai_features import judge_mock, summarize_report
 from aitest.commands import (
     MUTATING,
     REGISTRY,
@@ -29,14 +30,17 @@ from aitest.model_config import build_client, model_settings
 from aitest.models import (
     Analysis,
     Case,
+    Delivery,
     Issue,
     IssueOccurrence,
     Opinion,
     Plan,
+    Project,
     Report,
     Run,
     RunCase,
     Scope,
+    Task,
     new_id,
 )
 from aitest.storage.files import read_model, write_model
@@ -399,6 +403,38 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
     plan = read_model(run_dir / "plan.json", Plan)
     outcome = verdict(plan, run)
     counts = coverage(plan, run)
+    mock_judgement: list[dict[str, Any]] = list(run.mock_judgement)
+    summary: str | None = None
+    client = build_client(ws, run.project_id)
+    if client is not None:
+        project = read_model(ws.project_path(run.project_id), Project)
+        plan_task = read_model(
+            ws.project_dir(run.project_id) / "tasks" / f"{plan.task_id}.json", Task
+        )
+        delivery_path = ws.project_dir(run.project_id) / "deliveries" / f"{plan_task.task_id}.json"
+        delivery = read_model(delivery_path, Delivery) if delivery_path.is_file() else None
+        dependencies: list[str] = []
+        if delivery is not None:
+            dependencies = [*delivery.dependencies, *delivery.mocks]
+        if not dependencies:
+            dependencies = [module.name for module in project.modules]
+        if dependencies:
+            mock_judgement = judge_mock(
+                Path(project.root),
+                dependencies,
+                list(run.evidence_refs),
+                client=client,
+            )
+            run.mock_judgement = mock_judgement
+            write_model(run_dir / "run.json", run)
+        summary = summarize_report(
+            {
+                "outcome": outcome,
+                "coverage": counts,
+                "failed_cases": [case.case_id for case in run.cases if case.result == "failed"],
+            },
+            client=client,
+        )
     report = Report(
         report_id=new_id("rep"),
         run_id=run.run_id,
@@ -406,6 +442,8 @@ def cmd_report_generate(ws: Workspace, payload: Payload, confirm: bool) -> dict[
         counts=counts,
         coverage={"selected": counts["selected"], "applicable": counts["applicable"]},
         evidence_refs=list(run.evidence_refs),
+        mock_judgement=mock_judgement,
+        summary=summary,
     )
     write_model(ws.project_dir(run.project_id) / "reports" / f"{report.report_id}.json", report)
     return {"report_id": report.report_id, "outcome": outcome, "counts": counts}

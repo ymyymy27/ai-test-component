@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import threading
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from aitest.models import Attempt, Case, Plan, Project, Run
@@ -15,6 +19,7 @@ from aitest.storage.files import read_model, write_model
 from aitest.storage.workspace import Workspace, iso_now
 
 MAX_FILE_BYTES = 20 * 1024 * 1024
+SERVICES_FILE = "project.config.json"
 _LOCK = threading.Lock()
 
 
@@ -42,6 +47,57 @@ def _save_evidence(run_dir: Path, name: str, data: bytes) -> str:
             f"原始大小 {len(data)} 字节，已截断\n", encoding="utf-8"
         )
     return str(path.relative_to(run_dir)).replace("\\", "/")
+
+
+def _services(ws: Workspace, project_id: str) -> dict[str, object]:
+    path = ws.project_dir(project_id) / SERVICES_FILE
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    value = data.get("services") if isinstance(data, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def _healthy(url: str) -> bool:
+    if not url:
+        return True
+    try:
+        with urllib.request.urlopen(url, timeout=2) as response:
+            return int(response.status) < 500
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def _start_service(config: dict[str, object], cwd: Path, log: Path) -> tuple[bool, bool]:
+    start = str(config.get("start") or "").strip()
+    if not start:
+        return False, _healthy(str(config.get("health") or ""))
+    health = str(config.get("health") or "")
+    timeout = float(str(config.get("timeout_seconds", 120)))
+    process = subprocess.Popen(
+        start, shell=True, cwd=cwd, stdout=log.open("ab"), stderr=subprocess.STDOUT
+    )
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if _healthy(health):
+            return True, True
+        if process.poll() is not None and not health:
+            return True, True
+        time.sleep(0.5)
+    return True, False
+
+
+def _stop_service(config: dict[str, object], cwd: Path, log: Path) -> None:
+    stop = str(config.get("stop") or "").strip()
+    if not stop:
+        return
+    with log.open("ab") as handle:
+        subprocess.run(
+            stop, shell=True, cwd=cwd, stdout=handle, stderr=subprocess.STDOUT, timeout=120
+        )
 
 
 def _execute(case: Case, workdir: Path) -> tuple[str, list[bytes], str]:
@@ -87,6 +143,15 @@ def main(argv: list[str] | None = None) -> int:
     workdir = Path(project.root)
     cases = {case.case_id: case for case in plan.cases}
 
+    services_config = _services(ws, args.project)
+    service_started = False
+    service_ok = True
+    build_ok = True
+    if services_config:
+        service_started, service_ok = _start_service(
+            services_config, workdir, run_dir / "service.log"
+        )
+
     stop = threading.Event()
     beat = threading.Thread(target=_heartbeat, args=(run_path, stop), daemon=True)
     beat.start()
@@ -98,6 +163,16 @@ def main(argv: list[str] | None = None) -> int:
                 run.status = "cancelled"
                 break
             case = cases.get(run_case.case_id)
+            if case is not None and case.depends_on == "service" and not service_ok:
+                run_case.result = "blocked"
+                run_case.attempts.append(Attempt(attempt=1, result="blocked", message="服务未就绪"))
+                continue
+            if case is not None and case.depends_on == "build" and not build_ok:
+                run_case.result = "blocked"
+                run_case.attempts.append(
+                    Attempt(attempt=1, result="blocked", message="L1 检查未通过")
+                )
+                continue
             if case is None:
                 run_case.result = "error"
                 run_case.attempts.append(
@@ -120,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             run_case.result = result  # type: ignore[assignment]
+            if case.layer == "L1" and result != "passed":
+                build_ok = False
             run_case.evidence_refs.extend(refs)
             run.evidence_refs.extend(refs)
             run.heartbeat_at = iso_now()
@@ -131,6 +208,10 @@ def main(argv: list[str] | None = None) -> int:
         (run_dir / "worker-error.txt").write_text(str(exc), encoding="utf-8")
     finally:
         stop.set()
+        failed = any(case.result == "failed" for case in run.cases)
+        keep = bool(services_config.get("keep_on_failure")) and failed
+        if service_started and not keep:
+            _stop_service(services_config, workdir, run_dir / "service.log")
         run.heartbeat_at = iso_now()
         _save(run_path, run)
     return 0

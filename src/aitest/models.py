@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -181,6 +181,7 @@ class Run(Model):
     cases: list[RunCase] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     analysis: list[Analysis] = Field(default_factory=list)
+    mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class IssueOccurrence(Model):
@@ -220,6 +221,8 @@ class Report(Model):
     changed_modules: list[str] = Field(default_factory=list)
     unmapped_files: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
+    mock_judgement: list[dict[str, Any]] = Field(default_factory=list)
+    summary: str | None = None
     opinion: Opinion | None = None
     revision: int = 1
 
